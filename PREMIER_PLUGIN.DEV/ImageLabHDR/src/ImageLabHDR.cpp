@@ -1,1 +1,3 @@
-﻿#include "ImageLabHDR.h"
+#include <Windows.h>
+#include "AdobeImageLabHDR.h"
+

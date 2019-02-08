@@ -28,10 +28,77 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dllmain.cpp" />
+    <ClCompile Include="src\AdobeImageLabHDR.cpp" />
+    <ClCompile Include="src\ImageLabHDR.cpp" />
+    <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\JobContext.cpp" />
+    <ClCompile Include="src\JobResource.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAlphaTypes.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAsyncImporter.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAudioSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKClassData.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKClipRenderSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKEffect.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKEntry.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKErrorSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExport.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportFileSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportInfoSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportParamSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportProgressSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportStdParamSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKFlashCueMarkerDataSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImmersiveVideoTypes.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImport.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImporterShared.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMALErrors.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMarkerSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMediaAcceleratorSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMemoryManagerSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPiPLVer.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPixelFormat.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPixelFormatSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugMemory.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugPPix.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugSuites.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugTimeline.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugUtilities.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugWindow.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixCacheSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixCreatorSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKQuality.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKRenderCacheType.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKRollCrawlSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceAudioSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceInfoSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceRenderSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSetEnv.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStreamLabel.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStringSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStructs.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKTimeSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKTypes.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentProperties.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentRenderSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKWindowSuite.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\SDK_File.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\SDK_Segment_Utils.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\SPBasic.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\SPConfig.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\SPErrorCodes.h" />
+    <ClInclude Include="..\ADOBE_INCLUDES\SPTypes.h" />
+    <ClInclude Include="include\AdobeImageLabHDR.h" />
     <ClInclude Include="include\ImageLabHDR.h" />
+    <ClInclude Include="include\JobContext.h" />
+    <ClInclude Include="include\JobResource.h" />
     <ClInclude Include="include\pch.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\ADOBE_INCLUDES\PrSDKPiPL.r" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{31c7389e-6c30-42bf-b622-351002434de0}</ProjectGuid>
@@ -205,11 +272,14 @@
       <PrecompiledHeaderFile />
       <PrecompiledHeaderOutputFile />
       <AdditionalIncludeDirectories>$(ProjectDir)include;$(SolutionDir)ADOBE_INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
+      <MapExports>true</MapExports>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -219,6 +289,8 @@
       <PrecompiledHeaderFile />
       <PrecompiledHeaderOutputFile />
       <AdditionalIncludeDirectories>$(ProjectDir)include;$(SolutionDir)ADOBE_INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

@@ -1,9 +1,9 @@
-﻿#pragma once
+#include <windows.h>
 
-#include "PrSDKEffect.h"
-#include "PrSDKPixelFormat.h"
-#include "PrSDKPPixSuite.h"
-#include "PrSDKPixelFormatSuite.h"
-#include "PrSDKSequenceInfoSuite.h"
-#include "SDK_File.h"
+#ifndef min
+ #define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
 
+#ifndef max
+ #define max(a,b) ((a) < (b) ? (a) : (b))
+#endif
