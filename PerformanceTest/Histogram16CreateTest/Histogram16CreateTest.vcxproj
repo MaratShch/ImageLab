@@ -113,6 +113,9 @@
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <EnablePREfast>true</EnablePREfast>
+      <Parallelization>true</Parallelization>
+      <EnableGapAnalysis>Disable</EnableGapAnalysis>
+      <UseProcessorExtensions>AVX2</UseProcessorExtensions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

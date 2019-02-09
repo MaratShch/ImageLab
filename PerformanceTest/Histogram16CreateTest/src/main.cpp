@@ -31,18 +31,16 @@ trivialStatistics tStat2;
 __declspec(noinline) void allocateHistogramPull(int** pHistogram)
 {
 	const int totalPools = (HIST_POOL_SIZE)+1;
-
-	for (int i = 0; i < totalPools; i++)
-	{
-		pHistogram[i] = reinterpret_cast<int*>(malloc(65536 * sizeof(int)));
-	}
+	// create interleaved histogram buffer
+	pHistogram[0] = reinterpret_cast<int*>(malloc(65536 * sizeof(int) * (HIST_POOL_SIZE)));
+	// create final histogram buffer
+	pHistogram[0] = reinterpret_cast<int*>(malloc(65536 * sizeof(int)));
+	return;
 }
 
 __declspec(noinline) void freeHistogramPull(int** pHistogram)
 {
-	const int totalPools = (HIST_POOL_SIZE)+1;
-
-	for (int i = 0; i < totalPools; i++)
+	for (int i = 0; i < 2; i++)
 	{
 		if (nullptr != pHistogram[i])
 		{
@@ -50,9 +48,11 @@ __declspec(noinline) void freeHistogramPull(int** pHistogram)
 			pHistogram[i] = nullptr;
 		}
 	}
+
+	return;
 }
 
-__declspec(noinline) void createTrivialHistogram(const unsigned short* pData, const int sizeX, const int sizeY, const int linePitch, int* pHistogram)
+__declspec(noinline) void createTrivialHistogram(const unsigned short* __restrict pData, const int sizeX, const int sizeY, const int linePitch, int* __restrict pHistogram)
 {
 	unsigned short* pImage = const_cast<unsigned short*>(pData);
 	unsigned short* pLine;
@@ -71,60 +71,10 @@ __declspec(noinline) void createTrivialHistogram(const unsigned short* pData, co
 // memory optimized histogram computation
 __declspec(noinline) void createOptimize1dHistogram(const unsigned short* pData, const int sizeX, const int sizeY, const int linePitch, int** pHistogram)
 {
-	unsigned short* pImage = const_cast<unsigned short*>(pData);
-	unsigned short* pLine;
-	unsigned short* pLine1;
-	unsigned short* pLine2;
-	unsigned short* pLine3;
-	unsigned short* pLine4;
+	unsigned short* __restrict pImage = const_cast<unsigned short*>(pData);
+	int* __restrict pHistogramInterleaved = pHistogram  [0];
+	int* __restrict pHistogramFinal = pHistogram  [1];
 
-	int* pHistogram1 = pHistogram  [0];
-	int* pHistogram2 = pHistogram  [1];
-	int* pHistogram3 = pHistogram  [2];
-	int* pHistogram4 = pHistogram  [3];
-	int* pHistogramSum = pHistogram[4];
- 
-	unsigned short p1, p2, p3, p4;
-
-	// make interleved histogramm
-	for (int i = 0; i < sizeY; i++)
-	{
-		pLine = (unsigned short*)((__int64)(pData) + i * linePitch * sizeof(unsigned short));
-
-		pLine1 = &pLine[0];
-		pLine2 = &pLine[1];
-		pLine3 = &pLine[2];
-		pLine4 = &pLine[3];
-
-		for (int j = 0; j < sizeX; j += 4)
-		{
-			p1 = *pLine1;
-			p2 = *pLine2;
-			p3 = *pLine3;
-			p4 = *pLine4;
-
-			pHistogram1[p1]++;
-			pHistogram2[p2]++;
-			pHistogram3[p3]++;
-			pHistogram4[p4]++;
-
-			pLine1++;
-			pLine2++;
-			pLine3++;
-			pLine4++;
-
-		}
-	}
-
-	// make finall histogramm
-	for (int i = 0; i < 65536; i += 4)
-	{
-		pHistogramSum[i]   = pHistogram1[i]   + pHistogram2[i]   + pHistogram3[i]   + pHistogram4[i];
-		pHistogramSum[i+1] = pHistogram1[i+1] + pHistogram2[i+1] + pHistogram3[i+1] + pHistogram4[i+1];
-		pHistogramSum[i+2] = pHistogram1[i+2] + pHistogram2[i+2] + pHistogram3[i+2] + pHistogram4[i+2];
-		pHistogramSum[i+3] = pHistogram1[i+3] + pHistogram2[i+3] + pHistogram3[i+3] + pHistogram4[i+3];
-
-	}
 	return;
 }
 
