@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <string.h>
 
 #ifdef _WIN32 || _WIN64
 
@@ -23,6 +23,12 @@ void cpuid(int info[4], int InfoType){
 
 void main (void)
 {
+unsigned cores = 0;
+unsigned cpuFeatures = 0;
+unsigned logical = 0;
+
+char vendor[16] = { 0 };
+
 //  Misc.
 bool HW_MMX;
 bool HW_x64;
@@ -62,9 +68,38 @@ bool HW_AVX512DQ;   //  AVX512 Doubleword + Quadword
 bool HW_AVX512IFMA; //  AVX512 Integer 52-bit Fused Multiply-Add
 bool HW_AVX512VBMI; //  AVX512 Vector Byte Manipulation Instructions
 
-int info[4];
+bool hyperThreads;
+
+int info[4] = { 0 };
 cpuid(info, 0);
 int nIds = info[0];
+
+((unsigned *)vendor)[0] = info[1]; // EBX
+((unsigned *)vendor)[1] = info[3]; // EDX
+((unsigned *)vendor)[2] = info[2]; // ECX
+vendor[12] = '\0';
+
+// Get CPU features
+cpuid(info, 1);
+cpuFeatures = info[3]; // EDX
+								// Logical core count per CPU
+cpuid(info, 1);
+logical = (info[1] >> 16) & 0xff; // EBX[23:16]
+printf(" logical cpus: %d\n", logical);
+cores = logical;
+
+if (0 == strcmp(vendor, "GenuineIntel")) {
+	// Get DCP cache info
+	cpuid(info, 11);
+	cores = ((info[0] >> 26) & 0x3f) + 1; // EAX[31:26] + 1
+}
+else if (0 == strcmp(vendor, "AuthenticAMD")) {
+	// Get NC: Number of CPU cores - 1
+	cpuid(info, 0x80000008);
+	cores = ((unsigned)(info[2] & 0xff)) + 1; // ECX[7:0] + 1
+}
+
+hyperThreads = cpuFeatures & (1 << 28) && cores < logical;
 
 cpuid(info, 0x80000000);
 unsigned nExIds = info[0];
@@ -86,6 +121,7 @@ if (nIds >= 0x00000001){
     HW_FMA3   = (info[2] & ((int)1 << 12)) != 0;
 
     HW_RDRAND = (info[2] & ((int)1 << 30)) != 0;
+
 }
 if (nIds >= 0x00000007){
     cpuid(info,0x00000007);
@@ -116,6 +152,10 @@ if (nExIds >= 0x80000001){
     HW_XOP   = (info[2] & ((int)1 << 11)) != 0;
 }
 
+
+
+printf("Vendor:        %s\n", vendor);
+printf("Physical cores = %d\n", cores);
 printf("HW_MMX         = %d\n", HW_MMX);
 printf("HW_SSE         = %d\n", HW_SSE);
 printf("HW_SSE2        = %d\n", HW_SSE2);
@@ -147,6 +187,8 @@ printf("HW_ABM         = %d\n", HW_ABM);
 printf("HW_SSE4a       = %d\n", HW_SSE4a);
 printf("HW_FMA4        = %d\n", HW_FMA4);
 printf("HW_XOP         = %d\n", HW_XOP);
+
+printf("hyper - threads: %s\n", hyperThreads ? "true" : "false");
 
 printf("Complete. Press <ENTER> for exit...\n");
 (void)getchar();
