@@ -18,21 +18,12 @@
     <ClCompile Include="src\AdobeImageLabHDR.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabPixelFormat.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AdobeImageLabHDR.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ImageLabHDR.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\JobContext.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\JobResource.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\pch.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\ADOBE\INCLUDES\AE_EffectVers.h">
@@ -211,9 +202,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ImageLabHDR.r">
-      <Filter>resources</Filter>
-    </None>
     <None Include="..\ADOBE\INCLUDES\AE_General.r">
       <Filter>adobe_include</Filter>
     </None>
@@ -225,5 +213,10 @@
     <ResourceCompile Include="ImageLabHDR.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ImageLabHDR.r">
+      <Filter>resources</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

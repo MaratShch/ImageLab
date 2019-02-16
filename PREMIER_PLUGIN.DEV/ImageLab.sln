@@ -5,7 +5,12 @@ VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageLabHDR", "ImageLabHDR", "{427A9A52-4745-4DC4-80A4-CDBAEE3A3173}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabHDR", "ImageLabHDR\ImageLabHDR.vcxproj", "{31C7389E-6C30-42BF-B622-351002434DE0}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Image_Equalization", "ImageLabHDR\ImageLabHDR.vcxproj", "{31C7389E-6C30-42BF-B622-351002434DE0}"
+	ProjectSection(ProjectDependencies) = postProject
+		{3A77E66D-46EE-457B-9199-5FD149B8392B} = {3A77E66D-46EE-457B-9199-5FD149B8392B}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabCorei7", "ImageLabCorei7\ImageLabCorei7.vcxproj", "{3A77E66D-46EE-457B-9199-5FD149B8392B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -28,6 +33,18 @@ Global
 		{31C7389E-6C30-42BF-B622-351002434DE0}.Release|x64.Build.0 = Release|x64
 		{31C7389E-6C30-42BF-B622-351002434DE0}.Release|x86.ActiveCfg = Release|Win32
 		{31C7389E-6C30-42BF-B622-351002434DE0}.Release|x86.Build.0 = Release|Win32
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Debug|ARM.ActiveCfg = Debug|ARM
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Debug|ARM.Build.0 = Debug|ARM
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Debug|x64.ActiveCfg = Debug|x64
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Debug|x64.Build.0 = Debug|x64
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Debug|x86.ActiveCfg = Debug|Win32
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Debug|x86.Build.0 = Debug|Win32
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Release|ARM.ActiveCfg = Release|ARM
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Release|ARM.Build.0 = Release|ARM
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Release|x64.ActiveCfg = Release|x64
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Release|x64.Build.0 = Release|x64
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Release|x86.ActiveCfg = Release|Win32
+		{3A77E66D-46EE-457B-9199-5FD149B8392B}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
