@@ -7,6 +7,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 	csSDK_int32 errCode = fsNoErr;
 	FilterParamHandle filterParamH = nullptr;
 
+
 	switch (selector)
 	{
 		case fsInitSpec:
