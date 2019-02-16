@@ -58,8 +58,8 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 //				ImageLabHDR_FreeSystemMemory(pMemoryBlock);
 //				pMemoryBlock = nullptr;
 //			}
-			TlsFree(tlsIdx);
-			tlsIdx = ULONG_MAX;
+//			TlsFree(tlsIdx);
+//			tlsIdx = ULONG_MAX;
 		break;
 
 		default:

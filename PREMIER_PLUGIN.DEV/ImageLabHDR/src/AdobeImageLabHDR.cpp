@@ -1,24 +1,30 @@
 ﻿#include "AdobeImageLabHDR.h"
 
 
-
-static int allocateParamStructure(
-	VideoHandle	theData)
-{
-	return imNoErr;
-}
-
-
-
 // ImageLabHDR filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
 	csSDK_int32 errCode = fsNoErr;
+	FilterParamHandle filterParamH = nullptr;
 
 	switch (selector)
 	{
 		case fsInitSpec:
-			errCode = allocateParamStructure(theData);
+			errCode = fsNoErr;
+
+			if ((*theData)->specsHandle)
+			{
+
+			}
+			else
+			{
+				filterParamH = reinterpret_cast<FilterParamHandle>(((*theData)->piSuites->memFuncs->newHandle)(sizeof(FilterParamStr)));
+				if (nullptr == filterParamH)
+					break; // memory allocation failed
+
+				IMAGE_LAB_FILTER_PARAM_HANDLE_INIT(filterParamH);
+				(*theData)->specsHandle = reinterpret_cast<char**>(filterParamH);
+			}
 		break;
 
 		case fsHasSetupDialog:
