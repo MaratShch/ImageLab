@@ -7,5 +7,17 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
-PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+#ifndef FILTER_NAME_MAX_LENGTH
+#define FILTER_NAME_MAX_LENGTH	32
+#endif
+
+// Declare plug-in entry point with C linkage
+#ifdef __cplusplus
+extern "C" {
+#endif
+	PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+#ifdef __cplusplus
+}
+#endif
+
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);

@@ -1,10 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|ARM">
-      <Configuration>Debug</Configuration>
-      <Platform>ARM</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
@@ -12,10 +8,6 @@
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|ARM">
-      <Configuration>Release</Configuration>
-      <Platform>ARM</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
@@ -27,70 +19,67 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\dllmain.cpp" />
     <ClCompile Include="src\AdobeImageLabHDR.cpp" />
-    <ClCompile Include="src\ImageLabHDR.cpp" />
-    <ClCompile Include="src\ImageLabPixelFormat.cpp" />
-    <ClCompile Include="src\JobContext.cpp" />
-    <ClCompile Include="src\JobResource.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAlphaTypes.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAsyncImporter.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAudioSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKClassData.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKClipRenderSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKEffect.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKEntry.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKErrorSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExport.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportFileSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportInfoSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportParamSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportProgressSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportStdParamSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKFlashCueMarkerDataSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImmersiveVideoTypes.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImport.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImporterShared.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMALErrors.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMarkerSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMediaAcceleratorSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMemoryManagerSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPiPLVer.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPixelFormat.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPixelFormatSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugMemory.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugPPix.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugSuites.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugTimeline.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugUtilities.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugWindow.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixCacheSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixCreatorSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKQuality.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKRenderCacheType.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKRollCrawlSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceAudioSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceInfoSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceRenderSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSetEnv.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStreamLabel.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStringSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStructs.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKTimeSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKTypes.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentProperties.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentRenderSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKWindowSuite.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\SDK_File.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\SDK_Segment_Utils.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\SPBasic.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\SPConfig.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\SPErrorCodes.h" />
-    <ClInclude Include="..\ADOBE_INCLUDES\SPTypes.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\AEConfig.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\AE_EffectVers.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKAlphaTypes.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKAsyncImporter.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKAudioSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKClassData.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKClipRenderSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKEffect.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKEntry.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKErrorSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExport.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportFileSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportInfoSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportParamSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportProgressSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportStdParamSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKFlashCueMarkerDataSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKImmersiveVideoTypes.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKImport.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKImporterShared.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMALErrors.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMarkerSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMediaAcceleratorSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMemoryManagerSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPiPLVer.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPixelFormat.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPixelFormatSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugMemory.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugPPix.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugSuites.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugTimeline.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugUtilities.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugWindow.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPPixCacheSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPPixCreatorSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPPixSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKQuality.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKRenderCacheType.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKRollCrawlSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSequenceAudioSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSequenceInfoSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSequenceRenderSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSetEnv.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKStreamLabel.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKStringSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKStructs.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKTimeSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKTypes.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKVideoSegmentProperties.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKVideoSegmentRenderSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKVideoSegmentSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKWindowSuite.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\SDK_File.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\SDK_Segment_Utils.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\SPBasic.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\SPConfig.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\SPErrorCodes.h" />
+    <ClInclude Include="..\ADOBE\INCLUDES\SPTypes.h" />
     <ClInclude Include="include\AdobeImageLabHDR.h" />
     <ClInclude Include="include\ImageLabHDR.h" />
     <ClInclude Include="include\JobContext.h" />
@@ -98,205 +87,210 @@
     <ClInclude Include="include\pch.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\ADOBE_INCLUDES\PrSDKPiPL.r" />
+    <None Include="..\ADOBE\INCLUDES\AE_General.r" />
+    <None Include="..\ADOBE\INCLUDES\PrSDKPiPL.r" />
+    <CustomBuild Include="ImageLabHDR.r">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">cl /D PRWIN_ENV /I ..\ADOBE\HEADERS\ /EP $(ProjectDir)%(Filename).r &gt; $(ProjectDir)%(Filename).rr
+..\ADOBE\RESOURCES\CnvtPiPL $(ProjectDir)%(Filename).rr $(ProjectDir)%(Filename).rcp
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">cl /D PRWIN_ENV /I ..\ADOBE\HEADERS\ /EP $(ProjectDir)%(Filename).r &gt; $(ProjectDir)%(Filename).rr
+..\ADOBE\RESOURCES\CnvtPiPL $(ProjectDir)%(Filename).rr $(ProjectDir)%(Filename).rcp
+</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Converting PiPL for %(Filename)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$ProjectDir)%(Filename).rr;$(ProjectDir)%(Filename).rcp;%(Outputs)</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Converting PiPL for %(Filename)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$ProjectDir)%(Filename).rr;$(ProjectDir)%(Filename).rcp;%(Outputs)</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ImageLabHDR.rc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{31c7389e-6c30-42bf-b622-351002434de0}</ProjectGuid>
-    <Keyword>DynamicLibrary</Keyword>
-    <ProjectName>ImageLabHDR</ProjectName>
+    <ProjectGuid>{31C7389E-6C30-42BF-B622-351002434DE0}</ProjectGuid>
     <RootNamespace>ImageLabHDR</RootNamespace>
-    <DefaultLanguage>en-US</DefaultLanguage>
-    <MinimumVisualStudioVersion>14.0</MinimumVisualStudioVersion>
-    <AppContainerApplication>true</AppContainerApplication>
-    <ApplicationType>Windows Store</ApplicationType>
     <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
-    <WindowsTargetPlatformMinVersion>10.0.10240.0</WindowsTargetPlatformMinVersion>
-    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>
+    <ProjectName>Image_Equalization</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
-    <UseIntelIPP>false</UseIntelIPP>
-    <UseIntelTBB>false</UseIntelTBB>
-    <InstrumentIntelTBB>false</InstrumentIntelTBB>
-    <UseIntelMKL>No</UseIntelMKL>
-    <UseILP64Interfaces>false</UseILP64Interfaces>
-    <UseIntelDAAL>false</UseIntelDAAL>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
     <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <UseOfMfc>false</UseOfMfc>
     <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
     <PlatformToolset>v140</PlatformToolset>
-    <UseIntelIPP>false</UseIntelIPP>
-    <UseIntelTBB>false</UseIntelTBB>
-    <InstrumentIntelTBB>false</InstrumentIntelTBB>
-    <UseIntelMKL>No</UseIntelMKL>
-    <UseILP64Interfaces>false</UseILP64Interfaces>
-    <UseIntelDAAL>false</UseIntelDAAL>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
-  <ImportGroup Label="Shared">
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC70.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC70.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <GenerateManifest>false</GenerateManifest>
-    <IgnoreImportLibrary>false</IgnoreImportLibrary>
-    <CodeAnalysisRuleSet>NativeMinimumRules.ruleset</CodeAnalysisRuleSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <GenerateManifest>false</GenerateManifest>
-    <IgnoreImportLibrary>false</IgnoreImportLibrary>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
-    <GenerateManifest>false</GenerateManifest>
-    <IgnoreImportLibrary>false</IgnoreImportLibrary>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
-    <GenerateManifest>false</GenerateManifest>
-    <IgnoreImportLibrary>false</IgnoreImportLibrary>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <GenerateManifest>false</GenerateManifest>
-    <IgnoreImportLibrary>false</IgnoreImportLibrary>
-    <OutDir>$(SolutionDir)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
-    <IntDir>$(SolutionDir)\$(Configuration)\$(MSBuildProjectName)\Tmp</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <GenerateManifest>false</GenerateManifest>
-    <IgnoreImportLibrary>false</IgnoreImportLibrary>
-    <OutDir>$(SolutionDir)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
-    <IntDir>$(SolutionDir)\$(Configuration)\$(MSBuildProjectName)\Tmp</IntDir>
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.40219.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(PREMSDKBUILDPATH)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.\Debug\</IntDir>
+    <IgnoreImportLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</IgnoreImportLibrary>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    </LinkIncremental>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</IntDir>
+    <IgnoreImportLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</IgnoreImportLibrary>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    </LinkIncremental>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</IntDir>
+    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
+    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
+    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
+    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ImageLabHDR</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.prm</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(PREMSDKBUILDPATH)\</OutDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">ImageLabHDR</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">.prm</TargetExt>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ImageEqualization</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.prm</TargetExt>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ImageEqualization</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.prm</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Midl>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <TargetEnvironment>Win32</TargetEnvironment>
+      <TypeLibraryName>.\Debug/ImageLabHDR.tlb</TypeLibraryName>
+    </Midl>
     <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <PrecompiledHeaderFile />
-      <PrecompiledHeaderOutputFile />
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>..\..\Headers;..\..\Utils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>PRWIN_ENV;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <BrowseInformation>true</BrowseInformation>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <CompileAs>Default</CompileAs>
     </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;PRWIN_ENV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
+      <AdditionalDependencies>vfw32.lib;msacm32.lib;winmm.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention>
+      </DataExecutionPrevention>
+      <ImportLibrary>$(IntDir)/$(TargetName).lib</ImportLibrary>
+      <TargetMachine>MachineX86</TargetMachine>
     </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <PrecompiledHeaderFile />
-      <PrecompiledHeaderOutputFile />
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|arm'">
-    <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <PrecompiledHeaderFile />
-      <PrecompiledHeaderOutputFile />
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|arm'">
-    <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <PrecompiledHeaderFile />
-      <PrecompiledHeaderOutputFile />
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
-    </Link>
+    <Bscmake>
+      <OutputFile>$(IntDir)$(TargetName).bsc</OutputFile>
+    </Bscmake>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <TargetEnvironment>X64</TargetEnvironment>
+      <TypeLibraryName>.\Debug/ImageLabHDR.tlb</TypeLibraryName>
+    </Midl>
     <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <PrecompiledHeaderFile />
-      <PrecompiledHeaderOutputFile />
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(SolutionDir)ADOBE_INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <CompileAs>CompileAsCpp</CompileAs>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>include;..\ADOBE\INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <BrowseInformation>true</BrowseInformation>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <CompileAs>Default</CompileAs>
     </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;PRWIN_ENV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
-      <MapExports>true</MapExports>
+      <AdditionalDependencies>vfw32.lib;msacm32.lib;winmm.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention>
+      </DataExecutionPrevention>
+      <ImportLibrary>$(IntDir)/$(TargetName).lib</ImportLibrary>
+      <TargetMachine>MachineX64</TargetMachine>
     </Link>
+    <Bscmake>
+      <OutputFile>$(IntDir)$(TargetName).bsc</OutputFile>
+    </Bscmake>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <PrecompiledHeaderFile />
-      <PrecompiledHeaderOutputFile />
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(SolutionDir)ADOBE_INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <CompileAs>CompileAsCpp</CompileAs>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalIncludeDirectories>include;..\ADOBE\INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <TargetMachine>MachineX64</TargetMachine>
+      <ImportLibrary>$(IntDir)/$(TargetName).lib</ImportLibrary>
     </Link>
+    <Bscmake>
+      <OutputFile>$(IntDir)$(TargetName).bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Link>
+      <ImportLibrary>$(IntDir)/$(TargetName).lib</ImportLibrary>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+    </Link>
+    <Bscmake>
+      <OutputFile>$(IntDir)$(TargetName).bsc</OutputFile>
+    </Bscmake>
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\Headers;..\..\Utils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

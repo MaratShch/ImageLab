@@ -1,32 +1,71 @@
 ﻿#include <windows.h>
+#include <stdio.h>
+#include <tchar.h>
+#include "ImageLabHDR.h"
 
-static int numberCpuCores;
+#if 0
+static DWORD tlsIdx;
 
-int GetCpuCoresNumber(void)
-{
-	return numberCpuCores;
+extern "C" {
+	DWORD WINAPI __imp_TlsAlloc() {
+		return FlsAlloc(nullptr);
+	}
+	BOOL WINAPI __imp_TlsFree(DWORD index) {
+		return FlsFree(index);
+	}
+	BOOL WINAPI __imp_TlsSetValue(DWORD dwTlsIndex, LPVOID lpTlsValue) {
+		return FlsSetValue(dwTlsIndex, lpTlsValue);
+	}
+	LPVOID WINAPI __imp_TlsGetValue(DWORD dwTlsIndex) {
+		return FlsGetValue(dwTlsIndex);
+	}
 }
-
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
 {
-	SYSTEM_INFO sysinfo = {0};
-	numberCpuCores = 0;
-
-    switch (ul_reason_for_call)
+	PImageLabHDR_SystemMemoryBlock pMemoryBlock = nullptr;
+	
+	switch (ul_reason_for_call)
     {
 		case DLL_PROCESS_ATTACH:
-			GetSystemInfo(&sysinfo);
-			numberCpuCores = sysinfo.dwNumberOfProcessors;
-		break;
+			tlsIdx = TlsAlloc();
+			if (TLS_OUT_OF_INDEXES == tlsIdx)
+				return FALSE;
+			// no break!!!	
 
 		case DLL_THREAD_ATTACH:
+			if (true == ImageLabHDR_AllocSystemMemory(&pMemoryBlock))
+			{
+				TlsSetValue(tlsIdx, pMemoryBlock);
+			}
+			break;
+
 		case DLL_THREAD_DETACH:
-		case DLL_PROCESS_DETACH:
+			pMemoryBlock = reinterpret_cast<PImageLabHDR_SystemMemoryBlock>(TlsGetValue(tlsIdx));
+			if (nullptr != pMemoryBlock)
+			{
+				TlsSetValue(tlsIdx, nullptr);
+				ImageLabHDR_FreeSystemMemory(pMemoryBlock);
+				pMemoryBlock = nullptr;
+			}
 		break;
+
+		case DLL_PROCESS_DETACH:
+			pMemoryBlock = reinterpret_cast<PImageLabHDR_SystemMemoryBlock>(TlsGetValue(tlsIdx));
+			if (nullptr != pMemoryBlock)
+			{
+				TlsSetValue(tlsIdx, nullptr);
+				ImageLabHDR_FreeSystemMemory(pMemoryBlock);
+				pMemoryBlock = nullptr;
+			}
+			TlsFree(tlsIdx);
+			tlsIdx = 0;
+			break;
 
 		default:
 		break;
     }
+
     return TRUE;
 }
+#endif

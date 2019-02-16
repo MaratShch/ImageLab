@@ -1,0 +1,147 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+resource 'PiPL' (16000)
+{
+	{	
+		
+		Kind {PrVideoFilter},
+		
+		
+		Name {"Image Equalization"},
+	
+		
+		AE_Effect_Match_Name {"Image_Equalization"},
+
+		
+		Category {"ImageLab"},
+
+		
+		AE_PiPL_Version {2, 3},
+	
+		
+		
+
+		ANIM_FilterInfo
+		{
+			0,
+
+			notUnityPixelAspectRatio,
+			anyPixelAspectRatio,
+			reserved4False,
+			reserved3False,
+			reserved2False,
+
+			reserved1False,		
+			reserved0False,
+			driveMe,
+			doesntNeedDialog,	
+			paramsNotPointer,
+			paramsNotHandle,
+			paramsNotMacHandle,
+			dialogNotInRender,
+			paramsNotInGlobals,
+			bgAnimatable,
+			fgAnimatable,
+			geometric,
+			noRandomness,
+			3,					
+			"Image_Equalization"
+		},
+
+		ANIM_ParamAtom 
+		{
+			0,					
+			"Choose a Color",	
+			1,					
+			ANIM_DT_COLOR_RGB,	
+			ANIM_UI_COLOR_RGB,	
+			0x0,
+			0x0,
+			0x0,
+			0x0,
+			0x0,
+			0x0,
+			0x0,
+			0x0,
+
+			dontScaleUIRange,
+
+			animateParam,		
+			dontRestrictBounds,	
+			spaceIsAbsolute,	
+			resIndependent,		
+			4					
+		},
+		
+		ANIM_ParamAtom 
+		{
+			1,					
+			"Callback Switch",	
+			2,					
+			ANIM_DT_LONG,		
+			ANIM_UI_SLIDER,		
+			0xc0590000,
+			0x0,				
+			0x40590000,
+			0x0,				
+			0xc0590000,
+			0x0,				
+			0x40590000,				
+			0x0,				
+
+			dontScaleUIRange,
+
+			animateParam,		
+			dontRestrictBounds,	
+			spaceIsAbsolute,
+			resIndependent,
+			4					
+		},
+		
+		ANIM_ParamAtom 
+		{
+			2,					
+			"Use VFilterCallback",	
+			3,					
+			13,					
+			8,					
+			0x0,
+			0x0,				
+			0x0,
+			0x0,				
+			0x0,
+			0x0,				
+			0x0,				
+			0x0,				
+
+			dontScaleUIRange,
+
+			animateParam,		
+			dontRestrictBounds,	
+			spaceIsAbsolute,
+			resIndependent,
+			1					
+		},
+	}
+};

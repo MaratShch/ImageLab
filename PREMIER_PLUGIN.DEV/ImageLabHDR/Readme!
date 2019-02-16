@@ -1,0 +1,5 @@
+cl /D PRWIN_ENV /I ..\ADOBE\HEADERS\ /EP $(ProjectDir)%(Filename).r > $(ProjectDir)%(Filename).rr
+..\ADOBE\RESOURCES\CnvtPiPL $(ProjectDir)%(Filename).rr $(ProjectDir)%(Filename).rcp
+
+
+

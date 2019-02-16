@@ -113,22 +113,14 @@ csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData)
 			break;
 
 			case 26:
-				(*theData)->pixelFormatSupported = PrPixelFormat_UYVY_422_32f_601;
-			break;
-
-			case 27:
-				(*theData)->pixelFormatSupported = PrPixelFormat_UYVY_422_32f_709;
-			break;
-
-			case 28:
 				(*theData)->pixelFormatSupported = PrPixelFormat_RGB_444_12u_PQ_709;
 			break;
 
-			case 29:
+			case 27:
 				(*theData)->pixelFormatSupported = PrPixelFormat_RGB_444_12u_PQ_P3;
 			break;
 
-			case 30:
+			case 28:
 				(*theData)->pixelFormatSupported = PrPixelFormat_RGB_444_12u_PQ_2020;
 			break;
 

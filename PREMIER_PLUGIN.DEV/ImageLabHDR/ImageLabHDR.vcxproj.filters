@@ -1,177 +1,25 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="include\pch.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAlphaTypes.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAsyncImporter.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKAudioSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKClassData.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKClipRenderSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKEffect.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKEntry.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKErrorSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExport.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportFileSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportInfoSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportParamSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportProgressSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKExportStdParamSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKFlashCueMarkerDataSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImmersiveVideoTypes.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImport.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKImporterShared.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMALErrors.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMarkerSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMediaAcceleratorSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKMemoryManagerSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPiPLVer.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPixelFormat.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPixelFormatSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugMemory.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugPPix.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugSuites.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugTimeline.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugUtilities.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPlugWindow.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixCacheSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixCreatorSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKPPixSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKQuality.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKRenderCacheType.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKRollCrawlSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceAudioSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceInfoSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSequenceRenderSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKSetEnv.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStreamLabel.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStringSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKStructs.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKTimeSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKTypes.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentProperties.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentRenderSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKVideoSegmentSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\PrSDKWindowSuite.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\SDK_File.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\SDK_Segment_Utils.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\SPBasic.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\SPConfig.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\SPErrorCodes.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\ADOBE_INCLUDES\SPTypes.h">
-      <Filter>adobe_include</Filter>
-    </ClInclude>
+    <Filter Include="src">
+      <UniqueIdentifier>{600d9ef5-9de2-4cff-a0f6-f4541504f1f2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{0d61388f-26f9-4875-83c7-1c7e3aacba61}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="adobe_include">
+      <UniqueIdentifier>{632ba0da-126d-4834-b066-8573eb376d89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="resources">
+      <UniqueIdentifier>{f0808803-f5cd-4cc9-bbf4-4e4880f4bab0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\AdobeImageLabHDR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="include\AdobeImageLabHDR.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -184,41 +32,198 @@
     <ClInclude Include="include\JobResource.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\pch.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\AE_EffectVers.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\AEConfig.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKAlphaTypes.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKAsyncImporter.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKAudioSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKClassData.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKClipRenderSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKEffect.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKEntry.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKErrorSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExport.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportFileSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportInfoSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportParamSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportProgressSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKExportStdParamSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKFlashCueMarkerDataSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKImmersiveVideoTypes.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKImport.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKImporterShared.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMALErrors.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMarkerSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMediaAcceleratorSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKMemoryManagerSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPiPLVer.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPixelFormat.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPixelFormatSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugMemory.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugPPix.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugSuites.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugTimeline.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugUtilities.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPlugWindow.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPPixCacheSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPPixCreatorSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKPPixSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKQuality.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKRenderCacheType.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKRollCrawlSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSequenceAudioSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSequenceInfoSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSequenceRenderSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKSetEnv.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKStreamLabel.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKStringSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKStructs.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKTimeSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKTypes.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKVideoSegmentProperties.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKVideoSegmentRenderSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKVideoSegmentSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\PrSDKWindowSuite.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\SDK_File.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\SDK_Segment_Utils.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\SPBasic.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\SPConfig.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\SPErrorCodes.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ADOBE\INCLUDES\SPTypes.h">
+      <Filter>adobe_include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="src">
-      <UniqueIdentifier>{600d9ef5-9de2-4cff-a0f6-f4541504f1f2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="include">
-      <UniqueIdentifier>{0d61388f-26f9-4875-83c7-1c7e3aacba61}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="adobe_include">
-      <UniqueIdentifier>{632ba0da-126d-4834-b066-8573eb376d89}</UniqueIdentifier>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\dllmain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabPixelFormat.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AdobeImageLabHDR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabHDR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\JobContext.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\JobResource.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\ADOBE_INCLUDES\PrSDKPiPL.r">
+    <None Include="ImageLabHDR.r">
+      <Filter>resources</Filter>
+    </None>
+    <None Include="..\ADOBE\INCLUDES\AE_General.r">
       <Filter>adobe_include</Filter>
     </None>
+    <None Include="..\ADOBE\INCLUDES\PrSDKPiPL.r">
+      <Filter>adobe_include</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ImageLabHDR.rc">
+      <Filter>resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
