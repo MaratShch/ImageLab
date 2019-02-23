@@ -1,6 +1,89 @@
 ﻿#include "AdobeImageLabHDR.h"
 
 
+static void computeLumaHistogramFrom_VUYA_4444_8u(const csSDK_uint32* __restrict srcBuffer, int* __restrict pHistogram, const int size)
+{
+	unsigned int Y1, Y2, Y3, Y4;
+	const int size_aligned = size & 0x7FFFFFFC;
+
+	for (int cnt = 0; cnt < size_aligned; cnt += 4)
+	{
+		Y1 = (srcBuffer[cnt]     & 0x00FF0000) >> 16;
+		Y2 = (srcBuffer[cnt + 1] & 0x00FF0000) >> 16;
+		Y3 = (srcBuffer[cnt + 2] & 0x00FF0000) >> 16;
+		Y4 = (srcBuffer[cnt + 3] & 0x00FF0000) >> 16;
+
+		pHistogram[Y1]++;
+		pHistogram[Y2]++;
+		pHistogram[Y3]++;
+		pHistogram[Y4]++;
+	}
+
+	return;
+}
+
+static void computeHistogramBinarization(const int* __restrict pHist, byte* __restrict pBin, const int histSize, const int left, const int right)
+{
+	int accumCnt = 0;
+	int cnt;
+
+	// make binarization
+	for (cnt = 0; cnt < histSize; cnt++)
+	{
+		accumCnt += pHist[cnt];
+		if (accumCnt < left)
+			continue;
+		if (accumCnt > right)
+			break;
+
+		pBin[cnt] = ((pHist[cnt] == 0) ? 0 : 1);
+	}
+
+	// make cumulative SUM
+	for (cnt = 1; cnt < histSize; cnt++)
+	{
+		pBin[cnt] = pBin[cnt] + pBin[cnt - 1];
+	}
+}
+
+
+static void generateLUT_8u(const byte* __restrict pCumSum, byte* __restrict pLUT, const int size)
+{
+	const double maxIndex = pCumSum[size - 1]; // max cumulative value
+	const double lutCoeff = 255.0 / maxIndex;
+	double dVal;
+
+	int i;
+
+	for (i = 0; i < size; i++)
+	{
+		dVal = lutCoeff * static_cast<double>(pCumSum[i]);
+		pLUT[i] = static_cast<byte>(dVal);
+	}
+
+	return;
+}
+
+
+static void applyLUTtoVUYA_4444_8u(const csSDK_uint32* __restrict srcBuffer,
+								         csSDK_uint32* __restrict dstBuffer,
+	                                       const byte* __restrict pLUT,
+	                                                    const int size)
+{
+	int i;
+	byte YInValue;
+	byte YOutValue;
+
+	for (i = 0; i < size; i++)
+	{
+		YInValue = (srcBuffer[i] & 0x00FF0000) >> 16;
+		YOutValue = pLUT[YInValue];
+		dstBuffer[i] = (srcBuffer[i] & 0xFF00FFFF) + (YOutValue << 16);
+	}
+
+	return;
+}
+
 // ImageLabHDR filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
@@ -65,8 +148,8 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				const csSDK_int32 sliderLeftPosition  = (*filterParamH)->sliderLeft;
 				const csSDK_int32 sliderRightPosition = (*filterParamH)->sliderRight;
 
-				const double leftCount  = (totalPixels * static_cast<double>(sliderLeftPosition)) / 100.0;
-				const double rigthCount = totalPixels - (totalPixels * static_cast<double>(sliderRightPosition)) / 100.0;
+				const int leftCount  = static_cast<int>((totalPixels * static_cast<double>(sliderLeftPosition)) / 100.0);
+				const int rightCount = static_cast<int>(totalPixels - (totalPixels * static_cast<double>(sliderRightPosition)) / 100.0);
 
 				// cleanup buffer for histogram
 				void* pHist = GetHistogramBuffer();
@@ -79,36 +162,20 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 					memset(pLut,  0, IMAGE_LAB_LUT_BUFFER_SIZE);
 					memset(pBin,  0, IMAGE_LAB_BIN_BUFFER_SIZE);
 
-					// check pixel format
-
 					// handle fields mode !!!
 
-					// convert to YUV (if required)
-
 					// compute histogram from Y
+					computeLumaHistogramFrom_VUYA_4444_8u(srcPix, reinterpret_cast<int*>(pHist), static_cast<int>(totalPixels));
 
 					// make histogtam binarization
-
+					computeHistogramBinarization(reinterpret_cast<int*>(pHist), reinterpret_cast<byte*>(pBin), 256, leftCount, rightCount);
+					
 					// generate LUT
+					generateLUT_8u(reinterpret_cast<byte*>(pBin), reinterpret_cast<byte*>(pLut), 256);
 
 					// apply LUT 
+					applyLUTtoVUYA_4444_8u(srcPix, dstPix, reinterpret_cast<byte*>(pLut), static_cast<int>(totalPixels));
 
-					// back convert from YUV to input format (if required)
-#if 0
-					// DBG loop
-					for (int vert = 0; vert < height; ++vert)
-					{
-						for (int horiz = 0; horiz < width; ++horiz)
-						{
-							csSDK_uint32 Y_value = (*srcPix & 0x00FF0000) >> 16;
-
-							*dstPix = (*srcPix & 0xFF00FFFFu) + ((Y_value / 2) << 16);
-
-								++srcPix; ++dstPix;
-
-						}
-					}
-#endif
 				}
 			}
 		break;

@@ -24,6 +24,8 @@
 #define IMAGE_LAB_HDR_THRESHOLW_MAX		20
 #define IMAGE_LAB_HDR_THRESHOLD_DEFAULT	1
 
+#define IMAGE_LAB_MAX_PIXEL_SIZE_BITS	8
+
 enum
 {
 	IMAGE_LAB_HDR_EQUALIZATION_INVALID = 0,
@@ -38,9 +40,15 @@ enum
 #define IMAGE_LAB_HISTAVERAGE_DEPTH_DEFAULT	1
 #define IMAGE_LAB_HIST_AVERAGE_DEPTH_MAX	30
 
+#if(IMAGE_LAB_MAX_PIXEL_SIZE_BITS <= 8)
+#define IMAGE_LAB_HIST_BUFFER_SIZE			(256 * sizeof(int))
+#define IMAGE_LAB_BIN_BUFFER_SIZE			(256 * sizeof(byte))
+#define IMAGE_LAB_LUT_BUFFER_SIZE			(256 * sizeof(byte))
+#else
 #define IMAGE_LAB_HIST_BUFFER_SIZE			(65536 * sizeof(int))
 #define IMAGE_LAB_BIN_BUFFER_SIZE			(65536 * sizeof(char))
 #define IMAGE_LAB_LUT_BUFFER_SIZE			(65536 * sizeof(unsigned short))
+#endif
 
 
 typedef struct
@@ -58,6 +66,7 @@ typedef struct
 	size_t parallel_streams;
 	void* pBufPoolHistogram;
 	void* pBufPoolBinary;
+	void* pBufCumSum;
 	void* pBufPoolLUT;
 }ImageLAB_MemStr, *PImageLAB_MemStr, **FilterMemHandle;
 
