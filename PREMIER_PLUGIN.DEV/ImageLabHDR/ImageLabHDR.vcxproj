@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AdobeImageLabHDR.cpp" />
+    <ClCompile Include="src\dllmain.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -64,83 +64,61 @@ resource 'PiPL' (16000)
 			fgAnimatable,
 			geometric,
 			noRandomness,
-			3,					// Put the number of parameters here
+			2,					
 			plugInMatchName
 		},
-
+		
+		
 		ANIM_ParamAtom 
 		{
 			0,					// Property count - zero-based count
-			"Choose a Color",	// Parameter name
+			"Left threshold",	// Parameter name
 			1,					// Parameter number - one-based count
-			ANIM_DT_COLOR_RGB,	// Data type
-			ANIM_UI_COLOR_RGB,	// UI Type
+			ANIM_DT_SHORT,		// Data type
+			ANIM_UI_SLIDER,		// UI Type
+			0,
+			0x0, // valid_min (0.0)
+			0x40340000,
+			0x0, // valid_max (20.0)
 			0x0,
-			0x0,
-			0x0,
-			0x0,
-			0x0,
-			0x0,
-			0x0,
-			0x0,
+			0x0, // ui_min (0.0)
+			0x40340000,
+			0x0, // ui_max (20.0)
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif
 			animateParam,		// Set/don't set this to indicate if the param should be animated
-			dontRestrictBounds,	// Unused by Premiere
-			spaceIsAbsolute,	// Unused by Premiere
-			resIndependent,		// Unused by Premiere
-			4					// Bytes size of the param data
+			restrictBounds,	// Rest of these aren't used by Premiere
+			spaceIsAbsolute,
+			resIndependent,
+			2					// Bytes size of the param data
 		},
 		
 		ANIM_ParamAtom 
 		{
 			1,					// Property count - zero-based count
-			"Callback Switch",	// Parameter name
+			"Right threshold",	// Parameter name
 			2,					// Parameter number - one-based count
-			ANIM_DT_LONG,		// Data type
+			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0xc0590000,
-			0x0,				// valid_min (-100) - not used by Premiere
-			0x40590000,
-			0x0,				// valid_max (100) - not used by Premiere
-			0xc0590000,
-			0x0,				// ui_min (-100)
-			0x40590000,				
-			0x0,				// ui_max (100)
+			0,
+			0x0, // valid_min (0.0)
+			0x40340000,
+			0x0, // valid_max (20.0)
+			0x0,
+			0x0, // ui_min (0.0)
+			0x40340000,
+			0x0, // ui_max (20.0)
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif
 			animateParam,		// Set/don't set this to indicate if the param should be animated
-			dontRestrictBounds,	// Rest of these aren't used by Premiere
+			restrictBounds,		// Rest of these aren't used by Premiere
 			spaceIsAbsolute,
 			resIndependent,
-			4					// Bytes size of the param data
+			2					// Bytes size of the param data
 		},
-		
-		ANIM_ParamAtom 
-		{
-			2,					// Property count - zero-based count
-			"Use VFilterCallback",	// Parameter name
-			3,					// Parameter number - one-based count
-			13,					// Data type - ANIM_DT_BOOLEAN
-			8,					// UI Type - ANIM_UI_CHECKBOX
-			0x0,
-			0x0,				// valid_min (0) - not used by Premiere
-			0x0,
-			0x0,				// valid_max (0) - not used by Premiere
-			0x0,
-			0x0,				// ui_min (0)
-			0x0,				
-			0x0,				// ui_max (0)
-#if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
-			dontScaleUIRange,
-#endif
-			animateParam,		// Set/don't set this to indicate if the param should be animated
-			dontRestrictBounds,	// Rest of these aren't used by Premiere
-			spaceIsAbsolute,
-			resIndependent,
-			1					// Bytes size of the param data
-		},
+
+
 	}
 };

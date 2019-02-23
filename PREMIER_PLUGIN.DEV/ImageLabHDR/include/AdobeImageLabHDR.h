@@ -20,13 +20,6 @@
 #define max(a,b) ((a) < (b) ? (a) : (b))
 #endif
 
-#define IMAGE_LAB_CPU_ONLY	0
-#define IMAGE_LAB_GPU_ONLY	1
-#define IMAGE_LAB_CPU_GPU	2
-
-#define IMAGE_LAB_MAX_IMAGE_WIDTH	4096
-#define IMAGE_LAB_MAX_IMAGE_HEIGHT	3072
-
 #define IMAGE_LAB_HDR_THRESHOLD_MIN	    0
 #define IMAGE_LAB_HDR_THRESHOLW_MAX		20
 #define IMAGE_LAB_HDR_THRESHOLD_DEFAULT	1
@@ -45,55 +38,50 @@ enum
 #define IMAGE_LAB_HISTAVERAGE_DEPTH_DEFAULT	1
 #define IMAGE_LAB_HIST_AVERAGE_DEPTH_MAX	30
 
+#define IMAGE_LAB_HIST_BUFFER_SIZE			(65536 * sizeof(int))
+#define IMAGE_LAB_BIN_BUFFER_SIZE			(65536 * sizeof(char))
+#define IMAGE_LAB_LUT_BUFFER_SIZE			(65536 * sizeof(unsigned short))
+
+
 typedef struct
 {
-	size_t	strSizeOf;
-	// configuration setting
-	int cudaEnabled;
-	int maxImageWidth;
-	int maxImageHeight;
 	// filter setting
-	int thresholdLow;
-	int thresholdHigh;
-	int equalizationFunction;
-	int histogramAverageDepth;
+	csSDK_int16	sliderLeft;
+	csSDK_int16	sliderRight;
+	// memory handler
+	void* pMemHandler;
 }FilterParamStr, *PFilterParamStr, **FilterParamHandle;
+
+typedef struct
+{
+	size_t strSizeoF;
+	size_t parallel_streams;
+	void* pBufPoolHistogram;
+	void* pBufPoolBinary;
+	void* pBufPoolLUT;
+}ImageLAB_MemStr, *PImageLAB_MemStr, **FilterMemHandle;
+
 
 #ifndef IMAGE_LAB_HDR_STR_PARAM_INIT
 #define IMAGE_LAB_HDR_STR_PARAM_INIT(_param_str)						\
- _param_str.strSizeOf = sizeof(_param_str);								\
- _param_str.cudaEnabled = IMAGE_LAB_CPU_ONLY;							\
- _param_str.maxImageWidth = IMAGE_LAB_MAX_IMAGE_WIDTH;					\
- _param_str.maxImageHeight = IMAGE_LAB_MAX_IMAGE_HEIGHT;				\
- _param_str.thresholdLow = IMAGE_LAB_HDR_THRESHOLD_DEFAULT;				\
- _param_str.thresholdHigh = IMAGE_LAB_HDR_THRESHOLD_MIN;				\
- _param_str.equalizationFunction = IMAGE_LAB_EQUALIZATION_DEFAULT;		\
- _param_str.histogramAverageDepth = IMAGE_LAB_HISTAVERAGE_DEPTH_DEFAULT;
+ _param_str.sliderLeft = 1;												\
+ _param_str.sliderRight = 1;											\
+ _param_str.pMemHandler = nullptr;
 #endif
 
 #ifndef IMAGE_LAB_HDR_PSTR_PARAM_INIT
 #define IMAGE_LAB_HDR_PSTR_PARAM_INIT(_param_str_ptr)						\
- _param_str_ptr->strSizeOf = sizeof(* _param_str_ptr);						\
- _param_str_ptr->cudaEnabled = IMAGE_LAB_CPU_ONLY;							\
- _param_str_ptr->maxImageWidth = IMAGE_LAB_MAX_IMAGE_WIDTH;					\
- _param_str_ptr->maxImageHeight = IMAGE_LAB_MAX_IMAGE_HEIGHT;				\
- _param_str_ptr->thresholdLow = IMAGE_LAB_HDR_THRESHOLD_DEFAULT;			\
- _param_str_ptr->thresholdHigh = IMAGE_LAB_HDR_THRESHOLD_MIN;				\
- _param_str_ptr->equalizationFunction = IMAGE_LAB_EQUALIZATION_DEFAULT;		\
- _param_str_ptr->histogramAverageDepth = IMAGE_LAB_HISTAVERAGE_DEPTH_DEFAULT;
+ _param_str_ptr->sliderLeft = 1;											\
+ _param_str_ptr->sliderRight = 1;                                           \
+ _param_str_ptr->pMemHandler = nullptr;										
 #endif
 
 
 #ifndef IMAGE_LAB_FILTER_PARAM_HANDLE_INIT
 #define IMAGE_LAB_FILTER_PARAM_HANDLE_INIT(_param_handle)					\
- (*_param_handle)->strSizeOf = sizeof(FilterParamStr);						\
- (*_param_handle)->cudaEnabled = IMAGE_LAB_CPU_ONLY;						\
- (*_param_handle)->maxImageWidth = IMAGE_LAB_MAX_IMAGE_WIDTH;				\
- (*_param_handle)->maxImageHeight = IMAGE_LAB_MAX_IMAGE_HEIGHT;				\
- (*_param_handle)->thresholdLow = IMAGE_LAB_HDR_THRESHOLD_DEFAULT;			\
- (*_param_handle)->thresholdHigh = IMAGE_LAB_HDR_THRESHOLD_MIN;				\
- (*_param_handle)->equalizationFunction = IMAGE_LAB_EQUALIZATION_DEFAULT;	\
- (*_param_handle)->histogramAverageDepth = IMAGE_LAB_HISTAVERAGE_DEPTH_DEFAULT;
+ (*_param_handle)->sliderLeft = 1;									        \
+ (*_param_handle)->sliderRight = 1;                                         \
+ (*_param_handle)->pMemHandler = nullptr;									
 #endif
 
 
@@ -102,8 +90,14 @@ typedef struct
 extern "C" {
 #endif
 	PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+	csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
+
+	void* APIENTRY GetStreamMemory(void);
+	void* APIENTRY GetHistogramBuffer(void);
+	void* APIENTRY GetBinarizationBuffer(void);
+	void* APIENTRY GetLUTBuffer(void);
+		
 #ifdef __cplusplus
 }
 #endif
 
-csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
