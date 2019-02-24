@@ -65,20 +65,32 @@ static void generateLUT_8u(const byte* __restrict pCumSum, byte* __restrict pLUT
 }
 
 
-static void applyLUTtoVUYA_4444_8u(const csSDK_uint32* __restrict srcBuffer,
-								         csSDK_uint32* __restrict dstBuffer,
-	                                       const byte* __restrict pLUT,
-	                                                    const int size)
+static void applyLUTtoVUYA_4444_8u(csSDK_uint32* __restrict srcBuffer,
+								   csSDK_uint32* __restrict dstBuffer,
+	                                 const byte* __restrict pLUT,
+	                                 const int width,
+	                                 const int height,
+	                                 const int rowBytes)
 {
-	int i;
+	int i, j;
 	byte YInValue;
 	byte YOutValue;
 
-	for (i = 0; i < size; i++)
+
+	for (i = 0; i < height; i++)
 	{
-		YInValue = (srcBuffer[i] & 0x00FF0000) >> 16;
-		YOutValue = pLUT[YInValue];
-		dstBuffer[i] = (srcBuffer[i] & 0xFF00FFFF) + (YOutValue << 16);
+		for (j = 0; j < width; j++)
+		{
+			YInValue = (*srcBuffer & 0x00FF0000) >> 16;
+			YOutValue = pLUT[YInValue];
+			*dstBuffer = (*srcBuffer & 0xFF00FFFF) + (YOutValue << 16);
+			++srcBuffer;
+			++dstBuffer;
+		}
+
+		// fix interlaced mode (fields)
+		srcBuffer += (rowBytes / 4) - width;
+		dstBuffer += (rowBytes / 4) - width;
 	}
 
 	return;
@@ -174,7 +186,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 					generateLUT_8u(reinterpret_cast<byte*>(pBin), reinterpret_cast<byte*>(pLut), 256);
 
 					// apply LUT 
-					applyLUTtoVUYA_4444_8u(srcPix, dstPix, reinterpret_cast<byte*>(pLut), static_cast<int>(totalPixels));
+					applyLUTtoVUYA_4444_8u(srcPix, dstPix, reinterpret_cast<byte*>(pLut), width, height, rowbytes);
 
 				}
 			}

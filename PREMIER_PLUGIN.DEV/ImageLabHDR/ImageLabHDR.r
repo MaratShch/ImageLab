@@ -72,7 +72,7 @@ resource 'PiPL' (16000)
 		ANIM_ParamAtom 
 		{
 			0,					// Property count - zero-based count
-			"Left threshold",	// Parameter name
+			"Dark threshold",	// Parameter name
 			1,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
@@ -97,7 +97,7 @@ resource 'PiPL' (16000)
 		ANIM_ParamAtom 
 		{
 			1,					// Property count - zero-based count
-			"Right threshold",	// Parameter name
+			"Light threshold",	// Parameter name
 			2,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
