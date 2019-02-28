@@ -79,11 +79,13 @@ resource 'PiPL' (16000)
 			ANIM_UI_SLIDER,		
 			0,
 			0x0, 
-			0x40340000,
+
+			0x40690000, 
 			0x0, 
 			0x0,
 			0x0, 
-			0x40340000,
+
+			0x40690000, 
 			0x0, 
 
 			dontScaleUIRange,
@@ -104,11 +106,13 @@ resource 'PiPL' (16000)
 			ANIM_UI_SLIDER,		
 			0,
 			0x0, 
-			0x40340000,
+
+			0x40690000, 
 			0x0, 
 			0x0,
 			0x0, 
-			0x40340000,
+
+			0x40690000, 
 			0x0, 
 
 			dontScaleUIRange,

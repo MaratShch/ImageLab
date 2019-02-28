@@ -160,8 +160,8 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				const csSDK_int32 sliderLeftPosition  = (*filterParamH)->sliderLeft;
 				const csSDK_int32 sliderRightPosition = (*filterParamH)->sliderRight;
 
-				const int leftCount  = static_cast<int>((totalPixels * static_cast<double>(sliderLeftPosition)) / 100.0);
-				const int rightCount = static_cast<int>(totalPixels - (totalPixels * static_cast<double>(sliderRightPosition)) / 100.0);
+				const int leftCount  = static_cast<int>((totalPixels * static_cast<double>(sliderLeftPosition)) / 1000.0);
+				const int rightCount = static_cast<int>(totalPixels - (totalPixels * static_cast<double>(sliderRightPosition)) / 1000.0);
 
 				// cleanup buffer for histogram
 				void* pHist = GetHistogramBuffer();

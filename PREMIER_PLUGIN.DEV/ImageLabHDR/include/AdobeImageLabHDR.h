@@ -73,23 +73,23 @@ typedef struct
 
 #ifndef IMAGE_LAB_HDR_STR_PARAM_INIT
 #define IMAGE_LAB_HDR_STR_PARAM_INIT(_param_str)						\
- _param_str.sliderLeft = 1;												\
- _param_str.sliderRight = 1;											\
+ _param_str.sliderLeft = 10;											\
+ _param_str.sliderRight = 10;											\
  _param_str.pMemHandler = nullptr;
 #endif
 
 #ifndef IMAGE_LAB_HDR_PSTR_PARAM_INIT
 #define IMAGE_LAB_HDR_PSTR_PARAM_INIT(_param_str_ptr)						\
- _param_str_ptr->sliderLeft = 1;											\
- _param_str_ptr->sliderRight = 1;                                           \
+ _param_str_ptr->sliderLeft = 10;											\
+ _param_str_ptr->sliderRight = 10;                                           \
  _param_str_ptr->pMemHandler = nullptr;										
 #endif
 
 
 #ifndef IMAGE_LAB_FILTER_PARAM_HANDLE_INIT
 #define IMAGE_LAB_FILTER_PARAM_HANDLE_INIT(_param_handle)					\
- (*_param_handle)->sliderLeft = 1;									        \
- (*_param_handle)->sliderRight = 1;                                         \
+ (*_param_handle)->sliderLeft = 10;									        \
+ (*_param_handle)->sliderRight = 10;                                        \
  (*_param_handle)->pMemHandler = nullptr;									
 #endif
 
