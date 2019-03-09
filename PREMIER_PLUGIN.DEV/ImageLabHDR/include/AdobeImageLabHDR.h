@@ -40,13 +40,16 @@ enum
 #define IMAGE_LAB_HISTAVERAGE_DEPTH_DEFAULT	1
 #define IMAGE_LAB_HIST_AVERAGE_DEPTH_MAX	30
 
+
 #if(IMAGE_LAB_MAX_PIXEL_SIZE_BITS <= 8)
 #define IMAGE_LAB_HIST_BUFFER_SIZE			(256 * sizeof(int))
 #define IMAGE_LAB_BIN_BUFFER_SIZE			(256 * sizeof(byte))
+#define IMAGE_LAB_CUMSUM_BUFFER_SIZE		(256 * sizeof(byte))
 #define IMAGE_LAB_LUT_BUFFER_SIZE			(256 * sizeof(byte))
 #else
 #define IMAGE_LAB_HIST_BUFFER_SIZE			(65536 * sizeof(int))
-#define IMAGE_LAB_BIN_BUFFER_SIZE			(65536 * sizeof(char))
+#define IMAGE_LAB_BIN_BUFFER_SIZE			(65536 * sizeof(byte))
+#define IMAGE_LAB_CUMSUM_BUFFER_SIZE		(65536 * sizeof(unsigned short))
 #define IMAGE_LAB_LUT_BUFFER_SIZE			(65536 * sizeof(unsigned short))
 #endif
 
@@ -81,7 +84,7 @@ typedef struct
 #ifndef IMAGE_LAB_HDR_PSTR_PARAM_INIT
 #define IMAGE_LAB_HDR_PSTR_PARAM_INIT(_param_str_ptr)						\
  _param_str_ptr->sliderLeft = 10;											\
- _param_str_ptr->sliderRight = 10;                                           \
+ _param_str_ptr->sliderRight = 10;                                          \
  _param_str_ptr->pMemHandler = nullptr;										
 #endif
 
@@ -104,8 +107,9 @@ extern "C" {
 	void* APIENTRY GetStreamMemory(void);
 	void* APIENTRY GetHistogramBuffer(void);
 	void* APIENTRY GetBinarizationBuffer(void);
+	void* APIENTRY GetCumSumBuffer(void);
 	void* APIENTRY GetLUTBuffer(void);
-		
+
 #ifdef __cplusplus
 }
 #endif

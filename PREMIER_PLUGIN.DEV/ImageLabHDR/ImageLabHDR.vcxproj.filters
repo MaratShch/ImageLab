@@ -203,6 +203,7 @@
     <ClInclude Include="..\ADOBE\INCLUDES\SPTypes.h">
       <Filter>adobe_include</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\ADOBE\INCLUDES\AE_General.r">
@@ -213,13 +214,13 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ImageLabHDR.rc">
-      <Filter>resources</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="ImageLabHDR.r">
       <Filter>resources</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ImageLabHDR.rc">
+      <Filter>resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

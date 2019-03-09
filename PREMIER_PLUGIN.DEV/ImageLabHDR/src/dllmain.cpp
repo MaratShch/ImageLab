@@ -5,6 +5,7 @@
 #include "AdobeImageLabHDR.h"
 
 static PImageLAB_MemStr pInternalMemory = nullptr;
+static unsigned int imgBufIndx;
 
 static bool singleStreamMemAlloc(PImageLAB_MemStr* pMemParamStr)
 {
@@ -18,19 +19,25 @@ static bool singleStreamMemAlloc(PImageLAB_MemStr* pMemParamStr)
 			pMemStr->strSizeoF = sizeof(ImageLAB_MemStr);
 			pMemStr->parallel_streams = 1;
 
-			pMemStr->pBufPoolHistogram = _aligned_malloc(IMAGE_LAB_HIST_BUFFER_SIZE, 4096);
+			pMemStr->pBufPoolHistogram = _aligned_malloc(IMAGE_LAB_HIST_BUFFER_SIZE, 64);
 			if (nullptr != pMemStr->pBufPoolHistogram)
 			{
 				memset(pMemStr->pBufPoolHistogram, 0, IMAGE_LAB_HIST_BUFFER_SIZE);
 			}
 
-			pMemStr->pBufPoolLUT = _aligned_malloc(IMAGE_LAB_LUT_BUFFER_SIZE, 4096);
+			pMemStr->pBufPoolLUT = _aligned_malloc(IMAGE_LAB_LUT_BUFFER_SIZE, 64);
 			if (nullptr != pMemStr->pBufPoolLUT)
 			{
 				memset(pMemStr->pBufPoolLUT, 0, IMAGE_LAB_LUT_BUFFER_SIZE);
 			}
 
-			pMemStr->pBufPoolBinary = _aligned_malloc(IMAGE_LAB_BIN_BUFFER_SIZE, 4096);
+			pMemStr->pBufCumSum = _aligned_malloc(IMAGE_LAB_CUMSUM_BUFFER_SIZE, 64);
+			if (nullptr != pMemStr->pBufCumSum)
+			{
+				memset(pMemStr->pBufCumSum, 0, IMAGE_LAB_CUMSUM_BUFFER_SIZE);
+			}
+
+			pMemStr->pBufPoolBinary = _aligned_malloc(IMAGE_LAB_BIN_BUFFER_SIZE, 64);
 			if (nullptr != pMemStr->pBufPoolBinary)
 			{
 				memset(pMemStr->pBufPoolBinary, 0, IMAGE_LAB_BIN_BUFFER_SIZE);
@@ -64,6 +71,12 @@ static bool singleStreamMemFree (PImageLAB_MemStr* pMemParamStr)
 			{
 				memset(pMemStr->pBufPoolLUT, 0, IMAGE_LAB_LUT_BUFFER_SIZE);
 				_aligned_free(pMemStr->pBufPoolLUT);
+			}
+
+			if (nullptr != pMemStr->pBufCumSum)
+			{
+				memset(pMemStr->pBufCumSum, 0, IMAGE_LAB_CUMSUM_BUFFER_SIZE);
+				_aligned_free(pMemStr->pBufCumSum);
 			}
 
 			if (nullptr != pMemStr->pBufPoolBinary)
@@ -117,6 +130,21 @@ void* APIENTRY GetBinarizationBuffer(void)
 	return pBuf;
 }
 
+void* APIENTRY GetCumSumBuffer(void)
+{
+	void* pBuf = nullptr;
+
+	if (nullptr != pInternalMemory)
+	{
+		if (nullptr != pInternalMemory->pBufCumSum)
+		{
+			pBuf = pInternalMemory->pBufCumSum;
+		}
+	}
+
+	return pBuf;
+}
+
 void* APIENTRY GetLUTBuffer(void)
 {
 	void* pBuf = nullptr;
@@ -139,6 +167,7 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 	switch (ul_reason_for_call)
     {
 		case DLL_PROCESS_ATTACH:
+			imgBufIndx = 0u;
 			singleStreamMemAlloc(&pInternalMemory);
 		break;
 

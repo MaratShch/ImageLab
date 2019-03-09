@@ -6,6 +6,8 @@ static void computeLumaHistogramFrom_VUYA_4444_8u(const csSDK_uint32* __restrict
 	unsigned int Y1, Y2, Y3, Y4;
 	const int size_aligned = size & 0x7FFFFFFC;
 
+#pragma vector aligned
+
 	for (int cnt = 0; cnt < size_aligned; cnt += 4)
 	{
 		Y1 = (srcBuffer[cnt]     & 0x00FF0000) >> 16;
@@ -27,6 +29,7 @@ static void computeHistogramBinarization(const int* __restrict pHist, byte* __re
 	int accumCnt = 0;
 	int cnt;
 
+#pragma vector aligned
 	// make binarization
 	for (cnt = 0; cnt < histSize; cnt++)
 	{
@@ -36,25 +39,34 @@ static void computeHistogramBinarization(const int* __restrict pHist, byte* __re
 		if (accumCnt > right)
 			break;
 
-		pBin[cnt] = ((pHist[cnt] == 0) ? 0 : 1);
+		pBin[cnt] = ((pHist[cnt] == 0) ? 0u : 1u);
 	}
+	
+	return;
+}
 
-	// make cumulative SUM
-	for (cnt = 1; cnt < histSize; cnt++)
+
+static void computeCumulativeSum(const byte* __restrict pBin, byte* __restrict pCumSum, const int histSize)
+{
+	pCumSum[0] = pBin[0];
+
+	for (int cnt = 1; cnt < histSize; cnt++)
 	{
-		pBin[cnt] = pBin[cnt] + pBin[cnt - 1];
+		pCumSum[cnt] = pBin[cnt] + pCumSum[cnt - 1];
 	}
+	return;
 }
 
 
 static void generateLUT_8u(const byte* __restrict pCumSum, byte* __restrict pLUT, const int size)
 {
-	const double maxIndex = pCumSum[size - 1]; // max cumulative value
+	const double maxIndex = static_cast<double>(pCumSum[size - 1]); // max cumulative value
 	const double lutCoeff = 255.0 / maxIndex;
 	double dVal;
 
 	int i;
 
+#pragma vector aligned
 	for (i = 0; i < size; i++)
 	{
 		dVal = lutCoeff * static_cast<double>(pCumSum[i]);
@@ -152,8 +164,8 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
 
 				// Create copies of pointer to the source, destination frames
-				csSDK_uint32* srcPix = reinterpret_cast<csSDK_uint32*>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
-				csSDK_uint32* dstPix = reinterpret_cast<csSDK_uint32*>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+				csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+				csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
 				const double totalPixels = static_cast<double>(height * width);
 				// get left threshold from slider
@@ -164,15 +176,17 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				const int rightCount = static_cast<int>(totalPixels - (totalPixels * static_cast<double>(sliderRightPosition)) / 1000.0);
 
 				// cleanup buffer for histogram
-				void* pHist = GetHistogramBuffer();
-				void* pBin  = GetBinarizationBuffer();
-				void* pLut  = GetLUTBuffer();
+				void* __restrict pHist = GetHistogramBuffer();
+				void* __restrict pBin  = GetBinarizationBuffer();
+				void* __restrict pSum  = GetCumSumBuffer();
+				void* __restrict pLut  = GetLUTBuffer();
 
-				if (nullptr != pHist && nullptr != pBin && nullptr != pLut)
+				if (nullptr != pHist && nullptr != pBin && nullptr != pSum && nullptr != pLut)
 				{
 					memset(pHist, 0, IMAGE_LAB_HIST_BUFFER_SIZE);
-					memset(pLut,  0, IMAGE_LAB_LUT_BUFFER_SIZE);
 					memset(pBin,  0, IMAGE_LAB_BIN_BUFFER_SIZE);
+					memset(pSum,  0, IMAGE_LAB_CUMSUM_BUFFER_SIZE);
+					memset(pLut,  0, IMAGE_LAB_LUT_BUFFER_SIZE);
 
 					// handle fields mode !!!
 
@@ -180,13 +194,16 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 					computeLumaHistogramFrom_VUYA_4444_8u(srcPix, reinterpret_cast<int*>(pHist), static_cast<int>(totalPixels));
 
 					// make histogtam binarization
-					computeHistogramBinarization(reinterpret_cast<int*>(pHist), reinterpret_cast<byte*>(pBin), 256, leftCount, rightCount);
+					computeHistogramBinarization(reinterpret_cast<int* __restrict>(pHist), reinterpret_cast<byte* __restrict>(pBin), 256, leftCount, rightCount);
 					
+					// compute cumulative sum
+					computeCumulativeSum(reinterpret_cast<byte* __restrict>(pBin), reinterpret_cast<byte* __restrict>(pSum), 256);
+
 					// generate LUT
-					generateLUT_8u(reinterpret_cast<byte*>(pBin), reinterpret_cast<byte*>(pLut), 256);
+					generateLUT_8u(reinterpret_cast<byte* __restrict>(pSum), reinterpret_cast<byte* __restrict>(pLut), 256);
 
 					// apply LUT 
-					applyLUTtoVUYA_4444_8u(srcPix, dstPix, reinterpret_cast<byte*>(pLut), width, height, rowbytes);
+					applyLUTtoVUYA_4444_8u(srcPix, dstPix, reinterpret_cast<byte* __restrict>(pLut), width, height, rowbytes);
 
 				}
 			}
