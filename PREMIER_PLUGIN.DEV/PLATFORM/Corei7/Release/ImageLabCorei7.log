@@ -1,0 +1,9 @@
+﻿  avx2_memory.cpp
+  dllmain.cpp
+  pch.cpp
+     Creating library E:\WORK\MARAT\ADOBE\PREMIER_PLUGIN.DEV\\Release\ImageLabCorei7.lib and object E:\WORK\MARAT\ADOBE\PREMIER_PLUGIN.DEV\\Release\ImageLabCorei7.exp
+  Generating code
+  All 4 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  ImageLabCorei7.vcxproj -> E:\WORK\MARAT\ADOBE\PREMIER_PLUGIN.DEV\\Release\ImageLabCorei7.dll
+  ImageLabCorei7.vcxproj -> E:\WORK\MARAT\ADOBE\PREMIER_PLUGIN.DEV\\Release\ImageLabCorei7.pdb (Full PDB)
