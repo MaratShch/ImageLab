@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AdobeImageLabBilateralRGB.cpp" />
+    <ClCompile Include="src\COlorSpaceConvert.cpp" />
     <ClCompile Include="src\dll_main.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
   </ItemGroup>
@@ -230,6 +232,7 @@
       <AssemblerListingLocation>$(OutDir)</AssemblerListingLocation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <UseProcessorExtensions>AVX2</UseProcessorExtensions>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;PRWIN_ENV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -259,6 +262,7 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <AssemblerListingLocation>$(OutDir)</AssemblerListingLocation>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <UseProcessorExtensions>AVX2</UseProcessorExtensions>
     </ClCompile>
     <Link>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>

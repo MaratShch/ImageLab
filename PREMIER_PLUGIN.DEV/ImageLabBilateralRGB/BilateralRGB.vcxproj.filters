@@ -205,5 +205,11 @@
     <ClCompile Include="src\ImageLabPixelFormat.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AdobeImageLabBilateralRGB.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\COlorSpaceConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
