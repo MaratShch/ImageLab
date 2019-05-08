@@ -197,6 +197,9 @@
     <Filter Include="include">
       <UniqueIdentifier>{a440fe3c-fb98-4436-b43d-043a5f356445}</UniqueIdentifier>
     </Filter>
+    <Filter Include="resource">
+      <UniqueIdentifier>{ee51090f-801c-4081-8e35-e848126a8b3c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dll_main.cpp">
@@ -211,5 +214,15 @@
     <ClCompile Include="src\COlorSpaceConvert.cpp">
       <Filter>src</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="BilateralRGB.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="BilateralRGB.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

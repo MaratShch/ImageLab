@@ -1,0 +1,100 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+resource 'PiPL' (16000)
+{
+	{	
+		
+		Kind {PrVideoFilter},
+		
+		
+		Name {"Bilateral filter"},
+	
+		
+		AE_Effect_Match_Name {"Bilateral_filter"},
+
+		
+		Category {"ImageLab"},
+
+		
+		AE_PiPL_Version {2, 3},
+	
+		
+		
+
+		ANIM_FilterInfo
+		{
+			0,
+
+			notUnityPixelAspectRatio,
+			anyPixelAspectRatio,
+			reserved4False,
+			reserved3False,
+			reserved2False,
+
+			reserved1False,		
+			reserved0False,
+			driveMe,
+			doesntNeedDialog,	
+			paramsNotPointer,
+			paramsNotHandle,
+			paramsNotMacHandle,
+			dialogNotInRender,
+			paramsNotInGlobals,
+			bgAnimatable,
+			fgAnimatable,
+			geometric,
+			noRandomness,
+			1,					
+			"Bilateral_filter"
+		},
+		
+		
+		ANIM_ParamAtom 
+		{
+			0,					
+			"Window size",	
+			1,					
+			ANIM_DT_SHORT,		
+			ANIM_UI_SLIDER,		
+			0,
+			0x0, 
+			0x40340000, 
+			0x0, 
+			0x0,
+			0x0, 
+			0x40340000, 
+			0x0, 
+
+			dontScaleUIRange,
+
+			animateParam,		
+			restrictBounds,	
+			spaceIsAbsolute,
+			resIndependent,
+			2					
+		},
+		
+
+	}
+};

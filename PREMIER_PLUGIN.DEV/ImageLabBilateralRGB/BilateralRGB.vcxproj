@@ -88,6 +88,22 @@
   <ItemGroup>
     <None Include="..\ADOBE\INCLUDES\AE_General.r" />
     <None Include="..\ADOBE\INCLUDES\PrSDKPiPL.r" />
+    <CustomBuild Include="BilateralRGB.r">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">cl /D PRWIN_ENV /I ..\ADOBE\HEADERS\ /EP $(ProjectDir)%(Filename).r &gt; $(ProjectDir)%(Filename).rr
+..\ADOBE\RESOURCES\CnvtPiPL $(ProjectDir)%(Filename).rr $(ProjectDir)%(Filename).rcp
+</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">cl /D PRWIN_ENV /I ..\ADOBE\HEADERS\ /EP $(ProjectDir)%(Filename).r &gt; $(ProjectDir)%(Filename).rr
+..\ADOBE\RESOURCES\CnvtPiPL $(ProjectDir)%(Filename).rr $(ProjectDir)%(Filename).rcp
+</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Converting PiPL for %(Filename)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Converting PiPL for %(Filename)</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$ProjectDir)%(Filename).rr;$(ProjectDir)%(Filename).rcp;%(Outputs)</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$ProjectDir)%(Filename).rr;$(ProjectDir)%(Filename).rcp;%(Outputs)</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="BilateralRGB.rc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D84A8B17-513F-49A6-BCD2-865AF9409087}</ProjectGuid>
@@ -98,21 +114,21 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
-    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
-    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">

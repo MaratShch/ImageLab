@@ -83,7 +83,6 @@
     <ClInclude Include="..\ADOBE\INCLUDES\SPErrorCodes.h" />
     <ClInclude Include="..\ADOBE\INCLUDES\SPTypes.h" />
     <ClInclude Include="include\AdobeImageLabHDR.h" />
-    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\ADOBE\INCLUDES\AE_General.r" />

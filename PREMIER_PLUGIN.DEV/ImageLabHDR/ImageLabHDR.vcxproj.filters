@@ -203,7 +203,6 @@
     <ClInclude Include="..\ADOBE\INCLUDES\SPTypes.h">
       <Filter>adobe_include</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\ADOBE\INCLUDES\AE_General.r">

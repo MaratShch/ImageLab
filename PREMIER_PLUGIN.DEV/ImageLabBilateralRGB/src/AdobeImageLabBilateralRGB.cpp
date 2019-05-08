@@ -17,32 +17,35 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 	switch (selector)
 	{
 		case fsInitSpec:
-			break;
+		break;
 
 		case fsHasSetupDialog:
-			break;
+			errCode = fsHasNoSetupDialog;
+		break;
 
 		case fsSetup:
-			break;
+		break;
 
 		case fsExecute:
-			break;
+		break;
 
 		case fsDisposeData:
-			break;
+		break;
 
 		case fsCanHandlePAR:
-			break;
+			errCode = prEffectCanHandlePAR;
+		break;
 
 		case fsGetPixelFormatsSupported:
-			break;
+			errCode = imageLabPixelFormatSupported(theData);
+		break;
 
 		case fsCacheOnLoad:
-			break;
+		break;
 
 		default:
 			// unhandled case
-			break;
+		break;
 
 	}
 

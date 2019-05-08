@@ -2,45 +2,24 @@
 #include <math.h>
 #include "ImageLabBilateral.h"
 
-static double* pTable = nullptr;
+CACHE_ALIGN static double pTable[256];
 
-bool CreateColorConvertTable(void)
+void CreateColorConvertTable(void)
 {
 	int i;
 
-	if (nullptr == pTable)
-	{
-		const size_t tblSize = sizeof(double) * 256;
-		pTable = reinterpret_cast<double*>(_aligned_malloc(tblSize, 64));
-	}
-
-	if (nullptr != pTable)
-	{
-		CACHE_ALIGN double dTable[256];
-
-#pragma vector aligned
+	__VECTOR_ALIGNED__
 		for (i = 0; i < 256; i++)
-			dTable[i] = static_cast<double>(i) / 255.00;
+			pTable[i] = static_cast<double>(i) / 255.00;
 
-#pragma vector aligned
+	__VECTOR_ALIGNED__
 		for (i = 0; i < 256; i++)
-			pTable[i] = pow(dTable[i], 2.1992187500);
-	}
-
-	return (nullptr != pTable);
+			pTable[i] = pow(pTable[i], 2.1992187500);
 }
 
 
 void DeleteColorConevrtTable(void)
 {
-	if (nullptr != pTable)
-	{
-		// for DBG purpose
-		ZeroMemory(pTable, sizeof(double) * 256);
-		_aligned_free(pTable);
-		pTable = nullptr;
-	}
-	return;
 }
 
 
@@ -53,7 +32,7 @@ void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA,   /* format B,
 	double x, y, z;
 	double x1, y1, z1;
 
-#pragma vector aligned
+	__VECTOR_ALIGNED__
 	for (j = i = 0; i < sampNumber; i++, j += 3)
 	{
 		const unsigned int r = (pBGRA[i] >> 8)  & 0x000000FFu;
@@ -78,8 +57,8 @@ void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA,   /* format B,
 	}
 }
 
-void CIELab_conbert_to_RGB(	const double*       __restrict pCIELab,
-							const unsigned int* __restrict pSrcBGRA, /* original image required only for copy data from alpha channel to processed buffer */
+void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
+							const unsigned int* __restrict pSrcBGRA, /* original image required only for take data from alpha channel */
 							unsigned int*		__restrict pDstBGRA,
 							const int&                     sampNumber)
 {
@@ -89,7 +68,7 @@ void CIELab_conbert_to_RGB(	const double*       __restrict pCIELab,
 	unsigned int iR, iG, iB;
 	int i, j;
 
-#pragma vector aligned
+	__VECTOR_ALIGNED__
 	for (i = j = 0; i < sampNumber; i++, j += 3)
 	{
 		const double y = (pCIELab[j] + 16.0) / 116.0;
