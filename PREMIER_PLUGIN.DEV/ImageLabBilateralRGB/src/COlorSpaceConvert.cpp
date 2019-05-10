@@ -1,8 +1,7 @@
-#include <windows.h>
 #include <math.h>
 #include "ImageLabBilateral.h"
 
-CACHE_ALIGN static double pTable[256];
+AVX2_ALIGN static double pTable[256];
 
 void CreateColorConvertTable(void)
 {
@@ -24,9 +23,8 @@ void DeleteColorConevrtTable(void)
 
 
 void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA,   /* format B, G, R, A (each band as unsigned char) */
-							const double*       __restrict pTable,
 							      double*		__restrict pCEILab, /* format: L, a, b (each band as double) */
-							const int&                     sampNumber)
+							const int                      sampNumber)
 {
 	int i, j;
 	double x, y, z;
@@ -60,7 +58,7 @@ void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA,   /* format B,
 void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 							const unsigned int* __restrict pSrcBGRA, /* original image required only for take data from alpha channel */
 							unsigned int*		__restrict pDstBGRA,
-							const int&                     sampNumber)
+							const int                      sampNumber)
 {
 	double x1, y1, z1;
 	double r, g, b;

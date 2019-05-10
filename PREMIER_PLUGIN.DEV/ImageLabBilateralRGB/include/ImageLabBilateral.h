@@ -15,6 +15,9 @@
 #define CACHE_LINE  32
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
+#define AVX2_ALIGN __declspec(align(32))
+#define AVX512_ALIGN __declspec(align(64))
+
 #if defined __INTEL_COMPILER 
 #define __VECTOR_ALIGNED__ __pragma(vector aligned)
 #else
@@ -22,10 +25,12 @@
 #endif
 
 const int CIELabBufferbands = 3;
-const size_t CIELabBufferSize = CIELabBufferbands * sizeof(double) * 1024 * 128;
+const size_t CIELabBufferSize = (CIELabBufferbands * 2048 * 1080) * sizeof(double); /* components order: L, a, b */
 const size_t CIELabBufferAlign = CACHE_LINE;
 
-const size_t jobsQueueSize = 64;
+const int jobsQueueSize = 64;
+const int maxRadiusSize = 10;
+const double Exp = 2.718281828459;
 
 typedef struct
 {
@@ -52,9 +57,10 @@ T MIN(T a, T b) { return ((a < b) ? a : b); }
 template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
-
-void CreateColorConvertTable(void);
-void DeleteColorConevrtTable(void);
+template<typename T>
+T EXP(T val) {
+	return pow(val, Exp); // powf for floating
+}
 
 
 // Declare plug-in entry point with C linkage
@@ -64,8 +70,14 @@ extern "C" {
 
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
-void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA, const double* __restrict pTable, double* __restrict pCEILab, const int& sampNumber);
-void CIELab_convert_to_BGRA(const double* __restrict pCIELab, const unsigned int* __restrict pSrcBGRA, unsigned int* __restrict pDstBGRA, const int& sampNumber);
+void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA, double* __restrict pCEILab, const int sampNumber);
+void CIELab_convert_to_BGRA(const double* __restrict pCIELab, const unsigned int* __restrict pSrcBGRA, unsigned int* __restrict pDstBGRA, const int sampNumber);
+
+void CreateColorConvertTable(void);
+void DeleteColorConevrtTable(void);
+
+void gaussian_weights(const double sigma, const int radius = 5 /* radius size in range of 3 to 10 */);
+void bilateral_filter_color(const double* __restrict pCIELab, double* __restrict pFiltered, const int sizeX, const int sizeY, const int radius, const double sigmaR);
 
 #ifdef __cplusplus
 }

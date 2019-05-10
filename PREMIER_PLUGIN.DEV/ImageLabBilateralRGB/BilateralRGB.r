@@ -13,11 +13,11 @@
 #endif
 
 // The following two strings should be localized
-#define plugInName		"Bilateral filter"
+#define plugInName		"Bilateral filter RGB"
 #define plugCategory 	"ImageLab"
 
 // This name should not be localized or updated
-#define plugInMatchName	"Bilateral_filter"
+#define plugInMatchName	"Bilateral_filter_RGB"
 
 
 resource 'PiPL' (16000)

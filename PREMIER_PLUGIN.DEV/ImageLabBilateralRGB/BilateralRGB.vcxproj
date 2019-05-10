@@ -23,6 +23,7 @@
     <ClCompile Include="src\COlorSpaceConvert.cpp" />
     <ClCompile Include="src\dll_main.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\ProcessThread.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\ADOBE\INCLUDES\AEConfig.h" />

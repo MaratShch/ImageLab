@@ -1,10 +1,9 @@
-#include <windows.h>
 #include "ImageLabBilateral.h"
 
 
 inline void* allocCIELabBuffer(const size_t& size)
 {
-	void* pMem = _aligned_malloc(CIELabBufferSize, CIELabBufferAlign);
+	void* pMem = _aligned_malloc(size, CIELabBufferAlign);
 	if (nullptr != pMem)
 	{
 		// for DBG purprose
@@ -22,6 +21,13 @@ inline void freeCIELabBuffer(void* pMem)
 		_aligned_free(pMem);
 		pMem = nullptr;
 	}
+}
+
+inline int numCpuCores(void)
+{
+	SYSTEM_INFO sysinfo = { 0 };
+	GetSystemInfo(&sysinfo);
+	return static_cast<int>(sysinfo.dwNumberOfProcessors);
 }
 
 

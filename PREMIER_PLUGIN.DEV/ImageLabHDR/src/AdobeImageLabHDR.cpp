@@ -188,8 +188,6 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 					memset(pSum,  0, IMAGE_LAB_CUMSUM_BUFFER_SIZE);
 					memset(pLut,  0, IMAGE_LAB_LUT_BUFFER_SIZE);
 
-					// handle fields mode !!!
-
 					// compute histogram from Y
 					computeLumaHistogramFrom_VUYA_4444_8u(srcPix, reinterpret_cast<int*>(pHist), static_cast<int>(totalPixels));
 
