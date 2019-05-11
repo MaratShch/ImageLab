@@ -1,12 +1,6 @@
 #include "ImageLabBilateral.h"
 #include <windows.h>
 
-static bool CreateParallelJob(const unsigned int& numCpu)
-{
-	return true;
-}
-
-
 
 
 // Bilateral-RGB filter entry point
@@ -27,6 +21,21 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsExecute:
+		{
+			// execute filter
+			prRect box = { 0 };
+			// Get the frame dimensions
+			((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+			// Calculate dimensions
+			const csSDK_int32 height = box.bottom - box.top;
+			const csSDK_int32 width = box.right - box.left;
+			const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+
+			// Create copies of pointer to the source, destination frames
+			csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+			csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+		}
 		break;
 
 		case fsDisposeData:
@@ -41,6 +50,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsCacheOnLoad:
+			errCode = fsDoNotCacheOnLoad;
 		break;
 
 		default:

@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
+#include "ImageLabBilateral.h"
 
+#if 0
 typedef unsigned long       DWORD;
 typedef long				LONG;
 typedef unsigned short      WORD;
@@ -37,6 +39,7 @@ typedef struct tagBITMAPFILEHEADER {
 } BITMAPFILEHEADER, FAR *LPBITMAPFILEHEADER, *PBITMAPFILEHEADER;
 
 #pragma pack(pop)
+#endif
 
 unsigned char *LoadBitmapFile(const char *filename, BITMAPINFOHEADER *bitmapInfoHeader)
 {
@@ -107,6 +110,8 @@ void main(void)
 	const char* path = { "..\\IMG.IN\\BilateralImgRef_1024x768xRGB.bmp" };
 	BITMAPINFOHEADER header = { 0 };
 	unsigned char* pBmp = nullptr;
+
+	CreateColorConvertTable();
 
 	pBmp = LoadBitmapFile(path, &header);
 

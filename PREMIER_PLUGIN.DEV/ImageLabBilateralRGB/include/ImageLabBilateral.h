@@ -7,7 +7,6 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
-#include <windows.h>
 #include <mutex>
 #include <atomic>
 #include <memory> 
@@ -34,8 +33,9 @@ const double Exp = 2.718281828459;
 
 typedef struct
 {
-	size_t dataSize;
 	void*  pData;
+	unsigned int sizeX;
+	unsigned int sizeY;
 }Async_Jobs;
 
 

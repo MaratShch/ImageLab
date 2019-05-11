@@ -13,7 +13,7 @@ static bool singleStreamMemAlloc(PImageLAB_MemStr* pMemParamStr)
 
 	if (nullptr != pMemParamStr)
 	{
-		PImageLAB_MemStr pMemStr = reinterpret_cast<PImageLAB_MemStr>(_aligned_malloc(sizeof(ImageLAB_MemStr), 32));
+		PImageLAB_MemStr pMemStr = reinterpret_cast<PImageLAB_MemStr>(_aligned_malloc(sizeof(ImageLAB_MemStr), 64));
 		if (nullptr != pMemStr)
 		{
 			pMemStr->strSizeoF = sizeof(ImageLAB_MemStr);

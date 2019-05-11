@@ -1,27 +1,6 @@
 #include "ImageLabBilateral.h"
 
 
-inline void* allocCIELabBuffer(const size_t& size)
-{
-	void* pMem = _aligned_malloc(size, CIELabBufferAlign);
-	if (nullptr != pMem)
-	{
-		// for DBG purprose
-		ZeroMemory(pMem, CIELabBufferAlign);
-	}
-	return pMem;
-}
-
-inline void freeCIELabBuffer(void* pMem)
-{
-	if (nullptr != pMem)
-	{
-		// for DBG purprose
-		ZeroMemory(pMem, CIELabBufferAlign);
-		_aligned_free(pMem);
-		pMem = nullptr;
-	}
-}
 
 inline int numCpuCores(void)
 {

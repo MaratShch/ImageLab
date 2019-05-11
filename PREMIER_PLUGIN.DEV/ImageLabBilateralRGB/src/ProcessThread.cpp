@@ -4,7 +4,6 @@ AVX2_ALIGN static double gMesh[11][11] = { 0 };
 
 void gaussian_weights(const double sigma, const int radius /* radius size in range of 3 to 10 */)
 {
-	double x1, y1;
 	int i, j;
 	int x, y;
 
@@ -40,7 +39,6 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 	const double divider = 2.0 * sigmaR * sigmaR;
 
 	int i, j, k, l, m;
-	int jk, il, idx;
 
 	const int regionSize = 6;// radius + 1;
 	const int CIELabLinePitch = sizeX * CIELabBufferbands;
@@ -60,7 +58,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			// copy window of pixels to temporal array
 			for (k = 0; k < regionSize; k++)
 			{
-				memcpy(pI[k], &pCIELab[jMin*CIELabLinePitch + iMin], regionSize*CIELabBufferbands);
+				memcpy(pI[k], &pCIELab[jMin*CIELabLinePitch + iMin], (iMax-iMin)*CIELabBufferbands);
 			}
 
 			const int CIELabIdx = j * CIELabLinePitch + i;
@@ -125,4 +123,32 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 
 	return;
 }
+
+inline void* allocCIELabBuffer(const size_t& size)
+{
+	void* pMem = _aligned_malloc(size, CIELabBufferAlign);
+	if (nullptr != pMem)
+	{
+		// for DBG purprose
+		ZeroMemory(pMem, CIELabBufferAlign);
+	}
+	return pMem;
+}
+
+inline void freeCIELabBuffer(void* pMem)
+{
+	if (nullptr != pMem)
+	{
+		// for DBG purprose
+		ZeroMemory(pMem, CIELabBufferAlign);
+		_aligned_free(pMem);
+		pMem = nullptr;
+	}
+}
+
+bool CreateParallelJob(const unsigned int& numCpu)
+{
+	return true;
+}
+
 

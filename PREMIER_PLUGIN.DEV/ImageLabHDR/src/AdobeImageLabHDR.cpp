@@ -219,6 +219,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsCacheOnLoad:
+			errCode = fsDoNotCacheOnLoad;
 		break;
 
 		default:
