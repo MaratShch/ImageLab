@@ -7,6 +7,7 @@ void CreateColorConvertTable(void)
 {
 	int i;
 
+	// create table of coeffcients for rapid convert from RGB to CILELab color space
 	__VECTOR_ALIGNED__
 		for (i = 0; i < 256; i++)
 			pTable[i] = static_cast<double>(i) / 255.00;
@@ -17,8 +18,9 @@ void CreateColorConvertTable(void)
 }
 
 
-void DeleteColorConevrtTable(void)
+void DeleteColorConvertTable(void)
 {
+	// nothing to do...
 }
 
 

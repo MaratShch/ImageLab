@@ -21,5 +21,11 @@
     <ClCompile Include="..\..\ImageLabBilateralRGB\src\COlorSpaceConvert.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\ImageLabBilateralRGB\src\dll_main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ImageLabBilateralRGB\src\ProcessThread.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

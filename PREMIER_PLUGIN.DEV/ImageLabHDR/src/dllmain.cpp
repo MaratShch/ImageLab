@@ -4,7 +4,7 @@
 #include <Windows.h>
 #include "AdobeImageLabHDR.h"
 
-static PImageLAB_MemStr pInternalMemory = nullptr;
+AVX2_ALIGN static PImageLAB_MemStr pInternalMemory = nullptr;
 static unsigned int imgBufIndx;
 
 static bool singleStreamMemAlloc(PImageLAB_MemStr* pMemParamStr)

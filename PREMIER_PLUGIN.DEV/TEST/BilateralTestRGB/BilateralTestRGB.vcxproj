@@ -115,6 +115,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\ImageLabBilateralRGB\src\COlorSpaceConvert.cpp" />
+    <ClCompile Include="..\..\ImageLabBilateralRGB\src\dll_main.cpp" />
+    <ClCompile Include="..\..\ImageLabBilateralRGB\src\ProcessThread.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

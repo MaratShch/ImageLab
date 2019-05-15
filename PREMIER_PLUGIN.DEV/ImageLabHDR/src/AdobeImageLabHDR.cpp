@@ -6,8 +6,7 @@ static void computeLumaHistogramFrom_VUYA_4444_8u(const csSDK_uint32* __restrict
 	unsigned int Y1, Y2, Y3, Y4;
 	const int size_aligned = size & 0x7FFFFFFC;
 
-#pragma vector aligned
-
+	__VECTOR_ALIGNED__
 	for (int cnt = 0; cnt < size_aligned; cnt += 4)
 	{
 		Y1 = (srcBuffer[cnt]     & 0x00FF0000) >> 16;
@@ -29,7 +28,7 @@ static void computeHistogramBinarization(const int* __restrict pHist, byte* __re
 	int accumCnt = 0;
 	int cnt;
 
-#pragma vector aligned
+	__VECTOR_ALIGNED__
 	// make binarization
 	for (cnt = 0; cnt < histSize; cnt++)
 	{
@@ -50,6 +49,7 @@ static void computeCumulativeSum(const byte* __restrict pBin, byte* __restrict p
 {
 	pCumSum[0] = pBin[0];
 
+	__VECTOR_ALIGNED__
 	for (int cnt = 1; cnt < histSize; cnt++)
 	{
 		pCumSum[cnt] = pBin[cnt] + pCumSum[cnt - 1];
@@ -66,7 +66,7 @@ static void generateLUT_8u(const byte* __restrict pCumSum, byte* __restrict pLUT
 
 	int i;
 
-#pragma vector aligned
+	__VECTOR_ALIGNED__
 	for (i = 0; i < size; i++)
 	{
 		dVal = lutCoeff * static_cast<double>(pCumSum[i]);

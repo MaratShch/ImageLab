@@ -41,16 +41,16 @@ typedef struct tagBITMAPFILEHEADER {
 #pragma pack(pop)
 #endif
 
-unsigned char *LoadBitmapFile(const char *filename, BITMAPINFOHEADER *bitmapInfoHeader)
+unsigned char* LoadBitmapFile(const char *filename, BITMAPINFOHEADER *bitmapInfoHeader)
 {
 	FILE *filePtr; //our file pointer
 	BITMAPFILEHEADER bitmapFileHeader; //our bitmap file header
 	unsigned char *bitmapImage;  //store image data
-	int imageIdx = 0;  //image index counter
+	DWORD imageIdx = 0;  //image index counter
 	unsigned char tempRGB;  //our swap variable
 
 							//open filename in read binary mode
-	filePtr = fopen(filename, "rb");
+	fopen_s(&filePtr, filename, "rb");
 	if (filePtr == NULL)
 		return NULL;
 
@@ -107,17 +107,36 @@ unsigned char *LoadBitmapFile(const char *filename, BITMAPINFOHEADER *bitmapInfo
 
 void main(void)
 {
-	const char* path = { "..\\IMG.IN\\BilateralImgRef_1024x768xRGB.bmp" };
+	volatile bool bMainProcSim = true;
+	int idx = 10;
+
+	//const char* path = { "..\\IMG.IN\\ImgRef_1024x768xRGB.bmp" };
+	const char* path = { "..\\IMG.IN\\ImgRef_128x96xRGB.bmp" };
 	BITMAPINFOHEADER header = { 0 };
 	unsigned char* pBmp = nullptr;
 
-	CreateColorConvertTable();
+	// simulate DLL' attachment
+	DllMain(nullptr, DLL_PROCESS_ATTACH, nullptr);
 
 	pBmp = LoadBitmapFile(path, &header);
 
-	if (nullptr != pBmp)
+	const int sizeX = header.biWidth;
+	const int sizeY = header.biHeight;
+
+	while (bMainProcSim)
 	{
-		free(pBmp);
-		pBmp = nullptr;
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+		startParallelJobs();
+		
+		idx--;
+		if (0 > idx)
+			break;
 	}
+
+	// simulate DLL' detach
+	DllMain(nullptr, DLL_PROCESS_DETACH, nullptr);
+	std::this_thread::sleep_for(std::chrono::seconds(2));
+
+	printf("Complete...\n");
+	return;
 }

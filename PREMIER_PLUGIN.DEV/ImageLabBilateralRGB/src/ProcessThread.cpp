@@ -1,5 +1,8 @@
 #include "ImageLabBilateral.h"
 
+extern std::mutex globalMutex;
+
+
 AVX2_ALIGN static double gMesh[11][11] = { 0 };
 
 void gaussian_weights(const double sigma, const int radius /* radius size in range of 3 to 10 */)
@@ -55,10 +58,14 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			jMin = MAX(j - radius, 1);
 			jMax = MIN(j + radius, sizeY);
 
+			const int jDiff = jMax - jMin;
+			const int iDiff = iMax - iMin;
 			// copy window of pixels to temporal array
-			for (k = 0; k < regionSize; k++)
+			for (k = 0; k < jDiff; k++)
 			{
-				memcpy(pI[k], &pCIELab[jMin*CIELabLinePitch + iMin], (iMax-iMin)*CIELabBufferbands);
+				const int jIdx  = (jMin + k) * CIELabLinePitch + iMin;
+				const int iSize = iDiff * CIELabBufferbands;
+				memcpy(pI[k], &pCIELab[jIdx], iSize);
 			}
 
 			const int CIELabIdx = j * CIELabLinePitch + i;
@@ -124,7 +131,8 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 	return;
 }
 
-inline void* allocCIELabBuffer(const size_t& size)
+
+void* allocCIELabBuffer(const size_t& size)
 {
 	void* pMem = _aligned_malloc(size, CIELabBufferAlign);
 	if (nullptr != pMem)
@@ -135,7 +143,7 @@ inline void* allocCIELabBuffer(const size_t& size)
 	return pMem;
 }
 
-inline void freeCIELabBuffer(void* pMem)
+void freeCIELabBuffer(void* pMem)
 {
 	if (nullptr != pMem)
 	{
@@ -146,9 +154,109 @@ inline void freeCIELabBuffer(void* pMem)
 	}
 }
 
-bool CreateParallelJob(const unsigned int& numCpu)
+
+void waitForJob(AsyncQueue* pAsyncJob)
 {
-	return true;
+	std::unique_lock<std::mutex> lk(globalMutex);
+	pAsyncJob->cv.wait(lk, [&] {return pAsyncJob->bNewJob;});
+	pAsyncJob->bNewJob = false;
+	lk.unlock();
 }
 
+
+DWORD WINAPI ProcessThread(LPVOID pParam)
+{
+	DWORD exitCode = EXIT_SUCCESS;
+	void* pBuffer1 = nullptr;
+	void* pBuffer2 = nullptr;
+
+	AsyncQueue* pAsyncJob = reinterpret_cast<AsyncQueue*>(pParam);
+
+	// verify parameters
+	if (nullptr == pAsyncJob)
+		return EXIT_FAILURE;
+	if (sizeof(*pAsyncJob) != pAsyncJob->strSizeOf)
+		return EXIT_FAILURE;
+
+	const DWORD affinity = 1UL << pAsyncJob->idx;
+	SetThreadAffinityMask(::GetCurrentThread(), affinity);
+
+
+	__try {
+
+		// allocate memory buffers for temporary procssing
+		pBuffer1 = allocCIELabBuffer(CIELabBufferSize);
+		pBuffer2 = allocCIELabBuffer(CIELabBufferSize);
+		if (nullptr == pBuffer1 || nullptr == pBuffer2)
+			__leave;
+
+		const size_t bufferSizeInPixels = CIELabBufferSize / (CIELabBufferbands * sizeof(double));
+			
+		// thread main loop
+		while (true)
+		{
+//			printf("Thread %u wait for new job\n", pAsyncJob->idx);
+
+			// waits for start new job
+			waitForJob(pAsyncJob);
+
+			// test exit' flag
+			if (pAsyncJob->mustExit == true)
+				__leave;
+
+//			printf("Thread %u execute job\n", pAsyncJob->idx);
+
+			// get job's
+			int numJobs = 0;
+			int idxHead = pAsyncJob->head;
+			int idxTail = pAsyncJob->tail;
+
+			// perform job
+			if (-1 == idxTail)
+				numJobs = idxHead + 1;
+			else
+				numJobs = (idxHead > idxTail) ?
+					idxHead - idxTail + 1 : jobsQueueSize - idxTail + idxHead + 1;
+
+			// perform job on specific data slice
+			for (int i = 0; i < numJobs; i++)
+			{
+				void* pRGBData  = pAsyncJob->jobsQueue[idxTail].pSlice;
+				const int sizeX = pAsyncJob->jobsQueue[idxTail].sizeX;
+				const int sizeY = pAsyncJob->jobsQueue[idxTail].sizeY;
+
+				idxTail++;
+				if (idxTail >= jobsQueueSize)
+					idxTail = 0;
+
+				pAsyncJob->tail = idxTail;
+			}
+
+			// report to consumer about job completion
+			pAsyncJob->bJobComplete;
+			pAsyncJob->cv.notify_all();
+		}// while(true)
+
+	} // __try
+
+	// cleanup memory resources on exit
+	__finally {
+		if (nullptr != pBuffer1)
+		{
+			freeCIELabBuffer(pBuffer1);
+			pBuffer1 = nullptr;
+		}
+		if (nullptr != pBuffer2)
+		{
+			freeCIELabBuffer(pBuffer2);
+			pBuffer2 = nullptr;
+		}
+
+		// report to consumer about job completion
+		pAsyncJob->bJobComplete;
+		pAsyncJob->cv.notify_all();
+	}
+
+	return exitCode;
+}
 

@@ -11,6 +11,14 @@
 #define FILTER_NAME_MAX_LENGTH	32
 #endif
 
+#define AVX2_ALIGN __declspec(align(32))
+#define AVX512_ALIGN __declspec(align(64))
+
+#if defined __INTEL_COMPILER 
+#define __VECTOR_ALIGNED__ __pragma(vector aligned)
+#else
+#define __VECTOR_ALIGNED__
+#endif
 
 #ifndef min
 #define min(a,b) ((a) < (b) ? (a) : (b))
