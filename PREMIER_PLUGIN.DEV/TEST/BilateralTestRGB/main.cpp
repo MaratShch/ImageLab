@@ -105,7 +105,7 @@ unsigned char* LoadBitmapFile(const char *filename, BITMAPINFOHEADER *bitmapInfo
 }
 
 
-void main(void)
+int main(void)
 {
 	volatile bool bMainProcSim = true;
 	int idx = 10;
@@ -138,5 +138,5 @@ void main(void)
 	std::this_thread::sleep_for(std::chrono::seconds(2));
 
 	printf("Complete...\n");
-	return;
+	return 0;
 }
