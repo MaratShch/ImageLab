@@ -87,11 +87,20 @@ void BGRA_convert_to_CIELab(
 	const int                      sizeX,
 	const int                      sizeY,
 	const int                      rowBytes);
-	
-void CIELab_convert_to_BGRA(const double* __restrict pCIELab, const unsigned int* __restrict pSrcBGRA, unsigned int* __restrict pDstBGRA, const int sampNumber);
+
+void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
+	const unsigned int* __restrict pSrcBGRA, /* original image required only for take data from alpha channel */
+	unsigned int*		__restrict pDstBGRA,
+	const int                      sizeX,
+	const int                      sizeY,
+	const int                      rowBytes);
+
 
 void CreateColorConvertTable(void);
 void DeleteColorConvertTable(void);
+
+void* allocCIELabBuffer(const size_t& size);
+void freeCIELabBuffer(void* pMem);
 
 void gaussian_weights(const double sigma, const int radius = 5 /* radius size in range of 3 to 10 */);
 void bilateral_filter_color(const double* __restrict pCIELab, double* __restrict pFiltered, const int sizeX, const int sizeY, const int radius, const double sigmaR);

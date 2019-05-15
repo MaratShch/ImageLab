@@ -73,45 +73,61 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 							const unsigned int* __restrict pSrcBGRA, /* original image required only for take data from alpha channel */
 							unsigned int*		__restrict pDstBGRA,
-							const int                      sampNumber)
+							const int                      sizeX,
+							const int                      sizeY,
+							const int                      rowBytes)
 {
 	double x1, y1, z1;
 	double r, g, b;
 	double r1, g1, b1;
 	unsigned int iR, iG, iB;
-	int i, j;
+	int i, j, k;
 
-	__VECTOR_ALIGNED__
-	for (i = j = 0; i < sampNumber; i++, j += 3)
+	csSDK_uint32* pSrc = const_cast<csSDK_uint32*>(pSrcBGRA);
+	csSDK_uint32* pDst = const_cast<csSDK_uint32*>(pDstBGRA);
+	if (nullptr == pSrc || nullptr == pDst || nullptr == pCIELab)
+		return;
+
+	const int linePitch = rowBytes >> 2;
+
+	for (k = 0; k < sizeY; k++)
 	{
-		const double y = (pCIELab[j] + 16.0) / 116.0;
-		const double x = pCIELab [j+1] / 500.0 + y;
-		const double z = y - pCIELab[j+2] / 200.0;
+		__VECTOR_ALIGNED__
+			for (i = j = 0; i < sizeX; i++, j += 3)
+			{
+				const double y = (pCIELab[j] + 16.0) / 116.0;
+				const double x = pCIELab[j + 1] / 500.0 + y;
+				const double z = y - pCIELab[j + 2] / 200.0;
 
-		x1 = (x > 0.2068930) ? x * x * x : (x - 0.1379310) / 7.7870;
-		y1 = (y > 0.2068930) ? y * y * y : (y - 0.1379310) / 7.7870;
-		z1 = (z > 0.2068930) ? z * z * z : (z - 0.1379310) / 7.7870;
+				x1 = (x > 0.2068930) ? x * x * x : (x - 0.1379310) / 7.7870;
+				y1 = (y > 0.2068930) ? y * y * y : (y - 0.1379310) / 7.7870;
+				z1 = (z > 0.2068930) ? z * z * z : (z - 0.1379310) / 7.7870;
 
-		x1 *= 0.950470;
-		z1 *= 1.088830;
+				x1 *= 0.950470;
+				z1 *= 1.088830;
 
-		r = x1 *  2.041370 + y1 * -0.564950 + z1 * -0.344690;
-		g = x1 * -0.962700 + y1 *  1.876010 + z1 *  0.041560;
-		b = x1 *  0.013450 + y1 * -0.118390 + z1 *  1.015410;
+				r = x1 *  2.041370 + y1 * -0.564950 + z1 * -0.344690;
+				g = x1 * -0.962700 + y1 *  1.876010 + z1 *  0.041560;
+				b = x1 *  0.013450 + y1 * -0.118390 + z1 *  1.015410;
 
-		r1 = pow(r, 0.4547070);
-		g1 = pow(g, 0.4547070);
-		b1 = pow(b, 0.4547070);
+				r1 = pow(r, 0.4547070);
+				g1 = pow(g, 0.4547070);
+				b1 = pow(b, 0.4547070);
 
-		iR = static_cast<unsigned int>(r1 * 255.0);
-		iG = static_cast<unsigned int>(g1 * 255.0);
-		iB = static_cast<unsigned int>(b1 * 255.0);
+				iR = static_cast<unsigned int>(r1 * 255.0);
+				iG = static_cast<unsigned int>(g1 * 255.0);
+				iB = static_cast<unsigned int>(b1 * 255.0);
 
-		pDstBGRA[i] = pSrcBGRA[i] & 0x000000FFu  |
-						(iR & 0x000000FFu) << 8  |
-						(iG & 0x000000FFu) << 16 |
-						(iB & 0x000000FFu) << 24;
-	
+				pDst[i] = pSrc[i] & 0x000000FFu |
+					(iR & 0x000000FFu) << 8     |
+					(iG & 0x000000FFu) << 16    |
+					(iB & 0x000000FFu) << 24;
+
+			}
+
+		pSrc += linePitch - sizeX;
+		pDst += linePitch - sizeX;
+
 	}
 
 	return;

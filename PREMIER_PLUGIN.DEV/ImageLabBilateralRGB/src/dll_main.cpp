@@ -2,11 +2,13 @@
 #include<thread>
 #include<vector>
 
+
 AVX2_ALIGN std::vector<HANDLE> pWorkers;
 AVX2_ALIGN AsyncQueue** pAsyncQueues;
 
 std::mutex globalMutex;
 
+#if 0
 // limit parallel processing threads for DBG purpose only
 const unsigned int dbgMaxParallelJobs = 1u;// UINT_MAX;
 
@@ -149,7 +151,10 @@ void deleteTaskServers(const unsigned int dbgLimit)
 
 	return;
 }
+#endif
 
+extern double* pBuffer1;
+extern double* pBuffer2;
 
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
@@ -158,8 +163,12 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 	{
 		case DLL_PROCESS_ATTACH:
 		{
+			// allocate memory buffers for temporary procssing
+			pBuffer1 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
+			pBuffer2 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
+
 			CreateColorConvertTable();
-			createTaskServers(dbgMaxParallelJobs);
+//			createTaskServers(dbgMaxParallelJobs);
 		}
 		break;
 
@@ -171,8 +180,11 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 
 		case DLL_PROCESS_DETACH:
 		{
-			deleteTaskServers(dbgMaxParallelJobs);
+//			deleteTaskServers(dbgMaxParallelJobs);
 			DeleteColorConvertTable();
+			freeCIELabBuffer(pBuffer1);
+			freeCIELabBuffer(pBuffer2);
+			pBuffer1 = pBuffer2 = nullptr;;
 		}
 		break;
 
