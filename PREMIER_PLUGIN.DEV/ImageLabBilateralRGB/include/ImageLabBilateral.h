@@ -75,6 +75,7 @@ extern "C" {
 
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
+
 void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA, double* __restrict pCEILab, const int sampNumber);
 void CIELab_convert_to_BGRA(const double* __restrict pCIELab, const unsigned int* __restrict pSrcBGRA, unsigned int* __restrict pDstBGRA, const int sampNumber);
 
