@@ -25,19 +25,24 @@
 
 static constexpr int maxCPUCores = 64;
 static constexpr int CIELabBufferbands = 3;
-static constexpr size_t CIELabBufferSize = (CIELabBufferbands * 1024 * 256) * sizeof(double); /* components order: L, a, b */
+//static constexpr size_t CIELabBufferSize = (CIELabBufferbands * 1024 * 256) * sizeof(double); /* components order: L, a, b */
+static constexpr size_t CIELabBufferSize = (CIELabBufferbands * 2048 * 1080) * sizeof(double); /* components order: L, a, b */
 static constexpr size_t CIELabBufferAlign = CACHE_LINE;
 
 static constexpr int jobsQueueSize = 64;
 static constexpr int maxRadiusSize = 10;
 static constexpr double Exp = 2.718281828459;
 
+const unsigned int cpuCores = std::thread::hardware_concurrency();
+
 
 typedef struct
 {
-	void*  pSlice;
-	unsigned int sizeX;
-	unsigned int sizeY;
+	csSDK_uint32* pSrcSlice;
+	csSDK_uint32* pDstSlice;
+	int			  sizeX;
+	int           sizeY;
+	int           rowWidth;
 }Async_Jobs;
 
 
@@ -76,7 +81,13 @@ extern "C" {
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
-void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA, double* __restrict pCEILab, const int sampNumber);
+void BGRA_convert_to_CIELab(
+	const csSDK_uint32* __restrict pBGRA,   /* format B, G, R, A (each band as unsigned char) */
+	double*		        __restrict pCEILab, /* format: L, a, b (each band as double) */
+	const int                      sizeX,
+	const int                      sizeY,
+	const int                      rowBytes);
+	
 void CIELab_convert_to_BGRA(const double* __restrict pCIELab, const unsigned int* __restrict pSrcBGRA, unsigned int* __restrict pDstBGRA, const int sampNumber);
 
 void CreateColorConvertTable(void);
@@ -88,12 +99,18 @@ void bilateral_filter_color(const double* __restrict pCIELab, double* __restrict
 csSDK_int32 processFrame(VideoHandle theData);
 
 DWORD WINAPI ProcessThread(LPVOID pParam);
-void createTaskServers(const unsigned int dbgLimit = UINT_MAX);
-void deleteTaskServers(const unsigned int dbgLimit = UINT_MAX);
-void startParallelJobs(const unsigned int dbgLimit = UINT_MAX);
+void createTaskServers(const unsigned int dbgLimit = 1);
+void deleteTaskServers(const unsigned int dbgLimit = 1);
 
-void startAsyncJobs(void);
-void waitForAsynJobs(void);
+void startParallelJobs(
+	csSDK_uint32* pSrc,
+	csSDK_uint32* pDst,
+	const int     sizeX,
+	const int     sizeY,
+	const int     rowBytes,
+	const unsigned int dbgLimit = 1);
+
+int waitForJobsComplete(const unsigned int dbgLimit = 1);
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
 

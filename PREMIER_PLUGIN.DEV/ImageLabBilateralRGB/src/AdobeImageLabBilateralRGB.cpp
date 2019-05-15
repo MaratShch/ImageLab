@@ -18,6 +18,10 @@ csSDK_int32 processFrame(VideoHandle theData)
 	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
+	startParallelJobs(srcPix, dstPix, width, height, rowbytes);
+
+	waitForJobsComplete();
+
 	return errCode;
 }
 

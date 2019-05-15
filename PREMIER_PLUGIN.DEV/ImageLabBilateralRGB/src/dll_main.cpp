@@ -8,16 +8,34 @@ AVX2_ALIGN AsyncQueue** pAsyncQueues;
 std::mutex globalMutex;
 
 // limit parallel processing threads for DBG purpose only
-const unsigned int dbgMaxParallelJobs = UINT_MAX;
+const unsigned int dbgMaxParallelJobs = 1u;// UINT_MAX;
 
 
-void startParallelJobs(const unsigned int dbgLimit)
+void startParallelJobs(
+	csSDK_uint32* pSrc,
+	csSDK_uint32* pDst,
+	const int     sizeX,
+	const int     sizeY,
+	const int     rowBytes,
+	const unsigned int dbgLimit)
 {
-	const unsigned int numThreads = MIN(dbgLimit, std::thread::hardware_concurrency());
+	const unsigned int numThreads = MIN(dbgLimit, cpuCores);
+	int head;
 
 	std::unique_lock<std::mutex> lk(globalMutex);
 	for (unsigned int i = 0u; i < numThreads; i++)
 	{
+		head = pAsyncQueues[i]->head + 1;
+		if (head >= jobsQueueSize || head < 0)
+			head = 0;
+
+		pAsyncQueues[i]->jobsQueue[head].pSrcSlice = pSrc;
+		pAsyncQueues[i]->jobsQueue[head].pDstSlice = pDst;
+		pAsyncQueues[i]->jobsQueue[head].sizeX = sizeX;
+		pAsyncQueues[i]->jobsQueue[head].sizeY = sizeY;
+		pAsyncQueues[i]->jobsQueue[head].rowWidth = rowBytes;
+		pAsyncQueues[i]->head = head;
+
 		pAsyncQueues[i]->bNewJob = true;
 		pAsyncQueues[i]->cv.notify_one();
 	}
@@ -26,11 +44,25 @@ void startParallelJobs(const unsigned int dbgLimit)
 	return;
 }
 
+int waitForJobsComplete(const unsigned int dbgLimit)
+{
+	const unsigned int numThreads = MIN(dbgLimit, cpuCores);
+
+	for (unsigned int i = 0u; i < numThreads; i++)
+	{
+//		std::unique_lock<std::mutex> lk(globalMutex);
+//		pAsyncJob->cv.wait(lk, [&] {return pAsyncJob->bNewJob; });
+//		pAsyncJob->bNewJob = false;
+//		lk.unlock();
+	}
+
+	return 0;
+}
 
 void createTaskServers(const unsigned int dbgLimit)
 {
 	pAsyncQueues = nullptr;
-	const unsigned int numThreads = MIN(dbgLimit, std::thread::hardware_concurrency());
+	const unsigned int numThreads = MIN(dbgLimit, cpuCores);
 
 	pAsyncQueues = new AsyncQueue*[numThreads];
 	if (nullptr == pAsyncQueues)
@@ -50,13 +82,17 @@ void createTaskServers(const unsigned int dbgLimit)
 		pAsyncQueues[i]->mustExit = false;
 		pAsyncQueues[i]->bNewJob = false;
 
-		DWORD dwT = 0;
+		DWORD dwT = 0UL;
 		HANDLE h = CreateThread(NULL,
 								0,
 								ProcessThread,
 								pAsyncQueues[i],
 								0,
 								&dwT);
+
+		if (INVALID_HANDLE_VALUE == h)
+			break;
+
 		pWorkers.push_back(h);
 	}
 }
@@ -64,7 +100,7 @@ void createTaskServers(const unsigned int dbgLimit)
 
 void deleteTaskServers(const unsigned int dbgLimit)
 {
-	const unsigned int numThreads = MIN(dbgLimit, std::thread::hardware_concurrency());
+	const unsigned int numThreads = MIN(dbgLimit, cpuCores);
 
 	if (nullptr != pAsyncQueues)
 	{

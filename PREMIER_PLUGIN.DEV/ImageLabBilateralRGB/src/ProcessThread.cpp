@@ -167,8 +167,8 @@ void waitForJob(AsyncQueue* pAsyncJob)
 DWORD WINAPI ProcessThread(LPVOID pParam)
 {
 	DWORD exitCode = EXIT_SUCCESS;
-	void* pBuffer1 = nullptr;
-	void* pBuffer2 = nullptr;
+	double* pBuffer1 = nullptr;
+	double* pBuffer2 = nullptr;
 
 	AsyncQueue* pAsyncJob = reinterpret_cast<AsyncQueue*>(pParam);
 
@@ -185,8 +185,9 @@ DWORD WINAPI ProcessThread(LPVOID pParam)
 	__try {
 
 		// allocate memory buffers for temporary procssing
-		pBuffer1 = allocCIELabBuffer(CIELabBufferSize);
-		pBuffer2 = allocCIELabBuffer(CIELabBufferSize);
+		pBuffer1 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
+		pBuffer2 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
+
 		if (nullptr == pBuffer1 || nullptr == pBuffer2)
 			__leave;
 
@@ -221,9 +222,19 @@ DWORD WINAPI ProcessThread(LPVOID pParam)
 			// perform job on specific data slice
 			for (int i = 0; i < numJobs; i++)
 			{
-				void* pRGBData  = pAsyncJob->jobsQueue[idxTail].pSlice;
+				csSDK_uint32* pSrcBGRA = pAsyncJob->jobsQueue[idxTail].pSrcSlice;
+				csSDK_uint32* pDstBGRA = pAsyncJob->jobsQueue[idxTail].pDstSlice;
 				const int sizeX = pAsyncJob->jobsQueue[idxTail].sizeX;
 				const int sizeY = pAsyncJob->jobsQueue[idxTail].sizeY;
+				const int rowBytes = pAsyncJob->jobsQueue[idxTail].rowWidth;
+
+				BGRA_convert_to_CIELab(
+					pSrcBGRA,   /* format B, G, R, A (each band as unsigned char) */
+					pBuffer1,	/* format: L, a, b (each band as double) */
+					sizeX,
+					sizeY,
+					rowBytes
+				);
 
 				idxTail++;
 				if (idxTail >= jobsQueueSize)

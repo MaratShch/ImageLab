@@ -24,36 +24,49 @@ void DeleteColorConvertTable(void)
 }
 
 
-void BGRA_convert_to_CIELab(const unsigned int* __restrict pBGRA,   /* format B, G, R, A (each band as unsigned char) */
+void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B, G, R, A (each band as unsigned char) */
 							      double*		__restrict pCEILab, /* format: L, a, b (each band as double) */
-							const int                      sampNumber)
+							const int                      sizeX,
+							const int                      sizeY,
+							const int                      rowBytes)
 {
-	int i, j;
+	int i, j, k;
 	double x, y, z;
 	double x1, y1, z1;
 
-	__VECTOR_ALIGNED__
-	for (j = i = 0; i < sampNumber; i++, j += 3)
+	csSDK_uint32* pSrc = const_cast<csSDK_uint32*>(pBGRA);
+	if (nullptr == pSrc || nullptr == pCEILab)
+		return;
+
+	const int linePitch = rowBytes >> 2;
+
+	for (k = 0; k < sizeY; k++)
 	{
-		const unsigned int r = (pBGRA[i] >> 8)  & 0x000000FFu;
-		const unsigned int g = (pBGRA[i] >> 16) & 0x000000FFu;
-		const unsigned int b = (pBGRA[i] >> 24) & 0x000000FFu;
+		__VECTOR_ALIGNED__
+			for (j = i = 0; i < sizeX; i++, j += 3)
+			{
+				const unsigned int r = (pSrc[i] >> 8) & 0x000000FFu;
+				const unsigned int g = (pSrc[i] >> 16) & 0x000000FFu;
+				const unsigned int b = (pSrc[i] >> 24) & 0x000000FFu;
 
-		const double tR = pTable[r];
-		const double tG = pTable[g];
-		const double tB = pTable[b];
+				const double tR = pTable[r];
+				const double tG = pTable[g];
+				const double tB = pTable[b];
 
-		x = tR * 0.606720890 + tG * 0.195219210 + tB * 0.197996780;
-		y = tR * 0.297380000 + tG * 0.627350000 + tB * 0.075527000;
-		z = tR * 0.024824810 + tG * 0.064922900 + tB * 0.910243100;
+				x = tR * 0.606720890 + tG * 0.195219210 + tB * 0.197996780;
+				y = tR * 0.297380000 + tG * 0.627350000 + tB * 0.075527000;
+				z = tR * 0.024824810 + tG * 0.064922900 + tB * 0.910243100;
 
-		x1 = (x > 0.0088560) ? cbrt(x) : 7.7870 * x + 0.1379310;
-		y1 = (y > 0.0088560) ? cbrt(y) : 7.7870 * y + 0.1379310;
-		z1 = (z > 0.0088560) ? cbrt(z) : 7.7870 * z + 0.1379310;
+				x1 = (x > 0.0088560) ? cbrt(x) : 7.7870 * x + 0.1379310;
+				y1 = (y > 0.0088560) ? cbrt(y) : 7.7870 * y + 0.1379310;
+				z1 = (z > 0.0088560) ? cbrt(z) : 7.7870 * z + 0.1379310;
 
-		pCEILab[j  ] = 116.0 * y1 - 16.0;
-		pCEILab[j+1] = 500.0 * (x1 - y1);
-		pCEILab[j+2] = 200.0 * (y1 - z1);
+				pCEILab[j] = 116.0 * y1 - 16.0;
+				pCEILab[j + 1] = 500.0 * (x1 - y1);
+				pCEILab[j + 2] = 200.0 * (y1 - z1);
+			}
+		pSrc += linePitch - sizeX;
+
 	}
 }
 
