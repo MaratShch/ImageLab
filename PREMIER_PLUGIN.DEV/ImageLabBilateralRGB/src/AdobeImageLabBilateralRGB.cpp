@@ -20,7 +20,7 @@ csSDK_int32 processFrame(VideoHandle theData)
 	const csSDK_int32 width = box.right - box.left;
 	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
 
-	DebugBreak();
+//	DebugBreak();
 
 	// Create copies of pointer to the source, destination frames
 	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
@@ -28,10 +28,9 @@ csSDK_int32 processFrame(VideoHandle theData)
 
 // single thread synchronous processing
 	BGRA_convert_to_CIELab(srcPix, pBuffer1, width, height, rowbytes);
-
-	bilateral_filter_color(pBuffer1, pBuffer2, width, height, radius, sigma_r);
-
-	CIELab_convert_to_BGRA(pBuffer2, srcPix, dstPix, width, height, rowbytes);
+//	bilateral_filter_color(pBuffer1, pBuffer2, width, height, radius, sigma_r);
+//	CIELab_convert_to_BGRA(pBuffer2, srcPix, dstPix, width, height, rowbytes);
+	CIELab_convert_to_BGRA(pBuffer1, srcPix, dstPix, width, height, rowbytes);
 
 	return errCode;
 }

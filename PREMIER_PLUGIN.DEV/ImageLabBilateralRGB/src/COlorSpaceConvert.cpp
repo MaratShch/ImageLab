@@ -40,14 +40,16 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 
 	const int linePitch = rowBytes >> 2;
 
+//	j = 0;
 	for (k = 0; k < sizeY; k++)
 	{
 //		__VECTOR_ALIGNED__
-			for (j = i = 0; i < sizeX; i++, j += 3)
+			for (i = 0; i < sizeX; i++)
 			{
-				const unsigned int r = pSrc[i]         & 0x000000FFu;
-				const unsigned int g = (pSrc[i] >> 8)  & 0x000000FFu;
-				const unsigned int b = (pSrc[i] >> 16) & 0x000000FFu;
+				const csSDK_uint32 BGRAPixel = *pSrc++;
+				const unsigned int r = BGRAPixel         & 0x000000FFu;
+				const unsigned int g = (BGRAPixel >> 8)  & 0x000000FFu;
+				const unsigned int b = (BGRAPixel >> 16) & 0x000000FFu;
 
 				const double tR = pTable[r];
 				const double tG = pTable[g];
@@ -61,9 +63,14 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 				y1 = (y > 0.0088560) ? cbrt(y) : 7.7870 * y + 0.1379310;
 				z1 = (z > 0.0088560) ? cbrt(z) : 7.7870 * z + 0.1379310;
 
-				pCEILab[j] = 116.0 * y1 - 16.0;
-				pCEILab[j + 1] = 500.0 * (x1 - y1);
-				pCEILab[j + 2] = 200.0 * (y1 - z1);
+//				pCEILab[j] = 116.0 * y1 - 16.0;
+//				pCEILab[j + 1] = 500.0 * (x1 - y1);
+//				pCEILab[j + 2] = 200.0 * (y1 - z1);
+//				j += 3;
+				*pCEILab++ = 116.0 * y1 - 16.0;
+				*pCEILab++ = 500.0 * (x1 - y1);
+				*pCEILab++ = 200.0 * (y1 - z1);
+
 			}
 		pSrc += linePitch - sizeX;
 	}
@@ -78,11 +85,12 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 							const int                      sizeY,
 							const int                      rowBytes)
 {
-	double x1, y1, z1;
-	double r, g, b;
-	double r1, g1, b1;
-	unsigned int iR, iG, iB;
-	int i, j, k;
+	double x1 = 0.0, y1 = 0.0, z1 = 0.0;
+	double rr = 0.0, gg = 0.0, bb = 0.0;
+	double r1 = 0.0, g1 = 0.0, b1 = 0.0;
+
+	unsigned int iR = 0u, iG = 0u, iB = 0u;
+	int i = 0, j = 0, k = 0;
 
 	csSDK_uint32* pSrc = const_cast<csSDK_uint32*>(pSrcBGRA);
 	csSDK_uint32* pDst = const_cast<csSDK_uint32*>(pDstBGRA);
@@ -91,14 +99,23 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 
 	const int linePitch = rowBytes >> 2;
 
+//	j = 0;
+
 	for (k = 0; k < sizeY; k++)
 	{
 //		__VECTOR_ALIGNED__
-			for (i = j = 0; i < sizeX; i++, j += 3)
+			for (i = 0; i < sizeX; i++)
 			{
-				const double y = (pCIELab[j] + 16.0) / 116.0;
-				const double x = pCIELab[j + 1] / 500.0 + y;
-				const double z = y - pCIELab[j + 2] / 200.0;
+//				const double L = pCIELab[j];
+//				const double a = pCIELab[j + 1];
+//				const double b = pCIELab[j + 2];
+				const double L = *pCIELab++;
+				const double a = *pCIELab++;
+				const double b = *pCIELab++;
+
+				const double y = (L + 16.0) / 116.0;
+				const double x = a / 500.0 + y;
+				const double z = y - b / 200.0;
 
 				x1 = (x > 0.2068930) ? x * x * x : (x - 0.1379310) / 7.7870;
 				y1 = (y > 0.2068930) ? y * y * y : (y - 0.1379310) / 7.7870;
@@ -107,23 +124,28 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 				x1 *= 0.950470;
 				z1 *= 1.088830;
 
-				r = x1 *  2.041370 + y1 * -0.564950 + z1 * -0.344690;
-				g = x1 * -0.962700 + y1 *  1.876010 + z1 *  0.041560;
-				b = x1 *  0.013450 + y1 * -0.118390 + z1 *  1.015410;
+				rr = x1 *  2.041370 + y1 * -0.564950 + z1 * -0.344690;
+				gg = x1 * -0.962700 + y1 *  1.876010 + z1 *  0.041560;
+				bb = x1 *  0.013450 + y1 * -0.118390 + z1 *  1.015410;
 
-				r1 = pow(r, 0.4547070);
-				g1 = pow(g, 0.4547070);
-				b1 = pow(b, 0.4547070);
+				r1 = pow(rr, 0.4547070);
+				g1 = pow(gg, 0.4547070);
+				b1 = pow(bb, 0.4547070);
 
 				iR = static_cast<unsigned int>(r1 * 255.0);
 				iG = static_cast<unsigned int>(g1 * 255.0);
 				iB = static_cast<unsigned int>(b1 * 255.0);
 
-				pDst[i] = pSrc[i] & 0xFF000000u |
-					(iR & 0x000000FFu)          |
-					(iG & 0x000000FFu) << 8     |
-					(iB & 0x000000FFu) << 16;
+				const csSDK_uint32 pSrcPixel = *pSrc++;
+				const csSDK_uint32 pDstPixel =
+					pSrcPixel & 0xFF000000u			|
+							(iR & 0x000000FFu)		|
+							(iG & 0x000000FFu) << 8 |
+							(iB & 0x000000FFu) << 16;
+				
+				*pDst++ = pDstPixel;
 
+//				j += 3;
 			}
 
 		pSrc += linePitch - sizeX;

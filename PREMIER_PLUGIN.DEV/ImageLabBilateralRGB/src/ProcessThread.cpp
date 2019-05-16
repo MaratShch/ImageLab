@@ -34,16 +34,18 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 							const int radius,
 	                        const double sigmaR) /* value sigmaR * 100 */
 {
-	AVX2_ALIGN double pI[6][6 * 3] = { 0 };
-	AVX2_ALIGN double pH[6][6] = { 0 };
-	AVX2_ALIGN double pF[6][6] = { 0 };
+	AVX2_ALIGN double pI[11][11 * 3] = { 0 };
+	AVX2_ALIGN double pH[11][11] = { 0 };
+	AVX2_ALIGN double pF[11][11] = { 0 };
 
-	double dL, da, db;
+	double dL = 0.0, da = 0.0, db = 0.0;
 
 	const double sigma = 100.00 * sigmaR;
 	const double divider = 2.00 * sigma * sigma;
 
-	int i, j, k, l, m;
+	int i = 0, j = 0, k= 0, l = 0, m = 0;
+
+	int outIdx = 0;;
 
 	const int regionSize = 6;// radius + 1;
 	const int CIELabLinePitch = sizeX * CIELabBufferbands;
@@ -125,9 +127,11 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 				}
 			}
 
-			pFiltered[i * 3]     = bSum1 / norm_F;
-			pFiltered[i * 3 + 1] = bSum2 / norm_F;
-			pFiltered[i * 3 + 2] = bSum3 / norm_F;
+			outIdx = j * sizeX + i;
+
+			pFiltered[outIdx]     = bSum1 / norm_F;
+			pFiltered[outIdx + 1] = bSum2 / norm_F;
+			pFiltered[outIdx + 2] = bSum3 / norm_F;
 		}
 	}
 
