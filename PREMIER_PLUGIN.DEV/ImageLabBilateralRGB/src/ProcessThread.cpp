@@ -34,17 +34,21 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 							const int radius,
 	                        const double sigmaR) /* value sigmaR * 100 */
 {
-	AVX2_ALIGN double pI[6][6 * 3];
-	AVX2_ALIGN double pH[6][6];
-	AVX2_ALIGN double pF[6][6];
+	AVX2_ALIGN double pI[6][6 * 3] = { 0 };
+	AVX2_ALIGN double pH[6][6] = { 0 };
+	AVX2_ALIGN double pF[6][6] = { 0 };
 
 	double dL, da, db;
-	const double divider = 2.0 * sigmaR * sigmaR;
+
+	const double sigma = 100.00 * sigmaR;
+	const double divider = 2.00 * sigma * sigma;
 
 	int i, j, k, l, m;
 
 	const int regionSize = 6;// radius + 1;
 	const int CIELabLinePitch = sizeX * CIELabBufferbands;
+	const int lastPixelIdx = sizeX - 1;
+	const int lastLineIdx  = sizeY - 1;
 
 	for (j = 0; j < sizeY; j++)
 	{
@@ -53,18 +57,17 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			int iMin, iMax, jMin, jMax;
 
 			// define processing window coordinates
-			iMin = MAX(i - radius, 1);
-			iMax = MIN(i + radius, sizeX);
-			jMin = MAX(j - radius, 1);
-			jMax = MIN(j + radius, sizeY);
+			iMin = MAX(i - radius, 0);
+			iMax = MIN(i + radius, lastPixelIdx);
+			jMin = MAX(j - radius, 0);
+			jMax = MIN(j + radius, lastLineIdx);
 
-			const int jDiff = jMax - jMin;
-			const int iDiff = iMax - iMin;
+			const int jDiff =  (jMax - jMin) + 1;
+			const int iSize = ((iMax - iMin) + 1) * CIELabBufferbands * sizeof(double);
 			// copy window of pixels to temporal array
 			for (k = 0; k < jDiff; k++)
 			{
 				const int jIdx  = (jMin + k) * CIELabLinePitch + iMin;
-				const int iSize = iDiff * CIELabBufferbands;
 				memcpy(pI[k], &pCIELab[jIdx], iSize);
 			}
 
@@ -74,7 +77,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			const double b = pCIELab[CIELabIdx + 2];
 
 			// compute Gaussian range weights
-			__VECTOR_ALIGNED__
+//			__VECTOR_ALIGNED__
 			for (k = 0; k < regionSize; k++)
 			{
 				for (m = l = 0; l < regionSize; l++, m += 3)
@@ -85,7 +88,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 
 					const double dotComp = dL * dL + da * da + db * db;
 					pH[k][l] = EXP(-dotComp / divider);
-				};
+				}
 			}
 
 			// calculate bilateral filter responce
@@ -93,7 +96,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			int jIdx, iIdx;
 
 			jIdx = jMin - j + radius;
-			__VECTOR_ALIGNED__
+//			__VECTOR_ALIGNED__
 			for (k = 0; k < regionSize; k++)
 			{
 				iIdx = iMin - i + radius;
@@ -111,7 +114,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			double bSum2 = 0.0;
 			double bSum3 = 0.0;
 
-			__VECTOR_ALIGNED__
+//			__VECTOR_ALIGNED__
 			for (k = 0; k < regionSize; k++)
 			{
 				for (m = l = 0; l < regionSize; l++, m += 3)
@@ -229,7 +232,7 @@ DWORD WINAPI ProcessThread(LPVOID pParam)
 				const int rowBytes = pAsyncJob->jobsQueue[idxTail].rowWidth;
 
 				BGRA_convert_to_CIELab(
-					pSrcBGRA,   /* format B, G, R, A (each band as unsigned char) */
+					pSrcBGRA,   /* format: A, B, G, R (each band as unsigned char) */
 					pBuffer1,	/* format: L, a, b (each band as double) */
 					sizeX,
 					sizeY,

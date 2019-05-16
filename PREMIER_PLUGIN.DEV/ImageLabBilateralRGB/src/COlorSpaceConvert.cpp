@@ -10,11 +10,7 @@ void CreateColorConvertTable(void)
 	// create table of coeffcients for rapid convert from RGB to CILELab color space
 	__VECTOR_ALIGNED__
 		for (i = 0; i < 256; i++)
-			pTable[i] = static_cast<double>(i) / 255.00;
-
-	__VECTOR_ALIGNED__
-		for (i = 0; i < 256; i++)
-			pTable[i] = pow(pTable[i], 2.1992187500);
+			pTable[i] = pow (static_cast<double>(i) / 255.00, 2.1992187500);
 }
 
 
@@ -34,20 +30,24 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 	double x, y, z;
 	double x1, y1, z1;
 
-	csSDK_uint32* pSrc = const_cast<csSDK_uint32*>(pBGRA);
+	csSDK_uint32* __restrict pSrc = const_cast<csSDK_uint32* __restrict>(pBGRA);
 	if (nullptr == pSrc || nullptr == pCEILab)
+		return;
+
+	const size_t numPixels = static_cast<size_t>(sizeX * sizeY);
+	if (CIELabBufferPixSize < numPixels)
 		return;
 
 	const int linePitch = rowBytes >> 2;
 
 	for (k = 0; k < sizeY; k++)
 	{
-		__VECTOR_ALIGNED__
+//		__VECTOR_ALIGNED__
 			for (j = i = 0; i < sizeX; i++, j += 3)
 			{
-				const unsigned int r = (pSrc[i] >> 8) & 0x000000FFu;
-				const unsigned int g = (pSrc[i] >> 16) & 0x000000FFu;
-				const unsigned int b = (pSrc[i] >> 24) & 0x000000FFu;
+				const unsigned int r = pSrc[i]         & 0x000000FFu;
+				const unsigned int g = (pSrc[i] >> 8)  & 0x000000FFu;
+				const unsigned int b = (pSrc[i] >> 16) & 0x000000FFu;
 
 				const double tR = pTable[r];
 				const double tG = pTable[g];
@@ -66,8 +66,9 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 				pCEILab[j + 2] = 200.0 * (y1 - z1);
 			}
 		pSrc += linePitch - sizeX;
-
 	}
+
+	return;
 }
 
 void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
@@ -92,7 +93,7 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 
 	for (k = 0; k < sizeY; k++)
 	{
-		__VECTOR_ALIGNED__
+//		__VECTOR_ALIGNED__
 			for (i = j = 0; i < sizeX; i++, j += 3)
 			{
 				const double y = (pCIELab[j] + 16.0) / 116.0;
@@ -118,10 +119,10 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 				iG = static_cast<unsigned int>(g1 * 255.0);
 				iB = static_cast<unsigned int>(b1 * 255.0);
 
-				pDst[i] = pSrc[i] & 0x000000FFu |
-					(iR & 0x000000FFu) << 8     |
-					(iG & 0x000000FFu) << 16    |
-					(iB & 0x000000FFu) << 24;
+				pDst[i] = pSrc[i] & 0xFF000000u |
+					(iR & 0x000000FFu)          |
+					(iG & 0x000000FFu) << 8     |
+					(iB & 0x000000FFu) << 16;
 
 			}
 

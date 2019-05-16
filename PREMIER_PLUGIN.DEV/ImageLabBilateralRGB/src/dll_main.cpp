@@ -167,7 +167,13 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 			pBuffer1 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
 			pBuffer2 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
 
+			if (nullptr != pBuffer1 && nullptr != pBuffer2)
+			{
+				ZeroMemory(pBuffer1, CIELabBufferSize);
+				ZeroMemory(pBuffer2, CIELabBufferSize);
+			}
 			CreateColorConvertTable();
+			gaussian_weights();
 //			createTaskServers(dbgMaxParallelJobs);
 		}
 		break;

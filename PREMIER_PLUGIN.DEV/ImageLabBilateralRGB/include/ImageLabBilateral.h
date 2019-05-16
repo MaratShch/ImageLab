@@ -25,8 +25,8 @@
 
 static constexpr int maxCPUCores = 64;
 static constexpr int CIELabBufferbands = 3;
-//static constexpr size_t CIELabBufferSize = (CIELabBufferbands * 1024 * 256) * sizeof(double); /* components order: L, a, b */
-static constexpr size_t CIELabBufferSize = (CIELabBufferbands * 2048 * 1080) * sizeof(double); /* components order: L, a, b */
+static constexpr size_t CIELabBufferPixSize = 2048 * 1080; /* components order: L, a, b */
+static constexpr size_t CIELabBufferSize = CIELabBufferbands * CIELabBufferPixSize * sizeof(double); /* components order: L, a, b */
 static constexpr size_t CIELabBufferAlign = CACHE_LINE;
 
 static constexpr int jobsQueueSize = 64;
@@ -69,7 +69,7 @@ T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
 T EXP(T val) {
-	return pow(val, Exp); // powf for floating
+	return pow(Exp, val); // powf for floating
 }
 
 
@@ -102,7 +102,7 @@ void DeleteColorConvertTable(void);
 void* allocCIELabBuffer(const size_t& size);
 void freeCIELabBuffer(void* pMem);
 
-void gaussian_weights(const double sigma, const int radius = 5 /* radius size in range of 3 to 10 */);
+void gaussian_weights(const double sigma = 3.0, const int radius = 5 /* radius size in range of 5 to 10 */);
 void bilateral_filter_color(const double* __restrict pCIELab, double* __restrict pFiltered, const int sizeX, const int sizeY, const int radius, const double sigmaR);
 
 csSDK_int32 processFrame(VideoHandle theData);
