@@ -40,14 +40,14 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 
 	double dL = 0.0, da = 0.0, db = 0.0;
 
+	double* pSrc = const_cast<double*>(pCIELab);
+
 	const double sigma = 100.00 * sigmaR;
 	const double divider = 2.00 * sigma * sigma;
 
 	int i = 0, j = 0, k= 0, l = 0, m = 0;
-
 	int outIdx = 0;;
 
-	const int regionSize = 6;// radius + 1;
 	const int CIELabLinePitch = sizeX * CIELabBufferbands;
 	const int lastPixelIdx = sizeX - 1;
 	const int lastLineIdx  = sizeY - 1;
@@ -65,7 +65,9 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			jMax = MIN(j + radius, lastLineIdx);
 
 			const int jDiff =  (jMax - jMin) + 1;
-			const int iSize = ((iMax - iMin) + 1) * CIELabBufferbands * sizeof(double);
+			const int iDiff = ((iMax - iMin) + 1);
+			const int iSize = iDiff *CIELabBufferbands * sizeof(double);
+
 			// copy window of pixels to temporal array
 			for (k = 0; k < jDiff; k++)
 			{
@@ -73,16 +75,16 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 				memcpy(pI[k], &pCIELab[jIdx], iSize);
 			}
 
-			const int CIELabIdx = j * CIELabLinePitch + i;
-			const double L = pCIELab[CIELabIdx];
-			const double a = pCIELab[CIELabIdx + 1];
-			const double b = pCIELab[CIELabIdx + 2];
+//			const int CIELabIdx = j * CIELabLinePitch + i;
+			const double L = *pSrc++;
+			const double a = *pSrc++;
+			const double b = *pSrc++;
 
 			// compute Gaussian range weights
 //			__VECTOR_ALIGNED__
-			for (k = 0; k < regionSize; k++)
+			for (k = 0; k < jDiff; k++)
 			{
-				for (m = l = 0; l < regionSize; l++, m += 3)
+				for (m = l = 0; l < iDiff; l++, m += 3)
 				{
 					dL = pI[k][m]   - L;
 					da = pI[k][m+1] - a;
@@ -99,10 +101,10 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 
 			jIdx = jMin - j + radius;
 //			__VECTOR_ALIGNED__
-			for (k = 0; k < regionSize; k++)
+			for (k = 0; k < jDiff; k++)
 			{
 				iIdx = iMin - i + radius;
-				for (l = 0; l < regionSize; l++)
+				for (l = 0; l < iDiff; l++)
 				{
 					pF[k][l] = pH[k][l] * gMesh[jIdx][iIdx];
 					norm_F += pF[k][l];
@@ -117,9 +119,9 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			double bSum3 = 0.0;
 
 //			__VECTOR_ALIGNED__
-			for (k = 0; k < regionSize; k++)
+			for (k = 0; k < jDiff; k++)
 			{
-				for (m = l = 0; l < regionSize; l++, m += 3)
+				for (m = l = 0; l < iDiff; l++, m += 3)
 				{
 					bSum1 += (pF[k][l] * pI[k][m]);
 					bSum2 += (pF[k][l] * pI[k][m + 1]);
@@ -127,11 +129,9 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 				}
 			}
 
-			outIdx = j * sizeX + i;
-
-			pFiltered[outIdx]     = bSum1 / norm_F;
-			pFiltered[outIdx + 1] = bSum2 / norm_F;
-			pFiltered[outIdx + 2] = bSum3 / norm_F;
+			*pFiltered++ = bSum1 / norm_F;
+			*pFiltered++ = bSum2 / norm_F;
+			*pFiltered++ = bSum3 / norm_F;
 		}
 	}
 

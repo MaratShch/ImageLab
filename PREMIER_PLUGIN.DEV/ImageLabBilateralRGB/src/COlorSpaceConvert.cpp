@@ -99,16 +99,11 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 
 	const int linePitch = rowBytes >> 2;
 
-//	j = 0;
-
 	for (k = 0; k < sizeY; k++)
 	{
 //		__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
-//				const double L = pCIELab[j];
-//				const double a = pCIELab[j + 1];
-//				const double b = pCIELab[j + 2];
 				const double L = *pCIELab++;
 				const double a = *pCIELab++;
 				const double b = *pCIELab++;
@@ -145,7 +140,6 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 				
 				*pDst++ = pDstPixel;
 
-//				j += 3;
 			}
 
 		pSrc += linePitch - sizeX;

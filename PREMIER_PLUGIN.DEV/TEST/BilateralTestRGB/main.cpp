@@ -126,7 +126,7 @@ int main(void)
 	while (bMainProcSim)
 	{
 		std::this_thread::sleep_for(std::chrono::seconds(1));
-		startParallelJobs();
+//		startParallelJobs();
 		
 		idx--;
 		if (0 > idx)

@@ -28,10 +28,12 @@ csSDK_int32 processFrame(VideoHandle theData)
 
 // single thread synchronous processing
 	BGRA_convert_to_CIELab(srcPix, pBuffer1, width, height, rowbytes);
-//	bilateral_filter_color(pBuffer1, pBuffer2, width, height, radius, sigma_r);
-//	CIELab_convert_to_BGRA(pBuffer2, srcPix, dstPix, width, height, rowbytes);
+#if 1
+	bilateral_filter_color(pBuffer1, pBuffer2, width, height, radius, sigma_r);
+	CIELab_convert_to_BGRA(pBuffer2, srcPix, dstPix, width, height, rowbytes);
+#else
 	CIELab_convert_to_BGRA(pBuffer1, srcPix, dstPix, width, height, rowbytes);
-
+#endif
 	return errCode;
 }
 
