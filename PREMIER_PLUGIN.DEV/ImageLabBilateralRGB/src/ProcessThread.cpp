@@ -38,15 +38,16 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 	AVX2_ALIGN double pH[11][11] = { 0 };
 	AVX2_ALIGN double pF[11][11] = { 0 };
 
-	double dL = 0.0, da = 0.0, db = 0.0;
+	double bSum1 = 0.0;
+	double bSum2 = 0.0;
+	double bSum3 = 0.0;
 
-	double* pSrc = const_cast<double*>(pCIELab);
+	double dL = 0.0, da = 0.0, db = 0.0;
 
 	const double sigma = 100.00 * sigmaR;
 	const double divider = 2.00 * sigma * sigma;
 
 	int i = 0, j = 0, k= 0, l = 0, m = 0;
-	int outIdx = 0;;
 
 	const int CIELabLinePitch = sizeX * CIELabBufferbands;
 	const int lastPixelIdx = sizeX - 1;
@@ -64,33 +65,36 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			jMin = MAX(j - radius, 0);
 			jMax = MIN(j + radius, lastLineIdx);
 
-			const int jDiff =  (jMax - jMin) + 1;
-			const int iDiff = ((iMax - iMin) + 1);
-			const int iSize = iDiff *CIELabBufferbands * sizeof(double);
+			const int jDiff = (jMax - jMin) + 1;
+			const int iDiff = (iMax - iMin) + 1;
+			const int iSize = iDiff * CIELabBufferbands * sizeof(double);
 
 			// copy window of pixels to temporal array
 			for (k = 0; k < jDiff; k++)
 			{
-				const int jIdx  = (jMin + k) * CIELabLinePitch + iMin;
+				const int jIdx = (jMin + k) * CIELabLinePitch + iMin * CIELabBufferbands;
 				memcpy(pI[k], &pCIELab[jIdx], iSize);
-			}
+			} // for (k = 0; k < jDiff; k++)
 
-//			const int CIELabIdx = j * CIELabLinePitch + i;
-			const double L = *pSrc++;
-			const double a = *pSrc++;
-			const double b = *pSrc++;
+			const int srcIdx = j * CIELabLinePitch + i * CIELabBufferbands;
+			const double L = pCIELab[srcIdx];
+			const double a = pCIELab[srcIdx + 1];
+			const double b = pCIELab[srcIdx + 2];
 
 			// compute Gaussian range weights
-//			__VECTOR_ALIGNED__
 			for (k = 0; k < jDiff; k++)
 			{
 				for (m = l = 0; l < iDiff; l++, m += 3)
 				{
-					dL = pI[k][m]   - L;
-					da = pI[k][m+1] - a;
-					db = pI[k][m+2] - b;
+					dL = pI[k][m] - L;
+					da = pI[k][m + 1] - a;
+					db = pI[k][m + 2] - b;
 
-					const double dotComp = dL * dL + da * da + db * db;
+					const double multDl = dL * dL;
+					const double multDa = da * da;
+					const double multDb = db * db;
+					const double dotComp = multDl + multDa + multDb;
+
 					pH[k][l] = EXP(-dotComp / divider);
 				}
 			}
@@ -100,7 +104,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			int jIdx, iIdx;
 
 			jIdx = jMin - j + radius;
-//			__VECTOR_ALIGNED__
+
 			for (k = 0; k < jDiff; k++)
 			{
 				iIdx = iMin - i + radius;
@@ -113,12 +117,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 				jIdx++;
 			}
 
-			// compute destination pixels
-			double bSum1 = 0.0;
-			double bSum2 = 0.0;
-			double bSum3 = 0.0;
-
-//			__VECTOR_ALIGNED__
+			bSum1 = bSum2 = bSum3 = 0.0;
 			for (k = 0; k < jDiff; k++)
 			{
 				for (m = l = 0; l < iDiff; l++, m += 3)
@@ -129,11 +128,15 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 				}
 			}
 
-			*pFiltered++ = bSum1 / norm_F;
-			*pFiltered++ = bSum2 / norm_F;
-			*pFiltered++ = bSum3 / norm_F;
-		}
-	}
+			// compute destination pixels
+			const int dstIdx = srcIdx;
+			pFiltered[dstIdx]     = bSum1 / norm_F;
+			pFiltered[dstIdx + 1] = bSum2 / norm_F;
+			pFiltered[dstIdx + 2] = bSum3 / norm_F;
+
+		} // for (i = 0; i < sizeX; i++)
+
+	} // for (j = 0; j < sizeY; j++)
 
 	return;
 }
