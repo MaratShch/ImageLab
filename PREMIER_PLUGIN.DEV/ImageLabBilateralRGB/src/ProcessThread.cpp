@@ -1,6 +1,6 @@
 #include "ImageLabBilateral.h"
 
-extern std::mutex globalMutex;
+//extern std::mutex globalMutex;
 
 
 AVX2_ALIGN static double gMesh[11][11] = { 0 };
@@ -164,7 +164,7 @@ void freeCIELabBuffer(void* pMem)
 	}
 }
 
-
+#if 0
 void waitForJob(AsyncQueue* pAsyncJob)
 {
 	std::unique_lock<std::mutex> lk(globalMutex);
@@ -281,3 +281,4 @@ DWORD WINAPI ProcessThread(LPVOID pParam)
 	return exitCode;
 }
 
+#endif

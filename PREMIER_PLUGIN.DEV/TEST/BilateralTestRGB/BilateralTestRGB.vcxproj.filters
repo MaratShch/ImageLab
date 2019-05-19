@@ -27,5 +27,11 @@
     <ClCompile Include="..\..\ImageLabBilateralRGB\src\ProcessThread.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\ImageLabBilateralRGB\src\AdobeImageLabBilateralRGB.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ImageLabBilateralRGB\src\ImageLabPixelFormat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -1,14 +1,15 @@
 #include "ImageLabBilateral.h"
-#include<thread>
-#include<vector>
+//#include<thread>
+//#include<vector>
 
-
+#if 0
 AVX2_ALIGN std::vector<HANDLE> pWorkers;
 AVX2_ALIGN AsyncQueue** pAsyncQueues;
 
+
 std::mutex globalMutex;
 
-#if 0
+
 // limit parallel processing threads for DBG purpose only
 const unsigned int dbgMaxParallelJobs = 1u;// UINT_MAX;
 

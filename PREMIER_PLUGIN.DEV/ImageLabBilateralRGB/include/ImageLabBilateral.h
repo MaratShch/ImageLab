@@ -7,9 +7,9 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
-#include <mutex>
-#include <atomic>
-#include <memory> 
+//#include <mutex>
+//#include <atomic>
+//#include <memory> 
 
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
@@ -33,8 +33,8 @@ static constexpr int jobsQueueSize = 64;
 static constexpr int maxRadiusSize = 10;
 static constexpr double Exp = 2.718281828459;
 
+#if 0
 const unsigned int cpuCores = std::thread::hardware_concurrency();
-
 
 typedef struct
 {
@@ -58,7 +58,7 @@ typedef struct
 	bool        bJobComplete;
 	Async_Jobs	jobsQueue[jobsQueueSize];
 }AsyncQueue;
-
+#endif
 
 
 template<typename T>
@@ -105,7 +105,7 @@ void freeCIELabBuffer(void* pMem);
 void gaussian_weights(const double sigma = 3.0, const int radius = 5 /* radius size in range of 5 to 10 */);
 void bilateral_filter_color(const double* __restrict pCIELab, double* __restrict pFiltered, const int sizeX, const int sizeY, const int radius, const double sigmaR);
 
-csSDK_int32 processFrame(VideoHandle theData);
+static csSDK_int32 processFrame(VideoHandle theData);
 
 DWORD WINAPI ProcessThread(LPVOID pParam);
 void createTaskServers(const unsigned int dbgLimit = 1);

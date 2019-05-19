@@ -123,20 +123,6 @@ int main(void)
 	const int sizeX = header.biWidth;
 	const int sizeY = header.biHeight;
 
-	while (bMainProcSim)
-	{
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-//		startParallelJobs();
-		
-		idx--;
-		if (0 > idx)
-			break;
-	}
-
-	// simulate DLL' detach
-	DllMain(nullptr, DLL_PROCESS_DETACH, nullptr);
-	std::this_thread::sleep_for(std::chrono::seconds(2));
-
 	printf("Complete...\n");
 	return 0;
 }
