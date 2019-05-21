@@ -34,9 +34,8 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 							const int radius,
 	                        const double sigmaR) /* value sigmaR * 100 */
 {
-	AVX2_ALIGN double pI[11][11 * 3] = { 0 };
-	AVX2_ALIGN double pH[11][11] = { 0 };
-	AVX2_ALIGN double pF[11][11] = { 0 };
+	AVX2_ALIGN double pH[11][11];
+	AVX2_ALIGN double pF[11][11];
 
 	double bSum1 = 0.0;
 	double bSum2 = 0.0;
@@ -68,7 +67,6 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			// define process window sizes
 			const int jDiff = (jMax - jMin) + 1;
 			const int iDiff = (iMax - iMin) + 1;
-			const int iSize = iDiff * CIELabBufferbands * sizeof(double);
 
 			// get processed pixel
 			const int srcIdx = j * CIELabLinePitch + i * CIELabBufferbands;
@@ -76,22 +74,16 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			const double a = pCIELab[srcIdx + 1];
 			const double b = pCIELab[srcIdx + 2];
 
-			// copy window of pixels to temporal array
+   		    // compute Gaussian range weights
 			for (k = 0; k < jDiff; k++)
 			{
 				const int jIdx = (jMin + k) * CIELabLinePitch + iMin * CIELabBufferbands;
-				memcpy(pI[k], &pCIELab[jIdx], iSize);
-			} // for (k = 0; k < jDiff; k++)
-			  
-			  // compute Gaussian range weights
-			for (k = 0; k < jDiff; k++)
-			{
-				__VECTOR_ALIGNED__
+
 				for (m = l = 0; l < iDiff; l++, m += 3)
 				{
-					dL = pI[k][m] - L;
-					da = pI[k][m + 1] - a;
-					db = pI[k][m + 2] - b;
+					dL = pCIELab[jIdx + m    ] - L;
+					da = pCIELab[jIdx + m + 1] - a;
+					db = pCIELab[jIdx + m + 2] - b;
 
 					const double dotComp = dL * dL + da * da + db * db;
 					pH[k][l] = EXP(-dotComp / divider);
@@ -120,12 +112,12 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			bSum1 = bSum2 = bSum3 = 0.0;
 			for (k = 0; k < jDiff; k++)
 			{
-				__VECTOR_ALIGNED__
+				const int kIdx = (jMin + k) * CIELabLinePitch + iMin * CIELabBufferbands;
 				for (m = l = 0; l < iDiff; l++, m += 3)
 				{
-					bSum1 += (pF[k][l] * pI[k][m]);
-					bSum2 += (pF[k][l] * pI[k][m + 1]);
-					bSum3 += (pF[k][l] * pI[k][m + 2]);
+					bSum1 += (pF[k][l] * pCIELab[kIdx + m    ]);
+					bSum2 += (pF[k][l] * pCIELab[kIdx + m + 1]);
+					bSum3 += (pF[k][l] * pCIELab[kIdx + m + 2]);
 				}
 			}
 
