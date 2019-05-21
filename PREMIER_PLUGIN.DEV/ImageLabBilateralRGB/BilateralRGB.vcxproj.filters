@@ -211,9 +211,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="BilateralRGB.r">
-      <Filter>resources</Filter>
-    </None>
     <None Include="..\ADOBE\INCLUDES\AE_General.r">
       <Filter>adobe_include</Filter>
     </None>
@@ -225,5 +222,8 @@
     <ResourceCompile Include="BilateralRGB.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="BilateralRGB.r" />
   </ItemGroup>
 </Project>

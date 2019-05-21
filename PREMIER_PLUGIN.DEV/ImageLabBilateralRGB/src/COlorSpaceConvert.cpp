@@ -40,10 +40,9 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 
 	const int linePitch = rowBytes >> 2;
 
-//	j = 0;
 	for (k = 0; k < sizeY; k++)
 	{
-//		__VECTOR_ALIGNED__
+		__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
 				const csSDK_uint32 BGRAPixel = *pSrc++;
@@ -63,10 +62,6 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 				y1 = (y > 0.0088560) ? cbrt(y) : 7.7870 * y + 0.1379310;
 				z1 = (z > 0.0088560) ? cbrt(z) : 7.7870 * z + 0.1379310;
 
-//				pCEILab[j] = 116.0 * y1 - 16.0;
-//				pCEILab[j + 1] = 500.0 * (x1 - y1);
-//				pCEILab[j + 2] = 200.0 * (y1 - z1);
-//				j += 3;
 				*pCEILab++ = 116.0 * y1 - 16.0;
 				*pCEILab++ = 500.0 * (x1 - y1);
 				*pCEILab++ = 200.0 * (y1 - z1);
@@ -77,6 +72,7 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 
 	return;
 }
+
 
 void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 							const unsigned int* __restrict pSrcBGRA, /* original image required only for take data from alpha channel */
@@ -101,7 +97,7 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 
 	for (k = 0; k < sizeY; k++)
 	{
-//		__VECTOR_ALIGNED__
+		__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
 				const double L = *pCIELab++;

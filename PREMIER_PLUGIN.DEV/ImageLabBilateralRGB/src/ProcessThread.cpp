@@ -65,9 +65,16 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			jMin = MAX(j - radius, 0);
 			jMax = MIN(j + radius, lastLineIdx);
 
+			// define process window sizes
 			const int jDiff = (jMax - jMin) + 1;
 			const int iDiff = (iMax - iMin) + 1;
 			const int iSize = iDiff * CIELabBufferbands * sizeof(double);
+
+			// get processed pixel
+			const int srcIdx = j * CIELabLinePitch + i * CIELabBufferbands;
+			const double L = pCIELab[srcIdx];
+			const double a = pCIELab[srcIdx + 1];
+			const double b = pCIELab[srcIdx + 2];
 
 			// copy window of pixels to temporal array
 			for (k = 0; k < jDiff; k++)
@@ -75,26 +82,18 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 				const int jIdx = (jMin + k) * CIELabLinePitch + iMin * CIELabBufferbands;
 				memcpy(pI[k], &pCIELab[jIdx], iSize);
 			} // for (k = 0; k < jDiff; k++)
-
-			const int srcIdx = j * CIELabLinePitch + i * CIELabBufferbands;
-			const double L = pCIELab[srcIdx];
-			const double a = pCIELab[srcIdx + 1];
-			const double b = pCIELab[srcIdx + 2];
-
-			// compute Gaussian range weights
+			  
+			  // compute Gaussian range weights
 			for (k = 0; k < jDiff; k++)
 			{
+				__VECTOR_ALIGNED__
 				for (m = l = 0; l < iDiff; l++, m += 3)
 				{
 					dL = pI[k][m] - L;
 					da = pI[k][m + 1] - a;
 					db = pI[k][m + 2] - b;
 
-					const double multDl = dL * dL;
-					const double multDa = da * da;
-					const double multDb = db * db;
-					const double dotComp = multDl + multDa + multDb;
-
+					const double dotComp = dL * dL + da * da + db * db;
 					pH[k][l] = EXP(-dotComp / divider);
 				}
 			}
@@ -108,6 +107,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			for (k = 0; k < jDiff; k++)
 			{
 				iIdx = iMin - i + radius;
+				__VECTOR_ALIGNED__
 				for (l = 0; l < iDiff; l++)
 				{
 					pF[k][l] = pH[k][l] * gMesh[jIdx][iIdx];
@@ -120,6 +120,7 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 			bSum1 = bSum2 = bSum3 = 0.0;
 			for (k = 0; k < jDiff; k++)
 			{
+				__VECTOR_ALIGNED__
 				for (m = l = 0; l < iDiff; l++, m += 3)
 				{
 					bSum1 += (pF[k][l] * pI[k][m]);
