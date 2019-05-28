@@ -42,7 +42,7 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 
 	for (k = 0; k < sizeY; k++)
 	{
-		__VECTOR_ALIGNED__
+			__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
 				const csSDK_uint32 BGRAPixel = *pSrc++;
@@ -97,7 +97,7 @@ void CIELab_convert_to_BGRA(const double*       __restrict pCIELab,
 
 	for (k = 0; k < sizeY; k++)
 	{
-		__VECTOR_ALIGNED__
+			__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
 				const double L = *pCIELab++;
