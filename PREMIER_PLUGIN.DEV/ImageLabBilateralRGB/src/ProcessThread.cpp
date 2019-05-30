@@ -3,23 +3,23 @@
 //extern std::mutex globalMutex;
 
 
-AVX2_ALIGN static double gMesh[11][11] = { 0 };
+AVX2_ALIGN static float gMesh[11][11] = { 0 };
 
-void gaussian_weights(const double sigma, const int radius /* radius size in range of 3 to 10 */)
+void gaussian_weights(const float sigma, const int radius /* radius size in range of 3 to 10 */)
 {
 	int i, j;
 	int x, y;
 
 	const int size = 11;
-	const double divider = 2.0 * (sigma * sigma); // 2 * sigma ^ 2
+	const float divider = 2.0f * (sigma * sigma); // 2 * sigma ^ 2
 
 	__VECTOR_ALIGNED__
 	for (y = -radius, j = 0; j < size; j++, y++)
 	{
 		for (x = -radius, i = 0; i < size; i++, x++)
 		{
-			const double dSum = static_cast<double>(x * x + y * y);
-			gMesh[j][i] = EXP(-dSum / divider);
+			const float dSum = static_cast<float>((x * x) + (y * y));
+			gMesh[j][i] = aExp(-dSum / divider);
 		}
 	}
 
@@ -27,26 +27,26 @@ void gaussian_weights(const double sigma, const int radius /* radius size in ran
 }
 
 
-void bilateral_filter_color(const double* __restrict pCIELab,
-							double* __restrict pFiltered,
+void bilateral_filter_color(const float* __restrict pCIELab,
+							float* __restrict pFiltered,
 	                        const int sizeX,
 	                        const int sizeY,
 							const int radius,
-	                        const double sigmaR) /* value sigmaR * 100 */
+	                        const float sigmaR) /* value sigmaR * 100 */
 {
-	AVX2_ALIGN double pH[11][11];
-	AVX2_ALIGN double pF[11][11];
+	AVX2_ALIGN float pH[11][11];
+	AVX2_ALIGN float pF[11][11];
 
-	double bSum1 = 0.0;
-	double bSum2 = 0.0;
-	double bSum3 = 0.0;
+	float bSum1;
+	float bSum2;
+	float bSum3;
 
-	double dL = 0.0, da = 0.0, db = 0.0;
+	float dL, da, db;
 
-	const double sigma = 100.00 * sigmaR;
-	const double divider = 2.00 * sigma * sigma;
+	const float sigma = 100.00f * sigmaR;
+	const float divider = 2.00f * sigma * sigma;
 
-	int i = 0, j = 0, k= 0, l = 0, m = 0;
+	int i, j, k, l, m;
 
 	const int CIELabLinePitch = sizeX * CIELabBufferbands;
 	const int lastPixelIdx = sizeX - 1;
@@ -70,9 +70,9 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 
 			// get processed pixel
 			const int srcIdx = j * CIELabLinePitch + i * CIELabBufferbands;
-			const double L = pCIELab[srcIdx];
-			const double a = pCIELab[srcIdx + 1];
-			const double b = pCIELab[srcIdx + 2];
+			const float L = pCIELab[srcIdx];
+			const float a = pCIELab[srcIdx + 1];
+			const float b = pCIELab[srcIdx + 2];
 
    		    // compute Gaussian range weights
 			for (k = 0; k < jDiff; k++)
@@ -85,13 +85,13 @@ void bilateral_filter_color(const double* __restrict pCIELab,
 					da = pCIELab[jIdx + m + 1] - a;
 					db = pCIELab[jIdx + m + 2] - b;
 
-					const double dotComp = dL * dL + da * da + db * db;
-					pH[k][l] = EXP(-dotComp / divider);
+					const float dotComp = (dL * dL) + (da * da) + (db * db);
+					pH[k][l] = aExp(-dotComp / divider);
 				}
 			}
 
 			// calculate bilateral filter responce
-			double norm_F = 0.0;
+			float norm_F = 0.0;
 			int jIdx, iIdx;
 
 			jIdx = jMin - j + radius;

@@ -1,17 +1,17 @@
 #include "ImageLabBilateral.h"
 #include <windows.h>
 
-double* pBuffer1 = nullptr;
-double* pBuffer2 = nullptr;
+float* pBuffer1 = nullptr;
+float* pBuffer2 = nullptr;
 
 static csSDK_int32 processFrame(VideoHandle theData)
 {
-	const double sigma_r = 0.100;
+	const float sigma_r = 0.100f;
 	const int radius = 5;
 
 	csSDK_int32 errCode = fsNoErr;
-	// execute filter
 	prRect box = { 0 };
+
 	// Get the frame dimensions
 	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
 
@@ -26,7 +26,7 @@ static csSDK_int32 processFrame(VideoHandle theData)
 	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-// single thread synchronous processing
+	// single thread synchronous processing
 	BGRA_convert_to_CIELab(srcPix, pBuffer1, width, height, rowbytes);
 	bilateral_filter_color(pBuffer1, pBuffer2, width, height, radius, sigma_r);
 	CIELab_convert_to_BGRA(pBuffer2, srcPix, dstPix, width, height, rowbytes);

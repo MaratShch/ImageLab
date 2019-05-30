@@ -154,8 +154,8 @@ void deleteTaskServers(const unsigned int dbgLimit)
 }
 #endif
 
-extern double* pBuffer1;
-extern double* pBuffer2;
+extern float* pBuffer1;
+extern float* pBuffer2;
 
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
@@ -165,8 +165,8 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 		case DLL_PROCESS_ATTACH:
 		{
 			// allocate memory buffers for temporary procssing
-			pBuffer1 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
-			pBuffer2 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
+			pBuffer1 = reinterpret_cast<float*>(allocCIELabBuffer(CIELabBufferSize));
+			pBuffer2 = reinterpret_cast<float*>(allocCIELabBuffer(CIELabBufferSize));
 
 			if (nullptr != pBuffer1 && nullptr != pBuffer2)
 			{
