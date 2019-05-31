@@ -21,10 +21,23 @@
     <ClCompile Include="src\ImageLabPixelFormat.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AdobeImageLabGlassy.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabGlassyEffect.h">
       <Filter>include</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ImageGlassy.r">
+      <Filter>resources</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ImageGlassy.rc">
+      <Filter>resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
