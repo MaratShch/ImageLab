@@ -123,9 +123,9 @@ void CIELab_convert_to_BGRA(const float*        __restrict pCIELab,
 				//r1 = pow(rr, 0.4547070f); 
 				//g1 = pow(gg, 0.4547070f);
 				//b1 = pow(bb, 0.4547070f);
-				r1 = aExp(0.4547070f * log(rr));
-				g1 = aExp(0.4547070f * log(gg));
-				b1 = aExp(0.4547070f * log(bb));
+				r1 = aExp(0.4547070f * aLog(rr));
+				g1 = aExp(0.4547070f * aLog(gg));
+				b1 = aExp(0.4547070f * aLog(bb));
 
 				iR = static_cast<unsigned int>(r1 * 255.0f);
 				iG = static_cast<unsigned int>(g1 * 255.0f);

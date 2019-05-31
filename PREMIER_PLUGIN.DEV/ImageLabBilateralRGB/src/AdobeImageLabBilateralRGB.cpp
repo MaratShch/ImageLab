@@ -20,8 +20,6 @@ static csSDK_int32 processFrame(VideoHandle theData)
 	const csSDK_int32 width = box.right - box.left;
 	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
 
-//	DebugBreak();
-
 	// Create copies of pointer to the source, destination frames
 	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
@@ -58,7 +56,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 
 		case fsDisposeData:
 		break;
-
+		
 		case fsCanHandlePAR:
 			errCode = prEffectCanHandlePAR;
 		break;

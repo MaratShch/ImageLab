@@ -224,6 +224,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="BilateralRGB.r" />
+    <CustomBuild Include="BilateralRGB.r">
+      <Filter>resources</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
