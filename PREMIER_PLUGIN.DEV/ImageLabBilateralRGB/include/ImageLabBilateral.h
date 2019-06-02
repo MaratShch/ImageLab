@@ -148,9 +148,9 @@ inline float acbrt (float x0)
 inline float aExp(const float & fVal)
 {
 	float y = 1.0f + fVal / 1024.0f;
-	y = y * y; y = y * y; y = y * y; y = y * y;
-	y = y * y; y = y * y; y = y * y; y = y * y;
-	y = y * y; y = y * y;
+	y *= y; y *= y; y *= y; y *= y;
+	y *= y; y *= y; y *= y; y *= y;
+	y *= y; y *= y;
 	return y;
 }
 

@@ -20,8 +20,17 @@
 #define __VECTOR_ALIGNED__
 #endif
 
-size_t constexpr randomBufSize = 1024;
-int    constexpr idxMask = 0x3FF; // [0 ... 1023]
+template<typename T>
+T MIN(T a, T b) { return ((a < b) ? a : b); }
+
+template<typename T>
+T MAX(T a, T b) { return ((a > b) ? a : b); }
+
+template<typename T>
+T GET_WINDOW_SIZE_FROM_SLIDER(T slider_pos) { return slider_pos + static_cast<T>(3); }
+
+int constexpr randomBufSize = 1024;
+int constexpr idxMask = (randomBufSize-1); // [0 ... 1023]
 
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
@@ -32,9 +41,9 @@ extern "C" {
 typedef struct
 {
 // filter setting
-	csSDK_int16	sliderRadius;
+	csSDK_int16	sliderPosition;
 // memory handler
-	float* pBufRandom;
+	const float* pBufRandom;
 }FilterParamStr, *PFilterParamStr, **FilterParamHandle;
 
 
@@ -45,6 +54,9 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 
 static unsigned int utils_get_random_value(void);
 static void generateRandowValues(float* pBuffer, const size_t& bufSize);
+
+const float* const get_random_values_buffer(void);
+static csSDK_int32 processFrame(VideoHandle theData);
 
 
 #ifdef __cplusplus

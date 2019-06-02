@@ -32,6 +32,11 @@ static void generateRandowValues(float* pBuffer, const size_t& bufSize)
 	return;
 }
 
+const float* const get_random_values_buffer(void)
+{
+	return pRandomValBuffer;
+}
+
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
 {
