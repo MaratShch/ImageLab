@@ -1,23 +1,33 @@
 ﻿#include "AdobeImageLabHDR.h"
 
 
-static void computeLumaHistogramFrom_VUYA_4444_8u(const csSDK_uint32* __restrict srcBuffer, int* __restrict pHistogram, const int size)
+static void computeLumaHistogramFrom_VUYA_4444_8u(const csSDK_uint32* __restrict srcBuffer,
+												  int* __restrict pHistogram,
+												  const int width,
+												  const int height,
+												  const int rowBytes)
 {
-	unsigned int Y1, Y2, Y3, Y4;
-	const int size_aligned = size & 0x7FFFFFFC;
+	int i, j;
+	int Y1, Y2, Y3, Y4;
+	const int widthAligned = width & 0x7FFFFFFC;
 
-	__VECTOR_ALIGNED__
-	for (int cnt = 0; cnt < size_aligned; cnt += 4)
+	for (i = 0; i < height; i++)
 	{
-		Y1 = (srcBuffer[cnt]     & 0x00FF0000) >> 16;
-		Y2 = (srcBuffer[cnt + 1] & 0x00FF0000) >> 16;
-		Y3 = (srcBuffer[cnt + 2] & 0x00FF0000) >> 16;
-		Y4 = (srcBuffer[cnt + 3] & 0x00FF0000) >> 16;
+		__VECTOR_ALIGNED__
+		for (j = 0; j < widthAligned; j += 4)
+		{
+			Y1 = (*srcBuffer++ & 0x00FF0000) >> 16;
+			Y2 = (*srcBuffer++ & 0x00FF0000) >> 16;
+			Y3 = (*srcBuffer++ & 0x00FF0000) >> 16;
+			Y4 = (*srcBuffer++ & 0x00FF0000) >> 16;
 
-		pHistogram[Y1]++;
-		pHistogram[Y2]++;
-		pHistogram[Y3]++;
-		pHistogram[Y4]++;
+			pHistogram[Y1]++;
+			pHistogram[Y2]++;
+			pHistogram[Y3]++;
+			pHistogram[Y4]++;
+		}
+		// fix interlaced mode (fields)
+		srcBuffer += (rowBytes / 4) - width;
 	}
 
 	return;
@@ -189,7 +199,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 					memset(pLut,  0, IMAGE_LAB_LUT_BUFFER_SIZE);
 
 					// compute histogram from Y
-					computeLumaHistogramFrom_VUYA_4444_8u(srcPix, reinterpret_cast<int*>(pHist), static_cast<int>(totalPixels));
+					computeLumaHistogramFrom_VUYA_4444_8u(srcPix, reinterpret_cast<int*>(pHist), width, height, rowbytes);
 
 					// make histogtam binarization
 					computeHistogramBinarization(reinterpret_cast<int* __restrict>(pHist), reinterpret_cast<byte* __restrict>(pBin), 256, leftCount, rightCount);
