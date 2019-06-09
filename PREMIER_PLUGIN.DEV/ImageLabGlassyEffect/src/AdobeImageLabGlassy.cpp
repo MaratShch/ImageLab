@@ -7,6 +7,10 @@ static csSDK_int32 processFrame(VideoHandle theData)
 	FilterParamHandle filterParamH = nullptr;
 	csSDK_int32 errCode = fsNoErr;
 
+	int i, j, k, idx;
+	int xIdx, yIdx;
+	float randomValue1, randomValue2;
+
 	// Get the data from specsHandle
 	filterParamH = reinterpret_cast<FilterParamHandle>((*theData)->specsHandle);
 
@@ -24,14 +28,64 @@ static csSDK_int32 processFrame(VideoHandle theData)
 		csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 		csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-		const csSDK_int16 sliderPosition = GET_WINDOW_SIZE_FROM_SLIDER((*filterParamH)->sliderPosition);
+		const int sliderPosition = GET_WINDOW_SIZE_FROM_SLIDER((*filterParamH)->sliderPosition);
+		const float* pRandomValues = (*filterParamH)->pBufRandom;
+
+		idx = 0;
+
+		for (j = 0; j < height; j++)
+		{
+
+			for (i = 0; i < sliderPosition; i++)
+			{
+				randomValue1 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				randomValue2 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				xIdx = static_cast<int>(randomValue1 * i);
+				yIdx = static_cast<int>(randomValue2 * i);
+
+				const int pixOffset = yIdx * width + xIdx;
+
+				*dstPix = *(srcPix + pixOffset);
+				*dstPix++;
+				*srcPix++;
+			}
+
+			srcPix -= sliderPosition;
+
+			for (i = sliderPosition; i < width; i++)
+			{
+				randomValue1 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				randomValue2 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				xIdx = static_cast<int>(randomValue1 * sliderPosition);
+				yIdx = static_cast<int>(randomValue2 * sliderPosition);
+
+				const int pixOffset = yIdx * width + xIdx;
+
+				*dstPix = *(srcPix + pixOffset);
+
+				srcPix++;
+				dstPix++;
+			}
+
+			dstPix += (rowbytes / 4) - width;
+			srcPix += (rowbytes / 4) - width + sliderPosition;
+		}
+	
 	}
 
 	return errCode;
 }
 
 
-// Bilateral-RGB filter entry point
+// filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
 	csSDK_int32 errCode = fsNoErr;

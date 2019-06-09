@@ -29,7 +29,7 @@ T MAX(T a, T b) { return ((a > b) ? a : b); }
 template<typename T>
 T GET_WINDOW_SIZE_FROM_SLIDER(T slider_pos) { return slider_pos + static_cast<T>(3); }
 
-int constexpr randomBufSize = 1024;
+int constexpr randomBufSize = 4096;
 int constexpr idxMask = (randomBufSize-1); // [0 ... 1023]
 
 // Declare plug-in entry point with C linkage
