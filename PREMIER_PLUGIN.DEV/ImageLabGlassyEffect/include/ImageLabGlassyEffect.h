@@ -30,7 +30,7 @@ template<typename T>
 T GET_WINDOW_SIZE_FROM_SLIDER(T slider_pos) { return slider_pos + static_cast<T>(3); }
 
 int constexpr randomBufSize = 4096;
-int constexpr idxMask = (randomBufSize-1); // [0 ... 1023]
+int constexpr idxMask = (randomBufSize-1); // [0 ... 4095]
 
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus

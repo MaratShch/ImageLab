@@ -7,7 +7,7 @@ static csSDK_int32 processFrame(VideoHandle theData)
 	FilterParamHandle filterParamH = nullptr;
 	csSDK_int32 errCode = fsNoErr;
 
-	int i, j, k, idx;
+	int i, j, k, m, idx;
 	int xIdx, yIdx;
 	float randomValue1, randomValue2;
 
@@ -29,34 +29,15 @@ static csSDK_int32 processFrame(VideoHandle theData)
 		csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
 		const int sliderPosition = GET_WINDOW_SIZE_FROM_SLIDER((*filterParamH)->sliderPosition);
-		const float* pRandomValues = (*filterParamH)->pBufRandom;
+		const float* __restrict pRandomValues = (*filterParamH)->pBufRandom;
+
+		const csSDK_int32 shortWidth = width - sliderPosition * 2;
 
 		idx = 0;
 
 		for (j = 0; j < height; j++)
 		{
-
-			for (i = 0; i < sliderPosition; i++)
-			{
-				randomValue1 = pRandomValues[idx++];
-				idx &= idxMask;
-
-				randomValue2 = pRandomValues[idx++];
-				idx &= idxMask;
-
-				xIdx = static_cast<int>(randomValue1 * i);
-				yIdx = static_cast<int>(randomValue2 * i);
-
-				const int pixOffset = yIdx * width + xIdx;
-
-				*dstPix = *(srcPix + pixOffset);
-				*dstPix++;
-				*srcPix++;
-			}
-
-			srcPix -= sliderPosition;
-
-			for (i = sliderPosition; i < width; i++)
+			for (i = 0; i < shortWidth; i++)
 			{
 				randomValue1 = pRandomValues[idx++];
 				idx &= idxMask;
@@ -70,15 +51,34 @@ static csSDK_int32 processFrame(VideoHandle theData)
 				const int pixOffset = yIdx * width + xIdx;
 
 				*dstPix = *(srcPix + pixOffset);
-
 				srcPix++;
 				dstPix++;
+			}
+
+			for (i = shortWidth; i < width; i++)
+			{
+				randomValue1 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				randomValue2 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				xIdx = static_cast<int>(1.50f * randomValue1 * sliderPosition);
+				yIdx = static_cast<int>(randomValue2 * sliderPosition);
+
+				const int pixOffset = yIdx * width + xIdx;
+
+				*dstPix = *(srcPix + pixOffset);
+				dstPix++;
+
+				if (i & 0x01)
+					srcPix++;
 			}
 
 			dstPix += (rowbytes / 4) - width;
 			srcPix += (rowbytes / 4) - width + sliderPosition;
 		}
-	
+
 	}
 
 	return errCode;
