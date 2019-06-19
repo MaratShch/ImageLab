@@ -4,15 +4,13 @@
 static csSDK_int32 processFrame(VideoHandle theData)
 {
 	prRect box = { 0 };
-	FilterParamHandle filterParamH = nullptr;
 	csSDK_int32 errCode = fsNoErr;
-
-	int i, j, k, m, idx;
+	int i, j, idx;
 	int xIdx, yIdx;
 	float randomValue1, randomValue2;
 
 	// Get the data from specsHandle
-	filterParamH = reinterpret_cast<FilterParamHandle>((*theData)->specsHandle);
+	const FilterParamHandle filterParamH = reinterpret_cast<FilterParamHandle>((*theData)->specsHandle);
 
 	if (nullptr != filterParamH)
 	{
@@ -24,18 +22,21 @@ static csSDK_int32 processFrame(VideoHandle theData)
 		const csSDK_int32 width = box.right - box.left;
 		const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
 
+		const int sliderScale = MAX(1.0f, floor(static_cast<float>(width) / 800.f));
+
 		// Create copies of pointer to the source, destination frames
 		csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 		csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-		const int sliderPosition = GET_WINDOW_SIZE_FROM_SLIDER((*filterParamH)->sliderPosition);
+		const int sliderPosition = sliderScale * GET_WINDOW_SIZE_FROM_SLIDER((*filterParamH)->sliderPosition);
 		const float* __restrict pRandomValues = (*filterParamH)->pBufRandom;
 
-		const csSDK_int32 shortWidth = width - sliderPosition * 2;
+		const csSDK_int32 shortWidth  = width  - sliderPosition;
+		const csSDK_int32 shortHeight = height - sliderPosition;
 
 		idx = 0;
 
-		for (j = 0; j < height; j++)
+		for (j = 0; j < shortHeight; j++)
 		{
 			for (i = 0; i < shortWidth; i++)
 			{
@@ -63,21 +64,60 @@ static csSDK_int32 processFrame(VideoHandle theData)
 				randomValue2 = pRandomValues[idx++];
 				idx &= idxMask;
 
-				xIdx = static_cast<int>(1.50f * randomValue1 * sliderPosition);
+				xIdx = static_cast<int>(randomValue1 * (width - i));
 				yIdx = static_cast<int>(randomValue2 * sliderPosition);
 
 				const int pixOffset = yIdx * width + xIdx;
 
 				*dstPix = *(srcPix + pixOffset);
+				srcPix++;
 				dstPix++;
-
-				if (i & 0x01)
-					srcPix++;
 			}
 
-			dstPix += (rowbytes / 4) - width;
-			srcPix += (rowbytes / 4) - width + sliderPosition;
-		}
+		} // for (j = 0; j < shortHeight; j++)
+
+		for (j = shortHeight; j < height; j++)
+		{
+			for (i = 0; i < shortWidth; i++)
+			{
+				randomValue1 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				randomValue2 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				xIdx = static_cast<int>(randomValue1 * sliderPosition);
+				yIdx = static_cast<int>(randomValue2 * (height - j));
+
+				const int pixOffset = yIdx * width + xIdx;
+
+				*dstPix = *(srcPix + pixOffset);
+				srcPix++;
+				dstPix++;
+			}
+
+			for (i = shortWidth; i < width; i++)
+			{
+				randomValue1 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				randomValue2 = pRandomValues[idx++];
+				idx &= idxMask;
+
+				xIdx = static_cast<int>(randomValue1 * (width - i));
+				yIdx = static_cast<int>(randomValue2 * (height - j));
+
+				const int pixOffset = yIdx * width + xIdx;
+
+				*dstPix = *(srcPix + pixOffset);
+				srcPix++;
+				dstPix++;
+			}
+
+		} // for (j = 0; j < shortHeight; j++)
+
+		dstPix += (rowbytes / 4) - width;
+		srcPix += (rowbytes / 4) - width + sliderPosition;
 
 	}
 

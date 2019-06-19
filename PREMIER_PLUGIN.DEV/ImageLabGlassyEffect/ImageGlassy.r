@@ -78,11 +78,13 @@ resource 'PiPL' (16000)
 			ANIM_UI_SLIDER,		// UI Type
 			0,
 			0x0, // valid_min (0.0)
-			0x40480000, // 48
+//			0x40480000, // 48
+			0x40340000, // 20
 			0x0, // valid_max (20.0)
 			0x0,
 			0x0, // ui_min (0.0)
-			0x40480000, // 48
+//			0x40480000, // 48
+			0x40340000, // 20
 			0x0, // ui_max (20.0)
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,

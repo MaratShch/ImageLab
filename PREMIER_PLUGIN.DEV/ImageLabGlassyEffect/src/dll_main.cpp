@@ -44,8 +44,9 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 	{
 		case DLL_PROCESS_ATTACH:
 		{
-			pRandomValBuffer = reinterpret_cast<float*>(_aligned_malloc(randomBufSize * sizeof(float), CACHE_LINE));
-			generateRandowValues(pRandomValBuffer, randomBufSize);
+			pRandomValBuffer = static_cast<float*>(_aligned_malloc(randomBufSize * sizeof(float), CACHE_LINE));
+			if(nullptr != pRandomValBuffer)
+				generateRandowValues(pRandomValBuffer, randomBufSize);
 		}
 		break;
 
