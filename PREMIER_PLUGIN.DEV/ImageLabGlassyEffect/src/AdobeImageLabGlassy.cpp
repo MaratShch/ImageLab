@@ -22,6 +22,7 @@ static csSDK_int32 processFrame(VideoHandle theData)
 		const csSDK_int32 width = box.right - box.left;
 		const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
 
+		const int lineSize = rowbytes >> 2;
 		const int sliderScale = MAX(1.0f, floor(static_cast<float>(width) / 800.f));
 
 		// Create copies of pointer to the source, destination frames
@@ -49,7 +50,7 @@ static csSDK_int32 processFrame(VideoHandle theData)
 				xIdx = static_cast<int>(randomValue1 * sliderPosition);
 				yIdx = static_cast<int>(randomValue2 * sliderPosition);
 
-				const int pixOffset = yIdx * width + xIdx;
+				const int pixOffset = yIdx * lineSize + xIdx;
 
 				*dstPix = *(srcPix + pixOffset);
 				srcPix++;
@@ -67,12 +68,15 @@ static csSDK_int32 processFrame(VideoHandle theData)
 				xIdx = static_cast<int>(randomValue1 * (width - i));
 				yIdx = static_cast<int>(randomValue2 * sliderPosition);
 
-				const int pixOffset = yIdx * width + xIdx;
+				const int pixOffset = yIdx * lineSize + xIdx;
 
 				*dstPix = *(srcPix + pixOffset);
 				srcPix++;
 				dstPix++;
 			}
+
+			dstPix += lineSize - width;
+			srcPix += lineSize - width;
 
 		} // for (j = 0; j < shortHeight; j++)
 
@@ -89,7 +93,7 @@ static csSDK_int32 processFrame(VideoHandle theData)
 				xIdx = static_cast<int>(randomValue1 * sliderPosition);
 				yIdx = static_cast<int>(randomValue2 * (height - j));
 
-				const int pixOffset = yIdx * width + xIdx;
+				const int pixOffset = yIdx * lineSize + xIdx;
 
 				*dstPix = *(srcPix + pixOffset);
 				srcPix++;
@@ -107,17 +111,17 @@ static csSDK_int32 processFrame(VideoHandle theData)
 				xIdx = static_cast<int>(randomValue1 * (width - i));
 				yIdx = static_cast<int>(randomValue2 * (height - j));
 
-				const int pixOffset = yIdx * width + xIdx;
+				const int pixOffset = yIdx * lineSize + xIdx;
 
 				*dstPix = *(srcPix + pixOffset);
 				srcPix++;
 				dstPix++;
 			}
 
-		} // for (j = 0; j < shortHeight; j++)
+			dstPix += lineSize - width;
+			srcPix += lineSize - width;
 
-		dstPix += (rowbytes / 4) - width;
-		srcPix += (rowbytes / 4) - width + sliderPosition;
+		} // for (j = shortHeight; j < height; j++)
 
 	}
 
