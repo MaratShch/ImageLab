@@ -1,16 +1,99 @@
 #include "ImageLabOilPaint.h"
 
-
-static csSDK_int32 processFrame(VideoHandle theData)
+void processDataSlice (
+	const csSDK_uint32* __restrict srcImage,
+	      csSDK_uint32* __restrict dstImage,
+	short int*	        __restrict rHist,
+	short int*	        __restrict gHist,
+	short int*	        __restrict bHist,
+	const int                      width,
+	const int                      height,
+	const int                      linePitch,
+	const int                      windowSize)
 {
+	int i, j, k, l;
+
+	const int shortHeight = height - windowSize;
+	const int shortWidth  = width  - windowSize;
+
+	for (j = 0; j < height; j++)
+	{
+		for (i = 0; i < width; i++)
+		{
+			// get coordinates of first pixel in the window 
+			const csSDK_uint32* startPoint = srcImage + j * height + width;
+			
+			// save Alpha value of destination pixel
+			const int alphaValue = ((*startPoint) >> 24) & 0xFFu;
+			
+			__VECTOR_ALIGNED__  memset(rHist, 0, histSizeBytes);
+			__VECTOR_ALIGNED__  memset(gHist, 0, histSizeBytes);
+			__VECTOR_ALIGNED__  memset(bHist, 0, histSizeBytes);
+
+			const int horizontalWinSize = MIN(width - i, windowSize);
+			const int verticalWinSize = MIN(height - j, windowSize);
+
+			// get local histogram per each color band from image window
+			for (k = 0; k < verticalWinSize; k++)
+			{
+				for (l = 0; l < horizontalWinSize; l++)
+				{
+					const csSDK_uint32 pixel = *(startPoint + k * width + l);
+					
+					const unsigned char r     =        pixel  & 0xFFu;
+					const unsigned char g     = (pixel >> 8)  & 0xFFu;
+					const unsigned char b     = (pixel >> 16) & 0xFFu;
+
+					rHist[r]++;
+					gHist[g]++;
+					bHist[b]++;
+
+				} // for (l = 0; l < windowSize; l++)
+			} // for (k = 0; k < windowSize; k++)
+
+			// search maximal number of pixels with same value
+			short int rMaxPos = -1;
+			short int gMaxPos = -1;
+			short int bMaxPos = -1;
+
+			__VECTOR_ALIGNED__
+			for (k = 0; k < histSize; k++)
+			{
+				rMaxPos = MAX(rMaxPos, rHist[k]);
+				gMaxPos = MAX(gMaxPos, gHist[k]);
+				bMaxPos = MAX(bMaxPos, bHist[k]);
+			} // // search maximal number of pixels with same value
+
+			// build destination pixel;
+			const csSDK_uint32 dstPixel =	alphaValue << 24 |
+											bMaxPos << 16    |
+											gMaxPos << 8     |
+											rMaxPos;
+
+			*dstImage++ = dstPixel;
+		} // for (i = 0; i < shortWidth; i++)
+
+		srcImage += linePitch - width;
+		dstImage += linePitch - width;
+
+	} // for (j = 0; j < shortHeight; j++)
+
+	return;
+}
+
+
+csSDK_int32 processFrame(VideoHandle theData)
+{
+	CACHE_ALIGN short int rHist[histSize];
+	CACHE_ALIGN short int gHist[histSize];
+	CACHE_ALIGN short int bHist[histSize];
+
 	prRect box = { 0 };
 	csSDK_int32 errCode = fsNoErr;
-	int i, j, idx;
-	int xIdx, yIdx;
-	float randomValue1, randomValue2;
 
 	// Get the data from specsHandle
 	const FilterParamHandle filterParamH = reinterpret_cast<FilterParamHandle>((*theData)->specsHandle);
+
 
 	if (nullptr != filterParamH)
 	{
@@ -27,6 +110,8 @@ static csSDK_int32 processFrame(VideoHandle theData)
 		// Create copies of pointer to the source, destination frames
 		csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 		csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+		processDataSlice(srcPix, dstPix, rHist, gHist, bHist, width, height, lineSize, 20);
 
 	}
 

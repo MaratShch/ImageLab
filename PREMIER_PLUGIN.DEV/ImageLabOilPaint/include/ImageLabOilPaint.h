@@ -31,6 +31,8 @@ T MAX(T a, T b) { return ((a > b) ? a : b); }
 extern "C" {
 #endif
 
+constexpr int histSize = 256;
+constexpr int histSizeBytes = sizeof(short int) * histSize;
 
 typedef struct
 {
@@ -43,6 +45,18 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
+csSDK_int32 processFrame(VideoHandle theData);
+
+void processDataSlice(
+	const csSDK_uint32* __restrict srcImage,
+	csSDK_uint32* __restrict dstImage,
+	short int*	        __restrict rHist,
+	short int*	        __restrict gHist,
+	short int*	        __restrict bHist,
+	const int                      width,
+	const int                      height,
+	const int                      linePitch,
+	const int                      windowSize);
 
 #ifdef __cplusplus
 }
