@@ -21,7 +21,7 @@ void DeleteColorConvertTable(void)
 
 
 void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B, G, R, A (each band as unsigned char) */
-							      float*		__restrict pCEILab, /* format: L, a, b (each band as double) */
+							      float*		__restrict pCEILab, /* format: L, a, b (each band as float) */
 							const int                      sizeX,
 							const int                      sizeY,
 							const int                      rowBytes)
