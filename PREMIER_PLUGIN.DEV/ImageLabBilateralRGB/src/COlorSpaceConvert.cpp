@@ -7,7 +7,7 @@ void CreateColorConvertTable(void)
 {
 	int i;
 
-	// create table of coeffcients for rapid convert from RGB to CILELab color space
+	// create table of coeffcients for rapid convert from RGB to CIELab color space
 	__VECTOR_ALIGNED__
 		for (i = 0; i < 256; i++)
 			pTable[i] = pow (static_cast<float>(i) / 255.0f, 2.19921875f);
@@ -119,10 +119,6 @@ void CIELab_convert_to_BGRA(const float*        __restrict pCIELab,
 				gg = (x1 * -0.962700f) + (y1 *  1.876010f) + (z1 *  0.041560f);
 				bb = (x1 *  0.013450f) + (y1 * -0.118390f) + (z1 *  1.015410f);
 
-				//------> required optimization: a ^ b = exp(b * ln(a));
-				//r1 = pow(rr, 0.4547070f); 
-				//g1 = pow(gg, 0.4547070f);
-				//b1 = pow(bb, 0.4547070f);
 				r1 = aExp(0.4547070f * aLog(rr));
 				g1 = aExp(0.4547070f * aLog(gg));
 				b1 = aExp(0.4547070f * aLog(bb));
