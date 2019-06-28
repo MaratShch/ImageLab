@@ -13,9 +13,6 @@ void processDataSlice (
 {
 	int i, j, k, l;
 
-	const int shortHeight = height - windowSize;
-	const int shortWidth  = width  - windowSize;
-
 	for (j = 0; j < height; j++)
 	{
 		for (i = 0; i < width; i++)
@@ -27,12 +24,12 @@ void processDataSlice (
 
 			// get coordinates of first pixel in the window 
 			const csSDK_uint32* startPoint = srcImage + j * linePitch + i;
-			
+
 			// save Alpha value of destination pixel
 			const int alphaValue = ((*startPoint) >> 24) & 0xFFu;
-			
-			const int horizontalWinSize = MIN(width - i,  windowSize);
-			const int verticalWinSize   = MIN(height - j, windowSize);
+
+			const int horizontalWinSize = MIN(width - i, windowSize);
+			const int verticalWinSize = MIN(height - j, windowSize);
 
 			// get local histogram per each color band from image window
 			for (k = 0; k < verticalWinSize; k++)
@@ -40,10 +37,10 @@ void processDataSlice (
 				for (l = 0; l < horizontalWinSize; l++)
 				{
 					const csSDK_uint32 pixel = *(startPoint + k * linePitch + l);
-					
-					const unsigned char r     =        pixel  & 0xFFu;
-					const unsigned char g     = (pixel >> 8)  & 0xFFu;
-					const unsigned char b     = (pixel >> 16) & 0xFFu;
+
+					const unsigned char r = pixel & 0xFFu;
+					const unsigned char g = (pixel >> 8) & 0xFFu;
+					const unsigned char b = (pixel >> 16) & 0xFFu;
 
 					rHist[r]++;
 					gHist[g]++;
@@ -53,19 +50,35 @@ void processDataSlice (
 			} // for (k = 0; k < windowSize; k++)
 
 			// search maximal number of pixels with same value
-			short int rMaxPos = -1;
-			short int gMaxPos = -1;
-			short int bMaxPos = -1;
+			int rMaxPos = 0;
+			int gMaxPos = 0;
+			int bMaxPos = 0;
 
+			short int rVal = -1;
+			short int gVal = -1;
+			short int bVal = -1;
+
+			__VECTOR_ALIGNED__ 
 			for (k = 0; k < histSize; k++)
 			{
-				__VECTOR_ALIGNED__
-					rMaxPos = MAX(rMaxPos, rHist[k]);
-				__VECTOR_ALIGNED__
-					gMaxPos = MAX(gMaxPos, gHist[k]);
-				__VECTOR_ALIGNED__
-					bMaxPos = MAX(bMaxPos, bHist[k]);
-			} // // search maximal number of pixels with same value
+				if (rHist[k] >= rVal)
+				{
+					rVal = rHist[k];
+					rMaxPos = k;
+				}
+
+				if (gHist[k] >= gVal)
+				{
+					gVal = gHist[k];
+					gMaxPos = k;
+				}
+
+				if (bHist[k] >= bVal)
+				{
+					bVal = bHist[k];
+					bMaxPos = k;
+				}
+			}
 
 			// build destination pixel;
 			const csSDK_uint32 dstPixel =	alphaValue << 24 |
@@ -112,8 +125,10 @@ csSDK_int32 processFrame(VideoHandle theData)
 		// Create copies of pointer to the source, destination frames
 		csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 		csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+		
+		const int sliderPosition = GET_WINDOW_SIZE_FROM_SLIDER(((*filterParamH)->sliderPosition));
 
-		processDataSlice(srcPix, dstPix, rHist, gHist, bHist, width, height, lineSize, 5);
+		processDataSlice(srcPix, dstPix, rHist, gHist, bHist, width, height, lineSize, sliderPosition);
 
 	}
 

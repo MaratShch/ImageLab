@@ -26,6 +26,9 @@ T MIN(T a, T b) { return ((a < b) ? a : b); }
 template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
+template<typename T>
+T GET_WINDOW_SIZE_FROM_SLIDER(T slider_pos) { return slider_pos + static_cast<T>(3); }
+
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +36,7 @@ extern "C" {
 
 constexpr int histSize = 256;
 constexpr int histSizeBytes = sizeof(short int) * histSize;
+
 
 typedef struct
 {
@@ -49,7 +53,7 @@ csSDK_int32 processFrame(VideoHandle theData);
 
 void processDataSlice(
 	const csSDK_uint32* __restrict srcImage,
-	csSDK_uint32* __restrict dstImage,
+	csSDK_uint32*       __restrict dstImage,
 	short int*	        __restrict rHist,
 	short int*	        __restrict gHist,
 	short int*	        __restrict bHist,
