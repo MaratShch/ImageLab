@@ -72,18 +72,18 @@ resource 'PiPL' (16000)
 		ANIM_ParamAtom 
 		{
 			0,					// Property count - zero-based count
-			"Brush size",	// Parameter name
+			"Brush size",		// Parameter name
 			1,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
 			0,
 			0x0, // valid_min (0.0)
-			0x40340000, // 20
-			0x0, // valid_max (20.0)
+			0x40480000, // 48
+			0x0, // valid_max (48.0)
 			0x0,
 			0x0, // ui_min (0.0)
-			0x40340000, // 20
-			0x0, // ui_max (20.0)
+			0x40480000, // 48
+			0x0, // ui_max (48.0)
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif

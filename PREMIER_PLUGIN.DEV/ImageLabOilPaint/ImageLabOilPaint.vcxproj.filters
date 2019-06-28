@@ -39,6 +39,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="ImageOilPaint.r" />
+    <CustomBuild Include="ImageOilPaint.r">
+      <Filter>resources</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

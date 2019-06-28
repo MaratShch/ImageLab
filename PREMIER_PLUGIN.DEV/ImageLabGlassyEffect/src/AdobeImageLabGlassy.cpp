@@ -23,7 +23,7 @@ static csSDK_int32 processFrame(VideoHandle theData)
 		const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
 
 		const int lineSize = rowbytes >> 2;
-		const int sliderScale = MAX(1.0f, floor(static_cast<float>(width) / 800.f));
+		const int sliderScale = static_cast<int>(MAX(1.0f, floor(static_cast<float>(width) / 800.f)));
 
 		// Create copies of pointer to the source, destination frames
 		csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
