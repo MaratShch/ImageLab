@@ -20,25 +20,26 @@ void processDataSlice (
 	{
 		for (i = 0; i < width; i++)
 		{
-			// get coordinates of first pixel in the window 
-			const csSDK_uint32* startPoint = srcImage + j * height + width;
-			
-			// save Alpha value of destination pixel
-			const int alphaValue = ((*startPoint) >> 24) & 0xFFu;
-			
+			// cleanup histogramm's buffers
 			__VECTOR_ALIGNED__  memset(rHist, 0, histSizeBytes);
 			__VECTOR_ALIGNED__  memset(gHist, 0, histSizeBytes);
 			__VECTOR_ALIGNED__  memset(bHist, 0, histSizeBytes);
 
-			const int horizontalWinSize = MIN(width - i, windowSize);
-			const int verticalWinSize = MIN(height - j, windowSize);
+			// get coordinates of first pixel in the window 
+			const csSDK_uint32* startPoint = srcImage + j * linePitch + i;
+			
+			// save Alpha value of destination pixel
+			const int alphaValue = ((*startPoint) >> 24) & 0xFFu;
+			
+			const int horizontalWinSize = MIN(width - i,  windowSize);
+			const int verticalWinSize   = MIN(height - j, windowSize);
 
 			// get local histogram per each color band from image window
 			for (k = 0; k < verticalWinSize; k++)
 			{
 				for (l = 0; l < horizontalWinSize; l++)
 				{
-					const csSDK_uint32 pixel = *(startPoint + k * width + l);
+					const csSDK_uint32 pixel = *(startPoint + k * linePitch + l);
 					
 					const unsigned char r     =        pixel  & 0xFFu;
 					const unsigned char g     = (pixel >> 8)  & 0xFFu;
@@ -56,12 +57,14 @@ void processDataSlice (
 			short int gMaxPos = -1;
 			short int bMaxPos = -1;
 
-			__VECTOR_ALIGNED__
 			for (k = 0; k < histSize; k++)
 			{
-				rMaxPos = MAX(rMaxPos, rHist[k]);
-				gMaxPos = MAX(gMaxPos, gHist[k]);
-				bMaxPos = MAX(bMaxPos, bHist[k]);
+				__VECTOR_ALIGNED__
+					rMaxPos = MAX(rMaxPos, rHist[k]);
+				__VECTOR_ALIGNED__
+					gMaxPos = MAX(gMaxPos, gHist[k]);
+				__VECTOR_ALIGNED__
+					bMaxPos = MAX(bMaxPos, bHist[k]);
 			} // // search maximal number of pixels with same value
 
 			// build destination pixel;
@@ -73,7 +76,6 @@ void processDataSlice (
 			*dstImage++ = dstPixel;
 		} // for (i = 0; i < shortWidth; i++)
 
-		srcImage += linePitch - width;
 		dstImage += linePitch - width;
 
 	} // for (j = 0; j < shortHeight; j++)
@@ -111,7 +113,7 @@ csSDK_int32 processFrame(VideoHandle theData)
 		csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 		csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-		processDataSlice(srcPix, dstPix, rHist, gHist, bHist, width, height, lineSize, 20);
+		processDataSlice(srcPix, dstPix, rHist, gHist, bHist, width, height, lineSize, 5);
 
 	}
 
