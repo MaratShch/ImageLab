@@ -58,27 +58,35 @@ void processDataSlice (
 			short int gVal = -1;
 			short int bVal = -1;
 
-			__VECTOR_ALIGNED__ 
-			for (k = 0; k < histSize; k++)
-			{
-				if (rHist[k] >= rVal)
+			__VECTOR_ALIGNED__
+				for (k = 0; k < histSize; k++)
 				{
-					rVal = rHist[k];
-					rMaxPos = k;
+					if (rHist[k] >= rVal)
+					{
+						rVal = rHist[k];
+						rMaxPos = k;
+					}
 				}
 
-				if (gHist[k] >= gVal)
+			__VECTOR_ALIGNED__
+				for (k = 0; k < histSize; k++)
 				{
-					gVal = gHist[k];
-					gMaxPos = k;
+					if (gHist[k] >= gVal)
+					{
+						gVal = gHist[k];
+						gMaxPos = k;
+					}
 				}
 
-				if (bHist[k] >= bVal)
+			__VECTOR_ALIGNED__
+				for (k = 0; k < histSize; k++)
 				{
-					bVal = bHist[k];
-					bMaxPos = k;
+					if (bHist[k] >= bVal)
+					{
+						bVal = bHist[k];
+						bMaxPos = k;
+					}
 				}
-			}
 
 			// build destination pixel;
 			const csSDK_uint32 dstPixel =	alphaValue << 24 |
