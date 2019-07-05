@@ -144,6 +144,7 @@
   <ItemGroup>
     <ClCompile Include="src\ImageLabAWB.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\ProcessThread.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AdobeImageLabAWB.h" />
