@@ -38,9 +38,9 @@ typedef enum
 	STD_BT2020,
 	STD_SMPTE,
 	LAST
-}eCOLOR_SPACE;
+}eSIGNAL_TYPE;
 
-constexpr char strTvSignal[][8] = 
+constexpr char strSignalType[][8] = 
 {
 	"BT.601",
 	"BT.709",
