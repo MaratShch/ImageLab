@@ -34,8 +34,59 @@ CACHE_ALIGN double constexpr RGB2YUV[LAST][9] =
 
 
 
-CACHE_ALIGN double constexpr YUV2RGB[LAST][4] =
+CACHE_ALIGN double constexpr YUV2RGB[LAST][9] =
 {
 
 
 };
+
+
+bool procesBGRA4444_8u_slice(VideoHandle theData)
+{
+	prRect box = { 0 };
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width  = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+
+	// Create copies of pointer to the source, destination frames
+	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	const double* __restrict const coefficientsBT601 = RGB2YUV[STD_BT601];
+
+	CACHE_ALIGN byte yuv601Buffer[3][width];
+
+	for (int j = 0; j < height; j++)
+	{
+		for (int i = 0; i < width; i++)
+		{
+			const csSDK_uint32 BGRAPixel = *srcPix++;
+			const byte r =  BGRAPixel & 0x000000FFu;
+			const byte g = (BGRAPixel & 0x0000FF00u) >> 8;
+			const byte b = (BGRAPixel & 0x00FF0000u) >> 16;
+
+			const double R = static_cast<double>(r);
+			const double G = static_cast<double>(g);
+			const double B = static_cast<double>(b);
+
+			const double Y = R * coefficientsBT601[0] +
+							 G * coefficientsBT601[1] +
+							 B * coefficientsBT601[2];
+
+			const double U = R * coefficientsBT601[3] +
+							 G * coefficientsBT601[4] +
+							 B * coefficientsBT601[5];
+
+			const double V = R * coefficientsBT601[6] +
+							 G * coefficientsBT601[7] +
+				             B * coefficientsBT601[8];
+		}
+	}
+
+	return true;
+}

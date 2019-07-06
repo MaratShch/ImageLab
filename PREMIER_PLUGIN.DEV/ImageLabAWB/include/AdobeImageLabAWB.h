@@ -48,9 +48,13 @@ constexpr char strSignalType[][8] =
 	"SMPTE"
 };
 
+constexpr int TemporarySize = 1024;
 
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
+csSDK_int32 selectProcessFunction(VideoHandle theData);
+
+bool procesBGRA4444_8u_slice(VideoHandle theData);
 
 
 #ifdef __cplusplus
