@@ -45,10 +45,12 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 			__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
-				const csSDK_uint32 BGRAPixel = *pSrc++;
-				const unsigned int r = BGRAPixel         & 0x000000FFu;
-				const unsigned int g = (BGRAPixel >> 8)  & 0x000000FFu;
-				const unsigned int b = (BGRAPixel >> 16) & 0x000000FFu;
+				const csSDK_uint32 BGRAPixel = *pSrc;
+				pSrc++;
+
+				const unsigned int r = (BGRAPixel >> 16) & 0x000000FFu;
+				const unsigned int g = (BGRAPixel >> 8) & 0x000000FFu;
+				const unsigned int b = BGRAPixel         & 0x000000FFu;
 
 				const float tR = pTable[r];
 				const float tG = pTable[g];
@@ -130,9 +132,9 @@ void CIELab_convert_to_BGRA(const float*        __restrict pCIELab,
 				const csSDK_uint32 pSrcPixel = *pSrc++;
 				const csSDK_uint32 pDstPixel =
 					pSrcPixel & 0xFF000000u			|
-							(iR & 0x000000FFu)		|
+							(iB & 0x000000FFu)		|
 							(iG & 0x000000FFu) << 8 |
-							(iB & 0x000000FFu) << 16;
+							(iR & 0x000000FFu) << 16;
 				
 				*pDst++ = pDstPixel;
 
