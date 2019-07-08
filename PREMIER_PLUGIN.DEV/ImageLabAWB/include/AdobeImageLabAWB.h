@@ -41,6 +41,17 @@ inline double asqrt(const double &x)
 	return xRes * x;
 }
 
+inline float asqrtF (const float& x)
+{
+	float xHalf = 0.5f * x;
+	int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess
+	float xRes = *(float*)&tmp;
+
+	xRes *= (1.5f - (xHalf * xRes * xRes));
+	return xRes * x;
+}
+
+
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
 extern "C" {
