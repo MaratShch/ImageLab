@@ -2,11 +2,15 @@
 
 
 
+
 bool procesBGRA4444_8u_slice(	VideoHandle theData, 
 								const double* __restrict pMatrixIn,
 								const double* __restrict pMatrixOut,
 								const int                iterCnt)
 {
+	CACHE_ALIGN double U_avg[maxIterCount];
+	CACHE_ALIGN double V_avg[maxIterCount];
+
 	prRect box = { 0 };
 
 	// Get the frame dimensions
@@ -28,13 +32,16 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	double R, G, B;
 	double Y, U, V;
 	double F;
-	double U_bar, V_bar, U_avg, V_avg;
-	const double T = 0.30; // will be slider position
+	double U_diff, V_diff, normVal;
+	double U_bar, V_bar;
+	constexpr double T = 0.30; // will be slider position
+	constexpr double b = 0.0010; // convergence threshold
+	constexpr double algEpsilon = 1.0000e-06;
 
 	for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
 	{
 		csSDK_uint32* srcImg = const_cast<csSDK_uint32*>(srcFrame);
-		// only last iteratuion with double buffering, before last - in place operations
+		// only last iteration going with double buffering, before last - in-place operations
 		csSDK_uint32* dstImg = const_cast<csSDK_uint32*>((iter_cnt == lastIter) ? dstFrame : srcFrame);
 
 		U_bar = V_bar = 0.00;
@@ -49,7 +56,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 
 					R = static_cast<double>((BGRAPixel & 0x00FF0000) >> 16);
 					G = static_cast<double>((BGRAPixel & 0x0000FF00) >> 8);
-					B = static_cast<double>(BGRAPixel & 0x000000FF);
+					B = static_cast<double>( BGRAPixel & 0x000000FF);
 
 					Y = R * pMatrixIn[0] +
 						G * pMatrixIn[1] +
@@ -75,11 +82,25 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 			srcImg += linePitch - width;
 		}
 
-		U_avg = U_bar / totalGray;
-		V_avg = V_bar / totalGray;
+		U_avg[iter_cnt] = U_bar / totalGray;
+		V_avg[iter_cnt] = V_bar / totalGray;
 
+		if (MAX(abs(U_avg[iter_cnt]), abs(V_avg[iter_cnt])) < b)
+			break; // converged
+
+		if (iter_cnt >= 1)
+		{
+			U_diff = U_avg[iter_cnt] - U_avg[iter_cnt - 1];
+			V_diff = V_avg[iter_cnt] - V_avg[iter_cnt - 1];
+
+//			normVal = asqrt(U_diff * U_diff + V_diff * V_diff);
+			normVal = sqrt(U_diff * U_diff + V_diff * V_diff);
+
+			if (normVal < algEpsilon)
+				break; // U and V no longer improving
+		}
 
 	} // for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
 
-	return (U_avg <= V_avg) ? true : false;
+	return true;
 }

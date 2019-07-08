@@ -25,6 +25,21 @@
 #define __VECTOR_ALIGNED__
 #endif
 
+template<typename T>
+T MIN(T a, T b) { return ((a < b) ? a : b); }
+
+template<typename T>
+T MAX(T a, T b) { return ((a > b) ? a : b); }
+
+
+inline double asqrt(const double &x)
+{
+	double         xHalf = 0.50 * x;
+	long long int  tmp = 0x5FE6EB50C7B537AAl - (*(long long int*)&x >> 1); //initial guess
+	double         xRes = *(double*)&tmp;
+	xRes *= (1.5 - (xHalf * xRes * xRes));
+	return xRes * x;
+}
 
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
@@ -49,6 +64,7 @@ constexpr char strSignalType[][8] =
 };
 
 constexpr int TemporarySize = 1024;
+constexpr int maxIterCount = 32;
 
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
