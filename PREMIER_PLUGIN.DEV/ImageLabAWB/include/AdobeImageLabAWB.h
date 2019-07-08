@@ -54,7 +54,12 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(VideoHandle theData);
 
-bool procesBGRA4444_8u_slice(VideoHandle theData);
+bool procesBGRA4444_8u_slice(
+	VideoHandle theData,
+	const double* __restrict pMatrixIn,
+	const double* __restrict pMatrixOut, 
+	const int iterCnt = 10);
+
 
 
 #ifdef __cplusplus
