@@ -24,6 +24,9 @@
     <ClCompile Include="src\ProcessThread.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\MatrixOperations.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AdobeImageLabAWB.h">

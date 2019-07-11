@@ -54,7 +54,7 @@ resource 'PiPL' (16000)
 			reserved1False,		// Premiere doesn't use any of these flags, but AE does
 			reserved0False,
 			driveMe,
-			doesntNeedDialog,	// needsDialog / doesntNeedDialog - Don't enable "Setup..."
+			needsDialog,	// needsDialog / doesntNeedDialog - Don't enable "Setup..."
 			paramsNotPointer,
 			paramsNotHandle,
 			paramsNotMacHandle,
@@ -88,7 +88,7 @@ resource 'PiPL' (16000)
 			dontScaleUIRange,
 #endif
 			animateParam,		// Set/don't set this to indicate if the param should be animated
-			restrictBounds,	// Rest of these aren't used by Premiere
+			restrictBounds,		// Rest of these aren't used by Premiere
 			spaceIsAbsolute,
 			resIndependent,
 			2					// Bytes size of the param data

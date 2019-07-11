@@ -7,6 +7,10 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
+#include <xmmintrin.h>
+#include <pmmintrin.h>
+
+
 #ifndef FILTER_NAME_MAX_LENGTH
 #define FILTER_NAME_MAX_LENGTH	32
 #endif
@@ -52,11 +56,6 @@ inline float asqrtF (const float& x)
 }
 
 
-// Declare plug-in entry point with C linkage
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum
 {
 	STD_BT601,
@@ -74,10 +73,37 @@ constexpr char strSignalType[][8] =
 	"SMPTE"
 };
 
+typedef enum
+{
+	DEFAULT_ILLUMINATE,
+	DAYLIGHT = DEFAULT_ILLUMINATE,
+	OLD_DAYLIGHT,
+	OLD_DIRECT_SUNLIGHT_AT_NOON,
+	MID_MORNING_DAYLIGHT,
+	NORTH_SKY_DAYLIGHT,
+	DAYLIGHT_FLUORESCENT_F1,
+	COOL_FLUERESCENT,
+	WHITE_FLUORESCENT,
+	WARM_WHITE_FLUORESCENT,
+	DAYLIGHT_FLUORESCENT_F5,
+	COOL_WHITE_FLUORESCENT
+}eILLIUMINATE;
+
+
 constexpr int TemporarySize = 1024;
-constexpr int maxIterCount = 32;
+constexpr int maxIterCount = 16;
+
+// Declare plug-in entry point with C linkage
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+
+#ifdef __cplusplus
+}
+#endif
+
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(VideoHandle theData);
 
@@ -87,8 +113,6 @@ bool procesBGRA4444_8u_slice(
 	const double* __restrict pMatrixOut, 
 	const int iterCnt = 10);
 
+const double* const GetIlluminate(const eILLIUMINATE illuminateIdx = DAYLIGHT);
 
-
-#ifdef __cplusplus
-}
-#endif
+void matrix_3x3_Inversion(const double* __restrict in, double* __restrict out);

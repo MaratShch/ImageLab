@@ -4,17 +4,10 @@
 CACHE_ALIGN double constexpr RGB2YUV[LAST][9] =
 {
 	// BT.601
-#if 0
 	{
 		0.299000,  0.587000,  0.114000,
 	   -0.168740, -0.331260,  0.500000,
 		0.500000, -0.418690, -0.081310
-	},
-#endif
-	{
-		0.299,  0.587,  0.114,
-	   -0.299, -0.587,  0.886,
-	    0.701, -0.587, -0.114
 	},
 
 	// BT.709
@@ -43,8 +36,14 @@ CACHE_ALIGN double constexpr RGB2YUV[LAST][9] =
 
 CACHE_ALIGN double constexpr YUV2RGB[LAST][9] =
 {
+	// BT.601
+	{
+		1.000000,  0.000000,  1.402000,
+		1.000000, -0.344140, -0.714140,
+		1.000000,  1.772000,  0.000000
+	},
 
-
+	{}
 };
 
 #ifdef _DEBUG
@@ -145,10 +144,12 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 }
 
 
+
 // ImageLabHDR filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
 	csSDK_int32 errCode = fsNoErr;
+	// defined in header file
 
 	switch (selector)
 	{
@@ -156,12 +157,18 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			errCode = fsNoErr;
 		break;
 
-		case fsHasSetupDialog:
-			errCode = fsHasNoSetupDialog;
-		break;
-
 		case fsSetup:
-		break;
+			errCode = fsNoErr;
+//			if ((*theData)->specsHandle)
+//			{
+#ifdef PRWIN_ENV
+				MessageBox((HWND)(*theData)->piSuites->windFuncs->getMainWnd(),
+					"fsSetup sent. Respond with a setup dialog.",
+					"Field-Aware Video Filter",
+					MB_OK);
+#endif
+//			}
+			break;
 
 		case fsExecute:
 			errCode = selectProcessFunction(theData);
@@ -178,9 +185,9 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			errCode = imageLabPixelFormatSupported(theData);
 		break;
 
-		case fsCacheOnLoad:
-			errCode = fsDoNotCacheOnLoad;
-		break;
+//		case fsCacheOnLoad:
+//			errCode = fsDoNotCacheOnLoad;
+//		break;
 
 		default:
 			// unhandled case
@@ -190,3 +197,5 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 
 	return errCode;
 }
+
+

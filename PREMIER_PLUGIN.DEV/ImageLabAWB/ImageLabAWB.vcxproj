@@ -163,6 +163,7 @@
   <ItemGroup>
     <ClCompile Include="src\ImageLabAWB.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\MatrixOperations.cpp" />
     <ClCompile Include="src\ProcessThread.cpp" />
   </ItemGroup>
   <ItemGroup>
