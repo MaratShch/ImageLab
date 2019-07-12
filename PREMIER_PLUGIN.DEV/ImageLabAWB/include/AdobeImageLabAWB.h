@@ -7,9 +7,10 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
+#if !defined __INTEL_COMPILER 
 #include <xmmintrin.h>
 #include <pmmintrin.h>
-
+#endif
 
 #ifndef FILTER_NAME_MAX_LENGTH
 #define FILTER_NAME_MAX_LENGTH	32
@@ -36,22 +37,22 @@ template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 
-inline double asqrt(const double &x)
+inline double asqrt(const double& x)
 {
 	double         xHalf = 0.50 * x;
 	long long int  tmp = 0x5FE6EB50C7B537AAl - (*(long long int*)&x >> 1); //initial guess
 	double         xRes = *(double*)&tmp;
-	xRes *= (1.5 - (xHalf * xRes * xRes));
+	xRes *= (1.50 - (xHalf * xRes * xRes));
 	return xRes * x;
 }
 
-inline float asqrtF (const float& x)
+inline float asqrt (const float& x)
 {
-	float xHalf = 0.5f * x;
+	float xHalf = 0.50f * x;
 	int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess
 	float xRes = *(float*)&tmp;
 
-	xRes *= (1.5f - (xHalf * xRes * xRes));
+	xRes *= (1.50f - (xHalf * xRes * xRes));
 	return xRes * x;
 }
 

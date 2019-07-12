@@ -7,6 +7,12 @@ CACHE_ALIGN constexpr double sRGBtoXYZ[9] = {
 	0.0193339,  0.1191920,  0.9503041
 };
 
+CACHE_ALIGN constexpr double XYZtosRGB[9] = {
+	3.240455, -1.537139, -0.498532,
+   -0.969266,  1.876011,  0.041556,
+    0.055643, -0.204026,  1.057225
+};
+
 CACHE_ALIGN constexpr double CAT2[9] = {
 	0.73280, 0.42960,  -0.16240,
    -0.70360, 1.69750,   0.00610,
@@ -45,8 +51,13 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 								const double* __restrict pMatrixOut,
 								const int                iterCnt)
 {
-	CACHE_ALIGN double U_avg[maxIterCount];
-	CACHE_ALIGN double V_avg[maxIterCount];
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	CACHE_ALIGN double U_avg[maxIterCount] = {};
+	CACHE_ALIGN double V_avg[maxIterCount] = {};
 
 	prRect box = { 0 };
 
@@ -72,7 +83,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	double F;
 	double U_diff, V_diff, normVal;
 	double U_bar, V_bar;
-	constexpr double T = 0.30; // will be slider position
+	constexpr double T = 0.3000; // will be slider position
 	constexpr double b = 0.0010; // convergence threshold
 	constexpr double algEpsilon = 1.00e-06;
 
@@ -84,6 +95,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 
 		U_bar = V_bar = 0.00;
 
+		// first pass - accquire color statistics
 		for (int j = 0; j < height; j++)
 		{
 			__VECTOR_ALIGNED__
@@ -94,7 +106,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 
 					R = static_cast<double>((BGRAPixel & 0x00FF0000) >> 16);
 					G = static_cast<double>((BGRAPixel & 0x0000FF00) >> 8);
-					B = static_cast<double>( BGRAPixel & 0x000000FF);
+					B = static_cast<double>(BGRAPixel & 0x000000FF);
 
 					Y = R * pMatrixIn[0] +
 						G * pMatrixIn[1] +
@@ -131,7 +143,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 			U_diff = U_avg[iter_cnt] - U_avg[iter_cnt - 1];
 			V_diff = V_avg[iter_cnt] - V_avg[iter_cnt - 1];
 
-//			normVal = asqrt(U_diff * U_diff + V_diff * V_diff);
+			//			normVal = asqrt(U_diff * U_diff + V_diff * V_diff);
 			normVal = sqrt(U_diff * U_diff + V_diff * V_diff);
 
 			if (normVal < algEpsilon)
@@ -162,24 +174,104 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 		// get illuminate
 		const double* illuminate = GetIlluminate();
 
-		double gainTarget[9];
-		double gainEstimated[9];
+		const double gainTarget[3] = 
+		{
+			illuminate[0] * CAT2[0] + illuminate[1] * CAT2[1] + illuminate[2] * CAT2[2],
+			illuminate[0] * CAT2[3] + illuminate[1] * CAT2[4] + illuminate[2] * CAT2[5],
+			illuminate[0] * CAT2[6] + illuminate[1] * CAT2[7] + illuminate[2] * CAT2[8]
+		};
 
-		gainTarget[0] = illuminate[0] * CAT2[0] + illuminate[1] * CAT2[1] + illuminate[2] * CAT2[2];
-		gainTarget[1] = illuminate[0] * CAT2[3] + illuminate[1] * CAT2[4] + illuminate[2] * CAT2[5];
-		gainTarget[2] = illuminate[0] * CAT2[6] + illuminate[1] * CAT2[7] + illuminate[2] * CAT2[8];
+		const double gainEstimated[3] =
+		{
+			xyzEst[0] * CAT2[0] + xyzEst[1] * CAT2[1] + xyzEst[2] * CAT2[2],
+			xyzEst[0] * CAT2[3] + xyzEst[1] * CAT2[4] + xyzEst[2] * CAT2[5],
+			xyzEst[0] * CAT2[6] + xyzEst[1] * CAT2[7] + xyzEst[2] * CAT2[8]
+		};
 
-		gainEstimated[0] = xyzEst[0] * CAT2[0] + xyzEst[1] * CAT2[1] + xyzEst[2] * CAT2[2];
-		gainEstimated[1] = xyzEst[0] * CAT2[3] + xyzEst[1] * CAT2[4] + xyzEst[2] * CAT2[5];
-		gainEstimated[2] = xyzEst[0] * CAT2[6] + xyzEst[1] * CAT2[7] + xyzEst[2] * CAT2[8];
-
-		const double finalGain[3] = 
+		// gain = (xfm*xyz_target)./(xfm*xyz_est);
+		const double finalGain[3] =
 		{
 			gainTarget[0] / gainEstimated[0],
 			gainTarget[1] / gainEstimated[1],
 			gainTarget[2] / gainEstimated[2]
 		};
 
+		const double diagGain[9] =
+		{
+			finalGain[0], 0.0, 0.0 ,
+			0.0, finalGain[1], 0.0,
+			0.0, 0.0, finalGain[2]
+		};
+
+		const double mulGain[9] = // in future must be enclosed in C++ class Matrix: diagGain * CAT2
+		{
+			diagGain[0] * CAT2[0] + diagGain[1] * CAT2[3] + diagGain[2] * CAT2[6],
+			diagGain[0] * CAT2[1] + diagGain[1] * CAT2[4] + diagGain[2] * CAT2[7],
+			diagGain[0] * CAT2[2] + diagGain[1] * CAT2[5] + diagGain[2] * CAT2[8],
+
+			diagGain[3] * CAT2[0] + diagGain[4] * CAT2[3] + diagGain[5] * CAT2[6],
+			diagGain[3] * CAT2[1] + diagGain[4] * CAT2[4] + diagGain[5] * CAT2[7],
+			diagGain[3] * CAT2[2] + diagGain[4] * CAT2[5] + diagGain[5] * CAT2[8],
+
+			diagGain[6] * CAT2[0] + diagGain[7] * CAT2[3] + diagGain[8] * CAT2[6],
+			diagGain[6] * CAT2[1] + diagGain[7] * CAT2[4] + diagGain[8] * CAT2[7],
+			diagGain[6] * CAT2[2] + diagGain[7] * CAT2[5] + diagGain[8] * CAT2[8]
+		};
+
+		const double outMatrix[9] = // in future must be enclosed in C++ class Matrix: invCAT2 * mulGain
+		{
+			invCAT2[0] * mulGain[0] + invCAT2[1] * mulGain[3] + invCAT2[2] * mulGain[6],
+			invCAT2[0] * mulGain[1] + invCAT2[1] * mulGain[4] + invCAT2[2] * mulGain[7],
+			invCAT2[0] * mulGain[2] + invCAT2[1] * mulGain[5] + invCAT2[2] * mulGain[8],
+
+			invCAT2[3] * mulGain[0] + invCAT2[4] * mulGain[3] + invCAT2[5] * mulGain[6],
+			invCAT2[3] * mulGain[1] + invCAT2[4] * mulGain[4] + invCAT2[5] * mulGain[7],
+			invCAT2[3] * mulGain[2] + invCAT2[4] * mulGain[5] + invCAT2[5] * mulGain[8],
+
+			invCAT2[6] * mulGain[0] + invCAT2[7] * mulGain[3] + invCAT2[8] * mulGain[6],
+			invCAT2[6] * mulGain[1] + invCAT2[7] * mulGain[4] + invCAT2[8] * mulGain[7],
+			invCAT2[6] * mulGain[2] + invCAT2[7] * mulGain[5] + invCAT2[8] * mulGain[8],
+		};
+
+		const double mult[9] = // in future must be enclosed in C++ class Matrix
+		{
+			XYZtosRGB[0] * outMatrix[0] + XYZtosRGB[1] * outMatrix[3] + XYZtosRGB[2] * outMatrix[6],
+			XYZtosRGB[0] * outMatrix[1] + XYZtosRGB[1] * outMatrix[4] + XYZtosRGB[2] * outMatrix[7],
+			XYZtosRGB[0] * outMatrix[2] + XYZtosRGB[1] * outMatrix[5] + XYZtosRGB[2] * outMatrix[8],
+
+			XYZtosRGB[3] * outMatrix[0] + XYZtosRGB[4] * outMatrix[3] + XYZtosRGB[5] * outMatrix[6],
+			XYZtosRGB[3] * outMatrix[1] + XYZtosRGB[4] * outMatrix[4] + XYZtosRGB[5] * outMatrix[7],
+			XYZtosRGB[3] * outMatrix[2] + XYZtosRGB[4] * outMatrix[5] + XYZtosRGB[5] * outMatrix[8],
+
+			XYZtosRGB[6] * outMatrix[0] + XYZtosRGB[7] * outMatrix[3] + XYZtosRGB[8] * outMatrix[6],
+			XYZtosRGB[6] * outMatrix[1] + XYZtosRGB[7] * outMatrix[4] + XYZtosRGB[8] * outMatrix[7],
+			XYZtosRGB[6] * outMatrix[2] + XYZtosRGB[7] * outMatrix[5] + XYZtosRGB[8] * outMatrix[8]
+		};
+
+		const double correctionMatrix[9] = // in future must be enclosed in C++ class Matrix
+		{
+			mult[0] * sRGBtoXYZ[0] + mult[1] * sRGBtoXYZ[3] + mult[2] * sRGBtoXYZ[6],
+			mult[0] * sRGBtoXYZ[1] + mult[1] * sRGBtoXYZ[4] + mult[2] * sRGBtoXYZ[7],
+			mult[0] * sRGBtoXYZ[2] + mult[1] * sRGBtoXYZ[5] + mult[2] * sRGBtoXYZ[8],
+
+			mult[3] * sRGBtoXYZ[0] + mult[4] * sRGBtoXYZ[3] + mult[5] * sRGBtoXYZ[6],
+			mult[3] * sRGBtoXYZ[1] + mult[4] * sRGBtoXYZ[4] + mult[5] * sRGBtoXYZ[7],
+			mult[3] * sRGBtoXYZ[2] + mult[4] * sRGBtoXYZ[5] + mult[5] * sRGBtoXYZ[8],
+
+			mult[6] * sRGBtoXYZ[0] + mult[7] * sRGBtoXYZ[3] + mult[8] * sRGBtoXYZ[6],
+			mult[6] * sRGBtoXYZ[1] + mult[7] * sRGBtoXYZ[4] + mult[8] * sRGBtoXYZ[7],
+			mult[6] * sRGBtoXYZ[2] + mult[7] * sRGBtoXYZ[5] + mult[8] * sRGBtoXYZ[8]
+		};
+
+		// second pass - apply color correction
+		for (int j = 0; j < height; j++)
+		{
+			__VECTOR_ALIGNED__
+				for (int i = 0; i < width; i++)
+				{
+
+				}
+		}
 
 
 	} // for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
