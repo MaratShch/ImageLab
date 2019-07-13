@@ -45,7 +45,7 @@ const double* const GetIlluminate(const eILLIUMINATE illuminateIdx)
 	return tblIlluminate[illuminateIdx];
 }
 
-
+// in future split this function for more little API's
 bool procesBGRA4444_8u_slice(	VideoHandle theData, 
 								const double* __restrict pMatrixIn,
 								const double* __restrict pMatrixOut,
@@ -263,15 +263,78 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 			mult[6] * sRGBtoXYZ[2] + mult[7] * sRGBtoXYZ[5] + mult[8] * sRGBtoXYZ[8]
 		};
 
+		// get again source image pointer
+		srcImg = const_cast<csSDK_uint32*>(srcFrame);
+		const int fraction = width % 3;
+
+		double R1, R2, R3;
+		double G1, G2, G3;
+		double B1, B2, B3;
+
+		double outR1, outR2, outR3;
+		double outG1, outG2, outG3;
+		double outB1, outB2, outB3;
+
 		// second pass - apply color correction
 		for (int j = 0; j < height; j++)
 		{
 			__VECTOR_ALIGNED__
-				for (int i = 0; i < width; i++)
-				{
+			for (int i = 0; i < width; i += 3)
+			{
+				const int alpha = *srcImg >> 24;
 
-				}
-		}
+				R1 = static_cast<double>((*srcImg & 0x00FF0000) >> 16);
+				G1 = static_cast<double>((*srcImg & 0x0000FF00) >> 8);
+				B1 = static_cast<double> (*srcImg & 0x000000FF);
+				srcImg++;
+
+				R2 = static_cast<double>((*srcImg & 0x00FF0000) >> 16);
+				G2 = static_cast<double>((*srcImg & 0x0000FF00) >> 8);
+				B2 = static_cast<double> (*srcImg & 0x000000FF);
+				srcImg++;
+
+				R3 = static_cast<double>((*srcImg & 0x00FF0000) >> 16);
+				G3 = static_cast<double>((*srcImg & 0x0000FF00) >> 8);
+				B3 = static_cast<double> (*srcImg & 0x000000FF);
+				srcImg++;
+
+				outR1 = correctionMatrix[0] * R1 + correctionMatrix[3] * R2 + correctionMatrix[6] * R3;
+				outR2 = correctionMatrix[1] * R1 + correctionMatrix[4] * R2 + correctionMatrix[7] * R3;
+				outR3 = correctionMatrix[2] * R1 + correctionMatrix[5] * R2 + correctionMatrix[8] * R3;
+
+				outG1 = correctionMatrix[0] * G1 + correctionMatrix[3] * G2 + correctionMatrix[6] * G3;
+				outG2 = correctionMatrix[1] * G1 + correctionMatrix[4] * G2 + correctionMatrix[7] * G3;
+				outG3 = correctionMatrix[2] * G1 + correctionMatrix[5] * G2 + correctionMatrix[8] * G3;
+
+				outB1 = correctionMatrix[0] * B1 + correctionMatrix[3] * B2 + correctionMatrix[6] * B3;
+				outB2 = correctionMatrix[1] * B1 + correctionMatrix[4] * B2 + correctionMatrix[7] * B3;
+				outB3 = correctionMatrix[2] * B1 + correctionMatrix[5] * B2 + correctionMatrix[8] * B3;
+
+				const csSDK_uint32 pix1 = alpha << 24							 |				
+										  (CLAMP(static_cast<int>(outR1))) << 16 |
+										  (CLAMP(static_cast<int>(outG1))) << 8  |
+										  (CLAMP(static_cast<int>(outB1)));
+
+				const csSDK_uint32 pix2 = alpha << 24                            |
+										  (CLAMP(static_cast<int>(outR2))) << 16 |
+										  (CLAMP(static_cast<int>(outG2))) << 8  |
+										  (CLAMP(static_cast<int>(outB2)));
+
+				const csSDK_uint32 pix3 = alpha << 24                            |
+										  (CLAMP(static_cast<int>(outR3))) << 16 |
+										  (CLAMP(static_cast<int>(outG3))) << 8  |
+										  (CLAMP(static_cast<int>(outB3)));
+
+				*dstImg++ = pix1;
+				*dstImg++ = pix2;
+				*dstImg++ = pix3;
+
+			} // for (int i = 0; i < width; i++)
+
+			dstImg += linePitch - width + fraction;
+			srcImg += linePitch - width + fraction;
+
+		} // for (int j = 0; j < height; j++)
 
 
 	} // for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
