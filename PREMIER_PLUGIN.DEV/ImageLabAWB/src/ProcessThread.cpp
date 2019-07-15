@@ -267,13 +267,15 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 		srcImg = const_cast<csSDK_uint32*>(srcFrame);
 		const int fraction = width % 3;
 
-		double R1, R2, R3;
-		double G1, G2, G3;
-		double B1, B2, B3;
+		double R0, R1, R2;
+		double G0, G1, G2;
+		double B0, B1, B2;
 
-		double outR1, outR2, outR3;
-		double outG1, outG2, outG3;
-		double outB1, outB2, outB3;
+		double outR0, outR1, outR2;
+		double outG0, outG1, outG2;
+		double outB0, outB1, outB2;
+
+		int alpha0, alpha1, alpha2;
 
 		// second pass - apply color correction
 		for (int j = 0; j < height; j++)
@@ -281,53 +283,53 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 			__VECTOR_ALIGNED__
 			for (int i = 0; i < width; i += 3)
 			{
-				const int alpha = *srcImg >> 24;
+				alpha0 = *srcImg >> 24;
+				R0 = static_cast<double>((*srcImg & 0x00FF0000) >> 16);
+				G0 = static_cast<double>((*srcImg & 0x0000FF00) >> 8);
+				B0 = static_cast<double> (*srcImg & 0x000000FF);
+				srcImg++;
 
+				alpha1 = *srcImg >> 24;
 				R1 = static_cast<double>((*srcImg & 0x00FF0000) >> 16);
 				G1 = static_cast<double>((*srcImg & 0x0000FF00) >> 8);
 				B1 = static_cast<double> (*srcImg & 0x000000FF);
 				srcImg++;
 
+				alpha2 = *srcImg >> 24;
 				R2 = static_cast<double>((*srcImg & 0x00FF0000) >> 16);
 				G2 = static_cast<double>((*srcImg & 0x0000FF00) >> 8);
 				B2 = static_cast<double> (*srcImg & 0x000000FF);
 				srcImg++;
 
-				R3 = static_cast<double>((*srcImg & 0x00FF0000) >> 16);
-				G3 = static_cast<double>((*srcImg & 0x0000FF00) >> 8);
-				B3 = static_cast<double> (*srcImg & 0x000000FF);
-				srcImg++;
+				outR0 = correctionMatrix[0] * R0 + correctionMatrix[1] * G0 + correctionMatrix[2] * B0;
+				outR1 = correctionMatrix[0] * R1 + correctionMatrix[1] * G1 + correctionMatrix[2] * G1;
+				outR2 = correctionMatrix[0] * R2 + correctionMatrix[1] * G2 + correctionMatrix[2] * B2;
 
-				outR1 = correctionMatrix[0] * R1 + correctionMatrix[3] * R2 + correctionMatrix[6] * R3;
-				outR2 = correctionMatrix[1] * R1 + correctionMatrix[4] * R2 + correctionMatrix[7] * R3;
-				outR3 = correctionMatrix[2] * R1 + correctionMatrix[5] * R2 + correctionMatrix[8] * R3;
+				outG0 = correctionMatrix[3] * R0 + correctionMatrix[4] * G0 + correctionMatrix[5] * B0;
+				outG1 = correctionMatrix[3] * R1 + correctionMatrix[4] * G1 + correctionMatrix[5] * B1;
+				outG2 = correctionMatrix[3] * R2 + correctionMatrix[4] * G2 + correctionMatrix[5] * B2;
 
-				outG1 = correctionMatrix[0] * G1 + correctionMatrix[3] * G2 + correctionMatrix[6] * G3;
-				outG2 = correctionMatrix[1] * G1 + correctionMatrix[4] * G2 + correctionMatrix[7] * G3;
-				outG3 = correctionMatrix[2] * G1 + correctionMatrix[5] * G2 + correctionMatrix[8] * G3;
+				outB0 = correctionMatrix[6] * R0 + correctionMatrix[7] * G0 + correctionMatrix[8] * B0;
+				outB1 = correctionMatrix[6] * R1 + correctionMatrix[7] * G1 + correctionMatrix[8] * B1;
+				outB2 = correctionMatrix[6] * R2 + correctionMatrix[7] * G2 + correctionMatrix[8] * B2;
 
-				outB1 = correctionMatrix[0] * B1 + correctionMatrix[3] * B2 + correctionMatrix[6] * B3;
-				outB2 = correctionMatrix[1] * B1 + correctionMatrix[4] * B2 + correctionMatrix[7] * B3;
-				outB3 = correctionMatrix[2] * B1 + correctionMatrix[5] * B2 + correctionMatrix[8] * B3;
+				const csSDK_uint32 pix0 = alpha0 << 24							 |				
+										  (CLAMP(static_cast<int>(outR0))) << 16 |
+										  (CLAMP(static_cast<int>(outG0))) << 8  |
+										  (CLAMP(static_cast<int>(outB0)));
 
-				const csSDK_uint32 pix1 = alpha << 24							 |				
+				const csSDK_uint32 pix1 = alpha1 << 24                           |
 										  (CLAMP(static_cast<int>(outR1))) << 16 |
 										  (CLAMP(static_cast<int>(outG1))) << 8  |
 										  (CLAMP(static_cast<int>(outB1)));
 
-				const csSDK_uint32 pix2 = alpha << 24                            |
+				const csSDK_uint32 pix2 = alpha2 << 24                           |
 										  (CLAMP(static_cast<int>(outR2))) << 16 |
 										  (CLAMP(static_cast<int>(outG2))) << 8  |
 										  (CLAMP(static_cast<int>(outB2)));
-
-				const csSDK_uint32 pix3 = alpha << 24                            |
-										  (CLAMP(static_cast<int>(outR3))) << 16 |
-										  (CLAMP(static_cast<int>(outG3))) << 8  |
-										  (CLAMP(static_cast<int>(outB3)));
-
+				*dstImg++ = pix0;
 				*dstImg++ = pix1;
 				*dstImg++ = pix2;
-				*dstImg++ = pix3;
 
 			} // for (int i = 0; i < width; i++)
 
