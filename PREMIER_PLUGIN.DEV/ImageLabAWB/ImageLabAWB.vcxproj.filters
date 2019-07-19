@@ -32,15 +32,18 @@
     <ClInclude Include="include\AdobeImageLabAWB.h">
       <Filter>include</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="ImageLabAWB.rc">
-      <Filter>resources</Filter>
-    </ResourceCompile>
+    <ClInclude Include="resource.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ImageLabAWB.r">
       <Filter>resources</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ImageLabAWB.rc">
+      <Filter>resources</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
