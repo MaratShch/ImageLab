@@ -70,11 +70,12 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 
 			switch (pixelFormat)
 			{
-//				case PrPixelFormat_VUYA_4444_8u:
-//					break;
 				case PrPixelFormat_BGRA_4444_8u:
 					processSucceed = procesBGRA4444_8u_slice (theData, RGB2YUV[STD_BT601], YUV2RGB[STD_BT601]);
-					break;
+				break;
+				case PrPixelFormat_VUYA_4444_8u:
+					processSucceed = procesVUYA4444_8u_slice (theData, nullptr, nullptr);
+				break;
 #if 0
 				case PrPixelFormat_VUYA_4444_8u_709:
 					break;
@@ -133,7 +134,7 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 #endif
 				default:
 					processSucceed = false;
-					break;
+				break;
 			}
 
 			errCode = (true == processSucceed) ? fsNoErr : errCode;

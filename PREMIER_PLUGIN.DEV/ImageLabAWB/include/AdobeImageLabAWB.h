@@ -37,7 +37,7 @@ template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-T CLAMP(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
+T CLAMP_RGB8(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
 
 inline double asqrt(const double& x)
 {
@@ -115,6 +115,12 @@ bool procesBGRA4444_8u_slice(
 	const double* __restrict pMatrixIn,
 	const double* __restrict pMatrixOut, 
 	const int iterCnt = 1);
+
+bool procesVUYA4444_8u_slice(VideoHandle theData,
+	const double* __restrict pMatrixIn,
+	const double* __restrict pMatrixOut,
+	const int                iterCnt = 1);
+
 
 const double* const GetIlluminate(const eILLIUMINATE illuminateIdx = DAYLIGHT);
 

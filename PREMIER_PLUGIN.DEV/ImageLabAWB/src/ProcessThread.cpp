@@ -70,11 +70,12 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
 	const int linePitch = rowbytes >> 2;
 
+	int totalGray;
+
 	// Create copies of pointer to the source, destination frames
 	const csSDK_uint32* __restrict srcFrame = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	const csSDK_uint32* __restrict dstFrame = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-	int totalGray = 0;
 	const int lastIter = iterCnt - 1;
 
 	double R, G, B;
@@ -94,6 +95,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 		csSDK_uint32* dstImg = const_cast<csSDK_uint32*>((lastIter == iter_cnt) ? dstFrame : srcFrame);
 
 		U_bar = V_bar = 0.00;
+		totalGray = 0;
 
 		// first pass - accquire color statistics
 		for (int j = 0; j < height; j++)
@@ -136,7 +138,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 		V_avg[iter_cnt] = V_bar / totalGray;
 
 		if (MAX(abs(U_avg[iter_cnt]), abs(V_avg[iter_cnt])) < b)
-			break; // converged
+			return true; // converged
 
 		if (iter_cnt >= 1)
 		{
@@ -147,7 +149,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 			normVal = sqrt(U_diff * U_diff + V_diff * V_diff);
 
 			if (normVal < algEpsilon)
-				break; // U and V no longer improving
+				return true; // U and V no longer improving
 		}
 
 		// convert the average GRAY from YUV to RGB
@@ -265,7 +267,6 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 
 		// get again source image pointer
 		srcImg = const_cast<csSDK_uint32*>(srcFrame);
-		const int fraction = width % 3;
 
 		double R0, R1, R2;
 		double G0, G1, G2;
@@ -275,6 +276,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 		double outG0, outG1, outG2;
 		double outB0, outB1, outB2;
 
+		const int fraction = width % 3;
 		int alpha0, alpha1, alpha2;
 
 		// second pass - apply color correction
@@ -313,20 +315,20 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 				outB1 = correctionMatrix[6] * R1 + correctionMatrix[7] * G1 + correctionMatrix[8] * B1;
 				outB2 = correctionMatrix[6] * R2 + correctionMatrix[7] * G2 + correctionMatrix[8] * B2;
 
-				const csSDK_uint32 pix0 = alpha0 << 24							 |				
-										  (CLAMP(static_cast<int>(outR0))) << 16 |
-										  (CLAMP(static_cast<int>(outG0))) << 8  |
-										  (CLAMP(static_cast<int>(outB0)));
+				const csSDK_uint32 pix0 = alpha0 << 24							      |				
+										  (CLAMP_RGB8(static_cast<int>(outR0))) << 16 |
+										  (CLAMP_RGB8(static_cast<int>(outG0))) << 8  |
+										  (CLAMP_RGB8(static_cast<int>(outB0)));
 
-				const csSDK_uint32 pix1 = alpha1 << 24                           |
-										  (CLAMP(static_cast<int>(outR1))) << 16 |
-										  (CLAMP(static_cast<int>(outG1))) << 8  |
-										  (CLAMP(static_cast<int>(outB1)));
+				const csSDK_uint32 pix1 = alpha1 << 24                                |
+										  (CLAMP_RGB8(static_cast<int>(outR1))) << 16 |
+										  (CLAMP_RGB8(static_cast<int>(outG1))) << 8  |
+										  (CLAMP_RGB8(static_cast<int>(outB1)));
 
-				const csSDK_uint32 pix2 = alpha2 << 24                           |
-										  (CLAMP(static_cast<int>(outR2))) << 16 |
-										  (CLAMP(static_cast<int>(outG2))) << 8  |
-										  (CLAMP(static_cast<int>(outB2)));
+				const csSDK_uint32 pix2 = alpha2 << 24                                |
+										  (CLAMP_RGB8(static_cast<int>(outR2))) << 16 |
+										  (CLAMP_RGB8(static_cast<int>(outG2))) << 8  |
+										  (CLAMP_RGB8(static_cast<int>(outB2)));
 				*dstImg++ = pix0;
 				*dstImg++ = pix1;
 				*dstImg++ = pix2;
@@ -337,6 +339,112 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 			srcImg += linePitch - width + fraction;
 
 		} // for (int j = 0; j < height; j++)
+
+
+	} // for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
+
+	return true;
+}
+
+
+// Yuv <- c(0.08391198, 0.2830965, 0.4661789)
+// Yuv2XYZ(Yuv)
+
+// XYZ<-c(0.11465380, 0.08391198, 0.08222077)
+// XYZ2Yuv(XYZ)
+
+// in future split this function for more little API's
+bool procesVUYA4444_8u_slice(VideoHandle theData,
+							 const double* __restrict pMatrixIn,
+							 const double* __restrict pMatrixOut,
+							 const int                iterCnt)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	CACHE_ALIGN double U_avg[maxIterCount] = {};
+	CACHE_ALIGN double V_avg[maxIterCount] = {};
+
+	prRect box = { 0 };
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const int linePitch = rowbytes >> 2;
+	int totalGray;
+
+	// Create copies of pointer to the source, destination frames
+	const csSDK_uint32* __restrict srcFrame = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	const csSDK_uint32* __restrict dstFrame = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	const int lastIter = iterCnt - 1;
+
+	double Y, U, V;
+	double F;
+	double U_bar, V_bar;
+	double U_diff, V_diff, normVal;
+	constexpr double T = 0.3000; // will be slider position
+	constexpr double b = 0.0010; // convergence threshold
+	constexpr double algEpsilon = 1.00e-06;
+
+	for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
+	{
+		csSDK_uint32* srcImg = const_cast<csSDK_uint32*>(srcFrame);
+		// only last iteration going with double buffering, before last - in-place operations
+		csSDK_uint32* dstImg = const_cast<csSDK_uint32*>((lastIter == iter_cnt) ? dstFrame : srcFrame);
+
+		U_bar = V_bar = 0.00;
+		totalGray = 0;
+
+		// first pass - accquire color statistics
+		for (int j = 0; j < height; j++)
+		{
+			__VECTOR_ALIGNED__
+				for (int i = 0; i < width; i++)
+				{
+					const csSDK_uint32 VUYAPixel = *srcImg;
+					srcImg++;
+
+					V = static_cast<double>((VUYAPixel & 0x00FF0000) >> 16);
+					U = static_cast<double>((VUYAPixel & 0x0000FF00) >> 8);
+					Y = static_cast<double>( VUYAPixel & 0x000000FF);
+
+					F = (abs(U) + abs(V)) / Y;
+
+					if (F < T) {
+						totalGray++;
+						U_bar += U;
+						V_bar += V;
+					}
+
+				} // for (int i = 0; i < width; i++)
+
+			srcImg += linePitch - width;
+
+		} // for (int j = 0; j < height; j++)
+
+		U_avg[iter_cnt] = U_bar / totalGray;
+		V_avg[iter_cnt] = V_bar / totalGray;
+
+		if (MAX(abs(U_avg[iter_cnt]), abs(V_avg[iter_cnt])) < b)
+			return true; // converged
+
+		if (iter_cnt >= 1)
+		{
+			U_diff = U_avg[iter_cnt] - U_avg[iter_cnt - 1];
+			V_diff = V_avg[iter_cnt] - V_avg[iter_cnt - 1];
+
+			normVal = sqrt(U_diff * U_diff + V_diff * V_diff);
+
+			if (normVal < algEpsilon)
+				return true; // U and V no longer improving
+		}
 
 
 	} // for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
