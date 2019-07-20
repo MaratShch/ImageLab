@@ -41,7 +41,7 @@ T CLAMP_RGB8(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
 
 inline double asqrt(const double& x)
 {
-	double         xHalf = 0.50 * x;
+	const double         xHalf = 0.50 * x;
 	long long int  tmp = 0x5FE6EB50C7B537AAl - (*(long long int*)&x >> 1); //initial guess
 	double         xRes = *(double*)&tmp;
 	xRes *= (1.50 - (xHalf * xRes * xRes));
@@ -50,7 +50,7 @@ inline double asqrt(const double& x)
 
 inline float asqrt (const float& x)
 {
-	float xHalf = 0.50f * x;
+	const float xHalf = 0.50f * x;
 	int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess
 	float xRes = *(float*)&tmp;
 
@@ -93,8 +93,8 @@ typedef enum
 }eILLIUMINATE;
 
 
-constexpr int TemporarySize = 1024;
-constexpr int maxIterCount = 16;
+constexpr int maxIterCount = 12;
+constexpr int defIterCount = 2;
 
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
@@ -110,16 +110,48 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(VideoHandle theData);
 
+template<typename T>
+inline void copy_src2dst(
+	const T* __restrict pSrc,
+	T* __restrict pDst,
+	const csSDK_int32& height,
+	const csSDK_int32& width,
+	const csSDK_int32& rowbytes
+)
+{
+	const auto elemSize = sizeof(pSrc[0]);
+	const auto linePitch = rowbytes / elemSize;
+	const auto bytesSize = elemSize * width;
+
+	for (int j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+			memcpy(pDst, pSrc, bytesSize);
+
+		pSrc += linePitch;
+		pDst += linePitch;
+	}
+
+	return;
+}
+
+template<typename T>
+inline const double get_iteration_count(const T& slider_pos)
+{
+	return (slider_pos / 100.0);
+}
+
+
 bool procesBGRA4444_8u_slice(
 	VideoHandle theData,
 	const double* __restrict pMatrixIn,
 	const double* __restrict pMatrixOut, 
-	const int iterCnt = 1);
+	const int iterCnt = defIterCount);
 
 bool procesVUYA4444_8u_slice(VideoHandle theData,
 	const double* __restrict pMatrixIn,
 	const double* __restrict pMatrixOut,
-	const int                iterCnt = 1);
+	const int                iterCnt = defIterCount);
 
 
 const double* const GetIlluminate(const eILLIUMINATE illuminateIdx = DAYLIGHT);

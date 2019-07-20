@@ -54,7 +54,7 @@ resource 'PiPL' (16000)
 			reserved1False,		// Premiere doesn't use any of these flags, but AE does
 			reserved0False,
 			driveMe,
-			needsDialog,	// needsDialog / doesntNeedDialog - Don't enable "Setup..."
+			doesntNeedDialog,	// needsDialog / doesntNeedDialog - Don't enable "Setup..."
 			paramsNotPointer,
 			paramsNotHandle,
 			paramsNotMacHandle,
@@ -72,18 +72,18 @@ resource 'PiPL' (16000)
 		ANIM_ParamAtom 
 		{
 			0,					// Property count - zero-based count
-			"Gray Threshold",	// Parameter name
+			"Iteration count",	// Parameter name
 			1,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0,
+			0x40040000,
 			0x0, // valid_min (0.0)
-			0x40340000, // 20
-			0x0, // valid_max (20.0)
-			0x0,
-			0x0, // ui_min (0.0)
-			0x40340000, // 20
-			0x0, // ui_max (20.0)
+			0x40280000, // 
+			0x0, // valid_max (12.0)
+			0x40040000,
+			0x0, // valid_min (0.0)
+			0x40280000, // 
+			0x0, // ui_max (12.0)
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif
@@ -94,6 +94,32 @@ resource 'PiPL' (16000)
 			2					// Bytes size of the param data
 		},
 		
+		ANIM_ParamAtom 
+		{
+			1,					// Property count - zero-based count
+			"Gray threshold",	// Parameter name
+			2,					// Parameter number - one-based count
+			ANIM_DT_SHORT,		// Data type
+			ANIM_UI_SLIDER,		// UI Type
+			0x40240000,
+			0x0, // valid_min (0.0)
+			0x40540000, // 80 
+			0x0, // valid_max (20.0)
+			0x40240000,
+			0x0, // ui_min (0.0)
+			0x40540000, // 80
+			0x0, // ui_max (20.0)
+#if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
+			dontScaleUIRange,
+#endif
+			animateParam,		// Set/don't set this to indicate if the param should be animated
+			restrictBounds,		// Rest of these aren't used by Premiere
+			spaceIsAbsolute,
+			resIndependent,
+			2					// Bytes size of the param data
+		},
+
 
 	}
 };
+

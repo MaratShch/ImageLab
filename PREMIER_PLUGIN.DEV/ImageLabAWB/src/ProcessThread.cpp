@@ -45,6 +45,8 @@ const double* const GetIlluminate(const eILLIUMINATE illuminateIdx)
 	return tblIlluminate[illuminateIdx];
 }
 
+
+
 // in future split this function for more little API's
 bool procesBGRA4444_8u_slice(	VideoHandle theData, 
 								const double* __restrict pMatrixIn,
@@ -56,8 +58,8 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 #endif
 
-	CACHE_ALIGN double U_avg[maxIterCount] = {};
-	CACHE_ALIGN double V_avg[maxIterCount] = {};
+	double U_avg[maxIterCount] = {};
+	double V_avg[maxIterCount] = {};
 
 	prRect box = { 0 };
 
@@ -91,10 +93,10 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
 	{
 		csSDK_uint32* srcImg = const_cast<csSDK_uint32*>(srcFrame);
-		// only last iteration going with double buffering, before last - in-place operations
+		// only last iteration going with double buffering
 		csSDK_uint32* dstImg = const_cast<csSDK_uint32*>((lastIter == iter_cnt) ? dstFrame : srcFrame);
 
-		U_bar = V_bar = 0.00;
+		U_bar = V_bar = 0.0;
 		totalGray = 0;
 
 		// first pass - accquire color statistics
@@ -145,11 +147,14 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 			U_diff = U_avg[iter_cnt] - U_avg[iter_cnt - 1];
 			V_diff = V_avg[iter_cnt] - V_avg[iter_cnt - 1];
 
-			//			normVal = asqrt(U_diff * U_diff + V_diff * V_diff);
 			normVal = sqrt(U_diff * U_diff + V_diff * V_diff);
 
-			if (normVal < algEpsilon)
+			if (normVal < algEpsilon) 
+			{
+				// U and V no longer improving, so just copy source to destination and break the loop
+				copy_src2dst(const_cast<csSDK_uint32*>(srcFrame), const_cast<csSDK_uint32*>(dstFrame), height, width, rowbytes);
 				return true; // U and V no longer improving
+			}
 		}
 
 		// convert the average GRAY from YUV to RGB
@@ -364,8 +369,8 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 #endif
 
-	CACHE_ALIGN double U_avg[maxIterCount] = {};
-	CACHE_ALIGN double V_avg[maxIterCount] = {};
+	double U_avg[maxIterCount] = {};
+	double V_avg[maxIterCount] = {};
 
 	prRect box = { 0 };
 
@@ -396,7 +401,7 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 	for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
 	{
 		csSDK_uint32* srcImg = const_cast<csSDK_uint32*>(srcFrame);
-		// only last iteration going with double buffering, before last - in-place operations
+		// only last iteration going with double buffering
 		csSDK_uint32* dstImg = const_cast<csSDK_uint32*>((lastIter == iter_cnt) ? dstFrame : srcFrame);
 
 		U_bar = V_bar = 0.00;
@@ -443,7 +448,11 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 			normVal = sqrt(U_diff * U_diff + V_diff * V_diff);
 
 			if (normVal < algEpsilon)
+			{
+				// U and V no longer improving, so just copy source to destination and break the loop
+				copy_src2dst(srcFrame, const_cast<csSDK_uint32*>(dstFrame), height, width, rowbytes);
 				return true; // U and V no longer improving
+			}
 		}
 
 

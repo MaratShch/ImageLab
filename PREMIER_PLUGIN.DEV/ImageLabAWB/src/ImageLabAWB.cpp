@@ -65,7 +65,7 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 
 		if (nullptr != PPixSuite)
 		{
-			PrPixelFormat			pixelFormat = PrPixelFormat_Invalid;
+			PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
 			PPixSuite->GetPixelFormat((*theData)->source, &pixelFormat);
 
 			switch (pixelFormat)
