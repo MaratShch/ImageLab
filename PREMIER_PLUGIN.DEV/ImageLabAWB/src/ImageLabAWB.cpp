@@ -150,12 +150,26 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
 	csSDK_int32 errCode = fsNoErr;
-	// defined in header file
+	FilterParamHandle filterParamH = nullptr;
 
 	switch (selector)
 	{
 		case fsInitSpec:
-			errCode = fsNoErr;
+			if ((*theData)->specsHandle)
+			{
+
+			}
+			else
+			{
+				filterParamH = reinterpret_cast<FilterParamHandle>(((*theData)->piSuites->memFuncs->newHandle)(sizeof(FilterParamStr)));
+				if (nullptr == filterParamH)
+					break; // memory allocation failed
+
+				IMAGE_LAB_AWB_FILTER_PARAM_HANDLE_INIT(filterParamH);
+
+				// save the filter parameters inside of Premier handler
+				(*theData)->specsHandle = reinterpret_cast<char**>(filterParamH);
+			}
 		break;
 
 		case fsSetup:
@@ -186,9 +200,9 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			errCode = imageLabPixelFormatSupported(theData);
 		break;
 
-//		case fsCacheOnLoad:
-//			errCode = fsDoNotCacheOnLoad;
-//		break;
+		case fsCacheOnLoad:
+			errCode = fsDoNotCacheOnLoad;
+		break;
 
 		default:
 			// unhandled case

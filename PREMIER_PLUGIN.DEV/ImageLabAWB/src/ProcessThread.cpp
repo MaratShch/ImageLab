@@ -50,8 +50,7 @@ const double* const GetIlluminate(const eILLIUMINATE illuminateIdx)
 // in future split this function for more little API's
 bool procesBGRA4444_8u_slice(	VideoHandle theData, 
 								const double* __restrict pMatrixIn,
-								const double* __restrict pMatrixOut,
-								const int                iterCnt)
+								const double* __restrict pMatrixOut)
 {
 #if !defined __INTEL_COMPILER 
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -62,6 +61,13 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	double V_avg[maxIterCount] = {};
 
 	prRect box = { 0 };
+
+	// Get the filter parameters
+	const FilterParamHandle filterParamH = reinterpret_cast<FilterParamHandle>((*theData)->specsHandle);
+	// get iteration count and gray threshold from sliders
+	const csSDK_int32 iterCnt		= (nullptr != filterParamH) ? (*filterParamH)->sliderIterCnt : 1;
+	const csSDK_int32 grayThr		= (nullptr != filterParamH) ? (*filterParamH)->sliderGrayThr : 30;
+	const eILLIUMINATE setIlluminate	= (nullptr != filterParamH) ? (*filterParamH)->illuminate : DAYLIGHT;
 
 	// Get the frame dimensions
 	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
@@ -86,7 +92,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	double F;
 	double U_diff, V_diff, normVal;
 	double U_bar, V_bar;
-	constexpr double T = 0.3000; // will be slider position
+	const double T = get_iteration_count (grayThr);
 	constexpr double b = 0.0010; // convergence threshold
 	constexpr double algEpsilon = 1.00e-06;
 
@@ -179,7 +185,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 		};
 
 		// get illuminate
-		const double* illuminate = GetIlluminate();
+		const double* illuminate = GetIlluminate(setIlluminate);
 
 		const double gainTarget[3] = 
 		{
@@ -361,8 +367,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 // in future split this function for more little API's
 bool procesVUYA4444_8u_slice(VideoHandle theData,
 							 const double* __restrict pMatrixIn,
-							 const double* __restrict pMatrixOut,
-							 const int                iterCnt)
+							 const double* __restrict pMatrixOut)
 {
 #if !defined __INTEL_COMPILER 
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -373,6 +378,13 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 	double V_avg[maxIterCount] = {};
 
 	prRect box = { 0 };
+
+	// Get the filter parameters
+	const FilterParamHandle filterParamH = reinterpret_cast<FilterParamHandle>((*theData)->specsHandle);
+	// get iteration count and gray threshold from sliders
+	const csSDK_int32 iterCnt = (nullptr != filterParamH) ? (*filterParamH)->sliderIterCnt : 1;
+	const csSDK_int32 grayThr = (nullptr != filterParamH) ? (*filterParamH)->sliderGrayThr : 30;
+	const eILLIUMINATE setIlluminate = (nullptr != filterParamH) ? (*filterParamH)->illuminate : DAYLIGHT;
 
 	// Get the frame dimensions
 	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
@@ -394,7 +406,7 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 	double F;
 	double U_bar, V_bar;
 	double U_diff, V_diff, normVal;
-	constexpr double T = 0.3000; // will be slider position
+	const double T = get_iteration_count(grayThr);
 	constexpr double b = 0.0010; // convergence threshold
 	constexpr double algEpsilon = 1.00e-06;
 

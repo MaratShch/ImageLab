@@ -78,8 +78,7 @@ constexpr char strSignalType[][8] =
 
 typedef enum
 {
-	DEFAULT_ILLUMINATE,
-	DAYLIGHT = DEFAULT_ILLUMINATE,
+	DAYLIGHT,
 	OLD_DAYLIGHT,
 	OLD_DIRECT_SUNLIGHT_AT_NOON,
 	MID_MORNING_DAYLIGHT,
@@ -93,8 +92,14 @@ typedef enum
 }eILLIUMINATE;
 
 
+constexpr int minIterCount = 2;
 constexpr int maxIterCount = 12;
-constexpr int defIterCount = 2;
+constexpr int defIterCount = minIterCount;
+
+constexpr int grayThresholdMin = 10;
+constexpr int grayThresholdMax = 80;
+constexpr int grayThresholdDef = 30;
+
 
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
@@ -107,8 +112,25 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 }
 #endif
 
-csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
-csSDK_int32 selectProcessFunction(VideoHandle theData);
+
+typedef struct
+{
+	// filter setting
+	csSDK_int16	 sliderIterCnt;
+	csSDK_int16	 sliderGrayThr;
+	eILLIUMINATE illuminate;
+	eSIGNAL_TYPE signalType;
+}FilterParamStr, *PFilterParamStr, **FilterParamHandle;
+
+
+#ifndef IMAGE_LAB_AWB_FILTER_PARAM_HANDLE_INIT
+#define IMAGE_LAB_AWB_FILTER_PARAM_HANDLE_INIT(_param_handle)	\
+ (*_param_handle)->sliderIterCnt = defIterCount;				\
+ (*_param_handle)->sliderGrayThr = grayThresholdDef;			\
+ (*_param_handle)->illuminate = DAYLIGHT;						\
+ (*_param_handle)->signalType = STD_BT601;
+#endif
+
 
 template<typename T>
 inline void copy_src2dst(
@@ -138,20 +160,20 @@ inline void copy_src2dst(
 template<typename T>
 inline const double get_iteration_count(const T& slider_pos)
 {
-	return (slider_pos / 100.0);
+	return (static_cast<double>(slider_pos) / 100.0);
 }
 
+csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
+csSDK_int32 selectProcessFunction(VideoHandle theData);
 
 bool procesBGRA4444_8u_slice(
 	VideoHandle theData,
 	const double* __restrict pMatrixIn,
-	const double* __restrict pMatrixOut, 
-	const int iterCnt = defIterCount);
+	const double* __restrict pMatrixOut);
 
 bool procesVUYA4444_8u_slice(VideoHandle theData,
 	const double* __restrict pMatrixIn,
-	const double* __restrict pMatrixOut,
-	const int                iterCnt = defIterCount);
+	const double* __restrict pMatrixOut);
 
 
 const double* const GetIlluminate(const eILLIUMINATE illuminateIdx = DAYLIGHT);
