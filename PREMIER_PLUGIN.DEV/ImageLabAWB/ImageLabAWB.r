@@ -117,8 +117,7 @@ resource 'PiPL' (16000)
 			spaceIsAbsolute,
 			resIndependent,
 			2					// Bytes size of the param data
-		},
-
+		}
 
 	}
 };

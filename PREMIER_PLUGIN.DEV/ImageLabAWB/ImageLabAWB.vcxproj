@@ -168,7 +168,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AdobeImageLabAWB.h" />
-    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageLabAWB.rc" />

@@ -67,7 +67,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	// get iteration count and gray threshold from sliders
 	const csSDK_int32 iterCnt		= (nullptr != filterParamH) ? (*filterParamH)->sliderIterCnt : 1;
 	const csSDK_int32 grayThr		= (nullptr != filterParamH) ? (*filterParamH)->sliderGrayThr : 30;
-	const eILLIUMINATE setIlluminate	= (nullptr != filterParamH) ? (*filterParamH)->illuminate : DAYLIGHT;
+	const eILLIUMINATE setIlluminate= (nullptr != filterParamH) ? (*filterParamH)->illuminate : DAYLIGHT;
 
 	// Get the frame dimensions
 	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
@@ -94,7 +94,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	double U_bar, V_bar;
 	const double T = get_iteration_count (grayThr);
 	constexpr double b = 0.0010; // convergence threshold
-	constexpr double algEpsilon = 1.00e-06;
+	constexpr double algEpsilon = 1.e-06;
 
 	for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
 	{
@@ -116,7 +116,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 
 					R = static_cast<double>((BGRAPixel & 0x00FF0000) >> 16);
 					G = static_cast<double>((BGRAPixel & 0x0000FF00) >> 8);
-					B = static_cast<double>(BGRAPixel & 0x000000FF);
+					B = static_cast<double>( BGRAPixel & 0x000000FF);
 
 					Y = R * pMatrixIn[0] +
 						G * pMatrixIn[1] +

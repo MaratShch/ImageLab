@@ -32,9 +32,6 @@
     <ClInclude Include="include\AdobeImageLabAWB.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h">
-      <Filter>include</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ImageLabAWB.r">
