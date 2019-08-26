@@ -26,6 +26,10 @@ CACHE_ALIGN constexpr double invCAT2[9] = {
 };
 
 
+CACHE_ALIGN constexpr double yuv2xyz[3] = { 0.114653800, 0.083911980, 0.082220770 };
+CACHE_ALIGN constexpr double xyz2yuv[3] = { 0.083911980, 0.283096500, 0.466178900 };
+
+
 const double* const GetIlluminate(const eILLIUMINATE illuminateIdx)
 {
 	CACHE_ALIGN static constexpr double tblIlluminate[12][3] = {
@@ -358,12 +362,6 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 }
 
 
-// Yuv <- c(0.08391198, 0.2830965, 0.4661789)
-// Yuv2XYZ(Yuv)
-
-// XYZ<-c(0.11465380, 0.08391198, 0.08222077)
-// XYZ2Yuv(XYZ)
-
 // in future split this function for more little API's
 bool procesVUYA4444_8u_slice(VideoHandle theData,
 							 const double* __restrict pMatrixIn,
@@ -466,6 +464,83 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 				return true; // U and V no longer improving
 			}
 		}
+
+		const double xX = 100.0 * yuv2xyz[0];
+		const double xY = U_avg[iter_cnt] * yuv2xyz[1];
+		const double xZ = V_avg[iter_cnt] * yuv2xyz[2];
+
+		const double xXYZSum = xX + xY + xZ;
+		const double xyEst[2] = { xX / xXYZSum, xY / xXYZSum};
+		const double xyEstDiv = 100.00 / xyEst[1];
+
+		// converts xyY chromaticity to CIE XYZ
+		const double xyzEst[3] = {
+			xyEstDiv * xyEst[0],
+			100.00,
+			xyEstDiv * (1.00 - xyEst[0] - xyEst[1])
+		};
+
+		// get illuminate
+		const double* illuminate = GetIlluminate(setIlluminate);
+
+		const double gainTarget[3] =
+		{
+			illuminate[0] * CAT2[0] + illuminate[1] * CAT2[1] + illuminate[2] * CAT2[2],
+			illuminate[0] * CAT2[3] + illuminate[1] * CAT2[4] + illuminate[2] * CAT2[5],
+			illuminate[0] * CAT2[6] + illuminate[1] * CAT2[7] + illuminate[2] * CAT2[8]
+		};
+
+		const double gainEstimated[3] =
+		{
+			xyzEst[0] * CAT2[0] + xyzEst[1] * CAT2[1] + xyzEst[2] * CAT2[2],
+			xyzEst[0] * CAT2[3] + xyzEst[1] * CAT2[4] + xyzEst[2] * CAT2[5],
+			xyzEst[0] * CAT2[6] + xyzEst[1] * CAT2[7] + xyzEst[2] * CAT2[8]
+		};
+
+		// gain = (xfm*xyz_target)./(xfm*xyz_est);
+		const double finalGain[3] =
+		{
+			gainTarget[0] / gainEstimated[0],
+			gainTarget[1] / gainEstimated[1],
+			gainTarget[2] / gainEstimated[2]
+		};
+
+		const double diagGain[9] =
+		{
+			finalGain[0], 0.0, 0.0 ,
+			0.0, finalGain[1], 0.0,
+			0.0, 0.0, finalGain[2]
+		};
+
+		const double mulGain[9] = // in future must be enclosed in C++ class Matrix: diagGain * CAT2
+		{
+			diagGain[0] * CAT2[0] + diagGain[1] * CAT2[3] + diagGain[2] * CAT2[6],
+			diagGain[0] * CAT2[1] + diagGain[1] * CAT2[4] + diagGain[2] * CAT2[7],
+			diagGain[0] * CAT2[2] + diagGain[1] * CAT2[5] + diagGain[2] * CAT2[8],
+
+			diagGain[3] * CAT2[0] + diagGain[4] * CAT2[3] + diagGain[5] * CAT2[6],
+			diagGain[3] * CAT2[1] + diagGain[4] * CAT2[4] + diagGain[5] * CAT2[7],
+			diagGain[3] * CAT2[2] + diagGain[4] * CAT2[5] + diagGain[5] * CAT2[8],
+
+			diagGain[6] * CAT2[0] + diagGain[7] * CAT2[3] + diagGain[8] * CAT2[6],
+			diagGain[6] * CAT2[1] + diagGain[7] * CAT2[4] + diagGain[8] * CAT2[7],
+			diagGain[6] * CAT2[2] + diagGain[7] * CAT2[5] + diagGain[8] * CAT2[8]
+		};
+
+		const double outMatrix[9] = // in future must be enclosed in C++ class Matrix: invCAT2 * mulGain
+		{
+			invCAT2[0] * mulGain[0] + invCAT2[1] * mulGain[3] + invCAT2[2] * mulGain[6],
+			invCAT2[0] * mulGain[1] + invCAT2[1] * mulGain[4] + invCAT2[2] * mulGain[7],
+			invCAT2[0] * mulGain[2] + invCAT2[1] * mulGain[5] + invCAT2[2] * mulGain[8],
+
+			invCAT2[3] * mulGain[0] + invCAT2[4] * mulGain[3] + invCAT2[5] * mulGain[6],
+			invCAT2[3] * mulGain[1] + invCAT2[4] * mulGain[4] + invCAT2[5] * mulGain[7],
+			invCAT2[3] * mulGain[2] + invCAT2[4] * mulGain[5] + invCAT2[5] * mulGain[8],
+
+			invCAT2[6] * mulGain[0] + invCAT2[7] * mulGain[3] + invCAT2[8] * mulGain[6],
+			invCAT2[6] * mulGain[1] + invCAT2[7] * mulGain[4] + invCAT2[8] * mulGain[7],
+			invCAT2[6] * mulGain[2] + invCAT2[7] * mulGain[5] + invCAT2[8] * mulGain[8],
+		};
 
 
 	} // for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
