@@ -46,6 +46,7 @@ CACHE_ALIGN double constexpr YUV2RGB[LAST][9] =
 	{}
 };
 
+
 #ifdef _DEBUG
 
 #endif
@@ -74,7 +75,7 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 					processSucceed = procesBGRA4444_8u_slice (theData, RGB2YUV[STD_BT601], YUV2RGB[STD_BT601]);
 				break;
 				case PrPixelFormat_VUYA_4444_8u:
-					processSucceed = procesVUYA4444_8u_slice (theData, nullptr, nullptr);
+					processSucceed = procesVUYA4444_8u_slice (theData, nullptr, RGB2YUV[STD_BT601]);
 				break;
 #if 0
 				case PrPixelFormat_VUYA_4444_8u_709:
