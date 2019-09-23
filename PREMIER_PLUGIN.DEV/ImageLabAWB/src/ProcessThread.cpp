@@ -96,7 +96,7 @@ bool procesBGRA4444_8u_slice(	VideoHandle theData,
 	double F;
 	double U_diff, V_diff, normVal;
 	double U_bar, V_bar;
-	const double T = get_iteration_count (grayThr);
+	const double T = get_gray_threshold(grayThr);
 	constexpr double b = 0.0010; // convergence threshold
 	constexpr double algEpsilon = 1.e-06;
 
@@ -404,7 +404,7 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 	double F;
 	double U_bar, V_bar;
 	double U_diff, V_diff, normVal;
-	const double T = get_iteration_count(grayThr);
+	const double T = get_gray_threshold(grayThr);
 	constexpr double b = 0.0010; // convergence threshold
 	constexpr double algEpsilon = 1.00e-06;
 
@@ -423,12 +423,10 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 			__VECTOR_ALIGNED__
 				for (int i = 0; i < width; i++)
 				{
-					const csSDK_uint32 VUYAPixel = *srcImg;
+					Y = static_cast<int>((*srcImg & 0x00FF0000) >> 16);
+					U = static_cast<int>((*srcImg & 0x0000FF00) >> 8) - 128;
+					V = static_cast<int>( *srcImg & 0x000000FF) - 128;
 					srcImg++;
-
-					Y = static_cast<int>((VUYAPixel & 0x00FF0000) >> 16);
-					U = static_cast<int>((VUYAPixel & 0x0000FF00) >> 8) - 128;
-					V = static_cast<int>(VUYAPixel & 0x000000FF) - 128;
 
 					const double absSum = static_cast<double>(abs(U) + abs(V));
 					F = absSum / Y;
@@ -466,12 +464,18 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 			}
 		}
 
-		const double xX = 100.0 * yuv2xyz[0];
-		const double xY = U_avg[iter_cnt] * yuv2xyz[1];
-		const double xZ = V_avg[iter_cnt] * yuv2xyz[2];
+		// convert the average GRAY from YUV to RGB
+		const double restored_R = 100.00 * pMatrixIn[0] + U_avg[iter_cnt] * pMatrixIn[1] + V_avg[iter_cnt] * pMatrixIn[2];
+		const double restored_G = 100.00 * pMatrixIn[3] + U_avg[iter_cnt] * pMatrixIn[4] + V_avg[iter_cnt] * pMatrixIn[5];
+		const double restored_B = 100.00 * pMatrixIn[6] + U_avg[iter_cnt] * pMatrixIn[7] + V_avg[iter_cnt] * pMatrixIn[8];
+
+		// calculate xy chromaticity
+		const double xX = restored_R * sRGBtoXYZ[0] + restored_G * sRGBtoXYZ[1] + restored_B * sRGBtoXYZ[2];
+		const double xY = restored_R * sRGBtoXYZ[3] + restored_G * sRGBtoXYZ[4] + restored_B * sRGBtoXYZ[5];
+		const double xZ = restored_R * sRGBtoXYZ[6] + restored_G * sRGBtoXYZ[7] + restored_B * sRGBtoXYZ[8];
 
 		const double xXYZSum = xX + xY + xZ;
-		const double xyEst[2] = { xX / xXYZSum, xY / xXYZSum};
+		const double xyEst[2] = { xX / xXYZSum, xY / xXYZSum };
 		const double xyEstDiv = 100.00 / xyEst[1];
 
 		// converts xyY chromaticity to CIE XYZ
@@ -592,6 +596,7 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 		double outU0, outU1, outU2;
 		double outV0, outV1, outV2;
 
+		const double* __restrict pYUV2RGB = pMatrixIn;
 		const double* __restrict pRGB2YUV = pMatrixOut;
 
 		const int fraction = width % 3;
@@ -621,28 +626,28 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 					V2 = static_cast<int> (*srcImg & 0x000000FF) - 128;
 					srcImg++;
 
-					R0 = Y0 + 1.4075 * V0;
-					G0 = Y0 - 0.3455 * U0 - 0.71690 * V0;
-					B0 = Y0 + 1.7790 * U0;
+					R0 = Y0 * pYUV2RGB[0] + U0 * pYUV2RGB[1] + V0 * pYUV2RGB[2];
+					G0 = Y0 * pYUV2RGB[3] + U0 * pYUV2RGB[4] + V0 * pYUV2RGB[5];
+					B0 = Y0 * pYUV2RGB[6] + U0 * pYUV2RGB[7] + V0 * pYUV2RGB[8];
 
-					R1 = Y1 + 1.4075 * V1;
-					G1 = Y1 - 0.3455 * U1 - 0.71690 * V1;
-					B1 = Y1 + 1.7790 * U1;
+					R1 = Y1 * pYUV2RGB[0] + U1 * pYUV2RGB[1] + V1 * pYUV2RGB[2];
+					G1 = Y1 * pYUV2RGB[3] + U1 * pYUV2RGB[4] + V1 * pYUV2RGB[5];
+					B1 = Y1 * pYUV2RGB[6] + U1 * pYUV2RGB[7] + V1 * pYUV2RGB[8];
 
-					R2 = Y2 + 1.4075 * V2;
-					G2 = Y2 - 0.3455 * U2 - 0.71690 * V2;
-					B2 = Y2 + 1.7790 * U2;
+					R2 = Y2 * pYUV2RGB[0] + U2 * pYUV2RGB[1] + V2 * pYUV2RGB[2];
+					G2 = Y2 * pYUV2RGB[3] + U2 * pYUV2RGB[4] + V2 * pYUV2RGB[5];
+					B2 = Y2 * pYUV2RGB[6] + U2 * pYUV2RGB[7] + V2 * pYUV2RGB[8];
 
 					outR0 = correctionMatrix[0] * R0 + correctionMatrix[1] * G0 + correctionMatrix[2] * B0;
-					outR1 = correctionMatrix[0] * R1 + correctionMatrix[1] * G1 + correctionMatrix[2] * G1;
-					outR2 = correctionMatrix[0] * R2 + correctionMatrix[1] * G2 + correctionMatrix[2] * B2;
-
 					outG0 = correctionMatrix[3] * R0 + correctionMatrix[4] * G0 + correctionMatrix[5] * B0;
-					outG1 = correctionMatrix[3] * R1 + correctionMatrix[4] * G1 + correctionMatrix[5] * B1;
-					outG2 = correctionMatrix[3] * R2 + correctionMatrix[4] * G2 + correctionMatrix[5] * B2;
-
 					outB0 = correctionMatrix[6] * R0 + correctionMatrix[7] * G0 + correctionMatrix[8] * B0;
+
+					outR1 = correctionMatrix[0] * R1 + correctionMatrix[1] * G1 + correctionMatrix[2] * G1;
+					outG1 = correctionMatrix[3] * R1 + correctionMatrix[4] * G1 + correctionMatrix[5] * B1;
 					outB1 = correctionMatrix[6] * R1 + correctionMatrix[7] * G1 + correctionMatrix[8] * B1;
+
+					outR2 = correctionMatrix[0] * R2 + correctionMatrix[1] * G2 + correctionMatrix[2] * B2;
+					outG2 = correctionMatrix[3] * R2 + correctionMatrix[4] * G2 + correctionMatrix[5] * B2;
 					outB2 = correctionMatrix[6] * R2 + correctionMatrix[7] * G2 + correctionMatrix[8] * B2;
 
 					outY0 = outR0 * pRGB2YUV[0] + outG0 * pRGB2YUV[1] + outB0 * pRGB2YUV[2];

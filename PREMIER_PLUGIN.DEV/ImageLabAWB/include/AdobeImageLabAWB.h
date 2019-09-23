@@ -158,7 +158,7 @@ inline void copy_src2dst(
 }
 
 template<typename T>
-inline const double get_iteration_count(const T& slider_pos)
+inline const double get_gray_threshold(const T& slider_pos)
 {
 	return (static_cast<double>(slider_pos) / 100.0);
 }
