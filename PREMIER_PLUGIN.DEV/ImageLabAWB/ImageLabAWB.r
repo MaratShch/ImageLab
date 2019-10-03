@@ -13,11 +13,11 @@
 #endif
 
 // The following two strings should be localized
-#define plugInName		"Advanced White Balance"
+#define plugInName		"Automatic White Balance"
 #define plugCategory 	"ImageLab"
 
 // This name should not be localized or updated
-#define plugInMatchName	"Advanced_White_Balance"
+#define plugInMatchName	"Automatic_White_Balance"
 
 
 resource 'PiPL' (16000)
