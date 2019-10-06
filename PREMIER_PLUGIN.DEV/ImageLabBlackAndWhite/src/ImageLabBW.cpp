@@ -24,7 +24,46 @@ CACHE_ALIGN constexpr float coeff [][3] =
 };
 
 
-bool procesBGRA4444_8u_slice (VideoHandle theData)
+bool processVUYA_4444_8u_slice(VideoHandle theData)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	prRect box = { 0 };
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const int linePitch = rowbytes >> 2;
+
+	// Create copies of pointer to the source, destination frames
+	csSDK_uint32* __restrict srcImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	csSDK_uint32* __restrict dstImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	// first pass - accquire color statistics
+	for (int j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+			for (int i = 0; i < width; i++)
+			{
+				*dstImg++ = (*srcImg++ & 0xFFFF0000u) | 0x00008080u;
+			}
+
+		srcImg += linePitch - width;
+	}
+
+	return true;
+}
+
+
+
+bool processBGRA4444_8u_slice (VideoHandle theData)
 {
 #if !defined __INTEL_COMPILER 
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -103,13 +142,12 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 			switch (pixelFormat)
 			{
 				case PrPixelFormat_BGRA_4444_8u:
-					processSucceed = procesBGRA4444_8u_slice (theData);
+					processSucceed = processBGRA4444_8u_slice (theData);
 				break;
 
 				case PrPixelFormat_VUYA_4444_8u:
-				break;
-
 				case PrPixelFormat_VUYA_4444_8u_709:
+					processSucceed = processVUYA_4444_8u_slice(theData);
 				break;
 #if 0
 				case PrPixelFormat_ARGB_4444_8u:
