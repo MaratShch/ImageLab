@@ -1,4 +1,8 @@
 ﻿#include "AdobeImageLabBW.h"
+#include <math.h>
+
+constexpr unsigned int BT601 = 0u;
+constexpr unsigned int BT709 = 1u;
 
 CACHE_ALIGN constexpr float coeff [][3] = 
 {
@@ -10,18 +14,31 @@ CACHE_ALIGN constexpr float coeff [][3] =
 	// BT.709
 	{
 		0.2126f,   0.7152f,  0.0722f
-	},
-
-	// BT.2020
-	{
-		0.2627f,   0.6780f,  0.0593f
-	},
-
-	// SMPTE 240M
-	{
-		0.2122f,   0.7013f,  0.0865f
 	}
+
 };
+
+CACHE_ALIGN float R_coeff[256] = {};
+CACHE_ALIGN float G_coeff[256] = {};
+CACHE_ALIGN float B_coeff[256] = {};
+
+
+void initCompCoeffcients(void)
+{
+	int i;
+
+	__VECTOR_ALIGNED__
+	for (i = 0; i < 256; i++)
+		R_coeff[i] = 0.2126f * pow(static_cast<float>(i), 2.20f);
+
+	__VECTOR_ALIGNED__
+	for (i = 0; i < 256; i++)
+		G_coeff[i] = 0.7152f * pow(static_cast<float>(i), 2.20f);
+
+	__VECTOR_ALIGNED__
+	for (i = 0; i < 256; i++)
+		B_coeff[i] = 0.0722f * pow(static_cast<float>(i), 2.20f);
+}
 
 
 bool processVUYA_4444_8u_slice(VideoHandle theData)
@@ -45,8 +62,8 @@ bool processVUYA_4444_8u_slice(VideoHandle theData)
 	// Create copies of pointer to the source, destination frames
 	csSDK_uint32* __restrict srcImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	csSDK_uint32* __restrict dstImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-
-	// first pass - accquire color statistics
+	
+		// first pass - accquire color statistics
 	for (int j = 0; j < height; j++)
 	{
 		__VECTOR_ALIGNED__
@@ -85,25 +102,25 @@ bool processBGRA4444_8u_slice (VideoHandle theData)
 	csSDK_uint32* __restrict srcImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	csSDK_uint32* __restrict dstImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
+	const float* __restrict lpCoeff = (width > 800) ? coeff[BT709] : coeff[BT601];
+
 	unsigned int alpha;
 	unsigned int Luma;
 	float R, G, B;
 
-	// first pass - accquire color statistics
 	for (int j = 0; j < height; j++)
 	{
 		__VECTOR_ALIGNED__
 		for (int i = 0; i < width; i++)
 		{
-			const csSDK_uint32 BGRAPixel = *srcImg;
-			srcImg++;
+			const csSDK_uint32 BGRAPixel = *srcImg++;
 
 			alpha = BGRAPixel & 0xFF000000u;
 			R = static_cast<float>((BGRAPixel & 0x00FF0000) >> 16);
 			G = static_cast<float>((BGRAPixel & 0x0000FF00) >> 8);
 			B = static_cast<float>( BGRAPixel & 0x000000FF);
 
-			Luma = static_cast<unsigned int>(R * 0.2990f + G * 0.5870f + B * 0.1140f);
+			Luma = static_cast<unsigned int>(R * lpCoeff[0] + G * lpCoeff[1] + B * lpCoeff[2]);
 
 			const csSDK_uint32 BWPixel = alpha | 
 									Luma << 16 |
@@ -119,6 +136,64 @@ bool processBGRA4444_8u_slice (VideoHandle theData)
 	return true;
 }
 
+
+bool processAdvancedBGRA4444_8u_slice(VideoHandle theData)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	prRect box = { 0 };
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const int linePitch = rowbytes >> 2;
+
+	// Create copies of pointer to the source, destination frames
+	csSDK_uint32* __restrict srcImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	csSDK_uint32* __restrict dstImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	constexpr float fLumaExp = 1.0f / 2.20f;
+
+	float fLuma;
+	unsigned int Luma;
+	unsigned int alpha;
+	int R, G, B;
+
+	for (int j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+			for (int i = 0; i < width; i++)
+			{
+				const csSDK_uint32 BGRAPixel = *srcImg++;
+
+				alpha = BGRAPixel & 0xFF000000u;
+				R = static_cast<int>((BGRAPixel & 0x00FF0000) >> 16);
+				G = static_cast<int>((BGRAPixel & 0x0000FF00) >> 8);
+				B = static_cast<int>(BGRAPixel & 0x000000FF);
+
+				fLuma = pow((R_coeff[R] + G_coeff[G] + B_coeff[B]), fLumaExp);
+				Luma = static_cast<unsigned int>(fLuma);
+
+				const csSDK_uint32 BWPixel = alpha |
+					Luma << 16 |
+					Luma << 8 |
+					Luma;
+
+				*dstImg++ = BWPixel;
+			}
+
+		srcImg += linePitch - width;
+	}
+
+	return true;
+}
 
 
 csSDK_int32 selectProcessFunction(VideoHandle theData)
@@ -142,7 +217,7 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 			switch (pixelFormat)
 			{
 				case PrPixelFormat_BGRA_4444_8u:
-					processSucceed = processBGRA4444_8u_slice (theData);
+					processSucceed = processBGRA4444_8u_slice(theData);
 				break;
 
 				case PrPixelFormat_VUYA_4444_8u:
