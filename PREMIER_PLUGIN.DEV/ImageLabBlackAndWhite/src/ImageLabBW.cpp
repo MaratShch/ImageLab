@@ -73,6 +73,7 @@ bool processVUYA_4444_8u_slice(VideoHandle theData)
 			}
 
 		srcImg += linePitch - width;
+		dstImg += linePitch - width;
 	}
 
 	return true;
@@ -131,6 +132,7 @@ bool processBGRA4444_8u_slice (VideoHandle theData)
 		}
 
 		srcImg += linePitch - width;
+		dstImg += linePitch - width;
 	}
 
 	return true;
@@ -190,13 +192,14 @@ bool processAdvancedBGRA4444_8u_slice(VideoHandle theData)
 			}
 
 		srcImg += linePitch - width;
+		dstImg += linePitch - width;
 	}
 
 	return true;
 }
 
 
-csSDK_int32 selectProcessFunction(VideoHandle theData)
+csSDK_int32 selectProcessFunction(VideoHandle theData, bool advancedAlg)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
 	SPBasicSuite*		   SPBasic = nullptr;
@@ -217,7 +220,7 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 			switch (pixelFormat)
 			{
 				case PrPixelFormat_BGRA_4444_8u:
-					processSucceed = processBGRA4444_8u_slice(theData);
+					processSucceed = (true == advancedAlg ? processAdvancedBGRA4444_8u_slice(theData) : processBGRA4444_8u_slice(theData));
 				break;
 
 				case PrPixelFormat_VUYA_4444_8u:
@@ -295,18 +298,40 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 // ImageLabHDR filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
-	csSDK_int32 errCode = fsNoErr;
+	filterParamsH	paramsH = nullptr;
+	csSDK_int32		errCode = fsNoErr;
+	bool			advFlag = false;
 
 	switch (selector)
 	{
 		case fsInitSpec:
+			if ((*theData)->specsHandle)
+			{
+				// In a filter that has a need for a more complex setup dialog
+				// you would present your platform specific user interface here,
+				// storing results in the specsHandle (which you've allocated).
+			}
+			else
+			{
+				paramsH = reinterpret_cast<filterParamsH>(((*theData)->piSuites->memFuncs->newHandle)(sizeof(filterParams)));
+
+				// Memory allocation failed, no need to continue
+				if (nullptr == paramsH)
+					break;
+
+				(*paramsH)->checkbox = 0;
+				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
+			}
 		break;
 
 		case fsSetup:
 		break;
 
 		case fsExecute:
-			errCode = selectProcessFunction(theData);
+			// Get the data from specsHandle
+			paramsH = (filterParamsH)(*theData)->specsHandle;
+			advFlag = (nullptr != paramsH ? ((*paramsH)->checkbox ? true : false) : false);
+			errCode = selectProcessFunction(theData, advFlag);
 		break;
 
 		case fsDisposeData:

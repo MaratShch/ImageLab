@@ -40,7 +40,10 @@ template<typename T>
 T CLAMP_RGB8(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
 
 
-
+typedef struct filterParams
+{
+	char		checkbox;
+} filterParams, *filterParamsP, **filterParamsH;
 
 
 // Declare plug-in entry point with C linkage
@@ -53,6 +56,8 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 #ifdef __cplusplus
 }
 #endif
+
+csSDK_int32 selectProcessFunction(VideoHandle theData, bool advancedAlg = false);
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
