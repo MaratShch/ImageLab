@@ -64,6 +64,9 @@ csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 bool processBGRA4444_8u_slice(VideoHandle theData);
 bool processAdvancedBGRA4444_8u_slice(VideoHandle theData);
 
+bool processARGB4444_8u_slice(VideoHandle theData);
+bool processAdvancedARGB4444_8u_slice(VideoHandle theData);
+
 bool processBGRA4444_16u_slice(VideoHandle theData);
 bool processAdvancedBGRA4444_16u_slice(VideoHandle theData);
 
