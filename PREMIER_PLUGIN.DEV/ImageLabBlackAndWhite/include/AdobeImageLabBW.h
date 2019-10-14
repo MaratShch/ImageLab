@@ -63,15 +63,22 @@ csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
 bool processBGRA4444_8u_slice(VideoHandle theData);
 bool processAdvancedBGRA4444_8u_slice(VideoHandle theData);
+bool processBGRA4444_16u_slice(VideoHandle theData);
+bool processAdvancedBGRA4444_16u_slice(VideoHandle theData);
+bool processBGRA4444_32f_slice(VideoHandle theData);
 
 bool processARGB4444_8u_slice(VideoHandle theData);
 bool processAdvancedARGB4444_8u_slice(VideoHandle theData);
-
-bool processBGRA4444_16u_slice(VideoHandle theData);
-bool processAdvancedBGRA4444_16u_slice(VideoHandle theData);
-
-bool processBGRA4444_32f_slice(VideoHandle theData);
+bool processARGB4444_16u_slice(VideoHandle theData);
+bool processAdvancedARGB4444_16u_slice(VideoHandle theData);
+bool processARGB4444_32f_slice(VideoHandle theData);
 
 bool processVUYA_4444_8u_slice(VideoHandle theData);
+bool processVUYA4444_32f_slice(VideoHandle theData);
+
+bool processRGB444_10u_slice(VideoHandle theData);
+bool processAdvancedRGB444_10u_slice(VideoHandle theData);
+
+bool processRGB444_12u_slice(VideoHandle theData, const float* __restrict pTable);
 
 void initCompCoeffcients(void);

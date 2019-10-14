@@ -11,6 +11,11 @@ csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData)
 			case 0:
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u; ;
 			break;
+
+			case 1:
+				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u_709;
+			break;
+
 #if 0
 			case 1:
 				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_8u;
