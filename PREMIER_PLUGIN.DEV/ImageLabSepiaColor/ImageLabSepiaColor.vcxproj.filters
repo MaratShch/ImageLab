@@ -23,11 +23,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ImageLabSepiaColor.r">
-      <Filter>resources</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="ImageLabSepiaColor.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
@@ -36,5 +31,10 @@
     <ClInclude Include="include\AdobeImageLabSepia.h">
       <Filter>include</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ImageLabSepiaColor.r">
+      <Filter>resources</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

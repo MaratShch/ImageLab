@@ -756,9 +756,9 @@ bool processRGB444_10u_slice(VideoHandle theData)
 			{
 				const csSDK_uint32 BGRAPixel = *srcImg++;
 
-				R = static_cast<float>((BGRAPixel & 0x00000FFC) >> 2);
+				B = static_cast<float>((BGRAPixel & 0x00000FFC) >> 2);
 				G = static_cast<float>((BGRAPixel & 0x003FF000) >> 12);
-				B = static_cast<float>((BGRAPixel & 0xFFC00000) >> 22);
+				R = static_cast<float>((BGRAPixel & 0xFFC00000) >> 22);
 
 				Luma = 0x000003FFu & static_cast<unsigned int>(R * lpCoeff[0] + G * lpCoeff[1] + B * lpCoeff[2]);
 

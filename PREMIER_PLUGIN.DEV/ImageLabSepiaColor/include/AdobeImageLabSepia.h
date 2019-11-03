@@ -60,4 +60,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(VideoHandle theData);
 
-bool processSepiaBGRA4444_8u_slice(VideoHandle theData);
+bool processSepiaBGRA4444_8u_slice  (VideoHandle theData);
+bool processSepiaBGRA4444_16u_slice (VideoHandle theData);
+bool processSepiaBGRA4444_32f_slice (VideoHandle theData);
+bool processSepiaRGB444_10u_slice   (VideoHandle theData);

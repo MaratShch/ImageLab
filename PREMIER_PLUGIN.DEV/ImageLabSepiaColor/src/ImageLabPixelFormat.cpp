@@ -1,7 +1,7 @@
 #include "AdobeImageLabSepia.h"
 
 
-csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData)
+csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 {
 	csSDK_int32 pixFormatResult = imNoErr;
 
@@ -13,7 +13,7 @@ csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData)
 		    case 0:
 				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_8u;
 			break;
-#if 0
+
 			case 1:
 				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_16u;
 			break;
@@ -26,7 +26,7 @@ csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData)
 				(*theData)->pixelFormatSupported = PrPixelFormat_RGB_444_10u;
 			break;
 
-			// ARGB format's group (native AE format)
+#if 0			// ARGB format's group (native AE format)
 			case 4:
 				(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_8u;
 			break;
