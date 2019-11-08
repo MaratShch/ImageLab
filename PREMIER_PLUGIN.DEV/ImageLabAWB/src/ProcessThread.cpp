@@ -562,115 +562,7 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 			XYZtosRGB[6] * outMatrix[2] + XYZtosRGB[7] * outMatrix[5] + XYZtosRGB[8] * outMatrix[8]
 		};
 
-#if 0
-		const double correctionRGBMatrix[9] = // in future must be enclosed in C++ class Matrix
-		{
-			mult[0] * sRGBtoXYZ[0] + mult[1] * sRGBtoXYZ[3] + mult[2] * sRGBtoXYZ[6],
-			mult[0] * sRGBtoXYZ[1] + mult[1] * sRGBtoXYZ[4] + mult[2] * sRGBtoXYZ[7],
-			mult[0] * sRGBtoXYZ[2] + mult[1] * sRGBtoXYZ[5] + mult[2] * sRGBtoXYZ[8],
 
-			mult[3] * sRGBtoXYZ[0] + mult[4] * sRGBtoXYZ[3] + mult[5] * sRGBtoXYZ[6],
-			mult[3] * sRGBtoXYZ[1] + mult[4] * sRGBtoXYZ[4] + mult[5] * sRGBtoXYZ[7],
-			mult[3] * sRGBtoXYZ[2] + mult[4] * sRGBtoXYZ[5] + mult[5] * sRGBtoXYZ[8],
-
-			mult[6] * sRGBtoXYZ[0] + mult[7] * sRGBtoXYZ[3] + mult[8] * sRGBtoXYZ[6],
-			mult[6] * sRGBtoXYZ[1] + mult[7] * sRGBtoXYZ[4] + mult[8] * sRGBtoXYZ[7],
-			mult[6] * sRGBtoXYZ[2] + mult[7] * sRGBtoXYZ[5] + mult[8] * sRGBtoXYZ[8]
-		};
-
-		const double correctionMatrix[9] = // in future must be enclosed in C++ class Matrix
-		{
-			correctionRGBMatrix[0] * pMatrixOut[0] + correctionRGBMatrix[1] * pMatrixOut[3] + correctionRGBMatrix[2] * pMatrixOut[6],
-			correctionRGBMatrix[0] * pMatrixOut[1] + correctionRGBMatrix[1] * pMatrixOut[4] + correctionRGBMatrix[2] * pMatrixOut[7],
-			correctionRGBMatrix[0] * pMatrixOut[2] + correctionRGBMatrix[1] * pMatrixOut[5] + correctionRGBMatrix[2] * pMatrixOut[8],
-
-			correctionRGBMatrix[3] * pMatrixOut[0] + correctionRGBMatrix[4] * pMatrixOut[3] + correctionRGBMatrix[5] * pMatrixOut[6],
-			correctionRGBMatrix[3] * pMatrixOut[1] + correctionRGBMatrix[4] * pMatrixOut[4] + correctionRGBMatrix[5] * pMatrixOut[7],
-			correctionRGBMatrix[3] * pMatrixOut[2] + correctionRGBMatrix[4] * pMatrixOut[5] + correctionRGBMatrix[5] * pMatrixOut[8],
-
-			correctionRGBMatrix[6] * pMatrixOut[0] + correctionRGBMatrix[7] * pMatrixOut[3] + correctionRGBMatrix[8] * pMatrixOut[6],
-			correctionRGBMatrix[6] * pMatrixOut[1] + correctionRGBMatrix[7] * pMatrixOut[4] + correctionRGBMatrix[8] * pMatrixOut[7],
-			correctionRGBMatrix[6] * pMatrixOut[2] + correctionRGBMatrix[7] * pMatrixOut[5] + correctionRGBMatrix[8] * pMatrixOut[8]
-		};
-
-		// get again source image pointer
-		srcImg = const_cast<csSDK_uint32*>(srcFrame);
-
-		double Y0, Y1, Y2;
-		double U0, U1, U2;
-		double V0, V1, V2;
-
-		double outY0, outY1, outY2;
-		double outU0, outU1, outU2;
-		double outV0, outV1, outV2;
-
-		const int fraction = width % 3;
-		int alpha0, alpha1, alpha2;
-
-		// second pass - apply color correction
-		for (int j = 0; j < height; j++)
-		{
-			__VECTOR_ALIGNED__
-				for (int i = 0; i < width; i += 3)
-				{
-					alpha0 = *srcImg >> 24;
-					Y0 = static_cast<int>((*srcImg & 0x00FF0000) >> 16);
-					U0 = static_cast<int>((*srcImg & 0x0000FF00) >> 8) - 128;
-					V0 = static_cast<int> (*srcImg & 0x000000FF) - 128;
-					srcImg++;
-
-					alpha1 = *srcImg >> 24;
-					Y1 = static_cast<int>((*srcImg & 0x00FF0000) >> 16);
-					U1 = static_cast<int>((*srcImg & 0x0000FF00) >> 8) - 128;
-					V1 = static_cast<int> (*srcImg & 0x000000FF) - 128;
-					srcImg++;
-
-					alpha2 = *srcImg >> 24;
-					Y2 = static_cast<int>((*srcImg & 0x00FF0000) >> 16);
-					U2 = static_cast<int>((*srcImg & 0x0000FF00) >> 8) - 128;
-					V2 = static_cast<int> (*srcImg & 0x000000FF) - 128;
-					srcImg++;
-
-					outY0 = correctionMatrix[0] * Y0 + correctionMatrix[1] * U0 + correctionMatrix[2] * V0;
-					outY1 = correctionMatrix[0] * Y1 + correctionMatrix[1] * U1 + correctionMatrix[2] * V1;
-					outY2 = correctionMatrix[0] * Y2 + correctionMatrix[1] * U2 + correctionMatrix[2] * V2;
-
-					outU0 = correctionMatrix[3] * Y0 + correctionMatrix[4] * U0 + correctionMatrix[5] * V0;
-					outU1 = correctionMatrix[3] * Y1 + correctionMatrix[4] * U1 + correctionMatrix[5] * V1;
-					outU2 = correctionMatrix[3] * Y2 + correctionMatrix[4] * U2 + correctionMatrix[5] * V2;
-
-					outV0 = correctionMatrix[6] * Y0 + correctionMatrix[7] * U0 + correctionMatrix[8] * V0;
-					outV1 = correctionMatrix[6] * Y1 + correctionMatrix[7] * U1 + correctionMatrix[8] * V1;
-					outV2 = correctionMatrix[6] * Y2 + correctionMatrix[7] * U2 + correctionMatrix[8] * V2;
-
-
-					const csSDK_uint32 pix0 = alpha0 << 24 |
-						(CLAMP_RGB8(static_cast<int>(outY0))) << 16 |
-						(CLAMP_RGB8(static_cast<int>(outU0))) << 8  |
-						(CLAMP_RGB8(static_cast<int>(outV0)));
-
-					const csSDK_uint32 pix1 = alpha1 << 24 |
-						(CLAMP_RGB8(static_cast<int>(outY1))) << 16 |
-						(CLAMP_RGB8(static_cast<int>(outU1))) << 8  |
-						(CLAMP_RGB8(static_cast<int>(outV1)));
-
-					const csSDK_uint32 pix2 = alpha2 << 24 |
-						(CLAMP_RGB8(static_cast<int>(outY2))) << 16 |
-						(CLAMP_RGB8(static_cast<int>(outU2))) << 8  |
-						(CLAMP_RGB8(static_cast<int>(outV2)));
-
-					*dstImg++ = pix0;
-					*dstImg++ = pix1;
-					*dstImg++ = pix2;
-
-				}
-
-			dstImg += linePitch - width + fraction;
-			srcImg += linePitch - width + fraction;
-
-		}
-
-#else
 		const double correctionMatrix[9] = // in future must be enclosed in C++ class Matrix
 		{
 			mult[0] * sRGBtoXYZ[0] + mult[1] * sRGBtoXYZ[3] + mult[2] * sRGBtoXYZ[6],
@@ -797,8 +689,6 @@ bool procesVUYA4444_8u_slice(VideoHandle theData,
 			srcImg += linePitch - width + fraction;
 
 		} // for (int j = 0; j < height; j++)
-#endif
-
 
 	} // for (int iter_cnt = 0; iter_cnt < iterCnt; iter_cnt++)
 

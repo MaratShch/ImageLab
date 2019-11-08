@@ -37,13 +37,13 @@ template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-T CLAMP_RGB8(T val) { return ((val > 0xFF) ? 0xFF : val); }
+T CLAMP_RGB8(T val) { return ((val < 0) ? 0 : (val > 0xFF) ? 0xFF : val); }
 
 template<typename T>
-T CLAMP_RGB10(T val) { return ((val > 0x3FF) ? 0x3FF : val); }
+T CLAMP_RGB10(T val) { return ((val < 0) ? 0 : (val > 0x3FF) ? 0x3FF : val); }
 
 template<typename T>
-T CLAMP_RGB16(T val) { return ((val > 0xFFFF) ? 0xFFFF : val); }
+T CLAMP_RGB16(T val) { return ((val < 0) ? 0 : (val > 0xFFFF) ? 0xFFFF : val); }
 
 
 // Declare plug-in entry point with C linkage
@@ -51,11 +51,13 @@ T CLAMP_RGB16(T val) { return ((val > 0xFFFF) ? 0xFFFF : val); }
 extern "C" {
 #endif
 
-PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 
 #ifdef __cplusplus
 }
 #endif
+
+void initSepiaYuvTmpMatrix(void);
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(VideoHandle theData);
@@ -64,3 +66,12 @@ bool processSepiaBGRA4444_8u_slice  (VideoHandle theData);
 bool processSepiaBGRA4444_16u_slice (VideoHandle theData);
 bool processSepiaBGRA4444_32f_slice (VideoHandle theData);
 bool processSepiaRGB444_10u_slice   (VideoHandle theData);
+
+bool processSepiaVUYA4444_8u_BT601_slice (VideoHandle theData);
+bool processSepiaVUYA4444_8u_BT709_slice (VideoHandle theData);
+bool processSepiaVUYA4444_32f_BT601_slice(VideoHandle theData);
+bool processSepiaVUYA4444_32f_BT709_slice(VideoHandle theData);
+
+bool processSepiaARGB4444_8u_slice(VideoHandle theData);
+bool processSepiaARGB4444_16u_slice (VideoHandle theData);
+bool processSepiaARGB4444_32f_slice (VideoHandle theData);

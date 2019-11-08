@@ -104,7 +104,6 @@ bool processVUYA_4444_8u_slice(VideoHandle theData)
 	csSDK_uint32* __restrict srcImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	csSDK_uint32* __restrict dstImg = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 	
-		// first pass - accquire color statistics
 	for (int j = 0; j < height; j++)
 	{
 		__VECTOR_ALIGNED__

@@ -26,7 +26,7 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 				(*theData)->pixelFormatSupported = PrPixelFormat_RGB_444_10u;
 			break;
 
-#if 0			// ARGB format's group (native AE format)
+			// ARGB format's group (native AE format)
 			case 4:
 				(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_8u;
 			break;
@@ -55,7 +55,7 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 			case 10:
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f_709;
 			break;
-#endif
+
 			default:
 				pixFormatResult = fsBadFormatIndex;
 			break;
