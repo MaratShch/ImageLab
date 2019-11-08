@@ -79,6 +79,4 @@ bool processVUYA4444_32f_slice(VideoHandle theData);
 bool processRGB444_10u_slice(VideoHandle theData);
 bool processAdvancedRGB444_10u_slice(VideoHandle theData);
 
-bool processRGB444_12u_slice(VideoHandle theData, const float* __restrict pTable);
-
 void initCompCoeffcients(void);
