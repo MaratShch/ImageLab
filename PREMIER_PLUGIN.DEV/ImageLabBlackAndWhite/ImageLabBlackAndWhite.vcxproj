@@ -73,12 +73,14 @@
     <IntDir>$(ProjectDir)\$(Configuration)\</IntDir>
     <TargetName>BlackAndWhite</TargetName>
     <TargetExt>.prm</TargetExt>
+    <ExtensionsToDeleteOnClean>*.rr;*.rcp;*.prm;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\</IntDir>
     <TargetName>BlackAndWhite</TargetName>
     <TargetExt>.prm</TargetExt>
+    <ExtensionsToDeleteOnClean>*.rr;*.rcp;*.prm;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

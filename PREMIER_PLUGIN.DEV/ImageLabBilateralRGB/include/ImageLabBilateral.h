@@ -33,33 +33,6 @@ static constexpr int jobsQueueSize = 64;
 static constexpr int maxRadiusSize = 10;
 static constexpr float Exp = 2.7182818f;
 
-#if 0
-const unsigned int cpuCores = std::thread::hardware_concurrency();
-
-typedef struct
-{
-	csSDK_uint32* pSrcSlice;
-	csSDK_uint32* pDstSlice;
-	int			  sizeX;
-	int           sizeY;
-	int           rowWidth;
-}Async_Jobs;
-
-
-typedef struct
-{
-	size_t		strSizeOf;
-	DWORD       idx;
-	std::atomic<int> head;
-	std::atomic<int> tail;
-	std::atomic<bool> mustExit;
-	std::condition_variable cv;
-	bool		bNewJob;
-	bool        bJobComplete;
-	Async_Jobs	jobsQueue[jobsQueueSize];
-}AsyncQueue;
-#endif
-
 
 template<typename T>
 T MIN(T a, T b) { return ((a < b) ? a : b); }
@@ -79,6 +52,11 @@ extern "C" {
 #endif
 
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+
+#ifdef __cplusplus
+}
+#endif
+
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
 void BGRA_convert_to_CIELab(
@@ -189,8 +167,3 @@ inline float aLog(const float& a)
 	return r;
 }
 
-
-
-#ifdef __cplusplus
-}
-#endif
