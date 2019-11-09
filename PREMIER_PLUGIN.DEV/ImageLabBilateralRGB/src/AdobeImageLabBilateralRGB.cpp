@@ -1,8 +1,8 @@
 #include "ImageLabBilateral.h"
 #include <windows.h>
 
-float* pBuffer1 = nullptr;
-float* pBuffer2 = nullptr;
+float* __restrict pBuffer1 = nullptr;
+float* __restrict pBuffer2 = nullptr;
 
 static csSDK_int32 processFrame(VideoHandle theData)
 {

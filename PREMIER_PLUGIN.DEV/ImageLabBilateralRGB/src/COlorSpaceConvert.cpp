@@ -1,7 +1,7 @@
 #include <math.h>
 #include "ImageLabBilateral.h"
 
-AVX2_ALIGN static float pTable[256];
+CACHE_ALIGN static float pTable[256];
 
 void CreateColorConvertTable(void)
 {

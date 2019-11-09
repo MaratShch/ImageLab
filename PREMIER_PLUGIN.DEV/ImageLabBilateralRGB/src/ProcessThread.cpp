@@ -1,9 +1,6 @@
 #include "ImageLabBilateral.h"
 
-//extern std::mutex globalMutex;
-
-
-AVX2_ALIGN static float gMesh[11][11] = { 0 };
+CACHE_ALIGN static float gMesh[11][11] = { 0 };
 
 void gaussian_weights(const float sigma, const int radius /* radius size in range of 3 to 10 */)
 {
@@ -34,8 +31,8 @@ void bilateral_filter_color(const float* __restrict pCIELab,
 							const int radius,
 	                        const float sigmaR) /* value sigmaR * 100 */
 {
-	AVX2_ALIGN float pH[11][11];
-	AVX2_ALIGN float pF[11][11];
+	CACHE_ALIGN float pH[11][11];
+	CACHE_ALIGN float pF[11][11];
 
 	float bSum1;
 	float bSum2;
@@ -138,11 +135,13 @@ void bilateral_filter_color(const float* __restrict pCIELab,
 void* allocCIELabBuffer(const size_t& size)
 {
 	void* pMem = _aligned_malloc(size, CIELabBufferAlign);
+#ifdef _DEBUG
 	if (nullptr != pMem)
 	{
 		// for DBG purprose
 		ZeroMemory(pMem, CIELabBufferAlign);
 	}
+#endif
 	return pMem;
 }
 
@@ -150,128 +149,11 @@ void freeCIELabBuffer(void* pMem)
 {
 	if (nullptr != pMem)
 	{
+#ifdef _DEBUG
 		// for DBG purprose
 		ZeroMemory(pMem, CIELabBufferAlign);
+#endif
 		_aligned_free(pMem);
 		pMem = nullptr;
 	}
 }
-
-#if 0
-void waitForJob(AsyncQueue* pAsyncJob)
-{
-	std::unique_lock<std::mutex> lk(globalMutex);
-	pAsyncJob->cv.wait(lk, [&] {return pAsyncJob->bNewJob;});
-	pAsyncJob->bNewJob = false;
-	lk.unlock();
-}
-
-
-DWORD WINAPI ProcessThread(LPVOID pParam)
-{
-	DWORD exitCode = EXIT_SUCCESS;
-	double* pBuffer1 = nullptr;
-	double* pBuffer2 = nullptr;
-
-	AsyncQueue* pAsyncJob = reinterpret_cast<AsyncQueue*>(pParam);
-
-	// verify parameters
-	if (nullptr == pAsyncJob)
-		return EXIT_FAILURE;
-	if (sizeof(*pAsyncJob) != pAsyncJob->strSizeOf)
-		return EXIT_FAILURE;
-
-	const DWORD affinity = 1UL << pAsyncJob->idx;
-	SetThreadAffinityMask(::GetCurrentThread(), affinity);
-
-
-	__try {
-
-		// allocate memory buffers for temporary procssing
-		pBuffer1 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
-		pBuffer2 = reinterpret_cast<double*>(allocCIELabBuffer(CIELabBufferSize));
-
-		if (nullptr == pBuffer1 || nullptr == pBuffer2)
-			__leave;
-
-		const size_t bufferSizeInPixels = CIELabBufferSize / (CIELabBufferbands * sizeof(double));
-			
-		// thread main loop
-		while (true)
-		{
-//			printf("Thread %u wait for new job\n", pAsyncJob->idx);
-
-			// waits for start new job
-			waitForJob(pAsyncJob);
-
-			// test exit' flag
-			if (pAsyncJob->mustExit == true)
-				__leave;
-
-//			printf("Thread %u execute job\n", pAsyncJob->idx);
-
-			// get job's
-			int numJobs = 0;
-			int idxHead = pAsyncJob->head;
-			int idxTail = pAsyncJob->tail;
-
-			// perform job
-			if (-1 == idxTail)
-				numJobs = idxHead + 1;
-			else
-				numJobs = (idxHead > idxTail) ?
-					idxHead - idxTail + 1 : jobsQueueSize - idxTail + idxHead + 1;
-
-			// perform job on specific data slice
-			for (int i = 0; i < numJobs; i++)
-			{
-				csSDK_uint32* pSrcBGRA = pAsyncJob->jobsQueue[idxTail].pSrcSlice;
-				csSDK_uint32* pDstBGRA = pAsyncJob->jobsQueue[idxTail].pDstSlice;
-				const int sizeX = pAsyncJob->jobsQueue[idxTail].sizeX;
-				const int sizeY = pAsyncJob->jobsQueue[idxTail].sizeY;
-				const int rowBytes = pAsyncJob->jobsQueue[idxTail].rowWidth;
-
-				BGRA_convert_to_CIELab(
-					pSrcBGRA,   /* format: A, B, G, R (each band as unsigned char) */
-					pBuffer1,	/* format: L, a, b (each band as double) */
-					sizeX,
-					sizeY,
-					rowBytes
-				);
-
-				idxTail++;
-				if (idxTail >= jobsQueueSize)
-					idxTail = 0;
-
-				pAsyncJob->tail = idxTail;
-			}
-
-			// report to consumer about job completion
-			pAsyncJob->bJobComplete;
-			pAsyncJob->cv.notify_all();
-		}// while(true)
-
-	} // __try
-
-	// cleanup memory resources on exit
-	__finally {
-		if (nullptr != pBuffer1)
-		{
-			freeCIELabBuffer(pBuffer1);
-			pBuffer1 = nullptr;
-		}
-		if (nullptr != pBuffer2)
-		{
-			freeCIELabBuffer(pBuffer2);
-			pBuffer2 = nullptr;
-		}
-
-		// report to consumer about job completion
-		pAsyncJob->bJobComplete;
-		pAsyncJob->cv.notify_all();
-	}
-
-	return exitCode;
-}
-
-#endif
