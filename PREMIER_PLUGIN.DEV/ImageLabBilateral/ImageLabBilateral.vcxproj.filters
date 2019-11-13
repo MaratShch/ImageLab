@@ -21,6 +21,9 @@
     <ClCompile Include="src\ImageLabPixelFormat.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\dllmain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabBilateral.h">
@@ -28,13 +31,13 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Bilateral.r">
-      <Filter>resources</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="Bilateral.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Bilateral.r">
+      <Filter>resources</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

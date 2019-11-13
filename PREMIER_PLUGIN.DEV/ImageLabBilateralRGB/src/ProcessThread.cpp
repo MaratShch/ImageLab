@@ -7,7 +7,7 @@ void gaussian_weights(const float sigma, const int radius /* radius size in rang
 	int i, j;
 	int x, y;
 
-	const int size = 11;
+	constexpr int size = 11;
 	const float divider = 2.0f * (sigma * sigma); // 2 * sigma ^ 2
 
 	__VECTOR_ALIGNED__

@@ -19,6 +19,8 @@
 #define __VECTOR_ALIGNED__
 #endif
 
+constexpr int maxWinSize = 11;
+
 
 template<typename T>
 T MIN(T a, T b) { return ((a < b) ? a : b); }
@@ -27,8 +29,20 @@ template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
+T CLAMP_RGB8(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
+
+template<typename T>
 T EXP(T val) {
 	return powf(Exp, val); // powf for floating
+}
+
+inline float aExp(const float & fVal)
+{
+	float y = 1.0f + fVal / 1024.0f;
+	y *= y; y *= y; y *= y; y *= y;
+	y *= y; y *= y; y *= y; y *= y;
+	y *= y; y *= y;
+	return y;
 }
 
 
@@ -43,5 +57,9 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 }
 #endif
 
-csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
+void gaussian_weights(const float sigma = 3.0f, const int radius = 5);
 
+csSDK_int32 imageLabPixelFormatSupported(const VideoHandle& theData);
+csSDK_int32 selectProcessFunction (const VideoHandle& theData);
+
+bool process_VUYA_4444_8u_frame(const VideoHandle& theData, const int& radius = 5);

@@ -6,8 +6,8 @@ float* __restrict pBuffer2 = nullptr;
 
 static csSDK_int32 processFrame(VideoHandle theData)
 {
-	const float sigma_r = 0.100f;
-	const int radius = 5;
+	constexpr float sigma_r = 0.100f;
+	constexpr int radius = 5;
 
 	csSDK_int32 errCode = fsNoErr;
 	prRect box = { 0 };

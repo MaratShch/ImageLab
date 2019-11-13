@@ -7,10 +7,6 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
-//#include <mutex>
-//#include <atomic>
-//#include <memory> 
-
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
@@ -23,13 +19,11 @@
 #define __VECTOR_ALIGNED__
 #endif
 
-static constexpr int maxCPUCores = 64;
 static constexpr int CIELabBufferbands = 3;
 static constexpr size_t CIELabBufferPixSize = 2048 * 1080; /* components order: L, a, b */
 static constexpr size_t CIELabBufferSize = CIELabBufferbands * CIELabBufferPixSize * sizeof(float); /* components order: L, a, b */
 static constexpr size_t CIELabBufferAlign = CACHE_LINE;
 
-static constexpr int jobsQueueSize = 64;
 static constexpr int maxRadiusSize = 10;
 static constexpr float Exp = 2.7182818f;
 
@@ -52,6 +46,7 @@ extern "C" {
 #endif
 
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
 
 #ifdef __cplusplus
 }
@@ -84,23 +79,6 @@ void gaussian_weights(const float sigma = 3.0f, const int radius = 5 /* radius s
 void bilateral_filter_color(const float* __restrict pCIELab, float* __restrict pFiltered, const int sizeX, const int sizeY, const int radius, const float sigmaR);
 
 static csSDK_int32 processFrame(VideoHandle theData);
-
-DWORD WINAPI ProcessThread(LPVOID pParam);
-void createTaskServers(const unsigned int dbgLimit = 1);
-void deleteTaskServers(const unsigned int dbgLimit = 1);
-
-void startParallelJobs(
-	csSDK_uint32* pSrc,
-	csSDK_uint32* pDst,
-	const int     sizeX,
-	const int     sizeY,
-	const int     rowBytes,
-	const unsigned int dbgLimit = 1);
-
-int waitForJobsComplete(const unsigned int dbgLimit = 1);
-
-BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
-
 
 inline float acbrt (float x0)
 {
