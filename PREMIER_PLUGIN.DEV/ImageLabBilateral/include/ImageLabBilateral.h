@@ -29,7 +29,7 @@ template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-T CLAMP_RGB8(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
+T CLAMP_U8(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
 
 template<typename T>
 T EXP(T val) {
@@ -51,7 +51,8 @@ inline float aExp(const float & fVal)
 extern "C" {
 #endif
 
-PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
+BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
 
 #ifdef __cplusplus
 }
@@ -59,7 +60,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 
 void gaussian_weights(const float sigma = 3.0f, const int radius = 5);
 
-csSDK_int32 imageLabPixelFormatSupported(const VideoHandle& theData);
-csSDK_int32 selectProcessFunction (const VideoHandle& theData);
+csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
+csSDK_int32 selectProcessFunction (const VideoHandle theData);
 
-bool process_VUYA_4444_8u_frame(const VideoHandle& theData, const int& radius = 5);
+bool process_VUYA_4444_8u_frame(const VideoHandle theData, const int radius = 5);

@@ -25,7 +25,7 @@ void gaussian_weights(const float sigma, const int radius /* radius size in rang
 }
 
 
-bool process_VUYA_4444_8u_frame (const VideoHandle& theData, const int& radius)
+bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 {
 	CACHE_ALIGN float pF[maxWinSize][maxWinSize] = {};
 	CACHE_ALIGN float pH[maxWinSize][maxWinSize] = {};
@@ -48,7 +48,7 @@ bool process_VUYA_4444_8u_frame (const VideoHandle& theData, const int& radius)
 	const csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	      csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-	constexpr float sigma = 10.0f;
+	constexpr float sigma = 0.10f;
 	constexpr float divider = 2.00f * sigma * sigma;
 
 	int i, j, k, l;
@@ -72,7 +72,9 @@ bool process_VUYA_4444_8u_frame (const VideoHandle& theData, const int& radius)
 			const int iDiff = (iMax - iMin) + 1;
 
 			const int pixOffset = j * linePitch + i;
-			const float Yref = static_cast<float>((srcPix[pixOffset] && 0x00FF0000u) >> 16);
+			const csSDK_uint32 inPixel = srcPix[pixOffset];
+
+			const float Yref = static_cast<float>((inPixel & 0x00FF0000u) >> 16);
 
 			// compute Gaussian intensity weights
 			for (k = 0; k < jDiff; k++)
@@ -81,9 +83,9 @@ bool process_VUYA_4444_8u_frame (const VideoHandle& theData, const int& radius)
 
 				for (l = 0; l < iDiff; l++)
 				{
-					Y = static_cast<float>((srcPix[jIdx + l] && 0x00FF0000u) >> 16);
+					Y = static_cast<float>((srcPix[jIdx + l] & 0x00FF0000u) >> 16);
 					dY = Y - Yref;
-					pH[k][l] = aExp(-dY / divider);
+					pH[k][l] = aExp(-dY / divider); // pH[0][3] incorrect!!!!
 				} // for (m = 0; m < iDiff; m++)
 
 			} // for (k = 0; k < jDiff; k++)
@@ -116,13 +118,13 @@ bool process_VUYA_4444_8u_frame (const VideoHandle& theData, const int& radius)
 				const int kIdx = (jMin + k) * linePitch + iMin;
 				for (l = 0; l < iDiff; l++)
 				{
-					Y = static_cast<float>((srcPix[kIdx + l] && 0x00FF0000u) >> 16);
+					Y = static_cast<float>((srcPix[kIdx + l] & 0x00FF0000u) >> 16);
 					bSum += (pF[k][l] * Y);
 				}
 			}
 
 			// compute destination pixel
-			finalY = CLAMP_RGB8(static_cast<int>(bSum / normF));
+			finalY = CLAMP_U8(static_cast<int>(bSum / normF));
 			dstPix[pixOffset] = (srcPix[pixOffset] & 0xFF00FFFFu) | (finalY << 16);
 
 		} // for (i = 0; i < width; i++)
@@ -134,7 +136,7 @@ bool process_VUYA_4444_8u_frame (const VideoHandle& theData, const int& radius)
 
 
 
-csSDK_int32 selectProcessFunction (const VideoHandle& theData)
+csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
 	SPBasicSuite*		   SPBasic = nullptr;
