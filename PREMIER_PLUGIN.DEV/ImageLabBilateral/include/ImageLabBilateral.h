@@ -20,6 +20,8 @@
 #endif
 
 constexpr int maxWinSize = 11;
+constexpr int defaultRadius = 5;
+constexpr float defaultSigma = 3.0f;
 
 
 template<typename T>
@@ -36,7 +38,7 @@ T EXP(T val) {
 	return powf(Exp, val); // powf for floating
 }
 
-inline float aExp(const float & fVal)
+inline float aExp (const float& fVal)
 {
 	float y = 1.0f + fVal / 1024.0f;
 	y *= y; y *= y; y *= y; y *= y;
@@ -58,9 +60,9 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 }
 #endif
 
-void gaussian_weights(const float sigma = 3.0f, const int radius = 5);
+void gaussian_weights(const float sigma = defaultSigma, const int radius = defaultRadius);
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction (const VideoHandle theData);
 
-bool process_VUYA_4444_8u_frame(const VideoHandle theData, const int radius = 5);
+bool process_VUYA_4444_8u_frame(const VideoHandle theData, const int radius = defaultRadius);

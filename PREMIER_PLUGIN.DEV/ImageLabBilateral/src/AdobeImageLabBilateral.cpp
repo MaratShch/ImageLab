@@ -1,20 +1,19 @@
 #include "ImageLabBilateral.h"
 #include <windows.h>
 
-CACHE_ALIGN static float gMesh[11][11] = { 0 };
+CACHE_ALIGN static float gMesh[maxWinSize][maxWinSize] = { };
 
 void gaussian_weights(const float sigma, const int radius /* radius size in range of 3 to 10 */)
 {
 	int i, j;
 	int x, y;
 
-	const int size = 11;
 	const float divider = 2.0f * (sigma * sigma); // 2 * sigma ^ 2
 
 	__VECTOR_ALIGNED__
-	for (y = -radius, j = 0; j < size; j++, y++)
+	for (y = -radius, j = 0; j < maxWinSize; j++, y++)
 	{
-		for (x = -radius, i = 0; i < size; i++, x++)
+		for (x = -radius, i = 0; i < maxWinSize; i++, x++)
 		{
 			const float dSum = static_cast<float>((x * x) + (y * y));
 			gMesh[j][i] = aExp(-dSum / divider);
@@ -85,7 +84,7 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 				{
 					Y = static_cast<float>((srcPix[jIdx + l] & 0x00FF0000u) >> 16);
 					dY = Y - Yref;
-					pH[k][l] = aExp(-dY / divider); // pH[0][3] incorrect!!!!
+					pH[k][l] = aExp(-(dY * dY) / divider); 
 				} // for (m = 0; m < iDiff; m++)
 
 			} // for (k = 0; k < jDiff; k++)
