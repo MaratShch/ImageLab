@@ -23,7 +23,6 @@ void gaussian_weights(const float sigma, const int radius /* radius size in rang
 	return;
 }
 
-
 bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 {
 	CACHE_ALIGN float pF[maxWinSize][maxWinSize] = {};
@@ -50,7 +49,8 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 	constexpr float sigma = 0.10f;
 	constexpr float divider = 2.00f * sigma * sigma;
 
-	int i, j, k, l;
+	int i, j;
+	int k, l;
 	float Y, dY, normF, bSum;
 	int finalY;
 
@@ -58,17 +58,15 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 	{
 		for (i = 0; i < width; i++)
 		{
-			int iMin, iMax, jMin, jMax;
-
 			// define processing window coordinates
-			iMin = MAX(i - radius, 0);
-			iMax = MIN(i + radius, lastPixelIdx);
-			jMin = MAX(j - radius, 0);
-			jMax = MIN(j + radius, lastLineIdx);
+			const int iMin = MAX(i - radius, 0);
+			const int iMax = MIN(i + radius, lastPixelIdx);
+			const int jMin = MAX(j - radius, 0);
+			const int jMax = MIN(j + radius, lastLineIdx);
 
 			// define process window sizes
-			const int jDiff = (jMax - jMin) + 1;
 			const int iDiff = (iMax - iMin) + 1;
+			const int jDiff = (jMax - jMin) + 1;
 
 			const int pixOffset = j * linePitch + i;
 			const csSDK_uint32 inPixel = srcPix[pixOffset];
@@ -78,11 +76,12 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 			// compute Gaussian intensity weights
 			for (k = 0; k < jDiff; k++)
 			{
-				const int jIdx = (jMin + k) * linePitch + iMin;
+				// first pixel position in specified line in filter window
+				const int pixPos = (jMin + k) * linePitch + iMin;
 
 				for (l = 0; l < iDiff; l++)
 				{
-					Y = static_cast<float>((srcPix[jIdx + l] & 0x00FF0000u) >> 16);
+					Y = static_cast<float>((srcPix[pixPos + l] & 0x00FF0000u) >> 16);
 					dY = Y - Yref;
 					pH[k][l] = aExp(-(dY * dY) / divider); 
 				} // for (m = 0; m < iDiff; m++)
@@ -92,14 +91,15 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 
 			// calculate Bilateral Filter responce
 			normF = 0.0f;
-			int jIdx, iIdx;
+			bSum = 0.0f;
 
-			jIdx = jMin - j + radius;
+			int iIdx = 0;
+			int jIdx = jMin - j + radius;
 
 			for (k = 0; k < jDiff; k++)
 			{
 				iIdx = iMin - i + radius;
-				__VECTOR_ALIGNED__
+
 				for (l = 0; l < iDiff; l++)
 				{
 					pF[k][l] = pH[k][l] * gMesh[jIdx][iIdx];
@@ -108,9 +108,6 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 				}
 				jIdx++;
 			}
-
-			
-			bSum = 0.0f;
 
 			for (k = 0; k < jDiff; k++)
 			{

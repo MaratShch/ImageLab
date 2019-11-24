@@ -31,8 +31,8 @@ void bilateral_filter_color(const float* __restrict pCIELab,
 							const int radius,
 	                        const float sigmaR) /* value sigmaR * 100 */
 {
-	CACHE_ALIGN float pH[11][11];
-	CACHE_ALIGN float pF[11][11];
+	CACHE_ALIGN float pH[11][11] = {};
+	CACHE_ALIGN float pF[11][11] = {};
 
 	float bSum1;
 	float bSum2;
