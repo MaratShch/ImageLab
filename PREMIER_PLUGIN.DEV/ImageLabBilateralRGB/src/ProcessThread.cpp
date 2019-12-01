@@ -31,6 +31,11 @@ void bilateral_filter_color(const float* __restrict pCIELab,
 							const int radius,
 	                        const float sigmaR) /* value sigmaR * 100 */
 {
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
 	CACHE_ALIGN float pH[11][11] = {};
 	CACHE_ALIGN float pF[11][11] = {};
 

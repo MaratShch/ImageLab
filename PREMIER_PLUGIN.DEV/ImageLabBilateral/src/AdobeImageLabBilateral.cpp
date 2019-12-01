@@ -1,7 +1,7 @@
 #include "ImageLabBilateral.h"
 #include <windows.h>
 
-CACHE_ALIGN static float gMesh[maxWinSize][maxWinSize] = { };
+CACHE_ALIGN static float gMesh[maxWinSize][maxWinSize] = {};
 
 void gaussian_weights(const float sigma, const int radius /* radius size in range of 3 to 10 */)
 {
@@ -23,8 +23,14 @@ void gaussian_weights(const float sigma, const int radius /* radius size in rang
 	return;
 }
 
+
 bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 {
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
 	CACHE_ALIGN float pF[maxWinSize][maxWinSize] = {};
 	CACHE_ALIGN float pH[maxWinSize][maxWinSize] = {};
 
@@ -51,8 +57,13 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 
 	int i, j;
 	int k, l;
-	float Y, dY, normF, bSum;
-	int finalY;
+	int pixOffset = 0;
+	float fY, dY, dot, normF, bSum;
+	unsigned int Y;
+	unsigned int finalY;
+	float Yref;
+	csSDK_uint32 srcPixel;
+	csSDK_uint32 dstPixel;
 
 	for (j = 0; j < height; j++)
 	{
@@ -68,10 +79,10 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 			const int iDiff = (iMax - iMin) + 1;
 			const int jDiff = (jMax - jMin) + 1;
 
-			const int pixOffset = j * linePitch + i;
-			const csSDK_uint32 inPixel = srcPix[pixOffset];
+			pixOffset = j * linePitch + i;
+			srcPixel = srcPix[pixOffset];
 
-			const float Yref = static_cast<float>((inPixel & 0x00FF0000u) >> 16);
+			Yref = (static_cast<float>((srcPixel & 0x00FF0000u) >> 16)) / 255.0f;
 
 			// compute Gaussian intensity weights
 			for (k = 0; k < jDiff; k++)
@@ -81,17 +92,16 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 
 				for (l = 0; l < iDiff; l++)
 				{
-					Y = static_cast<float>((srcPix[pixPos + l] & 0x00FF0000u) >> 16);
-					dY = Y - Yref;
-					pH[k][l] = aExp(-(dY * dY) / divider); 
+					fY = (static_cast<float>((srcPix[pixPos + l] & 0x00FF0000u) >> 16)) / 255.0f;
+					dY = fY - Yref;
+					pH[k][l] = aExp(-(dY * dY) / divider);
 				} // for (m = 0; m < iDiff; m++)
 
 			} // for (k = 0; k < jDiff; k++)
 
 
 			// calculate Bilateral Filter responce
-			normF = 0.0f;
-			bSum = 0.0f;
+			normF = bSum = 0.0f;
 
 			int iIdx = 0;
 			int jIdx = jMin - j + radius;
@@ -100,6 +110,7 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 			{
 				iIdx = iMin - i + radius;
 
+				__VECTOR_ALIGNED__
 				for (l = 0; l < iDiff; l++)
 				{
 					pF[k][l] = pH[k][l] * gMesh[jIdx][iIdx];
@@ -114,14 +125,20 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 				const int kIdx = (jMin + k) * linePitch + iMin;
 				for (l = 0; l < iDiff; l++)
 				{
-					Y = static_cast<float>((srcPix[kIdx + l] & 0x00FF0000u) >> 16);
-					bSum += (pF[k][l] * Y);
+					Y = static_cast<int>((srcPix[kIdx + l] & 0x00FF0000) >> 16);
+					fY = (static_cast<float>(Y)) / 255.0f;
+					bSum += (pF[k][l] * fY);
 				}
 			}
 
 			// compute destination pixel
-			finalY = CLAMP_U8(static_cast<int>(bSum / normF));
-			dstPix[pixOffset] = (srcPix[pixOffset] & 0xFF00FFFFu) | (finalY << 16);
+			finalY = CLAMP_U8(static_cast<unsigned int>(255.0f * bSum / normF));
+
+			// pack corrected Luma value
+			dstPixel = (srcPixel & 0xFF00FFFFu) | (finalY << 16);
+
+			// save corrected pixel in destination buffer
+			dstPix[pixOffset] = dstPixel;
 
 		} // for (i = 0; i < width; i++)
 
@@ -143,9 +160,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 	if (nullptr != (SPBasic = (*theData)->piSuites->utilFuncs->getSPBasicSuite()))
 	{
 		PrSDKPPixSuite*			PPixSuite = nullptr;
-		SPBasic->AcquireSuite (strPpixSuite, 1, (const void**)&PPixSuite);
+		const SPErr err = SPBasic->AcquireSuite (strPpixSuite, 1, (const void**)&PPixSuite);
 
-		if (nullptr != PPixSuite)
+		if (nullptr != PPixSuite && kSPNoError == err)
 		{
 			PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
 			PPixSuite->GetPixelFormat((*theData)->source, &pixelFormat);
@@ -157,10 +174,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				break;
 
 				case PrPixelFormat_VUYA_4444_8u:
-					processSucceed = process_VUYA_4444_8u_frame (theData);
-				break;
-
 				case PrPixelFormat_VUYA_4444_8u_709:
+					processSucceed = process_VUYA_4444_8u_frame(theData);
 				break;
 
 				case PrPixelFormat_BGRA_4444_16u:

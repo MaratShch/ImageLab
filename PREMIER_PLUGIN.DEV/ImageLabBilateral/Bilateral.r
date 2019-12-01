@@ -64,11 +64,11 @@ resource 'PiPL' (16000)
 			fgAnimatable,
 			geometric,
 			noRandomness,
-			1,					
+			0,					
 			plugInMatchName
 		},
 		
-		
+#if 0
 		ANIM_ParamAtom 
 		{
 			0,					// Property count - zero-based count
@@ -93,7 +93,7 @@ resource 'PiPL' (16000)
 			resIndependent,
 			2					// Bytes size of the param data
 		},
-		
+#endif		
 
 	}
 };

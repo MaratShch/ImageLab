@@ -31,12 +31,7 @@ template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-T CLAMP_U8(T val) { return ((val > 0xFF) ? 0xFF : (val < 0) ? 0 : val); }
-
-template<typename T>
-T EXP(T val) {
-	return powf(Exp, val); // powf for floating
-}
+T CLAMP_U8(T val) { return ((val > 0xFF) ? 0xFF : val); }
 
 inline float aExp (const float& fVal)
 {
