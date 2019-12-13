@@ -3,6 +3,9 @@
 
 CACHE_ALIGN static float gMesh[maxWinSize][maxWinSize] = {};
 
+constexpr float sigma = 0.10f;
+constexpr float divider = 2.00f * sigma * sigma;
+
 void gaussian_weights(const float sigma, const int radius /* radius size in range of 3 to 10 */)
 {
 	int i, j;
@@ -52,8 +55,6 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 	const csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	      csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-	constexpr float sigma = 0.10f;
-	constexpr float divider = 2.00f * sigma * sigma;
 
 	int i, j;
 	int k, l;
@@ -148,6 +149,127 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 }
 
 
+bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	CACHE_ALIGN float pF[maxWinSize][maxWinSize] = {};
+	CACHE_ALIGN float pH[maxWinSize][maxWinSize] = {};
+
+	prRect box = { 0 };
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+
+	const int lastLineIdx = height - 1;
+	const int lastPixelIdx = width - 1;
+	const int linePitch = rowbytes >> 2;
+
+	// Create copies of pointer to the source, destination frames
+	const float* __restrict srcBuf = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+		  float* __restrict dstBuf = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	int i, j;
+	int k, l;
+	float Yref = 0.f; /* source (non filtered) Luma value  */
+	float dstY = 0.f; /* destination (filtered) Luma value */
+	float normF, bSum;
+
+	constexpr int pixelSize = 4; /* 4 float elements per single pixel */
+	constexpr int offsetY = 2;   /* skip 2 (U and V) for get Y component */
+
+	float fY, dY;
+
+	for (j = 0; j < height; j++)
+	{
+		for (i = 0; i < width; i++)
+		{
+			// define processing window coordinates
+			const int iMin = MAX(i - radius, 0);
+			const int iMax = MIN(i + radius, lastPixelIdx);
+			const int jMin = MAX(j - radius, 0);
+			const int jMax = MIN(j + radius, lastLineIdx);
+
+			// define process window sizes
+			const int iDiff = (iMax - iMin) + 1;
+			const int jDiff = (jMax - jMin) + 1;
+
+			// offset of processed pixel
+			const int pixIdx = (j * linePitch) + (i * pixelSize) + offsetY;
+
+			Yref = srcBuf[pixIdx];
+
+			// compute Gaussian intensity weights
+			for (k = 0; k < jDiff; k++)
+			{
+				// first pixel position in specified line in filter window
+				const int pixPos = (jMin + k) * linePitch + iMin;
+
+				for (l = 0; l < iDiff; l++)
+				{
+					const int pixOffset = pixPos + l * pixelSize + offsetY;
+					fY = srcBuf[pixOffset];
+					dY = fY - Yref;
+					pH[k][l] = aExp(-(dY * dY) / divider);
+				} // for (m = 0; m < iDiff; m++)
+
+			} // for (k = 0; k < jDiff; k++)
+
+			// calculate Bilateral Filter responce
+			normF = bSum = 0.0f;
+
+			int iIdx = 0;
+			int jIdx = jMin - j + radius;
+
+			for (k = 0; k < jDiff; k++)
+			{
+				iIdx = iMin - i + radius;
+
+				__VECTOR_ALIGNED__
+				for (l = 0; l < iDiff; l++)
+				{
+					pF[k][l] = pH[k][l] * gMesh[jIdx][iIdx];
+					normF += pF[k][l];
+					iIdx++;
+				}
+				jIdx++;
+			}
+
+			for (k = 0; k < jDiff; k++)
+			{
+				const int kIdx = (jMin + k) * linePitch + iMin;
+				for (l = 0; l < iDiff; l++)
+				{
+					const int lIdx = kIdx + l * pixelSize + offsetY;
+					fY = srcBuf[lIdx];
+					bSum += (pF[k][l] * fY);
+				}
+			}
+
+			dstY = bSum / normF;
+
+			// copy V and U components from source to destination "as is"
+			dstBuf[pixIdx - 2] = srcBuf[pixIdx - 2];
+			dstBuf[pixIdx - 1] = srcBuf[pixIdx - 1];
+			// filter LUMA component
+			dstBuf[pixIdx] = dstY;// srcBuf[pixIdx];
+			// copy ALPHA component from source to destination "as is"
+			dstBuf[pixIdx + 1] = srcBuf[pixIdx + 1];
+		}
+	}
+
+
+	return true;
+}
+
 
 csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
@@ -185,9 +307,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				break;
 
 				case PrPixelFormat_VUYA_4444_32f:
-				break;
-
 				case PrPixelFormat_VUYA_4444_32f_709:
+					processSucceed = process_VUYA_4444_32f_frame(theData);
 				break;
 
 				// ============ native AE formats ============================= //

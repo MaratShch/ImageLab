@@ -61,3 +61,4 @@ csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction (const VideoHandle theData);
 
 bool process_VUYA_4444_8u_frame(const VideoHandle theData, const int radius = defaultRadius);
+bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius = defaultRadius);
