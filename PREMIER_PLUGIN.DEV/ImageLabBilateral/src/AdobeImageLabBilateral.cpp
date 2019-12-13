@@ -266,7 +266,6 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 		}
 	}
 
-
 	return true;
 }
 
