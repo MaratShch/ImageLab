@@ -211,7 +211,7 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 			for (k = 0; k < jDiff; k++)
 			{
 				// first pixel position in specified line in filter window
-				const int pixPos = (jMin + k) * linePitch + iMin;
+				const int pixPos = (jMin + k) * linePitch + iMin * pixelSize;
 
 				for (l = 0; l < iDiff; l++)
 				{
@@ -229,11 +229,11 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 			int iIdx = 0;
 			int jIdx = jMin - j + radius;
 
+			__VECTOR_ALIGNED__
 			for (k = 0; k < jDiff; k++)
 			{
 				iIdx = iMin - i + radius;
 
-				__VECTOR_ALIGNED__
 				for (l = 0; l < iDiff; l++)
 				{
 					pF[k][l] = pH[k][l] * gMesh[jIdx][iIdx];
@@ -245,7 +245,7 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 
 			for (k = 0; k < jDiff; k++)
 			{
-				const int kIdx = (jMin + k) * linePitch + iMin;
+				const int kIdx = (jMin + k) * linePitch + iMin * pixelSize;
 				for (l = 0; l < iDiff; l++)
 				{
 					const int lIdx = kIdx + l * pixelSize + offsetY;
@@ -256,11 +256,12 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 
 			dstY = bSum / normF;
 
+			__VECTOR_ALIGNED__
 			// copy V and U components from source to destination "as is"
 			dstBuf[pixIdx - 2] = srcBuf[pixIdx - 2];
 			dstBuf[pixIdx - 1] = srcBuf[pixIdx - 1];
 			// filter LUMA component
-			dstBuf[pixIdx] = dstY;// srcBuf[pixIdx];
+			dstBuf[pixIdx] = dstY;
 			// copy ALPHA component from source to destination "as is"
 			dstBuf[pixIdx + 1] = srcBuf[pixIdx + 1];
 		}
