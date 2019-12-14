@@ -101,6 +101,14 @@ inline float acbrt (float x0)
 	return x;
 }
 
+inline float aExpFast(const float& fVal) {
+	float x = 1.0f + fVal / 256.0f;
+	x *= x; x *= x; x *= x; x *= x;
+	x *= x; x *= x; x *= x; x *= x;
+	return x;
+}
+
+
 inline float aExp(const float & fVal)
 {
 	float y = 1.0f + fVal / 1024.0f;

@@ -33,6 +33,14 @@ T MAX(T a, T b) { return ((a > b) ? a : b); }
 template<typename T>
 T CLAMP_U8(T val) { return ((val > 0xFF) ? 0xFF : val); }
 
+
+inline float aExpFast(const float& fVal) {
+	float x = 1.0f + fVal / 256.0f;
+	x *= x; x *= x; x *= x; x *= x;
+	x *= x; x *= x; x *= x; x *= x;
+	return x;
+}
+
 inline float aExp (const float& fVal)
 {
 	float y = 1.0f + fVal / 1024.0f;
@@ -62,3 +70,5 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData);
 
 bool process_VUYA_4444_8u_frame(const VideoHandle theData, const int radius = defaultRadius);
 bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius = defaultRadius);
+
+bool process_BGRA_4444_8u_frame(const VideoHandle theData, const int radius = defaultRadius);

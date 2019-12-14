@@ -159,7 +159,7 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 	CACHE_ALIGN float pF[maxWinSize][maxWinSize] = {};
 	CACHE_ALIGN float pH[maxWinSize][maxWinSize] = {};
 
-	prRect box = { 0 };
+	prRect box = {};
 
 	// Get the frame dimensions
 	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
@@ -271,6 +271,20 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 }
 
 
+bool process_BGRA_4444_8u_frame(const VideoHandle theData, const int radius)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	CACHE_ALIGN float pF[maxWinSize][maxWinSize] = {};
+	CACHE_ALIGN float pH[maxWinSize][maxWinSize] = {};
+
+	return true;
+}
+
+
 csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
@@ -293,6 +307,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			{
 				// ============ native AP formats ============================= //
 				case PrPixelFormat_BGRA_4444_8u:
+					processSucceed = process_BGRA_4444_8u_frame(theData);
 				break;
 
 				case PrPixelFormat_VUYA_4444_8u:
