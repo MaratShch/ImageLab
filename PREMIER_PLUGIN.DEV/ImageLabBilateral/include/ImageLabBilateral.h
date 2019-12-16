@@ -33,7 +33,6 @@ T MAX(T a, T b) { return ((a > b) ? a : b); }
 template<typename T>
 T CLAMP_U8(T val) { return ((val > 0xFF) ? 0xFF : val); }
 
-
 inline float aExpFast(const float& fVal) {
 	float x = 1.0f + fVal / 256.0f;
 	x *= x; x *= x; x *= x; x *= x;
@@ -41,7 +40,7 @@ inline float aExpFast(const float& fVal) {
 	return x;
 }
 
-inline float aExp (const float& fVal)
+inline float aExp(const float & fVal)
 {
 	float y = 1.0f + fVal / 1024.0f;
 	y *= y; y *= y; y *= y; y *= y;
