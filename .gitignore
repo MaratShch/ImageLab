@@ -1,0 +1,11 @@
+**/Release
+**/Debug
+**/x64
+**/ADOBE
+*.rcp
+*.rr
+*.lnk
+*.opendb
+*.db
+.gitignore
+
