@@ -39,9 +39,6 @@ CACHE_ALIGN constexpr float coeff_YUV2RGB[2][9] =
 };
 
 
-constexpr float sigma = 0.10f;
-constexpr float divider = 2.00f * sigma * sigma;
-
 void gaussian_weights(const float sigma, const int radius /* radius size in range of 3 to 10 */)
 {
 	int i, j;
@@ -86,6 +83,9 @@ bool process_VUYA_4444_8u_frame (const VideoHandle theData, const int radius)
 	const int lastLineIdx  = height - 1;
 	const int lastPixelIdx = width - 1;
 	const int linePitch = rowbytes >> 2;
+
+	constexpr float sigma = 0.10f;
+	constexpr float divider = 2.00f * sigma * sigma;
 
 	// Create copies of pointer to the source, destination frames
 	const csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
@@ -208,6 +208,9 @@ bool process_VUYA_4444_32f_frame(const VideoHandle theData, const int radius)
 	const int lastPixelIdx = width - 1;
 	const int linePitch = rowbytes >> 2;
 
+	constexpr float sigma = 0.10f;
+	constexpr float divider = 2.00f * sigma * sigma;
+
 	// Create copies of pointer to the source, destination frames
 	const float* __restrict srcBuf = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 		  float* __restrict dstBuf = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
@@ -329,6 +332,9 @@ bool process_BGRA_4444_8u_frame(const VideoHandle theData, const int radius)
 	const int lastLineIdx = height - 1;
 	const int lastPixelIdx = width - 1;
 	const int linePitch = rowbytes >> 2;
+
+	constexpr float sigma = 0.10f;
+	constexpr float divider = 2.00f * sigma * sigma;
 
 	// Create copies of pointer to the source, destination frames
 	const csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
@@ -455,6 +461,158 @@ bool process_BGRA_4444_8u_frame(const VideoHandle theData, const int radius)
 }
 
 
+
+bool process_BGRA_4444_16u_frame(const VideoHandle theData, const int radius)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	CACHE_ALIGN float pF[maxWinSize][maxWinSize] = {};
+	CACHE_ALIGN float pH[maxWinSize][maxWinSize] = {};
+
+	prRect box = { 0 };
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+
+	const int lastLineIdx = height - 1;
+	const int lastPixelIdx = width - 1;
+	const int linePitch = rowbytes >> 3; // because pixel defined as uint64 - lets add additional right shift to linepitch
+
+	constexpr float sigma = 0.10f;
+	constexpr float divider = 2.00f * sigma * sigma;
+
+	// Create copies of pointer to the source, destination frames
+	const csSDK_uint64* __restrict srcPix = reinterpret_cast<csSDK_uint64* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	      csSDK_uint64* __restrict dstPix = reinterpret_cast<csSDK_uint64* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+	const float*        __restrict pCoeffRGB2YUV = width < 800 ? coeff_RGB2YUV[0] /* BT601 */ : coeff_RGB2YUV[1] /* BT709 */;
+	const float*        __restrict pCoeffYUV2RGB = width < 800 ? coeff_YUV2RGB[0] /* BT601 */ : coeff_YUV2RGB[1] /* BT709 */;
+
+	int i, j;
+	int k, l;
+	int pixOffset = 0;
+	float R, G, B, Y, dY, Yfinal = 0.0f;
+	float Yref, Uref, Vref;
+	float normF, bSum;
+
+	csSDK_uint64 srcWinPix;
+	csSDK_uint32 newR, newB, newG;
+
+	for (j = 0; j < height; j++)
+	{
+		for (i = 0; i < width; i++)
+		{
+			// define processing window coordinates
+			const int iMin = MAX(i - radius, 0);
+			const int iMax = MIN(i + radius, lastPixelIdx);
+			const int jMin = MAX(j - radius, 0);
+			const int jMax = MIN(j + radius, lastLineIdx);
+
+			// define process window sizes
+			const int iDiff = (iMax - iMin) + 1;
+			const int jDiff = (jMax - jMin) + 1;
+
+			pixOffset = j * linePitch + i;
+			const csSDK_uint64 refPix  = srcPix[pixOffset];
+
+			B = (static_cast<float> (refPix & 0x000000000000FFFFu));
+			G = (static_cast<float>((refPix & 0x00000000FFFF0000u) >> 16));
+			R = (static_cast<float>((refPix & 0x0000FFFF00000000u) >> 32));
+			const csSDK_uint64 A =   refPix & 0xFFFF000000000000u;
+
+			Yref = (R * pCoeffRGB2YUV[0] + G * pCoeffRGB2YUV[1] + B * pCoeffRGB2YUV[2]) / 32768.0f;
+			Uref = (R * pCoeffRGB2YUV[3] + G * pCoeffRGB2YUV[4] + B * pCoeffRGB2YUV[5]) / 32768.0f;
+			Vref = (R * pCoeffRGB2YUV[6] + G * pCoeffRGB2YUV[7] + B * pCoeffRGB2YUV[8]) / 32768.0f;
+
+			// compute Gaussian intensity weights
+			for (k = 0; k < jDiff; k++)
+			{
+				// first pixel position in specified line in filter window
+				const int pixPos = (jMin + k) * linePitch + iMin;
+
+				for (l = 0; l < iDiff; l++)
+				{
+					srcWinPix = srcPix[pixPos + l];
+
+					B = (static_cast<float> (srcWinPix & 0x000000000000FFFFu));
+					G = (static_cast<float>((srcWinPix & 0x00000000FFFF0000u) >> 16));
+					R = (static_cast<float>((srcWinPix & 0x0000FFFF00000000u) >> 32));
+
+					Y = (R * pCoeffRGB2YUV[0] + G * pCoeffRGB2YUV[1] + B * pCoeffRGB2YUV[2]) / 32768.0f;
+					dY = Y - Yref;
+					pH[k][l] = aExp(-(dY * dY) / divider);
+				} // for (m = 0; m < iDiff; m++)
+
+			} // for (k = 0; k < jDiff; k++)
+
+				// calculate Bilateral Filter responce
+				normF = bSum = 0.0f;
+
+				int iIdx = 0;
+				int jIdx = jMin - j + radius;
+
+				__VECTOR_ALIGNED__
+				for (k = 0; k < jDiff; k++)
+				{
+					iIdx = iMin - i + radius;
+
+					for (l = 0; l < iDiff; l++)
+					{
+						pF[k][l] = pH[k][l] * gMesh[jIdx][iIdx];
+						normF += pF[k][l];
+						iIdx++;
+					}
+					jIdx++;
+				}
+
+				for (k = 0; k < jDiff; k++)
+				{
+					const int kIdx = (jMin + k) * linePitch + iMin;
+					for (l = 0; l < iDiff; l++)
+					{
+						srcWinPix = srcPix[kIdx + l];
+
+						B = (static_cast<float> (srcWinPix & 0x000000000000FFFFu));
+						G = (static_cast<float>((srcWinPix & 0x00000000FFFF0000u) >> 16));
+						R = (static_cast<float>((srcWinPix & 0x0000FFFF00000000u) >> 32));
+
+						Y = (R * pCoeffRGB2YUV[0] + G * pCoeffRGB2YUV[1] + B * pCoeffRGB2YUV[2]) / 32768.0f;
+						bSum += (pF[k][l] * Y);
+					}
+				}
+
+				// compute destination pixel
+				Yfinal = bSum / normF;
+
+				R = (Yfinal * pCoeffYUV2RGB[0] + Uref * pCoeffYUV2RGB[1] + Vref * pCoeffYUV2RGB[2]) * 32768.0f;
+				G = (Yfinal * pCoeffYUV2RGB[3] + Uref * pCoeffYUV2RGB[4] + Vref * pCoeffYUV2RGB[5]) * 32768.0f;
+				B = (Yfinal * pCoeffYUV2RGB[6] + Uref * pCoeffYUV2RGB[7] + Vref * pCoeffYUV2RGB[8]) * 32768.0f;
+
+				newR = CLAMP_U16(static_cast<unsigned int>(R));
+				newG = CLAMP_U16(static_cast<unsigned int>(G));
+				newB = CLAMP_U16(static_cast<unsigned int>(B));
+
+				dstPix[pixOffset] = A |
+					((static_cast<csSDK_uint64>(newR)) << 32) |
+					((static_cast<csSDK_uint64>(newG)) << 16) |
+					 (static_cast<csSDK_uint64>(newB));
+
+		} /* END: for (i = 0; i < width; i++) */
+
+	} /* END: for (j = 0; j < height; j++) */
+
+
+	return true;
+}
+
+
 csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
@@ -486,6 +644,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				break;
 
 				case PrPixelFormat_BGRA_4444_16u:
+					processSucceed = process_BGRA_4444_16u_frame(theData);
 				break;
 
 				case PrPixelFormat_BGRA_4444_32f:
