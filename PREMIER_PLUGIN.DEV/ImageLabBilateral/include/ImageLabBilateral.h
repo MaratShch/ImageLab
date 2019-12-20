@@ -34,6 +34,9 @@ template<typename T>
 T CLAMP_U8(T val) { return ((val > 0xFF) ? 0xFF : val); }
 
 template<typename T>
+T CLAMP_U10(T val) { return ((val > 0x3FF) ? 0x3FF : val); }
+
+template<typename T>
 T CLAMP_U16(T val) { return ((val > 32768) ? 32768 : val); }
 
 inline float aExpFast(const float& fVal) {
@@ -78,3 +81,7 @@ bool process_BGRA_4444_16u_frame (const VideoHandle theData, const int radius = 
 bool process_BGRA_4444_32f_frame (const VideoHandle theData, const int radius = defaultRadius);
 
 bool process_RGB_444_10u_frame (const VideoHandle theData, const int radius = defaultRadius);
+
+bool process_ARGB_4444_8u_frame  (const VideoHandle theData, const int radius = defaultRadius);
+bool process_ARGB_4444_16u_frame (const VideoHandle theData, const int radius = defaultRadius);
+bool process_ARGB_4444_32f_frame (const VideoHandle theData, const int radius = defaultRadius);
