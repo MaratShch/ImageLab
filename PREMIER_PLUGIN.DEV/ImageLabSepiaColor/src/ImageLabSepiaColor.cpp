@@ -208,7 +208,6 @@ bool processSepiaBGRA4444_16u_slice (VideoHandle theData)
 
 				*dstImg++ =  A |
 							 CLAMP_RGB16(newR);
-				;
 			}
 
 		srcImg += (linePitch - width * 2);

@@ -8,7 +8,6 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 	{
 		switch ((*theData)->pixelFormatIndex)
 		{
-#if 0
 			// BGRA format's group (native AP format)
 			case 0:
 				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_8u;
@@ -52,12 +51,9 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f;
 			break;
 
+			// miscellanous formats
 			case 10:
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f_709;
-			break;
-#endif
-			case 0:
-				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u;
 			break;
 
 			default:
