@@ -44,6 +44,9 @@ typedef struct FilterParams
 }SFilterParams, *PFilterParams, **FilterParamsHandle;
 
 constexpr prColor nonInitializedColor = 0x0u;
+constexpr uint32_t horiz_align_pixels = 48u;
+constexpr uint32_t horiz_align_boundary = 128u;
+
 
 #ifndef IMAGE_LAB_FILTER_PARAM_HANDLE_INIT
 #define IMAGE_LAB_FILTER_PARAM_HANDLE_INIT(_param_handle)		\
@@ -68,6 +71,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData);
 bool copy_4444_8u_frame (const VideoHandle theData);
 bool copy_4444_16u_frame(const VideoHandle theData);
 bool copy_4444_32f_frame(const VideoHandle theData);
+bool copy_422_8u_frame  (const VideoHandle theData);
+bool copy_422_32f_frame (const VideoHandle theData);
+bool copy_V210_422_10u_frame(const VideoHandle theData);
 
 bool process_VUYA_4444_8u_frame (const VideoHandle theData, const prColor color = nonInitializedColor, const CONVERT_MATRIX convertMatrix = convertBT601);
 bool process_VUYA_4444_32f_frame(const VideoHandle theData, const prColor color = nonInitializedColor, const CONVERT_MATRIX convertMatrix = convertBT601);
@@ -81,3 +87,7 @@ bool process_ARGB_4444_16u_frame(const VideoHandle theData, const prColor color 
 bool process_ARGB_4444_32f_frame(const VideoHandle theData, const prColor color = nonInitializedColor);
 
 bool process_RGB_444_10u_frame  (const VideoHandle theData, const prColor color = nonInitializedColor);
+
+bool process_YUYV_422_8u_frame (const VideoHandle theData, const prColor color = nonInitializedColor, const CONVERT_MATRIX convertMatrix = convertBT601);
+bool process_UYVY_422_8u_frame (const VideoHandle theData, const prColor color = nonInitializedColor, const CONVERT_MATRIX convertMatrix = convertBT601);
+bool process_UYVY_422_32f_frame(const VideoHandle theData, const prColor color = nonInitializedColor, const CONVERT_MATRIX convertMatrix = convertBT601);

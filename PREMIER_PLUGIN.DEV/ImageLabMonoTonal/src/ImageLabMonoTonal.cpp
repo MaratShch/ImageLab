@@ -67,6 +67,108 @@ bool copy_4444_8u_frame(const VideoHandle theData)
 	return true;
 }
 
+bool copy_422_8u_frame(const VideoHandle theData)
+{
+	prRect box = {};
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const csSDK_int32 linePitch = rowbytes >> 1;
+	const csSDK_int32 nextLine = (linePitch - width) >> 1;
+	const csSDK_int32 horizontal = width >> 1; // because this is packed format
+
+	const csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	csSDK_int32 i, j;
+
+	for (j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+		for (i = 0; i < horizontal; i++)
+		{
+			*dstPix++ = *srcPix++;
+		}
+
+		srcPix += nextLine;
+		dstPix += nextLine;
+	}
+
+	return true;
+}
+
+bool copy_V210_422_10u_frame(const VideoHandle theData)
+{
+	prRect box = {};
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width  = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const csSDK_int32 horizontalBoundary = (width * horiz_align_boundary) / horiz_align_pixels;
+	const csSDK_int32 horizontalBoundary32 = horizontalBoundary >> 2;
+	const csSDK_int32 nextLine = (rowbytes - horizontalBoundary) >> 2;
+
+	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	csSDK_int32 i, j;
+
+	__VECTOR_ALIGNED__
+	for (j = 0; j < height; j++)
+	{
+		for (i = 0; i < horizontalBoundary32; i++)
+		{
+			*dstPix++ = *srcPix++;
+		}
+
+		srcPix += nextLine;
+		dstPix += nextLine;
+	}
+
+	return true;
+}
+
+
+bool copy_422_32f_frame (const VideoHandle theData)
+{
+	prRect box = {};
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const csSDK_int32 linePitch = rowbytes >> 2; // because packed format - 4 bytes per 2 pixels
+	const csSDK_int32 nextline = linePitch - width * 2;
+
+	const float* __restrict srcPix = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	      float* __restrict dstPix = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	csSDK_int32 i, j;
+
+	for (j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			*dstPix++ = *srcPix++;
+			*dstPix++ = *srcPix++;
+		}
+
+		srcPix += nextline;
+		dstPix += nextline;
+	}
+
+	return true;
+}
 
 bool copy_4444_16u_frame(const VideoHandle theData)
 {
@@ -725,6 +827,229 @@ bool process_RGB_444_10u_frame (const VideoHandle theData, const prColor color)
 }
 
 
+bool process_YUYV_422_8u_frame (const VideoHandle theData, const prColor color, const CONVERT_MATRIX convertMatrix)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	prRect box = {};
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const csSDK_int32 linePitch = rowbytes >> 1; // because packed format - 4 bytes per 2 pixels
+	const csSDK_int32 nextLine = (linePitch - width) / 2;
+
+	const csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	      csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+	const float*  __restrict pRGB2YUV = RGB2YUV[convertMatrix];
+
+	const float R = static_cast<float>((color & 0xFFu));
+	const float G = static_cast<float>((color >> 8) & 0xFFu);
+	const float B = static_cast<float>((color >> 16) & 0xFFu);
+
+	const csSDK_int32 U = CLAMP_RGB8(static_cast<csSDK_int32>(pRGB2YUV[3] * R + pRGB2YUV[4] * G + pRGB2YUV[5] * B) + 128);
+	const csSDK_int32 V = CLAMP_RGB8(static_cast<csSDK_int32>(pRGB2YUV[6] * R + pRGB2YUV[7] * G + pRGB2YUV[8] * B) + 128);
+
+	csSDK_int32 i, j;
+
+	const csSDK_int32 horizontal = width >> 1; // because this is packed format
+
+	for (j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+		for (i = 0; i < horizontal; i++)
+		{
+			*dstPix = (*srcPix & 0x00FF00FFu) | (U << 8) | (V << 24);
+			srcPix++;
+			dstPix++;
+		} /* for (i = 0; i < width; i++) */
+
+		srcPix += nextLine;
+		dstPix += nextLine;
+
+	} /* for (j = 0; j < height; j++) */
+
+
+	return true;
+}
+
+bool process_UYVY_422_8u_frame(const VideoHandle theData, const prColor color, const CONVERT_MATRIX convertMatrix)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	prRect box = {};
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const csSDK_int32 linePitch = rowbytes >> 1; // because packed format - 4 bytes per 2 pixels
+	const csSDK_int32 nextLine = (linePitch - width) / 2;
+
+	const csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+	const float*  __restrict pRGB2YUV = RGB2YUV[convertMatrix];
+
+	const float R = static_cast<float>((color & 0xFFu));
+	const float G = static_cast<float>((color >> 8) & 0xFFu);
+	const float B = static_cast<float>((color >> 16) & 0xFFu);
+
+	const csSDK_int32 U = CLAMP_RGB8(static_cast<csSDK_int32>(pRGB2YUV[3] * R + pRGB2YUV[4] * G + pRGB2YUV[5] * B) + 128);
+	const csSDK_int32 V = CLAMP_RGB8(static_cast<csSDK_int32>(pRGB2YUV[6] * R + pRGB2YUV[7] * G + pRGB2YUV[8] * B) + 128);
+
+	csSDK_int32 i, j;
+
+	const csSDK_int32 horizontal = width >> 1; // because this is packed format
+
+	for (j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+			for (i = 0; i < horizontal; i++)
+			{
+				*dstPix = (*srcPix & 0xFF00FF00u) | U | (V << 16);
+				srcPix++;
+				dstPix++;
+			} /* for (i = 0; i < width; i++) */
+
+		srcPix += nextLine;
+		dstPix += nextLine;
+
+	} /* for (j = 0; j < height; j++) */
+
+
+	return true;
+}
+
+
+bool process_UYVY_422_32f_frame(const VideoHandle theData, const prColor color, const CONVERT_MATRIX convertMatrix)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	prRect box = {};
+
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const csSDK_int32 linePitch = rowbytes >> 2; // because packed format - 4 bytes per 2 pixels
+	const csSDK_int32 nextline = linePitch - width * 2;
+
+	const float* __restrict srcPix = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	      float* __restrict dstPix = reinterpret_cast<float* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+	const float* __restrict pRGB2YUV = RGB2YUV[convertMatrix];
+
+	const float R = static_cast<float>( color & 0xFFu );
+	const float G = static_cast<float>((color >> 8) & 0xFFu);
+	const float B = static_cast<float>((color >> 16) & 0xFFu);
+
+	const float U = (pRGB2YUV[3] * R + pRGB2YUV[4] * G + pRGB2YUV[5] * B) / 256.0f;
+	const float V = (pRGB2YUV[6] * R + pRGB2YUV[7] * G + pRGB2YUV[8] * B) / 256.0f;
+
+	csSDK_int32 i, j;
+	const csSDK_int32 halfWidth = width >> 1;
+
+	for (j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+		for (i = 0; i < halfWidth; i++)
+		{
+			*dstPix++ = U; srcPix++;
+			*dstPix++ = *srcPix++;
+			*dstPix++ = V; srcPix++;
+			*dstPix++ = *srcPix++;
+		} /* for (i = 0; i < width; i++) */
+
+		srcPix += nextline;
+		dstPix += nextline;
+
+	} /* for (j = 0; j < height; j++) */
+
+
+	return true;
+}
+
+
+bool process_V210_422_10u_frame (const VideoHandle theData, const prColor color, const CONVERT_MATRIX convertMatrix)
+{
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
+	prRect box = {};
+	// Get the frame dimensions
+	((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
+
+	// Calculate dimensions
+	const csSDK_int32 height = box.bottom - box.top;
+	const csSDK_int32 width  = box.right - box.left;
+	const csSDK_int32 rowbytes = ((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination);
+	const csSDK_int32 horizontalBoundary = (width * horiz_align_boundary) / horiz_align_pixels;
+	const csSDK_int32 horizontalBoundary4Pix = horizontalBoundary >> 4;
+	const csSDK_int32 nextLine = (rowbytes - horizontalBoundary) >> 2;
+
+	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+	const float*  __restrict pRGB2YUV = (width < 800) ? RGB2YUV[convertBT601] : RGB2YUV[convertBT709];
+
+	const float R = static_cast<float>((color & 0xFFu));
+	const float G = static_cast<float>((color >> 8) & 0xFFu);
+	const float B = static_cast<float>((color >> 16) & 0xFFu);
+
+	const csSDK_int32 U = CLAMP_RGB10(static_cast<csSDK_int32>(((pRGB2YUV[3] * R + pRGB2YUV[4] * G + pRGB2YUV[5] * B) + 128.0f) * 4.0f));
+	const csSDK_int32 V = CLAMP_RGB10(static_cast<csSDK_int32>(((pRGB2YUV[6] * R + pRGB2YUV[7] * G + pRGB2YUV[8] * B) + 128.0f) * 4.0f));
+
+	csSDK_int32 i, j;
+
+	__VECTOR_ALIGNED__
+	for (j = 0; j < height; j++)
+	{
+		for (i = 0; i < horizontalBoundary4Pix; i++)
+		{
+			*dstPix = (*srcPix & 0x000FFC00u) | U | (V << 20);
+			srcPix++;
+			dstPix++;
+
+			*dstPix = (*srcPix & 0x3FF003FFu) | (U << 10);
+			srcPix++;
+			dstPix++;
+
+			*dstPix = (*srcPix & 0x000FFC00u) | V | (U << 20);
+			srcPix++;
+			dstPix++;
+
+			*dstPix = (*srcPix & 0x3FF003FFu) | (V << 10);
+			srcPix++;
+			dstPix++;
+		}
+
+		srcPix += nextLine;
+		dstPix += nextLine;
+	}
+
+	return true;
+	return true;
+}
+
 
 
 inline const prColor getSelectedColor (const FilterParamsHandle pHandle)
@@ -834,16 +1159,43 @@ csSDK_int32 selectProcessFunction(const VideoHandle theData)
 
 					// =========== Packed uncompressed formats ==================== //
 				case PrPixelFormat_YUYV_422_8u_601:
+					processSucceed = (isSelected != 0u) ?
+						process_YUYV_422_8u_frame(theData, color, convertBT601) : copy_422_8u_frame(theData);
 				break;
+
 				case PrPixelFormat_YUYV_422_8u_709:
+					processSucceed = (isSelected != 0u) ?
+						process_YUYV_422_8u_frame(theData, color, convertBT709) : copy_422_8u_frame(theData);
 				break;
+
 				case PrPixelFormat_UYVY_422_8u_601:
+					processSucceed = (isSelected != 0u) ?
+						process_UYVY_422_8u_frame(theData, color, convertBT601) : copy_422_8u_frame(theData);
 				break;
+
 				case PrPixelFormat_UYVY_422_8u_709:
+					processSucceed = (isSelected != 0u) ?
+						process_UYVY_422_8u_frame(theData, color, convertBT709) : copy_422_8u_frame(theData);
 				break;
+
 				case PrPixelFormat_UYVY_422_32f_601:
+					processSucceed = (isSelected != 0u) ?
+						process_UYVY_422_32f_frame(theData, color, convertBT601) : copy_422_32f_frame(theData);
 				break;
+				
 				case PrPixelFormat_UYVY_422_32f_709:
+					processSucceed = (isSelected != 0u) ?
+						process_UYVY_422_32f_frame(theData, color, convertBT709) : copy_422_32f_frame(theData);
+				break;
+				
+				case PrPixelFormat_V210_422_10u_601:
+					processSucceed = (isSelected != 0u) ?
+						process_V210_422_10u_frame(theData, color, convertBT601) : copy_V210_422_10u_frame(theData);
+				break;
+
+				case PrPixelFormat_V210_422_10u_709:
+					processSucceed = (isSelected != 0u) ?
+						process_V210_422_10u_frame(theData, color, convertBT709) : copy_V210_422_10u_frame(theData);
 				break;
 
 				default:
