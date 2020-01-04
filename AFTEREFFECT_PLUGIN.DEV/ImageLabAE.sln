@@ -1,0 +1,33 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorizeMe", "ColorizeMe\ColorizeMe.vcxproj", "{320247BB-6BB8-4D29-921E-954CC12F1C94}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ColorizeMe", "ColorizeMe", "{6A05CF26-3140-4F9B-B0B1-6BCC98B243E8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Debug|x64.ActiveCfg = Debug|x64
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Debug|x64.Build.0 = Debug|x64
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Debug|x86.ActiveCfg = Debug|Win32
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Debug|x86.Build.0 = Debug|Win32
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Release|x64.ActiveCfg = Release|x64
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Release|x64.Build.0 = Release|x64
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Release|x86.ActiveCfg = Release|Win32
+		{320247BB-6BB8-4D29-921E-954CC12F1C94}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{320247BB-6BB8-4D29-921E-954CC12F1C94} = {6A05CF26-3140-4F9B-B0B1-6BCC98B243E8}
+	EndGlobalSection
+EndGlobal
