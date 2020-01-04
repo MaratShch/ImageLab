@@ -5,6 +5,7 @@
 **/ADOBE_AE
 **/BUILD.OUT
 **/TEMP
+*.aps
 *.rcp
 *.rr
 *.lnk
