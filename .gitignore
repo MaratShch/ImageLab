@@ -2,6 +2,9 @@
 **/Debug
 **/x64
 **/ADOBE
+**/ADOBE_AE
+**/BUILD.OUT
+**/TEMP
 *.rcp
 *.rr
 *.lnk
