@@ -29,4 +29,9 @@
       <Filter>resource</Filter>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ColorizeMe.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
 </Project>
