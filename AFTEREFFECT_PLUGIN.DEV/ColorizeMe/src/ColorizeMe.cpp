@@ -1,6 +1,38 @@
 #include "ColorizeMe.hpp"
 
 
+static PF_Err
+About(
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
+}
+
+static PF_Err
+GlobalSetup(
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	out_data->my_version = 
+		PF_VERSION(	1,
+					1,
+					1,
+					1,
+					1);
+
+	out_data->out_flags = PF_OutFlag_DEEP_COLOR_AWARE;
+
+	out_data->out_flags2 = PF_OutFlag2_NONE;
+
+	return PF_Err_NONE;
+}
+
+
 DllExport	PF_Err 
 EntryPointFunc (	
 	PF_Cmd			cmd,
@@ -15,10 +47,10 @@ EntryPointFunc (
 	try {
 		switch (cmd) {
 			case PF_Cmd_ABOUT:
-//				ERR(About(in_data, out_data));
+				ERR(About(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_GLOBAL_SETUP:
-//				ERR(GlobalSetup(out_data));
+				ERR(GlobalSetup(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_PARAMS_SETUP:
 //				ERR(ParamsSetup(in_data, out_data));

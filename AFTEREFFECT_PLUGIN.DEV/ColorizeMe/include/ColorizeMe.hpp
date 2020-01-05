@@ -1,16 +1,18 @@
 #pragma once
  
 #include "AEConfig.h"
+#include "entry.h"
 #ifdef AE_OS_WIN
-	#include "string.h"
+#include "string.h"
 #endif
 #include "AE_Effect.h"
 #include "AE_EffectCB.h"
 #include "AE_Macros.h"
+//#include "Param_Utils.h"
 #include "AE_EffectCBSuites.h"
+//#include "String_Utils.h"
 #include "AE_GeneralPlug.h"
-
-#include "entry.h"
+#include "AEFX_SuiteHandlerTemplate.h"
 
 
 #ifdef __cplusplus
