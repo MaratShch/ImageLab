@@ -19,17 +19,33 @@ GlobalSetup(
 	PF_LayerDef		*output)
 {
 	out_data->my_version = 
-		PF_VERSION(	1,
-					1,
-					1,
-					1,
-					1);
+		PF_VERSION(ColorizeMe_VersionMajor,
+			       ColorizeMe_VersionMinor,
+			       ColorizeMe_VersionSub,
+			       ColorizeMe_VersionStage,
+			       ColorizeMe_VersionBuild);
 
 	out_data->out_flags = PF_OutFlag_DEEP_COLOR_AWARE;
 
 	out_data->out_flags2 = PF_OutFlag2_NONE;
 
 	return PF_Err_NONE;
+}
+
+
+static PF_Err
+ParamsSetup(
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	PF_Err		err = PF_Err_NONE;
+	PF_ParamDef	def;
+
+	AEFX_CLR_STRUCT(def);
+
+	return err;
 }
 
 
@@ -53,7 +69,7 @@ EntryPointFunc (
 				ERR(GlobalSetup(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_PARAMS_SETUP:
-//				ERR(ParamsSetup(in_data, out_data));
+				ERR(ParamsSetup(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_RENDER:
 //				ERR(Render(in_data, out_data, params, output));

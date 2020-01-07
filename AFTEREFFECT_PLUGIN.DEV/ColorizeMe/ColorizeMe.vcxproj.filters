@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="include_comon">
+      <UniqueIdentifier>{facbe70d-d151-40c5-bfd0-49879130fcc3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorizeMe.cpp">
@@ -22,6 +25,12 @@
   <ItemGroup>
     <ClInclude Include="include\ColorizeMe.hpp">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonVersion.hpp">
+      <Filter>include_comon</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
