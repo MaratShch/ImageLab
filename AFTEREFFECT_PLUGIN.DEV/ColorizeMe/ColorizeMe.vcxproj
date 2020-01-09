@@ -175,7 +175,7 @@
     <ClCompile Include="src\ColorizeMe.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Common\CommonVersion.hpp" />
+    <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ColorizeMe.hpp" />
   </ItemGroup>

@@ -12,7 +12,7 @@
 #include "AE_GeneralPlug.h"
 #include "AEFX_SuiteHandlerTemplate.h"
 
-#include "CommonVersion.hpp"
+#include "Common.hpp"
 #include "Param_Utils.h"
 
 constexpr int ColorizeMe_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;

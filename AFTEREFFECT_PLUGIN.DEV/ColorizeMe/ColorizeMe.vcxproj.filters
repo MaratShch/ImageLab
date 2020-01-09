@@ -29,8 +29,8 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_comon</Filter>
     </ClInclude>
-    <ClInclude Include="..\Common\CommonVersion.hpp">
-      <Filter>include_comon</Filter>
+    <ClInclude Include="..\Common\Common.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

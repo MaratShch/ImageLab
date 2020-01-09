@@ -15,18 +15,21 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Common\CommonVersion.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\Convolution.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\Common.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Convolution.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Kernels.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

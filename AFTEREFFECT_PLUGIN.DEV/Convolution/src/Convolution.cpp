@@ -1,6 +1,5 @@
 #include "Convolution.hpp"
 
-
 static PF_Err
 About(
 	PF_InData		*in_data,
@@ -43,7 +42,7 @@ ParamsSetup(
 	PF_Err		err = PF_Err_NONE;
 	PF_ParamDef	def;
 
-	AEFX_CLR_STRUCT(def);
+	AEFX_CLR_STRUCT_EX(def);
 
 	return err;
 }
