@@ -111,6 +111,9 @@
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <FloatingPointModel>Precise</FloatingPointModel>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -130,6 +133,8 @@
       <AdditionalIncludeDirectories>include;..\ADOBE\INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

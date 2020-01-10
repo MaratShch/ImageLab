@@ -2,7 +2,7 @@
 #include <windows.h>
 
 
-csSDK_int32 selectProcessFunction(const VideoHandle theData, const bool& advFlag)
+csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFlag, const int32_t& kernelSize)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
 	SPBasicSuite*		   SPBasic = nullptr;
@@ -24,14 +24,13 @@ csSDK_int32 selectProcessFunction(const VideoHandle theData, const bool& advFlag
 			{
 				// ============ native AP formats ============================= //
 			case PrPixelFormat_BGRA_4444_8u:
-				median_filter_BGRA_4444_8u_frame(theData, 3);
-				break;
+				median_filter_BGRA_4444_8u_frame (theData, kernelSize);
+			break;
 
 			case PrPixelFormat_VUYA_4444_8u:
-				break;
-
 			case PrPixelFormat_VUYA_4444_8u_709:
-				break;
+				median_filter_VUYA_4444_8u_frame (theData, kernelSize);
+			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
 				break;
@@ -120,7 +119,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			if (nullptr == paramsH)
 				break;
 
-			(*paramsH)->checkbox = 0;
+			IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT(paramsH);
 			(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 		}
 
@@ -136,7 +135,8 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			// Get the data from specsHandle
 			paramsH = (filterParamsH)(*theData)->specsHandle;
 			const bool advFlag = (nullptr != paramsH ? ((*paramsH)->checkbox ? true : false) : false);
-			errCode = selectProcessFunction (theData, advFlag);
+			const int32_t kernelSize = static_cast<int32_t>((*paramsH)->kernelSize | 0x1u); // kernel must be odd
+			errCode = selectProcessFunction (theData, advFlag, kernelSize);
 		}
 		break;
 

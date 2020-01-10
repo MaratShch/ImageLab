@@ -76,7 +76,7 @@ resource 'PiPL' (16000)
 			1,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0x40040000,
+			0x40040000, // 2
 			0x0, // valid_min (0.0)
 			0x40280000, // 
 			0x0, // valid_max (12.0)
