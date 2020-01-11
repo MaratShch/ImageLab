@@ -65,6 +65,12 @@ inline void selectionsort (T* l, T* r) {
 constexpr int MaxKernelWidth = 13;
 constexpr int MaxKernelElemSize = MaxKernelWidth * MaxKernelWidth;
 
+constexpr csSDK_uint64 BGRA16_B_Mask = 0x000000000000FFFFu;
+constexpr csSDK_uint64 BGRA16_G_Mask = 0x00000000FFFF0000u;
+constexpr csSDK_uint64 BGRA16_R_Mask = 0x0000FFFF00000000u;
+constexpr csSDK_uint64 BGRA16_A_Mask = 0xFFFF000000000000u;
+
+
 typedef struct filterParams
 {
 	short int	kernelSize;
@@ -94,6 +100,13 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
-csSDK_int32 selectProcessFunction(const VideoHandle theData, const bool& advFlag = false, const int32_t& kernelSize = kernelSizeDefault);
+csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFlag = false, const int32_t& kernelSize = kernelSizeDefault);
 bool median_filter_BGRA_4444_8u_frame (const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
+bool median_filter_BGRA_4444_16u_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
+
 bool median_filter_VUYA_4444_8u_frame (const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
+
+
+bool fuzzy_median_filter_BGRA_4444_8u_frame  (const VideoHandle theData);
+bool fuzzy_median_filter_BGRA_4444_16u_frame (const VideoHandle theData);
+bool fuzzy_median_filter_VUYA_4444_8u_frame  (const VideoHandle theData);

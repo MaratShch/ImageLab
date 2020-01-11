@@ -23,68 +23,59 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 			switch (pixelFormat)
 			{
 				// ============ native AP formats ============================= //
-			case PrPixelFormat_BGRA_4444_8u:
-				median_filter_BGRA_4444_8u_frame (theData, kernelSize);
-			break;
-
-			case PrPixelFormat_VUYA_4444_8u:
-			case PrPixelFormat_VUYA_4444_8u_709:
-				median_filter_VUYA_4444_8u_frame (theData, kernelSize);
-			break;
-
-			case PrPixelFormat_BGRA_4444_16u:
+				case PrPixelFormat_BGRA_4444_8u:
+					median_filter_BGRA_4444_8u_frame (theData, kernelSize);
 				break;
 
-			case PrPixelFormat_BGRA_4444_32f:
+				case PrPixelFormat_VUYA_4444_8u:
+				case PrPixelFormat_VUYA_4444_8u_709:
+					median_filter_VUYA_4444_8u_frame (theData, kernelSize);
 				break;
 
-			case PrPixelFormat_VUYA_4444_32f:
+				case PrPixelFormat_BGRA_4444_16u:
+					median_filter_BGRA_4444_16u_frame(theData, kernelSize);
 				break;
 
-			case PrPixelFormat_VUYA_4444_32f_709:
+				case PrPixelFormat_BGRA_4444_32f:
+				break;
+
+				case PrPixelFormat_VUYA_4444_32f:
+				case PrPixelFormat_VUYA_4444_32f_709:
 				break;
 
 				// ============ native AE formats ============================= //
-			case PrPixelFormat_ARGB_4444_8u:
+				case PrPixelFormat_ARGB_4444_8u:
 				break;
 
-			case PrPixelFormat_ARGB_4444_16u:
+				case PrPixelFormat_ARGB_4444_16u:
 				break;
 
-			case PrPixelFormat_ARGB_4444_32f:
+				case PrPixelFormat_ARGB_4444_32f:
 				break;
 
 				// =========== miscellanous formats =========================== //
-			case PrPixelFormat_RGB_444_10u:
+				case PrPixelFormat_RGB_444_10u:
 				break;
 
 				// =========== Packed uncompressed formats ==================== //
-			case PrPixelFormat_YUYV_422_8u_601:
+				case PrPixelFormat_YUYV_422_8u_601:
+				case PrPixelFormat_YUYV_422_8u_709:
 				break;
 
-			case PrPixelFormat_YUYV_422_8u_709:
+				case PrPixelFormat_UYVY_422_8u_601:
+				case PrPixelFormat_UYVY_422_8u_709:
 				break;
 
-			case PrPixelFormat_UYVY_422_8u_601:
+				case PrPixelFormat_UYVY_422_32f_601:
+				case PrPixelFormat_UYVY_422_32f_709:
 				break;
 
-			case PrPixelFormat_UYVY_422_8u_709:
+				case PrPixelFormat_V210_422_10u_601:
+				case PrPixelFormat_V210_422_10u_709:
 				break;
 
-			case PrPixelFormat_UYVY_422_32f_601:
-				break;
-
-			case PrPixelFormat_UYVY_422_32f_709:
-				break;
-
-			case PrPixelFormat_V210_422_10u_601:
-				break;
-
-			case PrPixelFormat_V210_422_10u_709:
-				break;
-
-			default:
-				processSucceed = false;
+				default:
+					processSucceed = false;
 				break;
 			}
 
@@ -99,6 +90,11 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 // Bilateral-RGB filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
+#if !defined __INTEL_COMPILER 
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
 	filterParamsH	paramsH = nullptr;
 	csSDK_int32 errCode = fsNoErr;
 
@@ -135,7 +131,8 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			// Get the data from specsHandle
 			paramsH = (filterParamsH)(*theData)->specsHandle;
 			const bool advFlag = (nullptr != paramsH ? ((*paramsH)->checkbox ? true : false) : false);
-			const int32_t kernelSize = static_cast<int32_t>((*paramsH)->kernelSize | 0x1u); // kernel must be odd
+			const int32_t kernelSize = (true == advFlag) ? 3 :			// reset kernel size to 3 if used Fuzzy Algorithm 
+				(static_cast<int32_t>((*paramsH)->kernelSize | 0x1u));	// kernel size must be odd number
 			errCode = selectProcessFunction (theData, advFlag, kernelSize);
 		}
 		break;
