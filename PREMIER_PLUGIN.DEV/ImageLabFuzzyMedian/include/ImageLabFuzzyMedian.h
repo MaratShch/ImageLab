@@ -101,12 +101,15 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
 csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFlag = false, const int32_t& kernelSize = kernelSizeDefault);
+
 bool median_filter_BGRA_4444_8u_frame (const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
 bool median_filter_BGRA_4444_16u_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
+bool median_filter_BGRA_4444_32f_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
 
 bool median_filter_VUYA_4444_8u_frame (const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
 
 
 bool fuzzy_median_filter_BGRA_4444_8u_frame  (const VideoHandle theData);
 bool fuzzy_median_filter_BGRA_4444_16u_frame (const VideoHandle theData);
+bool fuzzy_median_filter_BGRA_4444_32f_frame (const VideoHandle theData);
 bool fuzzy_median_filter_VUYA_4444_8u_frame  (const VideoHandle theData);

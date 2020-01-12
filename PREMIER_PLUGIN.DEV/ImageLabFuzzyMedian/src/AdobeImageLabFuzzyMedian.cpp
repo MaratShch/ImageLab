@@ -37,6 +37,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 				break;
 
 				case PrPixelFormat_BGRA_4444_32f:
+					median_filter_BGRA_4444_32f_frame(theData, kernelSize);
 				break;
 
 				case PrPixelFormat_VUYA_4444_32f:
