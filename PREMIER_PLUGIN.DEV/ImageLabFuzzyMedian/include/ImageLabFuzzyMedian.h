@@ -42,26 +42,47 @@ inline void swapEx(T& a, T& b) // a != b && a , b = integral types
 }
 
 template <typename T>
-inline void gnomesort (T* l, T* r) {
+inline void gnomesort (T* l, T* r)
+{
 	T* i = l;
-	while (i < r) {
-		if (i == l || *(i - 1) <= *i) i++;
+	while (i < r)
+	{
+		if (i == l || *(i - 1) <= *i)i++;
 		else swap(*(i - 1), *i), i--;
 	}
 }
 
 
 template <typename T>
-inline void selectionsort (T* l, T* r) {
-	for (T* i = l; i < r; i++) {
+inline void selectionsort (T* l, T* r)
+{
+	for (T* i = l; i < r; i++)
+	{
 		T minz = *i, *ind = i;
-		for (T* j = i + 1; j < r; j++) {
+		for (T* j = i + 1; j < r; j++)
+		{
 			if (*j < minz) minz = *j, ind = j;
 		}
 		swap(*i, *ind);
 	}
 }
 
+template <typename T>
+inline void insertionsort (T* l, T* r)
+{
+	for (T* i = l + 1; i < r; i++)
+	{
+		T* j = i;
+		while (j > l && *(j - 1) > *j)
+		{
+			swap(*(j - 1), *j);
+			j--;
+		}
+	}
+}
+
+
+constexpr int MinKernelWidth = 3;
 constexpr int MaxKernelWidth = 13;
 constexpr int MaxKernelElemSize = MaxKernelWidth * MaxKernelWidth;
 
@@ -106,10 +127,14 @@ bool median_filter_BGRA_4444_8u_frame (const VideoHandle theData, const csSDK_in
 bool median_filter_BGRA_4444_16u_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
 bool median_filter_BGRA_4444_32f_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
 
+bool median_filter_ARGB_4444_8u_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
+
 bool median_filter_VUYA_4444_8u_frame (const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
+bool median_filter_VUYA_4444_32f_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
 
 
 bool fuzzy_median_filter_BGRA_4444_8u_frame  (const VideoHandle theData);
 bool fuzzy_median_filter_BGRA_4444_16u_frame (const VideoHandle theData);
 bool fuzzy_median_filter_BGRA_4444_32f_frame (const VideoHandle theData);
 bool fuzzy_median_filter_VUYA_4444_8u_frame  (const VideoHandle theData);
+bool fuzzy_median_filter_VUYA_4444_32f_frame (const VideoHandle theData);

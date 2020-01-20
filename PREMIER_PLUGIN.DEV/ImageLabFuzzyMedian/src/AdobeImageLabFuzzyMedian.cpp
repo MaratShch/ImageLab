@@ -26,7 +26,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 				case PrPixelFormat_BGRA_4444_8u:
 					median_filter_BGRA_4444_8u_frame (theData, kernelSize);
 				break;
-
+#if 0
 				case PrPixelFormat_VUYA_4444_8u:
 				case PrPixelFormat_VUYA_4444_8u_709:
 					median_filter_VUYA_4444_8u_frame (theData, kernelSize);
@@ -42,10 +42,12 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 
 				case PrPixelFormat_VUYA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f_709:
+					median_filter_VUYA_4444_32f_frame(theData, kernelSize);
 				break;
 
 				// ============ native AE formats ============================= //
 				case PrPixelFormat_ARGB_4444_8u:
+					median_filter_ARGB_4444_8u_frame(theData, kernelSize);
 				break;
 
 				case PrPixelFormat_ARGB_4444_16u:
@@ -74,7 +76,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 				case PrPixelFormat_V210_422_10u_601:
 				case PrPixelFormat_V210_422_10u_709:
 				break;
-
+#endif
 				default:
 					processSucceed = false;
 				break;
