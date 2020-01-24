@@ -29,6 +29,9 @@
     <ClInclude Include="include\ImageLabFuzzyMedian.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageLabSorting.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FuzzyMedian.rc">

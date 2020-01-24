@@ -7,6 +7,8 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
+#include "ImageLabSorting.h"
+
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
@@ -19,91 +21,46 @@
 #define __VECTOR_ALIGNED__
 #endif
 
-template<typename T>
-T MIN(T a, T b) { return ((a < b) ? a : b); }
-
-template<typename T>
-T MAX(T a, T b) { return ((a > b) ? a : b); }
-
 template <typename T>
-inline void swap(T& a, T& b)
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
 {
-	T tmpVar = std::move(a);
-	a = std::move(b);
-	b = std::move(tmpVar);
+	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
 template <typename T>
-inline void swapEx(T& a, T& b) // a != b && a , b = integral types
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type make_odd(T x)
 {
-	a = a ^ b;
-	b = a ^ b;
-	a = a ^ b;
+	return (x | 1);
 }
 
 template <typename T>
-inline void gnomesort (T* l, T* r)
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type kernel_width(T x)
 {
-	T* i = l;
-	while (i < r)
-	{
-		if (i == l || *(i - 1) <= *i)i++;
-		else swap(*(i - 1), *i), i--;
-	}
+	return make_odd(x * 2);
 }
 
+constexpr int MinKernelRadius = 1;
+constexpr int MaxKernelRadius = 40;
 
-template <typename T>
-inline void selectionsort (T* l, T* r)
-{
-	for (T* i = l; i < r; i++)
-	{
-		T minz = *i, *ind = i;
-		for (T* j = i + 1; j < r; j++)
-		{
-			if (*j < minz) minz = *j, ind = j;
-		}
-		swap(*i, *ind);
-	}
-}
+constexpr int MinKernelWidth = kernel_width(MinKernelRadius);
+static_assert((MinKernelWidth & 0x1), "Kernel width value must be ODD");
 
-template <typename T>
-inline void insertionsort (T* l, T* r)
-{
-	for (T* i = l + 1; i < r; i++)
-	{
-		T* j = i;
-		while (j > l && *(j - 1) > *j)
-		{
-			swap(*(j - 1), *j);
-			j--;
-		}
-	}
-}
+constexpr int MaxKernelWidth  = kernel_width(MaxKernelRadius);
+static_assert((MaxKernelWidth & 0x1), "Kernel width value must be ODD");
 
-
-constexpr int MinKernelWidth = 3;
-constexpr int MaxKernelWidth = 13;
-constexpr int MaxKernelElemSize = MaxKernelWidth * MaxKernelWidth;
-
-constexpr csSDK_uint64 BGRA16_B_Mask = 0x000000000000FFFFu;
-constexpr csSDK_uint64 BGRA16_G_Mask = 0x00000000FFFF0000u;
-constexpr csSDK_uint64 BGRA16_R_Mask = 0x0000FFFF00000000u;
-constexpr csSDK_uint64 BGRA16_A_Mask = 0xFFFF000000000000u;
 
 
 typedef struct filterParams
 {
-	short int	kernelSize;
+	short int	kernelRadius;
 	char		checkbox;
 } filterParams, *filterParamsP, **filterParamsH;
 
-constexpr unsigned short int kernelSizeDefault = 3u;
 constexpr char fuzzyAlgorithmDisabled = '\0';
 
 #ifndef IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT
 #define IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT(_param_handle) \
- (*_param_handle)->kernelSize = kernelSizeDefault;               \
+ (*_param_handle)->kernelRadius = MinKernelWidth;             \
  (*_param_handle)->checkbox =  fuzzyAlgorithmDisabled;
 #endif
 
@@ -121,20 +78,17 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 
-csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFlag = false, const int32_t& kernelSize = kernelSizeDefault);
+csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFlag = false, const int32_t& kernelSize = MinKernelWidth);
 
-bool median_filter_BGRA_4444_8u_frame (const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
-bool median_filter_BGRA_4444_16u_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
-bool median_filter_BGRA_4444_32f_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
-
-bool median_filter_ARGB_4444_8u_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
-
-bool median_filter_VUYA_4444_8u_frame (const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
-bool median_filter_VUYA_4444_32f_frame(const VideoHandle theData, const csSDK_int32& kernelWidth = kernelSizeDefault);
+bool median_filter_BGRA_4444_8u_frame (	const csSDK_uint32* __restrict srcPix,
+										  	  csSDK_uint32* __restrict dstPix,
+										const csSDK_int32& height,
+										const csSDK_int32& width,
+										const csSDK_int32& linePitch);
 
 
-bool fuzzy_median_filter_BGRA_4444_8u_frame  (const VideoHandle theData);
-bool fuzzy_median_filter_BGRA_4444_16u_frame (const VideoHandle theData);
-bool fuzzy_median_filter_BGRA_4444_32f_frame (const VideoHandle theData);
-bool fuzzy_median_filter_VUYA_4444_8u_frame  (const VideoHandle theData);
-bool fuzzy_median_filter_VUYA_4444_32f_frame (const VideoHandle theData);
+bool median_filter_ARGB_4444_8u_frame(const csSDK_uint32* __restrict srcPix,
+											csSDK_uint32* __restrict dstPix,
+									  const csSDK_int32& height,
+									  const csSDK_int32& width,
+									  const csSDK_int32& linePitch);

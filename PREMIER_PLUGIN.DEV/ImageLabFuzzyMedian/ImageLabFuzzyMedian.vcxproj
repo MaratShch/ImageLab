@@ -148,6 +148,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabFuzzyMedian.h" />
+    <ClInclude Include="include\ImageLabSorting.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FuzzyMedian.r">
