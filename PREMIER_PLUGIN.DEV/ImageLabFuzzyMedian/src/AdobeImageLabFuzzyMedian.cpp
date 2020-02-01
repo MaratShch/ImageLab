@@ -2,7 +2,85 @@
 #include <windows.h>
 
 
-csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFlag, const int32_t& kernelSize)
+void free_coarse (const VideoHandle& theData, AlgMemStorage& algMemStorage)
+{
+	char* ptr = reinterpret_cast<char*>(algMemStorage.pCoarse_addr);
+	if (nullptr != ptr)
+	{
+		algMemStorage.pCoarse_addr = algMemStorage.pCoarse = nullptr;
+		memset(ptr, 0, size_coarse + size_mem_align);
+		((*theData)->piSuites->memFuncs->disposePtr)(ptr);
+		ptr = nullptr;
+	}
+	return;
+}
+
+
+void free_fine (const VideoHandle& theData, AlgMemStorage& algMemStorage)
+{
+	char* ptr = reinterpret_cast<char*>(algMemStorage.pFine_addr);
+	if (nullptr != ptr)
+	{
+		algMemStorage.pFine_addr = algMemStorage.pFine = nullptr;
+		memset(ptr, 0, size_fine + size_mem_align);
+		((*theData)->piSuites->memFuncs->disposePtr)(ptr);
+		ptr = nullptr;
+	}
+	return;
+}
+
+csSDK_int32 allocate_coarse (const VideoHandle& theData, AlgMemStorage& algMemStorage)
+{
+	csSDK_int32 ret = 0;
+	HistElem* ptr = nullptr;
+	constexpr csSDK_uint32 totalSize = static_cast<csSDK_uint32>(size_coarse + size_mem_align);
+	constexpr unsigned long long alignmend = static_cast<unsigned long long>(size_mem_align);
+
+	// apply to SweePie memory site
+	ptr = reinterpret_cast<HistElem*>(((*theData)->piSuites->memFuncs->newPtr)(totalSize));
+	if (nullptr != ptr)
+	{
+		algMemStorage.pCoarse_addr = ptr;
+		unsigned long long addr = CreateAlignment(reinterpret_cast<unsigned long long>(ptr), alignmend);
+		algMemStorage.pCoarse = reinterpret_cast<HistElem* __restrict>(addr);
+	}
+	else
+	{
+		algMemStorage.pCoarse_addr = algMemStorage.pCoarse = nullptr;
+		ret |= 1;
+	}
+
+	return ret;
+}
+
+
+csSDK_int32 allocate_fine (const VideoHandle& theData, AlgMemStorage& algMemStorage)
+{
+	csSDK_int32 ret = 0;
+	HistElem* ptr = nullptr;
+	constexpr csSDK_uint32 totalSize = static_cast<csSDK_uint32>(size_fine + size_mem_align);
+	constexpr unsigned long long alignmend = static_cast<unsigned long long>(size_mem_align);
+
+	// apply to SweePie memory site
+	ptr = reinterpret_cast<HistElem* __restrict>(((*theData)->piSuites->memFuncs->newPtr)(totalSize));
+	if (nullptr != ptr)
+	{
+		algMemStorage.pFine_addr = ptr;
+		unsigned long long addr = CreateAlignment(reinterpret_cast<unsigned long long>(ptr), alignmend);
+		algMemStorage.pFine = reinterpret_cast<HistElem* __restrict>(addr);
+	}
+	else
+	{
+		algMemStorage.pFine_addr = algMemStorage.pFine = nullptr;
+		ret |= 1;
+	}
+
+	return ret;
+}
+
+
+
+csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& advFlag, const csSDK_int16& kernelRadius, AlgMemStorage& algMemStorage)
 {
 	constexpr char* strPpixSuite = "Premiere PPix Suite";
 	SPBasicSuite*	SPBasic = nullptr;
@@ -12,7 +90,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 	// acquire Premier Suites
 	if (nullptr != (SPBasic = (*theData)->piSuites->utilFuncs->getSPBasicSuite()))
 	{
-		PrSDKPPixSuite*	  PPixSuite = nullptr;
+		PrSDKPPixSuite*	PPixSuite = nullptr;
 		const SPErr err = SPBasic->AcquireSuite(strPpixSuite, 1, (const void**)&PPixSuite);
 
 		if (nullptr != PPixSuite && kSPNoError == err)
@@ -41,7 +119,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 				{
 					const csSDK_uint32* __restrict srcPix = reinterpret_cast<const csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 					      csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-					processSucceed = median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch);
+					processSucceed = median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
 				}
 				break;
 
@@ -49,7 +127,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const bool& advFla
 				{
 					const csSDK_uint32* __restrict srcPix = reinterpret_cast<const csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 					      csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-					processSucceed = median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch);
+					processSucceed = median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
 				}
 
 				default:
@@ -94,7 +172,20 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				break;
 
 			IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT(paramsH);
-			(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
+			if (0 == allocate_coarse(theData, (*paramsH)->AlgMemStorage) && 0 == allocate_fine(theData, (*paramsH)->AlgMemStorage))
+			{
+				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
+			}
+			else
+			{
+				free_coarse(theData, (*paramsH)->AlgMemStorage);
+				free_fine  (theData, (*paramsH)->AlgMemStorage);
+				memset(&((*paramsH)->AlgMemStorage), 0, sizeof((*paramsH)->AlgMemStorage));
+				// free handler itself
+				((*theData)->piSuites->memFuncs->disposeHandle)(reinterpret_cast<char**>(paramsH));
+				paramsH = nullptr;
+				(*theData)->specsHandle = nullptr;
+			}
 		}
 
 		case fsHasSetupDialog:
@@ -107,13 +198,18 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		case fsExecute:
 		{
 			// Get the data from specsHandle
-			paramsH = (filterParamsH)(*theData)->specsHandle;
-			const bool advFlag = (*paramsH)->checkbox ? true : false;
+			paramsH = reinterpret_cast<filterParamsH>((*theData)->specsHandle);
+			if (nullptr != paramsH)
+			{
+				const csSDK_int8 advFlag = ((*paramsH)->checkbox ? 1 : 0);
+				if (1 == advFlag) /* use kernel radius 1 in case of Fuzzy Algorihm */ 
+					(*paramsH)->kernelRadius = static_cast<csSDK_int16>(MinKernelRadius);
 
-			const int32_t kernelSize = (true == advFlag) ? 3 :		// reset kernel size to 3 if used Fuzzy Algorithm 
-						kernel_width((*paramsH)->kernelRadius);		// kernel size must be odd number
-
-			errCode = selectProcessFunction (theData, advFlag, kernelSize);
+				const csSDK_int16 kernelRadius = ((*paramsH)->kernelRadius) | 1; // as minimal kernel radius should be 1
+				errCode = selectProcessFunction (theData, advFlag, kernelRadius, (*paramsH)->AlgMemStorage);
+			}
+			else
+				errCode = fsUnsupported;
 		}
 		break;
 
@@ -134,6 +230,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 
 		default:
 			// unhandled case
+			errCode = fsUnsupported;
 		break;
 
 	}
