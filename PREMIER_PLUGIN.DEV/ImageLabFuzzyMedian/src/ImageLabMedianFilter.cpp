@@ -67,6 +67,9 @@ bool median_filter_BGRA_4444_8u_frame(
 			algMem.pCoarse[16 * (stripe * 2 + j) + (B >> 4)] += kernelRadius + 1;
 
 			/* init FINE level */
+			algMem.pFine[16 * (stripe *       (R >> 4) + j)  + (R & 0xF)] += kernelRadius + 1;
+			algMem.pFine[16 * (stripe * (16 + (G >> 4) + j)) + (G & 0xF)] += kernelRadius + 1;
+			algMem.pFine[16 * (stripe * (32 + (B >> 4) + j)) + (B & 0xF)] += kernelRadius + 1;
 
 		} /* for (k = 0; k < stripe; k++) */
 
