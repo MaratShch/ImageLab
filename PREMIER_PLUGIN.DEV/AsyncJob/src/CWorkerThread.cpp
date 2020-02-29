@@ -7,6 +7,7 @@ using namespace std::chrono_literals;
 
 std::atomic<uint32_t>CWorkerThread::totalWorkers = {0u};
 
+
 void WorkerCyclicJob (CWorkerThread* p, void* pQueue)
 {
 #ifdef _DEBUG
@@ -111,18 +112,18 @@ void WorkerCyclicJob (CWorkerThread* p, void* pQueue)
 
 
 #ifdef _WINDOWS
-DWORD WINAPI _winThreadRoutine(LPVOID lpParam)
+DWORD WINAPI _winThreadRoutine (LPVOID lpParam)
 {
 	CWorkerThread* p = reinterpret_cast<CWorkerThread*>(lpParam);
-	WorkerCyclicJob(p, nullptr);
+	WorkerCyclicJob(p, p->getJobQueue());
 	return EXIT_SUCCESS;
 }
 #endif
 
 
 
-CWorkerThread::CWorkerThread(const uint32_t affinity, void* pJobQueue) 
-{ 
+CWorkerThread::CWorkerThread(const uint32_t affinity, void* pJobQueue)
+{
 	m_bShouldRun = true;
 	m_bAllJobCompleted = true;
 	m_bLocked = false;
@@ -132,21 +133,29 @@ CWorkerThread::CWorkerThread(const uint32_t affinity, void* pJobQueue)
 	m_privateStorageSize = 0;
 
 	m_executedJobs = 0ull;
-	m_pendingJobs  = 0ull;
+	m_pendingJobs = 0ull;
 	m_lastError = 0u;
 	m_affinityMask = affinity;
 	m_priority = priorityNormal;
 
+	m_jobQueue = pJobQueue;
+
 #ifdef _WINDOWS
+	m_threadId = 0;
 	m_pThread = CreateThread
 	(
-		nullptr,
+		NULL,
 		0,
 		_winThreadRoutine,
 		reinterpret_cast<LPVOID>(this),
-		0,
+		CREATE_SUSPENDED,
 		&m_threadId
 	);
+
+	if (NULL != m_pThread)
+	{
+		ResumeThread(m_pThread);
+	}
 #else
     m_pTthread = new std::thread(WorkerCyclicJob, this, pJobQueue);
 	m_threadId = m_pTthread->get_id();
@@ -171,7 +180,10 @@ CWorkerThread::CWorkerThread(const size_t privStorage, const uint32_t affinity, 
 	m_affinityMask = affinity;
 	m_priority = priorityNormal;
 
+	m_jobQueue = pJobQueue;
+
 #ifdef _WINDOWS
+	m_threadId = 0;
 	m_pThread = CreateThread
 	(
 		nullptr,
@@ -181,6 +193,11 @@ CWorkerThread::CWorkerThread(const size_t privStorage, const uint32_t affinity, 
 		0,
 		&m_threadId
 	);
+
+	if (NULL != m_pThread)
+	{
+		ResumeThread(m_pThread);
+    }
 #else
 	m_pTthread = new std::thread(WorkerCyclicJob, this, pJobQueue);
 	m_threadId = m_pTthread->get_id();
@@ -193,6 +210,11 @@ CWorkerThread::~CWorkerThread(void)
 	m_bShouldRun = false;
 	std::this_thread::yield();
 #ifdef _WINDOWS
+	const auto timeoutBeforeTerminate = timeoutDefault + timeoutDefault / 10;
+	if (WAIT_TIMEOUT == WaitForSingleObject(m_pThread, timeoutBeforeTerminate))
+	{
+		TerminateThread(m_pThread, EXIT_SUCCESS);
+	}
 	CloseHandle(m_pThread);
 #else
 	if (true == m_pTthread->joinable())

@@ -143,6 +143,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\AdobeImageLabFuzzyMedian.cpp" />
+    <ClCompile Include="src\AsyncEngineLink.cpp" />
     <ClCompile Include="src\ImageLabMedianFilter.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
   </ItemGroup>
@@ -171,11 +172,6 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FuzzyMedian.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\Release\AsyncJob.lib">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-    </Library>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

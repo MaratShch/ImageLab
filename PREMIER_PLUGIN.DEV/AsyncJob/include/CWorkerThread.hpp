@@ -29,6 +29,8 @@ public:
 	bool setThreadPriority(const uint32_t& pri);
 
 #ifdef _WINDOWS
+	inline void* getJobQueue(void) { return m_jobQueue; }
+
 	bool setWindowsThreadPriority(int winPrio);
 	bool setWindowsThreadPriorityAboveNormal(void) {
 		return setWindowsThreadPriority(THREAD_PRIORITY_ABOVE_NORMAL);
@@ -60,6 +62,8 @@ private:
 	void* RESTRICT m_privateStorage;
 	size_t m_privateStorageSize;
 
+	void* RESTRICT m_jobQueue;
+
 #ifdef _WINDOWS
 	HANDLE m_pThread;
 	DWORD  m_threadId;
@@ -76,7 +80,6 @@ private:
 	std::atomic<bool> m_bAllJobCompleted;
 
 	static std::atomic<uint32_t> totalWorkers;
-
 
 	inline int translatePriority(uint32_t newPrio);
 

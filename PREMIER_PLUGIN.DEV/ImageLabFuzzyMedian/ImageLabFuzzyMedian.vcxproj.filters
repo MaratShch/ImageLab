@@ -24,6 +24,9 @@
     <ClCompile Include="src\ImageLabMedianFilter.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AsyncEngineLink.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabFuzzyMedian.h">
@@ -42,8 +45,5 @@
     <CustomBuild Include="FuzzyMedian.r">
       <Filter>resources</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\Release\AsyncJob.lib" />
   </ItemGroup>
 </Project>
