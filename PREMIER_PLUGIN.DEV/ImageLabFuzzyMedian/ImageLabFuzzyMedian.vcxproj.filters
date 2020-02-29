@@ -43,4 +43,7 @@
       <Filter>resources</Filter>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <Library Include="..\Release\AsyncJob.lib" />
+  </ItemGroup>
 </Project>

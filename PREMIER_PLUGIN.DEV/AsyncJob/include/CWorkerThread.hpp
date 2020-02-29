@@ -19,12 +19,7 @@
 //template <typename FA1, typename FA2, void(*FP)(FA1, FA2)>
 //struct WorkerContext;
 
-constexpr uint32_t priorityNormal = 45u;
-constexpr uint32_t priorityLow = 20u;
-constexpr uint32_t priorityHigh = 60u;
-constexpr uint32_t timeoutDefault = 1000; /* 1000 mS */
-
-class CWorkerThread
+class CLASS_EXPORT CWorkerThread
 {
 public:
 	explicit CWorkerThread(const uint32_t affinity = UINT_MAX, void* pJobQueue = nullptr);
@@ -32,6 +27,7 @@ public:
 	virtual ~CWorkerThread(void);
 	uint32_t getTotalWorkersNumber(void);
 	bool setThreadPriority(const uint32_t& pri);
+
 #ifdef _WINDOWS
 	bool setWindowsThreadPriority(int winPrio);
 	bool setWindowsThreadPriorityAboveNormal(void) {
@@ -47,6 +43,8 @@ public:
 	bool terminateJob(void);
 	bool restartWorker(void* p = nullptr);
 	void signalNewJob (void) {m_newJobCnt++;}
+	void sendTermination(void) { m_bShouldRun = false; }
+	const size_t& getPrivateStorageSize (void) { return m_privateStorageSize; }
 
 protected:
 	void applyAffinityMask(void);
@@ -59,7 +57,7 @@ private:
 	uint64_t m_executedJobs;
 	uint64_t m_pendingJobs;
 
-	void* m_privateStorage;
+	void* RESTRICT m_privateStorage;
 	size_t m_privateStorageSize;
 
 	std::thread* m_pTthread;

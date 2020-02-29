@@ -6,7 +6,7 @@
 
 class CThreadPool;
 
-class CAsyncJobQueue
+class CLASS_EXPORT CAsyncJobQueue
 {
 public:
 	explicit CAsyncJobQueue(void);

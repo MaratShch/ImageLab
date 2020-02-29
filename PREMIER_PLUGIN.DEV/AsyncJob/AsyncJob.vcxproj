@@ -22,34 +22,38 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <ProjectGuid>{8CD388D5-37DF-4C23-AC9F-3A2237619502}</ProjectGuid>
     <RootNamespace>AsyncJob</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+    <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>NotSet</CharacterSet>
+    <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+    <UseOfMfc>false</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>NotSet</CharacterSet>
+    <UseOfMfc>false</UseOfMfc>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -74,12 +78,16 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -119,10 +127,14 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <FloatingPointModel>Precise</FloatingPointModel>
       <PreprocessorDefinitions>_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -161,12 +173,17 @@
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <FloatingPointModel>Precise</FloatingPointModel>
       <PreprocessorDefinitions>_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -177,10 +194,11 @@
     <ClInclude Include="include\CWorkerThread.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\CAsyncJob.cpp" />
     <ClCompile Include="src\CAsyncJobQueue.cpp" />
     <ClCompile Include="src\CThreadPool.cpp" />
     <ClCompile Include="src\CWorkerThread.cpp" />
-    <ClCompile Include="src\main_tst.cpp" />
+    <ClCompile Include="src\DllMain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />

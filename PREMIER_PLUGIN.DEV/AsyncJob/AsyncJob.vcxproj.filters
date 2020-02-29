@@ -35,13 +35,16 @@
     <ClCompile Include="src\CWorkerThread.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\main_tst.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\CThreadPool.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\CAsyncJobQueue.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\CAsyncJob.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

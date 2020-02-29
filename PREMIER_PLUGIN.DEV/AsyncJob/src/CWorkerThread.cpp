@@ -10,6 +10,21 @@ std::atomic<uint32_t>CWorkerThread::totalWorkers = {0u};
 
 void WorkerCyclicJob (CWorkerThread* p, void* pQueue)
 {
+#ifdef _DEBUG
+	constexpr size_t dbgWorkerCacheSize = workerCacheSize + 64u;
+	CACHE_ALIGN uint8_t workerCacheMem[dbgWorkerCacheSize] = { 0 };
+	workerCacheMem[workerCacheSize + 1] = 'D';
+	workerCacheMem[workerCacheSize + 2] = 'E';
+	workerCacheMem[workerCacheSize + 3] = 'A';
+	workerCacheMem[workerCacheSize + 4] = 'D';
+	workerCacheMem[workerCacheSize + 5] = 'B';
+	workerCacheMem[workerCacheSize + 6] = 'E';
+	workerCacheMem[workerCacheSize + 7] = 'E';
+	workerCacheMem[workerCacheSize + 8] = 'F';
+#else
+	CACHE_ALIGN uint8_t workerCacheMem[workerCacheSize];
+#endif
+
 	CAsyncJobQueue* pJobQueue = reinterpret_cast<CAsyncJobQueue*>(pQueue);
 
 	if (nullptr == p)
@@ -22,62 +37,74 @@ void WorkerCyclicJob (CWorkerThread* p, void* pQueue)
 
 	std::cout << "Worker " << CWorkerThread::totalWorkers << " started..." << std::endl;
 
-	// yield current worker on start, for take initialization time for another workers
+	/* yield current worker on start, for take initialization time for another workers */
 	std::this_thread::yield();
 
-	// private worker storage will be allocated here and deleted in class constructor -
-	// this allow fast worker restarting
+	/* !NOTE! private worker storage will be allocated here and deleted in class constructor -
+	   this allow rapid worker restarting */
 	if (0 != p->m_privateStorageSize && nullptr == p->m_privateStorage)
+	{
 		p->m_privateStorage = allocate_aligned_mem(p->m_privateStorageSize);
+#ifdef _DEBUG
+		/* cleanup private memory storage for debug purpose only */
+		memset(p->m_privateStorage, 0, p->m_privateStorageSize);
+#endif
+	}
 
-	// apply affinity mask
+	/* apply affinity mask */
 	p->applyAffinityMask();
 
-	// apply priority
+	/* apply priority */
 	p->setThreadPriority(p->m_priority);
 
-	// create lock object for synchronizaton with main thread
+	/* create lock object for synchronizaton with main thread */
 	std::unique_lock<std::mutex> lk(p->m_JobMutex);
 
 	// start worker main loop
 	while (p->m_bShouldRun)
 	{
-		// wait for job
+		/* wait for job with default itmeout (call with timeout value = 0 for infinite wait) */
 		const bool newJob = p->waitForJob(lk, timeoutDefault);
 
-		// test for 'should run' flag again
+		/* test for 'should run' flag again */
 		if (false == p->m_bShouldRun)
 			break;
-
+#ifdef _DEBUG
 		std::cout << "Job status = " << newJob << " Total jobs = " << p->m_executedJobs  << std::endl;
+#endif
 		if (false == newJob)
 			continue;
 
-		// get job
+		/* get job */
 		CAsyncJob& myJob = pJobQueue->getNewJob();
+		myJob.assignTmpBuffer(p->m_privateStorage);
+		myJob.assignCache(reinterpret_cast<void* RESTRICT>(workerCacheMem), workerCacheSize);
 
-		// execute job
+		/* execute job */
+		myJob.Execute();
 
-		// increment execution counter
+		/* increment execution counter */
 		p->m_executedJobs++;
 
-		// release job (mark queue entry as "empty")
+		/* release job (mark queue entry as "empty") */
 		myJob.releaseJob();
 
-		// notify about job complete
+		/* notify about job complete */
 		if (myJob.isCompleteNotify())
 		{
 			p->notifyJobComplete(lk);
 		}
 
-	}
+	} /* while (p->m_bShouldRun) */
 
-	// notify about all jobs completed 
+	/* notify about all jobs completed */
 	p->m_bAllJobCompleted = true;
 
-	// exit from worker
+#ifdef _DEBUG
+	/* exit from worker */
 	std::cout << "Worker completed ..." << std::endl;
 	std::cout << "Total jobs executed: " << p->m_executedJobs << std::endl;
+#endif
 
 	CWorkerThread::totalWorkers--;
 	return;
@@ -101,7 +128,7 @@ CWorkerThread::CWorkerThread(const uint32_t affinity, void* pJobQueue)
 	m_affinityMask = affinity;
 	m_priority = priorityNormal;
 
-    	m_pTthread = new std::thread(WorkerCyclicJob, this, pJobQueue);
+    m_pTthread = new std::thread(WorkerCyclicJob, this, pJobQueue);
 	m_threadId = m_pTthread->get_id();
 
 	return;
@@ -144,6 +171,10 @@ CWorkerThread::~CWorkerThread(void)
 
 	if (0 != m_privateStorageSize && nullptr != m_privateStorage)
 	{
+#ifdef _DEBUG
+		/* cleanup private storage for DBG purpose only */
+		memset(m_privateStorage, 0, m_privateStorageSize);
+#endif
 		free_aligned_mem (m_privateStorage);
 		m_privateStorageSize = 0;
 		m_privateStorage = nullptr;
