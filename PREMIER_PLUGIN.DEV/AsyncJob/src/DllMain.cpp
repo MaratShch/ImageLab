@@ -2,7 +2,7 @@
 #include "CThreadPool.hpp"
 
 CACHE_ALIGN CThreadPool _threadPool;
-__declspec(dllexport) CThreadPool& GetThreadPool(void) { return _threadPool; }
+CLASS_EXPORT CThreadPool& GetThreadPool(void) { return _threadPool; }
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
 {

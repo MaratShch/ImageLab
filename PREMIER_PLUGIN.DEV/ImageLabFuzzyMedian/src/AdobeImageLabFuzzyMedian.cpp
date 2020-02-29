@@ -1,9 +1,5 @@
 #include "ImageLabFuzzyMedian.h"
 #include <windows.h>
-#include "CThreadPool.hpp"
-
-extern CLASS_EXPORT CThreadPool& GetThreadPool(void);
-CThreadPool& parallelEngine = GetThreadPool();
 
 void free_coarse (const VideoHandle& theData, AlgMemStorage& algMemStorage)
 {
