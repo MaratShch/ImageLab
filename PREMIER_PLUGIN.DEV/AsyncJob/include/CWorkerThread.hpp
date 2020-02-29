@@ -60,8 +60,13 @@ private:
 	void* RESTRICT m_privateStorage;
 	size_t m_privateStorageSize;
 
-	std::thread* m_pTthread;
+#ifdef _WINDOWS
+	HANDLE m_pThread;
+	DWORD  m_threadId;
+#else
+	std::thread* m_pThread;
 	std::thread::id m_threadId;
+#endif
 	std::mutex m_JobMutex;
 	std::condition_variable m_jobCV;
 

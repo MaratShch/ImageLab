@@ -7,7 +7,6 @@ using namespace std::chrono_literals;
 
 std::atomic<uint32_t>CWorkerThread::totalWorkers = {0u};
 
-
 void WorkerCyclicJob (CWorkerThread* p, void* pQueue)
 {
 #ifdef _DEBUG
@@ -111,6 +110,16 @@ void WorkerCyclicJob (CWorkerThread* p, void* pQueue)
 }
 
 
+#ifdef _WINDOWS
+DWORD WINAPI _winThreadRoutine(LPVOID lpParam)
+{
+	CWorkerThread* p = reinterpret_cast<CWorkerThread*>(lpParam);
+	WorkerCyclicJob(p, nullptr);
+	return EXIT_SUCCESS;
+}
+#endif
+
+
 
 CWorkerThread::CWorkerThread(const uint32_t affinity, void* pJobQueue) 
 { 
@@ -128,9 +137,20 @@ CWorkerThread::CWorkerThread(const uint32_t affinity, void* pJobQueue)
 	m_affinityMask = affinity;
 	m_priority = priorityNormal;
 
+#ifdef _WINDOWS
+	m_pThread = CreateThread
+	(
+		nullptr,
+		0,
+		_winThreadRoutine,
+		reinterpret_cast<LPVOID>(this),
+		0,
+		&m_threadId
+	);
+#else
     m_pTthread = new std::thread(WorkerCyclicJob, this, pJobQueue);
 	m_threadId = m_pTthread->get_id();
-
+#endif
 	return;
 }
 
@@ -151,9 +171,20 @@ CWorkerThread::CWorkerThread(const size_t privStorage, const uint32_t affinity, 
 	m_affinityMask = affinity;
 	m_priority = priorityNormal;
 
+#ifdef _WINDOWS
+	m_pThread = CreateThread
+	(
+		nullptr,
+		0,
+		_winThreadRoutine,
+		reinterpret_cast<LPVOID>(this),
+		0,
+		&m_threadId
+	);
+#else
 	m_pTthread = new std::thread(WorkerCyclicJob, this, pJobQueue);
 	m_threadId = m_pTthread->get_id();
-
+#endif
 	return;
 }
 
@@ -161,13 +192,17 @@ CWorkerThread::~CWorkerThread(void)
 {
 	m_bShouldRun = false;
 	std::this_thread::yield();
+#ifdef _WINDOWS
+	CloseHandle(m_pThread);
+#else
 	if (true == m_pTthread->joinable())
 	{
 		m_pTthread->join();
 	}
 
 	delete m_pTthread;
-	m_pTthread = nullptr;
+#endif
+	m_pThread = nullptr;
 
 	if (0 != m_privateStorageSize && nullptr != m_privateStorage)
 	{
@@ -263,14 +298,19 @@ bool CWorkerThread::terminateJob(void)
 
 bool CWorkerThread::restartWorker(void* p)
 {
+#ifdef _WINDOWS
+	return false;
+#else
 	m_bShouldRun = false;
-	if (true == m_pTthread->joinable())
+	if (true == m_pThread->joinable())
 	{
-		m_pTthread->join();
+		m_pThread->join();
 	}
-	delete m_pTthread;
-	m_pTthread = new std::thread(WorkerCyclicJob, this, p);
+	delete m_pThread;
+	m_pThread = new std::thread(WorkerCyclicJob, this, p);
+
 	return true;
+#endif
 }
 
 #ifdef _WINDOWS
@@ -278,9 +318,9 @@ bool CWorkerThread::setWindowsThreadPriority(int winPrio)
 {
 	bool b = false;
 
-	if (m_pTthread)
+	if (m_pThread)
 	{
-		if (0 != SetThreadPriority(m_pTthread->native_handle(), winPrio))
+		if (0 != SetThreadPriority(m_pThread, winPrio))
 			b = true;
 	}
 
@@ -291,8 +331,8 @@ bool CWorkerThread::setWindowsThreadPriority(int winPrio)
 
 bool CWorkerThread::setThreadPriority(const uint32_t& pri)
 {
-	auto handle = m_pTthread->native_handle();
 #ifdef _WINDOWS
+	auto handle = m_pThread;
 	BOOL bResult = SetThreadPriority(handle, translatePriority(pri));
 #else
 	int bResult = 1;
@@ -330,7 +370,11 @@ inline int CWorkerThread::translatePriority (uint32_t newPrio)
 
 void CWorkerThread::applyAffinityMask(void)
 {
-	auto handle = m_pTthread->native_handle();
+#ifdef _WINDOWS
+	auto handle = m_pThread;
+#else
+	auto handle = m_pThread->native_handle();
+#endif
 
 #ifdef _WINDOWS
 	DWORD_PTR procMask = 0, sysMask = 0, newMask = 0;
