@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "PrSDKEffect.h"
 #include "PrSDKPixelFormat.h"
@@ -24,6 +24,9 @@ constexpr int largeWindowSize = 5;
 constexpr int alg10TableSize = 65536;
 constexpr csSDK_int32 size_mem_align = CACHE_LINE;
 
+constexpr int averageArithmetic = 1;
+constexpr int averageGeometric  = 2;
+
 template<typename T>
 T MIN(T a, T b) { return ((a < b) ? a : b); }
 
@@ -45,6 +48,49 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAli
 {
 	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
+
+constexpr uint64_t magic_constant1 = 0xAAAAAAABull;
+constexpr uint64_t magic_constant2 = 0x38E38E39ull;
+constexpr uint64_t magic_constant3 = 0x147AE148ull;
+
+constexpr static inline uint32_t div_by3 (const uint32_t& divideMe)
+{
+	return (uint32_t)((magic_constant1 * divideMe) >> 33);
+}
+
+constexpr static inline uint32_t div_by9 (const uint32_t& divideMe)
+{
+	return (uint32_t)((magic_constant2 * divideMe) >> 33);
+}
+
+constexpr static inline uint32_t div_by25(const uint32_t& divideMe)
+{
+	return (uint32_t)((magic_constant3 * divideMe) >> 33);
+}
+
+
+// This is a fast approximation to log2()
+static inline float fast_log2f (const float& X)
+{
+	int E;
+	float F = frexpf(fabsf(X), &E);
+	float Y = 1.23149591368684f;
+	Y *= F;
+	Y += -4.11852516267426f;
+	Y *= F;
+	Y += 6.02197014179219f;
+	Y *= F;
+	Y += -3.13396450166353f;
+	Y += E;
+	return(Y);
+}
+
+//log10f is exactly log2(x)/log2(10.0f)
+static inline float fast_log10f (const float& x)
+{
+	return fast_log2f(x) * 0.3010299956639812f;
+}
+
 
 
 typedef struct filterParams
@@ -72,3 +118,24 @@ void init_1og10_table(float* pTable, int table_size);
 float* allocate_aligned_log_table(const VideoHandle& theData, filterParamsH filtersParam);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData);
+
+bool average_filter_BGRA4444_8u_averageArithmetic
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool average_filter_BGRA4444_8u_averageGeometric
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const float*  __restrict fLog10Tbl,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);

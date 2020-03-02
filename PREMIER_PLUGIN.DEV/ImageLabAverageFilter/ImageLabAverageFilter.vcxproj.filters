@@ -21,6 +21,12 @@
     <ClCompile Include="src\ImageLabAverageFilter.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AverageArithmetic.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AverageGeometric.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabAverageFilter.h">
@@ -28,13 +34,13 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="AverageFilter.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="AverageFilter.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="AverageFilter.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
