@@ -1,5 +1,5 @@
 ﻿#include "ImageLabAverageFilter.h"
-#include <math.h>
+//#include <math.h>
 
 
 void init_1og10_table(float* pTable, int table_size)

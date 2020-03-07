@@ -73,7 +73,7 @@ constexpr static inline uint32_t div_by25(const uint32_t& divideMe)
 static inline float fast_log2f (const float& X)
 {
 	int E;
-	float F = frexpf(fabsf(X), &E);
+	const float F = frexpf(fabsf(X), &E);
 	float Y = 1.23149591368684f;
 	Y *= F;
 	Y += -4.11852516267426f;
@@ -85,7 +85,6 @@ static inline float fast_log2f (const float& X)
 	return(Y);
 }
 
-//log10f is exactly log2(x)/log2(10.0f)
 static inline float fast_log10f (const float& x)
 {
 	return fast_log2f(x) * 0.3010299956639812f;
