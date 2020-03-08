@@ -1,6 +1,4 @@
 ﻿#include "ImageLabAverageFilter.h"
-//#include <math.h>
-
 
 void init_1og10_table(float* pTable, int table_size)
 {
@@ -8,7 +6,7 @@ void init_1og10_table(float* pTable, int table_size)
 	for (int i = 0; i < table_size; i++)
 	{
 		const float& ii = static_cast<const float>(i + 1);
-		pTable[i] = fast_log10f(ii);// log10f(static_cast<float>(i + 1));
+		pTable[i] = fast_log10f(ii);
 	}
 	return;
 }
@@ -149,6 +147,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 // ImageLabHDR filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+
 	filterParamsH	paramsH = nullptr;
 	csSDK_int32		errCode = fsNoErr;
 

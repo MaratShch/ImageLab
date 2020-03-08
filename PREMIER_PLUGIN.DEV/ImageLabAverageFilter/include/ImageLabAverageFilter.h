@@ -91,6 +91,19 @@ static inline float fast_log10f (const float& x)
 }
 
 
+static inline double fast_pow (const double&& a, const double&& b)
+{
+	union {
+		double d;
+		struct {
+			int a;
+			int b;
+		} s;
+	} u = { a };
+	u.s.b = (int)(b * (u.s.b - 1072632447) + 1072632447);
+	u.s.a = 0;
+	return u.d;
+}
 
 typedef struct filterParams
 {
