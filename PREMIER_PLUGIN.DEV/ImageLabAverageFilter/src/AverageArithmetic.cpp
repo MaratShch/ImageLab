@@ -11,10 +11,10 @@ bool average_filter_BGRA4444_8u_averageArithmetic
 )
 {
 	const csSDK_int32 winHalfSize = windowSize >> 1;
-	const csSDK_int32 lastLine = height - winHalfSize;
-	const csSDK_int32 lastPix = width - winHalfSize;
+	const csSDK_int32 lastLine = height - 1;
+	const csSDK_int32 lastPix = width - 1;
 
-	csSDK_int32 iIdx, jIdx;
+	csSDK_int32 iIdx, jIdx, lineIdx;
 	csSDK_int32 i, j, l, m;
 	csSDK_int32 iMin, iMax, jMin, jMax;
 	csSDK_uint32 accB, accG, accR;
@@ -22,12 +22,13 @@ bool average_filter_BGRA4444_8u_averageArithmetic
 
 	csSDK_uint32 inPix, outPix;
 
-	for (j = 0; j < lastLine; j++)
+	for (j = 0; j < height; j++)
 	{
 		jMin = j - winHalfSize;
 		jMax = j + winHalfSize;
 
-		for (i = 0; i < lastPix; i++)
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
 		{
 			iMin = i - winHalfSize;
 			iMax = i + winHalfSize;
@@ -36,11 +37,12 @@ bool average_filter_BGRA4444_8u_averageArithmetic
 
 			for (l = jMin; l <= jMax; l++) /* kernel lines */
 			{
-				jIdx = ((l <= 0) ? 0 : l) * linePitch;
+				lineIdx = MIN(lastLine, MAX(0, l));
+				jIdx = lineIdx * linePitch;
 
 				for (m = iMin; m <= iMax; m++) /* kernel rows */
 				{
-					iIdx = ((m <= 0) ? 0 : m);
+					iIdx = MIN(lastPix, MAX(0, m));
 					inPix = jIdx + iIdx;
 
 					accB += ((srcPix[inPix] & 0x000000FFu));
@@ -64,29 +66,14 @@ bool average_filter_BGRA4444_8u_averageArithmetic
 
 			outPix = j * linePitch + i;
 
-			dstPix[outPix] = (srcPix[outPix] & 0xFF000000u) |
+			dstPix[outPix] = (srcPix[outPix] & 0xFF000000u) | /* keep Alpha channel */
 				                               (newR << 16) |
 				                               (newG << 8)  |
 				                                newB;
 
-		} /* for (i = 0; i < lastPix; i++) */
-	} /* for (j = 0; j < lastLine; j++) */
+		} /* for (i = 0; i < width; i++) */
 
-	for (j = lastLine; j < height; j++)
-	{
-		jMin = j - winHalfSize;
-		jMax = j + winHalfSize;
-
-		for (i = lastPix; i < width; i++)
-		{
-			iMin = i - winHalfSize;
-			iMax = i + winHalfSize;
-
-			accB = accG = accR = 0;
-
-		}
-	}
-
+	} /* for (j = 0; j < height; j++) */
 
 	return true;
 }
