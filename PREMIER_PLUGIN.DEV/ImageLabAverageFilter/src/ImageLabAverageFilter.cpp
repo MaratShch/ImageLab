@@ -85,7 +85,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				// ============ native AP formats ============================= //
 				case PrPixelFormat_BGRA_4444_8u:
 				{
-					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<csSDK_uint32* __restrict>(srcImg);
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
 					processSucceed = ((0 != (*paramsH)->chackbox_average_type) ?
@@ -99,11 +99,18 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			case PrPixelFormat_VUYA_4444_8u_709:
 				processSucceed = process_VUYA_4444_8u_frame(theData);
 				break;
-
+#endif
 			case PrPixelFormat_BGRA_4444_16u:
-				processSucceed = process_BGRA_4444_16u_frame(theData);
-				break;
+			{
+				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
+				processSucceed = ((0 != (*paramsH)->chackbox_average_type) ?
+					average_filter_BGRA4444_16u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
+					average_filter_BGRA4444_16u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+			}
+			break;
+#if 0
 			case PrPixelFormat_BGRA_4444_32f:
 				processSucceed = process_BGRA_4444_32f_frame(theData);
 				break;
