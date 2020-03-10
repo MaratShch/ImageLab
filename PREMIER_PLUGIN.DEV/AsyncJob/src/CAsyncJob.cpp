@@ -8,7 +8,7 @@ CAsyncJob::CAsyncJob(void)
 	m_inBuffer = m_outBuffer = m_tmpBuffer = nullptr;
 	m_site = nullptr;
 	m_Algorithm = nullptr;
-#ifdef _JOB_PROFIING
+#ifdef _JOB_PROFILING
 	m_timeProfStart = m_timeProfStop = 0ull;
 #endif
 	memset(m_AlgParams, 0, sizeof(m_AlgParams));
