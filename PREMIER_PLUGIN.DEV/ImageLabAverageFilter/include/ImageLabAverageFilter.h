@@ -49,6 +49,9 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAli
 	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
+constexpr float div_on_9 = 1.0f / 9.0f;
+constexpr float div_on_25 = 1.0f / 25.0f;
+
 constexpr uint64_t magic_constant1 = 0xAAAAAAABull;
 constexpr uint64_t magic_constant2 = 0x38E38E39ull;
 constexpr uint64_t magic_constant3 = 0x147AE148ull;
@@ -108,7 +111,7 @@ static inline double fast_pow (const double&& a, const double&& b)
 typedef struct filterParams
 {
 	char checkbox_window_size; /* 3x3 if not selected or 5x5 if selected */
-	char chackbox_average_type;/* arithmetic average if not selected or geometric average if selected */
+	char checkbox_average_type;/* arithmetic average if not selected or geometric average if selected */
 	float* __restrict pLog10Table;
 	float* __restrict pLog10TableAligned;
 	size_t pLog10TableSize;
@@ -167,6 +170,67 @@ bool average_filter_BGRA4444_16u_averageGeometric
 	const csSDK_uint32* __restrict srcPix,
 	csSDK_uint32* __restrict dstPix,
 	const float*  __restrict fLog10Tbl,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool average_filter_VUYA4444_8u_averageArithmetic
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool average_filter_VUYA4444_8u_averageGeometric
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const float*  __restrict fLog10Tbl,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool average_filter_BGRA4444_32f_averageArithmetic
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool average_filter_BGRA4444_32f_averageGeometric
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool average_filter_VUYA4444_32f_averageArithmetic
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool average_filter_VUYA4444_32f_averageGeometric
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
 	const csSDK_int32& width,
 	const csSDK_int32& height,
 	const csSDK_int32& linePitch,

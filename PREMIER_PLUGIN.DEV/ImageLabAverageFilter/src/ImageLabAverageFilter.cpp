@@ -48,7 +48,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 	if (nullptr != (SPBasic = (*theData)->piSuites->utilFuncs->getSPBasicSuite()))
 	{
 		PrSDKPPixSuite*	  PPixSuite = nullptr;
-		const SPErr err = SPBasic->AcquireSuite(strPpixSuite, 1, (const void**)&PPixSuite);
+		const SPErr err = SPBasic->AcquireSuite(strPpixSuite, 1l, (const void**)&PPixSuite);
 
 		if (nullptr != PPixSuite && kSPNoError == err)
 		{
@@ -80,6 +80,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			if (nullptr == srcImg || nullptr == dstImg)
 				return fsBadFormatIndex;
 
+
 			switch (pixelFormat)
 			{
 				// ============ native AP formats ============================= //
@@ -88,38 +89,59 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-					processSucceed = ((0 != (*paramsH)->chackbox_average_type) ?
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
 						average_filter_BGRA4444_8u_averageGeometric (pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
 						average_filter_BGRA4444_8u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
 				}
 				break;
 
-#if 0
-			case PrPixelFormat_VUYA_4444_8u:
-			case PrPixelFormat_VUYA_4444_8u_709:
-				processSucceed = process_VUYA_4444_8u_frame(theData);
-				break;
-#endif
-			case PrPixelFormat_BGRA_4444_16u:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+				case PrPixelFormat_VUYA_4444_8u:
+				case PrPixelFormat_VUYA_4444_8u_709:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-				processSucceed = ((0 != (*paramsH)->chackbox_average_type) ?
-					average_filter_BGRA4444_16u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
-					average_filter_BGRA4444_16u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
-			}
-			break;
-#if 0
-			case PrPixelFormat_BGRA_4444_32f:
-				processSucceed = process_BGRA_4444_32f_frame(theData);
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_VUYA4444_8u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
+						average_filter_VUYA4444_8u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
 				break;
+
+				case PrPixelFormat_BGRA_4444_16u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_BGRA4444_16u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
+						average_filter_BGRA4444_16u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
+				break;
+
+				case PrPixelFormat_BGRA_4444_32f:
+				{
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+					float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
+
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_BGRA4444_32f_averageGeometric (pSrcPix, pDstPix, width, height, linePitch, windowSize) :
+						average_filter_BGRA4444_32f_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
+				break;
+
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
-				processSucceed = process_VUYA_4444_32f_frame(theData);
-				break;
+			{
+				const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+				float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
+				processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+					average_filter_VUYA4444_32f_averageGeometric (pSrcPix, pDstPix, width, height, linePitch, windowSize) :
+					average_filter_VUYA4444_32f_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+			}
+			break;
+#if 0
 				// ============ native AE formats ============================= //
 			case PrPixelFormat_ARGB_4444_8u:
 				processSucceed = process_ARGB_4444_8u_frame(theData);
@@ -178,7 +200,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 					break;
 
 				(*paramsH)->checkbox_window_size = 0;
-				(*paramsH)->chackbox_average_type = 0;
+				(*paramsH)->checkbox_average_type = 0;
 				(*paramsH)->pLog10TableSize = alg10TableSize;
 
 				float* alignedAddress = nullptr;

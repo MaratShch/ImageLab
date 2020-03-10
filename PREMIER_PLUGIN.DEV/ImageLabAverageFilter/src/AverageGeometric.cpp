@@ -58,15 +58,15 @@ bool average_filter_BGRA4444_8u_averageGeometric
 
 			if (smallWindowSize == windowSize)
 			{
-				accB *= 0.1111111f; /* accX = accX / 9 */
-				accG *= 0.1111111f;
-				accR *= 0.1111111f;
+				accB *= div_on_9; /* accX = accX / 9 */
+				accG *= div_on_9;
+				accR *= div_on_9;
 			}
 			else
 			{
-				accB *= 0.040f; /* accX = accX / 25 */
-				accG *= 0.040f;
-				accR *= 0.040f;
+				accB *= div_on_25; /* accX = accX / 25 */
+				accG *= div_on_25;
+				accR *= div_on_25;
 			}
 
 			const double powB = fast_pow(10.0, accB);
@@ -150,15 +150,15 @@ bool average_filter_BGRA4444_16u_averageGeometric
 
 			if (smallWindowSize == windowSize)
 			{
-				accB *= 0.1111111f; /* accX = accX / 9 */
-				accG *= 0.1111111f;
-				accR *= 0.1111111f;
+				accB *= div_on_9; /* accX = accX / 9 */
+				accG *= div_on_9;
+				accR *= div_on_9;
 			}
 			else
 			{
-				accB *= 0.040f; /* accX = accX / 25 */
-				accG *= 0.040f;
-				accR *= 0.040f;
+				accB *= div_on_25; /* accX = accX / 25 */
+				accG *= div_on_25;
+				accR *= div_on_25;
 			}
 
 			const double powB = fast_pow(10.0, accB);
@@ -173,6 +173,235 @@ bool average_filter_BGRA4444_16u_averageGeometric
 
 			dstPix[outPix] = (newG << 16) | newB;
 			dstPix[outPix + 1] = (srcPix[outPix + 1] & 0xFFFF0000u) | newR;
+
+		} /* for (i = 0; i < width; i++) */
+
+	} /* for (j = 0; j < height; j++) */
+
+	return true;
+}
+
+
+bool average_filter_VUYA4444_8u_averageGeometric
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const float*  __restrict fLog10Tbl,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+)
+{
+	const csSDK_int32 winHalfSize = windowSize >> 1;
+	const csSDK_int32 lastLine = height - 1;
+	const csSDK_int32 lastPix = width - 1;
+
+	csSDK_int32 Y, U, V;
+	csSDK_int32 iIdx, jIdx, lineIdx;
+	csSDK_int32 i, j, l, m;
+	csSDK_int32 iMin, iMax, jMin, jMax;
+	csSDK_int32 newY;
+	csSDK_uint32 inPix, outPix;
+	
+	float accY;
+
+	for (j = 0; j < height; j++)
+	{
+		jMin = j - winHalfSize;
+		jMax = j + winHalfSize;
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			iMin = i - winHalfSize;
+			iMax = i + winHalfSize;
+
+			accY = 0.0f;
+
+			for (l = jMin; l <= jMax; l++) /* kernel lines */
+			{
+				lineIdx = MIN(lastLine, MAX(0, l));
+				jIdx = lineIdx * linePitch;
+
+				for (m = iMin; m <= iMax; m++) /* kernel rows */
+				{
+					iIdx = MIN(lastPix, MAX(0, m));
+					inPix = jIdx + iIdx;
+
+					Y = ((srcPix[inPix] & 0x00FF0000u) >> 16);
+
+					accY += fLog10Tbl[Y];
+				}
+			}
+
+			accY *= ((smallWindowSize == windowSize) ? div_on_9 : div_on_25);
+			const double powR = fast_pow(10.0, accY);
+			newY = static_cast<csSDK_uint32>(powR) - 1;
+
+			outPix = j * linePitch + i;
+
+			dstPix[outPix] = (srcPix[outPix] & 0xFF00FFFFu) | /* keep Alpha and V, U channels */
+												(newY << 16);
+
+		} /* for (i = 0; i < width; i++) */
+
+	} /* for (j = 0; j < height; j++) */
+
+	return true;
+}
+
+
+bool average_filter_BGRA4444_32f_averageGeometric
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+)
+{
+	const csSDK_int32 winHalfSize = windowSize >> 1;
+	const csSDK_int32 lastLine = height - 1;
+	const csSDK_int32 lastPix = width - 1;
+
+	csSDK_int32 iIdx, jIdx, lineIdx;
+	csSDK_int32 i, j, l, m;
+	csSDK_int32 iMin, iMax, jMin, jMax;
+	float R, G, B;
+	float accB, accG, accR;
+	float newB, newG, newR;
+	csSDK_uint32 inPix, outPix;
+
+	for (j = 0; j < height; j++)
+	{
+		jMin = j - winHalfSize;
+		jMax = j + winHalfSize;
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			iMin = i - winHalfSize;
+			iMax = i + winHalfSize;
+
+			accB = accG = accR = 0.0f;
+
+			for (l = jMin; l <= jMax; l++) /* kernel lines */
+			{
+				lineIdx = MIN(lastLine, MAX(0, l));
+				jIdx = lineIdx * linePitch;
+
+				for (m = iMin; m <= iMax; m++) /* kernel rows */
+				{
+					iIdx = (MIN(lastPix, MAX(0, m))) << 2;
+					inPix = jIdx + iIdx;
+
+					B = (srcPix[inPix]);
+					G = (srcPix[inPix + 1]);
+					R = (srcPix[inPix + 2]);
+
+					accB += fast_log10f(B + 1.0f);
+					accG += fast_log10f(G + 1.0f);
+					accR += fast_log10f(R + 1.0f);
+				}
+			}
+
+			if (smallWindowSize == windowSize)
+			{
+				accB *= div_on_9; /* accX = accX / 9 */
+				accG *= div_on_9;
+				accR *= div_on_9;
+			}
+			else
+			{
+				accB *= div_on_25; /* accX = accX / 25 */
+				accG *= div_on_25;
+				accR *= div_on_25;
+			}
+
+			const double powB = fast_pow(10.0, accB);
+			const double powG = fast_pow(10.0, accG);
+			const double powR = fast_pow(10.0, accR);
+
+			newB = static_cast<float>(powB) - 1.0f;
+			newG = static_cast<float>(powG) - 1.0f;
+			newR = static_cast<float>(powR) - 1.0f;
+
+			outPix = j * linePitch + (i << 2);
+
+			dstPix[outPix]     = newB;
+			dstPix[outPix + 1] = newG;
+			dstPix[outPix + 2] = newR;
+			dstPix[outPix + 3] = srcPix[outPix + 3];
+
+		} /* for (i = 0; i < width; i++) */
+
+	} /* for (j = 0; j < height; j++) */
+
+	return true;
+}
+
+
+bool average_filter_VUYA4444_32f_averageGeometric
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+)
+{
+	const csSDK_int32 winHalfSize = windowSize >> 1;
+	const csSDK_int32 lastLine = height - 1;
+	const csSDK_int32 lastPix = width - 1;
+
+	csSDK_int32 iIdx, jIdx, lineIdx;
+	csSDK_int32 i, j, l, m;
+	csSDK_int32 iMin, iMax, jMin, jMax;
+	float Y, accY, newY;
+	csSDK_uint32 inPix, outPix;
+
+	for (j = 0; j < height; j++)
+	{
+		jMin = j - winHalfSize;
+		jMax = j + winHalfSize;
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			iMin = i - winHalfSize;
+			iMax = i + winHalfSize;
+
+			accY = 0.0f;
+
+			for (l = jMin; l <= jMax; l++) /* kernel lines */
+			{
+				lineIdx = MIN(lastLine, MAX(0, l));
+				jIdx = lineIdx * linePitch;
+
+				for (m = iMin; m <= iMax; m++) /* kernel rows */
+				{
+					iIdx = (MIN(lastPix, MAX(0, m))) << 2;
+					inPix = jIdx + iIdx;
+					Y = (srcPix[inPix + 2]);
+					accY += fast_log10f(Y + 1.0f);
+				}
+			}
+
+			accY *= ((smallWindowSize == windowSize) ? div_on_9 : div_on_25);
+
+			const double powY = fast_pow(10.0, accY);
+			newY = static_cast<float>(powY) - 1.0f;
+
+			outPix = j * linePitch + (i << 2);
+
+			/* copy ALPHA, U and V channels from source buffer */
+			dstPix[outPix]     = srcPix[outPix];
+			dstPix[outPix + 1] = srcPix[outPix + 1];
+			dstPix[outPix + 2] = newY;
+			dstPix[outPix + 3] = srcPix[outPix + 3];
 
 		} /* for (i = 0; i < width; i++) */
 
