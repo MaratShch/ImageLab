@@ -75,32 +75,32 @@ typedef struct
 {
 	size_t strSizeoF;
 	size_t parallel_streams;
-	void* pBufPoolHistogram;
-	void* pBufPoolBinary;
-	void* pBufCumSum;
-	void* pBufPoolLUT;
+	void* __restrict pBufPoolHistogram;
+	void* __restrict pBufPoolBinary;
+	void* __restrict pBufCumSum;
+	void* __restrict pBufPoolLUT;
 }ImageLAB_MemStr, *PImageLAB_MemStr, **FilterMemHandle;
 
 
 #ifndef IMAGE_LAB_HDR_STR_PARAM_INIT
 #define IMAGE_LAB_HDR_STR_PARAM_INIT(_param_str)						\
- _param_str.sliderLeft = 0;										     	\
- _param_str.sliderRight = 0;											\
+ _param_str.sliderLeft = 2;										     	\
+ _param_str.sliderRight = 2;											\
  _param_str.pMemHandler = nullptr;
 #endif
 
 #ifndef IMAGE_LAB_HDR_PSTR_PARAM_INIT
 #define IMAGE_LAB_HDR_PSTR_PARAM_INIT(_param_str_ptr)						\
- _param_str_ptr->sliderLeft = 0;											\
- _param_str_ptr->sliderRight = 0;                                           \
+ _param_str_ptr->sliderLeft = 2;											\
+ _param_str_ptr->sliderRight = 2;                                           \
  _param_str_ptr->pMemHandler = nullptr;										
 #endif
 
 
 #ifndef IMAGE_LAB_FILTER_PARAM_HANDLE_INIT
 #define IMAGE_LAB_FILTER_PARAM_HANDLE_INIT(_param_handle)					\
- (*_param_handle)->sliderLeft = 0;									        \
- (*_param_handle)->sliderRight = 0;                                         \
+ (*_param_handle)->sliderLeft = 2;									        \
+ (*_param_handle)->sliderRight = 2;                                         \
  (*_param_handle)->pMemHandler = nullptr;									
 #endif
 
@@ -110,15 +110,16 @@ typedef struct
 extern "C" {
 #endif
 	PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
-	csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
-
-	void* APIENTRY GetStreamMemory(void);
-	void* APIENTRY GetHistogramBuffer(void);
-	void* APIENTRY GetBinarizationBuffer(void);
-	void* APIENTRY GetCumSumBuffer(void);
-	void* APIENTRY GetLUTBuffer(void);
-
 #ifdef __cplusplus
 }
 #endif
+
+csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
+
+void* GetStreamMemory(void);
+void* GetHistogramBuffer(void);
+void* GetBinarizationBuffer(void);
+void* GetCumSumBuffer(void);
+void* GetLUTBuffer(void);
+
 
