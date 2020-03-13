@@ -45,6 +45,7 @@ T CLAMP_RGB10(T val) { return ((val < 0) ? 0 : (val > 0x3FF) ? 0x3FF : val); }
 template<typename T>
 T CLAMP_RGB16(T val) { return ((val < 0) ? 0 : (val > 0xFFFF) ? 0xFFFF : val); }
 
+constexpr csSDK_int32 defaultWindowSize = 3;
 
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
@@ -57,21 +58,85 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 }
 #endif
 
-void initSepiaYuvTmpMatrix(void);
-
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(VideoHandle theData);
 
-bool processSepiaBGRA4444_8u_slice  (VideoHandle theData);
-bool processSepiaBGRA4444_16u_slice (VideoHandle theData);
-bool processSepiaBGRA4444_32f_slice (VideoHandle theData);
-bool processSepiaRGB444_10u_slice   (VideoHandle theData);
+bool dilation_BGRA_4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
 
-bool processSepiaVUYA4444_8u_BT601_slice (VideoHandle theData);
-bool processSepiaVUYA4444_8u_BT709_slice (VideoHandle theData);
-bool processSepiaVUYA4444_32f_BT601_slice(VideoHandle theData);
-bool processSepiaVUYA4444_32f_BT709_slice(VideoHandle theData);
+bool dilation_VUYA_4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
 
-bool processSepiaARGB4444_8u_slice(VideoHandle theData);
-bool processSepiaARGB4444_16u_slice (VideoHandle theData);
-bool processSepiaARGB4444_32f_slice (VideoHandle theData);
+bool dilation_BGRA_4444_16u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool dilation_BGRA_4444_32f
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool dilation_VUYA_4444_32f
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool dilation_ARGB_4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool dilation_ARGB_4444_16u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
+
+bool dilation_ARGB_4444_32f
+(
+	const float* __restrict srcPix,
+	float* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);
