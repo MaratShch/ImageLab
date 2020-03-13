@@ -23,11 +23,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Dilation.r">
-      <Filter>resources</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="Dilation.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
@@ -36,5 +31,10 @@
     <ClInclude Include="include\AdobeImageLabDilation.h">
       <Filter>include</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Dilation.r">
+      <Filter>resources</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

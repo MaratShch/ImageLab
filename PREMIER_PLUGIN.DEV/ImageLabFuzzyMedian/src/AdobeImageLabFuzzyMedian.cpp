@@ -134,6 +134,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 				break;
 			}
 
+			SPBasic->ReleaseSuite(strPpixSuite, 1);
 			errCode = (true == processSucceed) ? fsNoErr : errCode;
 		}
 	}

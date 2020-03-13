@@ -15,11 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Erosion.r">
-      <Filter>resources</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="Erosion.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
@@ -36,5 +31,10 @@
     <ClInclude Include="include\AdobeImageLabErosion.h">
       <Filter>include</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Erosion.r">
+      <Filter>resources</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
