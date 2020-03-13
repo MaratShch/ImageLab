@@ -140,3 +140,13 @@ bool dilation_ARGB_4444_32f
 	const csSDK_int32& linePitch,
 	const csSDK_int32& windowSize
 );
+
+bool dilation_RGB_444_10u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+);

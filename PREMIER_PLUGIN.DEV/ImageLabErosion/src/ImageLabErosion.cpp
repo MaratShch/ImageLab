@@ -531,6 +531,71 @@ bool erosion_ARGB_4444_32f
 }
 
 
+bool erosion_RGB_444_10u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+)
+{
+	const csSDK_int32 winHalfSize = windowSize >> 1;
+	const csSDK_int32 lastLine = height - 1;
+	const csSDK_int32 lastPix = width - 1;
+
+	csSDK_int32 iIdx, jIdx, lineIdx;
+	csSDK_int32 i, j, l, m;
+	csSDK_int32 iMin, iMax, jMin, jMax;
+	csSDK_uint16 B, G, R;
+	csSDK_uint16 newB, newG, newR;
+	csSDK_uint32 inPix, outPix;
+
+	for (j = 0; j < height; j++)
+	{
+		jMin = j - winHalfSize;
+		jMax = j + winHalfSize;
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			iMin = i - winHalfSize;
+			iMax = i + winHalfSize;
+
+			newB = newG = newR = 0u;
+
+			for (l = jMin; l <= jMax; l++) /* kernel lines */
+			{
+				lineIdx = MIN(lastLine, MAX(0, l));
+				jIdx = lineIdx * linePitch;
+
+				for (m = iMin; m <= iMax; m++) /* kernel rows */
+				{
+					iIdx = MIN(lastPix, MAX(0, m));
+					inPix = jIdx + iIdx;
+
+					B = ((srcPix[inPix] & 0x00000FFCu) >> 2);
+					G = ((srcPix[inPix] & 0x003FF000u) >> 12);
+					R = ((srcPix[inPix] & 0xFFC00000u) >> 22);
+
+					newB = MAX(newB, B);
+					newG = MAX(newG, G);
+					newR = MAX(newR, R);
+				}
+			}
+
+			outPix = j * linePitch + i;
+			dstPix[outPix] = (newB << 2) | (newG << 12) | (newR << 22);
+
+		} /* for (i = 0; i < width; i++) */
+
+	} /* for (j = 0; j < height; j++) */
+
+	return true;
+}
+
+
 csSDK_int32 selectProcessFunction(VideoHandle theData)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
@@ -643,6 +708,15 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 					float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
 					processSucceed = erosion_ARGB_4444_32f (pSrcPix, pDstPix, width, height, linePitch, defaultWindowSize);
+				}
+				break;
+
+				case PrPixelFormat_RGB_444_10u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					processSucceed = erosion_RGB_444_10u (pSrcPix, pDstPix, width, height, linePitch, defaultWindowSize);
 				}
 				break;
 
