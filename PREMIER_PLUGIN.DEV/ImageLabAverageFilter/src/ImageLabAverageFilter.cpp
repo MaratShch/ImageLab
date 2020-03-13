@@ -130,61 +130,66 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				break;
 
 
-			case PrPixelFormat_VUYA_4444_32f:
-			case PrPixelFormat_VUYA_4444_32f_709:
-			{
-				const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
-				float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
+				case PrPixelFormat_VUYA_4444_32f:
+				case PrPixelFormat_VUYA_4444_32f_709:
+				{
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+					float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
-				processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
-					average_filter_VUYA4444_32f_averageGeometric (pSrcPix, pDstPix, width, height, linePitch, windowSize) :
-					average_filter_VUYA4444_32f_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
-			}
-			break;
-
-				// ============ native AE formats ============================= //
-			case PrPixelFormat_ARGB_4444_8u:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
-
-				processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
-					average_filter_ARGB4444_8u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
-					average_filter_ARGB4444_8u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
-			}
-			break;
-
-			case PrPixelFormat_ARGB_4444_16u:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
-
-				processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
-					average_filter_ARGB4444_16u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
-					average_filter_ARGB4444_16u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
-			}
-			break;
-
-
-			case PrPixelFormat_ARGB_4444_32f:
-			{
-				const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
-				float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
-
-				processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
-					average_filter_ARGB4444_32f_averageGeometric(pSrcPix, pDstPix, width, height, linePitch, windowSize) :
-					average_filter_ARGB4444_32f_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
-			}
-			break;
-
-#if 0
-				// =========== miscellanous formats =========================== //
-			case PrPixelFormat_RGB_444_10u:
-				processSucceed = process_RGB_444_10u_frame(theData);
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_VUYA4444_32f_averageGeometric (pSrcPix, pDstPix, width, height, linePitch, windowSize) :
+						average_filter_VUYA4444_32f_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
 				break;
-#endif
-			default:
-				processSucceed = false;
+
+					// ============ native AE formats ============================= //
+				case PrPixelFormat_ARGB_4444_8u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_ARGB4444_8u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
+						average_filter_ARGB4444_8u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
+				break;
+
+				case PrPixelFormat_ARGB_4444_16u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_ARGB4444_16u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
+						average_filter_ARGB4444_16u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
+				break;
+
+				case PrPixelFormat_ARGB_4444_32f:
+				{
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+					float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
+
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_ARGB4444_32f_averageGeometric(pSrcPix, pDstPix, width, height, linePitch, windowSize) :
+						average_filter_ARGB4444_32f_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
+				break;
+
+				// =========== miscellanous formats =========================== //
+				case PrPixelFormat_RGB_444_10u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					processSucceed = ((0 != (*paramsH)->checkbox_average_type) ?
+						average_filter_RGB444_10u_averageGeometric(pSrcPix, pDstPix, fLogTbl, width, height, linePitch, windowSize) :
+						average_filter_RGB444_10u_averageArithmetic(pSrcPix, pDstPix, width, height, linePitch, windowSize));
+				}
+				break;
+
+				default:
+					processSucceed = false;
 				break;
 			}
 

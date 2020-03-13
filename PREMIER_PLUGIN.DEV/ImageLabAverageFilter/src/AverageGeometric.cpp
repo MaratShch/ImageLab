@@ -503,6 +503,94 @@ bool average_filter_ARGB4444_8u_averageGeometric
 }
 
 
+bool average_filter_RGB444_10u_averageGeometric
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32* __restrict dstPix,
+	const float*  __restrict fLog10Tbl,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int32& windowSize
+)
+{
+	const csSDK_int32 winHalfSize = windowSize >> 1;
+	const csSDK_int32 lastLine = height - 1;
+	const csSDK_int32 lastPix = width - 1;
+
+	csSDK_uint32 R, G, B;
+	csSDK_int32 iIdx, jIdx, lineIdx;
+	csSDK_int32 i, j, l, m;
+	csSDK_int32 iMin, iMax, jMin, jMax;
+	float accB, accG, accR;
+	csSDK_uint32 newB, newG, newR;
+	csSDK_uint32 inPix, outPix;
+
+	for (j = 0; j < height; j++)
+	{
+		jMin = j - winHalfSize;
+		jMax = j + winHalfSize;
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			iMin = i - winHalfSize;
+			iMax = i + winHalfSize;
+
+			accB = accG = accR = 0.0f;
+
+			for (l = jMin; l <= jMax; l++) /* kernel lines */
+			{
+				lineIdx = MIN(lastLine, MAX(0, l));
+				jIdx = lineIdx * linePitch;
+
+				for (m = iMin; m <= iMax; m++) /* kernel rows */
+				{
+					iIdx = MIN(lastPix, MAX(0, m));
+					inPix = jIdx + iIdx;
+
+					B = ((srcPix[inPix] & 0x00000FFCu) >> 2);
+					G = ((srcPix[inPix] & 0x003FF000u) >> 12);
+					R = ((srcPix[inPix] & 0xFFC00000u) >> 22);
+
+					accB += fLog10Tbl[B];
+					accG += fLog10Tbl[G];
+					accR += fLog10Tbl[R];
+				}
+			}
+
+			if (smallWindowSize == windowSize)
+			{
+				accB *= div_on_9;
+				accG *= div_on_9;
+				accR *= div_on_9; /* accX = accX / 9 */
+			}
+			else
+			{
+				accB *= div_on_25;
+				accG *= div_on_25;
+				accR *= div_on_25; /* accX = accX / 25 */
+			}
+
+			const double powB = fast_pow(10.0, accB);
+			const double powG = fast_pow(10.0, accG);
+			const double powR = fast_pow(10.0, accR);
+
+			newB = static_cast<csSDK_uint32>(powB) - 1;
+			newG = static_cast<csSDK_uint32>(powG) - 1;
+			newR = static_cast<csSDK_uint32>(powR) - 1;
+
+			outPix = j * linePitch + i;
+			dstPix[outPix] = (newB << 2) | (newG << 12) | (newR << 22);
+
+		} /* for (i = 0; i < width; i++) */
+
+	} /* for (j = 0; j < height; j++) */
+
+	return true;
+}
+
+
 bool average_filter_ARGB4444_16u_averageGeometric
 (
 	const csSDK_uint32* __restrict srcPix,
