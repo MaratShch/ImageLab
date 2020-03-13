@@ -32,12 +32,12 @@ inline void horizontal_flip
 	T* pDst;
 	csSDK_int32 i, j, k;
 
+	__VECTOR_ALIGNED__
 	for (j = 0; j < height; j++)
 	{
 		pSrc = &srcPix[j * linePitch];
 		pDst = &dstPix[j * linePitch];
 
-		__VECTOR_ALIGNED__
 		for (i = 0, k = width-1; i < width; i++, k--)
 		{
 			pDst[i] = pSrc[k];
@@ -60,7 +60,7 @@ inline void vertical_flip
 	__VECTOR_ALIGNED__
 	for (j = 0, k = height - 1; j < height; j++, k--)
 	{
-		memcpy(&dstPix[k*linePitch], &srcPix[j*linePitch], width * sizeof(csSDK_uint32));
+		memcpy(&dstPix[k*linePitch], &srcPix[j*linePitch], width * sizeof(T));
 	}
 	return;
 }
