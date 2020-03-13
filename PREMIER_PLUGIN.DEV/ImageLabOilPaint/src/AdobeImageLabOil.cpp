@@ -182,6 +182,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsDisposeData:
+			(*theData)->piSuites->memFuncs->disposeHandle((*theData)->specsHandle);
 		break;
 
 		case fsCanHandlePAR:

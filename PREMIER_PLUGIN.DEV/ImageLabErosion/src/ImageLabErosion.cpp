@@ -753,9 +753,6 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			errCode = selectProcessFunction(theData);
 		break;
 
-		case fsDisposeData:
-		break;
-
 		case fsCanHandlePAR:
 			errCode = prEffectCanHandlePAR;
 		break;

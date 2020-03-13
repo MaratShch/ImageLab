@@ -129,8 +129,10 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 }
 #endif
 
-void init_1og10_table(float* pTable, int table_size);
-float* allocate_aligned_log_table(const VideoHandle& theData, filterParamsH filtersParam);
+void init_1og10_table (float* pTable, int table_size);
+float* allocate_aligned_log_table (const VideoHandle& theData, filterParamsH filtersParam);
+void free_aligned_log_table (filterParamsH filtersParam);
+
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData);
 

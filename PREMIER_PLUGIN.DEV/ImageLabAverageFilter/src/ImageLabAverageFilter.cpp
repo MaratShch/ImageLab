@@ -36,6 +36,23 @@ float* allocate_aligned_log_table(const VideoHandle& theData, filterParamsH filt
 }
 
 
+void free_aligned_log_table (filterParamsH filtersParam)
+{
+	if (nullptr != filtersParam)
+	{
+		float* pTable = (*filtersParam)->pLog10Table;
+		if (nullptr != pTable)
+		{
+			free(pTable);
+			pTable = nullptr;
+			(*filtersParam)->pLog10Table = (*filtersParam)->pLog10TableAligned = nullptr;
+			(*filtersParam)->pLog10TableSize = 0;
+		}
+	}
+	return;
+}
+
+
 csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
@@ -254,6 +271,11 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsDisposeData:
+			free_aligned_log_table (reinterpret_cast<filterParamsH>((*theData)->specsHandle));
+			(*theData)->piSuites->memFuncs->disposeHandle((*theData)->specsHandle);
+			(*theData)->specsHandle = nullptr;
+		break;
+
 		break;
 
 		case fsCanHandlePAR:
