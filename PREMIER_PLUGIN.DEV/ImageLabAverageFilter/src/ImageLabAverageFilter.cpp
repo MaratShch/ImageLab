@@ -56,6 +56,7 @@ void free_aligned_log_table (filterParamsH filtersParam)
 csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
 	static constexpr char* strPpixSuite = "Premiere PPix Suite";
+	static constexpr long  siteVersion = 1l;
 	SPBasicSuite*		   SPBasic = nullptr;
 	filterParamsH		   paramsH = nullptr;
 	csSDK_int32 errCode = fsBadFormatIndex;
@@ -65,7 +66,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 	if (nullptr != (SPBasic = (*theData)->piSuites->utilFuncs->getSPBasicSuite()))
 	{
 		PrSDKPPixSuite*	  PPixSuite = nullptr;
-		const SPErr err = SPBasic->AcquireSuite(strPpixSuite, 1l, (const void**)&PPixSuite);
+		const SPErr err = SPBasic->AcquireSuite(strPpixSuite, siteVersion, (const void**)&PPixSuite);
 
 		if (nullptr != PPixSuite && kSPNoError == err)
 		{
@@ -210,7 +211,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				break;
 			}
 
-			SPBasic->ReleaseSuite(strPpixSuite, 1);
+			SPBasic->ReleaseSuite(strPpixSuite, siteVersion);
 			errCode = (true == processSucceed) ? fsNoErr : errCode;
 		}
 	}
