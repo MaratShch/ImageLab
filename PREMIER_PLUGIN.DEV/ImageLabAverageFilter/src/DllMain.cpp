@@ -3,9 +3,9 @@
 #include <tchar.h>
 #include "ImageLabAverageFilter.h"
 
-static float* __restrict fLogTable;
+static float* fLogTable = nullptr;
 
-inline void init_1og10_table(float* pTable, int table_size)
+inline void init_log10_table (float* pTable, const int& table_size)
 {
 	__VECTOR_ALIGNED__
 	for (int i = 0; i < table_size; i++)
@@ -17,12 +17,16 @@ inline void init_1og10_table(float* pTable, int table_size)
 }
 
 
-inline float* alocate_log10_table(const int& table_size)
+inline float* alocate_log10_table (const int& table_size)
 {
-	if (0 >= table_size)
-		return nullptr;
-
-	return reinterpret_cast<float*>(_aligned_malloc(static_cast<size_t>(table_size), static_cast<size_t>(size_mem_align)));
+	const size_t bytesSyze = table_size * sizeof(float);
+	const size_t alignment = static_cast<size_t>(size_mem_align);
+	void* ptr = _aligned_malloc (bytesSyze, alignment);
+	if (nullptr != ptr)
+	{
+		fLogTable = reinterpret_cast<float*>(ptr);
+	}
+	return fLogTable;
 }
 
 
@@ -38,9 +42,10 @@ inline void free_log10_table (float* fLogTbl)
 }
 
 
-const float* get_log10_table_ptr(void)
+const float* get_log10_table_ptr (void)
 {
-	return fLogTable;
+	const float* ptr = fLogTable;
+	return ptr;
 }
 
 
@@ -52,7 +57,7 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 			fLogTable = alocate_log10_table (alg10TableSize);
 			if (nullptr != fLogTable)
 			{
-				init_1og10_table (fLogTable, alg10TableSize);
+				init_log10_table (fLogTable, alg10TableSize);
 			}
 		break;
 

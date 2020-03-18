@@ -122,13 +122,14 @@ typedef struct filterParams
 extern "C" {
 #endif
 
+BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
 PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 
 #ifdef __cplusplus
 }
 #endif
 
-inline void init_1og10_table (float* pTable, int table_size);
+inline void init_log10_table (float* pTable, const int& table_size);
 inline float* alocate_log10_table (const int& table_size);
 inline void  free_log10_table (float* fPtr);
 const float* get_log10_table_ptr (void);
