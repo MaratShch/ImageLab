@@ -1,57 +1,5 @@
 ﻿#include "ImageLabAverageFilter.h"
 
-void init_1og10_table(float* pTable, int table_size)
-{
-	__VECTOR_ALIGNED__
-	for (int i = 0; i < table_size; i++)
-	{
-		const float& ii = static_cast<const float>(i + 1);
-		pTable[i] = fast_log10f(ii);
-	}
-	return;
-}
-
-
-float* allocate_aligned_log_table(const VideoHandle& theData, filterParamsH filtersParam)
-{
-	float* fAlignedAddress = nullptr;
-	const int pLog10TableBytesSize = (*filtersParam)->pLog10TableSize * sizeof(float);
-
-	if (0 != pLog10TableBytesSize)
-	{
-		const int totalMemSize = pLog10TableBytesSize + size_mem_align;
-		constexpr unsigned long long alignmend = static_cast<unsigned long long>(size_mem_align);
-
-		float* fPtr = reinterpret_cast<float*>(((*theData)->piSuites->memFuncs->newPtr)(totalMemSize));
-		if (nullptr != fPtr)
-		{
-			unsigned long long aligned_address = CreateAlignment(reinterpret_cast<unsigned long long>(fPtr), alignmend);
-
-			(*filtersParam)->pLog10Table = fPtr;
-			(*filtersParam)->pLog10TableAligned = fAlignedAddress = reinterpret_cast<float* __restrict>(aligned_address);
-		}
-	}
-
-	return fAlignedAddress;
-}
-
-
-void free_aligned_log_table (filterParamsH filtersParam)
-{
-	if (nullptr != filtersParam)
-	{
-		float* pTable = (*filtersParam)->pLog10Table;
-		if (nullptr != pTable)
-		{
-			free(pTable);
-			pTable = nullptr;
-			(*filtersParam)->pLog10Table = (*filtersParam)->pLog10TableAligned = nullptr;
-			(*filtersParam)->pLog10TableSize = 0;
-		}
-	}
-	return;
-}
-
 
 csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
@@ -220,6 +168,38 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 }
 
 
+static int InitSpec (VideoHandle theData, filterParamsH paramsH)
+{
+	int	result = fsNoErr;
+	paramsH = reinterpret_cast<filterParamsH>(((*theData)->piSuites->memFuncs->newHandle)(sizeof(filterParams)));
+
+	// If specshandle allocation fails, no need to return an error.
+	// Premiere will automatically send fsSetup if specsHandle is invalid after returning
+	if (nullptr != paramsH)
+	{
+		(*paramsH)->checkbox_window_size = 0;
+		(*paramsH)->checkbox_average_type = 0;
+		(*paramsH)->pLog10TableSize = alg10TableSize;
+
+		const float* __restrict alignedAddress = get_log10_table_ptr();
+		if (nullptr != alignedAddress)
+		{
+			(*paramsH)->pLog10TableAligned = alignedAddress;
+			(*paramsH)->pLog10TableSize = static_cast<size_t>(alg10TableSize);
+			(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
+		}
+		else
+		{
+			(*paramsH)->pLog10TableAligned = nullptr;
+			(*paramsH)->pLog10TableSize = 0;
+			((*theData)->piSuites->memFuncs->disposeHandle)(reinterpret_cast<char**>(paramsH));
+			(*theData)->specsHandle = nullptr;
+		}
+	}
+	return result;
+}
+
+
 // ImageLabHDR filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
@@ -232,37 +212,10 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 	switch (selector)
 	{
 		case fsInitSpec:
-			if ((*theData)->specsHandle)
-			{
-				// In a filter that has a need for a more complex setup dialog
-				// you would present your platform specific user interface here,
-				// storing results in the specsHandle (which you've allocated).
-			}
-			else
-			{
-				paramsH = reinterpret_cast<filterParamsH>(((*theData)->piSuites->memFuncs->newHandle)(sizeof(filterParams)));
-
-				// Memory allocation failed, no need to continue
-				if (nullptr == paramsH)
-					break;
-
-				(*paramsH)->checkbox_window_size = 0;
-				(*paramsH)->checkbox_average_type = 0;
-				(*paramsH)->pLog10TableSize = alg10TableSize;
-
-				float* alignedAddress = nullptr;
-				if (nullptr != (alignedAddress = allocate_aligned_log_table(theData, paramsH)))
-				{
-					init_1og10_table(alignedAddress, alg10TableSize);
-					(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
-				}
-				else
-				{
-					((*theData)->piSuites->memFuncs->disposeHandle)(reinterpret_cast<char**>(paramsH));
-					(*theData)->specsHandle = nullptr;
-				}
-			}
-			break;
+			// Silent setup called when filter is first applied to clip
+			// Filter parameters initialized to default values
+			errCode = InitSpec(theData, paramsH);
+		break;
 
 		case fsSetup:
 		break;
@@ -272,7 +225,6 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsDisposeData:
-			free_aligned_log_table (reinterpret_cast<filterParamsH>((*theData)->specsHandle));
 			(*theData)->piSuites->memFuncs->disposeHandle((*theData)->specsHandle);
 			(*theData)->specsHandle = nullptr;
 		break;

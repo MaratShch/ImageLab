@@ -129,6 +129,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\ImageLabColorCorrectionHSL.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
   </ItemGroup>

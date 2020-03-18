@@ -22,7 +22,7 @@
 constexpr int smallWindowSize = 3;
 constexpr int largeWindowSize = 5;
 constexpr int alg10TableSize = 65536;
-constexpr csSDK_int32 size_mem_align = CACHE_LINE;
+constexpr int size_mem_align = CACHE_LINE;
 
 constexpr int averageArithmetic = 1;
 constexpr int averageGeometric  = 2;
@@ -112,8 +112,7 @@ typedef struct filterParams
 {
 	char checkbox_window_size; /* 3x3 if not selected or 5x5 if selected */
 	char checkbox_average_type;/* arithmetic average if not selected or geometric average if selected */
-	float* __restrict pLog10Table;
-	float* __restrict pLog10TableAligned;
+	const float* __restrict pLog10TableAligned;
 	size_t pLog10TableSize;
 } filterParams, *filterParamsP, **filterParamsH;
 
@@ -129,9 +128,11 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 }
 #endif
 
-void init_1og10_table (float* pTable, int table_size);
-float* allocate_aligned_log_table (const VideoHandle& theData, filterParamsH filtersParam);
-void free_aligned_log_table (filterParamsH filtersParam);
+inline void init_1og10_table (float* pTable, int table_size);
+inline float* alocate_log10_table (const int& table_size);
+inline void  free_log10_table (float* fPtr);
+const float* get_log10_table_ptr (void);
+
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData);

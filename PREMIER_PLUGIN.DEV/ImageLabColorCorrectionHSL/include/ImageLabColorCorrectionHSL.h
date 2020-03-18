@@ -7,7 +7,8 @@
 #include "PrSDKSequenceInfoSuite.h"
 #include "SDK_File.h"
 
-#define CACHE_LINE  64
+#define CACHE_LINE		64
+#define CPU_PAGE_SIZE	4096
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
 #define AVX2_ALIGN __declspec(align(32))
@@ -25,17 +26,29 @@ T MIN(T a, T b) { return ((a < b) ? a : b); }
 template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
+template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
+{
+	return (x > 0) ? ((x + a - 1) / a * a) : a;
+}
+
+typedef struct filterMemoryHandle
+{
+	size_t tmpBufferSize;
+	size_t tmpBufferSizeBytes;
+	void*  tmpBufferPtr;
+	void*  __restrict tmpBufferAlignedPtr;
+}filterMemoryHandle;
 
 typedef struct filterParams
 {
-	char checkbox_reflect_horizontal;
-	char checkbox_reflect_vertical;
+	float hue_corse_level; /* from 0 till 359 degrees		*/
+	float hue_fine_level;  /* from -5.0 till + 5.0 degrees	*/
+	float saturation_level;/* from -100.0 till 100.0 */
+	float luminance_level; /* from -100.0 till 100.0 */
+	csSDK_uint8 compute_precise; /* 0 - fast model, !0 - precise model  */
+	filterMemoryHandle tmpMem;
 } filterParams, *filterParamsP, **filterParamsH;
-
-constexpr csSDK_int32 reflectNo = 0;
-constexpr csSDK_int32 reflectHorizontal = 1;
-constexpr csSDK_int32 reflectVertical = 2;
-constexpr csSDK_int32 reflectBothDirections = 3;
 
 
 // Declare plug-in entry point with C linkage
@@ -49,16 +62,8 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 }
 #endif
 
+bool allocate_aligned_buffer(const VideoHandle& theData, filterParamsH filtersParam, const size_t& newSize);
+
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData);
 
-template <typename T>
-bool reflect_image
-(
-	T* __restrict srcPix,
-	T* __restrict dstPix,
-	const csSDK_int32& width,
-	const csSDK_int32& height,
-	const csSDK_int32& linePitch,
-	const csSDK_int32& reflectDirection
-);

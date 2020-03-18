@@ -27,6 +27,9 @@
     <ClCompile Include="src\AverageGeometric.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\DllMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabAverageFilter.h">

@@ -47,7 +47,6 @@ constexpr uint32_t timeoutDefault = 1000; /* 1000 mS */
 
 
 
-
 #define CLASS_NON_COPYABLE(TypeName)            \
 TypeName(TypeName const&) = delete;             \
 TypeName& operator = (TypeName const&) = delete
@@ -55,6 +54,10 @@ TypeName& operator = (TypeName const&) = delete
 #define CLASS_NON_MOVABLE(TypeName)             \
 TypeName(TypeName &&) = delete;                 \
 TypeName& operator = (TypeName&&) = delete
+
+#ifndef _WINDOWS
+#undef _WINDOWS_LL_API
+#endif
 
 
 #ifdef _WINDOWS
