@@ -34,9 +34,7 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAli
 
 typedef struct filterMemoryHandle
 {
-	size_t tmpBufferSize;
 	size_t tmpBufferSizeBytes;
-	void*  tmpBufferPtr;
 	void*  __restrict tmpBufferAlignedPtr;
 }filterMemoryHandle;
 
@@ -47,7 +45,7 @@ typedef struct filterParams
 	float saturation_level;/* from -100.0 till 100.0 */
 	float luminance_level; /* from -100.0 till 100.0 */
 	csSDK_uint8 compute_precise; /* 0 - fast model, !0 - precise model  */
-	filterMemoryHandle tmpMem;
+	filterMemoryHandle* pTmpMem;
 } filterParams, *filterParamsP, **filterParamsH;
 
 
@@ -56,13 +54,19 @@ typedef struct filterParams
 extern "C" {
 #endif
 
+BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
 PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 
 #ifdef __cplusplus
 }
 #endif
 
-bool allocate_aligned_buffer(const VideoHandle& theData, filterParamsH filtersParam, const size_t& newSize);
+filterMemoryHandle* get_tmp_memory_handler (void);
+void* get_tmp_buffer (size_t* pBufBytesSize);
+void  set_tmp_buffer (void* __restrict pBuffer, const size_t& bufBytesSize);
+
+void* allocate_aligned_buffer (filterMemoryHandle* fTmpMemory, const size_t& newFrameSize);
+void  free_aligned_buffer (filterMemoryHandle* fTmpMemory);
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData);
