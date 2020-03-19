@@ -20,16 +20,54 @@
 #define __VECTOR_ALIGNED__
 #endif
 
-template<typename T>
-T MIN(T a, T b) { return ((a < b) ? a : b); }
+#define OFFSET_H(idx)	idx
+#define OFFSET_S(idx)	(idx+1)
+#define OFFSET_L(idx)	(idx+2)
 
 template<typename T>
-T MAX(T a, T b) { return ((a > b) ? a : b); }
+constexpr T MIN(const T& a, const T& b) { return ((a < b) ? a : b); }
 
-template <typename T>
-constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
+template<typename T>
+const T MAX(const T& a, const T& b) { return ((a > b) ? a : b); }
+
+template<typename T>
+const typename std::enable_if<std::is_floating_point<T>::value, T>::type CLAMP_H (T hue)
 {
-	return (x > 0) ? ((x + a - 1) / a * a) : a;
+	if (hue < static_cast<T>(0))
+		hue += static_cast<T>(360);
+	else if (hue >= static_cast<T>(360))
+		hue = static_cast<T>(360) - hue;
+	return hue;
+}
+
+template<typename T>
+const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_H(T hue)
+{
+	if (hue < static_cast<T>(0))
+		hue += static_cast<T>(360);
+	else if (hue >= static_cast<T>(360))
+		hue = static_cast<T>(360) - hue;
+	return hue;
+}
+
+template<typename T>
+const T CLAMP_LS(const T& ls)
+{
+	constexpr T lsMin = static_cast<T>(0);
+	constexpr T lsMax = static_cast<T>(100);
+	return MAX(lsMin, MIN(lsMax, ls));
+}
+
+template<typename T>
+const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB8(T val)
+{
+	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(255))));
+}
+
+template<typename T>
+const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB8U(T val)
+{
+	return (MIN(val, static_cast<T>(255)));
 }
 
 typedef struct filterMemoryHandle
@@ -71,3 +109,24 @@ void  free_aligned_buffer (filterMemoryHandle* fTmpMemory);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData);
 
+bool bgr_to_hsl_precise_BGRA4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	float* __restrict tmpBuf,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const float& newHue = 0.f,
+	const float& newLuminance = 0.f,
+	const float& newSaturation = 0.f
+);
+
+bool hsl_to_bgr_precise_BGRA4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	const float*  __restrict tmpBuf,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch
+);

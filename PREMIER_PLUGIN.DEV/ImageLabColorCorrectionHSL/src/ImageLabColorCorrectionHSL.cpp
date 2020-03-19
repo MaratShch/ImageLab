@@ -93,7 +93,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				return fsBadFormatIndex;
 
 			/* in case of precise model HSL channels will be computated as floating point values, in case of no-precise as int16 */
-			const csSDK_int32 tmpBufPixWidth = 3 * (('\0' != (*paramsH)->compute_precise) ? sizeof(float) : sizeof(csSDK_int16));
+			const csSDK_int32 computePrecise = ('\0' != (*paramsH)->compute_precise ? 1 : 0);
+			const csSDK_int32 tmpBufPixWidth = 3 * (computePrecise ? sizeof(float) : sizeof(csSDK_int16));
 
 			// Check temporary buffer dimensions and re-allocate if require more memory 
 			const size_t newFramePixelsSize = height * width;
@@ -118,6 +119,18 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			{
 				// ============ native AP formats ============================= //
 				case PrPixelFormat_BGRA_4444_8u:
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+					if (computePrecise)
+					{
+						float* __restrict pTmpMem = reinterpret_cast<float* __restrict>(pTmpBuffer);
+						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpMem, width, height, linePitch);
+						hsl_to_bgr_precise_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
+					}
+				}
+				break;
+
 				case PrPixelFormat_VUYA_4444_8u:
 				case PrPixelFormat_VUYA_4444_8u_709:
 				case PrPixelFormat_ARGB_4444_8u:
@@ -135,7 +148,6 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				break;
 			}
 
-			(*paramsH)->pTmpMem = nullptr;
 			SPBasic->ReleaseSuite (strPpixSuite, PpixSuiteVersion);
 			errCode = (true == processSucceed) ? fsNoErr : errCode;
 		}
@@ -175,7 +187,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				(*paramsH)->hue_fine_level   = 0.0f;
 				(*paramsH)->saturation_level = 0.0f;
 				(*paramsH)->luminance_level  = 0.0f;
-				(*paramsH)->compute_precise  = '\0';
+				(*paramsH)->compute_precise = 1;// '\0';
 				(*paramsH)->pTmpMem = nullptr;
 				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 			}
