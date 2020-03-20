@@ -1,11 +1,12 @@
 #include "ImageLabColorCorrectionHSL.h"
 
+
 template<typename T>
 inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type
-restore_rgb_channel_value (const T& t1, const T& t2, const T& t3)
+restore_rgb_channel_value(const T& t1, const T& t2, const T& t3)
 {
 	T val;
-	
+
 	if (6.0f * t3 < 1.0f)
 	{
 		val = t1 + (t2 - t1) * 6.0f * t3;
@@ -25,7 +26,6 @@ restore_rgb_channel_value (const T& t1, const T& t2, const T& t3)
 
 	return val;
 }
-
 
 bool hsl_to_bgr_precise_BGRA4444_8u
 (
@@ -54,20 +54,16 @@ bool hsl_to_bgr_precise_BGRA4444_8u
 		for (i = 0; i < width; i++)
 		{
 			/* When H between range 0 and 360, and S and L in range bewteen 0 and 100 */
-			H = tmpBuf[OFFSET_H(k)];
-			S = tmpBuf[OFFSET_S(k)];
-			L = tmpBuf[OFFSET_L(k)];
+			H = tmpBuf[OFFSET_H(k)] / 360.0f;
+			S = tmpBuf[OFFSET_S(k)] / 100.0f;
+			L = tmpBuf[OFFSET_L(k)] / 100.0f;
 
 			if (0.0f == S)
 			{
-				R = G = B = CLAMP_RGB8(static_cast<csSDK_int32>(L * 2.55f));
+				R = G = B = CLAMP_RGB8(static_cast<csSDK_int32>(L * 255.0f));
 			} /* if (0.0f == S) */ 
 			else
 			{
-				L /= 100.0f;
-				S /= 100.0f;
-				H /= 360.0f;
-
 				tmpVal2 = (L < 0.50f) ? (L * (1.0f + S)) : (L + S - (L * S));
 				tmpVal1 = 2.0f * L - tmpVal2;
 

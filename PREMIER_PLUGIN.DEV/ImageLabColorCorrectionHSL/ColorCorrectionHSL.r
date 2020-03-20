@@ -97,16 +97,16 @@ resource 'PiPL' (16000)
 			1,					// Property count - zero-based count
 			"Hue fine level",	// Parameter name
 			2,					// Parameter number - one-based count
-			ANIM_DT_FLOAT_32,		// Data type
+			ANIM_DT_FLOAT_32,	// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0,
-			0x0, // valid_min (0.0)
-			0x40340000, // 20
-			0x0, // valid_max (20.0)
-			0x0,
-			0x0, // ui_min (0.0)
-			0x40340000, // 20
-			0x0, // ui_max (20.0)
+			0xC0240000,			// valid_min -10
+			0x0,					
+			0x40240000,			// valid_max 10
+			0x0,					
+			0xC0240000,			// ui_min -10
+			0x0,					
+			0x40240000,			// ui_max 10
+			0x0,				
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif
@@ -122,16 +122,16 @@ resource 'PiPL' (16000)
 			2,					// Property count - zero-based count
 			"Saturation level",	// Parameter name
 			3,					// Parameter number - one-based count
-			ANIM_DT_FLOAT_32,		// Data type
+			ANIM_DT_FLOAT_32,	// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0,
-			0x0, // valid_min (0.0)
-			0x40340000, // 20
-			0x0, // valid_max (20.0)
-			0x0,
-			0x0, // ui_min (0.0)
-			0x40340000, // 20
-			0x0, // ui_max (20.0)
+			0xC0590000,			// valid_min -100
+			0x0,					
+			0x40590000,			// valid_max 100
+			0x0,					
+			0xC0590000,			// ui_min -100
+			0x0,					
+			0x40590000,			// ui_max 100
+			0x0,				
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif
@@ -147,16 +147,16 @@ resource 'PiPL' (16000)
 			3,					// Property count - zero-based count
 			"Luminance level",	// Parameter name
 			4,					// Parameter number - one-based count
-			ANIM_DT_FLOAT_32,		// Data type
+			ANIM_DT_FLOAT_32,	// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0,
-			0x0, // valid_min (0.0)
-			0x40340000, // 20
-			0x0, // valid_max (20.0)
-			0x0,
-			0x0, // ui_min (0.0)
-			0x40340000, // 20
-			0x0, // ui_max (20.0)
+			0xC0590000,			// valid_min -100
+			0x0,					
+			0x40590000,			// valid_max 100
+			0x0,					
+			0xC0590000,			// ui_min -100
+			0x0,					
+			0x40590000,			// ui_max 100
+			0x0,				
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif

@@ -1,5 +1,6 @@
 #include "ImageLabColorCorrectionHSL.h"
 
+
 bool bgr_to_hsl_precise_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix,
@@ -7,18 +8,19 @@ bool bgr_to_hsl_precise_BGRA4444_8u
 	const csSDK_int32& width,
 	const csSDK_int32& height,
 	const csSDK_int32& linePitch,
-	const float& newHue,
-	const float& newLuminance,
-	const float& newSaturation
+	const float& addHue,
+	const float& addLuminance,
+	const float& addSaturation
 )
 {
 	float H, S, L;
 	float R, G, B;
 	float minVal, maxVal;
-	float sumMaxMin, subMaxMin, satDiv;
+	float sumMaxMin, subMaxMin;
 	csSDK_int32 i, j, k;
 
-	for (k = j = 0; j < height; j++)
+	k = 0;
+	for (j = 0; j < height; j++)
 	{
 		const csSDK_uint32* srcLine = &srcPix[j * linePitch];
 
@@ -33,7 +35,7 @@ bool bgr_to_hsl_precise_BGRA4444_8u
 			maxVal = MAX(B, MAX(G, R));
 
 			sumMaxMin = maxVal + minVal;
-			L = sumMaxMin * 50.0f; /* luminance value in percent = 100 * (max + min) / 2 */
+			L = sumMaxMin * 50.0f; /* luminance value in percents = 100 * (max + min) / 2 */
 
 			if (maxVal == minVal)
 			{
@@ -53,9 +55,9 @@ bool bgr_to_hsl_precise_BGRA4444_8u
 					H = (60.0f * (R - G)) / subMaxMin + 240.0f;
 			}
 
-			tmpBuf[OFFSET_H(k)] = CLAMP_H (H + newHue);			/* new HUE value in degrees			*/
-			tmpBuf[OFFSET_S(k)] = CLAMP_LS(S + newSaturation);	/* new SATURATION value	in percents	*/
-			tmpBuf[OFFSET_L(k)] = CLAMP_LS(L + newLuminance);	/* new LUMINANCE value in percents	*/
+			tmpBuf[OFFSET_H(k)] = CLAMP_H (H + addHue);			/* new HUE value in degrees			*/
+			tmpBuf[OFFSET_S(k)] = CLAMP_LS(S + addSaturation);	/* new SATURATION value	in percents	*/
+			tmpBuf[OFFSET_L(k)] = CLAMP_LS(L + addLuminance);	/* new LUMINANCE value in percents	*/
 
 			k += 3;
 		}
