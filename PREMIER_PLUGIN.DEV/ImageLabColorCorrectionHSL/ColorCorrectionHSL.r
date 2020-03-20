@@ -74,13 +74,13 @@ resource 'PiPL' (16000)
 			1,					// Parameter number goes here
 			ANIM_DT_FLOAT_32,	// Put the data type here
 			ANIM_UI_ANGLE,		// UI Type
-			0xC0968000,			// valid_min (-1440.0, 4 revolutions)
+			0xC0768000,			// valid_min -360
 			0x0,					
-			0x40968000,			// valid_max (1440.0)
+			0x40768000,			// valid_max +360
 			0x0,					
-			0xC0968000,			// ui_min (-1440.0)
+			0xC0768000,			// ui_min -360
 			0x0,					
-			0x40968000,			// ui_max (1440.0)
+			0x40768000,			// ui_max +360
 			0x0,				
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
@@ -166,6 +166,7 @@ resource 'PiPL' (16000)
 			resIndependent,
 			4					// Bytes size of the param data
 		},
+
 		ANIM_ParamAtom 
 		{
 			4,					// Property count - zero-based count

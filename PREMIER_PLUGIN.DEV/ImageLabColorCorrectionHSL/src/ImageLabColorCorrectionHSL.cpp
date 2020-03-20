@@ -52,6 +52,12 @@ void* allocate_aligned_buffer (filterMemoryHandle* fTmpMemory, const size_t& new
 	return memAlignedAddress;
 }
 
+inline const float normalize_hue_wheel(const float& wheel_value)
+{
+	const float tmp = wheel_value / 360.0f;
+	const int intPart = static_cast<int>(tmp);
+	return (tmp - static_cast<float>(intPart)) * 360.0f;
+}
 
 csSDK_int32 selectProcessFunction (const VideoHandle theData)
 {
@@ -115,9 +121,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				return fsBadFormatIndex;
 
 			/* acquire setting */
-			const float newHue = (*paramsH)->hue_corse_level + (*paramsH)->hue_fine_level;
-			const float newLuminance = (*paramsH)->luminance_level;
-			const float newSaturation = (*paramsH)->saturation_level;
+			const float addHue = normalize_hue_wheel((*paramsH)->hue_corse_level) + (*paramsH)->hue_fine_level;
+			const float addLuminance = (*paramsH)->luminance_level;
+			const float addSaturation = (*paramsH)->saturation_level;
 
 			switch (pixelFormat)
 			{
@@ -129,7 +135,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					if (computePrecise)
 					{
 						float* __restrict pTmpMem = reinterpret_cast<float* __restrict>(pTmpBuffer);
-						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpMem, width, height, linePitch, newHue, newLuminance, newSaturation);
+						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpMem, width, height, linePitch, addHue, addLuminance, addSaturation);
 						hsl_to_bgr_precise_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
 					}
 					else

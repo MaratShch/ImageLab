@@ -95,6 +95,8 @@ void  set_tmp_buffer (void* __restrict pBuffer, const size_t& bufBytesSize);
 void* allocate_aligned_buffer (filterMemoryHandle* fTmpMemory, const size_t& newFrameSize);
 void  free_aligned_buffer (filterMemoryHandle* fTmpMemory);
 
+inline const float normalize_hue_wheel(const float& wheel_value);
+
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData);
 
