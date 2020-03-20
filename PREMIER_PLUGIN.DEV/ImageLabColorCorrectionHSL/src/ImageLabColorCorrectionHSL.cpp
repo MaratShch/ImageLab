@@ -114,6 +114,10 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			if (nullptr == srcImg || nullptr == dstImg || nullptr == pTmpBuffer)
 				return fsBadFormatIndex;
 
+			/* acquire setting */
+			const float newHue = (*paramsH)->hue_corse_level + (*paramsH)->hue_fine_level;
+			const float newLuminance = (*paramsH)->luminance_level;
+			const float newSaturation = (*paramsH)->saturation_level;
 
 			switch (pixelFormat)
 			{
@@ -125,8 +129,13 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					if (computePrecise)
 					{
 						float* __restrict pTmpMem = reinterpret_cast<float* __restrict>(pTmpBuffer);
-						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpMem, width, height, linePitch);
+						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpMem, width, height, linePitch, newHue, newLuminance, newSaturation);
 						hsl_to_bgr_precise_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
+					}
+					else
+					{
+						csSDK_int16* __restrict pTmpMem = reinterpret_cast<csSDK_int16* __restrict>(pTmpBuffer);
+
 					}
 				}
 				break;

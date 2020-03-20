@@ -28,33 +28,26 @@ template<typename T>
 constexpr T MIN(const T& a, const T& b) { return ((a < b) ? a : b); }
 
 template<typename T>
-const T MAX(const T& a, const T& b) { return ((a > b) ? a : b); }
+constexpr T MAX(const T& a, const T& b) { return ((a > b) ? a : b); }
 
 template<typename T>
-const typename std::enable_if<std::is_floating_point<T>::value, T>::type CLAMP_H (T hue)
+const T CLAMP_H(const T& hue)
 {
-	if (hue < static_cast<T>(0))
-		hue += static_cast<T>(360);
-	else if (hue >= static_cast<T>(360))
-		hue = static_cast<T>(360) - hue;
-	return hue;
-}
+	constexpr T hueMin{ 0 };
+	constexpr T hueMax{ 360 };
 
-template<typename T>
-const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_H(T hue)
-{
-	if (hue < static_cast<T>(0))
-		hue += static_cast<T>(360);
-	else if (hue >= static_cast<T>(360))
-		hue = static_cast<T>(360) - hue;
+	if (hue < hueMin)
+		return (hue + hueMax);
+	else if (hue >= hueMax)
+		return (hue - hueMax);
 	return hue;
 }
 
 template<typename T>
 const T CLAMP_LS(const T& ls)
 {
-	constexpr T lsMin = static_cast<T>(0);
-	constexpr T lsMax = static_cast<T>(100);
+	constexpr T lsMin{ 0 };
+	constexpr T lsMax{ 100 };
 	return MAX(lsMin, MIN(lsMax, ls));
 }
 
@@ -64,11 +57,7 @@ const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB8(T 
 	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(255))));
 }
 
-template<typename T>
-const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB8U(T val)
-{
-	return (MIN(val, static_cast<T>(255)));
-}
+
 
 typedef struct filterMemoryHandle
 {
