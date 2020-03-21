@@ -7,51 +7,19 @@ restore_rgb_channel_value(const T& t1, const T& t2, const T& t3)
 {
 	T val;
 
-	if (6.0f * t3 < 1.0f)
-	{
+	const T t3mult3 = t3 * 3.0f;
+
+	if (t3mult3 < 0.50f)
 		val = t1 + (t2 - t1) * 6.0f * t3;
-	}
-	else if (2.0f * t3 < 1.0f)
-	{
+	else if (t3mult3 < 1.50f)
 		val = t2;
-	}
-	else if (3.0f * t3 < 2.0f)
-	{
-		val = t1 + (t2 - t1) * (0.666f - t3) * 6.0f;
-	}
+	else if (t3mult3 < 2.0f)
+		val = t1 + (t2 - t1) * (0.6660f - t3) * 6.0f;
 	else
-	{
 		val = t1;
-	}
-
 	return val;
 }
 
-template<typename T>
-inline const typename std::enable_if<std::is_integral<T>::value, T>::type
-restore_rgb_channel_value(const T& t1, const T& t2, const T& t3)
-{
-	T val;
-
-	if (6 * t3 < 100)
-	{
-		val = t1 + (t2 - t1) * 6 * t3;
-	}
-	else if (2 * t3 < 100)
-	{
-		val = t2;
-	}
-	else if (3 * t3 < 200)
-	{
-		val = t1 + (t2 - t1) * (63 - t3) * 6;
-	}
-	else
-	{
-		val = t1;
-	}
-
-	return val;
-}
 
 /*
 INPUT RANGES  [floating point] -> H: 0...360  S,L : 0...100
