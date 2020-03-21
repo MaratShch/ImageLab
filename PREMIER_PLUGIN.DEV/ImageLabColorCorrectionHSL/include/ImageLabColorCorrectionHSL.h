@@ -25,13 +25,13 @@
 #define OFFSET_L(idx)	(idx+2)
 
 template<typename T>
-constexpr T MIN(const T& a, const T& b) { return ((a < b) ? a : b); }
+constexpr T MIN(const T a, const T b) { return ((a < b) ? a : b); }
 
 template<typename T>
-constexpr T MAX(const T& a, const T& b) { return ((a > b) ? a : b); }
+constexpr T MAX(const T a, const T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-const T CLAMP_H(const T& hue)
+const T CLAMP_H(const T hue)
 {
 	constexpr T hueMin{ 0 };
 	constexpr T hueMax{ 360 };
@@ -44,7 +44,7 @@ const T CLAMP_H(const T& hue)
 }
 
 template<typename T>
-const T CLAMP_LS(const T& ls)
+const T CLAMP_LS(const T ls)
 {
 	constexpr T lsMin{ 0 };
 	constexpr T lsMax{ 100 };
@@ -103,41 +103,41 @@ csSDK_int32 selectProcessFunction(const VideoHandle theData);
 bool bgr_to_hsl_precise_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix,
-	float* __restrict tmpBuf,
-	const csSDK_int32& width,
-	const csSDK_int32& height,
-	const csSDK_int32& linePitch,
-	const float& newHue = 0.f,
-	const float& newLuminance = 0.f,
-	const float& newSaturation = 0.f
+	void* __restrict tmpBuf,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float newHue = 0.f,
+	const float newLuminance = 0.f,
+	const float newSaturation = 0.f
 );
 bool hsl_to_bgr_precise_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix,
-	const float*  __restrict tmpBuf,
+	const void*  __restrict tmpBuf,
 	csSDK_uint32* __restrict dstPix,
-	const csSDK_int32& width,
-	const csSDK_int32& height,
-	const csSDK_int32& linePitch
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
 );
 
 bool bgr_to_hsl_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix,
-	csSDK_int16* __restrict tmpBuf,
-	const csSDK_int32& width,
-	const csSDK_int32& height,
-	const csSDK_int32& linePitch,
-	const csSDK_int16& addHue,
-	const csSDK_int16& addLuminance,
-	const csSDK_int16& addSaturation
+	void* __restrict tmpBuf,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const csSDK_int32 addHue,
+	const csSDK_int32 addLuminance,
+	const csSDK_int32 addSaturation
 );
 bool hsl_to_bgr_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
-	const csSDK_int16*  __restrict tmpBuf,
+	const void*  __restrict tmpBuf,
 	csSDK_uint32* __restrict dstPix,
-	const csSDK_int32& width,
-	const csSDK_int32& height,
-	const csSDK_int32& linePitch
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
 );

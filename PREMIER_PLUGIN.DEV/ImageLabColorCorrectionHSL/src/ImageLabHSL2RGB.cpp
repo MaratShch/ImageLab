@@ -30,11 +30,11 @@ restore_rgb_channel_value(const T& t1, const T& t2, const T& t3)
 bool hsl_to_bgr_precise_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
-	const float*  __restrict tmpBuf,
+	const void*  __restrict tmpBuf,
 	csSDK_uint32* __restrict dstPix,
-	const csSDK_int32& width,
-	const csSDK_int32& height,
-	const csSDK_int32& linePitch
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
 )
 {
 	float H, L, S;
@@ -45,6 +45,8 @@ bool hsl_to_bgr_precise_BGRA4444_8u
 	csSDK_int32 i, j, k;
 	constexpr float reciproc3 = 1.0f / 3.0f;
 
+	const float* __restrict pTmpBuffer = reinterpret_cast<const float* __restrict>(tmpBuf);
+
 	k = 0;
 	for (j = 0; j < height; j++)
 	{
@@ -54,9 +56,9 @@ bool hsl_to_bgr_precise_BGRA4444_8u
 		for (i = 0; i < width; i++)
 		{
 			/* When H between range 0 and 360, and S and L in range bewteen 0 and 100 */
-			H = tmpBuf[OFFSET_H(k)] / 360.0f;
-			S = tmpBuf[OFFSET_S(k)] / 100.0f;
-			L = tmpBuf[OFFSET_L(k)] / 100.0f;
+			H = pTmpBuffer[OFFSET_H(k)] / 360.0f;
+			S = pTmpBuffer[OFFSET_S(k)] / 100.0f;
+			L = pTmpBuffer[OFFSET_L(k)] / 100.0f;
 
 			if (0.0f == S)
 			{
@@ -97,10 +99,11 @@ bool hsl_to_bgr_precise_BGRA4444_8u
 }
 
 
+#if 0
 bool hsl_to_bgr_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
-	const csSDK_int16*  __restrict tmpBuf,
+	const void*  __restrict tmpBuf,
 	csSDK_uint32* __restrict dstPix,
 	const csSDK_int32& width,
 	const csSDK_int32& height,
@@ -165,3 +168,5 @@ bool hsl_to_bgr_BGRA4444_8u
 
 	return true;
 }
+
+#endif

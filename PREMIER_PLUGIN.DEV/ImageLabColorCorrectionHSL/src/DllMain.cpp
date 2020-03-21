@@ -3,7 +3,8 @@
 #include <tchar.h>
 #include "ImageLabColorCorrectionHSL.h"
 
-static filterMemoryHandle fMemHndl;
+
+static filterMemoryHandle fMemHndl{ 0 };
 
 
 filterMemoryHandle* get_tmp_memory_handler (void)
@@ -12,15 +13,14 @@ filterMemoryHandle* get_tmp_memory_handler (void)
 	return pMem;
 }
 
-
-void* get_tmp_buffer(size_t* pBufBytesSize)
+void* get_tmp_buffer (size_t* pBufBytesSize)
 {
 	if (nullptr != pBufBytesSize)
 		*pBufBytesSize = fMemHndl.tmpBufferSizeBytes;
 	return fMemHndl.tmpBufferAlignedPtr;
 }
 
-void set_tmp_buffer(void* __restrict pBuffer, const size_t& bufBytesSize)
+void set_tmp_buffer (void* __restrict pBuffer, const size_t& bufBytesSize)
 {
 	fMemHndl.tmpBufferAlignedPtr = pBuffer;
 	fMemHndl.tmpBufferSizeBytes = bufBytesSize;
@@ -33,7 +33,8 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 	switch (ul_reason_for_call)
 	{
 		case DLL_PROCESS_ATTACH:
-			memset (&fMemHndl, 0, sizeof(fMemHndl));
+			fMemHndl.tmpBufferAlignedPtr = nullptr;
+			fMemHndl.tmpBufferSizeBytes = 0;
 		break;
 
 		case DLL_THREAD_ATTACH:
@@ -44,7 +45,8 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 
 		case DLL_PROCESS_DETACH:
 			free_aligned_buffer (&fMemHndl);
-			memset (&fMemHndl, 0, sizeof(fMemHndl));
+			fMemHndl.tmpBufferAlignedPtr = nullptr;
+			fMemHndl.tmpBufferSizeBytes = 0;
 		break;
 	
 		default:

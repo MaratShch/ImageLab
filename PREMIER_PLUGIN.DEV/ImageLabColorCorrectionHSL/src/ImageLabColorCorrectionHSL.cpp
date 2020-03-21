@@ -78,6 +78,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 
 		if (nullptr != PPixSuite && kSPNoError == err)
 		{
+			PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
+			PPixSuite->GetPixelFormat((*theData)->source, &pixelFormat);
+
 			// Get the frame dimensions
 			prRect box = {};
 			((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
@@ -122,9 +125,6 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			const float addLuminance = (*paramsH)->luminance_level;
 			const float addSaturation = (*paramsH)->saturation_level;
 
-			PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
-			PPixSuite->GetPixelFormat((*theData)->source, &pixelFormat);
-
 			switch (pixelFormat)
 			{
 				// ============ native AP formats ============================= //
@@ -134,18 +134,16 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 					if (computePrecise)
 					{
-						float* __restrict pTmpMem = reinterpret_cast<float* __restrict>(pTmpBuffer);
-						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpMem, width, height, linePitch, addHue, addLuminance, addSaturation);
-						hsl_to_bgr_precise_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
+						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+						hsl_to_bgr_precise_BGRA4444_8u(src, pTmpBuffer, dst, width, height, linePitch);
 					}
 					else
 					{
-						csSDK_int16* __restrict pTmpMem = reinterpret_cast<csSDK_int16* __restrict>(pTmpBuffer);
-						bgr_to_hsl_BGRA4444_8u (src, pTmpMem, width, height, linePitch,
-							                    static_cast<csSDK_int16>(addHue),
-											    static_cast<csSDK_int16>(addLuminance),
-							                    static_cast<csSDK_int16>(addSaturation));
-						hsl_to_bgr_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
+						bgr_to_hsl_BGRA4444_8u (src, pTmpBuffer, width, height, linePitch,
+							                    static_cast<csSDK_int32>(addHue),
+											    static_cast<csSDK_int32>(addLuminance),
+							                    static_cast<csSDK_int32>(addSaturation));
+//						hsl_to_bgr_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
 					}
 				}
 				break;
@@ -174,6 +172,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 
 	return errCode;
 }
+
 
 
 // ImageLabHDR filter entry point
@@ -206,7 +205,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				(*paramsH)->hue_fine_level   = 0.0f;
 				(*paramsH)->saturation_level = 0.0f;
 				(*paramsH)->luminance_level  = 0.0f;
-				(*paramsH)->compute_precise = 1;// '\0';
+				(*paramsH)->compute_precise  = '\0';
 				(*paramsH)->pTmpMem = nullptr;
 				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 			}
