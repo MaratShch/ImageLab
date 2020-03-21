@@ -120,24 +120,3 @@ bool hsl_to_bgr_precise_BGRA4444_8u
 	const csSDK_int32 height,
 	const csSDK_int32 linePitch
 );
-
-bool bgr_to_hsl_BGRA4444_8u
-(
-	const csSDK_uint32* __restrict srcPix,
-	void* __restrict tmpBuf,
-	const csSDK_int32 width,
-	const csSDK_int32 height,
-	const csSDK_int32 linePitch,
-	const csSDK_int32 addHue,
-	const csSDK_int32 addLuminance,
-	const csSDK_int32 addSaturation
-);
-bool hsl_to_bgr_BGRA4444_8u
-(
-	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
-	const void*  __restrict tmpBuf,
-	csSDK_uint32* __restrict dstPix,
-	const csSDK_int32 width,
-	const csSDK_int32 height,
-	const csSDK_int32 linePitch
-);

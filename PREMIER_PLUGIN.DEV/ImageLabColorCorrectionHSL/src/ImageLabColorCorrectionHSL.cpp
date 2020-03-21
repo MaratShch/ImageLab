@@ -98,9 +98,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			if (nullptr == paramsH)
 				return fsBadFormatIndex;
 
-			/* in case of precise model HSL channels will be computated as floating point values, in case of no-precise as int16 */
-			const csSDK_int32 computePrecise = ('\0' != (*paramsH)->compute_precise ? 1 : 0);
-			const csSDK_int32 tmpBufPixWidth = 3 * (computePrecise ? sizeof(float) : sizeof(csSDK_int16));
+			const csSDK_int32 tmpBufPixWidth = 3 * sizeof(float);
 
 			// Check temporary buffer dimensions and re-allocate if require more memory 
 			const size_t newFramePixelsSize = height * width;
@@ -132,19 +130,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				{
 					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
-					if (computePrecise)
-					{
-						bgr_to_hsl_precise_BGRA4444_8u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
-						hsl_to_bgr_precise_BGRA4444_8u(src, pTmpBuffer, dst, width, height, linePitch);
-					}
-					else
-					{
-						bgr_to_hsl_BGRA4444_8u (src, pTmpBuffer, width, height, linePitch,
-							                    static_cast<csSDK_int32>(addHue),
-											    static_cast<csSDK_int32>(addLuminance),
-							                    static_cast<csSDK_int32>(addSaturation));
-//						hsl_to_bgr_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
-					}
+
+					bgr_to_hsl_precise_BGRA4444_8u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_BGRA4444_8u(src, pTmpBuffer, dst, width, height, linePitch);
 				}
 				break;
 
@@ -205,7 +193,6 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				(*paramsH)->hue_fine_level   = 0.0f;
 				(*paramsH)->saturation_level = 0.0f;
 				(*paramsH)->luminance_level  = 0.0f;
-				(*paramsH)->compute_precise  = '\0';
 				(*paramsH)->pTmpMem = nullptr;
 				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 			}
