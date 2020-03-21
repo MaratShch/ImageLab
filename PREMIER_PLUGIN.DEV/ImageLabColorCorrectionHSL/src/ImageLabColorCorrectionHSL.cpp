@@ -78,9 +78,6 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 
 		if (nullptr != PPixSuite && kSPNoError == err)
 		{
-			PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
-			PPixSuite->GetPixelFormat((*theData)->source, &pixelFormat);
-
 			// Get the frame dimensions
 			prRect box = {};
 			((*theData)->piSuites->ppixFuncs->ppixGetBounds)((*theData)->destination, &box);
@@ -125,6 +122,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			const float addLuminance = (*paramsH)->luminance_level;
 			const float addSaturation = (*paramsH)->saturation_level;
 
+			PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
+			PPixSuite->GetPixelFormat((*theData)->source, &pixelFormat);
+
 			switch (pixelFormat)
 			{
 				// ============ native AP formats ============================= //
@@ -141,7 +141,11 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					else
 					{
 						csSDK_int16* __restrict pTmpMem = reinterpret_cast<csSDK_int16* __restrict>(pTmpBuffer);
-
+						bgr_to_hsl_BGRA4444_8u (src, pTmpMem, width, height, linePitch,
+							                    static_cast<csSDK_int16>(addHue),
+											    static_cast<csSDK_int16>(addLuminance),
+							                    static_cast<csSDK_int16>(addSaturation));
+						hsl_to_bgr_BGRA4444_8u(src, pTmpMem, dst, width, height, linePitch);
 					}
 				}
 				break;

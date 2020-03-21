@@ -68,7 +68,7 @@ typedef struct filterMemoryHandle
 typedef struct filterParams
 {
 	float hue_corse_level; /* from 0 till 359 degrees		*/
-	float hue_fine_level;  /* from -5.0 till + 5.0 degrees	*/
+	float hue_fine_level;  /* from -10.0 till + 10.0 degrees	*/
 	float saturation_level;/* from -100.0 till 100.0 */
 	float luminance_level; /* from -100.0 till 100.0 */
 	csSDK_uint8 compute_precise; /* 0 - fast model, !0 - precise model  */
@@ -111,11 +111,31 @@ bool bgr_to_hsl_precise_BGRA4444_8u
 	const float& newLuminance = 0.f,
 	const float& newSaturation = 0.f
 );
-
 bool hsl_to_bgr_precise_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix,
 	const float*  __restrict tmpBuf,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch
+);
+
+bool bgr_to_hsl_BGRA4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_int16* __restrict tmpBuf,
+	const csSDK_int32& width,
+	const csSDK_int32& height,
+	const csSDK_int32& linePitch,
+	const csSDK_int16& addHue,
+	const csSDK_int16& addLuminance,
+	const csSDK_int16& addSaturation
+);
+bool hsl_to_bgr_BGRA4444_8u
+(
+	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const csSDK_int16*  __restrict tmpBuf,
 	csSDK_uint32* __restrict dstPix,
 	const csSDK_int32& width,
 	const csSDK_int32& height,
