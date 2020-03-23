@@ -65,7 +65,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 	constexpr long         PpixSuiteVersion = 1l;
 	SPBasicSuite*		   SPBasic = nullptr;
 	filterMemoryHandle*    pMemHndl = nullptr;
-	void*                  pTmpBuffer = nullptr;
+	float*                 pTmpBuffer = nullptr;
 	filterParamsH		   paramsH = nullptr;
 	csSDK_int32 errCode = fsBadFormatIndex;
 	bool processSucceed = true;
@@ -113,7 +113,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 
 			void* __restrict srcImg = reinterpret_cast<void* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 			void* __restrict dstImg = reinterpret_cast<void* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-			pTmpBuffer = pMemHndl->tmpBufferAlignedPtr;
+			pTmpBuffer = reinterpret_cast<float* __restrict>(pMemHndl->tmpBufferAlignedPtr);
 			
 			if (nullptr == srcImg || nullptr == dstImg || nullptr == pTmpBuffer)
 				return fsBadFormatIndex;
@@ -129,20 +129,30 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				case PrPixelFormat_BGRA_4444_8u:
 				{
 					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
 					bgr_to_hsl_precise_BGRA4444_8u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
 					hsl_to_bgr_precise_BGRA4444_8u(src, pTmpBuffer, dst, width, height, linePitch);
 				}
 				break;
 
+				case PrPixelFormat_BGRA_4444_32f:
+				{
+					const float* __restrict src = reinterpret_cast<const float* __restrict>(srcImg);
+					      float* __restrict dst = reinterpret_cast<float* __restrict>(dstImg);
+
+					bgr_to_hsl_precise_BGRA4444_32f(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_BGRA4444_32f(src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
+	
 				case PrPixelFormat_VUYA_4444_8u:
 				case PrPixelFormat_VUYA_4444_8u_709:
 				case PrPixelFormat_ARGB_4444_8u:
 				case PrPixelFormat_RGB_444_10u:
 				case PrPixelFormat_BGRA_4444_16u:
 				case PrPixelFormat_ARGB_4444_16u:
-				case PrPixelFormat_BGRA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f_709:
 				case PrPixelFormat_ARGB_4444_32f:

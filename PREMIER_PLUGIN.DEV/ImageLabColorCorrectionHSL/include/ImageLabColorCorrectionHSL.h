@@ -57,6 +57,14 @@ const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB8(T 
 	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(255))));
 }
 
+constexpr float one_minus_epsilon = 1.0f - (FLT_EPSILON);
+constexpr float zero_plus_epsilon = 0.0f + (FLT_EPSILON);
+
+template<typename T>
+const typename std::enable_if<std::is_floating_point<T>::value, T>::type CLAMP_RGB32F(T val)
+{
+	return (MAX(0.0f, MIN(val, one_minus_epsilon)));
+}
 
 
 typedef struct filterMemoryHandle
@@ -103,7 +111,7 @@ csSDK_int32 selectProcessFunction(const VideoHandle theData);
 bool bgr_to_hsl_precise_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix,
-	void* __restrict tmpBuf,
+	float* __restrict pTmpBuffer,
 	const csSDK_int32 width,
 	const csSDK_int32 height,
 	const csSDK_int32 linePitch,
@@ -114,8 +122,29 @@ bool bgr_to_hsl_precise_BGRA4444_8u
 bool hsl_to_bgr_precise_BGRA4444_8u
 (
 	const csSDK_uint32* __restrict srcPix,
-	const void*  __restrict tmpBuf,
+	const float* __restrict pTmpBuffer,
 	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool bgr_to_hsl_precise_BGRA4444_32f
+(
+	const float* __restrict srcPix,
+	float* __restrict tmpBuf,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_bgr_precise_BGRA4444_32f
+(
+	const float* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float*  __restrict tmpBuf,
+	float* __restrict dstPix,
 	const csSDK_int32 width,
 	const csSDK_int32 height,
 	const csSDK_int32 linePitch
