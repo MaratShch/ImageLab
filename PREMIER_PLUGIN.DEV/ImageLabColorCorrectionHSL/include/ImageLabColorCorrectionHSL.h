@@ -57,6 +57,12 @@ const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB8(T 
 	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(255))));
 }
 
+template<typename T>
+const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB16(T val)
+{
+	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(32768))));
+}
+
 constexpr float one_minus_epsilon = 1.0f - (FLT_EPSILON);
 constexpr float zero_plus_epsilon = 0.0f + (FLT_EPSILON);
 
@@ -145,6 +151,69 @@ bool hsl_to_bgr_precise_BGRA4444_32f
 	const float* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
 	const float*  __restrict tmpBuf,
 	float* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool bgr_to_hsl_precise_BGRA4444_16u
+(
+	const csSDK_uint32* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_bgr_precise_BGRA4444_16u
+(
+	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float* __restrict pTmpBuffer,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool bgr_to_hsl_precise_ARGB4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_bgr_precise_ARGB4444_8u
+(
+	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float*  __restrict pTmpBuffer,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool bgr_to_hsl_precise_ARGB4444_16u
+(
+	const csSDK_uint32* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_bgr_precise_ARGB4444_16u
+(
+	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float* __restrict pTmpBuffer,
+	csSDK_uint32* __restrict dstPix,
 	const csSDK_int32 width,
 	const csSDK_int32 height,
 	const csSDK_int32 linePitch

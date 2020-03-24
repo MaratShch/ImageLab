@@ -136,6 +136,16 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				}
 				break;
 
+				case PrPixelFormat_BGRA_4444_16u:
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					bgr_to_hsl_precise_BGRA4444_16u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_BGRA4444_16u(src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
 				case PrPixelFormat_BGRA_4444_32f:
 				{
 					const float* __restrict src = reinterpret_cast<const float* __restrict>(srcImg);
@@ -146,13 +156,30 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				}
 				break;
 
-	
+				// ============ native AE formats ============================= //
+				case PrPixelFormat_ARGB_4444_8u:
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					bgr_to_hsl_precise_ARGB4444_8u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_ARGB4444_8u(src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
+				case PrPixelFormat_ARGB_4444_16u:
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					bgr_to_hsl_precise_ARGB4444_16u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_ARGB4444_16u(src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
 				case PrPixelFormat_VUYA_4444_8u:
 				case PrPixelFormat_VUYA_4444_8u_709:
-				case PrPixelFormat_ARGB_4444_8u:
 				case PrPixelFormat_RGB_444_10u:
-				case PrPixelFormat_BGRA_4444_16u:
-				case PrPixelFormat_ARGB_4444_16u:
 				case PrPixelFormat_VUYA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f_709:
 				case PrPixelFormat_ARGB_4444_32f:
