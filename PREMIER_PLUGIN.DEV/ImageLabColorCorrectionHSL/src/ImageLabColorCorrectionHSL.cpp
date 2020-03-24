@@ -131,8 +131,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-					bgr_to_hsl_precise_BGRA4444_8u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
-					hsl_to_bgr_precise_BGRA4444_8u(src, pTmpBuffer, dst, width, height, linePitch);
+					bgr_to_hsl_precise_BGRA4444_8u (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_BGRA4444_8u (src, pTmpBuffer, dst, width, height, linePitch);
 				}
 				break;
 
@@ -141,8 +141,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-					bgr_to_hsl_precise_BGRA4444_16u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
-					hsl_to_bgr_precise_BGRA4444_16u(src, pTmpBuffer, dst, width, height, linePitch);
+					bgr_to_hsl_precise_BGRA4444_16u (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_BGRA4444_16u (src, pTmpBuffer, dst, width, height, linePitch);
 				}
 				break;
 
@@ -151,8 +151,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const float* __restrict src = reinterpret_cast<const float* __restrict>(srcImg);
 					      float* __restrict dst = reinterpret_cast<float* __restrict>(dstImg);
 
-					bgr_to_hsl_precise_BGRA4444_32f(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
-					hsl_to_bgr_precise_BGRA4444_32f(src, pTmpBuffer, dst, width, height, linePitch);
+					bgr_to_hsl_precise_BGRA4444_32f (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_BGRA4444_32f (src, pTmpBuffer, dst, width, height, linePitch);
 				}
 				break;
 
@@ -160,29 +160,74 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				case PrPixelFormat_ARGB_4444_8u:
 				{
 					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-					bgr_to_hsl_precise_ARGB4444_8u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
-					hsl_to_bgr_precise_ARGB4444_8u(src, pTmpBuffer, dst, width, height, linePitch);
+					bgr_to_hsl_precise_ARGB4444_8u (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_ARGB4444_8u (src, pTmpBuffer, dst, width, height, linePitch);
 				}
 				break;
 
 				case PrPixelFormat_ARGB_4444_16u:
 				{
 					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-					csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-					bgr_to_hsl_precise_ARGB4444_16u(src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
-					hsl_to_bgr_precise_ARGB4444_16u(src, pTmpBuffer, dst, width, height, linePitch);
+					bgr_to_hsl_precise_ARGB4444_16u (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_ARGB4444_16u (src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
+				case PrPixelFormat_ARGB_4444_32f:
+				{
+					const float* __restrict src = reinterpret_cast<const float* __restrict>(srcImg);
+					      float* __restrict dst = reinterpret_cast<float* __restrict>(dstImg);
+
+					bgr_to_hsl_precise_ARGB4444_32f (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_ARGB4444_32f (src, pTmpBuffer, dst, width, height, linePitch);
 				}
 				break;
 
 				case PrPixelFormat_VUYA_4444_8u:
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					yuv_to_hsl_precise_VUYA4444_8u (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_yuv_precise_VUYA4444_8u (src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
 				case PrPixelFormat_VUYA_4444_8u_709:
-				case PrPixelFormat_RGB_444_10u:
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					yuv_to_hsl_precise_VUYA4444_8u_709 (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_yuv_precise_VUYA4444_8u_709 (src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
 				case PrPixelFormat_VUYA_4444_32f:
+				{
+					const float* __restrict src = reinterpret_cast<const float* __restrict>(srcImg);
+					      float* __restrict dst = reinterpret_cast<float* __restrict>(dstImg);
+
+					yuv_to_hsl_precise_VUYA4444_32f (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_yuv_precise_VUYA4444_32f (src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
 				case PrPixelFormat_VUYA_4444_32f_709:
-				case PrPixelFormat_ARGB_4444_32f:
+				{
+					const float* __restrict src = reinterpret_cast<const float* __restrict>(srcImg);
+					      float* __restrict dst = reinterpret_cast<float* __restrict>(dstImg);
+
+					yuv_to_hsl_precise_VUYA4444_32f_709 (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_yuv_precise_VUYA4444_32f_709 (src, pTmpBuffer, dst, width, height, linePitch);
+				}
+				break;
+
+				case PrPixelFormat_RGB_444_10u:
 				break;
 
 				default:

@@ -30,6 +30,12 @@
     <ClCompile Include="src\ImageLabRGB2HSL.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabHSL2YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabYUV2HSL.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabColorCorrectionHSL.h">

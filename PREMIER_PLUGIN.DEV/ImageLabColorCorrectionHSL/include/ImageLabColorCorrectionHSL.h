@@ -52,13 +52,13 @@ const T CLAMP_LS(const T ls)
 }
 
 template<typename T>
-const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB8(T val)
+T CLAMP_RGB8(T val)
 {
 	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(255))));
 }
 
 template<typename T>
-const typename std::enable_if<std::is_integral<T>::value, T>::type CLAMP_RGB16(T val)
+T CLAMP_RGB16(T val)
 {
 	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(32768))));
 }
@@ -70,6 +70,26 @@ template<typename T>
 const typename std::enable_if<std::is_floating_point<T>::value, T>::type CLAMP_RGB32F(T val)
 {
 	return (MAX(0.0f, MIN(val, one_minus_epsilon)));
+}
+
+
+template<typename T>
+inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type
+restore_rgb_channel_value(const T& t1, const T& t2, const T& t3)
+{
+	T val;
+
+	const T t3mult3 = t3 * 3.0f;
+
+	if (t3mult3 < 0.50f)
+		val = t1 + (t2 - t1) * 6.0f * t3;
+	else if (t3mult3 < 1.50f)
+		val = t2;
+	else if (t3mult3 < 2.0f)
+		val = t1 + (t2 - t1) * (0.6660f - t3) * 6.0f;
+	else
+		val = t1;
+	return val;
 }
 
 
@@ -214,6 +234,112 @@ bool hsl_to_bgr_precise_ARGB4444_16u
 	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
 	const float* __restrict pTmpBuffer,
 	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool bgr_to_hsl_precise_ARGB4444_32f
+(
+	const float* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_bgr_precise_ARGB4444_32f
+(
+	const float* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float* __restrict pTmpBuffer,
+	float* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+
+bool yuv_to_hsl_precise_VUYA4444_8u
+(
+	const csSDK_uint32* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_yuv_precise_VUYA4444_8u
+(
+	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float*  __restrict pTmpBuffer,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool yuv_to_hsl_precise_VUYA4444_8u_709
+(
+	const csSDK_uint32* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_yuv_precise_VUYA4444_8u_709
+(
+	const csSDK_uint32* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float*  __restrict pTmpBuffer,
+	csSDK_uint32* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool yuv_to_hsl_precise_VUYA4444_32f
+(
+	const float* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_yuv_precise_VUYA4444_32f
+(
+	const float* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float*  __restrict pTmpBuffer,
+	float* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool yuv_to_hsl_precise_VUYA4444_32f_709
+(
+	const float* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_yuv_precise_VUYA4444_32f_709
+(
+	const float* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
+	const float*  __restrict pTmpBuffer,
+	float* __restrict dstPix,
 	const csSDK_int32 width,
 	const csSDK_int32 height,
 	const csSDK_int32 linePitch

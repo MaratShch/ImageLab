@@ -136,8 +136,10 @@
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\ImageLabColorCorrectionHSL.cpp" />
     <ClCompile Include="src\ImageLabHSL2RGB.cpp" />
+    <ClCompile Include="src\ImageLabHSL2YUV.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
     <ClCompile Include="src\ImageLabRGB2HSL.cpp" />
+    <ClCompile Include="src\ImageLabYUV2HSL.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabColorCorrectionHSL.h" />
