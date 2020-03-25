@@ -58,9 +58,15 @@ T CLAMP_RGB8(T val)
 }
 
 template<typename T>
+T CLAMP_RGB10(T val)
+{
+	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(1023))));
+}
+
+template<typename T>
 T CLAMP_RGB16(T val)
 {
-	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(32768))));
+	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(32767))));
 }
 
 constexpr float one_minus_epsilon = 1.0f - (FLT_EPSILON);
@@ -340,6 +346,26 @@ bool hsl_to_yuv_precise_VUYA4444_32f_709
 	const float* __restrict srcPix, /* src buffer used only for copy alpha channel values for destination */
 	const float*  __restrict pTmpBuffer,
 	float* __restrict dstPix,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch
+);
+
+bool bgr_to_hsl_precise_RGB444_10u
+(
+	const csSDK_uint32* __restrict srcPix,
+	float* __restrict pTmpBuffer,
+	const csSDK_int32 width,
+	const csSDK_int32 height,
+	const csSDK_int32 linePitch,
+	const float addHue,
+	const float addLuminance,
+	const float addSaturation
+);
+bool hsl_to_bgr_precise_RGB444_10u
+(
+	const float*  __restrict pTmpBuffer,
+	csSDK_uint32* __restrict dstPix,
 	const csSDK_int32 width,
 	const csSDK_int32 height,
 	const csSDK_int32 linePitch

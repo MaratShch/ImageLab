@@ -228,7 +228,13 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				break;
 
 				case PrPixelFormat_RGB_444_10u:
-				break;
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					      csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					bgr_to_hsl_precise_RGB444_10u (src, pTmpBuffer, width, height, linePitch, addHue, addLuminance, addSaturation);
+					hsl_to_bgr_precise_RGB444_10u (pTmpBuffer, dst, width, height, linePitch);
+				}
 
 				default:
 					processSucceed = false;
