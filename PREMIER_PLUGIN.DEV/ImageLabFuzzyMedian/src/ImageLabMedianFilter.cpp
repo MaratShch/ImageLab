@@ -190,9 +190,9 @@ bool median_filter_BGRA_4444_8u_frame(
 
 			if (padLeft)
 			{
-				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[0          ], algMem.h[0          ].coarse);
-				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[16 * stripe], algMem.h[16 * stripe].coarse);
-				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[32 * stripe], algMem.h[32 * stripe].coarse);
+				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[0          ], algMem.h[0].coarse);
+				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[16 * stripe], algMem.h[1].coarse);
+				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[32 * stripe], algMem.h[2].coarse);
 			} /* if (padLeft) */
 
 
