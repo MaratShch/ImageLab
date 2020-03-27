@@ -103,7 +103,13 @@ bool median_filter_BGRA_4444_8u_frame(
 				algMem.pCoarse[gIdx] ++;
 				algMem.pCoarse[bIdx] ++;
 
+				rIdx = 16 * (stripe *       (R >> 4)  + j) + (R & 0xF);
+				gIdx = 16 * (stripe * (16 + (G >> 4)) + j) + (G & 0xF);
+				bIdx = 16 * (stripe * (32 + (B >> 4)) + j) + (B & 0xF);
 
+				algMem.pFine[rIdx] ++;
+				algMem.pFine[gIdx] ++;
+				algMem.pFine[bIdx] ++;
 			} /* for (j = 0; j < stripe; j++) */
 
 		} /* for (i = 0; i < kernelRadius; i++) */
