@@ -2,6 +2,17 @@
 #include <assert.h> 
 
 
+template <typename T>
+static inline void histogram_muladd (const T a, const T x[16], T y[16])
+{
+	for (int i = 0; i < 16; ++i)
+	{
+		y[i] += a * x[i];
+	}
+	return;
+}
+
+
 bool median_filter_BGRA_4444_8u_frame(
 		const	csSDK_uint32* __restrict srcBuf,
 		csSDK_uint32* const   __restrict dstBuf,
@@ -15,6 +26,9 @@ bool median_filter_BGRA_4444_8u_frame(
 		return false;
 
 	CACHE_ALIGN HistElem luc[4][16];
+	csSDK_uint32* p;
+	csSDK_uint32* q;
+
 	int i, j, k;
 	csSDK_int32 rIdx, gIdx, bIdx;
  	csSDK_int16 R, G, B;
@@ -55,8 +69,6 @@ bool median_filter_BGRA_4444_8u_frame(
 		// in first cleanup memory storages from data from previous data slice
 		memset(algMem.pFine, 0, size_fine);
 		memset(algMem.pCoarse, 0, size_coarse);
-		memset(algMem.h, 0, sizeof(algMem.h));
-		memset(luc, 0, sizeof(luc));
 
 		/* PROCESS IMAGE BUFFER */
 
@@ -114,6 +126,77 @@ bool median_filter_BGRA_4444_8u_frame(
 
 		} /* for (i = 0; i < kernelRadius; i++) */
 
+		for (i = 0; i < height; i++)
+		{
+			/* Update column histograms for entire row */
+			p = const_cast<csSDK_uint32*>(srcBuf) + MAX(0, i - kernelRadius - 1);
+			q = p + stripe;
+			for (j = 0; p != q; j++, p++)
+			{
+				R = static_cast<csSDK_int16> (*p & 0x000000FFu);
+				G = static_cast<csSDK_int16>((*p & 0x0000FF00u) >> 8);
+				B = static_cast<csSDK_int16>((*p & 0x00FF0000u) >> 16);
+
+				rIdx = 16 * (             j) + (R >> 4);
+				gIdx = 16 * (stripe     + j) + (G >> 4);
+				bIdx = 16 * (stripe * 2 + j) + (B >> 4);
+
+				algMem.pCoarse[rIdx] --;
+				algMem.pCoarse[gIdx] --;
+				algMem.pCoarse[bIdx] --;
+
+				rIdx = 16 * (stripe * (     (R >> 4)) + j) + (R & 0xF);
+				gIdx = 16 * (stripe * (16 + (G >> 4)) + j) + (G & 0xF);
+				bIdx = 16 * (stripe * (32 + (B >> 4)) + j) + (B & 0xF);
+
+				algMem.pFine[rIdx] --;
+				algMem.pFine[gIdx] --;
+				algMem.pFine[bIdx] --;
+			} /* for (j = 0; p != q; j++, p++) */
+
+			p = const_cast<csSDK_uint32*>(srcBuf) + MIN(height - 1, i + kernelRadius);
+			q = p + stripe;
+			for (j = 0; p != q; j++, p++)
+			{
+				R = static_cast<csSDK_int16> (*p & 0x000000FFu);
+				G = static_cast<csSDK_int16>((*p & 0x0000FF00u) >> 8);
+				B = static_cast<csSDK_int16>((*p & 0x00FF0000u) >> 16);
+
+				rIdx = 16 * (j)+(R >> 4);
+				gIdx = 16 * (stripe + j) + (G >> 4);
+				bIdx = 16 * (stripe * 2 + j) + (B >> 4);
+
+				algMem.pCoarse[rIdx] ++;
+				algMem.pCoarse[gIdx] ++;
+				algMem.pCoarse[bIdx] ++;
+
+				rIdx = 16 * (stripe * ((R >> 4)) + j) + (R & 0xF);
+				gIdx = 16 * (stripe * (16 + (G >> 4)) + j) + (G & 0xF);
+				bIdx = 16 * (stripe * (32 + (B >> 4)) + j) + (B & 0xF);
+
+				algMem.pFine[rIdx] ++;
+				algMem.pFine[gIdx] ++;
+				algMem.pFine[bIdx] ++;
+			} /* for (j = 0; p != q; j++, p++) */
+
+
+			/* First column initialization */
+			constexpr size_t histSize = sizeof(algMem.h);
+			constexpr size_t lucSize  = sizeof(luc);
+
+			__VECTOR_ALIGNED__
+			memset(algMem.h, 0, histSize);
+			memset(luc, 0, lucSize);
+
+			if (padLeft)
+			{
+				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[0          ], algMem.h[0          ].coarse);
+				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[16 * stripe], algMem.h[16 * stripe].coarse);
+				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[32 * stripe], algMem.h[32 * stripe].coarse);
+			} /* if (padLeft) */
+
+
+		} /* for (i = 0; i < height; i++)  */
 
 		if ((width - i) == stripe)
 			break;
