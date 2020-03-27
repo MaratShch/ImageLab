@@ -38,9 +38,6 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabBilateral", "ImageLabBilateral\ImageLabBilateral.vcxproj", "{B855C7B4-64B3-414F-ADE1-F7E0C52E42D1}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabFuzzyMedian", "ImageLabFuzzyMedian\ImageLabFuzzyMedian.vcxproj", "{F6941715-2EC5-4D9F-A94C-67E101378A12}"
-	ProjectSection(ProjectDependencies) = postProject
-		{8CD388D5-37DF-4C23-AC9F-3A2237619502} = {8CD388D5-37DF-4C23-AC9F-3A2237619502}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabMonoTonal", "ImageLabMonoTonal\ImageLabMonoTonal.vcxproj", "{B38BC637-2A37-4398-A825-45A894DF6A2E}"
 EndProject

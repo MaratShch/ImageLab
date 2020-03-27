@@ -1,6 +1,7 @@
 #include "ImageLabFuzzyMedian.h"
 #include <assert.h> 
 
+
 bool median_filter_BGRA_4444_8u_frame(
 		const	csSDK_uint32* __restrict srcBuf,
 		csSDK_uint32* const   __restrict dstBuf,
@@ -15,8 +16,10 @@ bool median_filter_BGRA_4444_8u_frame(
 
 	CACHE_ALIGN HistElem luc[4][16];
 	int i, j, k;
-	csSDK_int32 R, G, B;
+	csSDK_int32 rIdx, gIdx, bIdx;
+ 	csSDK_int16 R, G, B;
 	bool Ret = true;
+
 
 	/* compute number of stripes for Histogram computation */
 	constexpr csSDK_int32 SizeOfHistogram = static_cast<csSDK_int32>(sizeof(algMem.h[0]));
@@ -27,6 +30,8 @@ bool median_filter_BGRA_4444_8u_frame(
 	const csSDK_int32 stripes = algMem.stripeNum = static_cast<csSDK_int32>(stripes_d);
 	const csSDK_int32 stripe_size = algMem.stripeSize = static_cast<csSDK_int32>(stripe_size_d);
 	const csSDK_int32 stripe_size_minus_dradius = stripe_size - doubleRadius;
+
+	rIdx = gIdx = bIdx = 0;
 
 	for (i = 0; i < width; i += stripe_size - doubleRadius)
 	{
@@ -46,6 +51,7 @@ bool median_filter_BGRA_4444_8u_frame(
 			break; /* abnormal exit - memory storage for hold histograms too small */
 		}
 
+		__VECTOR_ALIGNED__
 		// in first cleanup memory storages from data from previous data slice
 		memset(algMem.pFine, 0, size_fine);
 		memset(algMem.pCoarse, 0, size_coarse);
@@ -57,21 +63,50 @@ bool median_filter_BGRA_4444_8u_frame(
 		/* First row initialization */
 		for (j = 0; j < stripe; j++)
 		{
-			R = static_cast<csSDK_int32> (srcPix[j] & 0x000000FFu);
-			G = static_cast<csSDK_int32>((srcPix[j] & 0x0000FF00u) >> 8);
-			B = static_cast<csSDK_int32>((srcPix[j] & 0x00FF0000u) >> 16);
+			R = static_cast<csSDK_int16> (srcPix[j] & 0x000000FFu);
+			G = static_cast<csSDK_int16>((srcPix[j] & 0x0000FF00u) >> 8);
+			B = static_cast<csSDK_int16>((srcPix[j] & 0x00FF0000u) >> 16);
 
 			/* init COARSE level */
-			algMem.pCoarse[16 *               j  + (R >> 4)] += kernelRadius + 1;
-			algMem.pCoarse[16 * (stripe     + j) + (G >> 4)] += kernelRadius + 1;
-			algMem.pCoarse[16 * (stripe * 2 + j) + (B >> 4)] += kernelRadius + 1;
+			rIdx = 16 *           j      + (R >> 4);
+			gIdx = 16 * (stripe + j)     + (G >> 4);
+			bIdx = 16 * (stripe * 2 + j) + (B >> 4);
+
+			algMem.pCoarse[rIdx] += kernelRadius + 1;
+			algMem.pCoarse[gIdx] += kernelRadius + 1;
+			algMem.pCoarse[bIdx] += kernelRadius + 1;
 
 			/* init FINE level */
-			algMem.pFine[16 * (stripe *       (R >> 4) + j)  + (R & 0xF)] += kernelRadius + 1;
-			algMem.pFine[16 * (stripe * (16 + (G >> 4) + j)) + (G & 0xF)] += kernelRadius + 1;
-			algMem.pFine[16 * (stripe * (32 + (B >> 4) + j)) + (B & 0xF)] += kernelRadius + 1;
+			rIdx = 16 * ((stripe *       (R >> 4)) + j)  + (R & 0xF);
+			gIdx = 16 * ((stripe * (16 + (G >> 4)) + j)) + (G & 0xF);
+			bIdx = 16 * ((stripe * (32 + (B >> 4)) + j)) + (B & 0xF);
 
+			algMem.pFine[rIdx] += kernelRadius + 1;
+			algMem.pFine[gIdx] += kernelRadius + 1;
+			algMem.pFine[bIdx] += kernelRadius + 1;
 		} /* for (k = 0; k < stripe; k++) */
+
+
+		for (i = 0; i < kernelRadius; i++)
+		{
+			for (j = 0; j < stripe; j++)
+			{
+				R = static_cast<csSDK_int16> (srcPix[i + j] & 0x000000FFu);
+				G = static_cast<csSDK_int16>((srcPix[i + j] & 0x0000FF00u) >> 8);
+				B = static_cast<csSDK_int16>((srcPix[i + j] & 0x00FF0000u) >> 16);
+
+				rIdx = 16 *               j  + (R >> 4);
+				gIdx = 16 * (stripe     + j) + (G >> 4);
+				bIdx = 16 * (stripe * 2 + j) + (B >> 4);
+
+				algMem.pCoarse[rIdx] ++;
+				algMem.pCoarse[gIdx] ++;
+				algMem.pCoarse[bIdx] ++;
+
+
+			} /* for (j = 0; j < stripe; j++) */
+
+		} /* for (i = 0; i < kernelRadius; i++) */
 
 
 		if ((width - i) == stripe)

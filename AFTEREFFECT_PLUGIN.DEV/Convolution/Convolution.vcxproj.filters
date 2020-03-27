@@ -24,6 +24,9 @@
     <ClInclude Include="..\Common\Common.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\Matrix.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Convolution.cpp">

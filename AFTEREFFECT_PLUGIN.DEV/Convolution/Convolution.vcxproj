@@ -150,6 +150,7 @@
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\Convolution.hpp" />
+    <ClInclude Include="include\Matrix.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Convolution.r">

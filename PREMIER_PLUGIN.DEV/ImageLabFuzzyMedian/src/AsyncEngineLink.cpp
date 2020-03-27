@@ -1,5 +1,7 @@
+#if 0
 #include <windows.h>
 #include "CThreadPool.hpp"
+
 
 #ifdef _DEBUG
 #pragma comment(lib, "../Debug/AsyncJob.lib")
@@ -11,3 +13,4 @@ extern CLASS_EXPORT CThreadPool& GetThreadPool(void);
 CThreadPool& parallelEngine = GetThreadPool();
 
 const uint32_t totalAsyncJobs = CThreadPool::getCpuCoresNumber();
+#endif
