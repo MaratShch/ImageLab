@@ -82,7 +82,9 @@ csSDK_int32 allocate_fine (const VideoHandle& theData, AlgMemStorage& algMemStor
 csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& advFlag, const csSDK_int16& kernelRadius, AlgMemStorage& algMemStorage)
 {
 	constexpr char* strPpixSuite = "Premiere PPix Suite";
+	constexpr long  lSiteVersion = 1l;
 	SPBasicSuite*	SPBasic = nullptr;
+	filterParamsH	paramsH = nullptr;
 	csSDK_int32     errCode = fsBadFormatIndex;
 	bool processSucceed = true;
 
@@ -90,7 +92,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 	if (nullptr != (SPBasic = (*theData)->piSuites->utilFuncs->getSPBasicSuite()))
 	{
 		PrSDKPPixSuite*	PPixSuite = nullptr;
-		const SPErr err = SPBasic->AcquireSuite(strPpixSuite, 1, (const void**)&PPixSuite);
+		const SPErr err = SPBasic->AcquireSuite(strPpixSuite, lSiteVersion, (const void**)&PPixSuite);
 
 		if (nullptr != PPixSuite && kSPNoError == err)
 		{
@@ -107,25 +109,33 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 			const csSDK_int32 width  = box.right - box.left;
 			const csSDK_int32 linePitch = (((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination)) >> 2;
 
+			paramsH = reinterpret_cast<filterParamsH>((*theData)->specsHandle);
+			if (nullptr == paramsH)
+				return fsBadFormatIndex;
+
 			// Check is frame dimensions are correct
 			if (0 >= height || 0 >= width || 0 >= linePitch || linePitch < width)
 				return fsBadFormatIndex;
+
+			const bool useFuzzyAlgo = ((*paramsH)->checkbox ? true : false);
 
 			switch (pixelFormat)
 			{
 				// ============ native AP formats ============================= //
 				case PrPixelFormat_BGRA_4444_8u:
 				{
-					const csSDK_uint32* __restrict srcPix = reinterpret_cast<const csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
-					      csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-					processSucceed = median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
+					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+					processSucceed = (useFuzzyAlgo ?
+						fuzzy_median_filter_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch, 3) :
+						median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
 				}
 				break;
 
 				case PrPixelFormat_ARGB_4444_8u:
 				{
-					const csSDK_uint32* __restrict srcPix = reinterpret_cast<const csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
-					      csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 					processSucceed = median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
 				}
 
@@ -134,7 +144,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 				break;
 			}
 
-			SPBasic->ReleaseSuite(strPpixSuite, 1);
+			SPBasic->ReleaseSuite(strPpixSuite, lSiteVersion);
 			errCode = (true == processSucceed) ? fsNoErr : errCode;
 		}
 	}

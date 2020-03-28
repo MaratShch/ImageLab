@@ -5,6 +5,7 @@
 template <typename T>
 static inline void histogram_muladd (const T a, const T x[16], T y[16])
 {
+	__VECTOR_ALIGNED__
 	for (int i = 0; i < 16; ++i)
 	{
 		y[i] += a * x[i];
@@ -12,10 +13,21 @@ static inline void histogram_muladd (const T a, const T x[16], T y[16])
 	return;
 }
 
+template <typename T>
+static inline void histogram_add (const T x[16], T y[16])
+{
+	__VECTOR_ALIGNED__
+	for (int i = 0; i < 16; ++i)
+	{
+		y[i] += x[i];
+	}
+	return;
+}
+
 
 bool median_filter_BGRA_4444_8u_frame(
 		const	csSDK_uint32* __restrict srcBuf,
-		csSDK_uint32* const   __restrict dstBuf,
+		csSDK_uint32*         __restrict dstBuf,
 		const	csSDK_int32& height,
 		const	csSDK_int32& width,
 		const	csSDK_int32& linePitch,
@@ -180,7 +192,7 @@ bool median_filter_BGRA_4444_8u_frame(
 			} /* for (j = 0; p != q; j++, p++) */
 
 
-			/* First column initialization */
+			/* First column initialization */    
 			constexpr size_t histSize = sizeof(algMem.h);
 			constexpr size_t lucSize  = sizeof(luc);
 
@@ -195,8 +207,15 @@ bool median_filter_BGRA_4444_8u_frame(
 				histogram_muladd(static_cast<HistElem>(kernelRadius), &algMem.pCoarse[32 * stripe], algMem.h[2].coarse);
 			} /* if (padLeft) */
 
+			for (j = 0; j < (padLeft ? static_cast<csSDK_int32>(kernelRadius) : doubleRadius); j++)
+			{
+				histogram_add(&algMem.pCoarse[16 * (             j)], algMem.h[0].coarse);
+				histogram_add(&algMem.pCoarse[16 * (stripe     + j)], algMem.h[1].coarse);
+				histogram_add(&algMem.pCoarse[16 * (stripe * 2 + j)], algMem.h[2].coarse);
+			} /* for (j = 0; j < (padLeft ? kernelRadius : 2 * kernelRadius); j++) */
 
 		} /* for (i = 0; i < height; i++)  */
+
 
 		if ((width - i) == stripe)
 			break;
@@ -206,10 +225,10 @@ bool median_filter_BGRA_4444_8u_frame(
 }
 
 
-
-bool median_filter_ARGB_4444_8u_frame(
-	const	csSDK_uint32* __restrict srcPix,
-	csSDK_uint32* const   __restrict dstPix,
+bool median_filter_ARGB_4444_8u_frame
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32*       __restrict dstPix,
 	const	csSDK_int32& height,
 	const	csSDK_int32& width,
 	const	csSDK_int32& linePitch,
@@ -225,5 +244,4 @@ bool median_filter_ARGB_4444_8u_frame(
 
 	return true;
 }
-
 

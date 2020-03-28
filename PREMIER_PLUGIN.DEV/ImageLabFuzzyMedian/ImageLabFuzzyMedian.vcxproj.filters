@@ -27,6 +27,9 @@
     <ClCompile Include="src\AsyncEngineLink.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabFuzzyMedianFilter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabFuzzyMedian.h">

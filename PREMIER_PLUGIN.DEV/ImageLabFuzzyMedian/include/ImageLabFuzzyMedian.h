@@ -9,6 +9,7 @@
 
 #include "ImageLabSorting.h"
 
+
 #define CACHE_LINE		64
 #define CPU_PAGE_SIZE	4096
 
@@ -124,7 +125,7 @@ void free_fine  (const VideoHandle& theData, AlgMemStorage& algMemStorage);
 
 
 bool median_filter_BGRA_4444_8u_frame (	const csSDK_uint32* __restrict srcPix,
-										csSDK_uint32* const __restrict dstPix,
+										csSDK_uint32*       __restrict dstPix,
 										const csSDK_int32& height,
 										const csSDK_int32& width,
 										const csSDK_int32& linePitch,
@@ -133,10 +134,30 @@ bool median_filter_BGRA_4444_8u_frame (	const csSDK_uint32* __restrict srcPix,
 
 
 bool median_filter_ARGB_4444_8u_frame(const csSDK_uint32* __restrict srcPix,
-									  csSDK_uint32* const __restrict dstPix,
+									  csSDK_uint32* __restrict dstPix,
 									  const csSDK_int32& height,
 									  const csSDK_int32& width,
 									  const csSDK_int32& linePitch,
 									  AlgMemStorage&     algMem,
 	                                  const csSDK_int16& kernelRadius);
 
+
+bool fuzzy_median_filter_BGRA_4444_8u_frame
+(
+	const csSDK_uint32* __restrict srcBuf,
+	csSDK_uint32*       __restrict dstBuf,
+	const	csSDK_int32& height,
+	const	csSDK_int32& width,
+	const	csSDK_int32& linePitch,
+	const   csSDK_int16& kernelRadius
+);
+
+bool fuzzy_median_filter_ARGB_4444_8u_frame
+(
+	const csSDK_uint32* __restrict srcPix,
+	csSDK_uint32*       __restrict dstPix,
+	const	csSDK_int32& height,
+	const	csSDK_int32& width,
+	const	csSDK_int32& linePitch,
+	const   csSDK_int16& kernelRadius
+);
