@@ -30,12 +30,21 @@
     <ClCompile Include="src\ImageLabFuzzyMedianFilter.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\Hsv2RgbConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Rgb2HsvConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabFuzzyMedian.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ImageLabSorting.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RgbHsvConverts.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

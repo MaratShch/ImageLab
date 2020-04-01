@@ -144,13 +144,16 @@
   <ItemGroup>
     <ClCompile Include="src\AdobeImageLabFuzzyMedian.cpp" />
     <ClCompile Include="src\AsyncEngineLink.cpp" />
+    <ClCompile Include="src\Hsv2RgbConvert.cpp" />
     <ClCompile Include="src\ImageLabFuzzyMedianFilter.cpp" />
     <ClCompile Include="src\ImageLabMedianFilter.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\Rgb2HsvConvert.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabFuzzyMedian.h" />
     <ClInclude Include="include\ImageLabSorting.h" />
+    <ClInclude Include="include\RgbHsvConverts.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FuzzyMedian.r">
