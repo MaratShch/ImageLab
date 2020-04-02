@@ -1,7 +1,7 @@
 #include "ImageLabFuzzyMedian.h"
 #include <assert.h> 
 
-
+#if 0
 template <typename T>
 static inline void histogram_muladd (const T a, const T x[16], T y[16])
 {
@@ -23,6 +23,7 @@ static inline void histogram_add (const T x[16], T y[16])
 	}
 	return;
 }
+#endif
 
 
 bool median_filter_BGRA_4444_8u_frame(
@@ -36,7 +37,7 @@ bool median_filter_BGRA_4444_8u_frame(
 {
 	if (nullptr == srcBuf || nullptr == dstBuf || algMem.strSizeOf != sizeof(algMem))
 		return false;
-
+#if 0
 	CACHE_ALIGN HistElem luc[4][16];
 	csSDK_uint32* p;
 	csSDK_uint32* q;
@@ -222,6 +223,8 @@ bool median_filter_BGRA_4444_8u_frame(
 	} /* for (i = 0; i < width; i += stripe_size - doubleRadius) */
 
 	return Ret;
+#endif;
+	return false;
 }
 
 

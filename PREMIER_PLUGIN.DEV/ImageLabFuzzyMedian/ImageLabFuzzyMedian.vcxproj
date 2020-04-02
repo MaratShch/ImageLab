@@ -144,6 +144,7 @@
   <ItemGroup>
     <ClCompile Include="src\AdobeImageLabFuzzyMedian.cpp" />
     <ClCompile Include="src\AsyncEngineLink.cpp" />
+    <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\Hsv2RgbConvert.cpp" />
     <ClCompile Include="src\ImageLabFuzzyMedianFilter.cpp" />
     <ClCompile Include="src\ImageLabMedianFilter.cpp" />

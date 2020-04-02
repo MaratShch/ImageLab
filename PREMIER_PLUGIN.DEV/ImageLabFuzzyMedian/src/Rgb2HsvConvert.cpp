@@ -5,16 +5,19 @@
 void convert_rgb_to_hsv_4444_BGRA8u
 (
 	const csSDK_uint32* __restrict pSrc,
-	float* __restrict pDstV, /* buffer layout: H, S, V*/
-	csSDK_int32 width,
-	csSDK_int32 height,
-	csSDK_int32 linePitch
+	             float* __restrict pDst, /* buffer layout: H, S, V*/
+	      csSDK_int32 width,
+	      csSDK_int32 height,
+	      csSDK_int32 linePitch
 )
 {
 	float R, G, B;
 	float H, S, V;
 	float minVal, maxVal, delta;
 	csSDK_int32 i, j, idx;
+
+	if (nullptr == pSrc || nullptr == pDst)
+		return;
 
 	const csSDK_int32 tripleWidth = width * 3; /* for store HSV values */
 
@@ -23,8 +26,8 @@ void convert_rgb_to_hsv_4444_BGRA8u
 
 	for (j = 0; j < height; j++)
 	{
-		const csSDK_uint32* __restrict srcLine = &pSrc [j * linePitch];
-		             float* __restrict dstLine = &pDstV[j * tripleWidth];
+		const csSDK_uint32* __restrict srcLine = &pSrc[j * linePitch];
+		             float* __restrict dstLine = &pDst[j * tripleWidth];
 
 		__VECTOR_ALIGNED__
 		for (i = 0; i < width; i++)

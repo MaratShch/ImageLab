@@ -17,3 +17,12 @@ void convert_rgb_to_hsv_4444_BGRA8u
 	csSDK_int32 linePitch
 );
 
+void convert_hsv_to_rgb_4444_BGRA8u
+(
+	const csSDK_uint32* __restrict pSrc, /* original source image used only for get ALPHA value for each pixel */
+	const float*  __restrict pHSV, /* buffer layout: H, S, V*/
+	csSDK_uint32* __restrict pDst,
+	csSDK_int32 width,
+	csSDK_int32 height,
+	csSDK_int32 linePitch
+);

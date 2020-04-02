@@ -45,6 +45,7 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type kernel_wi
 }
 
 constexpr char fuzzyAlgorithmDisabled = '\0';
+constexpr char fuzzyAlgorithmEnabled  = static_cast<char>(1);
 
 constexpr int MaxCpuJobs = 8;
 constexpr int MinKernelRadius = 1;
@@ -60,11 +61,11 @@ static_assert((MaxKernelWidth & 0x1), "Kernel width value must be ODD");
 typedef	uint32_t	HistElem;
 constexpr csSDK_int32 sizeOfHistElem = static_cast<csSDK_int32>(sizeof(HistElem));
 
-constexpr csSDK_int32 used_mem_size = CreateAlignment(512 * 1024, CPU_PAGE_SIZE);
-constexpr csSDK_int32 size_coarse   = CreateAlignment(3 * 16 * 1024 * sizeOfHistElem, CPU_PAGE_SIZE);
-constexpr csSDK_int32 size_fine     = CreateAlignment(16 * size_coarse, CPU_PAGE_SIZE);
-constexpr csSDK_int32 size_mem_align = CACHE_LINE;
-
+template<typename T>
+T CLAMP_RGB8(T val)
+{
+	return (MAX(static_cast<T>(0), MIN(val, static_cast<T>(255))));
+}
 
 typedef struct mHistogram
 {
@@ -72,35 +73,52 @@ typedef struct mHistogram
 	HistElem fine[16][16];
 } mHistogram;
 
+typedef struct HistogramObj
+{
+	mHistogram h[4];
+} HistogramObj;
+
 typedef struct AlgMemStorage
 {
-	csSDK_size_t			strSizeOf;
-	csSDK_int32				stripeSize;
-	csSDK_int32				stripeNum;
-	// not aligned adresses
-	HistElem*				pFine_addr;
-	HistElem* 				pCoarse_addr;
-	// manually aligned adresses
-	HistElem* __restrict	pFine;
-	HistElem* __restrict	pCoarse;
-	CACHE_ALIGN mHistogram	h[4];
+	csSDK_size_t				strSizeOf;
+	csSDK_int32					stripeSize;
+	csSDK_int32					stripeNum;
+	csSDK_size_t				memSize;
+	void*     __restrict		pFuzzyBuffer;
+	// aligned adresses for histogram buffers
+	HistElem* __restrict		pFine;
+	HistElem* __restrict		pCoarse;
+	HistogramObj* __restrict	pH;
 }AlgMemStorage, *AlgMemStorageP;
 
+constexpr csSDK_int32 used_mem_size = CreateAlignment(512 * 1024, CPU_PAGE_SIZE);
+constexpr csSDK_int32 size_coarse = CreateAlignment(3 * 16 * 1024 * sizeOfHistElem, CPU_PAGE_SIZE);
+constexpr csSDK_int32 size_fine = CreateAlignment(16 * size_coarse, CPU_PAGE_SIZE);
+constexpr csSDK_int32 size_mem_align = CACHE_LINE;
+constexpr csSDK_int32 size_hist_obj = CreateAlignment(static_cast<csSDK_int32>(sizeof(HistogramObj)), CACHE_LINE);
+constexpr csSDK_int32 size_total_hist_buffers = CreateAlignment(size_coarse + size_fine + size_hist_obj, CPU_PAGE_SIZE);
+constexpr csSDK_int32 size_fuzzy_pixel = sizeof(float) * 3; /* number of bands - HSV */
+
+AlgMemStorage& getAlgStorageStruct(void);
+void setAlgStorageStruct(const AlgMemStorage& storage);
+void algMemStorageFree (AlgMemStorage& algMemStorage);
+bool algMemStorageRealloc (const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage);
 
 typedef struct filterParams
 {
-	csSDK_int16	kernelRadius;
 	csSDK_int8	checkbox;
+	csSDK_int16	kernelRadius;
 	AlgMemStorage AlgMemStorage;
 } filterParams, *filterParamsP, **filterParamsH;
 
 
- inline void IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT (const filterParamsH& _param_handle)
+ static inline void IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT (filterParamsH& _param_handle)
 {
-	memset(*_param_handle, 0, sizeof(filterParams));
-    (*_param_handle)->checkbox = fuzzyAlgorithmDisabled;
+	constexpr size_t strSize = sizeof(**_param_handle);
+	memset(*_param_handle, 0, strSize);
+    (*_param_handle)->checkbox = fuzzyAlgorithmEnabled;
 	(*_param_handle)->kernelRadius = MinKernelRadius;
-	(*_param_handle)->AlgMemStorage.strSizeOf = sizeof((*_param_handle)->AlgMemStorage);
+	(*_param_handle)->AlgMemStorage = getAlgStorageStruct();
 	return;
 }
 
@@ -110,7 +128,8 @@ typedef struct filterParams
 extern "C" {
 #endif
 
-PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData);
+BOOL APIENTRY DllMain (HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
+PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 
 #ifdef __cplusplus
 }
@@ -149,7 +168,7 @@ bool fuzzy_median_filter_BGRA_4444_8u_frame
 	const	csSDK_int32& height,
 	const	csSDK_int32& width,
 	const	csSDK_int32& linePitch,
-	const   csSDK_int16& kernelRadius
+	const AlgMemStorage& algMem
 );
 
 bool fuzzy_median_filter_ARGB_4444_8u_frame
@@ -159,5 +178,12 @@ bool fuzzy_median_filter_ARGB_4444_8u_frame
 	const	csSDK_int32& height,
 	const	csSDK_int32& width,
 	const	csSDK_int32& linePitch,
-	const   csSDK_int16& kernelRadius
+	const AlgMemStorage& algMem
+);
+
+void fuzzy_filter_median_3x3
+(
+	float* __restrict	pBuffer,
+	const  csSDK_int32&	width,
+	const  csSDK_int32&  height
 );

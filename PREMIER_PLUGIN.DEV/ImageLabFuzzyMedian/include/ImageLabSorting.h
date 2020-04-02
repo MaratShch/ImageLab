@@ -1,5 +1,6 @@
-#include <utility>
+#pragma once
 
+#include <utility>
 
 template<typename T>
 constexpr T MIN(T a, T b) { return ((a < b) ? a : b); }
@@ -8,7 +9,7 @@ template<typename T>
 constexpr T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template <typename T>
-inline void swapEx(T& a, T& b) // a != b && a , b = integral types
+static inline void swapEx(T& a, T& b) // a != b && a , b = integral types
 {
 	a = a ^ b;
 	b = a ^ b;
@@ -16,7 +17,7 @@ inline void swapEx(T& a, T& b) // a != b && a , b = integral types
 }
 
 template <typename T>
-inline void gnomesort(T* l, T* r)
+static inline void gnomesort(T* l, T* r)
 {
 	T* i = l;
 	while (i < r)
@@ -28,7 +29,7 @@ inline void gnomesort(T* l, T* r)
 
 
 template <typename T>
-inline void selectionsort(T* l, T* r)
+static inline void selectionsort(T* l, T* r)
 {
 	for (T* i = l; i < r; i++)
 	{
@@ -42,7 +43,7 @@ inline void selectionsort(T* l, T* r)
 }
 
 template <typename T>
-inline void insertionsort(T* l, T* r)
+static inline void insertionsort(T* l, T* r)
 {
 	for (T* i = l + 1; i < r; i++)
 	{

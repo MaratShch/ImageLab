@@ -1,7 +1,6 @@
 ﻿#include <windows.h>
 #include <stdio.h>
 #include <tchar.h>
-#include <Windows.h>
 #include "AdobeImageLabHDR.h"
 
 AVX2_ALIGN static PImageLAB_MemStr pInternalMemory = nullptr;

@@ -1,82 +1,67 @@
-#include "ImageLabFuzzyMedian.h"
+#include <mutex>
 #include <windows.h>
+#include "ImageLabFuzzyMedian.h"
 
-void free_coarse (const VideoHandle& theData, AlgMemStorage& algMemStorage)
+
+inline bool checkAlgMemoryStorage(const csSDK_int32& width, const csSDK_int32& height, const AlgMemStorage& algMemStorage)
 {
-	char* ptr = reinterpret_cast<char*>(algMemStorage.pCoarse_addr);
-	if (nullptr != ptr)
+	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel;
+	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers), CPU_PAGE_SIZE);
+	return (nullptr == algMemStorage.pFuzzyBuffer || totalMemory < algMemStorage.memSize) ? false : true;
+}
+
+void algMemStorageFree(AlgMemStorage& algMemStorage)
+{
+	if (nullptr != algMemStorage.pFuzzyBuffer)
 	{
-		algMemStorage.pCoarse_addr = algMemStorage.pCoarse = nullptr;
-		memset(ptr, 0, size_coarse + size_mem_align);
-		((*theData)->piSuites->memFuncs->disposePtr)(ptr);
-		ptr = nullptr;
+		_aligned_free(algMemStorage.pFuzzyBuffer);
+		algMemStorage.memSize = 0;
+		algMemStorage.pFuzzyBuffer = nullptr;
+		algMemStorage.pFine = algMemStorage.pCoarse = nullptr;
+		algMemStorage.pH = nullptr;
+		algMemStorage.stripeNum = algMemStorage.stripeSize = 0;
 	}
 	return;
 }
 
-
-void free_fine (const VideoHandle& theData, AlgMemStorage& algMemStorage)
+/* realloc memory storage for peform Fuzzy Median Filter or Histogramm Based Median Filter */
+bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage)
 {
-	char* ptr = reinterpret_cast<char*>(algMemStorage.pFine_addr);
-	if (nullptr != ptr)
+	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel;
+	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers), CPU_PAGE_SIZE);
+	bool bRet = false;
+
+	/* free previoulsy allocated memory */
+	algMemStorageFree (algMemStorage);
+
+	if (nullptr == algMemStorage.pFuzzyBuffer)
 	{
-		algMemStorage.pFine_addr = algMemStorage.pFine = nullptr;
-		memset(ptr, 0, size_fine + size_mem_align);
-		((*theData)->piSuites->memFuncs->disposePtr)(ptr);
-		ptr = nullptr;
+		void* pMem = _aligned_malloc(totalMemory, CPU_PAGE_SIZE);
+		if (nullptr != pMem)
+		{
+			/* build Memory layout for Fuzzy Median Algorithm */
+#ifdef _DEBUG
+			__VECTOR_ALIGNED__
+			memset(pMem, 0, totalMemory);
+#endif
+			algMemStorage.memSize = totalMemory;
+			algMemStorage.pFuzzyBuffer = pMem;
+
+			/* build Memory Layout for Histogram Based Median Filter */
+			const unsigned long long pFineAddress = reinterpret_cast<const unsigned long long>(pMem);
+			const unsigned long long pCoarseAddress = pFineAddress + size_fine;
+			const unsigned long long pHistogramm = pCoarseAddress  + size_hist_obj;
+
+			algMemStorage.pFine   = reinterpret_cast<HistElem* __restrict>(pFineAddress);
+			algMemStorage.pCoarse = reinterpret_cast<HistElem* __restrict>(pCoarseAddress);
+			algMemStorage.pH = reinterpret_cast<HistogramObj* __restrict>(pHistogramm);
+
+			bRet = true;
+		}
 	}
-	return;
+
+	return bRet;
 }
-
-csSDK_int32 allocate_coarse (const VideoHandle& theData, AlgMemStorage& algMemStorage)
-{
-	csSDK_int32 ret = 0;
-	HistElem* ptr = nullptr;
-	constexpr csSDK_uint32 totalSize = static_cast<csSDK_uint32>(size_coarse + size_mem_align);
-	constexpr unsigned long long alignmend = static_cast<unsigned long long>(size_mem_align);
-
-	// apply to SweePie memory site
-	ptr = reinterpret_cast<HistElem*>(((*theData)->piSuites->memFuncs->newPtr)(totalSize));
-	if (nullptr != ptr)
-	{
-		algMemStorage.pCoarse_addr = ptr;
-		unsigned long long addr = CreateAlignment(reinterpret_cast<unsigned long long>(ptr), alignmend);
-		algMemStorage.pCoarse = reinterpret_cast<HistElem* __restrict>(addr);
-	}
-	else
-	{
-		algMemStorage.pCoarse_addr = algMemStorage.pCoarse = nullptr;
-		ret |= 1;
-	}
-
-	return ret;
-}
-
-
-csSDK_int32 allocate_fine (const VideoHandle& theData, AlgMemStorage& algMemStorage)
-{
-	csSDK_int32 ret = 0;
-	HistElem* ptr = nullptr;
-	constexpr csSDK_uint32 totalSize = static_cast<csSDK_uint32>(size_fine + size_mem_align);
-	constexpr unsigned long long alignmend = static_cast<unsigned long long>(size_mem_align);
-
-	// apply to SweePie memory site
-	ptr = reinterpret_cast<HistElem* __restrict>(((*theData)->piSuites->memFuncs->newPtr)(totalSize));
-	if (nullptr != ptr)
-	{
-		algMemStorage.pFine_addr = ptr;
-		unsigned long long addr = CreateAlignment(reinterpret_cast<unsigned long long>(ptr), alignmend);
-		algMemStorage.pFine = reinterpret_cast<HistElem* __restrict>(addr);
-	}
-	else
-	{
-		algMemStorage.pFine_addr = algMemStorage.pFine = nullptr;
-		ret |= 1;
-	}
-
-	return ret;
-}
-
 
 
 csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& advFlag, const csSDK_int16& kernelRadius, AlgMemStorage& algMemStorage)
@@ -109,15 +94,18 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 			const csSDK_int32 width  = box.right - box.left;
 			const csSDK_int32 linePitch = (((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination)) >> 2;
 
-			paramsH = reinterpret_cast<filterParamsH>((*theData)->specsHandle);
-			if (nullptr == paramsH)
-				return fsBadFormatIndex;
-
 			// Check is frame dimensions are correct
 			if (0 >= height || 0 >= width || 0 >= linePitch || linePitch < width)
 				return fsBadFormatIndex;
 
-			const bool useFuzzyAlgo = ((*paramsH)->checkbox ? true : false);
+			if (false == checkAlgMemoryStorage(width, height, algMemStorage))
+			{
+				/* required memory re-allocation */
+				if (false == algMemStorageRealloc(width, height, algMemStorage))
+					return fsBadFormatIndex; /* memory re-allocation failed */
+				else
+					setAlgStorageStruct(algMemStorage);
+			}
 
 			switch (pixelFormat)
 			{
@@ -126,8 +114,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 				{
 					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-					processSucceed = (useFuzzyAlgo ?
-						fuzzy_median_filter_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch, 3) :
+					processSucceed = (advFlag ?
+						fuzzy_median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage) :
 						median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
 				}
 				break;
@@ -136,7 +124,10 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 				{
 					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-					processSucceed = median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
+
+					processSucceed = (advFlag ?
+						fuzzy_median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage) :
+						median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
 				}
 
 				default:
@@ -156,13 +147,11 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 // Bilateral-RGB filter entry point
 PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 {
-#if !defined __INTEL_COMPILER 
+	filterParamsH	paramsH = nullptr;
+	csSDK_int32		errCode = fsNoErr;
+
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 	_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-#endif
-
-	filterParamsH	paramsH = nullptr;
-	csSDK_int32 errCode = fsNoErr;
 
 	switch (selector)
 	{
@@ -181,22 +170,11 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			if (nullptr == paramsH)
 				break;
 
-			IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT(paramsH);
-			if (0 == allocate_coarse(theData, (*paramsH)->AlgMemStorage) && 0 == allocate_fine(theData, (*paramsH)->AlgMemStorage))
-			{
-				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
-			}
-			else
-			{
-				free_coarse(theData, (*paramsH)->AlgMemStorage);
-				free_fine  (theData, (*paramsH)->AlgMemStorage);
-				memset(&((*paramsH)->AlgMemStorage), 0, sizeof((*paramsH)->AlgMemStorage));
-				// free handler itself
-				((*theData)->piSuites->memFuncs->disposeHandle)(reinterpret_cast<char**>(paramsH));
-				paramsH = nullptr;
-				(*theData)->specsHandle = nullptr;
-			}
+			IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT (paramsH);
+			(*paramsH)->AlgMemStorage = getAlgStorageStruct();
+			(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 		}
+		break;
 
 		case fsHasSetupDialog:
 			errCode = fsHasNoSetupDialog;
@@ -212,10 +190,10 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			if (nullptr != paramsH)
 			{
 				const csSDK_int8 advFlag = ((*paramsH)->checkbox ? 1 : 0);
-				if (1 == advFlag) /* use kernel radius 1 in case of Fuzzy Algorihm */ 
+				if (fuzzyAlgorithmEnabled == advFlag) /* use kernel radius 1 in case of Fuzzy Algorihm */
 					(*paramsH)->kernelRadius = static_cast<csSDK_int16>(MinKernelRadius);
 
-				const csSDK_int16 kernelRadius = ((*paramsH)->kernelRadius) | 1; // as minimal kernel radius should be 1
+				const csSDK_int16 kernelRadius = make_odd((*paramsH)->kernelRadius); // kernel radius should be odd
 				errCode = selectProcessFunction (theData, advFlag, kernelRadius, (*paramsH)->AlgMemStorage);
 			}
 			else
@@ -224,8 +202,6 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsDisposeData:
-			(*theData)->piSuites->memFuncs->disposeHandle((*theData)->specsHandle);
-			(*theData)->specsHandle = nullptr;
 		break;
 
 		case fsCanHandlePAR:
@@ -233,7 +209,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsGetPixelFormatsSupported:
-			errCode = imageLabPixelFormatSupported(theData);
+			errCode = imageLabPixelFormatSupported (theData);
 		break;
 
 		case fsCacheOnLoad:
