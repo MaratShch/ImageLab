@@ -26,6 +26,31 @@
 #define __ASSUME_ALIGNED__         
 #endif
 
+#define OFFSET_H(idx)	(idx)
+#define OFFSET_S(idx)	(idx+1)
+#define OFFSET_V(idx)	(idx+2)
+
+template<typename T>
+const T CLAMP_H(const T hue)
+{
+	constexpr T hueMin{ 0 };
+	constexpr T hueMax{ 360 };
+
+	if (hue < hueMin)
+		return (hue + hueMax);
+	else if (hue >= hueMax)
+		return (hue - hueMax);
+	return hue;
+}
+
+template<typename T>
+const T CLAMP_SV(const T ls)
+{
+	constexpr T lsMin{ 0 };
+	constexpr T lsMax{ 1 };
+	return MAX(lsMin, MIN(lsMax, ls));
+}
+
 template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
 {
@@ -137,10 +162,6 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData, const csSDK_int8& advFlag, const csSDK_int16& kernelRadius, AlgMemStorage& algMemStorage);
-csSDK_int32 allocate_coarse(const VideoHandle& theData, AlgMemStorage& algMemStorage);
-csSDK_int32 allocate_fine  (const VideoHandle& theData, AlgMemStorage& algMemStorage);
-void free_coarse(const VideoHandle& theData, AlgMemStorage& algMemStorage);
-void free_fine  (const VideoHandle& theData, AlgMemStorage& algMemStorage);
 
 
 bool median_filter_BGRA_4444_8u_frame (	const csSDK_uint32* __restrict srcPix,

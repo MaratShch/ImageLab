@@ -23,6 +23,7 @@ void convert_hsv_to_rgb_4444_BGRA8u
 
 	R = G = B = 0;
 	H = S = V = 0.f;
+	k = 0;
 
 	const csSDK_int32 tripleWidth = width * 3;
 
@@ -35,24 +36,19 @@ void convert_hsv_to_rgb_4444_BGRA8u
 		__VECTOR_ALIGNED__
 		for (i = 0; i < width; i++)
 		{
-
 			idx = i * 3;
-			H = HSVImg[idx    ];
-			S = HSVImg[idx + 1];
-			V = HSVImg[idx + 2];
+			H = HSVImg[OFFSET_H(idx)];
+			S = HSVImg[OFFSET_S(idx)];
+			V = HSVImg[OFFSET_V(idx)];
 
-			if (0.f >= S)
+			if (0.f == S)
 			{
 				/* not color pixel - B/W */
-				R = G = B = static_cast<csSDK_int32>(S * 255.0f);
+				newR = newG = newB = V;
 			}
 			else
 			{
-				if (H >= 360.f)
-					H -= 360.0f;
-
-				hh = H / 60.f;
-
+				hh = H / 60.f; /* sector 0 to 5 */
 				k = static_cast<csSDK_int32>(hh);
 				ff = hh - static_cast<float>(k);
 
@@ -60,7 +56,7 @@ void convert_hsv_to_rgb_4444_BGRA8u
 				q = V * (1.0f - S * ff);
 				t = V * (1.0f - S * (1.0f - ff));
 
-				switch (i)
+				switch (k)
 				{
 					case 0:
 						newR = V;
@@ -95,10 +91,11 @@ void convert_hsv_to_rgb_4444_BGRA8u
 					break;
 				}
 
-				R = static_cast<csSDK_int32>(newR * 255.0f);
-				G = static_cast<csSDK_int32>(newG * 255.0f);
-				B = static_cast<csSDK_int32>(newB * 255.0f);
 			}
+
+			R = static_cast<csSDK_int32>(newR * 255.0f);
+			G = static_cast<csSDK_int32>(newG * 255.0f);
+			B = static_cast<csSDK_int32>(newB * 255.0f);
 
 			dstLine[i] = (srcImg[i] & 0xFF000000u) |
 						   ((CLAMP_RGB8(R)) << 16) |

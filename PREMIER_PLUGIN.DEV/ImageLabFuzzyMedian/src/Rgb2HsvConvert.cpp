@@ -49,20 +49,18 @@ void convert_rgb_to_hsv_4444_BGRA8u
 				if (maxVal == R)
 					H = (G - B) / delta;		/* between Yellow and Magenta*/
 				else if (maxVal == G)
-					H = 2 + (B - R) / delta;	/* between Cyan and Yellow */
+					H = 2.0f + (B - R) / delta;	/* between Cyan and Yellow */
 				else
-					H = 4 + (R - G) / delta;    /* between Magenta and Cyan */
+					H = 4.0f + (R - G) / delta;    /* between Magenta and Cyan */
 
 				H *= 60.0f; /* convert to degrees */
-				if (H < 0)
-					H += 360.0f;
 			}
 
 			idx = i * 3;
 
-			dstLine[idx    ] = H;
-			dstLine[idx + 1] = S;
-			dstLine[idx + 2] = V;
+			dstLine[OFFSET_H(idx)] = CLAMP_H (H);
+			dstLine[OFFSET_S(idx)] = CLAMP_SV(S);
+			dstLine[OFFSET_V(idx)] = CLAMP_SV(V);
 
 		} /* for (i = 0; i < width; i++) */
 

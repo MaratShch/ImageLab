@@ -28,9 +28,10 @@ bool fuzzy_median_filter_BGRA_4444_8u_frame
 	const AlgMemStorage& algMem
 )
 {
+	const csSDK_int32 memSize = height * width * size_fuzzy_pixel;
 	bool bResult = false;
 
-	if (nullptr != algMem.pFuzzyBuffer)
+	if (nullptr != algMem.pFuzzyBuffer || memSize > algMem.memSize)
 	{
 		/* first convert BGR color space to HSV color spase */
 		convert_rgb_to_hsv_4444_BGRA8u (pSrc, reinterpret_cast<float*>(algMem.pFuzzyBuffer), width, height, linePitch);
