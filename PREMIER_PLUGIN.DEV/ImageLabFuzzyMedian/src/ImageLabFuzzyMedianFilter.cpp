@@ -1,6 +1,102 @@
 #include "ImageLabFuzzyMedian.h"
 #include "RgbHsvConverts.h"
 #include <assert.h> 
+#include <float.h>
+
+CACHE_ALIGN float dbgValBuf[2048] = {};
+
+/* fast SQUARE ROOT COMPUTATION */
+static inline float asqrt(const float& x)
+{
+	const float xHalf = 0.50f * x;
+	int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess
+	float xRes = *(float*)&tmp;
+	xRes *= (1.50f - (xHalf * xRes * xRes));
+	return xRes * x;
+}
+
+inline float get_matrix_std
+(
+	const float* __restrict pBuffer,	/* buffer pointer								*/	
+	const csSDK_int32& winSize,			/* size of MATRIX'  window						*/
+	const csSDK_int32& winPitch			/* pitch for get next element from next line	*/
+)
+{
+	float fVal, fSum;
+	float mean, variance;
+	csSDK_int32 k, l;
+	const csSDK_int32 winSqSize = winSize * winSize; /* number of elements in MATRIX */
+
+	/* compute MEAN */
+	mean = 0.0f;
+	for (k = 0; k < winSize; k++)
+	{
+		const float* __restrict pLine = &pBuffer[k * winPitch];
+		for (l = 0; l < winSize; l++)
+		{
+			mean += pLine[OFFSET_V(l * 3)]; /* multiple to 3 because we need only V channel */
+		}
+	}
+	mean /= winSqSize;
+
+	/* compute VARIANCE */
+	fSum = 0.0f;
+	for (k = 0; k < winSize; k++)
+	{
+		const float* __restrict pLine = &pBuffer[k * winPitch];
+		for (l = 0; l < winSize; l++)
+		{
+			/* subtract mean from each element */
+			fVal = pLine[OFFSET_V(l * 3)] - mean;
+			/* squaring each element and take sum */
+			fSum += (fVal * fVal);
+		}
+	}
+
+	variance = (fSum / winSqSize);
+
+	return asqrt(variance);
+}
+
+
+float get_min_std
+(
+	float* __restrict	pBuffer,
+	const  csSDK_int32&	width,
+	const  csSDK_int32& height
+)
+{
+	constexpr csSDK_int32 winSize = 8;
+	const csSDK_int32 widthMax  = width  - winSize;
+	const csSDK_int32 heightMax = height - winSize;
+	csSDK_int32 i, j, idx = 0;
+	float fStd;
+	float fStdMin = FLT_MAX;
+
+	csSDK_int32 dbgCnt = 0;
+
+	const csSDK_int32 linePitch = width * 3;
+
+	for (j = 0; j < heightMax; j += winSize)
+	{
+		for (i = 0; i < widthMax; i += winSize)
+		{
+			idx = j * linePitch + i * 3;
+			const float* __restrict pMatrix = &pBuffer[idx];
+
+			fStd = get_matrix_std(pMatrix, winSize, linePitch);
+			fStdMin = ((0 == fStd) ? fStdMin : MIN(fStdMin, fStd));
+
+			if (dbgCnt < 2048)
+				dbgValBuf[dbgCnt] = fStd;
+
+			dbgCnt++;
+		} /* for (i = 0; i < widthMax; i += winSize) */
+
+	} /* for (j = 0; j < heightMax; j += winSize) */
+
+	return fStdMin;
+}
 
 
 void fuzzy_filter_median_3x3
@@ -10,10 +106,23 @@ void fuzzy_filter_median_3x3
 	const  csSDK_int32& height
 )
 {
-	if (nullptr == pBuffer)
-		return;
+	/* get STD */
+	const float fImgStdMin = get_min_std(pBuffer, width, height);
+	const float p = 6 * fImgStdMin;
+	const csSDK_int32 maxPix = width - 1;
+	const csSDK_int32 maxLine = height - 1;
+	csSDK_int32 i, j;
 
 	/* currently, lets check in-place processing for avoid additional memory allocation */
+	for (j = 1; j < maxLine; j++)
+	{
+		for (i = 1; i < maxLine; i++)
+		{
+
+		}
+
+	} /* for (j = 1; j < maxLine; j++) */
+	
 	return;
 }
 

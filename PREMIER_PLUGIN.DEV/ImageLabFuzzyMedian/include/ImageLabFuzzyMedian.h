@@ -206,5 +206,11 @@ void fuzzy_filter_median_3x3
 (
 	float* __restrict	pBuffer,
 	const  csSDK_int32&	width,
-	const  csSDK_int32&  height
+	const  csSDK_int32& height
+);
+inline float get_matrix_std
+(
+	const float* __restrict pBuffer,	/* buffer pointer								*/
+	const csSDK_int32& winSize,			/* size of MATRIX'  window						*/
+	const csSDK_int32& winPitch			/* pitch for get next element from next line	*/
 );
