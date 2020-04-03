@@ -3,10 +3,9 @@
 #include <assert.h> 
 #include <float.h>
 
-CACHE_ALIGN float dbgValBuf[2048] = {};
 
 /* fast SQUARE ROOT COMPUTATION */
-static inline float asqrt(const float& x)
+static inline float asqrt (const float& x)
 {
 	const float xHalf = 0.50f * x;
 	int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess
@@ -34,7 +33,8 @@ inline float get_matrix_std
 		const float* __restrict pLine = &pBuffer[k * winPitch];
 		for (l = 0; l < winSize; l++)
 		{
-			mean += pLine[OFFSET_V(l * 3)]; /* multiple to 3 because we need only V channel */
+			fVal = pLine[OFFSET_V(l * 3)]; /* multiple to 3 because we need only V channel in H,S,V buffer layout */
+			mean += fVal;
 		}
 	}
 	mean /= winSqSize;
@@ -47,13 +47,13 @@ inline float get_matrix_std
 		for (l = 0; l < winSize; l++)
 		{
 			/* subtract mean from each element */
-			fVal = pLine[OFFSET_V(l * 3)] - mean;
-			/* squaring each element and take sum */
+			fVal = pLine[OFFSET_V(l * 3)] - mean; /* multiple to 3 because we need only V channel in H,S,V buffer layout */
+			/* squaring each element and add to sum */
 			fSum += (fVal * fVal);
 		}
 	}
 
-	variance = (fSum / winSqSize);
+	variance = (fSum / static_cast<float>(winSqSize - 1));
 
 	return asqrt(variance);
 }
@@ -73,7 +73,9 @@ float get_min_std
 	float fStd;
 	float fStdMin = FLT_MAX;
 
-	csSDK_int32 dbgCnt = 0;
+	// test matrix STD: expected value 2.73 (from Matlab)
+	// const float fff[9] = { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };
+	// fStd = get_matrix_std(fff, 3, 3);
 
 	const csSDK_int32 linePitch = width * 3;
 
@@ -86,11 +88,6 @@ float get_min_std
 
 			fStd = get_matrix_std(pMatrix, winSize, linePitch);
 			fStdMin = ((0 == fStd) ? fStdMin : MIN(fStdMin, fStd));
-
-			if (dbgCnt < 2048)
-				dbgValBuf[dbgCnt] = fStd;
-
-			dbgCnt++;
 		} /* for (i = 0; i < widthMax; i += winSize) */
 
 	} /* for (j = 0; j < heightMax; j += winSize) */
