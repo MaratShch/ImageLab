@@ -61,8 +61,7 @@ static inline float get_matrix_std
 
 	variance = (fSum / static_cast<float>(winSqSize - 1));
 	/* use fast square root computation for STD */
-//	return asqrt(variance);
-	return sqrt(variance);
+	return asqrt(variance);
 }
 
 
