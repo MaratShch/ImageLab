@@ -224,7 +224,112 @@ void fuzzy_filter_median_3x3
 			    ___
 
 		*/
-			
+			a = pBuffer[idxK21];
+			b = pBuffer[idxK22];
+			c = pBuffer[idxK23];
+
+			dA = a - pBuffer[idxK11];
+			dB = b - pBuffer[idxK12];
+			dC = c - pBuffer[idxK13];
+
+			d = (MIN(abs(dA), MIN(abs(dB), abs(dC)))) / p;
+			d = MIN(d, 1.f);
+			d = 1.0f - d;
+
+			diff = pBuffer[idxK12] - b;
+			corr = corr + d * diff;
+
+		/*
+			   ___	
+				|
+			    V 
+
+		*/
+			dA = a - pBuffer[idxK31];
+			dB = b - pBuffer[idxK32];
+			dC = c - pBuffer[idxK33];
+
+			d = (MIN(abs(dA), MIN(abs(dB), abs(dC)))) / p;
+			d = MIN(d, 1.f);
+			d = 1.0f - d;
+
+			diff = pBuffer[idxK32] - b;
+			corr = corr + d * diff;
+
+		/*
+			  \  
+             <-\
+			    \
+		*/
+			a = pBuffer[idxK11];
+			b = pBuffer[idxK22];
+			c = pBuffer[idxK33];
+
+			dA = a - ll;
+			dB = b - pBuffer[idxK31];
+			dC = c - dd;
+
+			d = (MIN(abs(dA), MIN(abs(dB), abs(dC)))) / p;
+			d = MIN(d, 1.f);
+			d = 1.0f - d;
+	
+			diff = pBuffer[idxK31] - b;
+			corr = corr + d * diff;
+
+		/*
+	         \
+			  \->
+			   \
+		*/
+			dA = a - uu;
+			dB = b - pBuffer[idxK13];
+			dC = c - rr;
+
+			d = (MIN(abs(dA), MIN(abs(dB), abs(dC)))) / p;
+			d = MIN(d, 1.f);
+			d = 1.0f - d;
+
+			diff = pBuffer[idxK13] - b;
+			corr = corr + d * diff;
+
+		/*
+		        /		
+			 <-/ 
+			  /
+		*/
+
+			a = pBuffer[idxK13];
+			b = pBuffer[idxK22];
+			c = pBuffer[idxK31];
+
+			dA = a - uu;
+			dB = b - pBuffer[idxK11];
+			dC = c - ll;
+
+			d = (MIN(abs(dA), MIN(abs(dB), abs(dC)))) / p;
+			d = MIN(d, 1.f);
+			d = 1.0f - d;
+
+			diff = pBuffer[idxK11] - b;
+			corr = corr + d * diff;
+
+		/*
+			   /
+			  /->
+			 /
+		*/
+			dA = a - rr;
+			dB = b - pBuffer[idxK33];
+			dC = c - dd;
+
+			d = (MIN(abs(dA), MIN(abs(dB), abs(dC)))) / p;
+			d = MIN(d, 1.f);
+			d = 1.0f - d;
+
+			diff = pBuffer[idxK33] - b;
+			corr = corr + d * diff;
+
+			pBuffer[OFFSET_V(j * linePitch + i * 3)] += corr / 8.0f;
 		}
 
 	} /* for (j = 1; j < maxLine; j++) */
