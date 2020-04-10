@@ -7,6 +7,13 @@ About(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+	PF_SPRINTF(	out_data->return_msg,
+				"%s, v%d.%d\r%s",
+				strName,
+				Convolution_VersionMajor,
+				Convolution_VersionMinor,
+				strCopyright);
+
 	return PF_Err_NONE;
 }
 
@@ -18,18 +25,25 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	out_data->my_version = 
-		PF_VERSION(ColorizeMe_VersionMajor,
-			       ColorizeMe_VersionMinor,
-			       ColorizeMe_VersionSub,
-			       ColorizeMe_VersionStage,
-			       ColorizeMe_VersionBuild);
+	PF_Err	err = PF_Err_NONE;
 
-	out_data->out_flags = PF_OutFlag_DEEP_COLOR_AWARE;
+	out_data->my_version =
+		PF_VERSION (
+			Convolution_VersionMajor,
+			Convolution_VersionMinor,
+			Convolution_VersionSub,
+			Convolution_VersionStage,
+			Convolution_VersionBuild
+		);
 
-	out_data->out_flags2 = PF_OutFlag2_NONE;
+	out_data->out_flags =	PF_OutFlag_PIX_INDEPENDENT	|
+							PF_OutFlag_DEEP_COLOR_AWARE |
+							PF_OutFlag_NON_PARAM_VARY;
 
-	return PF_Err_NONE;
+	out_data->out_flags2 =	PF_OutFlag2_FLOAT_COLOR_AWARE |
+							PF_OutFlag2_SUPPORTS_SMART_RENDER;
+
+	return err;
 }
 
 
@@ -69,16 +83,19 @@ EntryPointFunc (
 				ERR(GlobalSetup(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_PARAMS_SETUP:
-				ERR(ParamsSetup(in_data, out_data, params, output));
+//				ERR(ParamsSetup(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_RENDER:
 //				ERR(Render(in_data, out_data, params, output));
 				break;
-			case PF_Cmd_GET_EXTERNAL_DEPENDENCIES:
-//				ERR(DescribeDependencies(in_data, out_data, reinterpret_cast<PF_ExtDependenciesExtra*>(extra)));
+			case PF_Cmd_SMART_PRE_RENDER:
+//				ERR(PreRender(in_dataP, out_data, (PF_PreRenderExtra*)extra));
+				break;
+			case PF_Cmd_SMART_RENDER:
+//				ERR(SmartRender(in_dataP, out_data, (PF_SmartRenderExtra*)extra));
 				break;
 		}
-	} catch(PF_Err &thrown_err) {
+	} catch (PF_Err &thrown_err) {
 		err = thrown_err;
 	}
 	return err;

@@ -17,8 +17,12 @@
 
 constexpr int ColorizeMe_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ColorizeMe_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
-constexpr int ColorizeMe_VersionSub   = 0;
+constexpr int ColorizeMe_VersionSub = 0;
+#ifdef _DEBUG
 constexpr int ColorizeMe_VersionStage = PF_Stage_DEVELOP;
+#else
+constexpr int ColorizeMe_VersionStage = PF_Stage_RELEASE;
+#endif
 constexpr int ColorizeMe_VersionBuild = 0;
 
 

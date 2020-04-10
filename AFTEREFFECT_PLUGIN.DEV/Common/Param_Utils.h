@@ -113,25 +113,25 @@
 
 // copied from Pr version of Param_Utils.h. It is used in some of Pr versions of AE effects
 #define PF_ADD_FLOAT_EXPONENTIAL_SLIDER(NAME, VALID_MIN, VALID_MAX, SLIDER_MIN, SLIDER_MAX, CURVE_TOLERANCE, DFLT, PREC, DISP, WANT_PHASE, EXPONENT, ID) \
-do {\
-PF_Err	priv_err = PF_Err_NONE; \
-def.param_type = PF_Param_FLOAT_SLIDER; \
-PF_STRCPY(def.name, (NAME) ); \
-def.u.fs_d.valid_min		= (VALID_MIN); \
-def.u.fs_d.slider_min		= (SLIDER_MIN); \
-def.u.fs_d.valid_max		= (VALID_MAX); \
-def.u.fs_d.slider_max		= (SLIDER_MAX); \
-def.u.fs_d.value			= (DFLT); \
-def.u.fs_d.dephault			= (DFLT); \
-def.u.fs_d.precision		= (PREC); \
-def.u.fs_d.display_flags	= (DISP); \
-def.u.fs_d.fs_flags			|= (WANT_PHASE) ? PF_FSliderFlag_WANT_PHASE : 0; \
-def.u.fs_d.curve_tolerance	= AEFX_AUDIO_DEFAULT_CURVE_TOLERANCE;\
-def.u.fs_d.useExponent		= true;\
-def.u.fs_d.exponent			= EXPONENT;\
-def.uu.id = (ID); \
-if ((priv_err = PF_ADD_PARAM(in_data, -1, &def)) != PF_Err_NONE) return priv_err; \
-} while (0)
+	do {\
+		PF_Err	priv_err = PF_Err_NONE; \
+		def.param_type = PF_Param_FLOAT_SLIDER; \
+		PF_STRCPY(def.name, (NAME) ); \
+		def.u.fs_d.valid_min		= (VALID_MIN); \
+		def.u.fs_d.slider_min		= (SLIDER_MIN); \
+		def.u.fs_d.valid_max		= (VALID_MAX); \
+		def.u.fs_d.slider_max		= (SLIDER_MAX); \
+		def.u.fs_d.value			= (DFLT); \
+		def.u.fs_d.dephault			= (DFLT); \
+		def.u.fs_d.precision		= (PREC); \
+		def.u.fs_d.display_flags	= (DISP); \
+		def.u.fs_d.fs_flags			|= (WANT_PHASE) ? PF_FSliderFlag_WANT_PHASE : 0; \
+		def.u.fs_d.curve_tolerance	= AEFX_AUDIO_DEFAULT_CURVE_TOLERANCE;\
+		def.u.fs_d.useExponent		= true;\
+		def.u.fs_d.exponent			= EXPONENT;\
+		def.uu.id = (ID); \
+		if ((priv_err = PF_ADD_PARAM(in_data, -1, &def)) != PF_Err_NONE) return priv_err; \
+	} while (0)
 
 enum { PF_Precision_INTEGER, PF_Precision_TENTHS, PF_Precision_HUNDREDTHS, PF_Precision_THOUSANDTHS, PF_Precision_TEN_THOUSANDTHS };
 

@@ -15,11 +15,17 @@
 #include "Common.hpp"
 #include "Param_Utils.h"
 
-constexpr int ColorizeMe_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
-constexpr int ColorizeMe_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
-constexpr int ColorizeMe_VersionSub   = 0;
-constexpr int ColorizeMe_VersionStage = PF_Stage_DEVELOP;
-constexpr int ColorizeMe_VersionBuild = 0;
+constexpr char strName[] = "Convolution";
+constexpr char strCopyright[] = "\nImageLab2 Copyright(c).\rImage convolution plugin.";
+constexpr int Convolution_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
+constexpr int Convolution_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
+constexpr int Convolution_VersionSub   = 0;
+#ifdef _DEBUG
+constexpr int Convolution_VersionStage = PF_Stage_DEVELOP;
+#else
+constexpr int Convolution_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+#endif
+constexpr int Convolution_VersionBuild = 1;
 
 
 #ifdef __cplusplus

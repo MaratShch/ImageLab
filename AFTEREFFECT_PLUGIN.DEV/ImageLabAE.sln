@@ -11,6 +11,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Convolution", "Convolution\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Convolution", "Convolution", "{C59F37D4-4C6C-48D7-B818-136EE116441E}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ADOBE_RESOURCES", "ADOBE_RESOURCES", "{346D9649-D3E2-489A-B0C9-FB4E74620839}"
+	ProjectSection(SolutionItems) = preProject
+		ADOBE_AE\RESOURCES\AE_General.r = ADOBE_AE\RESOURCES\AE_General.r
+		ADOBE_AE\RESOURCES\Mach-O_prefix.h = ADOBE_AE\RESOURCES\Mach-O_prefix.h
+		ADOBE_AE\RESOURCES\PiPLtool.exe = ADOBE_AE\RESOURCES\PiPLtool.exe
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

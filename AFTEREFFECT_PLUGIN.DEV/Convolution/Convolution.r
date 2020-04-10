@@ -42,8 +42,8 @@ resource 'PiPL' (16000) {
 			PF_PLUG_IN_SUBVERS
 		},
 		/* [8] */
-		AE_Effect_Version {
-			1048577	/* 2.0 */
+		AE_Effect_Version {	
+			1572865	/* 3.0 */
 		},
 		/* [9] */
 		AE_Effect_Info_Flags {
@@ -51,14 +51,14 @@ resource 'PiPL' (16000) {
 		},
 		/* [10] */
 		AE_Effect_Global_OutFlags {
-			0x2000000
+			0x2000404
 		},
 		AE_Effect_Global_OutFlags_2 {
-			0x00000000
+			0x1400
 		},
 		/* [11] */
 		AE_Effect_Match_Name {
-			"ADBE Convolution"
+			"ImageLab2 Convolution"
 		},
 		/* [12] */
 		AE_Reserved_Info {

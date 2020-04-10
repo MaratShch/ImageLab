@@ -112,13 +112,8 @@ float get_min_std
 
 		for (i = 1; i < widthMax; i += winSize)
 		{
-			fStd = get_matrix_std(&pLine[i * 3], winSize, linePitch);
-#ifdef _DEBUG
-			fDbgStd[dbgCnt] = fStd;
-			dbgCnt++;
-#endif
+			fStd = get_matrix_std (&pLine[i * 3], winSize, linePitch);
 			fStdMin = ((0.0f == fStd) ? fStdMin : MIN(fStdMin, fStd));
-
 		} /* for (i = 0; i < widthMax; i += winSize) */
 
 	} /* for (j = 0; j < heightMax; j += winSize) */
