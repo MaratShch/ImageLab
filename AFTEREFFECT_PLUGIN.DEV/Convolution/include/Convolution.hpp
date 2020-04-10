@@ -27,6 +27,10 @@ constexpr int Convolution_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
 constexpr int Convolution_VersionBuild = 1;
 
+constexpr char KernelType[] = "Kernel Type";
+
+constexpr char strKernels[] = "Sharp 3x3|"
+							  "Sharp 5x5    ";
 
 #ifdef __cplusplus
 extern "C" {
