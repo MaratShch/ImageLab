@@ -10,6 +10,22 @@ static float* pInput = nullptr;
 #endif
 
 
+static inline const float simple_median_kernel_3x3 (float* pCentralPix, const csSDK_int32& linePitch)
+{
+	float pixArray[9] =
+	{
+		pCentralPix[OFFSET_V(-linePitch - 3)], pCentralPix[OFFSET_V(-linePitch)], pCentralPix[OFFSET_V(-linePitch + 3)],
+		pCentralPix[OFFSET_V(-3)],             pCentralPix[OFFSET_V(0)],          pCentralPix[OFFSET_V(3)],
+		pCentralPix[OFFSET_V(linePitch - 3)],  pCentralPix[OFFSET_V(linePitch)],  pCentralPix[OFFSET_V(linePitch + 3)],
+	};
+
+	/* make sorting */
+	insertionsort(&pixArray[0], &pixArray[9]);
+
+	return pixArray[5]; /* return median element */
+}
+
+
 /* fast SQUARE ROOT COMPUTATION */
 static inline float asqrt (const float& x)
 {
@@ -19,6 +35,7 @@ static inline float asqrt (const float& x)
 	xRes *= (1.50f - (xHalf * xRes * xRes));
 	return xRes * x;
 }
+
 
 static inline float get_matrix_std
 (
@@ -34,10 +51,10 @@ static inline float get_matrix_std
 
 	/* compute MEAN */
 	mean = 0.0f;
-	for (k = 0; k < winSize; k++)
+	for (k = -1; k <= 1; k++)
 	{
 		const float* __restrict pLine = &pBuffer[k * winPitch];
-		for (l = 0; l < winSize; l++)
+		for (l = -1; l <= 1; l++)
 		{
 			fVal = pLine[OFFSET_V(l * 3)]; /* multiple to 3 because we need only V channel in H,S,V buffer layout */
 			mean += fVal;
@@ -47,10 +64,10 @@ static inline float get_matrix_std
 
 	/* compute VARIANCE */
 	fSum = 0.0f;
-	for (k = 0; k < winSize; k++)
+	for (k = -1; k <= 1; k++)
 	{
 		const float* __restrict pLine = &pBuffer[k * winPitch];
-		for (l = 0; l < winSize; l++)
+		for (l = -1; l <= 1; l++)
 		{
 			/* subtract mean from each element */
 			fVal = pLine[OFFSET_V(l * 3)] - mean; /* multiple to 3 because we need only V channel in H,S,V buffer layout */
@@ -89,11 +106,11 @@ float get_min_std
 	dbgCnt = 0u;
 #endif
 
-	for (j = 0; j < heightMax; j += winSize)
+	for (j = 1; j < heightMax; j += winSize)
 	{
 		const float* pLine = &pBuffer[j * linePitch];
 
-		for (i = 0; i < widthMax; i += winSize)
+		for (i = 1; i < widthMax; i += winSize)
 		{
 			fStd = get_matrix_std(&pLine[i * 3], winSize, linePitch);
 #ifdef _DEBUG
@@ -108,6 +125,7 @@ float get_min_std
 
 	return fStdMin;
 }
+
 
 
 void fuzzy_filter_median_3x3
@@ -127,6 +145,7 @@ void fuzzy_filter_median_3x3
 	float uu, dd, ll, rr, mm, corr, diff;
 	float a, b, c, d;
 	float dA, dB, dC;
+	float localStd = 0.f;
 
 #ifdef _DEBUG
 	pInput = pBuffer;
@@ -136,7 +155,8 @@ void fuzzy_filter_median_3x3
 
 	/* get STD */
 	const float fImgStdMin = get_min_std(pBuffer, width, height, linePitch);
-	const float p = 6 * fImgStdMin;
+	const float p = 6.0f * fImgStdMin;
+	const float pQuart = 1.50f * fImgStdMin;
 
 	/* currently, lets check in-place processing for avoid additional memory allocation */
 	for (j = 2; j < maxLine; j++)
@@ -157,11 +177,11 @@ void fuzzy_filter_median_3x3
 			idxK22 = idxK21 + 3;
 			/* index of Pixel [1, 2] inside of kernel */
 			idxK23 = idxK21 + 6;
-			/* index of Pixel [2, 0] insode of kernel */
+			/* index of Pixel [2, 0] inside of kernel */
 			idxK31 = OFFSET_V((j + 2) * linePitch + i * 3);
-			/* index of Pixel [2, 1] insode of kernel */
+			/* index of Pixel [2, 1] inside of kernel */
 			idxK32 = idxK31 + 3;
-			/* index of Pixel [2, 2] insode of kernel */
+			/* index of Pixel [2, 2] inside of kernel */
 			idxK33 = idxK31 + 6;
 
 
@@ -179,7 +199,18 @@ void fuzzy_filter_median_3x3
 			dd  = pBuffer[idxS];
 			rr  = pBuffer[idxE];
 
-			mm = (pBuffer[idxK11] + pBuffer[idxK12] + pBuffer[idxK13] + pBuffer[idxK21]) / 4.0f;
+			mm = (pBuffer[idxK11] + pBuffer[idxK12] + pBuffer[idxK13] + pBuffer[idxK21]) * 0.250f;
+
+			localStd = get_matrix_std (&pBuffer[idxK11], 3, linePitch);
+
+			if (localStd < pQuart)
+			{
+				if (abs(mm - pBuffer[idxK11]) > pQuart)
+				{
+					pBuffer[idxK11] = simple_median_kernel_3x3 (&pBuffer[idxK11], linePitch);
+					continue;
+				} /* if (abs(mm - pBuffer[idxK11]) > pQuart) */
+			} /* if (localStd < pQuart) */
 
 		/*	
 				|
@@ -328,7 +359,7 @@ void fuzzy_filter_median_3x3
 			diff = pBuffer[idxK33] - b;
 			corr = corr + d * diff;
 
-			pBuffer[OFFSET_V(j * linePitch + i * 3)] += corr / 8.0f;
+			pBuffer[OFFSET_V(j * linePitch + i * 3)] += (corr / 8.0f);
 		}
 
 	} /* for (j = 1; j < maxLine; j++) */
