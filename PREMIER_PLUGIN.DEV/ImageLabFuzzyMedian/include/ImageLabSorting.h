@@ -17,13 +17,22 @@ static inline void swapEx(T& a, T& b) // a != b && a , b = integral types
 }
 
 template <typename T>
+static inline void swap(T& a, T& b) // a != b && a , b = integral types
+{
+	const T& c = a;
+	a = b;
+	b = c;
+}
+
+
+template <typename T>
 static inline void gnomesort(T* l, T* r)
 {
 	T* i = l;
 	while (i < r)
 	{
 		if (i == l || *(i - 1) <= *i)i++;
-		else std::swap(*(i - 1), *i), i--;
+		else swap (*(i - 1), *i), i--;
 	}
 }
 
@@ -38,7 +47,7 @@ static inline void selectionsort(T* l, T* r)
 		{
 			if (*j < minz) minz = *j, ind = j;
 		}
-		std::swap(*i, *ind);
+		swap (*i, *ind);
 	}
 }
 
@@ -50,7 +59,7 @@ static inline void insertionsort(T* l, T* r)
 		T* j = i;
 		while (j > l && *(j - 1) > *j)
 		{
-			std::swap(*(j - 1), *j);
+			swap (*(j - 1), *j);
 			j--;
 		}
 	}

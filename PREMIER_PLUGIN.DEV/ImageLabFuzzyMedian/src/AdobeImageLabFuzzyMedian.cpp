@@ -91,7 +91,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 
 			// Calculate dimensions
 			const csSDK_int32 height = box.bottom - box.top;
-			const csSDK_int32 width  = box.right - box.left;
+			const csSDK_int32 width  = box.right  - box.left;
 			const csSDK_int32 linePitch = (((*theData)->piSuites->ppixFuncs->ppixGetRowbytes)((*theData)->destination)) >> 2;
 
 			// Check is frame dimensions are correct
