@@ -21,6 +21,8 @@ void convert_hsv_to_rgb_4444_BGRA8u
 	if (nullptr == pSrc || nullptr == pHSV || nullptr == pDst)
 		return;
 
+	constexpr float reciproc_60 = 1.0f / 60.0f;
+
 	R = G = B = 0;
 	H = S = V = 0.f;
 	k = 0;
@@ -48,7 +50,7 @@ void convert_hsv_to_rgb_4444_BGRA8u
 			}
 			else
 			{
-				hh = H / 60.f; /* sector 0 to 5 */
+				hh = H * reciproc_60; /* sector 0 to 5 */
 				k = static_cast<csSDK_int32>(hh);
 				ff = hh - static_cast<float>(k);
 

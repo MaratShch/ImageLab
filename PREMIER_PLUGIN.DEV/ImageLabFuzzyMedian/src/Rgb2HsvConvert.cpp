@@ -39,19 +39,20 @@ void convert_rgb_to_hsv_4444_BGRA8u
 			minVal = MIN(R, MIN(G, B));
 			V = maxVal = MAX(R, MAX(G, B));
 
-			if (0 == maxVal)
-				S = H = 0.0f;
+			delta = maxVal - minVal;
+
+			if (0.0f == maxVal || 0.0f == delta)
+				S = H = 0.f;
 			else
 			{
-				delta = maxVal - minVal;
 				S = delta / maxVal;
 
 				if (maxVal == R)
-					H = (G - B) / delta;		/* between Yellow and Magenta*/
+					H = (G - B) / delta;			/* between Yellow and Magenta*/
 				else if (maxVal == G)
-					H = 2.0f + (B - R) / delta;	/* between Cyan and Yellow */
+					H = 2.0f + (B - R) / delta;		/* between Cyan and Yellow */
 				else
-					H = 4.0f + (R - G) / delta;    /* between Magenta and Cyan */
+					H = 4.0f + (R - G) / delta;		/* between Magenta and Cyan */
 
 				H *= 60.0f; /* convert to degrees */
 			}
