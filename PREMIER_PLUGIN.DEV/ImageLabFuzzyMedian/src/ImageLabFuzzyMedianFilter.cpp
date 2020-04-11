@@ -148,24 +148,12 @@ void fuzzy_filter_median_3x3
 	const csSDK_int32 linePitch = width * 3;
 
 	/* get STD */
-	const float fImgStdMin = get_min_std(pBuffer, width, height, linePitch);
+	const float fImgStdMin = get_min_std (pBuffer, width, height, linePitch);
 	const float p = 6.0f * fImgStdMin;
 	const float pQuart = 1.50f * fImgStdMin;
 
 	constexpr float reciproc4 = 1.0f / 4.0f;
 	constexpr float reciproc8 = 1.0f / 8.0f;
-
-#if 0
-	for (j = 1; j < maxLine; j++)
-	{
-		for (i = 1; i < maxPix; i++)
-		{
-			idxK11 = OFFSET_V(j * linePitch + i * 3);
-			fPixel = &pBuffer[idxK11];
-			*fPixel = simple_median_kernel_3x3 (fPixel, linePitch);
-		}
-	}
-#endif
 
 	/* currently, lets check in-place processing for avoid additional memory allocation */
 	for (j = 2; j < maxLine; j++)

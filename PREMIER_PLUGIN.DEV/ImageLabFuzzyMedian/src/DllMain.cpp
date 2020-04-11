@@ -5,7 +5,7 @@
 
 
 std::mutex algStorageMutex;
-static AlgMemStorage algStorage;
+CACHE_ALIGN static AlgMemStorage algStorage;
 
 
 AlgMemStorage& getAlgStorageStruct (void)

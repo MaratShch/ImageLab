@@ -69,8 +69,8 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type kernel_wi
 	return make_odd(x * 2);
 }
 
-constexpr char fuzzyAlgorithmDisabled = '\0';
-constexpr char fuzzyAlgorithmEnabled  = static_cast<char>(1);
+constexpr int fuzzyAlgorithmDisabled = 0;
+constexpr int fuzzyAlgorithmEnabled  = 1;
 
 constexpr int MaxCpuJobs = 8;
 constexpr int MinKernelRadius = 1;
@@ -129,23 +129,23 @@ void setAlgStorageStruct(const AlgMemStorage& storage);
 void algMemStorageFree (AlgMemStorage& algMemStorage);
 bool algMemStorageRealloc (const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage);
 
+#pragma pack(push)
+#pragma pack(1)
 typedef struct filterParams
 {
-	csSDK_int8	checkbox;
+	char		checkbox;
 	csSDK_int16	kernelRadius;
 	AlgMemStorage AlgMemStorage;
 } filterParams, *filterParamsP, **filterParamsH;
+#pragma pack(pop)
+
+constexpr size_t hndlSize = sizeof(filterParams);
 
 
- static inline void IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT (filterParamsH& _param_handle)
-{
-	constexpr size_t strSize = sizeof(**_param_handle);
-	memset(*_param_handle, 0, strSize);
-    (*_param_handle)->checkbox = fuzzyAlgorithmDisabled;
-	(*_param_handle)->kernelRadius = MinKernelRadius;
+#define IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT(_param_handle)	\
+    (*_param_handle)->checkbox = 0u;								\
+	(*_param_handle)->kernelRadius = 1;								\
 	(*_param_handle)->AlgMemStorage = getAlgStorageStruct();
-	return;
-}
 
   
 // Declare plug-in entry point with C linkage
@@ -161,7 +161,7 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 #endif
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
-csSDK_int32 selectProcessFunction(const VideoHandle theData, const csSDK_int8& advFlag, const csSDK_int16& kernelRadius, AlgMemStorage& algMemStorage);
+csSDK_int32 selectProcessFunction(const VideoHandle theData, const csSDK_int16 advFlag, const csSDK_int16 kernelRadius, AlgMemStorage& algMemStorage);
 
 /* ================== HISTOGRAM BASED MEDIAN FILTER ========================== */
 bool median_filter_BGRA_4444_8u_frame (	const csSDK_uint32* __restrict srcPix,

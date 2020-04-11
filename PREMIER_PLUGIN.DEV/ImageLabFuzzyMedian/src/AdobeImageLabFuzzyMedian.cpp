@@ -64,7 +64,7 @@ bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, A
 }
 
 
-csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& advFlag, const csSDK_int16& kernelRadius, AlgMemStorage& algMemStorage)
+csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int16 advFlag, const csSDK_int16 kernelRadius, AlgMemStorage& algMemStorage)
 {
 	constexpr char* strPpixSuite = "Premiere PPix Suite";
 	constexpr long  lSiteVersion = 1l;
@@ -98,13 +98,16 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 			if (0 >= height || 0 >= width || 0 >= linePitch || linePitch < width)
 				return fsBadFormatIndex;
 
-			if (kernelRadius != 1 && 0 == advFlag && false == checkAlgMemoryStorage(width, height, algMemStorage))
+			if (kernelRadius > 1 || 0 != advFlag) 
 			{
-				/* required memory re-allocation */
-				if (false == algMemStorageRealloc(width, height, algMemStorage))
-					return fsBadFormatIndex; /* memory re-allocation failed */
-				else
-					setAlgStorageStruct(algMemStorage);
+				if (false == checkAlgMemoryStorage (width, height, algMemStorage))
+				{
+					/* required memory re-allocation */
+					if (false == algMemStorageRealloc (width, height, algMemStorage))
+						return fsBadFormatIndex; /* memory re-allocation failed */
+					else
+						setAlgStorageStruct (algMemStorage);
+				}
 			}
 
 			switch (pixelFormat)
@@ -114,11 +117,12 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 				{
 					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-					processSucceed = (advFlag ?
-						fuzzy_median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage) :
-						(kernelRadius == 1) ? 
-							median_filter_3x3_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch) :
-							median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
+					if (0 != advFlag)
+						processSucceed = fuzzy_median_filter_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch, algMemStorage);
+					else if (1 == kernelRadius)
+						processSucceed = median_filter_3x3_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch);
+					else
+						processSucceed = median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
 				}
 				break;
 
@@ -173,7 +177,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				break;
 
 			IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT (paramsH);
-			(*paramsH)->AlgMemStorage = getAlgStorageStruct();
+
 			(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 		}
 		break;
@@ -191,10 +195,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 			paramsH = reinterpret_cast<filterParamsH>((*theData)->specsHandle);
 			if (nullptr != paramsH)
 			{
-				const csSDK_int8 advFlag = ((*paramsH)->checkbox ? 1 : 0);
-				if (fuzzyAlgorithmEnabled == advFlag) /* use kernel radius 1 in case of Fuzzy Algorihm */
-					(*paramsH)->kernelRadius = static_cast<csSDK_int16>(MinKernelRadius);
-
+				const csSDK_int16 advFlag = ((*paramsH)->checkbox ? 1 : 0);
 				const csSDK_int16 kernelRadius = make_odd((*paramsH)->kernelRadius); // kernel radius should be odd
 				errCode = selectProcessFunction (theData, advFlag, kernelRadius, (*paramsH)->AlgMemStorage);
 			}

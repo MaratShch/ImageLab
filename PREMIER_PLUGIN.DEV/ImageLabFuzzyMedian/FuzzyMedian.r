@@ -71,33 +71,8 @@ resource 'PiPL' (16000)
 		ANIM_ParamAtom 
 		{
 			0,					// Property count - zero-based count
-			"Filter Radius",	// Parameter name
-			1,					// Parameter number - one-based count
-			ANIM_DT_SHORT,		// Data type
-			ANIM_UI_SLIDER,		// UI Type
-			0,
-			0x0, // valid_min
-			0x40480000, // 48
-			0x0, // valid_max
-			0x0,
-			0x0, // ui_min
-			0x40480000, // 48
-			0x0, // ui_max
-#if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
-			dontScaleUIRange,
-#endif
-			animateParam,		// Set/don't set this to indicate if the param should be animated
-			restrictBounds,	// Rest of these aren't used by Premiere
-			spaceIsAbsolute,
-			resIndependent,
-			2					// Bytes size of the param data
-		},
-
-		ANIM_ParamAtom 
-		{
-			1,					// Property count - zero-based count
 			"Fuzzy Algorithm",	// Parameter name
-			2,					// Parameter number - one-based count
+			1,					// Parameter number - one-based count
 			13,					// Data type - ANIM_DT_BOOLEAN
 			8,					// UI Type - ANIM_UI_CHECKBOX
 			0x0,
@@ -116,6 +91,31 @@ resource 'PiPL' (16000)
 			spaceIsAbsolute,
 			resIndependent,
 			1					// Bytes size of the param data
+		},
+
+		ANIM_ParamAtom 
+		{
+			1,					// Property count - zero-based count
+			"Filter Radius",	// Parameter name
+			2,					// Parameter number - one-based count
+			ANIM_DT_SHORT,		// Data type
+			ANIM_UI_SLIDER,		// UI Type
+			0,
+			0x0, // valid_min
+			0x40480000, // 48
+			0x0, // valid_max
+			0x0,
+			0x0, // ui_min
+			0x40480000, // 48
+			0x0, // ui_max
+#if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
+			dontScaleUIRange,
+#endif
+			animateParam,		// Set/don't set this to indicate if the param should be animated
+			restrictBounds,	// Rest of these aren't used by Premiere
+			spaceIsAbsolute,
+			resIndependent,
+			2					// Bytes size of the param data
 		},
 
 	}
