@@ -27,7 +27,7 @@ void algMemStorageFree(AlgMemStorage& algMemStorage)
 /* realloc memory storage for peform Fuzzy Median Filter or Histogramm Based Median Filter */
 bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage)
 {
-	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel;
+	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel + CPU_PAGE_SIZE;
 	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers), CPU_PAGE_SIZE);
 	bool bRet = false;
 

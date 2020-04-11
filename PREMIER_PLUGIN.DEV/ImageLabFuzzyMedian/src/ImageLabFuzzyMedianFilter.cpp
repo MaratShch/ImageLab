@@ -14,9 +14,9 @@ static inline const float simple_median_kernel_3x3 (float* pCentralPix, const cs
 {
 	float pixArray[9] =
 	{
-		pCentralPix[OFFSET_V(-linePitch - 3)], pCentralPix[OFFSET_V(-linePitch)], pCentralPix[OFFSET_V(-linePitch + 3)],
-		pCentralPix[OFFSET_V(-3)],             pCentralPix[OFFSET_V(0)],          pCentralPix[OFFSET_V(3)],
-		pCentralPix[OFFSET_V(linePitch - 3)],  pCentralPix[OFFSET_V(linePitch)],  pCentralPix[OFFSET_V(linePitch + 3)],
+		pCentralPix[-linePitch - 3], pCentralPix[-linePitch], pCentralPix[-linePitch + 3],
+		pCentralPix[-3],             pCentralPix[0],          pCentralPix[3],
+		pCentralPix[linePitch - 3],  pCentralPix[linePitch],  pCentralPix[linePitch + 3],
 	};
 
 	/* make sorting */
@@ -100,7 +100,7 @@ float get_min_std
 	// test matrix STD: expected value 2.73 (from Matlab)
 	// constexpr float H = 0.f, S = 0.f, V = 1.0f ... 9.0f;
 	// constexpr float fff[27] = { H, S, 1.0f, H, S, 2.0f, H, S, 3.0f, H, S, 4.0f, H, S, 5.0f, H, S, 6.0f, H, S, 7.0f, H, S, 8.0f, H, S, 9.0f };
-	// fStd = get_matrix_std(fff, 3, 9);
+	// fStd = get_matrix_std(&fff[5], 3, 9);
 	//
 #ifdef _DEBUG
 	dbgCnt = 0u;
@@ -130,9 +130,8 @@ void fuzzy_filter_median_3x3
 	const  csSDK_int32& height
 )
 {
-	float* fPixel = nullptr;
 	csSDK_int32 i, j;
-	const csSDK_int32 maxPix  = width - 2;
+	const csSDK_int32 maxPix  = width  - 2;
 	const csSDK_int32 maxLine = height - 2;
 
 	csSDK_int32 idxNE, idxE, idxS, idxW;
@@ -152,6 +151,18 @@ void fuzzy_filter_median_3x3
 	const float fImgStdMin = get_min_std(pBuffer, width, height, linePitch);
 	const float p = 6.0f * fImgStdMin;
 	const float pQuart = 1.50f * fImgStdMin;
+
+#if 0
+	for (j = 1; j < maxLine; j++)
+	{
+		for (i = 1; i < maxPix; i++)
+		{
+			idxK11 = OFFSET_V(j * linePitch + i * 3);
+			fPixel = &pBuffer[idxK11];
+			*fPixel = simple_median_kernel_3x3 (fPixel, linePitch);
+		}
+	}
+#endif
 
 	/* currently, lets check in-place processing for avoid additional memory allocation */
 	for (j = 2; j < maxLine; j++)
@@ -352,13 +363,13 @@ void fuzzy_filter_median_3x3
 			d = 1.0f - d;
 
 			diff = pBuffer[idxK33] - b;
-			corr = corr + d * diff;
+			corr = (corr + d * diff) * 0.1250f;
 
-			pBuffer[OFFSET_V(j * linePitch + i * 3)] += (corr / 8.0f);
+			pBuffer[OFFSET_V(j * linePitch + i * 3)] += corr;
 		}
 
 	} /* for (j = 1; j < maxLine; j++) */
-	
+
 	return;
 }
 
@@ -373,7 +384,7 @@ bool fuzzy_median_filter_BGRA_4444_8u_frame
 	const AlgMemStorage& algMem
 )
 {
-	const csSDK_int32 memSize = height * width * size_fuzzy_pixel;
+	const csSDK_size_t memSize = height * width * size_fuzzy_pixel;
 	bool bResult = false;
 
 	if (nullptr != algMem.pFuzzyBuffer || memSize > algMem.memSize)
