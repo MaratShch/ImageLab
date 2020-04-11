@@ -152,6 +152,9 @@ void fuzzy_filter_median_3x3
 	const float p = 6.0f * fImgStdMin;
 	const float pQuart = 1.50f * fImgStdMin;
 
+	constexpr float reciproc4 = 1.0f / 4.0f;
+	constexpr float reciproc8 = 1.0f / 8.0f;
+
 #if 0
 	for (j = 1; j < maxLine; j++)
 	{
@@ -205,9 +208,9 @@ void fuzzy_filter_median_3x3
 			dd  = pBuffer[idxS];
 			rr  = pBuffer[idxE];
 
-			mm = (pBuffer[idxK11] + pBuffer[idxK12] + pBuffer[idxK13] + pBuffer[idxK21]) * 0.250f;
+			mm = (pBuffer[idxK11] + pBuffer[idxK12] + pBuffer[idxK13] + pBuffer[idxK21]) * reciproc4;
 
-			localStd = get_matrix_std (&pBuffer[idxK11], 3, linePitch);
+			localStd = get_matrix_std (&pBuffer[j * linePitch + i * 3], 3, linePitch);
 
 			if (localStd < pQuart)
 			{
@@ -363,9 +366,9 @@ void fuzzy_filter_median_3x3
 			d = 1.0f - d;
 
 			diff = pBuffer[idxK33] - b;
-			corr = (corr + d * diff) * 0.1250f;
+			corr = (corr + d * diff) * reciproc8;
 
-			pBuffer[OFFSET_V(j * linePitch + i * 3)] += corr;
+			pBuffer[idxK11] += corr;
 		}
 
 	} /* for (j = 1; j < maxLine; j++) */

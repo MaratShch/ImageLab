@@ -141,13 +141,13 @@ typedef struct filterParams
 {
 	constexpr size_t strSize = sizeof(**_param_handle);
 	memset(*_param_handle, 0, strSize);
-    (*_param_handle)->checkbox = fuzzyAlgorithmEnabled;
+    (*_param_handle)->checkbox = fuzzyAlgorithmDisabled;
 	(*_param_handle)->kernelRadius = MinKernelRadius;
 	(*_param_handle)->AlgMemStorage = getAlgStorageStruct();
 	return;
 }
 
-
+  
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
 extern "C" {
@@ -163,7 +163,7 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
 csSDK_int32 selectProcessFunction(const VideoHandle theData, const csSDK_int8& advFlag, const csSDK_int16& kernelRadius, AlgMemStorage& algMemStorage);
 
-
+/* ================== HISTOGRAM BASED MEDIAN FILTER ========================== */
 bool median_filter_BGRA_4444_8u_frame (	const csSDK_uint32* __restrict srcPix,
 										csSDK_uint32*       __restrict dstPix,
 										const csSDK_int32& height,
@@ -181,7 +181,18 @@ bool median_filter_ARGB_4444_8u_frame(const csSDK_uint32* __restrict srcPix,
 									  AlgMemStorage&     algMem,
 	                                  const csSDK_int16& kernelRadius);
 
+/* ================== TRIVIAL MEDIAN FILTER (for SMALL KERNEL) ========================== */
+bool median_filter_3x3_BGRA_4444_8u_frame
+(
+	const	csSDK_uint32* __restrict srcBuf,
+	csSDK_uint32*         __restrict dstBuf,
+	const	csSDK_int32& height,
+	const	csSDK_int32& width,
+	const	csSDK_int32& linePitch
+);
 
+
+/* ================== FUZZY BASED MEDIAN FILTER (with Kernel 3x3 ========================== */
 bool fuzzy_median_filter_BGRA_4444_8u_frame
 (
 	const csSDK_uint32* __restrict srcBuf,

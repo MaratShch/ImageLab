@@ -98,7 +98,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 			if (0 >= height || 0 >= width || 0 >= linePitch || linePitch < width)
 				return fsBadFormatIndex;
 
-			if (false == checkAlgMemoryStorage(width, height, algMemStorage))
+			if (kernelRadius != 1 && 0 == advFlag && false == checkAlgMemoryStorage(width, height, algMemStorage))
 			{
 				/* required memory re-allocation */
 				if (false == algMemStorageRealloc(width, height, algMemStorage))
@@ -116,7 +116,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int8& 
 					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 					processSucceed = (advFlag ?
 						fuzzy_median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage) :
-						median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
+						(kernelRadius == 1) ? 
+							median_filter_3x3_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch) :
+							median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
 				}
 				break;
 

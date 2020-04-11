@@ -248,3 +248,66 @@ bool median_filter_ARGB_4444_8u_frame
 	return true;
 }
 
+
+bool median_filter_3x3_BGRA_4444_8u_frame
+(
+	const	csSDK_uint32* __restrict srcBuf,
+	csSDK_uint32*         __restrict dstBuf,
+	const	csSDK_int32& height,
+	const	csSDK_int32& width,
+	const	csSDK_int32& linePitch
+)
+{
+	CACHE_ALIGN csSDK_int16 kWindow[3][9] = { 0 }; /* 0 = B, 1 = G, 2 = R */
+	csSDK_int32 i, j, k, l, m, idx;
+	constexpr csSDK_int32 kernelRadius  = 1;
+	constexpr csSDK_int32 medianElement = 4;
+	const csSDK_int32 jIdxMax = height - kernelRadius;
+	const csSDK_int32 iIdxMax = width  - kernelRadius;
+	csSDK_int32 medianR, medianG, medianB;
+	csSDK_int32 lineIdx, pixIdx;
+
+	idx = m = 0;
+	medianR = medianG = medianB = 0;
+	lineIdx = pixIdx = 0;
+
+	for (j = 0; j < height; j++)
+	{
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			m = 0;
+			/* collect pixels from Kernel Window */
+			for (l = j - kernelRadius; l <= (j + kernelRadius); l++)
+			{
+				lineIdx = MIN(jIdxMax, MAX(0, l));
+				for (k = i - kernelRadius; k <= (i + kernelRadius); k++)
+				{
+					pixIdx = MIN(iIdxMax, MAX(0, k));
+					idx = lineIdx * linePitch + pixIdx;
+
+					kWindow[0][m] = static_cast<csSDK_int16>( srcBuf[idx] & 0x000000FFu);
+					kWindow[1][m] = static_cast<csSDK_int16>((srcBuf[idx] & 0x0000FF00u) >> 8);
+					kWindow[2][m] = static_cast<csSDK_int16>((srcBuf[idx] & 0x00FF0000u) >> 16);
+
+					m++;
+				} /* for (k = i - kernelRadius; k <= kernelRadius; k++) */
+			} /* for (l = j - kernelRadius; l <= kernelRadius; l++) */
+
+			insertionsort (&kWindow[0][0], &kWindow[0][9]);
+			insertionsort (&kWindow[1][0], &kWindow[1][9]);
+			insertionsort (&kWindow[2][0], &kWindow[2][9]);
+
+			medianB = kWindow[0][medianElement];
+			medianG = kWindow[1][medianElement];
+			medianR = kWindow[2][medianElement];
+
+			idx = j * linePitch + i;
+			dstBuf[idx] = medianB | (medianG << 8) | (medianR << 16) | (srcBuf[idx] & 0xFF000000u); /* copy ALPHA values from source buffer */
+		
+		}/* width */
+
+	} /* height */
+
+	return true;
+}
