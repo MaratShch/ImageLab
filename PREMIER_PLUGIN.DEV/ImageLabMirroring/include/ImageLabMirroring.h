@@ -55,14 +55,3 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 #endif
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
-
-template <typename T>
-bool mirror_image
-(
-	T* __restrict srcPix,
-	T* __restrict dstPix,
-	const csSDK_int32& width,
-	const csSDK_int32& height,
-	const csSDK_int32& linePitch,
-	const csSDK_int32& reflectDirection
-);

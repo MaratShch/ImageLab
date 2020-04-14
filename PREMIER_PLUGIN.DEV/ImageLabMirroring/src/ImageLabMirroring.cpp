@@ -77,7 +77,7 @@ inline void vertical_mirror
 }
 
 template <typename T>
-inline void diagonal_mirror
+void diagonal_mirror
 (
 	T* __restrict srcPix,
 	T* __restrict dstPix,
@@ -86,7 +86,7 @@ inline void diagonal_mirror
 	const csSDK_int32& linePitch
 )
 {
-	csSDK_int32 i, j;
+	csSDK_int32 i, j, k, srcIdx, dstIdx;
 	csSDK_int32 mirrorPoint;
 	float mirrorFloatPoint = 0.f;
 	const float frameProportion = getFrameProprotions (width, height);
@@ -95,11 +95,24 @@ inline void diagonal_mirror
 	{
 		mirrorPoint = static_cast<csSDK_int32>(mirrorFloatPoint);
 
+		__VECTOR_ALIGNED__
 		for (i = 0; i < width; i++)
 		{
-			memcpy(&dstPix[j * linePitch], &srcPix[j * linePitch], mirrorPoint * sizeof(T));
+			srcIdx = dstIdx = j * linePitch;
+			/* copy tol-left diagonal of frame */
+			memcpy (&dstPix[srcIdx], &srcPix[dstIdx], mirrorPoint * sizeof(T));
+
+			/* make bottom-rigth diagonal of frame as mirror of top-left diagonal */
+			dstIdx = j * linePitch;
+			srcIdx = (height - j) * linePitch + width;
+			for (k = mirrorPoint; k < width; k++)
+			{
+				dstPix[dstIdx + k] = srcPix[srcIdx - k];
+			} /* for (k = mirrorPoint; k < width; k++) */
+
 		} /* for (i = 0; i < width; i++) */
 
+		/* update mirror point */
 		mirrorFloatPoint += frameProportion;
 
 	} /* for (j = 0; j < height; j++) */
@@ -108,17 +121,17 @@ inline void diagonal_mirror
 }
 
 template <typename T>
-bool mirror_image
+inline bool mirror_image
 (
 	T* __restrict srcPix,
 	T* __restrict dstPix,
 	const csSDK_int32& width,
 	const csSDK_int32& height,
 	const csSDK_int32& linePitch,
-	const csSDK_int32& reflectDirection
+	const csSDK_int32& mirrorDirection
 )
 {
-	switch (reflectDirection)
+	switch (mirrorDirection)
 	{
 		case mirrorNo:
 			simple_image_copy (srcPix, dstPix, width, height, linePitch);
@@ -182,7 +195,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			if (nullptr == srcImg || nullptr == dstImg)
 				return fsBadFormatIndex;
 
-			const csSDK_int32& reflectDirection = ((*paramsH)->checkbox_mirror_horizontal) | (((*paramsH)->checkbox_mirror_vertical) << 1);
+			const csSDK_int32& mirrorDirection = ((*paramsH)->checkbox_mirror_horizontal) | (((*paramsH)->checkbox_mirror_vertical) << 1);
 
 			switch (pixelFormat)
 			{
@@ -195,7 +208,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				{
 					csSDK_uint32* __restrict pSrcPix = reinterpret_cast<csSDK_uint32* __restrict>(srcImg);
 					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
-					processSucceed = mirror_image(pSrcPix, pDstPix, width, height, linePitch, reflectDirection);
+					processSucceed = mirror_image(pSrcPix, pDstPix, width, height, linePitch, mirrorDirection);
 				}
 				break;
 
@@ -204,7 +217,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				{
 					csSDK_uint64* __restrict pSrcPix = reinterpret_cast<csSDK_uint64* __restrict>(srcImg);
 					csSDK_uint64* __restrict pDstPix = reinterpret_cast<csSDK_uint64* __restrict>(dstImg);
-					processSucceed = mirror_image(pSrcPix, pDstPix, width, height, linePitch, reflectDirection);
+					processSucceed = mirror_image(pSrcPix, pDstPix, width, height, linePitch, mirrorDirection);
 				}
 				break;
 
@@ -215,7 +228,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				{
 					__m128i* __restrict pSrcPix = reinterpret_cast<__m128i* __restrict>(srcImg);
 					__m128i* __restrict pDstPix = reinterpret_cast<__m128i* __restrict>(dstImg);
-					processSucceed = mirror_image(pSrcPix, pDstPix, width, height, linePitch, reflectDirection);
+					processSucceed = mirror_image(pSrcPix, pDstPix, width, height, linePitch, mirrorDirection);
 				}
 				break;
 

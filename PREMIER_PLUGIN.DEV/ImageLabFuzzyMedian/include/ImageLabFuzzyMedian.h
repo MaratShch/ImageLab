@@ -143,7 +143,7 @@ constexpr size_t hndlSize = sizeof(filterParams);
 
 
 #define IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT(_param_handle)	\
-    (*_param_handle)->checkbox = 0u;								\
+    (*_param_handle)->checkbox = '\0';								\
 	(*_param_handle)->kernelRadius = 1;								\
 	(*_param_handle)->AlgMemStorage = getAlgStorageStruct();
 
