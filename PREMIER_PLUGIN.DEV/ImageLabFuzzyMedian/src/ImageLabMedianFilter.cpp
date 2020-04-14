@@ -35,7 +35,7 @@ bool median_filter_BGRA_4444_8u_frame(
 		AlgMemStorage&		 algMem,
 		const   csSDK_int16& kernelRadius)
 {
-	if (nullptr == srcBuf || nullptr == dstBuf || algMem.strSizeOf != sizeof(algMem))
+	if (nullptr == algMem.pCoarse || nullptr == algMem.pFine || nullptr == algMem.pH || algMem.strSizeOf != sizeof(algMem))
 		return false;
 #if 0
 	CACHE_ALIGN HistElem luc[4][16];
@@ -294,9 +294,9 @@ bool median_filter_3x3_BGRA_4444_8u_frame
 				} /* for (k = i - kernelRadius; k <= kernelRadius; k++) */
 			} /* for (l = j - kernelRadius; l <= kernelRadius; l++) */
 
-			insertionsort (&kWindow[0][0], &kWindow[0][9]);
-			insertionsort (&kWindow[1][0], &kWindow[1][9]);
-			insertionsort (&kWindow[2][0], &kWindow[2][9]);
+			gnomesort (&kWindow[0][0], &kWindow[0][9]);
+			gnomesort (&kWindow[1][0], &kWindow[1][9]);
+			gnomesort (&kWindow[2][0], &kWindow[2][9]);
 
 			medianB = kWindow[0][medianElement];
 			medianG = kWindow[1][medianElement];

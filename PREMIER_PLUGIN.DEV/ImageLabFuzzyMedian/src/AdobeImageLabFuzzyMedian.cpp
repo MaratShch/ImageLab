@@ -3,20 +3,20 @@
 #include "ImageLabFuzzyMedian.h"
 
 
-inline bool checkAlgMemoryStorage(const csSDK_int32& width, const csSDK_int32& height, const AlgMemStorage& algMemStorage)
+inline bool checkAlgMemoryStorage (const csSDK_int32& width, const csSDK_int32& height, const AlgMemStorage& algMemStorage)
 {
 	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel;
 	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers), CPU_PAGE_SIZE);
 	return (nullptr == algMemStorage.pFuzzyBuffer || totalMemory < algMemStorage.memSize) ? false : true;
 }
 
-void algMemStorageFree(AlgMemStorage& algMemStorage)
+void algMemStorageFree (AlgMemStorage& algMemStorage)
 {
 	if (nullptr != algMemStorage.pFuzzyBuffer)
 	{
 		_aligned_free(algMemStorage.pFuzzyBuffer);
-		algMemStorage.memSize = 0;
 		algMemStorage.pFuzzyBuffer = nullptr;
+		algMemStorage.memSize = 0;
 		algMemStorage.pFine = algMemStorage.pCoarse = nullptr;
 		algMemStorage.pH = nullptr;
 		algMemStorage.stripeNum = algMemStorage.stripeSize = 0;
@@ -24,11 +24,11 @@ void algMemStorageFree(AlgMemStorage& algMemStorage)
 	return;
 }
 
-/* realloc memory storage for peform Fuzzy Median Filter or Histogramm Based Median Filter */
+/* realloc memory storage for perform Fuzzy Median Filter or Histogramm Based Median Filter */
 bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage)
 {
-	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel + CPU_PAGE_SIZE;
-	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers), CPU_PAGE_SIZE);
+	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel + CACHE_LINE * 2; /* add 128 bytes spare */
+	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers + CACHE_LINE * 2), CPU_PAGE_SIZE);
 	bool bRet = false;
 
 	/* free previoulsy allocated memory */
@@ -47,10 +47,10 @@ bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, A
 			algMemStorage.memSize = totalMemory;
 			algMemStorage.pFuzzyBuffer = pMem;
 
-			/* build Memory Layout for Histogram Based Median Filter */
+			/* build Memory Layout for Histogram Based Median Filter (add 64 bytes between Coarse and Fine and between Histogram and Coarse for DBG putpose) */
 			const unsigned long long pFineAddress = reinterpret_cast<const unsigned long long>(pMem);
-			const unsigned long long pCoarseAddress = pFineAddress + size_fine;
-			const unsigned long long pHistogramm = pCoarseAddress  + size_hist_obj;
+			const unsigned long long pCoarseAddress = CreateAlignment(pFineAddress + size_fine + CACHE_LINE, static_cast<unsigned long long>(CACHE_LINE));
+			const unsigned long long pHistogramm = CreateAlignment(pCoarseAddress  + size_hist_obj + CACHE_LINE, static_cast<unsigned long long>(CACHE_LINE));
 
 			algMemStorage.pFine   = reinterpret_cast<HistElem* __restrict>(pFineAddress);
 			algMemStorage.pCoarse = reinterpret_cast<HistElem* __restrict>(pCoarseAddress);

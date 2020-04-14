@@ -83,7 +83,7 @@ static_assert((MinKernelWidth & 0x1), "Kernel width value must be ODD");
 constexpr int MaxKernelWidth  = kernel_width(MaxKernelRadius);
 static_assert((MaxKernelWidth & 0x1), "Kernel width value must be ODD");
 
-typedef	uint32_t	HistElem;
+typedef	uint16_t	HistElem;
 constexpr csSDK_int32 sizeOfHistElem = static_cast<csSDK_int32>(sizeof(HistElem));
 
 template<typename T>
