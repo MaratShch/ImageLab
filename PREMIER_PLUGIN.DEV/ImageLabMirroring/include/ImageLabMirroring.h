@@ -37,6 +37,12 @@ constexpr csSDK_int32 mirrorVertical = 2;
 constexpr csSDK_int32 mirrorDiagonal = (mirrorVertical | mirrorHorizontal);
 
 
+static inline constexpr float getFrameProprotions (const csSDK_int32& width, const csSDK_int32& height)
+{
+	return static_cast<float>(width) / static_cast<float>(height);
+}
+
+
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
 extern "C" {

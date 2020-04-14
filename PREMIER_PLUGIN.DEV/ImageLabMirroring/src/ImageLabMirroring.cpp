@@ -38,7 +38,7 @@ inline void horizontal_mirror
 		memcpy(&dstPix[(height - j) * linePitch], &srcPix[(height - j) * linePitch], width * sizeof(T));
 	}
 
-	/* copy BOTTOM half pat of frame to destination */
+	/* copy BOTTOM half part of frame to destination */
 	__VECTOR_ALIGNED__
 	for (j = halfHeight; j < height; j++)
 	{
@@ -86,21 +86,23 @@ inline void diagonal_mirror
 	const csSDK_int32& linePitch
 )
 {
-	T* pSrc;
-	T* pDst;
-	csSDK_int32 i, j, k, l;
+	csSDK_int32 i, j;
+	csSDK_int32 mirrorPoint;
+	float mirrorFloatPoint = 0.f;
+	const float frameProportion = getFrameProprotions (width, height);
 
-	__VECTOR_ALIGNED__
-	for (j = 0, k = height - 1; j < height; j++, k--)
+	for (j = 0; j < height; j++)
 	{
-		pSrc = &srcPix[k * linePitch];
-		pDst = &dstPix[j * linePitch];
+		mirrorPoint = static_cast<csSDK_int32>(mirrorFloatPoint);
 
-		for (i = 0, l = width - 1; i < width; i++, l--)
+		for (i = 0; i < width; i++)
 		{
-			pDst[i] = pSrc[l];
-		}
-	}
+			memcpy(&dstPix[j * linePitch], &srcPix[j * linePitch], mirrorPoint * sizeof(T));
+		} /* for (i = 0; i < width; i++) */
+
+		mirrorFloatPoint += frameProportion;
+
+	} /* for (j = 0; j < height; j++) */
 
 	return;
 }
