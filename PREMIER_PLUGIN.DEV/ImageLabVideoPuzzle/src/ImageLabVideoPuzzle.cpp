@@ -5,20 +5,19 @@
 #include <iostream>
 
 
-bool make_puzzle_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber)
+bool make_puzzle_map (csSDK_int16* __restrict pMap, const csSDK_int16 blocksNumber)
 {
 	if (nullptr == pMap || blocksNumber < minBlocksNumber || blocksNumber > maxBlocksNumber)
 		return false;
 
-	std::vector<csSDK_int16> blockVertical;
-	std::vector<csSDK_int16> blockHorizontal;
+	std::vector<csSDK_int16> block;
+	const csSDK_int16 totalBlocks = blocksNumber * blocksNumber;
 	csSDK_int16 i;
 
 	/* build vector */
-	for (i = 0; i < blocksNumber; i++)
+	for (i = 0; i < totalBlocks; i++)
 	{
-		blockVertical.push_back(i);
-		blockHorizontal.push_back(i);
+		block.push_back(i);
 	} /* for (i = 0; i < blocksNumber; i++) */
 
 	/* initialize random device */
@@ -26,13 +25,11 @@ bool make_puzzle_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber
 	std::mt19937 g(rd()); /* use "mersenne twister" for generate random values */
 
 	/* shuffle numbers */
-	std::shuffle(blockVertical.begin(),   blockVertical.end(),   g);
-	std::shuffle(blockHorizontal.begin(), blockHorizontal.end(), g);
+	std::shuffle(block.begin(), block.end(), g);
 
-	for (i = 0; i < blocksNumber; i++)
+	for (i = 0; i < totalBlocks; i++)
 	{
-		pMap[i].mapIdx[lineIdx] = blockHorizontal[i];
-		pMap[i].mapIdx[rowIdx]  = blockVertical[i];
+		pMap[i] = block[i];
 	} /* for (i = 0; i < blocksNumber; i++) */
 
 	return true;
@@ -47,18 +44,39 @@ bool make_puzzle_image
 	const csSDK_int32& width,
 	const csSDK_int32& height,
 	const csSDK_int32& linePitch,
-	const mosaicMap* __restrict pMosaic,
+	const csSDK_int16* __restrict pMap,
 	const csSDK_int16& blocksNumber
 )
 {
 	T* __restrict srcBlock = nullptr;
 	T* __restrict dstBlock = nullptr;
+	const float blockWidth_f = static_cast<float>(width) / static_cast<float>(blocksNumber);
+	const float blockHeight_f = static_cast<float>(height) / static_cast<float>(blocksNumber);
 	const csSDK_int32 totalBlocks = blocksNumber * blocksNumber;
+	const csSDK_int32 blockHeight = static_cast<csSDK_int32>(blockHeight_f);
+	const csSDK_int32 blockWidth  = static_cast<csSDK_int32>(blockWidth_f);
+
 	csSDK_int32 i, j, k;
+	csSDK_int32 hSrcIdx = 0, vSrcIdx = 0;
+	csSDK_int32 hDstIdx = 0, vDstIdx = 0;
+	csSDK_int32 srcOffset = 0, dstOffset = 0;
 
 	for (k = 0; k < totalBlocks; k++)
 	{
+		/* compute source blocks coordinates */
+		vSrcIdx = static_cast<csSDK_int32>(pMap[k]) % blocksNumber;
+		hSrcIdx = static_cast<csSDK_int32>(pMap[k]) / blocksNumber;
 
+		vDstIdx = k % blocksNumber;
+		hDstIdx = k / blocksNumber;
+
+		srcOffset = static_cast<csSDK_int32>(blockHeight_f * hSrcIdx) * linePitch + static_cast<csSDK_int32>(vSrcIdx * blockWidth_f);
+		dstOffset = static_cast<csSDK_int32>(blockHeight_f * hDstIdx) * linePitch + static_cast<csSDK_int32>(vDstIdx * blockWidth_f);
+
+		for (i = 0; i < blockHeight; i++)
+		{
+			memcpy (&dstPix[dstOffset + i * linePitch], &srcPix[srcOffset + i * linePitch], blockWidth * sizeof(T));
+		}
 	}
 
 	return true;
@@ -109,7 +127,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 
 			/* get mosaic INFO */
 			const csSDK_int16 blocksNumber = (*paramsH)->sliderBlocksNumber;
-			mosaicMap* __restrict map = (*paramsH)->map;
+			csSDK_int16* __restrict map = (*paramsH)->map;
 
 			((*paramsH)->frameCnt) += 1;
 			if ((*paramsH)->frameCnt > (*paramsH)->sliderFrameDuration)

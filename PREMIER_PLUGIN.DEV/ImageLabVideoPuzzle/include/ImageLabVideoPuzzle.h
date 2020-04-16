@@ -26,7 +26,7 @@
 
 constexpr csSDK_int16 minBlocksNumber = 2;				/* minimal blocks number per one dimension				*/
 constexpr csSDK_int16 maxBlocksNumber = 16;				/* maximal blocks number per one dimension				*/
-constexpr csSDK_int16 defBlocksNumber = 4;				/* maximal blocks number per one dimension				*/
+constexpr csSDK_int16 defBlocksNumber = 4;				/* default blocks number per one dimension				*/
 constexpr csSDK_int16 minMosaicMapDuration = 20;		/* minimal number of frames for use current mosaic map	*/
 constexpr csSDK_int16 defMosaicMapDuration = 200;		/* default number of frames for use current mosaic map	*/
 constexpr csSDK_int16 maxMosaicMapDuration = SHRT_MAX;	/* maximal number of frame for use current mosaic map	*/
@@ -36,11 +36,6 @@ constexpr csSDK_int16 maxMosaicMapSize = maxBlocksNumber * maxBlocksNumber;
 constexpr csSDK_int16 lineIdx = 0;
 constexpr csSDK_int16 rowIdx  = 1;
 
-typedef union mosaicMap
-{
-	csSDK_int32 mapElem;
-	csSDK_int16 mapIdx[2];
-}mosaicMap;
 
 typedef struct filterParams
 {
@@ -48,7 +43,7 @@ typedef struct filterParams
 	csSDK_int16	sliderBlocksNumber;
 	csSDK_int16	sliderFrameDuration;
 	csSDK_int32 frameCnt;
-	mosaicMap   map[maxMosaicMapSize];
+	csSDK_int16 map[maxMosaicMapSize];
 } filterParams, *filterParamsP, **filterParamsH;
 
 
@@ -66,7 +61,7 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 #endif
 
 csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData);
-bool make_puzzle_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber);
+bool make_puzzle_map(csSDK_int16* __restrict pMap, const csSDK_int16 blocksNumber);
 
 
 template <typename T>
@@ -77,6 +72,6 @@ bool make_puzzle_image
 	const csSDK_int32& width,
 	const csSDK_int32& height,
 	const csSDK_int32& linePitch,
-	const mosaicMap* __restrict pMosaic = nullptr,
+	const csSDK_int16* __restrict pMosaic = nullptr,
 	const csSDK_int16& blocksNumber = defBlocksNumber
 );
