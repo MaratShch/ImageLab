@@ -5,7 +5,7 @@
 #include <iostream>
 
 
-bool make_mosaic_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber)
+bool make_puzzle_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber)
 {
 	if (nullptr == pMap || blocksNumber < minBlocksNumber || blocksNumber > maxBlocksNumber)
 		return false;
@@ -40,7 +40,7 @@ bool make_mosaic_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber
 
 
 template <typename T>
-bool make_mosaic_image
+bool make_puzzle_image
 (
 	const T* __restrict srcPix,
 	T* __restrict dstPix,
@@ -115,7 +115,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			if ((*paramsH)->frameCnt > (*paramsH)->sliderFrameDuration)
 			{
 				(*paramsH)->frameCnt = 0;
-				make_mosaic_map (map, blocksNumber);
+				make_puzzle_map (map, blocksNumber);
 			}
 
 			switch (pixelFormat)
@@ -129,7 +129,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				{
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
-					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
+					processSucceed = make_puzzle_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
 				}
 				break;
 
@@ -138,7 +138,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				{
 					const csSDK_uint64* __restrict pSrcPix = reinterpret_cast<const csSDK_uint64* __restrict>(srcImg);
 					      csSDK_uint64* __restrict pDstPix = reinterpret_cast<csSDK_uint64* __restrict>(dstImg);
-					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
+					processSucceed = make_puzzle_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
 				}
 				break;
 
@@ -149,7 +149,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				{
 					const __m128i* __restrict pSrcPix = reinterpret_cast<const __m128i* __restrict>(srcImg);
 					      __m128i* __restrict pDstPix = reinterpret_cast<__m128i* __restrict>(dstImg);
-					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
+					processSucceed = make_puzzle_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
 				}
 				break;
 
@@ -193,7 +193,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				if (nullptr == paramsH)
 					break;
 
-				make_mosaic_map((*paramsH)->map, defBlocksNumber);
+				make_puzzle_map((*paramsH)->map, defBlocksNumber);
 				(*paramsH)->sliderBlocksNumber = defBlocksNumber;
 				(*paramsH)->sliderFrameDuration = defMosaicMapDuration;
 				(*paramsH)->frameCnt = 0;

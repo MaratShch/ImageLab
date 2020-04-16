@@ -66,11 +66,11 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 #endif
 
 csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData);
-bool make_mosaic_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber);
+bool make_puzzle_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber);
 
 
 template <typename T>
-bool make_mosaic_image
+bool make_puzzle_image
 (
 	const T* __restrict srcPix,
 	T* __restrict dstPix,
