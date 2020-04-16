@@ -22,6 +22,7 @@
     <ProjectGuid>{89791C5B-2FF0-437A-BD64-31E30BE086D3}</ProjectGuid>
     <RootNamespace>ImageLabVideoMosaic</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
+    <ProjectName>ImageLabVideoPuzzle</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -73,14 +74,14 @@
     <ExtensionsToDeleteOnClean>*.prm;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
     <OutDir>$(SolutionDir)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\</IntDir>
-    <TargetName>VideoMosaic</TargetName>
+    <TargetName>VideoPuzzle</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetExt>.prm</TargetExt>
     <ExtensionsToDeleteOnClean>*.prm;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
     <OutDir>$(SolutionDir)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\</IntDir>
-    <TargetName>VideoMosaic</TargetName>
+    <TargetName>VideoPuzzle</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -132,14 +133,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="include\ImageLabVideoMosaic.h" />
+    <ClInclude Include="include\ImageLabVideoPuzzle.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
-    <ClCompile Include="src\ImageLabVideoMosaic.cpp" />
+    <ClCompile Include="src\ImageLabVideoPuzzle.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="VideoMosaic.r">
+    <CustomBuild Include="VideoPuzzle.r">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -154,7 +155,7 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="VideoMosaic.rc" />
+    <ResourceCompile Include="VideoPuzzle.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

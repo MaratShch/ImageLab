@@ -15,25 +15,25 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\ImageLabVideoMosaic.h">
+    <ClCompile Include="src\ImageLabPixelFormat.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabVideoPuzzle.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\ImageLabVideoPuzzle.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ImageLabPixelFormat.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabVideoMosaic.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="VideoMosaic.r">
+    <CustomBuild Include="VideoPuzzle.r">
       <Filter>resources</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="VideoMosaic.rc">
+    <ResourceCompile Include="VideoPuzzle.rc">
       <Filter>resources</Filter>
     </ResourceCompile>
   </ItemGroup>

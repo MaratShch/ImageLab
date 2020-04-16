@@ -65,8 +65,9 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 }
 #endif
 
-csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData);
-bool make_mosaic_map (mosaicMap* pMap, const csSDK_int16 blocksNumber);
+csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData);
+bool make_mosaic_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber);
+
 
 template <typename T>
 bool make_mosaic_image
@@ -76,5 +77,6 @@ bool make_mosaic_image
 	const csSDK_int32& width,
 	const csSDK_int32& height,
 	const csSDK_int32& linePitch,
-	const mosaicMap* pMosaic = nullptr
+	const mosaicMap* __restrict pMosaic = nullptr,
+	const csSDK_int16& blocksNumber = defBlocksNumber
 );

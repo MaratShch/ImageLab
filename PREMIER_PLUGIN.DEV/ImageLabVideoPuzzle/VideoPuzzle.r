@@ -13,11 +13,11 @@
 #endif
 
 // The following two strings should be localized
-#define plugInName		"VideoMosaic"
+#define plugInName		"VideoPuzzle"
 #define plugCategory 	"ImageLab"
 
 // This name should not be localized or updated
-#define plugInMatchName	"ImageLab_VideoMosaic"
+#define plugInMatchName	"ImageLab_VideoPuzzle"
 
 
 resource 'PiPL' (16000)

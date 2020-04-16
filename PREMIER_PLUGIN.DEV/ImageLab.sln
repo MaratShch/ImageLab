@@ -71,9 +71,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabMirroring", "ImageL
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageLabMirroring", "ImageLabMirroring", "{7D0C8012-B65E-445B-A1EB-3DDCDC6D70A0}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabVideoMosaic", "ImageLabVideoMosaic\ImageLabVideoMosaic.vcxproj", "{89791C5B-2FF0-437A-BD64-31E30BE086D3}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageLabVideoPuzzle", "ImageLabVideoPuzzle", "{CE79171C-3FC8-4BA5-9CE4-FE81F08E9E3D}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageLabVideoMosaic", "ImageLabVideoMosaic", "{CE79171C-3FC8-4BA5-9CE4-FE81F08E9E3D}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabVideoPuzzle", "ImageLabVideoPuzzle\ImageLabVideoPuzzle.vcxproj", "{89791C5B-2FF0-437A-BD64-31E30BE086D3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -1,4 +1,4 @@
-#include "ImageLabVideoMosaic.h"
+#include "ImageLabVideoPuzzle.h"
 
 csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 {

@@ -1,11 +1,11 @@
-﻿#include "ImageLabVideoMosaic.h"
+﻿#include "ImageLabVideoPuzzle.h"
 #include <random>
 #include <algorithm>
 #include <iterator>
 #include <iostream>
 
 
-bool make_mosaic_map (mosaicMap* pMap, const csSDK_int16 blocksNumber)
+bool make_mosaic_map (mosaicMap* __restrict pMap, const csSDK_int16 blocksNumber)
 {
 	if (nullptr == pMap || blocksNumber < minBlocksNumber || blocksNumber > maxBlocksNumber)
 		return false;
@@ -23,7 +23,7 @@ bool make_mosaic_map (mosaicMap* pMap, const csSDK_int16 blocksNumber)
 
 	/* initialize random device */
 	std::random_device rd;
-	std::mt19937 g(rd());
+	std::mt19937 g(rd()); /* use "mersenne twister" for generate random values */
 
 	/* shuffle numbers */
 	std::shuffle(blockVertical.begin(),   blockVertical.end(),   g);
@@ -47,9 +47,20 @@ bool make_mosaic_image
 	const csSDK_int32& width,
 	const csSDK_int32& height,
 	const csSDK_int32& linePitch,
-	const mosaicMap* pMosaic
+	const mosaicMap* __restrict pMosaic,
+	const csSDK_int16& blocksNumber
 )
 {
+	T* __restrict srcBlock = nullptr;
+	T* __restrict dstBlock = nullptr;
+	const csSDK_int32 totalBlocks = blocksNumber * blocksNumber;
+	csSDK_int32 i, j, k;
+
+	for (k = 0; k < totalBlocks; k++)
+	{
+
+	}
+
 	return true;
 }
 
@@ -96,11 +107,15 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			if (nullptr == srcImg || nullptr == dstImg)
 				return fsBadFormatIndex;
 
-			(*paramsH)->frameCnt += 1;
+			/* get mosaic INFO */
+			const csSDK_int16 blocksNumber = (*paramsH)->sliderBlocksNumber;
+			mosaicMap* __restrict map = (*paramsH)->map;
+
+			((*paramsH)->frameCnt) += 1;
 			if ((*paramsH)->frameCnt > (*paramsH)->sliderFrameDuration)
 			{
 				(*paramsH)->frameCnt = 0;
-				make_mosaic_map((*paramsH)->map, (*paramsH)->sliderBlocksNumber);
+				make_mosaic_map (map, blocksNumber);
 			}
 
 			switch (pixelFormat)
@@ -113,8 +128,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				case PrPixelFormat_RGB_444_10u:
 				{
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
-					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, (*paramsH)->map);
+					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
 				}
 				break;
 
@@ -122,8 +137,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				case PrPixelFormat_ARGB_4444_16u:
 				{
 					const csSDK_uint64* __restrict pSrcPix = reinterpret_cast<const csSDK_uint64* __restrict>(srcImg);
-					csSDK_uint64* __restrict pDstPix = reinterpret_cast<csSDK_uint64* __restrict>(dstImg);
-					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, (*paramsH)->map);
+					      csSDK_uint64* __restrict pDstPix = reinterpret_cast<csSDK_uint64* __restrict>(dstImg);
+					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
 				}
 				break;
 
@@ -133,8 +148,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				case PrPixelFormat_ARGB_4444_32f:
 				{
 					const __m128i* __restrict pSrcPix = reinterpret_cast<const __m128i* __restrict>(srcImg);
-					__m128i* __restrict pDstPix = reinterpret_cast<__m128i* __restrict>(dstImg);
-					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, (*paramsH)->map);
+					      __m128i* __restrict pDstPix = reinterpret_cast<__m128i* __restrict>(dstImg);
+					processSucceed = make_mosaic_image (pSrcPix, pDstPix, width, height, linePitch, map, blocksNumber);
 				}
 				break;
 

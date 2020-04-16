@@ -1,1 +1,0 @@
-This is performance tuned DLL for ImageLab plugins
