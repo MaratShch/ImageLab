@@ -24,12 +24,18 @@
 #define __ASSUME_ALIGNED__         
 #endif
 
+template<typename T>
+constexpr T MIN(const T a, const T b) { return ((a < b) ? a : b); }
+
+template<typename T>
+constexpr T MAX(const T a, const T b) { return ((a > b) ? a : b); }
+
 constexpr csSDK_int16 minBlocksNumber = 2;				/* minimal blocks number per one dimension				*/
 constexpr csSDK_int16 maxBlocksNumber = 16;				/* maximal blocks number per one dimension				*/
 constexpr csSDK_int16 defBlocksNumber = 4;				/* default blocks number per one dimension				*/
-constexpr csSDK_int16 minMosaicMapDuration = 20;		/* minimal number of frames for use current mosaic map	*/
-constexpr csSDK_int16 defMosaicMapDuration = 200;		/* default number of frames for use current mosaic map	*/
-constexpr csSDK_int16 maxMosaicMapDuration = SHRT_MAX;	/* maximal number of frame for use current mosaic map	*/
+constexpr csSDK_int16 minMosaicMapDuration = 2;		    /* minimal number of frames for use current mosaic map	*/
+constexpr csSDK_int16 defMosaicMapDuration = 10;		/* default number of frames for use current mosaic map	*/
+constexpr csSDK_int32 durationCoeff = 300;				/* maximal number of frame for use current mosaic map	*/
 constexpr csSDK_int16 infiniteMosaicMapDuration = -1;
 
 constexpr csSDK_int16 maxMosaicMapSize = maxBlocksNumber * maxBlocksNumber;
@@ -43,9 +49,9 @@ typedef struct filterParams
 	csSDK_int16	sliderBlocksNumber;
 	csSDK_int16	sliderFrameDuration;
 	csSDK_int32 frameCnt;
+	csSDK_int32 currentBlocksNumber;
 	csSDK_int16 map[maxMosaicMapSize];
 } filterParams, *filterParamsP, **filterParamsH;
-
 
 
 

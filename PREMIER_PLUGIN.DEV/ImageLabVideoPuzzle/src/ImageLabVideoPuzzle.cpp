@@ -50,13 +50,13 @@ bool make_puzzle_image
 {
 	T* __restrict srcBlock = nullptr;
 	T* __restrict dstBlock = nullptr;
-	const float blockWidth_f = static_cast<float>(width) / static_cast<float>(blocksNumber);
+	const float blockWidth_f = static_cast<float>(width)   / static_cast<float>(blocksNumber);
 	const float blockHeight_f = static_cast<float>(height) / static_cast<float>(blocksNumber);
 	const csSDK_int32 totalBlocks = blocksNumber * blocksNumber;
 	const csSDK_int32 blockHeight = static_cast<csSDK_int32>(blockHeight_f);
 	const csSDK_int32 blockWidth  = static_cast<csSDK_int32>(blockWidth_f);
 
-	csSDK_int32 i, j, k;
+	csSDK_int32 i, k;
 	csSDK_int32 hSrcIdx = 0, vSrcIdx = 0;
 	csSDK_int32 hDstIdx = 0, vDstIdx = 0;
 	csSDK_int32 srcOffset = 0, dstOffset = 0;
@@ -127,14 +127,22 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 
 			/* get mosaic INFO */
 			const csSDK_int16 blocksNumber = (*paramsH)->sliderBlocksNumber;
+			const csSDK_int32 blocksInMap = (*paramsH)->currentBlocksNumber;
+			const csSDK_int32 duration = durationCoeff * MAX((*paramsH)->sliderFrameDuration, minMosaicMapDuration);
+			const csSDK_int32 frameCnt = (*paramsH)->frameCnt + 1;
 			csSDK_int16* __restrict map = (*paramsH)->map;
 
-			((*paramsH)->frameCnt) += 1;
-			if ((*paramsH)->frameCnt > (*paramsH)->sliderFrameDuration)
+			if ((*paramsH)->frameCnt > duration || blocksInMap != blocksNumber)
 			{
-				(*paramsH)->frameCnt = 0;
 				make_puzzle_map (map, blocksNumber);
+				(*paramsH)->frameCnt = 0;
+				(*paramsH)->currentBlocksNumber = (*paramsH)->sliderBlocksNumber;
 			}
+			else
+			{
+				(*paramsH)->frameCnt = frameCnt;
+			}
+
 
 			switch (pixelFormat)
 			{
@@ -214,6 +222,7 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				make_puzzle_map((*paramsH)->map, defBlocksNumber);
 				(*paramsH)->sliderBlocksNumber = defBlocksNumber;
 				(*paramsH)->sliderFrameDuration = defMosaicMapDuration;
+				(*paramsH)->currentBlocksNumber = (*paramsH)->sliderBlocksNumber;
 				(*paramsH)->frameCnt = 0;
 				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 			}

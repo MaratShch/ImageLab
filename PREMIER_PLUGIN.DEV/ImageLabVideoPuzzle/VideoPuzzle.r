@@ -75,14 +75,14 @@ resource 'PiPL' (16000)
 			1,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0,
-			0x0, // valid_min
-			0x40480000, // 48
-			0x0, // valid_max
-			0x0,
-			0x0, // ui_min
-			0x40480000, // 48
-			0x0, // ui_max
+			0x40040000, // 2
+			0x0, // valid_min (0.0)
+			0x40300000, // 16
+			0x0, // valid_max (16.0)
+			0x40040000, // 2
+			0x0, // ui_min (0.0)
+			0x40300000, // 16
+			0x0, // ui_max 
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif
@@ -100,13 +100,13 @@ resource 'PiPL' (16000)
 			0,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
-			0,
+			0x40040000, // 2
 			0x0, // valid_min
-			0x40480000, // 48
+			0x40690000, // 200
 			0x0, // valid_max
-			0x0,
+			0x40040000, // 2
 			0x0, // ui_min
-			0x40480000, // 48
+			0x40690000, // 200
 			0x0, // ui_max
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
