@@ -132,7 +132,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			const csSDK_int32 frameCnt = (*paramsH)->frameCnt + 1;
 			csSDK_int16* __restrict map = (*paramsH)->map;
 
-			if ((*paramsH)->frameCnt > duration || blocksInMap != blocksNumber)
+			if (frameCnt > duration || blocksInMap != blocksNumber)
 			{
 				make_puzzle_map (map, blocksNumber);
 				(*paramsH)->frameCnt = 0;
