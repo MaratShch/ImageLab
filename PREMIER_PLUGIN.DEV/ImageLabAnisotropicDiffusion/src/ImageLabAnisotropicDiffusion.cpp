@@ -42,32 +42,22 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			{
 				// ============ native AP formats ============================= //
 				case PrPixelFormat_BGRA_4444_8u:
-				case PrPixelFormat_VUYA_4444_8u:
-				case PrPixelFormat_VUYA_4444_8u_709:
-				case PrPixelFormat_ARGB_4444_8u:
-				case PrPixelFormat_RGB_444_10u:
 				{
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 				}
 				break;
 
+				case PrPixelFormat_VUYA_4444_8u:
+				case PrPixelFormat_VUYA_4444_8u_709:
+				case PrPixelFormat_ARGB_4444_8u:
+				case PrPixelFormat_RGB_444_10u:
 				case PrPixelFormat_BGRA_4444_16u:
 				case PrPixelFormat_ARGB_4444_16u:
-				{
-					const csSDK_uint64* __restrict pSrcPix = reinterpret_cast<const csSDK_uint64* __restrict>(srcImg);
-					      csSDK_uint64* __restrict pDstPix = reinterpret_cast<csSDK_uint64* __restrict>(dstImg);
-				}
-				break;
-
 				case PrPixelFormat_BGRA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f_709:
 				case PrPixelFormat_ARGB_4444_32f:
-				{
-					const __m128i* __restrict pSrcPix = reinterpret_cast<const __m128i* __restrict>(srcImg);
-					      __m128i* __restrict pDstPix = reinterpret_cast<__m128i* __restrict>(dstImg);
-				}
 				break;
 
 				default:
