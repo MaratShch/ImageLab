@@ -18,6 +18,9 @@
     <ClInclude Include="include\ImageLabAnisotropicDiffusion.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageLabGFunction.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabPixelFormat.cpp">
@@ -26,15 +29,24 @@
     <ClCompile Include="src\ImageLabAnisotropicDiffusion.cpp">
       <Filter>src</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="AnisotropicDiffusion.r">
-      <Filter>resource</Filter>
-    </None>
+    <ClCompile Include="src\DllMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabAlgorithmMem.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabProcessVUYA.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AnisotropicDiffusion.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="AnisotropicDiffusion.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

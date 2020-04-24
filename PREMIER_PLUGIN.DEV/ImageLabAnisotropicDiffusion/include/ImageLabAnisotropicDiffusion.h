@@ -24,12 +24,69 @@
 #define __ASSUME_ALIGNED__         
 #endif
 
+template<typename T>
+constexpr T MIN(const T a, const T b) { return ((a < b) ? a : b); }
+
+template<typename T>
+constexpr T MAX(const T a, const T b) { return ((a > b) ? a : b); }
+
+template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
+{
+	return (x > 0) ? ((x + a - 1) / a * a) : a;
+}
+
+template<typename T>
+const T CLAMP_U8 (const T val)
+{
+	constexpr T minVal{ 0 };
+	constexpr T maxVal{ 255 };
+	return (MAX(minVal, MIN(val, maxVal)));
+}
+
+
+typedef struct AlgMemStorage
+{
+	size_t memBytesSize;
+	void* __restrict pTmp1;
+	void* __restrict pTmp2;
+}AlgMemStorage;
+
+
+#pragma pack(push)
+#pragma pack(1)
+typedef struct filterParams
+{
+	// filter setting
+	csSDK_int16	sliderLevelDispersion;	/* t			*/
+	csSDK_int16	sliderTimeStep;			/* deltaT		*/
+	csSDK_int16	sliderNoiseLevel;		/* k			*/	
+	csSDK_int8	checkbox_AdvancedG;		/* g-function	*/
+	csSDK_uint8	__padding__;
+	AlgMemStorage memStorage;
+} filterParams, *filterParamsP, **filterParamsH;
+#pragma pack(pop)
+
+#ifndef IMAGE_LAB_FILTER_PARAM_HANDLE_INIT
+#define IMAGE_LAB_FILTER_PARAM_HANDLE_INIT(_param_handle)	\
+ (*_param_handle)->sliderLevelDispersion = 2;			    \
+ (*_param_handle)->sliderTimeStep = 5;                      \
+ (*_param_handle)->sliderNoiseLevel = 1;                    \
+ (*_param_handle)->checkbox_AdvancedG = 0;                  \
+ (*_param_handle)->__padding__ = 0x8B;						\
+ (*_param_handle)->memStorage = getAlgStorageStruct();
+#endif
+
+
+constexpr size_t memStorSize = sizeof(AlgMemStorage);
+constexpr size_t handleSize = sizeof(filterParams);
 
 // Declare plug-in entry point with C linkage
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+BOOL APIENTRY DllMain (HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */);
 PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 
 #ifdef __cplusplus
@@ -37,3 +94,22 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 #endif
 
 csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData);
+
+void algMemStorageFree (AlgMemStorage& algMemStorage);
+bool algMemStorageRealloc (const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage);
+AlgMemStorage& getAlgStorageStruct(void);
+void setAlgStorageStruct(const AlgMemStorage& storage);
+
+void process_VUYA_4444_8u_buffer
+(
+	const csSDK_uint32*  __restrict pSrc,
+	const AlgMemStorage* __restrict pTmpBuffers,
+	csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    heigth,
+	const csSDK_int32&    linePitch,
+	const float&          dispersion,
+	const float&          timeStep,
+	const float&          noiseLevel,
+	const csSDK_int16&    gAdvanced
+);
