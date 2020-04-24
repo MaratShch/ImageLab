@@ -1,6 +1,4 @@
-#include "ImageLabAnisotropicDiffusion.h"
-#include "ImageLabGFunction.h"
-
+#include "ImageLabProcessTmpBuffer.h"
 
 static inline void process_VUYA_4444_8u_buffer
 (
@@ -23,11 +21,7 @@ static inline void process_VUYA_4444_8u_buffer
 	float diffNorth, diffWest, diffEast, diffSouth;
 	float sum;
 
-	k1 = k2 = 0;
-	north = west = east = south = current = 0;
-	diffNorth = diffWest = diffEast = diffSouth = sum = 0.f;
 	dstIdx = 0;
-	lineIdx = 0;
 
 	__VECTOR_ALIGNED__
 	for (j = 0; j < height; j++)
@@ -71,10 +65,12 @@ static inline void process_VUYA_4444_8u_buffer
 	return;
 }
 
-static inline void process_float_raw_buffer
+
+static inline void process_VUYA_4444_8u_buffer
 (
-	float*  __restrict pSrc,
-	float*  __restrict pDst,
+	const csSDK_uint32* __restrict pSrc1, /* get SRC buffer for put U,V and ALPHA values to destination */
+	float*		  __restrict pSrc2,
+	csSDK_uint32* __restrict pDst,
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
@@ -84,7 +80,8 @@ static inline void process_float_raw_buffer
 )
 {
 	csSDK_int32 i, j;
-	csSDK_int32 k1, k2, lineIdx, dstIdx;
+	csSDK_int32 k1, k2, lineIdx, origIdx;
+	csSDK_int32 Y;
 	const csSDK_int32 lastLine = height - 1;
 	const csSDK_int32 lastPixel = width - 1;
 
@@ -92,30 +89,24 @@ static inline void process_float_raw_buffer
 	float diffNorth, diffWest, diffEast, diffSouth;
 	float sum;
 
-	k1 = k2 = 0;
-	north = west = east = south = current = 0.f;
-	diffNorth = diffWest = diffEast = diffSouth = sum = 0.f;
-	dstIdx = 0;
-	lineIdx = 0;
-
 	__VECTOR_ALIGNED__
 	for (j = 0; j < height; j++)
 	{
 		k1 = MAX(0, j - 1);
 		k2 = MIN(lastLine, j + 1);
 
-		const float* prevLine = &pSrc[k1 * linePitch];
-		const float* nextLine = &pSrc[k2 * linePitch];
+		const float* prevLine = &pSrc2[k1 * width];
+		const float* nextLine = &pSrc2[k2 * width];
 
-		lineIdx = j * linePitch;
+		lineIdx = j * width;
 
 		for (i = 0; i < width; i++)
 		{
 			north   = prevLine[i];
-			west    = pSrc[lineIdx + MAX(0, i - 1)];
-			current = pSrc[lineIdx + i];
-			east    = pSrc[lineIdx + MIN(lastPixel, i + 1)];
-			south = nextLine[i];
+			west    = pSrc2[lineIdx + MAX(0, i - 1)];
+			current = pSrc2[lineIdx + i];
+			east    = pSrc2[lineIdx + MIN(lastPixel, i + 1)];
+			south   = nextLine[i];
 
 			diffNorth = north - current;
 			diffWest  = west  - current;
@@ -133,82 +124,10 @@ static inline void process_float_raw_buffer
 				      g_function_simple(diffEast,  noiseLevel) * diffEast  +
 				      g_function_simple(diffSouth, noiseLevel) * diffSouth;
 
-			pDst[dstIdx] = current + sum * timeStep;
-			dstIdx++;
-		}
-	}
-	return;
-}
-
-
-static inline void process_VUYA_4444_8u_buffer
-(
-	const csSDK_uint32* __restrict pSrc1, /* get SRC buffer for put U,V and ALPHA values to destination */
-	float*		  __restrict pSrc2,
-	csSDK_uint32* __restrict pDst,
-	const csSDK_int32&    width,
-	const csSDK_int32&    height,
-	const csSDK_int32&    linePitch,
-	const float&          noiseLevel,
-	const float&          timeStep,
-	const csSDK_int16&    gAdvanced
-)
-{
-	csSDK_int32 i, j;
-	csSDK_int32 k1, k2, lineIdx, dstIdx;
-	csSDK_int32 Y;
-	const csSDK_int32 lastLine = height - 1;
-	const csSDK_int32 lastPixel = width - 1;
-
-	float north, west, east, south, current;
-	float diffNorth, diffWest, diffEast, diffSouth;
-	float sum;
-
-	Y = 0;
-	k1 = k2 = 0;
-	north = west = east = south = current = 0.f;
-	diffNorth = diffWest = diffEast = diffSouth = sum = 0.f;
-	dstIdx = 0;
-	lineIdx = 0;
-
-	__VECTOR_ALIGNED__
-	for (j = 0; j < height; j++)
-	{
-		k1 = MAX(0, j - 1);
-		k2 = MIN(lastLine, j + 1);
-
-		const float* prevLine = &pSrc2[k1 * linePitch];
-		const float* nextLine = &pSrc2[k2 * linePitch];
-
-		lineIdx = j * linePitch;
-
-		for (i = 0; i < width; i++)
-		{
-			north   = prevLine[i];
-			west    = pSrc2[lineIdx + MAX(0, i - 1)];
-			current = pSrc2[lineIdx + i];
-			east    = pSrc2[lineIdx + MIN(lastPixel, i + 1)];
-			south   = nextLine[i];
-
-			diffNorth = north - current;
-			diffWest  = west  - current;
-			diffEast  = east  - current;
-			diffSouth = south - current;
-
-			if (gAdvanced)
-				sum = g_function_advanced(diffNorth, noiseLevel) * diffNorth +
-				      g_function_advanced(diffWest, noiseLevel)  * diffWest  +
-				      g_function_advanced(diffEast, noiseLevel)  * diffEast  +
-				      g_function_advanced(diffSouth, noiseLevel) * diffSouth;
-			else
-				sum = g_function_simple(diffNorth, noiseLevel) * diffNorth +
-				      g_function_simple(diffWest, noiseLevel)  * diffWest  +
-				      g_function_simple(diffEast, noiseLevel)  * diffEast  +
-				      g_function_simple(diffSouth, noiseLevel) * diffSouth;
-
 			Y = CLAMP_U8(static_cast<csSDK_int32>(current + sum * timeStep));
 
-			pDst[lineIdx + i] = (pSrc1[lineIdx + i] & 0xFF00FFFF) | (Y << 16); /* U,V and ALPHA taken from source */
+			origIdx = j * linePitch;
+			pDst[origIdx + i] = (pSrc1[origIdx + i] & 0xFF00FFFF) | (Y << 16); /* U,V and ALPHA taken from source */
 		}
 	}
 
@@ -259,7 +178,7 @@ void process_VUYA_4444_8u_buffer
 		}
 		else if (currentDispersion + timeStep < dispersion)
 		{
-			process_float_raw_buffer (pBuffers[ping], pBuffers[pong], width, height, linePitch, noiseLevel, currentTimeStep, gAdvanced);
+			process_float_raw_buffer (pBuffers[ping], pBuffers[pong], width, height, noiseLevel, currentTimeStep, gAdvanced);
 			ping ^= 0x1;
 			pong ^= 0x1;
 		}

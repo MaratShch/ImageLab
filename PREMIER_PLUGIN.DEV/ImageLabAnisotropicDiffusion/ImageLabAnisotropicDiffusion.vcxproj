@@ -71,7 +71,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)\$(Configuration)\</IntDir>
-    <TargetName>AnisotropicDiffusion</TargetName>
+    <TargetName>PeronaMalikDenoise</TargetName>
     <TargetExt>.prm</TargetExt>
     <ExtensionsToDeleteOnClean>*.prm;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
   </PropertyGroup>
@@ -136,6 +136,7 @@
   <ItemGroup>
     <ClInclude Include="include\ImageLabAnisotropicDiffusion.h" />
     <ClInclude Include="include\ImageLabGFunction.h" />
+    <ClInclude Include="include\ImageLabProcessTmpBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />

@@ -21,6 +21,9 @@
     <ClInclude Include="include\ImageLabGFunction.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageLabProcessTmpBuffer.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabPixelFormat.cpp">
