@@ -8,8 +8,7 @@ static inline void process_VUYA_4444_8u_buffer
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
 	const float&          noiseLevel,
-	const float&          timeStep,
-	const csSDK_int16&    gAdvanced
+	const float&          timeStep
 )
 {
 	csSDK_int32 i, j;
@@ -47,16 +46,10 @@ static inline void process_VUYA_4444_8u_buffer
 			diffEast  = static_cast<float>(east  - current);
 			diffSouth = static_cast<float>(south - current);
 
-			if (gAdvanced)
-				sum = g_function_advanced(diffNorth, noiseLevel) * diffNorth +
-				      g_function_advanced(diffWest,  noiseLevel) * diffWest  +
-				      g_function_advanced(diffEast,  noiseLevel) * diffEast  +
-				      g_function_advanced(diffSouth, noiseLevel) * diffSouth;
-			else
-				sum = g_function_simple(diffNorth, noiseLevel) * diffNorth +
-				      g_function_simple(diffWest,  noiseLevel) * diffWest  +
-				      g_function_simple(diffEast,  noiseLevel) * diffEast  +
-				      g_function_simple(diffSouth, noiseLevel) * diffSouth;
+			sum = g_function (diffNorth, noiseLevel) * diffNorth +
+			      g_function (diffWest,  noiseLevel) * diffWest  +
+			      g_function (diffEast,  noiseLevel) * diffEast  +
+			      g_function (diffSouth, noiseLevel) * diffSouth;
 
 			pDst[dstIdx] = static_cast<float>(current) + sum * timeStep;
 			dstIdx++;
@@ -75,8 +68,7 @@ static inline void process_VUYA_4444_8u_buffer
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
 	const float&          noiseLevel,
-	const float&          timeStep,
-	const csSDK_int16&    gAdvanced
+	const float&          timeStep
 )
 {
 	csSDK_int32 i, j;
@@ -113,16 +105,10 @@ static inline void process_VUYA_4444_8u_buffer
 			diffEast  = east  - current;
 			diffSouth = south - current;
 
-			if (gAdvanced)
-				sum = g_function_advanced(diffNorth, noiseLevel) * diffNorth +
-				      g_function_advanced(diffWest,  noiseLevel) * diffWest  +
-				      g_function_advanced(diffEast,  noiseLevel) * diffEast  +
-				      g_function_advanced(diffSouth, noiseLevel) * diffSouth;
-			else
-				sum = g_function_simple(diffNorth, noiseLevel) * diffNorth +
-				      g_function_simple(diffWest,  noiseLevel) * diffWest  +
-				      g_function_simple(diffEast,  noiseLevel) * diffEast  +
-				      g_function_simple(diffSouth, noiseLevel) * diffSouth;
+			sum = g_function (diffNorth, noiseLevel) * diffNorth +
+			      g_function (diffWest,  noiseLevel) * diffWest  +
+			      g_function (diffEast,  noiseLevel) * diffEast  +
+			      g_function (diffSouth, noiseLevel) * diffSouth;
 
 			Y = CLAMP_U8(static_cast<csSDK_int32>(current + sum * timeStep));
 
@@ -146,13 +132,9 @@ void process_VUYA_4444_8u_buffer
 	const csSDK_int32&    linePitch,
 	const float&          dispersion,
 	const float&          timeStep,
-	const float&          noiseLevel,
-	const csSDK_int16&    gAdvanced
+	const float&          noiseLevel
 )
 {
-	if (nullptr == pSrc || nullptr == pTmpBuffers || nullptr == pDst)
-		return;
-
 	float* __restrict pBuffers[2]
 	{
 		reinterpret_cast<float* __restrict>(pTmpBuffers->pTmp1),
@@ -174,17 +156,17 @@ void process_VUYA_4444_8u_buffer
 	{
 		if (0 == iterCnt)
 		{
-			process_VUYA_4444_8u_buffer (pSrc, pBuffers[ping], width, height, linePitch, noiseLevel, currentTimeStep, gAdvanced);
+			process_VUYA_4444_8u_buffer (pSrc, pBuffers[ping], width, height, linePitch, noiseLevel, currentTimeStep);
 		}
 		else if (currentDispersion + timeStep < dispersion)
 		{
-			process_float_raw_buffer (pBuffers[ping], pBuffers[pong], width, height, noiseLevel, currentTimeStep, gAdvanced);
+			process_float_raw_buffer (pBuffers[ping], pBuffers[pong], width, height, noiseLevel, currentTimeStep);
 			ping ^= 0x1;
 			pong ^= 0x1;
 		}
 		else
 		{
-			process_VUYA_4444_8u_buffer (pSrc, pBuffers[ping], pDst, width, height, linePitch, noiseLevel, currentTimeStep, gAdvanced);
+			process_VUYA_4444_8u_buffer (pSrc, pBuffers[ping], pDst, width, height, linePitch, noiseLevel, currentTimeStep);
 		}
 
 		iterCnt++;

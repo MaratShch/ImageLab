@@ -61,8 +61,6 @@ typedef struct filterParams
 	csSDK_int16	sliderLevelDispersion;	/* t			*/
 	csSDK_int16	sliderTimeStep;			/* deltaT		*/
 	csSDK_int16	sliderNoiseLevel;		/* k			*/	
-	csSDK_int8	checkbox_AdvancedG;		/* g-function	*/
-	csSDK_uint8	__padding__;
 	AlgMemStorage memStorage;
 } filterParams, *filterParamsP, **filterParamsH;
 #pragma pack(pop)
@@ -72,8 +70,6 @@ typedef struct filterParams
  (*_param_handle)->sliderLevelDispersion = 2;			    \
  (*_param_handle)->sliderTimeStep = 5;                      \
  (*_param_handle)->sliderNoiseLevel = 1;                    \
- (*_param_handle)->checkbox_AdvancedG = 0;                  \
- (*_param_handle)->__padding__ = 0x8B;						\
  (*_param_handle)->memStorage = getAlgStorageStruct();
 #endif
 
@@ -110,6 +106,5 @@ void process_VUYA_4444_8u_buffer
 	const csSDK_int32&    linePitch,
 	const float&          dispersion,
 	const float&          timeStep,
-	const float&          noiseLevel,
-	const csSDK_int16&    gAdvanced
+	const float&          noiseLevel
 );

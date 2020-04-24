@@ -56,7 +56,6 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			const float dispersion = static_cast<float>((*paramsH)->sliderLevelDispersion);
 			const float timeStep   = static_cast<float>((*paramsH)->sliderTimeStep) / 10.0f;
 			const float noiseLevel = static_cast<float>((*paramsH)->sliderNoiseLevel);
-			const csSDK_int16 gAdvanced = static_cast<csSDK_int16>((*paramsH)->checkbox_AdvancedG);
 
 
 			switch (pixelFormat)
@@ -69,7 +68,7 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
 				    process_VUYA_4444_8u_buffer (pSrcPix, &algTmpStorage, pDstPix, width, height,
-												 linePitch, dispersion, timeStep, noiseLevel, gAdvanced);
+												 linePitch, dispersion, timeStep, noiseLevel);
 				}
 				break;
 

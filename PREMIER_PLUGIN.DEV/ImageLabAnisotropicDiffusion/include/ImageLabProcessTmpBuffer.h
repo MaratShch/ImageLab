@@ -11,8 +11,7 @@ static inline void process_float_raw_buffer
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const float&          noiseLevel,
-	const float&          timeStep,
-	const csSDK_int16&    gAdvanced
+	const float&          timeStep
 )
 {
 	csSDK_int32 i, j;
@@ -50,16 +49,10 @@ static inline void process_float_raw_buffer
 			diffEast  = east  - current;
 			diffSouth = south - current;
 
-			if (gAdvanced)
-				sum = g_function_advanced(diffNorth, noiseLevel) * diffNorth +
-				      g_function_advanced(diffWest,  noiseLevel) * diffWest  +
-				      g_function_advanced(diffEast,  noiseLevel) * diffEast  +
-				      g_function_advanced(diffSouth, noiseLevel) * diffSouth;
-			else
-				sum = g_function_simple(diffNorth, noiseLevel) * diffNorth +
-				      g_function_simple(diffWest,  noiseLevel) * diffWest  +
-				      g_function_simple(diffEast,  noiseLevel) * diffEast  +
-				      g_function_simple(diffSouth, noiseLevel) * diffSouth;
+			sum = g_function (diffNorth, noiseLevel) * diffNorth +
+			      g_function (diffWest,  noiseLevel) * diffWest  +
+			      g_function (diffEast,  noiseLevel) * diffEast  +
+			      g_function (diffSouth, noiseLevel) * diffSouth;
 
 			pDst[dstIdx] = current + sum * timeStep;
 			dstIdx++;
