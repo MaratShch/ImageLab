@@ -72,15 +72,40 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 				}
 				break;
 
-				case PrPixelFormat_BGRA_4444_8u:
-				case PrPixelFormat_ARGB_4444_8u:
-				case PrPixelFormat_RGB_444_10u:
-				case PrPixelFormat_BGRA_4444_16u:
-				case PrPixelFormat_ARGB_4444_16u:
-				case PrPixelFormat_BGRA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f:
 				case PrPixelFormat_VUYA_4444_32f_709:
-				case PrPixelFormat_ARGB_4444_32f:
+				{
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+					      float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
+
+					process_VUYA_4444_32f_buffer (pSrcPix, &algTmpStorage, pDstPix, width, height,
+						                          linePitch, dispersion, timeStep, noiseLevel);
+				}
+				break;
+
+				case PrPixelFormat_BGRA_4444_8u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					process_BGRA_4444_8u_buffer (pSrcPix, &algTmpStorage, pDstPix, width, height,
+						                         linePitch, dispersion, timeStep, noiseLevel);
+				}
+				break;
+
+				case PrPixelFormat_BGRA_4444_16u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+
+					process_BGRA_4444_16u_buffer (pSrcPix, &algTmpStorage, pDstPix, width, height,
+						                          linePitch, dispersion, timeStep, noiseLevel);
+				}
+				break;
+
+				case PrPixelFormat_ARGB_4444_8u:
+				case PrPixelFormat_RGB_444_10u:
+				case PrPixelFormat_ARGB_4444_16u:
 				break;
 
 				default:

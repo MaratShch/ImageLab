@@ -60,12 +60,14 @@ ParamsSetup(
 	AEFX_CLR_STRUCT_EX(def);
 
 	def.flags = PF_ParamFlag_SUPERVISE |
-		PF_ParamFlag_CANNOT_TIME_VARY |
+		PF_ParamFlag_CANNOT_TIME_VARY  |
 		PF_ParamFlag_CANNOT_INTERP;
 
 	def.ui_flags = PF_PUI_STD_CONTROL_ONLY;
 
-	PF_ADD_POPUP(KernelType, 4, 3, strKernels, 1);
+	PF_ADD_POPUP(KernelType, 2, 1, strKernels, 1);
+
+	out_data->num_params = CONVOLUTION_NUM_PARAMS;
 
 	return err;
 }

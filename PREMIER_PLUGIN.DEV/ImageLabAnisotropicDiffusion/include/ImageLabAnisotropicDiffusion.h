@@ -25,23 +25,32 @@
 #endif
 
 template<typename T>
-constexpr T MIN(const T a, const T b) { return ((a < b) ? a : b); }
+inline constexpr T MIN(const T a, const T b) { return ((a < b) ? a : b); }
 
 template<typename T>
-constexpr T MAX(const T a, const T b) { return ((a > b) ? a : b); }
+inline constexpr T MAX(const T a, const T b) { return ((a > b) ? a : b); }
 
 template <typename T>
-constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
+inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
 {
 	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
 template<typename T>
-const T CLAMP_U8 (const T val)
+inline const T CLAMP_U8 (const T val)
 {
 	constexpr T minVal{ 0 };
 	constexpr T maxVal{ 255 };
-	return (MAX(minVal, MIN(val, maxVal)));
+	return (MAX(MIN(val, maxVal), minVal));
+}
+
+
+template<typename T>
+inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type CLAMP_32F (const T val)
+{
+	constexpr T one_minus_epsilon { 1.f - (FLT_EPSILON) };
+	constexpr T zero_plus_epsilon { 0.f + (FLT_EPSILON) };
+	return (MAX(zero_plus_epsilon, MIN(val, one_minus_epsilon)));
 }
 
 
@@ -103,6 +112,45 @@ void process_VUYA_4444_8u_buffer
 	csSDK_uint32*  __restrict pDst,
 	const csSDK_int32&    width,
 	const csSDK_int32&    heigth,
+	const csSDK_int32&    linePitch,
+	const float&          dispersion,
+	const float&          timeStep,
+	const float&          noiseLevel
+);
+
+void process_BGRA_4444_8u_buffer
+(
+	const csSDK_uint32*  __restrict pSrc,
+	const AlgMemStorage* __restrict pTmpBuffers,
+	csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const float&          dispersion,
+	const float&          timeStep,
+	const float&          noiseLevel
+);
+
+void process_VUYA_4444_32f_buffer
+(
+	const float*  __restrict pSrc,
+	const AlgMemStorage* __restrict pTmpBuffers,
+	float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const float&          dispersion,
+	const float&          timeStep,
+	const float&          noiseLevel
+);
+
+void process_BGRA_4444_16u_buffer
+(
+	const csSDK_uint32*  __restrict pSrc,
+	const AlgMemStorage* __restrict pTmpBuffers,
+	      csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
 	const float&          dispersion,
 	const float&          timeStep,

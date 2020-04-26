@@ -135,6 +135,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabAnisotropicDiffusion.h" />
+    <ClInclude Include="include\ImageLabColorConvert.h" />
     <ClInclude Include="include\ImageLabGFunction.h" />
     <ClInclude Include="include\ImageLabProcessTmpBuffer.h" />
   </ItemGroup>
@@ -143,7 +144,10 @@
     <ClCompile Include="src\ImageLabAlgorithmMem.cpp" />
     <ClCompile Include="src\ImageLabAnisotropicDiffusion.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\ImageLabProcessBGRA.cpp" />
+    <ClCompile Include="src\ImageLabProcessBGRA16.cpp" />
     <ClCompile Include="src\ImageLabProcessVUYA.cpp" />
+    <ClCompile Include="src\ImageLabProcessVUYA32f.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="AnisotropicDiffusion.r">

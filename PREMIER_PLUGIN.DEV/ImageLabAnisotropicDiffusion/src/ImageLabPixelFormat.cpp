@@ -9,6 +9,11 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 		switch ((*theData)->pixelFormatIndex)
 		{
 			case 0:
+				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f;// PrPixelFormat_BGRA_4444_16u;
+			break;
+
+#if 0
+			case 0:
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u;
 			break;
 
@@ -16,25 +21,20 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u_709;
 			break;
 
-#if 0
-			case 1:
-				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_16u;
-			break;
-
 			case 2:
 				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_8u;
 			break;
 
-			case 4:
-				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_32f;
-			break;
-
-			case 5:
+			case 3:
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f;
 			break;
 
-			case 6:
+			case 4:
 				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f_709;
+			break;
+/////////////////////
+			case 1:
+				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_16u;
 			break;
 
 			case 7:
@@ -43,10 +43,6 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 
 			case 8:
 				(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_16u;
-			break;
-
-			case 9:
-				(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_32f;
 			break;
 
 			case 10:

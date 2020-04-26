@@ -3,4 +3,6 @@
 
 #include "ImageLabCommon.hpp"
 
+
+
 #endif /* __IMAGE_LAB_AUTOMATIC_WHITE_BALANCE_PS2017_PLUGIN__ */

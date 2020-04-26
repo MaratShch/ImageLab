@@ -32,6 +32,12 @@ constexpr char KernelType[] = "Kernel Type";
 constexpr char strKernels[] = "Sharp 3x3|"
 							  "Sharp 5x5    ";
 
+enum {
+	CONVOLUTION_TYPE,
+	CONVOLUTION_NUM_PARAMS
+};
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif

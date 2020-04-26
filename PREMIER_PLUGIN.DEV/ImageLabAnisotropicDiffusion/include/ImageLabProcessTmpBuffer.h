@@ -1,8 +1,9 @@
 #include "ImageLabAnisotropicDiffusion.h"
 #include "ImageLabGFunction.h"
 
-/* Because this part of algorithm expected to be common for all formats - let's write it in separate  include file
-   and include this file to relevant c++ code 
+/* 
+	Because this part of algorithm expected to be common for all formats - let's write it in separate  include file
+	and include this file to relevant c++ code 
 */
 static inline void process_float_raw_buffer
 (
@@ -60,4 +61,3 @@ static inline void process_float_raw_buffer
 	}
 	return;
 }
-

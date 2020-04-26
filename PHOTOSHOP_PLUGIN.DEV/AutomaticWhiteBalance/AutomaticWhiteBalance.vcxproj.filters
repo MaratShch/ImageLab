@@ -29,5 +29,11 @@
     <ClInclude Include="include\ImageLabAutomaticWhteBalance.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\COMMON\compile_time_utils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\COMMON\fast_computation.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

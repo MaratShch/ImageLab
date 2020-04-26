@@ -24,6 +24,9 @@
     <ClInclude Include="include\ImageLabProcessTmpBuffer.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageLabColorConvert.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabPixelFormat.cpp">
@@ -39,6 +42,15 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabProcessVUYA.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabProcessBGRA.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabProcessBGRA16.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabProcessVUYA32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
