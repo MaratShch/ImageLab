@@ -1,7 +1,7 @@
 #include "ImageLabProcessTmpBuffer.h"
 #include "ImageLabColorConvert.h"
 
-static inline void process_BGRA_4444_16u_buffer
+static inline void process_ARGB_4444_8u_buffer
 (
 	const csSDK_uint32*  __restrict pSrc,
 	      float*         __restrict pDst,
@@ -39,36 +39,36 @@ static inline void process_BGRA_4444_16u_buffer
 		for (i = 0; i < width; i++)
 		{
 			// notrh
-			B = static_cast<float> (prevLine[i * 2    ] & 0x0000FFFF);
-			G = static_cast<float>((prevLine[i * 2    ] & 0xFFFF0000) >> 16);
-			R = static_cast<float> (prevLine[i * 2 + 1] & 0x0000FFFF);
+			R = static_cast<float>((prevLine[i] & 0x0000FF00) >> 8);
+			G = static_cast<float>((prevLine[i] & 0x00FF0000) >> 16);
+			B = static_cast<float>((prevLine[i] & 0xFF000000) >> 24);
 			north = R * pRgb2Yuv[0] + G * pRgb2Yuv[1] + B * pRgb2Yuv[2];
 
 			// west
-			pixIdx = lineIdx + MAX(0, 2 * (i - 1));
-			B = static_cast<float> (pSrc[pixIdx    ] & 0x0000FFFF);
-			G = static_cast<float>((pSrc[pixIdx    ] & 0xFFFF0000) >> 16);
-			R = static_cast<float> (pSrc[pixIdx + 1] & 0x0000FFFF);
+			pixIdx = lineIdx + MAX(0, i - 1);
+			R = static_cast<float>((pSrc[pixIdx] & 0x0000FF00) >> 8);
+			G = static_cast<float>((pSrc[pixIdx] & 0x00FF0000) >> 16);
+			B = static_cast<float>((pSrc[pixIdx] & 0xFF000000) >> 24);
 			west = R * pRgb2Yuv[0] + G * pRgb2Yuv[1] + B * pRgb2Yuv[2];
 
 			// current
-			pixIdx = lineIdx + i * 2;
-			B = static_cast<float> (pSrc[pixIdx    ] & 0x0000FFFF);
-			G = static_cast<float>((pSrc[pixIdx    ] & 0xFFFF0000) >> 16);
-			R = static_cast<float> (pSrc[pixIdx + 1] & 0x0000FFFF);
+			pixIdx = lineIdx + i;
+			R = static_cast<float>((pSrc[pixIdx] & 0x0000FF00) >> 8);
+			G = static_cast<float>((pSrc[pixIdx] & 0x00FF0000) >> 16);
+			B = static_cast<float>((pSrc[pixIdx] & 0xFF000000) >> 24);
 			current = R * pRgb2Yuv[0] + G * pRgb2Yuv[1] + B * pRgb2Yuv[2];
 
 			// east
-			pixIdx = lineIdx + 2 * MIN(lastPixel, (i + 1));
-			B = static_cast<float> (pSrc[pixIdx    ] & 0x0000FFFF);
-			G = static_cast<float>((pSrc[pixIdx    ] & 0xFFFF0000) >> 16);
-			R = static_cast<float> (pSrc[pixIdx + 1] & 0x00FF0000);
+			pixIdx = lineIdx + MIN(lastPixel, i + 1);
+			R = static_cast<float>((pSrc[pixIdx] & 0x0000FF00) >> 8);
+			G = static_cast<float>((pSrc[pixIdx] & 0x00FF0000) >> 16);
+			B = static_cast<float>((pSrc[pixIdx] & 0xFF000000) >> 24);
 			east = R * pRgb2Yuv[0] + G * pRgb2Yuv[1] + B * pRgb2Yuv[2];
 
 			// south
-			B = static_cast<float> (nextLine[i * 2    ] & 0x0000FFFF);
-			G = static_cast<float>((nextLine[i * 2    ] & 0xFFFF0000) >> 16);
-			R = static_cast<float> (nextLine[i * 2 + 1] & 0x0000FFFF);
+			R = static_cast<float> (nextLine[i] & 0x000000FF);
+			G = static_cast<float>((nextLine[i] & 0x0000FF00) >> 8);
+			B = static_cast<float>((nextLine[i] & 0x00FF0000) >> 16);
 			south = R * pRgb2Yuv[0] + G * pRgb2Yuv[1] + B * pRgb2Yuv[2];
 
 			diffNorth = static_cast<float>(north - current);
@@ -89,7 +89,7 @@ static inline void process_BGRA_4444_16u_buffer
 }
 
 
-static inline void process_BGRA_4444_16u_buffer
+static inline void process_ARGB_4444_8u_buffer
 (
 	const csSDK_uint32* __restrict pSrc1, /* get SRC buffer for put U,V and ALPHA values to destination */
 	      float*	    __restrict pSrc2,
@@ -147,22 +147,24 @@ static inline void process_BGRA_4444_16u_buffer
 			Y = current + sum * timeStep;
 			
 			/* get U value - convert R,G,B from source image */
-			origIdx = j * linePitch + 2 * i;
+			origIdx = j * linePitch + i;
 
-			U = static_cast<float> (pSrc1[origIdx    ] & 0x0000FFFF)        * pRgb2Yuv[5] +
-				static_cast<float>((pSrc1[origIdx    ] & 0xFFFF0000) >> 16) * pRgb2Yuv[4] +
-				static_cast<float> (pSrc1[origIdx + 1] & 0x0000FFFF)        * pRgb2Yuv[3];
+			U = static_cast<float>((pSrc1[origIdx] & 0x0000FF00) >> 8)  * pRgb2Yuv[3] +
+				static_cast<float>((pSrc1[origIdx] & 0x00FF0000) >> 16) * pRgb2Yuv[4] +
+				static_cast<float>((pSrc1[origIdx] & 0xFF000000) >> 24) * pRgb2Yuv[5];
 
-			V = static_cast<float> (pSrc1[origIdx    ] & 0x0000FFFF)        * pRgb2Yuv[8] +
-				static_cast<float>((pSrc1[origIdx    ] & 0xFFFF0000) >> 16) * pRgb2Yuv[7] +
-				static_cast<float> (pSrc1[origIdx + 1] & 0x0000FFFF)        * pRgb2Yuv[6];
+			V = static_cast<float>((pSrc1[origIdx] & 0x0000FF00) >> 8)  * pRgb2Yuv[6] +
+				static_cast<float>((pSrc1[origIdx] & 0x00FF0000) >> 16) * pRgb2Yuv[7] +
+				static_cast<float>((pSrc1[origIdx] & 0xFF000000) >> 24) * pRgb2Yuv[8];
 
 			R = static_cast<csSDK_int32>(Y * pYuv2Rgb[0] + U * pYuv2Rgb[1] + V * pYuv2Rgb[2]);
 			G = static_cast<csSDK_int32>(Y * pYuv2Rgb[3] + U * pYuv2Rgb[4] + V * pYuv2Rgb[5]);
 			B = static_cast<csSDK_int32>(Y * pYuv2Rgb[6] + U * pYuv2Rgb[7] + V * pYuv2Rgb[8]);
 
-			pDst[origIdx    ] = CLAMP_U16(B) | ((CLAMP_U16(G)) << 16);
-			pDst[origIdx + 1] = CLAMP_U16(R) | (pSrc1[origIdx + 1] & 0xFFFF0000);
+			pDst[origIdx] = (pSrc1[origIdx] & 0x000000FFu) |
+				                      (CLAMP_U8(R) << 8)   |
+				                      (CLAMP_U8(G) << 16)  |
+				                      (CLAMP_U8(B) << 24);
 		}
 	}
 
@@ -170,7 +172,7 @@ static inline void process_BGRA_4444_16u_buffer
 }
 
 
-void process_BGRA_4444_16u_buffer
+void process_ARGB_4444_8u_buffer
 (
 	const csSDK_uint32*  __restrict pSrc,
 	const AlgMemStorage* __restrict pTmpBuffers,
@@ -191,7 +193,7 @@ void process_BGRA_4444_16u_buffer
 
 	float currentDispersion = 0.0f;
 	float currentTimeStep = MIN(timeStep, dispersion - currentDispersion);
-	constexpr float minimalStep = 0.256f;
+	constexpr float minimalStep = 0.001f;
 
 	csSDK_uint32 ping, pong;
 	csSDK_int32 iterCnt;
@@ -204,17 +206,17 @@ void process_BGRA_4444_16u_buffer
 	{
 		if (0 == iterCnt)
 		{
-			process_BGRA_4444_16u_buffer (pSrc, pBuffers[ping], width, height, linePitch, noiseLevel, currentTimeStep);
+			process_ARGB_4444_8u_buffer(pSrc, pBuffers[ping], width, height, linePitch, noiseLevel, currentTimeStep);
 		}
 		else if (currentDispersion + timeStep < dispersion)
 		{
-			process_float_raw_buffer (pBuffers[ping], pBuffers[pong], width, height, noiseLevel, currentTimeStep);
+			process_float_raw_buffer(pBuffers[ping], pBuffers[pong], width, height, noiseLevel, currentTimeStep);
 			ping ^= 0x1;
 			pong ^= 0x1;
 		}
 		else
 		{
-			process_BGRA_4444_16u_buffer (pSrc, pBuffers[ping], pDst, width, height, linePitch, noiseLevel, currentTimeStep);
+			process_ARGB_4444_8u_buffer(pSrc, pBuffers[ping], pDst, width, height, linePitch, noiseLevel, currentTimeStep);
 		}
 
 		iterCnt++;

@@ -47,10 +47,16 @@
     <ClCompile Include="src\ImageLabProcessBGRA.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabProcessBGRA16.cpp">
+    <ClCompile Include="src\ImageLabProcessVUYA32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabProcessVUYA32f.cpp">
+    <ClCompile Include="src\ImageLabProcessARGB.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabProcessBGRA32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabProcessARGB32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

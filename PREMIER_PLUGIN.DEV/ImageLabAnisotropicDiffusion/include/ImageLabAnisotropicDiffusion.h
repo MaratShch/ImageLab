@@ -39,11 +39,18 @@ inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Cr
 template<typename T>
 inline const T CLAMP_U8 (const T val)
 {
-	constexpr T minVal{ 0 };
-	constexpr T maxVal{ 255 };
+	constexpr T minVal{ 0x0 };
+	constexpr T maxVal{ 0xFF };
 	return (MAX(MIN(val, maxVal), minVal));
 }
 
+template<typename T>
+inline const T CLAMP_U16(const T val)
+{
+	constexpr T minVal{ 0x0 };
+	constexpr T maxVal{ 0xFFFF };
+	return (MAX(MIN(val, maxVal), minVal));
+}
 
 template<typename T>
 inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type CLAMP_32F (const T val)
@@ -144,11 +151,37 @@ void process_VUYA_4444_32f_buffer
 	const float&          noiseLevel
 );
 
-void process_BGRA_4444_16u_buffer
+void process_ARGB_4444_8u_buffer
 (
 	const csSDK_uint32*  __restrict pSrc,
 	const AlgMemStorage* __restrict pTmpBuffers,
-	      csSDK_uint32*  __restrict pDst,
+	csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const float&          dispersion,
+	const float&          timeStep,
+	const float&          noiseLevel
+);
+
+void process_BGRA_4444_32f_buffer
+(
+	const float*  __restrict pSrc,
+	const AlgMemStorage* __restrict pTmpBuffers,
+	float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const float&          dispersion,
+	const float&          timeStep,
+	const float&          noiseLevel
+);
+
+void process_ARGB_4444_32f_buffer
+(
+	const float*  __restrict pSrc,
+	const AlgMemStorage* __restrict pTmpBuffers,
+	float*  __restrict pDst,
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,

@@ -144,8 +144,10 @@
     <ClCompile Include="src\ImageLabAlgorithmMem.cpp" />
     <ClCompile Include="src\ImageLabAnisotropicDiffusion.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\ImageLabProcessARGB.cpp" />
+    <ClCompile Include="src\ImageLabProcessARGB32f.cpp" />
     <ClCompile Include="src\ImageLabProcessBGRA.cpp" />
-    <ClCompile Include="src\ImageLabProcessBGRA16.cpp" />
+    <ClCompile Include="src\ImageLabProcessBGRA32f.cpp" />
     <ClCompile Include="src\ImageLabProcessVUYA.cpp" />
     <ClCompile Include="src\ImageLabProcessVUYA32f.cpp" />
   </ItemGroup>
