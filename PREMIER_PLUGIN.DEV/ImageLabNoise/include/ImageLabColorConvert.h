@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ImageLabAnisotropicDiffusion.h"
-
 constexpr csSDK_int32 BT601 = 0;
 constexpr csSDK_int32 BT709 = 1;
 

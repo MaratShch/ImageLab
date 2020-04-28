@@ -116,7 +116,8 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;..\ADOBE\INCLUDES;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -128,6 +129,7 @@
       <FloatingPointModel>Precise</FloatingPointModel>
       <LoopUnrolling>
       </LoopUnrolling>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -135,12 +137,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\ImageLabColorConvert.h" />
     <ClInclude Include="include\ImageLabNoise.h" />
     <ClInclude Include="include\ImageLabRandom.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabNoise.cpp" />
+    <ClCompile Include="src\ImageLabNoiseARGB32f.cpp" />
+    <ClCompile Include="src\ImageLabNoiseARGB8u.cpp" />
+    <ClCompile Include="src\ImageLabNoiseBGRA32f.cpp" />
     <ClCompile Include="src\ImageLabNoiseBGRA8u.cpp" />
+    <ClCompile Include="src\ImageLabNoiseVUYA32f.cpp" />
+    <ClCompile Include="src\ImageLabNoiseVUYA8u.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
   </ItemGroup>
   <ItemGroup>

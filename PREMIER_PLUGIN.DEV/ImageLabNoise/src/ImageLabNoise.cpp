@@ -43,7 +43,6 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 			if (nullptr == paramsH)
 				return fsBadFormatIndex;
 
-			const csSDK_int32 noiseDensity = MAX(1, static_cast<csSDK_int32>((*paramsH)->sliderDensity));
 			const csSDK_int32 noiseVolume  = static_cast<csSDK_int32>((*paramsH)->sliderVolume);
 			const csSDK_int32 noiseColor   = static_cast<csSDK_int32>((*paramsH)->checkColorNoise);
 			const csSDK_int32 noiseAlpha   = static_cast<csSDK_int32>((*paramsH)->checkAlpha);
@@ -58,6 +57,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
+				    0 != noiseColor ?
+						  add_color_noise_VUYA4444_8u (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha, PrPixelFormat_VUYA_4444_8u_709 == pixelFormat) :
+						  add_bw_noise_VUYA4444_8u    (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha, PrPixelFormat_VUYA_4444_8u_709 == pixelFormat);
 				}
 				break;
 
@@ -67,6 +69,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
 					      float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
+					  0 != noiseColor ?
+						  add_color_noise_VUYA4444_32f (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha, PrPixelFormat_VUYA_4444_32f_709 == pixelFormat) :
+						  add_bw_noise_VUYA4444_32f    (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha, PrPixelFormat_VUYA_4444_32f_709 == pixelFormat);
 				}
 				break;
 
@@ -76,8 +81,8 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
 					0 != noiseColor ?
-						  add_color_noise_BGRA4444_8u(pSrcPix, pDstPix, width, height, linePitch, noiseDensity, noiseVolume, noiseAlpha) :
-						  add_bw_noise_BGRA4444_8u   (pSrcPix, pDstPix, width, height, linePitch, noiseDensity, noiseVolume, noiseAlpha);
+						  add_color_noise_BGRA4444_8u(pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha) :
+						  add_bw_noise_BGRA4444_8u   (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha);
 				}
 				break;
 
@@ -86,6 +91,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
 					      float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
+					  0 != noiseColor ?
+						  add_color_noise_BGRA4444_32f (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha) :
+						  add_bw_noise_BGRA4444_32f    (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha);
 				}
 				break;
 
@@ -94,6 +102,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
 					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
+					  0 != noiseColor ?
+						  add_color_noise_ARGB4444_8u (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha) :
+						  add_bw_noise_ARGB4444_8u    (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha);
 				}
 
 				case PrPixelFormat_ARGB_4444_32f:
@@ -101,6 +112,9 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData)
 					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
 					      float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
+					  0 != noiseColor ?
+						  add_color_noise_ARGB4444_32f (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha) :
+						  add_bw_noise_ARGB4444_32f    (pSrcPix, pDstPix, width, height, linePitch, noiseVolume, noiseAlpha);
 				}
 
 				default:

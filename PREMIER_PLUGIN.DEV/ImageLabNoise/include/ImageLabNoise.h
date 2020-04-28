@@ -62,7 +62,6 @@ inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type 
 typedef struct filterParams
 {
 	// filter setting
-	csSDK_int16	sliderDensity;	/* Noise density		*/
 	csSDK_int16	sliderVolume;	/* Noise volume			*/
 	csSDK_int8	checkColorNoise;/* use color noise		*/
 	csSDK_int8	checkAlpha;		/* use Alpha channel	*/
@@ -71,12 +70,10 @@ typedef struct filterParams
 
 #ifndef IMAGE_LAB_FILTER_PARAM_HANDLE_INIT
 #define IMAGE_LAB_FILTER_PARAM_HANDLE_INIT(_param_handle) \
- (*_param_handle)->sliderDensity   = 20;                  \
  (*_param_handle)->sliderVolume    = 20;                  \
  (*_param_handle)->checkColorNoise = 1;                   \
  (*_param_handle)->checkAlpha      = 0;
 #endif
-
 
 constexpr size_t handleSize = sizeof(filterParams);
 
@@ -98,22 +95,129 @@ inline csSDK_uint32 romuTrio32_random (void);
 void add_color_noise_BGRA4444_8u
 (
 	const csSDK_uint32*  __restrict pSrc,
-	csSDK_uint32*  __restrict pDst,
+	      csSDK_uint32*  __restrict pDst,
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
-	const csSDK_int32&    noiseDencity,
 	const csSDK_int32&    noiseVolume,
 	const csSDK_int32&    noiseOnAlpha
 );
 void add_bw_noise_BGRA4444_8u
 (
 	const csSDK_uint32*  __restrict pSrc,
+	      csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha
+);
+
+void add_color_noise_VUYA4444_8u
+(
+	const csSDK_uint32*  __restrict pSrc,
+	      csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha,
+	bool                  isBT709 = true
+);
+void add_bw_noise_VUYA4444_8u
+(
+	const csSDK_uint32*  __restrict pSrc,
+	      csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha,
+	bool                  isBT709 = true
+);
+
+void add_color_noise_VUYA4444_32f
+(
+	const float*  __restrict pSrc,
+	      float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha,
+	bool                  isBT709 = true
+);
+void add_bw_noise_VUYA4444_32f
+(
+	const float*  __restrict pSrc,
+	      float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha,
+	bool                  isBT709 = true
+);
+
+void add_color_noise_BGRA4444_32f
+(
+	const float*  __restrict pSrc,
+	float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha
+);
+void add_bw_noise_BGRA4444_32f
+(
+	const float*  __restrict pSrc,
+	float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha
+);
+
+void add_color_noise_ARGB4444_8u
+(
+	const csSDK_uint32*  __restrict pSrc,
 	csSDK_uint32*  __restrict pDst,
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
-	const csSDK_int32&    noiseDencity,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha
+);
+void add_bw_noise_ARGB4444_8u
+(
+	const csSDK_uint32*  __restrict pSrc,
+	csSDK_uint32*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha
+);
+
+void add_color_noise_ARGB4444_32f
+(
+	const float*  __restrict pSrc,
+	float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    noiseVolume,
+	const csSDK_int32&    noiseOnAlpha
+);
+void add_bw_noise_ARGB4444_32f
+(
+	const float*  __restrict pSrc,
+	float*  __restrict pDst,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
 	const csSDK_int32&    noiseVolume,
 	const csSDK_int32&    noiseOnAlpha
 );

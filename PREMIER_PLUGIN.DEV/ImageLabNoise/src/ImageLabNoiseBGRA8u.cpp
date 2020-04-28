@@ -8,7 +8,6 @@ void add_color_noise_BGRA4444_8u
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
-	const csSDK_int32&    noiseDencity,
 	const csSDK_int32&    noiseVolume,
 	const csSDK_int32&    noiseOnAlpha
 )
@@ -37,7 +36,6 @@ void add_color_noise_BGRA4444_8u
 	return;
 }
 
-
 void add_bw_noise_BGRA4444_8u
 (
 	const csSDK_uint32*  __restrict pSrc,
@@ -45,7 +43,6 @@ void add_bw_noise_BGRA4444_8u
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
-	const csSDK_int32&    noiseDencity,
 	const csSDK_int32&    noiseVolume,
 	const csSDK_int32&    noiseOnAlpha
 )

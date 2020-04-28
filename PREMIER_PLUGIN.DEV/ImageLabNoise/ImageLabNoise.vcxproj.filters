@@ -21,6 +21,9 @@
     <ClInclude Include="include\ImageLabRandom.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageLabColorConvert.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabPixelFormat.cpp">
@@ -30,6 +33,21 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabNoiseBGRA8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabNoiseVUYA8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabNoiseVUYA32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabNoiseBGRA32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabNoiseARGB8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabNoiseARGB32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

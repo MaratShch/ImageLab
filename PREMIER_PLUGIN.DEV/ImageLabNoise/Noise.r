@@ -64,14 +64,14 @@ resource 'PiPL' (16000)
 			fgAnimatable,
 			geometric,
 			noRandomness,
-			4,					
+			3,					
 			plugInMatchName
 		},
 
 		ANIM_ParamAtom 
 		{
 			0,					// Property count - zero-based count
-			"Density",		// Parameter name
+			"Amount of Noise",  // Parameter name
 			1,					// Parameter number - one-based count
 			ANIM_DT_SHORT,		// Data type
 			ANIM_UI_SLIDER,		// UI Type
@@ -96,33 +96,8 @@ resource 'PiPL' (16000)
 		ANIM_ParamAtom 
 		{
 			1,					// Property count - zero-based count
-			"Amount of Noise",  // Parameter name
-			2,					// Parameter number - one-based count
-			ANIM_DT_SHORT,		// Data type
-			ANIM_UI_SLIDER,		// UI Type
-			0x0,			// valid_min 2
-			0x0,					
-			0x40590000,			// valid_max 100
-			0x0,					
-			0,					// ui_min 0
-			0x0,					
-			0x40590000,			// ui_max 100
-			0x0,				
-#if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
-			dontScaleUIRange,
-#endif
-			animateParam,		// Set/don't set this to indicate if the param should be animated
-			restrictBounds,	// Rest of these aren't used by Premiere
-			spaceIsAbsolute,
-			resIndependent,
-			2					// Bytes size of the param data
-		},
-
-		ANIM_ParamAtom 
-		{
-			2,					// Property count - zero-based count
 			"Use Color Noise",	// Parameter name
-			3,					// Parameter number - one-based count
+			2,					// Parameter number - one-based count
 			13,					// Data type - ANIM_DT_BOOLEAN
 			8,					// UI Type - ANIM_UI_CHECKBOX
 			0x0,
@@ -145,9 +120,9 @@ resource 'PiPL' (16000)
 
 		ANIM_ParamAtom 
 		{
-			3,					// Property count - zero-based count
+			2,					// Property count - zero-based count
 			"Alpha channel Noise",			// Parameter name
-			4,					// Parameter number - one-based count
+			3,					// Parameter number - one-based count
 			13,					// Data type - ANIM_DT_BOOLEAN
 			8,					// UI Type - ANIM_UI_CHECKBOX
 			0x0,
