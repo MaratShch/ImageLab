@@ -93,7 +93,7 @@ EntryPointFunc (
 				ERR(GlobalSetup(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_PARAMS_SETUP:
-//				ERR(ParamsSetup(in_data, out_data, params, output));
+				ERR(ParamsSetup(in_data, out_data, params, output));
 				break;
 			case PF_Cmd_RENDER:
 //				ERR(Render(in_data, out_data, params, output));

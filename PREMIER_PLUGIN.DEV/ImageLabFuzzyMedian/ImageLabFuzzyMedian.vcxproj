@@ -131,7 +131,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Precise</FloatingPointModel>
       <AdditionalIncludeDirectories>include;..\ADOBE\INCLUDES;..\AsyncJob\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
@@ -149,6 +149,7 @@
     <ClCompile Include="src\ImageLabFuzzyMedianFilter.cpp" />
     <ClCompile Include="src\ImageLabMedianFilter.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
+    <ClCompile Include="src\ImageLabTrivialMedian.cpp" />
     <ClCompile Include="src\Rgb2HsvConvert.cpp" />
   </ItemGroup>
   <ItemGroup>
