@@ -30,7 +30,7 @@ constexpr int Convolution_VersionBuild = 1;
 constexpr char KernelType[] = "Kernel Type";
 
 constexpr char strKernels[] = "Sharp 3x3|"
-							  "Sharp 5x5    ";
+							  "Sharp 5x5 ";
 
 enum {
 	CONVOLUTION_TYPE,

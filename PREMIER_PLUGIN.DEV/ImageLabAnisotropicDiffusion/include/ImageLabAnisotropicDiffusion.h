@@ -106,6 +106,7 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData);
 #endif
 
 csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData);
+csSDK_int32 selectProcessFunction(const VideoHandle theData);
 
 void algMemStorageFree (AlgMemStorage& algMemStorage);
 bool algMemStorageRealloc (const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage);
