@@ -11,7 +11,6 @@
 #include "AE_EffectCBSuites.h"
 #include "AE_GeneralPlug.h"
 #include "AEFX_SuiteHandlerTemplate.h"
-
 #include "Common.hpp"
 #include "Param_Utils.h"
 
@@ -32,11 +31,15 @@ constexpr char KernelType[] = "Kernel Type";
 constexpr char strKernels[] = "Sharp 3x3|"
 							  "Sharp 5x5 ";
 
-enum {
-	CONVOLUTION_TYPE,
-	CONVOLUTION_NUM_PARAMS
-};
+typedef enum {
+	KERNEL_CONV_SHARP_3x3 = 1,
+	KERNEL_CONV_SHARP_5x5,
+	KERNEL_CONV_SIZE = KERNEL_CONV_SHARP_5x5
+} current_mode;
 
+enum {
+	SUPER_KERNEL_CONV_DISK_ID = 1
+};
 
 #ifdef __cplusplus
 extern "C" {

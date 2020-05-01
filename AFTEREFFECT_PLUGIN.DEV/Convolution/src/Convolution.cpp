@@ -7,12 +7,12 @@ About(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_SPRINTF(	out_data->return_msg,
-				"%s, v%d.%d\r%s",
-				strName,
-				Convolution_VersionMajor,
-				Convolution_VersionMinor,
-				strCopyright);
+	PF_SPRINTF(out_data->return_msg,
+			"%s, v%d.%d\r%s",
+			strName,
+			Convolution_VersionMajor,
+			Convolution_VersionMinor,
+			strCopyright);
 
 	return PF_Err_NONE;
 }
@@ -27,6 +27,20 @@ GlobalSetup(
 {
 	PF_Err	err = PF_Err_NONE;
 
+	constexpr PF_OutFlags out_flags1 =
+		PF_OutFlag_PIX_INDEPENDENT		 |
+		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
+		PF_OutFlag_WIDE_TIME_INPUT;
+
+	constexpr PF_OutFlags out_flags2 =
+		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+		PF_OutFlag2_FLOAT_COLOR_AWARE                |
+		PF_OutFlag2_SUPPORTS_SMART_RENDER            |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
+
 	out_data->my_version =
 		PF_VERSION (
 			Convolution_VersionMajor,
@@ -36,12 +50,8 @@ GlobalSetup(
 			Convolution_VersionBuild
 		);
 
-	out_data->out_flags =	PF_OutFlag_PIX_INDEPENDENT	|
-							PF_OutFlag_DEEP_COLOR_AWARE |
-							PF_OutFlag_NON_PARAM_VARY;
-
-	out_data->out_flags2 =	PF_OutFlag2_FLOAT_COLOR_AWARE |
-							PF_OutFlag2_SUPPORTS_SMART_RENDER;
+	out_data->out_flags  = out_flags1;
+	out_data->out_flags2 = out_flags2;
 
 	return err;
 }
@@ -59,15 +69,21 @@ ParamsSetup(
 
 	AEFX_CLR_STRUCT_EX(def);
 
+	AEFX_CLR_STRUCT(def);
 	def.flags = PF_ParamFlag_SUPERVISE |
 		PF_ParamFlag_CANNOT_TIME_VARY  |
 		PF_ParamFlag_CANNOT_INTERP;
 
 	def.ui_flags = PF_PUI_STD_CONTROL_ONLY;
 
-	PF_ADD_POPUP(KernelType, 2, 1, strKernels, 1);
+	PF_ADD_POPUP(
+		KernelType,
+		KERNEL_CONV_SIZE,
+		KERNEL_CONV_SHARP_3x3,
+		strKernels,
+		SUPER_KERNEL_CONV_DISK_ID);
 
-	out_data->num_params = CONVOLUTION_NUM_PARAMS;
+	out_data->num_params = KERNEL_CONV_SIZE;
 
 	return err;
 }
@@ -105,8 +121,11 @@ EntryPointFunc (
 //				ERR(SmartRender(in_dataP, out_data, (PF_SmartRenderExtra*)extra));
 				break;
 		}
-	} catch (PF_Err &thrown_err) {
-		err = thrown_err;
 	}
+	catch (PF_Err &thrown_err)
+	{
+		err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
 	return err;
 }

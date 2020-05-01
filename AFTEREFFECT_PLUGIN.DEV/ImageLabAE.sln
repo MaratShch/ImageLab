@@ -4,16 +4,10 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorizeMe", "ColorizeMe\ColorizeMe.vcxproj", "{320247BB-6BB8-4D29-921E-954CC12F1C94}"
-	ProjectSection(ProjectDependencies) = postProject
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07} = {145D81B1-8682-4DFA-B85A-4E6965B6DC07}
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ColorizeMe", "ColorizeMe", "{6A05CF26-3140-4F9B-B0B1-6BCC98B243E8}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Convolution", "Convolution\Convolution.vcxproj", "{49D61BCA-BA8A-4938-8713-4C3942B3DF25}"
-	ProjectSection(ProjectDependencies) = postProject
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07} = {145D81B1-8682-4DFA-B85A-4E6965B6DC07}
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Convolution", "Convolution", "{C59F37D4-4C6C-48D7-B818-136EE116441E}"
 EndProject
@@ -23,10 +17,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ADOBE_RESOURCES", "ADOBE_RE
 		ADOBE_AE\RESOURCES\Mach-O_prefix.h = ADOBE_AE\RESOURCES\Mach-O_prefix.h
 		ADOBE_AE\RESOURCES\PiPLtool.exe = ADOBE_AE\RESOURCES\PiPLtool.exe
 	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AESiteUtils", "AEUtils\AEUtils.vcxproj", "{145D81B1-8682-4DFA-B85A-4E6965B6DC07}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AEUtils", "AEUtils", "{34EE56DC-1BFB-47BB-BAEB-8BCE9367972E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -52,14 +42,6 @@ Global
 		{49D61BCA-BA8A-4938-8713-4C3942B3DF25}.Release|x64.Build.0 = Release|x64
 		{49D61BCA-BA8A-4938-8713-4C3942B3DF25}.Release|x86.ActiveCfg = Release|Win32
 		{49D61BCA-BA8A-4938-8713-4C3942B3DF25}.Release|x86.Build.0 = Release|Win32
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Debug|x64.ActiveCfg = Debug|x64
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Debug|x64.Build.0 = Debug|x64
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Debug|x86.ActiveCfg = Debug|Win32
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Debug|x86.Build.0 = Debug|Win32
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Release|x64.ActiveCfg = Release|x64
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Release|x64.Build.0 = Release|x64
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Release|x86.ActiveCfg = Release|Win32
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -67,6 +49,5 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{320247BB-6BB8-4D29-921E-954CC12F1C94} = {6A05CF26-3140-4F9B-B0B1-6BCC98B243E8}
 		{49D61BCA-BA8A-4938-8713-4C3942B3DF25} = {C59F37D4-4C6C-48D7-B818-136EE116441E}
-		{145D81B1-8682-4DFA-B85A-4E6965B6DC07} = {34EE56DC-1BFB-47BB-BAEB-8BCE9367972E}
 	EndGlobalSection
 EndGlobal

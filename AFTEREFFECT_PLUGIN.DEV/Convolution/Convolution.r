@@ -43,7 +43,7 @@ resource 'PiPL' (16000) {
 		},
 		/* [8] */
 		AE_Effect_Version {	
-			1572865	/* 3.0 */
+			1572865	/* 3.0 */ /* 2097153 4.0 */
 		},
 		/* [9] */
 		AE_Effect_Info_Flags {
@@ -51,10 +51,11 @@ resource 'PiPL' (16000) {
 		},
 		/* [10] */
 		AE_Effect_Global_OutFlags {
-			0x2000404
+			0x6000442
 		},
+
 		AE_Effect_Global_OutFlags_2 {
-			0x1400
+			0x21448
 		},
 		/* [11] */
 		AE_Effect_Match_Name {

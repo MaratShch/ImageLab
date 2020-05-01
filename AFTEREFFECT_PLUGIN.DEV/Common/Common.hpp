@@ -19,8 +19,6 @@ constexpr int IMAGE_LAB_AE_PLUGIN_VERSION_MINOR = 0;
 template <typename T>
 static inline void AEFX_CLR_STRUCT_EX(T& str)
 {
-	constexpr size_t size { sizeof(T) };
-	void* p { static_cast<void*>(&str) };
-	memset (p, 0, size);
+	memset (static_cast<void*>(&str), 0, sizeof(T));
 }
 
