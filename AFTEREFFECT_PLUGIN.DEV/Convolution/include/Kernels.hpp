@@ -12,9 +12,8 @@ public:
 	virtual const bool LoadKernel(void) = 0;
 	virtual const T* GetArray(void) = 0;
 	virtual const uint32_t GetSize(void) = 0;
-	virtual const T   GetFactor(void) = 0;
+	virtual const T   Normalizing(void) = 0;
 };
-
 
 template <typename T>
 class Sharp3x3 : public IAbsrtactKernel<T>
@@ -36,7 +35,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -54,7 +53,7 @@ private:
 	};
 
 	const uint32_t size = 5u;
-	const float factor{ 1.f / 8.f };
+	const T factor{ 8 };
 
 public:
 	Sharp5x5() = default;
@@ -62,7 +61,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -78,7 +77,7 @@ private:
 	};
 
 	const uint32_t size = 3u;
-	const float factor{ 1.f / 6.f };
+	const T factor{ 6 };
 
 public:
 	Blur3x3() = default;
@@ -86,7 +85,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -104,7 +103,7 @@ private:
 	};
 
 	const uint32_t size = 5u;
-	const float factor{ 1.f / 13.f };
+	const T factor{ 13 };
 
 public:
 	Blur5x5() = default;
@@ -112,7 +111,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -128,7 +127,7 @@ private:
 	};
 
 	const uint32_t size = 3u;
-	const float factor{ 1.f / 3.f };
+	const T factor{ 3 };
 
 public:
 	Sharpen3x3Factor() = default;
@@ -136,7 +135,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -160,7 +159,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -184,7 +183,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -210,7 +209,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -236,7 +235,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -262,7 +261,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -286,7 +285,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -312,7 +311,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -328,7 +327,7 @@ private:
 	};
 
 	const uint32_t size = 3u;
-	const float factor{ 1.f / 8.f };
+	const T factor{ 8 };
 
 public:
 	Soften3x3() = default;
@@ -336,7 +335,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -354,7 +353,7 @@ private:
 	};
 
 	const uint32_t size = 5u;
-	const float factor{ 1.f / 24.f };
+	const T factor{ 24 };
 
 public:
 	Soften5x5() = default;
@@ -362,7 +361,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void) { return factor; }
 };
 
 
@@ -378,7 +377,7 @@ private:
 	};
 
 	const uint32_t size = 3u;
-	const float factor{ 1.f / 16.f };
+	const T factor{ 16 };
 
 public:
 	Gaussian3x3() = default;
@@ -386,7 +385,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -404,7 +403,7 @@ private:
 	};
 
 	const uint32_t size = 5u;
-	const float factor{ 1.f / 159.f };
+	const T factor{ 159 };
 
 public:
 	Gaussian5x5() = default;
@@ -412,7 +411,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -436,7 +435,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -462,7 +461,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -484,7 +483,7 @@ private:
 	};
 
 	const uint32_t size = 9u;
-	const float factor{ 1.0/18.f };
+	const T factor{ 18 };
 
 public:
 	MotionBlur9x9() = default;
@@ -492,7 +491,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T    Normalizing(void)    { return factor; }
 };
 
 
@@ -514,7 +513,7 @@ private:
 	};
 
 	const uint32_t size = 9u;
-	const float factor{ 1.0 / 9.f };
+	const T factor{ 9 };
 
 public:
 	MotionBlurL2R9x9() = default;
@@ -522,7 +521,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -544,7 +543,7 @@ private:
 	};
 
 	const uint32_t size = 9u;
-	const float factor{ 1.0 / 9.f };
+	const T factor{ 9 };
 
 public:
 	MotionBlurR2L9x9() = default;
@@ -552,7 +551,7 @@ public:
 	const bool     LoadKernel(void) { return true; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
 
 
@@ -562,7 +561,7 @@ class CustomKernel : public IAbsrtactKernel<T>
 private:
 	T* kernel;
 	uint32_t size = 0u;
-	float factor{ 1.0 / 9.f };
+	T factor{ 9 };
 
 public:
 	CustomKernel() = default;
@@ -570,5 +569,10 @@ public:
 	const bool     LoadKernel(void) { return false; }
 	const T*       GetArray(void)   { return kernel; }
 	const uint32_t GetSize(void)    { return size; }
-	const T        GetFactor(void)  { return factor; }
+	const T        Normalizing(void){ return factor; }
 };
+
+
+template <typename T>
+IAbsrtactKernel<T>* GetKernel (uint32_t idx);
+

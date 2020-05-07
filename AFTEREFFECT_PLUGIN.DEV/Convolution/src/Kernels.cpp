@@ -2,16 +2,21 @@
 #include "Kernels.hpp"
 #include "Convolution.hpp"
 
+template <typename T>
+CACHE_ALIGN IAbsrtactKernel<T>* factoryKernels[KERNEL_CONV_SIZE];
 
 template <typename T>
-CACHE_ALIGN static IAbsrtactKernel<T>* factoryKernels[KERNEL_CONV_SIZE];
-
-template <typename T>
-IAbsrtactKernel<T>* GetKernel(uint32_t idx)
+IAbsrtactKernel<T>* GetKernel (uint32_t idx)
 {
-	return ((idx < static_cast<uint32_t>(KERNEL_CONV_SIZE)) ? factoryKernels<T>[idx] : nullptr);
+	return ((idx < KERNEL_CONV_SIZE) ? factoryKernels<T>[idx] : nullptr);
 }
 
+template <typename T>
+static inline void SetKernel(IAbsrtactKernel<T>* iKernel, uint32_t idx)
+{
+	 if (idx < KERNEL_CONV_SIZE)
+		 factoryKernels<T>[idx] = iKernel;
+}
 
 template <typename T>
 void InitKernels(void)
@@ -46,10 +51,12 @@ void FreeKernels(void)
 {
 	for (uint32_t i = 0; i < KERNEL_CONV_SIZE; i++)
 	{
-		if (nullptr != factoryKernels<T>[i])
+		IAbsrtactKernel<T>* iKernel = GetKernel<T>(i);
+		if (nullptr != iKernel)
 		{
-			delete factoryKernels<T>[i];
-			factoryKernels<T>[i] = nullptr;
+			delete iKernel;
+			iKernel = nullptr;
+			SetKernel<T>(iKernel, i);
 		}
 	}
 	return;

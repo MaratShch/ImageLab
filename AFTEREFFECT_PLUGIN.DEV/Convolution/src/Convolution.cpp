@@ -28,6 +28,9 @@ GlobalSetup(
 {
 	PF_Err	err = PF_Err_NONE;
 
+	/* Initialize Kernels */
+	InitKernelsFactory();
+
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT		 |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
@@ -121,8 +124,11 @@ Render(
 {
 	PF_Err	err = PF_Err_NONE;
 	const PF_ParamValue convKernelType{ params[KERNEL_CHECKBOX]->u.pd.value };
-
-	InitKernelsFactory();
+	const uint32_t choosedKernel = static_cast<uint32_t>(convKernelType);
+	
+	IAbsrtactKernel<int32_t>* iKernel = GetKernel<int32_t>(choosedKernel) ;
+	void* convKer = const_cast<void*>(reinterpret_cast<const void*>(iKernel->GetArray()));
+	int32_t kernelSize = iKernel->GetSize();
 
 	if (PremierId != in_data->appl_id)
 	{
@@ -130,14 +136,12 @@ Render(
 	}
 	else
 	{
-		int8_t convKer[] = { -1, -1, -1, -1, 9, -1, -1, -1, -1 };
-
 		/* This plugin called from Pr */
 		in_data->utils->convolve(in_data->effect_ref,
 			&params[KERNEL_CHECKBOX]->u.ld,
 			nullptr,
-			PF_KernelFlag_2D | PF_KernelFlag_CLAMP | PF_KernelFlag_USE_CHAR,
-			3,
+			PF_KernelFlag_2D | PF_KernelFlag_CLAMP | PF_KernelFlag_USE_FIXED,
+			kernelSize,
 			convKer,
 			convKer,
 			convKer,
@@ -258,7 +262,7 @@ EntryPointFunc (
 	}
 	catch (PF_Err &thrown_err)
 	{
-		err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+		err = thrown_err;
 	}
 
 	return err;
