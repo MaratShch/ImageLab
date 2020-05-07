@@ -4,22 +4,22 @@
 #include "ImageLabFuzzyMedian.h"
 
 
-std::mutex algStorageMutex;
-CACHE_ALIGN static AlgMemStorage algStorage;
+//std::mutex algStorageMutex;
+//CACHE_ALIGN static AlgMemStorage algStorage;
 
 
-AlgMemStorage& getAlgStorageStruct (void)
-{
-	std::lock_guard<std::mutex> guard(algStorageMutex);
-	return algStorage;
-}
+//AlgMemStorage& getAlgStorageStruct (void)
+//{
+//	std::lock_guard<std::mutex> guard(algStorageMutex);
+//	return algStorage;
+//}
 
-void setAlgStorageStruct (const AlgMemStorage& storage)
-{
-	std::lock_guard<std::mutex> guard(algStorageMutex);
-	algStorage = storage;
-	return;
-}
+//void setAlgStorageStruct (const AlgMemStorage& storage)
+//{
+//	std::lock_guard<std::mutex> guard(algStorageMutex);
+//	algStorage = storage;
+//	return;
+//}
 
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
@@ -27,8 +27,8 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 	switch (ul_reason_for_call)
 	{
 		case DLL_PROCESS_ATTACH:
-			memset(&algStorage, 0, sizeof(algStorage));
-			algStorage.strSizeOf = sizeof(algStorage);
+//			memset(&algStorage, 0, sizeof(algStorage));
+//			algStorage.strSizeOf = sizeof(algStorage);
 		break;
 
 		case DLL_THREAD_ATTACH:
@@ -38,8 +38,8 @@ BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /*
 		break;
 
 		case DLL_PROCESS_DETACH:
-			algMemStorageFree (algStorage);
-			memset(&algStorage, 0, sizeof(algStorage));
+//			algMemStorageFree (algStorage);
+//			memset(&algStorage, 0, sizeof(algStorage));
 		break;
 
 		default:

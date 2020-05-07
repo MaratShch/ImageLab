@@ -1,21 +1,9 @@
 #pragma once
- 
-#include "AEConfig.h"
-#include "entry.h"
-#ifdef AE_OS_WIN
-#include "string.h"
-#endif
-#include "AE_Effect.h"
-#include "AE_EffectCB.h"
-#include "AE_Macros.h"
-#include "AE_EffectCBSuites.h"
-#include "AE_GeneralPlug.h"
-#include "AEFX_SuiteHandlerTemplate.h"
-#include "Common.hpp"
-#include "Param_Utils.h"
+
+#include "CommonAdobeAE.hpp"
 
 constexpr char strName[] = "Convolution";
-constexpr char strCopyright[] = "\nImageLab2 Copyright(c).\rImage convolution plugin.";
+constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage convolution with differents kernels plugin.";
 constexpr int Convolution_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int Convolution_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int Convolution_VersionSub   = 0;
@@ -28,18 +16,64 @@ constexpr int Convolution_VersionBuild = 1;
 
 constexpr char KernelType[] = "Kernel Type";
 
-constexpr char strKernels[] = "Sharp 3x3|"
-							  "Sharp 5x5 ";
+constexpr char strKernels[] =	"Sharp 3x3|"
+								"Sharp 5x5|"
+	                            "Blur 3x3|"
+	                            "Blur 5x5|" 
+								"Sharpen 3x3 Factor|"
+								"Intense Sharpen 3x3|"
+								"Edge Detection|"
+								"Edge 45 Degrees|"
+								"Edge Horizontal|"
+								"Edge Vertical|"
+								"Emboss|"
+								"Intense Emboss|"
+								"Soften 3x3|"
+								"Soften 5x5|"
+								"Gaussian 3x3|"
+								"Gaussian 5x5|"
+								"Laplasian 3x3|"
+								"Laplasian 5x5|"
+								"Motion Blur 9x9|"
+								"Motion Blur -> 9x9|"
+								"Motion Blur <- 9x9|"
+	                            "Custom Kernel";
+
+enum {
+	KERNEL_CHECKBOX,
+	CONVLOVE_NUM_PARAMS = 2
+};
 
 typedef enum {
 	KERNEL_CONV_SHARP_3x3 = 1,
 	KERNEL_CONV_SHARP_5x5,
-	KERNEL_CONV_SIZE = KERNEL_CONV_SHARP_5x5
-} current_mode;
+	KERNEL_CONV_BLUR_3x3,
+	KERNEL_CONV_BLUR_5x5,
+	KERNEL_CONV_SHARPEN_3x3,
+	KERNEL_CONV_INTENSE_SHARPEN,
+	KERNEL_CONV_EDGE_DETECTION,
+	KERNEL_CONV_EDGE_45_DEGREES,
+	KERNEL_CONV_EDGE_HORIZONTAL,
+	KERNEL_CONV_EDGE_VERTICAL,
+	KERNEL_CONV_EMBOSS,
+	KERNEL_CONV_INTENSE_EMBOSS,
+	KERNEL_CONV_SOFTEN_3x3,
+	KERNEL_CONV_SOFTEN_5x5,
+	KERNEL_CONV_GAUSSIAN_3x3,
+	KERNEL_CONV_GAUSSIAN_5x5,
+	KERNEL_CONV_LAPLASIAN_3x3,
+	KERNEL_CONV_LAPLASIAN_5x5,
+	KERNEL_CONV_MOTON_BLUR_9x9,
+	KERNEL_CONV_BLUR_LEFTRIGHT_9x9,
+	KERNEL_CONV_BLUR_RIGHTLEFT_9x9,
+	KERNEL_CONV_CUSTOM_KERNEL,
+	KERNEL_CONV_SIZE = KERNEL_CONV_CUSTOM_KERNEL
+} ILab2KernelType;
 
 enum {
-	SUPER_KERNEL_CONV_DISK_ID = 1
+	KERNEL_CONV_DISK_ID = 1
 };
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,7 +87,6 @@ PF_Err EntryPointFunc (
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output,
 	void			*extra);
-	
 	
 #ifdef __cplusplus
 }

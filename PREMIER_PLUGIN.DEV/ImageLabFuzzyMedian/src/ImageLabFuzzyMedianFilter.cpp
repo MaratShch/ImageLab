@@ -3,13 +3,7 @@
 #include <assert.h> 
 #include <float.h>
 
-#ifdef _DEBUG
-static float fDbgStd[2048] = {};
-static unsigned int dbgCnt = 0u;
-static float* pInput = nullptr;
-#endif
-
-
+#if 0
 static inline const float simple_median_kernel_3x3 (float* pCentralPix, const csSDK_int32& linePitch)
 {
 	float pixArray[9] =
@@ -409,3 +403,4 @@ bool fuzzy_median_filter_ARGB_4444_8u_frame
 	return true;
 }
 
+#endif

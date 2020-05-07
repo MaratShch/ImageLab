@@ -2,66 +2,84 @@
 #include <windows.h>
 #include "ImageLabFuzzyMedian.h"
 
-
-inline bool checkAlgMemoryStorage (const csSDK_int32& width, const csSDK_int32& height, const AlgMemStorage& algMemStorage)
+inline size_t getTmpStorageSizeForImage (const csSDK_int32& width, const csSDK_int32& height)
 {
-	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel;
-	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers), CPU_PAGE_SIZE);
-	return (nullptr == algMemStorage.pFuzzyBuffer || totalMemory < algMemStorage.memSize) ? false : true;
+	return (width * height * size_fuzzy_pixel);
 }
 
-void algMemStorageFree (AlgMemStorage& algMemStorage)
+inline size_t getTmpStorageSizeForHistograms (const csSDK_int32& width, const csSDK_int32& height)
 {
-	if (nullptr != algMemStorage.pFuzzyBuffer)
-	{
-		_aligned_free(algMemStorage.pFuzzyBuffer);
-		algMemStorage.pFuzzyBuffer = nullptr;
-		algMemStorage.memSize = 0;
-		algMemStorage.pFine = algMemStorage.pCoarse = nullptr;
-		algMemStorage.pH = nullptr;
-		algMemStorage.stripeNum = algMemStorage.stripeSize = 0;
-	}
-	return;
+	constexpr csSDK_int32 histBeans = 1 << 8;
+	return ((width * histBeans) * sizeof(HistElem));
 }
 
-/* realloc memory storage for perform Fuzzy Median Filter or Histogramm Based Median Filter */
-bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage)
+inline size_t getTmpMemStorageSize(const csSDK_int32& width, const csSDK_int32& height)
 {
-	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel + CACHE_LINE * 2; /* add 128 bytes spare */
-	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers + CACHE_LINE * 2), CPU_PAGE_SIZE);
-	bool bRet = false;
-
-	/* free previoulsy allocated memory */
-	algMemStorageFree (algMemStorage);
-
-	if (nullptr == algMemStorage.pFuzzyBuffer)
-	{
-		void* pMem = _aligned_malloc(totalMemory, CPU_PAGE_SIZE);
-		if (nullptr != pMem)
-		{
-			/* build Memory layout for Fuzzy Median Algorithm */
-#ifdef _DEBUG
-			__VECTOR_ALIGNED__
-			memset(pMem, 0, totalMemory);
-#endif
-			algMemStorage.memSize = totalMemory;
-			algMemStorage.pFuzzyBuffer = pMem;
-
-			/* build Memory Layout for Histogram Based Median Filter (add 64 bytes between Coarse and Fine and between Histogram and Coarse for DBG putpose) */
-			const unsigned long long pFineAddress = reinterpret_cast<const unsigned long long>(pMem);
-			const unsigned long long pCoarseAddress = CreateAlignment(pFineAddress + size_fine + CACHE_LINE, static_cast<unsigned long long>(CACHE_LINE));
-			const unsigned long long pHistogramm = CreateAlignment(pCoarseAddress  + size_hist_obj + CACHE_LINE, static_cast<unsigned long long>(CACHE_LINE));
-
-			algMemStorage.pFine   = reinterpret_cast<HistElem* __restrict>(pFineAddress);
-			algMemStorage.pCoarse = reinterpret_cast<HistElem* __restrict>(pCoarseAddress);
-			algMemStorage.pH = reinterpret_cast<HistogramObj* __restrict>(pHistogramm);
-
-			bRet = true;
-		}
-	}
-
-	return bRet;
+	/*	looking memory size for hold row hitograms is significalty less from buffer for hold HSV values,
+		but let's check it in any case */
+	return MAX(getTmpStorageSizeForImage(width, height), getTmpStorageSizeForHistograms(width, height));
 }
+
+
+//inline bool checkAlgMemoryStorage (const csSDK_int32& width, const csSDK_int32& height, const AlgMemStorage& algMemStorage)
+//{
+//	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel;
+//	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers), CPU_PAGE_SIZE);
+//	return (nullptr == algMemStorage.pFuzzyBuffer || totalMemory < algMemStorage.memSize) ? false : true;
+//}
+//
+//void algMemStorageFree (AlgMemStorage& algMemStorage)
+//{
+//	if (nullptr != algMemStorage.pFuzzyBuffer)
+//	{
+//		_aligned_free(algMemStorage.pFuzzyBuffer);
+//		algMemStorage.pFuzzyBuffer = nullptr;
+//		algMemStorage.memSize = 0;
+//		algMemStorage.pFine = algMemStorage.pCoarse = nullptr;
+//		algMemStorage.pH = nullptr;
+//		algMemStorage.stripeNum = algMemStorage.stripeSize = 0;
+//	}
+//	return;
+//}
+//
+///* realloc memory storage for perform Fuzzy Median Filter or Histogramm Based Median Filter */
+//bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, AlgMemStorage& algMemStorage)
+//{
+//	const csSDK_int32 imageBuffer = width * height * size_fuzzy_pixel + CACHE_LINE * 2; /* add 128 bytes spare */
+//	const csSDK_int32 totalMemory = CreateAlignment(MAX(imageBuffer, size_total_hist_buffers + CACHE_LINE * 2), CPU_PAGE_SIZE);
+//	bool bRet = false;
+//
+//	/* free previoulsy allocated memory */
+//	algMemStorageFree (algMemStorage);
+//
+//	if (nullptr == algMemStorage.pFuzzyBuffer)
+//	{
+//		void* pMem = _aligned_malloc(totalMemory, CPU_PAGE_SIZE);
+//		if (nullptr != pMem)
+//		{
+//			/* build Memory layout for Fuzzy Median Algorithm */
+//#ifdef _DEBUG
+//			__VECTOR_ALIGNED__
+//			memset(pMem, 0, totalMemory);
+//#endif
+//			algMemStorage.memSize = totalMemory;
+//			algMemStorage.pFuzzyBuffer = pMem;
+//
+//			/* build Memory Layout for Histogram Based Median Filter (add 64 bytes between Coarse and Fine and between Histogram and Coarse for DBG putpose) */
+//			const unsigned long long pFineAddress = reinterpret_cast<const unsigned long long>(pMem);
+//			const unsigned long long pCoarseAddress = CreateAlignment(pFineAddress + size_fine + CACHE_LINE, static_cast<unsigned long long>(CACHE_LINE));
+//			const unsigned long long pHistogramm = CreateAlignment(pCoarseAddress  + size_hist_obj + CACHE_LINE, static_cast<unsigned long long>(CACHE_LINE));
+//
+//			algMemStorage.pFine   = reinterpret_cast<HistElem* __restrict>(pFineAddress);
+//			algMemStorage.pCoarse = reinterpret_cast<HistElem* __restrict>(pCoarseAddress);
+//			algMemStorage.pH = reinterpret_cast<HistogramObj* __restrict>(pHistogramm);
+//
+//			bRet = true;
+//		}
+//	}
+//
+//	return bRet;
+//}
 
 
 csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int16 advFlag, const csSDK_int16 kernelRadius, AlgMemStorage& algMemStorage)
@@ -96,19 +114,19 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int16 
 
 			// Check is frame dimensions are correct
 			if (0 >= height || 0 >= width || 0 >= linePitch || linePitch < width)
-				return fsBadFormatIndex;
+				return fsErr_Size;
 
-			if (kernelRadius > 1 || 0 != advFlag) 
-			{
-				if (false == checkAlgMemoryStorage (width, height, algMemStorage))
-				{
-					/* required memory re-allocation */
-					if (false == algMemStorageRealloc (width, height, algMemStorage))
-						return fsBadFormatIndex; /* memory re-allocation failed */
-					else
-						setAlgStorageStruct (algMemStorage);
-				}
-			}
+//			if (kernelRadius > 1 || 0 != advFlag) 
+//			{
+//				if (false == checkAlgMemoryStorage (width, height, algMemStorage))
+//				{
+//					/* required memory re-allocation */
+//					if (false == algMemStorageRealloc (width, height, algMemStorage))
+//						return fsBadFormatIndex; /* memory re-allocation failed */
+//					else
+//						setAlgStorageStruct (algMemStorage);
+//				}
+//			}
 
 			switch (pixelFormat)
 			{
@@ -117,12 +135,12 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int16 
 				{
 					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
-					if (0 != advFlag)
-						processSucceed = fuzzy_median_filter_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch, algMemStorage);
-					else if (1 == kernelRadius)
+//					if (0 != advFlag)
+//						processSucceed = fuzzy_median_filter_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch, algMemStorage);
+//					else if (1 == kernelRadius)
 						processSucceed = median_filter_3x3_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch);
-					else
-						processSucceed = median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
+//					else
+//						processSucceed = median_filter_BGRA_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
 				}
 				break;
 
@@ -131,9 +149,21 @@ csSDK_int32 selectProcessFunction (const VideoHandle theData, const csSDK_int16 
 					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
 
-					processSucceed = (advFlag ?
-						fuzzy_median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage) :
-						median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
+//					processSucceed = (advFlag ?
+//						fuzzy_median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage) :
+//						median_filter_ARGB_4444_8u_frame (srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius) );
+				}
+
+				case PrPixelFormat_VUYA_4444_8u:
+				{
+					csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
+					csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+//					if (0 != advFlag)
+//						processSucceed = fuzzy_median_filter_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch, algMemStorage);
+//					else if (1 == kernelRadius)
+						processSucceed = median_filter_3x3_VUYA_4444_8u_frame (srcPix, dstPix, height, width, linePitch);
+//					else
+//						processSucceed = median_filter_BGRA_4444_8u_frame(srcPix, dstPix, height, width, linePitch, algMemStorage, kernelRadius);
 				}
 
 				default:

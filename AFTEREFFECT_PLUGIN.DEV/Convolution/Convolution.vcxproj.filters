@@ -24,7 +24,10 @@
     <ClInclude Include="..\Common\Common.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\Matrix.hpp">
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Kernels.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,7 +1,7 @@
 #include "ImageLabColorCorrectionHSL.h"
 
 
-csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
+csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData)
 {
 	csSDK_int32 pixFormatResult = imNoErr;
 
@@ -9,52 +9,52 @@ csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData)
 	{
 		switch ((*theData)->pixelFormatIndex)
 		{
-			case 0:
-				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_8u;
+		case 0:
+			(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_8u;
 			break;
 
-			case 1:
-				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_32f;
+		case 1:
+			(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_16u;
 			break;
 
-			case 2:
-				(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_16u;
+		case 2:
+			(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u;
 			break;
 
-			case 3:
-				(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_8u;
+		case 3:
+			(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u_709;
 			break;
 
-			case 4:
-				(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_16u;
+		case 4:
+			(*theData)->pixelFormatSupported = PrPixelFormat_BGRA_4444_32f;
 			break;
 
-			case 5:
-				(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_32f;
-			break;
-			
-			case 6:
-				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u;
+		case 5:
+			(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f;
 			break;
 
-			case 7:
-				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_8u_709;
+		case 6:
+			(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f_709;
 			break;
 
-			case 8:
-				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f;
+		case 7:
+			(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_8u;
 			break;
 
-			case 9:
-				(*theData)->pixelFormatSupported = PrPixelFormat_VUYA_4444_32f_709;
+		case 8:
+			(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_16u;
 			break;
 
-			case 10:
-				(*theData)->pixelFormatSupported = PrPixelFormat_RGB_444_10u;
+		case 9:
+			(*theData)->pixelFormatSupported = PrPixelFormat_ARGB_4444_32f;
 			break;
 
-			default:
-				pixFormatResult = fsBadFormatIndex;
+		case 10:
+			(*theData)->pixelFormatSupported = PrPixelFormat_RGB_444_10u;
+			break;
+
+		default:
+			pixFormatResult = fsBadFormatIndex;
 			break;
 		}
 	}

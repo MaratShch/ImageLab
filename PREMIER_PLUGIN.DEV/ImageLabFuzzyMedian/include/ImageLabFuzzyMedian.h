@@ -144,8 +144,8 @@ constexpr size_t hndlSize = sizeof(filterParams);
 
 #define IMAGE_LAB_MEDIAN_FILTER_PARAM_HANDLE_INIT(_param_handle)	\
     (*_param_handle)->checkbox = '\0';								\
-	(*_param_handle)->kernelRadius = 1;								\
-	(*_param_handle)->AlgMemStorage = getAlgStorageStruct();
+	(*_param_handle)->kernelRadius = 1;								
+//	(*_param_handle)->AlgMemStorage = getAlgStorageStruct();
 
   
 // Declare plug-in entry point with C linkage
@@ -185,12 +185,19 @@ bool median_filter_ARGB_4444_8u_frame(const csSDK_uint32* __restrict srcPix,
 bool median_filter_3x3_BGRA_4444_8u_frame
 (
 	const	csSDK_uint32* __restrict srcBuf,
-	csSDK_uint32*         __restrict dstBuf,
+	        csSDK_uint32* __restrict dstBuf,
 	const	csSDK_int32& height,
 	const	csSDK_int32& width,
 	const	csSDK_int32& linePitch
 );
-
+bool median_filter_3x3_VUYA_4444_8u_frame
+(
+	const	csSDK_uint32* __restrict srcBuf,
+	        csSDK_uint32* __restrict dstBuf,
+	const	csSDK_int32& height,
+	const	csSDK_int32& width,
+	const	csSDK_int32& linePitch
+);
 
 /* ================== FUZZY BASED MEDIAN FILTER (with Kernel 3x3 ========================== */
 bool fuzzy_median_filter_BGRA_4444_8u_frame

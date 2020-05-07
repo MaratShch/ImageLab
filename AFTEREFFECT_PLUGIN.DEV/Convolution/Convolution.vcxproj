@@ -82,11 +82,13 @@
     <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(Configuration)\</IntDir>
     <TargetExt>.aex</TargetExt>
+    <ExtensionsToDeleteOnClean>*.aex;*.rrc;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(Configuration)\</IntDir>
     <TargetExt>.aex</TargetExt>
+    <ExtensionsToDeleteOnClean>*.aex;*.rrc;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -158,9 +160,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\Common.hpp" />
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\Convolution.hpp" />
-    <ClInclude Include="include\Matrix.hpp" />
+    <ClInclude Include="include\Kernels.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Convolution.r">
