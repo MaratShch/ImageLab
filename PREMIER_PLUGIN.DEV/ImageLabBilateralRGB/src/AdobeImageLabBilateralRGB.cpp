@@ -4,6 +4,8 @@
 float* __restrict pBuffer1 = nullptr;
 float* __restrict pBuffer2 = nullptr;
 
+static size_t cieLabSize = CIELabBufferPixSize;
+
 static csSDK_int32 processFrame(VideoHandle theData)
 {
 	constexpr float sigma_r = 0.100f;
@@ -23,6 +25,26 @@ static csSDK_int32 processFrame(VideoHandle theData)
 	// Create copies of pointer to the source, destination frames
 	csSDK_uint32* __restrict srcPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->source));
 	csSDK_uint32* __restrict dstPix = reinterpret_cast<csSDK_uint32* __restrict>(((*theData)->piSuites->ppixFuncs->ppixGetPixels)((*theData)->destination));
+
+	// check if allocated CIELab buffer has a good enougth size. If no - realloc for more bytes size */
+	const size_t framePixels = height * width;
+	const size_t totalPixels = CreateAlignment(framePixels, static_cast<size_t>(CPU_PAGE_SIZE));
+	if (cieLabSize < totalPixels)
+	{
+		freeCIELabBuffer(pBuffer1);
+		freeCIELabBuffer(pBuffer2);
+
+		pBuffer1 = pBuffer2 = nullptr;
+
+		const size_t bufferBytesSize = totalPixels * sizeof(float) * CIELabBufferbands;
+		pBuffer1 = reinterpret_cast<float* __restrict>(allocCIELabBuffer(bufferBytesSize));
+		pBuffer2 = reinterpret_cast<float* __restrict>(allocCIELabBuffer(bufferBytesSize));
+
+		cieLabSize = totalPixels;
+
+		if (nullptr == pBuffer1 || nullptr == pBuffer2 || 0 == cieLabSize)
+			return fsUnsupported;
+	}
 
 	// single thread synchronous processing
 	BGRA_convert_to_CIELab(srcPix, pBuffer1, width, height, rowbytes);

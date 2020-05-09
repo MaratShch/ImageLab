@@ -34,10 +34,6 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 	if (nullptr == pSrc || nullptr == pCEILab)
 		return;
 
-	const size_t numPixels = static_cast<size_t>(sizeX * sizeY);
-	if (CIELabBufferPixSize < numPixels)
-		return;
-
 	const int linePitch = rowBytes >> 2;
 
 	for (k = 0; k < sizeY; k++)
@@ -49,7 +45,7 @@ void BGRA_convert_to_CIELab(const csSDK_uint32* __restrict pBGRA,   /* format B,
 				pSrc++;
 
 				const unsigned int r = (BGRAPixel >> 16) & 0x000000FFu;
-				const unsigned int g = (BGRAPixel >> 8) & 0x000000FFu;
+				const unsigned int g = (BGRAPixel >> 8 ) & 0x000000FFu;
 				const unsigned int b = BGRAPixel         & 0x000000FFu;
 
 				const float tR = pTable[r];
@@ -121,9 +117,9 @@ void CIELab_convert_to_BGRA(const float*        __restrict pCIELab,
 				gg = (x1 * -0.962700f) + (y1 *  1.876010f) + (z1 *  0.041560f);
 				bb = (x1 *  0.013450f) + (y1 * -0.118390f) + (z1 *  1.015410f);
 
-				r1 = aExp(0.4547070f * aLog(rr));
-				g1 = aExp(0.4547070f * aLog(gg));
-				b1 = aExp(0.4547070f * aLog(bb));
+				r1 = aExpFast(0.4547070f * aLog(rr));
+				g1 = aExpFast(0.4547070f * aLog(gg));
+				b1 = aExpFast(0.4547070f * aLog(bb));
 
 				iR = static_cast<unsigned int>(r1 * 255.0f);
 				iG = static_cast<unsigned int>(g1 * 255.0f);

@@ -9,6 +9,8 @@
 
 #define CACHE_LINE  64
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
+#define CPU_PAGE_SIZE	4096
+
 
 #define AVX2_ALIGN __declspec(align(32))
 #define AVX512_ALIGN __declspec(align(64))
@@ -37,6 +39,12 @@ T MAX(T a, T b) { return ((a > b) ? a : b); }
 template<typename T>
 T EXP(T val) {
 	return powf(Exp, val); // powf for floating
+}
+
+template <typename T>
+inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
+{
+	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
 
