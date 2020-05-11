@@ -1,4 +1,4 @@
-#include "ImageLabColorCorrectionHSL.h"
+#include "ImageLabColorCorrectionRGB.h"
 
 
 csSDK_int32 imageLabPixelFormatSupported(const VideoHandle theData)
