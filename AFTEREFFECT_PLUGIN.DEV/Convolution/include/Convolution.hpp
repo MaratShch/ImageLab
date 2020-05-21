@@ -40,8 +40,9 @@ constexpr char strKernels[] =	"Sharp 3x3|"
 	                            "Custom Kernel";
 
 enum {
+	CONVOLUTION_INPUT,
 	KERNEL_CHECKBOX,
-	CONVLOVE_NUM_PARAMS = 2
+	CONVLOVE_NUM_PARAMS
 };
 
 typedef enum {

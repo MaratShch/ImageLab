@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 void InitKernelsFactory(void);
+void FreeKernelsFactory(void);
 
 template <typename T>
 class IAbsrtactKernel
@@ -372,7 +373,7 @@ private:
 	const T kernel[9] =
 	{
 		1, 2, 1,
-		2, 4, 4,
+		2, 4, 2,
 		1, 2, 1
 	};
 
@@ -559,9 +560,9 @@ template <typename T>
 class CustomKernel : public IAbsrtactKernel<T>
 {
 private:
-	T* kernel;
+	T* kernel = nullptr;
 	uint32_t size = 0u;
-	T factor{ 9 };
+	T factor{ 0 };
 
 public:
 	CustomKernel() = default;

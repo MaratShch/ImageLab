@@ -2,6 +2,8 @@
 #include "Kernels.hpp"
 #include "Convolution.hpp"
 
+static uint32_t b;
+
 template <typename T>
 CACHE_ALIGN IAbsrtactKernel<T>* factoryKernels[KERNEL_CONV_SIZE];
 
@@ -65,8 +67,12 @@ void FreeKernels(void)
 
 void InitKernelsFactory(void)
 {
-	InitKernels<float>();
-	InitKernels<int32_t>();
+	if (0u == b)
+	{
+		b = 1u;
+		InitKernels<float>();
+		InitKernels<int32_t>();
+	}
 	return;
 }
 
@@ -75,5 +81,6 @@ void FreeKernelsFactory(void)
 {
 	FreeKernels<float>();
 	FreeKernels<int32_t>();
+	b = 0u;
 	return;
 }

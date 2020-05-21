@@ -84,6 +84,25 @@ GlobalSetup(
 
 
 static PF_Err
+GlobalSetdown (
+	PF_InData* in_data
+)
+{
+#if 0
+	AEGP_SuiteHandler	suites(in_data->pica_basicP);
+
+	if (in_data->global_data) {
+		suites.HandleSuite1()->host_dispose_handle(in_data->global_data);
+	}
+#endif
+
+	FreeKernelsFactory();
+
+	return PF_Err_NONE;
+}
+
+
+static PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
@@ -110,7 +129,6 @@ ParamsSetup(
 	/* cleanup locat structure on exit */
 	AEFX_CLR_STRUCT_EX(def);
 
-
 	return err;
 }
 
@@ -124,30 +142,49 @@ Render(
 {
 	PF_Err	err = PF_Err_NONE;
 	const PF_ParamValue convKernelType{ params[KERNEL_CHECKBOX]->u.pd.value };
-	const uint32_t choosedKernel = static_cast<uint32_t>(convKernelType);
+	const uint32_t choosedKernel = static_cast<uint32_t>(convKernelType + 1);
+	IAbsrtactKernel<int32_t>* iKernel = GetKernel<int32_t>(choosedKernel);
+
+	//MRT
+	PF_Pixel8* pixelIn = nullptr;
+	PF_Pixel8* pixelOut = nullptr;
+	PF_GET_PIXEL_DATA8(&params[CONVOLUTION_INPUT]->u.ld, 0, &pixelIn);
+	PF_GET_PIXEL_DATA8(output, 0, &pixelOut);
+	//MRT 
+
+	if (nullptr != iKernel)
+	{
+		if (true == iKernel->LoadKernel())
+		{
+//			void* convKer = const_cast<void*>(reinterpret_cast<const void*>(iKernel->GetArray()));
+//			int32_t kernelSize = iKernel->GetSize();
 	
-	IAbsrtactKernel<int32_t>* iKernel = GetKernel<int32_t>(choosedKernel) ;
-	void* convKer = const_cast<void*>(reinterpret_cast<const void*>(iKernel->GetArray()));
-	int32_t kernelSize = iKernel->GetSize();
+			A_long convKer[9] = {
+				-1000, -1000, -1000,
+				-1000,  9000, -1000,
+				-1000, -1000, -1000
+			};
+			int32_t kernelSize = 3;
 
-	if (PremierId != in_data->appl_id)
-	{
-		/* This plugin called from Ae */
-	}
-	else
-	{
-		/* This plugin called from Pr */
-		in_data->utils->convolve(in_data->effect_ref,
-			&params[KERNEL_CHECKBOX]->u.ld,
-			nullptr,
-			PF_KernelFlag_2D | PF_KernelFlag_CLAMP | PF_KernelFlag_USE_FIXED,
-			kernelSize,
-			convKer,
-			convKer,
-			convKer,
-			convKer,
-			output);
-
+			if (PremierId != in_data->appl_id)
+			{
+				/* This plugin called from Ae */
+			}
+			else
+			{
+				/* This plugin called from Pr */
+				err = in_data->utils->convolve(in_data->effect_ref,
+					&params[CONVOLUTION_INPUT]->u.ld,
+					&in_data->extent_hint,
+					PF_KernelFlag_2D | PF_KernelFlag_CLAMP,
+					3,
+					convKer,
+					convKer,
+					convKer,
+					convKer,
+					output);
+			}
+		}
 	}
 
 	return err;
@@ -190,6 +227,13 @@ UserChangedParam(
 )
 {
 	PF_Err	err = PF_Err_NONE;
+	uint32_t kernelIdx = 0;
+
+	if (which_hitP->param_index == KERNEL_CHECKBOX)
+	{
+		kernelIdx = params[KERNEL_CHECKBOX]->u.bd.value;
+
+	}
 
 	return err;
 }
@@ -228,6 +272,10 @@ EntryPointFunc (
 
 			case PF_Cmd_GLOBAL_SETUP:
 				ERR(GlobalSetup(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_GLOBAL_SETDOWN:
+				ERR(GlobalSetdown(in_data));
 			break;
 
 			case PF_Cmd_PARAMS_SETUP:
