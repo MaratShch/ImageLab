@@ -166,12 +166,13 @@ Render(
 			};
 			int32_t kernelSize = 3;
 
-			if (PremierId != in_data->appl_id)
-			{
-				/* This plugin called from Ae */
-			}
-			else
-			{
+//			if (PremierId != in_data->appl_id)
+//			{
+//				/* This plugin called from Ae */
+//			}
+//			else
+//			{
+#if 0
 				/* This plugin called from Pr */
 				err = in_data->utils->convolve(in_data->effect_ref,
 					&params[CONVOLUTION_INPUT]->u.ld,
@@ -183,7 +184,33 @@ Render(
 					convKer,
 					convKer,
 					output);
-			}
+#endif
+				// We need to understand how work in AE with RAW pointer and not use engines of AE
+				A_long iWidth  = params[CONVOLUTION_INPUT]->u.ld.width;
+				A_long iHeight = params[CONVOLUTION_INPUT]->u.ld.height;
+				A_long iPitch  = params[CONVOLUTION_INPUT]->u.ld.rowbytes >> 2;
+
+				A_long width = output->width;
+				A_long height= output->height;
+				A_long pitch = (output->rowbytes) >> 2;
+
+				for (int j = 0; j < iHeight; j++)
+				{
+					A_long line = j * iPitch;
+
+					for (int i = 0; i < iWidth; i++)
+					{
+						const A_long idx = line + i;
+
+					//	*pixelOut++ = *pixelIn++;
+						pixelOut[idx].alpha = pixelIn[idx].alpha;
+						pixelOut[idx].blue  = pixelIn[idx].blue;
+						pixelOut[idx].green = pixelIn[idx].green;
+						pixelOut[idx].red   = pixelIn[idx].red;
+
+					}
+				}
+//			}
 		}
 	}
 

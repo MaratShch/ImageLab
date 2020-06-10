@@ -75,6 +75,10 @@ enum {
 	KERNEL_CONV_DISK_ID = 1
 };
 
+typedef struct {
+	PF_PixelFloat	color;
+} prerender_stuff, *pre_render_stuffP, **pre_render_stuffH;
+
 
 #ifdef __cplusplus
 extern "C" {
