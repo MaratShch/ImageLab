@@ -17,7 +17,7 @@ static inline void ImageGradientVertical_RGB (
 	const T* __restrict secondLineSrc = pSrcBuf + linePitch;
 	const float* __restrict Rgb2Yuv = (true == isBT709) ? RGB2YUV[1] : RGB2YUV[0];
 
-	csSDK_int32 i, j;
+	csSDK_int32 i = 0, j = 0;
 
 	/* compute image gradient on first line */
 //#pragma unroll(8)
@@ -92,15 +92,15 @@ static inline void ImageGradientHorizontal_RGB (
 	const float* __restrict Rgb2Yuv = (true == isBT709) ? RGB2YUV[1] : RGB2YUV[0];
 	const csSDK_int32 lastIdx = width - 1;
 
-	csSDK_int32 i, j;
+	csSDK_int32 i = 0, j = 0;
 
 	for (j = 0; j < height; j++)
 	{
 		const T* __restrict pSrc = pSrcBuf + linePitch * j;
 		  float* __restrict pDst = pDstBuf + linePitch * j;
 
-		const T& pixFirst { pSrc[i] };
-		const T& pixSecond{ pSrc[i + 1] };
+		const T& pixFirst { pSrc[0] };
+		const T& pixSecond{ pSrc[1] };
 
 		/* first row */
 		pDst[0] = ( static_cast<float>(pixSecond.R) * Rgb2Yuv[0] +
@@ -153,7 +153,7 @@ static inline void ImageGradientVertical_YUV (
 	const T* __restrict firstLineSrc = pSrcBuf;
 	const T* __restrict secondLineSrc = pSrcBuf + linePitch;
 
-	csSDK_int32 i, j;
+	csSDK_int32 i = 0, j = 0;
 
 	/* compute image gradient on first line */
 	//#pragma unroll(8)
@@ -214,15 +214,15 @@ static inline void ImageGradientHorizontal_YUV(
 )
 {
 	const csSDK_int32 lastIdx = width - 1;
-	csSDK_int32 i, j;
+	csSDK_int32 i = 0, j = 0;
 
 	for (j = 0; j < height; j++)
 	{
 		const T* __restrict pSrc = pSrcBuf + linePitch * j;
 		  float* __restrict pDst = pDstBuf + linePitch * j;
 
-		const T& pixFirst { pSrc[i] };
-		const T& pixSecond{ pSrc[i + 1] };
+		const T& pixFirst { pSrc[0] };
+		const T& pixSecond{ pSrc[1] };
 
 		/* first row */
 		pDst[0] = ( static_cast<float>(pixSecond.Y) -
