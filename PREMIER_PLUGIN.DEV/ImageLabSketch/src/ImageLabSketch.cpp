@@ -1,14 +1,15 @@
 ﻿#include "ImageLabSketch.h"
 
-template <typename T>
-void process_RGB_buffer
+void process_buffer_BGRA_4444_8u
 (
-	const T*  __restrict  pSrc,
-	T*  __restrict  pDst,
+	const csSDK_uint32* __restrict  pSrc,
+	csSDK_uint32*       __restrict  pDst,
+	AlgMemStorage*      __restrict  pMemDesc,
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
-	AlgMemStorage*        pMemDesc
+	const csSDK_int32&    imgEnhancement,
+	const bool&           isCharcoal
 )
 {
 	/* temporary buffer for vertial gradient */
@@ -18,18 +19,17 @@ void process_RGB_buffer
 
 	const bool isBT709 = width > 720 ? true : false;
 
-	ImageGradientVertical_RGB  (pSrc, p1, width, height, linePitch, isBT709);
-	ImageGradientHorizontal_RGB(pSrc, p2, width, height, linePitch, isBT709);
-
+	ImageGradientVertical_BGRA_4444_8u   (pSrc, p1, width, height, linePitch, isBT709);
+	ImageGradientHorizontal_BGRA_4444_8u (pSrc, p2, width, height, linePitch, isBT709);
+	ImageMakePencilSketch_BGRA_4444_8u   (pSrc, p1, p2, pDst, width, height, linePitch, imgEnhancement);
 	return;
 }
 
 
-template <typename T>
 void process_YUV_buffer
 (
-	const T*  __restrict  pSrc,
-	      T*  __restrict  pDst,
+	const csSDK_uint32* __restrict  pSrc,
+	csSDK_uint32*       __restrict  pDst,
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
@@ -40,10 +40,35 @@ void process_YUV_buffer
 	float* __restrict p1 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf1);
 	/* temporary buffer for horizontal gradient */
 	float* __restrict p2 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf2);
+#if 0
+	constexpr size_t elemSize = sizeof(pSrc[0].Y);
+
+	csSDK_int32 i, j;
+	csSDK_int32 fIdx = 0;
+	float fPix = 0.f;
+
+
+	const float fMax = (sizeof(csSDK_uint8) == elemSize) ? 255.0f : (sizeof(csSDK_uint16) == elemSize) ? 65535.0f : 1.0f;
+	const float fBw  = (sizeof(csSDK_uint8) == elemSize) ? 128.0f : (sizeof(csSDK_uint16) == elemSize) ? 32768.0f : 0.0f;
 
 	ImageGradientVertical_YUV  (pSrc, p1, width, height, linePitch);
 	ImageGradientHorizontal_YUV(pSrc, p2, width, height, linePitch);
 
+	for (j = 0; j < height; j++)
+	{
+		      T* __restrict pDstBuf = pDst + j * linePitch;
+			  const T* __restrict pSrcBuf = pSrc + j * linePitch;
+
+		for (i = 0; i < width; i++)
+		{
+			fPix = CLAMP_RGB8(fMax - sqrt(p1[fIdx] * p1[fIdx] + p2[fIdx] * p2[fIdx]));
+			fIdx++;
+			pDstBuf[i].Y = static_cast<unsigned char>(fPix);
+			pDstBuf[i].U = pDstBuf[i].V = 0x80;
+			pDstBuf[i].A = pSrcBuf[i].A;
+		}
+	}
+#endif
 	return;
 }
 
@@ -56,8 +81,8 @@ csSDK_int32 selectProcessFunction (VideoHandle theData)
 	AlgMemStorage*         pMemStorage = nullptr;
 	constexpr long         siteVersion = 1;
 	csSDK_int32            errCode = fsBadFormatIndex;
+	csSDK_int32            imageEnhancement = 0;
 	csSDK_int8             isCharcoalSketch = 0;
-	csSDK_int8             isImageEnhancement = 0;
 	bool                   processSucceed = true;
 
 	// acquire Premier Suites
@@ -89,8 +114,8 @@ csSDK_int32 selectProcessFunction (VideoHandle theData)
 			paramsH = reinterpret_cast<filterParamsH>((*theData)->specsHandle);
 			if (nullptr != paramsH)
 			{
-				isCharcoalSketch   = (*paramsH)->checkbox1;
-				isImageEnhancement = (*paramsH)->checkbox2;
+				isCharcoalSketch = (*paramsH)->checkbox1;
+				imageEnhancement = enhancementOffset + static_cast<csSDK_int32>((*paramsH)->slider1);
 
 				/* check is temporary memory available */
 				if (nullptr != (pMemStorage = (*paramsH)->pAlgMem))
@@ -119,13 +144,13 @@ csSDK_int32 selectProcessFunction (VideoHandle theData)
 				// ============ native AP formats ============================= //
 				case PrPixelFormat_BGRA_4444_8u:
 				{
-					const PixelBGRA_u8* __restrict pSrcPix = reinterpret_cast<const PixelBGRA_u8* __restrict>(srcImg);
-					PixelBGRA_u8* __restrict pDstPix = reinterpret_cast<PixelBGRA_u8* __restrict>(dstImg);
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-					process_RGB_buffer (pSrcPix, pDstPix, width, height, linePitch, pMemStorage);
+					process_buffer_BGRA_4444_8u (pSrcPix, pDstPix, pMemStorage, width, height, linePitch, imageEnhancement, isCharcoalSketch);
 				}
 				break;
-
+#if 0
 				case PrPixelFormat_BGRA_4444_16u:
 				{
 					const PixelBGRA_u16* __restrict pSrcPix = reinterpret_cast<const PixelBGRA_u16* __restrict>(srcImg);
@@ -191,12 +216,7 @@ csSDK_int32 selectProcessFunction (VideoHandle theData)
 					process_RGB_buffer(pSrcPix, pDstPix, width, height, linePitch, pMemStorage);
 				}
 				break;
-
-				// =========== miscellanous formats =========================== //
-//				case PrPixelFormat_RGB_444_10u:
-//					processSucceed = processSepiaRGB444_10u_slice(theData);
-//				break;
-
+#endif
 				default:
 					processSucceed = false;
 				break;
@@ -236,7 +256,7 @@ PREMPLUGENTRY DllExport xFilter (short selector, VideoHandle theData)
 				if (nullptr != paramsH)
 				{
 					(*paramsH)->checkbox1 = 0;
-					(*paramsH)->checkbox2 = 0;
+					(*paramsH)->slider1 = 0;
 					(*paramsH)->pAlgMem = getAlgStorageStruct();
 				}
 

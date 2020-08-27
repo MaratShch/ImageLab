@@ -150,6 +150,8 @@
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\ImageLabAlgorithmMem.cpp" />
+    <ClCompile Include="src\ImageLabGradient_BGRA.cpp" />
+    <ClCompile Include="src\ImageLabPencilSketch.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
     <ClCompile Include="src\ImageLabSketch.cpp" />
   </ItemGroup>

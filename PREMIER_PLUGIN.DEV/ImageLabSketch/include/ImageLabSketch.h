@@ -44,13 +44,13 @@ template<typename T>
 T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-T CLAMP_RGB8(T val) { return ((val < 0) ? 0 : (val > 0xFF) ? 0xFF : val); }
+T CLAMP_RGB8(T val) { return ((val < 0) ? 0 : (val > 255) ? 255 : val); }
 
 template<typename T>
-T CLAMP_RGB10(T val) { return ((val < 0) ? 0 : (val > 0x3FF) ? 0x3FF : val); }
+T CLAMP_RGB10(T val) { return ((val < 0) ? 0 : (val > 1023) ? 1023 : val); }
 
 template<typename T>
-T CLAMP_RGB16(T val) { return ((val < 0) ? 0 : (val > 0xFFFF) ? 0xFFFF : val); }
+T CLAMP_RGB16(T val) { return ((val < 0) ? 0 : (val > 65535) ? 65535 : val); }
 
 template <typename T>
 inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(T x, T a)
@@ -65,15 +65,19 @@ typedef struct _AlgMemStorage
 	void* __restrict pBuf2;
 }AlgMemStorage;
 
+#pragma pack(push)
+#pragma pack(1)
 typedef struct filterParams
 {
-	csSDK_int8 checkbox1;
-	csSDK_int8 checkbox2;
-	unsigned char __padding[6];
+	csSDK_int8  checkbox1;
+	csSDK_int16 slider1;
 	AlgMemStorage* pAlgMem;
 } filterParams, *filterParamsP, **filterParamsH;
+#pragma pack(pop)
 
 constexpr csSDK_int32 filterParamSize = sizeof(filterParams);
+constexpr csSDK_int32 enhancementOffset  = 5;
+constexpr csSDK_int32 enhancementDivider = 5;
 
 
 // define color space conversion matrix's
@@ -130,13 +134,25 @@ bool algMemStorageRealloc(const csSDK_int32& width, const csSDK_int32& height, A
 csSDK_int32 imageLabPixelFormatSupported (const VideoHandle theData);
 csSDK_int32 selectProcessFunction (VideoHandle theData);
 
-template <typename T>
-void process_RGB_buffer
+void process_buffer_BGRA_4444_8u
 (
-	const T*  __restrict  pSrc,
-	      T*  __restrict  pDst,
+	const csSDK_uint32* __restrict  pSrc,
+	csSDK_uint32*       __restrict  pDst,
+	AlgMemStorage*      __restrict  pMemDesc,
 	const csSDK_int32&    width,
 	const csSDK_int32&    height,
 	const csSDK_int32&    linePitch,
-	AlgMemStorage*        pMemDesc
+	const csSDK_int32&    imgEnhancement = enhancementOffset,
+	const bool&           isCharcoal = false
+);
+void ImageMakePencilSketch_BGRA_4444_8u
+(
+	const csSDK_uint32* __restrict pSrc,
+	const float* __restrict  vGradient,
+	const float* __restrict  hGradient,
+	csSDK_uint32* __restrict pDst,
+	const csSDK_int32&       width,
+	const csSDK_int32&       height,
+	const csSDK_int32&       linePitch,
+	const csSDK_int32&       enhancement
 );

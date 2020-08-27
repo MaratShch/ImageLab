@@ -1,0 +1,39 @@
+#include "ImageLabSketch.h"
+
+void ImageMakePencilSketch_BGRA_4444_8u
+(
+	const csSDK_uint32* __restrict pSrc,
+	const float* __restrict  vGradient,
+	const float* __restrict  hGradient,
+	csSDK_uint32* __restrict pDst,
+	const csSDK_int32&       width,
+	const csSDK_int32&       height,
+	const csSDK_int32&       linePitch,
+	const csSDK_int32&       enhancement
+)
+{
+	csSDK_int32 i, j;
+	csSDK_int32 negVal = 0;
+	float sqrtVal = 0.f;
+	const float multiplyer = static_cast<float>(enhancement) / static_cast<float>(enhancementDivider);
+
+	for (j = 0; j < height; j++)
+	{
+		const float*        __restrict pSrc1Line = vGradient + j * width;
+		const float*        __restrict pSrc2Line = hGradient + j * width;
+		const csSDK_uint32* __restrict pSrcLine = pSrc + j * linePitch;
+		csSDK_uint32*       __restrict pDstLine = pDst + j * linePitch;
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < width; i++)
+		{
+			const float& v1{ pSrc1Line[i] };
+			const float& v2{ pSrc2Line[i] };
+
+			sqrtVal = sqrt(v1 * v1 + v2 * v2);
+			negVal = static_cast<csSDK_int32>(CLAMP_RGB8(255.0f - multiplyer * sqrtVal));
+			pDstLine[i] = negVal | (negVal << 8) | (negVal << 16) | (pSrcLine[i] & 0xFF000000u);
+		}
+	}
+	return;
+}

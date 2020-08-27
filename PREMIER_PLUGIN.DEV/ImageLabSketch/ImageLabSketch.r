@@ -96,26 +96,26 @@ resource 'PiPL' (16000)
 		ANIM_ParamAtom 
 		{
 			1,					// Property count - zero-based count
-			"Sketch Enhance",	// Parameter name
+			"Sketch Enhance",   // Parameter name
 			2,					// Parameter number - one-based count
-			13,					// Data type - ANIM_DT_BOOLEAN
-			8,					// UI Type - ANIM_UI_CHECKBOX
-			0x0,
-			0x0,				// valid_min (0) - not used by Premiere
-			0x0,
-			0x0,				// valid_max (0) - not used by Premiere
-			0x0,
-			0x0,				// ui_min (0)
+			ANIM_DT_SHORT,		// Data type
+			ANIM_UI_SLIDER,		// UI Type
+			0x0,				// valid_min 0
+			0x0,					
+			0x40340000,			// valid_max 20
+			0x0,					
+			0,					// ui_min 0
+			0x0,					
+			0x40340000,			// ui_max 20
 			0x0,				
-			0x0,				// ui_max (0)
 #if (PiPLVerMajor >= 2) && (PiPLVerMinor >= 3)
 			dontScaleUIRange,
 #endif
 			animateParam,		// Set/don't set this to indicate if the param should be animated
-			dontRestrictBounds,	// Rest of these aren't used by Premiere
+			restrictBounds,	// Rest of these aren't used by Premiere
 			spaceIsAbsolute,
 			resIndependent,
-			1					// Bytes size of the param data
+			2					// Bytes size of the param data
 		},
 
 	}
