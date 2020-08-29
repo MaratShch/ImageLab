@@ -924,10 +924,10 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 				paramsH = reinterpret_cast<filterParamsH>(((*theData)->piSuites->memFuncs->newHandle)(sizeof(filterParams)));
 
 				// Memory allocation failed, no need to continue
-				if (nullptr == paramsH)
-					break;
-
-				(*paramsH)->checkbox = 0;
+				if (nullptr != paramsH)
+				{
+					(*paramsH)->checkbox = 0;
+				}
 				(*theData)->specsHandle = reinterpret_cast<char**>(paramsH);
 			}
 		break;
@@ -945,8 +945,11 @@ PREMPLUGENTRY DllExport xFilter(short selector, VideoHandle theData)
 		break;
 
 		case fsDisposeData:
-			(*theData)->piSuites->memFuncs->disposeHandle((*theData)->specsHandle);
-			(*theData)->specsHandle = nullptr;
+			if (nullptr != (*theData)->specsHandle)
+			{
+				(*theData)->piSuites->memFuncs->disposeHandle((*theData)->specsHandle);
+				(*theData)->specsHandle = nullptr;
+			}
 		break;
 
 		case fsCanHandlePAR:

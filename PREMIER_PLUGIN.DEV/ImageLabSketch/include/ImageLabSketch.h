@@ -148,11 +148,58 @@ void process_buffer_BGRA_4444_8u
 void ImageMakePencilSketch_BGRA_4444_8u
 (
 	const csSDK_uint32* __restrict pSrc,
-	const float* __restrict  vGradient,
-	const float* __restrict  hGradient,
-	csSDK_uint32* __restrict pDst,
+	const float*        __restrict  vGradient,
+	const float*        __restrict  hGradient,
+	csSDK_uint32*       __restrict pDst,
 	const csSDK_int32&       width,
 	const csSDK_int32&       height,
 	const csSDK_int32&       linePitch,
 	const csSDK_int32&       enhancement
 );
+
+void process_buffer_BGRA_4444_16u
+(
+	const csSDK_uint32* __restrict  pSrc,
+	csSDK_uint32*       __restrict  pDst,
+	AlgMemStorage*      __restrict  pMemDesc,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    imgEnhancement = enhancementOffset,
+	const bool&           isCharcoal = false
+);
+void ImageMakePencilSketch_BGRA_4444_16u
+(
+	const csSDK_uint32* __restrict pSrc,
+	const float*        __restrict  vGradient,
+	const float*        __restrict  hGradient,
+	csSDK_uint32*       __restrict pDst,
+	const csSDK_int32&       width,
+	const csSDK_int32&       height,
+	const csSDK_int32&       linePitch,
+	const csSDK_int32&       enhancement
+);
+
+void process_buffer_BGRA_4444_32f
+(
+	const float* __restrict  pSrc,
+	float*       __restrict  pDst,
+	AlgMemStorage*      __restrict  pMemDesc,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    imgEnhancement = enhancementOffset,
+	const bool&           isCharcoal = false
+);
+void ImageMakePencilSketch_BGRA_4444_32f
+(
+	const float* __restrict pSrc,
+	const float* __restrict vGradient,
+	const float* __restrict hGradient,
+	float*       __restrict pDst,
+	const csSDK_int32&      width,
+	const csSDK_int32&      height,
+	const csSDK_int32&      linePitch,
+	const csSDK_int32&      enhancement
+);
+

@@ -26,6 +26,58 @@ void process_buffer_BGRA_4444_8u
 }
 
 
+void process_buffer_BGRA_4444_16u
+(
+	const csSDK_uint32* __restrict  pSrc,
+	csSDK_uint32*       __restrict  pDst,
+	AlgMemStorage*      __restrict  pMemDesc,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    imgEnhancement,
+	const bool&           isCharcoal
+)
+{
+	/* temporary buffer for vertial gradient */
+	float* __restrict p1 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf1);
+	/* temporary buffer for horizontal gradient */
+	float* __restrict p2 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf2);
+
+	const bool isBT709 = width > 720 ? true : false;
+
+	ImageGradientVertical_BGRA_4444_16u  (pSrc, p1, width, height, linePitch, isBT709);
+	ImageGradientHorizontal_BGRA_4444_16u(pSrc, p2, width, height, linePitch, isBT709);
+	ImageMakePencilSketch_BGRA_4444_16u  (pSrc, p1, p2, pDst, width, height, linePitch, imgEnhancement);
+	return;
+}
+
+
+void process_buffer_BGRA_4444_32f
+(
+	const float* __restrict  pSrc,
+	float*       __restrict  pDst,
+	AlgMemStorage*      __restrict  pMemDesc,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    imgEnhancement,
+	const bool&           isCharcoal
+)
+{
+	/* temporary buffer for vertial gradient */
+	float* __restrict p1 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf1);
+	/* temporary buffer for horizontal gradient */
+	float* __restrict p2 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf2);
+
+	const bool isBT709 = width > 720 ? true : false;
+
+	ImageGradientVertical_BGRA_4444_32f  (pSrc, p1, width, height, linePitch, isBT709);
+	ImageGradientHorizontal_BGRA_4444_32f(pSrc, p2, width, height, linePitch, isBT709);
+	ImageMakePencilSketch_BGRA_4444_32f  (pSrc, p1, p2, pDst, width, height, linePitch, imgEnhancement);
+	return;
+}
+
+
 void process_YUV_buffer
 (
 	const csSDK_uint32* __restrict  pSrc,
@@ -40,35 +92,7 @@ void process_YUV_buffer
 	float* __restrict p1 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf1);
 	/* temporary buffer for horizontal gradient */
 	float* __restrict p2 = reinterpret_cast<float* __restrict>(pMemDesc->pBuf2);
-#if 0
-	constexpr size_t elemSize = sizeof(pSrc[0].Y);
 
-	csSDK_int32 i, j;
-	csSDK_int32 fIdx = 0;
-	float fPix = 0.f;
-
-
-	const float fMax = (sizeof(csSDK_uint8) == elemSize) ? 255.0f : (sizeof(csSDK_uint16) == elemSize) ? 65535.0f : 1.0f;
-	const float fBw  = (sizeof(csSDK_uint8) == elemSize) ? 128.0f : (sizeof(csSDK_uint16) == elemSize) ? 32768.0f : 0.0f;
-
-	ImageGradientVertical_YUV  (pSrc, p1, width, height, linePitch);
-	ImageGradientHorizontal_YUV(pSrc, p2, width, height, linePitch);
-
-	for (j = 0; j < height; j++)
-	{
-		      T* __restrict pDstBuf = pDst + j * linePitch;
-			  const T* __restrict pSrcBuf = pSrc + j * linePitch;
-
-		for (i = 0; i < width; i++)
-		{
-			fPix = CLAMP_RGB8(fMax - sqrt(p1[fIdx] * p1[fIdx] + p2[fIdx] * p2[fIdx]));
-			fIdx++;
-			pDstBuf[i].Y = static_cast<unsigned char>(fPix);
-			pDstBuf[i].U = pDstBuf[i].V = 0x80;
-			pDstBuf[i].A = pSrcBuf[i].A;
-		}
-	}
-#endif
 	return;
 }
 
@@ -145,30 +169,30 @@ csSDK_int32 selectProcessFunction (VideoHandle theData)
 				case PrPixelFormat_BGRA_4444_8u:
 				{
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
 					process_buffer_BGRA_4444_8u (pSrcPix, pDstPix, pMemStorage, width, height, linePitch, imageEnhancement, isCharcoalSketch);
 				}
 				break;
-#if 0
+
 				case PrPixelFormat_BGRA_4444_16u:
 				{
-					const PixelBGRA_u16* __restrict pSrcPix = reinterpret_cast<const PixelBGRA_u16* __restrict>(srcImg);
-					      PixelBGRA_u16* __restrict pDstPix = reinterpret_cast<PixelBGRA_u16* __restrict>(dstImg);
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-					process_RGB_buffer(pSrcPix, pDstPix, width, height, linePitch, pMemStorage);
+					process_buffer_BGRA_4444_16u (pSrcPix, pDstPix, pMemStorage, width, height, linePitch, imageEnhancement, isCharcoalSketch);
 				}
 				break;
 
 				case PrPixelFormat_BGRA_4444_32f:
 				{
-					const PixelBGRA_f32* __restrict pSrcPix = reinterpret_cast<const PixelBGRA_f32* __restrict>(srcImg);
-					      PixelBGRA_f32* __restrict pDstPix = reinterpret_cast<PixelBGRA_f32* __restrict>(dstImg);
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+					      float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
-					process_RGB_buffer(pSrcPix, pDstPix, width, height, linePitch, pMemStorage);
+				    process_buffer_BGRA_4444_32f (pSrcPix, pDstPix, pMemStorage, width, height, linePitch, imageEnhancement, isCharcoalSketch);
 				}
 				break;
-
+#if 0
 				case PrPixelFormat_VUYA_4444_8u:
 				case PrPixelFormat_VUYA_4444_8u_709:
 				{
