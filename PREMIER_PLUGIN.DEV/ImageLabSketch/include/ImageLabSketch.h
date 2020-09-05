@@ -58,6 +58,16 @@ inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Cr
 	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
+static inline float fast_sqrt (const float& x)
+{
+	unsigned int i = *(unsigned int*)&x;
+	// adjust bias
+	i += 127 << 23;
+	//approximation of square root
+	i >>= 1;
+	return *(float*)&i;
+}
+
 typedef struct _AlgMemStorage
 {
 	size_t           bytesSize;
@@ -203,3 +213,73 @@ void ImageMakePencilSketch_BGRA_4444_32f
 	const csSDK_int32&      enhancement
 );
 
+void ImageMakePencilSketch_VUYA_4444_8u
+(
+	const csSDK_uint32* __restrict pSrc,
+	const float* __restrict  vGradient,
+	const float* __restrict  hGradient,
+	csSDK_uint32* __restrict pDst,
+	const csSDK_int32&       width,
+	const csSDK_int32&       height,
+	const csSDK_int32&       linePitch,
+	const csSDK_int32&       enhancement
+);
+
+void process_buffer_VUYA_4444_32f
+(
+	const float* __restrict  pSrc,
+	float*       __restrict  pDst,
+	AlgMemStorage*      __restrict  pMemDesc,
+	const csSDK_int32&    width,
+	const csSDK_int32&    height,
+	const csSDK_int32&    linePitch,
+	const csSDK_int32&    imgEnhancement,
+	const bool&           isCharcoal
+);
+void ImageMakePencilSketch_VUYA_4444_32f
+(
+	const float* __restrict pSrc,
+	const float* __restrict  vGradient,
+	const float* __restrict  hGradient,
+	float*       __restrict pDst,
+	const csSDK_int32&       width,
+	const csSDK_int32&       height,
+	const csSDK_int32&       linePitch,
+	const csSDK_int32&       enhancement
+);
+
+
+
+void ImageMakePencilSketch_ARGB_4444_8u
+(
+	const csSDK_uint32* __restrict pSrc,
+	const float* __restrict  vGradient,
+	const float* __restrict  hGradient,
+	csSDK_uint32* __restrict pDst,
+	const csSDK_int32&       width,
+	const csSDK_int32&       height,
+	const csSDK_int32&       linePitch,
+	const csSDK_int32&       enhancement
+);
+void ImageMakePencilSketch_ARGB_4444_16u
+(
+	const csSDK_uint32* __restrict pSrc,
+	const float*        __restrict  vGradient,
+	const float*        __restrict  hGradient,
+	csSDK_uint32*       __restrict pDst,
+	const csSDK_int32&       width,
+	const csSDK_int32&       height,
+	const csSDK_int32&       linePitch,
+	const csSDK_int32&       enhancement
+);
+void ImageMakePencilSketch_ARGB_4444_32f
+(
+	const float* __restrict pSrc,
+	const float* __restrict vGradient,
+	const float* __restrict hGradient,
+	float*       __restrict pDst,
+	const csSDK_int32&      width,
+	const csSDK_int32&      height,
+	const csSDK_int32&      linePitch,
+	const csSDK_int32&      enhancement
+);

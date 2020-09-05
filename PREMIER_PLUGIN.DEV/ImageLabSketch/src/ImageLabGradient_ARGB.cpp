@@ -1,6 +1,6 @@
 #include "ImageLabSketch.h"
 
-void ImageGradientVertical_BGRA_4444_8u
+void ImageGradientVertical_ARGB_4444_8u
 (
 	const csSDK_uint32* __restrict pSrcBuf,
 	float*   __restrict pDstBuf,
@@ -25,12 +25,12 @@ void ImageGradientVertical_BGRA_4444_8u
 		const csSDK_uint32& fLinePixel{ firstLineSrc[i] };
 		const csSDK_uint32& sLinePixel{ secondLineSrc[i] };
 
-		pDstBuf[i] = ( static_cast<float>((sLinePixel & 0x00FF0000u) >> 16) * Rgb2Yuv[0] +
-			           static_cast<float>((sLinePixel & 0x0000FF00u) >> 8 ) * Rgb2Yuv[1] +
-			           static_cast<float>( sLinePixel & 0x000000FFu)        * Rgb2Yuv[2] ) -
-			         ( static_cast<float>((fLinePixel & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-				       static_cast<float>((fLinePixel & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-				       static_cast<float>( fLinePixel)                      * Rgb2Yuv[2]);
+		pDstBuf[i] = ( static_cast<float>((sLinePixel & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+			           static_cast<float>((sLinePixel & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+			           static_cast<float>((sLinePixel & 0xFF000000u) >> 24) * Rgb2Yuv[2] ) -
+			         ( static_cast<float>((fLinePixel & 0x0000FF00U) >> 8 ) * Rgb2Yuv[0] +
+				       static_cast<float>((fLinePixel & 0x00FF0000U) >> 16) * Rgb2Yuv[1] +
+				       static_cast<float>((fLinePixel & 0xFF000000u) >> 24) * Rgb2Yuv[2] );
 	}
 
 	/* compute image gradient for next lines */
@@ -49,12 +49,12 @@ void ImageGradientVertical_BGRA_4444_8u
 			const csSDK_uint32& fLinePixel{ prevLineSrc[i] };
 			const csSDK_uint32& sLinePixel{ nextLineSrc[i] };
 
-			pDstBuf[i] = ( static_cast<float>((sLinePixel & 0x00FF0000u) >> 16) * Rgb2Yuv[0] +
-				           static_cast<float>((sLinePixel & 0x0000FF00u) >> 8)  * Rgb2Yuv[1] +
-				           static_cast<float>( sLinePixel & 0x000000FFu)        * Rgb2Yuv[2] ) -
-				         ( static_cast<float>((fLinePixel & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-					       static_cast<float>((fLinePixel & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-					       static_cast<float>( fLinePixel)                      * Rgb2Yuv[2] );
+			pDstBuf[i] = ( static_cast<float>((sLinePixel & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+				           static_cast<float>((sLinePixel & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+				           static_cast<float>((sLinePixel & 0xFF000000u) >> 24) * Rgb2Yuv[2] ) -
+				         ( static_cast<float>((fLinePixel & 0x0000FF00U) >> 8 ) * Rgb2Yuv[0] +
+					       static_cast<float>((fLinePixel & 0x00FF0000U) >> 16) * Rgb2Yuv[1] +
+					       static_cast<float>((fLinePixel & 0xFF000000u) >> 24) * Rgb2Yuv[2] );
 		}
 	}
 
@@ -70,17 +70,18 @@ void ImageGradientVertical_BGRA_4444_8u
 		const csSDK_uint32& pLinePixel{ prevLineSrc[i] };
 		const csSDK_uint32& lLinePixel{ lastLineSrc[i] };
 
-		pDstBuf[i] = ( static_cast<float>((lLinePixel & 0x00FF0000u) >> 16) * Rgb2Yuv[0] +
-			           static_cast<float>((lLinePixel & 0x0000FF00u) >> 8)  * Rgb2Yuv[1] +
-			           static_cast<float>( lLinePixel & 0x000000FFu)        * Rgb2Yuv[2] ) -
-			         ( static_cast<float>((pLinePixel & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-				       static_cast<float>((pLinePixel & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-				       static_cast<float>(pLinePixel)                       * Rgb2Yuv[2] );
+		pDstBuf[i] = ( static_cast<float>((lLinePixel & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+			           static_cast<float>((lLinePixel & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+			           static_cast<float>((lLinePixel & 0xFF000000u) >> 24) * Rgb2Yuv[2] ) -
+			         ( static_cast<float>((pLinePixel & 0x0000FF00U) >> 8 ) * Rgb2Yuv[0] +
+				       static_cast<float>((pLinePixel & 0x00FF0000U) >> 16) * Rgb2Yuv[1] +
+				       static_cast<float>((pLinePixel & 0xFF000000u) >> 24) * Rgb2Yuv[2] );
 	}
 	return;
 }
 
-void ImageGradientHorizontal_BGRA_4444_8u
+
+void ImageGradientHorizontal_ARGB_4444_8u
 (
 	const csSDK_uint32* __restrict pSrcBuf,
 	float*   __restrict pDstBuf,
@@ -105,12 +106,12 @@ void ImageGradientHorizontal_BGRA_4444_8u
 		const csSDK_uint32& pixSecond{ pSrc[1] };
 
 		/* first row */
-		pDst[0] = ( static_cast<float>((pixSecond & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-			        static_cast<float>((pixSecond & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-			        static_cast<float>( pixSecond & 0x000000FFu)        * Rgb2Yuv[2] ) -
-			      ( static_cast<float>((pixFirst  & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-				    static_cast<float>((pixFirst  & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-				    static_cast<float>( pixFirst  & 0x000000FFU)        * Rgb2Yuv[2] );
+		pDst[0] = ( static_cast<float>((pixSecond & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+			        static_cast<float>((pixSecond & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+			        static_cast<float>((pixSecond & 0xFF000000u) >> 24) * Rgb2Yuv[2] ) -
+			      ( static_cast<float>((pixFirst  & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+				    static_cast<float>((pixFirst  & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+				    static_cast<float>((pixFirst  & 0xFF000000u) >> 24) * Rgb2Yuv[2] );
 
 		/* next row's */
 		for (i = 1; i < lastIdx; i++)
@@ -118,31 +119,31 @@ void ImageGradientHorizontal_BGRA_4444_8u
 			const csSDK_uint32& pixPrev{ pSrc[i - 1] };
 			const csSDK_uint32& pixNext{ pSrc[i + 1] };
 
-			pDst[i] = ( static_cast<float>((pixNext & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-				        static_cast<float>((pixNext & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-				        static_cast<float>( pixNext & 0x000000FFu)        * Rgb2Yuv[2] ) -
-				      ( static_cast<float>((pixPrev & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-					    static_cast<float>((pixPrev & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-					    static_cast<float>( pixPrev & 0x000000FFU)        * Rgb2Yuv[2] );
+			pDst[i] = ( static_cast<float>((pixNext & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+				        static_cast<float>((pixNext & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+				        static_cast<float>((pixNext & 0xFF000000u) >> 24) * Rgb2Yuv[2] ) -
+				      ( static_cast<float>((pixPrev & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+					    static_cast<float>((pixPrev & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+					    static_cast<float>((pixPrev & 0xFF000000u) >> 24) * Rgb2Yuv[2] );
 		}
 
 		/* last row */
 		const csSDK_uint32& pixPrev{ pSrc[i - 1] };
 		const csSDK_uint32& pixNext{ pSrc[i] };
 
-		pDst[i] = ( static_cast<float>((pixNext & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-			        static_cast<float>((pixNext & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-			        static_cast<float>( pixNext & 0x000000FFu)        * Rgb2Yuv[2] ) -
-			      ( static_cast<float>((pixPrev & 0x00FF0000U) >> 16) * Rgb2Yuv[0] +
-				    static_cast<float>((pixPrev & 0x0000FF00U) >> 8)  * Rgb2Yuv[1] +
-				    static_cast<float>( pixPrev & 0x000000FFU)        * Rgb2Yuv[2] );
+		pDst[i] = ( static_cast<float>((pixNext & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+			        static_cast<float>((pixNext & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+			        static_cast<float>((pixNext & 0xFF000000u) >> 24) * Rgb2Yuv[2] ) -
+			      ( static_cast<float>((pixPrev & 0x0000FF00u) >> 8 ) * Rgb2Yuv[0] +
+				    static_cast<float>((pixPrev & 0x00FF0000u) >> 16) * Rgb2Yuv[1] +
+				    static_cast<float>((pixPrev & 0xFF000000u) >> 24) * Rgb2Yuv[2] );
 	}
 
 	return;
 }
 
 
-void ImageGradientVertical_BGRA_4444_16u
+void ImageGradientVertical_ARGB_4444_16u
 (
 	const csSDK_uint32* __restrict pSrcBuf,
 	float*   __restrict pDstBuf,
@@ -171,12 +172,12 @@ void ImageGradientVertical_BGRA_4444_16u
 		const csSDK_uint32& sLinePixelL{ secondLineSrc[idx    ] };
 		const csSDK_uint32& sLinePixelH{ secondLineSrc[idx + 1] };
 
-		pDstBuf[i] = ( static_cast<float>( sLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[0] +
-			           static_cast<float>((sLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[1] +
-			           static_cast<float>( sLinePixelL & 0x0000FFFFu)         * Rgb2Yuv[2] ) -
-			         ( static_cast<float>( fLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[0] +
-				       static_cast<float>((fLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[1] +
-	        		   static_cast<float>( fLinePixelL & 0x0000FFFFu)         * Rgb2Yuv[2] );
+		pDstBuf[i] = ( static_cast<float>((sLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[0] +
+			           static_cast<float>( sLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[1] +
+			           static_cast<float>((sLinePixelH & 0xFFFF0000u) >> 16)  * Rgb2Yuv[2] ) -
+			         ( static_cast<float>((fLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[0] +
+					   static_cast<float>( fLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[1] +
+					   static_cast<float>((fLinePixelH & 0xFFFF0000u) >> 16)  * Rgb2Yuv[2]);
 	}
 
 	/* compute image gradient for next lines */
@@ -198,12 +199,12 @@ void ImageGradientVertical_BGRA_4444_16u
 			const csSDK_uint32& sLinePixelL{ secondLineSrc[idx    ] };
 			const csSDK_uint32& sLinePixelH{ secondLineSrc[idx + 1] };
 
-			pDstBuf[i] = ( static_cast<float>( sLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[0] +
-				           static_cast<float>((sLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[1] +
-				           static_cast<float>( sLinePixelL & 0x0000FFFFu)         * Rgb2Yuv[2] ) -
-				         ( static_cast<float>( fLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[0] +
-					       static_cast<float>((fLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[1] +
-					       static_cast<float>( fLinePixelL & 0x0000FFFFu)         * Rgb2Yuv[2]);
+			pDstBuf[i] = ( static_cast<float>((sLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[0] +
+				           static_cast<float>( sLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[1] +
+				           static_cast<float>((sLinePixelH & 0xFFFF0000u) >> 16)  * Rgb2Yuv[2] ) -
+				         ( static_cast<float>((fLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[0] +
+					       static_cast<float>( fLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[1] +
+					       static_cast<float>((fLinePixelH & 0xFFFF0000u) >> 16)  * Rgb2Yuv[2] );
 		}
 	}
 
@@ -222,17 +223,18 @@ void ImageGradientVertical_BGRA_4444_16u
 		const csSDK_uint32& lLinePixelL{ lastLineSrc[idx    ] };
 		const csSDK_uint32& lLinePixelH{ lastLineSrc[idx + 1] };
 
-		pDstBuf[i] = ( static_cast<float>( lLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[0] +
-			           static_cast<float>((lLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[1] +
-			           static_cast<float>( lLinePixelL & 0x0000FFFFu)         * Rgb2Yuv[2] ) -
-			         ( static_cast<float>( pLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[0] +
-			       	   static_cast<float>((pLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[1] +
-				       static_cast<float>( pLinePixelL & 0x0000FFFFu)         * Rgb2Yuv[2] );
+		pDstBuf[i] = ( static_cast<float>((lLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[0] +
+			           static_cast<float>( lLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[1] +
+			           static_cast<float>((lLinePixelH & 0xFFFF0000u) >> 16)  * Rgb2Yuv[2] ) -
+			         ( static_cast<float>((pLinePixelL & 0xFFFF0000u) >> 16)  * Rgb2Yuv[0] +
+				       static_cast<float>( pLinePixelH & 0x0000FFFFu)         * Rgb2Yuv[1] +
+				       static_cast<float>((pLinePixelH & 0xFFFF0000u) >> 16)  * Rgb2Yuv[2] );
 	}
 	return;
 }
 
-void ImageGradientHorizontal_BGRA_4444_16u
+
+void ImageGradientHorizontal_ARGB_4444_16u
 (
 	const csSDK_uint32* __restrict pSrcBuf,
 	float*   __restrict pDstBuf,
@@ -254,20 +256,18 @@ void ImageGradientHorizontal_BGRA_4444_16u
 			const csSDK_uint32* __restrict pSrc = pSrcBuf + linePitch * j;
 			float* __restrict pDst = pDstBuf + width * j;
 
-			idx = 0;
-			const csSDK_uint32& pixFirstL { pSrc[idx    ] };
-			const csSDK_uint32& pixFirstH { pSrc[idx + 1] };
-			idx = 2;
-			const csSDK_uint32& pixSecondL{ pSrc[idx    ] };
-			const csSDK_uint32& pixSecondH{ pSrc[idx + 1] };
+			const csSDK_uint32& pixFirstL { pSrc[0] };
+			const csSDK_uint32& pixFirstH { pSrc[1] };
+			const csSDK_uint32& pixSecondL{ pSrc[2] };
+			const csSDK_uint32& pixSecondH{ pSrc[3] };
 
 			/* first row */
-			pDst[0] = ( static_cast<float>( pixSecondH & 0x0000FFFFu)           * Rgb2Yuv[0] +
-				        static_cast<float>((pixSecondL & 0xFFFF0000u) >> 16)    * Rgb2Yuv[1] +
-				        static_cast<float>( pixSecondL & 0x0000FFFFu)           * Rgb2Yuv[2] ) -
-				      ( static_cast<float>( pixFirstH  & 0x0000FFFFu)           * Rgb2Yuv[0] +
-					    static_cast<float>((pixFirstL  & 0xFFFF0000u) >> 16)    * Rgb2Yuv[1] +
-					    static_cast<float>( pixFirstL  & 0x0000FFFFu)           * Rgb2Yuv[2] );
+			pDst[0] = ( static_cast<float>((pixSecondL & 0xFFFF0000u) >> 16) * Rgb2Yuv[0] +
+				        static_cast<float>( pixSecondH & 0x0000FFFFu)        * Rgb2Yuv[1] +
+				        static_cast<float>((pixSecondH & 0xFFFF0000u) >> 16) * Rgb2Yuv[2] ) -
+				      ( static_cast<float>((pixFirstL  & 0xFFFF0000u) >> 16) * Rgb2Yuv[0] +
+						static_cast<float>( pixFirstH  & 0x0000FFFFu)        * Rgb2Yuv[1] +
+						static_cast<float>((pixFirstH  & 0xFFFF0000u) >> 16) * Rgb2Yuv[2]);
 
 			/* next row's */
 			for (i = 1; i < lastIdx; i++)
@@ -278,12 +278,12 @@ void ImageGradientHorizontal_BGRA_4444_16u
 				const csSDK_uint32& pixNextL{ pSrc[idx + 2] };
 				const csSDK_uint32& pixNextH{ pSrc[idx + 3] };
 
-				pDst[i] = ( static_cast<float>( pixNextH & 0x0000FFFFu)        * Rgb2Yuv[0] +
-					        static_cast<float>((pixNextL & 0xFFFF0000u) >> 16) * Rgb2Yuv[1] +
-					        static_cast<float>( pixNextL & 0x0000FFFFu)        * Rgb2Yuv[2] ) -
-					      ( static_cast<float>( pixPrevH & 0x0000FFFFu)        * Rgb2Yuv[0] +
-						    static_cast<float>((pixPrevL & 0xFFFF0000u) >> 16) * Rgb2Yuv[1] +
-						    static_cast<float>( pixPrevL & 0x0000FFFFu)        * Rgb2Yuv[2] );
+				pDst[i] = ( static_cast<float>((pixNextL & 0xFFFF0000u) >> 16) * Rgb2Yuv[0] +
+					        static_cast<float>( pixNextH & 0x0000FFFFu)        * Rgb2Yuv[1] +
+					        static_cast<float>((pixNextH & 0xFFFF0000u) >> 16) * Rgb2Yuv[2]) -
+					      ( static_cast<float>((pixPrevL & 0xFFFF0000u) >> 16) * Rgb2Yuv[0] +
+						    static_cast<float>( pixPrevH & 0x0000FFFFu)        * Rgb2Yuv[1] +
+						    static_cast<float>((pixPrevH & 0xFFFF0000u) >> 16) * Rgb2Yuv[2]);
 			}
 
 			/* last row */
@@ -292,19 +292,19 @@ void ImageGradientHorizontal_BGRA_4444_16u
 			const csSDK_uint32& pixNextL{ pSrc[idx    ] };
 			const csSDK_uint32& pixNextH{ pSrc[idx + 1] };
 
-			pDst[i] = ( static_cast<float>( pixNextH & 0x0000FFFFu)        * Rgb2Yuv[0] +
-				        static_cast<float>((pixNextL & 0xFFFF0000u) >> 16) * Rgb2Yuv[1] +
-				        static_cast<float>( pixNextL & 0x0000FFFFu)        * Rgb2Yuv[2] ) -
-				      ( static_cast<float>( pixPrevH & 0x0000FFFFu)        * Rgb2Yuv[0] +
-					    static_cast<float>((pixPrevL & 0xFFFF0000u) >> 16) * Rgb2Yuv[1] +
-					    static_cast<float>( pixPrevL & 0x0000FFFFu)        * Rgb2Yuv[2] );
+			pDst[i] = ( static_cast<float>((pixNextL & 0xFFFF0000u) >> 16) * Rgb2Yuv[0] +
+				        static_cast<float>( pixNextH & 0x0000FFFFu)        * Rgb2Yuv[1] +
+				        static_cast<float>((pixNextH & 0xFFFF0000u) >> 16) * Rgb2Yuv[2]) -
+				      ( static_cast<float>((pixPrevL & 0xFFFF0000u) >> 16) * Rgb2Yuv[0] +
+					    static_cast<float>( pixPrevH & 0x0000FFFFu)        * Rgb2Yuv[1] +
+					    static_cast<float>((pixPrevH & 0xFFFF0000u) >> 16) * Rgb2Yuv[2]);
 		}
 
 	return;
 }
 
 
-void ImageGradientVertical_BGRA_4444_32f
+void ImageGradientVertical_ARGB_4444_32f
 (
 	const float* __restrict pSrcBuf,
 	float*   __restrict pDstBuf,
@@ -328,12 +328,12 @@ void ImageGradientVertical_BGRA_4444_32f
 	for (i = 0; i < width; i++)
 	{
 		idx = i * 4;
-		const float& fLinePixelB{ firstLineSrc [idx    ] };
-		const float& fLinePixelG{ firstLineSrc [idx + 1] };
-		const float& fLinePixelR{ firstLineSrc [idx + 2] };
-		const float& sLinePixelB{ secondLineSrc[idx    ] };
-		const float& sLinePixelG{ secondLineSrc[idx + 1] };
-		const float& sLinePixelR{ secondLineSrc[idx + 2] };
+		const float& fLinePixelR{ firstLineSrc [idx + 1] };
+		const float& fLinePixelG{ firstLineSrc [idx + 2] };
+		const float& fLinePixelB{ firstLineSrc [idx + 3] };
+		const float& sLinePixelR{ secondLineSrc[idx + 1] };
+		const float& sLinePixelG{ secondLineSrc[idx + 2] };
+		const float& sLinePixelB{ secondLineSrc[idx + 3] };
 
 		pDstBuf[i] = ( sLinePixelR * Rgb2Yuv[0] + sLinePixelG * Rgb2Yuv[1] + sLinePixelB * Rgb2Yuv[2] ) -
 			         ( fLinePixelR * Rgb2Yuv[0] + fLinePixelG * Rgb2Yuv[1] + fLinePixelB * Rgb2Yuv[2] );
@@ -353,12 +353,12 @@ void ImageGradientVertical_BGRA_4444_32f
 		for (i = 0; i < width; i++)
 		{
 			idx = i * 4;
-			const float& fLinePixelB{ prevLineSrc[idx    ] };
-			const float& fLinePixelG{ prevLineSrc[idx + 1] };
-			const float& fLinePixelR{ prevLineSrc[idx + 2] };
-			const float& sLinePixelB{ nextLineSrc[idx    ] };
-			const float& sLinePixelG{ nextLineSrc[idx + 1] };
-			const float& sLinePixelR{ nextLineSrc[idx + 2] };
+			const float& fLinePixelR{ prevLineSrc[idx + 1] };
+			const float& fLinePixelG{ prevLineSrc[idx + 2] };
+			const float& fLinePixelB{ prevLineSrc[idx + 3] };
+			const float& sLinePixelR{ nextLineSrc[idx + 1] };
+			const float& sLinePixelG{ nextLineSrc[idx + 2] };
+			const float& sLinePixelB{ nextLineSrc[idx + 3] };
 
 			pDstBuf[i] = ( sLinePixelR * Rgb2Yuv[0] + sLinePixelG * Rgb2Yuv[1] + sLinePixelB * Rgb2Yuv[2] ) -
 				         ( fLinePixelR * Rgb2Yuv[0] + fLinePixelG * Rgb2Yuv[1] + fLinePixelB * Rgb2Yuv[2] );
@@ -375,12 +375,12 @@ void ImageGradientVertical_BGRA_4444_32f
 	for (i = 0; i < width; i++)
 	{
 		idx = i * 4;
-		const float& fLinePixelB{ prevLineSrc[idx    ] };
-		const float& fLinePixelG{ prevLineSrc[idx + 1] };
-		const float& fLinePixelR{ prevLineSrc[idx + 2] };
-		const float& sLinePixelB{ lastLineSrc[idx    ] };
-		const float& sLinePixelG{ lastLineSrc[idx + 1] };
-		const float& sLinePixelR{ lastLineSrc[idx + 2] };
+		const float& fLinePixelR{ prevLineSrc[idx + 1] };
+		const float& fLinePixelG{ prevLineSrc[idx + 2] };
+		const float& fLinePixelB{ prevLineSrc[idx + 3] };
+		const float& sLinePixelR{ lastLineSrc[idx + 1] };
+		const float& sLinePixelG{ lastLineSrc[idx + 2] };
+		const float& sLinePixelB{ lastLineSrc[idx + 3] };
 
 		pDstBuf[i] = ( sLinePixelR * Rgb2Yuv[0] + sLinePixelG * Rgb2Yuv[1] + sLinePixelB * Rgb2Yuv[2] ) -
 	         		 ( fLinePixelR * Rgb2Yuv[0] + fLinePixelG * Rgb2Yuv[1] + fLinePixelB * Rgb2Yuv[2] );
@@ -388,7 +388,8 @@ void ImageGradientVertical_BGRA_4444_32f
 	return;
 }
 
-void ImageGradientHorizontal_BGRA_4444_32f
+
+void ImageGradientHorizontal_ARGB_4444_32f
 (
 	const float* __restrict pSrcBuf,
 	float*   __restrict pDstBuf,
@@ -410,15 +411,13 @@ void ImageGradientHorizontal_BGRA_4444_32f
 		const float* __restrict pSrc = pSrcBuf + linePitch * j;
 		float* __restrict pDst = pDstBuf + width * j;
 
-		idx = 0;
-		const float& pixFirstB{ pSrc[idx    ] };
-		const float& pixFirstG{ pSrc[idx + 1] };
-		const float& pixFirstR{ pSrc[idx + 2] };
+		const float& pixFirstR{ pSrc[1] };
+		const float& pixFirstG{ pSrc[2] };
+		const float& pixFirstB{ pSrc[3] };
 
-		idx = 4;
-		const float& pixSecondR{ pSrc[idx    ] };
-		const float& pixSecondG{ pSrc[idx + 1] };
-		const float& pixSecondB{ pSrc[idx + 2] };
+		const float& pixSecondR{ pSrc[5] };
+		const float& pixSecondG{ pSrc[6] };
+		const float& pixSecondB{ pSrc[7] };
 
 		/* first row */
 		pDst[0] = ( pixSecondR * Rgb2Yuv[0] + pixSecondG * Rgb2Yuv[1] + pixSecondB * Rgb2Yuv[2] ) -
@@ -428,25 +427,25 @@ void ImageGradientHorizontal_BGRA_4444_32f
 		for (i = 1; i < lastIdx; i++)
 		{
 			idx = i * 4;
-			const float& pixPrevB{ pSrc[idx - 4] };
-			const float& pixPrevG{ pSrc[idx - 3] };
-			const float& pixPrevR{ pSrc[idx - 2] };
+			const float& pixPrevR{ pSrc[idx - 3] };
+			const float& pixPrevG{ pSrc[idx - 2] };
+			const float& pixPrevB{ pSrc[idx - 1] };
 
-			const float& pixNextB{ pSrc[idx + 4] };
-			const float& pixNextG{ pSrc[idx + 5] };
-			const float& pixNextR{ pSrc[idx + 6] };
+			const float& pixNextR{ pSrc[idx + 5] };
+			const float& pixNextG{ pSrc[idx + 6] };
+			const float& pixNextB{ pSrc[idx + 7] };
 
 			pDst[i] = (pixNextR * Rgb2Yuv[0] + pixNextG * Rgb2Yuv[1] + pixNextB * Rgb2Yuv[2] ) -
 					  (pixPrevR * Rgb2Yuv[0] + pixPrevG * Rgb2Yuv[1] + pixPrevB * Rgb2Yuv[2] );
 		}
 
 		/* last row */
-		const float& pixPrevB{ pSrc[idx - 4] };
-		const float& pixPrevG{ pSrc[idx - 3] };
-		const float& pixPrevR{ pSrc[idx - 2] };
-		const float& pixNextB{ pSrc[idx    ] };
-		const float& pixNextG{ pSrc[idx + 1] };
-		const float& pixNextR{ pSrc[idx + 2] };
+		const float& pixPrevR{ pSrc[idx - 3] };
+		const float& pixPrevG{ pSrc[idx - 2] };
+		const float& pixPrevB{ pSrc[idx - 1] };
+		const float& pixNextR{ pSrc[idx + 1] };
+		const float& pixNextG{ pSrc[idx + 2] };
+		const float& pixNextB{ pSrc[idx + 3] };
 
 		pDst[i] = ( pixNextR * Rgb2Yuv[0] + pixNextG * Rgb2Yuv[1] + pixNextB * Rgb2Yuv[2] ) -
 				  ( pixPrevR * Rgb2Yuv[0] + pixPrevG * Rgb2Yuv[1] + pixPrevB * Rgb2Yuv[2] );
