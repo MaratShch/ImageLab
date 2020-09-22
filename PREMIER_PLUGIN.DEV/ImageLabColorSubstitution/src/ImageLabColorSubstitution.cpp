@@ -11,10 +11,12 @@ inline void simple_image_copy
 	const csSDK_int32& words
 )
 {
+	const size_t lineBytesLength = (words * width) * sizeof(T);
+
 	__VECTOR_ALIGNED__
 	for (csSDK_int32 i = 0; i < height; i++)
 	{
-		memcpy (&dstPix[i*linePitch], &srcPix[i*linePitch], (words * width) * sizeof(T));
+		memcpy (&dstPix[i*linePitch], &srcPix[i*linePitch], lineBytesLength);
 	}
 	return;
 }
@@ -77,77 +79,100 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 			switch (pixelFormat)
 			{
 				// ============ native AP formats ============================= //
-			case PrPixelFormat_BGRA_4444_8u:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+				case PrPixelFormat_BGRA_4444_8u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+						  csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-				true == replaceColor ?
-					  colorSubstitute_BGRA_4444_8u (pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance) :
-					  simple_image_copy (pSrcPix, pDstPix, width, height, linePitch, 1);
-			}
-			break;
+					true == replaceColor ?
+						  colorSubstitute_BGRA_4444_8u (pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask) :
+						  simple_image_copy (pSrcPix, pDstPix, width, height, linePitch, 1);
+				}
+				break;
 
-			case PrPixelFormat_BGRA_4444_16u:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+				case PrPixelFormat_BGRA_4444_16u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+						  csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-			}
-			break;
+					true == replaceColor ?
+						  colorSubstitute_BGRA_4444_16u(pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask) :
+						  simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 2);
+				}
+				break;
 
-			case PrPixelFormat_BGRA_4444_32f:
-			{
-				const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
-				float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
+				case PrPixelFormat_BGRA_4444_32f:
+				{
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+						  float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
-			}
-			break;
+					true == replaceColor ?
+						colorSubstitute_BGRA_4444_32f (pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask) :
+						simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 4);
+				}
+				break;
 
-			case PrPixelFormat_VUYA_4444_8u:
-			case PrPixelFormat_VUYA_4444_8u_709:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+				case PrPixelFormat_VUYA_4444_8u:
+				case PrPixelFormat_VUYA_4444_8u_709:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-			}
-			break;
+				}
+				break;
 
-			case PrPixelFormat_VUYA_4444_32f:
-			case PrPixelFormat_VUYA_4444_32f_709:
-			{
-				const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
-				float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
+				case PrPixelFormat_VUYA_4444_32f:
+				case PrPixelFormat_VUYA_4444_32f_709:
+				{
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+					float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
-			}
-			break;
+				}
+				break;
 
-			// ============ native AE formats ============================= //
-			case PrPixelFormat_ARGB_4444_8u:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+				// ============ native AE formats ============================= //
+				case PrPixelFormat_ARGB_4444_8u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+ 						  csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-			}
-			break;
+					true == replaceColor ?
+						colorSubstitute_ARGB_4444_8u(pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask) :
+						simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 1);
+				}
+				break;
 
-			case PrPixelFormat_ARGB_4444_16u:
-			{
-				const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-				csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+				case PrPixelFormat_ARGB_4444_16u:
+				{
+					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+						  csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
-			}
-			break;
+				    true == replaceColor ?
+						  colorSubstitute_ARGB_4444_16u(pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask) :
+						  simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 1);
+				}
+				break;
 
-			case PrPixelFormat_ARGB_4444_32f:
-			{
-				const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
-				float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
+				case PrPixelFormat_ARGB_4444_32f:
+				{
+					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
+					      float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
-			}
-			break;
-			default:
-				processSucceed = false;
+					true == replaceColor ?
+						colorSubstitute_ARGB_4444_32f(pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask) :
+						simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 4);
+				}
+				break;
+
+				case PrPixelFormat_RGB_444_10u:
+				{
+					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
+						  csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+				}
+				break;
+
+				default:
+					processSucceed = false;
 				break;
 			}
 

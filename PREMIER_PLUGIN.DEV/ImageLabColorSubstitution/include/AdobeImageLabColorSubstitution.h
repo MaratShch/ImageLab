@@ -30,20 +30,28 @@
 #define __VECTOR_ALIGNED__
 #endif
 
-template<typename T>
-T MIN(T a, T b) { return ((a < b) ? a : b); }
+constexpr float f32_black = 0.f;
+constexpr float f32_white = 1.0f - FLT_EPSILON;
 
 template<typename T>
-T MAX(T a, T b) { return ((a > b) ? a : b); }
+inline T MIN(T a, T b) { return ((a < b) ? a : b); }
 
 template<typename T>
-T CLAMP_RGB8(T val) { return ((val < 0) ? 0 : (val > 0xFF) ? 0xFF : val); }
+inline T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-T CLAMP_RGB10(T val) { return ((val < 0) ? 0 : (val > 0x3FF) ? 0x3FF : val); }
+inline T CLAMP_RGB8(T val) { return ((val < 0) ? 0 : (val > 0xFF) ? 0xFF : val); }
 
 template<typename T>
-T CLAMP_RGB16(T val) { return ((val < 0) ? 0 : (val > 0xFFFF) ? 0xFFFF : val); }
+inline T CLAMP_RGB10(T val) { return ((val < 0) ? 0 : (val > 0x3FF) ? 0x3FF : val); }
+
+template<typename T>
+inline T CLAMP_RGB16(T val) { return ((val < 0) ? 0 : (val > 0x7FFF) ? 0x7FFF : val); }
+
+template<typename T>
+inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type
+CLAMP_RGB32F(T val) { return ((val < f32_black) ? f32_black : (val > f32_white) ? f32_white : val); }
+
 
 template<typename T>
 inline const typename std::enable_if<std::is_integral<T>::value, T>::type 
@@ -85,9 +93,10 @@ void colorSubstitute_BGRA_4444_8u
 	const csSDK_int32&             linePitch,
 	const prColor&                 from,
 	const prColor&                 to,
-	const csSDK_int32&             tolerance
+	const csSDK_int32&             tolerance,
+	const bool&                    showMask
 );
-void colorMask_BGRA_4444_8u
+void colorSubstitute_BGRA_4444_16u
 (
 	const csSDK_uint32* __restrict pSrc,
 	      csSDK_uint32* __restrict pDst,
@@ -96,5 +105,55 @@ void colorMask_BGRA_4444_8u
 	const csSDK_int32&             linePitch,
 	const prColor&                 from,
 	const prColor&                 to,
-	const csSDK_int32&             tolerance
+	const csSDK_int32&             tolerance,
+	const bool&                    showMask
+);
+void colorSubstitute_BGRA_4444_32f
+(
+	const float* __restrict pSrc,
+	      float* __restrict pDst,
+	const csSDK_int32&      height,
+	const csSDK_int32&      width,
+	const csSDK_int32&      linePitch,
+	const prColor&          from,
+	const prColor&          to,
+	const csSDK_int32&      tolerance,
+	const bool&             showMask
+);
+
+void colorSubstitute_ARGB_4444_8u
+(
+	const csSDK_uint32* __restrict pSrc,
+	      csSDK_uint32* __restrict pDst,
+	const csSDK_int32&             height,
+	const csSDK_int32&             width,
+	const csSDK_int32&             linePitch,
+	const prColor&                 from,
+	const prColor&                 to,
+	const csSDK_int32&             tolerance,
+	const bool&                    showMask
+);
+void colorSubstitute_ARGB_4444_16u
+(
+	const csSDK_uint32* __restrict pSrc,
+	      csSDK_uint32* __restrict pDst,
+	const csSDK_int32&             height,
+	const csSDK_int32&             width,
+	const csSDK_int32&             linePitch,
+	const prColor&                 from,
+	const prColor&                 to,
+	const csSDK_int32&             tolerance,
+	const bool&                    showMask
+);
+void colorSubstitute_ARGB_4444_32f
+(
+	const float* __restrict pSrc,
+	      float* __restrict pDst,
+	const csSDK_int32&      height,
+	const csSDK_int32&      width,
+	const csSDK_int32&      linePitch,
+	const prColor&          from,
+	const prColor&          to,
+	const csSDK_int32&      tolerance,
+	const bool&             showMask
 );
