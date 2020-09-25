@@ -24,6 +24,9 @@
     <ClCompile Include="src\ImageLabProcessRGB.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabProcessYUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AdobeImageLabColorSubstitution.h">

@@ -125,6 +125,7 @@
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -135,6 +136,7 @@
     <ClCompile Include="src\ImageLabColorSubstitution.cpp" />
     <ClCompile Include="src\ImageLabPixelFormat.cpp" />
     <ClCompile Include="src\ImageLabProcessRGB.cpp" />
+    <ClCompile Include="src\ImageLabProcessYUV.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AdobeImageLabColorSubstitution.h" />

@@ -116,8 +116,11 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 				case PrPixelFormat_VUYA_4444_8u_709:
 				{
 					const csSDK_uint32* __restrict pSrcPix = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-					csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
+					      csSDK_uint32* __restrict pDstPix = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 
+				    true == replaceColor ?
+						colorSubstitute_VUYA_4444_8u(pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask, PrPixelFormat_VUYA_4444_8u_709 == pixelFormat) :
+						simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 1);
 				}
 				break;
 
@@ -127,6 +130,9 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 					const float* __restrict pSrcPix = reinterpret_cast<const float* __restrict>(srcImg);
 					float* __restrict pDstPix = reinterpret_cast<float* __restrict>(dstImg);
 
+					true == replaceColor ?
+						colorSubstitute_VUYA_4444_32f(pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask, PrPixelFormat_VUYA_4444_8u_709 == pixelFormat) :
+						simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 4);
 				}
 				break;
 
@@ -161,13 +167,6 @@ csSDK_int32 selectProcessFunction(VideoHandle theData)
 					true == replaceColor ?
 						colorSubstitute_ARGB_4444_32f(pSrcPix, pDstPix, height, width, linePitch, colorFrom, colorTo, colorTolerance, showMask) :
 						simple_image_copy(pSrcPix, pDstPix, width, height, linePitch, 4);
-				}
-				break;
-
-				case PrPixelFormat_RGB_444_10u:
-				{
-					const csSDK_uint32* __restrict src = reinterpret_cast<const csSDK_uint32* __restrict>(srcImg);
-						  csSDK_uint32* __restrict dst = reinterpret_cast<csSDK_uint32* __restrict>(dstImg);
 				}
 				break;
 

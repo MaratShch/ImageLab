@@ -40,7 +40,12 @@ template<typename T>
 inline T MAX(T a, T b) { return ((a > b) ? a : b); }
 
 template<typename T>
-inline T CLAMP_RGB8(T val) { return ((val < 0) ? 0 : (val > 0xFF) ? 0xFF : val); }
+inline T CLAMP_RGB8(const T& val)
+{
+	constexpr T maxVal{ 255 };
+	constexpr T minVal{ 0 };
+	return ((val < minVal) ? minVal : (val > maxVal) ? maxVal : val);
+}
 
 template<typename T>
 inline T CLAMP_RGB10(T val) { return ((val < 0) ? 0 : (val > 0x3FF) ? 0x3FF : val); }
@@ -156,4 +161,31 @@ void colorSubstitute_ARGB_4444_32f
 	const prColor&          to,
 	const csSDK_int32&      tolerance,
 	const bool&             showMask
+);
+
+void colorSubstitute_VUYA_4444_8u
+(
+	const csSDK_uint32* __restrict pSrc,
+	      csSDK_uint32* __restrict pDst,
+	const csSDK_int32&             height,
+	const csSDK_int32&             width,
+	const csSDK_int32&             linePitch,
+	const prColor&                 from,
+	const prColor&                 to,
+	const csSDK_int32&             tolerance,
+	const bool&                    showMask,
+	const bool&                    isBT709
+);
+void colorSubstitute_VUYA_4444_32f
+(
+	const float* __restrict pSrc,
+	      float* __restrict pDst,
+	const csSDK_int32&      height,
+	const csSDK_int32&      width,
+	const csSDK_int32&      linePitch,
+	const prColor&          from,
+	const prColor&          to,
+	const csSDK_int32&      tolerance,
+	const bool&             showMask,
+	const bool&             isBT709
 );
