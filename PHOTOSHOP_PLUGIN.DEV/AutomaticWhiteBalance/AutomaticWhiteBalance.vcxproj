@@ -90,7 +90,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\COMMON;..\ADOBE_PS\CC_2017\include\common;..\ADOBE_PS\CC_2017\include\photoshop;..\ADOBE_PS\CC_2017\include\pica_sp</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\COMMON;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\photoshop;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\pica_sp;$(ADOBE_PHOTOSHOP_SDK_ROOT)\samplecode\common\includes</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ISOLATION_AWARE_ENABLED=1;WIN32=1;MSWindows;_DEBUG;_CRT_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_DEPRECATE;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
@@ -117,7 +117,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\COMMON;..\ADOBE_PS\CC_2017\include\common;..\ADOBE_PS\CC_2017\include\photoshop;..\ADOBE_PS\CC_2017\include\pica_sp</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\COMMON;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\photoshop;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\pica_sp;$(ADOBE_PHOTOSHOP_SDK_ROOT)\samplecode\common\includes</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ISOLATION_AWARE_ENABLED=1;WIN32=1;MSWindows;_DEBUG;_CRT_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_DEPRECATE;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
