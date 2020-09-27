@@ -92,7 +92,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\COMMON;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\photoshop;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\pica_sp;$(ADOBE_PHOTOSHOP_SDK_ROOT)\samplecode\common\includes</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\COMMON;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\photoshop;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\pica_sp;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\includes</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ISOLATION_AWARE_ENABLED=1;WIN32=1;MSWindows;_DEBUG;_CRT_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_DEPRECATE;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
@@ -119,7 +119,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\COMMON;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\photoshop;$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\pica_sp;$(ADOBE_PHOTOSHOP_SDK_ROOT)\samplecode\common\includes</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\COMMON;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\photoshop;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\pica_sp;$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\includes</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ISOLATION_AWARE_ENABLED=1;WIN32=1;MSWindows;_DEBUG;_CRT_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_DEPRECATE;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
@@ -146,8 +146,11 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">cl /I..\COMMON /I.\include\ /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\samplecode\common\includes /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\photoshop /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\pica_sp /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\photoshopapi\samplecode\common\Resources /EP /DMSWindows=1 /DWIN32=1 /Tc"%(FullPath)" &gt; "$(IntDir)%(Filename).rr
-$(ADOBE_PHOTOSHOP_SDK_ROOT)\samplecode\resources\cnvtpipl.exe "$(IntDir)%(Filename).rr" "$(IntDir)%(Filename).pipl"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo "PiPL started...."
+echo "PHOTOSHOP SDK ROOT:" $(ADOBE_PHOTOSHOP_SDK_ROOT)
+cl /I..\COMMON /Iinclude\ /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\includes /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\photoshop /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\pica_sp /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\imcludes /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\resources  /EP /DMSWindows=1 /DWIN32=1 /Tc"%(FullPath)" &gt; "$(IntDir)%(Filename).rr
+$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\resources\Cnvtpipl.exe "$(IntDir)%(Filename).rr" "$(IntDir)%(Filename).pipl"
+echo "PiPL completed..."</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo "PiPL started...."
 echo "PHOTOSHOP SDK ROOT:" $(ADOBE_PHOTOSHOP_SDK_ROOT)
 cl /I..\COMMON /Iinclude\ /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\includes /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\photoshop /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\photoshopapi\pica_sp /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\imcludes /I$(ADOBE_PHOTOSHOP_SDK_ROOT)\pluginsdk\samplecode\common\resources  /EP /DMSWindows=1 /DWIN32=1 /Tc"%(FullPath)" &gt; "$(IntDir)%(Filename).rr
