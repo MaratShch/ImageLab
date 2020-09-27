@@ -12,6 +12,17 @@
 #include "PIFilter.h"
 #include "PIUtilities.h"
 
+#define PS_PLUGIN_VENDOR_NAME		"ImageLab"
+
+#define	PS_PLUGIN_ENTRY_POINT		"PluginMain"
+#define	PS_PLUGIN_ENTRY_POINT_MAC	PS_PLUGIN_ENTRY_POINT
+#define	PS_PLUGIN_ENTRY_POINT_WIN32	PS_PLUGIN_ENTRY_POINT
+#define	PS_PLUGIN_ENTRY_POINT_WIN64	PS_PLUGIN_ENTRY_POINT
+
+#define PS_PLUGIN_COPYRIGHT_YEAR	"2020"
+
+#define PS_PLUGIN_MAJOR_VERSION		1
+
 
 /* define PlugIn Entry Point */
 #ifdef __cplusplus

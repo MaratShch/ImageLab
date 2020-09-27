@@ -1,0 +1,16 @@
+#ifndef __IMAGE_LAB_AUTOMATIC_WHITE_BALANCE_PS2017_PLUGIN__
+#define __IMAGE_LAB_AUTOMATIC_WHITE_BALANCE_PS2017_PLUGIN__
+
+#include "ImageLabCommon.hpp"
+
+#define PS_PLUGIN_AWB_NAME			"Automatic White Balance"
+#define PS_PLUGIN_AWB_MINOR_VERSION	0
+#define PS_PLUGIN_AWB_SUITE_ID		"ImageLab"
+#define PS_PLUGIN_AWB_CLASS_ID		PS_PLUGIN_AWB_SUITE_ID
+#define PS_PLUGIN_AWB_EVENT_ID		PS_PLUGIN_AWB_CLASS_ID
+
+#define PS_PLUGIN_AWB_DESCRIPTION \
+	"Automatic White Balance based on Gray Point Algorithm."
+
+
+#endif /* __IMAGE_LAB_AUTOMATIC_WHITE_BALANCE_PS2017_PLUGIN__ */

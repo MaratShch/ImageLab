@@ -26,14 +26,19 @@
     <ClInclude Include="..\COMMON\ImageLabCommon.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageLabAutomaticWhteBalance.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\COMMON\compile_time_utils.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\COMMON\fast_computation.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageLabAutomaticWhiteBalance.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="AutomaticWhiteBalance.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
