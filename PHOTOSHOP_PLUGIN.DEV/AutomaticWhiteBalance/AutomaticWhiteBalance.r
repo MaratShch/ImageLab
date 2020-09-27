@@ -13,15 +13,15 @@
 #include "ImageLabAutomaticWhiteBalance.hpp"
 #include "PIActions.h"
 
-resource 'PiPL' ( 16000, PS_PLUGIN_AWB_NAME, purgeable )
+resource 'PiPL' ( 16000, "AutomaticWhiteBalance", purgeable )
 {
 	{
 		Kind { Filter },
-		Name { PS_PLUGIN_AWB_NAME },
+		Name { PS_PLUGIN_AWB_NAME "..." },
 		Category { PS_PLUGIN_VENDOR_NAME },
-		Version { ((PS_PLUGIN_MAJOR_VERSION) << 16 ) | (PS_PLUGIN_AWB_MINOR_VERSION) },
+		Version { (PS_PLUGIN_MAJOR_VERSION << 16 ) | PS_PLUGIN_AWB_MINOR_VERSION },
 
-		Component { ComponentNumber, plugInName },
+		Component { ComponentNumber, PS_PLUGIN_AWB_NAME },
 
 		#ifdef __PIMac__
 			CodeMacIntel64 { PS_PLUGIN_ENTRY_POINT_MAC },
@@ -41,15 +41,14 @@ resource 'PiPL' ( 16000, PS_PLUGIN_AWB_NAME, purgeable )
 			doesSupportHSBColor, doesSupportMultichannel,
 			doesSupportDuotone, doesSupportLABColor
 		},
-
 		HasTerminology
 		{
 			PS_PLUGIN_AWB_CLASS_ID,
 			PS_PLUGIN_AWB_EVENT_ID,
 			16000,
-			plugInUniqueID
+			PS_PLUGIN_AWB_UNIQUE_ID
 		},
-		
+	
 		EnableInfo { "in (PSHOP_ImageMode, RGBMode, GrayScaleMode,"
 		             "CMYKMode, HSLMode, HSBMode, MultichannelMode,"
 					 "DuotoneMode, LabMode, RGB48Mode, Gray16Mode) ||"
@@ -59,7 +58,7 @@ resource 'PiPL' ( 16000, PS_PLUGIN_AWB_NAME, purgeable )
 		PlugInMaxSize { 2000000, 2000000 },
 		
 		FilterLayerSupport {doesSupportFilterLayers},
-		
+	
 		FilterCaseInfo
 		{
 			{
@@ -108,3 +107,4 @@ resource 'PiPL' ( 16000, PS_PLUGIN_AWB_NAME, purgeable )
 		}	
 	}
 };
+

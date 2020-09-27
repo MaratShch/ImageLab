@@ -13,6 +13,7 @@
 #include "PIUtilities.h"
 
 #define PS_PLUGIN_VENDOR_NAME		"ImageLab"
+#define PS_PLUGIN_SUITE_ID			'ILab'
 
 #define	PS_PLUGIN_ENTRY_POINT		"PluginMain"
 #define	PS_PLUGIN_ENTRY_POINT_MAC	PS_PLUGIN_ENTRY_POINT
