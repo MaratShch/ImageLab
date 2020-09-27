@@ -132,6 +132,13 @@ ParamsSetup(
 	return err;
 }
 
+static PF_Err
+Convolution8_ARGB ()
+{
+	PF_Err		err = PF_Err_NONE;
+	return err;
+}
+
 
 static PF_Err
 Render(
@@ -210,6 +217,8 @@ Render(
 
 					}
 				}
+
+
 //			}
 		}
 	}
