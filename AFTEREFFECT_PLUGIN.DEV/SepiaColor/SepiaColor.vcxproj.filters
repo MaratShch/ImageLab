@@ -5,53 +5,53 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="include">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
     <Filter Include="resource">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="include_comon">
-      <UniqueIdentifier>{facbe70d-d151-40c5-bfd0-49879130fcc3}</UniqueIdentifier>
+    <Filter Include="include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="include_common">
+      <UniqueIdentifier>{338a305e-057a-4120-9a0e-b6924ac1e30d}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ColorizeMe.cpp">
+    <ClCompile Include="src\SepiaColor.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\ColorizeMe.hpp">
+    <ClInclude Include="include\SepiaColor.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\Common\Param_Utils.h">
-      <Filter>include_comon</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
-      <Filter>include_comon</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
-      <Filter>include_comon</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonPixFormat.hpp">
-      <Filter>include_comon</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
-      <Filter>include_comon</Filter>
+      <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\Common.hpp">
-      <Filter>include_comon</Filter>
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="ColorizeMe.r">
+    <None Include="SepiaColor.r">
       <Filter>resource</Filter>
-    </CustomBuild>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ColorizeMe.rc">
+    <ResourceCompile Include="SepiaColor.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
   </ItemGroup>

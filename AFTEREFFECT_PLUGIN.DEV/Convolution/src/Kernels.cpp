@@ -1,4 +1,3 @@
-#include "Common.hpp"
 #include "Kernels.hpp"
 #include "Convolution.hpp"
 
