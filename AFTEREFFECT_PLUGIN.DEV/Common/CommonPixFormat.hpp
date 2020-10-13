@@ -2,6 +2,9 @@
 
 #include "A.h"
 
+#pragma pack(push)
+#pragma pack(1)
+
 typedef struct {
 	A_u_char	B;
 	A_u_char	G;
@@ -64,3 +67,5 @@ typedef struct {
 	A_u_long	G : 10;
 	A_u_long	R : 10;
 } PF_Pixel_RGB_10u;
+
+#pragma pack(pop)
