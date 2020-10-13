@@ -46,7 +46,7 @@ enum {
 };
 
 typedef enum {
-	KERNEL_CONV_SHARP_3x3 = 1,
+	KERNEL_CONV_SHARP_3x3 = 0,
 	KERNEL_CONV_SHARP_5x5,
 	KERNEL_CONV_BLUR_3x3,
 	KERNEL_CONV_BLUR_5x5,
@@ -79,3 +79,20 @@ typedef struct {
 	PF_PixelFloat	color;
 } prerender_stuff, *pre_render_stuffP, **pre_render_stuffH;
 
+
+bool ProcessImgInPR
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output,
+	const PrPixelFormat& destinationPixelFormat = PrPixelFormat_Invalid
+);
+
+bool ProcessImgInAE
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+);

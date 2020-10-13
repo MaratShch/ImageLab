@@ -161,6 +161,7 @@
   <ItemGroup>
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\Convolution.hpp" />
     <ClInclude Include="include\Kernels.hpp" />
@@ -202,6 +203,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Convolution.cpp" />
+    <ClCompile Include="src\ConvolutionAE.cpp" />
+    <ClCompile Include="src\ConvolutionPR.cpp" />
     <ClCompile Include="src\Kernels.cpp" />
   </ItemGroup>
   <ItemGroup>

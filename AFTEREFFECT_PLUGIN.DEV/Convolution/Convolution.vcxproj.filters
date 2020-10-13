@@ -30,12 +30,21 @@
     <ClInclude Include="include\Kernels.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormat.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Convolution.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Kernels.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ConvolutionAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ConvolutionPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

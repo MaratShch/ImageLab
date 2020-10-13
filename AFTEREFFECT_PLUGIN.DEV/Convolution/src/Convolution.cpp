@@ -41,7 +41,7 @@ GlobalSetup(
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
 		PF_OutFlag2_FLOAT_COLOR_AWARE                |
-		PF_OutFlag2_SUPPORTS_SMART_RENDER            |
+//		PF_OutFlag2_SUPPORTS_SMART_RENDER            |
 		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
@@ -67,16 +67,16 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
 	return err;
@@ -148,85 +148,38 @@ Render(
 	PF_LayerDef		*output)
 {
 	PF_Err	err = PF_Err_NONE;
-	const PF_ParamValue convKernelType{ params[KERNEL_CHECKBOX]->u.pd.value };
-	const uint32_t choosedKernel = static_cast<uint32_t>(convKernelType + 1);
-	IAbsrtactKernel<int32_t>* iKernel = GetKernel<int32_t>(choosedKernel);
+	PF_Err errFormat = PF_Err_INVALID_INDEX;
 
-	//MRT
-	PF_Pixel8* pixelIn = nullptr;
-	PF_Pixel8* pixelOut = nullptr;
-	PF_GET_PIXEL_DATA8(&params[CONVOLUTION_INPUT]->u.ld, 0, &pixelIn);
-	PF_GET_PIXEL_DATA8(output, 0, &pixelOut);
-	//MRT 
-
-	if (nullptr != iKernel)
+	if (PremierId != in_data->appl_id)
 	{
-		if (true == iKernel->LoadKernel())
+		/* This plugin called from AE */
+		ProcessImgInAE(in_data, out_data, params, output);
+	}
+	else
+	{
+		/* This plugin called frop PR - check video fomat */
+		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
+			AEFX_SuiteScoper<PF_PixelFormatSuite1>(
+				in_data,
+				kPFPixelFormatSuite,
+				kPFPixelFormatSuiteVersion1,
+				out_data);
+
+		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
+		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 		{
-//			void* convKer = const_cast<void*>(reinterpret_cast<const void*>(iKernel->GetArray()));
-//			int32_t kernelSize = iKernel->GetSize();
-	
-			A_long convKer[9] = {
-				-1000, -1000, -1000,
-				-1000,  9000, -1000,
-				-1000, -1000, -1000
-			};
-			int32_t kernelSize = 3;
-
-//			if (PremierId != in_data->appl_id)
-//			{
-//				/* This plugin called from Ae */
-//			}
-//			else
-//			{
-#if 0
-				/* This plugin called from Pr */
-				err = in_data->utils->convolve(in_data->effect_ref,
-					&params[CONVOLUTION_INPUT]->u.ld,
-					&in_data->extent_hint,
-					PF_KernelFlag_2D | PF_KernelFlag_CLAMP,
-					3,
-					convKer,
-					convKer,
-					convKer,
-					convKer,
-					output);
-#endif
-				// We need to understand how work in AE with RAW pointer and not use engines of AE
-				A_long iWidth  = params[CONVOLUTION_INPUT]->u.ld.width;
-				A_long iHeight = params[CONVOLUTION_INPUT]->u.ld.height;
-				A_long iPitch  = params[CONVOLUTION_INPUT]->u.ld.rowbytes >> 2;
-
-				A_long width = output->width;
-				A_long height= output->height;
-				A_long pitch = (output->rowbytes) >> 2;
-
-				for (int j = 0; j < iHeight; j++)
-				{
-					A_long line = j * iPitch;
-
-					for (int i = 0; i < iWidth; i++)
-					{
-						const A_long idx = line + i;
-
-					//	*pixelOut++ = *pixelIn++;
-						pixelOut[idx].alpha = pixelIn[idx].alpha;
-						pixelOut[idx].blue  = pixelIn[idx].blue;
-						pixelOut[idx].green = pixelIn[idx].green;
-						pixelOut[idx].red   = pixelIn[idx].red;
-
-					}
-				}
-
-
-//			}
+			ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat);
+		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
+		else
+		{
+			err = PF_Err_BAD_CALLBACK_PARAM;
 		}
 	}
 
 	return err;
 }
 
-
+#if 0
 static PF_Err
 PreRender(
 	PF_InData				*in_data,
@@ -252,6 +205,7 @@ SmartRender(
 	return err;
 }
 
+#endif
 
 static PF_Err
 UserChangedParam(
@@ -268,7 +222,6 @@ UserChangedParam(
 	if (which_hitP->param_index == KERNEL_CHECKBOX)
 	{
 		kernelIdx = params[KERNEL_CHECKBOX]->u.bd.value;
-
 	}
 
 	return err;
@@ -321,7 +274,7 @@ EntryPointFunc (
 			case PF_Cmd_RENDER:
 				ERR(Render(in_data, out_data, params, output));
 			break;
-			
+#if 0			
 			case PF_Cmd_SMART_PRE_RENDER:
 				ERR(PreRender(in_data, out_data, (PF_PreRenderExtra*)extra));
 			break;
@@ -329,9 +282,9 @@ EntryPointFunc (
 			case PF_Cmd_SMART_RENDER:
 				ERR(SmartRender(in_data, out_data, (PF_SmartRenderExtra*)extra));
 			break;
-
+#endif
 			case PF_Cmd_USER_CHANGED_PARAM:
-				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra *>(extra)));
+				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
 			break;
 
 			// Handling this selector will ensure that the UI will be properly initialized,
