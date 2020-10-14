@@ -69,3 +69,13 @@ typedef struct {
 } PF_Pixel_RGB_10u;
 
 #pragma pack(pop)
+
+constexpr size_t PF_Pixel_BGRA_8u_size   = sizeof(PF_Pixel_BGRA_8u);
+constexpr size_t PF_Pixel_ARGB_8u_size   = sizeof(PF_Pixel_ARGB_8u);
+constexpr size_t PF_Pixel_BGRA_16u_size  = sizeof(PF_Pixel_BGRA_16u);
+constexpr size_t PF_Pixel_ARGB_16u_size  = sizeof(PF_Pixel_ARGB_16u);
+constexpr size_t PF_Pixel_BGRA_32f_size  = sizeof(PF_Pixel_BGRA_32f);
+constexpr size_t PF_Pixel_ARGB_32f_size  = sizeof(PF_Pixel_ARGB_32f);
+constexpr size_t PF_Pixel_VUYA_8u_size   = sizeof(PF_Pixel_VUYA_8u);
+constexpr size_t PF_Pixel_VUYA_32f_size  = sizeof(PF_Pixel_VUYA_32f);
+constexpr size_t PF_Pixel_RGB_10u_size   = sizeof(PF_Pixel_RGB_10u);
