@@ -113,7 +113,7 @@ FilterImageBGRA_8u
 	A_long		yL,
 	PF_Pixel8	*inP,
 	PF_Pixel8	*outP
-)
+) noexcept
 {
 	PF_Pixel_BGRA_8u* inBGRA_8uP = reinterpret_cast<PF_Pixel_BGRA_8u*>(inP);
 	PF_Pixel_BGRA_8u* outBGRA_8uP= reinterpret_cast<PF_Pixel_BGRA_8u*>(outP);
@@ -138,7 +138,7 @@ FilterImageBGRA_16u
 	A_long		yL,
 	PF_Pixel16	*inP,
 	PF_Pixel16	*outP
-)
+) noexcept
 {
 	PF_Pixel_BGRA_16u* inBGRA_16uP  = reinterpret_cast<PF_Pixel_BGRA_16u*>(inP);
 	PF_Pixel_BGRA_16u* outBGRA_16uP = reinterpret_cast<PF_Pixel_BGRA_16u*>(outP);
@@ -163,7 +163,7 @@ FilterImageRGB_10u
 	A_long		yL,
 	PF_Pixel8	*inP,
 	PF_Pixel8	*outP
-)
+) noexcept
 {
 	PF_Pixel_RGB_10u* inRGB_10uP  = reinterpret_cast<PF_Pixel_RGB_10u*>(inP);
 	PF_Pixel_RGB_10u* outRGB_10uP = reinterpret_cast<PF_Pixel_RGB_10u*>(outP);
@@ -188,7 +188,7 @@ FilterImageVUYA_8u
 	A_long		yL,
 	PF_Pixel8	*inP,
 	PF_Pixel8	*outP
-)
+) noexcept
 {
 	PF_Pixel_VUYA_8u* inVUYA_8uP  = reinterpret_cast<PF_Pixel_VUYA_8u*>(inP);
 	PF_Pixel_VUYA_8u* outVUYA_8uP = reinterpret_cast<PF_Pixel_VUYA_8u*>(outP);
@@ -232,7 +232,7 @@ FilterImageVUYA_8u_709
 	A_long		yL,
 	PF_Pixel8	*inP,
 	PF_Pixel8	*outP
-)
+) noexcept
 {
 	PF_Pixel_VUYA_8u* inVUYA_8uP = reinterpret_cast<PF_Pixel_VUYA_8u*>(inP);
 	PF_Pixel_VUYA_8u* outVUYA_8uP = reinterpret_cast<PF_Pixel_VUYA_8u*>(outP);
@@ -274,7 +274,7 @@ FilterImageBGRA_32f(
 	A_long			xL,
 	A_long			yL,
 	PF_PixelFloat	*inP,
-	PF_PixelFloat	*outP)
+	PF_PixelFloat	*outP) noexcept
 {
 	PF_Pixel_BGRA_32f* inBGRA_32fP  = reinterpret_cast<PF_Pixel_BGRA_32f*>(inP);
 	PF_Pixel_BGRA_32f* outBGRA_32fP = reinterpret_cast<PF_Pixel_BGRA_32f*>(outP);
@@ -297,7 +297,7 @@ FilterImageVUYA_32f(
 	A_long			xL,
 	A_long			yL,
 	PF_PixelFloat	*inP,
-	PF_PixelFloat	*outP)
+	PF_PixelFloat	*outP) noexcept
 {
 	PF_Pixel_VUYA_32f* inVUYA_32fP  = reinterpret_cast<PF_Pixel_VUYA_32f*>(inP);
 	PF_Pixel_VUYA_32f* outVUYA_32fP = reinterpret_cast<PF_Pixel_VUYA_32f*>(outP);
@@ -335,7 +335,7 @@ FilterImageVUYA_32f_709(
 	A_long			xL,
 	A_long			yL,
 	PF_PixelFloat	*inP,
-	PF_PixelFloat	*outP)
+	PF_PixelFloat	*outP) noexcept
 {
 	PF_Pixel_VUYA_32f* inVUYA_32fP = reinterpret_cast<PF_Pixel_VUYA_32f*>(inP);
 	PF_Pixel_VUYA_32f* outVUYA_32fP = reinterpret_cast<PF_Pixel_VUYA_32f*>(outP);
@@ -376,7 +376,7 @@ IterateFloat(
 	PF_EffectWorld		*src,
 	void				*refcon,
 	PF_Err(*pix_fn)(void *refcon, A_long x, A_long y, PF_PixelFloat *in, PF_PixelFloat *out),
-	PF_EffectWorld		*dst)
+	PF_EffectWorld		*dst) noexcept
 {
 	PF_Err	err = PF_Err_NONE;
 	char	*localSrc, *localDst;
@@ -412,7 +412,7 @@ FilterImage8(
 	A_long		xL,
 	A_long		yL,
 	PF_Pixel8	*inP,
-	PF_Pixel8	*outP)
+	PF_Pixel8	*outP) noexcept
 {
 	const PF_FpShort R = inP->red * SepiaMatrix[0] + inP->green * SepiaMatrix[1] + inP->blue * SepiaMatrix[2];
 	const PF_FpShort G = inP->red * SepiaMatrix[3] + inP->green * SepiaMatrix[4] + inP->blue * SepiaMatrix[5];
@@ -433,16 +433,16 @@ FilterImage16(
 	A_long		xL,
 	A_long		yL,
 	PF_Pixel16	*inP,
-	PF_Pixel16	*outP)
+	PF_Pixel16	*outP) noexcept
 {
 	const PF_FpShort R = inP->red * SepiaMatrix[0] + inP->green * SepiaMatrix[1] + inP->blue * SepiaMatrix[2];
 	const PF_FpShort G = inP->red * SepiaMatrix[3] + inP->green * SepiaMatrix[4] + inP->blue * SepiaMatrix[5];
 	const PF_FpShort B = inP->red * SepiaMatrix[6] + inP->green * SepiaMatrix[7] + inP->blue * SepiaMatrix[8];
 
 	outP->alpha = inP->alpha;
-	outP->red   = static_cast<A_u_short>(CLAMP_VALUE(R, 0.f, 65535.f));
-	outP->green = static_cast<A_u_short>(CLAMP_VALUE(G, 0.f, 65535.f));
-	outP->blue  = static_cast<A_u_short>(CLAMP_VALUE(B, 0.f, 65535.f));
+	outP->red   = static_cast<A_u_short>(CLAMP_VALUE(R, 0.f, 32768.0f));
+	outP->green = static_cast<A_u_short>(CLAMP_VALUE(G, 0.f, 32768.0f));
+	outP->blue  = static_cast<A_u_short>(CLAMP_VALUE(B, 0.f, 32768.0f));
 
 	return PF_Err_NONE;
 }
@@ -454,7 +454,7 @@ FilterImage32(
 	A_long			xL,
 	A_long			yL,
 	PF_PixelFloat	*inP,
-	PF_PixelFloat	*outP)
+	PF_PixelFloat	*outP) noexcept
 {
 	const float R = inP->red * SepiaMatrix[0] + inP->green * SepiaMatrix[1] + inP->blue * SepiaMatrix[2];
 	const float G = inP->red * SepiaMatrix[3] + inP->green * SepiaMatrix[4] + inP->blue * SepiaMatrix[5];
@@ -647,22 +647,45 @@ Render(
 	} /* if (PremierId == in_data->appl_id) */
 	else
 	{
-		AEFX_SuiteScoper<PF_Iterate8Suite1> iterate8Suite =
-			AEFX_SuiteScoper<PF_Iterate8Suite1>(
-				in_data,
-				kPFIterate8Suite,
-				kPFIterate8SuiteVersion1,
-				out_data);
+		if (PF_WORLD_IS_DEEP(output))
+		{
+			AEFX_SuiteScoper<PF_Iterate16Suite1> iterate16Suite =
+				AEFX_SuiteScoper<PF_Iterate16Suite1>(
+					in_data,
+					kPFIterate8Suite,
+					kPFIterate8SuiteVersion1,
+					out_data);
 
-		iterate8Suite->iterate(
-			in_data,
-			0,								// progress base
-			linesL,							// progress final
-			&params[0]->u.ld,				// src 
-			NULL,							// area - null for all pixels
-			nullptr,						// refcon - your custom data pointer
-			FilterImage8,					// pixel function pointer
-			output);						// dest
+			iterate16Suite->iterate(
+				in_data,
+				0,								// progress base
+				linesL,							// progress final
+				&params[0]->u.ld,				// src 
+				NULL,							// area - null for all pixels
+				nullptr,						// refcon - your custom data pointer
+				FilterImage16,					// pixel function pointer
+				output);						// dest
+
+		}
+		else
+		{
+			AEFX_SuiteScoper<PF_Iterate8Suite1> iterate8Suite =
+				AEFX_SuiteScoper<PF_Iterate8Suite1>(
+					in_data,
+					kPFIterate8Suite,
+					kPFIterate8SuiteVersion1,
+					out_data);
+
+			iterate8Suite->iterate(
+				in_data,
+				0,								// progress base
+				linesL,							// progress final
+				&params[0]->u.ld,				// src 
+				NULL,							// area - null for all pixels
+				nullptr,						// refcon - your custom data pointer
+				FilterImage8,					// pixel function pointer
+				output);						// dest
+		}
 	}
 
 	return err;
