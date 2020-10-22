@@ -32,17 +32,15 @@ GlobalSetup(
 	InitKernelsFactory();
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT		 |
+		PF_OutFlag_PIX_INDEPENDENT |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT     |
-		PF_OutFlag_DEEP_COLOR_AWARE      |
+		PF_OutFlag_USE_OUTPUT_EXTENT |
+		PF_OutFlag_DEEP_COLOR_AWARE |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_FLOAT_COLOR_AWARE                |
-//		PF_OutFlag2_SUPPORTS_SMART_RENDER            |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
@@ -66,11 +64,11 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
@@ -111,7 +109,7 @@ ParamsSetup(
 {
 	PF_ParamDef	def;
 	PF_Err		err = PF_Err_NONE;
-	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY;// | PF_ParamFlag_CANNOT_INTERP;
+	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
@@ -126,16 +124,6 @@ ParamsSetup(
 
 	out_data->num_params = CONVLOVE_NUM_PARAMS;
 
-	/* cleanup locat structure on exit */
-	AEFX_CLR_STRUCT_EX(def);
-
-	return err;
-}
-
-static PF_Err
-Convolution8_ARGB ()
-{
-	PF_Err		err = PF_Err_NONE;
 	return err;
 }
 
@@ -150,10 +138,13 @@ Render(
 	PF_Err	err = PF_Err_NONE;
 	PF_Err errFormat = PF_Err_INVALID_INDEX;
 
+	const PF_ParamValue convKernelType{ params[KERNEL_CHECKBOX]->u.pd.value };
+	const uint32_t choosedKernel = static_cast<uint32_t>(convKernelType);
+
 	if (PremierId != in_data->appl_id)
 	{
 		/* This plugin called from AE */
-		ProcessImgInAE(in_data, out_data, params, output);
+		ProcessImgInAE(in_data, out_data, params, output, choosedKernel);
 	}
 	else
 	{
@@ -168,7 +159,7 @@ Render(
 		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 		{
-			ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat);
+			ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat, choosedKernel - 1);
 		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
 		else
 		{
@@ -282,7 +273,7 @@ EntryPointFunc (
 			case PF_Cmd_SMART_RENDER:
 				ERR(SmartRender(in_data, out_data, (PF_SmartRenderExtra*)extra));
 			break;
-#endif
+
 			case PF_Cmd_USER_CHANGED_PARAM:
 				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
 			break;
@@ -292,7 +283,7 @@ EntryPointFunc (
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
-
+#endif
 			default:
 			break;
 		}

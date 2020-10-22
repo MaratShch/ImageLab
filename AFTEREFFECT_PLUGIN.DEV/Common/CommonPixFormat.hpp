@@ -1,6 +1,7 @@
 #pragma once
 
 #include "A.h"
+#include <cfloat>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -79,3 +80,10 @@ constexpr size_t PF_Pixel_ARGB_32f_size  = sizeof(PF_Pixel_ARGB_32f);
 constexpr size_t PF_Pixel_VUYA_8u_size   = sizeof(PF_Pixel_VUYA_8u);
 constexpr size_t PF_Pixel_VUYA_32f_size  = sizeof(PF_Pixel_VUYA_32f);
 constexpr size_t PF_Pixel_RGB_10u_size   = sizeof(PF_Pixel_RGB_10u);
+
+constexpr A_u_char u8_value_black = 0u;
+constexpr A_u_char u8_value_white = 255u;
+constexpr A_u_short u16_value_black = 0u;
+constexpr A_u_short u16_value_white = 32767u;
+constexpr PF_FpShort f32_value_black = 0.f;
+constexpr PF_FpShort f32_value_white = 1.0f - FLT_EPSILON;

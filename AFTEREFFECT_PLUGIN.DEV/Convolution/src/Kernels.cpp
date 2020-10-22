@@ -1,10 +1,11 @@
 #include "Kernels.hpp"
 #include "Convolution.hpp"
+#include <atomic>
 
-static uint32_t b;
+static std::atomic<uint32_t> b{ 0u };
 
 template <typename T>
-CACHE_ALIGN IAbsrtactKernel<T>* factoryKernels[KERNEL_CONV_SIZE];
+CACHE_ALIGN IAbsrtactKernel<T>* factoryKernels[KERNEL_CONV_SIZE]{};
 
 template <typename T>
 IAbsrtactKernel<T>* GetKernel (uint32_t idx)
@@ -43,7 +44,7 @@ void InitKernels(void)
 	factoryKernels<T>[18] = reinterpret_cast<IAbsrtactKernel<T>*>(new MotionBlur9x9<T>);
 	factoryKernels<T>[19] = reinterpret_cast<IAbsrtactKernel<T>*>(new MotionBlurL2R9x9<T>);
 	factoryKernels<T>[20] = reinterpret_cast<IAbsrtactKernel<T>*>(new MotionBlurR2L9x9<T>);
-	factoryKernels<T>[21] = reinterpret_cast<IAbsrtactKernel<T>*>(new CustomKernel<T>);
+	factoryKernels<T>[21] = reinterpret_cast<IAbsrtactKernel<T>*>(new HighPass<T>);
 	return;
 }
 

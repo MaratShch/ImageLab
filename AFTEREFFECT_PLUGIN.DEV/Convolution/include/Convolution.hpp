@@ -37,7 +37,7 @@ constexpr char strKernels[] =	"Sharp 3x3|"
 								"Motion Blur 9x9|"
 								"Motion Blur -> 9x9|"
 								"Motion Blur <- 9x9|"
-	                            "Custom Kernel";
+	                            "High Pass";
 
 enum {
 	CONVOLUTION_INPUT,
@@ -67,7 +67,7 @@ typedef enum {
 	KERNEL_CONV_MOTON_BLUR_9x9,
 	KERNEL_CONV_BLUR_LEFTRIGHT_9x9,
 	KERNEL_CONV_BLUR_RIGHTLEFT_9x9,
-	KERNEL_CONV_CUSTOM_KERNEL,
+	KERNEL_CONV_HIGH_PASS,
 	KERNEL_CONV_SIZE
 } ILab2KernelType;
 
@@ -86,13 +86,16 @@ bool ProcessImgInPR
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output,
-	const PrPixelFormat& destinationPixelFormat = PrPixelFormat_Invalid
-);
+	const PrPixelFormat& destinationPixelFormat,
+	const uint32_t& choosedKernel
+) noexcept;
 
 bool ProcessImgInAE
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-);
+	PF_LayerDef* __restrict output,
+	const uint32_t& choosed_kernel
+) noexcept;
+

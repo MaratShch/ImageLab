@@ -13,25 +13,31 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
+    <Filter Include="include_common">
+      <UniqueIdentifier>{44c119c7-0918-4a1e-9602-39a9095af460}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Common\Param_Utils.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\Convolution.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\Common.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\Kernels.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\Common.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
     <ClInclude Include="..\Common\CommonPixFormat.hpp">
-      <Filter>include</Filter>
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
+      <Filter>include_common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

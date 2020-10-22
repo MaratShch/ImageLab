@@ -557,22 +557,27 @@ public:
 
 
 template <typename T>
-class CustomKernel : public IAbsrtactKernel<T>
+class HighPass : public IAbsrtactKernel<T>
 {
 private:
-	T* kernel = nullptr;
-	uint32_t size = 0u;
-	T factor{ 0 };
+	const T kernel[9] =
+	{
+		-1, -2, -1,
+		-2, 12, -2,
+		-1, -2, -1
+	};
+
+	const uint32_t size = 3u;
+	const T factor{ 1 };
 
 public:
-	CustomKernel() = default;
-	virtual ~CustomKernel() = default;
-	const bool     LoadKernel(void) { return false; }
-	const T*       GetArray(void)   { return kernel; }
-	const uint32_t GetSize(void)    { return size; }
-	const T        Normalizing(void){ return factor; }
+	HighPass() = default;
+	virtual ~HighPass() = default;
+	const bool     LoadKernel(void) { return true; }
+	const T*       GetArray(void) { return kernel; }
+	const uint32_t GetSize(void) { return size; }
+	const T        Normalizing(void) { return factor; }
 };
-
 
 template <typename T>
 IAbsrtactKernel<T>* GetKernel (uint32_t idx);
