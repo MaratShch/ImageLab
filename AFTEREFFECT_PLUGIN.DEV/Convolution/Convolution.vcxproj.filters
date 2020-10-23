@@ -39,6 +39,9 @@
     <ClInclude Include="..\Common\CompileTimeUtils.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Convolution.cpp">
