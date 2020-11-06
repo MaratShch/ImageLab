@@ -3,7 +3,7 @@
 #include "Kernels.hpp"
 
 
-static void
+static bool
 ProcessPrImage_BGRA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -14,7 +14,7 @@ ProcessPrImage_BGRA_4444_8u
 ) noexcept
 {
 	IAbsrtactKernel<int32_t>* iKernel = nullptr;
-	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<PF_LayerDef* __restrict>(&params[0]->u.ld);
+	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<PF_LayerDef* __restrict>(&params[CONVOLUTION_INPUT]->u.ld);
 	PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
 
@@ -22,19 +22,21 @@ ProcessPrImage_BGRA_4444_8u
 	A_long l = 0, m = 0, k = 0;
 	A_long accumR, accumG, accumB, k_idx = 0, j_idx = 0, i_idx = 0, src_idx = 0, dst_idx = 0;
 
+	bool bResult = true;
+
 	if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel)))
 	{
-		if (true == iKernel->LoadKernel())
+		if (true == (bResult = iKernel->LoadKernel()))
 		{
-			const uint32_t kernSize  = iKernel->GetSize();
+			const uint32_t kernSize = iKernel->GetSize();
 			const int32_t* __restrict kernArray = iKernel->GetArray();
-			const int32_t elements   = static_cast<int32_t>(kernSize * kernSize);
+			const int32_t elements = static_cast<int32_t>(kernSize * kernSize);
 			const int32_t halfKernelSize = static_cast<int32_t>(kernSize) >> 1;
 
 			const float kernSum = iKernel->Normalizing();
 
 			const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-			const A_long width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+			const A_long width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 			const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
 			for (j = 0; j < height; j++)
@@ -69,7 +71,7 @@ ProcessPrImage_BGRA_4444_8u
 							accumR += (static_cast<int32_t>(localSrc[src_idx].R) * kernArray[k_idx]);
 							accumG += (static_cast<int32_t>(localSrc[src_idx].G) * kernArray[k_idx]);
 							accumB += (static_cast<int32_t>(localSrc[src_idx].B) * kernArray[k_idx]);
-							
+
 							k_idx--;
 
 						} /* for (m = -halfKernelSize; m < halfKernelSize; m++) */
@@ -89,18 +91,21 @@ ProcessPrImage_BGRA_4444_8u
 				} /* for (i = 0; i < in_data->width; i++) */
 
 			} /* for (j = 0; j < height; j++) */
-		
-		} /* if (true == iKernel->LoadKernel()) */
 
+		} /* if (true == iKernel->LoadKernel()) */
+		else
+			bResult = false;
 	} /* if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel))) */
+	else
+		bResult = false;
 
 	iKernel = nullptr; /* for DBG purpose */
 
-	return;
+	return bResult;
 }
 
 
-static void
+static bool
 ProcessPrImage_BGRA_4444_16u
 (
 	PF_InData*   __restrict in_data,
@@ -111,13 +116,15 @@ ProcessPrImage_BGRA_4444_16u
 ) noexcept
 {
 	IAbsrtactKernel<int32_t>* iKernel = nullptr;
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[0]->u.ld);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[CONVOLUTION_INPUT]->u.ld);
 	PF_Pixel_BGRA_16u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_16u*  __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
 
 	A_long i = 0, j = 0;
 	A_long l = 0, m = 0, k = 0;
 	A_long accumR, accumG, accumB, k_idx = 0, j_idx = 0, i_idx = 0, src_idx = 0, dst_idx = 0;
+
+	bool bResult = true;
 
 	if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel)))
 	{
@@ -131,7 +138,7 @@ ProcessPrImage_BGRA_4444_16u
 			const float kernSum = iKernel->Normalizing();
 
 			const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-			const A_long width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+			const A_long width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 			const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
 			for (j = 0; j < height; j++)
@@ -188,16 +195,19 @@ ProcessPrImage_BGRA_4444_16u
 			} /* for (j = 0; j < height; j++) */
 
 		} /* if (true == iKernel->LoadKernel()) */
-
+		else
+			bResult = false;
 	} /* if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel))) */
+	else
+		bResult = false;
 
 	iKernel = nullptr; /* for DBG purpose */
 
-	return;
+	return bResult;
 }
 
 
-static void
+static bool
 ProcessPrImage_BGRA_4444_32f
 (
 	PF_InData*   __restrict in_data,
@@ -208,7 +218,7 @@ ProcessPrImage_BGRA_4444_32f
 ) noexcept
 {
 	IAbsrtactKernel<float>* iKernel = nullptr;
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[0]->u.ld);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[CONVOLUTION_INPUT]->u.ld);
 	PF_Pixel_BGRA_32f*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_32f*  __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
 
@@ -216,6 +226,8 @@ ProcessPrImage_BGRA_4444_32f
 	A_long l = 0, m = 0, k = 0;
 	A_long k_idx = 0, j_idx = 0, i_idx = 0, src_idx = 0, dst_idx = 0;
 	float accumR, accumG, accumB;
+
+	bool bResult = true;
 
 	if (nullptr != (iKernel = GetKernel<float>(choosedKernel)))
 	{
@@ -286,16 +298,20 @@ ProcessPrImage_BGRA_4444_32f
 			} /* for (j = 0; j < height; j++) */
 
 		} /* if (true == iKernel->LoadKernel()) */
+		else
+			bResult = false;
 
 	} /* if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel))) */
+	else
+		bResult = false;
 
 	iKernel = nullptr; /* for DBG purpose */
 
-	return;
+	return bResult;
 }
 
 
-static void
+static bool
 ProcessPrImage_VUYA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -307,7 +323,7 @@ ProcessPrImage_VUYA_4444_8u
 ) noexcept
 {
 	IAbsrtactKernel<float>* iKernel = nullptr;
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[0]->u.ld);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[CONVOLUTION_INPUT]->u.ld);
 	PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
 
@@ -318,7 +334,9 @@ ProcessPrImage_VUYA_4444_8u
 	A_long l = 0, m = 0, k = 0;
 	A_long k_idx = 0, j_idx = 0, i_idx = 0, src_idx = 0, dst_idx = 0;
 	float R, G, B, accumR, accumG, accumB, newY, newU, newV;
-	
+
+	bool bResult = true;
+
 	if (nullptr != (iKernel = GetKernel<float>(choosedKernel)))
 	{
 		if (true == iKernel->LoadKernel())
@@ -405,15 +423,18 @@ ProcessPrImage_VUYA_4444_8u
 			} /* for (j = 0; j < height; j++) */
 
 		} /* if (true == iKernel->LoadKernel()) */
-
+		else
+			bResult = false;
 	} /* if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel))) */
+	else
+		bResult = false;
 
 	iKernel = nullptr; /* for DBG purpose */
 
-	return;
+	return bResult;
 }
 
-static void
+static bool
 ProcessPrImage_VUYA_4444_32f
 (
 	PF_InData*   __restrict in_data,
@@ -425,7 +446,7 @@ ProcessPrImage_VUYA_4444_32f
 ) noexcept
 {
 	IAbsrtactKernel<float>* iKernel = nullptr;
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[0]->u.ld);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[CONVOLUTION_INPUT]->u.ld);
 	PF_Pixel_VUYA_32f*  __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_32f*  __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(output->data);
 
@@ -436,6 +457,8 @@ ProcessPrImage_VUYA_4444_32f
 	A_long l = 0, m = 0, k = 0;
 	A_long k_idx = 0, j_idx = 0, i_idx = 0, src_idx = 0, dst_idx = 0;
 	float R, G, B, accumR, accumG, accumB, newY, newU, newV;
+
+	bool bResult = true;
 
 	if (nullptr != (iKernel = GetKernel<float>(choosedKernel)))
 	{
@@ -515,16 +538,19 @@ ProcessPrImage_VUYA_4444_32f
 			} /* for (j = 0; j < height; j++) */
 
 		} /* if (true == iKernel->LoadKernel()) */
-
+		else
+			bResult = false;
 	} /* if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel))) */
+	else
+		bResult = false;
 
 	iKernel = nullptr; /* for DBG purpose */
 
-	return;
+	return bResult;
 }
 
 
-static void
+static bool
 ProcessPrImage_RGB_444_10u
 (
 	PF_InData*   __restrict in_data,
@@ -535,13 +561,15 @@ ProcessPrImage_RGB_444_10u
 ) noexcept
 {
 	IAbsrtactKernel<int32_t>* iKernel = nullptr;
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[0]->u.ld);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[CONVOLUTION_INPUT]->u.ld);
 	PF_Pixel_RGB_10u*  __restrict localSrc = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
 	PF_Pixel_RGB_10u*  __restrict localDst = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(output->data);
 
 	A_long i = 0, j = 0;
 	A_long l = 0, m = 0, k = 0;
 	A_long accumR, accumG, accumB, k_idx = 0, j_idx = 0, i_idx = 0, src_idx = 0, dst_idx = 0;
+
+	bool bResult = true;
 
 	if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel)))
 	{
@@ -611,12 +639,15 @@ ProcessPrImage_RGB_444_10u
 			} /* for (j = 0; j < height; j++) */
 
 		} /* if (true == iKernel->LoadKernel()) */
-
+		else
+			bResult = false;
 	} /* if (nullptr != (iKernel = GetKernel<int32_t>(choosedKernel))) */
+	else
+		bResult = false;
 
 	iKernel = nullptr; /* for DBG purpose */
 
-	return;
+	return bResult;
 }
 
 
@@ -635,35 +666,41 @@ bool ProcessImgInPR
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
-				ProcessPrImage_BGRA_4444_8u (in_data, out_data, params, output, choosedKernel);
+				bValue = ProcessPrImage_BGRA_4444_8u (in_data, out_data, params, output, choosedKernel);
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
-				ProcessPrImage_BGRA_4444_16u (in_data, out_data, params, output, choosedKernel);
+				bValue = ProcessPrImage_BGRA_4444_16u (in_data, out_data, params, output, choosedKernel);
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u:
 			case PrPixelFormat_VUYA_4444_8u_709:
-				ProcessPrImage_VUYA_4444_8u (in_data, out_data, params, output, choosedKernel, PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+				bValue = ProcessPrImage_VUYA_4444_8u (in_data, out_data, params, output, choosedKernel, PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-				ProcessPrImage_BGRA_4444_32f (in_data, out_data, params, output, choosedKernel);
+				bValue = ProcessPrImage_BGRA_4444_32f (in_data, out_data, params, output, choosedKernel);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
-				ProcessPrImage_VUYA_4444_32f (in_data, out_data, params, output, choosedKernel, PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+				bValue = ProcessPrImage_VUYA_4444_32f (in_data, out_data, params, output, choosedKernel, PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
 			break;
 
 			case PrPixelFormat_RGB_444_10u:
-				ProcessPrImage_RGB_444_10u (in_data, out_data, params, output, choosedKernel);
+				bValue = ProcessPrImage_RGB_444_10u (in_data, out_data, params, output, choosedKernel);
 			break;
 
 			default:
 				bValue = false;
 			break;
 		} /* switch (destinationPixelFormat) */
+
+		if (false == bValue)
+		{
+			/* something going wrong - let's make simple copy from input to output */
+			PF_COPY(&params[0]->u.ld, output, nullptr, nullptr);
+		}
 
 	return bValue;
 }

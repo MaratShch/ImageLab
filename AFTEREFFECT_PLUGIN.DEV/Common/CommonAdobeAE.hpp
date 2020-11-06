@@ -13,6 +13,7 @@
 #include "AE_GeneralPlug.h"
 #include "AEFX_SuiteHandlerTemplate.h"
 #include "PrSDKAESupport.h"
+
 #include "Common.hpp"
 #include "Param_Utils.h"
 #include "CompileTimeUtils.hpp"

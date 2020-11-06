@@ -83,16 +83,7 @@ GlobalSetdown (
 	PF_InData* in_data
 )
 {
-#if 0
-	AEGP_SuiteHandler	suites(in_data->pica_basicP);
-
-	if (in_data->global_data) {
-		suites.HandleSuite1()->host_dispose_handle(in_data->global_data);
-	}
-#endif
-
 	FreeKernelsFactory();
-
 	return PF_Err_NONE;
 }
 
@@ -104,13 +95,15 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_ParamDef	def;
+	CACHE_ALIGN PF_ParamDef	def;
 	PF_Err		err = PF_Err_NONE;
 	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 
 	AEFX_CLR_STRUCT_EX(def);
+
 	def.flags = flags;
-	def.ui_flags = PF_PUI_STD_CONTROL_ONLY;
+	def.ui_flags = ui_flags;
 
 	PF_ADD_POPUP(
 		KernelType,				/* pop-up name			*/		
@@ -135,8 +128,8 @@ Render(
 	PF_Err	err = PF_Err_NONE;
 	PF_Err errFormat = PF_Err_INVALID_INDEX;
 
-	const PF_ParamValue convKernelType{ params[KERNEL_CHECKBOX]->u.pd.value };
-	const uint32_t choosedKernel = static_cast<uint32_t>(convKernelType);
+	const PF_ParamValue convKernelType = params[KERNEL_POPUP]->u.pd.value;
+	const uint32_t choosedKernel = static_cast<uint32_t>(convKernelType - 1);
 
 	if (PremierId == in_data->appl_id)
 	{
@@ -151,7 +144,7 @@ Render(
 		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 		{
-			ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat, choosedKernel - 1);
+			ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat, choosedKernel);
 		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
 		else
 		{
@@ -168,6 +161,7 @@ Render(
 }
 
 #if 0
+
 static PF_Err
 PreRender(
 	PF_InData				*in_data,
@@ -205,11 +199,29 @@ UserChangedParam(
 )
 {
 	PF_Err	err = PF_Err_NONE;
-	uint32_t kernelIdx = 0;
 
-	if (which_hitP->param_index == KERNEL_CHECKBOX)
+	if (KERNEL_POPUP == which_hitP->param_index)
 	{
-		kernelIdx = params[KERNEL_CHECKBOX]->u.bd.value;
+#ifdef _DEBUG
+		const uint32_t kernelIdx = params[KERNEL_POPUP]->u.pd.value;
+#endif
+		if (PremierId == in_data->appl_id)
+		{
+			// In Premiere Pro, this message will appear in the Events panel
+			PF_STRCPY(out_data->return_msg, "Kernel Type changed. New rendering will be forsed");
+		}
+		else
+		{
+			AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite =
+				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(
+					in_data,
+					kPFParamUtilsSuite,
+					kPFParamUtilsSuiteVersion3,
+					out_data);
+
+			params[KERNEL_POPUP]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+			err = paramUtilsSuite->PF_UpdateParamUI (in_data->effect_ref, KERNEL_POPUP, params[KERNEL_POPUP]);
+		}
 	}
 
 	return err;
@@ -223,7 +235,22 @@ UpdateParameterUI(
 	PF_LayerDef			*outputP
 )
 {
-	PF_Err	err = PF_Err_NONE;
+	CACHE_ALIGN PF_ParamDef	param_copy[CONVLOVE_NUM_PARAMS] = { 0 };
+	PF_Err		err = PF_Err_NONE;
+	constexpr PF_OutFlags newFlag = PF_OutFlag_REFRESH_UI | PF_OutFlag_FORCE_RERENDER;
+
+	param_copy[CONVOLUTION_INPUT] = *(params[CONVOLUTION_INPUT]);
+	param_copy[KERNEL_POPUP]      = *(params[KERNEL_POPUP]);
+
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite =
+		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(
+			in_data,
+			kPFParamUtilsSuite,
+			kPFParamUtilsSuiteVersion3,
+			out_data);
+
+	err = paramUtilsSuite->PF_UpdateParamUI (in_data->effect_ref, KERNEL_POPUP, &param_copy[KERNEL_POPUP]);
+	out_data->out_flags |= newFlag;
 
 	return err;
 }
@@ -270,7 +297,7 @@ EntryPointFunc (
 			case PF_Cmd_SMART_RENDER:
 				ERR(SmartRender(in_data, out_data, (PF_SmartRenderExtra*)extra));
 			break;
-
+#endif
 			case PF_Cmd_USER_CHANGED_PARAM:
 				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
 			break;
@@ -280,12 +307,12 @@ EntryPointFunc (
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
-#endif
+
 			default:
 			break;
 		}
 	}
-	catch (PF_Err &thrown_err)
+	catch (PF_Err& thrown_err)
 	{
 		err = thrown_err;
 	}

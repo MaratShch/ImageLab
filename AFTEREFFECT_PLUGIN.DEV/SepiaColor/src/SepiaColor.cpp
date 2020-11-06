@@ -641,6 +641,8 @@ Render(
 				break;
 
 				default:
+					/* something going wrong - let's make simple copy from input to output */
+					PF_COPY(&params[0]->u.ld, output, nullptr, nullptr);
 				break;
 			} /* switch (destinationPixelFormat) */
 		}

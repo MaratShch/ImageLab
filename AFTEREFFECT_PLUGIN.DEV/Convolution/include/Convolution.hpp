@@ -41,7 +41,7 @@ constexpr char strKernels[] =	"Sharp 3x3|"
 
 enum {
 	CONVOLUTION_INPUT,
-	KERNEL_CHECKBOX,
+	KERNEL_POPUP,
 	CONVLOVE_NUM_PARAMS
 };
 
@@ -74,10 +74,6 @@ typedef enum {
 enum {
 	KERNEL_CONV_DISK_ID = 1
 };
-
-typedef struct {
-	PF_PixelFloat	color;
-} prerender_stuff, *pre_render_stuffP, **pre_render_stuffH;
 
 
 bool ProcessImgInPR
