@@ -2,8 +2,8 @@
 
 static inline void SortU8 (int& a, int& b)
 {
-	int d = a - b;
-	int m = ~(d >> 8);
+	const int d = a - b;
+	const int m = ~(d >> 8);
 	b += d & m;
 	a -= d & m;
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Common.hpp"
+
 typedef enum
 {
 	BT601 = 0,
@@ -71,4 +73,22 @@ static CACHE_ALIGN float constexpr YUV2RGB[][9] =
 		1.000000f,  1.8270219f,  0.0000000f
 	}
 };
+
+
+CACHE_ALIGN constexpr float sRGBtoXYZ[9] = 
+{
+    0.4124564f,  0.3575761f,  0.1804375f,
+    0.2126729f,  0.7151522f,  0.0721750f,
+    0.0193339f,  0.1191920f,  0.9503041f
+};
+
+CACHE_ALIGN constexpr float XYZtosRGB[9] = 
+{
+    3.240455f, -1.537139f, -0.498532f,
+   -0.969266f,  1.876011f,  0.041556f,
+	0.055643f, -0.204026f,  1.057225f
+};
+
+CACHE_ALIGN constexpr float yuv2xyz[3] = { 0.114653800f, 0.083911980f, 0.082220770f };
+CACHE_ALIGN constexpr float xyz2yuv[3] = { 0.083911980f, 0.283096500f, 0.466178900f };
 
