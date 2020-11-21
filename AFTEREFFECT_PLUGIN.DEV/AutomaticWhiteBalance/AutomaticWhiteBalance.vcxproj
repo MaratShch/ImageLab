@@ -128,7 +128,8 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <BufferSecurityCheck>false</BufferSecurityCheck>
-      <FloatingPointModel>Precise</FloatingPointModel>
+      <FloatingPointModel>
+      </FloatingPointModel>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -141,6 +142,7 @@
     <ClCompile Include="src\AutomaticWhiteBalance.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalanceAE.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalancePR.cpp" />
+    <ClCompile Include="src\CorrectionMatrix.cpp" />
     <ClCompile Include="src\DllMain.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -152,6 +154,7 @@
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgCommonFunctins.hpp" />
     <ClInclude Include="include\AutomaticWhiteBalance.hpp" />
   </ItemGroup>
   <ItemGroup>

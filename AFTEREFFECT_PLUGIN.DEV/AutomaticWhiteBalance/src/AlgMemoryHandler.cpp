@@ -15,15 +15,19 @@ CAlgMemHandler::~CAlgMemHandler() noexcept
 
 bool CAlgMemHandler::MemInit (const size_t& size) noexcept
 {
-	constexpr size_t CpuPageSize = 4096ul;
+	constexpr size_t CpuPageSize  = 4096ul;
+	constexpr size_t CpuCacheSize = 64ul;
 	bool bResult = true;
 
 	/* check existed memory size and realloc for new size if required */
 	if (m_memBytesSize < size)
 	{
-		const size_t alignedBytesSize = CreateAlignment(size, CpuPageSize);
+		/* add additional page for requested allocation size for spare */
+		const size_t alignedBytesSize = CreateAlignment(size + CpuPageSize, CpuCacheSize);
 
 		m_protect[0].lock();
+		m_protect[1].lock();
+
 		if (nullptr != m_p[0])
 		{
 			_aligned_free(m_p[0]);
@@ -34,9 +38,7 @@ bool CAlgMemHandler::MemInit (const size_t& size) noexcept
 #ifdef _DEBUG
 		memset(m_p[0], 0, alignedBytesSize);
 #endif
-		m_protect[0].unlock();
 
-		m_protect[1].lock();
 		if (nullptr != m_p[1])
 		{
 			_aligned_free(m_p[1]);
@@ -47,7 +49,6 @@ bool CAlgMemHandler::MemInit (const size_t& size) noexcept
 #ifdef _DEBUG
 		memset(m_p[1], 0, alignedBytesSize);
 #endif
-		m_protect[1].unlock();
 
 		if (nullptr != m_p[0] && nullptr != m_p[1])
 		{
@@ -58,6 +59,9 @@ bool CAlgMemHandler::MemInit (const size_t& size) noexcept
 		{
 			bResult = false;
 		}
+
+		m_protect[0].unlock();
+		m_protect[1].unlock();
 
 	} /* if (m_memBytesSize < size) */
 
