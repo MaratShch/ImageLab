@@ -99,7 +99,7 @@ constexpr char STR_COLOR_SPACE[] = "BT.601|"
 constexpr char THRESHOLD_NAME[]  = "Gray point threshold";
 constexpr char ITERATIONS_NAME[] = "Number of iterations";
 
-constexpr float algAWBepsilon = 0.000001f;
+constexpr float algAWBepsilon = 0.00001f;
 constexpr int32_t iterMinCnt = 1;
 constexpr int32_t iterMaxCnt = 14;
 constexpr int32_t iterDefCnt = 2;

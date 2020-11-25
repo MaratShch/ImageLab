@@ -1,7 +1,7 @@
 #include "AutomaticWhiteBalance.hpp"
 
 
-const float* __restrict const GetIlluminate(const eILLUMINATE& illuminateIdx) noexcept
+inline const float* __restrict const GetIlluminate(const eILLUMINATE& illuminateIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblIlluminate[12][3] = {
 		{ 0.f },                             // NONE    
@@ -21,7 +21,7 @@ const float* __restrict const GetIlluminate(const eILLUMINATE& illuminateIdx) no
 	return tblIlluminate[illuminateIdx];
 }
 
-const float* __restrict GetColorAdaptation(const eChromaticAdaptation& adaptationIdx) noexcept
+inline const float* __restrict GetColorAdaptation(const eChromaticAdaptation& adaptationIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblColorAdaptation[5][9] = {
 		{ 0.73280f,  0.4296f, -0.16240f, -0.7036f, 1.69750f, 0.0061f, 0.0030f,  0.0136f, 0.98340f }, // CAT-02
@@ -35,7 +35,7 @@ const float* __restrict GetColorAdaptation(const eChromaticAdaptation& adaptatio
 }
 
 
-const float* __restrict GetColorAdaptationInv(const eChromaticAdaptation& invAdaptationIdx) noexcept
+inline const float* __restrict GetColorAdaptationInv(const eChromaticAdaptation& invAdaptationIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblColorAdaptationInv[5][9] = {
 		{ 1.096124f, -0.278869f, 0.182745f,	0.454369f, 0.473533f,  0.072098f, -0.009628f, -0.005698f, 1.015326f }, // INV CAT-02
@@ -78,8 +78,8 @@ void compute_correction_matrix
 
 	// Converts xyY chromaticity to CIE XYZ.
 	const float xyzEst[3] = { xyEstDiv * xyEst[0],
-		100.0f,
-		xyEstDiv * (1.0f - xyEst[0] - xyEst[1]) };
+		                      100.0f,
+		                      xyEstDiv * (1.0f - xyEst[0] - xyEst[1]) };
 
 	const float gainTarget[3] =
 	{

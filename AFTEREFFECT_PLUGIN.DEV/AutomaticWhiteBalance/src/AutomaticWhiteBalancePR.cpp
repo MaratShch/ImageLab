@@ -38,7 +38,7 @@ static bool ProcessPrImage_BGRA_4444_8u
 
 	/* test temporary buffers size and re-allocate if required new size */
 	CAlgMemHandler* pMemHandler = ::getMemoryHandler();
-	const size_t tmpMemSize = height * width * sizeof(PF_Pixel_BGRA_8u);
+	const size_t tmpMemSize = height * width * PF_Pixel_BGRA_8u_size;
 
 	if (nullptr != pMemHandler && true == pMemHandler->MemInit(tmpMemSize))
 	{
@@ -152,7 +152,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 
 	const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+	const A_long line_pitch = pfLayer->rowbytes / PF_Pixel_BGRA_16u_size;
 
 	int32_t srcIdx = 0;
 	int32_t dstIdx = 1;
@@ -168,7 +168,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 
 	/* test temporary buffers size and re-allocate if required new size */
 	CAlgMemHandler* pMemHandler = ::getMemoryHandler();
-	const size_t tmpMemSize = height * width * sizeof(PF_Pixel_BGRA_16u);
+	const size_t tmpMemSize = height * width * PF_Pixel_BGRA_16u_size;
 
 	if (nullptr != pMemHandler && true == pMemHandler->MemInit(tmpMemSize))
 	{
@@ -205,6 +205,8 @@ static bool ProcessPrImage_BGRA_4444_16u
 
 			/* collect statistics about image and compute averages values for U and for V components */
 			collect_rgb_statistics(srcInput, width, height, srcPitch, T, BT601, &uAvg, &vAvg);
+			uAvg /= 128.f;
+			vAvg /= 128.f;
 			U_avg[k] = uAvg;
 			V_avg[k] = vAvg;
 
@@ -263,27 +265,28 @@ static bool ProcessPrImage_BGRA_4444_16u
 }
 
 
-static bool ProcessPrImage_BGRA_4444_32f
+static bool ProcessPrImage_VUYA_4444_8u
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_LayerDef* __restrict output,
+	const bool isBT709
 ) noexcept
 {
 	CACHE_ALIGN float U_avg[gMaxCnt]{};
 	CACHE_ALIGN float V_avg[gMaxCnt]{};
 
 	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[AWB_INPUT]->u.ld);
-	PF_Pixel_BGRA_32f*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
-	PF_Pixel_BGRA_32f*  __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
+	PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+	PF_Pixel_VUYA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
 
-	PF_Pixel_BGRA_32f* __restrict srcInput = nullptr;
-	PF_Pixel_BGRA_32f* __restrict dstOutput = nullptr;
+	PF_Pixel_VUYA_8u* __restrict srcInput = nullptr;
+	PF_Pixel_VUYA_8u* __restrict dstOutput = nullptr;
 
 	const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
 	int32_t srcIdx = 0;
 	int32_t dstIdx = 1;
@@ -299,7 +302,7 @@ static bool ProcessPrImage_BGRA_4444_32f
 
 	/* test temporary buffers size and re-allocate if required new size */
 	CAlgMemHandler* pMemHandler = ::getMemoryHandler();
-	const size_t tmpMemSize = height * width * sizeof(PF_Pixel_BGRA_32f);
+	const size_t tmpMemSize = height * width * PF_Pixel_VUYA_8u_size;
 
 	if (nullptr != pMemHandler && true == pMemHandler->MemInit(tmpMemSize))
 	{
@@ -312,30 +315,30 @@ static bool ProcessPrImage_BGRA_4444_32f
 				srcInput = localSrc;
 				dstIdx++;
 				dstIdx &= 0x1;
-				dstOutput = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pMemHandler->GetMemory(dstIdx));
-				srcPitch = line_pitch;
-				dstPitch = width;
+				dstOutput = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemHandler->GetMemory(dstIdx));
+				srcPitch  = line_pitch;
+				dstPitch  = width;
 			}
 			else if ((iterCnt - 1) == k)
 			{
 				srcIdx = dstIdx;
-				srcInput = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pMemHandler->GetMemory(srcIdx));
+				srcInput  = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemHandler->GetMemory(srcIdx));
 				dstOutput = localDst;
-				srcPitch = width;
-				dstPitch = line_pitch;
+				srcPitch  = width;
+				dstPitch  = line_pitch;
 			} /* if (k > 0) */
 			else
 			{
 				srcIdx = dstIdx;
 				dstIdx++;
 				dstIdx &= 0x1;
-				srcInput  = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pMemHandler->GetMemory(srcIdx));
-				dstOutput = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pMemHandler->GetMemory(dstIdx));
-				srcPitch = dstPitch = width;
+				srcInput  = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemHandler->GetMemory(srcIdx));
+				dstOutput = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemHandler->GetMemory(dstIdx));
+				srcPitch  = dstPitch = width;
 			}
 
 			/* collect statistics about image and compute averages values for U and for V components */
-			collect_rgb_statistics(srcInput, width, height, srcPitch, T, BT601, &uAvg, &vAvg);
+			collect_yuv_statistics(srcInput, width, height, srcPitch, T, BT601, &uAvg, &vAvg);
 			U_avg[k] = uAvg;
 			V_avg[k] = vAvg;
 
@@ -371,8 +374,8 @@ static bool ProcessPrImage_BGRA_4444_32f
 			compute_correction_matrix(uAvg, vAvg, BT601, DAYLIGHT, CHROMATIC_CAT02, correctionMatrix);
 
 			/* in second: perform image color correction */
-			image_rgb_correction(srcInput, dstOutput, width, height,
-				srcPitch, dstPitch, correctionMatrix);
+			image_yuv_correction(srcInput, dstOutput, width, height,
+				                 srcPitch, dstPitch, correctionMatrix, isBT709);
 
 			/* release temporary memory buffers on exit from function */
 			if (0 == k)
@@ -392,6 +395,8 @@ static bool ProcessPrImage_BGRA_4444_32f
 
 	return true;
 }
+
+
 
 
 PF_Err ProcessImgInPR
@@ -419,14 +424,7 @@ PF_Err ProcessImgInPR
 
 		case PrPixelFormat_VUYA_4444_8u:
 		case PrPixelFormat_VUYA_4444_8u_709:
-		break;
-
-		case PrPixelFormat_BGRA_4444_32f:
-			bValue = ProcessPrImage_BGRA_4444_32f(in_data, out_data, params, output);
-		break;
-
-		case PrPixelFormat_VUYA_4444_32f:
-		case PrPixelFormat_VUYA_4444_32f_709:
+			bValue = ProcessPrImage_VUYA_4444_8u(in_data, out_data, params, output, PrPixelFormat_VUYA_4444_8u_709 == pixelFormat);
 		break;
 
 		default:

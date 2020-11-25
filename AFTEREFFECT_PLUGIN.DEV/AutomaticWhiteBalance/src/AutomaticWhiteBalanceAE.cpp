@@ -13,16 +13,17 @@ static bool ProcessImgInAE_8bits
 	CACHE_ALIGN float U_avg[gMaxCnt]{};
 	CACHE_ALIGN float V_avg[gMaxCnt]{};
 
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<PF_LayerDef* __restrict>(&params[AWB_INPUT]->u.ld);
-	PF_Pixel_ARGB_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(pfLayer->data);
+	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[AWB_INPUT]->u.ld);
+	PF_Pixel_ARGB_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input->data);
 	PF_Pixel_ARGB_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
 
 	PF_Pixel_ARGB_8u* __restrict srcInput = nullptr;
 	PF_Pixel_ARGB_8u* __restrict dstOutput = nullptr;
 
-	const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	const A_long width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	const A_long height = output->height;
+	const A_long width = output->width;
+	const A_long src_line_pitch = input->rowbytes / sizeof(PF_Pixel8);
+	const A_long dst_line_pitch = output->rowbytes / sizeof(PF_Pixel8);
 
 	int32_t srcIdx = 0;
 	int32_t dstIdx = 1;
@@ -52,7 +53,7 @@ static bool ProcessImgInAE_8bits
 				dstIdx++;
 				dstIdx &= 0x1;
 				dstOutput = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(pMemHandler->GetMemory(dstIdx));
-				srcPitch = line_pitch;
+				srcPitch = src_line_pitch;
 				dstPitch = width;
 			}
 			else if ((iterCnt - 1) == k)
@@ -61,7 +62,7 @@ static bool ProcessImgInAE_8bits
 				srcInput = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(pMemHandler->GetMemory(srcIdx));
 				dstOutput = localDst;
 				srcPitch = width;
-				dstPitch = line_pitch;
+				dstPitch = dst_line_pitch;
 			} /* if (k > 0) */
 			else
 			{
@@ -88,7 +89,7 @@ static bool ProcessImgInAE_8bits
 				if (normVal < algAWBepsilon)
 				{
 					// U and V no longer improving, so just copy source to destination and break the loop
-					simple_image_copy (srcInput, localDst, height, width, srcPitch, line_pitch);
+					simple_image_copy (srcInput, localDst, height, width, srcPitch, dst_line_pitch);
 
 					/* release temporary memory buffers on exit from function */
 					if (0 == k)
