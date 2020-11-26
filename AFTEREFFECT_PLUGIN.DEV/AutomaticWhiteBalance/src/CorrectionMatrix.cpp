@@ -4,7 +4,6 @@
 inline const float* __restrict const GetIlluminate(const eILLUMINATE& illuminateIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblIlluminate[12][3] = {
-		{ 0.f },                             // NONE    
 		{ 95.0470f,  100.0000f, 108.8830f }, // DAYLIGHT - D65 (DEFAULT)
 		{ 98.0740f,  100.0000f, 118.2320f }, // OLD_DAYLIGHT
 		{ 99.0927f,  100.0000f,  85.3130f }, // OLD_DIRECT_SUNLIGHT_AT_NOON

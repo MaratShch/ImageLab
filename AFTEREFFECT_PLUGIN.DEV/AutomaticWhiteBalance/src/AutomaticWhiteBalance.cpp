@@ -90,7 +90,7 @@ ParamsSetup(
 	PF_ADD_POPUP(
 		ILLUMINATE_NAME,		/* pop-up name			*/
 		TOTAL_ILLUMINATES,		/* number of Illuminates*/
-		ILLUMINATE_NONE,        /* default Illumnate	*/
+		DAYLIGHT,               /* default Illumnate	*/
 		STR_ILLUMINATE,			/* string for pop-up	*/
 		AWB_ILLUMINATE_POPUP);	/* control ID			*/
 
@@ -175,6 +175,8 @@ Render (
 		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
 		else
 		{
+			// In Premiere Pro, this message will appear in the Events panel
+			PF_STRCPY(out_data->return_msg, "Unsupoorted image format...");
 			err = PF_Err_INVALID_INDEX;
 		}
 	}
@@ -199,9 +201,47 @@ UserChangedParam(
 {
 	PF_Err err = PF_Err_NONE;
 
-	if (AWB_ILLUMINATE_POPUP == which_hitP->param_index)
-	{
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite =
+		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(
+			in_data,
+			kPFParamUtilsSuite,
+			kPFParamUtilsSuiteVersion3,
+			out_data);
 
+	switch (which_hitP->param_index)
+	{
+		case AWB_ILLUMINATE_POPUP:
+		{
+#ifdef _DEBUG
+			const uint32_t illuminateIdx = params[AWB_ILLUMINATE_POPUP]->u.pd.value;
+#endif
+			params[AWB_ILLUMINATE_POPUP]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+			err = paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, AWB_ILLUMINATE_POPUP, params[AWB_ILLUMINATE_POPUP]);
+		}
+		break;
+
+		case AWB_CHROMATIC_POPUP:
+		{
+#ifdef _DEBUG
+			const uint32_t chromaticIdx = params[AWB_CHROMATIC_POPUP]->u.pd.value;
+#endif
+			params[AWB_CHROMATIC_POPUP]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+			err = paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, AWB_CHROMATIC_POPUP, params[AWB_CHROMATIC_POPUP]);
+		}
+		break;
+
+		case AWB_COLOR_SPACE_POPUP:
+		{
+#ifdef _DEBUG
+			const uint32_t colorSpaceIdx = params[AWB_COLOR_SPACE_POPUP]->u.pd.value;
+#endif
+			params[AWB_COLOR_SPACE_POPUP]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+			err = paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, AWB_COLOR_SPACE_POPUP, params[AWB_COLOR_SPACE_POPUP]);
+		}
+		break;
+
+		default:
+		break;
 	}
 
 	return err;
@@ -213,10 +253,53 @@ UpdateParameterUI(
 	PF_InData			*in_data,
 	PF_OutData			*out_data,
 	PF_ParamDef			*params[],
-	PF_LayerDef			*outputP
+	PF_LayerDef			*output
 )
 {
-	PF_Err err = PF_Err_NONE;
+	PF_ParamDef	param_copy[AWB_TOTAL_CONTROLS] {};
+	PF_Err		err = PF_Err_NONE;
+	constexpr PF_OutFlags newFlag = PF_OutFlag_REFRESH_UI | PF_OutFlag_FORCE_RERENDER;
+
+	for (int32_t i = 0; i < AWB_TOTAL_CONTROLS; i++)
+		param_copy[i] = *(params[i]);
+
+
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite =
+		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(
+			in_data,
+			kPFParamUtilsSuite,
+			kPFParamUtilsSuiteVersion3,
+			out_data);
+
+	if (PremierId == in_data->appl_id)
+	{
+		/* This plugin called frop PR - check video fomat */
+		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
+			AEFX_SuiteScoper<PF_PixelFormatSuite1>(
+				in_data,
+				kPFPixelFormatSuite,
+				kPFPixelFormatSuiteVersion1,
+				out_data);
+
+		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
+		pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat);
+		if (PrPixelFormat_VUYA_4444_8u == destinationPixelFormat || PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat)
+		{
+			/* disable color space popup */
+			param_copy[AWB_COLOR_SPACE_POPUP].ui_flags |= PF_PUI_DISABLED;
+		}
+		else
+		{
+			/* enable color space popup */
+			param_copy[AWB_COLOR_SPACE_POPUP].ui_flags &= ~PF_PUI_DISABLED;
+		}
+
+	}
+
+	err |= paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, AWB_COLOR_SPACE_POPUP, &param_copy[AWB_COLOR_SPACE_POPUP]);
+
+	out_data->out_flags |= newFlag;
+
 	return err;
 }
 

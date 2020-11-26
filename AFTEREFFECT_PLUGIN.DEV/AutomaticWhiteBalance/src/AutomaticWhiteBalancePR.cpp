@@ -30,15 +30,20 @@ static bool ProcessPrImage_BGRA_4444_8u
 	A_long srcPitch = 0;
 	A_long dstPitch = 0;
 
-	float T = 0.30f;
-	float uAvg, vAvg;
-
-	const int32_t sliderIterCnt = 2;
+	/* acquire parameters */
+	const eCOLOR_SPACE colorSpace = static_cast<eCOLOR_SPACE>(params[AWB_COLOR_SPACE_POPUP]->u.pd.value - 1);
+	const eChromaticAdaptation chromatic = static_cast<eChromaticAdaptation>(params[AWB_CHROMATIC_POPUP]->u.pd.value - 1);
+	const eILLUMINATE  illuminate = static_cast<eILLUMINATE> (params[AWB_ILLUMINATE_POPUP]->u.pd.value - 1);
+	const int32_t sliderIterCnt = params[AWB_ITERATIONS_SLIDER]->u.sd.value;
+	const int32_t sliderThreshold = params[AWB_THRESHOLD_SLIDER]->u.sd.value;
 	const int32_t iterCnt = MIN(sliderIterCnt, gMaxCnt);
+
+	float T = static_cast<float>(sliderThreshold) / 100.f;
+	float uAvg, vAvg;
 
 	/* test temporary buffers size and re-allocate if required new size */
 	CAlgMemHandler* pMemHandler = ::getMemoryHandler();
-	const size_t tmpMemSize = height * width * PF_Pixel_BGRA_8u_size;
+	const size_t tmpMemSize = (iterCnt > 1) ? height * width * PF_Pixel_BGRA_8u_size : 0ul;
 
 	if (nullptr != pMemHandler && true == pMemHandler->MemInit(tmpMemSize))
 	{
@@ -51,9 +56,9 @@ static bool ProcessPrImage_BGRA_4444_8u
 				srcInput = localSrc;
 				dstIdx++;
 				dstIdx &= 0x1;
-				dstOutput = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(pMemHandler->GetMemory(dstIdx));
+				dstOutput = (1 == iterCnt) ? localDst : reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(pMemHandler->GetMemory(dstIdx));
 				srcPitch  = line_pitch;
-				dstPitch  = width;
+				dstPitch  = (1 == iterCnt) ? line_pitch : width;
 			} else if ((iterCnt-1) == k)
 			{
 				srcIdx = dstIdx;
@@ -72,8 +77,9 @@ static bool ProcessPrImage_BGRA_4444_8u
 				srcPitch  = dstPitch = width;
 			}
 
+			uAvg = vAvg = 0.f;
 			/* collect statistics about image and compute averages values for U and for V components */
-			collect_rgb_statistics (srcInput, width, height, srcPitch, T, BT601, &uAvg, &vAvg);
+			collect_rgb_statistics (srcInput, width, height, srcPitch, T, colorSpace, &uAvg, &vAvg);
 			U_avg[k] = uAvg;
 			V_avg[k] = vAvg;
 
@@ -91,7 +97,10 @@ static bool ProcessPrImage_BGRA_4444_8u
 
 					/* release temporary memory buffers on exit from function */
 					if (0 == k)
-						pMemHandler->ReleaseMemory(dstIdx);
+					{
+						if (iterCnt != 1)
+							pMemHandler->ReleaseMemory(dstIdx);
+					}
 					else if ((iterCnt - 1) == k)
 						pMemHandler->ReleaseMemory(srcIdx);
 					else
@@ -106,7 +115,7 @@ static bool ProcessPrImage_BGRA_4444_8u
 
 			/* compute correction matrix */
 			CACHE_ALIGN float correctionMatrix[3]{};
-			compute_correction_matrix (uAvg, vAvg, BT601, DAYLIGHT, CHROMATIC_CAT02, correctionMatrix);
+			compute_correction_matrix (uAvg, vAvg, colorSpace, illuminate, chromatic, correctionMatrix);
 
 			/* in second: perform image color correction */
 			image_rgb_correction(srcInput, dstOutput, width, height,
@@ -114,7 +123,10 @@ static bool ProcessPrImage_BGRA_4444_8u
 
 			/* release temporary memory buffers on exit from function */
 			if (0 == k)
-				pMemHandler->ReleaseMemory(dstIdx);
+			{
+				if (iterCnt != 1)
+					pMemHandler->ReleaseMemory(dstIdx);
+			}
 			else if ((iterCnt - 1) == k)
 				pMemHandler->ReleaseMemory(srcIdx);
 			else
@@ -160,15 +172,20 @@ static bool ProcessPrImage_BGRA_4444_16u
 	A_long srcPitch = 0;
 	A_long dstPitch = 0;
 
-	float T = 0.30f;
-	float uAvg, vAvg;
-
-	const int32_t sliderIterCnt = 2;
+	/* acquire parameters */
+	const eCOLOR_SPACE colorSpace = static_cast<eCOLOR_SPACE>(params[AWB_COLOR_SPACE_POPUP]->u.pd.value - 1);
+	const eChromaticAdaptation chromatic = static_cast<eChromaticAdaptation>(params[AWB_CHROMATIC_POPUP]->u.pd.value - 1);
+	const eILLUMINATE  illuminate = static_cast<eILLUMINATE> (params[AWB_ILLUMINATE_POPUP]->u.pd.value - 1);
+	const int32_t sliderIterCnt = params[AWB_ITERATIONS_SLIDER]->u.sd.value;
+	const int32_t sliderThreshold = params[AWB_THRESHOLD_SLIDER]->u.sd.value;
 	const int32_t iterCnt = MIN(sliderIterCnt, gMaxCnt);
+
+	float T = static_cast<float>(sliderThreshold) / 100.f;
+	float uAvg, vAvg;
 
 	/* test temporary buffers size and re-allocate if required new size */
 	CAlgMemHandler* pMemHandler = ::getMemoryHandler();
-	const size_t tmpMemSize = height * width * PF_Pixel_BGRA_16u_size;
+	const size_t tmpMemSize = (iterCnt > 1) ? height * width * PF_Pixel_BGRA_16u_size : 0ul;
 
 	if (nullptr != pMemHandler && true == pMemHandler->MemInit(tmpMemSize))
 	{
@@ -181,9 +198,9 @@ static bool ProcessPrImage_BGRA_4444_16u
 				srcInput = localSrc;
 				dstIdx++;
 				dstIdx &= 0x1;
-				dstOutput = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(pMemHandler->GetMemory(dstIdx));
-				srcPitch = line_pitch;
-				dstPitch = width;
+				dstOutput = (1 == iterCnt) ? localDst : reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(pMemHandler->GetMemory(dstIdx));
+				srcPitch  = line_pitch;
+				dstPitch  = (1 == iterCnt) ? line_pitch : width;
 			}
 			else if ((iterCnt - 1) == k)
 			{
@@ -203,8 +220,9 @@ static bool ProcessPrImage_BGRA_4444_16u
 				srcPitch = dstPitch = width;
 			}
 
+
 			/* collect statistics about image and compute averages values for U and for V components */
-			collect_rgb_statistics(srcInput, width, height, srcPitch, T, BT601, &uAvg, &vAvg);
+			collect_rgb_statistics(srcInput, width, height, srcPitch, T, colorSpace, &uAvg, &vAvg);
 			uAvg /= 128.f;
 			vAvg /= 128.f;
 			U_avg[k] = uAvg;
@@ -224,7 +242,10 @@ static bool ProcessPrImage_BGRA_4444_16u
 
 					/* release temporary memory buffers on exit from function */
 					if (0 == k)
-						pMemHandler->ReleaseMemory(dstIdx);
+					{
+						if (iterCnt != 1)
+							pMemHandler->ReleaseMemory(dstIdx);
+					}
 					else if ((iterCnt - 1) == k)
 						pMemHandler->ReleaseMemory(srcIdx);
 					else
@@ -239,7 +260,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 
 			  /* compute correction matrix */
 			CACHE_ALIGN float correctionMatrix[3]{};
-			compute_correction_matrix(uAvg, vAvg, BT601, DAYLIGHT, CHROMATIC_CAT02, correctionMatrix);
+			compute_correction_matrix(uAvg, vAvg, colorSpace, illuminate, chromatic, correctionMatrix);
 
 			/* in second: perform image color correction */
 			image_rgb_correction(srcInput, dstOutput, width, height,
@@ -247,7 +268,10 @@ static bool ProcessPrImage_BGRA_4444_16u
 
 			/* release temporary memory buffers on exit from function */
 			if (0 == k)
-				pMemHandler->ReleaseMemory(dstIdx);
+			{
+				if (iterCnt != 1)
+					pMemHandler->ReleaseMemory(dstIdx);
+			}
 			else if ((iterCnt - 1) == k)
 				pMemHandler->ReleaseMemory(srcIdx);
 			else
@@ -294,15 +318,19 @@ static bool ProcessPrImage_VUYA_4444_8u
 	A_long srcPitch = 0;
 	A_long dstPitch = 0;
 
-	float T = 0.30f;
-	float uAvg, vAvg;
-
-	const int32_t sliderIterCnt = 2;
+	/* acquire parameters */
+	const eChromaticAdaptation chromatic = static_cast<eChromaticAdaptation>(params[AWB_CHROMATIC_POPUP]->u.pd.value - 1);
+	const eILLUMINATE  illuminate = static_cast<eILLUMINATE> (params[AWB_ILLUMINATE_POPUP]->u.pd.value - 1);
+	const int32_t sliderIterCnt = params[AWB_ITERATIONS_SLIDER]->u.sd.value;
+	const int32_t sliderThreshold = params[AWB_THRESHOLD_SLIDER]->u.sd.value;
 	const int32_t iterCnt = MIN(sliderIterCnt, gMaxCnt);
+
+	float T = static_cast<float>(sliderThreshold) / 100.f;
+	float uAvg, vAvg;
 
 	/* test temporary buffers size and re-allocate if required new size */
 	CAlgMemHandler* pMemHandler = ::getMemoryHandler();
-	const size_t tmpMemSize = height * width * PF_Pixel_VUYA_8u_size;
+	const size_t tmpMemSize = (iterCnt > 1) ? height * width * PF_Pixel_VUYA_8u_size : 0ul;
 
 	if (nullptr != pMemHandler && true == pMemHandler->MemInit(tmpMemSize))
 	{
@@ -315,9 +343,9 @@ static bool ProcessPrImage_VUYA_4444_8u
 				srcInput = localSrc;
 				dstIdx++;
 				dstIdx &= 0x1;
-				dstOutput = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemHandler->GetMemory(dstIdx));
+				dstOutput = (1 == iterCnt) ? localDst : reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemHandler->GetMemory(dstIdx));
 				srcPitch  = line_pitch;
-				dstPitch  = width;
+				dstPitch  = (1 == iterCnt) ? line_pitch : width;
 			}
 			else if ((iterCnt - 1) == k)
 			{
@@ -337,8 +365,9 @@ static bool ProcessPrImage_VUYA_4444_8u
 				srcPitch  = dstPitch = width;
 			}
 
+			uAvg = vAvg = 0.f;
 			/* collect statistics about image and compute averages values for U and for V components */
-			collect_yuv_statistics(srcInput, width, height, srcPitch, T, BT601, &uAvg, &vAvg);
+			collect_yuv_statistics(srcInput, width, height, srcPitch, T, (isBT709 ? BT709 : BT601), &uAvg, &vAvg);
 			U_avg[k] = uAvg;
 			V_avg[k] = vAvg;
 
@@ -356,7 +385,10 @@ static bool ProcessPrImage_VUYA_4444_8u
 
 					/* release temporary memory buffers on exit from function */
 					if (0 == k)
-						pMemHandler->ReleaseMemory(dstIdx);
+					{
+						if (iterCnt != 1)
+							pMemHandler->ReleaseMemory(dstIdx);
+					}
 					else if ((iterCnt - 1) == k)
 						pMemHandler->ReleaseMemory(srcIdx);
 					else
@@ -371,7 +403,7 @@ static bool ProcessPrImage_VUYA_4444_8u
 
 			  /* compute correction matrix */
 			CACHE_ALIGN float correctionMatrix[3]{};
-			compute_correction_matrix(uAvg, vAvg, BT601, DAYLIGHT, CHROMATIC_CAT02, correctionMatrix);
+			compute_correction_matrix(uAvg, vAvg, (isBT709 ? BT709 : BT601), illuminate, chromatic, correctionMatrix);
 
 			/* in second: perform image color correction */
 			image_yuv_correction(srcInput, dstOutput, width, height,
@@ -379,7 +411,10 @@ static bool ProcessPrImage_VUYA_4444_8u
 
 			/* release temporary memory buffers on exit from function */
 			if (0 == k)
-				pMemHandler->ReleaseMemory(dstIdx);
+			{
+				if (iterCnt != 1)
+					pMemHandler->ReleaseMemory(dstIdx);
+			}
 			else if ((iterCnt - 1) == k)
 				pMemHandler->ReleaseMemory(srcIdx);
 			else

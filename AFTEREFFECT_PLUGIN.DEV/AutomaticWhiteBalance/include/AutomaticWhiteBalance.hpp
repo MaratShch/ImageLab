@@ -42,8 +42,7 @@ typedef enum
 
 constexpr char ILLUMINATE_NAME[] = "Illuminate";
 
-constexpr char STR_ILLUMINATE[] = "None|"
-                                  "Daylight (D65)|"
+constexpr char STR_ILLUMINATE[] = "Daylight (D65)|"
                                   "Old Daylight|"
                                   "Old Direct Sunlight at Noon|"
                                   "Mid Morning Daylight|"
@@ -57,8 +56,7 @@ constexpr char STR_ILLUMINATE[] = "None|"
 
 typedef enum
 {
-	ILLUMINATE_NONE = 0,
-	DAYLIGHT,
+	DAYLIGHT = 0,
 	OLD_DAYLIGHT,
 	OLD_DIRECT_SUNLIGHT_AT_NOON,
 	MID_MORNING_DAYLIGHT,
@@ -74,7 +72,7 @@ typedef enum
 
 
 constexpr char CHROMATIC_NAME[] = "Chromatic Adaptation";
-constexpr char STR_CHROMATIC[] = "Cat02|"
+constexpr char STR_CHROMATIC[] = "CAT02|"
                                  "Von Kries|"
                                  "Bradford|"
                                  "Sharp|"
