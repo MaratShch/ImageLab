@@ -132,10 +132,10 @@ PF_Err ProcessImgInPR
 
 void compute_correction_matrix
 (
-	const float& uAvg,
-	const float& vAvg,
-	const eCOLOR_SPACE& colorSpace,
-	const eILLUMINATE&  illuminate,
-	const eChromaticAdaptation& chromatic,
-	float* outMatrix /* pointer for hold correction matrix (3 values as minimal) */
+	const float uAvg,
+	const float vAvg,
+	const eCOLOR_SPACE colorSpace,
+	const eILLUMINATE  illuminate,
+	const eChromaticAdaptation chromatic,
+	float* __restrict outMatrix /* pointer for hold correction matrix (3 values as minimal) */
 ) noexcept;

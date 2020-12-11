@@ -1,7 +1,7 @@
 #include "AutomaticWhiteBalance.hpp"
 
 
-inline const float* __restrict const GetIlluminate(const eILLUMINATE& illuminateIdx) noexcept
+inline const float* __restrict const GetIlluminate(const eILLUMINATE illuminateIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblIlluminate[12][3] = {
 		{ 95.0470f,  100.0000f, 108.8830f }, // DAYLIGHT - D65 (DEFAULT)
@@ -20,7 +20,7 @@ inline const float* __restrict const GetIlluminate(const eILLUMINATE& illuminate
 	return tblIlluminate[illuminateIdx];
 }
 
-inline const float* __restrict GetColorAdaptation(const eChromaticAdaptation& adaptationIdx) noexcept
+inline const float* __restrict GetColorAdaptation(const eChromaticAdaptation adaptationIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblColorAdaptation[5][9] = {
 		{ 0.73280f,  0.4296f, -0.16240f, -0.7036f, 1.69750f, 0.0061f, 0.0030f,  0.0136f, 0.98340f }, // CAT-02
@@ -34,7 +34,7 @@ inline const float* __restrict GetColorAdaptation(const eChromaticAdaptation& ad
 }
 
 
-inline const float* __restrict GetColorAdaptationInv(const eChromaticAdaptation& invAdaptationIdx) noexcept
+inline const float* __restrict GetColorAdaptationInv(const eChromaticAdaptation invAdaptationIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblColorAdaptationInv[5][9] = {
 		{ 1.096124f, -0.278869f, 0.182745f,	0.454369f, 0.473533f,  0.072098f, -0.009628f, -0.005698f, 1.015326f }, // INV CAT-02
@@ -49,11 +49,11 @@ inline const float* __restrict GetColorAdaptationInv(const eChromaticAdaptation&
 
 void compute_correction_matrix
 (
-	const float& uAvg,
-	const float& vAvg,
-	const eCOLOR_SPACE& colorSpaceIdx,
-	const eILLUMINATE&  illuminateIdx,
-	const eChromaticAdaptation& chromaticIdx,
+	const float uAvg,
+	const float vAvg,
+	const eCOLOR_SPACE colorSpaceIdx,
+	const eILLUMINATE  illuminateIdx,
+	const eChromaticAdaptation chromaticIdx,
 	float* __restrict correctionMatrix /* pointer for hold correction matrix (3 values as minimal) */
 ) noexcept
 {

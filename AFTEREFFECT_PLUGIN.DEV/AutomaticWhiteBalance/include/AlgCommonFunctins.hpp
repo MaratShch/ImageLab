@@ -8,10 +8,10 @@ inline void simple_image_copy
 (
 	const T* __restrict srcPix,
 	T* __restrict dstPix,
-	const A_long& width,
-	const A_long& height,
-	const A_long& srcPitch,
-	const A_long& dstPitch
+	const A_long width,
+	const A_long height,
+	const A_long srcPitch,
+	const A_long dstPitch
 ) noexcept
 {
 	const size_t line_size = width * sizeof(T);
@@ -29,11 +29,11 @@ template <typename T>
 inline void collect_rgb_statistics
 (
 	const T* __restrict pSrc,
-	const A_long& width,
-	const A_long& height,
-	const A_long& linePitch,
-	const float& threshold,
-	const eCOLOR_SPACE& colorSpace,
+	const A_long width,
+	const A_long height,
+	const A_long linePitch,
+	const float threshold,
+	const eCOLOR_SPACE colorSpace,
 	float* u_Avg,
 	float* v_Avg
 ) noexcept
@@ -83,11 +83,11 @@ template <typename T>
 inline void collect_yuv_statistics
 (
 	const T* __restrict pSrc,
-	const A_long& width,
-	const A_long& height,
-	const A_long& linePitch,
-	const float& threshold,
-	const eCOLOR_SPACE& colorSpace,
+	const A_long width,
+	const A_long height,
+	const A_long linePitch,
+	const float threshold,
+	const eCOLOR_SPACE colorSpace,
 	float* u_Avg,
 	float* v_Avg
 ) noexcept
@@ -137,10 +137,10 @@ inline void image_rgb_correction
 (
 	const T* __restrict pSrc,		/* input data  */
 	T* __restrict pDst,				/* output data */
-	const A_long& width,
-	const A_long& height,
-	const A_long& srcPitch,
-	const A_long& dstPitch,
+	const A_long width,
+	const A_long height,
+	const A_long srcPitch,
+	const A_long dstPitch,
 	const float* __restrict correctionMatrix
 ) noexcept
 {
@@ -182,10 +182,10 @@ inline void image_yuv_correction
 (
 	const T* __restrict pSrc,		/* input data  */
 	T* __restrict pDst,				/* output data */
-	const A_long& width,
-	const A_long& height,
-	const A_long& srcPitch,
-	const A_long& dstPitch,
+	const A_long width,
+	const A_long height,
+	const A_long srcPitch,
+	const A_long dstPitch,
 	const float* __restrict correctionMatrix,
 	const bool& isBT709
 ) noexcept

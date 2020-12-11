@@ -340,7 +340,6 @@ EntryPointFunc (
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-#if 0
 			case PF_Cmd_USER_CHANGED_PARAM:
 				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
 			break;
@@ -350,7 +349,7 @@ EntryPointFunc (
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
-#endif
+
 			default:
 			break;
 		}
