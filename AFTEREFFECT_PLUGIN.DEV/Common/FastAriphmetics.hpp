@@ -15,7 +15,7 @@ namespace FastCompute
 	}
 
 
-	inline double asqrt(const double x)
+	inline double Sqrt(const double x)
 	{
 		const double   xHalf = 0.50 * x;
 		long long int  tmp = 0x5FE6EB50C7B537AAl - (*(long long int*)&x >> 1); //initial guess
@@ -24,7 +24,7 @@ namespace FastCompute
 		return xRes * x;
 	}
 
-	inline float asqrt(const float x)
+	inline float Sqrt(const float x)
 	{
 		const float xHalf = 0.50f * x;
 		int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess

@@ -212,6 +212,9 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <ResourceCompile Include="Convolution.rc" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\DOWNLOAD\Ozornie.Animashki.(99.serij.iz.99).1993.XviD.DVDRip\Ozornie.Animashki.85.serija.iz.99.avi" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

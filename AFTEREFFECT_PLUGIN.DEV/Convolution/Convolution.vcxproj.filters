@@ -67,4 +67,9 @@
       <Filter>resource</Filter>
     </ResourceCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\DOWNLOAD\Ozornie.Animashki.(99.serij.iz.99).1993.XviD.DVDRip\Ozornie.Animashki.85.serija.iz.99.avi">
+      <Filter>src</Filter>
+    </None>
+  </ItemGroup>
 </Project>

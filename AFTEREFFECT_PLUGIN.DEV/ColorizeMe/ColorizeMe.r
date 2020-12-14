@@ -42,8 +42,8 @@ resource 'PiPL' (16000) {
 			PF_PLUG_IN_SUBVERS
 		},
 		/* [8] */
-		AE_Effect_Version {
-			1048577	/* 2.0 */
+		AE_Effect_Version {	
+			1572865	/* 3.0 */ /* 2097153 4.0 */
 		},
 		/* [9] */
 		AE_Effect_Info_Flags {
@@ -51,14 +51,15 @@ resource 'PiPL' (16000) {
 		},
 		/* [10] */
 		AE_Effect_Global_OutFlags {
-			0x2000000
+			100664386
 		},
+
 		AE_Effect_Global_OutFlags_2 {
-			0x00000000
+			131144
 		},
 		/* [11] */
 		AE_Effect_Match_Name {
-			"ADBE ColorizeMe"
+			"ImageLab2 ColorizeMe"
 		},
 		/* [12] */
 		AE_Reserved_Info {

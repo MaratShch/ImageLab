@@ -126,6 +126,7 @@
       <FloatingPointModel>Precise</FloatingPointModel>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

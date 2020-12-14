@@ -44,6 +44,9 @@
     <ClInclude Include="..\Common\Common.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmetics.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ColorizeMe.r">

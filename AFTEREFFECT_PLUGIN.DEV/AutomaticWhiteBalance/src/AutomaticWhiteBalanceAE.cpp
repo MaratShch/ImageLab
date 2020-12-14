@@ -89,7 +89,7 @@ static bool ProcessImgInAE_8bits
 				const float U_diff = U_avg[k] - U_avg[k - 1];
 				const float V_diff = V_avg[k] - V_avg[k - 1];
 
-				const float normVal = asqrt(U_diff * U_diff + V_diff * V_diff);
+				const float normVal = FastCompute::Sqrt(U_diff * U_diff + V_diff * V_diff);
 
 				if (normVal < algAWBepsilon)
 				{
@@ -235,7 +235,7 @@ static bool ProcessImgInAE_16bits
 				const float U_diff = U_avg[k] - U_avg[k - 1];
 				const float V_diff = V_avg[k] - V_avg[k - 1];
 
-				const float normVal = asqrt(U_diff * U_diff + V_diff * V_diff);
+				const float normVal = FastCompute::Sqrt(U_diff * U_diff + V_diff * V_diff);
 
 				if (normVal < algAWBepsilon)
 				{
