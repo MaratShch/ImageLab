@@ -1,5 +1,7 @@
 #pragma once
- 
+
+#include <string>
+
 #include "AEConfig.h"
 #include "entry.h"
 #ifdef AE_OS_WIN
@@ -38,17 +40,19 @@ constexpr char CheckBoxParamName[] = "Negate";
 constexpr char CheckBoxName[] = "Negative";
 
 constexpr char InterpType[] = "Interpolation type";
-constexpr char Interpolation[] = "Fast (nearest)|"
-                                 "Linear|"
+constexpr char Interpolation[] = "Linear|"
                                  "Bilinear|"
                                  "Bicubic|"
+	                             "Trilinear|"
+	                             "Tricubic|"
                                  "Tetrahedral|"
                                  "Pyramidal";
 enum {
-	COLOR_INTERPOLATION_FAST = 0,
-	COLOR_INTERPOLATION_LINEAR,
+	COLOR_INTERPOLATION_LINEAR = 0,
 	COLOR_INTERPOLATION_BILINEAR,
 	COLOR_INTERPOLATION_BICUBIC,
+	COLOR_INTERPOLATION_TRILINEAR,
+	COLOR_INTERPOLATION_TRICUBIC,
 	COLOR_INTERPOLATION_TETRAHEDRAL,
 	COLOR_INTERPOLATION_PYRAMIDAL,
 	COLOR_INTERPOLATION_MAX_TYPES
@@ -77,5 +81,30 @@ enum {
 	COLOR_RED_PEDESTAL_SLIDER,
 	COLOR_GREEN_PEDESTAL_SLIDER,
 	COLOR_BLUE_PEDESTAL_SLIDER,
+	COLOR_PEDESTAL_RESET_BUTTON,
 	COLOR_TOTAL_PARAMS
 };
+
+constexpr char pedestalResetName[] = "Pedestal";
+constexpr char pedestalReset[] = "Reset Pedestal";
+
+const std::string GetLutFileName (void);
+const std::string GetLutFileName (const std::string& fileMask);
+
+PF_Err ProcessImgInAE
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err ProcessImgInPR
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output,
+	const PrPixelFormat&    pixelFormat
+) noexcept;
+

@@ -178,8 +178,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorizeMe.cpp" />
+    <ClCompile Include="src\ColorizeMeAE.cpp" />
+    <ClCompile Include="src\ColorizeMePR.cpp" />
+    <ClCompile Include="src\CubeLUT.cpp" />
+    <ClCompile Include="src\FileDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
@@ -188,6 +193,7 @@
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ColorizeMe.hpp" />
+    <ClInclude Include="include\CubeLUT.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ColorizeMe.r">

@@ -1,5 +1,6 @@
+#include <memory>
 #include "ColorizeMe.hpp"
-
+#include "CubeLUT.h"
 
 static PF_Err
 About(
@@ -123,7 +124,7 @@ ParamsSetup(
 	PF_ADD_POPUP(
 		InterpType,						/* pop-up name			*/
 		COLOR_INTERPOLATION_MAX_TYPES,	/* numbver of variants	*/
-		COLOR_INTERPOLATION_FAST,		/* default variant		*/
+		COLOR_INTERPOLATION_LINEAR,		/* default variant		*/
 		Interpolation,					/* string for pop-up	*/
 		COLOR_INTERPOLATION_POPUP);		/* control ID			*/
 
@@ -159,12 +160,37 @@ ParamsSetup(
 		gMaxBluePedestal,
 		gDefBluePedestal,
 		COLOR_BLUE_PEDESTAL_SLIDER);
+	
+	AEFX_CLR_STRUCT_EX(def);
+
+	PF_ADD_BUTTON(
+		pedestalResetName,
+		pedestalReset,
+		ui_flags,
+		flags,
+		COLOR_PEDESTAL_RESET_BUTTON
+	);
 
 	out_data->num_params = COLOR_TOTAL_PARAMS;
 
 	/* cleanup on exit (for DBG purpose only) */
 	AEFX_CLR_STRUCT_EX(def);
 	return err;
+}
+
+static bool
+IsProcessingActivated(
+	PF_InData	*in_data,
+	PF_ParamDef	*params[]
+) noexcept
+{
+	const bool bProc =
+		(0 == params[COLOR_RED_PEDESTAL_SLIDER  ]->u.sd.value &&
+		 0 == params[COLOR_GREEN_PEDESTAL_SLIDER]->u.sd.value &&
+         0 == params[COLOR_BLUE_PEDESTAL_SLIDER ]->u.sd.value &&
+			(nullptr == in_data->sequence_data || (nullptr != in_data->sequence_data && (static_cast<CubeLUT*>(*in_data->sequence_data)->LutIsLoaded() == false)))
+		) ? false : true;
+	return bProc;
 }
 
 
@@ -179,36 +205,167 @@ Render(
 	PF_Err	err = PF_Err_NONE;
 	PF_Err errFormat = PF_Err_INVALID_INDEX;
 
-	if (PremierId == in_data->appl_id)
+	if (false == IsProcessingActivated(in_data, params))
 	{
-		/* This plugin called frop PR - check video fomat */
-		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-			AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-				in_data,
-				kPFPixelFormatSuite,
-				kPFPixelFormatSuiteVersion1,
-				out_data);
+		/* no acion items, just copy input buffer to outpu without processing */
+		if (PremierId != in_data->appl_id)
+		{
+			AEFX_SuiteScoper<PF_WorldTransformSuite1> worldTransformSuite =
+				AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data);
 
-		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
-		{
-//			err = ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat);
-		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-		else
-		{
-			// In Premiere Pro, this message will appear in the Events panel
-			PF_STRCPY(out_data->return_msg, "Unsupoorted image format...");
-			err = PF_Err_INVALID_INDEX;
+			err = (PF_Quality_HI == in_data->quality) ?
+				worldTransformSuite->copy_hq(in_data->effect_ref, &params[COLOR_INPUT]->u.ld, output, NULL, NULL) :
+				worldTransformSuite->copy(in_data->effect_ref, &params[COLOR_INPUT]->u.ld, output, NULL, NULL);
 		}
-	}
+		else {
+			err = PF_COPY(&params[COLOR_INPUT]->u.ld, output, NULL,	NULL);
+		}
+	} /* if (false == IsProcessingActivated(in_data, params)) */
 	else
 	{
-		/* This plugin called from AE */
-//		err = ProcessImgInAE(in_data, out_data, params, output);
+		if (PremierId == in_data->appl_id)
+		{
+			/* This plugin called frop PR - check video fomat */
+			AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
+				AEFX_SuiteScoper<PF_PixelFormatSuite1>(
+					in_data,
+					kPFPixelFormatSuite,
+					kPFPixelFormatSuiteVersion1,
+					out_data);
+
+			PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
+			if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+			{
+				err = ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat);
+			} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
+			else
+			{
+				// In Premiere Pro, this message will appear in the Events panel
+				PF_STRCPY(out_data->return_msg, "Unsupported image format...");
+				err = PF_Err_INVALID_INDEX;
+			}
+		}
+		else
+		{
+			/* This plugin called from AE */
+			err = ProcessImgInAE(in_data, out_data, params, output);
+		}
 	}
 
 	return err;
 }
+
+
+static PF_Err
+SequenceSetdown(
+	PF_InData		*in_data,
+	PF_OutData		*out_data
+) noexcept
+{
+	PF_Err err = PF_Err_NONE;
+
+	if (nullptr != in_data->sequence_data)
+	{
+		AEFX_SuiteScoper<PF_HandleSuite1> hostHandleSite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
+		
+		/* explicit call of destructor because the object was created by placement new */
+		static_cast<CubeLUT*>(*in_data->sequence_data)->~CubeLUT();
+
+#ifdef _DEBUG
+		const A_HandleSize memSize = hostHandleSite->host_get_handle_size(in_data->sequence_data);
+		memset(*in_data->sequence_data, 0, memSize);
+#endif
+
+		/* cleanup memory */
+		hostHandleSite->host_dispose_handle(in_data->sequence_data);
+		in_data->sequence_data = nullptr;
+	}
+
+	return err;
+}
+
+static PF_Err
+SequenceSetup(
+	PF_InData		*in_data,
+	PF_OutData		*out_data
+) noexcept
+{
+	PF_Err err = PF_Err_NONE;
+	
+	if (nullptr == out_data->sequence_data)
+	{
+		constexpr size_t CubeLutObjSizeof = CreateAlignment(sizeof(CubeLUT), static_cast<size_t>(256));
+		AEFX_SuiteScoper<PF_HandleSuite1> hostHandleSite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
+
+		PF_Handle memHdnl = hostHandleSite->host_new_handle(CubeLutObjSizeof);
+		if (nullptr != memHdnl)
+		{
+			CubeLUT* pMemoryStorage = static_cast<CubeLUT*>(hostHandleSite->host_lock_handle(memHdnl));
+#ifdef _DEBUG
+			/* for DBG purpose only*/
+			memset(pMemoryStorage, 0, CubeLutObjSizeof);
+#endif`
+			/* placement new */
+			CubeLUT* pCubeLutObj = new (pMemoryStorage) CubeLUT;
+
+			out_data->sequence_data = memHdnl;
+			hostHandleSite->host_unlock_handle(memHdnl);
+		}
+	}
+	return err;
+}
+
+static PF_Err
+UserChangedParam(
+	PF_InData						*in_data,
+	PF_OutData						*out_data,
+	PF_ParamDef						*params[],
+	PF_LayerDef						*outputP,
+	const PF_UserChangedParamExtra	*which_hitP
+) 
+{
+	PF_Err err = PF_Err_NONE;
+
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite =
+		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(
+			in_data,
+			kPFParamUtilsSuite,
+			kPFParamUtilsSuiteVersion3,
+			out_data);
+
+	switch (which_hitP->param_index)
+	{
+		case COLOR_LUT_FILE_BUTTON:
+		{
+			const std::string lutName = GetLutFileName();
+			if (!lutName.empty())
+			{
+				const CubeLUT::LUTState loadStatus = static_cast<CubeLUT*>(*in_data->sequence_data)->LoadCubeFile(lutName);
+				err = (CubeLUT::OK == loadStatus || CubeLUT::AlreadyLoaded == loadStatus) ? PF_Err_NONE : PF_Err_INVALID_INDEX;
+			}
+		}
+		break;
+
+		default:
+		break;
+	} /* switch (which_hitP->param_index) */
+
+	return err;
+}
+
+
+static PF_Err
+UpdateParameterUI(
+	PF_InData			*in_data,
+	PF_OutData			*out_data,
+	PF_ParamDef			*params[],
+	PF_LayerDef			*outputP
+) noexcept
+{
+	PF_Err err = PF_Err_NONE;
+	return err;
+}
+
 
 
 DllExport	PF_Err
@@ -225,27 +382,44 @@ EntryPointFunc(
 	try {
 		switch (cmd)
 		{
-		case PF_Cmd_ABOUT:
-			ERR(About(in_data, out_data, params, output));
+			case PF_Cmd_ABOUT:
+				ERR(About(in_data, out_data, params, output));
 			break;
 
-		case PF_Cmd_GLOBAL_SETUP:
-			ERR(GlobalSetup(in_data, out_data, params, output));
+			case PF_Cmd_GLOBAL_SETUP:
+				ERR(GlobalSetup(in_data, out_data, params, output));
 			break;
 
-		case PF_Cmd_GLOBAL_SETDOWN:
-			ERR(GlobalSetdown(in_data));
+			case PF_Cmd_GLOBAL_SETDOWN:
+				ERR(GlobalSetdown(in_data));
 			break;
 
-		case PF_Cmd_PARAMS_SETUP:
-			ERR(ParamsSetup(in_data, out_data, params, output));
+			case PF_Cmd_PARAMS_SETUP:
+				ERR(ParamsSetup(in_data, out_data, params, output));
 			break;
 
-		case PF_Cmd_RENDER:
-			ERR(Render(in_data, out_data, params, output));
+			case PF_Cmd_SEQUENCE_SETUP:
+			case PF_Cmd_SEQUENCE_RESETUP:
+				ERR(SequenceSetup(in_data, out_data));
 			break;
 
-		default:
+			case PF_Cmd_SEQUENCE_SETDOWN:
+				ERR(SequenceSetdown(in_data, out_data));
+			break;
+
+			case PF_Cmd_RENDER:
+				ERR(Render(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_USER_CHANGED_PARAM:
+				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+			break;
+
+			case PF_Cmd_UPDATE_PARAMS_UI:
+				ERR(UpdateParameterUI(in_data, out_data, params, output));
+			break;
+
+			default:
 			break;
 		}
 	}
