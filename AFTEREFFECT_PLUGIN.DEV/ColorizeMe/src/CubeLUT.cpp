@@ -8,14 +8,17 @@ using tableRow = CubeLUT::tableRow;
 
 CubeLUT::CubeLUT (void)
 { 
+	bActive = false;
+	uId = 0xDEADBEEF;
 	lutName.clear();
 	status = NotInitialized; 
 }
 
 CubeLUT::~CubeLUT()
 { 
-	/* for DBG purpose only */
-	lutName.clear(); 
+	bActive = false;
+	uId = 0xFFFFFFFF;
+	lutName.clear();
 	status = NotInitialized;
 }
 
@@ -92,6 +95,10 @@ CubeLUT::LUTState CubeLUT::LoadCubeFile(const std::string& fileName)
 
 CubeLUT::LUTState CubeLUT::LoadCubeFile (std::ifstream& lutFile)
 {
+	constexpr char newLineChar = '\n';
+	constexpr char carriageReturn = '\r';
+	char lineSeparator = newLineChar;
+
 	status = OK;
 	title.clear();
 	domainMin = tableRow(3, 0.0f);
@@ -99,10 +106,6 @@ CubeLUT::LUTState CubeLUT::LoadCubeFile (std::ifstream& lutFile)
 
 	Lut1D.clear();
 	Lut3D.clear();
-
-	constexpr char newLineChar = '\n';
-	constexpr char carriageReturn = '\r';
-	char lineSeparator = newLineChar;
 
 	for (int i = 0; i < 255; i++)
 	{

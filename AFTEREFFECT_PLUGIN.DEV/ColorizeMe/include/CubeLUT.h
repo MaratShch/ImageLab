@@ -48,6 +48,7 @@ public:
 		GenericError = 100
 	};
 	
+	unsigned int uId;
 	lutFileName lutName;
 	LUTState status;
 	std::string title;
@@ -58,6 +59,8 @@ public:
 
 	CubeLUT(void);
 	~CubeLUT();
+
+	const std::string& GetLutName(void) { return lutName; }
 
 	LUTState LoadCubeFile (const std::string& fileName);
 	LUTState LoadCubeFile (std::ifstream& lutFile);
@@ -74,5 +77,6 @@ private:
 	tableRow ParseTableRow(const std::string& lineOfText);
 };
 
+constexpr size_t LUT_OBJ_SIZE = sizeof(CubeLUT);
 
 #endif

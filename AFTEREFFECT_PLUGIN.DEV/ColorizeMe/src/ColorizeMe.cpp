@@ -188,7 +188,8 @@ IsProcessingActivated(
 		(0 == params[COLOR_RED_PEDESTAL_SLIDER  ]->u.sd.value &&
 		 0 == params[COLOR_GREEN_PEDESTAL_SLIDER]->u.sd.value &&
          0 == params[COLOR_BLUE_PEDESTAL_SLIDER ]->u.sd.value &&
-			(nullptr == in_data->sequence_data || (nullptr != in_data->sequence_data && (static_cast<CubeLUT*>(*in_data->sequence_data)->LutIsLoaded() == false)))
+			(nullptr == in_data->sequence_data ||
+			(PF_GET_HANDLE_SIZE(in_data->sequence_data) == sizeof(CubeLUT) && (static_cast<CubeLUT*>(*in_data->sequence_data)->LutIsLoaded() == false)))
 		) ? false : true;
 	return bProc;
 }
@@ -270,13 +271,13 @@ SequenceSetup(
 	if (out_data->sequence_data) {
 		PF_DISPOSE_HANDLE_EX(out_data->sequence_data);
 	}
-	out_data->sequence_data = PF_NEW_HANDLE(sizeof(CubeLUT));
+	out_data->sequence_data = PF_NEW_HANDLE(LUT_OBJ_SIZE);
 	if (!out_data->sequence_data) {
 		return PF_Err_INTERNAL_STRUCT_DAMAGED;
 	}
 
-	/* pleacement new */
-	pLutObj = new(*out_data->sequence_data) CubeLUT;
+	memset(*out_data->sequence_data, 0, LUT_OBJ_SIZE);
+
 	return err;
 }
 
@@ -306,16 +307,13 @@ SequenceSetdown(
 {
 	PF_Err err = PF_Err_NONE;
 
-	if (in_data->sequence_data)
+	if (PF_GET_HANDLE_SIZE(in_data->sequence_data) == sizeof(CubeLUT))
 	{
-		/* explicit call of destructor because the object was created by placement new */
 		CubeLUT* pCubeLUT = static_cast<CubeLUT*>(*in_data->sequence_data);
-		if (nullptr != pCubeLUT)
-		{
+		if (0xDEADBEEF == pCubeLUT->uId)
 			pCubeLUT->~CubeLUT();
-		}
 
-		/* free memory handler */
+		/* free memory handler with memory cleanup */
 		PF_DISPOSE_HANDLE_EX(in_data->sequence_data);
 		out_data->sequence_data = nullptr;
 	}
@@ -335,25 +333,32 @@ UserChangedParam(
 	PF_Err err = PF_Err_NONE;
 	CubeLUT* pCubeLUT = nullptr;
 
-	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite =
-		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(
-			in_data,
-			kPFParamUtilsSuite,
-			kPFParamUtilsSuiteVersion3,
-			out_data);
-
 	switch (which_hitP->param_index)
 	{
 		case COLOR_LUT_FILE_BUTTON:
 		{
 			const std::string lutName = GetLutFileName();
-			if (!lutName.empty())
+			if (!lutName.empty() && PF_GET_HANDLE_SIZE(in_data->sequence_data) == sizeof(CubeLUT))
 			{
 				pCubeLUT = static_cast<CubeLUT*>(*out_data->sequence_data);
+				if (0xDEADBEEF == pCubeLUT->uId && lutName == pCubeLUT->GetLutName())
+					break; /* if object already cretaed and same LUT required - just ignore the action */
+
+				/* create new object with placement new */
+				pCubeLUT = new(*out_data->sequence_data) CubeLUT;
 				const CubeLUT::LUTState loadStatus = (nullptr != pCubeLUT ? pCubeLUT->LoadCubeFile(lutName) : CubeLUT::GenericError);
 				err = (CubeLUT::OK == loadStatus || CubeLUT::AlreadyLoaded == loadStatus) ? PF_Err_NONE : PF_Err_INVALID_INDEX;
 			}
 		}
+		break;
+
+		case COLOR_PEDESTAL_RESET_BUTTON:
+			params[COLOR_RED_PEDESTAL_SLIDER  ]->u.sd.value = 0;
+			params[COLOR_RED_PEDESTAL_SLIDER  ]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+			params[COLOR_GREEN_PEDESTAL_SLIDER]->u.sd.value = 0;
+			params[COLOR_GREEN_PEDESTAL_SLIDER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+			params[COLOR_BLUE_PEDESTAL_SLIDER ]->u.sd.value = 0;
+			params[COLOR_BLUE_PEDESTAL_SLIDER ]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
 		break;
 
 		default:
