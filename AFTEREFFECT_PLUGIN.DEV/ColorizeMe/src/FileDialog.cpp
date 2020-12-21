@@ -4,7 +4,7 @@
 
 const std::string GetLutFileName (void)
 {
-	std::string lutName{};
+	std::string lutName;
 	char filename[MAX_PATH]{};
 	OPENFILENAME ofn{};
 
@@ -16,7 +16,7 @@ const std::string GetLutFileName (void)
 	ofn.lpstrTitle = "Select a LUT File";
 	ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST;
 
-	if (GetOpenFileNameA(&ofn))
+	if (TRUE == GetOpenFileNameA (&ofn))
 		lutName = filename;
 	else
 		lutName.clear();

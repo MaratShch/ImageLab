@@ -6,6 +6,20 @@
 using LUTState = CubeLUT::LUTState;
 using tableRow = CubeLUT::tableRow;
 
+CubeLUT::CubeLUT (void)
+{ 
+	lutName.clear();
+	status = NotInitialized; 
+}
+
+CubeLUT::~CubeLUT()
+{ 
+	/* for DBG purpose only */
+	lutName.clear(); 
+	status = NotInitialized;
+}
+
+
 std::string CubeLUT::ReadLine (std::ifstream& lutFile, char lineSeperator)
 {
 	constexpr char CommentMarker = '#';
@@ -57,7 +71,7 @@ CubeLUT::LUTState CubeLUT::LoadCubeFile(const std::string& fileName)
 {
 	CubeLUT::LUTState lutState = OK;
 
-	if (fileName != lutName)
+	if (!fileName.empty() && fileName != lutName)
 	{
 		lutName = fileName;
 		std::ifstream cubeFile{ lutName };

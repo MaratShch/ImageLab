@@ -19,6 +19,17 @@
 #include "CompileTimeUtils.hpp"
 #include "CommonPixFormat.hpp"
 
+#ifdef _DEBUG
+#define PF_DISPOSE_HANDLE_EX(PF_HANDLE)                     \
+    memset(*(PF_HANDLE), 0, PF_GET_HANDLE_SIZE(PF_HANDLE)); \
+    PF_DISPOSE_HANDLE(PF_HANDLE);							
+#else
+#define PF_DISPOSE_HANDLE_EX(PF_HANDLE)                     \
+    memset(*(PF_HANDLE), 0, PF_GET_HANDLE_SIZE(PF_HANDLE)); \
+    PF_DISPOSE_HANDLE(PF_HANDLE);							\
+    (PF_HANDLE) = nullptr;
+#endif
+
 
 /* Entry point prototype for all AE PLUGINS */
 #ifdef __cplusplus

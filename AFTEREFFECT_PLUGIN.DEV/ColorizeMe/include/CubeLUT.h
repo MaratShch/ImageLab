@@ -18,10 +18,10 @@ struct rgbVec
 /* This is classic CUBE LUT file load implementation proposed by ADOBE company.
    Let's check how we can optimize it for performance
 */
-class CubeLUT
+class CubeLUT final
 {
-	CLASS_NON_MOVABLE (CubeLUT);
-	CLASS_NON_COPYABLE(CubeLUT);
+//	CLASS_NON_MOVABLE (CubeLUT);
+//	CLASS_NON_COPYABLE(CubeLUT);
 
 public:
 
@@ -56,10 +56,10 @@ public:
 	table1D  Lut1D;
 	table3D  Lut3D;
 
-	CubeLUT(void) { lutName.clear(); status = NotInitialized; }
-	virtual ~CubeLUT() { lutName.clear(); status = NotInitialized;	}
+	CubeLUT(void);
+	~CubeLUT();
 
-	LUTState LoadCubeFile(const std::string& fileName);
+	LUTState LoadCubeFile (const std::string& fileName);
 	LUTState LoadCubeFile (std::ifstream& lutFile);
 	LUTState SaveCubeFile (std::ofstream& lutFile);
 

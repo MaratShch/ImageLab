@@ -40,7 +40,7 @@ void WorkerCyclicJob (CWorkerThread* p, void* pQueue)
 	/* yield current worker on start, for take initialization time for another workers */
 	std::this_thread::yield();
 
-	/* !NOTE! private worker storage will be allocated here and deleted in class constructor -
+	/* !NOTE! private worker storage will be allocated here and deleted in class destructor -
 	   this allow rapid worker restarting */
 	if (0 != p->m_privateStorageSize && nullptr == p->m_privateStorage)
 	{

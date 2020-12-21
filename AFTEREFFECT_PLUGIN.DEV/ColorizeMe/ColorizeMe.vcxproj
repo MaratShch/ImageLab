@@ -109,6 +109,8 @@
     </ClCompile>
     <Link>
       <TargetMachine>MachineX64</TargetMachine>
+      <WPOAssemblyOutput>NoListing</WPOAssemblyOutput>
+      <InterproceduralOptimization>false</InterproceduralOptimization>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -124,6 +126,10 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
+    <Link>
+      <WPOAssemblyOutput>NoListing</WPOAssemblyOutput>
+      <InterproceduralOptimization>false</InterproceduralOptimization>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -150,6 +156,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <TargetMachine>MachineX64</TargetMachine>
+      <WPOAssemblyOutput>NoListing</WPOAssemblyOutput>
+      <InterproceduralOptimization>false</InterproceduralOptimization>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -174,6 +182,8 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <WPOAssemblyOutput>NoListing</WPOAssemblyOutput>
+      <InterproceduralOptimization>false</InterproceduralOptimization>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
