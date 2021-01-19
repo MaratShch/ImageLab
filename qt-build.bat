@@ -9,11 +9,14 @@ set QMAKEPATH=
 set XQMAKESPEC=
 
 set QTDIR=C:\QT\5.15.2\qtbase
-set PATH=%QTDIR%\bin;%PATH%
+set FBXSDK=C:\Autodesk\FBX_SDK\2020.2
+set FBXSDK_LIBS=%FBXSDK%\lib\vs2015\x64\release\libfbxsdk.lib
+
+set PATH=%QTDIR%\bin;%FBXSDK%;%PATH%
 
 mkdir qt5_build
 cd qt5_build
 
-..\5.15.2\configure -verbose -debug-and-release -opensource -confirm-license -platform win32-msvc -avx2 -qt3d-simd avx2 -feature-vulkan -qt-zlib -qt-libpng -qt-libjpeg -opengl dynamic -I "C:\VulkanSDK\1.2.162.1\Include" -I "C:\Autodesk\FBX_SDK\2020.1\include" -L "C:\VulkanSDK\1.2.162.1\Lib" -L "C:\Autodesk\FBX_SDK\2020.1\lib\vs2015\x64\release" -D "C:\VulkanSDK\1.2.162.1\Bin" -nomake examples -nomake tests
+..\5.15.2\configure -verbose -debug-and-release -opensource -confirm-license -platform win32-msvc -avx2 -qt3d-simd avx2 -feature-vulkan -qt-zlib -qt-libpng -qt-libjpeg -opengl dynamic -I "C:\VulkanSDK\1.2.162.1\Include" -I "%FBXSDK%\include" -L "C:\VulkanSDK\1.2.162.1\Lib" -L "%FBXSDK_LIBS%" -D "C:\VulkanSDK\1.2.162.1\Bin" -nomake examples -nomake tests
 
 ..\jom\jom -j 8
