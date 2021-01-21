@@ -21,5 +21,4 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAli
 	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
-
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */

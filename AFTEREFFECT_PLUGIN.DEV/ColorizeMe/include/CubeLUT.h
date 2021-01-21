@@ -4,9 +4,9 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <atomic>
 #include "ClassRestrictions.hpp"
 
-#define NEAR(x)	((int)((x)+0.5))
 
 struct rgbVec
 {
@@ -68,15 +68,22 @@ public:
 
 	bool LutIsLoaded(void) { return bActive; }
 
+	int32_t GetLutSize(void) { return lutSize; }
 //	tableRow interpNearest(const rgbVec& in);
 
+	uint32_t increaseRefCnt(void) { return ++refCnt; }
+	uint32_t decreseRefCnt(void) { return (refCnt > 0u) ? --refCnt : 0u; }
 
 private:
+	int32_t lutSize;
 	bool bActive = false;
+	std::atomic<uint32_t> refCnt;
 	std::string ReadLine (std::ifstream& lutFile, char lineSeperator);
 	tableRow ParseTableRow(const std::string& lineOfText);
 };
 
 constexpr size_t LUT_OBJ_SIZE = sizeof(CubeLUT);
+
+using LutObjHndl = CubeLUT*;
 
 #endif

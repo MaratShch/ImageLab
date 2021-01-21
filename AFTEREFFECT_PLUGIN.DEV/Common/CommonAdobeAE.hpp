@@ -12,7 +12,7 @@
 #include "AE_EffectCBSuites.h"
 #include "AE_GeneralPlug.h"
 #include "AEFX_SuiteHandlerTemplate.h"
-#include "PrSDKAESupport.h"
+
 
 #include "Common.hpp"
 #include "Param_Utils.h"
@@ -30,6 +30,10 @@
     (PF_HANDLE) = nullptr;
 #endif
 
+#ifndef GET_OBJ_FROM_HNDL
+ #define GET_OBJ_FROM_HNDL(h) (*(h))
+#endif
+
 
 /* Entry point prototype for all AE PLUGINS */
 #ifdef __cplusplus
@@ -38,6 +42,16 @@ extern "C" {
 
 	DllExport
 		PF_Err EntryPointFunc(
+			PF_Cmd			cmd,
+			PF_InData		*in_data,
+			PF_OutData		*out_data,
+			PF_ParamDef		*params[],
+			PF_LayerDef		*output,
+			void			*extra);
+
+	DllExport
+		PF_Err xGPUFilterEntry
+		(
 			PF_Cmd			cmd,
 			PF_InData		*in_data,
 			PF_OutData		*out_data,

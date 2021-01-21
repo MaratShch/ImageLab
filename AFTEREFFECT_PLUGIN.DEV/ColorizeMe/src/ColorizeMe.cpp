@@ -1,6 +1,8 @@
 #include "ColorizeMe.hpp"
 #include "CubeLUT.h"
 #include <Windows.h>
+#include "CommonDebugUtils.hpp"
+
 
 static PF_Err
 About(
@@ -62,13 +64,13 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
 	return PF_Err_NONE;
@@ -188,8 +190,9 @@ IsProcessingActivated(
 		(0 == params[COLOR_RED_PEDESTAL_SLIDER  ]->u.sd.value &&
 		 0 == params[COLOR_GREEN_PEDESTAL_SLIDER]->u.sd.value &&
          0 == params[COLOR_BLUE_PEDESTAL_SLIDER ]->u.sd.value &&
+         0 == params[COLOR_NEGATE_CHECKBOX]->u.bd.value &&
 			(nullptr == in_data->sequence_data ||
-			(PF_GET_HANDLE_SIZE(in_data->sequence_data) == sizeof(CubeLUT) && (static_cast<CubeLUT*>(*in_data->sequence_data)->LutIsLoaded() == false)))
+			(PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize && (0xDEADBEEF != (reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)))->magic)))
 		) ? false : true;
 	return bProc;
 }
@@ -249,7 +252,7 @@ Render(
 		else
 		{
 			/* This plugin called from AE */
-			err = ProcessImgInAE(in_data, out_data, params, output);
+			err = ProcessImgInAE(in_data, out_data, params, output);                 
 		}
 	}
 
@@ -263,21 +266,45 @@ SequenceSetup(
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output
-) 
+) noexcept
 {
+	SequenceData* seqData = nullptr;
 	PF_Err err = PF_Err_NONE;
-	CubeLUT* pLutObj = nullptr;
+	LutIdx idx = invalidLut;
 
-	if (out_data->sequence_data) {
+	if (nullptr != out_data->sequence_data && PF_GET_HANDLE_SIZE(out_data->sequence_data) == SequenceDataSize) {
+		idx = (reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)))->lut_idx;
 		PF_DISPOSE_HANDLE_EX(out_data->sequence_data);
 	}
-	out_data->sequence_data = PF_NEW_HANDLE(LUT_OBJ_SIZE);
+
+	out_data->sequence_data = PF_NEW_HANDLE(SequenceDataSize);
 	if (!out_data->sequence_data) {
 		return PF_Err_INTERNAL_STRUCT_DAMAGED;
 	}
 
-	memset(*out_data->sequence_data, 0, LUT_OBJ_SIZE);
+	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)))->magic = 0xDEADBEEF;
+	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)))->lut_idx = idx;
+	out_data->flat_sdata_size = SequenceDataSize;
+	return err;
+}
 
+
+static PF_Err
+SequenceResetupEx(PF_InData* in_data, const LutIdx& lutIdx)
+{
+	PF_Err err = PF_Err_NONE;
+
+	if (nullptr != in_data->sequence_data && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize) {
+		PF_DISPOSE_HANDLE_EX(in_data->sequence_data);
+	}
+
+	in_data->sequence_data = PF_NEW_HANDLE(SequenceDataSize);
+	if (!in_data->sequence_data) {
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)))->magic = 0xDEADBEEF;
+	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)))->lut_idx = lutIdx;
 	return err;
 }
 
@@ -288,12 +315,20 @@ SequenceReSetup(
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output
-) 
+) noexcept
 {
+	SequenceData* seqData = nullptr;
+	LutIdx lut_idx = invalidLut;
+
 	if (!in_data->sequence_data) {
-		return SequenceSetup(in_data, out_data, params, output);
+		if (nullptr != in_data->sequence_data && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize)
+		{
+			seqData = reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data));
+			if (0xDEADBEEF == seqData->magic)
+				lut_idx = seqData->lut_idx;
+		}
 	}
-	return PF_Err_NONE;
+	return SequenceResetupEx (in_data, lut_idx);
 }
 
 
@@ -303,19 +338,21 @@ SequenceSetdown(
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output
-) 
+) noexcept
 {
+	SequenceData* seqData = nullptr;
 	PF_Err err = PF_Err_NONE;
+	LutIdx lut_idx = -1;
 
-	if (PF_GET_HANDLE_SIZE(in_data->sequence_data) == sizeof(CubeLUT))
+	if (nullptr != in_data->sequence_data && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize)
 	{
-		CubeLUT* pCubeLUT = static_cast<CubeLUT*>(*in_data->sequence_data);
-		if (0xDEADBEEF == pCubeLUT->uId)
-			pCubeLUT->~CubeLUT();
+		seqData = reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
+		lut_idx = (0xDEADBEEF == seqData->magic ? seqData->lut_idx : invalidLut);
+		removeLut(lut_idx);
 
 		/* free memory handler with memory cleanup */
 		PF_DISPOSE_HANDLE_EX(in_data->sequence_data);
-		out_data->sequence_data = nullptr;
+		in_data->sequence_data = out_data->sequence_data = nullptr;
 	}
 
 	return err;
@@ -328,7 +365,7 @@ UserChangedParam(
 	PF_ParamDef						*params[],
 	PF_LayerDef						*outputP,
 	const PF_UserChangedParamExtra	*which_hitP
-) 
+) noexcept
 {
 	PF_Err err = PF_Err_NONE;
 	CubeLUT* pCubeLUT = nullptr;
@@ -338,16 +375,11 @@ UserChangedParam(
 		case COLOR_LUT_FILE_BUTTON:
 		{
 			const std::string lutName = GetLutFileName();
-			if (!lutName.empty() && PF_GET_HANDLE_SIZE(in_data->sequence_data) == sizeof(CubeLUT))
+			if (!lutName.empty() && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize)
 			{
-				pCubeLUT = static_cast<CubeLUT*>(*out_data->sequence_data);
-				if (0xDEADBEEF == pCubeLUT->uId && lutName == pCubeLUT->GetLutName())
-					break; /* if object already cretaed and same LUT required - just ignore the action */
-
-				/* create new object with placement new */
-				pCubeLUT = new(*out_data->sequence_data) CubeLUT;
-				const CubeLUT::LUTState loadStatus = (nullptr != pCubeLUT ? pCubeLUT->LoadCubeFile(lutName) : CubeLUT::GenericError);
-				err = (CubeLUT::OK == loadStatus || CubeLUT::AlreadyLoaded == loadStatus) ? PF_Err_NONE : PF_Err_INVALID_INDEX;
+				SequenceData* seqData = reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
+				const LutIdx lut_idx = addToLut(lutName);
+				seqData->lut_idx = lut_idx;
 			}
 		}
 		break;
@@ -375,7 +407,7 @@ UpdateParameterUI(
 	PF_OutData			*out_data,
 	PF_ParamDef			*params[],
 	PF_LayerDef			*outputP
-) 
+) noexcept
 {
 	PF_Err err = PF_Err_NONE;
 	return err;
@@ -394,7 +426,8 @@ EntryPointFunc(
 {
 	PF_Err		err = PF_Err_NONE;
 
-	try {
+	try
+	{
 		switch (cmd)
 		{
 			case PF_Cmd_ABOUT:
@@ -449,26 +482,30 @@ EntryPointFunc(
 	return err;
 }
 
+
 #ifdef AE_OS_WIN
-BOOL WINAPI DllMain(HINSTANCE hDLL, DWORD dwReason, LPVOID lpReserved)
+BOOL WINAPI DllMain (HINSTANCE hDLL, DWORD dwReason, LPVOID lpReserved)
 {
-	HINSTANCE my_instance_handle = (HINSTANCE)0;
+	HINSTANCE my_instance_handle = 0;
 
 	switch (dwReason)
 	{
-	case DLL_PROCESS_ATTACH:
-		my_instance_handle = hDLL;
+		case DLL_PROCESS_ATTACH:
+			InitLutHelper();
+			my_instance_handle = hDLL;
 		break;
 
-	case DLL_THREAD_ATTACH:
-		my_instance_handle = hDLL;
+		case DLL_THREAD_ATTACH:
+			my_instance_handle = hDLL;
 		break;
-	case DLL_THREAD_DETACH:
-		my_instance_handle = 0;
+
+		case DLL_THREAD_DETACH:
+			my_instance_handle = 0;
 		break;
-	case DLL_PROCESS_DETACH:
-		my_instance_handle = 0;
-		break;
+
+		case DLL_PROCESS_DETACH:
+			DisposeAllLUTs();
+			my_instance_handle = 0;
 		break;
 	}
 	return(TRUE);

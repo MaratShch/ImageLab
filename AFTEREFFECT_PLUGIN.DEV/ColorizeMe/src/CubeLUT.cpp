@@ -8,6 +8,8 @@ using tableRow = CubeLUT::tableRow;
 
 CubeLUT::CubeLUT (void)
 { 
+	lutSize = 0;
+	refCnt = 0;
 	bActive = false;
 	uId = 0xDEADBEEF;
 	lutName.clear();
@@ -16,6 +18,7 @@ CubeLUT::CubeLUT (void)
 
 CubeLUT::~CubeLUT()
 { 
+	lutSize = 0;
 	bActive = false;
 	uId = 0xFFFFFFFF;
 	lutName.clear();
@@ -104,6 +107,7 @@ CubeLUT::LUTState CubeLUT::LoadCubeFile (std::ifstream& lutFile)
 	domainMin = tableRow(3, 0.0f);
 	domainMax = tableRow(3, 1.0f);
 
+	lutSize = 0;
 	Lut1D.clear();
 	Lut3D.clear();
 
@@ -180,6 +184,7 @@ CubeLUT::LUTState CubeLUT::LoadCubeFile (std::ifstream& lutFile)
 				status = LUTSizeOutOfRange;
 				break;
 			}
+			lutSize = N;
 			Lut1D = table1D(N, tableRow(3));
 		} /* else if ("LUT_1D_SIZE" == keyword && CntSize++ == 0) */
 		else if ("LUT_3D_SIZE" == keyword && CntSize++ == 0)
@@ -190,6 +195,7 @@ CubeLUT::LUTState CubeLUT::LoadCubeFile (std::ifstream& lutFile)
 				status = LUTSizeOutOfRange;
 				break;
 			}
+			lutSize = N;
 			Lut3D = table3D(N, table2D(N, table1D(N, tableRow(3))));
 		} /* else if ("LUT_3D_SIZE" == keyword && CntSize++ == 0) */
 		else
@@ -246,6 +252,7 @@ CubeLUT::LUTState CubeLUT::LoadCubeFile (std::ifstream& lutFile)
 	}
 
 	bActive = true;
+	refCnt++;
 	return status;
 }
 

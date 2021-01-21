@@ -13,12 +13,15 @@
 #include "AE_EffectCBSuites.h"
 #include "AE_GeneralPlug.h"
 #include "AEFX_SuiteHandlerTemplate.h"
+#include "PrSDKAESupport.h"
 
 #include "CommonAdobeAE.hpp"
 #include "Param_Utils.h"
 
 #include "Common.hpp"
 #include "Param_Utils.h"
+
+#include "LutHelper.hpp"
 
 constexpr char strName[] = "ColorizeMe";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage LUT & color manipulation plugin.";
@@ -91,6 +94,16 @@ constexpr char pedestalReset[] = "Reset Pedestal";
 const std::string GetLutFileName (void);
 const std::string GetLutFileName (const std::string& fileMask);
 
+constexpr LutIdx invalidLut = -1;
+
+typedef struct SequenceData
+{
+	uint32_t magic;
+	LutIdx   lut_idx;
+};
+
+constexpr size_t SequenceDataSize = sizeof(SequenceData);
+
 PF_Err ProcessImgInAE
 (
 	PF_InData*   __restrict in_data,
@@ -108,3 +121,27 @@ PF_Err ProcessImgInPR
 	const PrPixelFormat&    pixelFormat
 ) noexcept;
 
+bool ProcessPrImage_BGRA_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+bool ProcessPrImage_BGRA_4444_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+bool ProcessPrImage_VUYA_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output,
+	const bool isBT709
+) noexcept;

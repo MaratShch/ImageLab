@@ -192,18 +192,21 @@
     <ClCompile Include="src\ColorizeMePR.cpp" />
     <ClCompile Include="src\CubeLUT.cpp" />
     <ClCompile Include="src\FileDialog.cpp" />
+    <ClCompile Include="src\LutHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ColorizeMe.hpp" />
     <ClInclude Include="include\CubeLUT.h" />
+    <ClInclude Include="include\LutHelper.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ColorizeMe.r">

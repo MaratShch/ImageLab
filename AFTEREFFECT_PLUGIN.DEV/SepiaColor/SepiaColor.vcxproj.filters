@@ -21,6 +21,9 @@
     <ClCompile Include="src\SepiaColor.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\SepiaColor_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\SepiaColor.hpp">

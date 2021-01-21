@@ -2,6 +2,20 @@
 
 namespace FastCompute
 {
+	constexpr auto CHAR_BITS = 8;
+
+	inline constexpr int Min(const int& x, const int& y)
+	{
+		return y + ((x - y) & ((x - y) >>
+			(sizeof(int) * CHAR_BITS - 1)));
+	}
+
+	inline constexpr int Max(const int& x, const int& y)
+	{
+		return x - ((x - y) & ((x - y) >>
+			(sizeof(int) * CHAR_BITS - 1)));
+	}
+
 	template <typename T>
 	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min(const T& x, const T& y)
 	{	/* find minimal value between 2 fixed point values without branch */

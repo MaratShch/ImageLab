@@ -11,6 +11,7 @@
 #include "AE_EffectCBSuites.h"
 #include "AE_GeneralPlug.h"
 #include "AEFX_SuiteHandlerTemplate.h"
+#include "PrSDKAESupport.h"
 
 #include "CommonAdobeAE.hpp"
 #include "Param_Utils.h"

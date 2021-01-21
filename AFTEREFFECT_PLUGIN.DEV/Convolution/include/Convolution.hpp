@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CommonAdobeAE.hpp"
+#include "PrSDKAESupport.h"
 
 constexpr char strName[] = "Convolution";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage convolution with differents kernels plugin.";

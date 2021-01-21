@@ -1,13 +1,6 @@
 #include "SepiaColor.hpp"
 #include "ColorTransformMatrix.hpp"
-
-CACHE_ALIGN constexpr float SepiaMatrix[9] =
-{
-	0.3930f, 0.7690f, 0.1890f,
-	0.3490f, 0.6860f, 0.1680f,
-	0.2720f, 0.5340f, 0.1310f
-};
-
+#include "PrSDKAESupport.h"
 
 static PF_Err
 About(
@@ -780,7 +773,7 @@ SmartRender(
 
 
 DllExport	PF_Err
-EntryPointFunc(
+EffectMain(
 	PF_Cmd			cmd,
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
