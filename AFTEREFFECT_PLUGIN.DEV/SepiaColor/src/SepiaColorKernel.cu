@@ -28,6 +28,22 @@ __global__ void kSepiaColorCUDA
 	const int inHeight
 )
 {
+	float4 dest;
+
+	const int x = blockIdx.x * blockDim.x + threadIdx.x;
+	const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if (x >= inWidth || y >= inHeight) return;
+
+	if (in16f) {
+		Pixel16*  in16 = (Pixel16*)destImg;
+		dest = HalfToFloat4(in16[y *  destPitch + x]);
+	}
+	else {
+		dest = destImg[y *  destPitch + x];
+	}
+
+
 	return;
 }
 

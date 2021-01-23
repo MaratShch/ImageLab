@@ -4,8 +4,6 @@ std::atomic<uint32_t>CImageLab2GpuObj::objCnt = 0u;
 
 CImageLab2GpuObj::CImageLab2GpuObj()
 {
-	objCnt++;
-
 	mGPUDeviceSuite = nullptr;
 	mGPUImageProcessingSuite = nullptr;
 	mMemoryManagerSuite = nullptr;
@@ -24,7 +22,6 @@ CImageLab2GpuObj::CImageLab2GpuObj()
 
 CImageLab2GpuObj::~CImageLab2GpuObj()
 {
-	objCnt--;
 	return;
 }
 
