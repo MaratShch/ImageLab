@@ -97,8 +97,9 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib;OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+      <IgnoreAllDefaultLibraries />
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -130,8 +131,9 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib;OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+      <IgnoreAllDefaultLibraries />
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -144,9 +146,11 @@
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
+    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\SepiaColor.hpp" />
     <ClInclude Include="include\SepiaColorGPU.hpp" />
+    <ClInclude Include="include\SepiaMatrix.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="SepiaColor.r">
@@ -172,17 +176,19 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="SepiaColor.rc" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="src\SepiaColor_GPU.cu">
+    <CustomBuild Include="src\SepiaColorKernel.cu">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH)
-"$(CUDA_PATH)\bin\nvcc.exe" -arch=sm_53 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -D_MBCS -Xcompiler /MT,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -o "$(IntDir)\%(Filename).obj" "$(ProjectDir)\src\%(Filename).cu"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe"  -arch=sm_61 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)SepiaColorKernel.obj" "$(ProjectDir)src\SepiaColorKernel.cu"
+</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building %(Filename).cu</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\BUILD.OUT\$(Configuration)\</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\%(Filename).obj</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).cu</AdditionalInputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH)
-"$(CUDA_PATH)\bin\nvcc.exe" -arch=sm_53 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -D_MBCS -Xcompiler /MT,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -o "$(IntDir)\%(Filename).obj" "$(ProjectDir)\src\%(Filename).cu"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe"  -arch=sm_61 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)SepiaColorKernel.obj" "$(ProjectDir)src\SepiaColorKernel.cu"
+</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building %(Filename).cu</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\BUILD.OUT\$(Configuration)\</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\%(Filename).obj</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).cu</AdditionalInputs>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>

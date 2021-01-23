@@ -16,3 +16,24 @@ extern "C" {
 #endif
 
 
+typedef struct Pixel16
+{
+	unsigned short x;
+	unsigned short y;
+	unsigned short z;
+	unsigned short w;
+}Pixel16, *PPixel16;
+
+
+CUDA_KERNEL_CALL
+bool SepiaColorLoadMatrix_CUDA(void);
+
+CUDA_KERNEL_CALL
+void SepiaColor_CUDA
+(
+	float* destBuf,
+	int destPitch,
+	int	is16f,
+	int width,
+	int height
+);

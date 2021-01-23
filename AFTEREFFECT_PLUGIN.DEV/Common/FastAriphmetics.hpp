@@ -17,7 +17,7 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min(const T& x, const T& y)
+	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type  Min(const T& x, const T& y)
 	{	/* find minimal value between 2 fixed point values without branch */
 		return y ^ ((x ^ y) & -(x < y));
 	}

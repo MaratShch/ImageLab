@@ -50,6 +50,12 @@
     <ClInclude Include="include\SepiaColorGPU.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\SepiaMatrix.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmetics.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="SepiaColor.rc">
@@ -60,7 +66,7 @@
     <CustomBuild Include="SepiaColor.r">
       <Filter>resource</Filter>
     </CustomBuild>
-    <CustomBuild Include="src\SepiaColor_GPU.cu">
+    <CustomBuild Include="src\SepiaColorKernel.cu">
       <Filter>src</Filter>
     </CustomBuild>
   </ItemGroup>

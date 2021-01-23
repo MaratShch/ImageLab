@@ -1,6 +1,6 @@
-#include "SepiaColor.hpp"
 #include "SepiaColorGPU.hpp"
 #include "ImageLab2GpuObj.hpp"
+#include "SepiaColor.hpp"
 
 
 #ifdef _DEBUG
@@ -10,7 +10,8 @@
 #endif
 
 
-extern void SepiaColor_CUDA (float* destBuf, int destPitch, int	is16f, int width, int height);
+CUDA_KERNEL_CALL void SepiaColor_CUDA (float* destBuf, int destPitch, int is16f, int width, int height);
+CUDA_KERNEL_CALL bool SepiaColorLoadMatrix_CUDA(void);
 
 
 class SepiAColorGPU :
@@ -26,7 +27,7 @@ public:
 
 	prSuiteError InitializeCUDA(void)
 	{
-		return suiteError_NoError;
+		return ((true == SepiaColorLoadMatrix_CUDA()) ? suiteError_NoError : suiteError_Fail);
 	}
 
 	virtual prSuiteError Initialize (PrGPUFilterInstance* ioInstanceData)

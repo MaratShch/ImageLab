@@ -1,4 +1,5 @@
 #include "SepiaColor.hpp"
+#include "SepiaMatrix.hpp"
 #include "ColorTransformMatrix.hpp"
 #include "PrSDKAESupport.h"
 
