@@ -257,7 +257,7 @@ UpdateParameterUI(
 
 
 
-DllExport	PF_Err 
+PLUGIN_ENTRY_POINT_CALL	PF_Err
 EntryPointFunc (	
 	PF_Cmd			cmd,
 	PF_InData		*in_data,

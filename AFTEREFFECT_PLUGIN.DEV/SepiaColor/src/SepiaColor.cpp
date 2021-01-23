@@ -297,7 +297,6 @@ FilterImageVUYA_32f(
 	float R, G, B;
 	float newR, newG, newB;
 	float newY, newU, newV;
-	float Y, U, V;
 
 	const float* __restrict yuv2rgb = YUV2RGB[BT601];
 	const float* __restrict rgb2yuv = RGB2YUV[BT601];
@@ -335,7 +334,6 @@ FilterImageVUYA_32f_709(
 	float R, G, B;
 	float newR, newG, newB;
 	float newY, newU, newV;
-	float Y, U, V;
 
 	const float* __restrict yuv2rgb = YUV2RGB[BT709];
 	const float* __restrict rgb2yuv = RGB2YUV[BT709];
@@ -772,7 +770,7 @@ SmartRender(
 }
 
 
-DllExport	PF_Err
+PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
 	PF_Cmd			cmd,
 	PF_InData		*in_data,

@@ -35,12 +35,14 @@
 #endif
 
 
-/* Entry point prototype for all AE PLUGINS */
 #ifdef __cplusplus
-extern "C" {
+ #define PLUGIN_ENTRY_POINT_CALL	extern "C" DllExport
+#else
+ #define PLUGIN_ENTRY_POINT_CALL DllExport
 #endif
 
-	DllExport
+/* Entry point prototype for all AE PLUGINS */
+	PLUGIN_ENTRY_POINT_CALL
 		PF_Err EntryPointFunc(
 			PF_Cmd			cmd,
 			PF_InData		*in_data,
@@ -48,19 +50,5 @@ extern "C" {
 			PF_ParamDef		*params[],
 			PF_LayerDef		*output,
 			void			*extra);
-
-	DllExport
-		PF_Err xGPUFilterEntry
-		(
-			PF_Cmd			cmd,
-			PF_InData		*in_data,
-			PF_OutData		*out_data,
-			PF_ParamDef		*params[],
-			PF_LayerDef		*output,
-			void			*extra);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* __IMAGE_LAB2_ADOBE_AE_COMMON_INCLUDES_FILES__ */

@@ -10,6 +10,15 @@
 #include "ClassRestrictions.hpp"
 #include <atomic>
 
+
+#ifdef __cplusplus
+#define PLUGIN_GPU_ENTRY_POINT_CALL	extern "C" DllExport
+#else
+#define PLUGIN_GPU_ENTRY_POINT_CALL DllExport
+#endif
+
+
+
 class CImageLab2GpuObj
 {
 public:
@@ -93,13 +102,9 @@ private:
 /**
 **
 */
-template<
-	class GPUFilter>
+template<class GPUFilter>
 	struct PrGPUFilterModule
 {
-	/**
-	**
-	*/
 	static prSuiteError Startup(
 		piSuitesPtr piSuites,
 		csSDK_int32* ioIndex,
@@ -121,9 +126,6 @@ template<
 		return GPUFilter::Startup(piSuites, *ioIndex);
 	}
 
-	/**
-	**
-	*/
 	static prSuiteError Shutdown(
 		piSuitesPtr piSuites,
 		csSDK_int32* ioIndex)
@@ -131,9 +133,6 @@ template<
 		return GPUFilter::Shutdown(piSuites, *ioIndex);
 	}
 
-	/**
-	**
-	*/
 	static prSuiteError CreateInstance(
 		PrGPUFilterInstance* ioInstanceData)
 	{
@@ -150,9 +149,6 @@ template<
 		return result;
 	}
 
-	/**
-	**
-	*/
 	static prSuiteError DisposeInstance(
 		PrGPUFilterInstance* ioInstanceData)
 	{
@@ -161,9 +157,6 @@ template<
 		return suiteError_NoError;
 	}
 
-	/**
-	**
-	*/
 	static prSuiteError GetFrameDependencies(
 		PrGPUFilterInstance* inInstanceData,
 		const PrGPUFilterRenderParams* inRenderParams,
@@ -173,9 +166,6 @@ template<
 		return ((GPUFilter*)inInstanceData->ioPrivatePluginData)->GetFrameDependencies(inRenderParams, ioQueryIndex, outFrameRequirements);
 	}
 
-	/**
-	**
-	*/
 	static prSuiteError Precompute(
 		PrGPUFilterInstance* inInstanceData,
 		const PrGPUFilterRenderParams* inRenderParams,
@@ -185,9 +175,6 @@ template<
 		return ((GPUFilter*)inInstanceData->ioPrivatePluginData)->Precompute(inRenderParams, inIndex, inFrame);
 	}
 
-	/**
-	**
-	*/
 	static prSuiteError Render(
 		PrGPUFilterInstance* inInstanceData,
 		const PrGPUFilterRenderParams* inRenderParams,
@@ -198,3 +185,31 @@ template<
 		return ((GPUFilter*)inInstanceData->ioPrivatePluginData)->Render(inRenderParams, inFrames, inFrameCount, outFrame);
 	}
 };
+
+
+#ifndef DECLARE_GPUFILTER_ENTRY
+#define DECLARE_GPUFILTER_ENTRY(ClassName) \
+	PLUGIN_GPU_ENTRY_POINT_CALL prSuiteError xGPUFilterEntry( \
+	csSDK_uint32 inHostInterfaceVersion, \
+	csSDK_int32* ioIndex, \
+	prBool inStartup, \
+	piSuitesPtr piSuites, \
+	PrGPUFilter* outFilter, \
+	PrGPUFilterInfo* outFilterInfo) \
+	{ \
+		if (inStartup) \
+		{ \
+			outFilter->CreateInstance = ClassName::CreateInstance; \
+			outFilter->DisposeInstance = ClassName::DisposeInstance; \
+			outFilter->GetFrameDependencies = ClassName::GetFrameDependencies; \
+			outFilter->Precompute = ClassName::Precompute; \
+			outFilter->Render = ClassName::Render; \
+			return ClassName::Startup(piSuites, ioIndex, outFilterInfo); \
+		} \
+		else \
+		{ \
+			return ClassName::Shutdown(piSuites, ioIndex); \
+		} \
+	}
+
+#endif

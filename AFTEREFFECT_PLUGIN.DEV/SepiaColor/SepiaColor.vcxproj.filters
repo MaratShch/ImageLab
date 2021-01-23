@@ -47,6 +47,9 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\SepiaColorGPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="SepiaColor.rc">
@@ -56,6 +59,9 @@
   <ItemGroup>
     <CustomBuild Include="SepiaColor.r">
       <Filter>resource</Filter>
+    </CustomBuild>
+    <CustomBuild Include="src\SepiaColor_GPU.cu">
+      <Filter>src</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>
