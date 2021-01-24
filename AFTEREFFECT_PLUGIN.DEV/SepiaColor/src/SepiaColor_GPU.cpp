@@ -10,12 +10,7 @@
 #endif
 
 
-CUDA_KERNEL_CALL void SepiaColor_CUDA (float* destBuf, int destPitch, int is16f, int width, int height);
-CUDA_KERNEL_CALL bool SepiaColorLoadMatrix_CUDA(void);
-
-
-class SepiAColorGPU :
-	public CImageLab2GpuObj
+class SepiAColorGPU : public CImageLab2GpuObj
 {
 public:
 	CLASS_NON_COPYABLE(SepiAColorGPU);
@@ -23,7 +18,6 @@ public:
 
 	SepiAColorGPU() = default;
 	virtual ~SepiAColorGPU() = default;
-
 
 	prSuiteError InitializeCUDA(void)
 	{
@@ -46,6 +40,9 @@ public:
 		PPixHand* outFrame)
 	{
 		void* frameData = nullptr;
+		void* destFrameData = nullptr;
+		void* srcFrameData = nullptr;
+
 		mGPUDeviceSuite->GetGPUPPixData (*outFrame, &frameData);
 
 		PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
@@ -60,22 +57,24 @@ public:
 		mPPixSuite->GetRowBytes(*outFrame, &rowBytes);
 		const int is16f = pixelFormat != PrPixelFormat_GPU_BGRA_4444_32f;
 
-		void* destFrameData = nullptr;
 		csSDK_int32 destRowBytes = 0;
 		mGPUDeviceSuite->GetGPUPPixData(*outFrame, &destFrameData);
 		mPPixSuite->GetRowBytes(*outFrame, &destRowBytes);
 		const int destPitch = destRowBytes / GetGPUBytesPerPixel(pixelFormat);
 
+		mGPUDeviceSuite->GetGPUPPixData(*inFrames, &srcFrameData);
+
 		/* start CUDA */
 		if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
 		{
 			/* CUDA device pointers */
-			float* destBuffer = reinterpret_cast<float*>(destFrameData);
+			float* inBuffer  = reinterpret_cast<float*>(srcFrameData);
+			float* outBuffer = reinterpret_cast<float*>(destFrameData);
 
 			/* Launch CUDA kernel */
-			SepiaColor_CUDA (destBuffer, destPitch, is16f, width, height);
+			SepiaColor_CUDA (inBuffer, outBuffer, destPitch, is16f, width, height);
 
-			if (cudaPeekAtLastError() != cudaSuccess)
+			if (cudaSuccess == cudaPeekAtLastError())
 			{
 				return suiteError_Fail;
 			}

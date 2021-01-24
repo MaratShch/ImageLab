@@ -31,7 +31,8 @@ bool SepiaColorLoadMatrix_CUDA(void);
 CUDA_KERNEL_CALL
 void SepiaColor_CUDA
 (
-	float* destBuf,
+	float* inBuf,
+	float* outBuf,
 	int destPitch,
 	int	is16f,
 	int width,

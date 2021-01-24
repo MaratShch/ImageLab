@@ -186,14 +186,12 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <CustomBuild Include="src\SepiaColorKernel.cu">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
-"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  -arch=sm_61 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)SepiaColorKernel.obj" "$(ProjectDir)src\SepiaColorKernel.cu"
-</Command>
+"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common --debug --device-debug -o "$(IntDir)SepiaColorKernel.obj" "$(ProjectDir)src\SepiaColorKernel.cu"</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building %(Filename).cu</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\%(Filename).obj</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).cu</AdditionalInputs>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
-"$(CUDA_PATH)\bin\nvcc.exe"  -arch=sm_61 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)SepiaColorKernel.obj" "$(ProjectDir)src\SepiaColorKernel.cu"
-</Command>
+"$(CUDA_PATH)\bin\nvcc.exe" --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common --debug --device-debug -o "$(IntDir)SepiaColorKernel.obj" "$(ProjectDir)src\SepiaColorKernel.cu"</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building %(Filename).cu</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\%(Filename).obj</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).cu</AdditionalInputs>
