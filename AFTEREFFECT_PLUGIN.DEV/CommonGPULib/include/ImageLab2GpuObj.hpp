@@ -10,14 +10,14 @@
 #include "ClassRestrictions.hpp"
 #include <atomic>
 
-
 #ifdef __cplusplus
 #define PLUGIN_GPU_ENTRY_POINT_CALL	extern "C" DllExport
 #else
 #define PLUGIN_GPU_ENTRY_POINT_CALL DllExport
 #endif
 
-
+constexpr int32_t ImageLabGpuPixel16f = PrPixelFormat_GPU_BGRA_4444_16f;
+constexpr int32_t ImageLabGpuPixel32f = PrPixelFormat_GPU_BGRA_4444_32f;
 
 class CImageLab2GpuObj
 {
@@ -47,6 +47,12 @@ public:
 	static PrSDKString MatchName (piSuitesPtr piSuites, csSDK_int32 inIndex)
 	{
 		return PrSDKString();
+	}
+
+	static const csSDK_uint32 TotalInstances(void)
+	{
+		const csSDK_uint32 cnt = objCnt;
+		return cnt;
 	}
 
 	virtual prSuiteError Initialize(PrGPUFilterInstance* ioInstanceData);

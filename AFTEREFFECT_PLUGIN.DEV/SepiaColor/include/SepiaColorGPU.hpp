@@ -15,15 +15,18 @@ extern "C" {
 }
 #endif
 
-
 typedef struct Pixel16
 {
-	unsigned short x;
-	unsigned short y;
-	unsigned short z;
-	unsigned short w;
+	unsigned short x; /* BLUE	*/
+	unsigned short y; /* GREEN	*/
+	unsigned short z; /* RED	*/	
+	unsigned short w; /* ALLPHA	*/
 }Pixel16, *PPixel16;
 
+#ifndef CLAMP_VALUE
+#define CLAMP_VALUE(val, val_min, val_max) \
+	(((val) < (val_min)) ? (val_min) : (((val) > (val_max)) ? (val_max) : (val)))
+#endif
 
 CUDA_KERNEL_CALL
 bool SepiaColorLoadMatrix_CUDA(void);
@@ -34,6 +37,7 @@ void SepiaColor_CUDA
 	float* inBuf,
 	float* outBuf,
 	int destPitch,
+	int srcPitch,
 	int	is16f,
 	int width,
 	int height
