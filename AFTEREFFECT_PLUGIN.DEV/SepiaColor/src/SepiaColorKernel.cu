@@ -34,8 +34,8 @@ __global__ void kSepiaColorCUDA
 	float4 outPix;
 
 	constexpr float value_black = 0.f;
-	constexpr float FLT_EPSILON = 1.19209290e-07F;
-	constexpr float value_white = 1.0f - FLT_EPSILON;
+	constexpr float flt_EPSILON = 1.19209290e-07F;
+	constexpr float value_white = 1.0f - flt_EPSILON;
 
 	const int x = blockIdx.x * blockDim.x + threadIdx.x;
 	const int y = blockIdx.y * blockDim.y + threadIdx.y;
