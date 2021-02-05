@@ -18,13 +18,13 @@ constexpr int ColorCorrection_VersionBuild = 1;
 constexpr char ColorSpaceType[] = "Color Space";
 constexpr char ColorSpace[] = "HSL|HSV|HSI|HSP";
 
-enum {
+typedef enum {
 		COLOR_SPACE_HSL = 0,
 		COLOR_SPACE_HSV,
 		COLOR_SPACE_HSI,
 		COLOR_SPACE_HSP,
 		COLOR_SPACE_MAX_TYPES
-};
+}eCOLOR_SPACE_TYPE;
 
 
 constexpr char ColorHueCoarseType[] = "Hue coarse level";
@@ -65,7 +65,7 @@ constexpr char ResetSetting[] = "Reset";
 enum {
 		COLOR_CORRECT_INPUT,
 		COLOR_CORRECT_SPACE_POPUP,
-		COLOR_CORRECT_HUE_COARSE,
+		COLOR_CORRECT_HUE_COARSE_LEVEL,
 		COLOR_HUE_FINE_LEVEL_SLIDER,
 		COLOR_SATURATION_COARSE_LEVEL_SLIDER,
 		COLOR_SATURATION_FINE_LEVEL_SLIDER,
@@ -76,3 +76,84 @@ enum {
 		COLOR_RESET_SETTING_BUTTON,
 		COLOR_CORRECT_TOTAL_PARAMS
 };
+
+
+template<typename T>
+inline const T CLAMP_H(const T hue)
+{
+	constexpr T hueMin{ 0 };
+	constexpr T hueMax{ 360 };
+
+	if (hue < hueMin)
+		return (hue + hueMax);
+	else if (hue >= hueMax)
+		return (hue - hueMax);
+	return hue;
+}
+
+template<typename T>
+inline const T CLAMP_LS(const T ls)
+{
+	constexpr T lsMin{ 0 };
+	constexpr T lsMax{ 100 };
+	return MAX_VALUE(lsMin, MIN_VALUE(lsMax, ls));
+}
+
+
+template<typename T>
+inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type
+restore_rgb_channel_value(const T& t1, const T& t2, const T& t3)
+{
+	T val;
+
+	const T t3mult3 = t3 * 3.0f;
+
+	if (t3mult3 < 0.50f)
+		val = t1 + (t2 - t1) * 6.0f * t3;
+	else if (t3mult3 < 1.50f)
+		val = t2;
+	else if (t3mult3 < 2.0f)
+		val = t1 + (t2 - t1) * (0.6660f - t3) * 6.0f;
+	else
+		val = t1;
+	return val;
+}
+
+inline const float normalize_hue_wheel(const float wheel_value)
+{
+	const float tmp = wheel_value / 360.0f;
+	const int intPart = static_cast<int>(tmp);
+	return (tmp - static_cast<float>(intPart)) * 360.0f;
+}
+
+
+/* FUNCTIONS PROTOTYPES */
+PF_Err
+ProcessImgInAE
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output
+) noexcept;
+
+PF_Err
+ProcessImgInPR
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output
+) noexcept;
+
+/* PR API's prototypes */
+PF_Err prProcessImage_BGRA_4444_8u_HSL
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           hue,
+	float           sat,
+	float           lum
+) noexcept;

@@ -18,12 +18,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ColorCorrectionHSL.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="src\ColorCorrectionHSL.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorCorrectionAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorCorrectionPR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcBGRA8u.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -54,5 +58,10 @@
     <ResourceCompile Include="ColorCorrectionHSL.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ColorCorrectionHSL.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

@@ -155,7 +155,10 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ColorCorrectionAE.cpp" />
     <ClCompile Include="src\ColorCorrectionHSL.cpp" />
+    <ClCompile Include="src\ColorCorrectionPR.cpp" />
+    <ClCompile Include="src\ColorProcBGRA8u.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />

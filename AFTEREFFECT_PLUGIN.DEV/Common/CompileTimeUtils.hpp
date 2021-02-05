@@ -10,6 +10,12 @@ template <typename T>
 inline T MAX_VALUE (const T& a, const T& b) { return ((a > b) ? a : b); }
 
 template <typename T>
+inline T MIN3_VALUE(const T& a, const T& b, const T& c) { return MIN_VALUE(c, MIN_VALUE(a, b)); }
+
+template <typename T>
+inline T MAX3_VALUE(const T& a, const T& b, const T& c) { return MAX_VALUE(c, MAX_VALUE(a, b)); }
+
+template <typename T>
 inline T CLAMP_VALUE(const T& val, const T& min, const T& max)
 {
 	return ((val < min) ? min : ((val > max) ? max : val));
