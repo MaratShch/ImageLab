@@ -1,6 +1,6 @@
 #include "ColorCorrectionHSL.hpp"
 
-PF_Err prProcessImage_BGRA_4444_8u_HSL
+PF_Err prProcessImage_BGRA_4444_32f_HSL
 (
 	PF_InData*		in_data,
 	PF_OutData*		out_data,
@@ -12,15 +12,15 @@ PF_Err prProcessImage_BGRA_4444_8u_HSL
 ) noexcept
 {
 		const PF_LayerDef*       __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_CORRECT_INPUT]->u.ld);
-		const PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
-		PF_Pixel_BGRA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
+		const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+		PF_Pixel_BGRA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
 
 		auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 		auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-		auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+		auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 		constexpr float reciproc3 = 1.0f / 3.0f;
 
-		PF_Pixel_BGRA_8u finalPixel;
+		PF_Pixel_BGRA_32f finalPixel{};
 
 		for (auto j = 0; j < height; j++)
 		{
@@ -29,10 +29,10 @@ PF_Err prProcessImage_BGRA_4444_8u_HSL
 			__VECTOR_ALIGNED__
 			for (auto i = 0; i < width; i++)
 			{
-				PF_Pixel_BGRA_8u const& srcPixel = localSrc[line_idx + i];
-				float const& R = static_cast<float const>(srcPixel.R) / 255.0f;
-				float const& G = static_cast<float const>(srcPixel.G) / 255.0f;
-				float const& B = static_cast<float const>(srcPixel.B) / 255.0f;
+				PF_Pixel_BGRA_32f const& srcPixel = localSrc[line_idx + i];
+				float const& R = srcPixel.R;
+				float const& G = srcPixel.G;
+				float const& B = srcPixel.B;
 				auto  const& A = srcPixel.A;
 
 				/* start convert RGB to HSL color space */
@@ -71,7 +71,7 @@ PF_Err prProcessImage_BGRA_4444_8u_HSL
 				if (0.f == newSat)
 				{
 					finalPixel.A = A;
-					finalPixel.R = finalPixel.G = finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(newLum * 255.f, 0.f, 255.f));
+					finalPixel.R = finalPixel.G = finalPixel.B = static_cast<PF_FpShort>(CLAMP_VALUE(newLum, f32_value_black, f32_value_white));
 				}
 				else
 				{
@@ -91,9 +91,9 @@ PF_Err prProcessImage_BGRA_4444_8u_HSL
 					auto const& fB = restore_rgb_channel_value(tmpVal1, tmpVal2, tmpB);
 
 					finalPixel.A = A;
-					finalPixel.R = static_cast<A_u_char>(CLAMP_VALUE(fR * 255.f, 0.f, 255.f));
-					finalPixel.G = static_cast<A_u_char>(CLAMP_VALUE(fG * 255.f, 0.f, 255.f));
-					finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(fB * 255.f, 0.f, 255.f));
+					finalPixel.R = CLAMP_VALUE(fR, f32_value_black, f32_value_white);
+					finalPixel.G = CLAMP_VALUE(fG, f32_value_black, f32_value_white);
+					finalPixel.B = CLAMP_VALUE(fB, f32_value_black, f32_value_white);
 				}
 				
 				/* put to output buffer updated value */

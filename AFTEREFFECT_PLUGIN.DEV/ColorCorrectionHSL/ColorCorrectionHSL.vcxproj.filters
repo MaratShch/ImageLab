@@ -27,7 +27,22 @@
     <ClCompile Include="src\ColorCorrectionPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorProcBGRA8u.cpp">
+    <ClCompile Include="src\ColorProcBGRA_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcBGRA_16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcBGRA_32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcRGB_10u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcVUYA_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcVUYA_32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -51,6 +66,9 @@
       <Filter>include_comon</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\FastAriphmetics.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
   </ItemGroup>

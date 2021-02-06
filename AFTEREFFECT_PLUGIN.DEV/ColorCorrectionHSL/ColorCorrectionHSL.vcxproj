@@ -158,10 +158,16 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\ColorCorrectionAE.cpp" />
     <ClCompile Include="src\ColorCorrectionHSL.cpp" />
     <ClCompile Include="src\ColorCorrectionPR.cpp" />
-    <ClCompile Include="src\ColorProcBGRA8u.cpp" />
+    <ClCompile Include="src\ColorProcBGRA_16u.cpp" />
+    <ClCompile Include="src\ColorProcBGRA_32f.cpp" />
+    <ClCompile Include="src\ColorProcBGRA_8u.cpp" />
+    <ClCompile Include="src\ColorProcRGB_10u.cpp" />
+    <ClCompile Include="src\ColorProcVUYA_32f.cpp" />
+    <ClCompile Include="src\ColorProcVUYA_8u.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />

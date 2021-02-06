@@ -23,9 +23,9 @@ ProcessImgInPR
 	auto const& lwbCoarse = params[COLOR_LWIP_COARSE_LEVEL_SLIDER]->u.sd.value;
 	auto const& lwbFine   = params[COLOR_LWIP_FINE_LEVEL_SLIDER]->u.fs_d.value;
 
-	float const& totalHue = normalize_hue_wheel(static_cast<float>(hueCoarse + hueFine));
-	float const& totalSat = static_cast<float>(satCoarse + satFine);
-	float const& totalLwb = static_cast<float>(lwbCoarse + lwbFine);
+	float const& totalHue = normalize_hue_wheel(static_cast<float>(hueCoarse) / 65536.f + hueFine);
+	float const& totalSat = static_cast<float>(satCoarse) + satFine;
+	float const& totalLwb = static_cast<float>(lwbCoarse) + lwbFine;
 
 	eCOLOR_SPACE_TYPE const& colorSpaceType = static_cast<eCOLOR_SPACE_TYPE const>(lwbType - 1);
 
@@ -64,6 +64,7 @@ ProcessImgInPR
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_HSL:
+						err = prProcessImage_BGRA_4444_16u_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSV:
 					break;
@@ -80,6 +81,7 @@ ProcessImgInPR
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_HSL:
+						err = prProcessImage_BGRA_4444_32f_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSV:
 					break;
@@ -96,6 +98,7 @@ ProcessImgInPR
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_HSL:
+						err = prProcessImage_RGB_444_10u_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSV:
 					break;
@@ -114,6 +117,7 @@ ProcessImgInPR
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_HSL:
+						err = prProcessImage_VUYA_4444_8u_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb, isBT709);
 					break;
 					case COLOR_SPACE_HSV:
 					break;
@@ -132,6 +136,7 @@ ProcessImgInPR
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_HSL:
+						err = prProcessImage_VUYA_4444_32f_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb, isBT709);
 					break;
 					case COLOR_SPACE_HSV:
 					break;
