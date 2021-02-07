@@ -1,4 +1,5 @@
 #include "ColorCorrectionHSL.hpp"
+#include <cmath>
 
 PF_Err prProcessImage_BGRA_4444_8u_HSL
 (
@@ -71,7 +72,7 @@ PF_Err prProcessImage_BGRA_4444_8u_HSL
 				if (0.f == newSat)
 				{
 					finalPixel.A = A;
-					finalPixel.R = finalPixel.G = finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(newLum * 255.f, 0.f, 255.f));
+					finalPixel.R = finalPixel.G = finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(newLum * 256.f, 0.f, 255.f));
 				}
 				else
 				{
@@ -106,3 +107,139 @@ PF_Err prProcessImage_BGRA_4444_8u_HSL
 	return PF_Err_NONE;
 }
 
+
+PF_Err prProcessImage_BGRA_4444_8u_HSV
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_val
+) noexcept
+{
+	const PF_LayerDef*      __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_CORRECT_INPUT]->u.ld);
+	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
+	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
+
+	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+
+	PF_Pixel_BGRA_8u finalPixel{};
+
+	for (auto j = 0; j < height; j++)
+	{
+		auto const& line_idx = j * line_pitch;
+
+		__VECTOR_ALIGNED__
+		for (auto i = 0; i < width; i++)
+		{
+			PF_Pixel_BGRA_8u const& srcPixel = localSrc[line_idx + i];
+			float const& R = static_cast<float const>(srcPixel.R) / 255.0f;
+			float const& G = static_cast<float const>(srcPixel.G) / 255.0f;
+			float const& B = static_cast<float const>(srcPixel.B) / 255.0f;
+			auto  const& A = srcPixel.A;
+
+			/* start convert RGB to HSV color space */
+			float const maxVal = MAX3_VALUE(R, G, B);
+			float const minVal = MIN3_VALUE(R, G, B);
+			float const C = maxVal - minVal;
+			
+			float const& value = maxVal;
+			float hue, saturation;
+
+			if (0.f == C)
+			{
+				hue = saturation = 0.f;
+			}
+			else
+			{
+				if (R == maxVal)
+				{
+					hue = (G - B) / C;
+					if (G < B)
+						hue += 6;
+				}
+				else if (G == maxVal)
+					hue = 2 + (B - R) / C;
+				else
+					hue = 4 + (R - G) / C;
+
+				hue *= 60;
+				saturation = C / maxVal;
+			}
+
+			/* correct HSV */
+			auto newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
+			auto const& newSat = CLAMP_VALUE(saturation + add_sat / 100.f, 0.0f, 1.0f);
+			auto const& newVal = CLAMP_VALUE(value + add_val / 100.f, 0.0f, 1.0f);
+
+			/* back convert to RGB */
+			auto const& c = newSat * newVal;
+			auto const& minV = newVal - c;
+
+			newHue -= 360.f * floor(newHue / 360.f);
+			newHue /= 60.f;
+			float const& X = c * (1.0f - fabs(newHue - 2.0f * floor(newHue / 2.0f) - 1.0f));
+
+			float fR, fG, fB;
+
+			switch (static_cast<int>(newHue))
+			{
+				case 0:
+					fR = minV + c;
+					fG = minV + X;
+					fB = minV;
+				break;
+	
+				case 1:
+					fR = minV + X;
+					fG = minV + c;
+					fB = minV;
+				break;
+
+				case 2:
+					fR = minV;
+					fG = minV + c;
+					fB = minV + X;
+				break;
+
+				case 3:
+					fR = minV;
+					fG = minV + X;
+					fB = minV + c;
+				break;
+
+				case 4:
+					fR = minV + X;
+					fG = minV;
+					fB = minV + c;
+				break;
+
+				case 5:
+					fR = minV + c;
+					fG = minV;
+					fB = minV + X;
+				break;
+
+				default:
+					fR = fG = fB = 0.f;
+				break;
+			}
+
+			finalPixel.A = A;
+			finalPixel.R = static_cast<A_u_char>(CLAMP_VALUE(fR * 255.f, 0.f, 255.f));
+			finalPixel.G = static_cast<A_u_char>(CLAMP_VALUE(fG * 255.f, 0.f, 255.f));
+			finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(fB * 255.f, 0.f, 255.f));
+
+			/* put to output buffer updated value */
+			localDst[i + line_idx] = finalPixel;
+
+		} /* for (i = 0; i < width; i++) */
+
+	} /* for (j = 0; j < height; j++) */
+
+	return PF_Err_NONE;
+}

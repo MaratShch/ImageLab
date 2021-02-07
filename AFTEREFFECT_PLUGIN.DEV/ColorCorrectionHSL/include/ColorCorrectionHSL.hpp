@@ -214,3 +214,14 @@ PF_Err prProcessImage_VUYA_4444_32f_HSL
 	float           add_lum,
 	const bool&     isBT709 = true
 ) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_8u_HSV
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_val
+) noexcept;
