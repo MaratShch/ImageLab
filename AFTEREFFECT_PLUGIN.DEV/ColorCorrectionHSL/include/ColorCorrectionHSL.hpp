@@ -100,24 +100,6 @@ inline const T CLAMP_LS(const T ls)
 }
 
 
-template<typename T>
-inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type
-restore_rgb_channel_value(const T& t1, const T& t2, const T& t3)
-{
-	T val;
-
-	const T t3mult3 = t3 * 3.0f;
-
-	if (t3mult3 < 0.50f)
-		val = t1 + (t2 - t1) * 6.0f * t3;
-	else if (t3mult3 < 1.50f)
-		val = t2;
-	else if (t3mult3 < 2.0f)
-		val = t1 + (t2 - t1) * (0.6660f - t3) * 6.0f;
-	else
-		val = t1;
-	return val;
-}
 
 inline const float normalize_hue_wheel(const float wheel_value)
 {
@@ -216,6 +198,28 @@ PF_Err prProcessImage_VUYA_4444_32f_HSL
 ) noexcept;
 
 PF_Err prProcessImage_BGRA_4444_8u_HSV
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_val
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_16u_HSV
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_val
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_32f_HSV
 (
 	PF_InData*		in_data,
 	PF_OutData*		out_data,

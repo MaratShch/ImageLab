@@ -71,6 +71,9 @@
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorConverts.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorCorrectionHSL.rc">

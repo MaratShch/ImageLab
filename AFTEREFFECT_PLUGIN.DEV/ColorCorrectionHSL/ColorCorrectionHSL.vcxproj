@@ -173,6 +173,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
+    <ClInclude Include="include\ColorConverts.hpp" />
     <ClInclude Include="include\ColorCorrectionHSL.hpp" />
   </ItemGroup>
   <ItemGroup>

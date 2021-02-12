@@ -1,5 +1,6 @@
 #include "ColorCorrectionHSL.hpp"
-#include <cmath>
+#include "ColorConverts.hpp"
+
 
 PF_Err prProcessImage_BGRA_4444_8u_HSL
 (
@@ -12,97 +13,61 @@ PF_Err prProcessImage_BGRA_4444_8u_HSL
 	float           add_lum
 ) noexcept
 {
-		const PF_LayerDef*       __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_CORRECT_INPUT]->u.ld);
-		const PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
-		PF_Pixel_BGRA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
+	const PF_LayerDef*       __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_CORRECT_INPUT]->u.ld);
+	const PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
+	PF_Pixel_BGRA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
 
-		auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-		auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-		auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-		constexpr float reciproc3 = 1.0f / 3.0f;
+	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-		PF_Pixel_BGRA_8u finalPixel{};
+	constexpr float reciproc255 = 1.0f / 255.0f;
+	constexpr float reciproc360 = 1.0f / 360.f;
 
-		for (auto j = 0; j < height; j++)
+	PF_Pixel_BGRA_8u finalPixel{};
+	float newR, newG, newB;
+
+	for (auto j = 0; j < height; j++)
+	{
+		auto const& line_idx = j * line_pitch;
+
+		__VECTOR_ALIGNED__
+		for (auto i = 0; i < width; i++)
 		{
-			auto const& line_idx = j * line_pitch;
+			PF_Pixel_BGRA_8u const& srcPixel = localSrc[line_idx + i];
+			float const& R = static_cast<float const>(srcPixel.R) * reciproc255;
+			float const& G = static_cast<float const>(srcPixel.G) * reciproc255;
+			float const& B = static_cast<float const>(srcPixel.B) * reciproc255;
+			auto  const& A = srcPixel.A;
 
-			__VECTOR_ALIGNED__
-			for (auto i = 0; i < width; i++)
-			{
-				PF_Pixel_BGRA_8u const& srcPixel = localSrc[line_idx + i];
-				float const& R = static_cast<float const>(srcPixel.R) / 255.0f;
-				float const& G = static_cast<float const>(srcPixel.G) / 255.0f;
-				float const& B = static_cast<float const>(srcPixel.B) / 255.0f;
-				auto  const& A = srcPixel.A;
+			float hue, saturation, luminance;
 
-				/* start convert RGB to HSL color space */
-				float const maxVal = MAX3_VALUE(R, G, B);
-				float const minVal = MIN3_VALUE(R, G, B);
-				float const sumMaxMin = maxVal + minVal;
-				float luminance = sumMaxMin * 50.0f; /* luminance value in percents = 100 * (max + min) / 2 */
-				float hue, saturation;
-
-				if (maxVal == minVal)
-				{
-					saturation = hue = 0.0f;
-				}
-				else
-				{
-					auto const& subMaxMin = maxVal - minVal;
-					saturation = (100.0f * subMaxMin) / ((luminance < 50.0f) ? sumMaxMin : (2.0f - sumMaxMin));
-					if (R == maxVal)
-						hue = (60.0f * (G - B)) / subMaxMin;
-					else if (G == maxVal)
-						hue = (60.0f * (B - R)) / subMaxMin + 120.0f;
-					else
-						hue = (60.0f * (R - G)) / subMaxMin + 240.0f;
-				}
-
-				/* add values to HSL */
-				hue += add_hue;
-				saturation += add_sat;
-				luminance  += add_lum;
-
-				auto const& newHue = CLAMP_H(hue) / 360.f;
-				auto const& newSat = CLAMP_LS(saturation) / 100.f;
-				auto const& newLum = CLAMP_LS(luminance)  / 100.f;
-
-				/* back convert to RGB space */
-				if (0.f == newSat)
-				{
-					finalPixel.A = A;
-					finalPixel.R = finalPixel.G = finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(newLum * 256.f, 0.f, 255.f));
-				}
-				else
-				{
-					float tmpVal1, tmpVal2;
-					tmpVal2 = (newLum < 0.50f) ? (newLum * (1.0f + newSat)) : (newLum + newSat - (newLum * newSat));
-					tmpVal1 = 2.0f * newLum - tmpVal2;
-
-					auto const& tmpG = newHue;
-					auto tmpR = newHue + reciproc3;
-					auto tmpB = newHue - reciproc3;
-
-					tmpR -= ((tmpR > 1.0f) ? 1.0f : 0.0f);
-					tmpB += ((tmpB < 0.0f) ? 1.0f : 0.0f);
-
-					auto const& fR = restore_rgb_channel_value(tmpVal1, tmpVal2, tmpR);
-					auto const& fG = restore_rgb_channel_value(tmpVal1, tmpVal2, tmpG);
-					auto const& fB = restore_rgb_channel_value(tmpVal1, tmpVal2, tmpB);
-
-					finalPixel.A = A;
-					finalPixel.R = static_cast<A_u_char>(CLAMP_VALUE(fR * 255.f, 0.f, 255.f));
-					finalPixel.G = static_cast<A_u_char>(CLAMP_VALUE(fG * 255.f, 0.f, 255.f));
-					finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(fB * 255.f, 0.f, 255.f));
-				}
+			/* convert sRGB to HSL format */
+			sRgb2hsl(R, G, B, hue, saturation, luminance);
 				
-				/* put to output buffer updated value */
-				localDst[i + line_idx] = finalPixel;
+			/* add values to HSL */
+			hue += add_hue;
+			saturation += add_sat;
+			luminance  += add_lum;
 
-			} /* for (i = 0; i < width; i++) */
+			auto const& newHue = CLAMP_H(hue) * reciproc360;
+			auto const& newSat = CLAMP_LS(saturation) * 0.01f;
+			auto const& newLum = CLAMP_LS(luminance)  * 0.01f;
 
-		} /* for (j = 0; j < height; j++) */
+			/* back convert to sRGB space */
+			hsl2sRgb (newHue, newSat, newLum, newR, newG, newB);
+
+			finalPixel.A = A;
+			finalPixel.R = static_cast<A_u_char>(CLAMP_VALUE(newR * 255.f, 0.f, 255.f));
+			finalPixel.G = static_cast<A_u_char>(CLAMP_VALUE(newG * 255.f, 0.f, 255.f));
+			finalPixel.B = static_cast<A_u_char>(CLAMP_VALUE(newB * 255.f, 0.f, 255.f));
+
+			/* put to output buffer updated value */
+			localDst[i + line_idx] = finalPixel;
+
+		} /* for (i = 0; i < width; i++) */
+
+	} /* for (j = 0; j < height; j++) */
 
 	return PF_Err_NONE;
 }
@@ -127,7 +92,10 @@ PF_Err prProcessImage_BGRA_4444_8u_HSV
 	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
+	constexpr float reciproc255 = 1.0f / 255.0f;
+
 	PF_Pixel_BGRA_8u finalPixel{};
+	float hue, saturation, value, fR, fG, fB;
 
 	for (auto j = 0; j < height; j++)
 	{
@@ -137,97 +105,20 @@ PF_Err prProcessImage_BGRA_4444_8u_HSV
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_BGRA_8u const& srcPixel = localSrc[line_idx + i];
-			float const& R = static_cast<float const>(srcPixel.R) / 255.0f;
-			float const& G = static_cast<float const>(srcPixel.G) / 255.0f;
-			float const& B = static_cast<float const>(srcPixel.B) / 255.0f;
+			float const& R = static_cast<float const>(srcPixel.R) * reciproc255;
+			float const& G = static_cast<float const>(srcPixel.G) * reciproc255;
+			float const& B = static_cast<float const>(srcPixel.B) * reciproc255;
 			auto  const& A = srcPixel.A;
 
-			/* start convert RGB to HSV color space */
-			float const maxVal = MAX3_VALUE(R, G, B);
-			float const minVal = MIN3_VALUE(R, G, B);
-			float const C = maxVal - minVal;
-			
-			float const& value = maxVal;
-			float hue, saturation;
-
-			if (0.f == C)
-			{
-				hue = saturation = 0.f;
-			}
-			else
-			{
-				if (R == maxVal)
-				{
-					hue = (G - B) / C;
-					if (G < B)
-						hue += 6;
-				}
-				else if (G == maxVal)
-					hue = 2 + (B - R) / C;
-				else
-					hue = 4 + (R - G) / C;
-
-				hue *= 60;
-				saturation = C / maxVal;
-			}
+			sRgb2hsv(R, G, B, hue, saturation, value);
 
 			/* correct HSV */
 			auto newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat / 100.f, 0.0f, 1.0f);
-			auto const& newVal = CLAMP_VALUE(value + add_val / 100.f, 0.0f, 1.0f);
+			auto const& newSat = CLAMP_VALUE(saturation + add_sat * 0.01f, 0.0f, 1.0f);
+			auto const& newVal = CLAMP_VALUE(value + add_val * 0.01f, 0.0f, 1.0f);
 
 			/* back convert to RGB */
-			auto const& c = newSat * newVal;
-			auto const& minV = newVal - c;
-
-			newHue -= 360.f * floor(newHue / 360.f);
-			newHue /= 60.f;
-			float const& X = c * (1.0f - fabs(newHue - 2.0f * floor(newHue / 2.0f) - 1.0f));
-
-			float fR, fG, fB;
-
-			switch (static_cast<int>(newHue))
-			{
-				case 0:
-					fR = minV + c;
-					fG = minV + X;
-					fB = minV;
-				break;
-	
-				case 1:
-					fR = minV + X;
-					fG = minV + c;
-					fB = minV;
-				break;
-
-				case 2:
-					fR = minV;
-					fG = minV + c;
-					fB = minV + X;
-				break;
-
-				case 3:
-					fR = minV;
-					fG = minV + X;
-					fB = minV + c;
-				break;
-
-				case 4:
-					fR = minV + X;
-					fG = minV;
-					fB = minV + c;
-				break;
-
-				case 5:
-					fR = minV + c;
-					fG = minV;
-					fB = minV + X;
-				break;
-
-				default:
-					fR = fG = fB = 0.f;
-				break;
-			}
+			hsv2sRgb(newHue, newSat, newVal, fR, fG, fB);
 
 			finalPixel.A = A;
 			finalPixel.R = static_cast<A_u_char>(CLAMP_VALUE(fR * 255.f, 0.f, 255.f));

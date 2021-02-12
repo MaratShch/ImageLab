@@ -68,6 +68,7 @@ ProcessImgInPR
 						err = prProcessImage_BGRA_4444_16u_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSV:
+						err = prProcessImage_BGRA_4444_16u_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSI:
 					break;
@@ -85,6 +86,7 @@ ProcessImgInPR
 						err = prProcessImage_BGRA_4444_32f_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSV:
+						err = prProcessImage_BGRA_4444_32f_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSI:
 					break;
