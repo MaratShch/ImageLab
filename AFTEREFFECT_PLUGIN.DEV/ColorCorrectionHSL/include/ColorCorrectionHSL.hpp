@@ -16,13 +16,14 @@ constexpr int ColorCorrection_VersionBuild = 1;
 
 
 constexpr char ColorSpaceType[] = "Color Space";
-constexpr char ColorSpace[] = "HSL|HSV|HSI|HSP";
+constexpr char ColorSpace[] = "HSL|HSV|HSI|HSP|HSLuma";
 
 typedef enum {
 		COLOR_SPACE_HSL = 0,
 		COLOR_SPACE_HSV,
 		COLOR_SPACE_HSI,
 		COLOR_SPACE_HSP,
+		COLOR_SPACE_HSLuma,
 		COLOR_SPACE_MAX_TYPES
 }eCOLOR_SPACE_TYPE;
 
@@ -228,4 +229,61 @@ PF_Err prProcessImage_BGRA_4444_32f_HSV
 	float           add_hue,
 	float           add_sat,
 	float           add_val
+) noexcept;	
+
+PF_Err prProcessImage_RGB_444_10u_HSV
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_val
+) noexcept;
+
+PF_Err prProcessImage_VUYA_4444_8u_HSV
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_lum,
+	const bool&     isBT709 = true
+) noexcept;
+
+PF_Err prProcessImage_VUYA_4444_32f_HSV
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_val,
+	const bool&     isBT709
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_8u_HSI
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_lum
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_8u_HSP
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_per
 ) noexcept;

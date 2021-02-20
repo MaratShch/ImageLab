@@ -53,8 +53,12 @@ ProcessImgInPR
 						err = prProcessImage_BGRA_4444_8u_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSI:
+						err = prProcessImage_BGRA_4444_8u_HSI(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSP:
+						err = prProcessImage_BGRA_4444_8u_HSP(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
+					break;
+					case COLOR_SPACE_HSLuma:
 					break;
 				}
 			}
@@ -74,6 +78,8 @@ ProcessImgInPR
 					break;
 					case COLOR_SPACE_HSP:
 					break;
+					case COLOR_SPACE_HSLuma:
+					break;
 				}
 			}
 			break;
@@ -92,6 +98,8 @@ ProcessImgInPR
 					break;
 					case COLOR_SPACE_HSP:
 					break;
+					case COLOR_SPACE_HSLuma:
+					break;
 				}
 			}
 			break;
@@ -104,10 +112,13 @@ ProcessImgInPR
 						err = prProcessImage_RGB_444_10u_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSV:
+						err = prProcessImage_RGB_444_10u_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSI:
 					break;
 					case COLOR_SPACE_HSP:
+					break;
+					case COLOR_SPACE_HSLuma:
 					break;
 				}
 			}
@@ -123,10 +134,13 @@ ProcessImgInPR
 						err = prProcessImage_VUYA_4444_8u_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb, isBT709);
 					break;
 					case COLOR_SPACE_HSV:
+						err = prProcessImage_VUYA_4444_8u_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb, isBT709);
 					break;
 					case COLOR_SPACE_HSI:
 					break;
 					case COLOR_SPACE_HSP:
+					break;
+					case COLOR_SPACE_HSLuma:
 					break;
 				}
 			}
@@ -142,10 +156,13 @@ ProcessImgInPR
 						err = prProcessImage_VUYA_4444_32f_HSL(in_data, out_data, params, output, totalHue, totalSat, totalLwb, isBT709);
 					break;
 					case COLOR_SPACE_HSV:
+						err = prProcessImage_VUYA_4444_32f_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb, isBT709);
 					break;
 					case COLOR_SPACE_HSI:
 					break;
 					case COLOR_SPACE_HSP:
+					break;
+					case COLOR_SPACE_HSLuma:
 					break;
 				}
 			}

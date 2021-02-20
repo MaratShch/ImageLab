@@ -260,3 +260,153 @@ inline void hsi2sRgb(const float& H, const float& S, const float& I, float& R, f
 	return;
 }
 
+
+inline void sRgb2hsp(const float& R, const float& G, const float& B, float& H, float& S, float& P) noexcept
+{
+	constexpr float Pr = 0.2990f;
+	constexpr float Pg = 0.5870f;
+	constexpr float Pb = 1.0f - Pr - Pg; /* 0.1140f */;
+	constexpr float div1on6 = 1.f / 6.f;
+	constexpr float div2on6 = 2.f / 6.f;
+	constexpr float div4on6 = 4.f / 6.f;
+
+	float const& maxVal = MAX3_VALUE(R, G, B);
+
+	P = sqrt(R * R * Pr + G * G * Pg + B * B * Pb);
+
+	if (R == G && R == B) {
+		H = S = 0.f;
+	}
+	else {
+		if (R == maxVal)
+		{   //  R is largest
+			if (B >= G) {
+				H = 1.f - div1on6 * (B - G) / (R - G);
+				S = 1.f - G / R;
+			}
+			else {
+				H = div1on6 * (G - B) / (R - B);
+				S = 1.f - B / R;
+			}
+		}
+		else if (G == maxVal) 
+		{   //  G is largest
+			if (R >= B) {
+				H = div2on6 - div1on6 * (R - B) / (G - B);
+				S = 1.f - B / G;
+			}
+			else {
+				H = div2on6 + div1on6 * (B - R) / (G - R);
+				S = 1.f - R / G;
+			}
+		}
+		else {   //  B is largest
+			if (G >= R) {
+				H = div4on6 - div1on6 * (G - R) / (B - R);
+				S = 1.f - R / B;
+			}
+			else {
+				H = div4on6 + div1on6 * (R - G) / (B - G);
+				S = 1.f - G / B;
+			}
+		}
+	}
+	return;
+}
+
+
+inline void hsp2sRgb(const float& H, const float& S, const float& P, float& R, float& G, float& B) noexcept
+{
+	constexpr float Pr = 0.2990f;
+	constexpr float Pg = 0.5870f;
+	constexpr float Pb = 1.0f - Pr - Pg; /* 0.1140f */;
+
+	const float& minOverMax = 1. - S;
+	float part;
+
+	if (minOverMax > 0.f)
+	{
+		if ( H < 1.f / 6.f) {   //  R>G>B
+			const float& h = 6.f * H; 
+			part = 1.f + h * (1.f / minOverMax - 1.f);
+			B = P / sqrt(Pr / minOverMax / minOverMax + Pg * part * part + Pb);
+			R = B / minOverMax;
+			G = B + h * (R - B);
+		}
+		else if ( H < 2.f / 6.f) {   //  G>R>B
+			const float& h = 6. * (-H + 2.f / 6.f); 
+			part = 1.f + h  * (1.f / minOverMax - 1.f);
+			B = P / sqrt(Pg / minOverMax / minOverMax + Pr*part*part + Pb);
+			G = B / minOverMax;
+			R = B + h * (G - B);
+		}
+		else if (H < 3.f / 6.f) {   //  G>B>R
+			const float& h = 6.f * (H - 2.f / 6.f);
+			part = 1.f + h * (1.f / minOverMax - 1.f);
+			R = P / sqrt(Pg / minOverMax / minOverMax + Pb*part*part + Pr);
+			G = R / minOverMax;
+			B = R + h * (G - R);
+		}
+		else if (H < 4.f / 6.f) {   //  B>G>R
+			const float& h = 6.f * (-H + 4.f / 6.f);
+			part = 1.f + h * (1.f / minOverMax - 1.f);
+			R = P / sqrt(Pb / minOverMax / minOverMax + Pg*part*part + Pr);
+			B = R / minOverMax;
+			G = R + h * (B - R);
+		}
+		else if (H < 5.f / 6.f) {   //  B>R>G
+			const float& h = 6.f * (H - 4.f / 6.f);
+			part = 1.f + h * (1.f / minOverMax - 1.f);
+			G = P / sqrt(Pb / minOverMax / minOverMax + Pr*part*part + Pg);
+			B = G / minOverMax;
+			R = G + h * (B - G);
+		}
+		else {   //  R>B>G
+			const float& h = 6.f * (-H + 1.f);
+			part = 1.f + h * (1.f / minOverMax - 1.f);
+			G = P / sqrt(Pr / minOverMax / minOverMax + Pb*part*part + Pg);
+			R = G / minOverMax;
+			B = G + h * (R - G);
+		}
+	}
+	else
+	{
+		if ( H < 1.f / 6.f) {   //  R>G>B
+			const float& h = 6.f * H;
+			R = sqrt(P*P / (Pr + Pg * h * h));
+			G = R *h;
+			B = 0.f;
+		}
+		else if (H < 2.f / 6.f) {   //  G>R>B
+			const float& h = 6.f * (-H + 2.f / 6.f);
+			G = sqrt(P*P / (Pg + Pr*h*h));
+			R = G * h; 
+			B = 0.f;
+		}
+		else if (H < 3.f / 6.f) {   //  G>B>R
+			const float& h = 6.f * (H - 2.f / 6.f);
+			G = sqrt(P*P / (Pg + Pb*h*h));
+			B = G * h;
+			R = 0.f;
+		}
+		else if (H < 4.f / 6.f) {   //  B>G>R
+			const float& h = 6.f * (-H + 4.f / 6.f);
+			B = sqrt(P*P / (Pb + Pg*h*h));
+			G = B * h; 
+			R = 0.f;
+		}
+		else if (H<5. / 6.) {   //  B>R>G
+			const float& h = 6.f * (H - 4.f / 6.f);
+			B = sqrt(P*P / (Pb + Pr*h*h));
+			R = B * h;
+			G= 0.f;
+		}
+		else {   //  R>B>G
+			const float& h = 6.f * (-H + 1.f);
+			R = sqrt(P*P / (Pr + Pb*h*h)); 
+			B = R *h; 
+			G = 0.f;
+		}
+	}
+	return;
+}
