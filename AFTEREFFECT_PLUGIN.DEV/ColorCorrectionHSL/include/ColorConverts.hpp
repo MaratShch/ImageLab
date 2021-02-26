@@ -1,7 +1,8 @@
 #pragma once
 
 #include "CompileTimeUtils.hpp"
-#include <cmath>
+#include "FastAriphmetics.hpp"
+
 
 template<typename T>
 inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type
@@ -203,7 +204,7 @@ inline void sRgb2hsi(const float& R, const float& G, const float& B, float& H, f
 		auto const& alpha = 0.5f * (2.f * R - G - B) + denom;
 		auto const& beta = 0.8660254037f * (G - B) + denom;
 		s = 1.f - MIN3_VALUE(R, G, B) / i;
-		h = atan2(beta, alpha) * reciprocPi180;
+		h = FastCompute::Atan2(beta, alpha) * reciprocPi180;
 		if (h < 0)
 			h += 360.f;
 	}
@@ -232,28 +233,28 @@ inline void hsi2sRgb(const float& H, const float& S, const float& I, float& R, f
 
 	if (h < 120.f)
 	{
-		const float& cosTmp = cos((60.f - h) * PiDiv180);
+		const float& cosTmp = FastCompute::Cos((60.f - h) * PiDiv180);
 		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
 		B = val1;
-		R = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
+		R = I * (1.f + S * FastCompute::Cos(h * PiDiv180) / cosDiv);
 		G = tripleI - R - B;
 	}
 	else if (h < 240.f)
 	{
 		h -= 120.f;
-		const float& cosTmp = cos((60.f - h) * PiDiv180);
+		const float& cosTmp = FastCompute::Cos((60.f - h) * PiDiv180);
 		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
 		R = val1;
-		G = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
+		G = I * (1.f + S * FastCompute::Cos(h * PiDiv180) / cosDiv);
 		B = tripleI - R - G;
 	}
 	else
 	{
 		h -= 240.f;
-		const float& cosTmp = cos((60.f - h) * PiDiv180);
+		const float& cosTmp = FastCompute::Cos((60.f - h) * PiDiv180);
 		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
 		G = val1;
-		B = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
+		B = I * (1.f + S * FastCompute::Cos(h * PiDiv180) / cosDiv);
 		R = tripleI - G - B;
 	}
 
@@ -321,7 +322,7 @@ inline void hsp2sRgb(const float& H, const float& S, const float& P, float& R, f
 	constexpr float Pg = 0.5870f;
 	constexpr float Pb = 1.0f - Pr - Pg; /* 0.1140f */;
 
-	const float& minOverMax = 1. - S;
+	const float& minOverMax = 1.0f - S;
 	float part;
 
 	if (minOverMax > 0.f)
@@ -329,42 +330,42 @@ inline void hsp2sRgb(const float& H, const float& S, const float& P, float& R, f
 		if ( H < 1.f / 6.f) {   //  R>G>B
 			const float& h = 6.f * H; 
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			B = P / sqrt(Pr / minOverMax / minOverMax + Pg * part * part + Pb);
+			B = P / FastCompute::Sqrt(Pr / minOverMax / minOverMax + Pg * part * part + Pb);
 			R = B / minOverMax;
 			G = B + h * (R - B);
 		}
 		else if ( H < 2.f / 6.f) {   //  G>R>B
 			const float& h = 6. * (-H + 2.f / 6.f); 
 			part = 1.f + h  * (1.f / minOverMax - 1.f);
-			B = P / sqrt(Pg / minOverMax / minOverMax + Pr*part*part + Pb);
+			B = P / FastCompute::Sqrt(Pg / minOverMax / minOverMax + Pr * part * part + Pb);
 			G = B / minOverMax;
 			R = B + h * (G - B);
 		}
 		else if (H < 3.f / 6.f) {   //  G>B>R
 			const float& h = 6.f * (H - 2.f / 6.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			R = P / sqrt(Pg / minOverMax / minOverMax + Pb*part*part + Pr);
+			R = P / FastCompute::Sqrt(Pg / minOverMax / minOverMax + Pb * part * part + Pr);
 			G = R / minOverMax;
 			B = R + h * (G - R);
 		}
 		else if (H < 4.f / 6.f) {   //  B>G>R
 			const float& h = 6.f * (-H + 4.f / 6.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			R = P / sqrt(Pb / minOverMax / minOverMax + Pg*part*part + Pr);
+			R = P / FastCompute::Sqrt(Pb / minOverMax / minOverMax + Pg * part * part + Pr);
 			B = R / minOverMax;
 			G = R + h * (B - R);
 		}
 		else if (H < 5.f / 6.f) {   //  B>R>G
 			const float& h = 6.f * (H - 4.f / 6.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			G = P / sqrt(Pb / minOverMax / minOverMax + Pr*part*part + Pg);
+			G = P / FastCompute::Sqrt(Pb / minOverMax / minOverMax + Pr * part * part + Pg);
 			B = G / minOverMax;
 			R = G + h * (B - G);
 		}
 		else {   //  R>B>G
 			const float& h = 6.f * (-H + 1.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			G = P / sqrt(Pr / minOverMax / minOverMax + Pb*part*part + Pg);
+			G = P / FastCompute::Sqrt(Pr / minOverMax / minOverMax + Pb * part * part + Pg);
 			R = G / minOverMax;
 			B = G + h * (R - G);
 		}
@@ -373,40 +374,304 @@ inline void hsp2sRgb(const float& H, const float& S, const float& P, float& R, f
 	{
 		if ( H < 1.f / 6.f) {   //  R>G>B
 			const float& h = 6.f * H;
-			R = sqrt(P*P / (Pr + Pg * h * h));
+			R = FastCompute::Sqrt(P * P / (Pr + Pg * h * h));
 			G = R *h;
 			B = 0.f;
 		}
 		else if (H < 2.f / 6.f) {   //  G>R>B
 			const float& h = 6.f * (-H + 2.f / 6.f);
-			G = sqrt(P*P / (Pg + Pr*h*h));
+			G = FastCompute::Sqrt(P * P / (Pg + Pr * h * h));
 			R = G * h; 
 			B = 0.f;
 		}
 		else if (H < 3.f / 6.f) {   //  G>B>R
 			const float& h = 6.f * (H - 2.f / 6.f);
-			G = sqrt(P*P / (Pg + Pb*h*h));
+			G = FastCompute::Sqrt(P * P / (Pg + Pb * h * h));
 			B = G * h;
 			R = 0.f;
 		}
 		else if (H < 4.f / 6.f) {   //  B>G>R
 			const float& h = 6.f * (-H + 4.f / 6.f);
-			B = sqrt(P*P / (Pb + Pg*h*h));
+			B = FastCompute::Sqrt(P * P / (Pb + Pg * h * h));
 			G = B * h; 
 			R = 0.f;
 		}
-		else if (H<5. / 6.) {   //  B>R>G
+		else if (H < 5.f / 6.f) {   //  B>R>G
 			const float& h = 6.f * (H - 4.f / 6.f);
-			B = sqrt(P*P / (Pb + Pr*h*h));
+			B = FastCompute::Sqrt(P * P / (Pb + Pr * h * h));
 			R = B * h;
 			G= 0.f;
 		}
 		else {   //  R>B>G
 			const float& h = 6.f * (-H + 1.f);
-			R = sqrt(P*P / (Pr + Pb*h*h)); 
-			B = R *h; 
+			R = FastCompute::Sqrt(P * P / (Pr + Pb * h * h));
+			B = R * h; 
 			G = 0.f;
 		}
 	}
+	return;
+}
+
+constexpr float gKappa = 903.296296296f;
+constexpr float gEpsilon = 0.008856452f;
+constexpr float ref_u = 0.19783000664f;
+constexpr float ref_v = 0.46831999494f;
+
+namespace HSLuv
+{
+	typedef struct Bounds {
+		float a;
+		float b;
+	};
+
+	typedef struct Triplet {
+		float a;
+		float b;
+		float c;
+	};
+
+	/* for RGB */
+	constexpr static Triplet m[3] = {
+		{  3.240969942f, -1.537383178f, -0.498610760f },
+		{ -0.969243636f,  1.875967502f,  0.041555057f },
+		{  0.055630080f, -0.203976959f,  1.056971514f }
+	};
+
+	/* for XYZ */
+	constexpr static Triplet m_inv[3] = {
+		{  0.412390799f,  0.357584339f,  0.180480788f },
+		{  0.212639006f,  0.715168679f,  0.072192315f },
+		{  0.019330819f,  0.119194780f,  0.950532152f }
+	};
+
+	inline float dot_product (const Triplet& t1, const Triplet& t2)
+	{
+		return (t1.a * t2.a + t1.b * t2.b + t1.c * t2.c);
+	}
+
+	inline float to_linear (const float& c)
+	{
+//		return (c > 0.04045f) ? FastCompute::Pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
+		return (c > 0.04045f) ? pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
+	}
+
+	inline float from_linear (const float& c)
+	{
+		constexpr float reciproc = 1.0f / 2.4f;
+		return (c <= 0.0031308f) ? 12.92f * c : 1.055f * FastCompute::Pow(c, reciproc) - 0.055f;
+	}
+
+	inline float y2l (const float& y)
+	{
+		return (y <= gEpsilon) ? y * gKappa : 116.0f * FastCompute::Cbrt(y) - 16.0f;
+	}
+
+	inline void rgb2xyz (const float& R, const float& G, const float& B, float& x, float& y, float& z)
+	{
+		const Triplet& rgbl { to_linear(R), to_linear(G), to_linear(B) };
+		x = dot_product(m_inv[0], rgbl);
+		y = dot_product(m_inv[1], rgbl);
+		z = dot_product(m_inv[2], rgbl);
+		return;
+	}
+
+	inline void xyz2luv (const float& X, const float& Y, const float& Z, float& l, float& u, float& v)
+	{
+		constexpr float denom = 1.e-7f;
+		const float& divider = X + 15.0f * Y + 3.0f * Z;
+		const float& var_u = (4.0f * X) / divider;
+		const float& var_v = (9.0f * Y) / divider;
+		l = y2l (Y);
+		u = (l > denom) ? 13.0f * l * (var_u - ref_u) : 0.f;
+		v = (l > denom) ? 13.0f * l * (var_v - ref_v) : 0.f;
+		return;
+	}
+
+	inline void luv2lch (const float& L, const float& U, const float& V, float& l, float& c, float& h)
+	{
+		constexpr float denom = 1e-7f;
+		constexpr float divider = 180.f / FastCompute::PI;
+		l = L;
+		c = sqrt(U * U + V * V);
+		const float& tH = (c > denom) ? FastCompute::Atan2(V, U) * divider : 0.f;
+		h = (tH < 0.0f) ? tH + 360.f : tH;
+		return;
+	}
+
+	inline void get_bounds(const float& l, Bounds bounds[6])
+	{
+		const float& tl = l + 16.0f;
+		const float& sub1 = (tl * tl * tl) / 1560896.0f;
+		const float& sub2 = (sub1 > gEpsilon ? sub1 : (l / gKappa));
+
+		for (int channel = 0; channel < 3; channel++) {
+			const float& m1 = m[channel].a;
+			const float& m2 = m[channel].b;
+			const float& m3 = m[channel].c;
+
+			for (int t = 0; t < 2; t++) {
+				const float& top1 = (284517.0f * m1 - 94839.0f * m3) * sub2;
+				const float& top2 = (838422.0f * m3 + 769860.0f * m2 + 731718.0f * m1) * l * sub2 - 769860.0f * t * l;
+				const float& bottom = (632260.0f * m3 - 126452.0f * m2) * sub2 + 126452.0f * t;
+
+				bounds[channel * 2 + t].a = top1 / bottom;
+				bounds[channel * 2 + t].b = top2 / bottom;
+			}
+		}
+		return;
+	}
+
+	inline float ray_length_until_intersect(const float& theta, const Bounds& line)
+	{
+		return line.b / (sin(theta) - line.a * cos(theta));
+//		return line.b / (FastCompute::Sin(theta) - line.a * FastCompute::Cos(theta));
+	}
+
+	inline float max_chroma_for_lh(const float& l, const float& h)
+	{
+		constexpr float PiDiv180 = FastCompute::PI / 180.f;
+		CACHE_ALIGN Bounds bounds[6]{};
+		float min_len = FLT_MAX;
+		const float& hrad = h * PiDiv180;
+		int i;
+
+		get_bounds(l, bounds);
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < 6; i++)
+		{
+			const float& len = ray_length_until_intersect(hrad, bounds[i]);
+				if (len >= 0.f && len < min_len)
+					min_len = len;
+		}
+		return min_len;
+	}
+
+	inline void lch2hsluv(const float& L, const float& C, const float& HH, float& H, float& S, float& Luv)
+	{
+		constexpr float denom = 1e-7f;
+		constexpr float denomHigh = 99.9999f;
+		H = HH;
+		S = (L > denomHigh || L < denom) ? 0.f : C / max_chroma_for_lh(L, H) * 100.0f;
+		Luv = L;
+		return;
+	}
+
+	inline void hsluv2lch (const float& H, const float& S, const float& Luv, float& l, float& c, float& h)
+	{
+		constexpr float denom = 1e-7f;
+		constexpr float denomHigh = 99.9999f;
+		l = Luv;
+		c = (Luv > denomHigh || Luv < denom) ? 0.0f : max_chroma_for_lh(Luv, H) / 100.0f * S;
+		h = (S < denom) ? 0.f : H;
+	}
+
+	inline void lch2luv (const float& L, const float& C, const float& H, float& l, float& u, float& v)
+	{
+		constexpr float PiDiv180 = FastCompute::PI / 180.f;
+		const float& hRad = H * PiDiv180;
+
+		l = L;
+//		u = FastCompute::Cos(hRad) * C;
+//		v = FastCompute::Sin(hRad) * C;
+		u = cos(hRad) * C;
+		v = sin(hRad) * C;
+		return;
+	}
+
+	inline const float l2y (const float& l)
+	{
+		if (l <= 8.0f) {
+			return l / gKappa;
+		}
+		else {
+			const float& x = (l + 16.0f) / 116.0f;
+			return (x * x * x);
+		}
+	}
+
+	inline void luv2xyz (const float& L, const float& U, const float& V, float& X, float& Y, float& Z)
+	{
+		constexpr float denom = 1e-7f;
+		if (L > denom)
+		{
+			const float& var_u = U / (13.0f * L) + ref_u;
+			const float& var_v = V / (13.0f * L) + ref_v;
+			Y = l2y(L);
+			X = -(9.0f * Y * var_u) / ((var_u - 4.0f) * var_v - var_u * var_v);
+			Z = (9.0f * Y - (15.0f * var_v * Y) - (var_v * X)) / (3.0f * var_v);
+		}
+		else
+		{
+			X = Y = Z = 0.0f;
+		}
+
+		return;
+	}
+
+	inline void xyz2rgb (const float& X, const float& Y, const float& Z, float& R, float& G, float& B)
+	{
+		const Triplet& t{ X, Y, Z };
+		R = from_linear(dot_product(m[0], t));
+		G = from_linear(dot_product(m[1], t));
+		B = from_linear(dot_product(m[2], t));
+		return;
+	}
+
+} /* namespace HSLuv */
+
+
+inline void sRgb2hsLuv(const float& R, const float& G, const float& B, float& H, float& S, float& Luv) noexcept
+{
+	float X, Y, Z;
+	float l, u, v;
+	float L_, C, H_;
+
+	/* convert sRGB to XYZ */
+	HSLuv::rgb2xyz(R, G, B, X, Y, Z);
+
+	/* convert XYZ to LUV */
+	HSLuv::xyz2luv(X, Y, Z, l, u, v);
+
+	/* convert LUV to LCH */
+	HSLuv::luv2lch(l, u, v, L_, C, H_);
+
+	/* convert LCH to HSLuv */
+	HSLuv::lch2hsluv(L_, C, H_, H, S, Luv);
+
+	return;
+}
+
+
+inline void hsLuv2sRgb(const float& H, const float& S, const float& Luv, float& R, float& G, float& B) noexcept
+{
+	float L, C, H_;
+	float l, u, v;
+	float X, Y, Z;
+
+	/* convert HSLuv to LCH */
+	HSLuv::hsluv2lch (H, S, Luv, L, C, H_);
+
+	/* convert LCH to LUV */
+	HSLuv::lch2luv (L, C, H_, l, u, v);
+
+	/* convert LUV to XYZ */
+	HSLuv::luv2xyz (l, u, v, X, Y, Z);
+
+	/* convert XYZ to RGB */
+	HSLuv::xyz2rgb (X, Y, Z, R, G, B);
+
+	return;
+}
+
+
+inline void rgb2hpLuv(const float& R, const float& G, const float& B, float& H, float& P, float& Luv) noexcept
+{
+	return;
+}
+
+
+inline void hpLuv2rgb(const float& H, const float& P, const float& Luv, float& R, float& G, float& B) noexcept
+{
 	return;
 }

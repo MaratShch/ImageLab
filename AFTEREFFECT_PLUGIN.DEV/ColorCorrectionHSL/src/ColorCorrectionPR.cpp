@@ -58,7 +58,10 @@ ProcessImgInPR
 					case COLOR_SPACE_HSP:
 						err = prProcessImage_BGRA_4444_8u_HSP(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
-					case COLOR_SPACE_HSLuma:
+					case COLOR_SPACE_HSLuv:
+						err = prProcessImage_BGRA_4444_8u_HSLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
+					break;
+					case COLOR_SPACE_HPLuv:
 					break;
 				}
 			}
@@ -78,7 +81,9 @@ ProcessImgInPR
 					break;
 					case COLOR_SPACE_HSP:
 					break;
-					case COLOR_SPACE_HSLuma:
+					case COLOR_SPACE_HSLuv:
+					break;
+					case COLOR_SPACE_HPLuv:
 					break;
 				}
 			}
@@ -98,7 +103,9 @@ ProcessImgInPR
 					break;
 					case COLOR_SPACE_HSP:
 					break;
-					case COLOR_SPACE_HSLuma:
+					case COLOR_SPACE_HSLuv:
+					break;
+					case COLOR_SPACE_HPLuv:
 					break;
 				}
 			}
@@ -118,7 +125,9 @@ ProcessImgInPR
 					break;
 					case COLOR_SPACE_HSP:
 					break;
-					case COLOR_SPACE_HSLuma:
+					case COLOR_SPACE_HSLuv:
+					break;
+					case COLOR_SPACE_HPLuv:
 					break;
 				}
 			}
@@ -140,7 +149,9 @@ ProcessImgInPR
 					break;
 					case COLOR_SPACE_HSP:
 					break;
-					case COLOR_SPACE_HSLuma:
+					case COLOR_SPACE_HSLuv:
+					break;
+					case COLOR_SPACE_HPLuv:
 					break;
 				}
 			}
@@ -162,7 +173,9 @@ ProcessImgInPR
 					break;
 					case COLOR_SPACE_HSP:
 					break;
-					case COLOR_SPACE_HSLuma:
+					case COLOR_SPACE_HSLuv:
+					break;
+					case COLOR_SPACE_HPLuv:
 					break;
 				}
 			}

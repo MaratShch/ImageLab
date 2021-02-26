@@ -16,14 +16,15 @@ constexpr int ColorCorrection_VersionBuild = 1;
 
 
 constexpr char ColorSpaceType[] = "Color Space";
-constexpr char ColorSpace[] = "HSL|HSV|HSI|HSP|HSLuma";
+constexpr char ColorSpace[] = "HSL|HSV|HSI|HSP|HSLuv|HPLuv";
 
 typedef enum {
 		COLOR_SPACE_HSL = 0,
 		COLOR_SPACE_HSV,
 		COLOR_SPACE_HSI,
 		COLOR_SPACE_HSP,
-		COLOR_SPACE_HSLuma,
+		COLOR_SPACE_HSLuv,
+		COLOR_SPACE_HPLuv,
 		COLOR_SPACE_MAX_TYPES
 }eCOLOR_SPACE_TYPE;
 
@@ -101,14 +102,17 @@ inline const T CLAMP_LS(const T ls)
 }
 
 
-
-inline const float normalize_hue_wheel(const float wheel_value)
+inline const float normalize_hue_wheel(const float wheel_value) noexcept
 {
 	const float tmp = wheel_value / 360.0f;
 	const int intPart = static_cast<int>(tmp);
 	return (tmp - static_cast<float>(intPart)) * 360.0f;
 }
 
+
+void CreateColorConvertTable (void) noexcept;
+void DeleteColorConvertTable (void) noexcept;
+const float GetPowValue8u(const int& idx) noexcept;
 
 /* FUNCTIONS PROTOTYPES */
 PF_Err
@@ -278,6 +282,17 @@ PF_Err prProcessImage_BGRA_4444_8u_HSI
 ) noexcept;
 
 PF_Err prProcessImage_BGRA_4444_8u_HSP
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_hue,
+	float           add_sat,
+	float           add_per
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_8u_HSLuv
 (
 	PF_InData*		in_data,
 	PF_OutData*		out_data,

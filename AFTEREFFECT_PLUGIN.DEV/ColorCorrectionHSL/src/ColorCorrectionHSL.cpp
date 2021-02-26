@@ -71,6 +71,8 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
+	CreateColorConvertTable();
+
 	return err;
 }
 
@@ -93,7 +95,7 @@ ParamsSetup(
 	AEFX_CLR_STRUCT_EX(def);
 	PF_ADD_POPUP(
 		ColorSpaceType,					/* pop-up name			*/
-		COLOR_SPACE_MAX_TYPES,			/* numbver of variants	*/
+		COLOR_SPACE_MAX_TYPES,			/* number of variants	*/
 		COLOR_SPACE_HSL,				/* default variant		*/
 		ColorSpace,						/* string for pop-up	*/
 		COLOR_CORRECT_SPACE_POPUP);		/* control ID			*/
@@ -201,6 +203,7 @@ GlobalSetdown(
 	PF_InData* in_data
 )
 {
+	DeleteColorConvertTable();
 	return PF_Err_NONE;
 }
 
@@ -276,7 +279,7 @@ UserChangedParam(
 	PF_ParamDef						*params[],
 	PF_LayerDef						*outputP,
 	const PF_UserChangedParamExtra	*which_hitP
-) noexcept
+)
 {
 	PF_Err err = PF_Err_NONE;
 	return err;
@@ -288,7 +291,7 @@ UpdateParameterUI(
 	PF_OutData			*out_data,
 	PF_ParamDef			*params[],
 	PF_LayerDef			*outputP
-) noexcept
+)
 {
 	PF_Err err = PF_Err_NONE;
 	return err;
