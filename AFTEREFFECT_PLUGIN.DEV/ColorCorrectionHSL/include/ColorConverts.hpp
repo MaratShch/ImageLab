@@ -451,8 +451,8 @@ namespace HSLuv
 
 	inline float to_linear (const float& c)
 	{
-//		return (c > 0.04045f) ? FastCompute::Pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
-		return (c > 0.04045f) ? pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
+		return (c > 0.04045f) ? FastCompute::Pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
+//		return (c > 0.04045f) ? pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
 	}
 
 	inline float from_linear (const float& c)
