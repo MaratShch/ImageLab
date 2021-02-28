@@ -62,6 +62,7 @@ ProcessImgInPR
 						err = prProcessImage_BGRA_4444_8u_HSLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HPLuv:
+						err = prProcessImage_BGRA_4444_8u_HPLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 				}
 			}
@@ -78,12 +79,16 @@ ProcessImgInPR
 						err = prProcessImage_BGRA_4444_16u_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSI:
+						err = prProcessImage_BGRA_4444_16u_HSI(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSP:
+						err = prProcessImage_BGRA_4444_16u_HSP(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSLuv:
+						err = prProcessImage_BGRA_4444_16u_HSLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HPLuv:
+						err = prProcessImage_BGRA_4444_16u_HPLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 				}
 			}
@@ -100,12 +105,16 @@ ProcessImgInPR
 						err = prProcessImage_BGRA_4444_32f_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSI:
+						err = prProcessImage_BGRA_4444_32f_HSI(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSP:
+						err = prProcessImage_BGRA_4444_32f_HSP(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSLuv:
+						err = prProcessImage_BGRA_4444_32f_HSLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HPLuv:
+						err = prProcessImage_BGRA_4444_32f_HPLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 				}
 			}
@@ -122,12 +131,16 @@ ProcessImgInPR
 						err = prProcessImage_RGB_444_10u_HSV(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSI:
+						err = prProcessImage_RGB_444_10u_HSI(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSP:
+						err = prProcessImage_RGB_444_10u_HSP(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HSLuv:
+						err = prProcessImage_RGB_444_10u_HSLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 					case COLOR_SPACE_HPLuv:
+						err = prProcessImage_RGB_444_10u_HPLuv(in_data, out_data, params, output, totalHue, totalSat, totalLwb);
 					break;
 				}
 			}

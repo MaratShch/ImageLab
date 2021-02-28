@@ -5,32 +5,32 @@ namespace FastCompute
 {
 	constexpr auto CHAR_BITS = 8;
 
-	inline constexpr int Min(const int& x, const int& y)
+	inline constexpr int Min(const int& x, const int& y) noexcept
 	{
 		return y + ((x - y) & ((x - y) >>
 			(sizeof(int) * CHAR_BITS - 1)));
 	}
 
-	inline constexpr int Max(const int& x, const int& y)
+	inline constexpr int Max(const int& x, const int& y) noexcept
 	{
 		return x - ((x - y) & ((x - y) >>
 			(sizeof(int) * CHAR_BITS - 1)));
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min(const T& x, const T& y)
+	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min(const T& x, const T& y) noexcept
 	{	/* find minimal value between 2 fixed point values without branch */
 		return y ^ ((x ^ y) & -(x < y));
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Max(const T& x, const T& y)
+	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Max(const T& x, const T& y) noexcept
 	{   /* find maximal value between 2 fixed point values without branch */
 		return x ^ ((x ^ y) & -(x < y));
 	}
 
 
-	inline double Sqrt(const double& x)
+	inline double Sqrt(const double& x) noexcept
 	{
 		const double   xHalf = 0.50 * x;
 		long long int  tmp = 0x5FE6EB50C7B537AAl - (*(long long int*)&x >> 1); //initial guess
@@ -39,7 +39,7 @@ namespace FastCompute
 		return xRes * x;
 	}
 
-	inline float Sqrt(const float& x)
+	inline float Sqrt(const float& x) noexcept
 	{
 		const float xHalf = 0.50f * x;
 		int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess
@@ -48,21 +48,21 @@ namespace FastCompute
 		return xRes * x;
 	}
 	
-	inline float Pow (const float& a, const float& b)
+	inline float Pow (const float& a, const float& b) noexcept
 	{
 		union { float d; int x; } u = { a };
 		u.x = (int)(b * (u.x - 1064866805) + 1064866805);
 		return u.d;
 	}
 
-	inline float Abs (const float& f)
+	inline float Abs (const float& f) noexcept
 	{
 		int i = ((*(int*)&f) & 0x7fffffff);
 		return (*(float*)&i);
 	}
 
 	/* Qubic root for float */
-	inline float Cbrt (const float& x0)
+	inline float Cbrt (const float& x0) noexcept
 	{
 		constexpr float reciproc3 = 1.0f / 3.0f;
 
@@ -81,7 +81,7 @@ namespace FastCompute
 		return x;
 	}
 
-	inline float Log2 (const float& val)
+	inline float Log2 (const float& val) noexcept
 	{
 		int* const  exp_ptr = (int*)(&val);
 		int         x = *exp_ptr;
@@ -92,14 +92,14 @@ namespace FastCompute
 		return (val + log_2);
 	}
 
-	inline float Atan (const float& z)
+	inline float Atan (const float& z) noexcept
 	{
 		constexpr float n1 = 0.97239411f;
 		constexpr float n2 = -0.19194795f;
 		return (n1 + n2 * z * z) * z;
 	}
 
-	inline float Atan2 (const float& y, const float& x)
+	inline float Atan2 (const float& y, const float& x) noexcept
 	{
 		constexpr float PI = 3.14159265f;
 		constexpr float PI_2 = PI / 2.0f;
@@ -158,26 +158,37 @@ namespace FastCompute
 	constexpr float PIx2 = PI * 2.0f;
 	constexpr float HalfPI = PI / 2.0f;
 
-	inline float Sin (const float& x)
+#define EXTRA_PRECISION
+	template<typename T>
+	inline T Cos (T x) noexcept
 	{
-		constexpr float reciprocDoublePI = 1.0f / PIx2;
-
-		float X = x * reciprocDoublePI;
-		X -= (int)X;
-
-		if (X <= 0.5f) {
-			const float& t = 2.f * x * (2.f * x - 1.f);
-			return (PI * t) / ((PI - 4.f) * t - 1.f);
-		}
-		else {
-			const float& t = 2.f * (1.f - x) * (1.f - 2.f * x);
-			return -(PI * t) / ((PI - 4.f) * t - 1.f);
-		}
+		constexpr T DoublePI = T(2.) * T(3.14159265358979323846264);
+		constexpr T tp = T(1.) / DoublePI;
+		x *= tp;
+		x -= T(.25) + std::floor(x + T(.25));
+		x *= T(16.) * (std::abs(x) - T(.5));
+#ifdef EXTRA_PRECISION
+		x += T(.225) * x * (std::abs(x) - T(1.));
+#endif
+		return x;
 	}
 
-	inline float Cos (const float& x)
+	inline float Sin (float x) noexcept
 	{
-		return Sin(x + 0.5f * PI);
+		constexpr float HalfPI = 3.14159265358979323846264f / 2.f;
+		return Cos(x + HalfPI);
+	}
+
+	inline double Sin (double x) noexcept
+	{
+		constexpr double HalfPI = 3.14159265358979323846264 / 2.;
+		return Cos(x + HalfPI);
+	}
+
+	inline long double Sin(long double x) noexcept
+	{
+		constexpr long double HalfPI = 3.14159265358979323846264l / 2.l;
+		return Cos(x + HalfPI);
 	}
 
 }; /* namespace FastCompute */

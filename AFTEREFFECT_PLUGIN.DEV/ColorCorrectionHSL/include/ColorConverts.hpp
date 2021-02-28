@@ -194,7 +194,7 @@ inline void sRgb2hsi(const float& R, const float& G, const float& B, float& H, f
 {
 	constexpr float reciproc3 = 1.f / 3.f;
 	constexpr float denom = 1.f / 1e7f;
-	constexpr float reciprocPi180 = 180.f / 3.14159265f;
+	constexpr float reciprocPi180 = 180.f / FastCompute::PI;
 
 	float i = (R + G + B) * reciproc3;
 	float h, s;
@@ -233,28 +233,28 @@ inline void hsi2sRgb(const float& H, const float& S, const float& I, float& R, f
 
 	if (h < 120.f)
 	{
-		const float& cosTmp = FastCompute::Cos((60.f - h) * PiDiv180);
+		const float& cosTmp = cos((60.f - h) * PiDiv180);
 		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
 		B = val1;
-		R = I * (1.f + S * FastCompute::Cos(h * PiDiv180) / cosDiv);
+		R = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
 		G = tripleI - R - B;
 	}
 	else if (h < 240.f)
 	{
 		h -= 120.f;
-		const float& cosTmp = FastCompute::Cos((60.f - h) * PiDiv180);
+		const float& cosTmp = cos((60.f - h) * PiDiv180);
 		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
 		R = val1;
-		G = I * (1.f + S * FastCompute::Cos(h * PiDiv180) / cosDiv);
+		G = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
 		B = tripleI - R - G;
 	}
 	else
 	{
 		h -= 240.f;
-		const float& cosTmp = FastCompute::Cos((60.f - h) * PiDiv180);
+		const float& cosTmp = cos((60.f - h) * PiDiv180);
 		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
 		G = val1;
-		B = I * (1.f + S * FastCompute::Cos(h * PiDiv180) / cosDiv);
+		B = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
 		R = tripleI - G - B;
 	}
 
@@ -330,42 +330,42 @@ inline void hsp2sRgb(const float& H, const float& S, const float& P, float& R, f
 		if ( H < 1.f / 6.f) {   //  R>G>B
 			const float& h = 6.f * H; 
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			B = P / FastCompute::Sqrt(Pr / minOverMax / minOverMax + Pg * part * part + Pb);
+			B = P / sqrt(Pr / minOverMax / minOverMax + Pg * part * part + Pb);
 			R = B / minOverMax;
 			G = B + h * (R - B);
 		}
 		else if ( H < 2.f / 6.f) {   //  G>R>B
 			const float& h = 6. * (-H + 2.f / 6.f); 
 			part = 1.f + h  * (1.f / minOverMax - 1.f);
-			B = P / FastCompute::Sqrt(Pg / minOverMax / minOverMax + Pr * part * part + Pb);
+			B = P / sqrt(Pg / minOverMax / minOverMax + Pr * part * part + Pb);
 			G = B / minOverMax;
 			R = B + h * (G - B);
 		}
 		else if (H < 3.f / 6.f) {   //  G>B>R
 			const float& h = 6.f * (H - 2.f / 6.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			R = P / FastCompute::Sqrt(Pg / minOverMax / minOverMax + Pb * part * part + Pr);
+			R = P / sqrt(Pg / minOverMax / minOverMax + Pb * part * part + Pr);
 			G = R / minOverMax;
 			B = R + h * (G - R);
 		}
 		else if (H < 4.f / 6.f) {   //  B>G>R
 			const float& h = 6.f * (-H + 4.f / 6.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			R = P / FastCompute::Sqrt(Pb / minOverMax / minOverMax + Pg * part * part + Pr);
+			R = P / sqrt(Pb / minOverMax / minOverMax + Pg * part * part + Pr);
 			B = R / minOverMax;
 			G = R + h * (B - R);
 		}
 		else if (H < 5.f / 6.f) {   //  B>R>G
 			const float& h = 6.f * (H - 4.f / 6.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			G = P / FastCompute::Sqrt(Pb / minOverMax / minOverMax + Pr * part * part + Pg);
+			G = P / sqrt(Pb / minOverMax / minOverMax + Pr * part * part + Pg);
 			B = G / minOverMax;
 			R = G + h * (B - G);
 		}
 		else {   //  R>B>G
 			const float& h = 6.f * (-H + 1.f);
 			part = 1.f + h * (1.f / minOverMax - 1.f);
-			G = P / FastCompute::Sqrt(Pr / minOverMax / minOverMax + Pb * part * part + Pg);
+			G = P / sqrt(Pr / minOverMax / minOverMax + Pb * part * part + Pg);
 			R = G / minOverMax;
 			B = G + h * (R - G);
 		}
@@ -374,37 +374,37 @@ inline void hsp2sRgb(const float& H, const float& S, const float& P, float& R, f
 	{
 		if ( H < 1.f / 6.f) {   //  R>G>B
 			const float& h = 6.f * H;
-			R = FastCompute::Sqrt(P * P / (Pr + Pg * h * h));
+			R = sqrt(P * P / (Pr + Pg * h * h));
 			G = R *h;
 			B = 0.f;
 		}
 		else if (H < 2.f / 6.f) {   //  G>R>B
 			const float& h = 6.f * (-H + 2.f / 6.f);
-			G = FastCompute::Sqrt(P * P / (Pg + Pr * h * h));
+			G = sqrt(P * P / (Pg + Pr * h * h));
 			R = G * h; 
 			B = 0.f;
 		}
 		else if (H < 3.f / 6.f) {   //  G>B>R
 			const float& h = 6.f * (H - 2.f / 6.f);
-			G = FastCompute::Sqrt(P * P / (Pg + Pb * h * h));
+			G = sqrt(P * P / (Pg + Pb * h * h));
 			B = G * h;
 			R = 0.f;
 		}
 		else if (H < 4.f / 6.f) {   //  B>G>R
 			const float& h = 6.f * (-H + 4.f / 6.f);
-			B = FastCompute::Sqrt(P * P / (Pb + Pg * h * h));
+			B = sqrt(P * P / (Pb + Pg * h * h));
 			G = B * h; 
 			R = 0.f;
 		}
 		else if (H < 5.f / 6.f) {   //  B>R>G
 			const float& h = 6.f * (H - 4.f / 6.f);
-			B = FastCompute::Sqrt(P * P / (Pb + Pr * h * h));
+			B = sqrt(P * P / (Pb + Pr * h * h));
 			R = B * h;
 			G= 0.f;
 		}
 		else {   //  R>B>G
 			const float& h = 6.f * (-H + 1.f);
-			R = FastCompute::Sqrt(P * P / (Pr + Pb * h * h));
+			R = sqrt(P * P / (Pr + Pb * h * h));
 			B = R * h; 
 			G = 0.f;
 		}
@@ -451,19 +451,18 @@ namespace HSLuv
 
 	inline float to_linear (const float& c)
 	{
-		return (c > 0.04045f) ? FastCompute::Pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
-//		return (c > 0.04045f) ? pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
+		return (c > 0.04045f) ? pow((c + 0.055f) / 1.055f, 2.4f) : c / 12.92f;
 	}
 
 	inline float from_linear (const float& c)
 	{
 		constexpr float reciproc = 1.0f / 2.4f;
-		return (c <= 0.0031308f) ? 12.92f * c : 1.055f * FastCompute::Pow(c, reciproc) - 0.055f;
+		return (c <= 0.0031308f) ? 12.92f * c : 1.055f * pow(c, reciproc) - 0.055f;
 	}
 
 	inline float y2l (const float& y)
 	{
-		return (y <= gEpsilon) ? y * gKappa : 116.0f * FastCompute::Cbrt(y) - 16.0f;
+		return (y <= gEpsilon) ? y * gKappa : 116.0f * cbrt(y) - 16.0f;
 	}
 
 	inline void rgb2xyz (const float& R, const float& G, const float& B, float& x, float& y, float& z)
@@ -525,6 +524,38 @@ namespace HSLuv
 	{
 		return line.b / (sin(theta) - line.a * cos(theta));
 //		return line.b / (FastCompute::Sin(theta) - line.a * FastCompute::Cos(theta));
+	}
+
+	inline float intersect_line_line (const Bounds& line1, const Bounds& line2)
+	{
+		return (line1.b - line2.b) / (line2.a - line1.a);
+	}
+
+	inline float dist_from_pole_squared (const float& x, const float& y)
+	{
+		return x * x + y * y;
+	}
+
+	inline float max_safe_chroma_for_l (const float& l)
+	{
+		float min_len_squared = FLT_MAX;
+		CACHE_ALIGN Bounds bounds[6];
+
+		get_bounds(l, bounds);
+		for (int i = 0; i < 6; i++)
+		{
+			const float& m1 = bounds[i].a;
+			const float& b1 = bounds[i].b;
+
+			const Bounds line2 = { -1.0f / m1, 0.0f };
+			const float& x = intersect_line_line(bounds[i], line2);
+			const float& distance = dist_from_pole_squared(x, b1 + x * m1);
+
+			if (distance < min_len_squared)
+				min_len_squared = distance;
+		}
+
+		return FastCompute::Sqrt(min_len_squared);
 	}
 
 	inline float max_chroma_for_lh(const float& l, const float& h)
@@ -618,6 +649,27 @@ namespace HSLuv
 		return;
 	}
 
+	inline void lch2hpluv (const float& L, const float& C, const float& HH, float& H, float& P, float& Luv)
+	{
+		constexpr float denom = 1e-7f;
+		constexpr float denomHigh = 99.9999f;
+
+		H = (C > denom) ? HH : 0.f;
+		P = (L > denomHigh || L < denom) ? 0.f : C / max_safe_chroma_for_l(L) * 100.0f;
+		Luv = L;
+		return;
+	}
+
+	inline void hpluv2lch (const float& H, const float& P, const float& Luv, float& L, float& C, float& HH)
+	{
+		constexpr float denom = 1e-7f;
+		constexpr float denomHigh = 99.9999f;
+
+		C = (Luv > denomHigh || Luv < denom) ? 0.f : max_safe_chroma_for_l(L) / 100.0f * P;
+		HH = (P > denom) ? HH : 0.f;
+		L = Luv;
+	}
+
 } /* namespace HSLuv */
 
 
@@ -667,11 +719,42 @@ inline void hsLuv2sRgb(const float& H, const float& S, const float& Luv, float& 
 
 inline void rgb2hpLuv(const float& R, const float& G, const float& B, float& H, float& P, float& Luv) noexcept
 {
+	float X, Y, Z;
+	float l, u, v;
+	float L_, C, H_;
+
+	/* convert sRGB to XYZ */
+	HSLuv::rgb2xyz(R, G, B, X, Y, Z);
+
+	/* convert XYZ to LUV */
+	HSLuv::xyz2luv(X, Y, Z, l, u, v);
+
+	/* convert LUV to LCH */
+	HSLuv::luv2lch(l, u, v, L_, C, H_);
+
+	/* convert LCH to HPLuv */
+	HSLuv::lch2hpluv(L_, C, H_, H, P, Luv);
+
 	return;
 }
 
 
 inline void hpLuv2rgb(const float& H, const float& P, const float& Luv, float& R, float& G, float& B) noexcept
 {
+	float L, C, H_;
+	float l, u, v;
+	float X, Y, Z;
+
+	/* CONVERT HPLuv to LCH */
+
+	/* convert LCH to LUV */
+	HSLuv::lch2luv(L, C, H_, l, u, v);
+
+	/* convert LUV to XYZ */
+	HSLuv::luv2xyz(l, u, v, X, Y, Z);
+
+	/* convert XYZ to RGB */
+	HSLuv::xyz2rgb(X, Y, Z, R, G, B);
+
 	return;
 }
