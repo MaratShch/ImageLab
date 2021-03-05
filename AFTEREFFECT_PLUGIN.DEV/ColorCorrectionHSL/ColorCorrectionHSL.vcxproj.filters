@@ -45,6 +45,12 @@
     <ClCompile Include="src\ColorProcVUYA_32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ColorProcARGB_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcARGB_16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ColorCorrectionHSL.hpp">
