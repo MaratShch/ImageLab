@@ -269,6 +269,33 @@ SmartRender(
 }
 
 
+inline void
+ResetParams(
+	PF_ParamDef* params[]
+) noexcept
+{
+	params[COLOR_CORRECT_HUE_COARSE_LEVEL]->u.sd.value = 0;
+	params[COLOR_CORRECT_HUE_COARSE_LEVEL]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+
+	params[COLOR_HUE_FINE_LEVEL_SLIDER]->u.fs_d.value = 0.0;
+	params[COLOR_HUE_FINE_LEVEL_SLIDER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+
+	params[COLOR_SATURATION_COARSE_LEVEL_SLIDER]->u.sd.value = 0;
+	params[COLOR_SATURATION_COARSE_LEVEL_SLIDER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+
+	params[COLOR_SATURATION_FINE_LEVEL_SLIDER]->u.fs_d.value = 0.0;
+	params[COLOR_SATURATION_FINE_LEVEL_SLIDER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+
+	params[COLOR_LWIP_COARSE_LEVEL_SLIDER]->u.sd.value = 0;
+	params[COLOR_LWIP_COARSE_LEVEL_SLIDER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+
+	params[COLOR_LWIP_FINE_LEVEL_SLIDER]->u.fs_d.value = 0.0;
+	params[COLOR_LWIP_FINE_LEVEL_SLIDER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+
+	return;
+}
+
+
 static PF_Err
 UserChangedParam(
 	PF_InData						*in_data,
@@ -279,6 +306,25 @@ UserChangedParam(
 )
 {
 	PF_Err err = PF_Err_NONE;
+
+	switch (which_hitP->param_index)
+	{
+		case COLOR_LOAD_SETTING_BUTTON:
+		break;
+
+		case COLOR_SAVE_SETTING_BUTTON:
+			SaveCustomSetting (params);
+		break;
+
+		case COLOR_RESET_SETTING_BUTTON:
+			ResetParams(params);
+		break;
+			
+		default:
+			/* nothing to do */
+		break;
+	}
+
 	return err;
 }
 

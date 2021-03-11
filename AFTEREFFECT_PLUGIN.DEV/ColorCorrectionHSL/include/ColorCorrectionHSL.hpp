@@ -14,6 +14,22 @@ constexpr int ColorCorrection_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEAS
 #endif
 constexpr int ColorCorrection_VersionBuild = 1;
 
+typedef struct _strHslRecord
+{
+	uint32_t	ver;
+	uint32_t	subVer;
+	uint32_t	sizeOf;
+	char        name[32];
+	uint32_t	domain;
+	double		hue_coarse;
+	double		hue_fine;
+	double		sat_coarse;
+	double		sat_file;
+	double		l_coarse;
+	double		l_fine;
+} strHslRecord;
+
+constexpr uint32_t strHslRecorsSizeof = sizeof(strHslRecord);
 
 constexpr char ColorSpaceType[] = "Color Space";
 constexpr char ColorSpace[] = "HSL|HSV|HSI|HSP|HSLuv|HPLuv";
@@ -64,7 +80,7 @@ constexpr char ResetSettingName[] = "Reset Setting";
 constexpr char ResetSetting[] = "Reset";
 
 
-enum {
+typedef enum {
 		COLOR_CORRECT_INPUT,
 		COLOR_CORRECT_SPACE_POPUP,
 		COLOR_CORRECT_HUE_COARSE_LEVEL,
@@ -77,7 +93,7 @@ enum {
 		COLOR_SAVE_SETTING_BUTTON,
 		COLOR_RESET_SETTING_BUTTON,
 		COLOR_CORRECT_TOTAL_PARAMS
-};
+}Item;
 
 
 template<typename T>
@@ -113,6 +129,10 @@ inline const float normalize_hue_wheel(const float wheel_value) noexcept
 void CreateColorConvertTable (void) noexcept;
 void DeleteColorConvertTable (void) noexcept;
 const float GetPowValue8u(const int& idx) noexcept;
+
+bool SaveCustomSetting (PF_ParamDef* params[]) noexcept;
+bool LoadCustomSetting (PF_ParamDef* params[]) noexcept;
+
 
 /* FUNCTIONS PROTOTYPES */
 PF_Err
