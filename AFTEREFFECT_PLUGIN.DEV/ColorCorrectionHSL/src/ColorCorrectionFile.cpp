@@ -16,7 +16,7 @@ LPSTR desktop_directory (void)
 	else return NULL;
 }
 
-static bool SaveCustomSetting_1_0
+bool SaveCustomSetting_1_0
 (
 	PF_ParamDef* params[]
 ) noexcept
@@ -65,12 +65,6 @@ static bool SaveCustomSetting_1_0
 	ofn.nMaxFile = fileName.size();
 	ofn.Flags = OFN_EXPLORER | OFN_SHOWHELP | OFN_OVERWRITEPROMPT;
 	ofn.lpstrDefExt = "lab2";
-
-	if (GetOpenFileName(&ofn))
-	{
-		printf("save-as  '%s'\n", ofn.lpstrFile);
-		printf("filename '%s'\n", ofn.lpstrFile + ofn.nFileOffset);
-	}
 
 	return false;
 }

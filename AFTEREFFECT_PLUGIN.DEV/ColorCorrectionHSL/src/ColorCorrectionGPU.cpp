@@ -1,4 +1,5 @@
 #include "ColorCorrectionGPU.hpp"
+#include "ColorCorrectionEnums.hpp"
 #include "ImageLab2GpuObj.hpp"
 
 
@@ -46,6 +47,7 @@ public:
 		float* outBuffer = nullptr;
 		csSDK_int32 destRowBytes = 0;
 		csSDK_int32 srcRowBytes = 0;
+		csSDK_int32 switchErr = 0;
 
 #ifdef _DEBUG
 		const csSDK_int32 instanceCnt = TotalInstances();
@@ -78,10 +80,41 @@ public:
 			inBuffer = reinterpret_cast<float*>(srcFrameData);
 			outBuffer = reinterpret_cast<float*>(destFrameData);
 
-			/* Launch CUDA kernel */
-			ColorCorrection_CUDA(inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+			auto const& ColorDomain = GetParam (COLOR_CORRECT_SPACE_POPUP, 0);
 
-			if (cudaSuccess != cudaPeekAtLastError())
+			/* Launch CUDA kernel */
+			switch (ColorDomain.mInt32)
+			{
+				case COLOR_SPACE_HSL:
+					ColorCorrection_HSL_CUDA(inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+				break;
+
+				case COLOR_SPACE_HSV:
+					ColorCorrection_HSV_CUDA(inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+				break;
+
+				case COLOR_SPACE_HSI:
+					ColorCorrection_HSI_CUDA(inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+				break;
+
+				case COLOR_SPACE_HSP:
+					ColorCorrection_HSP_CUDA(inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+				break;
+
+				case COLOR_SPACE_HSLuv:
+					ColorCorrection_HSLuv_CUDA(inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+				break;
+
+				case COLOR_SPACE_HPLuv:
+					ColorCorrection_HSL_CUDA(inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+				break;
+
+				default:
+					switchErr = -1;
+				break;
+			}
+
+			if (cudaSuccess != cudaPeekAtLastError() || 0 != switchErr)
 			{
 				return suiteError_Fail;
 			}

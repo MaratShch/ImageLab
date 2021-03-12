@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CommonAdobeAE.hpp"
+#include "ColorCorrectionEnums.hpp"
 
 constexpr char strName[] = "Color Correction HSL/V/I/P";
 constexpr char strCopyright[] = "\n2019-2021. ImageLab2 Copyright(c).\rColor Correction in HSL/V/I/P color space.";
@@ -33,17 +34,6 @@ constexpr uint32_t strHslRecorsSizeof = sizeof(strHslRecord);
 
 constexpr char ColorSpaceType[] = "Color Space";
 constexpr char ColorSpace[] = "HSL|HSV|HSI|HSP|HSLuv|HPLuv";
-
-typedef enum {
-		COLOR_SPACE_HSL = 0,
-		COLOR_SPACE_HSV,
-		COLOR_SPACE_HSI,
-		COLOR_SPACE_HSP,
-		COLOR_SPACE_HSLuv,
-		COLOR_SPACE_HPLuv,
-		COLOR_SPACE_MAX_TYPES
-}eCOLOR_SPACE_TYPE;
-
 
 constexpr char ColorHueCoarseType[] = "Hue coarse level";
 constexpr char ColorHueFineLevel[] = "Hue fine level";
@@ -80,22 +70,6 @@ constexpr char ResetSettingName[] = "Reset Setting";
 constexpr char ResetSetting[] = "Reset";
 
 
-typedef enum {
-		COLOR_CORRECT_INPUT,
-		COLOR_CORRECT_SPACE_POPUP,
-		COLOR_CORRECT_HUE_COARSE_LEVEL,
-		COLOR_HUE_FINE_LEVEL_SLIDER,
-		COLOR_SATURATION_COARSE_LEVEL_SLIDER,
-		COLOR_SATURATION_FINE_LEVEL_SLIDER,
-		COLOR_LWIP_COARSE_LEVEL_SLIDER,
-		COLOR_LWIP_FINE_LEVEL_SLIDER,
-		COLOR_LOAD_SETTING_BUTTON,
-		COLOR_SAVE_SETTING_BUTTON,
-		COLOR_RESET_SETTING_BUTTON,
-		COLOR_CORRECT_TOTAL_PARAMS
-}Item;
-
-
 template<typename T>
 inline const T CLAMP_H(const T hue)
 {
@@ -125,10 +99,6 @@ inline const float normalize_hue_wheel(const float wheel_value) noexcept
 	return (tmp - static_cast<float>(intPart)) * 360.0f;
 }
 
-
-void CreateColorConvertTable (void) noexcept;
-void DeleteColorConvertTable (void) noexcept;
-const float GetPowValue8u(const int& idx) noexcept;
 
 bool SaveCustomSetting (PF_ParamDef* params[]) noexcept;
 bool LoadCustomSetting (PF_ParamDef* params[]) noexcept;

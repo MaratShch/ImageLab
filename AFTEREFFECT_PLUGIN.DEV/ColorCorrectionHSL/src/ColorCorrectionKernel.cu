@@ -96,7 +96,117 @@ __global__ void kColorCorrectionCUDA
 
 
 CUDA_KERNEL_CALL
-void ColorCorrection_CUDA
+void ColorCorrection_HSL_CUDA
+(
+	float* RESTRICT inBuf,
+	float* RESTRICT outBuf,
+	int destPitch,
+	int srcPitch,
+	int	is16f,
+	int width,
+	int height
+)
+{
+	dim3 blockDim(32, 32, 1);
+	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+
+	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+
+	cudaDeviceSynchronize();
+
+	return;
+}
+
+CUDA_KERNEL_CALL
+void ColorCorrection_HSV_CUDA
+(
+	float* RESTRICT inBuf,
+	float* RESTRICT outBuf,
+	int destPitch,
+	int srcPitch,
+	int	is16f,
+	int width,
+	int height
+)
+{
+	dim3 blockDim(32, 32, 1);
+	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+
+	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+
+	cudaDeviceSynchronize();
+
+	return;
+}
+
+CUDA_KERNEL_CALL
+void ColorCorrection_HSI_CUDA
+(
+	float* RESTRICT inBuf,
+	float* RESTRICT outBuf,
+	int destPitch,
+	int srcPitch,
+	int	is16f,
+	int width,
+	int height
+)
+{
+	dim3 blockDim(32, 32, 1);
+	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+
+	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+
+	cudaDeviceSynchronize();
+
+	return;
+}
+
+CUDA_KERNEL_CALL
+void ColorCorrection_HSP_CUDA
+(
+	float* RESTRICT inBuf,
+	float* RESTRICT outBuf,
+	int destPitch,
+	int srcPitch,
+	int	is16f,
+	int width,
+	int height
+)
+{
+	dim3 blockDim(32, 32, 1);
+	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+
+	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+
+	cudaDeviceSynchronize();
+
+	return;
+}
+
+CUDA_KERNEL_CALL
+void ColorCorrection_HSLuv_CUDA
+(
+	float* RESTRICT inBuf,
+	float* RESTRICT outBuf,
+	int destPitch,
+	int srcPitch,
+	int	is16f,
+	int width,
+	int height
+)
+{
+	dim3 blockDim(32, 32, 1);
+	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+
+	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+
+	cudaDeviceSynchronize();
+
+	return;
+}
+
+CUDA_KERNEL_CALL
+void ColorCorrection_HPLuv_CUDA
 (
 	float* RESTRICT inBuf,
 	float* RESTRICT outBuf,

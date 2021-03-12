@@ -28,14 +28,76 @@ typedef struct Pixel16
 	(((val) < (val_min)) ? (val_min) : (((val) > (val_max)) ? (val_max) : (val)))
 #endif
 
-CUDA_KERNEL_CALL
-void ColorCorrection_CUDA
-(
-	float* inBuf,
-	float* outBuf,
-	int destPitch,
-	int srcPitch,
-	int	is16f,
-	int width,
-	int height
-);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	void ColorCorrection_HSL_CUDA
+	(
+		float* inBuf,
+		float* outBuf,
+		int destPitch,
+		int srcPitch,
+		int	is16f,
+		int width,
+		int height
+	);
+
+	void ColorCorrection_HSV_CUDA
+	(
+		float* inBuf,
+		float* outBuf,
+		int destPitch,
+		int srcPitch,
+		int	is16f,
+		int width,
+		int height
+	);
+
+	void ColorCorrection_HSI_CUDA
+	(
+		float* inBuf,
+		float* outBuf,
+		int destPitch,
+		int srcPitch,
+		int	is16f,
+		int width,
+		int height
+	);
+
+	void ColorCorrection_HSP_CUDA
+	(
+		float* inBuf,
+		float* outBuf,
+		int destPitch,
+		int srcPitch,
+		int	is16f,
+		int width,
+		int height
+	);
+
+	void ColorCorrection_HSLuv_CUDA
+	(
+		float* inBuf,
+		float* outBuf,
+		int destPitch,
+		int srcPitch,
+		int	is16f,
+		int width,
+		int height
+	);
+
+	void ColorCorrection_HPLuv_CUDA
+	(
+		float* inBuf,
+		float* outBuf,
+		int destPitch,
+		int srcPitch,
+		int	is16f,
+		int width,
+		int height
+	);
+
+#ifdef __cplusplus
+}
+#endif

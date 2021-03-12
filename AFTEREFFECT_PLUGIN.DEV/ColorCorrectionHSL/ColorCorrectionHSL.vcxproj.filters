@@ -89,6 +89,9 @@
     <ClInclude Include="include\ColorCorrectionGPU.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorCorrectionEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorCorrectionHSL.rc">
