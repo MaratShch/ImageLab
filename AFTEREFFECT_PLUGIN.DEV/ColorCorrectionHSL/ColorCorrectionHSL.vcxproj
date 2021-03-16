@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{E2B6A2F4-C9DB-4EFB-AC01-F179B54E90A2}</ProjectGuid>
     <RootNamespace>ColorCorrectionHSL</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -41,14 +41,14 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
-    <CharacterSet>MultiByte</CharacterSet>
+    <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>MultiByte</CharacterSet>
+    <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -90,7 +90,6 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -103,10 +102,11 @@
       <FloatingPointExceptions>false</FloatingPointExceptions>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
@@ -146,7 +146,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
@@ -197,6 +197,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="include\ColorConverts.hpp" />
+    <ClInclude Include="include\ColorConverts_GPU.hpp" />
     <ClInclude Include="include\ColorCorrectionEnums.hpp" />
     <ClInclude Include="include\ColorCorrectionGPU.hpp" />
     <ClInclude Include="include\ColorCorrectionHSL.hpp" />
@@ -210,7 +211,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
-"$(CUDA_PATH)\bin\nvcc.exe" --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)ColorCorrectionKernel.obj" "$(ProjectDir)src\ColorCorrectionKernel.cu"</Command>
+"$(CUDA_PATH)\bin\nvcc.exe" --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -restrict -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../include -I../Common -o "$(IntDir)ColorCorrectionKernel.obj" "$(ProjectDir)src\ColorCorrectionKernel.cu"</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building %(Filename).cu</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\%(Filename).obj</Outputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).cu</AdditionalInputs>
@@ -218,7 +219,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\%(Filename).obj</Outputs>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building %(Filename).cu</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
-"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MDd,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common --debug --device-debug -o "$(IntDir)ColorCorrectionKernel.obj" "$(ProjectDir)src\ColorCorrectionKernel.cu"</Command>
+"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MDd,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../include -I../Common --debug --device-debug -o "$(IntDir)ColorCorrectionKernel.obj" "$(ProjectDir)src\ColorCorrectionKernel.cu"</Command>
     </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

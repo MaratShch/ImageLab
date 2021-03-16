@@ -1,6 +1,7 @@
 #pragma once
 
 typedef enum {
+	COLOR_SPACE_INNVALID = -1,
 	COLOR_SPACE_HSL = 0,
 	COLOR_SPACE_HSV,
 	COLOR_SPACE_HSI,

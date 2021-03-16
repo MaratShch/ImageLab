@@ -335,7 +335,7 @@ inline void hsp2sRgb(const float& H, const float& S, const float& P, float& R, f
 			G = B + h * (R - B);
 		}
 		else if ( H < 2.f / 6.f) {   //  G>R>B
-			const float& h = 6. * (-H + 2.f / 6.f); 
+			const float& h = 6.f * (-H + 2.f / 6.f); 
 			part = 1.f + h  * (1.f / minOverMax - 1.f);
 			B = P / sqrt(Pg / minOverMax / minOverMax + Pr * part * part + Pb);
 			G = B / minOverMax;
@@ -422,13 +422,13 @@ namespace HSLuv
 	typedef struct Bounds {
 		float a;
 		float b;
-	};
+	}Bounds;
 
 	typedef struct Triplet {
 		float a;
 		float b;
 		float c;
-	};
+	}Triplet;
 
 	/* for RGB */
 	constexpr static Triplet m[3] = {

@@ -23,10 +23,6 @@ typedef struct Pixel16
 	unsigned short w; /* ALLPHA	*/
 }Pixel16, *PPixel16;
 
-#ifndef CLAMP_VALUE
-#define CLAMP_VALUE(val, val_min, val_max) \
-	(((val) < (val_min)) ? (val_min) : (((val) > (val_max)) ? (val_max) : (val)))
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,8 +36,12 @@ extern "C" {
 		int srcPitch,
 		int	is16f,
 		int width,
-		int height
+		int height,
+		float hue,
+		float sat,
+		float lum
 	);
+
 
 	void ColorCorrection_HSV_CUDA
 	(

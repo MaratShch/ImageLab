@@ -1,6 +1,7 @@
 #include "ColorCorrectionGPU.hpp"
 #include "FastAriphmetics.hpp"
 #include "ImageLabCUDA.hpp"
+#include "ColorConverts_GPU.hpp"
 
 
 inline __device__ float4 HalfToFloat4 (Pixel16 in)
@@ -15,8 +16,30 @@ inline __device__ Pixel16 FloatToHalf4(float4 in)
 	return v;
 }
 
+template<typename T>
+inline __device__ T clamp_hue (T hue)
+{
+	constexpr T hueMin{ 0.f };
+	constexpr T hueMax{ 360.f };
 
-__global__ void kColorCorrectionCUDA
+	if (hue < hueMin)
+		return (hue + hueMax);
+	else if (hue >= hueMax)
+		return (hue - hueMax);
+	return hue;
+}
+
+template<typename T>
+inline __device__ T clamp_ls (T ls)
+{
+	constexpr T vMin{ 0.f };
+	constexpr T vMax{ 360.f };
+
+	return GPU::CLAMP_VALUE(ls, vMin, vMax);
+}
+
+
+__global__ void kColorCorrection_HSL_CUDA
 (
 	float4*  RESTRICT inImg,
 	float4*  RESTRICT outImg,
@@ -24,16 +47,14 @@ __global__ void kColorCorrectionCUDA
 	const int inPitch,
 	const int in16f,
 	const int inWidth,
-	const int inHeight
+	const int inHeight,
+	const float hue,
+	const float sat,
+	const float lum
 )
 {
 	float4 inPix;
-	float4 tempPix;
 	float4 outPix;
-
-	constexpr float value_black = 0.f;
-	constexpr float flt_EPSILON = 1.19209290e-07F;
-	constexpr float value_white = 1.0f - flt_EPSILON;
 
 	const int x = blockIdx.x * blockDim.x + threadIdx.x;
 	const int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -41,26 +62,63 @@ __global__ void kColorCorrectionCUDA
 	if (x >= inWidth || y >= inHeight) return;
 
 	if (in16f) {
-		Pixel16*  in16 = (Pixel16*)inImg;
+		Pixel16* RESTRICT in16 = (Pixel16* RESTRICT)inImg;
 		inPix  = HalfToFloat4(in16 [y * inPitch  + x]);
 	}
 	else {
 		inPix  = inImg[y * inPitch  + x];
 	}
 
-				/* bgRa */                    /* bGra */                    /* Bgra */
-//	tempPix.z = inPix.z * gpuSepiaMatrix[0] + inPix.y * gpuSepiaMatrix[1] + inPix.x * gpuSepiaMatrix[2]; /* RED channel		*/
-//	tempPix.y = inPix.z * gpuSepiaMatrix[3] + inPix.y * gpuSepiaMatrix[4] + inPix.x * gpuSepiaMatrix[5]; /* GREEN channel	*/
-//	tempPix.x = inPix.z * gpuSepiaMatrix[6] + inPix.y * gpuSepiaMatrix[7] + inPix.x * gpuSepiaMatrix[8]; /* BLUE channel	*/
+	if (0.f != hue || 0.f != sat || 0.f != lum)
+	{
+		float H, S, L;
+		float R, G, B;
+		float newHue, newSat, newLum;
+		float Hue, Sat, Lum;
 
-//	outPix.z = CLAMP_VALUE(tempPix.z, value_black, value_white);
-//	outPix.y = CLAMP_VALUE(tempPix.y, value_black, value_white);
-//	outPix.x = CLAMP_VALUE(tempPix.x, value_black, value_white);
-//	outPix.w = inPix.w; /* ALPHA channel	*/
+		GPU::sRgb2hsl(
+					inPix.z,	/* R */
+					inPix.y,	/* G */
+					inPix.x,	/* B */
+					H,			/* H */
+					S,			/* S */
+					L);			/* L */
+
+		newHue = H + hue;
+		newSat = S + sat;
+		newLum = L + lum;
+
+		constexpr float reciproc100 = 1.0f / 100.0f;
+		constexpr float reciproc360 = 1.0f / 360.0f;
+
+		Hue = clamp_hue(newHue) * reciproc360;
+		Sat = clamp_ls(newSat)  * reciproc100;
+		Lum = clamp_ls(newLum)  * reciproc100;
+
+		constexpr float f32_value_black = 0.f;
+		constexpr float f32_value_white = 1.0f - GPU::flt_EPSILON;
+
+		GPU::hsl2sRgb(
+					Hue,		/* H */
+					Sat,		/* S */
+					Lum,		/* L */
+					R,			/* R */
+					G,			/* G */
+					B);			/* B */
+
+		outPix.z = GPU::CLAMP_VALUE(R, f32_value_black, f32_value_white);
+		outPix.y = GPU::CLAMP_VALUE(G, f32_value_black, f32_value_white);
+		outPix.x = GPU::CLAMP_VALUE(B, f32_value_black, f32_value_white);
+		outPix.w = inPix.w;
+	}
+	else 
+	{
+		outPix = inPix;
+	}
 
 	if (in16f)
 	{
-		Pixel16*  out16 = (Pixel16*)outImg;
+		Pixel16* RESTRICT out16 = (Pixel16* RESTRICT)outImg;
 		out16[y * outPitch + x] = FloatToHalf4(outPix);
 	}
 	else
@@ -72,45 +130,26 @@ __global__ void kColorCorrectionCUDA
 }
 
 
-//CUDA_KERNEL_CALL
-//bool SepiaColorLoadMatrix_CUDA(void)
-//{
-//	/* SepiaMatrix array is defined in "SepiaMatrix.hpp" include file */
-//	constexpr size_t loadSize = sizeof(SepiaMatrix);
-//	const cudaError_t err = cudaMemcpyToSymbol(gpuSepiaMatrix, SepiaMatrix, loadSize);
-//
-//#ifdef _DEBUG
-//	float dbg_gpuSepiaMatrix[9] = {};
-//	const cudaError_t errDbg = cudaMemcpyFromSymbol(dbg_gpuSepiaMatrix, gpuSepiaMatrix, loadSize);
-//	if (cudaSuccess != errDbg) return false;
-//	for (int i = 0; i < 9;  i++)
-//	{
-//		if (dbg_gpuSepiaMatrix[i] != SepiaMatrix[i])
-//			return false;
-//	}
-//	return true;
-//#else
-//	return (cudaSuccess == err) ? true : false;
-//#endif
-//}
-
 
 CUDA_KERNEL_CALL
 void ColorCorrection_HSL_CUDA
 (
-	float* RESTRICT inBuf,
-	float* RESTRICT outBuf,
+	float* inBuf,
+	float* outBuf,
 	int destPitch,
 	int srcPitch,
 	int	is16f,
 	int width,
-	int height
-)
+	int height,
+	float hue,
+	float sat,
+	float lum
+) 
 {
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+	kColorCorrection_HSL_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, lum);
 
 	cudaDeviceSynchronize();
 
@@ -132,7 +171,7 @@ void ColorCorrection_HSV_CUDA
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+//	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
 
 	cudaDeviceSynchronize();
 
@@ -154,7 +193,7 @@ void ColorCorrection_HSI_CUDA
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+//	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
 
 	cudaDeviceSynchronize();
 
@@ -176,7 +215,7 @@ void ColorCorrection_HSP_CUDA
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+//	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
 
 	cudaDeviceSynchronize();
 
@@ -198,7 +237,7 @@ void ColorCorrection_HSLuv_CUDA
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+//	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
 
 	cudaDeviceSynchronize();
 
@@ -220,7 +259,7 @@ void ColorCorrection_HPLuv_CUDA
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+//	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
 
 	cudaDeviceSynchronize();
 

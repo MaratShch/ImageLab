@@ -62,7 +62,7 @@ bool SaveCustomSetting_1_0
 	ofn.lpstrInitialDir = userHome.c_str();
 	ofn.lpstrFilter = "Lab2 file (*.lab2)\0All Files (*.*)\0*.*\0";
 	ofn.lpstrFile = const_cast<LPSTR>(fileName.c_str());
-	ofn.nMaxFile = fileName.size();
+	ofn.nMaxFile = static_cast<DWORD>(fileName.size());
 	ofn.Flags = OFN_EXPLORER | OFN_SHOWHELP | OFN_OVERWRITEPROMPT;
 	ofn.lpstrDefExt = "lab2";
 

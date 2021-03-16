@@ -23,9 +23,9 @@ ProcessImgInPR
 	auto const& lwbCoarse = params[COLOR_LWIP_COARSE_LEVEL_SLIDER]->u.sd.value;
 	auto const& lwbFine   = params[COLOR_LWIP_FINE_LEVEL_SLIDER]->u.fs_d.value;
 
-	float const& totalHue = normalize_hue_wheel(static_cast<float>(hueCoarse) / 65536.f + hueFine);
-	float const& totalSat = static_cast<float>(satCoarse) + satFine;
-	float const& totalLwb = static_cast<float>(lwbCoarse) + lwbFine;
+	float const& totalHue = normalize_hue_wheel(static_cast<float>(hueCoarse) / 65536.f + static_cast<float>(hueFine));
+	float const& totalSat = static_cast<float>(satCoarse) + static_cast<float>(satFine);
+	float const& totalLwb = static_cast<float>(lwbCoarse) + static_cast<float>(lwbFine);
 
 	eCOLOR_SPACE_TYPE const& colorSpaceType = static_cast<eCOLOR_SPACE_TYPE const>(lwbType - 1);
 

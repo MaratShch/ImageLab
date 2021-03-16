@@ -94,7 +94,8 @@ inline const T CLAMP_LS(const T ls)
 
 inline const float normalize_hue_wheel(const float wheel_value) noexcept
 {
-	const float tmp = wheel_value / 360.0f;
+	constexpr float reciproc360 = 1.0f / 360.0f;
+	const float tmp = wheel_value * reciproc360;
 	const int intPart = static_cast<int>(tmp);
 	return (tmp - static_cast<float>(intPart)) * 360.0f;
 }
