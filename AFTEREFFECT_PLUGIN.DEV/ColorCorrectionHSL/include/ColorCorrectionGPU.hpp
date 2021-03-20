@@ -42,7 +42,6 @@ extern "C" {
 		float lum
 	);
 
-
 	void ColorCorrection_HSV_CUDA
 	(
 		float* inBuf,
@@ -51,7 +50,10 @@ extern "C" {
 		int srcPitch,
 		int	is16f,
 		int width,
-		int height
+		int height,
+		float hue,
+		float sat,
+		float val
 	);
 
 	void ColorCorrection_HSI_CUDA
@@ -62,7 +64,10 @@ extern "C" {
 		int srcPitch,
 		int	is16f,
 		int width,
-		int height
+		int height,
+		float hue,
+		float sat,
+		float intens
 	);
 
 	void ColorCorrection_HSP_CUDA
@@ -73,8 +78,12 @@ extern "C" {
 		int srcPitch,
 		int	is16f,
 		int width,
-		int height
+		int height,
+		float hue,
+		float sat,
+		float per
 	);
+
 
 	void ColorCorrection_HSLuv_CUDA
 	(

@@ -105,15 +105,15 @@ public:
 				break;
 
 				case COLOR_SPACE_HSV:
-					ColorCorrection_HSV_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight);
+					ColorCorrection_HSV_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight, m_totalHue, m_totalSat, m_totalLwb);
 				break;
 
 				case COLOR_SPACE_HSI:
-					ColorCorrection_HSI_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight);
+					ColorCorrection_HSI_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight, m_totalHue, m_totalSat, m_totalLwb);
 				break;
 
 				case COLOR_SPACE_HSP:
-					ColorCorrection_HSP_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight);
+					ColorCorrection_HSP_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight, m_totalHue, m_totalSat, m_totalLwb);
 				break;
 
 				case COLOR_SPACE_HSLuv:

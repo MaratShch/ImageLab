@@ -48,29 +48,30 @@ namespace GPU
 	}
 
 
-	inline __device__ void sRgb2hsl(const float& R, const float& G, const float& B, float& H, float& S, float& L) noexcept
+	template<typename T>
+	inline __device__ void sRgb2hsl(const T& R, const T& G, const T& B, T& H, T& S, T& L) noexcept
 	{
 		/* start convert RGB to HSL color space */
-		float const maxVal = MAX3_VALUE(R, G, B);
-		float const minVal = MIN3_VALUE(R, G, B);
-		float const sumMaxMin = maxVal + minVal;
-		float luminance = sumMaxMin * 50.0f; /* luminance value in percents = 100 * (max + min) / 2 */
-		float hue, saturation;
+		T const& maxVal = MAX3_VALUE(R, G, B);
+		T const& minVal = MIN3_VALUE(R, G, B);
+		T const sumMaxMin = maxVal + minVal;
+		T const luminance = sumMaxMin * (T)50.0; /* luminance value in percents = 100 * (max + min) / 2 */
+		T hue, saturation;
 
 		if (maxVal == minVal)
 		{
-			saturation = hue = 0.0f;
+			saturation = hue = (T)(0.0);
 		}
 		else
 		{
-			auto const& subMaxMin = maxVal - minVal;
-			saturation = (100.0f * subMaxMin) / ((luminance < 50.0f) ? sumMaxMin : (2.0f - sumMaxMin));
+			T const& subMaxMin = maxVal - minVal;
+			saturation = ((T)100.0 * subMaxMin) / ((luminance < (T)50.0) ? sumMaxMin : ((T)2.0 - sumMaxMin));
 			if (R == maxVal)
-				hue = (60.0f * (G - B)) / subMaxMin;
+				hue = ((T)60.0 * (G - B)) / subMaxMin;
 			else if (G == maxVal)
-				hue = (60.0f * (B - R)) / subMaxMin + 120.0f;
+				hue = ((T)60.0 * (B - R)) / subMaxMin + (T)120.0;
 			else
-				hue = (60.0f * (R - G)) / subMaxMin + 240.0f;
+				hue = ((T)60.0 * (R - G)) / subMaxMin + (T)240.0;
 		}
 
 		H = hue;
@@ -81,13 +82,13 @@ namespace GPU
 	}
 
 
-	inline __device__ void hsl2sRgb(const float& H, const float& S, const float& L, float& R, float& G, float& B) noexcept
+	template<typename T>
+	inline __device__ void hsl2sRgb(const T& H, const T& S, const T& L, T& R, T& G, T& B) noexcept
 	{
-		constexpr float denom = 1.f / 1e7f;
-		constexpr float reciproc3 = 1.0f / 3.0f;
-		constexpr float reciproc360 = 1.0f / 360.f;
+		constexpr T denom = 1.0 / 1e7;
+		constexpr T reciproc3 = 1.0 / 3.0;
 
-		float rR, gG, bB;
+		T rR, gG, bB;
 
 		/* back convert to RGB space */
 		if (denom >= S)
@@ -96,16 +97,16 @@ namespace GPU
 		}
 		else
 		{
-			float tmpVal1, tmpVal2;
-			tmpVal2 = (L < 0.50f) ? (L * (1.0f + S)) : (L + S - (L * S));
-			tmpVal1 = 2.0f * L - tmpVal2;
+			T tmpVal1, tmpVal2;
+			tmpVal2 = (L < (T)0.50) ? (L * ((T)1.0 + S)) : (L + S - (L * S));
+			tmpVal1 = (T)2.0 * L - tmpVal2;
 
-			auto tmpG = H;
-			auto tmpR = H + reciproc3;
-			auto tmpB = H - reciproc3;
+			T const& tmpG = H;
+			T  tmpR = H + reciproc3;
+			T  tmpB = H - reciproc3;
 
-			tmpR -= ((tmpR > 1.0f) ? 1.0f : 0.0f);
-			tmpB += ((tmpB < 0.0f) ? 1.0f : 0.0f);
+			tmpR -= ((tmpR > (T)1.0) ? (T)1.0 : (T)0.0);
+			tmpB += ((tmpB < (T)0.0) ? (T)1.0 : (T)0.0);
 
 			rR = restore_rgb_channel_value(tmpVal1, tmpVal2, tmpR);
 			gG = restore_rgb_channel_value(tmpVal1, tmpVal2, tmpG);
@@ -120,18 +121,17 @@ namespace GPU
 	}
 
 
-
 	template<typename T>
-	inline __device__ void sRgb2hsv (const T& R, const T& G, const T& B, T& H, T& S, T& V) noexcept
+	inline __device__ void sRgb2hsv(const T& R, const T& G, const T& B, T& H, T& S, T& V) noexcept
 	{
-		T const& denom = (T)(1.f / 1e7f);
+		constexpr T denom = (T)(1.0 / 1e7);
 
 		/* start convert RGB to HSV color space */
-		T const&  maxVal = MAX3_VALUE(R, G, B);
-		T const&  minVal = MIN3_VALUE(R, G, B);
-		T const&  C = maxVal - minVal;
+		T const& maxVal = MAX3_VALUE(R, G, B);
+		T const& minVal = MIN3_VALUE(R, G, B);
+		T const& C = maxVal - minVal;
 
-		T const&  value = maxVal;
+		T const& value = maxVal;
 		T hue, saturation;
 
 		if (denom < C)
@@ -140,19 +140,19 @@ namespace GPU
 			{
 				hue = (G - B) / C;
 				if (G < B)
-					hue += (T)6.f;
+					hue += (T)6;
 			}
 			else if (G == maxVal)
-				hue = (T)2.f + (B - R) / C;
+				hue = (T)2 + (B - R) / C;
 			else
-				hue = (T)4.f + (R - G) / C;
+				hue = (T)4 + (R - G) / C;
 
-			hue *= (T)60.f;
+			hue *= (T)60;
 			saturation = C / maxVal;
 		}
 		else
 		{
-			hue = saturation = (T)0.f;
+			hue = saturation = (T)0;
 		}
 
 		H = hue;
@@ -163,16 +163,17 @@ namespace GPU
 	}
 
 
-	inline __device__ void hsv2sRgb(const float& H, const float& S, const float& V, float& R, float& G, float& B) noexcept
+	template<typename T>
+	inline __device__ void hsv2sRgb (const T& H, const T& S, const T& V, T& R, T& G, T& B) noexcept
 	{
-		auto const& c = S * V;
-		auto const& minV = V - c;
+		T const& c = S * V;
+		T const& minV = V - c;
 
-		constexpr float reciproc360 = 1.0f / 360.f;
-		constexpr float reciproc60 = 1.0f / 60.f;
+		constexpr T reciproc360 = (T)(1.0 / 360.0);
+		constexpr T reciproc60  = (T)(1.0 / 60.0);
 
-		float const& h = (H - 360.f * floor(H * reciproc360)) * reciproc60;
-		float const& X = c * (1.0f - fabs(h - 2.0f * floor(h * 0.5f) - 1.0f));
+		T const& h = (H - (T)360 * floor(H * reciproc360)) * reciproc60;
+		T const& X = c * ((T)1 - fabs(h - (T)2 * floor(h * (T)0.5) - (T)1));
 		const int& hh = static_cast<int const>(h);
 
 		float fR, fG, fB;
@@ -216,27 +217,28 @@ namespace GPU
 	}
 
 
-	inline __device__ void sRgb2hsi(const float& R, const float& G, const float& B, float& H, float& S, float& I) noexcept
+	template<typename T>
+	inline __device__ void sRgb2hsi (const T& R, const T& G, const T& B, T& H, T& S, T& I) noexcept
 	{
-		constexpr float reciproc3 = 1.f / 3.f;
-		constexpr float denom = 1.f / 1e7f;
-		constexpr float reciprocPi180 = 180.f / FastCompute::PI;
+		constexpr T reciproc3 = (T)(1.0 / 3.0);
+		constexpr T denom = (T)(1.0 / 1e7);
+		constexpr T reciprocPi180 = (T)(180.0 / 3.14159265358979323846);
 
-		float i = (R + G + B) * reciproc3;
-		float h, s;
+		T i = (R + G + B) * reciproc3;
+		T h, s;
 
 		if (i > denom)
 		{
-			auto const& alpha = 0.5f * (2.f * R - G - B) + denom;
-			auto const& beta = 0.8660254037f * (G - B) + denom;
-			s = 1.f - MIN3_VALUE(R, G, B) / i;
-			h = FastCompute::Atan2(beta, alpha) * reciprocPi180;
+			T const& alpha = (T)0.5 * ((T)2 * R - G - B) + denom;
+			T const& beta = (T)0.8660254037 * (G - B) + denom;
+			s = (T)1.0 - MIN3_VALUE(R, G, B) / i;
+			h = atan2(beta, alpha) * reciprocPi180;
 			if (h < 0)
-				h += 360.f;
+				h += (T)360;
 		}
 		else
 		{
-			i = h = s = 0.f;
+			i = h = s = (T)0;
 		}
 
 		H = h;
@@ -247,40 +249,41 @@ namespace GPU
 	}
 
 
-	inline __device__ void hsi2sRgb(const float& H, const float& S, const float& I, float& R, float& G, float& B) noexcept
+	template<typename T>
+	inline __device__ void hsi2sRgb(const T& H, const T& S, const T& I, T& R, T& G, T& B) noexcept
 	{
-		constexpr float PiDiv180 = 3.14159265f / 180.f;
-		constexpr float reciproc360 = 1.0f / 360.f;
-		constexpr float denom = 1.f / 1e7f;
+		constexpr T PiDiv180 = (T)(3.14159265358979323846 / 180.0);
+		constexpr T reciproc360 = (1.0 / 360.0);
+		constexpr T denom = (T)(1.0 / 1e7);
 
-		float h = H - 360.f * floor(H * reciproc360);
-		const float& val1 = I * (1.f - S);
-		const float& tripleI = 3.f * I;
+		T h = H - (T)360 * floor(H * reciproc360);
+		const T& val1 = I * ((T)1.0 - S);
+		const T& tripleI = (T)3.0 * I;
 
-		if (h < 120.f)
+		if (h < (T)120)
 		{
-			const float& cosTmp = cos((60.f - h) * PiDiv180);
-			const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
+			const T& cosTmp = cos(((T)60 - h) * PiDiv180);
+			const T& cosDiv = ((T)0. == cosTmp) ? denom : cosTmp;
 			B = val1;
 			R = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
 			G = tripleI - R - B;
 		}
-		else if (h < 240.f)
+		else if (h < (T)240)
 		{
-			h -= 120.f;
-			const float& cosTmp = cos((60.f - h) * PiDiv180);
-			const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
+			h -= (T)120;
+			const T& cosTmp = cos(((T)60 - h) * PiDiv180);
+			const T& cosDiv = ((T)0. == cosTmp) ? denom : cosTmp;
 			R = val1;
 			G = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
 			B = tripleI - R - G;
 		}
 		else
 		{
-			h -= 240.f;
-			const float& cosTmp = cos((60.f - h) * PiDiv180);
-			const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
+			h -= (T)240;
+			const T& cosTmp = cos(((T)60 - h) * PiDiv180);
+			const T& cosDiv = ((T)0. == cosTmp) ? denom : cosTmp;
 			G = val1;
-			B = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
+			B = I * ((T)1.0 + S * cos(h * PiDiv180) / cosDiv);
 			R = tripleI - G - B;
 		}
 
@@ -288,53 +291,54 @@ namespace GPU
 	}
 
 
-	inline __device__ void sRgb2hsp(const float& R, const float& G, const float& B, float& H, float& S, float& P) noexcept
+	template<typename T>
+	inline __device__ void sRgb2hsp(const T& R, const T& G, const T& B, T& H, T& S, T& P) noexcept
 	{
-		constexpr float Pr = 0.2990f;
-		constexpr float Pg = 0.5870f;
-		constexpr float Pb = 1.0f - Pr - Pg; /* 0.1140f */;
-		constexpr float div1on6 = 1.f / 6.f;
-		constexpr float div2on6 = 2.f / 6.f;
-		constexpr float div4on6 = 4.f / 6.f;
+		constexpr T Pr = (T)0.2990;
+		constexpr T Pg = (T)0.5870;
+		constexpr T Pb = (T)1.0 - Pr - Pg; /* 0.1140f */;
+		constexpr T div1on6 = (T)(1.0 / 6.0);
+		constexpr T div2on6 = (T)(2.0 / 6.0);
+		constexpr T div4on6 = (T)(4.0 / 6.0);
 
-		float const& maxVal = MAX3_VALUE(R, G, B);
+		T const& maxVal = MAX3_VALUE(R, G, B);
 
 		P = sqrt(R * R * Pr + G * G * Pg + B * B * Pb);
 
 		if (R == G && R == B) {
-			H = S = 0.f;
+			H = S = (T)0;
 		}
 		else {
 			if (R == maxVal)
 			{   //  R is largest
 				if (B >= G) {
-					H = 1.f - div1on6 * (B - G) / (R - G);
-					S = 1.f - G / R;
+					H = (T)1.0 - div1on6 * (B - G) / (R - G);
+					S = (T)1.0 - G / R;
 				}
 				else {
 					H = div1on6 * (G - B) / (R - B);
-					S = 1.f - B / R;
+					S = (T)1.0 - B / R;
 				}
 			}
 			else if (G == maxVal)
 			{   //  G is largest
 				if (R >= B) {
 					H = div2on6 - div1on6 * (R - B) / (G - B);
-					S = 1.f - B / G;
+					S = (T)1.0 - B / G;
 				}
 				else {
 					H = div2on6 + div1on6 * (B - R) / (G - R);
-					S = 1.f - R / G;
+					S = (T)1.0 - R / G;
 				}
 			}
 			else {   //  B is largest
 				if (G >= R) {
 					H = div4on6 - div1on6 * (G - R) / (B - R);
-					S = 1.f - R / B;
+					S = (T)1.0 - R / B;
 				}
 				else {
 					H = div4on6 + div1on6 * (R - G) / (B - G);
-					S = 1.f - G / B;
+					S = (T)1.0 - G / B;
 				}
 			}
 		}
@@ -342,55 +346,62 @@ namespace GPU
 	}
 
 
-	inline __device__ void hsp2sRgb(const float& H, const float& S, const float& P, float& R, float& G, float& B) noexcept
+	template<typename T>
+	inline __device__ void hsp2sRgb (const T& H, const T& S, const T& P, T& R, T& G, T& B) noexcept
 	{
-		constexpr float Pr = 0.2990f;
-		constexpr float Pg = 0.5870f;
-		constexpr float Pb = 1.0f - Pr - Pg; /* 0.1140f */;
+		constexpr T Pr = (T)0.2990;
+		constexpr T Pg = (T)0.5870;
+		constexpr T Pb = (T)1.0 - Pr - Pg; /* 0.1140f */;
+		constexpr T OneDivSix = (T)(1.0 / 6.0);
+		constexpr T TwoDivSix = (T)(2.0 / 6.0);
+		constexpr T TreDivSix = (T)(3.0 / 6.0);
+		constexpr T ForDivSix = (T)(4.0 / 6.0);
+		constexpr T FivDivSix = (T)(5.0 / 6.0);
 
-		const float& minOverMax = 1.0f - S;
-		float part;
+		const T& minOverMax = (T)1.0 - S;
+		T part;
 
-		if (minOverMax > 0.f)
+		if (minOverMax > (T)0.0)
 		{
-			if (H < 1.f / 6.f) {   //  R>G>B
-				const float& h = 6.f * H;
-				part = 1.f + h * (1.f / minOverMax - 1.f);
+			if (H < OneDivSix) {   //  R>G>B
+				const T& h = 6.f * H;
+				constexpr T one = (T)1.0;
+				part = one + h * (one / minOverMax - one);
 				B = P / sqrt(Pr / minOverMax / minOverMax + Pg * part * part + Pb);
 				R = B / minOverMax;
 				G = B + h * (R - B);
 			}
-			else if (H < 2.f / 6.f) {   //  G>R>B
-				const float& h = 6.f * (-H + 2.f / 6.f);
-				part = 1.f + h  * (1.f / minOverMax - 1.f);
+			else if (H < TwoDivSix) {   //  G>R>B
+				const T& h = (T)6.0 * (-H + TwoDivSix);
+				part = (T)1.0 + h  * ((T)1.0 / minOverMax - (T)1.0);
 				B = P / sqrt(Pg / minOverMax / minOverMax + Pr * part * part + Pb);
 				G = B / minOverMax;
 				R = B + h * (G - B);
 			}
-			else if (H < 3.f / 6.f) {   //  G>B>R
-				const float& h = 6.f * (H - 2.f / 6.f);
-				part = 1.f + h * (1.f / minOverMax - 1.f);
+			else if (H < TreDivSix) {   //  G>B>R
+				const T& h = (T)6.0 * (H - TwoDivSix);
+				part = (T)1.0 + h * ((T)1.0 / minOverMax - (T)1.0);
 				R = P / sqrt(Pg / minOverMax / minOverMax + Pb * part * part + Pr);
 				G = R / minOverMax;
 				B = R + h * (G - R);
 			}
-			else if (H < 4.f / 6.f) {   //  B>G>R
-				const float& h = 6.f * (-H + 4.f / 6.f);
-				part = 1.f + h * (1.f / minOverMax - 1.f);
+			else if (H < ForDivSix) {   //  B>G>R
+				const T& h = (T)6.0 * (-H + ForDivSix);
+				part = (T)1.0 + h * ((T)1.0 / minOverMax - (T)1.0);
 				R = P / sqrt(Pb / minOverMax / minOverMax + Pg * part * part + Pr);
 				B = R / minOverMax;
 				G = R + h * (B - R);
 			}
-			else if (H < 5.f / 6.f) {   //  B>R>G
-				const float& h = 6.f * (H - 4.f / 6.f);
-				part = 1.f + h * (1.f / minOverMax - 1.f);
+			else if (H < FivDivSix) {   //  B>R>G
+				const T& h = (T)6.0 * (H - ForDivSix);
+				part = (T)1.0 + h * ((T)1.0 / minOverMax - (T)1.0);
 				G = P / sqrt(Pb / minOverMax / minOverMax + Pr * part * part + Pg);
 				B = G / minOverMax;
 				R = G + h * (B - G);
 			}
 			else {   //  R>B>G
-				const float& h = 6.f * (-H + 1.f);
-				part = 1.f + h * (1.f / minOverMax - 1.f);
+				const T& h = (T)6.0 * (-H + (T)1.0);
+				part = (T)1.0 + h * ((T)1.0 / minOverMax - (T)1.0);
 				G = P / sqrt(Pr / minOverMax / minOverMax + Pb * part * part + Pg);
 				R = G / minOverMax;
 				B = G + h * (R - G);
@@ -398,41 +409,41 @@ namespace GPU
 		}
 		else
 		{
-			if (H < 1.f / 6.f) {   //  R>G>B
-				const float& h = 6.f * H;
+			if (H < OneDivSix) {   //  R>G>B
+				const T& h = (T)6.0 * H;
 				R = sqrt(P * P / (Pr + Pg * h * h));
-				G = R *h;
-				B = 0.f;
+				G = R * h;
+				B = (T)0;
 			}
-			else if (H < 2.f / 6.f) {   //  G>R>B
-				const float& h = 6.f * (-H + 2.f / 6.f);
+			else if (H < TwoDivSix) {   //  G>R>B
+				const T& h = (T)6.0 * (-H + TwoDivSix);
 				G = sqrt(P * P / (Pg + Pr * h * h));
 				R = G * h;
-				B = 0.f;
+				B = (T)0;
 			}
-			else if (H < 3.f / 6.f) {   //  G>B>R
-				const float& h = 6.f * (H - 2.f / 6.f);
+			else if (H < TreDivSix) {   //  G>B>R
+				const T& h = (T)6.0 * (H - TwoDivSix);
 				G = sqrt(P * P / (Pg + Pb * h * h));
 				B = G * h;
-				R = 0.f;
+				R = (T)0;
 			}
-			else if (H < 4.f / 6.f) {   //  B>G>R
-				const float& h = 6.f * (-H + 4.f / 6.f);
+			else if (H < ForDivSix) {   //  B>G>R
+				const T& h = (T)6.0 * (-H + ForDivSix);
 				B = sqrt(P * P / (Pb + Pg * h * h));
 				G = B * h;
-				R = 0.f;
+				R = (T)0;
 			}
-			else if (H < 5.f / 6.f) {   //  B>R>G
-				const float& h = 6.f * (H - 4.f / 6.f);
+			else if (H < FivDivSix) {   //  B>R>G
+				const T& h = (T)6.0 * (H - ForDivSix);
 				B = sqrt(P * P / (Pb + Pr * h * h));
 				R = B * h;
-				G = 0.f;
+				G = (T)0;
 			}
 			else {   //  R>B>G
-				const float& h = 6.f * (-H + 1.f);
+				const T& h = (T)6.0 * (-H + (T)1.0);
 				R = sqrt(P * P / (Pr + Pb * h * h));
 				B = R * h;
-				G = 0.f;
+				G = (T)0;
 			}
 		}
 		return;
