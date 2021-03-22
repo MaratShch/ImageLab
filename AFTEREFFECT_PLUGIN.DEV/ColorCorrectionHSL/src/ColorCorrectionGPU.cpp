@@ -48,26 +48,26 @@ public:
 		csSDK_int32 switchErr = 0;
 
 		/* read control setting */
-		m_renderParamCorse.mFloat64 = m_renderParamFine.mFloat64 = 0.0;
+		m_renderParamCoarse.mFloat64 = m_renderParamFine.mFloat64 = 0.0;
 		m_clipTime = inRenderParams->inClipTime;
 
-		m_renderParamCorse = GetParam(COLOR_CORRECT_SPACE_POPUP, m_clipTime);
-		m_colorDomain = static_cast<eCOLOR_SPACE_TYPE>(m_renderParamCorse.mInt32);
+		m_renderParamCoarse = GetParam(COLOR_CORRECT_SPACE_POPUP, m_clipTime);
+		m_colorDomain = static_cast<eCOLOR_SPACE_TYPE>(m_renderParamCoarse.mInt32);
 
 		/* read info about HUE */
-		m_renderParamCorse = GetParam(COLOR_CORRECT_HUE_COARSE_LEVEL, m_clipTime);
+		m_renderParamCoarse = GetParam(COLOR_CORRECT_HUE_COARSE_LEVEL, m_clipTime);
 		m_renderParamFine  = GetParam(COLOR_HUE_FINE_LEVEL_SLIDER, m_clipTime);
-		m_totalHue = normalize_hue_wheel(static_cast<float>(static_cast<double>(m_renderParamCorse.mFloat32) + m_renderParamFine.mFloat64));
+		m_totalHue = normalize_hue_wheel(static_cast<float>(static_cast<double>(m_renderParamCoarse.mFloat32) + m_renderParamFine.mFloat64));
 
 		/* read info about SAT */
-		m_renderParamCorse = GetParam(COLOR_SATURATION_COARSE_LEVEL_SLIDER, m_clipTime);
+		m_renderParamCoarse = GetParam(COLOR_SATURATION_COARSE_LEVEL_SLIDER, m_clipTime);
 		m_renderParamFine  = GetParam(COLOR_SATURATION_FINE_LEVEL_SLIDER, m_clipTime);
-		m_totalSat = static_cast<float>(static_cast<double>(m_renderParamCorse.mInt32) + m_renderParamFine.mFloat64);
+		m_totalSat = static_cast<float>(static_cast<double>(m_renderParamCoarse.mInt32) + m_renderParamFine.mFloat64);
 
 		/* read info about LWIP */
-		m_renderParamCorse = GetParam(COLOR_LWIP_COARSE_LEVEL_SLIDER, m_clipTime);
+		m_renderParamCoarse = GetParam(COLOR_LWIP_COARSE_LEVEL_SLIDER, m_clipTime);
 		m_renderParamFine  = GetParam(COLOR_LWIP_FINE_LEVEL_SLIDER, m_clipTime);
-		m_totalLwb = static_cast<float>(static_cast<double>(m_renderParamCorse.mInt32) + m_renderParamFine.mFloat64);
+		m_totalLwb = static_cast<float>(static_cast<double>(m_renderParamCoarse.mInt32) + m_renderParamFine.mFloat64);
 
 		mGPUDeviceSuite->GetGPUPPixData(*outFrame, &frameData);
 
@@ -117,11 +117,11 @@ public:
 				break;
 
 				case COLOR_SPACE_HSLuv:
-					ColorCorrection_HSLuv_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight);
+					ColorCorrection_HSLuv_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight, m_totalHue, m_totalSat, m_totalLwb);
 				break;
 
 				case COLOR_SPACE_HPLuv:
-					ColorCorrection_HPLuv_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight);
+					ColorCorrection_HPLuv_CUDA (m_inBuffer, m_outBuffer, destPitch, srcPitch, is16f, m_frameWidth, m_frameHeight, m_totalHue, m_totalSat, m_totalLwb);
 				break;
 
 				default:
@@ -145,7 +145,7 @@ private:
 
 	float* __restrict m_inBuffer  = nullptr;
 	float* __restrict m_outBuffer = nullptr;
-	PrParam m_renderParamCorse = {};
+	PrParam m_renderParamCoarse = {};
 	PrParam m_renderParamFine = {};
 	PrTime m_clipTime = {};
 	eCOLOR_SPACE_TYPE m_colorDomain = COLOR_SPACE_INNVALID;

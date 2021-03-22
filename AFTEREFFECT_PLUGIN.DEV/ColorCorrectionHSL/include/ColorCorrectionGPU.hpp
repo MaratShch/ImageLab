@@ -93,7 +93,10 @@ extern "C" {
 		int srcPitch,
 		int	is16f,
 		int width,
-		int height
+		int height,
+		float hue,
+		float sat,
+		float vol
 	);
 
 	void ColorCorrection_HPLuv_CUDA
@@ -104,7 +107,10 @@ extern "C" {
 		int srcPitch,
 		int	is16f,
 		int width,
-		int height
+		int height,
+		float hue,
+		float sat,
+		float vol
 	);
 
 #ifdef __cplusplus

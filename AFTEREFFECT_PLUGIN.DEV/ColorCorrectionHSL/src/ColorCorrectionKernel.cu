@@ -362,9 +362,9 @@ __global__ void kColorCorrection_HSP_CUDA
 		newSat = S + sat * reciproc100;
 		newPer = P + per * reciproc100;
 
-		Hue = clamp_hue(newHue);
-		Sat = clamp_ls(newSat);
-		Per = clamp_ls(newPer);
+		Hue = GPU::CLAMP_VALUE(newHue, 0.f, 1.0f);
+		Sat = GPU::CLAMP_VALUE(newSat, 0.f, 1.0f);
+		Per = GPU::CLAMP_VALUE(newPer, 0.f, 1.0f);
 
 		constexpr float f32_value_black = 0.f;
 		constexpr float f32_value_white = 1.0f - GPU::flt_EPSILON;
@@ -400,6 +400,184 @@ __global__ void kColorCorrection_HSP_CUDA
 	return;
 }
 
+
+__global__ void kColorCorrection_HSLuv_CUDA
+(
+	float4*   inImg,
+	float4*   outImg,
+	const int outPitch,
+	const int inPitch,
+	const int in16f,
+	const int inWidth,
+	const int inHeight,
+	const float hue,
+	const float sat,
+	const float vol
+)
+{
+	float4 inPix;
+	float4 outPix;
+
+	const int x = blockIdx.x * blockDim.x + threadIdx.x;
+	const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if (x >= inWidth || y >= inHeight) return;
+
+	if (in16f) {
+		Pixel16* RESTRICT in16 = (Pixel16* RESTRICT)inImg;
+		inPix = HalfToFloat4(in16[y * inPitch + x]);
+	}
+	else {
+		inPix = inImg[y * inPitch + x];
+	}
+
+	if (0.f != hue || 0.f != sat || 0.f != vol)
+	{
+		float H, S, L;
+		float R, G, B;
+		float newHue, newSat, newLuv;
+		float Hue, Sat, Luv;
+
+		GPU::sRgb2hsLuv(
+			inPix.z,	/* R */
+			inPix.y,	/* G */
+			inPix.x,	/* B */
+			H,			/* H */
+			S,			/* S */
+			L);			/* P */
+
+		newHue = H + hue;
+		newSat = S + sat;
+		newLuv = L + vol;
+
+		Hue = GPU::CLAMP_VALUE(newHue, 0.f, 360.0f);
+		Sat = GPU::CLAMP_VALUE(newSat, 0.f, 100.0f);
+		Luv = GPU::CLAMP_VALUE(newLuv, 0.f, 100.0f);
+
+		constexpr float f32_value_black = 0.f;
+		constexpr float f32_value_white = 1.0f - GPU::flt_EPSILON;
+
+		GPU::hsLuv2sRgb(
+			Hue,		/* H */
+			Sat,		/* S */
+			Luv,		/* P */
+			R,			/* R */
+			G,			/* G */
+			B);			/* B */
+
+		outPix.z = GPU::CLAMP_VALUE(R, f32_value_black, f32_value_white);
+		outPix.y = GPU::CLAMP_VALUE(G, f32_value_black, f32_value_white);
+		outPix.x = GPU::CLAMP_VALUE(B, f32_value_black, f32_value_white);
+		outPix.w = inPix.w;
+	}
+	else
+	{
+		outPix = inPix;
+	}
+
+	if (in16f)
+	{
+		Pixel16* RESTRICT out16 = (Pixel16* RESTRICT)outImg;
+		out16[y * outPitch + x] = FloatToHalf4(outPix);
+	}
+	else
+	{
+		outImg[y * outPitch + x] = outPix;
+	}
+
+	return;
+}
+
+
+__global__ void kColorCorrection_HPLuv_CUDA
+(
+	float4*   inImg,
+	float4*   outImg,
+	const int outPitch,
+	const int inPitch,
+	const int in16f,
+	const int inWidth,
+	const int inHeight,
+	const float hue,
+	const float sat,
+	const float per
+)
+{
+	float4 inPix;
+	float4 outPix;
+
+	const int x = blockIdx.x * blockDim.x + threadIdx.x;
+	const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if (x >= inWidth || y >= inHeight) return;
+
+	if (in16f) {
+		Pixel16* RESTRICT in16 = (Pixel16* RESTRICT)inImg;
+		inPix = HalfToFloat4(in16[y * inPitch + x]);
+	}
+	else {
+		inPix = inImg[y * inPitch + x];
+	}
+
+	if (0.f != hue || 0.f != sat || 0.f != per)
+	{
+		float H, S, P;
+		float R, G, B;
+		float newHue, newSat, newPer;
+		float Hue, Sat, Per;
+
+		GPU::sRgb2hsp(
+			inPix.z,	/* R */
+			inPix.y,	/* G */
+			inPix.x,	/* B */
+			H,			/* H */
+			S,			/* S */
+			P);			/* P */
+
+		constexpr float reciproc100 = 1.0f / 100.0f;
+		constexpr float reciproc360 = 1.0f / 360.0f;
+
+		newHue = H + hue * reciproc360;
+		newSat = S + sat * reciproc100;
+		newPer = P + per * reciproc100;
+
+		Hue = GPU::CLAMP_VALUE(newHue, 0.f, 1.0f);
+		Sat = GPU::CLAMP_VALUE(newSat, 0.f, 1.0f);
+		Per = GPU::CLAMP_VALUE(newPer, 0.f, 1.0f);
+
+		constexpr float f32_value_black = 0.f;
+		constexpr float f32_value_white = 1.0f - GPU::flt_EPSILON;
+
+		GPU::hsp2sRgb(
+			Hue,		/* H */
+			Sat,		/* S */
+			Per,		/* P */
+			R,			/* R */
+			G,			/* G */
+			B);			/* B */
+
+		outPix.z = GPU::CLAMP_VALUE(R, f32_value_black, f32_value_white);
+		outPix.y = GPU::CLAMP_VALUE(G, f32_value_black, f32_value_white);
+		outPix.x = GPU::CLAMP_VALUE(B, f32_value_black, f32_value_white);
+		outPix.w = inPix.w;
+	}
+	else
+	{
+		outPix = inPix;
+	}
+
+	if (in16f)
+	{
+		Pixel16* RESTRICT out16 = (Pixel16* RESTRICT)outImg;
+		out16[y * outPitch + x] = FloatToHalf4(outPix);
+	}
+	else
+	{
+		outImg[y * outPitch + x] = outPix;
+	}
+
+	return;
+}
 
 
 CUDA_KERNEL_CALL
@@ -507,41 +685,48 @@ void ColorCorrection_HSP_CUDA
 CUDA_KERNEL_CALL
 void ColorCorrection_HSLuv_CUDA
 (
-	float* RESTRICT inBuf,
-	float* RESTRICT outBuf,
+	float* inBuf,
+	float* outBuf,
 	int destPitch,
 	int srcPitch,
 	int	is16f,
 	int width,
-	int height
+	int height,
+	float hue,
+	float sat,
+	float vol
 )
 {
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-//	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+	kColorCorrection_HSLuv_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, vol);
 
 	cudaDeviceSynchronize();
 
 	return;
 }
 
+
 CUDA_KERNEL_CALL
 void ColorCorrection_HPLuv_CUDA
 (
-	float* RESTRICT inBuf,
-	float* RESTRICT outBuf,
+	float* inBuf,
+	float* outBuf,
 	int destPitch,
 	int srcPitch,
 	int	is16f,
 	int width,
-	int height
+	int height,
+	float hue,
+	float sat,
+	float vol
 )
 {
 	dim3 blockDim(32, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-//	kColorCorrectionCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
+	kColorCorrection_HPLuv_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, vol);
 
 	cudaDeviceSynchronize();
 

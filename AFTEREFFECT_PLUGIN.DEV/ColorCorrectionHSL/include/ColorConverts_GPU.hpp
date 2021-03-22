@@ -467,20 +467,6 @@ namespace GPU
 			float c;
 		}Triplet;
 
-		/* for RGB */
-		constexpr static Triplet m[3] = {
-			{  3.240969942f, -1.537383178f, -0.498610760f },
-			{ -0.969243636f,  1.875967502f,  0.041555057f },
-			{  0.055630080f, -0.203976959f,  1.056971514f }
-		};
-
-		/* for XYZ */
-		constexpr static Triplet m_inv[3] = {
-			{  0.412390799f,  0.357584339f,  0.180480788f },
-			{  0.212639006f,  0.715168679f,  0.072192315f },
-			{  0.019330819f,  0.119194780f,  0.950532152f }
-		};
-
 		inline __device__ float dot_product(const Triplet& t1, const Triplet& t2)
 		{
 			return (t1.a * t2.a + t1.b * t2.b + t1.c * t2.c);
@@ -504,6 +490,13 @@ namespace GPU
 
 		inline __device__ void rgb2xyz(const float& R, const float& G, const float& B, float& x, float& y, float& z)
 		{
+			/* for XYZ */
+			constexpr Triplet m_inv[3] = {
+				{ 0.412390799f,  0.357584339f,  0.180480788f },
+				{ 0.212639006f,  0.715168679f,  0.072192315f },
+				{ 0.019330819f,  0.119194780f,  0.950532152f }
+			};
+
 			const Triplet& rgbl{ to_linear(R), to_linear(G), to_linear(B) };
 			x = dot_product(m_inv[0], rgbl);
 			y = dot_product(m_inv[1], rgbl);
@@ -529,13 +522,20 @@ namespace GPU
 			constexpr float divider = 180.f / FastCompute::PI;
 			l = L;
 			c = sqrt(U * U + V * V);
-			const float& tH = (c > denom) ? FastCompute::Atan2(V, U) * divider : 0.f;
+			const float& tH = (c > denom) ? atan2(V, U) * divider : 0.f;
 			h = (tH < 0.0f) ? tH + 360.f : tH;
 			return;
 		}
 
 		inline __device__ void get_bounds(const float& l, Bounds bounds[6])
 		{
+			/* for RGB */
+			constexpr Triplet m[3] = {
+				{  3.240969942f, -1.537383178f, -0.498610760f },
+				{ -0.969243636f,  1.875967502f,  0.041555057f },
+				{  0.055630080f, -0.203976959f,  1.056971514f }
+			};
+
 			const float& tl = l + 16.0f;
 			const float& sub1 = (tl * tl * tl) / 1560896.0f;
 			const float& sub2 = (sub1 > gEpsilon ? sub1 : (l / gKappa));
@@ -560,7 +560,6 @@ namespace GPU
 		inline __device__ float ray_length_until_intersect(const float& theta, const Bounds& line)
 		{
 			return line.b / (sin(theta) - line.a * cos(theta));
-			//		return line.b / (FastCompute::Sin(theta) - line.a * FastCompute::Cos(theta));
 		}
 
 		inline __device__ float intersect_line_line(const Bounds& line1, const Bounds& line2)
@@ -677,6 +676,12 @@ namespace GPU
 
 		inline __device__ void xyz2rgb(const float& X, const float& Y, const float& Z, float& R, float& G, float& B)
 		{
+			constexpr Triplet m[3] = {
+				{  3.240969942f, -1.537383178f, -0.498610760f },
+				{ -0.969243636f,  1.875967502f,  0.041555057f },
+				{  0.055630080f, -0.203976959f,  1.056971514f }
+			};
+
 			const Triplet& t{ X, Y, Z };
 			R = from_linear(dot_product(m[0], t));
 			G = from_linear(dot_product(m[1], t));
