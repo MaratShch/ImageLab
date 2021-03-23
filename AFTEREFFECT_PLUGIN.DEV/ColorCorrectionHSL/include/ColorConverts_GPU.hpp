@@ -519,7 +519,7 @@ namespace GPU
 		inline __device__ void luv2lch(const float& L, const float& U, const float& V, float& l, float& c, float& h)
 		{
 			constexpr float denom = 1e-7f;
-			constexpr float divider = 180.f / FastCompute::PI;
+			constexpr float divider = 180.f / 3.14159265358979323846f;
 			l = L;
 			c = sqrt(U * U + V * V);
 			const float& tH = (c > denom) ? atan2(V, U) * divider : 0.f;
@@ -596,7 +596,7 @@ namespace GPU
 
 		inline __device__ float max_chroma_for_lh(const float& l, const float& h)
 		{
-			constexpr float PiDiv180 = FastCompute::PI / 180.f;
+			constexpr float PiDiv180 = 3.14159265358979323846f / 180.f;
 			Bounds bounds[6]{};
 			float min_len = flt_MAX;
 			const float& hrad = h * PiDiv180;
@@ -635,7 +635,7 @@ namespace GPU
 
 		inline __device__ void lch2luv(const float& L, const float& C, const float& H, float& l, float& u, float& v)
 		{
-			constexpr float PiDiv180 = FastCompute::PI / 180.f;
+			constexpr float PiDiv180 = 3.14159265358979323846f / 180.f;
 			const float& hRad = H * PiDiv180;
 
 			l = L;
