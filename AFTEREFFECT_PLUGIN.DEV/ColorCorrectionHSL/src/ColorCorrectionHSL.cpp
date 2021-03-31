@@ -87,10 +87,9 @@ ParamsSetup(
 	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 
+	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
 	def.ui_flags = ui_flags;
-
-	AEFX_CLR_STRUCT_EX(def);
 	PF_ADD_POPUP(
 		ColorSpaceType,					/* pop-up name			*/
 		COLOR_SPACE_MAX_TYPES,			/* number of variants	*/
@@ -99,6 +98,8 @@ ParamsSetup(
 		COLOR_CORRECT_SPACE_POPUP);		/* control ID			*/
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_ANGLE(
 		ColorHueCoarseType,
 		hue_coarse_default,
@@ -106,6 +107,8 @@ ParamsSetup(
 	);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_FLOAT_SLIDERX(
 		ColorHueFineLevel,
 		hue_fine_min_level,
@@ -119,6 +122,8 @@ ParamsSetup(
 		COLOR_HUE_FINE_LEVEL_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_SLIDER(
 		ColorSaturationCoarseLevel,
 		sat_coarse_min_level,
@@ -129,6 +134,8 @@ ParamsSetup(
 		COLOR_SATURATION_COARSE_LEVEL_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_FLOAT_SLIDERX(
 		ColorSaturationFineLevel,
 		sat_fine_min_level,
@@ -142,6 +149,8 @@ ParamsSetup(
 		COLOR_SATURATION_FINE_LEVEL_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_SLIDER(
 		ColorLWIPCoarseLevel,
 		lwip_coarse_min_level,
@@ -152,6 +161,8 @@ ParamsSetup(
 		COLOR_LWIP_COARSE_LEVEL_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_FLOAT_SLIDERX(
 		ColorLWIPFineLevel,
 		lwip_fine_min_level,
@@ -165,6 +176,8 @@ ParamsSetup(
 		COLOR_LWIP_FINE_LEVEL_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_BUTTON(
 		LoadSettingName,
 		LoadSetting,
@@ -174,6 +187,8 @@ ParamsSetup(
 	);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_BUTTON(
 		SaveSettingName,
 		SaveSetting,
@@ -183,6 +198,8 @@ ParamsSetup(
 	);
 
 	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
 	PF_ADD_BUTTON(
 		ResetSettingName,
 		ResetSetting,
@@ -209,11 +226,11 @@ bool IsProcActivated(PF_InData* in_data, PF_ParamDef* params[]) noexcept
 	bool bRet = true;
 
 	if (0   == params[COLOR_CORRECT_HUE_COARSE_LEVEL]->u.sd.value        &&
-		0.f == params[COLOR_HUE_FINE_LEVEL_SLIDER]->u.fs_d.value         &&
+		0.0 == params[COLOR_HUE_FINE_LEVEL_SLIDER]->u.fs_d.value         &&
 		0   == params[COLOR_SATURATION_COARSE_LEVEL_SLIDER]->u.sd.value  &&
-		0.f == params[COLOR_SATURATION_FINE_LEVEL_SLIDER]->u.fs_d.value  &&
+		0.0 == params[COLOR_SATURATION_FINE_LEVEL_SLIDER]->u.fs_d.value  &&
 		0   == params[COLOR_LWIP_COARSE_LEVEL_SLIDER]->u.sd.value        &&
-		0.f == params[COLOR_LWIP_FINE_LEVEL_SLIDER]->u.fs_d.value)
+		0.0 == params[COLOR_LWIP_FINE_LEVEL_SLIDER]->u.fs_d.value)
 	{
 		bRet = false;
 	}

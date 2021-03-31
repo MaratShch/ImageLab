@@ -34,6 +34,15 @@
 #endif
 
 
+inline void
+MakeParamCopy (PF_ParamDef* actual[], PF_ParamDef copy[], const uint32_t& size) noexcept
+{
+	for (uint32_t idx = 0u; idx < size; idx++)
+		copy[idx] = *actual[idx];
+	return;
+}
+
+
 #ifdef __cplusplus
  #define PLUGIN_ENTRY_POINT_CALL	extern "C" DllExport
 #else

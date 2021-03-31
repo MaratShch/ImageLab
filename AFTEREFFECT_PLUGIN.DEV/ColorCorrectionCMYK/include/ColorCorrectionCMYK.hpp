@@ -15,55 +15,65 @@ constexpr int ColorCorrection_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEAS
 constexpr int ColorCorrection_VersionBuild = 1;
 
 constexpr char ColorSpaceType[] = "Color Space";
-constexpr char ColorSpace[] = "RGB|CMYK";
+constexpr char ColorSpace[] = "CMYK|RGB";
 
 typedef enum eColorSpaceDomain
 {
 	eINVALID = -1,
-	eRGB,
 	eCMYK,
+	eRGB,
 	eTOTAL_COLOR_DOMAINS
 }eColorSpaceDomain;
 
-constexpr char ColorSlider1[eTOTAL_COLOR_DOMAINS][32] =
+constexpr int32_t coarse_min_level = -125;
+constexpr int32_t coarse_max_level =  125;
+constexpr int32_t coarse_def_level =  0;
+
+constexpr int32_t fine_min_level = -12;
+constexpr int32_t fine_max_level =  12;
+constexpr int32_t fine_def_level =  0;
+
+constexpr int32_t param_name_length = PF_MAX_EFFECT_PARAM_NAME_LEN + 1;
+
+constexpr char ColorSlider1[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"Red coarse level",
-	"Cian coarse level"
+	"Cian coarse level",
+	"Red coarse level"
 };
-constexpr char ColorSlider2[eTOTAL_COLOR_DOMAINS][32] =
+constexpr char ColorSlider2[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"Red fine level",
-	"Cian fine level"
+	"Cian fine level",
+	"Red fine level"
 };
-constexpr char ColorSlider3[eTOTAL_COLOR_DOMAINS][32] =
+constexpr char ColorSlider3[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"Green coarse level",
-	"Magenta coarse level"
+	"Magenta coarse level",
+	"Green coarse level"
 };
-constexpr char ColorSlider4[eTOTAL_COLOR_DOMAINS][32] =
+constexpr char ColorSlider4[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"Green fine level",
-	"Magenta fine level"
+	"Magenta fine level",
+	"Green fine level"
 };
-constexpr char ColorSlider5[eTOTAL_COLOR_DOMAINS][32] =
+constexpr char ColorSlider5[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"Blue coarse level",
-	"Yellow coarse level"
+	"Yellow coarse level",
+	"Blue coarse level"
 };
-constexpr char ColorSlider6[eTOTAL_COLOR_DOMAINS][32] =
+constexpr char ColorSlider6[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"Blue fine level",
-	"Yellow fine level"
+	"Yellow fine level",
+	"Blue fine level"
 };
-constexpr char ColorSlider7[eTOTAL_COLOR_DOMAINS][32] =
+constexpr char ColorSlider7[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"N/A",
-	"Black key coarse level"
+	"Black key coarse level",
+	"N/A"
 };
-constexpr char ColorSlider8[eTOTAL_COLOR_DOMAINS][32] =
+constexpr char ColorSlider8[eTOTAL_COLOR_DOMAINS][param_name_length] =
 {
-	"N/A",
-	"Black key fine level"
+	"Black key fine level",
+	"N/A"
 };
 
 
@@ -98,3 +108,71 @@ ProcessImgInPR
 	PF_LayerDef*	output
 ) noexcept;
 
+PF_Err prProcessImage_BGRA_4444_8u_CMYK
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_c,
+	float           add_m,
+	float           add_y,
+	float           add_k
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_8u_RGB
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_r,
+	float           add_g,
+	float           add_b
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_16u_CMYK
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_c,
+	float           add_m,
+	float           add_y,
+	float           add_k
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_16u_RGB
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_r,
+	float           add_g,
+	float           add_b
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_32f_CMYK
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_c,
+	float           add_m,
+	float           add_y,
+	float           add_k
+) noexcept;
+
+PF_Err prProcessImage_BGRA_4444_32f_RGB
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_r,
+	float           add_g,
+	float           add_b
+) noexcept;
