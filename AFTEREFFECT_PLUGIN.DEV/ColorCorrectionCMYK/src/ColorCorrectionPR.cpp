@@ -96,21 +96,6 @@ ProcessImgInPR
 			}
 			break;
 
-			case PrPixelFormat_RGB_444_10u:
-			{
-				switch (colorSpaceType)
-				{
-					case COLOR_SPACE_CMYK:
-					break;
-					case COLOR_SPACE_RGB:
-					break;
-					default:
-					err = PF_Err_INVALID_INDEX;
-					break;
-				}
-			}
-			break;
-
 			case PrPixelFormat_VUYA_4444_8u_709:
 			case PrPixelFormat_VUYA_4444_8u:
 			{
@@ -118,11 +103,13 @@ ProcessImgInPR
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_CMYK:
+						prProcessImage_VUYA_4444_8u_CMYK(in_data, out_data, params, output, cVal, mVal, yVal, kVal, isBT709);
 					break;
 					case COLOR_SPACE_RGB:
+						prProcessImage_VUYA_4444_8u_RGB(in_data, out_data, params, output, cVal, mVal, yVal, isBT709);
 					break;
 					default:
-					err = PF_Err_INVALID_INDEX;
+						err = PF_Err_INVALID_INDEX;
 					break;
 				}
 			}
@@ -135,11 +122,13 @@ ProcessImgInPR
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_CMYK:
+						prProcessImage_VUYA_4444_32f_CMYK(in_data, out_data, params, output, cVal, mVal, yVal, kVal, isBT709);
 					break;
 					case COLOR_SPACE_RGB:
+						prProcessImage_VUYA_4444_32f_RGB(in_data, out_data, params, output, cVal, mVal, yVal, isBT709);
 					break;
 					default:
-					err = PF_Err_INVALID_INDEX;
+						err = PF_Err_INVALID_INDEX;
 					break;
 				}
 			}

@@ -28,12 +28,12 @@ inline const typename std::enable_if<std::is_floating_point<T>::value>::type
 cmyk_to_rgb (const T& C, const T& M, const T& Y, const T& K, T& R, T& G, T& B) noexcept
 {
 	constexpr T One = static_cast<T>(1);
-	T const& OneMinucC = One - C;
+	T const& OneMinusC = One - C;
 	T const& OneMinusM = One - M;
 	T const& OneMinusY = One - Y;
 	T const& OneMinusK = One - K;
 
-	R = OneMinucC * OneMinusK;
+	R = OneMinusC * OneMinusK;
 	G = OneMinusM * OneMinusK;
 	B = OneMinusY * OneMinusK;
 	return;

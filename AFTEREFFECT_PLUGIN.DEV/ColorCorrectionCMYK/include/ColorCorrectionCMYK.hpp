@@ -25,12 +25,12 @@ typedef enum eColorSpaceDomain
 	eTOTAL_COLOR_DOMAINS
 }eColorSpaceDomain;
 
-constexpr int32_t coarse_min_level = -125;
-constexpr int32_t coarse_max_level =  125;
+constexpr int32_t coarse_min_level = -100;
+constexpr int32_t coarse_max_level =  100;
 constexpr int32_t coarse_def_level =  0;
 
-constexpr int32_t fine_min_level = -12;
-constexpr int32_t fine_max_level =  12;
+constexpr int32_t fine_min_level = -10;
+constexpr int32_t fine_max_level =  10;
 constexpr int32_t fine_def_level =  0;
 
 constexpr int32_t param_name_length = PF_MAX_EFFECT_PARAM_NAME_LEN + 1;
@@ -175,4 +175,54 @@ PF_Err prProcessImage_BGRA_4444_32f_RGB
 	float           add_r,
 	float           add_g,
 	float           add_b
+) noexcept;
+
+PF_Err prProcessImage_VUYA_4444_8u_CMYK
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_c,
+	float           add_m,
+	float           add_y,
+	float           add_k,
+	bool            isBT709
+) noexcept;
+
+PF_Err prProcessImage_VUYA_4444_8u_RGB
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_r,
+	float           add_g,
+	float           add_b,
+	bool            isBT709
+) noexcept;
+
+PF_Err prProcessImage_VUYA_4444_32f_CMYK
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_c,
+	float           add_m,
+	float           add_y,
+	float           add_k,
+	bool            isBT709
+) noexcept;
+
+PF_Err prProcessImage_VUYA_4444_32f_RGB
+(
+	PF_InData*		in_data,
+	PF_OutData*		out_data,
+	PF_ParamDef*	params[],
+	PF_LayerDef*	output,
+	float           add_r,
+	float           add_g,
+	float           add_b,
+	bool            isBT709
 ) noexcept;

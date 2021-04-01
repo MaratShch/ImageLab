@@ -125,6 +125,8 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <FloatingPointModel>
+      </FloatingPointModel>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -138,6 +140,8 @@
     <ClCompile Include="src\ColorProcBGRA_16u.cpp" />
     <ClCompile Include="src\ColorProcBGRA_32f.cpp" />
     <ClCompile Include="src\ColorProcBGRA_8u.cpp" />
+    <ClCompile Include="src\ColorProcVUYA_32f.cpp" />
+    <ClCompile Include="src\ColorProcVUYA_8u.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
