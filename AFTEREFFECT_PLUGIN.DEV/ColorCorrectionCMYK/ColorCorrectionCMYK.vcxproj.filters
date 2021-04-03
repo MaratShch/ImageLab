@@ -42,6 +42,15 @@
     <ClCompile Include="src\ColorProcVUYA_32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ColorProcARGB_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorProcARGB_16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorCorrectionGPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ColorCorrectionCMYK.hpp">
@@ -83,6 +92,9 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorCorrectionGPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorCorrectionCMYK.rc">
@@ -93,5 +105,10 @@
     <CustomBuild Include="ColorCorrectionCMYK.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\ColorCorrectionKernel.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>

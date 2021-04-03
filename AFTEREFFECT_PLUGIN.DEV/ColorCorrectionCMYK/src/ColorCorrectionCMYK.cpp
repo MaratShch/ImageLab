@@ -86,7 +86,7 @@ ParamsSetup(
 	PF_ParamDef	def;
 	PF_Err		err = PF_Err_NONE;
 	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
-	constexpr PF_ParamUIFlags ui_flags = PF_PUI_TOPIC | PF_PUI_CONTROL;
+	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 	constexpr int32_t defaultSliders = static_cast<int32_t>(eCMYK);
 
 	AEFX_CLR_STRUCT_EX(def);
@@ -207,9 +207,8 @@ ParamsSetup(
 		0,
 		COLOR_CORRECT_SLIDER8);
 
-	AEFX_CLR_STRUCT_EX(def);
-
-	return err;
+	out_data->num_params = COLOR_CORRECT_TOTAL_PARAMS;
+	return PF_Err_NONE;
 }
 
 
@@ -495,9 +494,9 @@ EffectMain(
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
 
-			case PF_Cmd_EVENT:
-				err = HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra));
-			break;
+//			case PF_Cmd_EVENT:
+//				err = HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra));
+	//		break;
 
 			default:
 			break;

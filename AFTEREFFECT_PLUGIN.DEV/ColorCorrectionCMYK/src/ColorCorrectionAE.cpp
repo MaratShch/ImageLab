@@ -20,15 +20,21 @@ PF_Err ProcessImgInAE_8bits
 	auto const& Coarse3 = params[COLOR_CORRECT_SLIDER5]->u.sd.value;
 	auto const& Fine3   = params[COLOR_CORRECT_SLIDER6]->u.fs_d.value;
 	auto const& Coarse4 = params[COLOR_CORRECT_SLIDER7]->u.sd.value;
-	auto const& Fine4   = params[COLOR_CORRECT_SLIDER7]->u.fs_d.value;
+	auto const& Fine4   = params[COLOR_CORRECT_SLIDER8]->u.fs_d.value;
 
 	eCOLOR_SPACE_TYPE const& colorSpaceType = static_cast<eCOLOR_SPACE_TYPE const>(cType - 1);
+	float const& cVal = static_cast<float>(static_cast<double>(Coarse1) + Fine1);
+	float const& mVal = static_cast<float>(static_cast<double>(Coarse2) + Fine2);
+	float const& yVal = static_cast<float>(static_cast<double>(Coarse3) + Fine3);
+	float const& kVal = static_cast<float>(static_cast<double>(Coarse4) + Fine4);
 
-	switch (cType)
+	switch (colorSpaceType)
 	{
 		case COLOR_SPACE_CMYK:
+			aeProcessImage_ARGB_4444_8u_CMYK(in_data, out_data, params, output, cVal, mVal, yVal, kVal);
 		break;
 		case COLOR_SPACE_RGB:
+			aeProcessImage_ARGB_4444_8u_RGB(in_data, out_data, params, output, cVal, mVal, yVal);
 		break;
 		default:
 			err = PF_Err_INVALID_INDEX;
@@ -58,18 +64,24 @@ PF_Err ProcessImgInAE_16bits
 	auto const& Coarse3 = params[COLOR_CORRECT_SLIDER5]->u.sd.value;
 	auto const& Fine3 = params[COLOR_CORRECT_SLIDER6]->u.fs_d.value;
 	auto const& Coarse4 = params[COLOR_CORRECT_SLIDER7]->u.sd.value;
-	auto const& Fine4 = params[COLOR_CORRECT_SLIDER7]->u.fs_d.value;
+	auto const& Fine4 = params[COLOR_CORRECT_SLIDER8]->u.fs_d.value;
 
 	eCOLOR_SPACE_TYPE const& colorSpaceType = static_cast<eCOLOR_SPACE_TYPE const>(cType - 1);
+	float const& cVal = static_cast<float>(static_cast<double>(Coarse1) + Fine1);
+	float const& mVal = static_cast<float>(static_cast<double>(Coarse2) + Fine2);
+	float const& yVal = static_cast<float>(static_cast<double>(Coarse3) + Fine3);
+	float const& kVal = static_cast<float>(static_cast<double>(Coarse4) + Fine4);
 
-	switch (cType)
+	switch (colorSpaceType)
 	{
 		case COLOR_SPACE_CMYK:
+			aeProcessImage_ARGB_4444_16u_CMYK(in_data, out_data, params, output, cVal, mVal, yVal, kVal);
 		break;
 		case COLOR_SPACE_RGB:
+			aeProcessImage_ARGB_4444_16u_RGB(in_data, out_data, params, output, cVal, mVal, yVal);
 		break;
 		default:
-		err = PF_Err_INVALID_INDEX;
+			err = PF_Err_INVALID_INDEX;
 		break;
 	}
 

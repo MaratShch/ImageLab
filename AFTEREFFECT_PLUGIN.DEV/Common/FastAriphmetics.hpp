@@ -29,6 +29,17 @@ namespace FastCompute
 		return x ^ ((x ^ y) & -(x < y));
 	}
 
+	template <typename T>
+	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min3(const T& x, const T& y, const T& z) noexcept
+	{	/* find minimal value between 3 fixed point values without branch */
+		return Min(Min(x,y), z);
+	}
+
+	template <typename T>
+	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Max3(const T& x, const T& y, const T& z) noexcept
+	{   /* find maximal value between 3 fixed point values without branch */
+		return Max(Max(x, y), z);
+	}
 
 	inline double Sqrt(const double& x) noexcept
 	{

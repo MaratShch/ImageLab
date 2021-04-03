@@ -34,6 +34,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ColorCorrectionHSL", "ColorCorrectionHSL", "{BF6162D9-6904-4F47-8A4E-2C251FAF0A32}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorCorrectionCMYK", "ColorCorrectionCMYK\ColorCorrectionCMYK.vcxproj", "{61168E7B-832E-4C50-A01D-C878041F3161}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A1118418-9F12-4661-8BF3-8E2DF484ED9E} = {A1118418-9F12-4661-8BF3-8E2DF484ED9E}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ColorCorrectionCMYK", "ColorCorrectionCMYK", "{62139A7D-4234-49B4-A559-A85CD7FFE831}"
 EndProject

@@ -4,19 +4,39 @@
 #include <type_traits>
 
 template <typename T>
-inline T MIN_VALUE (const T& a, const T& b) { return ((a < b) ? a : b); }
+inline T 
+#ifdef __NVCC__
+__device__
+#endif
+MIN_VALUE (const T& a, const T& b) { return ((a < b) ? a : b); }
 
 template <typename T>
-inline T MAX_VALUE (const T& a, const T& b) { return ((a > b) ? a : b); }
+inline T 
+#ifdef __NVCC__
+__device__
+#endif
+MAX_VALUE (const T& a, const T& b) { return ((a > b) ? a : b); }
 
 template <typename T>
-inline T MIN3_VALUE(const T& a, const T& b, const T& c) { return (a < b) ? MIN_VALUE(a, c) : MIN_VALUE(b, c); }
+inline T 
+#ifdef __NVCC__
+__device__
+#endif
+MIN3_VALUE(const T& a, const T& b, const T& c) { return (a < b) ? MIN_VALUE(a, c) : MIN_VALUE(b, c); }
 
 template <typename T>
-inline T MAX3_VALUE(const T& a, const T& b, const T& c) { return (a > b) ? MAX_VALUE(a, c) : MAX_VALUE(b, c); }
+inline T 
+#ifdef __NVCC__
+__device__
+#endif
+MAX3_VALUE(const T& a, const T& b, const T& c) { return (a > b) ? MAX_VALUE(a, c) : MAX_VALUE(b, c); }
 
 template <typename T>
-inline T CLAMP_VALUE(const T& val, const T& min, const T& max)
+inline T 
+#ifdef __NVCC__
+__device__
+#endif
+CLAMP_VALUE(const T& val, const T& min, const T& max)
 {
 	return ((val < min) ? min : ((val > max) ? max : val));
 }

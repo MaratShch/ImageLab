@@ -4,6 +4,9 @@
 
 template<typename T>
 inline const typename std::enable_if<std::is_floating_point<T>::value>::type
+#ifdef __NVCC__
+__device__
+#endif
 rgb_to_cmyk (const T& R, const T& G, const T& B, T& C, T& M, T& Y, T& K) noexcept
 {
 	constexpr T One = static_cast<T>(1);
@@ -25,6 +28,9 @@ rgb_to_cmyk (const T& R, const T& G, const T& B, T& C, T& M, T& Y, T& K) noexcep
 
 template<typename T>
 inline const typename std::enable_if<std::is_floating_point<T>::value>::type
+#ifdef __NVCC__
+__device__
+#endif
 cmyk_to_rgb (const T& C, const T& M, const T& Y, const T& K, T& R, T& G, T& B) noexcept
 {
 	constexpr T One = static_cast<T>(1);

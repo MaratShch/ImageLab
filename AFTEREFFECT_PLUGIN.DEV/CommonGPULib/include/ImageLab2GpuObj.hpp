@@ -19,6 +19,7 @@
 constexpr int32_t ImageLabGpuPixel16f = PrPixelFormat_GPU_BGRA_4444_16f;
 constexpr int32_t ImageLabGpuPixel32f = PrPixelFormat_GPU_BGRA_4444_32f;
 
+
 class CImageLab2GpuObj
 {
 public:
