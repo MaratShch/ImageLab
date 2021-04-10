@@ -51,7 +51,7 @@ MakeParamCopy (PF_ParamDef* actual[], PF_ParamDef copy[], const uint32_t& size) 
 
 /* Entry point prototype for all AE PLUGINS */
 	PLUGIN_ENTRY_POINT_CALL
-		PF_Err EntryPointFunc(
+		PF_Err EffectMain (
 			PF_Cmd			cmd,
 			PF_InData		*in_data,
 			PF_OutData		*out_data,

@@ -772,7 +772,7 @@ SmartRender(
 
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
-EffectMain(
+EffectMain (
 	PF_Cmd			cmd,
 	PF_InData		*in_data,
 	PF_OutData		*out_data,

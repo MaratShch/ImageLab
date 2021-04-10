@@ -28,8 +28,8 @@ BEGIN
 	"MIB8",
 	"4668", 
 	0, 0x0,
-	16, 0x0,
-	"EntryPointFunc\0\0", 
+	12, 0x0,
+	"EffectMain\0\0", 
 
 	"MIB8",
 	"RVPe", 

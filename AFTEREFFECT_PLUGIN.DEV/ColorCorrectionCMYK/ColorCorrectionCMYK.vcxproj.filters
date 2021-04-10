@@ -105,10 +105,8 @@
     <CustomBuild Include="ColorCorrectionCMYK.r">
       <Filter>resource</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="src\ColorCorrectionKernel.cu">
+    <CustomBuild Include="src\ColorCorrectionKernel.cu">
       <Filter>src</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>
