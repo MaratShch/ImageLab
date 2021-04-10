@@ -27,6 +27,7 @@ PF_Err ProcessImgInPR
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
+				err = ImageStylizationPr_BGRA_4444_8u(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:

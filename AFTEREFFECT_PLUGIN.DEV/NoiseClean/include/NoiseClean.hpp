@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CommonAdobeAE.hpp"
+#include "NoiseCleanEnums.hpp"
 
 constexpr char strName[] = "Noise Clean";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rNoise Clean plugin.";

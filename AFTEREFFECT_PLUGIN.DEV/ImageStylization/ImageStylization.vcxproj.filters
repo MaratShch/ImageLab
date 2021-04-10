@@ -51,6 +51,9 @@
     <ClInclude Include="include\ImageStylization.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\StylizationEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStylization.cpp">
@@ -62,15 +65,21 @@
     <ClCompile Include="src\ImageStylizationPr.cpp">
       <Filter>src</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ImageStylization.r">
-      <Filter>resource</Filter>
-    </None>
+    <ClCompile Include="src\ImageStylization_BGRA_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_NewsPaper.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageStylization.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ImageStylization.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

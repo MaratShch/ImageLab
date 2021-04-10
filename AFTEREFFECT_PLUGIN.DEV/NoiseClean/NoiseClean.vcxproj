@@ -149,6 +149,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\NoiseClean.hpp" />
+    <ClInclude Include="include\NoiseCleanEnums.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="NoiseClean.r">

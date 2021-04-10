@@ -1,8 +1,10 @@
 #pragma once
 
 #include "CommonAdobeAE.hpp"
+#include "StylizationEnums.hpp"
 
-constexpr char strName[] = "Noise Clean";
+
+constexpr char strName[] = "Image Stylization";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage Stylization plugin.";
 constexpr int ImageStyle_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ImageStyle_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
@@ -38,3 +40,10 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept;
 
+PF_Err ImageStylizationPr_BGRA_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;

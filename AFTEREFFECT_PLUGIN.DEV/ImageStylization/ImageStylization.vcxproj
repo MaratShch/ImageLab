@@ -140,11 +140,14 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageStylization.hpp" />
+    <ClInclude Include="include\StylizationEnums.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
     <ClCompile Include="src\ImageStylization.cpp" />
     <ClCompile Include="src\ImageStylizationAe.cpp" />
     <ClCompile Include="src\ImageStylizationPr.cpp" />
+    <ClCompile Include="src\ImageStylization_BGRA_8u.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ImageStylization.r">
