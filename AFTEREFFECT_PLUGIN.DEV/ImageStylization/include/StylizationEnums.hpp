@@ -10,5 +10,22 @@ typedef enum
 	eSTYLE_CARTOON,
 	eSTYLE_SKETCH_PENCIL,
 	eSTYLE_SKETCH_CHARCOAL,
+	eSTYLE_IMPRESSIONISM,
 	eSTYLE_TOTAL_EFFECTS
 }eSTYLIZATION;
+
+
+constexpr static char strStyleEffect[] =
+{
+	"None|"
+	"Old News Paper|"
+	"Color News Paper|"
+	"Glassy Effect|"
+	"Oil Paint Image|"
+	"Cartoon|"
+	"Pencil Sketch|"
+	"Charcoal Sketch|"
+	"Impressionism"
+};
+
+static constexpr char strStylePopup[] = "Image Style";

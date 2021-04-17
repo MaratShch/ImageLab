@@ -11,58 +11,40 @@ PF_Err ProcessImgInPR
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
+	eSTYLIZATION const& lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
 
-	/* This plugin called frop PR - check video fomat */
-	AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-		AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-			in_data,
-			kPFPixelFormatSuite,
-			kPFPixelFormatSuiteVersion1,
-			out_data);
-
-	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+	switch (lwbType)
 	{
-		switch (destinationPixelFormat)
-		{
-			case PrPixelFormat_BGRA_4444_8u:
-				err = ImageStylizationPr_BGRA_4444_8u(in_data, out_data, params, output);
-			break;
+		case eSTYLE_NEWS_PAPER_OLD:
+			err = PR_ImageStyle_NewsPaper(in_data, out_data, params, output);
+		break;
 
-			case PrPixelFormat_BGRA_4444_16u:
-			break;
+		case eSTYLE_NEWS_PAPER_COLOR:
+		break;
 
-			case PrPixelFormat_VUYA_4444_8u:
-			case PrPixelFormat_VUYA_4444_8u_709:
-			{
-				auto const& isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
-			}
-			break;
+		case eSTYLE_GLASSY_EFFECT:
+		break;
 
-			case PrPixelFormat_BGRA_4444_32f:
-			break;
+		case eSTYLE_OIL_PAINT:
+		break;
 
-			case PrPixelFormat_VUYA_4444_32f:
-			case PrPixelFormat_VUYA_4444_32f_709:
-			{
-				auto const& isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
-			}
-			break;
+		case eSTYLE_CARTOON:
+		break;
+		
+		case eSTYLE_SKETCH_PENCIL:
+		break;
 
-			case PrPixelFormat_RGB_444_10u:
-			break;
+		case eSTYLE_SKETCH_CHARCOAL:
+		break;
+		
+		case eSTYLE_IMPRESSIONISM:
+		break;
+		
+		case eSTYLE_NONE:
+		default:
+			err = PF_COPY(&params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);
+		break;
 
-			default:
-			break;
-		} /* switch (destinationPixelFormat) */
-
-	} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-	else
-	{
-		/* error in determine pixel format */
-		err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
 	}
-
 	return err;
 }

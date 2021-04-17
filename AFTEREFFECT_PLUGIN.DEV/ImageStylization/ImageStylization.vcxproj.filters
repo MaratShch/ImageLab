@@ -65,9 +65,6 @@
     <ClCompile Include="src\ImageStylizationPr.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageStylization_BGRA_8u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp">
       <Filter>src</Filter>
     </ClCompile>

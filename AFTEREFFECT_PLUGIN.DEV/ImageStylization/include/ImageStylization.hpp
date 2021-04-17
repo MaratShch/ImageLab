@@ -18,6 +18,7 @@ constexpr int ImageStyle_VersionBuild = 1;
 
 typedef enum {
 	IMAGE_STYLE_INPUT,
+	IMAGE_STYLE_POPUP,
 	IMAGE_STYLE_TOTAL_PARAMS
 }Item;
 
@@ -40,7 +41,7 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept;
 
-PF_Err ImageStylizationPr_BGRA_4444_8u
+PF_Err PR_ImageStyle_NewsPaper
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
