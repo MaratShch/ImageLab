@@ -96,7 +96,8 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <FlushDenormalResultsToZero>
+      </FlushDenormalResultsToZero>
       <ExceptionHandling>Sync</ExceptionHandling>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -124,9 +125,10 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <FlushDenormalResultsToZero>
+      </FlushDenormalResultsToZero>
       <ExceptionHandling>Sync</ExceptionHandling>
     </ClCompile>
     <Link>

@@ -25,6 +25,7 @@ inline void Make_BW_pixel (U& strPix, T const& bwVal, T const& alpha)
 }
 
 
+
 typedef enum {
 	IMAGE_STYLE_INPUT,
 	IMAGE_STYLE_POPUP,
@@ -51,6 +52,37 @@ ProcessImgInAE
 ) noexcept;
 
 PF_Err PR_ImageStyle_NewsPaper
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_NewsPaper_BGRA_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+PF_Err PR_ImageStyle_NewsPaper_VUYA_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_NewsPaper_VUYA_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_NewsPaper_BGRA_16u
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
