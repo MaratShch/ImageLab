@@ -16,6 +16,15 @@ constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
 constexpr int ImageStyle_VersionBuild = 1;
 
+template <typename T, typename U>
+inline void Make_BW_pixel (U& strPix, T const& bwVal, T const& alpha)
+{
+	strPix.A = alpha;
+	strPix.B = strPix.G = strPix.R = bwVal;
+	return;
+}
+
+
 typedef enum {
 	IMAGE_STYLE_INPUT,
 	IMAGE_STYLE_POPUP,

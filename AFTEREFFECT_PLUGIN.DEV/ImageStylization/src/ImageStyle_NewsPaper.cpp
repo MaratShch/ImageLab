@@ -2,12 +2,12 @@
 #include "PrSDKAESupport.h"
 #include "ColorTransformMatrix.hpp"
 
+/*
+Using Floyd Steinberg Dithering Algorithm
+*/
 constexpr float gfSevenDiv13 = 7.0f / 13.0f;
 constexpr float gfFiveDiv13  = 5.0f / 13.0f;
 constexpr float gfOneDiv13   = 1.0f - gfSevenDiv13 - gfFiveDiv13;
-constexpr float gfFiveDiv8   = 5.0f / 8.0f;
-constexpr float gfThreeDiv8  = 3.0f / 8.0f;
-constexpr float gfOneDiv8    = 1.0f / 8.0f;
 constexpr float gfSevenDiv16 = 7.0f / 16.0f;
 constexpr float gfFiveDiv16  = 5.0f / 16.0f;
 constexpr float gfOneDiv16   = 1.0f / 16.0f;
@@ -28,6 +28,8 @@ static PF_Err PR_ImageStyle_NewsPaper_BGRA_4444u
 
 	const float* __restrict rgb2yuv = RGB2YUV[0];
 
+	float imgWindow[6]{};
+
 	PF_Err err = PF_Err_NONE;
 	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
@@ -38,12 +40,11 @@ static PF_Err PR_ImageStyle_NewsPaper_BGRA_4444u
 
 	PF_Pixel_BGRA_8u inPix00, /* curent pixel									*/
 		             inPix01, /* pixel in same line and in raw position plus 1	*/
-		             inPix1x, /* pixel on next line in raw postion minus 1		*/
 		             inPix10, /* pixel on next line in same raw postion			*/
 		             inPix11; /* pixel on next line in raw position plus 1		*/	
 
-	A_long x = 0, y = 0;
-	float p00 = 0.f, p01 = 0.f, p1x = 0.f, p10 = 0.f, p11 = 0.f;
+	A_long x, y;
+	float p00 = 0.f, p01 = 0.f, p10 = 0.f, p11 = 0.f;
 	float d = 0.f, eP = 0.f;
 
 	__VECTOR_ALIGNED__
@@ -69,55 +70,41 @@ static PF_Err PR_ImageStyle_NewsPaper_BGRA_4444u
 		/* difference before and aftre selection */
 		eP = p00 - d;
 
-		/* save to destination curremt pisel and neighborhoods	*/
-		localDst[idx].A = localSrc[idx].A;
-		localDst[idx].B = localDst[idx].G = localDst[idx].R = static_cast<int>(d);
+		/* save neighborhoods for temporal storage */
+		imgWindow[0] = 0.f;
+		imgWindow[1] = d;
+		imgWindow[2] = p01 + eP * gfSevenDiv13;
+		imgWindow[3] = 0.f;
+		imgWindow[4] = p10 + eP * gfFiveDiv13;
+		imgWindow[5] = p11 + eP * gfOneDiv13;
 
-		localDst[idx + 1].A = localSrc[idx + 1].A;
-		localDst[idx + 1].B = localDst[idx + 1].G = localDst[idx + 1].R = static_cast<int>(p01 + eP * gfSevenDiv13);
-
-		localDst[next_idx].A = localSrc[next_idx].A;
-		localDst[next_idx].B = localDst[next_idx].G = localDst[next_idx].R = static_cast<int>(p10 + eP * gfFiveDiv13);
-
-		localDst[next_idx + 1].A = localSrc[next_idx + 1].A;
-		localDst[next_idx + 1].B = localDst[next_idx + 1].G = localDst[next_idx + 1].R = static_cast<int>(p11 + eP * gfOneDiv13);
+		/* save destination pixel */
+		Make_BW_pixel(localDst[idx], static_cast<A_u_char>(d), localSrc[idx].A);
 
 		/* process rest of pixels in first frame line */
 		for (x = 1; x < width_without_last; x++)
 		{
-			p1x = p00;
-			p00 = p01;
-			p10 = p11;
-
-			inPix01 = localSrc[idx + x + 1];		/* pixel in next raw postion and same line */
-			inPix11 = localSrc[next_idx + x + 1];	/* pixel in position 0  and line 1	*/
+			inPix01 = localSrc[idx + x + 1];	/* pixel in position 1 and line 0 */
+			inPix10 = localSrc[next_idx + x + 1];	/* pixel in position 0 and line 1 */
 
 			p01 = static_cast<float>(inPix01.R) * rgb2yuv[0] + static_cast<float>(inPix01.G) * rgb2yuv[1] + static_cast<float>(inPix01.B) * rgb2yuv[2];
 			p11 = static_cast<float>(inPix11.R) * rgb2yuv[0] + static_cast<float>(inPix11.G) * rgb2yuv[1] + static_cast<float>(inPix11.B) * rgb2yuv[2];
 
-			d = (p00 >= 128.f) ? 255.f : 0.f;
-			eP = p00 - d;
+			d = (imgWindow[1] >= 128.f) ? 255.f : 0.f;
+			eP = imgWindow[1] - d;
 
-			localDst[idx + x].A = localSrc[idx + x].A;
-			localDst[idx + x].B = localDst[idx + x].G = localDst[idx + x].R = static_cast<int>(d);
+			imgWindow[1] = p01 + eP * gfSevenDiv16;
+			imgWindow[3] = imgWindow[4] + eP * gfThreeDiv16;
+			imgWindow[4] = p11 + eP * gfFiveDiv16;
+			imgWindow[5] = p11 + eP * gfOneDiv16;
 
-			localDst[idx + x + 1].A = localSrc[idx + x + 1].A;
-			localDst[idx + x + 1].B = localDst[idx + x + 1].G = localDst[idx + x + 1].R = static_cast<int>(p01 + eP * gfSevenDiv16);
+			Make_BW_pixel(localDst[idx + x], static_cast<A_u_char>(d), localSrc[idx + x].A);
+		} /* END: for (x = 1; x < width_without_last; x++) */
 
-			localDst[next_idx + x - 1].A = localSrc[next_idx + x - 1].A;
-			localDst[next_idx + x - 1].B = localDst[next_idx + x - 1].G = localDst[next_idx + x - 1].R = static_cast<int>(p1x + eP * gfThreeDiv16);
-
-			localDst[next_idx + x].A = localSrc[next_idx + x].A;
-			localDst[next_idx + x].B = localDst[next_idx + x].G = localDst[next_idx + x].R = static_cast<int>(p10 + eP * gfFiveDiv16);
-			
-			localDst[next_idx + x + 1].A = localSrc[next_idx + x + 1].A;
-			localDst[next_idx + x + 1].B = localDst[next_idx + x + 1].G = localDst[next_idx + x + 1].R = static_cast<int>(p11 + eP * gfOneDiv16);
-
-		}
-
-		/* process last pixel in first line */
-
-	}
+		/* process last pixel in the line */
+		d = (imgWindow[1] >= 128.f) ? 255.f : 0.f;
+		Make_BW_pixel(localDst[idx + x], static_cast<A_u_char>(d), localSrc[idx + x].A);
+	} /* END: for (y = 0; y < height_without_last; y++) */
 
 	return err;
 }
