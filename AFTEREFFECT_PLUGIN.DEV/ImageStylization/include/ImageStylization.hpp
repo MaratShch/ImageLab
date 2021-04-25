@@ -17,13 +17,22 @@ constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 constexpr int ImageStyle_VersionBuild = 1;
 
 template <typename T, typename U>
-inline void Make_BW_pixel (U& strPix, T const& bwVal, T const& alpha)
+inline void Make_BW_pixel (U& strPix, T const& bwVal, T const& alpha) noexcept
 {
 	strPix.A = alpha;
 	strPix.B = strPix.G = strPix.R = bwVal;
 	return;
 }
 
+template <typename T, typename U>
+inline void Make_Color_pixel(U& strPix, T const& R, T const& G, T const& B, T const& A) noexcept
+{
+	strPix.B = B;
+	strPix.G = G;
+	strPix.R = R;
+	strPix.A = A;
+	return;
+}
 
 
 typedef enum {
@@ -52,6 +61,14 @@ ProcessImgInAE
 ) noexcept;
 
 PF_Err PR_ImageStyle_NewsPaper
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_ColorNewsPaper
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,

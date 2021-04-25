@@ -68,6 +68,9 @@
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageStylization.rc">

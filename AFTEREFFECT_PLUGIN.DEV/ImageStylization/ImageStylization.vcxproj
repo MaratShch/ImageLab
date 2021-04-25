@@ -151,6 +151,7 @@
     <ClInclude Include="include\StylizationEnums.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
     <ClCompile Include="src\ImageStylization.cpp" />
     <ClCompile Include="src\ImageStylizationAe.cpp" />

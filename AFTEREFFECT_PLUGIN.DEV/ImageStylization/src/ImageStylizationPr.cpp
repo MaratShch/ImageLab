@@ -20,6 +20,7 @@ PF_Err ProcessImgInPR
 		break;
 
 		case eSTYLE_NEWS_PAPER_COLOR:
+			err = PR_ImageStyle_ColorNewsPaper(in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_GLASSY_EFFECT:
