@@ -35,6 +35,17 @@ inline void Make_Color_pixel(U& strPix, T const& R, T const& G, T const& B, T co
 }
 
 
+template <typename T, typename U>
+inline void Make_Color_pixel_yuv(U& strPix, T const& Y, T const& U, T const& V, T const& A) noexcept
+{
+	strPix.V = V;
+	strPix.U = U;
+	strPix.Y = Y;
+	strPix.A = A;
+	return;
+}
+
+
 typedef enum {
 	IMAGE_STYLE_INPUT,
 	IMAGE_STYLE_POPUP,
