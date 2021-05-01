@@ -4,7 +4,7 @@
 #include "NoiseCleanEnums.hpp"
 
 constexpr char strName[] = "Noise Clean";
-constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rNoise Clean plugin.";
+constexpr char strCopyright[] = "\n2019-2021. ImageLab2 Copyright(c).\rNoise Clean plugin.";
 constexpr int NoiseClean_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int NoiseClean_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int NoiseClean_VersionSub = 0;

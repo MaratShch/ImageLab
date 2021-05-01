@@ -1,6 +1,7 @@
 #include "ImageStylization.hpp"
 
 
+
 PF_Err ImageStyleInAE_8bits
 (
 	PF_InData*   in_data,
@@ -10,8 +11,50 @@ PF_Err ImageStyleInAE_8bits
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
+	eSTYLIZATION const& lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
+
+	switch (lwbType)
+	{
+		case eSTYLE_NEWS_PAPER_OLD:
+			err = AE_ImageStyle_NewsPaper_ARGB_8u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_NEWS_PAPER_COLOR:
+			err = AE_ImageStyle_ColorNewsPaper_ARGB_8u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_GLASSY_EFFECT:
+		break;
+
+		case eSTYLE_OIL_PAINT:
+		break;
+
+		case eSTYLE_CARTOON:
+		break;
+
+		case eSTYLE_SKETCH_PENCIL:
+		break;
+
+		case eSTYLE_SKETCH_CHARCOAL:
+		break;
+
+		case eSTYLE_IMPRESSIONISM:
+		break;
+
+		case eSTYLE_NONE:
+		default:
+		{
+			AEFX_SuiteScoper<PF_WorldTransformSuite1> worldTransformSuite =
+				AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data);
+
+			err = worldTransformSuite->copy (in_data->effect_ref, &params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);
+		}
+		break;
+
+	}
 	return err;
 }
+	
 
 
 PF_Err ImageStyleInAE_16bits
@@ -23,6 +66,47 @@ PF_Err ImageStyleInAE_16bits
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
+	eSTYLIZATION const& lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
+
+	switch (lwbType)
+	{
+		case eSTYLE_NEWS_PAPER_OLD:
+			err = AE_ImageStyle_NewsPaper_ARGB_16u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_NEWS_PAPER_COLOR:
+			err = AE_ImageStyle_ColorNewsPaper_ARGB_16u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_GLASSY_EFFECT:
+		break;
+
+		case eSTYLE_OIL_PAINT:
+		break;
+
+		case eSTYLE_CARTOON:
+		break;
+
+		case eSTYLE_SKETCH_PENCIL:
+		break;
+
+		case eSTYLE_SKETCH_CHARCOAL:
+		break;
+
+		case eSTYLE_IMPRESSIONISM:
+		break;
+
+		case eSTYLE_NONE:
+		default:
+		{
+			AEFX_SuiteScoper<PF_WorldTransformSuite1> worldTransformSuite =
+				AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data);
+
+			err = worldTransformSuite->copy_hq (in_data->effect_ref, &params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);
+		}
+		break;
+
+	}
 	return err;
 }
 

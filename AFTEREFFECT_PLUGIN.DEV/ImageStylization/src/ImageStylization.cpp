@@ -26,6 +26,8 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+	PF_Err	err = PF_Err_NONE;
+
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
@@ -39,11 +41,13 @@ GlobalSetup(
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
-		PF_VERSION(ImageStyle_VersionMajor,
+		PF_VERSION(
+			ImageStyle_VersionMajor,
 			ImageStyle_VersionMinor,
 			ImageStyle_VersionSub,
 			ImageStyle_VersionStage,
-			ImageStyle_VersionBuild);
+			ImageStyle_VersionBuild
+		);
 
 	out_data->out_flags = out_flags1;
 	out_data->out_flags2 = out_flags2;
@@ -57,16 +61,16 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 	}
 
-	return PF_Err_NONE;
+	return err;
 }
 
 
@@ -78,13 +82,14 @@ ParamsSetup(
 	PF_LayerDef		*output)
 {
 	PF_ParamDef	def;
-	PF_Err		err = PF_Err_NONE;
 	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 
 	AEFX_CLR_STRUCT_EX(def);
+
 	def.flags = flags;
 	def.ui_flags = ui_flags;
+
 	PF_ADD_POPUP(
 		strStylePopup,			/* pop-up name			*/
 		eSTYLE_TOTAL_EFFECTS,	/* number of variants	*/
@@ -92,8 +97,10 @@ ParamsSetup(
 		strStyleEffect,			/* string for pop-up	*/
 		IMAGE_STYLE_POPUP);		/* control ID			*/
 
-	out_data->num_params = IMAGE_STYLE_POPUP;
+	out_data->num_params = IMAGE_STYLE_TOTAL_PARAMS;
+
 	return PF_Err_NONE;
+
 }
 
 
