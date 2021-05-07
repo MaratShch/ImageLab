@@ -24,6 +24,7 @@ PF_Err ImageStyleInAE_8bits
 		break;
 
 		case eSTYLE_GLASSY_EFFECT:
+			err = AE_ImageStyle_GlassyEffect_ARGB_8u (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_OIL_PAINT:
@@ -79,6 +80,7 @@ PF_Err ImageStyleInAE_16bits
 		break;
 
 		case eSTYLE_GLASSY_EFFECT:
+			err = AE_ImageStyle_GlassyEffect_ARGB_16u (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_OIL_PAINT:

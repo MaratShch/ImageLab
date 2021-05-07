@@ -1,6 +1,7 @@
 #include "ImageStylization.hpp"
 #include "PrSDKAESupport.h"
 
+
 static PF_Err
 About(
 	PF_InData		*in_data,
@@ -61,14 +62,17 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 	}
+
+	/* generate random values in buffer used in Glassy Effect */
+	utils_create_random_buffer();
 
 	return err;
 }
@@ -86,7 +90,6 @@ ParamsSetup(
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 
 	AEFX_CLR_STRUCT_EX(def);
-
 	def.flags = flags;
 	def.ui_flags = ui_flags;
 
@@ -96,6 +99,19 @@ ParamsSetup(
 		eSTYLE_NONE,			/* default variant		*/
 		strStyleEffect,			/* string for pop-up	*/
 		IMAGE_STYLE_POPUP);		/* control ID			*/
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
+
+	PF_ADD_SLIDER(
+		StyleSlider1[0],
+		glassyMin,
+		glassyMax,
+		glassyMin,
+		glassyMax,
+		glassyDefault,
+		IMAGE_STYLE_SLIDER1);
 
 	out_data->num_params = IMAGE_STYLE_TOTAL_PARAMS;
 

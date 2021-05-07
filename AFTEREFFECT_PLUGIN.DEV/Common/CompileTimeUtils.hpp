@@ -47,4 +47,12 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAli
 	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
+
+template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IsPowerOf2 (const T& x)
+{
+	return (x && !(x & (x - static_cast<T>(1))));
+}
+
+
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */

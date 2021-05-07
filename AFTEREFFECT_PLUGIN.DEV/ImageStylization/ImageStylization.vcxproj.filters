@@ -71,6 +71,12 @@
     <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageStyle_GlassyEffect.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStylizationUtils.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageStylization.rc">

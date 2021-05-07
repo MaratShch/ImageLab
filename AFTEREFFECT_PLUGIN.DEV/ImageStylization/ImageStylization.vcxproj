@@ -152,10 +152,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp" />
+    <ClCompile Include="src\ImageStyle_GlassyEffect.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
     <ClCompile Include="src\ImageStylization.cpp" />
     <ClCompile Include="src\ImageStylizationAe.cpp" />
     <ClCompile Include="src\ImageStylizationPr.cpp" />
+    <ClCompile Include="src\ImageStylizationUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ImageStylization.r">

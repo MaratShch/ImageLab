@@ -16,14 +16,15 @@ PF_Err ProcessImgInPR
 	switch (lwbType)
 	{
 		case eSTYLE_NEWS_PAPER_OLD:
-			err = PR_ImageStyle_NewsPaper(in_data, out_data, params, output);
+			err = PR_ImageStyle_NewsPaper (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_NEWS_PAPER_COLOR:
-			err = PR_ImageStyle_ColorNewsPaper(in_data, out_data, params, output);
+			err = PR_ImageStyle_ColorNewsPaper (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_GLASSY_EFFECT:
+			err = PR_ImageStyle_GlassyEffect (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_OIL_PAINT:

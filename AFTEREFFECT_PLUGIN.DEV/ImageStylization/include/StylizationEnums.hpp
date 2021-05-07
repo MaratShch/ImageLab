@@ -28,4 +28,27 @@ constexpr static char strStyleEffect[] =
 	"Impressionism"
 };
 
+constexpr int32_t toatal_variants = 2;
+constexpr int32_t param_name_length = PF_MAX_EFFECT_PARAM_NAME_LEN + 1;
+
+/* glass effect min/max settinig */
+constexpr int32_t glassyMin = 0;
+constexpr int32_t glassyMax = 40;
+constexpr int32_t glassyDefault = glassyMin;
+
+constexpr char StyleSlider1[toatal_variants][param_name_length] =
+{
+	"N/A",
+	"Dispersion"
+};
+
+
+typedef enum {
+	IMAGE_STYLE_INPUT,
+	IMAGE_STYLE_POPUP,
+	IMAGE_STYLE_SLIDER1,
+	IMAGE_STYLE_TOTAL_PARAMS
+}Item;
+
+
 static constexpr char strStylePopup[] = "Image Style";

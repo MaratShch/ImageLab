@@ -45,13 +45,17 @@ inline void Make_Color_pixel_yuv(U& strPix, T const& Y, T const& U, T const& V, 
 	return;
 }
 
+template <typename T>
+inline const T getDispersionSliderValue(const T& val) { return val + static_cast<T>(2); }
 
-typedef enum {
-	IMAGE_STYLE_INPUT,
-	IMAGE_STYLE_POPUP,
-	IMAGE_STYLE_TOTAL_PARAMS
-}Item;
 
+constexpr uint32_t RandomBufSize = 4096u;
+
+uint32_t utils_get_random_value (void);
+void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize);
+const float* __restrict get_random_buffer(uint32_t& size);
+const float* __restrict get_random_buffer(void);
+void utils_create_random_buffer(void);
 
 /* FUNCTION PROTOTYPES */
 PF_Err ProcessImgInPR
@@ -87,6 +91,14 @@ PF_Err PR_ImageStyle_ColorNewsPaper
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err PR_ImageStyle_GlassyEffect
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
 PF_Err AE_ImageStyle_NewsPaper_ARGB_8u
 (
 	PF_InData*   __restrict in_data,
@@ -112,6 +124,22 @@ PF_Err AE_ImageStyle_ColorNewsPaper_ARGB_8u
 ) noexcept;
 
 PF_Err AE_ImageStyle_ColorNewsPaper_ARGB_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_GlassyEffect_ARGB_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_GlassyEffect_ARGB_16u
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,

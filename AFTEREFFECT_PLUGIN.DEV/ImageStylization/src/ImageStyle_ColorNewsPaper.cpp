@@ -799,7 +799,7 @@ static PF_Err PR_ImageStyle_ColorNewsPaper_BGRA_16u
 }
 
 
-static PF_Err PR_ImageStyle_NewsPaper_BGRA_32f
+static PF_Err PR_ImageStyle_ColorNewsPaper_BGRA_32f
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
@@ -1011,7 +1011,7 @@ PF_Err PR_ImageStyle_ColorNewsPaper
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-				err = PR_ImageStyle_NewsPaper_BGRA_32f (in_data, out_data, params, output);
+				err = PR_ImageStyle_ColorNewsPaper_BGRA_32f (in_data, out_data, params, output);
 			break;
 
 			default:

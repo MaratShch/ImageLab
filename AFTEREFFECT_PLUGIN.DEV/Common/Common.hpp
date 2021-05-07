@@ -22,3 +22,26 @@ static inline void AEFX_CLR_STRUCT_EX(T& str) noexcept
 {
 	memset (static_cast<void*>(&str), 0, sizeof(T));
 }
+
+template <typename T>
+inline void Image_SimpleCopy
+(
+	const T* __restrict srcBuffer,
+	T* __restrict dstBuffer,
+	const int32_t&       height,
+	const int32_t&       width,
+	const int32_t&       src_line_pitch,
+	const int32_t&       dst_line_pitch
+) noexcept
+{
+	for (int32_t j = 0; j < height; j++)
+	{
+		for (int32_t i = 0; i < width; i++)
+		{
+			dstBuffer[j * dst_line_pitch + width] = srcBuffer[j * src_line_pitch + width];
+		}
+	}
+	return;
+}
+
+
