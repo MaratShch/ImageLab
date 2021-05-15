@@ -1,7 +1,5 @@
 #include "ImageStylization.hpp"
 #include "PrSDKAESupport.h"
-#include "ColorTransformMatrix.hpp"
-
 
 
 template <typename T>
@@ -43,11 +41,8 @@ inline PF_Err ImageStyle_GlassyEffect
 			const float& random2 = pRandom[idx++];
 			idx &= randomBufMask;
 
-			const auto& small_w = width  - i;
-			const auto& small_h = height - j;
-
-			const auto& xIdx = static_cast<int32_t>(random1 * (i < short_width  ? imgDispersion : small_w));
-			const auto& yIdx = static_cast<int32_t>(random2 * (j < short_height ? imgDispersion : small_h));
+			const auto& xIdx = static_cast<int32_t>(random1 * (i < short_width  ? imgDispersion : (width  - i)));
+			const auto& yIdx = static_cast<int32_t>(random2 * (j < short_height ? imgDispersion : (height - j)));
 
 			const auto& src_pix_offset = src_pix_idx + yIdx * src_line_pitch + xIdx;
 			const auto& dst_pix_offset = dst_pix_idx;

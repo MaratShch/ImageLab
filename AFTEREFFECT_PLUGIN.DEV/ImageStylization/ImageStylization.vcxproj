@@ -149,8 +149,11 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageStylization.hpp" />
     <ClInclude Include="include\StylizationEnums.hpp" />
+    <ClInclude Include="include\StylizationStructs.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ImageStyle_Cartoon.cpp" />
+    <ClCompile Include="src\ImageStyle_CartoonBuffer.cpp" />
     <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp" />
     <ClCompile Include="src\ImageStyle_GlassyEffect.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />

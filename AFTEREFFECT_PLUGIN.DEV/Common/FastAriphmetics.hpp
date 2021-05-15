@@ -3,6 +3,10 @@
 
 namespace FastCompute
 {
+	constexpr float PI = 3.141592653589793f;
+	constexpr float PIx2 = PI * 2.0f;
+	constexpr float HalfPI = PI / 2.0f;
+
 	constexpr auto CHAR_BITS = 8;
 
 	inline constexpr int Min(const int& x, const int& y) noexcept
@@ -112,8 +116,7 @@ namespace FastCompute
 
 	inline float Atan2 (const float& y, const float& x) noexcept
 	{
-		constexpr float PI = 3.14159265f;
-		constexpr float PI_2 = PI / 2.0f;
+		constexpr float PI_2 = HalfPI;
 	
 		if (x != 0.0f)
 		{
@@ -164,10 +167,6 @@ namespace FastCompute
 		}
 		return 0.0f; // x,y = 0. Could return NaN instead.
 	}
-
-	constexpr float PI = 3.141592653589793f;
-	constexpr float PIx2 = PI * 2.0f;
-	constexpr float HalfPI = PI / 2.0f;
 
 #define EXTRA_PRECISION
 	template<typename T>

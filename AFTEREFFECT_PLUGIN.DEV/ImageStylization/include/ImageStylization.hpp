@@ -51,6 +51,15 @@ inline const T getDispersionSliderValue(const T& val) { return val + static_cast
 
 constexpr uint32_t RandomBufSize = 4096u;
 
+typedef struct bufHandle
+{
+	uint32_t bValid;
+	AEGP_PluginID id;
+	uint32_t bufHdlType;
+	void*    pBufHndl;
+}bufHandle;
+
+
 uint32_t utils_get_random_value (void);
 void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize);
 const float* __restrict get_random_buffer(uint32_t& size);
@@ -92,6 +101,14 @@ PF_Err PR_ImageStyle_ColorNewsPaper
 ) noexcept;
 
 PF_Err PR_ImageStyle_GlassyEffect
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_CartoonEffect
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,

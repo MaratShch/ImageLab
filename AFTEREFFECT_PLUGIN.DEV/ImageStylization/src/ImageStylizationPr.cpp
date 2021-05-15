@@ -31,6 +31,7 @@ PF_Err ProcessImgInPR
 		break;
 
 		case eSTYLE_CARTOON:
+			err = PR_ImageStyle_CartoonEffect (in_data, out_data, params, output);
 		break;
 		
 		case eSTYLE_SKETCH_PENCIL:
