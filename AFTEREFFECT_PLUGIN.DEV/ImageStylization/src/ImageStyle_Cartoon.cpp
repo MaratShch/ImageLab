@@ -5,9 +5,7 @@
 #include "FastAriphmetics.hpp"
 
 #include <mutex>
-
-constexpr float div255 = 1.f / 255.f;
-constexpr float div32768 = 1.f / 32768.f;
+#include <math.h> 
 
 constexpr float qH = 6.f;
 constexpr float qS = 5.f;
@@ -18,72 +16,42 @@ constexpr int nbinsS = static_cast<int>(hist_size_S / qS);
 constexpr int nbinsI = static_cast<int>(hist_size_I / qI);
 
 
-inline void sRgb2hsi(const float& R, const float& G, const float& B, float& H, float& S, float& I) noexcept
+inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& H, float& S, float& I) noexcept
 {
-	constexpr float reciproc3 = 1.f / 3.f;
+	constexpr float Sqrt2 = 1.414213562373f; /* sqrt isn't defined as constexpr */
+	constexpr float OneRadian = 180.f / FastCompute::PI;
+	constexpr float div3 = 1.f / 3.f;
 	constexpr float denom = 1.f / 1e7f;
-	constexpr float reciprocPi180 = 180.f / FastCompute::PI;
 
-	float i = (R + G + B) * reciproc3;
-	float h, s;
+	I = div3 * (R + G + B);
+	const float& RminusI = R - I;
+	const float& GminusI = G - I;
+	const float& BminusI = B - I;
 
-	if (i > denom)
+	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+
+	if (fabs(S) > denom)
 	{
-		auto const& alpha = 0.5f * (2.f * R - G - B) + denom;
-		auto const& beta = 0.8660254037f * (G - B) + denom;
-		s = 1.f - MIN3_VALUE(R, G, B) / i;
-		h = FastCompute::Atan2(beta, alpha) * reciprocPi180;
-		if (h < 0)
-			h += 360.f;
+		float cosH = (G - B) / (Sqrt2 * S);
+		const float& FabsH = fabs(cosH);
+
+		if (FabsH > 1.f)
+			cosH /= FabsH;
+
+		float h = (FastCompute::Acos(cosH)) * OneRadian;
+		float proj2 = -2.f * RminusI + GminusI + BminusI;
+		
+		if (proj2 < denom)
+			h = -h;
+		
+		H = h + ((h < 0.f) ? 360.f : 0.f);
+		
+		if (H == 360.f)
+			H = 0.f;
 	}
 	else
 	{
-		i = h = s = 0.f;
-	}
-
-	H = h;
-	S = s;
-	I = i;
-
-	return;
-}
-
-
-inline void hsi2sRgb(const float& H, const float& S, const float& I, float& R, float& G, float& B) noexcept
-{
-	constexpr float PiDiv180 = 3.14159265f / 180.f;
-	constexpr float reciproc360 = 1.0f / 360.f;
-	constexpr float denom = 1.f / 1e7f;
-
-	float h = H - 360.f * floor(H * reciproc360);
-	const float& val1 = I * (1.f - S);
-	const float& tripleI = 3.f * I;
-
-	if (h < 120.f)
-	{
-		const float& cosTmp = cos((60.f - h) * PiDiv180);
-		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
-		B = val1;
-		R = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
-		G = tripleI - R - B;
-	}
-	else if (h < 240.f)
-	{
-		h -= 120.f;
-		const float& cosTmp = cos((60.f - h) * PiDiv180);
-		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
-		R = val1;
-		G = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
-		B = tripleI - R - G;
-	}
-	else
-	{
-		h -= 240.f;
-		const float& cosTmp = cos((60.f - h) * PiDiv180);
-		const float& cosDiv = (0.f == cosTmp) ? denom : cosTmp;
-		G = val1;
-		B = I * (1.f + S * cos(h * PiDiv180) / cosDiv);
-		R = tripleI - G - B;
+		H = 0.f;
 	}
 
 	return;
@@ -99,6 +67,11 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
+	CACHE_ALIGN int32_t histH[hist_size_H]{};
+	CACHE_ALIGN int32_t histI[hist_size_I]{};
+
+	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
+	float*                  __restrict pTmpStorage = nullptr;
 	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
@@ -108,32 +81,84 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
 	constexpr float sMin = static_cast<float>(nbinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
+	const size_t requiredMemSize = width * height * sizeof(float) * 3;
 
 	int j, i, nhighsat;
-	float R, G, B;
+	int hH, sS, iI;
 	float H, S, I;
 
+	const int& nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
+	const int& nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
+	const int& nBinsI = static_cast<int>(static_cast<float>(hist_size_I) / qI);
+
+	bool bMemSizeTest = false;
+
 	j = i = nhighsat = 0;
-	R = G = B = H = S = I = 0.f;
+	hH = sS = iI = 0;
+	H = S = I = 0.f;
 
-	/* first path - build the statistics about frame [build histogram] */
-	for (j = 0; j < height; j++)
+	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
+	if (nullptr != pGlobal)
 	{
-		const A_long& line_idx = j * line_pitch;
+		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
+		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+	}
 
-		for (i = 0; i < width; i++)
+	if (true == bMemSizeTest)
+	{
+		const std::lock_guard<std::mutex> lock (pTmpStorageHdnl->guard_buffer);
+		pTmpStorage = pTmpStorageHdnl->pStorage1;
+
+		/* first path - build the statistics about frame [build histogram] */
+		for (j = 0; j < height; j++)
 		{
-			/* convert RGB to sRGB */
-			B = static_cast<float>(localSrc[line_idx + i].B) * div255;
-			G = static_cast<float>(localSrc[line_idx + i].G) * div255;
-			R = static_cast<float>(localSrc[line_idx + i].R) * div255;
+			const A_long& line_idx = j * line_pitch;
+			const A_long& tmpBufLineidx = j * width * 3;
 
-			/* convert sRGB to HSI color space */
-			sRgb2hsi (R, G, B, H, S, I);
+			__VECTOR_ALIGNED__
+			for (i = 0; i < width; i++)
+			{
+				const A_long& tmpBufpixIdx = tmpBufLineidx + i * 3;
+				const A_long& pix_idx = line_idx + i;
+
+				/* convert RGB to sRGB */
+				const float& B = static_cast<float>(localSrc[pix_idx].B);
+				const float& G = static_cast<float>(localSrc[pix_idx].G);
+				const float& R = static_cast<float>(localSrc[pix_idx].R);
+
+				/* convert sRGB to HSI color space */
+				sRgb2NewHsi (R, G, B, H, S, I);
+
+				pTmpStorage[tmpBufpixIdx    ] = H;
+				pTmpStorage[tmpBufpixIdx + 1] = S;
+				pTmpStorage[tmpBufpixIdx + 2] = I;
+
+				if (S > sMin)
+				{
+					hH = static_cast<int>(H / qH);
+					histH[hH]++;
+					nhighsat++;
+				}
+				else
+				{
+					iI = static_cast<int>(I / qI);
+					histI[iI]++;
+				}
+			} /* for (i = 0; i < width; i++) */
+		} /* for (j = 0; j < height; j++) */
+
+		/* second path - segment histogram and build palette */
+		auto const& isGray = (0 == nhighsat);
+		constexpr float epsilon = 1.0f;
+
+		ftc_utils_segmentation(histH, (false == isGray ? nBinsH : nBinsI), epsilon, isGray);
 
 
-		} /* for (i = 0; i < width; i++) */
-	} /* for (j = 0; j < height; j++) */
+	} /* if (true == bMemSizeTest) */
+	else
+	{
+		return PF_Err_OUT_OF_MEMORY;
+	}
 
 	return PF_Err_NONE;
 }

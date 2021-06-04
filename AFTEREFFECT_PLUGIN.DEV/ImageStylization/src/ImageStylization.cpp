@@ -52,7 +52,7 @@ GlobalSetup(
 	PF_LayerDef		*output)
 {
 	PF_Err	err = PF_Err_NONE;
-	PF_Handle pCartoonGlobal = nullptr;
+	PF_Handle pGlobalStorage = nullptr;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -87,20 +87,21 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 	}
 
 	/* generate random values in buffer used in Glassy Effect */
 	utils_create_random_buffer();
 
 	/* allocate global buffer for Cartoon Effect */
-	CartoonEffectBuf* pGlobal = alloc_cartoon_effect_buffers(1920, 1080);
+	constexpr size_t globalStorageMemSize = 1920 * 1080 * sizeof(float) * 3;
+	ImageStyleTmpStorage* pGlobal = alloc_temporary_buffers (globalStorageMemSize);
 	if (nullptr != pGlobal)
 	{
 		AEFX_SuiteScoper<PF_HandleSuite1> handleSuite =
@@ -110,12 +111,11 @@ GlobalSetup(
 				kPFHandleSuiteVersion1,
 				out_data);
 
-		if (nullptr != (pCartoonGlobal = handleSuite->host_new_handle(sizeof(bufHandle))))
+		if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(bufHandle))))
 		{
-			bufHandle* pGlobalReg = static_cast<bufHandle*>(handleSuite->host_lock_handle(pCartoonGlobal));
+			bufHandle* pGlobalReg = static_cast<bufHandle*>(handleSuite->host_lock_handle(pGlobalStorage));
 
 			pGlobalReg->bValid = TRUE;
-			pGlobalReg->bufHdlType = eSTYLE_CARTOON;
 			pGlobalReg->pBufHndl = static_cast<void*>(pGlobal);
 
 			if (PremierId != in_data->appl_id)
@@ -123,9 +123,13 @@ GlobalSetup(
 				AEFX_SuiteScoper<AEGP_UtilitySuite3> u_suite(in_data, kAEGPUtilitySuite, kAEGPUtilitySuiteVersion3);
 				u_suite->AEGP_RegisterWithAEGP (nullptr, strName, &pGlobalReg->id);
 			}
-			out_data->global_data = pCartoonGlobal;
-			handleSuite->host_unlock_handle(pCartoonGlobal);
+			out_data->global_data = pGlobalStorage;
+			handleSuite->host_unlock_handle(pGlobalStorage);
 		}
+	}
+	else
+	{
+		err = PF_Err_OUT_OF_MEMORY;
 	}
 
 	return err;
@@ -152,15 +156,7 @@ GlobalSetDown (
 		if (nullptr != pGlobal && nullptr != pGlobal->pBufHndl && TRUE == pGlobal->bValid)
 		{
 			pGlobal->bValid = FALSE;
-			switch (pGlobal->bufHdlType)
-			{
-				case eSTYLE_CARTOON:
-					free_cartoon_effect_buffers(static_cast<CartoonEffectBuf*>(pGlobal->pBufHndl));
-				break;
-
-				default:
-				break;
-			}
+			free_temporary_buffers(static_cast<ImageStyleTmpStorage*>(pGlobal->pBufHndl));
 			pGlobal = nullptr;
 		}
 		handleSuite->host_dispose_handle(in_data->global_data);

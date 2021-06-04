@@ -6,37 +6,27 @@
 #include "Common.hpp"
 #include "CompileTimeUtils.hpp"
 
-constexpr unsigned int hist_size_H = 360u;
-constexpr unsigned int hist_size_S = 256u;
-constexpr unsigned int hist_size_I = 256u;
+constexpr int circular_size = 3;
+constexpr int hist_size_H = 360;
+constexpr int hist_size_S = 256;
+constexpr int hist_size_I = 256;
 constexpr unsigned int max_buf_idx = 4u;
 
-typedef struct CartoonEffectParamStr {
 
-	unsigned int histH[hist_size_H];
-	unsigned int histS[hist_size_S];
-	unsigned int histI[hist_size_I];
-}CartoonEffectParamStr;
-
-typedef struct CartoonEffectBuf {
+typedef struct ImageStyleTmpStorage {
 	std::mutex guard_buffer;
-	float* __restrict bufH;
-	float* __restrict bufS;
-	float* __restrict bufI;
+	float* __restrict pStorage1;
 	size_t bufMemSize;
-	CartoonEffectParamStr histBuf;
 
-	CartoonEffectBuf::CartoonEffectBuf(void)
+	ImageStyleTmpStorage::ImageStyleTmpStorage(void)
 	{
-		bufH = bufS = bufI = nullptr;
+		pStorage1 = nullptr;
 		bufMemSize = 0ul;
-		memset(&histBuf, 0, sizeof(histBuf));
 	}
-}CartoonEffectBuf;
+}ImageStyleTmpStorage;
 
-constexpr unsigned int CartoonEffectParamStr_size = static_cast<unsigned int>(sizeof(CartoonEffectParamStr));
-constexpr unsigned int CartoonEffectBuf_size = static_cast<unsigned int>(sizeof(CartoonEffectBuf));
+constexpr unsigned int CartoonEffectBuf_size = static_cast<unsigned int>(sizeof(ImageStyleTmpStorage));
 
-CartoonEffectBuf* alloc_cartoon_effect_buffers(int width, int height) noexcept;
-void free_cartoon_effect_buffers(CartoonEffectBuf* pStr) noexcept;
-bool test_cartoon_effect_buffers(CartoonEffectBuf* pStr, int width, int height) noexcept;
+ImageStyleTmpStorage* alloc_temporary_buffers(const size_t& mem_size) noexcept;
+void free_temporary_buffers(ImageStyleTmpStorage* pStr) noexcept;
+bool test_temporary_buffers(ImageStyleTmpStorage* pStr, const size_t& mem_size) noexcept;

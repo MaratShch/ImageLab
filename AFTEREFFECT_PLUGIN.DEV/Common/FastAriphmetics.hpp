@@ -3,7 +3,7 @@
 
 namespace FastCompute
 {
-	constexpr float PI = 3.141592653589793f;
+	constexpr float PI = 3.14159265358979323846f;
 	constexpr float PIx2 = PI * 2.0f;
 	constexpr float HalfPI = PI / 2.0f;
 
@@ -105,6 +105,37 @@ namespace FastCompute
 		x += 127 << 23;
 		*exp_ptr = x;
 		return (val + log_2);
+	}
+
+	inline float Acos (float x) noexcept
+	{
+		const float& negate = float(x < 0.f);
+		x = abs(x);
+		float ret = -0.0187293f;
+		ret = ret * x;
+		ret = ret + 0.0742610f;
+		ret = ret * x;
+		ret = ret - 0.2121144f;
+		ret = ret * x;
+		ret = ret + 1.5707288f;
+		ret = ret * Sqrt(1.0f - x);
+		ret = ret - 2.f * negate * ret;
+		return negate * PI + ret;
+	}
+
+	inline float Asin (float x) noexcept
+	{
+		const float& negate = float(x < 0.f);
+		x = abs(x);
+		float ret = -0.0187293f;
+		ret *= x;
+		ret += 0.0742610f;
+		ret *= x;
+		ret -= 0.2121144f;
+		ret *= x;
+		ret += 1.5707288f;
+		ret = HalfPI - Sqrt(1.0f - x) * ret;
+		return ret - 2.f * negate * ret;
 	}
 
 	inline float Atan (const float& z) noexcept

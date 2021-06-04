@@ -1,6 +1,15 @@
 #pragma once
 
+#ifndef CPU_PAGE_SIZE
+#define CPU_PAGE_SIZE	4096
+#endif
+
+#define CPU_PAGE_ALIGN __declspec(align(CPU_PAGE_SIZE))
+
+#ifndef CACHE_LINE
 #define CACHE_LINE  64
+#endif
+
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
 #define AVX2_ALIGN __declspec(align(32))

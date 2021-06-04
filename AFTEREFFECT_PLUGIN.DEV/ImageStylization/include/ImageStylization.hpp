@@ -2,7 +2,7 @@
 
 #include "CommonAdobeAE.hpp"
 #include "StylizationEnums.hpp"
-
+#include <vector>
 
 constexpr char strName[] = "Image Stylization";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage Stylization plugin.";
@@ -46,7 +46,7 @@ inline void Make_Color_pixel_yuv(U& strPix, T const& Y, T const& U, T const& V, 
 }
 
 template <typename T>
-inline const T getDispersionSliderValue(const T& val) { return val + static_cast<T>(2); }
+inline const T getDispersionSliderValue(const T& val) noexcept { return val + static_cast<T>(2); }
 
 
 constexpr uint32_t RandomBufSize = 4096u;
@@ -60,11 +60,12 @@ typedef struct bufHandle
 }bufHandle;
 
 
-uint32_t utils_get_random_value (void);
-void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize);
-const float* __restrict get_random_buffer(uint32_t& size);
-const float* __restrict get_random_buffer(void);
-void utils_create_random_buffer(void);
+uint32_t utils_get_random_value (void) noexcept;
+void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize) noexcept;
+const float* __restrict get_random_buffer(uint32_t& size) noexcept;
+const float* __restrict get_random_buffer(void) noexcept;
+void utils_create_random_buffer(void) noexcept;
+void ftc_utils_segmentation(const int32_t* inHist, const int32_t& inHistSize, float epsilon, bool circularHist) noexcept;
 
 /* FUNCTION PROTOTYPES */
 PF_Err ProcessImgInPR
