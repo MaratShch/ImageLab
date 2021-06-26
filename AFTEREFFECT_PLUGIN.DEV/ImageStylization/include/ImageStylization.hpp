@@ -65,7 +65,7 @@ void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize) noex
 const float* __restrict get_random_buffer(uint32_t& size) noexcept;
 const float* __restrict get_random_buffer(void) noexcept;
 void utils_create_random_buffer(void) noexcept;
-void ftc_utils_segmentation(const int32_t* inHist, const int32_t& inHistSize, float epsilon, bool circularHist) noexcept;
+std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t& inHistSize, float epsilon, bool circularHist) noexcept;
 
 /* FUNCTION PROTOTYPES */
 PF_Err ProcessImgInPR

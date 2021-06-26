@@ -10,6 +10,9 @@
 constexpr float qH = 6.f;
 constexpr float qS = 5.f;
 constexpr float qI = 5.f;
+constexpr float divQh = 1.f / qH;
+constexpr float divQs = 1.f / qS;
+constexpr float divQi = 1.f / qI;
 
 constexpr int nbinsH = static_cast<int>(hist_size_H / qH);
 constexpr int nbinsS = static_cast<int>(hist_size_S / qS);
@@ -135,13 +138,13 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 
 				if (S > sMin)
 				{
-					hH = static_cast<int>(H / qH);
+					hH = static_cast<int>(H * divQh);
 					histH[hH]++;
 					nhighsat++;
 				}
 				else
 				{
-					iI = static_cast<int>(I / qI);
+					iI = static_cast<int>(I * divQi);
 					histI[iI]++;
 				}
 			} /* for (i = 0; i < width; i++) */
@@ -150,9 +153,15 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		/* second path - segment histogram and build palette */
 		auto const& isGray = (0 == nhighsat);
 		constexpr float epsilon = 1.0f;
+		
+		std::vector<int32_t> ftcSeg;
 
-		ftc_utils_segmentation(histH, (false == isGray ? nBinsH : nBinsI), epsilon, isGray);
+		if (isGray)
+			ftcSeg = std::move(ftc_utils_segmentation (histI, nBinsI, epsilon, isGray));
+		else
+			ftcSeg = std::move(ftc_utils_segmentation (histH, nBinsH, epsilon, isGray));
 
+		volatile int dbg = 0;
 
 	} /* if (true == bMemSizeTest) */
 	else
