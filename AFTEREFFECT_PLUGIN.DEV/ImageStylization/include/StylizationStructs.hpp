@@ -3,6 +3,7 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <vector>
 #include "Common.hpp"
 #include "CompileTimeUtils.hpp"
 
@@ -25,19 +26,6 @@ typedef struct ImageStyleTmpStorage {
 	}
 }ImageStyleTmpStorage;
 
-typedef struct CostData
-{
-	float cost;
-	int32_t imin1;
-	int32_t imin2;
-	int32_t typemerging;
-
-	CostData::CostData(void)
-	{
-		cost = 0.f;
-		imin1 = imin2 = typemerging = 0;
-	}
-} CostData;
 
 constexpr unsigned int CartoonEffectBuf_size = static_cast<unsigned int>(sizeof(ImageStyleTmpStorage));
 

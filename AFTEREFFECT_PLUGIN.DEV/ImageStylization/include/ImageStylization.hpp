@@ -2,7 +2,8 @@
 
 #include "CommonAdobeAE.hpp"
 #include "StylizationEnums.hpp"
-#include <vector>
+#include "StylizationStructs.hpp"
+
 
 constexpr char strName[] = "Image Stylization";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage Stylization plugin.";
@@ -59,13 +60,14 @@ typedef struct bufHandle
 	void*    pBufHndl;
 }bufHandle;
 
-
 uint32_t utils_get_random_value (void) noexcept;
 void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize) noexcept;
 const float* __restrict get_random_buffer(uint32_t& size) noexcept;
 const float* __restrict get_random_buffer(void) noexcept;
 void utils_create_random_buffer(void) noexcept;
-std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t& inHistSize, float epsilon, bool circularHist) noexcept;
+
+
+
 
 /* FUNCTION PROTOTYPES */
 PF_Err ProcessImgInPR

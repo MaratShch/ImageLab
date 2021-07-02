@@ -3,6 +3,8 @@
 #include "PrSDKAESupport.h"
 #include "ColorTransformMatrix.hpp"
 #include "FastAriphmetics.hpp"
+#include "SegmentationUtils.hpp"
+#include "ImageAuxPixFormat.hpp"
 
 #include <mutex>
 #include <math.h> 
@@ -27,24 +29,27 @@ inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& 
 	constexpr float denom = 1.f / 1e7f;
 
 	I = div3 * (R + G + B);
-	const float& RminusI = R - I;
-	const float& GminusI = G - I;
-	const float& BminusI = B - I;
+	const float RminusI = R - I;
+	const float GminusI = G - I;
+	const float BminusI = B - I;
 
-	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+//	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+	S = sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
 
 	if (fabs(S) > denom)
 	{
 		float cosH = (G - B) / (Sqrt2 * S);
-		const float& FabsH = fabs(cosH);
+		const float FabsH = fabs(cosH);
 
 		if (FabsH > 1.f)
 			cosH /= FabsH;
 
-		float h = (FastCompute::Acos(cosH)) * OneRadian;
+//		float h = (FastCompute::Acos(cosH)) * OneRadian;
+		float h = acos(cosH) * OneRadian;
+
 		float proj2 = -2.f * RminusI + GminusI + BminusI;
 		
-		if (proj2 < denom)
+		if (proj2 < 0.f)
 			h = -h;
 		
 		H = h + ((h < 0.f) ? 360.f : 0.f);
@@ -74,7 +79,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	CACHE_ALIGN int32_t histI[hist_size_I]{};
 
 	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
-	float*                  __restrict pTmpStorage = nullptr;
+	PF_Pixel_HSI_32f*       __restrict pTmpStorage = nullptr;
 	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
@@ -90,9 +95,9 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	int hH, sS, iI;
 	float H, S, I;
 
-	const int& nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
-	const int& nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
-	const int& nBinsI = static_cast<int>(static_cast<float>(hist_size_I) / qI);
+	const int& nBinsH = static_cast<int>(static_cast<float>(hist_size_H) * divQh);
+	const int& nBinsS = static_cast<int>(static_cast<float>(hist_size_S) * divQs);
+	const int& nBinsI = static_cast<int>(static_cast<float>(hist_size_I) * divQi);
 
 	bool bMemSizeTest = false;
 
@@ -110,19 +115,19 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	if (true == bMemSizeTest)
 	{
 		const std::lock_guard<std::mutex> lock (pTmpStorageHdnl->guard_buffer);
-		pTmpStorage = pTmpStorageHdnl->pStorage1;
+		pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
 
 		/* first path - build the statistics about frame [build histogram] */
 		for (j = 0; j < height; j++)
 		{
 			const A_long& line_idx = j * line_pitch;
-			const A_long& tmpBufLineidx = j * width * 3;
+			const A_long& tmpBufLineidx = j * width;
 
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const A_long& tmpBufpixIdx = tmpBufLineidx + i * 3;
-				const A_long& pix_idx = line_idx + i;
+				const A_long tmpBufpixIdx = tmpBufLineidx + i;
+				const A_long pix_idx = line_idx + i;
 
 				/* convert RGB to sRGB */
 				const float& B = static_cast<float>(localSrc[pix_idx].B);
@@ -132,9 +137,9 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 				/* convert sRGB to HSI color space */
 				sRgb2NewHsi (R, G, B, H, S, I);
 
-				pTmpStorage[tmpBufpixIdx    ] = H;
-				pTmpStorage[tmpBufpixIdx + 1] = S;
-				pTmpStorage[tmpBufpixIdx + 2] = I;
+				pTmpStorage[tmpBufpixIdx].H = H;
+				pTmpStorage[tmpBufpixIdx].S = S;
+				pTmpStorage[tmpBufpixIdx].I = I;
 
 				if (S > sMin)
 				{
@@ -155,11 +160,17 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		constexpr float epsilon = 1.0f;
 		
 		std::vector<int32_t> ftcSeg;
+		std::vector<Hsegment>hSegments;
 
 		if (isGray)
-			ftcSeg = std::move(ftc_utils_segmentation (histI, nBinsI, epsilon, isGray));
+		{
+			ftcSeg = std::move(ftc_utils_segmentation(histI, nBinsI, epsilon, isGray));
+		}
 		else
-			ftcSeg = std::move(ftc_utils_segmentation (histH, nBinsH, epsilon, isGray));
+		{
+			ftcSeg = std::move(ftc_utils_segmentation(histH, nBinsH, epsilon, isGray));
+			hSegments = compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, epsilon);
+		}
 
 		volatile int dbg = 0;
 

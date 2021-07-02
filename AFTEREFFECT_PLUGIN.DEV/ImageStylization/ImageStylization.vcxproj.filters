@@ -57,6 +57,15 @@
     <ClInclude Include="include\StylizationStructs.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\SegmentationStructs.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SegmentationUtils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageAuxPixFormat.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStylization.cpp">
@@ -84,6 +93,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageStyle_BufferManagement.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

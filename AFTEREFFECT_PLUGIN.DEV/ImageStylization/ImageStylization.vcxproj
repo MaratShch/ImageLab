@@ -147,7 +147,10 @@
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ImageAuxPixFormat.hpp" />
     <ClInclude Include="include\ImageStylization.hpp" />
+    <ClInclude Include="include\SegmentationStructs.hpp" />
+    <ClInclude Include="include\SegmentationUtils.hpp" />
     <ClInclude Include="include\StylizationEnums.hpp" />
     <ClInclude Include="include\StylizationStructs.hpp" />
   </ItemGroup>
@@ -157,6 +160,7 @@
     <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp" />
     <ClCompile Include="src\ImageStyle_GlassyEffect.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
+    <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp" />
     <ClCompile Include="src\ImageStylization.cpp" />
     <ClCompile Include="src\ImageStylizationAe.cpp" />
     <ClCompile Include="src\ImageStylizationPr.cpp" />
