@@ -1,7 +1,7 @@
 #pragma once
 
-#include "FastAriphmetics.hpp"
 #include "ColorCorrectionGPU.hpp"
+#include "FastAriphmetics.hpp"
 
 namespace GPU
 {

@@ -40,7 +40,8 @@ typedef struct Ssegment
 } Ssegment;
 
 //data structure to store the results of segmenting the Hue histogram
-typedef struct Hsegment {
+typedef struct Hsegment
+{
 	std::vector<int32_t> pixels;
 	std::vector<Ssegment> sSegments;
 	float R;
@@ -49,3 +50,11 @@ typedef struct Hsegment {
 	float Hmin;
 	float Hmax;
 } Hsegment;
+
+
+typedef struct dataRGB
+{
+	int32_t R;
+	int32_t G;
+	int32_t B;
+};

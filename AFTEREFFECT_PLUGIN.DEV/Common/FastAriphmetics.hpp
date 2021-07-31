@@ -1,6 +1,10 @@
 #pragma once
 #include <cmath>
 
+#ifndef __NVCC__
+#include <immintrin.h>
+#endif
+
 namespace FastCompute
 {
 	constexpr float PI = 3.14159265358979323846f;
@@ -128,8 +132,7 @@ namespace FastCompute
 	inline float Log (const float& a) noexcept
 	{
 		float m, r, s, t, i, f;
-		int32_t e;
-
+		int e;
 		e = (__float_as_int(a) - 0x3f2aaaab) & 0xff800000;
 		m = __int_as_float(__float_as_int(a) - e);
 		i = static_cast<float>(e) * 1.19209290e-7f; 
@@ -271,6 +274,7 @@ namespace FastCompute
 		return Cos(x + HalfPI);
 	}
 
+#ifndef __NVCC__
 	namespace AVX2
 	{
 		inline __m256 mm256_fmaf(__m256 a, __m256 b, __m256 c) noexcept
@@ -303,5 +307,6 @@ namespace FastCompute
 		}
 
 	} /* namespace AVX2 */
+#endif /* #ifndef __NVCC__ */
 
 }; /* namespace FastCompute */

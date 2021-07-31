@@ -1,6 +1,7 @@
 #include "ColorConverts_GPU.hpp"
 #include "ColorCorrectionEnums.hpp"
 #include "ImageLab2GpuObj.hpp"
+#include "PrSDKAESupport.h"
 #include <cassert>
 
 #ifdef _DEBUG

@@ -156,23 +156,32 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		} /* for (j = 0; j < height; j++) */
 
 		/* second path - segment histogram and build palette */
-		auto const& isGray = (0 == nhighsat);
-		constexpr float epsilon = 1.0f;
+		auto const isGray{ 0 == nhighsat };
+		constexpr float epsilon{ 1.0f };
 		
 		std::vector<int32_t> ftcSeg;
 		std::vector<Hsegment>hSegments;
+		std::vector<Isegment>iSegments;
 
-		if (isGray)
+		if (true == isGray)
 		{
 			ftcSeg = std::move(ftc_utils_segmentation(histI, nBinsI, epsilon, isGray));
 		}
 		else
 		{
 			ftcSeg = std::move(ftc_utils_segmentation(histH, nBinsH, epsilon, isGray));
-			hSegments = compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, epsilon);
+			hSegments = std::move(compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, epsilon));
 		}
 
-		volatile int dbg = 0;
+		std::vector<dataRGB> meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI;
+		std::vector<int32_t> icolorsH;
+		std::vector<int32_t> icolorsS;
+
+		/* get list of gray levels and colors */
+//		get_list_grays_colors (iSegments, hSegments, meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI, icolorsH, icolorsS);
+
+		/* create segmented image */
+
 
 	} /* if (true == bMemSizeTest) */
 	else
