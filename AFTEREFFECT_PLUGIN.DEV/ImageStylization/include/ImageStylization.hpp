@@ -119,6 +119,22 @@ PF_Err PR_ImageStyle_CartoonEffect
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_CartoonEffect_ARGB_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_CartoonEffect_ARGB_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
 PF_Err AE_ImageStyle_NewsPaper_ARGB_8u
 (
 	PF_InData*   __restrict in_data,
@@ -160,6 +176,70 @@ PF_Err AE_ImageStyle_GlassyEffect_ARGB_8u
 ) noexcept;
 
 PF_Err AE_ImageStyle_GlassyEffect_ARGB_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchPencil
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_SketchPencil_ARGB_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,

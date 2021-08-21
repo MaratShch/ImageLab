@@ -8,14 +8,12 @@ constexpr size_t BufAlignment = CPU_PAGE_SIZE;
 
 ImageStyleTmpStorage* alloc_temporary_buffers (const size_t& mem_size) noexcept
 {
+	std::lock_guard<std::mutex> global_lock(globalProtect);
+	gBuffers++;
+	if (gBuffers > maxBuffers)
 	{
-		std::lock_guard<std::mutex> global_lock(globalProtect);
-		gBuffers++;
-		if (gBuffers > maxBuffers)
-		{
-			gBuffers--;
-			return nullptr;
-		}
+		gBuffers--;
+		return nullptr;
 	}
 
 	/* allocate structure itself */
@@ -67,8 +65,13 @@ void free_temporary_buffers (ImageStyleTmpStorage* pStr) noexcept
 
 		if (nullptr != pStr->pStorage1)
 		{
+			std::lock_guard<std::mutex> lock(pStr->guard_buffer);
+#ifdef _DEBUG
+			memset(pStr->pStorage1, 0, pStr->bufMemSize);
+#endif
 			_aligned_free(pStr->pStorage1);
 			pStr->pStorage1 = nullptr;
+			pStr->bufMemSize = 0ul;
 		}
 		delete pStr;
 		pStr = nullptr;

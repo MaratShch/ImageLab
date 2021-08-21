@@ -413,7 +413,7 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 	std::vector<int32_t> MaximaVectorOut = std::move(ftc_utils_get_maxima(pHistogram, histSize));
 	int32_t nIntervals = static_cast<int32_t>(SeparatorVector.size()) - 1;
 
-	int32_t j = 1, i;
+	int32_t j = 1, i = 0;
 	std::vector<CostData> listCosts;
 
 	while (nIntervals > j)
@@ -455,8 +455,8 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 			if ((-1 != iLowest) && (cDataLowest.cost < 0))
 			{
 				/* remove minima with index ilowest+1 to ilowest+j */
-				auto& iterator1 = SeparatorVector.begin() + iLowest;
-				SeparatorVector.erase(iterator1 + 1, iterator1 + j + 1);
+				auto& iterator1 = SeparatorVector.begin() + (iLowest + 1);
+				SeparatorVector.erase(iterator1, iterator1 + j);
 
 				auto& iterator2 = MaximaVectorOut.begin() + iLowest;
 				//remove maxima associated to the removed minima
@@ -687,6 +687,7 @@ inline void channel_segmentation_intensity
 		if (i >= nbins)
 			i = nbins - 1;
 		const int32_t& idseg = idSegment[i];
+////???
 		Sseg.iSegments[idseg].pixels.push_back(n);
 		Sseg.iSegments[idseg].R += static_cast<float>(bgra[n].R);
 		Sseg.iSegments[idseg].G += static_cast<float>(bgra[n].G);

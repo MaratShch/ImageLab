@@ -35,6 +35,7 @@ PF_Err ProcessImgInPR
 		break;
 		
 		case eSTYLE_SKETCH_PENCIL:
+			err = PR_ImageStyle_SketchPencil(in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_SKETCH_CHARCOAL:

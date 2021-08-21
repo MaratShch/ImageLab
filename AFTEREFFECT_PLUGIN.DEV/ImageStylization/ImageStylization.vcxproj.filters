@@ -98,6 +98,9 @@
     <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageStyle_SketchPencil.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageStylization.rc">

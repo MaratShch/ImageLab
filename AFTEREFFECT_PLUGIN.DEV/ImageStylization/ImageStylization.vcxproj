@@ -161,6 +161,7 @@
     <ClCompile Include="src\ImageStyle_GlassyEffect.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
     <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp" />
+    <ClCompile Include="src\ImageStyle_SketchPencil.cpp" />
     <ClCompile Include="src\ImageStylization.cpp" />
     <ClCompile Include="src\ImageStylizationAe.cpp" />
     <ClCompile Include="src\ImageStylizationPr.cpp" />

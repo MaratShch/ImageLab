@@ -31,9 +31,11 @@ PF_Err ImageStyleInAE_8bits
 		break;
 
 		case eSTYLE_CARTOON:
+			err = AE_ImageStyle_CartoonEffect_ARGB_8u (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_SKETCH_PENCIL:
+			err = AE_ImageStyle_SketchPencil_ARGB_8u (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_SKETCH_CHARCOAL:
@@ -87,9 +89,11 @@ PF_Err ImageStyleInAE_16bits
 		break;
 
 		case eSTYLE_CARTOON:
+			err = AE_ImageStyle_CartoonEffect_ARGB_16u (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_SKETCH_PENCIL:
+			err = AE_ImageStyle_SketchPencil_ARGB_16u (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_SKETCH_CHARCOAL:
@@ -124,5 +128,5 @@ ProcessImgInAE
 {
 	return (PF_WORLD_IS_DEEP(output) ?
 		ImageStyleInAE_16bits(in_data, out_data, params, output) :
-		ImageStyleInAE_8bits(in_data, out_data, params, output));
+		ImageStyleInAE_8bits (in_data, out_data, params, output));
 }

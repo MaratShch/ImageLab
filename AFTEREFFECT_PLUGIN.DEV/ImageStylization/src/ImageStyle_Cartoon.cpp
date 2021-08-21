@@ -170,7 +170,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		else
 		{
 			ftcSeg = std::move(ftc_utils_segmentation(histH, nBinsH, epsilon, isGray));
-			hSegments = std::move(compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, epsilon));
+//			hSegments = std::move(compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, epsilon));
 		}
 
 		std::vector<dataRGB> meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI;
@@ -301,4 +301,28 @@ PF_Err PR_ImageStyle_CartoonEffect
 	}
 
 	return err;
+}
+
+
+PF_Err AE_ImageStyle_CartoonEffect_ARGB_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	return PF_Err_NONE;
+}
+
+
+PF_Err AE_ImageStyle_CartoonEffect_ARGB_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	return PF_Err_NONE;
 }

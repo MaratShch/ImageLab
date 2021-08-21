@@ -16,8 +16,8 @@ constexpr unsigned int max_buf_idx = 4u;
 
 typedef struct ImageStyleTmpStorage {
 	std::mutex guard_buffer;
+	std::atomic<size_t> bufMemSize;
 	float* __restrict pStorage1;
-	size_t bufMemSize;
 
 	ImageStyleTmpStorage::ImageStyleTmpStorage(void)
 	{
