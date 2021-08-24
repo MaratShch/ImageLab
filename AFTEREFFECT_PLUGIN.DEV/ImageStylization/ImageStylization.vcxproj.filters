@@ -66,6 +66,9 @@
     <ClInclude Include="include\ImageAuxPixFormat.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\StylizationImageGradient.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStylization.cpp">

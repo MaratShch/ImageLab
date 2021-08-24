@@ -153,6 +153,7 @@
     <ClInclude Include="include\SegmentationUtils.hpp" />
     <ClInclude Include="include\StylizationEnums.hpp" />
     <ClInclude Include="include\StylizationStructs.hpp" />
+    <ClInclude Include="include\StylizationImageGradient.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStyle_Cartoon.cpp" />

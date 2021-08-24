@@ -86,7 +86,7 @@ bool test_temporary_buffers(ImageStyleTmpStorage* pStr, const size_t& mem_size) 
 
 	if (nullptr != pStr)
 	{
-		const size_t& actualSize = mem_size;
+		const size_t actualSize = mem_size;
 		if (pStr->bufMemSize < actualSize)
 		{
 			std::lock_guard<std::mutex> lock(pStr->guard_buffer);
@@ -98,6 +98,9 @@ bool test_temporary_buffers(ImageStyleTmpStorage* pStr, const size_t& mem_size) 
 
 			if (nullptr != pStorage1)
 			{
+#ifdef _DEBUG
+				memset(pStorage1, 0, bufSize);
+#endif
 				pStr->pStorage1 = pStorage1;
 				pStr->bufMemSize = bufSize;
 

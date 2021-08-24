@@ -3,11 +3,9 @@
 #include "PrSDKAESupport.h"
 #include "ColorTransformMatrix.hpp"
 #include "FastAriphmetics.hpp"
-#include "SegmentationUtils.hpp"
 #include "ImageAuxPixFormat.hpp"
-
+#include "StylizationImageGradient.hpp"
 #include <mutex>
-#include <math.h> 
 
 
 PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
@@ -19,8 +17,8 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 ) noexcept
 {
 	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
-	uint8_t*				__restrict pTmpStorage1 = nullptr;
-	uint8_t*				__restrict pTmpStorage2 = nullptr;
+	float*				    __restrict pTmpStorage1 = nullptr;
+	float*				    __restrict pTmpStorage2 = nullptr;
 	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
@@ -29,9 +27,12 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
+	const float* __restrict rgb2yuv = (width > 720) ? RGB2YUV[BT709] : RGB2YUV[BT601];
+
 	constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
-	auto const singleBufferSize = CreateAlignment (width * height * sizeof(uint8_t), cpuPageSize);
-	auto const requiredMemSize = singleBufferSize * 2;
+	auto const singleBufElemSize = width * height;
+	auto const singleBufMemSize  = CreateAlignment (singleBufElemSize * sizeof(float), cpuPageSize);
+	auto const requiredMemSize   = singleBufMemSize * 2;
 
 	int j, i;
 	bool bMemSizeTest = false;
@@ -46,24 +47,31 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 	if (true == bMemSizeTest)
 	{
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<uint8_t* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<uint8_t* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufferSize;
-#if 0
+		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
+		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+
+		/* compute gradinets of RGB image */
+		ImageRGB_ComputeGradient (localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
+
 		for (j = 0; j < height; j++)
 		{
-			const A_long line_idx = j * line_pitch;
-			const A_long tmpBufLineidx = j * width;
+			const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
+			const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
+			const PF_Pixel_BGRA_8u* __restrict pSrcLine = localSrc + j * line_pitch;
+			PF_Pixel_BGRA_8u*       __restrict pDstLine = localDst + j * line_pitch;
 
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-
+				const float sqrtVal  = MIN(255.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+				const int32_t negVal = static_cast<int32_t>(255.0f - sqrtVal);
+				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = static_cast<A_u_char>(negVal);
+				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
 
 		} /* for (j = 0; j < height; j++) */
-#endif
-	} /* if (true == bMemSizeTest) */
 
+	} /* if (true == bMemSizeTest) */
 
 	return PF_Err_NONE;
 }
@@ -77,6 +85,62 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
+	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
+	float*				    __restrict pTmpStorage1 = nullptr;
+	float*				    __restrict pTmpStorage2 = nullptr;
+	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+	PF_Pixel_VUYA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
+
+	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+
+	constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
+	auto const singleBufElemSize = width * height;
+	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
+	auto const requiredMemSize = singleBufMemSize * 2;
+
+	int j, i;
+	bool bMemSizeTest = false;
+
+	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
+	if (nullptr != pGlobal)
+	{
+		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
+		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+	}
+
+	if (true == bMemSizeTest)
+	{
+		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
+		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
+		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+
+		/* compute gradinets of RGB image */
+		ImageYUV_ComputeGradient(localSrc, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
+
+		for (j = 0; j < height; j++)
+		{
+			const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
+			const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
+			const PF_Pixel_VUYA_8u* __restrict pSrcLine = localSrc + j * line_pitch;
+			PF_Pixel_VUYA_8u*       __restrict pDstLine = localDst + j * line_pitch;
+
+			__VECTOR_ALIGNED__
+			for (i = 0; i < width; i++)
+			{
+				const float sqrtVal = MIN(255.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+				const int32_t negVal = static_cast<int32_t>(255.0f - sqrtVal);
+				pDstLine[i].V = pDstLine[i].U = static_cast<A_u_char>(0x80u);
+				pDstLine[i].Y = static_cast<A_u_char>(negVal);
+				pDstLine[i].A = pSrcLine[i].A;
+			} /* for (i = 0; i < width; i++) */
+
+		} /* for (j = 0; j < height; j++) */
+
+	} /* if (true == bMemSizeTest) */
+
 	return PF_Err_NONE;
 }
 
@@ -89,6 +153,62 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
+	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
+	float*				     __restrict pTmpStorage1 = nullptr;
+	float*				     __restrict pTmpStorage2 = nullptr;
+	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+	PF_Pixel_VUYA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(output->data);
+
+	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+
+	constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
+	auto const singleBufElemSize = width * height;
+	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
+	auto const requiredMemSize = singleBufMemSize * 2;
+
+	int j, i;
+	bool bMemSizeTest = false;
+
+	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
+	if (nullptr != pGlobal)
+	{
+		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
+		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+	}
+
+	if (true == bMemSizeTest)
+	{
+		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
+		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
+		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+
+		/* compute gradinets of RGB image */
+		ImageYUV_ComputeGradient(localSrc, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
+
+		for (j = 0; j < height; j++)
+		{
+			const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
+			const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
+			const PF_Pixel_VUYA_32f* __restrict pSrcLine = localSrc + j * line_pitch;
+			PF_Pixel_VUYA_32f*       __restrict pDstLine = localDst + j * line_pitch;
+
+			__VECTOR_ALIGNED__
+			for (i = 0; i < width; i++)
+			{
+				const float sqrtVal = MIN(f32_value_white, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+				const float negVal = f32_value_white - sqrtVal;
+				pDstLine[i].V = pDstLine[i].U = 0.f;
+				pDstLine[i].Y = negVal;
+				pDstLine[i].A = pSrcLine[i].A;
+			} /* for (i = 0; i < width; i++) */
+
+		} /* for (j = 0; j < height; j++) */
+
+	} /* if (true == bMemSizeTest) */
+
 	return PF_Err_NONE;
 }
 
@@ -101,6 +221,63 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
+	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
+	float*				     __restrict pTmpStorage1 = nullptr;
+	float*				     __restrict pTmpStorage2 = nullptr;
+	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
+	PF_Pixel_BGRA_16u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
+
+	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+
+	const float* __restrict rgb2yuv = (width > 720) ? RGB2YUV[BT709] : RGB2YUV[BT601];
+
+	constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
+	auto const singleBufElemSize = width * height;
+	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
+	auto const requiredMemSize = singleBufMemSize * 2;
+
+	int j, i;
+	bool bMemSizeTest = false;
+
+	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
+	if (nullptr != pGlobal)
+	{
+		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
+		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+	}
+
+	if (true == bMemSizeTest)
+	{
+		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
+		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
+		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+
+		/* compute gradinets of RGB image */
+		ImageRGB_ComputeGradient(localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
+
+		for (j = 0; j < height; j++)
+		{
+			const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
+			const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
+			const PF_Pixel_BGRA_16u* __restrict pSrcLine = localSrc + j * line_pitch;
+			PF_Pixel_BGRA_16u*       __restrict pDstLine = localDst + j * line_pitch;
+
+			__VECTOR_ALIGNED__
+			for (i = 0; i < width; i++)
+			{
+				const float sqrtVal = MIN(32767.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+				const int32_t negVal = static_cast<int32_t>(32767.0f - sqrtVal);
+				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = negVal;
+				pDstLine[i].A = pSrcLine[i].A;
+			} /* for (i = 0; i < width; i++) */
+
+		} /* for (j = 0; j < height; j++) */
+
+	} /* if (true == bMemSizeTest) */
+
 	return PF_Err_NONE;
 }
 
@@ -113,6 +290,63 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
+	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
+	float*				     __restrict pTmpStorage1 = nullptr;
+	float*				     __restrict pTmpStorage2 = nullptr;
+	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+	PF_Pixel_BGRA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
+
+	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+
+	const float* __restrict rgb2yuv = (width > 720) ? RGB2YUV[BT709] : RGB2YUV[BT601];
+
+	constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
+	auto const singleBufElemSize = width * height;
+	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
+	auto const requiredMemSize = singleBufMemSize * 2;
+
+	int j, i;
+	bool bMemSizeTest = false;
+
+	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
+	if (nullptr != pGlobal)
+	{
+		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
+		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+	}
+
+	if (true == bMemSizeTest)
+	{
+		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
+		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
+		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+
+		/* compute gradinets of RGB image */
+		ImageRGB_ComputeGradient(localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
+
+		for (j = 0; j < height; j++)
+		{
+			const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
+			const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
+			const PF_Pixel_BGRA_32f* __restrict pSrcLine = localSrc + j * line_pitch;
+			PF_Pixel_BGRA_32f*       __restrict pDstLine = localDst + j * line_pitch;
+
+			__VECTOR_ALIGNED__
+			for (i = 0; i < width; i++)
+			{
+				const float sqrtVal = MIN(f32_value_white, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+				const float negVal = f32_value_white - sqrtVal;
+				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = negVal;
+				pDstLine[i].A = pSrcLine[i].A;
+			} /* for (i = 0; i < width; i++) */
+
+		} /* for (j = 0; j < height; j++) */
+
+	} /* if (true == bMemSizeTest) */
+
 	return PF_Err_NONE;
 }
 
