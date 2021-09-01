@@ -32,3 +32,11 @@ constexpr unsigned int CartoonEffectBuf_size = static_cast<unsigned int>(sizeof(
 ImageStyleTmpStorage* alloc_temporary_buffers(const size_t& mem_size) noexcept;
 void free_temporary_buffers(ImageStyleTmpStorage* pStr) noexcept;
 bool test_temporary_buffers(ImageStyleTmpStorage* pStr, const size_t& mem_size) noexcept;
+
+
+typedef float tPointilismBrush[11][11];
+
+const tPointilismBrush& getPointilismBrush1(void);
+const tPointilismBrush& getPointilismBrush2(void);
+const tPointilismBrush& getPointilismBrush3(void);
+const tPointilismBrush& getPointilismBrush4(void);

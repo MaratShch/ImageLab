@@ -104,6 +104,12 @@
     <ClCompile Include="src\ImageStyle_SketchPencil.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageStyle_PointillismArt.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_Brushes.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageStylization.rc">

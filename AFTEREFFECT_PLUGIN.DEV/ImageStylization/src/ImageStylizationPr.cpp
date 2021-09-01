@@ -44,6 +44,10 @@ PF_Err ProcessImgInPR
 		case eSTYLE_IMPRESSIONISM:
 		break;
 		
+		case eSTYLE_POINTILLISM:
+			err = PR_ImageStyle_PointillismArt(in_data, out_data, params, output);
+		break;
+
 		case eSTYLE_NONE:
 		default:
 			err = PF_COPY(&params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);

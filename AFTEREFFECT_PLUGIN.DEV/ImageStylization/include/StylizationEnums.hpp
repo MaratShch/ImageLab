@@ -6,11 +6,12 @@ typedef enum
 	eSTYLE_NEWS_PAPER_OLD,
 	eSTYLE_NEWS_PAPER_COLOR,
 	eSTYLE_GLASSY_EFFECT,
-	eSTYLE_OIL_PAINT,
 	eSTYLE_CARTOON,
 	eSTYLE_SKETCH_PENCIL,
 	eSTYLE_SKETCH_CHARCOAL,
+	eSTYLE_OIL_PAINT,
 	eSTYLE_IMPRESSIONISM,
+	eSTYLE_POINTILLISM,
 	eSTYLE_TOTAL_EFFECTS
 }eSTYLIZATION;
 
@@ -21,11 +22,12 @@ constexpr static char strStyleEffect[] =
 	"Old News Paper|"
 	"Color News Paper|"
 	"Glassy Effect|"
-	"Oil Paint Image|"
 	"Cartoon|"
-	"Pencil Sketch|"
-	"Charcoal Sketch|"
-	"Impressionism"
+	"Sketch: Pencil|"
+	"Sketch: Charcoal|"
+	"Art: Oil Paint|"
+	"Art: Impressionism|"
+	"Art: Pointillism"
 };
 
 constexpr int32_t toatal_variants = 2;
