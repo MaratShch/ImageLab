@@ -48,5 +48,29 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\MedianFilter.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\MedianFilter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MedianFilterInAe.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MedianFilterInPr.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="MedianFilter.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="MedianFilter.r">
+      <Filter>resource</Filter>
+    </None>
   </ItemGroup>
 </Project>
