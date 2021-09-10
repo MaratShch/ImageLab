@@ -1,7 +1,6 @@
+#include "MedianFilterEnums.hpp"
 #include "MedianFilter.hpp"
 #include "PrSDKAESupport.h"
-
-
 
 
 static PF_Err
@@ -65,13 +64,14 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
 
@@ -89,32 +89,6 @@ GlobalSetDown (
 }
 
 
-static PF_Err
-SequenceSetup(
-	PF_InData		*in_data,
-	PF_OutData		*out_data)
-{
-	return PF_Err_NONE;
-}
-
-
-static PF_Err
-SequenceReSetup(
-	PF_InData		*in_data,
-	PF_OutData		*out_data)
-{
-	return PF_Err_NONE;
-}
-
-
-static PF_Err
-SequenceSetdown(
-	PF_InData		*in_data,
-	PF_OutData		*out_data)
-{
-	return PF_Err_NONE;
-}
-
 
 static PF_Err
 ParamsSetup(
@@ -123,7 +97,36 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	return PF_Err_NONE;
+	PF_ParamDef	def;
+	PF_Err		err = PF_Err_NONE;
+	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
+	PF_ADD_CHECKBOX(
+		strCheckBoxName,
+		strCheckBoxAction,
+		FALSE,
+		flags,
+		MEDIAL_FILTER_CHECKBOX
+	);
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
+	PF_ADD_SLIDER(
+		strSliderName,
+		filter_radiusMin,
+		filter_radiusMax,
+		filter_radiusMin,
+		filter_radiusMax,
+		filter_radiusDef,
+		MEDIAL_FILTER_SLIDER_RADIUS
+	);
+
+	return err;
 }
 
 
@@ -134,8 +137,7 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	const PF_Err err = (PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output));
-	return err;
+	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
 
@@ -192,18 +194,6 @@ EffectMain (
 
 			case PF_Cmd_GLOBAL_SETDOWN:
 				ERR(GlobalSetDown(in_data, out_data));
-			break;
-
-			case PF_Cmd_SEQUENCE_SETUP:
-				err = SequenceSetup(in_data, out_data);
-			break;
-
-			case PF_Cmd_SEQUENCE_RESETUP:
-				err = SequenceReSetup(in_data, out_data);
-			break;
-
-			case PF_Cmd_SEQUENCE_SETDOWN:
-				err = SequenceSetdown(in_data, out_data);
 			break;
 
 			case PF_Cmd_PARAMS_SETUP:

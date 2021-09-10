@@ -409,8 +409,8 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 		histSize = inHistSize;
 	}
 
-	std::vector<int32_t> SeparatorVector = std::move(ftc_utils_get_minima(pHistogram, histSize));
-	std::vector<int32_t> MaximaVectorOut = std::move(ftc_utils_get_maxima(pHistogram, histSize));
+	std::vector<int32_t> SeparatorVector = ftc_utils_get_minima(pHistogram, histSize);
+	std::vector<int32_t> MaximaVectorOut = ftc_utils_get_maxima(pHistogram, histSize);
 	int32_t nIntervals = static_cast<int32_t>(SeparatorVector.size()) - 1;
 
 	int32_t j = 1, i = 0;
@@ -726,7 +726,7 @@ std::vector<Hsegment> compute_color_palette
 	float eps
 ) noexcept
 {
-	std::vector<Hsegment> hSegments = std::move(hue_segmentation (hsi, bgra, Smin, nbins, qH, ftcseg, w, h));
+	std::vector<Hsegment> hSegments = hue_segmentation (hsi, bgra, Smin, nbins, qH, ftcseg, w, h);
 	const int32_t nsegmentsH = static_cast<int32_t>(hSegments.size());
 	int32_t i, j, k, iS = 0;
 
@@ -743,7 +743,7 @@ std::vector<Hsegment> compute_color_palette
 			histS[iS]++;
 		}
 		//segment saturation histogram
-		std::vector<int> ftcsegS = std::move(ftc_utils_segmentation(histS, nbinsS, eps, false));
+		std::vector<int> ftcsegS = ftc_utils_segmentation(histS, nbinsS, eps, false);
 
 		channel_segmentation_saturation(hsi, bgra, hSegments[i], nbinsS, qS, ftcsegS);
 		const int32_t& nsegmentsS = static_cast<int32_t>(hSegments[i].sSegments.size());
@@ -761,7 +761,7 @@ std::vector<Hsegment> compute_color_palette
 				histI[iI]++;
 			}
 
-			std::vector<int32_t> ftcsegI = std::move(ftc_utils_segmentation(histI, nbinsI, eps, false));
+			std::vector<int32_t> ftcsegI = ftc_utils_segmentation(histI, nbinsI, eps, false);
 
 			channel_segmentation_intensity(hsi, bgra, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
 		}

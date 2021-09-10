@@ -51,6 +51,9 @@
     <ClInclude Include="include\MedianFilter.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\MedianFilterEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\MedianFilter.cpp">

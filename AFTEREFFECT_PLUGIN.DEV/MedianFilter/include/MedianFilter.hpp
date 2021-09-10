@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CommonAdobeAE.hpp"
-
+#include "MedianFilterEnums.hpp"
 
 constexpr char strName[] = "Median Filter";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage Stylization plugin.";
@@ -15,6 +15,32 @@ constexpr int MedianFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
 constexpr int MedianFilter_VersionBuild = 1;
 
+constexpr int32_t filter_radiusMin = 1;
+constexpr int32_t filter_radiusMax = 30;
+constexpr int32_t filter_radiusDef = filter_radiusMin;
+
+constexpr char strCheckBoxName[] = "Process Luma channel only";
+constexpr char strCheckBoxAction[] = "Enable";
+constexpr char strSliderName[] = "Filter radius";
+
+inline constexpr int32_t make_kernel_size (const int32_t& kernel_radius)
+{
+	return kernel_radius * 2 + 1;
+}
+
+inline const int32_t get_kernel_size (PF_ParamDef* __restrict params[])
+{
+	auto const& kernelRadius = params[MEDIAL_FILTER_SLIDER_RADIUS]->u.sd.value;
+	return make_kernel_size (kernelRadius);
+}
+
+inline const bool get_proc_luma_channel_only (PF_ParamDef* __restrict params[])
+{
+	return (0 == params[MEDIAL_FILTER_CHECKBOX]->u.bd.value ? false : true);
+}
+
+
+constexpr int32_t histBufferSize = ((sizeof(uint16_t) << 16) * sizeof(uint32_t));
 
 
 /* FUNCTION PROTOTYPES */
