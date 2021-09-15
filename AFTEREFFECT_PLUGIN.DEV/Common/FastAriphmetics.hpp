@@ -68,13 +68,13 @@ namespace FastCompute
 		return (x + (x >> sizeof(int) * CHAR_BIT - 1)) ^ (x >> sizeof(int) * CHAR_BIT - 1);
 	}
 
-	inline const float Abs (const float& f) noexcept
+	inline float Abs (const float& f) noexcept
 	{
 		int i = ((*(int*)&f) & 0x7fffffff);
 		return (*(float*)&i);
 	}
 
-	inline float Abs(const double& f) noexcept
+	inline double Abs (const double& f) noexcept
 	{
 		long long i = ((*(long long*)&f) & 0x7fffffffffffffff);
 		return (*(double*)&i);
@@ -208,6 +208,12 @@ namespace FastCompute
 		x += 127 << 23;
 		*exp_ptr = x;
 		return (val + log_2);
+	}
+
+	template <typename T>
+	inline constexpr T Log2(const T& x) noexcept
+	{
+		return std::log2(x);
 	}
 
 #if !defined __INTEL_COMPILER
