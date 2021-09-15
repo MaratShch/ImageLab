@@ -63,8 +63,8 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const float sqrtVal  = MIN(255.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
-				const int32_t negVal = static_cast<int32_t>(255.0f - sqrtVal);
+				const int32_t sqrtVal = FastCompute::Min(255, static_cast<int32_t>(FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i])));
+				const int32_t negVal = 255 - sqrtVal;
 				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = static_cast<A_u_char>(negVal);
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
@@ -130,8 +130,8 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const float sqrtVal = MIN(255.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
-				const int32_t negVal = static_cast<int32_t>(255.0f - sqrtVal);
+				const int32_t sqrtVal = FastCompute::Min(255, static_cast<int32_t>(FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i])));
+				const int32_t negVal = 255 - sqrtVal;
 				pDstLine[i].V = pDstLine[i].U = static_cast<A_u_char>(0x80u);
 				pDstLine[i].Y = static_cast<A_u_char>(negVal);
 				pDstLine[i].A = pSrcLine[i].A;
@@ -198,7 +198,7 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const float sqrtVal = MIN(f32_value_white, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+				const float sqrtVal = FastCompute::Min(f32_value_white, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
 				const float negVal = f32_value_white - sqrtVal;
 				pDstLine[i].V = pDstLine[i].U = 0.f;
 				pDstLine[i].Y = negVal;
@@ -268,8 +268,8 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const float sqrtVal = MIN(32767.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
-				const int32_t negVal = static_cast<int32_t>(32767.0f - sqrtVal);
+				const int32_t sqrtVal = FastCompute::Min(32767, static_cast<int32_t>(FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i])));
+				const int32_t negVal = 32767 - sqrtVal;
 				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = negVal;
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
@@ -337,7 +337,7 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const float sqrtVal = MIN(f32_value_white, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+				const float sqrtVal = FastCompute::Min(f32_value_white, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
 				const float negVal = f32_value_white - sqrtVal;
 				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = negVal;
 				pDstLine[i].A = pSrcLine[i].A;
@@ -468,8 +468,8 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_8u
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const float sqrtVal = MIN(255.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
-				const int32_t negVal = static_cast<int32_t>(255.0f - sqrtVal);
+				const int32_t sqrtVal = FastCompute::Min(255, static_cast<int32_t>(FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i])));
+				const int32_t negVal = 255 - sqrtVal;
 				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = negVal;
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
@@ -538,8 +538,8 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
 			{
-				const float sqrtVal = MIN(32767.0f, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
-				const int32_t negVal = static_cast<int32_t>(32767.0f - sqrtVal);
+				const int32_t sqrtVal = FastCompute::Min(32767, static_cast<int32_t>(FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i])));
+				const int32_t negVal = 32767 - sqrtVal;
 				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = negVal;
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */

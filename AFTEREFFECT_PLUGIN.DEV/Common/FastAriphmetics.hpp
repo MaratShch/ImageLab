@@ -1,5 +1,6 @@
 #pragma once
 #include <cmath>
+#include <algorithm>
 
 #ifndef __NVCC__
 #include <immintrin.h>
@@ -28,26 +29,64 @@ namespace FastCompute
 	template <typename T>
 	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min(const T& x, const T& y) noexcept
 	{	/* find minimal value between 2 fixed point values without branch */
-		return y ^ ((x ^ y) & -(x < y));
+		return y ^ ((x ^ y) & - (x < y));
 	}
 
 	template <typename T>
 	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Max(const T& x, const T& y) noexcept
 	{   /* find maximal value between 2 fixed point values without branch */
-		return x ^ ((x ^ y) & -(x < y));
+		return x ^ ((x ^ y) & - (x < y));
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min3(const T& x, const T& y, const T& z) noexcept
+	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Min(const T& x, const T& y) noexcept
+	{	
+		return std::min(x, y);
+	}
+
+	template <typename T>
+	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Max(const T& x, const T& y) noexcept
+	{   /* find maximal value between 2 fixed point values without branch */
+		return std::max(x, y);
+	}
+
+	template <typename T>
+	inline constexpr T Min3(const T& x, const T& y, const T& z) noexcept
 	{	/* find minimal value between 3 fixed point values without branch */
-		return Min(Min(x,y), z);
+		return Min(Min(x, y), z);
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Max3(const T& x, const T& y, const T& z) noexcept
+	inline constexpr T Max3(const T& x, const T& y, const T& z) noexcept
 	{   /* find maximal value between 3 fixed point values without branch */
 		return Max(Max(x, y), z);
 	}
+
+
+	inline constexpr int Abs (const int& x) noexcept
+	{
+		return (x + (x >> sizeof(int) * CHAR_BIT - 1)) ^ (x >> sizeof(int) * CHAR_BIT - 1);
+	}
+
+	inline const float Abs (const float& f) noexcept
+	{
+		int i = ((*(int*)&f) & 0x7fffffff);
+		return (*(float*)&i);
+	}
+
+	inline float Abs(const double& f) noexcept
+	{
+		long long i = ((*(long long*)&f) & 0x7fffffffffffffff);
+		return (*(double*)&i);
+	}
+
+
+	template <typename T>
+	inline constexpr T Abs(const T& x) noexcept
+	{   
+		return std::abs(x);
+	}
+
 
 	inline double Sqrt(const double& x) noexcept
 	{
@@ -66,7 +105,38 @@ namespace FastCompute
 		xRes *= (1.50f - (xHalf * xRes * xRes));
 		return xRes * x;
 	}
-	
+
+	template <typename T>
+	inline constexpr T Sqrt (const T& x) noexcept
+	{
+		return std::sqrt(x);
+	}
+
+
+	inline float InvSqrt(const float& x) noexcept
+	{
+		union { float f; uint32_t u; } y;
+		y.f = x;
+		y.u = ( 0xBE6EB50Cu - y.u ) >> 1;
+		y.f = 0.5f * y.f * (3.0f - x * y.f * y.f);
+		return y.f;
+	}
+
+	inline double InvSqrt (const double& x) noexcept
+	{
+		union { double d; unsigned long long ull; } y;
+		y.d   = x;
+		y.ull = (0xBFCDD6A18F6A6F55u - y.ull) >> 1;
+		y.d   = 0.5 * y.d * (3.0 - x * y.d * y.d);
+		return y.d;
+	}
+
+	template <typename T>
+	inline constexpr T InvSqrt(const T& x) noexcept
+	{
+		return static_cast<T>(1) / std::sqrt(x);
+	}
+
 	inline float Pow (const float& a, const float& b) noexcept
 	{
 		union { float d; int x; } u = { a };
@@ -74,10 +144,10 @@ namespace FastCompute
 		return u.d;
 	}
 
-	inline float Abs (const float& f) noexcept
+	template <typename T>
+	inline constexpr T Pow(const T& x) noexcept
 	{
-		int i = ((*(int*)&f) & 0x7fffffff);
-		return (*(float*)&i);
+		return std::pow(x);
 	}
 
 	/* Qubic root for float */
@@ -98,6 +168,35 @@ namespace FastCompute
 		x = reciproc3 * (2.0f * x + x0 / (x * x));  // Newton step again.
 		ix |= sign;
 		return x;
+	}
+
+	template <typename T>
+	inline constexpr T Cbrt (const T& x) noexcept
+	{
+		return std::cbrt(x);
+	}
+
+	inline float InvCbrt (const float& x)
+	{
+		constexpr float k1 = 1.7523196760f;
+		constexpr float k2 = 1.2509524245f;
+		constexpr float k3 = 0.5093818292f;
+		constexpr float reciproc3 = 1.0f / 3.0f;
+
+		int i = *(int*) & x;
+		i = 0x548c2b4b - i * reciproc3;
+		float y = *(float*) & i;
+		float c = x * y * y * y;
+		y = y * (k1 - c * (k2 - k3 * c));
+		c = 1.0f - x * y * y * y;
+		y = y * (1.0f + reciproc3 * c);
+		return y;
+	}
+
+	template <typename T>
+	inline constexpr T InvCbrt(const T& x) noexcept
+	{
+		return static_cast<T>(1) / std::cbrt(x);
 	}
 
 	inline float Log2 (const float& val) noexcept
@@ -145,6 +244,14 @@ namespace FastCompute
 		r = fmaf(i, 0.693147182f, r);
 		return r;
 	}
+
+	template <typename T>
+	inline constexpr T Log (const T& x) noexcept
+	{
+		return std::log(x);
+	}
+
+
 #if !defined __INTEL_COMPILER
     #pragma warning( pop )
 #endif
@@ -163,6 +270,12 @@ namespace FastCompute
 		ret = ret * Sqrt(1.0f - x);
 		ret = ret - 2.f * negate * ret;
 		return negate * PI + ret;
+	}
+
+	template <typename T>
+	inline constexpr T Acos(const T& x) noexcept
+	{
+		return std::acos(x);
 	}
 
 	inline float Asin (float x) noexcept
