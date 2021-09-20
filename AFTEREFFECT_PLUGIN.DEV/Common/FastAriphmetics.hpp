@@ -8,9 +8,11 @@
 
 namespace FastCompute
 {
-	constexpr float PI = 3.14159265358979323846f;
-	constexpr float PIx2 = PI * 2.0f;
-	constexpr float HalfPI = PI / 2.0f;
+	constexpr float PI{ 3.14159265358979323846f };
+	constexpr float PIx2{ PI * 2.0f };
+	constexpr float HalfPI{ PI / 2.0f };
+
+	constexpr float EXP{ 2.718281828459f };
 
 	constexpr auto CHAR_BITS = 8;
 
@@ -286,7 +288,7 @@ namespace FastCompute
 
 	inline float Asin (float x) noexcept
 	{
-		const float& negate = float(x < 0.f);
+		const float negate = float(x < 0.f);
 		x = abs(x);
 		float ret = -0.0187293f;
 		ret *= x;
@@ -301,8 +303,8 @@ namespace FastCompute
 
 	inline float Atan (const float& z) noexcept
 	{
-		constexpr float n1 = 0.97239411f;
-		constexpr float n2 = -0.19194795f;
+		constexpr float n1{ 0.97239411f };
+		constexpr float n2{ -0.19194795f };
 		return (n1 + n2 * z * z) * z;
 	}
 
@@ -312,9 +314,9 @@ namespace FastCompute
 	
 		if (x != 0.0f)
 		{
-			if (fabsf(x) > fabsf(y))
+			if (Abs(x) > Abs(y))
 			{
-				const float& z = y / x;
+				const float z = y / x;
 				if (x > 0.0f)
 				{
 					// atan2(y,x) = atan(y/x) if x > 0
@@ -333,7 +335,7 @@ namespace FastCompute
 			}
 			else // Use property atan(y/x) = PI/2 - atan(x/y) if |y/x| > 1.
 			{
-				const float& z = x / y;
+				const float z = x / y;
 				if (y > 0.0f)
 				{
 					// atan2(y,x) = PI/2 - atan(x/y) if |y/x| > 1, y > 0
@@ -360,38 +362,42 @@ namespace FastCompute
 		return 0.0f; // x,y = 0. Could return NaN instead.
 	}
 
-#define EXTRA_PRECISION
-	template<typename T>
-	inline T Cos (T x) noexcept
+	template <typename T>
+	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Sin (const T& x) noexcept
 	{
-		constexpr T DoublePI = T(2.) * T(3.14159265358979323846264);
-		constexpr T tp = T(1.) / DoublePI;
-		x *= tp;
-		x -= T(.25) + std::floor(x + T(.25));
-		x *= T(16.) * (std::abs(x) - T(.5));
-#ifdef EXTRA_PRECISION
-		x += T(.225) * x * (std::abs(x) - T(1.));
+		constexpr T Pi{ 3.14159265358979323846 };
+		constexpr T PiSqr = Pi * Pi;
+		constexpr T B = static_cast<T>(4)  / Pi;
+		constexpr T C = static_cast<T>(-4) / PiSqr;
+		constexpr T y = B * x + C * x * Abs(x);
+
+#ifdef FAST_COMPUTE_EXTRA_PRECISION
+		constexpr T P{ 0.2250 };
+		y = P * (y * Abs(y) - y) + y;   // Q * y + P * y * abs(y)
 #endif
-		return x;
+		return y;
 	}
 
-	inline float Sin (float x) noexcept
+	template <typename T>
+	inline constexpr T Sin(const T& x)
 	{
-		constexpr float HalfPI = 3.14159265358979323846264f / 2.f;
-		return Cos(x + HalfPI);
+		return std::sin(x);
 	}
 
-	inline double Sin (double x) noexcept
+	template <typename T>
+	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T& x) noexcept
 	{
-		constexpr double HalfPI = 3.14159265358979323846264 / 2.;
-		return Cos(x + HalfPI);
+		constexpr T Pi{ 3.14159265358979323846 };
+		constexpr T HalfPi{ Pi / 2 };
+		return Sin (x + HalfPi);
 	}
 
-	inline long double Sin(long double x) noexcept
+	template <typename T>
+	inline constexpr T Cos (const T& x)
 	{
-		constexpr long double HalfPI = 3.14159265358979323846264l / 2.l;
-		return Cos(x + HalfPI);
+		return std::cos (x);
 	}
+
 
 #ifndef __NVCC__
 	namespace AVX2

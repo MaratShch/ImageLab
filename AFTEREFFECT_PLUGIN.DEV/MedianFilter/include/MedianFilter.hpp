@@ -30,13 +30,13 @@ inline constexpr int32_t make_kernel_size (const int32_t& kernel_radius)
 
 inline const int32_t get_kernel_size (PF_ParamDef* __restrict params[])
 {
-	auto const& kernelRadius = params[MEDIAL_FILTER_SLIDER_RADIUS]->u.sd.value;
+	auto const& kernelRadius = params[MEDIAN_FILTER_SLIDER_RADIUS]->u.sd.value;
 	return make_kernel_size (kernelRadius);
 }
 
 inline const bool get_proc_luma_channel_only (PF_ParamDef* __restrict params[])
 {
-	return (0 == params[MEDIAL_FILTER_CHECKBOX]->u.bd.value ? false : true);
+	return (0 == params[MEDIAN_FILTER_CHECKBOX]->u.bd.value ? false : true);
 }
 
 
@@ -50,6 +50,56 @@ PF_Err ProcessImgInPR
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err MedianFilter_BGRA_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err MedianFilter_BGRA_4444_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err MedianFilter_BGRA_4444_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err MedianFilter_RGB_444_10u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err MedianFilter_VUYA_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output,
+	const bool&             isBT709
+) noexcept;
+
+PF_Err MedianFilter_VUYA_4444_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output,
+	const bool&             isBT709
 ) noexcept;
 
 PF_Err
@@ -76,3 +126,4 @@ PF_Err MeadianFilterInAE_16bits
 	PF_ParamDef* params[],
 	PF_LayerDef* output
 ) noexcept;
+

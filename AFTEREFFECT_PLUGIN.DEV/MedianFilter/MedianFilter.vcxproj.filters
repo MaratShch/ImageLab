@@ -54,6 +54,9 @@
     <ClInclude Include="include\MedianFilterEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\MedianFilterAvx2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\MedianFilter.cpp">
@@ -65,6 +68,9 @@
     <ClCompile Include="src\MedianFilterInPr.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\MedianFilterAvx2.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MedianFilter.rc">
@@ -72,8 +78,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="MedianFilter.r">
+    <CustomBuild Include="MedianFilter.r">
       <Filter>resource</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>

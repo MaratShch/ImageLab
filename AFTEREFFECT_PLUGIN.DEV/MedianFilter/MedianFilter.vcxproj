@@ -92,10 +92,11 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\Avx2ProcLib\include;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -118,11 +119,12 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\Avx2ProcLib\include;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -141,10 +143,12 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\MedianFilter.hpp" />
+    <ClInclude Include="include\MedianFilterAvx2.hpp" />
     <ClInclude Include="include\MedianFilterEnums.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\MedianFilter.cpp" />
+    <ClCompile Include="src\MedianFilterAvx2.cpp" />
     <ClCompile Include="src\MedianFilterInAe.cpp" />
     <ClCompile Include="src\MedianFilterInPr.cpp" />
   </ItemGroup>

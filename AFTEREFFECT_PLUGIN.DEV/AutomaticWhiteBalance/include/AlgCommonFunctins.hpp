@@ -56,7 +56,7 @@ inline void collect_rgb_statistics
 			U = pSrc[p_idx].R * colorMatrixIn[3] + pSrc[p_idx].G * colorMatrixIn[4] + pSrc[p_idx].B * colorMatrixIn[5];
 			V = pSrc[p_idx].R * colorMatrixIn[6] + pSrc[p_idx].G * colorMatrixIn[7] + pSrc[p_idx].B * colorMatrixIn[8];
 
-			F = (abs(U) + abs(V)) / Y;
+			F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / Y;
 			if (F < threshold)
 			{
 				totalGray++;
@@ -97,7 +97,7 @@ inline void collect_yuv_statistics
 	int32_t totalGray = 0;
 
 	const float* __restrict colorMatrixIn = RGB2YUV[colorSpace];
-	constexpr float subtractor = (4 == sizeof(T) ? 128.f : 0.f);
+	constexpr float subtractor = (4ull == sizeof(T) ? 128.f : 0.f);
 
 	__VECTOR_ALIGNED__
 		for (A_long j = 0; j < height; j++)
@@ -111,7 +111,7 @@ inline void collect_yuv_statistics
 				U = pSrc[p_idx].U - subtractor;
 				V = pSrc[p_idx].V - subtractor;
 
-				F = (abs(U) + abs(V)) / Y;
+				F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / Y;
 				if (F < threshold)
 				{
 					totalGray++;
@@ -146,7 +146,7 @@ inline void image_rgb_correction
 {
 	float newR, newG, newB;
 
-	constexpr float whiteValue = (4 == sizeof(T) ? 255.0f : (8 == sizeof(T)) ? 32767.0f : f32_value_white);
+	constexpr float whiteValue = (4ull == sizeof(T) ? 255.0f : (8 == sizeof(T)) ? 32767.0f : f32_value_white);
 
 	/* in second: perform balance based on computed coefficients */
 	for (A_long j = 0; j < height; j++)
@@ -194,8 +194,8 @@ inline void image_yuv_correction
 	float newR, newG, newB;
 	float newY, newU, newV;
 
-	constexpr float whiteValue = (4 == sizeof(T) ? 255.0f : f32_value_white);
-	constexpr float subtractor = (4 == sizeof(T) ? 128.f  : 0.f);
+	constexpr float whiteValue = (4ull == sizeof(T) ? 255.0f : f32_value_white);
+	constexpr float subtractor = (4ull == sizeof(T) ? 128.f  : 0.f);
 
 	const float* __restrict yuv2rgb = ((true == isBT709) ? YUV2RGB[BT709] : YUV2RGB[BT601]);
 	const float* __restrict rgb2yuv = ((true == isBT709) ? RGB2YUV[BT709] : RGB2YUV[BT601]);

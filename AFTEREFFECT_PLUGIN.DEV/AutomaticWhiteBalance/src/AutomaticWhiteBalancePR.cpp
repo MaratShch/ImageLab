@@ -38,7 +38,8 @@ static bool ProcessPrImage_BGRA_4444_8u
 	const int32_t sliderThreshold = params[AWB_THRESHOLD_SLIDER]->u.sd.value;
 	const int32_t iterCnt = MIN(sliderIterCnt, gMaxCnt);
 
-	float T = static_cast<float>(sliderThreshold) / 100.f;
+	constexpr float reciproc100 = 1.0f / 100.f;
+	float T = static_cast<float>(sliderThreshold) * reciproc100;
 	float uAvg, vAvg;
 
 	/* test temporary buffers size and re-allocate if required new size */
@@ -180,7 +181,8 @@ static bool ProcessPrImage_BGRA_4444_16u
 	const int32_t sliderThreshold = params[AWB_THRESHOLD_SLIDER]->u.sd.value;
 	const int32_t iterCnt = MIN(sliderIterCnt, gMaxCnt);
 
-	float T = static_cast<float>(sliderThreshold) / 100.f;
+	constexpr float reciproc100 = 1.0f / 100.f;
+	float T = static_cast<float>(sliderThreshold) * reciproc100;
 	float uAvg, vAvg;
 
 	/* test temporary buffers size and re-allocate if required new size */
@@ -325,7 +327,8 @@ static bool ProcessPrImage_VUYA_4444_8u
 	const int32_t sliderThreshold = params[AWB_THRESHOLD_SLIDER]->u.sd.value;
 	const int32_t iterCnt = MIN(sliderIterCnt, gMaxCnt);
 
-	float T = static_cast<float>(sliderThreshold) / 100.f;
+	constexpr float reciproc100 = 1.0f / 100.f;
+	float T = static_cast<float>(sliderThreshold) * reciproc100;
 	float uAvg, vAvg;
 
 	/* test temporary buffers size and re-allocate if required new size */

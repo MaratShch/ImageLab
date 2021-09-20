@@ -110,7 +110,7 @@ ParamsSetup(
 		strCheckBoxAction,
 		FALSE,
 		flags,
-		MEDIAL_FILTER_CHECKBOX
+		MEDIAN_FILTER_CHECKBOX
 	);
 
 	AEFX_CLR_STRUCT_EX(def);
@@ -123,7 +123,7 @@ ParamsSetup(
 		filter_radiusMin,
 		filter_radiusMax,
 		filter_radiusDef,
-		MEDIAL_FILTER_SLIDER_RADIUS
+		MEDIAN_FILTER_SLIDER_RADIUS
 	);
 
 	return err;
