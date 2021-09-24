@@ -219,7 +219,7 @@ PF_Err MedianFilter_VUYA_4444_8u
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
 	auto const kernelSize = get_kernel_size(params);
-	auto const procLumaOnly = get_proc_luma_channel_only(params);
+	auto const procLumaOnly = true; // get_proc_luma_channel_only(params);
 
 	bool avx2ProcReturn = false;
 
@@ -227,9 +227,9 @@ PF_Err MedianFilter_VUYA_4444_8u
 	{
 		case 3:
 		/* manually optimized variant 3x3 */
-//					true == procLumaOnly ?
-			avx2ProcReturn = median_filter_3x3_VUYA_4444_8u_luma_only(localSrc, localDst, height, width, line_pitch);
-//						median_filter_3x3_BGRA_4444_uint (localSrc, localDst, height, width, line_pitch);
+			avx2ProcReturn = (true == procLumaOnly ?
+						median_filter_3x3_VUYA_4444_8u_luma_only (localSrc, localDst, height, width, line_pitch) : 
+				        median_filter_3x3_VUYA_4444_8u (localSrc, localDst, height, width, line_pitch) );
 		break;
 
 		case 5:
