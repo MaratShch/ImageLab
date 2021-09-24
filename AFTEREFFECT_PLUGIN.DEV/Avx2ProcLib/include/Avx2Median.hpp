@@ -14,25 +14,25 @@ namespace AVX2
 
 		bool median_filter_3x3_BGRA_4444_8u
 		(
-			const PF_Pixel_BGRA_8u* __restrict pInImage,
-			      PF_Pixel_BGRA_8u* __restrict pOutImage,
-			      A_long sizeX,
-			      A_long sizeY,
-			      A_long linePitch
+			PF_Pixel_BGRA_8u* __restrict pInImage,
+			PF_Pixel_BGRA_8u* __restrict pOutImage,
+			A_long sizeX,
+			A_long sizeY,
+			A_long linePitch
 		) noexcept;
 	
 		bool median_filter_3x3_VUYA_4444_8u_luma_only
 		(
-			const PF_Pixel_VUYA_8u* __restrict pInImage,
-			      PF_Pixel_VUYA_8u* __restrict pOutImage,
-			      A_long sizeX,
-			      A_long sizeY,
-			      A_long linePitch
+			PF_Pixel_VUYA_8u* __restrict pInImage,
+			PF_Pixel_VUYA_8u* __restrict pOutImage,
+			A_long sizeX,
+			A_long sizeY,
+			A_long linePitch
 		) noexcept;
 
 		bool median_filter_3x3_VUYA_4444_8u
 		(
-			const PF_Pixel_VUYA_8u* __restrict pInImage,
+			PF_Pixel_VUYA_8u* __restrict pInImage,
 			PF_Pixel_VUYA_8u* __restrict pOutImage,
 			A_long sizeX,
 			A_long sizeY,

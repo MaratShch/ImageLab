@@ -51,46 +51,46 @@ namespace MedianSort
 
 namespace MedianLoad
 {
-	inline void LoadLineFromLeft (const __m256i* pSrc, __m256i elemLine[3]) noexcept
+	inline void LoadLineFromLeft_4444_8u_packed (uint32_t* pSrc, __m256i elemLine[3]) noexcept
 	{
-		elemLine[0] = elemLine[1] = _mm256_loadu_si256(pSrc);
-		elemLine[2] = _mm256_loadu_si256(pSrc + 1);
+		elemLine[0] = elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+		elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
 	}
 
-	inline void LoadLine (const __m256i* pSrc, __m256i elemLine[3]) noexcept
+	inline void LoadLine_4444_8u_packed (uint32_t* pSrc, __m256i elemLine[3]) noexcept
 	{
-		elemLine[0] = _mm256_loadu_si256(pSrc - 1);
-		elemLine[1] = _mm256_loadu_si256(pSrc    );
-		elemLine[2] = _mm256_loadu_si256(pSrc + 1);
+		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
+		elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc    ));
+		elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
 	}
 
-	inline void LoadLineFromRigth (const __m256i* pSrc, __m256i elemLine[3]) noexcept
+	inline void LoadLineFromRigth_444_8u_packed (uint32_t* pSrc, __m256i elemLine[3]) noexcept
 	{
-		elemLine[0] = _mm256_loadu_si256(pSrc - 1);
-		elemLine[1] = elemLine[2] = _mm256_loadu_si256(pSrc);
+		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc-1));
+		elemLine[1] = elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
 	}
 
-	inline const __m256i LoadWindowFromLeft (const __m256i* pPrev, const __m256i* pCurr, const __m256i* pNext, __m256i elem[9]) noexcept
+	inline const __m256i LoadWindowFromLeft (uint32_t* pPrev, uint32_t* pCurr, uint32_t* pNext, __m256i elem[9]) noexcept
 	{
-		LoadLineFromLeft(pPrev, elem);
-		LoadLineFromLeft(pCurr, elem + 3);
-		LoadLineFromLeft(pNext, elem + 6);
+		LoadLineFromLeft_4444_8u_packed (pPrev, elem);
+		LoadLine_4444_8u_packed         (pCurr, elem + 3);
+		LoadLineFromRigth_444_8u_packed (pNext, elem + 6);
 		return elem[4]; /* return current element from source */
 	}
 
-	inline const __m256i LoadWindow (const __m256i* pPrev, const __m256i* pCurr, const __m256i* pNext, __m256i elem[9]) noexcept
+	inline const __m256i LoadWindow (uint32_t* pPrev, uint32_t* pCurr, uint32_t* pNext, __m256i elem[9]) noexcept
 	{
-		LoadLine (pPrev, elem);
-		LoadLine (pCurr, elem + 3);
-		LoadLine (pNext, elem + 6);
+		LoadLineFromLeft_4444_8u_packed (pPrev, elem);
+		LoadLine_4444_8u_packed         (pCurr, elem + 3);
+		LoadLineFromRigth_444_8u_packed (pNext, elem + 6);
 		return elem[4]; /* return current element from source */
 	}
 
-	inline const __m256i LoadWindowFromRight (const __m256i* pPrev, const __m256i* pCurr, const __m256i* pNext, __m256i elem[9]) noexcept
+	inline const __m256i LoadWindowFromRight (uint32_t* pPrev, uint32_t* pCurr, uint32_t* pNext, __m256i elem[9]) noexcept
 	{
-		LoadLineFromRigth (pPrev, elem);
-		LoadLineFromRigth (pCurr, elem + 3);
-		LoadLineFromRigth (pNext, elem + 6);
+		LoadLineFromLeft_4444_8u_packed (pPrev, elem);
+		LoadLine_4444_8u_packed         (pCurr, elem + 3);
+		LoadLineFromRigth_444_8u_packed (pNext, elem + 6);
 		return elem[4]; /* return current element from source */
 	}
 
@@ -100,8 +100,7 @@ namespace MedianStore
 {
 	inline void StoreByMask8u (__m256i* __restrict pDst, const __m256i& valueOrig, const __m256i& valueMedian, const __m256i& storeMask) noexcept
 	{
-		const __m256i storeVal = _mm256_blendv_epi8(valueOrig, valueMedian, storeMask);
-		_mm256_storeu_si256(pDst, storeVal);
+		_mm256_storeu_si256(pDst, _mm256_blendv_epi8(valueOrig, valueMedian, storeMask));
 	}
 
 }; /* namespace MedianStore  */
@@ -120,11 +119,11 @@ namespace MedianStore
 */
 bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 (
-	const PF_Pixel_BGRA_8u* __restrict pInImage,
-	      PF_Pixel_BGRA_8u* __restrict pOutImage,
-	      A_long sizeX,
-	      A_long sizeY,
-	      A_long linePitch
+	PF_Pixel_BGRA_8u* __restrict pInImage,
+	PF_Pixel_BGRA_8u* __restrict pOutImage,
+	A_long sizeX,
+	A_long sizeY,
+	A_long linePitch
 ) noexcept
 {
 	A_long x, y;
@@ -151,25 +150,26 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 */
 bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 (
-	const PF_Pixel_VUYA_8u* __restrict pInImage,
-	      PF_Pixel_VUYA_8u* __restrict pOutImage,
-	      A_long sizeY,
-	      A_long sizeX,
- 	      A_long linePitch
+	PF_Pixel_VUYA_8u* __restrict pInImage,
+	PF_Pixel_VUYA_8u* __restrict pOutImage,
+	A_long sizeY,
+	A_long sizeX,
+ 	A_long linePitch
 ) noexcept
 {
 	if (sizeY < 3 || sizeX < 48)
 		return false;
 
-	constexpr size_t pixelsInVector{ sizeof(__m256i) / sizeof(PF_Pixel_VUYA_8u) };
+	constexpr A_long pixelsInVector = static_cast<A_long>(sizeof(__m256i) / PF_Pixel_VUYA_8u_size);
 	constexpr int lumaMask{ 0x00FF0000 }; /* vuYa */
 
-	A_long i = 0, j = 0;
-	const A_long shortSizeY = sizeY - 1; 
-	const A_long vectorLoadsInLine = static_cast<A_long>(sizeX) / pixelsInVector;
-	const A_long shortVectorLoadsInLine = vectorLoadsInLine - 1;
-	const A_long vectorizedPixels  = vectorLoadsInLine * pixelsInVector;
-	const A_long lastPixelsInLine  = sizeX - vectorizedPixels;
+	A_long i = 0, j = 0, k = 0;
+	const A_long vectorLoadsInLine = sizeX / pixelsInVector;
+	const A_long vectorizedLineSize  = vectorLoadsInLine * pixelsInVector;
+	const A_long lastPixelsInLine  = sizeX - vectorizedLineSize;
+
+	const A_long shortSizeY { sizeY - 1 };
+	const A_long shortSizeX { sizeX - pixelsInVector };
 
 	const __m256i lumaMaskVector = _mm256_setr_epi32
 	(
@@ -191,27 +191,30 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 
 	/* PROCESS FIRST LINE IN FRAME (for pixels line -1 we takes pixels from current line) as VECTOR */
 	{
-		const __m256i* pSrcVecCurrLine = reinterpret_cast<const __m256i*>(pInImage);
-		const __m256i* pSrcVecNextLine = reinterpret_cast<const __m256i*>(pInImage + linePitch);
-		      __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*>(pOutImage);
+		uint32_t* pSrcVecCurrLine = reinterpret_cast<uint32_t*>(pInImage);
+		uint32_t* pSrcVecNextLine = reinterpret_cast<uint32_t*>(pInImage + linePitch);
+		 __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*> (pOutImage);
 
 		/* process left frame edge in first line */
 		const __m256i srcOrigLeft = MedianLoad::LoadWindowFromLeft (pSrcVecCurrLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], lumaMaskVector);
+		pSrcVecDstLine++;
 
 		/* process first line */
-		for (i = 1; i < shortVectorLoadsInLine; i++)
+		for (i = pixelsInVector; i < shortSizeX; i += pixelsInVector)
 		{
 			const __m256i srcOrig = MedianLoad::LoadWindow (pSrcVecCurrLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
 			MedianSort::PartialSort_9_elem_8u (vecData);
-			MedianStore::StoreByMask8u (pSrcVecDstLine + i, srcOrig, vecData[4], lumaMaskVector);
+			MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[4], lumaMaskVector);
+			pSrcVecDstLine++;
 		}
 
 		/* process rigth frame edge in first line */
-		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecCurrLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
+		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
-		MedianStore::StoreByMask8u (pSrcVecDstLine + shortVectorLoadsInLine, srcOrigRight, vecData[4], lumaMaskVector);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], lumaMaskVector);
+		pSrcVecDstLine++;
 
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		{
@@ -222,29 +225,32 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 	/* PROCESS LINES IN FRAME FROM 1 to SIZEY-1 */
 	for (j = 1; j < shortSizeY; j++)
 	{
-		const __m256i* pSrcVecPrevLine = reinterpret_cast<const __m256i*>(pInImage + (j - 1) * linePitch);
-		const __m256i* pSrcVecCurrLine = reinterpret_cast<const __m256i*>(pInImage +  j      * linePitch);
-		const __m256i* pSrcVecNextLine = reinterpret_cast<const __m256i*>(pInImage + (j + 1) * linePitch);
-		      __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*>(pOutImage + j * linePitch);
+		uint32_t* pSrcVecPrevLine = reinterpret_cast<uint32_t*>(pInImage + (j - 1) * linePitch);
+		uint32_t* pSrcVecCurrLine = reinterpret_cast<uint32_t*>(pInImage +  j      * linePitch);
+		uint32_t* pSrcVecNextLine = reinterpret_cast<uint32_t*>(pInImage + (j + 1) * linePitch);
+		 __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*>(pOutImage +  j * linePitch);
 
 		/* load first vectors from previous, current and next line */
 		/* process left frame edge in first line */
 		const __m256i srcOrigLeft = MedianLoad::LoadWindowFromLeft (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], lumaMaskVector);
+		pSrcVecDstLine++;
 
 		/* process line */
-		for (i = 1; i < shortVectorLoadsInLine; i++)
+		for (i = pixelsInVector; i < shortSizeX; i += pixelsInVector)
 		{
 			const __m256i srcOrig = MedianLoad::LoadWindow (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
 			MedianSort::PartialSort_9_elem_8u (vecData);
-			MedianStore::StoreByMask8u (pSrcVecDstLine + i, srcOrig, vecData[4], lumaMaskVector);
+			MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[4], lumaMaskVector);
+			pSrcVecDstLine++;
 		} 
 
 		/* process rigth frame edge in last line */
-		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
+		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
-		MedianStore::StoreByMask8u (pSrcVecDstLine + shortVectorLoadsInLine, srcOrigRight, vecData[4], lumaMaskVector);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], lumaMaskVector);
+		pSrcVecDstLine++;
 
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		{
@@ -254,27 +260,30 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 
 	  /* PROCESS LAST FRAME LINE */
 	{
-		const __m256i* pSrcVecPrevLine = reinterpret_cast<const __m256i*>(pInImage + (j - 1) * linePitch);
-		const __m256i* pSrcVecCurrLine = reinterpret_cast<const __m256i*>(pInImage + j       * linePitch);
-		      __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*>(pOutImage + j * linePitch);
+		uint32_t* pSrcVecPrevLine = reinterpret_cast<uint32_t*>(pInImage  + (j - 1) * linePitch);
+		uint32_t* pSrcVecCurrLine = reinterpret_cast<uint32_t*>(pInImage  +  j      * linePitch);
+		 __m256i* pSrcVecDstLine  = reinterpret_cast <__m256i*>(pOutImage +  j * linePitch);
 
 		/* process left frame edge in last line */
 		const __m256i srcOrigLeft = MedianLoad::LoadWindowFromLeft (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecCurrLine, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], lumaMaskVector);
+		pSrcVecDstLine++;
 
 		/* process first line */
-		for (i = 1; i < shortVectorLoadsInLine; i++)
+		for (i = pixelsInVector; i < shortSizeX; i += pixelsInVector)
 		{
 			const __m256i srcOrig = MedianLoad::LoadWindow (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecCurrLine + i, vecData);
 			MedianSort::PartialSort_9_elem_8u (vecData);
-			MedianStore::StoreByMask8u (pSrcVecDstLine + i, srcOrig, vecData[4], lumaMaskVector);
+			MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[4], lumaMaskVector);
+			pSrcVecDstLine++;
 		}
 
 		/* process rigth frame edge in last line */
-		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecCurrLine + i, vecData);
+		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
-		MedianStore::StoreByMask8u (pSrcVecDstLine + shortVectorLoadsInLine, srcOrigRight, vecData[4], lumaMaskVector);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], lumaMaskVector);
+		pSrcVecDstLine++;
 
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		{
