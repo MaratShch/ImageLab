@@ -363,7 +363,7 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Sin (const T& x) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sin (const T& x) noexcept
 	{
 		constexpr T Pi{ 3.14159265358979323846 };
 		constexpr T PiSqr = Pi * Pi;
@@ -379,13 +379,13 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Sin(const T& x)
+	inline const T Sin(const T& x)
 	{
 		return std::sin(x);
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T& x) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T& x) noexcept
 	{
 		constexpr T Pi{ 3.14159265358979323846 };
 		constexpr T HalfPi{ Pi / 2 };
@@ -393,7 +393,7 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Cos (const T& x)
+	inline const T Cos (const T& x)
 	{
 		return std::cos (x);
 	}
