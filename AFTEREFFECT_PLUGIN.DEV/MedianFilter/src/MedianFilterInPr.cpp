@@ -12,9 +12,9 @@ PF_Err MedianFilter_BGRA_4444_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
-	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
-	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
+	PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
+	PF_Pixel_BGRA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
 
 	auto const height     = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
@@ -23,14 +23,16 @@ PF_Err MedianFilter_BGRA_4444_8u
 	auto const kernelSize   = get_kernel_size(params);
 	auto const procLumaOnly = get_proc_luma_channel_only(params);
 
+	bool avx2ProcReturn = false;
+
 	switch (kernelSize)
 	{
 		case 3:
 			/* manually optimized variant 3x3 */
-//			true == procLumaOnly ?
-//				AVX2::median_filter_3x3_BGRA_4444_8u_luma_only (localSrc, localDst, height, width, line_pitch) :
-//				median_filter_3x3_BGRA_4444_uint (localSrc, localDst, height, width, line_pitch);
-		break;
+			avx2ProcReturn = (true == procLumaOnly ?
+				median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch) :
+				median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch));
+			break;
 
 		case 5:
 			/* manually optimized variant 5x5 */

@@ -121,16 +121,144 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 (
 	PF_Pixel_BGRA_8u* __restrict pInImage,
 	PF_Pixel_BGRA_8u* __restrict pOutImage,
-	A_long sizeX,
 	A_long sizeY,
+	A_long sizeX,
 	A_long linePitch
 ) noexcept
 {
-	A_long x, y;
+	if (sizeY < 3 || sizeX < 48)
+		return false;
 
-	for (y = 0; y < sizeY; y++)
+	constexpr A_long pixelsInVector = static_cast<A_long>(sizeof(__m256i) / PF_Pixel_BGRA_8u_size);
+	constexpr int bgrMask{ 0x00FFFFFF }; /* BGRa */
+
+	A_long i, j;
+	const A_long vectorLoadsInLine = sizeX / pixelsInVector;
+	const A_long vectorizedLineSize = vectorLoadsInLine * pixelsInVector;
+	const A_long lastPixelsInLine = sizeX - vectorizedLineSize;
+
+	const A_long shortSizeY{ sizeY - 1 };
+	const A_long shortSizeX{ sizeX - pixelsInVector };
+
+	const __m256i rgbMaskVector = _mm256_setr_epi32
+	(
+		bgrMask, /* mask Y component for 1 pixel */
+		bgrMask, /* mask Y component for 2 pixel */
+		bgrMask, /* mask Y component for 3 pixel */
+		bgrMask, /* mask Y component for 4 pixel */
+		bgrMask, /* mask Y component for 5 pixel */
+		bgrMask, /* mask Y component for 6 pixel */
+		bgrMask, /* mask Y component for 7 pixel */
+		bgrMask  /* mask Y component for 8 pixel */
+	);
+
+#ifdef _DEBUG
+	__m256i vecData[9]{};
+#else
+	__m256i vecData[9];
+#endif
+
+	/* PROCESS FIRST LINE IN FRAME (for pixels line -1 we takes pixels from current line) as VECTOR */
 	{
-	//	const PF_Pixel_BGRA_8u* p 
+		uint32_t* pSrcVecCurrLine = reinterpret_cast<uint32_t*>(pInImage);
+		uint32_t* pSrcVecNextLine = reinterpret_cast<uint32_t*>(pInImage + linePitch);
+		 __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*> (pOutImage);
+
+		/* process left frame edge in first line */
+		const __m256i srcOrigLeft = MedianLoad::LoadWindowFromLeft (pSrcVecCurrLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
+		MedianSort::PartialSort_9_elem_8u (vecData);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], rgbMaskVector);
+		pSrcVecDstLine++;
+
+		/* process first line */
+		for (i = pixelsInVector; i < shortSizeX; i += pixelsInVector)
+		{
+			const __m256i srcOrig = MedianLoad::LoadWindow (pSrcVecCurrLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
+			MedianSort::PartialSort_9_elem_8u (vecData);
+			MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[4], rgbMaskVector);
+			pSrcVecDstLine++;
+		}
+
+		/* process rigth frame edge in first line */
+		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
+		MedianSort::PartialSort_9_elem_8u (vecData);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], rgbMaskVector);
+		pSrcVecDstLine++;
+
+		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
+		{
+			/* not implemented yet */
+		}
+	}
+
+	/* PROCESS LINES IN FRAME FROM 1 to SIZEY-1 */
+	for (j = 1; j < shortSizeY; j++)
+	{
+		uint32_t* pSrcVecPrevLine = reinterpret_cast<uint32_t*>(pInImage + (j - 1) * linePitch);
+		uint32_t* pSrcVecCurrLine = reinterpret_cast<uint32_t*>(pInImage + j      * linePitch);
+		uint32_t* pSrcVecNextLine = reinterpret_cast<uint32_t*>(pInImage + (j + 1) * linePitch);
+		 __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*>(pOutImage  + j * linePitch);
+
+		/* load first vectors from previous, current and next line */
+		/* process left frame edge in first line */
+		const __m256i srcOrigLeft = MedianLoad::LoadWindowFromLeft (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
+		MedianSort::PartialSort_9_elem_8u (vecData);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], rgbMaskVector);
+		pSrcVecDstLine++;
+
+		/* process line */
+		for (i = pixelsInVector; i < shortSizeX; i += pixelsInVector)
+		{
+			const __m256i srcOrig = MedianLoad::LoadWindow (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
+			MedianSort::PartialSort_9_elem_8u (vecData);
+			MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[4], rgbMaskVector);
+			pSrcVecDstLine++;
+		}
+
+		/* process rigth frame edge in last line */
+		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
+		MedianSort::PartialSort_9_elem_8u (vecData);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], rgbMaskVector);
+		pSrcVecDstLine++;
+
+		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
+		{
+			/* not implemented yet */
+		}
+
+	} /* END: process frame lines from 1 to sizeY-1 */
+
+	  /* PROCESS LAST FRAME LINE */
+	{
+		uint32_t* pSrcVecPrevLine = reinterpret_cast<uint32_t*>(pInImage + (j - 1) * linePitch);
+		uint32_t* pSrcVecCurrLine = reinterpret_cast<uint32_t*>(pInImage + j      * linePitch);
+	     __m256i* pSrcVecDstLine  = reinterpret_cast <__m256i*>(pOutImage + j * linePitch);
+
+		/* process left frame edge in last line */
+		const __m256i srcOrigLeft = MedianLoad::LoadWindowFromLeft (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecCurrLine, vecData);
+		MedianSort::PartialSort_9_elem_8u (vecData);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], rgbMaskVector);
+		pSrcVecDstLine++;
+
+		/* process first line */
+		for (i = pixelsInVector; i < shortSizeX; i += pixelsInVector)
+		{
+			const __m256i srcOrig = MedianLoad::LoadWindow (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecCurrLine + i, vecData);
+			MedianSort::PartialSort_9_elem_8u (vecData);
+			MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[4], rgbMaskVector);
+			pSrcVecDstLine++;
+		}
+
+		/* process rigth frame edge in last line */
+		const __m256i srcOrigRight = MedianLoad::LoadWindowFromRight (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, vecData);
+		MedianSort::PartialSort_9_elem_8u (vecData);
+		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], rgbMaskVector);
+		pSrcVecDstLine++;
+
+		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
+		{
+			/* not implemented yet */
+		}
 	}
 
 	return true;
@@ -163,7 +291,7 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 	constexpr A_long pixelsInVector = static_cast<A_long>(sizeof(__m256i) / PF_Pixel_VUYA_8u_size);
 	constexpr int lumaMask{ 0x00FF0000 }; /* vuYa */
 
-	A_long i = 0, j = 0, k = 0;
+	A_long i, j;
 	const A_long vectorLoadsInLine = sizeX / pixelsInVector;
 	const A_long vectorizedLineSize  = vectorLoadsInLine * pixelsInVector;
 	const A_long lastPixelsInLine  = sizeX - vectorizedLineSize;
