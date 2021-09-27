@@ -335,10 +335,6 @@ PF_Err ProcessImgInPR
 			}
 			break;
 
-			case PrPixelFormat_RGB_444_10u:
-				err = MedianFilter_RGB_444_10u (in_data, out_data, params, output);
-			break;
-
 			default:
 			break; 
 		} /* switch (destinationPixelFormat) */
