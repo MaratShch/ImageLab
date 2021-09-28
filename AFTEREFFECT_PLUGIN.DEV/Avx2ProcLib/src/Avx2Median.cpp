@@ -161,6 +161,12 @@ namespace MedianLoad
 		return elem[4]; /* return current element from source */
 	}
 
+	template <typename T>
+	inline void LoadLineScalarLeft_RGB_packed (T* pSrc, T elemLine[3]) noexcept
+	{
+		elemLine[0] = elemLine[1] = *pSrc;
+		elemLine[2] = *(pSrc + 1);
+	}
 
 	template <typename T>
 	inline void LoadLineScalar_RGB_packed (T* pSrc, T elemLine[3]) noexcept
@@ -175,6 +181,15 @@ namespace MedianLoad
 	{
 		elemLine[0] = *(pSrc - 1);
 		elemLine[1] = elemLine[2] = *pSrc;
+	}
+
+	template <typename T>
+	inline const T LoadWindowScalarLeft_RGB(T* pPrev, T* pCurr, T* pNext, T elem[9]) noexcept
+	{
+		LoadLineScalarLeft_RGB_packed (pPrev, elem);
+		LoadLineScalarLeft_RGB_packed (pCurr, elem + 3);
+		LoadLineScalarLeft_RGB_packed (pNext, elem + 6);
+		return elem[4];
 	}
 
 	template <typename T>
@@ -197,6 +212,7 @@ namespace MedianLoad
 
 }; /* namespace MedianLoad */
 
+
 namespace MedianStore
 {
 	inline void StoreByMask8u (__m256i* __restrict pDst, const __m256i& valueOrig, const __m256i& valueMedian, const __m256i& storeMask) noexcept
@@ -214,6 +230,74 @@ namespace MedianStore
 	}
 
 }; /* namespace MedianStore  */
+
+
+namespace Scalar
+{
+	template <typename T>
+	static bool scalar_median_filter_3x3_BGRA_4444_8u
+	(
+		T* __restrict pInImage,
+		T* __restrict pOutImage,
+		A_long sizeY,
+		A_long sizeX,
+		A_long linePitch
+	) noexcept
+	{
+		/* input buffer to small for perform median 3x3 */
+		if (sizeX < 3 || sizeY < 3)
+			return false;
+
+		return true;
+	}
+
+	template <typename T>
+	static bool scalar_median_filter_3x3_BGRA_4444_8u_luma_only
+	(
+		T* __restrict pInImage,
+		T* __restrict pOutImage,
+		A_long sizeY,
+		A_long sizeX,
+		A_long linePitch
+	) noexcept
+	{
+		/* input buffer to small for perform median 3x3 */
+		if (sizeX < 3 || sizeY < 3)
+			return false;
+
+		return true;
+	}
+
+}; /* namespace Scalar */
+
+
+namespace Internal
+{
+	inline __m256i Convert_bgra2yuv_8u (__m256i& a) noexcept
+	{
+		__m256i aLow  = _mm256_cvtepu8_epi16 (_mm256_extracti128_si256(a, 0)); /* convert 4 low BGRA pixels from uint8_t to int16_t		*/
+		__m256i aHigh = _mm256_cvtepu8_epi16 (_mm256_extracti128_si256(a, 1)); /* convert 4 high BGRA pixels from uint8_t to int16_t	*/
+		return{ 0 };
+	}
+
+	inline __m256i Convert_yuv2bgra_8u (__m256i& a) noexcept
+	{
+
+	}
+
+	inline __m256i Convert_argb2yuv_8u (__m256i& a) noexcept
+	{
+		__m256i aLow  = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(a, 0));  /* convert 4 low ARGB pixels from uint8_t to int16_t		*/
+		__m256i aHigh = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(a, 1));  /* convert 4 high ARGB pixels from uint8_t to int16_t	*/
+		return{ 0 };
+	}
+
+	inline __m256i Convert_yuv2argb_8u (__m256i& a) noexcept
+	{
+		return{ 0 };
+	}
+
+}; /* namespace Internal */
 
 
 /*
@@ -236,8 +320,8 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 	A_long linePitch
 ) noexcept
 {
-	if (sizeY < 3 || sizeX < 48)
-		return false;
+	if (sizeY < 3 || sizeX < 40)
+		return Scalar::scalar_median_filter_3x3_BGRA_4444_8u (pInImage, pOutImage, sizeY, sizeX, linePitch);
 
 	CACHE_ALIGN PF_Pixel_BGRA_8u  ScalarElem[9];
 	constexpr A_long pixelsInVector = static_cast<A_long>(sizeof(__m256i) / PF_Pixel_BGRA_8u_size);
@@ -419,6 +503,61 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 
 
 /*
+	make median filter with kernel 3x3 from packed format - BGRA444_8u by AVX2 instructions set:
+
+	Image buffer layout [each cell - 8 bits unsigned in range 0...255]:
+
+	LSB                            MSB
+	+-------------------------------+
+	| B | G | R | A | B | G | R | A | ...
+	+-------------------------------+
+
+*/
+bool AVX2::Median::median_filter_3x3_BGRA_4444_8u_luma_only
+(
+	PF_Pixel_BGRA_8u* __restrict pInImage,
+	PF_Pixel_BGRA_8u* __restrict pOutImage,
+	A_long sizeY,
+	A_long sizeX,
+	A_long linePitch
+) noexcept
+{
+	if (sizeY < 3 || sizeX < 40)
+		return Scalar::scalar_median_filter_3x3_BGRA_4444_8u_luma_only (pInImage, pOutImage, sizeY, sizeX, linePitch);
+
+	CACHE_ALIGN PF_Pixel_BGRA_8u  ScalarElem[9];
+	constexpr A_long pixelsInVector = static_cast<A_long>(sizeof(__m256i) / PF_Pixel_BGRA_8u_size);
+	constexpr int bgrMask{ 0x00FFFFFF }; /* BGRa */
+
+	return true;
+}
+
+
+
+/*
+	make median filter with kernel 3x3 from packed format - VUYA_4444_8u by AVX2 instructions set on each color channel
+	with temporary convert YUVC image to RGB on the fly:
+
+	Image buffer layout [each cell - 8 bits unsigned in range 0...255]:
+
+	+-------------------------------+
+	| V | U | Y | A | V | U | Y | A | ...
+	+-------------------------------+
+
+*/
+bool median_filter_3x3_VUYA_4444_8u
+(
+	const PF_Pixel_VUYA_8u* __restrict pInImage,
+	PF_Pixel_VUYA_8u* __restrict pOutImage,
+	A_long sizeX,
+	A_long sizeY,
+	A_long linePitch
+) noexcept
+{
+	return false;
+}
+
+/*
 	make median filter with kernel 3x3 from packed format VUYA_4444_8u by AVX2 instructions set on luminance channel only:
 
 	Image buffer layout [each cell - 8 bits unsigned in range 0...255]:
@@ -477,7 +616,7 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 		 __m256i* pSrcVecDstLine  = reinterpret_cast<__m256i*> (pOutImage);
 
 		/* process left frame edge in first line */
-		const __m256i srcOrigLeft = MedianLoad::LoadWindow (pSrcVecCurrLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
+		const __m256i srcOrigLeft = MedianLoad::LoadWindowLeft (pSrcVecCurrLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], lumaMaskVector);
 		pSrcVecDstLine++;
@@ -492,10 +631,9 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 		}
 
 		/* process rigth frame edge in first line */
-		const __m256i srcOrigRight = MedianLoad::LoadWindow (pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
+		const __m256i srcOrigRight = MedianLoad::LoadWindowRight (pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], lumaMaskVector);
-		pSrcVecDstLine++;
 
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		{
@@ -513,7 +651,7 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 
 		/* load first vectors from previous, current and next line */
 		/* process left frame edge in first line */
-		const __m256i srcOrigLeft = MedianLoad::LoadWindow (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
+		const __m256i srcOrigLeft = MedianLoad::LoadWindowLeft (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], lumaMaskVector);
 		pSrcVecDstLine++;
@@ -528,10 +666,9 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 		} 
 
 		/* process rigth frame edge in last line */
-		const __m256i srcOrigRight = MedianLoad::LoadWindow (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
+		const __m256i srcOrigRight = MedianLoad::LoadWindowRight (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], lumaMaskVector);
-		pSrcVecDstLine++;
 
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		{
@@ -546,7 +683,7 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 		 __m256i* pSrcVecDstLine  = reinterpret_cast <__m256i*>(pOutImage +  j * linePitch);
 
 		/* process left frame edge in last line */
-		const __m256i srcOrigLeft = MedianLoad::LoadWindow (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecCurrLine, vecData);
+		const __m256i srcOrigLeft = MedianLoad::LoadWindowLeft (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecCurrLine, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[4], lumaMaskVector);
 		pSrcVecDstLine++;
@@ -561,10 +698,9 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 		}
 
 		/* process rigth frame edge in last line */
-		const __m256i srcOrigRight = MedianLoad::LoadWindow (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, vecData);
+		const __m256i srcOrigRight = MedianLoad::LoadWindowRight (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecCurrLine + shortSizeX, vecData);
 		MedianSort::PartialSort_9_elem_8u (vecData);
 		MedianStore::StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[4], lumaMaskVector);
-		pSrcVecDstLine++;
 
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		{
@@ -573,28 +709,4 @@ bool AVX2::Median::median_filter_3x3_VUYA_4444_8u_luma_only
 
 
 	return true;
-}
-
-
-/*
-	make median filter with kernel 3x3 from packed format - VUYA_4444_8u by AVX2 instructions set on each color channel
-	with temporary convert YUVC image to RGB on the fly:
-
-	Image buffer layout [each cell - 8 bits unsigned in range 0...255]:
-
-	+-------------------------------+
-	| V | U | Y | A | V | U | Y | A | ...
-	+-------------------------------+
-
-*/
-bool median_filter_3x3_VUYA_4444_8u
-(
-	const PF_Pixel_VUYA_8u* __restrict pInImage,
-	      PF_Pixel_VUYA_8u* __restrict pOutImage,
-	      A_long sizeX,
-	      A_long sizeY,
-	      A_long linePitch
-) noexcept
-{
-	return false;
 }
