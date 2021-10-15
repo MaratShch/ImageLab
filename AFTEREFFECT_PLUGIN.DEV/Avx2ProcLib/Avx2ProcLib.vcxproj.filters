@@ -60,12 +60,18 @@
     <ClInclude Include="include\Avx2Log.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\Avx2ColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Avx2Histogram.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Avx2Median.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2ColorConvert.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

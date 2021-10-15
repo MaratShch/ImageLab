@@ -152,12 +152,14 @@
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\Avx2ColorConvert.hpp" />
     <ClInclude Include="include\Avx2Histogram.hpp" />
     <ClInclude Include="include\Avx2Log.hpp" />
     <ClInclude Include="include\Avx2Median.hpp" />
     <ClInclude Include="include\Avx2ProcLib.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Avx2ColorConvert.cpp" />
     <ClCompile Include="src\Avx2Histogram.cpp" />
     <ClCompile Include="src\Avx2Median.cpp" />
   </ItemGroup>

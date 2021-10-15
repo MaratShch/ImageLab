@@ -273,16 +273,49 @@ namespace Scalar
 
 namespace Internal
 {
-	inline __m256i Convert_bgra2yuv_8u (__m256i& a) noexcept
+	inline __m256i Convert_bgra2yuva_8u (__m256i& a) noexcept
 	{
+		/* BT.709:
+		    R          G          B
+		   54.4256  183.0912   18.4832   Y
+		  -29.3299  -98.6701  128.0000   U
+          128.0000 -116.2624  -11.7376   V
+		                                              B   G      R  A    B    G    R   A    B    G     R  A    B    G     R  A  */
+		const __m256i bgr2y_vec = _mm256_setr_epi16( 18, 183,   54, 0,  18,  183,  54, 0,  18,  183,  54, 0,  18,  183,  54, 0);
+		const __m256i bgr2u_vec = _mm256_setr_epi16(128, -98,  -29, 0, 128,  -98, -29, 0, 128,  -98, -29, 0, 128,  -98, -29, 0);
+		const __m256i bgr2v_vec = _mm256_setr_epi16(-12, -116, 128, 0, -12, -116, 128, 0, -12, -116, 128, 0, -12, -116, 128, 0);
+		const __m256i add_vec   = _mm256_setr_epi16(128,  128, 128, 0, 128,  128, 128, 0, 128,  128, 128, 0, 128,  128, 128, 0);
+
+
 		__m256i aLow  = _mm256_cvtepu8_epi16 (_mm256_extracti128_si256(a, 0)); /* convert 4 low BGRA pixels from uint8_t to int16_t		*/
 		__m256i aHigh = _mm256_cvtepu8_epi16 (_mm256_extracti128_si256(a, 1)); /* convert 4 high BGRA pixels from uint8_t to int16_t	*/
+
+//		__m256i vec_yLow = _mm256_mullo_epi16(aLow, bgr2y_vec);
+//		__m256i vec_uLow = _mm256_mullo_epi16(aLow, bgr2u_vec);
+//		__m256i vec_vLow = _mm256_mullo_epi16(aLow, bgr2v_vec);
+//
+//		__m256i vec_yHigh = _mm256_mullo_epi16(aHigh, bgr2y_vec);
+//		__m256i vec_uHigh = _mm256_mullo_epi16(aHigh, bgr2u_vec);
+//		__m256i vec_vHigh = _mm256_mullo_epi16(aHigh, bgr2v_vec);
+//
+//		__m256i vecY = _mm256_packus_epi16 (
+//			_mm256_srai_epi16(vec_yLow, 8), _mm256_srai_epi16(vec_yHigh, 8)
+//		);
+//
+//		__m256i vecU = _mm256_packus_epi16(
+//			_mm256_add_epi16(_mm256_srai_epi16(vec_uLow, 8), add_vec), _mm256_add_epi16(_mm256_srai_epi16(vec_uHigh, 8), add_vec)
+//		);
+//
+//		__m256i vecV = _mm256_packus_epi16(
+//			_mm256_add_epi16(_mm256_srai_epi16(vec_vLow, 8), add_vec), _mm256_add_epi16(_mm256_srai_epi16(vec_vHigh, 8), add_vec)
+//		);
+
 		return{ 0 };
 	}
 
 	inline __m256i Convert_yuv2bgra_8u (__m256i& a) noexcept
 	{
-
+		return{ 0 };
 	}
 
 	inline __m256i Convert_argb2yuv_8u (__m256i& a) noexcept

@@ -266,7 +266,7 @@ namespace FastCompute
 
 	inline float Acos (float x) noexcept
 	{
-		const float& negate = float(x < 0.f);
+		const float negate = float(x < 0.f);
 		x = abs(x);
 		float ret = -0.0187293f;
 		ret = ret * x;
@@ -397,6 +397,40 @@ namespace FastCompute
 	{
 		return std::cos (x);
 	}
+
+	template <typename T>
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Exp (const T& x)
+	{
+		constexpr T one{ 1 };
+#ifdef FAST_COMPUTE_EXTRA_PRECISION
+		constexpr T reciproc1024{ 1.0 / 1024.0 };
+		x = one + x * reciproc1024;
+		x *= x; x *= x; x *= x; x *= x;
+		x *= x; x *= x; x *= x; x *= x;
+		x *= x; x *= x;
+#else
+		constexpr T reciproc256{ 1.0 / 256.0 };
+		x = one + x * reciproc256;
+		x *= x; x *= x; x *= x; x *= x;
+		x *= x; x *= x; x *= x; x *= x;
+#endif
+		return x;
+	}
+
+	template <typename T>
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type	Sinh (const T& x)
+	{
+		constexpr T half{ 0.5 };
+		return half * (Exp(x) - Exp(-x));
+	}
+
+	template <typename T>
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type	Cosh (const T& x)
+	{
+		constexpr T half{ 0.5 };
+		return half * (Exp(x) + Exp(-x));
+	}
+
 
 
 #ifndef __NVCC__
