@@ -16,6 +16,15 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{5fd165fa-92a3-4e13-8216-08ac65931707}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Avx2Median">
+      <UniqueIdentifier>{e8cae473-ebcf-49f4-855d-addc3d0c5102}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Avx2ColorConvert">
+      <UniqueIdentifier>{2894f3f6-1856-47bd-83c4-a5454f96d5f2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Avx2Histogram">
+      <UniqueIdentifier>{fe5c21ee-1c4a-473b-9395-501d03e97c95}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
@@ -63,16 +72,25 @@
     <ClInclude Include="include\Avx2ColorConvert.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="src\Avx2Median\Avx2MedianInternal.hpp">
+      <Filter>src\Avx2Median</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Avx2Median\Avx2MedianScalar.hpp">
+      <Filter>src\Avx2Median</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Avx2Histogram.cpp">
-      <Filter>src</Filter>
+    <ClCompile Include="src\Avx2Median\Avx2Median.cpp">
+      <Filter>src\Avx2Median</Filter>
     </ClCompile>
-    <ClCompile Include="src\Avx2Median.cpp">
-      <Filter>src</Filter>
+    <ClCompile Include="src\Avx2Median\Avx2Median_BGRA4444_8u.cpp">
+      <Filter>src\Avx2Median</Filter>
     </ClCompile>
-    <ClCompile Include="src\Avx2ColorConvert.cpp">
-      <Filter>src</Filter>
+    <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp">
+      <Filter>src\Avx2ColorConvert</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2Histogram\Avx2Histogram.cpp">
+      <Filter>src\Avx2Histogram</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

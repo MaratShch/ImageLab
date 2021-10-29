@@ -157,11 +157,14 @@
     <ClInclude Include="include\Avx2Log.hpp" />
     <ClInclude Include="include\Avx2Median.hpp" />
     <ClInclude Include="include\Avx2ProcLib.hpp" />
+    <ClInclude Include="src\Avx2Median\Avx2MedianInternal.hpp" />
+    <ClInclude Include="src\Avx2Median\Avx2MedianScalar.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Avx2ColorConvert.cpp" />
-    <ClCompile Include="src\Avx2Histogram.cpp" />
-    <ClCompile Include="src\Avx2Median.cpp" />
+    <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp" />
+    <ClCompile Include="src\Avx2Histogram\Avx2Histogram.cpp" />
+    <ClCompile Include="src\Avx2Median\Avx2Median.cpp" />
+    <ClCompile Include="src\Avx2Median\Avx2Median_BGRA4444_8u.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
