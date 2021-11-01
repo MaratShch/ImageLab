@@ -212,6 +212,61 @@ namespace MedianSort
 
 namespace MedianLoad5x5
 {
+	inline void LoadLineFromLeft0_4444_8u_packed (uint32_t* __restrict pSrc, __m256i elemLine[3]) noexcept
+	{
+		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+		elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
+		elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 2));
+	}
+
+	inline void LoadLineFromLeft1_4444_8u_packed (uint32_t* __restrict pSrc, __m256i elemLine[4]) noexcept
+	{
+		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
+		elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+		elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
+		elemLine[3] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 2));
+	}
+
+	inline void LoadLine_4444_8u_packed (uint32_t* __restrict pSrc, __m256i elemLine[5]) noexcept
+	{
+		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 2));
+		elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
+		elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+		elemLine[3] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
+		elemLine[4] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 2));
+	}
+
+	inline void LoadLineFromRight0_4444_8u_packed(uint32_t* __restrict pSrc, __m256i elemLine[4]) noexcept
+	{
+		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 2));
+		elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
+		elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+		elemLine[3] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
+	}
+
+	inline void LoadLineFromRight1_4444_8u_packed(uint32_t* __restrict pSrc, __m256i elemLine[3]) noexcept
+	{
+		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 2));
+		elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
+		elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+	}
+
+	/* load from Pixel [row = 0, line = 0] */
+	inline void LoadWindowsPixel00 (uint32_t* __restrict pSrc, uint32_t* __restrict pNext0, uint32_t* __restrict pNext1, __m256i elem[9])
+	{
+		LoadLineFromLeft0_4444_8u_packed(pSrc, elem);
+		LoadLineFromLeft0_4444_8u_packed(pNext0, elem + 3);
+		LoadLineFromLeft0_4444_8u_packed(pNext1, elem + 6);
+	}
+
+	inline void LoadWindowsLeft1FirstLine (uint32_t* __restrict pSrc, uint32_t* __restrict pNext0, uint32_t* __restrict pNext1, __m256i elem[16])
+	{
+		LoadLineFromLeft1_4444_8u_packed(pSrc, elem);
+		LoadLineFromLeft1_4444_8u_packed(pNext0, elem + 4);
+		LoadLineFromLeft1_4444_8u_packed(pNext1, elem + 8);
+	}
+
+#if 0
 	inline void LoadLineFromLeft0_4444_8u_packed (uint32_t* pSrc, __m256i elemLine[5]) noexcept
 	{
 		elemLine[0] = elemLine[1] = elemLine[2] =_mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
@@ -242,7 +297,7 @@ namespace MedianLoad5x5
 		elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
 		elemLine[2] = elemLine[3] = elemLine[4] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
 	}
-
+#endif
 }; /* namespace MedianLoad5x5 */
 
 namespace MedianLoad3x3
@@ -264,6 +319,14 @@ namespace MedianLoad3x3
 	{
 		elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc-1));
 		elemLine[1] = elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+	}
+
+
+	inline const __m256i LoadWindowLeftFirstLine (uint32_t* pCurr, uint32_t* pNext, __m256i elem[4]) noexcept
+	{
+		LoadLineFromLeft_4444_8u_packed(pCurr, elem);
+		LoadLineFromLeft_4444_8u_packed(pNext, elem + 2);
+		return elem[1]; /* return current element from source */
 	}
 
 	inline const __m256i LoadWindowLeft (uint32_t* pPrev, uint32_t* pCurr, uint32_t* pNext, __m256i elem[9]) noexcept
