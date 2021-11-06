@@ -1,164 +1,52 @@
 #include "Avx2Median.hpp"
 
-namespace MedianSort
+
+inline void StoreByMask8u(__m256i* __restrict pDst, const __m256i& valueOrig, const __m256i& valueMedian, const __m256i& storeMask) noexcept
 {
-	inline void VectorSort8uPacked(__m256i& a, __m256i& b) noexcept
+	_mm256_storeu_si256(pDst, _mm256_blendv_epi8(valueOrig, valueMedian, storeMask));
+}
+
+inline void VectorSort8uPacked (__m256i& a, __m256i& b) noexcept
+{
+	const __m256i t = a;
+	a = _mm256_min_epu8(t, b);
+	b = _mm256_max_epu8(t, b);
+}
+
+inline void VectorSort16uPacked(__m256i& a, __m256i& b) noexcept
+{
+	const __m256i t = a;
+	a = _mm256_min_epu16(t, b);
+	b = _mm256_max_epu16(t, b);
+}
+
+inline void VectorSort32fPacked(__m256& a, __m256& b) noexcept
+{
+	const __m256 t = a;
+	a = _mm256_min_ps(t, b);
+	b = _mm256_max_ps(t, b);
+}
+
+
+inline void SortFloat (float& a, float& b) noexcept
+{
+	if (a > b)
 	{
-		const __m256i t = a;
-		a = _mm256_min_epu8(t, b);
-		b = _mm256_max_epu8(t, b);
+		const float t{ a };
+		a = b;
+		b = t;
 	}
+}
 
-	inline void VectorSort16uPacked(__m256i& a, __m256i& b) noexcept
-	{
-		const __m256i t = a;
-		a = _mm256_min_epu16(t, b);
-		b = _mm256_max_epu16(t, b);
-	}
+inline void SortInt (int32_t& a, int32_t& b) noexcept
+{
+	const int32_t d{ a - b };
+	const int32_t m{ ~(d >> 8) };
+	b += d & m;
+	a -= d & m;
+}
 
-	inline void VectorSort32fPacked(__m256& a, __m256& b) noexcept
-	{
-		const __m256 t = a;
-		a = _mm256_min_ps(t, b);
-		b = _mm256_max_ps(t, b);
-	}
-
-	inline void PartialSort_6_elem_8u (__m256i a[6]) noexcept
-	{
-		/*
-		median element in [2] index
-
-		0  0  x
-		0  0  0
-		*/
-		VectorSort8uPacked(a[1], a[2]);
-		VectorSort8uPacked(a[0], a[2]);
-		VectorSort8uPacked(a[1], a[2]);
-		VectorSort8uPacked(a[4], a[5]);
-		VectorSort8uPacked(a[3], a[4]);
-		VectorSort8uPacked(a[4], a[5]);
-		VectorSort8uPacked(a[0], a[3]);
-		VectorSort8uPacked(a[2], a[5]);
-		VectorSort8uPacked(a[2], a[3]);
-		VectorSort8uPacked(a[1], a[4]);
-		VectorSort8uPacked(a[1], a[2]);
-	}
-
-	inline void PartialSort_9_elem_8u (__m256i a[9]) noexcept
-	{
-		/*
-
-		median element in [4] index
-
-		0  0  0
-		0  X  0
-		0  0  0
-
-		*/
-		VectorSort8uPacked(a[1], a[2]);
-		VectorSort8uPacked(a[4], a[5]); 
-		VectorSort8uPacked(a[7], a[8]);
-		VectorSort8uPacked(a[0], a[1]); 
-		VectorSort8uPacked(a[3], a[4]); 
-		VectorSort8uPacked(a[6], a[7]);
-		VectorSort8uPacked(a[1], a[2]); 
-		VectorSort8uPacked(a[4], a[5]); 
-		VectorSort8uPacked(a[7], a[8]);
-		VectorSort8uPacked(a[0], a[3]); 
-		VectorSort8uPacked(a[5], a[8]); 
-		VectorSort8uPacked(a[4], a[7]);
-		VectorSort8uPacked(a[3], a[6]); 
-		VectorSort8uPacked(a[1], a[4]); 
-		VectorSort8uPacked(a[2], a[5]);
-		VectorSort8uPacked(a[4], a[7]); 
-		VectorSort8uPacked(a[4], a[2]); 
-		VectorSort8uPacked(a[6], a[4]);
-		VectorSort8uPacked(a[4], a[2]);
-	}
-
-
-	inline void PartialSort_25_elem_8u (__m256i a[25]) noexcept
-	{
-		/*
-
-		median element in [12] index
-
-		0  0  0  0  0
-		0  0  0  0  0
-		0  0  X  0  0
-		0  0  0  0  0
-		0  0  0  0  0
-
-		*/
-		VectorSort8uPacked(a[0],  a[1] );
-		VectorSort8uPacked(a[2],  a[3] );
-		VectorSort8uPacked(a[4],  a[5] );
-		VectorSort8uPacked(a[6],  a[7] );
-		VectorSort8uPacked(a[8],  a[9] );
-		VectorSort8uPacked(a[10], a[11]);
-		VectorSort8uPacked(a[12], a[13]);
-		VectorSort8uPacked(a[14], a[15]);
-		VectorSort8uPacked(a[16], a[17]);
-		VectorSort8uPacked(a[18], a[19]);
-		VectorSort8uPacked(a[20], a[21]);
-		VectorSort8uPacked(a[22], a[23]);
-		VectorSort8uPacked(a[1],  a[16]);
-		VectorSort8uPacked(a[3],  a[18]);
-		VectorSort8uPacked(a[5],  a[20]);
-		VectorSort8uPacked(a[7],  a[22]);
-		VectorSort8uPacked(a[1],  a[8] );
-		VectorSort8uPacked(a[9],  a[24]);
-		VectorSort8uPacked(a[3],  a[10]);
-		VectorSort8uPacked(a[5],  a[12]);
-		VectorSort8uPacked(a[7],  a[14]);
-		VectorSort8uPacked(a[9],  a[16]);
-		VectorSort8uPacked(a[11], a[18]);
-		VectorSort8uPacked(a[1],  a[4] );
-		VectorSort8uPacked(a[3],  a[6] );
-		VectorSort8uPacked(a[5],  a[8] );
-		VectorSort8uPacked(a[7],  a[10]);
-		VectorSort8uPacked(a[9],  a[12]);
-		VectorSort8uPacked(a[11], a[14]);
-		VectorSort8uPacked(a[11], a[12]);
-	}
-
-
-	inline void PartialSort_49_elem_8u(__m256i a[49]) noexcept
-	{
-		/*
-
-		median element in [24] index
-
-		0  0  0  0  0  0  0
-		0  0  0  0  0  0  0
-		0  0  0  0  0  0  0
-		0  0  0  X  0  0  0
-		0  0  0  0  0  0  0
-		0  0  0  0  0  0  0
-		0  0  0  0  0  0  0
-
-		*/
-	}
-
-
-	inline void SortFloat (float& a, float& b) noexcept
-	{
-		if (a > b)
-		{
-			const float t{ a };
-			a = b;
-			b = t;
-		}
-	}
-
-	inline void SortInt (int32_t& a, int32_t& b) noexcept
-	{
-		const int32_t d{ a - b };
-		const int32_t m{ ~(d >> 8) };
-		b += d & m;
-		a -= d & m;
-	}
-
+#if 0
 	template <typename T>
 	inline void ScalarSortRGB (T& x, T& y) noexcept
 	{
@@ -423,3 +311,5 @@ namespace MedianStore
 	}
 
 }; /* namespace MedianStore  */
+
+#endif

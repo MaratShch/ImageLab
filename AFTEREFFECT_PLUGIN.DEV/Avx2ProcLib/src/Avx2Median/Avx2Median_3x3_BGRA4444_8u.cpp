@@ -1,12 +1,6 @@
 #include "Avx2Median.hpp"
+#include "Avx2MedianInternal.hpp"
 
-
-inline void VectorSort (__m256i& a, __m256i& b) noexcept
-{
-	const __m256i t = a;
-	a = _mm256_min_epu8(t, b);
-	b = _mm256_max_epu8(t, b);
-}
 
 inline void PartialVectorSort_4elem (__m256i a[4]) noexcept
 {
@@ -17,9 +11,9 @@ inline void PartialVectorSort_4elem (__m256i a[4]) noexcept
 	0  0
 
 	*/
-	VectorSort(a[0], a[3]);
-	VectorSort(a[1], a[2]);
-	VectorSort(a[0], a[1]);
+	VectorSort8uPacked (a[0], a[3]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[0], a[1]);
 }
 
 
@@ -31,17 +25,17 @@ inline void PartialVectorSort_6elem (__m256i a[6]) noexcept
 	0  0  x
 	0  0  0
 	*/
-	VectorSort (a[1], a[2]);
-	VectorSort (a[0], a[2]);
-	VectorSort (a[1], a[2]);
-	VectorSort (a[4], a[5]);
-	VectorSort (a[3], a[4]);
-	VectorSort (a[4], a[5]);
-	VectorSort (a[0], a[3]);
-	VectorSort (a[2], a[5]);
-	VectorSort (a[2], a[3]);
-	VectorSort (a[1], a[4]);
-	VectorSort (a[1], a[2]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[0], a[2]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[3], a[4]);
+	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[0], a[3]);
+	VectorSort8uPacked (a[2], a[5]);
+	VectorSort8uPacked (a[2], a[3]);
+	VectorSort8uPacked (a[1], a[4]);
+	VectorSort8uPacked (a[1], a[2]);
 }
 
 inline void PartialVectorSort_9elem (__m256i a[9]) noexcept
@@ -55,25 +49,25 @@ inline void PartialVectorSort_9elem (__m256i a[9]) noexcept
 	0  0  0
 
 	*/
-	VectorSort (a[1], a[2]);
-	VectorSort (a[4], a[5]);
-	VectorSort (a[7], a[8]);
-	VectorSort (a[0], a[1]);
-	VectorSort (a[3], a[4]);
-	VectorSort (a[6], a[7]);
-	VectorSort (a[1], a[2]);
-	VectorSort (a[4], a[5]);
-	VectorSort (a[7], a[8]);
-	VectorSort (a[0], a[3]);
-	VectorSort (a[5], a[8]);
-	VectorSort (a[4], a[7]);
-	VectorSort (a[3], a[6]);
-	VectorSort (a[1], a[4]);
-	VectorSort (a[2], a[5]);
-	VectorSort (a[4], a[7]);
-	VectorSort (a[4], a[2]);
-	VectorSort (a[6], a[4]);
-	VectorSort (a[4], a[2]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[7], a[8]);
+	VectorSort8uPacked (a[0], a[1]);
+	VectorSort8uPacked (a[3], a[4]);
+	VectorSort8uPacked (a[6], a[7]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[7], a[8]);
+	VectorSort8uPacked (a[0], a[3]);
+	VectorSort8uPacked (a[5], a[8]);
+	VectorSort8uPacked (a[4], a[7]);
+	VectorSort8uPacked (a[3], a[6]);
+	VectorSort8uPacked (a[1], a[4]);
+	VectorSort8uPacked (a[2], a[5]);
+	VectorSort8uPacked (a[4], a[7]);
+	VectorSort8uPacked (a[4], a[2]);
+	VectorSort8uPacked (a[6], a[4]);
+	VectorSort8uPacked (a[4], a[2]);
 }
 
 
@@ -142,7 +136,7 @@ inline __m256i LoadLastLineWindowPixel (uint32_t* __restrict pPrev, uint32_t* __
 	// -------
 	LoadLinePixel(pPrev, elem);      // 0  0  0
 	LoadLinePixel(pSrc,  elem + 3);  // 0  X  0
-	return elem[4];
+	return elem[4];                  // -------
 }
 
 inline __m256i LoadWindowPixel0(uint32_t* __restrict pPrev, uint32_t* __restrict pSrc, uint32_t* __restrict pNext, __m256i elem[6]) noexcept
@@ -169,11 +163,6 @@ inline __m256i LoadWindow (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc
 	return elem[4];
 }
 
-
-inline void StoreByMask8u (__m256i* __restrict pDst, const __m256i& valueOrig, const __m256i& valueMedian, const __m256i& storeMask) noexcept
-{
-	_mm256_storeu_si256(pDst, _mm256_blendv_epi8(valueOrig, valueMedian, storeMask));
-}
 
 
 /*

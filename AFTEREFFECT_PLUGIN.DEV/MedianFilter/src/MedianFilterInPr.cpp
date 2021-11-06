@@ -36,16 +36,16 @@ PF_Err MedianFilter_BGRA_4444_8u
 
 		case 5:
 			/* manually optimized variant 5x5 */
-//			true == procLumaOnly ?
-//				median_filter_5x5_BGRA_4444_uint_luma_only (localSrc, localDst, height, width, line_pitch) :
-//				median_filter_5x5_BGRA_4444_uint (localSrc, localDst, height, width, line_pitch);
+			true == procLumaOnly ?
+				median_filter_5x5_BGRA_4444_8u(localSrc, localDst, height, width, line_pitch) :
+				median_filter_5x5_BGRA_4444_8u(localSrc, localDst, height, width, line_pitch);
 		break;
 
 		case 7:
 			/* manually optimized variant 7x7 */
-//			true == procLumaOnly ?
-//				median_filter_7x7_BGRA_4444_uint_luma_only (localSrc, localDst, height, width, line_pitch) :
-//				median_filter_7x7_BGRA_4444_uint (localSrc, localDst, height, width, line_pitch);
+			true == procLumaOnly ?
+				median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch) :
+				median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch);
 		break;
 
 		case 9:
@@ -229,9 +229,9 @@ PF_Err MedianFilter_VUYA_4444_8u
 	{
 		case 3:
 		/* manually optimized variant 3x3 */
-			avx2ProcReturn = (true == procLumaOnly ?
-						median_filter_3x3_VUYA_4444_8u_luma_only (localSrc, localDst, height, width, line_pitch) : 
-				        median_filter_3x3_VUYA_4444_8u (localSrc, localDst, height, width, line_pitch) );
+		//	avx2ProcReturn = (true == procLumaOnly ?
+		//				median_filter_3x3_VUYA_4444_8u_luma_only (localSrc, localDst, height, width, line_pitch) : 
+		//		        median_filter_3x3_VUYA_4444_8u (localSrc, localDst, height, width, line_pitch) );
 		break;
 
 		case 5:

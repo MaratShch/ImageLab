@@ -163,7 +163,6 @@
   <ItemGroup>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp" />
     <ClCompile Include="src\Avx2Histogram\Avx2Histogram.cpp" />
-    <ClCompile Include="src\Avx2Median\Avx2Median.cpp" />
     <ClCompile Include="src\Avx2Median\Avx2Median_3x3_BGRA4444_8u.cpp" />
     <ClCompile Include="src\Avx2Median\Avx2Median_5x5_BGRA4444_8u.cpp" />
     <ClCompile Include="src\Avx2Median\Avx2Median_7x7_BGRA4444_8u.cpp" />

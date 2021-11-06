@@ -80,9 +80,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\Avx2Median\Avx2Median.cpp">
-      <Filter>src\Avx2Median</Filter>
-    </ClCompile>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp">
       <Filter>src\Avx2ColorConvert</Filter>
     </ClCompile>
