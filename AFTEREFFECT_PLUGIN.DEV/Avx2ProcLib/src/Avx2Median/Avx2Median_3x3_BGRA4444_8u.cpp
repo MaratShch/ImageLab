@@ -12,7 +12,7 @@ inline void PartialVectorSort_4elem (__m256i a[4]) noexcept
 
 	*/
 	VectorSort8uPacked (a[0], a[3]);
-	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[2], a[1]);
 	VectorSort8uPacked (a[0], a[1]);
 }
 
@@ -26,16 +26,16 @@ inline void PartialVectorSort_6elem (__m256i a[6]) noexcept
 	0  0  0
 	*/
 	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[4], a[5]);
 	VectorSort8uPacked (a[0], a[2]);
-	VectorSort8uPacked (a[1], a[2]);
-	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[3], a[5]);
+	VectorSort8uPacked (a[0], a[1]);
 	VectorSort8uPacked (a[3], a[4]);
-	VectorSort8uPacked (a[4], a[5]);
-	VectorSort8uPacked (a[0], a[3]);
-	VectorSort8uPacked (a[2], a[5]);
+	VectorSort8uPacked (a[0], a[4]);
+	VectorSort8uPacked (a[1], a[5]);
+	VectorSort8uPacked (a[0], a[2]);
+	VectorSort8uPacked (a[1], a[3]);
 	VectorSort8uPacked (a[2], a[3]);
-	VectorSort8uPacked (a[1], a[4]);
-	VectorSort8uPacked (a[1], a[2]);
 }
 
 inline void PartialVectorSort_9elem (__m256i a[9]) noexcept
