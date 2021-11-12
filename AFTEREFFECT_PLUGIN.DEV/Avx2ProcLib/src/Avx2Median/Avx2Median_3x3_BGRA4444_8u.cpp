@@ -11,9 +11,11 @@ inline void PartialVectorSort_4elem (__m256i a[4]) noexcept
 	0  0
 
 	*/
-	VectorSort8uPacked (a[0], a[3]);
-	VectorSort8uPacked (a[2], a[1]);
+	VectorSort8uPacked (a[0], a[2]);
+	VectorSort8uPacked (a[3], a[1]);
 	VectorSort8uPacked (a[0], a[1]);
+	VectorSort8uPacked (a[2], a[3]);
+	VectorSort8uPacked (a[1], a[2]);
 }
 
 
