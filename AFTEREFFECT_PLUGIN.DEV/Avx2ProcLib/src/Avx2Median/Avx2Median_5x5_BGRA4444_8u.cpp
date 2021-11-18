@@ -130,10 +130,10 @@ inline __m256i LoadSecondLineWindowPixelBeforeLast (uint32_t* __restrict pPrev, 
 
 inline __m256i LoadSecondLineWindowPixelLast (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc, uint32_t* __restrict pNext1, uint32_t* __restrict pNext2, __m256i elem[12]) noexcept
 {
-	LoadLinePixelLast(pPrev, elem);          //  0  0  0  |  
-	LoadLinePixelLast(pSrc, elem);           //  0  0  X  | 
-	LoadLinePixelLast(pNext1, elem + 4);	 //  0  0  0  |
-	LoadLinePixelLast(pNext2, elem + 8);	 //  0  0  0  |
+	LoadLinePixelLast (pPrev, elem);         //  0  0  0  |  
+	LoadLinePixelLast (pSrc, elem);          //  0  0  X  | 
+	LoadLinePixelLast (pNext1, elem + 4);	 //  0  0  0  |
+	LoadLinePixelLast (pNext2, elem + 8);	 //  0  0  0  |
 	return elem[5];
 }
 
@@ -309,7 +309,44 @@ inline void PartialSort_9_elem_8u (__m256i a[9]) noexcept
 
 inline void PartialSort_12_elem_8u (__m256i a[12]) noexcept
 {
+	/* median elemnet in index 5 */
+	VectorSort8uPacked (a[0],  a[1]);
+	VectorSort8uPacked (a[3],  a[2]);
+	VectorSort8uPacked (a[4],  a[5]);
+	VectorSort8uPacked (a[7],  a[6]);
+	VectorSort8uPacked (a[8],  a[9]);
+	VectorSort8uPacked (a[11], a[10]);
+	VectorSort8uPacked (a[0],  a[2]);
+	VectorSort8uPacked (a[1],  a[3]);
+	VectorSort8uPacked (a[6],  a[4]);
+	VectorSort8uPacked (a[7],  a[5]);
+	VectorSort8uPacked (a[8],  a[10]);
+	VectorSort8uPacked (a[9],  a[11]);
+	VectorSort8uPacked (a[0],  a[4]);
+	VectorSort8uPacked (a[1],  a[5]);
+	VectorSort8uPacked (a[2],  a[6]);
+	VectorSort8uPacked (a[3],  a[7]);
+	VectorSort8uPacked (a[0],  a[2]);
+	VectorSort8uPacked (a[4],  a[6]);
+	VectorSort8uPacked (a[10], a[8]);
+	VectorSort8uPacked (a[11], a[9]);
+	VectorSort8uPacked (a[0],  a[1]);
+	VectorSort8uPacked (a[2],  a[3]);
+	VectorSort8uPacked (a[4],  a[5]);
+	VectorSort8uPacked (a[6],  a[7]);
+	VectorSort8uPacked (a[9],  a[8]);
+	VectorSort8uPacked (a[11], a[10]);
+	VectorSort8uPacked (a[0],  a[8]);
+	VectorSort8uPacked (a[1],  a[9]);
+	VectorSort8uPacked (a[2],  a[10]);
+	VectorSort8uPacked (a[3],  a[11]);
+	VectorSort8uPacked (a[0],  a[4]);
+	VectorSort8uPacked (a[1],  a[5]);
+	VectorSort8uPacked (a[2],  a[6]);
+	VectorSort8uPacked (a[3],  a[7]);
+	VectorSort8uPacked (a[5],  a[7]);
 }
+
 
 inline void PartialSort_15_elem_8u (__m256i a[15]) noexcept
 {
@@ -445,6 +482,92 @@ inline void PartialSort_16_elem_8u (__m256i a[16]) noexcept
 
 inline void PartialSort_20_elem_8u (__m256i a[20]) noexcept
 {
+	/* median element in index 9 */
+	VectorSort8uPacked (a[0],  a[1]);
+	VectorSort8uPacked (a[3],  a[2]);
+	VectorSort8uPacked (a[4],  a[5]);
+	VectorSort8uPacked (a[7],  a[6]);
+	VectorSort8uPacked (a[8],  a[9]);
+	VectorSort8uPacked (a[11], a[10]);
+	VectorSort8uPacked (a[12], a[13]);
+	VectorSort8uPacked (a[15], a[14]);
+	VectorSort8uPacked (a[16], a[17]);
+	VectorSort8uPacked (a[19], a[18]);
+	VectorSort8uPacked (a[0],  a[2]);
+	VectorSort8uPacked (a[1],  a[3]);
+	VectorSort8uPacked (a[6],  a[4]);
+	VectorSort8uPacked (a[7],  a[5]);
+	VectorSort8uPacked (a[8],  a[10]);
+	VectorSort8uPacked (a[9],  a[11]);
+	VectorSort8uPacked (a[14], a[12]);
+	VectorSort8uPacked (a[15], a[13]);
+	VectorSort8uPacked (a[16], a[18]);
+	VectorSort8uPacked (a[17], a[19]);
+    VectorSort8uPacked (a[0],  a[1]);
+	VectorSort8uPacked (a[2],  a[3]);
+	VectorSort8uPacked (a[5],  a[4]);
+	VectorSort8uPacked (a[7],  a[6]);
+	VectorSort8uPacked (a[8],  a[9]);
+	VectorSort8uPacked (a[10], a[11]);
+	VectorSort8uPacked (a[13], a[12]);
+	VectorSort8uPacked (a[15], a[14]);
+	VectorSort8uPacked (a[16], a[17]);
+	VectorSort8uPacked (a[18], a[19]);
+	VectorSort8uPacked (a[0],  a[4]);
+	VectorSort8uPacked (a[14], a[10]);
+	VectorSort8uPacked (a[1],  a[5]);
+	VectorSort8uPacked (a[15], a[11]);
+	VectorSort8uPacked (a[2],  a[6]);
+	VectorSort8uPacked (a[16], a[12]);
+	VectorSort8uPacked (a[3],  a[7]);
+	VectorSort8uPacked (a[17], a[13]);
+	VectorSort8uPacked (a[4],  a[8]);
+	VectorSort8uPacked (a[18], a[14]);
+	VectorSort8uPacked (a[5],  a[9]);
+	VectorSort8uPacked (a[19], a[15]);
+	VectorSort8uPacked (a[0],  a[2]);
+	VectorSort8uPacked (a[4],  a[6]);
+	VectorSort8uPacked (a[13], a[11]);
+	VectorSort8uPacked (a[17], a[15]);
+	VectorSort8uPacked (a[1],  a[3]);
+	VectorSort8uPacked (a[5],  a[7]);
+	VectorSort8uPacked (a[14], a[12]);
+	VectorSort8uPacked (a[18], a[16]);
+	VectorSort8uPacked (a[2],  a[4]);
+	VectorSort8uPacked (a[6],  a[8]);
+	VectorSort8uPacked (a[15], a[13]);
+	VectorSort8uPacked (a[19], a[17]);
+	VectorSort8uPacked (a[0],  a[1]);
+	VectorSort8uPacked (a[2],  a[3]);
+	VectorSort8uPacked (a[4],  a[5]);
+	VectorSort8uPacked (a[6],  a[7]);
+	VectorSort8uPacked (a[8],  a[9]);
+	VectorSort8uPacked (a[11], a[10]);
+	VectorSort8uPacked (a[13], a[12]);
+	VectorSort8uPacked (a[15], a[14]);
+	VectorSort8uPacked (a[17], a[16]);
+	VectorSort8uPacked (a[19], a[18]);
+	VectorSort8uPacked (a[0],  a[9]);
+	VectorSort8uPacked (a[1],  a[10]);
+	VectorSort8uPacked (a[2],  a[11]);
+	VectorSort8uPacked (a[3],  a[12]);
+	VectorSort8uPacked (a[4],  a[13]);
+	VectorSort8uPacked (a[5],  a[14]);
+	VectorSort8uPacked (a[6],  a[15]);
+	VectorSort8uPacked (a[7],  a[16]);
+	VectorSort8uPacked (a[8],  a[17]);
+	VectorSort8uPacked (a[9],  a[18]);
+	VectorSort8uPacked (a[10], a[19]);
+	VectorSort8uPacked (a[0],  a[4]);
+	VectorSort8uPacked (a[1],  a[5]);
+	VectorSort8uPacked (a[2],  a[6]);
+	VectorSort8uPacked (a[3],  a[7]);
+	VectorSort8uPacked (a[4],  a[8]);
+	VectorSort8uPacked (a[5],  a[9]);
+	VectorSort8uPacked (a[4],  a[6]);
+	VectorSort8uPacked (a[5],  a[7]);
+	VectorSort8uPacked (a[6],  a[8]);
+	VectorSort8uPacked (a[8],  a[9]);
 }
 
 inline void PartialSort_25_elem_8u (__m256i a[25]) noexcept
@@ -581,7 +704,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 	A_long linePitch
 ) noexcept
 {
-	//if (sizeY < 3 || sizeX < 40)
+	//if (sizeY < 5 || sizeX < 40)
 		//		return Scalar::scalar_median_filter_3x3_BGRA_4444_8u(pInImage, pOutImage, sizeY, sizeX, linePitch);
 
 		//	CACHE_ALIGN PF_Pixel_BGRA_8u  ScalarElem[9];
@@ -641,21 +764,24 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 		{
 			const __m256i srcOrig = LoadFirstLineWindowPixel (pSrcVecCurrLine + i, pSrcVecNextLine1 + i, pSrcVecNextLine2 + i, vecData);
 			PartialSort_15_elem_8u (vecData);
-			StoreByMask8u (pSrcVecDstLine, srcSecondPixel, vecData[7], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[7], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
 
 		/* process one before last pixel */
-		const __m256i srcPixelBeforeLast = LoadFirstLineWindowPixelBeforeLast (pSrcVecCurrLine + shortSizeX, pSrcVecNextLine1 + shortSizeX, pSrcVecNextLine2 + shortSizeX, vecData);
+		const __m256i srcPixelBeforeLast = LoadFirstLineWindowPixelBeforeLast (pSrcVecCurrLine  + shortSizeX,
+			                                                                   pSrcVecNextLine1 + shortSizeX,
+			                                                                   pSrcVecNextLine2 + shortSizeX,
+			                                                                   vecData);
 		PartialSort_12_elem_8u (vecData);
 		StoreByMask8u (pSrcVecDstLine, srcPixelBeforeLast, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process last pixel */
-		const __m256i srcPixelLast = LoadFirstLineWindowPixelBeforeLast (pSrcVecCurrLine  + shortSizeX2,
-			                                                             pSrcVecNextLine1 + shortSizeX2,
-			                                                             pSrcVecNextLine2 + shortSizeX2,
-			                                                             vecData);
+		const __m256i srcPixelLast = LoadFirstLineWindowPixelLast (pSrcVecCurrLine  + shortSizeX2,
+			                                                       pSrcVecNextLine1 + shortSizeX2,
+			                                                       pSrcVecNextLine2 + shortSizeX2,
+			                                                       vecData);
 		PartialSort_9_elem_8u (vecData);
 		StoreByMask8u (pSrcVecDstLine, srcPixelLast, vecData[4], rgbMaskVector);
 	}
@@ -671,13 +797,13 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 		/* process first pixel */
 		const __m256i srcFirstPixel = LoadSecondLineWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine1, pSrcVecNextLine2, vecData);
 		PartialSort_12_elem_8u (vecData);
-		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[4], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process second pixel */
 		const __m256i srcSecondPixel = LoadSecondLineWindowPixel1 (pSrcVecPrevLine + 1, pSrcVecCurrLine + 1, pSrcVecNextLine1 + 1, pSrcVecNextLine2 + 1, vecData);
 		PartialSort_16_elem_8u(vecData);
-		StoreByMask8u (pSrcVecDstLine, srcSecondPixel, vecData[5], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcSecondPixel, vecData[7], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process rest of pixels */
@@ -685,7 +811,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 		{
 			const __m256i srcOrig = LoadSecondLineWindowPixel (pSrcVecPrevLine+ i, pSrcVecCurrLine + i, pSrcVecNextLine1 + i, pSrcVecNextLine2 + i, vecData);
 			PartialSort_20_elem_8u(vecData);
-			StoreByMask8u (pSrcVecDstLine, srcSecondPixel, vecData[9], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[9], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
 
@@ -728,7 +854,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 
 			const __m256i srcSecondPixel = LoadWindowPixel1 (pSrcVecPrevLine2 + 1, pSrcVecPrevLine1 + 1, pSrcVecCurrLine + 1, pSrcVecNextLine1 + 1, pSrcVecNextLine2 + 1, vecData);
 			PartialSort_20_elem_8u (vecData);
-			StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[9], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcSecondPixel, vecData[9], rgbMaskVector);
 			pSrcVecDstLine++;
 
 			/* process rest of pixels */
@@ -736,7 +862,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 			{
 				const __m256i srcPixel = LoadWindowPixel(pSrcVecPrevLine2 + i, pSrcVecPrevLine1 + i, pSrcVecCurrLine + i, pSrcVecNextLine1 + i, pSrcVecNextLine2 + i, vecData);
 				PartialSort_25_elem_8u (vecData);
-				StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[12], rgbMaskVector);
+				StoreByMask8u (pSrcVecDstLine, srcPixel, vecData[12], rgbMaskVector);
 				pSrcVecDstLine++;
 			} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
 
@@ -778,7 +904,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 
 		const __m256i srcSecondPixel = LoadWindowBeforeLastLineSecondPixel (pSrcVecPrev2Line + 1, pSrcVecPrev1Line + 1, pSrcVecCurrLine + 1, pSrcVecNextLine + 1, vecData);
 		PartialSort_16_elem_8u (vecData);
-		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[7], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcSecondPixel, vecData[7], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process rest of pixels */
@@ -786,7 +912,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 		{
 			const __m256i srcPixel = LoadWindowBeforeLastLine (pSrcVecPrev2Line + i, pSrcVecPrev1Line + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
 			PartialSort_20_elem_8u (vecData);
-			StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[9], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcPixel, vecData[9], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
 
@@ -796,7 +922,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 			                                                                        pSrcVecNextLine  + shortSizeX,
 			                                                                        vecData);
 		PartialSort_16_elem_8u (vecData);
-		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[7], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcBeforeLastPixel, vecData[7], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		const __m256i srcLastPixel = LoadWindowBeforeLastLineLastPixel (pSrcVecPrev2Line + shortSizeX2,
@@ -804,12 +930,13 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 			                                                            pSrcVecCurrLine  + shortSizeX2,
 			                                                            pSrcVecNextLine  + shortSizeX2,
 			                                                            vecData);
-		PartialSort_16_elem_8u (vecData);
-		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[7], rgbMaskVector);
+		PartialSort_12_elem_8u (vecData);
+		StoreByMask8u (pSrcVecDstLine, srcLastPixel, vecData[5], rgbMaskVector);
 	}
 
 	/* PROCESS LAST LINE */
 	{
+		j = j + 1;
 		uint32_t* __restrict pSrcVecPrev2Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 2) * linePitch);
 		uint32_t* __restrict pSrcVecPrev1Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * linePitch);
 		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage  +  j      * linePitch);
@@ -822,7 +949,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 
 		const __m256i srcSecondPixel = LoadWindowLastLineSecondPixel (pSrcVecPrev2Line + 1, pSrcVecPrev1Line + 1, pSrcVecCurrLine + 1, vecData);
 		PartialSort_12_elem_8u (vecData);
-		StoreByMask8u(pSrcVecDstLine, srcFirstPixel, vecData[5], rgbMaskVector);
+		StoreByMask8u(pSrcVecDstLine, srcSecondPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process rest of pixels */
@@ -830,7 +957,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 		{
 			const __m256i srcPixel = LoadWindowLastLine (pSrcVecPrev2Line + i, pSrcVecPrev1Line + i, pSrcVecCurrLine + i, vecData);
 			PartialSort_15_elem_8u (vecData);
-			StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[7], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcPixel, vecData[7], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
 
@@ -839,7 +966,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 			                                                                  pSrcVecCurrLine  + shortSizeX,
 			                                                                  vecData);
 		PartialSort_12_elem_8u (vecData);
-		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[5], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcBeforeLastPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		const __m256i srcLastPixel = LoadWindowLastLineLastPixel (pSrcVecPrev2Line + shortSizeX2,
@@ -847,7 +974,7 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 			                                                      pSrcVecCurrLine + shortSizeX2,
 			                                                      vecData);
 		PartialSort_9_elem_8u (vecData);
-		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[4], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcLastPixel, vecData[4], rgbMaskVector);
 	}
 
 	return true;
