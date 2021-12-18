@@ -19,26 +19,18 @@ constexpr int32_t filter_radiusMin = 1;
 constexpr int32_t filter_radiusMax = 30;
 constexpr int32_t filter_radiusDef = filter_radiusMin;
 
-constexpr char strCheckBoxName[] = "Process Luma channel only";
-constexpr char strCheckBoxAction[] = "Enable";
 constexpr char strSliderName[] = "Filter radius";
 
-inline constexpr int32_t make_kernel_size (const int32_t& kernel_radius)
+inline constexpr int32_t make_kernel_size (const int32_t& kernel_radius) noexcept
 {
 	return kernel_radius * 2 + 1;
 }
 
-inline const int32_t get_kernel_size (PF_ParamDef* __restrict params[])
+inline const int32_t get_kernel_size (PF_ParamDef* __restrict params[]) noexcept
 {
 	auto const& kernelRadius = params[MEDIAN_FILTER_SLIDER_RADIUS]->u.sd.value;
 	return make_kernel_size (kernelRadius);
 }
-
-inline const bool get_proc_luma_channel_only (PF_ParamDef* __restrict params[])
-{
-	return (0 == params[MEDIAN_FILTER_CHECKBOX]->u.bd.value ? false : true);
-}
-
 
 constexpr int32_t histBufferSize = ((sizeof(uint16_t) << 16) * sizeof(uint32_t));
 

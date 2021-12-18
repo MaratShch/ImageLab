@@ -697,19 +697,20 @@ inline void PartialSort_25_elem_8u (__m256i a[25]) noexcept
 */
 bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 (
-	PF_Pixel_BGRA_8u* __restrict pInImage,
-	PF_Pixel_BGRA_8u* __restrict pOutImage,
+	uint32_t* __restrict pInImage,
+	uint32_t* __restrict pOutImage,
 	A_long sizeY,
 	A_long sizeX,
-	A_long linePitch
+	A_long srcLinePitch,
+	A_long dstLinePitch,
+	const A_long& chanelMask /* 0x00FFFFFF <- BGRa */
 ) noexcept
 {
 	//if (sizeY < 5 || sizeX < 40)
 		//		return Scalar::scalar_median_filter_3x3_BGRA_4444_8u(pInImage, pOutImage, sizeY, sizeX, linePitch);
 
 		//	CACHE_ALIGN PF_Pixel_BGRA_8u  ScalarElem[9];
-	constexpr A_long pixelsInVector{ static_cast<A_long>(sizeof(__m256i) / PF_Pixel_BGRA_8u_size) };
-	constexpr int bgrMask{ 0x00FFFFFF }; /* BGRa */
+	constexpr A_long pixelsInVector{ static_cast<A_long>(sizeof(__m256i) / sizeof(uint32_t)) };
 	constexpr A_long startPosition = pixelsInVector * 2;
 
 	A_long i, j;
@@ -718,20 +719,20 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 	const A_long lastPixelsInLine = sizeX - vectorizedLineSize;
 	const A_long lastIdx = lastPixelsInLine - 2;
 
-	const A_long shortSizeY{ sizeY - 2 };
-	const A_long shortSizeX{ sizeX - pixelsInVector * 2};
+	const A_long shortSizeY { sizeY - 2 };
+	const A_long shortSizeX { sizeX - pixelsInVector * 2};
 	const A_long shortSizeX2{ sizeX - pixelsInVector };
 
 	const __m256i rgbMaskVector = _mm256_setr_epi32
 	(
-		bgrMask, /* mask A component for 1 pixel */
-		bgrMask, /* mask A component for 2 pixel */
-		bgrMask, /* mask A component for 3 pixel */
-		bgrMask, /* mask A component for 4 pixel */
-		bgrMask, /* mask A component for 5 pixel */
-		bgrMask, /* mask A component for 6 pixel */
-		bgrMask, /* mask A component for 7 pixel */
-		bgrMask  /* mask A component for 8 pixel */
+		chanelMask, /* mask A component for 1 pixel */
+		chanelMask, /* mask A component for 2 pixel */
+		chanelMask, /* mask A component for 3 pixel */
+		chanelMask, /* mask A component for 4 pixel */
+		chanelMask, /* mask A component for 5 pixel */
+		chanelMask, /* mask A component for 6 pixel */
+		chanelMask, /* mask A component for 7 pixel */
+		chanelMask  /* mask A component for 8 pixel */
 	);
 
 #ifdef _DEBUG
@@ -743,8 +744,8 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 	/* PROCESS FIRST LINE IN FRAME */
 	{
 		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage);
-		uint32_t* __restrict pSrcVecNextLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + linePitch);
-		uint32_t* __restrict pSrcVecNextLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + linePitch * 2);
+		uint32_t* __restrict pSrcVecNextLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + srcLinePitch);
+		uint32_t* __restrict pSrcVecNextLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + srcLinePitch * 2);
 		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast<__m256i*  __restrict>(pOutImage);
 
 		/* process first pixel */
@@ -789,10 +790,10 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 	/* PROCESS SECOND LINE IN FRAME */
 	{
 		uint32_t* __restrict pSrcVecPrevLine  = reinterpret_cast<uint32_t* __restrict>(pInImage);
-		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage + linePitch);
-		uint32_t* __restrict pSrcVecNextLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + linePitch * 2);
-		uint32_t* __restrict pSrcVecNextLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + linePitch * 3);
-		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast<__m256i*  __restrict>(pOutImage+ linePitch);
+		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage + srcLinePitch);
+		uint32_t* __restrict pSrcVecNextLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + srcLinePitch * 2);
+		uint32_t* __restrict pSrcVecNextLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + srcLinePitch * 3);
+		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast<__m256i*  __restrict>(pOutImage+ dstLinePitch);
 
 		/* process first pixel */
 		const __m256i srcFirstPixel = LoadSecondLineWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine1, pSrcVecNextLine2, vecData);
@@ -844,12 +845,12 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 		/* PROCESS LINES IN FRAME FROM 2 to SIZEY-2 */
 		for (j = 2; j < shortSizeY; j++)
 		{
-			uint32_t* __restrict pSrcVecPrevLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j - 2) * linePitch);
-			uint32_t* __restrict pSrcVecPrevLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j - 1) * linePitch);
-			uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage +  j      * linePitch);
-			uint32_t* __restrict pSrcVecNextLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j + 1) * linePitch);
-			uint32_t* __restrict pSrcVecNextLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j + 2) * linePitch);
-			__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast<__m256i*  __restrict>(pOutImage + j * linePitch);
+			uint32_t* __restrict pSrcVecPrevLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j - 2) * srcLinePitch);
+			uint32_t* __restrict pSrcVecPrevLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j - 1) * srcLinePitch);
+			uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage +  j      * srcLinePitch);
+			uint32_t* __restrict pSrcVecNextLine1 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j + 1) * srcLinePitch);
+			uint32_t* __restrict pSrcVecNextLine2 = reinterpret_cast<uint32_t* __restrict>(pInImage + (j + 2) * srcLinePitch);
+			__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast<__m256i*  __restrict>(pOutImage + j * dstLinePitch);
 
 			const __m256i srcFirstPixel = LoadWindowPixel0 (pSrcVecPrevLine2, pSrcVecPrevLine1, pSrcVecCurrLine, pSrcVecNextLine1, pSrcVecNextLine2, vecData);
 			PartialSort_15_elem_8u (vecData);
@@ -900,11 +901,11 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 
 	/* PROCESS LINE BEFORE LAST */
 	{
-		uint32_t* __restrict pSrcVecPrev2Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 2) * linePitch);
-		uint32_t* __restrict pSrcVecPrev1Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * linePitch);
-		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage  +  j      * linePitch);
-		uint32_t* __restrict pSrcVecNextLine  = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j + 1) * linePitch);
-		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast <__m256i* __restrict>(pOutImage +  j      * linePitch);
+		uint32_t* __restrict pSrcVecPrev2Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 2) * srcLinePitch);
+		uint32_t* __restrict pSrcVecPrev1Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
+		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage  +  j      * srcLinePitch);
+		uint32_t* __restrict pSrcVecNextLine  = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j + 1) * srcLinePitch);
+		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast <__m256i* __restrict>(pOutImage +  j      * dstLinePitch);
 
 		const __m256i srcFirstPixel = LoadWindowBeforeLastLineFirstPixel (pSrcVecPrev2Line, pSrcVecPrev1Line, pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		PartialSort_12_elem_8u(vecData);
@@ -950,10 +951,10 @@ bool AVX2::Median::median_filter_5x5_BGRA_4444_8u
 	/* PROCESS LAST LINE */
 	{
 		j = j + 1;
-		uint32_t* __restrict pSrcVecPrev2Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 2) * linePitch);
-		uint32_t* __restrict pSrcVecPrev1Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * linePitch);
-		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage  +  j      * linePitch);
-		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast <__m256i* __restrict>(pOutImage +  j      * linePitch);
+		uint32_t* __restrict pSrcVecPrev2Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 2) * srcLinePitch);
+		uint32_t* __restrict pSrcVecPrev1Line = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
+		uint32_t* __restrict pSrcVecCurrLine  = reinterpret_cast<uint32_t* __restrict>(pInImage  +  j      * srcLinePitch);
+		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast <__m256i* __restrict>(pOutImage +  j      * dstLinePitch);
 
 		const __m256i srcFirstPixel = LoadWindowLastLineFirstPixel (pSrcVecPrev2Line, pSrcVecPrev1Line, pSrcVecCurrLine, vecData);
 		PartialSort_9_elem_8u (vecData);

@@ -67,10 +67,6 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 	}
 
 
@@ -104,17 +100,6 @@ ParamsSetup(
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
 	def.ui_flags = ui_flags;
-	PF_ADD_CHECKBOX(
-		strCheckBoxName,
-		strCheckBoxAction,
-		FALSE,
-		flags,
-		MEDIAN_FILTER_CHECKBOX
-	);
-
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags;
 	PF_ADD_SLIDER(
 		strSliderName,
 		filter_radiusMin,
@@ -124,6 +109,8 @@ ParamsSetup(
 		filter_radiusDef,
 		MEDIAN_FILTER_SLIDER_RADIUS
 	);
+
+	out_data->num_params = MEDIAN_FILTER_TOTAL_PARAMS;
 
 	return err;
 }

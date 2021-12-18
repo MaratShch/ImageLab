@@ -180,19 +180,20 @@ inline __m256i LoadWindow (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc
 */
 bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 (
-	PF_Pixel_BGRA_8u* __restrict pInImage,
-	PF_Pixel_BGRA_8u* __restrict pOutImage,
+	uint32_t* __restrict pInImage,
+	uint32_t* __restrict pOutImage,
 	A_long sizeY,
 	A_long sizeX,
-	A_long linePitch
+	A_long srcLinePitch,
+	A_long dstLinePitch,
+	const A_long& chanelMask /* 0x00FFFFFF <- BGRa */
 ) noexcept
 {
 //	if (sizeY < 3 || sizeX < 40)
 //		return Scalar::scalar_median_filter_3x3_BGRA_4444_8u(pInImage, pOutImage, sizeY, sizeX, linePitch);
 
-//	CACHE_ALIGN PF_Pixel_BGRA_8u  ScalarElem[9];
-	constexpr A_long pixelsInVector{ static_cast<A_long>(sizeof(__m256i) / PF_Pixel_BGRA_8u_size) };
-	constexpr int bgrMask{ 0x00FFFFFF }; /* BGRa */
+//	CACHE_ALIGN PF_Pi xel_BGRA_8u  ScalarElem[9];
+	constexpr A_long pixelsInVector{ static_cast<A_long>(sizeof(__m256i) / sizeof(uint32_t)) };
 
 	A_long i, j;
 	const A_long vectorLoadsInLine = sizeX / pixelsInVector;
@@ -205,14 +206,14 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 
 	const __m256i rgbMaskVector = _mm256_setr_epi32
 	(
-		bgrMask, /* mask A component for 1 pixel */
-		bgrMask, /* mask A component for 2 pixel */
-		bgrMask, /* mask A component for 3 pixel */
-		bgrMask, /* mask A component for 4 pixel */
-		bgrMask, /* mask A component for 5 pixel */
-		bgrMask, /* mask A component for 6 pixel */
-		bgrMask, /* mask A component for 7 pixel */
-		bgrMask  /* mask A component for 8 pixel */
+		chanelMask, /* mask A component for 1 pixel */
+		chanelMask, /* mask A component for 2 pixel */
+		chanelMask, /* mask A component for 3 pixel */
+		chanelMask, /* mask A component for 4 pixel */
+		chanelMask, /* mask A component for 5 pixel */
+		chanelMask, /* mask A component for 6 pixel */
+		chanelMask, /* mask A component for 7 pixel */
+		chanelMask  /* mask A component for 8 pixel */
 	);
 
 #ifdef _DEBUG
@@ -224,7 +225,7 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 	/* PROCESS FIRST LINE IN FRAME */
 	{
 		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage);
-		uint32_t* __restrict pSrcVecNextLine = reinterpret_cast<uint32_t* __restrict>(pInImage + linePitch);
+		uint32_t* __restrict pSrcVecNextLine = reinterpret_cast<uint32_t* __restrict>(pInImage + srcLinePitch);
 		__m256i*  __restrict pSrcVecDstLine  = reinterpret_cast<__m256i*  __restrict>(pOutImage);
 
 		/* process left frame edge in first line */
@@ -271,10 +272,10 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 	/* PROCESS LINES IN FRAME FROM 1 to SIZEY-1 */
 	for (j = 1; j < shortSizeY; j++)
 	{
-		uint32_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * linePitch);
-		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + j       * linePitch);
-		uint32_t* __restrict pSrcVecNextLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j + 1) * linePitch);
-		__m256i*  __restrict pSrcVecDstLine  = reinterpret_cast<__m256i*  __restrict>(pOutImage + j       * linePitch);
+		uint32_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
+		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + j       * srcLinePitch);
+		uint32_t* __restrict pSrcVecNextLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j + 1) * srcLinePitch);
+		__m256i*  __restrict pSrcVecDstLine  = reinterpret_cast<__m256i*  __restrict>(pOutImage + j       * dstLinePitch);
 
 		/* load first vectors from previous, current and next line */
 		/* process left frame edge in first line */
@@ -321,9 +322,9 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 
 	/* PROCESS LAST FRAME LINE */
 	{
-		uint32_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * linePitch);
-		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + j       * linePitch);
-		 __m256i* __restrict pSrcVecDstLine  = reinterpret_cast <__m256i* __restrict>(pOutImage + j       * linePitch);
+		uint32_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
+		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + j       * srcLinePitch);
+		 __m256i* __restrict pSrcVecDstLine  = reinterpret_cast <__m256i* __restrict>(pOutImage + j       * dstLinePitch);
 
 		/* process left frame edge in last line */
 		const __m256i srcOrigLeft = LoadLastLineWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, vecData);

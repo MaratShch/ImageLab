@@ -1,5 +1,5 @@
 #include "MedianFilter.hpp"
-
+#include "MedianFilterAvx2.hpp"
 
 PF_Err MeadianFilterInAE_8bits
 (
@@ -9,7 +9,48 @@ PF_Err MeadianFilterInAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
+	const PF_EffectWorld*   __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
+	uint32_t* __restrict localSrc = reinterpret_cast<uint32_t* __restrict>(input->data);
+	uint32_t* __restrict localDst = reinterpret_cast<uint32_t* __restrict>(output->data);
+
+	auto const& src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const& dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+	auto const& height = output->height;
+	auto const& width  = output->width;
+	auto const kernelSize = get_kernel_size(params);
 	PF_Err err = PF_Err_NONE;
+
+	switch (kernelSize)
+	{
+		case 3:
+		/* manually optimized variant 3x3 */
+			median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+		break;
+
+		case 5:
+		/* manually optimized variant 5x5 */
+			median_filter_5x5_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+		break;
+
+		case 7:
+		/* manually optimized variant 7x7 */
+			median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+		break;
+
+		case 9:
+		/* manually optimized variant 9x9  */
+		//			true == procLumaOnly ?
+		//				median_filter_7x7_BGRA_4444_uint_luma_only (localSrc, localDst, height, width, line_pitch) :
+		//				median_filter_7x7_BGRA_4444_uint (localSrc, localDst, height, width, line_pitch);
+		break;
+
+	default:
+		/* median via histogramm algo */
+		break;
+
+	}
+
 	return err;
 }
 
