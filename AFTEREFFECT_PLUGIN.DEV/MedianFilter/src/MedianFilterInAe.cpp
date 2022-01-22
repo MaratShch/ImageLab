@@ -20,38 +20,37 @@ PF_Err MeadianFilterInAE_8bits
 	auto const& width  = output->width;
 	auto const kernelSize = get_kernel_size(params);
 	PF_Err err = PF_Err_NONE;
+	bool medianResult = false;
 
 	switch (kernelSize)
 	{
+		case 0:
+			AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->copy(in_data->effect_ref, &params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+			medianResult = true;
+		break;
+
 		case 3:
 		/* manually optimized variant 3x3 */
-			median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+			medianResult = median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
 		break;
 
 		case 5:
 		/* manually optimized variant 5x5 */
-			median_filter_5x5_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+			medianResult = median_filter_5x5_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
 		break;
 
 		case 7:
 		/* manually optimized variant 7x7 */
-			median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+			medianResult = median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
 		break;
 
-		case 9:
-		/* manually optimized variant 9x9  */
-		//			true == procLumaOnly ?
-		//				median_filter_7x7_BGRA_4444_uint_luma_only (localSrc, localDst, height, width, line_pitch) :
-		//				median_filter_7x7_BGRA_4444_uint (localSrc, localDst, height, width, line_pitch);
-		break;
-
-	default:
+		default:
 		/* median via histogramm algo */
 		break;
 
 	}
 
-	return err;
+	return (true == medianResult ? PF_Err_NONE  : PF_Err_INTERNAL_STRUCT_DAMAGED);
 }
 
 

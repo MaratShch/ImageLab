@@ -78,6 +78,9 @@
     <ClInclude Include="src\Avx2Median\Avx2MedianScalar.hpp">
       <Filter>src\Avx2Median</Filter>
     </ClInclude>
+    <ClInclude Include="include\Avx2BitonicSort.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp">

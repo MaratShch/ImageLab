@@ -1,7 +1,7 @@
 #pragma once
 
 #include <climits>
-#include <immintrin.h>
+#include "Avx2BitonicSort.hpp"
 #include "Avx2Log.hpp"
 #include "Common.hpp"
 #include "CommonPixFormat.hpp"

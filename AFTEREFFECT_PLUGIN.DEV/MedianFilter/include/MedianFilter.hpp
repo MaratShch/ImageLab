@@ -15,7 +15,7 @@ constexpr int MedianFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
 constexpr int MedianFilter_VersionBuild = 1;
 
-constexpr int32_t filter_radiusMin = 1;
+constexpr int32_t filter_radiusMin = 0;
 constexpr int32_t filter_radiusMax = 30;
 constexpr int32_t filter_radiusDef = filter_radiusMin;
 
@@ -23,7 +23,7 @@ constexpr char strSliderName[] = "Filter radius";
 
 inline constexpr int32_t make_kernel_size (const int32_t& kernel_radius) noexcept
 {
-	return kernel_radius * 2 + 1;
+	return ((0 != kernel_radius) ? kernel_radius * 2 + 1 : 0);
 }
 
 inline const int32_t get_kernel_size (PF_ParamDef* __restrict params[]) noexcept

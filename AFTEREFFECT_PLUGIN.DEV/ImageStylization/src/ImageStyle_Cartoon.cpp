@@ -33,8 +33,8 @@ inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& 
 	const float GminusI = G - I;
 	const float BminusI = B - I;
 
-//	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
-	S = sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+//	S = sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
 
 	if (fabs(S) > denom)
 	{
@@ -44,8 +44,8 @@ inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& 
 		if (FabsH > 1.f)
 			cosH /= FabsH;
 
-//		float h = (FastCompute::Acos(cosH)) * OneRadian;
-		float h = acos(cosH) * OneRadian;
+		float h = (FastCompute::Acos(cosH)) * OneRadian;
+//		float h = acos(cosH) * OneRadian;
 
 		float proj2 = -2.f * RminusI + GminusI + BminusI;
 		
@@ -165,11 +165,11 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 
 		if (true == isGray)
 		{
-			ftcSeg = std::move(ftc_utils_segmentation(histI, nBinsI, epsilon, isGray));
+			ftcSeg = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
 		}
 		else
 		{
-			ftcSeg = std::move(ftc_utils_segmentation(histH, nBinsH, epsilon, isGray));
+			ftcSeg = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
 //			hSegments = std::move(compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, epsilon));
 		}
 

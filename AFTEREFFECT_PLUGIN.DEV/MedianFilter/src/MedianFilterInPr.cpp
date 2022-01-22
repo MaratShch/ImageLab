@@ -21,31 +21,28 @@ PF_Err MedianFilter_BGRA_4444_8u
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
 	auto const kernelSize   = get_kernel_size(params);
-
-	bool avx2ProcReturn = false;
+	bool medianResult = false;
 
 	switch (kernelSize)
 	{
+		case 0:
+			/* median filter disabled - just copy from source to destination */
+			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+		break;
+
 		case 3:
 			/* manually optimized variant 3x3 */
-				median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
-			break;
+			medianResult = median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
+		break;
 
 		case 5:
 			/* manually optimized variant 5x5 */
-				median_filter_5x5_BGRA_4444_8u(localSrc, localDst, height, width, line_pitch, line_pitch);
+			medianResult = median_filter_5x5_BGRA_4444_8u(localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		case 7:
 			/* manually optimized variant 7x7 */
-				median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
-		break;
-
-		case 9:
-			/* manually optimized variant 9x9  */
-			//			true == procLumaOnly ?
-			//				median_filter_7x7_BGRA_4444_uint_luma_only (localSrc, localDst, height, width, line_pitch) :
-			//				median_filter_7x7_BGRA_4444_uint (localSrc, localDst, height, width, line_pitch);
+			medianResult = median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		default:
@@ -77,7 +74,12 @@ PF_Err MedianFilter_BGRA_4444_16u
 
 	switch (kernelSize)
 	{
-		case 3:
+		case 0:
+			/* median filter disabled - just copy from source to destination */
+			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+		break;
+	
+	    case 3:
 		/* manually optimized variant 3x3 */
 		break;
 
@@ -121,6 +123,11 @@ PF_Err MedianFilter_BGRA_4444_32f
 
 	switch (kernelSize)
 	{
+		case 0:
+			/* median filter disabled - just copy from source to destination */
+			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+		break;
+		
 		case 3:
 		/* manually optimized variant 3x3 */
 		break;

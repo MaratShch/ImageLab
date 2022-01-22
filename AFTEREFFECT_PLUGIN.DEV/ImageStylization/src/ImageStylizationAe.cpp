@@ -46,12 +46,7 @@ PF_Err ImageStyleInAE_8bits
 
 		case eSTYLE_NONE:
 		default:
-		{
-			AEFX_SuiteScoper<PF_WorldTransformSuite1> worldTransformSuite =
-				AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data);
-
-			err = worldTransformSuite->copy (in_data->effect_ref, &params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);
-		}
+			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->copy(in_data->effect_ref, &params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);
 		break;
 
 	}
@@ -104,12 +99,7 @@ PF_Err ImageStyleInAE_16bits
 
 		case eSTYLE_NONE:
 		default:
-		{
-			AEFX_SuiteScoper<PF_WorldTransformSuite1> worldTransformSuite =
-				AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data);
-
-			err = worldTransformSuite->copy_hq (in_data->effect_ref, &params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);
-		}
+			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->copy_hq(in_data->effect_ref, &params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);
 		break;
 
 	}

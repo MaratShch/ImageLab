@@ -219,7 +219,7 @@ bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
 #ifdef _DEBUG
 	__m256i vecData[9]{};
 #else
-	__m256i vecData[9];
+	CACHE_ALIGN __m256i vecData[9];
 #endif
 
 	/* PROCESS FIRST LINE IN FRAME */
