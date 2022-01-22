@@ -24,4 +24,14 @@
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="ColorBandSelect.r">
+      <Filter>resource</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ColorBandSelect.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
 </Project>
