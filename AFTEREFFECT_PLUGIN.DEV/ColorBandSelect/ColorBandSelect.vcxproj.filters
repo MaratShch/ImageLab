@@ -18,9 +18,18 @@
     <ClCompile Include="src\ColorBandSelect.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ColorBandSelectAe.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorBandSelectPr.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ColorBandSelect.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorBandSelectEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

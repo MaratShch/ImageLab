@@ -63,6 +63,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorBandSelect", "ColorBan
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ColorBandSelect", "ColorBandSelect", "{3D760503-F2C5-4418-9C91-679C4187065B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Morphology", "Morphology", "{C114D123-233D-4B91-BB41-88363C03D190}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

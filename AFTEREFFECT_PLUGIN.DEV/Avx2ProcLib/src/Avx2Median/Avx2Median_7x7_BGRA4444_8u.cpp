@@ -1383,7 +1383,42 @@ inline void PartialSort_42_elem_8u (__m256i a[42]) noexcept
 	/* 21 x 2 */
 	FullSort_21_elem_8u (a);
 	FullSort_21_elem_8u (a + 21);
+
 	/* merge sort */
+	VectorSort8uPacked (a[0 ], a[41]);
+	VectorSort8uPacked (a[1 ], a[40]);
+	VectorSort8uPacked (a[2 ], a[39]);
+	VectorSort8uPacked (a[3 ], a[38]);
+	VectorSort8uPacked (a[4 ], a[37]);
+	VectorSort8uPacked (a[5 ], a[36]);
+	VectorSort8uPacked (a[6 ], a[35]);
+	VectorSort8uPacked (a[7 ], a[34]);
+	VectorSort8uPacked (a[8 ], a[33]);
+	VectorSort8uPacked (a[9 ], a[32]);
+	VectorSort8uPacked (a[10], a[31]);
+	VectorSort8uPacked (a[11], a[30]);
+	VectorSort8uPacked (a[12], a[29]);
+	VectorSort8uPacked (a[13], a[28]);
+	VectorSort8uPacked (a[14], a[27]);
+	VectorSort8uPacked (a[15], a[26]);
+	VectorSort8uPacked (a[16], a[25]);
+	VectorSort8uPacked (a[17], a[24]);
+	VectorSort8uPacked (a[18], a[23]);
+	VectorSort8uPacked (a[19], a[22]);
+	VectorSort8uPacked (a[20], a[21]);
+	VectorSort8uPacked (a[10], a[15]);
+	VectorSort8uPacked (a[11], a[16]);
+	VectorSort8uPacked (a[12], a[17]);
+	VectorSort8uPacked (a[13], a[18]);
+	VectorSort8uPacked (a[14], a[19]);
+	VectorSort8uPacked (a[15], a[20]);
+	VectorSort8uPacked (a[16], a[21]);
+	VectorSort8uPacked (a[13], a[19]);
+	VectorSort8uPacked (a[14], a[20]);
+	VectorSort8uPacked (a[15], a[21]);
+	VectorSort8uPacked (a[19], a[20]);
+	VectorSort8uPacked (a[19], a[21]);
+	VectorSort8uPacked (a[20], a[21]);
 }
 
 inline void PartialSort_49_elem_8u (__m256i a[49]) noexcept
@@ -1393,29 +1428,31 @@ inline void PartialSort_49_elem_8u (__m256i a[49]) noexcept
 	FullSort_24_elem_8u (a + 24);
 
 	/* merge sort */
-	VectorSort8uPacked (a[0 ], a[47]);
-	VectorSort8uPacked (a[1 ], a[46]);
-	VectorSort8uPacked (a[2 ], a[45]);
-	VectorSort8uPacked (a[3 ], a[44]);
-	VectorSort8uPacked (a[4 ], a[43]);
-	VectorSort8uPacked (a[5 ], a[42]);
-	VectorSort8uPacked (a[6 ], a[41]);
-	VectorSort8uPacked (a[7 ], a[40]);
-	VectorSort8uPacked (a[8 ], a[39]);
-	VectorSort8uPacked (a[9 ], a[38]);
-	VectorSort8uPacked (a[10], a[37]);
-	VectorSort8uPacked (a[11], a[36]);
-	VectorSort8uPacked (a[12], a[35]);
-	VectorSort8uPacked (a[13], a[34]);
-	VectorSort8uPacked (a[14], a[33]);
-	VectorSort8uPacked (a[15], a[32]);
-	VectorSort8uPacked (a[16], a[31]);
-	VectorSort8uPacked (a[17], a[30]);
-	VectorSort8uPacked (a[18], a[29]);
-	VectorSort8uPacked (a[19], a[28]);
-	VectorSort8uPacked (a[20], a[27]);
-	VectorSort8uPacked (a[21], a[26]);
-	VectorSort8uPacked (a[22], a[25]);
+	VectorSort8uPacked (a[0 ], a[48]);
+	VectorSort8uPacked (a[1 ], a[47]);
+	VectorSort8uPacked (a[2 ], a[46]);
+	VectorSort8uPacked (a[3 ], a[45]);
+	VectorSort8uPacked (a[4 ], a[44]);
+	VectorSort8uPacked (a[5 ], a[43]);
+	VectorSort8uPacked (a[6 ], a[42]);
+	VectorSort8uPacked (a[7 ], a[41]);
+	VectorSort8uPacked (a[8 ], a[40]);
+	VectorSort8uPacked (a[9 ], a[39]);
+	VectorSort8uPacked (a[10], a[38]);
+	VectorSort8uPacked (a[11], a[37]);
+	VectorSort8uPacked (a[12], a[36]);
+	VectorSort8uPacked (a[13], a[35]);
+	VectorSort8uPacked (a[14], a[34]);
+	VectorSort8uPacked (a[15], a[33]);
+	VectorSort8uPacked (a[16], a[32]);
+	VectorSort8uPacked (a[17], a[31]);
+	VectorSort8uPacked (a[18], a[30]);
+	VectorSort8uPacked (a[19], a[29]);
+	VectorSort8uPacked (a[20], a[28]);
+	VectorSort8uPacked (a[21], a[27]);
+	VectorSort8uPacked (a[22], a[26]);
+	VectorSort8uPacked (a[23], a[25]);
+	VectorSort8uPacked (a[24], a[25]);
 	VectorSort8uPacked (a[23], a[24]);
 	VectorSort8uPacked (a[0],  a[12]);
 	VectorSort8uPacked (a[1],  a[13]);
@@ -1429,7 +1466,24 @@ inline void PartialSort_49_elem_8u (__m256i a[49]) noexcept
 	VectorSort8uPacked (a[9],  a[21]);
 	VectorSort8uPacked (a[10], a[22]);
 	VectorSort8uPacked (a[11], a[23]);
-
+	VectorSort8uPacked (a[12], a[24]);
+	VectorSort8uPacked (a[13], a[19]);
+	VectorSort8uPacked (a[14], a[20]);
+	VectorSort8uPacked (a[15], a[21]);
+	VectorSort8uPacked (a[16], a[22]);
+	VectorSort8uPacked (a[17], a[23]);
+	VectorSort8uPacked (a[18], a[24]);
+	VectorSort8uPacked (a[16], a[21]);
+	VectorSort8uPacked (a[17], a[22]);
+	VectorSort8uPacked (a[18], a[23]);
+	VectorSort8uPacked (a[19], a[24]);
+	VectorSort8uPacked (a[17], a[21]);
+	VectorSort8uPacked (a[18], a[22]);
+	VectorSort8uPacked (a[19], a[23]);
+	VectorSort8uPacked (a[20], a[24]);
+	VectorSort8uPacked (a[21], a[23]);
+	VectorSort8uPacked (a[22], a[24]);
+	VectorSort8uPacked (a[23], a[24]);
 }
 
 /*
@@ -1578,8 +1632,8 @@ bool AVX2::Median::median_filter_7x7_BGRA_4444_8u
 
 		/* process pixel 0 */
 		const __m256i pix0 = load_line1_pixel0 (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine1, pSrcVecNextLine2, pSrcVecNextLine3, vecData);
-		PartialSort_16_elem_8u(vecData);
-		StoreByMask8u(pSrcVecDstLine, pix0, vecData[7], rgbMaskVector);
+		PartialSort_20_elem_8u(vecData);
+		StoreByMask8u(pSrcVecDstLine, pix0, vecData[9], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process pixel 1 */
@@ -1589,8 +1643,8 @@ bool AVX2::Median::median_filter_7x7_BGRA_4444_8u
 			                                    pSrcVecNextLine2 + pixelsInVector,
 			                                    pSrcVecNextLine3 + pixelsInVector,
 			                                    vecData);
-		PartialSort_20_elem_8u(vecData);
-		StoreByMask8u(pSrcVecDstLine, pix1, vecData[9], rgbMaskVector);
+		PartialSort_25_elem_8u(vecData);
+		StoreByMask8u(pSrcVecDstLine, pix1, vecData[12], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process pixel 2 */

@@ -128,9 +128,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorBandSelect.cpp" />
+    <ClCompile Include="src\ColorBandSelectAe.cpp" />
+    <ClCompile Include="src\ColorBandSelectPr.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ColorBandSelect.hpp" />
+    <ClInclude Include="include\ColorBandSelectEnums.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ColorBandSelect.r">

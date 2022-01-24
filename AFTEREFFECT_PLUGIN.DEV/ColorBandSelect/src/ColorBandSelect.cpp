@@ -1,5 +1,6 @@
 #include "ColorBandSelect.hpp"
 #include "PrSDKAESupport.h"
+#include "ColorBandSelectEnums.hpp"
 
 static PF_Err
 About(
@@ -29,15 +30,15 @@ GlobalSetup(
 	PF_Err	err = PF_Err_NONE;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
+		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
@@ -82,7 +83,7 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	out_data->num_params = 1;
+	out_data->num_params = COLOR_BAND_TOTAL_PARAMS;
 	return PF_Err_NONE;
 }
 
@@ -103,21 +104,9 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
-
-	const A_long linesL = output->extent_hint.bottom - output->extent_hint.top;
-
-	/* Do high-bit depth rendering in Premiere Pro */
-	if (PremierId == in_data->appl_id)
-	{
-	} /* if (PremierId == in_data->appl_id) */
-	else
-	{
-	}
-
-	return err;
+	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
+
 
 
 static PF_Err

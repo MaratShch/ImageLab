@@ -23,7 +23,7 @@ constexpr char strSliderName[] = "Filter radius";
 
 inline constexpr int32_t make_kernel_size (const int32_t& kernel_radius) noexcept
 {
-	return ((0 != kernel_radius) ? kernel_radius * 2 + 1 : 0);
+	return ((0 != kernel_radius) ? (kernel_radius * 2 + 1) : 0);
 }
 
 inline const int32_t get_kernel_size (PF_ParamDef* __restrict params[]) noexcept

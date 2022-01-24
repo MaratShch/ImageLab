@@ -20,7 +20,7 @@ PF_Err MedianFilter_BGRA_4444_8u
 	auto const width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-	auto const kernelSize   = get_kernel_size(params);
+	auto const kernelSize = get_kernel_size(params);
 	bool medianResult = false;
 
 	switch (kernelSize)
@@ -28,6 +28,7 @@ PF_Err MedianFilter_BGRA_4444_8u
 		case 0:
 			/* median filter disabled - just copy from source to destination */
 			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+			medianResult = true;
 		break;
 
 		case 3:
@@ -50,8 +51,7 @@ PF_Err MedianFilter_BGRA_4444_8u
 		break;
 	}
 
-
-	return PF_Err_NONE;
+	return (true == medianResult ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 }
 
 
@@ -162,18 +162,10 @@ PF_Err ProcessImgInPR
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
-
-	/* This plugin called frop PR - check video fomat */
-	AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-		AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-			in_data,
-			kPFPixelFormatSuite,
-			kPFPixelFormatSuiteVersion1,
-			out_data);
-
 	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+
+	/* This plugin called from PR - check video fomat */
+	if (PF_Err_NONE == AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data)->GetPixelFormat(output, &destinationPixelFormat))
 	{
 		switch (destinationPixelFormat)
 		{
