@@ -101,6 +101,7 @@
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -128,10 +129,11 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <ExceptionHandling>false</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <FloatingPointModel>Fast</FloatingPointModel>
+      <FloatingPointModel>
+      </FloatingPointModel>
       <FloatingPointExceptions>false</FloatingPointExceptions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
