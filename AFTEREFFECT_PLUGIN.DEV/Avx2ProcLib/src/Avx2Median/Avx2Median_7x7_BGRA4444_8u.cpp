@@ -1444,7 +1444,7 @@ inline void PartialSort_35_elem_8u (__m256i a[35]) noexcept
 	/* 17 + 18 */
 	FullSort_17_elem_8u (a);
 	FullSort_18_elem_8u (a + 17);
-#if 0
+
 	/* merge sort 17 + 18 */
 	VectorSort8uPacked (a[0 ], a[34]);
 	VectorSort8uPacked (a[1 ], a[33]);
@@ -1464,15 +1464,26 @@ inline void PartialSort_35_elem_8u (__m256i a[35]) noexcept
 	VectorSort8uPacked (a[15], a[19]);
 	VectorSort8uPacked (a[16], a[18]);
 	VectorSort8uPacked (a[17], a[18]);
-	VectorSort8uPacked (a[9 ], a[13]);
+	VectorSort8uPacked (a[0 ], a[8 ]);
+	VectorSort8uPacked (a[1 ], a[9 ]);
+	VectorSort8uPacked (a[2 ], a[10]);
+	VectorSort8uPacked (a[3 ], a[11]);
+	VectorSort8uPacked (a[4 ], a[12]);
+	VectorSort8uPacked (a[5 ], a[13]);
+	VectorSort8uPacked (a[6 ], a[14]);
+	VectorSort8uPacked (a[7 ], a[15]);
+	VectorSort8uPacked (a[8 ], a[16]);
+	VectorSort8uPacked (a[9 ], a[17]);
+	VectorSort8uPacked (a[10], a[18]);
 	VectorSort8uPacked (a[10], a[14]);
 	VectorSort8uPacked (a[11], a[15]);
 	VectorSort8uPacked (a[12], a[16]);
 	VectorSort8uPacked (a[13], a[17]);
-	VectorSort8uPacked (a[14], a[16]);
-	VectorSort8uPacked (a[15], a[17]);
+	VectorSort8uPacked (a[14], a[18]);
+	VectorSort8uPacked (a[14], a[15]);
 	VectorSort8uPacked (a[16], a[17]);
-#endif
+	VectorSort8uPacked (a[14], a[16]);
+	VectorSort8uPacked (a[16], a[17]);
 }
 
 inline void PartialSort_36_elem_8u (__m256i a[36]) noexcept
