@@ -5,9 +5,6 @@
 
 inline void setGlassySlider(PF_InData *in_data, PF_OutData *out_data, PF_ParamDef *params[], const bool& bEnable)
 {
-	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 =
-		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
-
 	if (false == bEnable)
 	{
 		strncpy_s(params[IMAGE_STYLE_SLIDER1]->name, StyleSlider1[0], PF_MAX_EFFECT_PARAM_NAME_LEN);
@@ -20,7 +17,8 @@ inline void setGlassySlider(PF_InData *in_data, PF_OutData *out_data, PF_ParamDe
 
 	}
 
-	paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_STYLE_SLIDER1, params[IMAGE_STYLE_SLIDER1]);
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)->
+		PF_UpdateParamUI(in_data->effect_ref, IMAGE_STYLE_SLIDER1, params[IMAGE_STYLE_SLIDER1]);
 
 	return;
 }

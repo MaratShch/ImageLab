@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{2746D009-7346-48FD-9616-2B01CCDFC7C8}</ProjectGuid>
-    <RootNamespace>MedianFilter</RootNamespace>
+    <ProjectGuid>{2F0EBC2E-7D2A-454C-9B05-DD5DAB3AF21D}</ProjectGuid>
+    <RootNamespace>Morphology</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -41,14 +41,14 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
-    <CharacterSet>NotSet</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>NotSet</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -69,16 +69,16 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetExt>.aex</TargetExt>
     <ExtensionsToDeleteOnClean>*.aex;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
+    <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetExt>.aex</TargetExt>
     <ExtensionsToDeleteOnClean>*.aex;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
+    <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -93,7 +93,6 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\Avx2ProcLib\include;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
@@ -120,11 +119,11 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\Avx2ProcLib\include;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -132,29 +131,27 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
-    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
-    <ClInclude Include="..\Common\Common.hpp" />
-    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
-    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
-    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
-    <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
-    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
-    <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
-    <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\MedianFilter.hpp" />
-    <ClInclude Include="include\MedianFilterAvx2.hpp" />
-    <ClInclude Include="include\MedianFilterEnums.hpp" />
+    <ClCompile Include="src\Morphology.cpp" />
+    <ClCompile Include="src\MorphologyInAe.cpp" />
+    <ClCompile Include="src\MorphologyInPr.cpp" />
+    <ClCompile Include="src\SE_Interface.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\MedianFilterConstantTime.cpp" />
-    <ClCompile Include="src\MedianFilter.cpp" />
-    <ClCompile Include="src\MedianFilterAvx2.cpp" />
-    <ClCompile Include="src\MedianFilterInAe.cpp" />
-    <ClCompile Include="src\MedianFilterInPr.cpp" />
+    <ClInclude Include="include\Morphology.hpp" />
+    <ClInclude Include="include\MorphologyEnums.hpp" />
+    <ClInclude Include="include\MorphologyStrings.hpp" />
+    <ClInclude Include="include\SE_Interface.hpp" />
+    <ClInclude Include="include\SE_Square_3x3.hpp" />
+    <ClInclude Include="include\SE_Square_5x5.hpp" />
+    <ClInclude Include="include\SE_Square_7x7.hpp" />
+    <ClInclude Include="include\SE_Square_9x9.hpp" />
+    <ClInclude Include="include\SE_Vertical_3x3.hpp" />
+    <ClInclude Include="include\SE_Vertical_5x5.hpp" />
+    <ClInclude Include="include\SE_Vertical_7x7.hpp" />
+    <ClInclude Include="include\SE_Vertical_9x9.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="MedianFilter.r">
+    <CustomBuild Include="Morphology.r">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -175,7 +172,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="MedianFilter.rc" />
+    <ResourceCompile Include="Morphology.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

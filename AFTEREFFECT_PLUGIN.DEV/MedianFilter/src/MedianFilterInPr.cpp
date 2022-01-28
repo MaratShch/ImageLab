@@ -48,6 +48,7 @@ PF_Err MedianFilter_BGRA_4444_8u
 
 		default:
 			/* median via histogramm algo */
+			medianResult = median_filter_constant_time_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch, kernelSize);
 		break;
 	}
 

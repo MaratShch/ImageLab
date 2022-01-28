@@ -71,6 +71,9 @@
     <ClCompile Include="src\MedianFilterAvx2.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\MedianFilterConstantTime.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MedianFilter.rc">

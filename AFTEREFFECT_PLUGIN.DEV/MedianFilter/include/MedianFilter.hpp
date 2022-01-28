@@ -119,3 +119,13 @@ PF_Err MeadianFilterInAE_16bits
 	PF_LayerDef* output
 ) noexcept;
 
+bool median_filter_constant_time_BGRA_4444_8u
+(
+	uint32_t* __restrict pInImage,
+	uint32_t* __restrict pOutImage,
+	A_long sizeY,
+	A_long sizeX,
+	A_long srcLinePitch,
+	A_long dstLinePitch,
+	const A_long& kernelSize
+) noexcept;
