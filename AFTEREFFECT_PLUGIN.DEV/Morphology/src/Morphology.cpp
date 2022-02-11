@@ -2,7 +2,7 @@
 #include "PrSDKAESupport.h"
 #include "MorphologyEnums.hpp"
 #include "MorphologyStrings.hpp"
-#include "SE_Interface.hpp"
+#include "SequenceData.hpp"
 
 static PF_Err
 About (
@@ -32,10 +32,11 @@ GlobalSetup (
 	PF_Err	err = PF_Err_NONE;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT       |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT     |
-		PF_OutFlag_DEEP_COLOR_AWARE      |
+		PF_OutFlag_PIX_INDEPENDENT                |
+		PF_OutFlag_SEND_UPDATE_PARAMS_UI          |
+		PF_OutFlag_FORCE_RERENDER                 | 
+		PF_OutFlag_USE_OUTPUT_EXTENT              |
+		PF_OutFlag_DEEP_COLOR_AWARE               |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
@@ -102,7 +103,7 @@ ParamsSetup (
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
-	def.ui_flags = (ui_flags | PF_PUI_DISABLED);
+	def.ui_flags = (ui_flags | PF_PUI_INVISIBLE);
 	PF_ADD_POPUP(
 		MorphSeType,                /* pop-up name          */
 		SE_TYPE_TOTALS,             /* number of operations */
@@ -112,7 +113,7 @@ ParamsSetup (
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
-	def.ui_flags = (ui_flags | PF_PUI_DISABLED);
+	def.ui_flags = (ui_flags | PF_PUI_INVISIBLE);
 	PF_ADD_POPUP(
 		MorphSeSize,                /* pop-up name          */
 		SE_TYPE_TOTALS,             /* number of operations */
@@ -185,43 +186,66 @@ UserChangedParam (
 	const PF_UserChangedParamExtra	*which_hitP
 )
 {
+	PF_ParamDef* pMorphologyOperation = params[MORPHOLOGY_OPERATION_TYPE];
+	PF_ParamDef* pMorphologyTypeParam = params[MORPHOLOGY_ELEMENT_TYPE];
+	PF_ParamDef* pMorphologySizeParam = params[MORPHOLOGY_KERNEL_SIZE];
 	PF_Err err = PF_Err_NONE;
+	bool bActive = true;
 
 	switch (which_hitP->param_index)
 	{
 		case MORPHOLOGY_OPERATION_TYPE:
 		{
-			auto const& cType = params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value;
-			PF_ParamDef* pMorphologyTypeParam = params[MORPHOLOGY_ELEMENT_TYPE];
-			PF_ParamDef* pMorphologySizeParam = params[MORPHOLOGY_KERNEL_SIZE];
+			auto const& cType = pMorphologyOperation->u.pd.value;
 
 			if (SE_OP_NONE == static_cast<SeOperation const>(cType - 1))
 			{
-				pMorphologyTypeParam->ui_flags |= PF_PUI_DISABLED;
-				pMorphologySizeParam->ui_flags |= PF_PUI_DISABLED;
+				pMorphologyTypeParam->ui_flags |= PF_PUI_INVISIBLE;
+				pMorphologySizeParam->ui_flags |= PF_PUI_INVISIBLE;
+				bActive = false;
 			}
 			else
 			{
+				pMorphologyTypeParam->ui_flags &= ~PF_PUI_INVISIBLE;
+				pMorphologySizeParam->ui_flags &= ~PF_PUI_INVISIBLE;
 
-				pMorphologyTypeParam->ui_flags &= ~PF_PUI_DISABLED;
-				pMorphologySizeParam->ui_flags &= ~PF_PUI_DISABLED;
+				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
 
-				const SeType seElemType = static_cast<SeType>(pMorphologyTypeParam->u.pd.value - 1);
-				const SeSize seElemSize = static_cast<SeSize>(pMorphologySizeParam->u.pd.value - 1);
-				
-				reinterpret_cast<strSeData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data))->IstructElem = CreateSeInterface(seElemType, seElemSize);
-				reinterpret_cast<strSeData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data))->bValid = true;
 			}
-
-			AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)->
-				PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
-			AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)->
-				PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, pMorphologySizeParam);
+	
+			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
+			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE,  pMorphologySizeParam);
 		}
 		break;
 
+//		case MORPHOLOGY_ELEMENT_TYPE:
+//		{
+//			auto const& cType = params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value;
+//		}
+//		break;
+
+//		case MORPHOLOGY_KERNEL_SIZE:
+//		{
+//			auto const& cType = params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value;
+//		}
+//		break;
+
 		default:
 		break;
+	}
+
+	if (true == bActive)
+	{
+		bActive = false;
+		const SeType seElemType = static_cast<SeType>(pMorphologyTypeParam->u.pd.value - 1);
+		const SeSize seElemSize = static_cast<SeSize>(pMorphologySizeParam->u.pd.value - 1);
+
+		SE_Interface* pNewInterface = CreateSeInterface(seElemType, seElemSize);
+		uint64_t* seqData = reinterpret_cast<uint64_t*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
+
+		*seqData = DataStore::addObjPtr2Container (pNewInterface);
 	}
 
 	return err;
@@ -247,53 +271,66 @@ UpdateParameterUI (
 static PF_Err
 SequenceSetup (
 	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output
+	PF_OutData		*out_data	
 ) 
 {
-	strSeData* seqData = (nullptr != out_data->sequence_data ? reinterpret_cast<strSeData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)) : nullptr);
+	PF_Err err = PF_Err_NONE;
 
-	if (seqData != nullptr)
+	uint64_t** pSeqH = reinterpret_cast<uint64_t**>(PF_NEW_HANDLE(strSeDataSize));
+	if (nullptr != pSeqH)
 	{
-		if (nullptr != seqData->IstructElem)
-			delete(seqData->IstructElem);
-		PF_DISPOSE_HANDLE_EX(out_data->sequence_data);
+		**pSeqH = INVALID_INTERFACE;
+		uint64_t* pData = reinterpret_cast<uint64_t*>(PF_LOCK_HANDLE(pSeqH));
+		if (nullptr != pData)
+		{
+			in_data->sequence_data = out_data->sequence_data = reinterpret_cast<PF_Handle>(pSeqH);
+			PF_UNLOCK_HANDLE(pSeqH);
+		}
+	}
+	else
+	{
+		err = PF_Err_OUT_OF_MEMORY;
 	}
 
-	out_data->sequence_data = PF_NEW_HANDLE(strSeDataSize);
-	out_data->flat_sdata_size = strSeDataSize;
-
-	return (!out_data->sequence_data ? PF_Err_INTERNAL_STRUCT_DAMAGED : PF_Err_NONE);
+	return err;
 }
+
 
 static PF_Err
 SequenceReSetup (
 	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output
+	PF_OutData		*out_data
 )
 {
-	PF_Err err = PF_Err_NONE;
-	return err;
+	return SequenceSetup (in_data, out_data);
 }
 
 
 static PF_Err
 SequenceSetdown (
 	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output
+	PF_OutData		*out_data
 )
 {
-	if (nullptr != out_data->sequence_data)
+	if (nullptr != in_data->sequence_data)
 	{
-		strSeData* seqData = reinterpret_cast<strSeData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
-		if (nullptr != seqData)
-			delete(seqData->IstructElem);
-		PF_DISPOSE_HANDLE_EX(out_data->sequence_data);
+		uint64_t seIdx = INVALID_INTERFACE;
+		uint64_t* seqData = reinterpret_cast<uint64_t*>(GET_OBJ_FROM_HNDL(in_data->sequence_data));
+		if (INVALID_INTERFACE != (seIdx = *seqData))
+		{
+			/* delete object */
+			SE_Interface* pSe = DataStore::getObject(seIdx);
+			if (nullptr != pSe)
+			{
+				DataStore::disposeObjPtr(seIdx);
+				DeleteSeInterface(pSe);
+				pSe = nullptr;
+			}
+		}
+
+		PF_DISPOSE_HANDLE_EX(in_data->sequence_data);
+		seqData = nullptr;
+		in_data->sequence_data = out_data->sequence_data = nullptr;
 	}
 	return PF_Err_NONE;
 }
@@ -331,15 +368,15 @@ EffectMain (
 			break;
 
 			case PF_Cmd_SEQUENCE_SETUP:
-				ERR(SequenceSetup(in_data, out_data, params, output));
+				ERR(SequenceSetup(in_data, out_data));
 			break;
 
 //			case PF_Cmd_SEQUENCE_RESETUP:
-//				ERR(SequenceReSetup(in_data, out_data, params, output));
+//				ERR(SequenceReSetup(in_data, out_data));
 //			break;
 
 			case PF_Cmd_SEQUENCE_SETDOWN:
-				ERR(SequenceSetdown(in_data, out_data, params, output));
+				ERR(SequenceSetdown(in_data, out_data));
 			break;
 
 			case PF_Cmd_RENDER:

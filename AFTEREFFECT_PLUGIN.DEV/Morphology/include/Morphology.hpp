@@ -18,24 +18,7 @@ constexpr int MorphologyFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEA
 constexpr int MorphologyFilter_VersionBuild = 1;
 
 
-typedef struct strSeData
-{
-	uint32_t bValid;
-	SE_Interface* IstructElem;
-
-	strSeData::strSeData()
-	{
-		bValid = false;
-		IstructElem = nullptr;
-	}
-	strSeData::~strSeData()
-	{
-		delete IstructElem;
-		IstructElem = nullptr;
-		bValid = false;
-	}
-}strSeData;
-constexpr A_long strSeDataSize = static_cast<A_long>(sizeof(strSeData));
+constexpr A_long strSeDataSize = static_cast<A_long>(sizeof(std::uint64_t));
 
 
 PF_Err ProcessImgInPR

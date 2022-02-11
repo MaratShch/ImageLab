@@ -8,6 +8,9 @@
 #include "SE_Vertical_7x7.hpp"
 #include "SE_Vertical_9x9.hpp"
 
+#ifdef _DEBUG
+	static std::atomic<std::uint32_t> gInstanceCnt{};
+#endif
 
 SE_Interface* CreateSeInterface (const SeType& seType, const SeSize& seSize)
 {
@@ -62,7 +65,10 @@ SE_Interface* CreateSeInterface (const SeType& seType, const SeSize& seSize)
 		default:
 		break;
 	}
-
+#ifdef _DEBUG
+	if (nullptr != seInterface)
+		gInstanceCnt++;
+#endif
 	return seInterface;
 }
 
@@ -73,5 +79,9 @@ void DeleteSeInterface (SE_Interface* seInterafce)
 	{
 		delete seInterafce;
 		seInterafce = nullptr;
+#ifdef _DEBUG
+		gInstanceCnt--;
+#endif
 	}
+	return;
 }

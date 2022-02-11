@@ -27,6 +27,9 @@
     <ClCompile Include="src\SE_Interface.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\SequenceData.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Morphology.hpp">
@@ -63,6 +66,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\SE_Vertical_9x9.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SequenceData.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

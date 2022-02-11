@@ -2,8 +2,8 @@
 
 #include <cstdint>
 #include <array>
+#include <atomic>
 #include "MorphologyEnums.hpp"
-
 
 typedef	int32_t	SE_Type;
 
@@ -16,3 +16,5 @@ public:
 
 SE_Interface* CreateSeInterface(const SeType& seType, const SeSize& seSize);
 void DeleteSeInterface(SE_Interface* seInterafce);
+
+constexpr std::uint64_t INVALID_INTERFACE = 0xFFFFFFFFFFFFFFFFu;

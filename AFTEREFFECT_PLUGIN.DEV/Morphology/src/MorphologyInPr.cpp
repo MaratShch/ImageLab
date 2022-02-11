@@ -1,7 +1,7 @@
 #include "Morphology.hpp"
 #include "MorphologyEnums.hpp"
 #include "PrSDKAESupport.h"
-
+#include "SequenceData.hpp"
 
 
 PF_Err MorphologyFilter_BGRA_4444_8u
@@ -12,6 +12,22 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
+	std::uint64_t seIdx{ INVALID_INTERFACE };
+
+	/* get Structured Element Object */
+	const std::uint64_t* seData{ reinterpret_cast<uint64_t*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)) };
+	if (nullptr == seData)
+		return PF_Err_BAD_CALLBACK_PARAM;
+
+	if (INVALID_INTERFACE == (seIdx = *seData))
+		return PF_Err_BAD_CALLBACK_PARAM;
+
+	size_t sizeSe = 0;
+	SE_Interface* pSeElement = DataStore::getObject(seIdx);
+	const SE_Type* seElementVal = (nullptr != pSeElement ? pSeElement->GetStructuredElement(sizeSe) : nullptr);
+	if (nullptr == seElementVal)
+		return PF_Err_BAD_CALLBACK_PARAM;
+
 	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MORPHOLOGY_FILTER_INPUT]->u.ld);
 	PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
@@ -20,38 +36,48 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 	auto const width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-	/* get Structured Element Object */
-	const strSeData* seData = reinterpret_cast<strSeData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
-	const SE_Interface* Interace = seData->IstructElem;
-	const uint32_t& bValid = seData->bValid;
-    
-	size_t sizeSe = 0;
-	A_long i, j, k, l;
+	A_long i, j, k, l, m;
 
-	const SE_Type* seElement = Interace->GetStructuredElement(sizeSe);
 	const A_long seElementsNumber = static_cast<A_long>(sizeSe * sizeSe);
-	const A_long halfSeLine = static_cast<A_long>(sizeSe) / 2;
+	const A_long halfSeLine = static_cast<A_long>(sizeSe) >> 1;
 	const A_long shortHeight = height - halfSeLine;
 	const A_long shortWidth = width - halfSeLine;
 
 	for (j = halfSeLine; j < shortHeight; j++)
 	{
+		A_long jMin = j - halfSeLine;
+		A_long jMax = j + halfSeLine;
+
+		__VECTOR_ALIGNED__
 		for (i = halfSeLine; i < shortWidth; i++)
 		{
-			int32_t rMin = INT_MAX;
-			int32_t gMin = INT_MAX;
-			int32_t bMin = INT_MAX;
-			int32_t dstIdx = j * line_pitch + i;
+			A_long iMin = i - halfSeLine;
+			A_long iMax = i + halfSeLine;
 
-			for (k = j - halfSeLine; k < sizeSe; k++)
-				for (l = i - halfSeLine; l < sizeSe; l++)
+			A_u_char rMin{ UCHAR_MAX };
+			A_u_char gMin{ UCHAR_MAX };
+			A_u_char bMin{ UCHAR_MAX };
+			A_long dstIdx = j * line_pitch + i;
+
+			__VECTOR_ALIGNED__
+			for (m = 0, l = jMin; l <= jMax; l++) /* kernel rows */
+			{
+				A_long lineIdx = MIN(shortHeight, MAX(0, l));
+				A_long jIdx = lineIdx * line_pitch;
+
+				for (k = iMin; k <= iMax; k++) /* kernel line */
 				{
-					const PF_Pixel_BGRA_8u& pix = localSrc[k * line_pitch + l];
-					rMin = MIN(rMin, pix.R);
-					gMin = MIN(gMin, pix.G);
-					bMin = MIN(bMin, pix.B);
+					A_long iIdx = jIdx + MIN(shortWidth, MAX(0, k));
+					if (0 != seElementVal[m])
+					{
+						const PF_Pixel_BGRA_8u& pix = localSrc[iIdx];
+						rMin = MIN(rMin, pix.R);
+						gMin = MIN(gMin, pix.G);
+						bMin = MIN(bMin, pix.B);
+					}
+					m++;
 				}
-
+			}
 			localDst[dstIdx].B = bMin;
 			localDst[dstIdx].G = gMin;
 			localDst[dstIdx].R = rMin;
