@@ -25,6 +25,9 @@
     <Filter Include="src\Avx2Histogram">
       <UniqueIdentifier>{fe5c21ee-1c4a-473b-9395-501d03e97c95}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\Avx2Morphology">
+      <UniqueIdentifier>{79970614-878a-4ee4-ac9a-d1eece9d1632}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
@@ -81,6 +84,12 @@
     <ClInclude Include="include\Avx2BitonicSort.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\Avx2Morphology.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Avx2Array.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp">
@@ -97,6 +106,18 @@
     </ClCompile>
     <ClCompile Include="src\Avx2Median\Avx2Median_7x7_BGRA4444_8u.cpp">
       <Filter>src\Avx2Median</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2Morphology\Avx2Erode.cpp">
+      <Filter>src\Avx2Morphology</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2Morphology\Avx2Close.cpp">
+      <Filter>src\Avx2Morphology</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2Morphology\Avx2Dilate.cpp">
+      <Filter>src\Avx2Morphology</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2Morphology\Avx2Open.cpp">
+      <Filter>src\Avx2Morphology</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -154,8 +154,10 @@
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\Avx2Array.hpp" />
     <ClInclude Include="include\Avx2BitonicSort.hpp" />
     <ClInclude Include="include\Avx2ColorConvert.hpp" />
+    <ClInclude Include="include\Avx2Morphology.hpp" />
     <ClInclude Include="include\Avx2Histogram.hpp" />
     <ClInclude Include="include\Avx2Log.hpp" />
     <ClInclude Include="include\Avx2Median.hpp" />
@@ -169,6 +171,10 @@
     <ClCompile Include="src\Avx2Median\Avx2Median_3x3_BGRA4444_8u.cpp" />
     <ClCompile Include="src\Avx2Median\Avx2Median_5x5_BGRA4444_8u.cpp" />
     <ClCompile Include="src\Avx2Median\Avx2Median_7x7_BGRA4444_8u.cpp" />
+    <ClCompile Include="src\Avx2Morphology\Avx2Close.cpp" />
+    <ClCompile Include="src\Avx2Morphology\Avx2Dilate.cpp" />
+    <ClCompile Include="src\Avx2Morphology\Avx2Erode.cpp" />
+    <ClCompile Include="src\Avx2Morphology\Avx2Open.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

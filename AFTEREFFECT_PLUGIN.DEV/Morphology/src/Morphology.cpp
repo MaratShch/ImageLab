@@ -200,37 +200,25 @@ UserChangedParam (
 
 			if (SE_OP_NONE == static_cast<SeOperation const>(cType - 1))
 			{
-				pMorphologyTypeParam->ui_flags |= PF_PUI_INVISIBLE;
+//				pMorphologyTypeParam->ui_flags |= PF_PUI_INVISIBLE;
 				pMorphologySizeParam->ui_flags |= PF_PUI_INVISIBLE;
 				bActive = false;
 			}
 			else
 			{
-				pMorphologyTypeParam->ui_flags &= ~PF_PUI_INVISIBLE;
+//				pMorphologyTypeParam->ui_flags &= ~PF_PUI_INVISIBLE;
 				pMorphologySizeParam->ui_flags &= ~PF_PUI_INVISIBLE;
 
-				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+//				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
 				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
 
 			}
 	
 			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
-			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
+//			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
 			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE,  pMorphologySizeParam);
 		}
 		break;
-
-//		case MORPHOLOGY_ELEMENT_TYPE:
-//		{
-//			auto const& cType = params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value;
-//		}
-//		break;
-
-//		case MORPHOLOGY_KERNEL_SIZE:
-//		{
-//			auto const& cType = params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value;
-//		}
-//		break;
 
 		default:
 		break;
@@ -279,10 +267,10 @@ SequenceSetup (
 	uint64_t** pSeqH = reinterpret_cast<uint64_t**>(PF_NEW_HANDLE(strSeDataSize));
 	if (nullptr != pSeqH)
 	{
-		**pSeqH = INVALID_INTERFACE;
 		uint64_t* pData = reinterpret_cast<uint64_t*>(PF_LOCK_HANDLE(pSeqH));
 		if (nullptr != pData)
 		{
+			*pData = INVALID_INTERFACE;
 			in_data->sequence_data = out_data->sequence_data = reinterpret_cast<PF_Handle>(pSeqH);
 			PF_UNLOCK_HANDLE(pSeqH);
 		}

@@ -46,6 +46,7 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 
 	if (true == bMemSizeTest)
 	{
+		/* allow mutual access to temporary memory storage */
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
 		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
 		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
@@ -113,6 +114,7 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
 
 	if (true == bMemSizeTest)
 	{
+		/* allow mutual access to temporary memory storage */
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
 		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
 		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
@@ -181,6 +183,7 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 
 	if (true == bMemSizeTest)
 	{
+		/* allow mutual access to temporary memory storage */
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
 		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
 		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
@@ -251,6 +254,7 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
 
 	if (true == bMemSizeTest)
 	{
+		/* allow mutual access to temporary memory storage */
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
 		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
 		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
@@ -320,6 +324,7 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
 
 	if (true == bMemSizeTest)
 	{
+		/* allow mutual access to temporary memory storage */
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
 		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
 		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
@@ -451,6 +456,7 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_8u
 
 	if (true == bMemSizeTest)
 	{
+		/* allow mutual access to temporary memory storage */
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
 		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
 		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
@@ -521,6 +527,7 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 
 	if (true == bMemSizeTest)
 	{
+		/* allow mutual access to temporary memory storage */
 		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
 		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
 		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;

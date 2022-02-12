@@ -234,3 +234,68 @@ PF_Err AE_ImageStyle_PointillismArt_ARGB_16u
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
 ) noexcept;
+
+
+PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchCharcoal_VUYA_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchCharcoal_VUYA_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchCharcoal_BGRA_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchCharcoal_BGRA_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err PR_ImageStyle_SketchCharcoal
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_SketchCharcoal_ARGB_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;

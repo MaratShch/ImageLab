@@ -26,7 +26,7 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 	SE_Interface* pSeElement = DataStore::getObject(seIdx);
 	const SE_Type* seElementVal = (nullptr != pSeElement ? pSeElement->GetStructuredElement(sizeSe) : nullptr);
 	if (nullptr == seElementVal)
-		return PF_Err_BAD_CALLBACK_PARAM;
+		return PF_Err_NONE;
 
 	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MORPHOLOGY_FILTER_INPUT]->u.ld);
 	PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
@@ -36,7 +36,7 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 	auto const width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-	A_long i, j, k, l, m;
+	A_long i, j, k, l;
 
 	const A_long seElementsNumber = static_cast<A_long>(sizeSe * sizeSe);
 	const A_long halfSeLine = static_cast<A_long>(sizeSe) >> 1;
@@ -60,7 +60,7 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 			A_long dstIdx = j * line_pitch + i;
 
 			__VECTOR_ALIGNED__
-			for (m = 0, l = jMin; l <= jMax; l++) /* kernel rows */
+			for (l = jMin; l <= jMax; l++) /* kernel rows */
 			{
 				A_long lineIdx = MIN(shortHeight, MAX(0, l));
 				A_long jIdx = lineIdx * line_pitch;
@@ -68,14 +68,10 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 				for (k = iMin; k <= iMax; k++) /* kernel line */
 				{
 					A_long iIdx = jIdx + MIN(shortWidth, MAX(0, k));
-					if (0 != seElementVal[m])
-					{
-						const PF_Pixel_BGRA_8u& pix = localSrc[iIdx];
-						rMin = MIN(rMin, pix.R);
-						gMin = MIN(gMin, pix.G);
-						bMin = MIN(bMin, pix.B);
-					}
-					m++;
+					const PF_Pixel_BGRA_8u& pix = localSrc[iIdx];
+					rMin = MIN(rMin, pix.R);
+					gMin = MIN(gMin, pix.G);
+					bMin = MIN(bMin, pix.B);
 				}
 			}
 			localDst[dstIdx].B = bMin;

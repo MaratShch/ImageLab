@@ -11,7 +11,7 @@ PF_Err ProcessImgInPR
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	eSTYLIZATION const& lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
+	eSTYLIZATION const& lwbType{ static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1) };
 
 	switch (lwbType)
 	{
@@ -35,10 +35,11 @@ PF_Err ProcessImgInPR
 		break;
 		
 		case eSTYLE_SKETCH_PENCIL:
-			err = PR_ImageStyle_SketchPencil(in_data, out_data, params, output);
+			err = PR_ImageStyle_SketchPencil (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_SKETCH_CHARCOAL:
+			err = PR_ImageStyle_SketchCharcoal (in_data, out_data, params, output);
 		break;
 		
 		case eSTYLE_IMPRESSIONISM:

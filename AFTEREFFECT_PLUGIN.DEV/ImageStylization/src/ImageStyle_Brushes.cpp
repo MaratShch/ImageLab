@@ -61,7 +61,7 @@ CACHE_ALIGN static constexpr tPointilismBrush pointilismBrush4
 	{0.04862745f, 0.13176471f, 0.20235294f, 0.19764706f, 0.12862745f, 0.05176471f, 0.00941176f, 0.00000000f, 0.00000000f, 0.00000000f, 0.00000000f}
 };
 
-const tPointilismBrush& getPointilismBrush1(void) { return pointilismBrush1; }
-const tPointilismBrush& getPointilismBrush2(void) { return pointilismBrush2; }
-const tPointilismBrush& getPointilismBrush3(void) { return pointilismBrush3; }
-const tPointilismBrush& getPointilismBrush4(void) { return pointilismBrush4; }
+const tPointilismBrush& getPointilismBrush1(size_t& brushSize) { brushSize = 11; return pointilismBrush1; }
+const tPointilismBrush& getPointilismBrush2(size_t& brushSize) { brushSize = 11; return pointilismBrush2; }
+const tPointilismBrush& getPointilismBrush3(size_t& brushSize) { brushSize = 11; return pointilismBrush3; }
+const tPointilismBrush& getPointilismBrush4(size_t& brushSize) { brushSize = 11; return pointilismBrush4; }
