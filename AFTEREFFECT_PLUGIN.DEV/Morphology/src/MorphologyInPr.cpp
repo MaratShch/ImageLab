@@ -2,6 +2,7 @@
 #include "MorphologyEnums.hpp"
 #include "PrSDKAESupport.h"
 #include "SequenceData.hpp"
+#include "MorphologyProc.hpp"
 
 
 PF_Err MorphologyFilter_BGRA_4444_8u

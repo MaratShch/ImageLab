@@ -140,6 +140,7 @@
   <ItemGroup>
     <ClInclude Include="include\Morphology.hpp" />
     <ClInclude Include="include\MorphologyEnums.hpp" />
+    <ClInclude Include="include\MorphologyProc.hpp" />
     <ClInclude Include="include\MorphologyStrings.hpp" />
     <ClInclude Include="include\SequenceData.hpp" />
     <ClInclude Include="include\SE_Interface.hpp" />

@@ -71,6 +71,9 @@
     <ClInclude Include="include\SequenceData.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\MorphologyProc.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Morphology.rc">
