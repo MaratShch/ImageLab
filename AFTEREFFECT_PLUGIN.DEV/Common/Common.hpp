@@ -14,13 +14,19 @@
 
 #define CACHE_ALIGN __declspec(align(CACHE_LINE))
 
-#define AVX2_ALIGN __declspec(align(32))
+#define AVX2_ALIGN   __declspec(align(32))
 #define AVX512_ALIGN __declspec(align(64))
 
 #if defined __INTEL_COMPILER 
-#define __VECTOR_ALIGNED__ __pragma(vector aligned)
+#define __VECTOR_ALIGNED__ __pragma(vector always) \
+                           __pragma(vector aligned)
+#define __VECTORIZATION__ __pragma(vector always) \
+                          __pragma(vector unaligned)  
+#define __LOOP_UNROLL(min) __pragma(loop_count(min))
 #else
 #define __VECTOR_ALIGNED__
+#define __VECTORIZATION__
+#define __LOOP_UNROLL(min)
 #endif
 
 

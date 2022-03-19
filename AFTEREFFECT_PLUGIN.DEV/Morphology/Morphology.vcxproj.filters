@@ -30,6 +30,9 @@
     <ClCompile Include="src\SequenceData.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\MorphologyErode.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Morphology.hpp">
@@ -72,6 +75,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\MorphologyProc.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MorphologyProcCpu.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

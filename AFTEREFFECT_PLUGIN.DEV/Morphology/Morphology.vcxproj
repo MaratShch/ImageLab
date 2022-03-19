@@ -132,6 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Morphology.cpp" />
+    <ClCompile Include="src\MorphologyErode.cpp" />
     <ClCompile Include="src\MorphologyInAe.cpp" />
     <ClCompile Include="src\MorphologyInPr.cpp" />
     <ClCompile Include="src\SequenceData.cpp" />
@@ -141,6 +142,7 @@
     <ClInclude Include="include\Morphology.hpp" />
     <ClInclude Include="include\MorphologyEnums.hpp" />
     <ClInclude Include="include\MorphologyProc.hpp" />
+    <ClInclude Include="include\MorphologyProcCpu.hpp" />
     <ClInclude Include="include\MorphologyStrings.hpp" />
     <ClInclude Include="include\SequenceData.hpp" />
     <ClInclude Include="include\SE_Interface.hpp" />
