@@ -3,9 +3,101 @@
 #include "CommonPixFormat.hpp"
 #include "SE_Interface.hpp"
 
+/*
+template <typename T>
+T add(T x, T y)
+{
+	cout << "Normal template\n";
+	return x+y;
+}
+
+// specialized function
+template<>
+char add<char>(char x, char y)
+{
+	cout << "Specialized template\n";
+	int i = x-'0';
+	int j = y-'0';
+	return i+j;
+}
+*/
+
+template <typename T, typename U,
+typename std::enable_if_t<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
+inline T ImgErodeOnEdge
+(
+	const T* __restrict pImg,
+	const U& compareVal,
+	const int32_t& imgStride,
+	const SE_Type* __restrict pSe,
+	const int32_t& seSize,
+	const int32_t& numbLine,
+	const int32_t& numbPix,
+	const int32_t& sizeX,
+	const int32_t& sizeY
+) noexcept
+{
+	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
+	outPix.A = pImg[0].A;
+	return outPix;
+}
+
+
+template <typename T, typename U,
+typename std::enable_if_t<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
+inline T ImgErode
+(
+	const T* __restrict pImg,
+	const U& compareVal,
+	const int32_t& imgStride,
+	const SE_Type* __restrict pSe,
+	const int32_t& seSize
+) noexcept
+{
+	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
+	outPix.A = pImg[0].A;
+	return outPix;
+}
+
+
+template <typename T, typename U,
+typename std::enable_if_t<std::is_same<T, PF_Pixel_RGB_10u>::value, T>::type>
+inline T ImgErodeOnEdge
+(
+	const T* __restrict pImg,
+	const U& compareVal,
+	const int32_t& imgStride,
+	const SE_Type* __restrict pSe,
+	const int32_t& seSize,
+	const int32_t& numbLine,
+	const int32_t& numbPix,
+	const int32_t& sizeX,
+	const int32_t& sizeY
+) noexcept
+{
+	T outPix{ compareVal, compareVal, compareVal }; /* RGBA init */
+	return outPix;
+}
+
+
+template <typename T, typename U,
+typename std::enable_if_t<std::is_same<T, PF_Pixel_RGB_10u>::value, T>::type>
+inline T ImgErode
+(
+	const T* __restrict pImg,
+	const U& compareVal,
+	const int32_t& imgStride,
+	const SE_Type* __restrict pSe,
+	const int32_t& seSize
+) noexcept
+{
+	T outPix{ compareVal, compareVal, compareVal }; /* RGBA init */
+	return outPix;
+}
+
 
 template <typename T, typename U>
-inline T ImgErodeOnEdge 
+inline T ImgErodeOnEdge
 (
 	const T* __restrict pImg,
 	const U& compareVal, 
@@ -91,19 +183,28 @@ __LOOP_UNROLL(3)
 
 
 template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_VUYA_8u>::value || std::is_same<T, ::PF_Pixel_VUYA_32f>::value, T>::type>
-	inline T ImgErodeOnEdge
-	(
-		const T* __restrict pImg,
-		const U& compareVal,
-		const int32_t& imgStride,
-		const SE_Type* __restrict pSe,
-		const int32_t& seSize,
-		const int32_t& numbLine,
-		const int32_t& numbPix,
-		const int32_t& sizeX,
-		const int32_t& sizeY
-	) noexcept
+typename std::enable_if_t<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
+inline T ImgDilateOnEdge
+(
+	const T* __restrict pImg,
+	const U& compareVal,
+	const int32_t& imgStride,
+	const SE_Type* __restrict pSe,
+	const int32_t& seSize,
+	const int32_t& numbLine,
+	const int32_t& numbPix,
+	const int32_t& sizeX,
+	const int32_t& sizeY
+) noexcept
+{
+	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
+	outPix.A = pImg[0].A;
+	return outPix;
+}
+
+template <typename T, typename U,
+typename std::enable_if_t<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
+inline T ImgDilate(const T* pImg, const U& compareVal, const int32_t& imgStride, const SE_Type* pSe, const int32_t& seSize) noexcept
 {
 	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
 	outPix.A = pImg[0].A;
@@ -112,25 +213,8 @@ template <typename T, typename U,
 
 
 template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_VUYA_8u>::value || std::is_same<T, ::PF_Pixel_VUYA_32f>::value, T>::type>
-	inline T ImgErode
-	(
-		const T* __restrict pImg,
-		const U& compareVal,
-		const int32_t& imgStride,
-		const SE_Type* __restrict pSe,
-		const int32_t& seSize
-	) noexcept
-{
-	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
-	outPix.A = pImg[0].A;
-	return outPix;
-}
-
-
-template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_RGB_10u>::value, T>::type>
-inline T ImgErodeOnEdge
+typename std::enable_if_t<std::is_same<T, PF_Pixel_RGB_10u>::value, T>::type>
+inline T ImgDilateOnEdge
 (
 	const T* __restrict pImg,
 	const U& compareVal,
@@ -149,8 +233,8 @@ inline T ImgErodeOnEdge
 
 
 template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_RGB_10u>::value, T>::type>
-inline T ImgErode
+typename std::enable_if_t<std::is_same<T, PF_Pixel_RGB_10u>::value, T>::type>
+inline T ImgDilate
 (
 	const T* __restrict pImg,
 	const U& compareVal,
@@ -162,7 +246,6 @@ inline T ImgErode
 	T outPix{ compareVal, compareVal, compareVal }; /* RGBA init */
 	return outPix;
 }
-
 
 
 template <typename T, typename U>
@@ -245,73 +328,5 @@ inline T ImgDilate
 
 	/* copy alpha channel value from source buffer */
 	outPix.A = pImg[0].A;
-	return outPix;
-}
-
-
-
-
-template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_VUYA_8u>::value || std::is_same<T, ::PF_Pixel_VUYA_32f>::value, T>::type>
-inline T ImgDilateOnEdge
-(
-	const T* __restrict pImg,
-	const U& compareVal,
-	const int32_t& imgStride,
-	const SE_Type* __restrict pSe,
-	const int32_t& seSize,
-	const int32_t& numbLine,
-	const int32_t& numbPix,
-	const int32_t& sizeX,
-	const int32_t& sizeY
-) noexcept
-{
-	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
-	outPix.A = pImg[0].A;
-	return outPix;
-}
-
-template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_VUYA_8u>::value || std::is_same<T, ::PF_Pixel_VUYA_32f>::value, T>::type>
-inline T ImgDilate (const T* pImg, const U& compareVal, const int32_t& imgStride, const SE_Type* pSe, const int32_t& seSize) noexcept
-{
-	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
-	outPix.A = pImg[0].A;
-	return outPix;
-}
-
-
-template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_RGB_10u>::value, T>::type>
-inline T ImgDilateOnEdge
-(
-	const T* __restrict pImg,
-	const U& compareVal,
-	const int32_t& imgStride,
-	const SE_Type* __restrict pSe,
-	const int32_t& seSize,
-	const int32_t& numbLine,
-	const int32_t& numbPix,
-	const int32_t& sizeX,
-	const int32_t& sizeY
-) noexcept
-{
-	T outPix{ compareVal, compareVal, compareVal }; /* RGBA init */
-	return outPix;
-}
-
-
-template <typename T, typename U,
-	typename std::enable_if<std::is_same<T, ::PF_Pixel_RGB_10u>::value, T>::type>
-inline T ImgDilate
-(
-	const T* __restrict pImg,
-	const U& compareVal,
-	const int32_t& imgStride,
-	const SE_Type* __restrict pSe,
-	const int32_t& seSize
-) noexcept
-{
-	T outPix{ compareVal, compareVal, compareVal }; /* RGBA init */
 	return outPix;
 }
