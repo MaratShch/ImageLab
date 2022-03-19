@@ -276,7 +276,7 @@ PF_Err MorphologyFilter_VUYA_4444_8u
 	return PF_Err_NONE;
 }
 
-
+#if 0
 PF_Err MorphologyFilter_VUYA_4444_32f
 (
 	PF_InData*   __restrict in_data,
@@ -339,7 +339,7 @@ PF_Err MorphologyFilter_VUYA_4444_32f
 
 	return PF_Err_NONE;
 }
-
+#endif
 
 PF_Err ProcessImgInPR
 (
@@ -376,7 +376,7 @@ PF_Err ProcessImgInPR
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
-				err = MorphologyFilter_VUYA_4444_32f (in_data, out_data, params, output);
+//				err = MorphologyFilter_VUYA_4444_32f (in_data, out_data, params, output);
 			break;
 	
 			case PrPixelFormat_RGB_444_10u:

@@ -1,7 +1,7 @@
 #include "MorphologyProc.hpp"
 
-template <typename T, typename U,
-typename std::enable_if_t<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
+template <typename T, typename U>
+typename std::enable_if<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
 inline void Morphology_Erode
 (
 	const T*       __restrict pSrc,
@@ -70,8 +70,8 @@ inline void Morphology_Erode
 }
 
 
-template <typename T, typename U,
-typename std::enable_if_t<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
+template <typename T, typename U>
+typename std::enable_if<std::is_same<T, PF_Pixel_VUYA_8u>::value || std::is_same<T, PF_Pixel_VUYA_32f>::value, T>::type>
 inline void Morphology_Dilate
 (
 	const T*       __restrict pSrc,
