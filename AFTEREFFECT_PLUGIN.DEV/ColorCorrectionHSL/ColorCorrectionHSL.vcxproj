@@ -194,6 +194,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="include\ColorConverts.hpp" />

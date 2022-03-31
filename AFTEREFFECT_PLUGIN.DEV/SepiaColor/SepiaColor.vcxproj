@@ -148,10 +148,13 @@
     <ClCompile Include="src\SepiaColor_GPU.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />

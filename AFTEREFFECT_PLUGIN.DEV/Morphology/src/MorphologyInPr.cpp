@@ -50,31 +50,31 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 	switch (cType)
 	{
 		case SE_OP_EROSION:
-			Morphology_Erode (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Erode (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_DILATION:
-			Morphology_Dilate (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(0));
+			Morphology_Dilate (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(0u));
 		break;
 
 		case SE_OP_OPEN:
-			Morphology_Open  (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(0), static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Open  (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 		
 		case SE_OP_CLOSE:
-			Morphology_Close (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(0), static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Close (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 
 		case SE_OP_THIN:
-			Morphology_Thin (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Thin (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_THICK:
-			Morphology_Thick (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Thick (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 		
 		case SE_OP_GRADIENT:
-			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		default:
@@ -114,31 +114,31 @@ PF_Err MorphologyFilter_BGRA_4444_16u
 	switch (cType)
 	{
 		case SE_OP_EROSION:
-			Morphology_Erode(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint16_t>(SHRT_MAX));
+			Morphology_Erode(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX));
 		break;
 
 		case SE_OP_DILATION:
-			Morphology_Dilate(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint16_t>(0));
+			Morphology_Dilate(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(0u));
 		break;
 
 		case SE_OP_OPEN:
-			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint16_t>(0), static_cast<uint16_t>(SHRT_MAX));
+			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX), static_cast<uint16_t>(0u));
 		break;
 
 		case SE_OP_CLOSE:
-			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint16_t>(0), static_cast<uint16_t>(SHRT_MAX));
+			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX), static_cast<uint16_t>(0u));
 		break;
 
 		case SE_OP_THIN:
-			Morphology_Thin(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint16_t>(SHRT_MAX));
+			Morphology_Thin(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX));
 		break;
 
 		case SE_OP_THICK:
-			Morphology_Thick(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint16_t>(SHRT_MAX));
+			Morphology_Thick(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX));
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint16_t>(SHRT_MAX));
+			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX));
 		break;
 
 		default:
@@ -178,31 +178,31 @@ PF_Err MorphologyFilter_BGRA_4444_32f
 	switch (cType)
 	{
 		case SE_OP_EROSION:
-			Morphology_Erode(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Erode(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		case SE_OP_DILATION:
-			Morphology_Dilate(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 0.f);
+			Morphology_Dilate(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 0.f);
 		break;
 
 		case SE_OP_OPEN:
-			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 0.f, 1.f);
+			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f, 0.f);
 		break;
 
 		case SE_OP_CLOSE:
-			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 0.f, 1.f);
+			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f, 0.f);
 		break;
 
 		case SE_OP_THIN:
-			Morphology_Thin(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Thin(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		case SE_OP_THICK:
-			Morphology_Thick(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Thick(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		default:
@@ -212,7 +212,7 @@ PF_Err MorphologyFilter_BGRA_4444_32f
 	return PF_Err_NONE;
 }
 
-
+#if 0
 PF_Err MorphologyFilter_VUYA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -242,31 +242,31 @@ PF_Err MorphologyFilter_VUYA_4444_8u
 	switch (cType)
 	{
 		case SE_OP_EROSION:
-			Morphology_Erode (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Erode (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_DILATION:
-			Morphology_Dilate (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(0u));
+			Morphology_Dilate (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(0u));
 		break;
 
 		case SE_OP_OPEN:
-			Morphology_Open (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(0u), static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Open (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(0u), static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_CLOSE:
-			Morphology_Close (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(0u), static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Close (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(0u), static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_THIN:
-			Morphology_Thin (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Thin (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_THICK:
-			Morphology_Thick (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Thick (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		default:
@@ -276,7 +276,7 @@ PF_Err MorphologyFilter_VUYA_4444_8u
 	return PF_Err_NONE;
 }
 
-#if 0
+
 PF_Err MorphologyFilter_VUYA_4444_32f
 (
 	PF_InData*   __restrict in_data,
@@ -306,31 +306,31 @@ PF_Err MorphologyFilter_VUYA_4444_32f
 	switch (cType)
 	{
 		case SE_OP_EROSION:
-			Morphology_Erode(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Erode(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		case SE_OP_DILATION:
-			Morphology_Dilate(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 0.f);
+			Morphology_Dilate(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 0.f);
 		break;
 
 		case SE_OP_OPEN:
-			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 0.f, 1.f);
+			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 0.f, 1.f);
 		break;
 
 		case SE_OP_CLOSE:
-			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 0.f, 1.f);
+			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 0.f, 1.f);
 		break;
 
 		case SE_OP_THIN:
-			Morphology_Thin(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Thin(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		case SE_OP_THICK:
-			Morphology_Thick(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Thick(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, 1.f);
+			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
 		break;
 
 		default:
@@ -340,6 +340,7 @@ PF_Err MorphologyFilter_VUYA_4444_32f
 	return PF_Err_NONE;
 }
 #endif
+
 
 PF_Err ProcessImgInPR
 (
@@ -371,7 +372,7 @@ PF_Err ProcessImgInPR
 
 			case PrPixelFormat_VUYA_4444_8u:
 			case PrPixelFormat_VUYA_4444_8u_709:
-				err = MorphologyFilter_VUYA_4444_8u (in_data, out_data, params, output);
+//				err = MorphologyFilter_VUYA_4444_8u (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:

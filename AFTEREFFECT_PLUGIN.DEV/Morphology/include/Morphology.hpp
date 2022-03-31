@@ -18,8 +18,9 @@ constexpr int MorphologyFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEA
 constexpr int MorphologyFilter_VersionBuild = 1;
 
 
-constexpr A_long strSeDataSize = static_cast<A_long>(sizeof(std::uint64_t));
-
+constexpr A_long strSeDataSize{ static_cast<A_long>(sizeof(std::uint64_t)) };
+constexpr A_long maxSeLineSize{ 9 };
+constexpr A_long maxSeElemNumber{ maxSeLineSize * maxSeLineSize };
 
 PF_Err ProcessImgInPR
 (

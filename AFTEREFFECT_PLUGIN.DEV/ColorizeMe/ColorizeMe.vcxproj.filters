@@ -74,6 +74,9 @@
     <ClInclude Include="include\LutHelper.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ColorizeMe.r">

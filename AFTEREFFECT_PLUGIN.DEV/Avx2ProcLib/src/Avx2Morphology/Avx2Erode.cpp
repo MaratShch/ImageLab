@@ -1,6 +1,6 @@
 #include "Avx2Morphology.hpp"
 
-
+#if 0
 inline void AVX2::Morphology::Erode::Erode_line_8u
 (
 	const __m256i  src[9],	/* source pixels		*/
@@ -13,7 +13,7 @@ inline void AVX2::Morphology::Erode::Erode_line_8u
 }
 
 
-#if 0
+
 void AVX2::Morphology::Erode::Erode_3x3_8U
 (
 	uint32_t* __restrict pInImage,	/* input buffer						*/

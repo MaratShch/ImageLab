@@ -13,6 +13,9 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
+    <Filter Include="include_common">
+      <UniqueIdentifier>{44a2e68a-47fb-48b7-9222-9ddf93bba8bc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Morphology.cpp">
@@ -79,6 +82,39 @@
     </ClInclude>
     <ClInclude Include="include\MorphologyProcCpu.hpp">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ClassRestrictions.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Common.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmetics.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -87,3 +87,8 @@ constexpr A_u_short u16_value_black = 0u;
 constexpr A_u_short u16_value_white = 32767u;
 constexpr PF_FpShort f32_value_black = 0.f;
 constexpr PF_FpShort f32_value_white = 1.0f - FLT_EPSILON;
+
+#ifndef __NVCC__
+#include "CommonPixFormatSFINAE.hpp"
+#endif
+

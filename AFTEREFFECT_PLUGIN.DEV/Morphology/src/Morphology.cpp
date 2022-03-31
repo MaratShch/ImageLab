@@ -214,7 +214,8 @@ UserChangedParam (
 
 			}
 	
-			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite = 
+				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
 //			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
 			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE,  pMorphologySizeParam);
 		}

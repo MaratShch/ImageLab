@@ -71,6 +71,9 @@
     <ClInclude Include="include\AlgCommonFunctins.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AutomaticWhiteBalance.rc">

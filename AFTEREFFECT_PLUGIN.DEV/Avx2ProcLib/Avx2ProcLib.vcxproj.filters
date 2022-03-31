@@ -90,6 +90,9 @@
     <ClInclude Include="include\Avx2Array.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp">
