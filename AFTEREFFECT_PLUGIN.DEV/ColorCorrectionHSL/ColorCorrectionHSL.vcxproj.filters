@@ -98,6 +98,15 @@
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_comon</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorCorrectionHSL.rc">

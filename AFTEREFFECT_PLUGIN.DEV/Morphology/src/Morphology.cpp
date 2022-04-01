@@ -144,7 +144,7 @@ Render (
 {
 	PF_Err	err = PF_Err_NONE;
 
-	if (SE_OP_NONE == params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value - 1)
+	if (SE_OP_NONE == static_cast<SeOperation>(params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value - 1))
 	{
 		if (PremierId == in_data->appl_id)
 			err = PF_COPY(&params[MORPHOLOGY_FILTER_INPUT]->u.ld, output, NULL, NULL);

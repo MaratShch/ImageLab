@@ -4,9 +4,10 @@
 #include <cfloat>
 #include <mutex>
 #include "SE_Interface.hpp"
+#include "SequenceData.hpp"
 
-constexpr char strName[] = "Color Band Select";
-constexpr char strCopyright[] = "\n2019-2022. ImageLab2 Copyright(c).\rColor Band Select plugin.";
+constexpr char strName[] = "Morphology Filter";
+constexpr char strCopyright[] = "\n2019-2022. ImageLab2 Copyright(c).\rMorphology Filter plugin.";
 constexpr int MorphologyFilter_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int MorphologyFilter_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int MorphologyFilter_VersionSub   = 0;
@@ -38,3 +39,22 @@ ProcessImgInAE
 	PF_ParamDef*	params[],
 	PF_LayerDef*	output
 ) noexcept;
+
+
+
+inline const SE_Interface* getStructuredElemInterface(const PF_OutData* __restrict out_data) noexcept
+{
+	std::uint64_t seIdx{ INVALID_INTERFACE };
+
+	/* get Structured Element Object */
+	const std::uint64_t* seData{ reinterpret_cast<uint64_t*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)) };
+	if (nullptr == seData)
+		return nullptr;
+
+	if (INVALID_INTERFACE == (seIdx = *seData))
+		return nullptr;
+
+	return DataStore::getObject(seIdx);
+}
+
+

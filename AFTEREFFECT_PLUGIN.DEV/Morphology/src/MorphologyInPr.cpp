@@ -5,22 +5,6 @@
 #include "MorphologyProcCpu.hpp"
 
 
-inline const SE_Interface* getStructuredElemInterface (const PF_OutData* __restrict out_data) noexcept
-{
-	std::uint64_t seIdx{ INVALID_INTERFACE };
-
-	/* get Structured Element Object */
-	const std::uint64_t* seData{ reinterpret_cast<uint64_t*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)) };
-	if (nullptr == seData)
-		return nullptr;
-
-	if (INVALID_INTERFACE == (seIdx = *seData))
-		return nullptr;
-
-	return DataStore::getObject(seIdx);
-}
-
-
 PF_Err MorphologyFilter_BGRA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -212,7 +196,7 @@ PF_Err MorphologyFilter_BGRA_4444_32f
 	return PF_Err_NONE;
 }
 
-#if 0
+#if 1
 PF_Err MorphologyFilter_VUYA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -372,12 +356,12 @@ PF_Err ProcessImgInPR
 
 			case PrPixelFormat_VUYA_4444_8u:
 			case PrPixelFormat_VUYA_4444_8u_709:
-//				err = MorphologyFilter_VUYA_4444_8u (in_data, out_data, params, output);
+				err = MorphologyFilter_VUYA_4444_8u (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
-//				err = MorphologyFilter_VUYA_4444_32f (in_data, out_data, params, output);
+				err = MorphologyFilter_VUYA_4444_32f (in_data, out_data, params, output);
 			break;
 	
 			case PrPixelFormat_RGB_444_10u:
