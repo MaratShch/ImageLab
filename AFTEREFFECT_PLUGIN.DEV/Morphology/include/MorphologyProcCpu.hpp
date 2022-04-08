@@ -1,4 +1,5 @@
 #include "MorphologyProc.hpp"
+#include <memory>
 
 
 template <typename T, typename U>
@@ -109,6 +110,8 @@ inline void Morphology_Dilate
 }
 
 
+
+
 template <typename T, typename U>
 inline void Morphology_Open /* Erode -> Dilate */
 (
@@ -124,21 +127,15 @@ inline void Morphology_Open /* Erode -> Dilate */
 	const U&                  valDilate
 ) noexcept
 {
-	constexpr size_t tmpBufSize = CreateAlignment(maxSeElemNumber, 16);
-	constexpr size_t centralElementIdx = tmpBufSize >> 1;
-	CACHE_ALIGN T    tmpBuf[tmpBufSize]{};
-
-	const A_long seHalfSize{ seSize >> 1};
-	const A_long xSlices{ width  / seSize };
-	const A_long ySlices{ height / seSize };
-	const A_long xFraction{ width  % seSize };
-	const A_long yFraction{ height % seSize };
-
-	A_long i, j, k, l;
-	
-	for (j = 0; j < height; j += seSize)
+	/* allocate temporary memory storage */
+	const size_t tmpMemSize = CreateAlignment(height * width, CPU_PAGE_SIZE);
+	T* pTmpStorage = new T[tmpMemSize];
+	if (nullptr != pTmpStorage)
 	{
-
+		Morphology_Erode  (pSrc, pTmpStorage, pSe, seSize, height, width, srcPitch, width, valErode);
+		Morphology_Dilate (pTmpStorage, pDst, pSe, seSize, height, width, width, dstPitch, valDilate);
+		delete [] pTmpStorage;
+		pTmpStorage = nullptr;
 	}
 
 	return;
@@ -156,19 +153,20 @@ inline void Morphology_Close /* Dilate -> Erode */
 	const A_long&             width,
 	const A_long&             srcPitch,
 	const A_long&             dstPitch,
-	const U&                  minVal,
-	const U&                  maxVal
+	const U&                  valErode,
+	const U&                  valDilate
 ) noexcept
 {
-	constexpr size_t tmpBufSize = CreateAlignment(maxSeElemNumber, 16);
-	constexpr size_t centralElementIdx = tmpBufSize >> 1;
-	CACHE_ALIGN T    tmpBuf[tmpBufSize]{};
-
-	const A_long xSlices{ width  / seSize };
-	const A_long ySlices{ height / seSize };
-	const A_long xFraction{ width  % seSize };
-	const A_long yFraction{ height % seSize };
-
+	/* allocate temporary memory storage */
+	const size_t tmpMemSize = CreateAlignment(height * width, CPU_PAGE_SIZE);
+	T* pTmpStorage = new T[tmpMemSize];
+	if (nullptr != pTmpStorage)
+	{
+		Morphology_Dilate (pSrc, pTmpStorage, pSe, seSize, height, width, srcPitch, width, valDilate);
+		Morphology_Erode  (pTmpStorage, pDst, pSe, seSize, height, width, width, dstPitch, valErode);
+		delete [] pTmpStorage;
+		pTmpStorage = nullptr;
+	}
 	return;
 }
 

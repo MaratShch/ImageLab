@@ -10,7 +10,7 @@ PF_Err MorphologyFilterInAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
-	size_t sizeSe = 0;
+	size_t sizeSe{ 0 };
 	const SE_Interface* seInetrface = getStructuredElemInterface(out_data);
 	const SE_Type* __restrict seElementVal = (nullptr != seInetrface ? seInetrface->GetStructuredElement(sizeSe) : nullptr);
 
@@ -78,7 +78,7 @@ PF_Err MorphologyFilterInAE_16bits
 	PF_LayerDef* output
 ) noexcept
 {
-	size_t sizeSe = 0;
+	size_t sizeSe{ 0 };
 	const SE_Interface* seInetrface = getStructuredElemInterface(out_data);
 	const SE_Type* __restrict seElementVal = (nullptr != seInetrface ? seInetrface->GetStructuredElement(sizeSe) : nullptr);
 

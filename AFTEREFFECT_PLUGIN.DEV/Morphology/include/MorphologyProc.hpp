@@ -34,9 +34,7 @@ inline T ImgErodeOnEdge
 		{
 			const int32_t idxPix = MIN_VALUE((sizeX - 1), MAX_VALUE(0, i));
 			if (0 != *pSe++)
-			{
 				outPix.Y = MIN_VALUE(pLine[idxPix].Y, outPix.Y);
-			}
 		}
 	}
 

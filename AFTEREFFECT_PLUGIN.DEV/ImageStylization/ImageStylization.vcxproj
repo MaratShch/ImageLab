@@ -153,6 +153,7 @@
     <ClInclude Include="include\ImageStylization.hpp" />
     <ClInclude Include="include\SegmentationStructs.hpp" />
     <ClInclude Include="include\SegmentationUtils.hpp" />
+    <ClInclude Include="include\SlicUtils.hpp" />
     <ClInclude Include="include\StylizationEnums.hpp" />
     <ClInclude Include="include\StylizationStructs.hpp" />
     <ClInclude Include="include\StylizationImageGradient.hpp" />
@@ -163,7 +164,10 @@
     <ClCompile Include="src\ImageStyle_BufferManagement.cpp" />
     <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp" />
     <ClCompile Include="src\ImageStyle_GlassyEffect.cpp" />
+    <ClCompile Include="src\ImageStyle_ImpressionismArt.cpp" />
+    <ClCompile Include="src\ImageStyle_MosaicArt.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
+    <ClCompile Include="src\ImageStyle_OilPaint.cpp" />
     <ClCompile Include="src\ImageStyle_PointillismArt.cpp" />
     <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp" />
     <ClCompile Include="src\ImageStyle_SketchCharcoal.cpp" />

@@ -75,6 +75,9 @@
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\SlicUtils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStylization.cpp">
@@ -117,6 +120,15 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageStyle_SketchCharcoal.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_MosaicArt.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_OilPaint.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_ImpressionismArt.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

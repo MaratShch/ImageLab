@@ -11,7 +11,7 @@ PF_Err ProcessImgInPR
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	eSTYLIZATION const& lwbType{ static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1) };
+	eSTYLIZATION const lwbType{ static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1) };
 
 	switch (lwbType)
 	{
@@ -28,6 +28,7 @@ PF_Err ProcessImgInPR
 		break;
 
 		case eSTYLE_OIL_PAINT:
+			err = PR_ImageStyle_OilPaint (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_CARTOON:
@@ -43,10 +44,15 @@ PF_Err ProcessImgInPR
 		break;
 		
 		case eSTYLE_IMPRESSIONISM:
+			err = PR_ImageStyle_ImpressionismArt (in_data, out_data, params, output);
 		break;
 		
 		case eSTYLE_POINTILLISM:
-			err = PR_ImageStyle_PointillismArt(in_data, out_data, params, output);
+			err = PR_ImageStyle_PointillismArt (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_MOSAIC:
+			err = PR_ImageStyle_MosaicArt (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_NONE:

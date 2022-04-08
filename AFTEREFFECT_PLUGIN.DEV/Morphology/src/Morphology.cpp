@@ -178,7 +178,7 @@ SmartRender (
 
 
 static PF_Err
-UserChangedParam (
+UserChangedParam(
 	PF_InData						*in_data,
 	PF_OutData						*out_data,
 	PF_ParamDef						*params[],
@@ -190,7 +190,7 @@ UserChangedParam (
 	PF_ParamDef* pMorphologyTypeParam = params[MORPHOLOGY_ELEMENT_TYPE];
 	PF_ParamDef* pMorphologySizeParam = params[MORPHOLOGY_KERNEL_SIZE];
 	PF_Err err = PF_Err_NONE;
-	bool bActive = true;
+	bool bActive{ true };
 
 	switch (which_hitP->param_index)
 	{
@@ -200,24 +200,24 @@ UserChangedParam (
 
 			if (SE_OP_NONE == static_cast<SeOperation const>(cType - 1))
 			{
-//				pMorphologyTypeParam->ui_flags |= PF_PUI_INVISIBLE;
+				// pMorphologyTypeParam->ui_flags |= PF_PUI_INVISIBLE;
 				pMorphologySizeParam->ui_flags |= PF_PUI_INVISIBLE;
 				bActive = false;
 			}
 			else
 			{
-//				pMorphologyTypeParam->ui_flags &= ~PF_PUI_INVISIBLE;
+				// pMorphologyTypeParam->ui_flags &= ~PF_PUI_INVISIBLE;
 				pMorphologySizeParam->ui_flags &= ~PF_PUI_INVISIBLE;
 
-//				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+				// pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
 				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
 
 			}
-	
-			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite = 
+
+				AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite =
 				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
-//			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
-			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE,  pMorphologySizeParam);
+			//			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
+				ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, pMorphologySizeParam);
 		}
 		break;
 
@@ -234,7 +234,7 @@ UserChangedParam (
 		SE_Interface* pNewInterface = CreateSeInterface(seElemType, seElemSize);
 		uint64_t* seqData = reinterpret_cast<uint64_t*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
 
-		*seqData = DataStore::addObjPtr2Container (pNewInterface);
+		*seqData = DataStore::addObjPtr2Container(pNewInterface);
 	}
 
 	return err;
@@ -242,7 +242,7 @@ UserChangedParam (
 
 
 static PF_Err
-UpdateParameterUI (
+UpdateParameterUI(
 	PF_InData			*in_data,
 	PF_OutData			*out_data,
 	PF_ParamDef			*params[],
@@ -250,7 +250,7 @@ UpdateParameterUI (
 )
 {
 	CACHE_ALIGN PF_ParamDef param_copy[MORPHOLOGY_FILTER_TOTAL_PARAMS]{};
-	MakeParamCopy (params, param_copy, MORPHOLOGY_FILTER_TOTAL_PARAMS);
+	MakeParamCopy(params, param_copy, MORPHOLOGY_FILTER_TOTAL_PARAMS);
 
 	PF_Err err = PF_Err_NONE;
 	return err;
@@ -258,10 +258,10 @@ UpdateParameterUI (
 
 
 static PF_Err
-SequenceSetup (
+SequenceSetup(
 	PF_InData		*in_data,
-	PF_OutData		*out_data	
-) 
+	PF_OutData		*out_data
+)
 {
 	PF_Err err = PF_Err_NONE;
 
@@ -286,17 +286,17 @@ SequenceSetup (
 
 
 static PF_Err
-SequenceReSetup (
+SequenceReSetup(
 	PF_InData		*in_data,
 	PF_OutData		*out_data
 )
 {
-	return SequenceSetup (in_data, out_data);
+	return SequenceSetup(in_data, out_data);
 }
 
 
 static PF_Err
-SequenceSetdown (
+SequenceSetdown(
 	PF_InData		*in_data,
 	PF_OutData		*out_data
 )
@@ -376,6 +376,8 @@ EffectMain (
 				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
 			break;
 
+			// Handling this selector will ensure that the UI will be properly initialized,
+			// even before the user starts changing parameters to trigger PF_Cmd_USER_CHANGED_PARAM
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;

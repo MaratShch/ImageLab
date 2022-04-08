@@ -42,7 +42,7 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 		break;
 
 		case SE_OP_OPEN:
-			Morphology_Open  (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
+			Morphology_Open (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 		
 		case SE_OP_CLOSE:
@@ -106,11 +106,11 @@ PF_Err MorphologyFilter_BGRA_4444_16u
 		break;
 
 		case SE_OP_OPEN:
-			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX), static_cast<uint16_t>(0u));
+			Morphology_Open (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX), static_cast<uint16_t>(0u));
 		break;
 
 		case SE_OP_CLOSE:
-			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX), static_cast<uint16_t>(0u));
+			Morphology_Close (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX), static_cast<uint16_t>(0u));
 		break;
 
 		case SE_OP_THIN:
@@ -196,7 +196,7 @@ PF_Err MorphologyFilter_BGRA_4444_32f
 	return PF_Err_NONE;
 }
 
-#if 1
+
 PF_Err MorphologyFilter_VUYA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -323,7 +323,7 @@ PF_Err MorphologyFilter_VUYA_4444_32f
 
 	return PF_Err_NONE;
 }
-#endif
+
 
 
 PF_Err ProcessImgInPR
@@ -364,9 +364,6 @@ PF_Err ProcessImgInPR
 				err = MorphologyFilter_VUYA_4444_32f (in_data, out_data, params, output);
 			break;
 	
-			case PrPixelFormat_RGB_444_10u:
-			break;
-
 			default:
 			break; 
 		} /* switch (destinationPixelFormat) */

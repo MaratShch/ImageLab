@@ -35,7 +35,7 @@
 
 
 inline void
-MakeParamCopy (PF_ParamDef* actual[], PF_ParamDef copy[], const uint32_t& size) noexcept
+MakeParamCopy (PF_ParamDef* __restrict actual[], PF_ParamDef copy[], const uint32_t& size) noexcept
 {
 	for (uint32_t idx = 0u; idx < size; idx++)
 		copy[idx] = *actual[idx];

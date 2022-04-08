@@ -8,12 +8,12 @@ namespace DataStore
 	std::uint64_t addObjPtr2Container(SE_Interface* pObj)
 	{
 		std::lock_guard<std::mutex> lock(gGlobalProtect);
-		gSeInterfase.push_back (pObj);
+		gSeInterfase.push_back(pObj);
 		return (gSeInterfase.size() - 1u);
 	}
 
 
-	void disposeObjPtr (const std::uint64_t& idx)
+	void disposeObjPtr(const std::uint64_t& idx)
 	{
 		std::lock_guard<std::mutex> lock(gGlobalProtect);
 		if (gSeInterfase.size() > idx)
@@ -21,7 +21,7 @@ namespace DataStore
 		return;
 	}
 
-	
+
 	SE_Interface* getObject(const std::uint64_t& idx)
 	{
 		std::lock_guard<std::mutex> lock(gGlobalProtect);

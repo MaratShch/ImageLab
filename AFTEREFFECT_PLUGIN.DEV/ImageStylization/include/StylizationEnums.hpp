@@ -12,6 +12,7 @@ typedef enum
 	eSTYLE_OIL_PAINT,
 	eSTYLE_IMPRESSIONISM,
 	eSTYLE_POINTILLISM,
+	eSTYLE_MOSAIC,
 	eSTYLE_TOTAL_EFFECTS
 }eSTYLIZATION;
 
@@ -27,7 +28,8 @@ constexpr static char strStyleEffect[] =
 	"Sketch: Charcoal|"
 	"Art: Oil Paint|"
 	"Art: Impressionism|"
-	"Art: Pointillism"
+	"Art: Pointillism|"
+	"Art: Mosaic"
 };
 
 constexpr int32_t toatal_variants = 2;
