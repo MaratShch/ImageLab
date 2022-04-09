@@ -1,6 +1,35 @@
 #include "MorphologyProc.hpp"
 #include <memory>
 
+template <typename T>
+inline T* alloc_tmp_storage
+(
+	const A_long& height,
+	const A_long& pitch,
+	T*&           realPtr
+) noexcept
+{
+	const A_long linePitch{ std::abs(pitch) };
+	const A_long frameSize{ height *  linePitch };
+	const size_t tmpElemSize = CreateAlignment(frameSize + CACHE_LINE, CPU_PAGE_SIZE);
+	T* pTmpStorage = realPtr = new T[tmpElemSize];
+#ifdef _DEBUG
+	const size_t tmpBytesize = tmpElemSize * sizeof(T);
+	memset(pTmpStorage, 0, tmpBytesize);
+#endif
+	return (pTmpStorage + (pitch < 0 ? frameSize-1 : 0));
+}
+
+template <typename T>
+inline void free_tmp_sotrage
+(
+	T* rawPtr
+) noexcept
+{
+	delete[] rawPtr;
+	rawPtr = nullptr;
+} 
+
 
 template <typename T, typename U>
 inline void Morphology_Erode
@@ -128,14 +157,15 @@ inline void Morphology_Open /* Erode -> Dilate */
 ) noexcept
 {
 	/* allocate temporary memory storage */
-	const size_t tmpMemSize = CreateAlignment(height * width, CPU_PAGE_SIZE);
-	T* pTmpStorage = new T[tmpMemSize];
-	if (nullptr != pTmpStorage)
+	T* rawPtr{ nullptr };
+	T* pTmpBuf = alloc_tmp_storage (height, srcPitch, rawPtr);
+
+	if (nullptr != pTmpBuf)
 	{
-		Morphology_Erode  (pSrc, pTmpStorage, pSe, seSize, height, width, srcPitch, width, valErode);
-		Morphology_Dilate (pTmpStorage, pDst, pSe, seSize, height, width, width, dstPitch, valDilate);
-		delete [] pTmpStorage;
-		pTmpStorage = nullptr;
+		Morphology_Erode  (pSrc, pTmpBuf, pSe, seSize, height, width, srcPitch, srcPitch, valErode);
+		Morphology_Dilate (pTmpBuf, pDst, pSe, seSize, height, width, srcPitch, dstPitch, valDilate);
+		free_tmp_sotrage (rawPtr);
+		rawPtr = pTmpBuf = nullptr;
 	}
 
 	return;
@@ -158,14 +188,15 @@ inline void Morphology_Close /* Dilate -> Erode */
 ) noexcept
 {
 	/* allocate temporary memory storage */
-	const size_t tmpMemSize = CreateAlignment(height * width, CPU_PAGE_SIZE);
-	T* pTmpStorage = new T[tmpMemSize];
-	if (nullptr != pTmpStorage)
+	T* rawPtr{ nullptr };
+	T* pTmpBuf = alloc_tmp_storage(height, srcPitch, rawPtr);
+
+	if (nullptr != pTmpBuf)
 	{
-		Morphology_Dilate (pSrc, pTmpStorage, pSe, seSize, height, width, srcPitch, width, valDilate);
-		Morphology_Erode  (pTmpStorage, pDst, pSe, seSize, height, width, width, dstPitch, valErode);
-		delete [] pTmpStorage;
-		pTmpStorage = nullptr;
+		Morphology_Dilate (pSrc, pTmpBuf, pSe, seSize, height, width, srcPitch, srcPitch, valDilate);
+		Morphology_Erode  (pTmpBuf, pDst, pSe, seSize, height, width, srcPitch, dstPitch, valErode);
+		free_tmp_sotrage (rawPtr);
+		rawPtr = pTmpBuf = nullptr;
 	}
 	return;
 }
