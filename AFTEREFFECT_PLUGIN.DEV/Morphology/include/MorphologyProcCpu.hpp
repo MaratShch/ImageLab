@@ -20,6 +20,7 @@ inline T* alloc_tmp_storage
 	return (pTmpStorage + (pitch < 0 ? frameSize-1 : 0));
 }
 
+
 template <typename T>
 inline void free_tmp_sotrage
 (
