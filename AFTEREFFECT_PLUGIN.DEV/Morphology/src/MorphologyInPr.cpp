@@ -58,7 +58,7 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 		break;
 		
 		case SE_OP_GRADIENT:
-			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 
 		default:
@@ -122,7 +122,7 @@ PF_Err MorphologyFilter_BGRA_4444_16u
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX));
+			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint16_t>(SHRT_MAX), static_cast<uint16_t>(0u));
 		break;
 
 		default:
@@ -186,7 +186,7 @@ PF_Err MorphologyFilter_BGRA_4444_32f
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
+			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f, 0.f);
 		break;
 
 		default:
@@ -250,7 +250,7 @@ PF_Err MorphologyFilter_VUYA_4444_8u
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX));
+			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 
 		default:
@@ -314,7 +314,7 @@ PF_Err MorphologyFilter_VUYA_4444_32f
 		break;
 
 		case SE_OP_GRADIENT:
-			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f);
+			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, line_pitch, line_pitch, 1.f, 0.f);
 		break;
 
 		default:

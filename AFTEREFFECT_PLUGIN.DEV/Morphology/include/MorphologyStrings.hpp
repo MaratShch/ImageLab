@@ -13,7 +13,7 @@ constexpr char strMorphOperation[] =
 	"Close|"
 	"Thin|"
 	"Thick|"
-	"Gradient"
+	"Morphology Gradient"
 };
 
 constexpr char strStructuredElement[] =
