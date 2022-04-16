@@ -1,6 +1,7 @@
 #include "ColorBandSelect.hpp"
 #include "PrSDKAESupport.h"
 #include "ColorBandSelectEnums.hpp"
+#include "ColorBandSelectStrings.hpp"
 
 static PF_Err
 About(
@@ -56,8 +57,7 @@ GlobalSetup(
 	/* For Premiere - declare supported pixel formats */
 	if (PremierId == in_data->appl_id)
 	{
-		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-			AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data);
+		auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
@@ -77,24 +77,60 @@ GlobalSetup(
 
 
 static PF_Err
+GlobalSetdown(
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	/* nothing to do */
+	return PF_Err_NONE;
+}
+
+
+
+static PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+	CACHE_ALIGN PF_ParamDef	def;
+	PF_Err		err = PF_Err_NONE;
+	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
+	PF_ADD_CHECKBOXX(
+		ColorBandRed,				/* check-box name		*/
+		TRUE,						/* default value		*/
+		0,							/* flag					*/
+		COLOR_BAND_CHANNEL_RED);	/* control ID           */
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
+	PF_ADD_CHECKBOXX(
+		ColorBandGreen,				/* check-box name		*/
+		TRUE,						/* default value		*/
+		0,							/* flag					*/
+		COLOR_BAND_CHANNEL_GREEN);	/* control ID           */
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
+	PF_ADD_CHECKBOXX(
+		ColorBandBlue,				/* check-box name		*/
+		TRUE,						/* default value		*/
+		0,							/* flag					*/
+		COLOR_BAND_CHANNEL_BLUE);	/* control ID           */
+
 	out_data->num_params = COLOR_BAND_TOTAL_PARAMS;
 	return PF_Err_NONE;
 }
-
-static PF_Err
-GlobalSetdown(
-	PF_InData* in_data
-)
-{
-	return PF_Err_NONE;
-}
-
 
 
 static PF_Err
@@ -104,7 +140,7 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
+	return ((PremierId == in_data->appl_id ? ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output)));
 }
 
 
@@ -121,6 +157,7 @@ SmartRender(
 }
 
 
+
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain (
 	PF_Cmd			cmd,
@@ -130,7 +167,7 @@ EffectMain (
 	PF_LayerDef		*output,
 	void			*extra)
 {
-	PF_Err		err = PF_Err_NONE;
+	PF_Err		err{ PF_Err_NONE };
 
 	try {
 		switch (cmd)
@@ -144,7 +181,7 @@ EffectMain (
 			break;
 
 			case PF_Cmd_GLOBAL_SETDOWN:
-				ERR(GlobalSetdown(in_data));
+				ERR(GlobalSetdown(in_data, out_data, params, output));
 			break;
 
 			case PF_Cmd_PARAMS_SETUP:

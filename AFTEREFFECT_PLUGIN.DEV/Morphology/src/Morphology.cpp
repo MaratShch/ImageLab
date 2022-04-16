@@ -72,7 +72,6 @@ GlobalSetup (
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
 	return err;
@@ -149,11 +148,12 @@ Render (
 		if (PremierId == in_data->appl_id)
 			err = PF_COPY(&params[MORPHOLOGY_FILTER_INPUT]->u.ld, output, NULL, NULL);
 		else
-			err = (PF_Quality_HI == in_data->quality) ?
-			AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->
-				copy_hq(in_data->effect_ref, &params[MORPHOLOGY_FILTER_INPUT]->u.ld, output, NULL, NULL) :
-			AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->
-				copy(in_data->effect_ref, &params[MORPHOLOGY_FILTER_INPUT]->u.ld, output, NULL, NULL);
+		{
+			auto const& WordTransformSite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
+			err = ((PF_Quality_HI == in_data->quality) ?
+				WordTransformSite->	copy_hq(in_data->effect_ref, &params[MORPHOLOGY_FILTER_INPUT]->u.ld, output, NULL, NULL) :
+				WordTransformSite->	copy(in_data->effect_ref, &params[MORPHOLOGY_FILTER_INPUT]->u.ld, output, NULL, NULL));
+		}
 	}
 	else
 	{
@@ -196,7 +196,7 @@ UserChangedParam(
 	{
 		case MORPHOLOGY_OPERATION_TYPE:
 		{
-			auto const& cType = pMorphologyOperation->u.pd.value;
+			auto const cType = pMorphologyOperation->u.pd.value;
 
 			if (SE_OP_NONE == static_cast<SeOperation const>(cType - 1))
 			{
@@ -211,13 +211,31 @@ UserChangedParam(
 
 				// pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
 				pMorphologyTypeParam->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
-
 			}
 
-				AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite =
-				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+			auto const& ParamSite{ AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data) };
+
+				ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_OPERATION_TYPE, pMorphologyOperation);
+
 			//			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
 				ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, pMorphologySizeParam);
+		}
+		break;
+
+//		case MORPHOLOGY_ELEMENT_TYPE:
+//		{
+//			bActive = true;
+//			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite =
+//				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+//			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
+//		}
+//		break;
+
+		case MORPHOLOGY_KERNEL_SIZE:
+		{
+			bActive = true;
+			auto const& ParamSite{ AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data) };
+			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, pMorphologySizeParam);
 		}
 		break;
 
@@ -228,11 +246,11 @@ UserChangedParam(
 	if (true == bActive)
 	{
 		bActive = false;
-		const SeType seElemType = static_cast<SeType>(pMorphologyTypeParam->u.pd.value - 1);
-		const SeSize seElemSize = static_cast<SeSize>(pMorphologySizeParam->u.pd.value - 1);
+		const SeType seElemType{ static_cast<SeType>(pMorphologyTypeParam->u.pd.value - 1) };
+		const SeSize seElemSize{ static_cast<SeSize>(pMorphologySizeParam->u.pd.value - 1)};
 
 		SE_Interface* pNewInterface = CreateSeInterface(seElemType, seElemSize);
-		uint64_t* seqData = reinterpret_cast<uint64_t*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
+		uint64_t* seqData = static_cast<uint64_t*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
 
 		*seqData = DataStore::addObjPtr2Container(pNewInterface);
 	}
@@ -252,8 +270,25 @@ UpdateParameterUI(
 	CACHE_ALIGN PF_ParamDef param_copy[MORPHOLOGY_FILTER_TOTAL_PARAMS]{};
 	MakeParamCopy(params, param_copy, MORPHOLOGY_FILTER_TOTAL_PARAMS);
 
-	PF_Err err = PF_Err_NONE;
-	return err;
+	auto const& ParamSite{ AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data) };
+
+	if (SE_OP_NONE == params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value)
+	{
+		param_copy[MORPHOLOGY_KERNEL_SIZE].param_type = PF_Param_POPUP;
+		param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags |= PF_PUI_INVISIBLE;
+		ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, &param_copy[MORPHOLOGY_KERNEL_SIZE]);
+	}
+	else if (SE_OP_NONE != params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value && !(param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags & PF_PUI_INVISIBLE))
+	{
+		param_copy[MORPHOLOGY_KERNEL_SIZE].param_type = PF_Param_POPUP;
+		param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags &= ~PF_PUI_INVISIBLE;
+		ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, &param_copy[MORPHOLOGY_KERNEL_SIZE]);
+	}
+
+	constexpr PF_OutFlags refreshFlag{ PF_OutFlag_REFRESH_UI | PF_OutFlag_FORCE_RERENDER };
+	out_data->out_flags |= refreshFlag;
+
+	return PF_Err_NONE;
 }
 
 
@@ -268,7 +303,7 @@ SequenceSetup(
 	uint64_t** pSeqH = reinterpret_cast<uint64_t**>(PF_NEW_HANDLE(strSeDataSize));
 	if (nullptr != pSeqH)
 	{
-		uint64_t* pData = reinterpret_cast<uint64_t*>(PF_LOCK_HANDLE(pSeqH));
+		uint64_t* pData = static_cast<uint64_t*>(PF_LOCK_HANDLE(pSeqH));
 		if (nullptr != pData)
 		{
 			*pData = INVALID_INTERFACE;
@@ -282,16 +317,6 @@ SequenceSetup(
 	}
 
 	return err;
-}
-
-
-static PF_Err
-SequenceReSetup(
-	PF_InData		*in_data,
-	PF_OutData		*out_data
-)
-{
-	return SequenceSetup(in_data, out_data);
 }
 
 
@@ -335,7 +360,7 @@ EffectMain (
 	PF_LayerDef		*output,
 	void			*extra)
 {
-	PF_Err		err = PF_Err_NONE;
+	PF_Err		err{ PF_Err_NONE };
 
 	try {
 		switch (cmd)
@@ -359,10 +384,6 @@ EffectMain (
 			case PF_Cmd_SEQUENCE_SETUP:
 				ERR(SequenceSetup(in_data, out_data));
 			break;
-
-//			case PF_Cmd_SEQUENCE_RESETUP:
-//				ERR(SequenceReSetup(in_data, out_data));
-//			break;
 
 			case PF_Cmd_SEQUENCE_SETDOWN:
 				ERR(SequenceSetdown(in_data, out_data));

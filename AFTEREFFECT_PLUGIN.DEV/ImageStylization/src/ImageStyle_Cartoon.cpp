@@ -16,9 +16,9 @@ constexpr float divQh = 1.f / qH;
 constexpr float divQs = 1.f / qS;
 constexpr float divQi = 1.f / qI;
 
-constexpr int nbinsH = static_cast<int>(hist_size_H / qH);
-constexpr int nbinsS = static_cast<int>(hist_size_S / qS);
-constexpr int nbinsI = static_cast<int>(hist_size_I / qI);
+constexpr int nbinsH { static_cast<int>(hist_size_H / qH) };
+constexpr int nbinsS { static_cast<int>(hist_size_S / qS) };
+constexpr int nbinsI { static_cast<int>(hist_size_I / qI) };
 
 
 inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& H, float& S, float& I) noexcept
@@ -84,9 +84,9 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
 	constexpr float sMin = static_cast<float>(nbinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const size_t requiredMemSize = width * height * sizeof(float) * 3;
@@ -95,9 +95,9 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	int hH, sS, iI;
 	float H, S, I;
 
-	const int& nBinsH = static_cast<int>(static_cast<float>(hist_size_H) * divQh);
-	const int& nBinsS = static_cast<int>(static_cast<float>(hist_size_S) * divQs);
-	const int& nBinsI = static_cast<int>(static_cast<float>(hist_size_I) * divQi);
+	const int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) * divQh);
+	const int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) * divQs);
+	const int nBinsI = static_cast<int>(static_cast<float>(hist_size_I) * divQi);
 
 	bool bMemSizeTest = false;
 
@@ -120,8 +120,8 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		/* first path - build the statistics about frame [build histogram] */
 		for (j = 0; j < height; j++)
 		{
-			const A_long& line_idx = j * line_pitch;
-			const A_long& tmpBufLineidx = j * width;
+			const A_long line_idx = j * line_pitch;
+			const A_long tmpBufLineidx = j * width;
 
 			__VECTOR_ALIGNED__
 			for (i = 0; i < width; i++)
@@ -170,7 +170,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		else
 		{
 			ftcSeg = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-//			hSegments = std::move(compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, epsilon));
+//			hSegments = compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, epsilon);
 		}
 
 		std::vector<dataRGB> meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI;

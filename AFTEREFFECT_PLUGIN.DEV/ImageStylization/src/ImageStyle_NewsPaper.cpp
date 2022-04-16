@@ -5,13 +5,13 @@
 /*
 Using Floyd Steinberg Dithering Algorithm
 */
-static constexpr float gfSevenDiv13 = 7.0f / 13.0f;
-static constexpr float gfFiveDiv13  = 5.0f / 13.0f;
-static constexpr float gfOneDiv13   = 1.0f - gfSevenDiv13 - gfFiveDiv13;
-static constexpr float gfSevenDiv16 = 7.0f / 16.0f;
-static constexpr float gfFiveDiv16  = 5.0f / 16.0f;
-static constexpr float gfOneDiv16   = 1.0f / 16.0f;
-static constexpr float gfThreeDiv16 = 3.0f / 16.0f;
+static constexpr float gfSevenDiv13{ 7.0f / 13.0f };
+static constexpr float gfFiveDiv13 { 5.0f / 13.0f };
+static constexpr float gfOneDiv13  { 1.0f - gfSevenDiv13 - gfFiveDiv13 };
+static constexpr float gfSevenDiv16{ 7.0f / 16.0f };
+static constexpr float gfFiveDiv16 { 5.0f / 16.0f };
+static constexpr float gfOneDiv16  { 1.0f / 16.0f };
+static constexpr float gfThreeDiv16{ 3.0f / 16.0f };
 
 
 static PF_Err PR_ImageStyle_NewsPaper_BGRA_8u

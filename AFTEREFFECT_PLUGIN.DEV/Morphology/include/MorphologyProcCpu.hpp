@@ -328,18 +328,24 @@ inline void Morphology_Gradient
 	/* allocate temporary memory storage */
 	T* rawPtr1{ nullptr };
 	T* rawPtr2{ nullptr };
-	T* pTmpBuf1 = alloc_tmp_storage(height, srcPitch, rawPtr1);
-	T* pTmpBuf2 = alloc_tmp_storage(height, srcPitch, rawPtr2);
+	T* pTmpBuf1 = alloc_tmp_storage (height, srcPitch, rawPtr1);
+	T* pTmpBuf2 = alloc_tmp_storage (height, srcPitch, rawPtr2);
 
 	if (nullptr != pTmpBuf1 && nullptr != pTmpBuf2)
 	{
 		Morphology_Dilate (pSrc, pTmpBuf1, pSe, seSize, height, width, srcPitch, srcPitch, valDilate);
 		Morphology_Erode  (pSrc, pTmpBuf2, pSe, seSize, height, width, srcPitch, dstPitch, valErode);
 		ImgSubtract (pTmpBuf1, pTmpBuf2, pDst, srcPitch, dstPitch, width, height, valDilate, valErode);
+	}
 
-		free_tmp_sotrage (rawPtr1);
-		free_tmp_sotrage (rawPtr2);
+	if (nullptr == pTmpBuf1)
+	{
+		free_tmp_sotrage(rawPtr1);
 		rawPtr1 = pTmpBuf1 = nullptr;
+	}
+	if (nullptr == pTmpBuf2)
+	{
+		free_tmp_sotrage(rawPtr2);
 		rawPtr2 = pTmpBuf2 = nullptr;
 	}
 

@@ -28,8 +28,7 @@ PF_Err MorphologyFilter_BGRA_4444_8u
 	auto const width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-	const PF_ParamDef* pMorphologyOperation = params[MORPHOLOGY_OPERATION_TYPE];
-	const SeOperation  cType = static_cast<const SeOperation>(pMorphologyOperation->u.pd.value - 1);
+	const SeOperation  cType{ static_cast<const SeOperation>(params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value - 1) };
 
 	switch (cType)
 	{
@@ -92,8 +91,7 @@ PF_Err MorphologyFilter_BGRA_4444_16u
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-	const PF_ParamDef* pMorphologyOperation = params[MORPHOLOGY_OPERATION_TYPE];
-	const SeOperation  cType = static_cast<const SeOperation>(pMorphologyOperation->u.pd.value - 1);
+	const SeOperation  cType{ static_cast<const SeOperation>(params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value - 1) };
 
 	switch (cType)
 	{
@@ -156,8 +154,7 @@ PF_Err MorphologyFilter_BGRA_4444_32f
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-	const PF_ParamDef* pMorphologyOperation = params[MORPHOLOGY_OPERATION_TYPE];
-	const SeOperation  cType = static_cast<const SeOperation>(pMorphologyOperation->u.pd.value - 1);
+	const SeOperation  cType{ static_cast<const SeOperation>(params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value - 1) };
 
 	switch (cType)
 	{
@@ -220,8 +217,7 @@ PF_Err MorphologyFilter_VUYA_4444_8u
 	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-	const PF_ParamDef* pMorphologyOperation = params[MORPHOLOGY_OPERATION_TYPE];
-	const SeOperation  cType = static_cast<const SeOperation>(pMorphologyOperation->u.pd.value - 1);
+	const SeOperation  cType{ static_cast<const SeOperation>(params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value - 1) };
 
 	switch (cType)
 	{
@@ -284,8 +280,7 @@ PF_Err MorphologyFilter_VUYA_4444_32f
 	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-	const PF_ParamDef* pMorphologyOperation = params[MORPHOLOGY_OPERATION_TYPE];
-	const SeOperation  cType = static_cast<const SeOperation>(pMorphologyOperation->u.pd.value - 1);
+	const SeOperation  cType{ static_cast<const SeOperation>(params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value - 1) };
 
 	switch (cType)
 	{
@@ -334,7 +329,7 @@ PF_Err ProcessImgInPR
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	PF_Err err = PF_Err_NONE;
+	PF_Err err{ PF_Err_NONE };
 	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
 	/* This plugin called from PR - check video fomat */
