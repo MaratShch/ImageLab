@@ -72,7 +72,7 @@ protected:
 		const char* inKey,
 		T& outValue)
 	{
-		PrMemoryPtr buffer;
+		PrMemoryPtr buffer = nullptr;
 		prSuiteError suiteError = mVideoSegmentSuite->GetNodeProperty(mNodeID, inKey, &buffer);
 		if (PrSuiteErrorSucceeded(suiteError))
 		{

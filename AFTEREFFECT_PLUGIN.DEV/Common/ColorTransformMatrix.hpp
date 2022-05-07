@@ -2,13 +2,13 @@
 
 #include "Common.hpp"
 
-typedef enum
+typedef enum eCOLOR_SPACE
 {
 	BT601 = 0,
 	BT709,
 	BT2020,
 	SMPTE240M
-}eCOLOR_SPACE;
+};
 
 
 // define color space conversion matrix's

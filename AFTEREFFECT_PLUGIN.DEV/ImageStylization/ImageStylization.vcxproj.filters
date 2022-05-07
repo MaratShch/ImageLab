@@ -78,6 +78,9 @@
     <ClInclude Include="include\SlicUtils.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImagePaintUtils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStylization.cpp">
@@ -129,6 +132,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageStyle_ImpressionismArt.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_PaintArt.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageStyle_PaintUtils.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

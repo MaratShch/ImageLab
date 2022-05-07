@@ -150,6 +150,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageAuxPixFormat.hpp" />
     <ClInclude Include="include\ImageFFT.hpp" />
+    <ClInclude Include="include\ImagePaintUtils.hpp" />
     <ClInclude Include="include\ImageStylization.hpp" />
     <ClInclude Include="include\SegmentationStructs.hpp" />
     <ClInclude Include="include\SegmentationUtils.hpp" />
@@ -168,6 +169,8 @@
     <ClCompile Include="src\ImageStyle_MosaicArt.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
     <ClCompile Include="src\ImageStyle_OilPaint.cpp" />
+    <ClCompile Include="src\ImageStyle_PaintArt.cpp" />
+    <ClCompile Include="src\ImageStyle_PaintUtils.cpp" />
     <ClCompile Include="src\ImageStyle_PointillismArt.cpp" />
     <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp" />
     <ClCompile Include="src\ImageStyle_SketchCharcoal.cpp" />

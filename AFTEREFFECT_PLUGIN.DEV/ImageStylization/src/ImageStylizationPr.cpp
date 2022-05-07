@@ -27,10 +27,6 @@ PF_Err ProcessImgInPR
 			err = PR_ImageStyle_GlassyEffect (in_data, out_data, params, output);
 		break;
 
-		case eSTYLE_OIL_PAINT:
-			err = PR_ImageStyle_OilPaint (in_data, out_data, params, output);
-		break;
-
 		case eSTYLE_CARTOON:
 			err = PR_ImageStyle_CartoonEffect (in_data, out_data, params, output);
 		break;
@@ -43,6 +39,14 @@ PF_Err ProcessImgInPR
 			err = PR_ImageStyle_SketchCharcoal (in_data, out_data, params, output);
 		break;
 		
+		case eSTYLE_PAINT:
+			err = PR_ImageStyle_PaintArt (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_OIL_PAINT:
+			err = PR_ImageStyle_OilPaint (in_data, out_data, params, output);
+		break;
+
 		case eSTYLE_IMPRESSIONISM:
 			err = PR_ImageStyle_ImpressionismArt (in_data, out_data, params, output);
 		break;

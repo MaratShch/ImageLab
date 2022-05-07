@@ -6,7 +6,7 @@
 CACHE_ALIGN static float RandomValBuffer[RandomBufSize]{};
 
 //data structure to store the cost of merging intervals of the histogram
-struct costdata {
+typedef struct costdata {
 	double cost;
 	int imin1, imin2;
 	int typemerging;
@@ -57,5 +57,53 @@ const float* __restrict get_random_buffer (uint32_t& size) noexcept
 const float* __restrict get_random_buffer (void) noexcept 
 {
 	return RandomValBuffer;
+}
+
+
+
+
+/* =================================================================== */
+/* simple and rapid (non precise) convert RGB to Black-abd-White image */
+/* =================================================================== */
+template <class T, class U, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+void Rgb2Bw
+(
+	const T* __restrict pSrc,
+	U* __restrict pDst,
+	const A_long&       width,
+	const A_long&       height,
+	const A_long&       pitch
+)
+{
+	for (A_long j = 0; j < height; j++)
+	{
+		for (A_long i = 0; i < width; i++)
+		{
+			const A_long idx{ j * pitch + i };
+			pDst[idx] = (static_cast<int>(pSrc[idx].R) + static_cast<int>(pSrc[idx].G) + static_cast<int>(pSrc[idx].B)) / 3;
+		}
+	}
+	return;
+}
+
+void Rgb2Bw
+(
+	const PF_Pixel_BGRA_32f* __restrict pSrc,
+	PF_FpShort*        __restrict pDst,
+	const A_long&       width,
+	const A_long&       height,
+	const A_long&       pitch
+)
+{
+	constexpr float reciproc3{ 1.f / 3.f };
+	for (A_long j = 0; j < height; j++)
+	{
+		for (A_long i = 0; i < width; i++)
+		{
+			const A_long idx{ j * pitch + i };
+			pDst[idx] = (pSrc[idx].R + pSrc[idx].G + pSrc[idx].B) * reciproc3;
+		}
+	}
+	return;
 }
 

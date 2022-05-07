@@ -8,7 +8,7 @@
 template <typename T>
 inline constexpr T sq (const T& x) noexcept
 { 
-	return x * x;
+	return (x * x);
 }
 
 template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>

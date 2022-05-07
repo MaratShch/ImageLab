@@ -27,10 +27,6 @@ PF_Err ImageStyleInAE_8bits
 			err = AE_ImageStyle_GlassyEffect_ARGB_8u (in_data, out_data, params, output);
 		break;
 
-		case eSTYLE_OIL_PAINT:
-			err = AE_ImageStyle_OilPaint_ARGB_8u (in_data, out_data, params, output);
-		break;
-
 		case eSTYLE_CARTOON:
 			err = AE_ImageStyle_CartoonEffect_ARGB_8u (in_data, out_data, params, output);
 		break;
@@ -41,6 +37,14 @@ PF_Err ImageStyleInAE_8bits
 
 		case eSTYLE_SKETCH_CHARCOAL:
 			err = AE_ImageStyle_SketchCharcoal_ARGB_8u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_PAINT:
+			err = AE_ImageStyle_PaintArt_ARGB_8u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_OIL_PAINT:
+			err = AE_ImageStyle_OilPaint_ARGB_8u(in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_IMPRESSIONISM:
@@ -92,10 +96,6 @@ PF_Err ImageStyleInAE_16bits
 			err = AE_ImageStyle_GlassyEffect_ARGB_16u (in_data, out_data, params, output);
 		break;
 
-		case eSTYLE_OIL_PAINT:
-			err = AE_ImageStyle_OilPaint_ARGB_16u (in_data, out_data, params, output);
-		break;
-
 		case eSTYLE_CARTOON:
 			err = AE_ImageStyle_CartoonEffect_ARGB_16u (in_data, out_data, params, output);
 		break;
@@ -106,6 +106,14 @@ PF_Err ImageStyleInAE_16bits
 
 		case eSTYLE_SKETCH_CHARCOAL:
 			err = AE_ImageStyle_SketchCharcoal_ARGB_16u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_OIL_PAINT:
+			err = AE_ImageStyle_OilPaint_ARGB_16u(in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_PAINT:
+			err = AE_ImageStyle_PaintArt_ARGB_8u(in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_IMPRESSIONISM:

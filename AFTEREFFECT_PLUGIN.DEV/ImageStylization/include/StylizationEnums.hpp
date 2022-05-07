@@ -9,6 +9,7 @@ typedef enum
 	eSTYLE_CARTOON,
 	eSTYLE_SKETCH_PENCIL,
 	eSTYLE_SKETCH_CHARCOAL,
+	eSTYLE_PAINT,
 	eSTYLE_OIL_PAINT,
 	eSTYLE_IMPRESSIONISM,
 	eSTYLE_POINTILLISM,
@@ -26,6 +27,7 @@ constexpr static char strStyleEffect[] =
 	"Cartoon|"
 	"Sketch: Pencil|"
 	"Sketch: Charcoal|"
+	"Art: Paint|"
 	"Art: Oil Paint|"
 	"Art: Impressionism|"
 	"Art: Pointillism|"
