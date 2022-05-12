@@ -121,6 +121,20 @@ void convolution
 	std::unique_ptr<float[]>& imOut
 ) noexcept;
 
+void diagonalize_structure_tensors
+(
+	const std::unique_ptr<float[]>& a,
+	const std::unique_ptr<float[]>& b,
+	const std::unique_ptr<float[]>& c,
+	A_long sizeX,
+	A_long sizeY,
+	std::unique_ptr<float[]>& lambda1,
+	std::unique_ptr<float[]>& lambda2,
+	std::unique_ptr<float[]>& eigvect2_x,
+	std::unique_ptr<float[]>& eigvect2_y,
+	std::unique_ptr<float[]>& anisotropy
+) noexcept;
+
 
 template <typename T>
 inline T* allocTmpBuffer (const A_long& height, const A_long& pitch, T** procBuf) noexcept
