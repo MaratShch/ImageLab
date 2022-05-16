@@ -99,6 +99,7 @@
       <FlushDenormalResultsToZero>
       </FlushDenormalResultsToZero>
       <ExceptionHandling>Sync</ExceptionHandling>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

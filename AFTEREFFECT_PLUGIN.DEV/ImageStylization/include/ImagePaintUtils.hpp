@@ -135,6 +135,17 @@ void diagonalize_structure_tensors
 	std::unique_ptr<float[]>& anisotropy
 ) noexcept;
 
+void compute_adjacency_matrix
+(
+	SparseMatrix<float>& S,
+	std::unique_ptr<float[]>& Eigvect2_x,
+	std::unique_ptr<float[]>& Eigvect2_y,
+	A_long p,
+	const A_long& sizeX,
+	const A_long& sizeY,
+	const float& thresh_cocirc,
+	const float& thresh_cone
+) noexcept;
 
 template <typename T>
 inline T* allocTmpBuffer (const A_long& height, const A_long& pitch, T** procBuf) noexcept
@@ -176,14 +187,15 @@ inline void Color2Bw
 	const A_long&       pitch
 ) noexcept
 {
-	constexpr float reciproc3{ 1.f / 3.f };
 	A_long j, i;
+	constexpr float reciproc3{ 1.f / 3.f };
 	__VECTOR_ALIGNED__
 	for (j = 0; j < height; j++)
 	{
-		const A_long idx{ j * pitch };
+		const T* __restrict pSrcLine = pSrc + j * pitch;
+		float*   __restrict pDstLine = pDst + j * pitch;
 		for (i = 0; i < width; i++)
-			pDst[idx + i] = (static_cast<float>(pSrc[idx + i].R) + static_cast<float>(pSrc[idx + i].G) + static_cast<float>(pSrc[idx + i].B)) * reciproc3;
+			pDstLine[i] = (static_cast<float>(pSrcLine[i].R) + static_cast<float>(pSrcLine[i].G) + static_cast<float>(pSrcLine[i].B)) * reciproc3;
 	}
 	return;
 }

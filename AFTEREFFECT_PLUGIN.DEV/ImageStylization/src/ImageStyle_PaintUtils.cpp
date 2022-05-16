@@ -7,7 +7,7 @@
 #include "ImagePaintUtils.hpp"
 
 
-void linear_gradient_gray 
+void linear_gradient_gray
 (
 	const float* __restrict im,
 	std::unique_ptr<float[]>& gX,
@@ -18,26 +18,31 @@ void linear_gradient_gray
 ) noexcept
 {
 	A_long i, j;
-	const A_long shortSizeX = sizeX - 1;
-	const A_long shortSizeY = sizeY - 1;
+	const A_long shortSizeX {sizeX - 1};
+	const A_long shortSizeY {sizeY - 1};
 
 	__VECTOR_ALIGNED__
 	for (j = 0; j < sizeY; j++)
 	{
 		const float* __restrict pSrc = im + j * pitch;
 		float* __restrict gx = gX.get() + j * sizeX;
-		gx[j] = pSrc[1] - pSrc[0];
+		/* first pixel - horizontal gradient */
+		gx[0] = pSrc[1] - pSrc[0];
 
+		/* horizontal gradient */
 		for (i = 1; i < shortSizeX; i++)
 			gx[i] = 0.5f * (pSrc[i + 1] - pSrc[i - 1]);
 
+		/* last pixel - horizontal gradient */
 		gx[i] = pSrc[i] - pSrc[i - 1];
 	}
 
 	{
+		/* first line - vertical gradient */
+		j = 0;
 		const float* __restrict pSrcLine0 = im;
 		const float* __restrict pSrcLine1 = im + pitch;
-		float* __restrict gy = gY.get();
+		float* __restrict gy = gY.get() + j * sizeX;
 
 		__VECTOR_ALIGNED__
 		for (i = 0; i < sizeX; i++)
@@ -47,6 +52,7 @@ void linear_gradient_gray
 	__VECTOR_ALIGNED__
 	for (j = 1; j < shortSizeY; j++)
 	{
+		/* vertical gradient  */
 		const float* __restrict pSrcLine0 = im + (j - 1) * pitch;
 		const float* __restrict pSrcLine2 = im + (j + 1) * pitch;
 		float* __restrict gy = gY.get() + j * sizeX;
@@ -56,9 +62,10 @@ void linear_gradient_gray
 	}
 
 	{
+		/* last line - vertical gradient */
 		const float* __restrict pSrcLine0 = im + (j - 1) * pitch;
 		const float* __restrict pSrcLine1 = im + j * pitch;
-		float* __restrict gy = gY.get();
+		float* __restrict gy = gY.get() + j * sizeX;
 
 		__VECTOR_ALIGNED__
 		for (i = 0; i < sizeX; i++)
@@ -282,6 +289,26 @@ void diagonalize_structure_tensors
 }
 
 
+void compute_adjacency_matrix
+(
+	SparseMatrix<float>& S,
+	std::unique_ptr<float[]>& Eigvect2_x,
+	std::unique_ptr<float[]>& Eigvect2_y,
+	A_long p,
+	const A_long& sizeX,
+	const A_long& sizeY,
+	const float& thresh_cocirc,
+	const float& thresh_cone
+) noexcept
+{
+	float* __restrict eigvect2_x{ Eigvect2_x.get() };
+	float* __restrict eigvect2_y{ Eigvect2_y.get() };
+	constexpr float e1 = 1.f / FastCompute::EXP;
+
+
+	return;
+}
+
 
 bool bw_image2cocircularity_graph
 (
@@ -314,18 +341,38 @@ bool bw_image2cocircularity_graph
 	auto eigvect2_y = std::make_unique<float []>(frameSize);
 	auto anisotropy = std::make_unique<float []>(frameSize);
 
+#ifdef _DEBUG
+	/* native buffer pointers forn DBG purpose only */
+	float* dbgGx   = gX.get();
+	float* dbgGy   = gY.get();
+	float* dbgA    = a.get();
+	float* dbgB    = b.get();
+	float* dbgC    = c.get();
+	float* dbgAreg = a_reg.get();
+	float* dbgBreg = b_reg.get();
+	float* dbgCreg = c_reg.get();
+	float* dbgLam1 = lambda1.get();
+	float* dbgLam2 = lambda2.get();
+	float* dbgEigx = eigvect2_x.get();
+	float* dbgEigy = eigvect2_y.get();
+#endif
+	const float* __restrict Anisotropy = anisotropy.get();
+
 	linear_gradient_gray (im, gX, gY, width, height, pitch);
+
 	structure_tensors0 (gX, gY, width, height, a, b, c);
 	smooth_structure_tensors (a, b, c, sigma, width, height, a_reg, b_reg, c_reg);
 
-	diagonalize_structure_tensors(a_reg, b_reg, c_reg, width, height, lambda1, lambda2, eigvect2_x, eigvect2_y, anisotropy); \
+	diagonalize_structure_tensors(a_reg, b_reg, c_reg, width, height, lambda1, lambda2, eigvect2_x, eigvect2_y, anisotropy);
 
 	for (A_long j = 0; j < height; j++)
 	{
 		float* pSrc = im_anisotropy + j * pitch;
 		for (A_long i = 0; i < width; i++)
-			pSrc[i] = anisotropy[i] * 255.f;
+			pSrc[i] = Anisotropy[i] * 255.f;
 	}
+
+	compute_adjacency_matrix(S, eigvect2_x, eigvect2_y, p, width, height, coCirc, coCone);
 
 	return true;
 }
