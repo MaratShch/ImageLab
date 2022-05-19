@@ -42,9 +42,17 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		/* convert RGB to BW */
 		Color2Bw (localSrc, pProcPtr1, width, height, line_pitch);
 
-		std::unique_ptr<SparseMatrix<float>> sparseMatrix;
+		const A_long frameSize = width * height;
+		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		bw_image2cocircularity_graph (pProcPtr1, sparseMatrix, pProcPtr2, width, height, line_pitch, sigma, coCirc, coCone, 7);
+		const A_long nonZeros = count_sparse_matrix_non_zeros (sparseMatrix, frameSize);
+
+		auto I		= std::make_unique<A_long []>(nonZeros);
+		auto J		= std::make_unique<A_long []>(nonZeros);
+		auto Weights= std::make_unique<float  []>(nonZeros);
+
+		sparse_matrix_to_arrays (sparseMatrix, I, J, Weights, frameSize);
 
 	}
 	else

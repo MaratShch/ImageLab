@@ -289,25 +289,251 @@ void diagonalize_structure_tensors
 }
 
 
+void pixel_list
+(
+	A_long* __restrict row_list,
+	A_long* __restrict col_list,
+	const A_long i_min1,
+	const A_long i_min2,
+	const A_long i_max1,
+	const A_long i_max2,
+	const A_long j_min1,
+	const A_long j_min2,
+	const A_long j_max1,
+	const A_long j_max2
+) noexcept
+{
+	A_long k, l, index = 0;
+
+	for (k = i_min1; k <= i_max1; k++)
+	{
+		for (l = j_min1; l <= j_max1; l++)
+		{
+			row_list[index] = k;
+			col_list[index] = l;
+			index++;
+		}
+	}
+
+	for (k = i_min2; k <= i_max2; k++)
+	{
+		for (l = j_min2; l <= j_max2; l++)
+		{
+			row_list[index] = k;
+			col_list[index] = l;
+			index++;
+		}
+	}
+
+	return;
+}
+
+
+inline float test_adjacency
+(
+	const float& x1, 
+	const float& y1,
+	const float& v1x,
+	const float& v1y,
+	const float& x2,
+	const float& y2,
+	const float& v2x,
+	const float& v2y,
+	const float& thresh_cocirc, 
+	const float& thresh_cone
+) noexcept
+{
+	int conic_constraint;
+	float dx, dy, v1_dot_d;
+	float resp = 0.f;
+	float cocircularity = 0.f;
+
+	// First test conic constraint
+	dx = x2 - x1;
+	dy = y2 - y1;
+	const float n = FastCompute::Sqrt(dx * dx + dy * dy);
+	if (n > 0.f)
+	{
+		dx = dx / n;
+		dy = dy / n;
+	}
+	v1_dot_d = v1x * dx + v1y * dy;
+	conic_constraint = (FastCompute::Abs(v1_dot_d) >= thresh_cone);
+
+	// Then test co-circularity if conic constraint is fullfilled
+	if (conic_constraint)
+	{
+		const float v0x = 2.f * v1_dot_d * dx - v1x;
+		const float v0y = 2.f * v1_dot_d * dy - v1y;
+		cocircularity = FastCompute::Abs(v0x * v2x + v0y * v2y);
+		resp = (cocircularity >= thresh_cocirc);
+	}
+	return resp;
+}
+
+#ifdef _DEBUG
+volatile int dbgCnt = 0;
+#endif
+
 void compute_adjacency_matrix
 (
 	SparseMatrix<float>& S,
 	std::unique_ptr<float[]>& Eigvect2_x,
 	std::unique_ptr<float[]>& Eigvect2_y,
 	A_long p,
-	const A_long& sizeX,
-	const A_long& sizeY,
-	const float& thresh_cocirc,
-	const float& thresh_cone
+	const A_long sizeX,
+	const A_long sizeY,
+	const float thresh_cocirc,
+	const float thresh_cone
 ) noexcept
 {
 	float* __restrict eigvect2_x{ Eigvect2_x.get() };
 	float* __restrict eigvect2_y{ Eigvect2_y.get() };
-	constexpr float e1 = 1.f / FastCompute::EXP;
+	A_long i = 0, j = 0;
+	A_long i_min1 = 0, i_max1 = 0, i_min2 = 0, i_max2 = 0;
+	A_long j_min1 = 0, j_max1 = 0, j_min2 = 0, j_max2 = 0;
+	A_long x1 = 0, y1 = 0, v1x = 0, v1y = 0;
+	A_long h1 = 0, w1 = 0, h2 = 0, w2 = 0;
 
+	const A_long frameSize = sizeX * sizeY;
+	A_long* row_list = new A_long[frameSize];
+	A_long* col_list = new A_long[frameSize];
+
+	if (nullptr != row_list && nullptr != col_list)
+	{
+#ifdef _DEBUG
+		memset(row_list, 0, frameSize * sizeof(A_long));
+		memset(col_list, 0, frameSize * sizeof(A_long));
+#endif
+
+		for (i = 0; i < sizeY; i++)
+		{
+			i_min1 = i + 1;
+			i_max1 = ((i + p < sizeY) ? i + p : sizeY - 1);
+			i_min2 = ((i > p) ? i - p : 0);
+			i_max2 = i;
+
+			for (j = 0; j < sizeX; j++)
+			{
+				j_min1 = j;
+				j_max1 = ((j + p < sizeX) ? j + p : sizeX - 1);
+				j_min2 = j + 1;
+				j_max2 = j_max1;
+
+				x1 = j;
+				y1 = i;
+				v1x = eigvect2_x[i * sizeX + j];
+				v1y = eigvect2_y[i * sizeX + j];
+
+				h1 = ((i_max1 - i_min1 + 1 > 0) ? i_max1 - i_min1 + 1 : 0);
+				w1 = ((j_max1 - j_min1 + 1 > 0) ? j_max1 - j_min1 + 1 : 0);
+				h2 = ((i_max2 - i_min2 + 1 > 0) ? i_max2 - i_min2 + 1 : 0);
+				w2 = ((j_max2 - j_min2 + 1 > 0) ? j_max2 - j_min2 + 1 : 0);
+
+				const A_long n_pixels1 = h1 * w1;
+				const A_long n_pixels2 = h2 * w2;
+				const A_long n_pixels = n_pixels1 + n_pixels2;
+
+				pixel_list (row_list, col_list, i_min1, i_min2, i_max1, i_max2, j_min1, j_min2, j_max1, j_max2);
+
+				for (A_long index = 0; index < n_pixels; index++)
+				{
+					const A_long l = col_list[index];
+					const A_long k = row_list[index];
+					const A_long v2x = eigvect2_x[k * sizeX + l];
+					const A_long v2y = eigvect2_y[k * sizeX + l];
+
+					const float resp = test_adjacency (x1, y1, v1x, v1y, l, k, v2x, v2y, thresh_cocirc, thresh_cone);
+
+					if (resp > FastCompute::RECIPROC_EXP)
+						S(i * sizeX + j, k * sizeX + l) = resp;
+
+				} /* for (A_long index = 0; index < n_pixels; index++) */
+
+			} /* for (j = 0; j < sizeX; j++) */
+#ifdef _DEBUG
+			dbgCnt++;
+#endif
+		}
+	}
+
+	delete[] row_list;
+	delete[] col_list;
+	row_list = col_list = nullptr;
 
 	return;
 }
+
+
+inline A_long count_sparse_matrix_non_zeros
+(
+	SparseMatrix<float>& S,
+	const A_long& n_col
+) noexcept
+{
+	A_long n_non_zeros{ 0 };
+
+	for (A_long j = 0; j < n_col; j++)
+	{
+		auto col_j = S.get_column(j);
+		for (auto it = col_j.begin(); it != col_j.end(); ++it)
+			n_non_zeros++;
+	}
+	return n_non_zeros;
+}
+
+
+A_long count_sparse_matrix_non_zeros
+(
+	std::unique_ptr<SparseMatrix<float>>& S,
+	const A_long& n_col
+) noexcept
+{
+	return count_sparse_matrix_non_zeros(*S, n_col);
+}
+
+
+inline void sparse_matrix_to_arrays 
+(
+	SparseMatrix<float>& S,
+	A_long* __restrict I,
+	A_long* __restrict J,
+	float* __restrict W,
+	const A_long& n_col
+) noexcept
+{
+	A_long index = -1;
+
+	for (A_long j = 0; j < n_col; j++)
+	{
+		auto col_j = S.get_column(j);
+		for (auto it = col_j.begin(); it != col_j.end(); ++it)
+		{
+			index++;
+			J[index] = j;
+			I[index] = it->first;
+			W[index] = it->second;
+		}
+	}
+	return;
+}
+
+void sparse_matrix_to_arrays
+(
+	std::unique_ptr<SparseMatrix<float>>& S,
+	std::unique_ptr<A_long []>& I,
+	std::unique_ptr<A_long []>& J,
+	std::unique_ptr<float  []>& W,
+	A_long n_col
+) noexcept
+{
+	A_long* __restrict i{ I.get() };
+	A_long* __restrict j{ J.get() };
+	float*  __restrict w{ W.get() };
+
+	return sparse_matrix_to_arrays (*S, i, j, w, n_col);
+}
+
 
 
 bool bw_image2cocircularity_graph

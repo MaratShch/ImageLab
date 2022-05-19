@@ -14,37 +14,40 @@ public:
 	SparseMatrix ()
 	{
 		n_columns = 0;
-		columns.clear();
-		columns.resize(n_columns);
+		m_columns.clear();
+		m_columns.resize(n_columns);
+		return;
 	}
+
 	explicit SparseMatrix (A_long columns)
 	{
 		n_columns = columns;
-		columns.clear();
-		columns.resize(n_columns);
+		m_columns.clear();
+		m_columns.resize(n_columns);
+		return;
 	}
-	
+
 	A_long nColumns() const noexcept { return n_columns; }
 	
 	const std::map<A_long, T> & get_column (const A_long& col) const noexcept
 	{
-		return columns[col];
+		return m_columns[col];
 	}
 
 	T& operator() (const A_long& row, const A_long& col) noexcept
 	{ 
-		return columns[col][row];
+		return m_columns[col][row];
 	}
 
 	T operator() (const A_long& row, const A_long& col) const noexcept
 	{
-		auto it = columns[col].find(row);
-		return ((it == columns[col].end()) ? 0 : it->second);
+		auto it = m_columns[col].find(row);
+		return ((it == m_columns[col].end()) ? 0 : it->second);
 	}
 
 private:
 	A_long n_columns;
-	std::vector<std::map<A_long, T>> columns;
+	std::vector<std::map<A_long, T>> m_columns;
 };
 
 
@@ -141,11 +144,44 @@ void compute_adjacency_matrix
 	std::unique_ptr<float[]>& Eigvect2_x,
 	std::unique_ptr<float[]>& Eigvect2_y,
 	A_long p,
-	const A_long& sizeX,
-	const A_long& sizeY,
-	const float& thresh_cocirc,
-	const float& thresh_cone
+	const A_long sizeX,
+	const A_long sizeY,
+	const float thresh_cocirc,
+	const float thresh_cone
 ) noexcept;
+
+
+void pixel_list
+(
+	A_long* __restrict row_list,
+	A_long* __restrict col_list,
+	const A_long i_min1,
+	const A_long i_min2,
+	const A_long i_max1,
+	const A_long i_max2,
+	const A_long j_min1,
+	const A_long j_min2,
+	const A_long j_max1,
+	const A_long j_max2
+) noexcept;
+
+
+A_long count_sparse_matrix_non_zeros
+(
+	std::unique_ptr<SparseMatrix<float>>& S,
+	const A_long& n_col
+) noexcept;
+
+
+void sparse_matrix_to_arrays
+(
+	std::unique_ptr<SparseMatrix<float>>& S,
+	std::unique_ptr<A_long[]>& I,
+	std::unique_ptr<A_long[]>& J,
+	std::unique_ptr<float []>& W,
+	A_long n_col
+) noexcept;
+
 
 template <typename T>
 inline T* allocTmpBuffer (const A_long& height, const A_long& pitch, T** procBuf) noexcept

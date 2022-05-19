@@ -11,8 +11,10 @@ namespace FastCompute
 	constexpr float PI{ 3.14159265358979323846f };
 	constexpr float PIx2{ PI * 2.0f };
 	constexpr float HalfPI{ PI / 2.0f };
+	constexpr float RECIPROC_PI = 1.0f / PI;
 
 	constexpr float EXP{ 2.718281828459f };
+	constexpr float RECIPROC_EXP = 1.0f / EXP;
 
 	constexpr auto CHAR_BITS = 8;
 
