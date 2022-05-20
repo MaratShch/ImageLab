@@ -117,7 +117,7 @@ inline void gaussian_kernel
 	const float&  sigma
 ) noexcept
 {
-	float* __restrict kernel = gKernel.get();
+	float* __restrict kernel{ gKernel.get() };
 
 	for (A_long i = -radius; i <= radius; i++)
 		kernel[i + radius] = FastCompute::Exp(-(FastCompute::Pow(static_cast<float>(i) / sigma, 2.f) / 2.f));
@@ -493,7 +493,7 @@ A_long count_sparse_matrix_non_zeros
 }
 
 
-inline void sparse_matrix_to_arrays 
+inline void sparse_matrix_to_arrays_impl 
 (
 	SparseMatrix<float>& S,
 	A_long* __restrict I,
@@ -531,12 +531,12 @@ void sparse_matrix_to_arrays
 	A_long* __restrict j{ J.get() };
 	float*  __restrict w{ W.get() };
 
-	return sparse_matrix_to_arrays (*S, i, j, w, n_col);
+	return sparse_matrix_to_arrays_impl (*S, i, j, w, n_col);
 }
 
 
 
-bool bw_image2cocircularity_graph
+bool bw_image2cocircularity_graph_impl
 (
 	const float* __restrict im,
 	SparseMatrix<float>& S,
@@ -567,40 +567,45 @@ bool bw_image2cocircularity_graph
 	auto eigvect2_y = std::make_unique<float []>(frameSize);
 	auto anisotropy = std::make_unique<float []>(frameSize);
 
-#ifdef _DEBUG
-	/* native buffer pointers forn DBG purpose only */
-	float* dbgGx   = gX.get();
-	float* dbgGy   = gY.get();
-	float* dbgA    = a.get();
-	float* dbgB    = b.get();
-	float* dbgC    = c.get();
-	float* dbgAreg = a_reg.get();
-	float* dbgBreg = b_reg.get();
-	float* dbgCreg = c_reg.get();
-	float* dbgLam1 = lambda1.get();
-	float* dbgLam2 = lambda2.get();
-	float* dbgEigx = eigvect2_x.get();
-	float* dbgEigy = eigvect2_y.get();
-#endif
-	const float* __restrict Anisotropy = anisotropy.get();
+	bool retResult = false;
 
-	linear_gradient_gray (im, gX, gY, width, height, pitch);
-
-	structure_tensors0 (gX, gY, width, height, a, b, c);
-	smooth_structure_tensors (a, b, c, sigma, width, height, a_reg, b_reg, c_reg);
-
-	diagonalize_structure_tensors(a_reg, b_reg, c_reg, width, height, lambda1, lambda2, eigvect2_x, eigvect2_y, anisotropy);
-
-	for (A_long j = 0; j < height; j++)
+	if (gX && gY && a && b && c && a_reg && b_reg && c_reg && lambda1 && lambda2 && eigvect2_x && eigvect2_y && anisotropy)
 	{
-		float* pSrc = im_anisotropy + j * pitch;
-		for (A_long i = 0; i < width; i++)
-			pSrc[i] = Anisotropy[i] * 255.f;
+#ifdef _DEBUG
+		/* native buffer pointers forn DBG purpose only */
+		float* dbgGx = gX.get();
+		float* dbgGy = gY.get();
+		float* dbgA = a.get();
+		float* dbgB = b.get();
+		float* dbgC = c.get();
+		float* dbgAreg = a_reg.get();
+		float* dbgBreg = b_reg.get();
+		float* dbgCreg = c_reg.get();
+		float* dbgLam1 = lambda1.get();
+		float* dbgLam2 = lambda2.get();
+		float* dbgEigx = eigvect2_x.get();
+		float* dbgEigy = eigvect2_y.get();
+#endif
+		const float* __restrict Anisotropy = anisotropy.get();
+
+		linear_gradient_gray(im, gX, gY, width, height, pitch);
+
+		structure_tensors0(gX, gY, width, height, a, b, c);
+		smooth_structure_tensors(a, b, c, sigma, width, height, a_reg, b_reg, c_reg);
+
+		diagonalize_structure_tensors(a_reg, b_reg, c_reg, width, height, lambda1, lambda2, eigvect2_x, eigvect2_y, anisotropy);
+
+		for (A_long j = 0; j < height; j++)
+		{
+			float* pSrc = im_anisotropy + j * pitch;
+			for (A_long i = 0; i < width; i++)
+				pSrc[i] = Anisotropy[i] * 255.f;
+		}
+
+		compute_adjacency_matrix(S, eigvect2_x, eigvect2_y, p, width, height, coCirc, coCone);
+		retResult = true;
 	}
-
-	compute_adjacency_matrix(S, eigvect2_x, eigvect2_y, p, width, height, coCirc, coCone);
-
-	return true;
+	return retResult;
 }
 
 
@@ -618,6 +623,117 @@ bool bw_image2cocircularity_graph
 	A_long p
 ) noexcept
 {
-	return bw_image2cocircularity_graph (im, *S, im_anisotropy, width, height, pitch, sigma, coCirc, coCone, p);
+	return bw_image2cocircularity_graph_impl (im, *S, im_anisotropy, width, height, pitch, sigma, coCirc, coCone, p);
 }
 
+
+bool erode_max_plus_symmetric
+(
+	const float* __restrict imIn,
+	float*  __restrict imOut,
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const A_long& n_lines
+) noexcept
+{
+	A_long i, j;
+	bool change = false;
+
+	__VECTOR_ALIGNED__
+	for (A_long l = 0; l < n_lines; l++)
+	{
+		i = I[l];
+		j = J[l];
+		const float w = 255.f * FastCompute::Log (W[l]);
+		if (imOut[j] + w > imIn[i])
+		{
+			imOut[j] = imIn[i] - w;
+			change = true;
+		}
+		if (imOut[i] + w > imIn[j])
+		{
+			imOut[i] = imIn[j] - w;
+			change = true;
+		}
+	}
+
+	return change;
+}
+
+
+int erode_max_plus_symmetric_iterated
+(
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const float*  __restrict imIn,
+	      float*  __restrict imOut[],
+	const A_long& k,
+	const A_long& n_lines
+) noexcept
+{
+	A_long iteration = 0;
+	bool changed = true;
+
+	const float* __restrict imgSrc = imIn;
+	float* __restrict imgDst = imOut[0];
+
+	while (iteration < k && true == changed)
+	{
+		iteration++;
+		changed = erode_max_plus_symmetric (imgSrc, imgDst, I, J, W, n_lines);
+
+		imgSrc = imgDst;
+		imgDst = imOut[iteration & 0x1];
+	} /* while (iteration < k && true == changed) */
+
+	return (true == changed ? k : iteration - 1);
+}
+
+
+inline A_long morpho_open_impl
+(
+	const float*  __restrict imIn,
+	      float*  __restrict imOut,
+	const float*  __restrict Weights,
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const A_long& it,
+	const A_long& nonZeros,
+	const A_long& sizeX,
+	const A_long& sizeY
+) noexcept
+{
+	const A_long frameSize = sizeX * sizeY;
+	auto imErode1 = std::make_unique<float []>(frameSize);
+	auto imErode2 = std::make_unique<float []>(frameSize);
+	if (imErode1 && imErode2)
+	{
+		float* __restrict im_erode[2]{ imErode1.get(), imErode2.get() };
+		const A_long kMax = erode_max_plus_symmetric_iterated (I, J, Weights, imIn, im_erode, it, nonZeros);
+	}
+
+	return 0;
+}
+
+
+A_long morpho_open
+(
+	float*  __restrict imIn,
+	float*  __restrict imOut,
+	std::unique_ptr<float []>& w,
+	std::unique_ptr<A_long[]>& i,
+	std::unique_ptr<A_long[]>& j,
+	A_long it,
+	A_long nonZeros,
+	A_long sizeX,
+	A_long sizeY
+) noexcept
+{
+	const float*  __restrict W{ w.get() };
+	const A_long* __restrict I{ i.get() };
+	const A_long* __restrict J{ j.get() };
+
+	return morpho_open_impl (imIn, imOut, W, J, I, it, nonZeros, sizeX, sizeY);
+}

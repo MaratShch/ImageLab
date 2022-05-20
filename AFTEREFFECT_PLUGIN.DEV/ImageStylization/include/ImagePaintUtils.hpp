@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CommonPixFormat.hpp"
+#include "ClassRestrictions.hpp"
 #include <malloc.h>
 #include <stdio.h>
 #include <vector>
@@ -11,6 +12,9 @@ template <typename T>
 class SparseMatrix
 {
 public:
+	CLASS_NON_COPYABLE(SparseMatrix);
+	CLASS_NON_MOVABLE (SparseMatrix);
+
 	SparseMatrix ()
 	{
 		n_columns = 0;
@@ -51,11 +55,11 @@ private:
 };
 
 
-bool bw_image2cocircularity_graph
+bool bw_image2cocircularity_graph_impl
 (
 	const float* __restrict im,
 	SparseMatrix<float>& S,
-	      float* __restrict im_anisotropy,
+	float* __restrict im_anisotropy,
 	const A_long& width,
 	const A_long& height,
 	const A_long& pitch,
@@ -181,6 +185,43 @@ void sparse_matrix_to_arrays
 	std::unique_ptr<float []>& W,
 	A_long n_col
 ) noexcept;
+
+A_long  morpho_open
+(
+	float*  __restrict imIn,
+	float*  __restrict imOut,
+	std::unique_ptr<float []>& w,
+	std::unique_ptr<A_long[]>& i,
+	std::unique_ptr<A_long[]>& j,
+	A_long it,
+	A_long nonZeros,
+	A_long sizeX,
+	A_long sizeY
+) noexcept;
+
+int erode_max_plus_symmetric_iterated
+(
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const float*  __restrict imIn,
+	float*  __restrict imOut[],
+	const A_long& k,
+	const A_long& n_lines
+) noexcept;
+
+bool erode_max_plus_symmetric
+(
+	const float* __restrict imIn,
+	float*  __restrict imOut,
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const A_long& n_lines
+) noexcept;
+
+
+
 
 
 template <typename T>

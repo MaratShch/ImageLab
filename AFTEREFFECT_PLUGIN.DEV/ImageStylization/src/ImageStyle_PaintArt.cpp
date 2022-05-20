@@ -27,6 +27,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	constexpr float reciproc180 = 1.0f / 180.0f;
 	constexpr float angular = 9.f;	/* read value from sliders	*/
 	constexpr float angle = 30.f;	/* read value from sliders	*/	
+	constexpr A_long iter = 5;		/* read value from sliders	*/
 	const float coCirc = std::cos(FastCompute::PI * angular * reciproc180);
 	const float coCone = std::cos(FastCompute::PI * angle   * reciproc180);
 	const float sigma = 5.0f;
@@ -37,6 +38,8 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	float* pRawPtr1 = allocTmpBuffer(height, line_pitch, &pProcPtr1);
 	float* pRawPtr2 = allocTmpBuffer(height, line_pitch, &pProcPtr2);
 
+	bool cocircularityRes = false;
+
 	if (nullptr != pRawPtr1 && nullptr != pRawPtr2)
 	{
 		/* convert RGB to BW */
@@ -45,15 +48,26 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
-		bw_image2cocircularity_graph (pProcPtr1, sparseMatrix, pProcPtr2, width, height, line_pitch, sigma, coCirc, coCone, 7);
-		const A_long nonZeros = count_sparse_matrix_non_zeros (sparseMatrix, frameSize);
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pProcPtr1, sparseMatrix, pProcPtr2, width, height, line_pitch, sigma, coCirc, coCone, 7)))
+		{
+			const A_long nonZeros = count_sparse_matrix_non_zeros(sparseMatrix, frameSize);
 
-		auto I		= std::make_unique<A_long []>(nonZeros);
-		auto J		= std::make_unique<A_long []>(nonZeros);
-		auto Weights= std::make_unique<float  []>(nonZeros);
+			auto I = std::make_unique<A_long[]>(nonZeros);
+			auto J = std::make_unique<A_long[]>(nonZeros);
+			auto Weights = std::make_unique<float[]>(nonZeros);
+			auto ImRes   = std::make_unique<float[]>(frameSize);
 
-		sparse_matrix_to_arrays (sparseMatrix, I, J, Weights, frameSize);
-
+			if (I && J && Weights && ImRes)
+			{
+				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
+				float* __restrict imRes{ ImRes.get() };
+				const A_long morphoRes = morpho_open (pProcPtr1, imRes, Weights, I, J, iter, nonZeros, width, height);
+			}
+			else 
+				errCode = PF_Err_OUT_OF_MEMORY;
+		}
+		else
+			errCode = PF_Err_OUT_OF_MEMORY;
 	}
 	else
 		errCode = PF_Err_OUT_OF_MEMORY;
