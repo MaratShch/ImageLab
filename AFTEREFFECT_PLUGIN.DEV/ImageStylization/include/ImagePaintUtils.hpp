@@ -207,7 +207,8 @@ int erode_max_plus_symmetric_iterated
 	const float*  __restrict imIn,
 	float*  __restrict imOut[],
 	const A_long& k,
-	const A_long& n_lines
+	const A_long& n_lines,
+	float** pOut = nullptr
 ) noexcept;
 
 bool erode_max_plus_symmetric
@@ -220,6 +221,27 @@ bool erode_max_plus_symmetric
 	const A_long& n_lines
 ) noexcept;
 
+int dilate_max_plus_symmetric_iterated
+(
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const float*  __restrict imIn,
+	float*  __restrict imOut[],
+	const A_long& k,
+	const A_long& n_lines,
+	float** pOut
+) noexcept;
+
+bool dilate_max_plus_symmetric
+(
+	const float* __restrict imIn,
+	float*  __restrict imOut,
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const A_long& n_lines
+) noexcept;
 
 
 
@@ -227,7 +249,7 @@ bool erode_max_plus_symmetric
 template <typename T>
 inline T* allocTmpBuffer (const A_long& height, const A_long& pitch, T** procBuf) noexcept
 {
-	const A_long line_pitch = (pitch < 0 ? -pitch : pitch);
+	const A_long line_pitch = FastCompute::Abs(pitch);
 	const size_t elemNumber = height * line_pitch;
 	T* rawPtr = new T[elemNumber];
 #ifdef _DEBUG

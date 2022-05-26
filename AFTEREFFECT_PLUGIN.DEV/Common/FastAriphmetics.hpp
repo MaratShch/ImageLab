@@ -66,6 +66,11 @@ namespace FastCompute
 		return Max(Max(x, y), z);
 	}
 
+	template<typename T>
+	inline constexpr auto Abs (const T& x)-> std::enable_if_t<std::is_unsigned<T>::value, T>
+	{
+		return x;
+	}
 
 	inline constexpr int Abs (const int& x) noexcept
 	{
@@ -85,9 +90,9 @@ namespace FastCompute
 	}
 
 
-	template <typename T>
-	inline constexpr T Abs(const T& x) noexcept
-	{   
+	template<typename T>
+	inline constexpr auto Abs(const T& x)-> std::enable_if_t<!std::is_unsigned<T>::value, T>
+	{
 		return std::abs(x);
 	}
 

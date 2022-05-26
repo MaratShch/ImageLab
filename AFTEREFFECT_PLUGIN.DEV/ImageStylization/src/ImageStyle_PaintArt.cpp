@@ -28,8 +28,10 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	constexpr float angular = 9.f;	/* read value from sliders	*/
 	constexpr float angle = 30.f;	/* read value from sliders	*/	
 	constexpr A_long iter = 5;		/* read value from sliders	*/
-	const float coCirc = std::cos(FastCompute::PI * angular * reciproc180);
-	const float coCone = std::cos(FastCompute::PI * angle   * reciproc180);
+	constexpr float coCircParam = FastCompute::PI * angular * reciproc180;
+	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
+	const float coCirc = std::cos(coCircParam);
+	const float coCone = std::cos(coConeParam);
 	const float sigma = 5.0f;
 
 	/* allocate memory for store temporary results */
@@ -50,7 +52,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pProcPtr1, sparseMatrix, pProcPtr2, width, height, line_pitch, sigma, coCirc, coCone, 7)))
 		{
-			const A_long nonZeros = count_sparse_matrix_non_zeros(sparseMatrix, frameSize);
+			const A_long nonZeros = count_sparse_matrix_non_zeros (sparseMatrix, frameSize);
 
 			auto I = std::make_unique<A_long[]>(nonZeros);
 			auto J = std::make_unique<A_long[]>(nonZeros);
@@ -62,6 +64,8 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
 				float* __restrict imRes{ ImRes.get() };
 				const A_long morphoRes = morpho_open (pProcPtr1, imRes, Weights, I, J, iter, nonZeros, width, height);
+
+				/* fill output buffer */
 			}
 			else 
 				errCode = PF_Err_OUT_OF_MEMORY;

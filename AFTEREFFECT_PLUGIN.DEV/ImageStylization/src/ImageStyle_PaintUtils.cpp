@@ -634,17 +634,16 @@ bool erode_max_plus_symmetric
 	const A_long* __restrict I,
 	const A_long* __restrict J,
 	const float*  __restrict W,
-	const A_long& n_lines
+	const A_long& nLines
 ) noexcept
 {
-	A_long i, j;
 	bool change = false;
 
 	__VECTOR_ALIGNED__
-	for (A_long l = 0; l < n_lines; l++)
+	for (A_long l = 0; l < nLines; l++)
 	{
-		i = I[l];
-		j = J[l];
+		const auto& i{ I[l] };
+		const auto& j{ J[l] };
 		const float w = 255.f * FastCompute::Log (W[l]);
 		if (imOut[j] + w > imIn[i])
 		{
@@ -668,9 +667,10 @@ int erode_max_plus_symmetric_iterated
 	const A_long* __restrict J,
 	const float*  __restrict W,
 	const float*  __restrict imIn,
-	      float*  __restrict imOut[],
+	float*  __restrict imOut[],
 	const A_long& k,
-	const A_long& n_lines
+	const A_long& n_lines,
+	float** pOut
 ) noexcept
 {
 	A_long iteration = 0;
@@ -681,9 +681,78 @@ int erode_max_plus_symmetric_iterated
 
 	while (iteration < k && true == changed)
 	{
-		iteration++;
 		changed = erode_max_plus_symmetric (imgSrc, imgDst, I, J, W, n_lines);
 
+		if (nullptr != pOut) { *pOut = imgDst; }
+
+		iteration++;
+		imgSrc = imgDst;
+		imgDst = imOut[iteration & 0x1];
+	} /* while (iteration < k && true == changed) */
+
+	return (true == changed ? k : iteration - 1);
+}
+
+
+bool dilate_max_plus_symmetric
+(
+	const float* __restrict imIn,
+	float*  __restrict imOut,
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const A_long& nLines
+) noexcept
+{
+	bool change = false;
+
+	__VECTOR_ALIGNED__
+	for (A_long l = 0; l < nLines; l++)
+	{
+		const auto& i = I[l];
+		const auto& j = J[l];
+		
+		const float w = 255.f * FastCompute::Log(W[l]);
+		if (imOut[i] < imIn[j] + w)
+		{
+			imOut[i] = imIn[j] + w;
+			change = true;
+		}
+		if (imOut[j] < imIn[i] + w)
+		{
+			imOut[j] = imIn[i] + w;
+			change = true;
+		}
+	}
+	return change;
+}
+
+
+int dilate_max_plus_symmetric_iterated
+(
+	const A_long* __restrict I,
+	const A_long* __restrict J,
+	const float*  __restrict W,
+	const float*  __restrict imIn,
+	float*  __restrict imOut[],
+	const A_long& k,
+	const A_long& n_lines,
+	float** pOut
+) noexcept
+{
+	A_long iteration = 0;
+	bool changed = true;
+
+	const float* __restrict imgSrc = imIn;
+	float* __restrict imgDst = imOut[0];
+
+	while (iteration < k && true == changed)
+	{
+		changed = dilate_max_plus_symmetric (imgSrc, imgDst, I, J, W, n_lines);
+
+		if (nullptr != pOut) { *pOut = imgDst; }
+
+		iteration++;
 		imgSrc = imgDst;
 		imgDst = imOut[iteration & 0x1];
 	} /* while (iteration < k && true == changed) */
@@ -694,7 +763,7 @@ int erode_max_plus_symmetric_iterated
 
 inline A_long morpho_open_impl
 (
-	const float*  __restrict imIn,
+	      float*  __restrict imIn,
 	      float*  __restrict imOut,
 	const float*  __restrict Weights,
 	const A_long* __restrict I,
@@ -706,13 +775,24 @@ inline A_long morpho_open_impl
 ) noexcept
 {
 	const A_long frameSize = sizeX * sizeY;
-	auto imErode1 = std::make_unique<float []>(frameSize);
-	auto imErode2 = std::make_unique<float []>(frameSize);
-	if (imErode1 && imErode2)
+	auto imProc1 = std::make_unique<float []>(frameSize);
+	auto imProc2 = std::make_unique<float []>(frameSize);
+	float* pOut{ nullptr };
+
+	if (imProc1 && imProc2)
 	{
-		float* __restrict im_erode[2]{ imErode1.get(), imErode2.get() };
-		const A_long kMax = erode_max_plus_symmetric_iterated (I, J, Weights, imIn, im_erode, it, nonZeros);
-	}
+		float* __restrict im_proc[2]{ imProc1.get(), imProc2.get() };
+		const A_long kMax = erode_max_plus_symmetric_iterated (I, J, Weights, imIn, im_proc, it, nonZeros, &pOut);
+		const size_t memSize = frameSize * sizeof(float);
+
+		if (kMax == it)
+		{
+			memcpy (imIn, pOut, memSize);
+			dilate_max_plus_symmetric_iterated (I, J, Weights, imIn, im_proc, it, nonZeros, &pOut);
+		} /* if (kMax == it) */
+
+		memcpy (imOut, pOut, memSize);
+	} /* if (imProc1 && imProc2) */
 
 	return 0;
 }
