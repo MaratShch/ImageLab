@@ -395,7 +395,7 @@ namespace FastCompute
 	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T& x) noexcept
 	{
 		constexpr T Pi{ 3.14159265358979323846 };
-		constexpr T HalfPi{ Pi / 2 };
+		constexpr T HalfPi{ Pi / static_cast<T>(2) };
 		return Sin (x + HalfPi);
 	}
 

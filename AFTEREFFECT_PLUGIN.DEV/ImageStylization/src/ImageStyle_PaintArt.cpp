@@ -7,6 +7,37 @@
 #include "ImagePaintUtils.hpp"
 
 
+template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+void write_bw_to_destination
+(
+	const float* __restrict pSrc,		/* processed image								 	*/	
+	const T* __restrict     pSrcOrig,	/* original source - for take alpha channel value	*/
+	T* __restrict pDst,					/* destination buffer								*/					
+	A_long sizeX,
+	A_long sizeY,
+	A_long srcPitch,
+	A_long dstPitch,
+	A_long procPitch
+) noexcept
+{
+	__VECTOR_ALIGNED__
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const T* __restrict pFrameSrc = pSrcOrig + j * srcPitch;
+		      T* __restrict pFrameDst = pDst + j * dstPitch;
+		const float* __restrict pProc = pSrc + j * procPitch;
+		
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			pFrameDst[i].A = pFrameSrc[i].A;
+			pFrameDst[i].B = pFrameDst[i].G = pFrameDst[i].R = pProc[i];
+		} /* for (A_long i = 0; i < sizeX; i++) */
+	} /* for (A_long j = 0; j < sizeY; j++) */
+
+	return;
+}
+
+
 static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 (
 	PF_InData*   __restrict in_data,
@@ -24,6 +55,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
+	constexpr float normalizer = 255.f;
 	constexpr float reciproc180 = 1.0f / 180.0f;
 	constexpr float angular = 9.f;	/* read value from sliders	*/
 	constexpr float angle = 30.f;	/* read value from sliders	*/	
@@ -62,10 +94,11 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
-				float* __restrict imRes{ ImRes.get() };
-				const A_long morphoRes = morpho_open (pProcPtr1, imRes, Weights, I, J, iter, nonZeros, width, height);
+				float* __restrict imResPtr{ ImRes.get() };
+				const A_long morphoRes = morpho_open (pProcPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
 
 				/* fill output buffer */
+				write_bw_to_destination (imResPtr, localSrc, localDst, width, height, line_pitch, line_pitch, width);
 			}
 			else 
 				errCode = PF_Err_OUT_OF_MEMORY;

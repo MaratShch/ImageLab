@@ -196,7 +196,8 @@ A_long  morpho_open
 	A_long it,
 	A_long nonZeros,
 	A_long sizeX,
-	A_long sizeY
+	A_long sizeY,
+	float  normalizer = 255.0f
 ) noexcept;
 
 int erode_max_plus_symmetric_iterated
@@ -208,7 +209,8 @@ int erode_max_plus_symmetric_iterated
 	float*  __restrict imOut[],
 	const A_long& k,
 	const A_long& n_lines,
-	float** pOut = nullptr
+	float** pOut = nullptr,
+	const float& normalizer = 255.0f
 ) noexcept;
 
 bool erode_max_plus_symmetric
@@ -218,7 +220,8 @@ bool erode_max_plus_symmetric
 	const A_long* __restrict I,
 	const A_long* __restrict J,
 	const float*  __restrict W,
-	const A_long& n_lines
+	const A_long& n_lines,
+	const float& normalizer = 255.0f
 ) noexcept;
 
 int dilate_max_plus_symmetric_iterated
@@ -230,7 +233,8 @@ int dilate_max_plus_symmetric_iterated
 	float*  __restrict imOut[],
 	const A_long& k,
 	const A_long& n_lines,
-	float** pOut
+	float** pOut,
+	const float& normalizer = 255.0f
 ) noexcept;
 
 bool dilate_max_plus_symmetric
@@ -240,7 +244,8 @@ bool dilate_max_plus_symmetric
 	const A_long* __restrict I,
 	const A_long* __restrict J,
 	const float*  __restrict W,
-	const A_long& n_lines
+	const A_long& n_lines,
+	const float& normalizer = 255.0f
 ) noexcept;
 
 
@@ -286,15 +291,18 @@ inline void Color2Bw
 	const A_long&       pitch
 ) noexcept
 {
-	A_long j, i;
 	constexpr float reciproc3{ 1.f / 3.f };
-	__VECTOR_ALIGNED__
-	for (j = 0; j < height; j++)
+	for (A_long j = 0; j < height; j++)
 	{
 		const T* __restrict pSrcLine = pSrc + j * pitch;
 		float*   __restrict pDstLine = pDst + j * pitch;
-		for (i = 0; i < width; i++)
+		for (A_long i = 0; i < width; i++)
+		{
+#ifdef _DEBUG
+			const T srcPixel = pSrcLine[i];
+#endif
 			pDstLine[i] = (static_cast<float>(pSrcLine[i].R) + static_cast<float>(pSrcLine[i].G) + static_cast<float>(pSrcLine[i].B)) * reciproc3;
+		}
 	}
 	return;
 }
@@ -310,7 +318,6 @@ inline void Color2Bw
 	const A_long&       pitch
 ) noexcept
 {
-	__VECTOR_ALIGNED__
 	for (A_long j = 0; j < height; j++)
 	{
 		const T* __restrict pSrcLine = pSrc + j * pitch;
