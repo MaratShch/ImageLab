@@ -673,11 +673,10 @@ int erode_max_plus_symmetric_iterated
 	const float& normalizer
 ) noexcept
 {
-	A_long iteration = 0;
-	bool changed = true;
-
 	const float* __restrict imgSrc = imIn;
 	float* __restrict imgDst = imOut[0];
+	A_long iteration = 0;
+	bool changed = true;
 
 	while (iteration < k && true == changed)
 	{

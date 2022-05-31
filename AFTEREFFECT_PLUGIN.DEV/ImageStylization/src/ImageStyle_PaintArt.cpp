@@ -7,6 +7,34 @@
 #include "ImagePaintUtils.hpp"
 
 
+void write_bw_to_destination
+(
+	const float* __restrict pSrc,					/* processed image								 	*/
+	const PF_Pixel_BGRA_8u* __restrict pSrcOrig,	/* original source - for take alpha channel value	*/
+	PF_Pixel_BGRA_8u* __restrict pDst,				/* destination buffer								*/
+	A_long sizeX,
+	A_long sizeY,
+	A_long srcPitch,
+	A_long dstPitch,
+	A_long procPitch
+) noexcept
+{
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const float* __restrict pProc = pSrc + j * procPitch;
+		const PF_Pixel_BGRA_8u* __restrict pFrameSrc = pSrcOrig + j * srcPitch;
+		PF_Pixel_BGRA_8u* __restrict pFrameDst = pDst + j * dstPitch;
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			pFrameDst[i].A = pFrameSrc[i].A;
+			pFrameDst[i].B = pFrameDst[i].G = pFrameDst[i].R = static_cast<A_u_char>(CLAMP_VALUE(pProc[i], 0.f, 255.f));
+		} /* for (A_long i = 0; i < sizeX; i++) */
+	} /* for (A_long j = 0; j < sizeY; j++) */
+
+	return;
+}
+
 template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
 void write_bw_to_destination
 (
@@ -23,9 +51,9 @@ void write_bw_to_destination
 	__VECTOR_ALIGNED__
 	for (A_long j = 0; j < sizeY; j++)
 	{
+		const float* __restrict pProc = pSrc + j * procPitch;
 		const T* __restrict pFrameSrc = pSrcOrig + j * srcPitch;
 		      T* __restrict pFrameDst = pDst + j * dstPitch;
-		const float* __restrict pProc = pSrc + j * procPitch;
 		
 		for (A_long i = 0; i < sizeX; i++)
 		{
@@ -100,8 +128,8 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 #endif
 				morpho_open (pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
 
-//				/* fill output buffer */
-//				write_bw_to_destination (imResPtr, localSrc, localDst, width, height, line_pitch, line_pitch, width);
+				/* fill output buffer */
+				write_bw_to_destination (imResPtr, localSrc, localDst, width, height, line_pitch, line_pitch, tmpBufPitch);
 			}
 			else 
 				errCode = PF_Err_OUT_OF_MEMORY;
