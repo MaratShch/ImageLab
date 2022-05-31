@@ -145,8 +145,8 @@ void diagonalize_structure_tensors
 void compute_adjacency_matrix
 (
 	SparseMatrix<float>& S,
-	std::unique_ptr<float[]>& Eigvect2_x,
-	std::unique_ptr<float[]>& Eigvect2_y,
+	std::unique_ptr<float[]>& eigvect2_x,
+	std::unique_ptr<float[]>& eigvect2_y,
 	A_long p,
 	const A_long sizeX,
 	const A_long sizeY,
@@ -251,14 +251,13 @@ bool dilate_max_plus_symmetric
 
 
 
-template <typename T>
-inline T* allocTmpBuffer (const A_long& height, const A_long& pitch, T** procBuf) noexcept
+inline float* allocTmpBuffer (const A_long& height, const A_long& pitch, float** procBuf = nullptr) noexcept
 {
 	const A_long line_pitch = FastCompute::Abs(pitch);
 	const size_t elemNumber = height * line_pitch;
-	T* rawPtr = new T[elemNumber];
+	float* rawPtr = new float[elemNumber];
 #ifdef _DEBUG
-	memset(rawPtr, 0, elemNumber * sizeof(T));
+	memset(rawPtr, 0, elemNumber * sizeof(float));
 #endif
 	if (nullptr != procBuf)
 		*procBuf = rawPtr + ((pitch < 0) ? elemNumber - line_pitch : 0);
@@ -266,8 +265,7 @@ inline T* allocTmpBuffer (const A_long& height, const A_long& pitch, T** procBuf
 	return rawPtr;
 }
 
-template <typename T>
-inline void freeTmpBuffer (T* ptr) noexcept
+inline void freeTmpBuffer (float* ptr) noexcept
 {
 	if (nullptr != ptr)
 	{
@@ -288,18 +286,19 @@ inline void Color2Bw
 	float*   __restrict pDst,
 	const A_long&       width,
 	const A_long&       height,
-	const A_long&       pitch
+	const A_long&       src_pitch,
+	const A_long&       tmp_pitch 
 ) noexcept
 {
 	constexpr float reciproc3{ 1.f / 3.f };
 	for (A_long j = 0; j < height; j++)
 	{
-		const T* __restrict pSrcLine = pSrc + j * pitch;
-		float*   __restrict pDstLine = pDst + j * pitch;
+		const T* __restrict pSrcLine = pSrc + j * src_pitch;
+		float*   __restrict pDstLine = pDst + j * tmp_pitch;
 		for (A_long i = 0; i < width; i++)
 		{
 #ifdef _DEBUG
-			const T srcPixel = pSrcLine[i];
+			const T& srcPixel = pSrcLine[i];
 #endif
 			pDstLine[i] = (static_cast<float>(pSrcLine[i].R) + static_cast<float>(pSrcLine[i].G) + static_cast<float>(pSrcLine[i].B)) * reciproc3;
 		}
@@ -315,13 +314,14 @@ inline void Color2Bw
 	float*   __restrict pDst,
 	const A_long&       width,
 	const A_long&       height,
-	const A_long&       pitch
+	const A_long&       src_pitch,
+	const A_long&       tmp_pitch
 ) noexcept
 {
 	for (A_long j = 0; j < height; j++)
 	{
-		const T* __restrict pSrcLine = pSrc + j * pitch;
-		float*   __restrict pDstLine = pDst + j * pitch;
+		const T* __restrict pSrcLine = pSrc + j * src_pitch;
+		float*   __restrict pDstLine = pDst + j * tmp_pitch;
 		for (A_long i = 0; i < width; i++)
 			pSrcLine[i] = static_cast<float>(pSrc[i].Y);
 	}

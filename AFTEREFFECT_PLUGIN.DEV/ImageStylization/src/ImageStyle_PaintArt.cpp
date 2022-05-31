@@ -67,22 +67,22 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	const float sigma = 5.0f;
 
 	/* allocate memory for store temporary results */
-	float* pProcPtr1 = nullptr;
-	float* pProcPtr2 = nullptr;
-	float* pRawPtr1 = allocTmpBuffer(height, line_pitch, &pProcPtr1);
-	float* pRawPtr2 = allocTmpBuffer(height, line_pitch, &pProcPtr2);
+	float* pPtr1 = allocTmpBuffer (height, width);
+	float* pPtr2 = allocTmpBuffer (height, width);
 
 	bool cocircularityRes = false;
 
-	if (nullptr != pRawPtr1 && nullptr != pRawPtr2)
+	if (nullptr != pPtr1 && nullptr != pPtr2)
 	{
+		auto const& tmpBufPitch = width;
+
 		/* convert RGB to BW */
-		Color2Bw (localSrc, pProcPtr1, width, height, line_pitch);
+		Color2Bw (localSrc, pPtr1, width, height, line_pitch, tmpBufPitch);
 
 		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
-		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pProcPtr1, sparseMatrix, pProcPtr2, width, height, line_pitch, sigma, coCirc, coCone, 7)))
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, pPtr2, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
 		{
 			const A_long nonZeros = count_sparse_matrix_non_zeros (sparseMatrix, frameSize);
 
@@ -93,12 +93,15 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 
 			if (I && J && Weights && ImRes)
 			{
-				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
-				float* __restrict imResPtr{ ImRes.get() };
-				const A_long morphoRes = morpho_open (pProcPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
+				sparse_matrix_to_arrays (sparseMatrix, I, J, Weights, frameSize);
+				auto __restrict imResPtr = ImRes.get();
+#ifdef _DEBUG
+				const A_long morphoRes =
+#endif
+				morpho_open (pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
 
-				/* fill output buffer */
-				write_bw_to_destination (imResPtr, localSrc, localDst, width, height, line_pitch, line_pitch, width);
+//				/* fill output buffer */
+//				write_bw_to_destination (imResPtr, localSrc, localDst, width, height, line_pitch, line_pitch, width);
 			}
 			else 
 				errCode = PF_Err_OUT_OF_MEMORY;
@@ -110,10 +113,9 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		errCode = PF_Err_OUT_OF_MEMORY;
 
 	/* free temporary memory */
-	freeTmpBuffer (pRawPtr1);
-	freeTmpBuffer (pRawPtr2);
-	pProcPtr1 = pRawPtr1 = nullptr;
-	pProcPtr2 = pRawPtr2 = nullptr;
+	freeTmpBuffer (pPtr1);
+	freeTmpBuffer (pPtr2);
+	pPtr1 = pPtr2 = nullptr;
 
 	return errCode;
 }
@@ -137,7 +139,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 
 	/* convert RGB to BW */
 	float* pBwImage = nullptr;
-	Color2Bw (localSrc, pBwImage, width, height, line_pitch);
+	Color2Bw (localSrc, pBwImage, width, height, line_pitch, width);
 
 	return PF_Err_NONE;
 }
@@ -161,7 +163,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 
 	/* convert RGB to BW */
 	float* pBwImage = nullptr;
-	Color2Bw (localSrc, pBwImage, width, height, line_pitch);
+	Color2Bw (localSrc, pBwImage, width, height, line_pitch, width);
 
 	return PF_Err_NONE;
 }

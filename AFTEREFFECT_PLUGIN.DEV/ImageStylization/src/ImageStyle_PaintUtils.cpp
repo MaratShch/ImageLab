@@ -5,7 +5,7 @@
 #include "FastAriphmetics.hpp"
 #include "ImageAuxPixFormat.hpp"
 #include "ImagePaintUtils.hpp"
-#include <cmath>
+
 
 void linear_gradient_gray
 (
@@ -21,10 +21,13 @@ void linear_gradient_gray
 	const A_long shortSizeX {sizeX - 1};
 	const A_long shortSizeY {sizeY - 1};
 
+	auto __restrict pGx = gX.get();
+	auto __restrict pGy = gY.get();
+
 	for (j = 0; j < sizeY; j++)
 	{
 		const float* __restrict pSrc = im + j * pitch;
-		      float* __restrict gx = gX.get() + j * sizeX;
+		      float* __restrict gx = pGx + j * sizeX;
 		/* first pixel - horizontal gradient */
 		gx[0] = pSrc[1] - pSrc[0];
 
@@ -41,7 +44,7 @@ void linear_gradient_gray
 		j = 0;
 		const float* __restrict pSrcLine0 = im;
 		const float* __restrict pSrcLine1 = im + pitch;
-		float* __restrict gy = gY.get() + j * sizeX;
+		float* __restrict gy = pGy + j * sizeX;
 
 		for (i = 0; i < sizeX; i++)
 			gy[i] = pSrcLine1[i] - pSrcLine0[i];
@@ -52,7 +55,7 @@ void linear_gradient_gray
 		/* vertical gradient  */
 		const float* __restrict pSrcLine0 = im + (j - 1) * pitch;
 		const float* __restrict pSrcLine2 = im + (j + 1) * pitch;
-		float* __restrict gy = gY.get() + j * sizeX;
+		float* __restrict gy = pGy + j * sizeX;
 
 		for (i = 0; i < sizeX; i++)
 			gy[i] = 0.5f * (pSrcLine2[i] - pSrcLine0[i]);
@@ -62,7 +65,7 @@ void linear_gradient_gray
 		/* last line - vertical gradient */
 		const float* __restrict pSrcLine0 = im + (j - 1) * pitch;
 		const float* __restrict pSrcLine1 = im + j * pitch;
-		float* __restrict gy = gY.get() + j * sizeX;
+		float* __restrict gy = pGy + j * sizeX;
 
 		for (i = 0; i < sizeX; i++)
 			gy[i] = pSrcLine1[i] - pSrcLine0[i];
@@ -112,10 +115,10 @@ inline void gaussian_kernel
 	const float&  sigma
 ) noexcept
 {
-	float* __restrict kernel{ gKernel.get() };
+	auto __restrict kernel = gKernel.get();
 
 	for (A_long i = -radius; i <= radius; i++)
-		kernel[i + radius] = std::exp(-(std::pow(static_cast<float>(i) / sigma, 2.f) / 2.f));
+		kernel[i + radius] = FastCompute::Exp(-(FastCompute::Pow(static_cast<float>(i) / sigma, 2.f) / 2.f));
 
 	return;
 }
@@ -256,7 +259,7 @@ void diagonalize_structure_tensors
 			const A_long idx{ j * sizeX + i };
 
 			const float delta = (a[idx] - b[idx])*(a[idx] - b[idx]) + 4.f * c[idx] * c[idx];
-			const float sqrtDelta = std::sqrt(delta);
+			const float sqrtDelta = FastCompute::Sqrt(delta);
 			const float trace = a[idx] + b[idx];
 
 			lambda1[idx] = 0.5f * (trace + sqrtDelta);
@@ -265,8 +268,8 @@ void diagonalize_structure_tensors
 			anisotropy[idx] = (0.f == trace ? 0.f : 1.f - 2.f * lambda2[idx] / trace);
 
 			const float x1 = 2.f * c[idx];
-			const float x2 = b[idx] - a[idx] - std::sqrt(delta);
-			const float norm_eig_vect = std::sqrt(x1 * x1 + x2 * x2);
+			const float x2 = b[idx] - a[idx] - FastCompute::Sqrt(delta);
+			const float norm_eig_vect = FastCompute::Sqrt(x1 * x1 + x2 * x2);
 
 			if (norm_eig_vect > 0.f)
 			{
@@ -298,7 +301,8 @@ void pixel_list
 	const A_long j_max2
 ) noexcept
 {
-	A_long k, l, index = 0;
+	A_long k, l;
+	A_long index = 0;
 
 	for (k = i_min1; k <= i_max1; k++)
 	{
@@ -344,21 +348,21 @@ inline float test_adjacency
 	// First test conic constraint
 	float dx = x2 - x1;
 	float dy = y2 - y1;
-	const float n = std::sqrt(dx * dx + dy * dy);
+	const float n = FastCompute::Sqrt(dx * dx + dy * dy);
 	if (n > 0.f)
 	{
 		dx = dx / n;
 		dy = dy / n;
 	}
 	auto const v1_dot_d = v1x * dx + v1y * dy;
-	auto const conic_constraint = (std::abs(v1_dot_d) >= thresh_cone);
+	auto const conic_constraint = (FastCompute::Abs(v1_dot_d) >= thresh_cone);
 
 	// Then test co-circularity if conic constraint is fullfilled
 	if (conic_constraint)
 	{
 		const float v0x = 2.f * v1_dot_d * dx - v1x;
 		const float v0y = 2.f * v1_dot_d * dy - v1y;
-		cocircularity = std::abs(v0x * v2x + v0y * v2y);
+		cocircularity = FastCompute::Abs(v0x * v2x + v0y * v2y);
 		resp = static_cast<float>(cocircularity >= thresh_cocirc);
 	}
 	return resp;
@@ -373,8 +377,8 @@ volatile A_long loopIntCnt = 0;
 void compute_adjacency_matrix
 (
 	SparseMatrix<float>& S,
-	std::unique_ptr<float[]>& Eigvect2_x,
-	std::unique_ptr<float[]>& Eigvect2_y,
+	std::unique_ptr<float []>& eigvect2_x,
+	std::unique_ptr<float []>& eigvect2_y,
 	A_long p,
 	const A_long sizeX,
 	const A_long sizeY,
@@ -382,11 +386,11 @@ void compute_adjacency_matrix
 	const float thresh_cone
 ) noexcept
 {
-	float* __restrict eigvect2_x{ Eigvect2_x.get() };
-	float* __restrict eigvect2_y{ Eigvect2_y.get() };
 	A_long i_min1 = 0, i_max1 = 0, i_min2 = 0, i_max2 = 0;
 	A_long j_min1 = 0, j_max1 = 0, j_min2 = 0, j_max2 = 0;
-	A_long x1 = 0, y1 = 0, v1x = 0, v1y = 0;
+	A_long x1 = 0, y1 = 0;
+	auto __restrict Eigvect2_x = eigvect2_x.get();
+	auto __restrict Eigvect2_y = eigvect2_y.get();
 
 	for (A_long i = 0; i < sizeY; i++)
 	{
@@ -404,8 +408,10 @@ void compute_adjacency_matrix
 
 			x1 = j;
 			y1 = i;
-			v1x = eigvect2_x[i * sizeX + j];
-			v1y = eigvect2_y[i * sizeX + j];
+
+			const A_long idx = i * sizeX + j;
+			const float  v1x = Eigvect2_x[idx];
+			const float  v1y = Eigvect2_y[idx];
 
 			auto const h1 = ((i_max1 - i_min1 + 1 > 0) ? i_max1 - i_min1 + 1 : 0);
 			auto const w1 = ((j_max1 - j_min1 + 1 > 0) ? j_max1 - j_min1 + 1 : 0);
@@ -426,12 +432,14 @@ void compute_adjacency_matrix
 
 				for (A_long index = 0; index < n_pixels; index++)
 				{
-					auto l = col_list[index];
-					auto k = row_list[index];
-					auto x2 = l;
-					auto y2 = k;
-					auto v2x = eigvect2_x[k * sizeX + l];
-					auto v2y = eigvect2_y[k * sizeX + l];
+					const A_long l = col_list[index];
+					const A_long k = row_list[index];
+					const float   x2 = static_cast<const float>(l);
+					const float   y2 = static_cast<const float>(k);
+
+					const A_long idx2 = k * sizeX + l;
+					const float v2x = Eigvect2_x[idx2];
+					const float v2y = Eigvect2_y[idx2];
 
 #ifdef _DEBUG
 					loopIntCnt++;
@@ -577,8 +585,6 @@ bool bw_image2cocircularity_graph_impl
 		auto dbgCreg = c_reg.get();
 		auto dbgLam1 = lambda1.get();
 		auto dbgLam2 = lambda2.get();
-		auto dbgEigx = eigvect2_x.get();
-		auto dbgEigy = eigvect2_y.get();
 #endif
 
 		linear_gradient_gray (im, gX, gY, width, height, pitch);
@@ -633,12 +639,11 @@ bool erode_max_plus_symmetric
 {
 	bool change = false;
 
-	__VECTOR_ALIGNED__
 	for (A_long l = 0; l < nLines; l++)
 	{
 		const auto i{ I[l] };
 		const auto j{ J[l] };
-		const float w = norm * std::log (W[l]);
+		const float w = norm * FastCompute::Log (W[l]);
 		if (imOut[j] + w > imIn[i])
 		{
 			imOut[j] = imIn[i] - w;
@@ -702,13 +707,12 @@ bool dilate_max_plus_symmetric
 {
 	bool change = false;
 
-	__VECTOR_ALIGNED__
 	for (A_long l = 0; l < nLines; l++)
 	{
 		const auto& i = I[l];
 		const auto& j = J[l];
 		
-		const float w = norm * std::log(W[l]);
+		const float w = norm * FastCompute::Log(W[l]);
 		if (imOut[i] < imIn[j] + w)
 		{
 			imOut[i] = imIn[j] + w;
