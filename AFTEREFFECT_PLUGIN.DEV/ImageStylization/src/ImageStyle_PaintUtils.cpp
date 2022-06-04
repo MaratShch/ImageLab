@@ -291,14 +291,14 @@ void pixel_list
 (
 	A_long* __restrict row_list,
 	A_long* __restrict col_list,
-	const A_long i_min1,
-	const A_long i_min2,
-	const A_long i_max1,
-	const A_long i_max2,
-	const A_long j_min1,
-	const A_long j_min2,
-	const A_long j_max1,
-	const A_long j_max2
+	const A_long& i_min1,
+	const A_long& i_min2,
+	const A_long& i_max1,
+	const A_long& i_max2,
+	const A_long& j_min1,
+	const A_long& j_min2,
+	const A_long& j_max1,
+	const A_long& j_max2
 ) noexcept
 {
 	A_long k, l;
@@ -368,11 +368,6 @@ inline float test_adjacency
 	return resp;
 }
 
-#ifdef _DEBUG
-volatile A_long dbgCnt = 0;
-volatile A_long respCnt = 0;
-volatile A_long loopIntCnt = 0;
-#endif
 
 void compute_adjacency_matrix
 (
@@ -441,17 +436,10 @@ void compute_adjacency_matrix
 					const float v2x = Eigvect2_x[idx2];
 					const float v2y = Eigvect2_y[idx2];
 
-#ifdef _DEBUG
-					loopIntCnt++;
-#endif
-
 					const float resp = test_adjacency (x1, y1, v1x, v1y, x2, y2, v2x, v2y, thresh_cocirc, thresh_cone);
 
 					if (resp > FastCompute::RECIPROC_EXP)
 					{
-#ifdef _DEBUG
-						respCnt++;
-#endif
 						S(i * sizeX + j, k * sizeX + l) = resp;
 					}
 				} /* for (A_long index = 0; index < n_pixels; index++) */
@@ -459,9 +447,7 @@ void compute_adjacency_matrix
 			} /* if (Row_list && Col_list) */
 
 		} /* for (j = 0; j < sizeX; j++) */
-#ifdef _DEBUG
-			dbgCnt++;
-#endif
+
 	}
 
 	return;
@@ -478,7 +464,7 @@ inline A_long count_sparse_matrix_non_zeros
 	for (A_long j = 0; j < n_col; j++)
 	{
 		auto col_j = S.get_column(j);
-		for (std::map<A_long, float>::const_iterator it = col_j.begin(); it != col_j.end(); ++it)
+		for (auto it = col_j.begin(); it != col_j.end(); ++it)
 			n_non_zeros++;
 	}
 	return n_non_zeros;

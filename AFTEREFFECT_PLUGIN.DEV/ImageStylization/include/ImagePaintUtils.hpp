@@ -159,14 +159,14 @@ void pixel_list
 (
 	A_long* __restrict row_list,
 	A_long* __restrict col_list,
-	const A_long i_min1,
-	const A_long i_min2,
-	const A_long i_max1,
-	const A_long i_max2,
-	const A_long j_min1,
-	const A_long j_min2,
-	const A_long j_max1,
-	const A_long j_max2
+	const A_long& i_min1,
+	const A_long& i_min2,
+	const A_long& i_max1,
+	const A_long& i_max2,
+	const A_long& j_min1,
+	const A_long& j_min2,
+	const A_long& j_max1,
+	const A_long& j_max2
 ) noexcept;
 
 
