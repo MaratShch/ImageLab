@@ -33,7 +33,7 @@ public:
 
 	A_long nColumns() const noexcept { return n_columns; }
 	
-	const std::map<A_long, T> & get_column (const A_long& col) const noexcept
+	const std::map<A_long, T>& get_column (const A_long& col) const noexcept
 	{
 		return m_columns[col];
 	}
@@ -210,7 +210,8 @@ int erode_max_plus_symmetric_iterated
 	const A_long& k,
 	const A_long& n_lines,
 	float** pOut = nullptr,
-	const float& normalizer = 255.0f
+	const float& normalizer = 255.0f,
+	const A_long& frameSize = 0
 ) noexcept;
 
 bool erode_max_plus_symmetric
@@ -221,7 +222,8 @@ bool erode_max_plus_symmetric
 	const A_long* __restrict J,
 	const float*  __restrict W,
 	const A_long& n_lines,
-	const float& normalizer = 255.0f
+	const float& normalizer = 255.0f,
+	const A_long& frameSize = 0
 ) noexcept;
 
 int dilate_max_plus_symmetric_iterated
@@ -234,7 +236,8 @@ int dilate_max_plus_symmetric_iterated
 	const A_long& k,
 	const A_long& n_lines,
 	float** pOut,
-	const float& normalizer = 255.0f
+	const float& normalizer = 255.0f,
+	const A_long& frameSize = 0
 ) noexcept;
 
 bool dilate_max_plus_symmetric
@@ -245,7 +248,8 @@ bool dilate_max_plus_symmetric
 	const A_long* __restrict J,
 	const float*  __restrict W,
 	const A_long& n_lines,
-	const float& normalizer = 255.0f
+	const float& normalizer = 255.0f,
+	const A_long& frameSize = 0
 ) noexcept;
 
 

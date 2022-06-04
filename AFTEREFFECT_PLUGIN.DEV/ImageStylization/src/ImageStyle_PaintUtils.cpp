@@ -504,17 +504,17 @@ inline void sparse_matrix_to_arrays_impl
 	const A_long& n_col
 ) noexcept
 {
-	A_long index = -1;
+	A_long index = 0;
 
 	for (A_long j = 0; j < n_col; j++)
 	{
 		auto col_j = S.get_column(j);
 		for (auto it = col_j.begin(); it != col_j.end(); ++it)
 		{
-			index++;
 			J[index] = j;
 			I[index] = it->first;
 			W[index] = it->second;
+			index++;
 		}
 	}
 	return;
@@ -634,15 +634,19 @@ bool erode_max_plus_symmetric
 	const A_long* __restrict J,
 	const float*  __restrict W,
 	const A_long& nLines,
-	const float& norm
+	const float& norm,
+	const A_long& frameSize
 ) noexcept
 {
 	bool change = false;
 
+	const size_t bytesSize = frameSize * sizeof(float);
+	memcpy(imOut, imIn, bytesSize);
+
 	for (A_long l = 0; l < nLines; l++)
 	{
-		const auto i{ I[l] };
-		const auto j{ J[l] };
+		const auto& i{ I[l] };
+		const auto& j{ J[l] };
 		const float w = norm * FastCompute::Log (W[l]);
 		if (imOut[j] + w > imIn[i])
 		{
@@ -670,7 +674,8 @@ int erode_max_plus_symmetric_iterated
 	const A_long& k,
 	const A_long& n_lines,
 	float** pOut,
-	const float& normalizer
+	const float& normalizer,
+	const A_long& frameSize
 ) noexcept
 {
 	const float* __restrict imgSrc = imIn;
@@ -680,7 +685,7 @@ int erode_max_plus_symmetric_iterated
 
 	while (iteration < k && true == changed)
 	{
-		changed = erode_max_plus_symmetric (imgSrc, imgDst, I, J, W, n_lines, normalizer);
+		changed = erode_max_plus_symmetric (imgSrc, imgDst, I, J, W, n_lines, normalizer, frameSize);
 
 		if (nullptr != pOut) { *pOut = imgDst; }
 
@@ -701,10 +706,13 @@ bool dilate_max_plus_symmetric
 	const A_long* __restrict J,
 	const float*  __restrict W,
 	const A_long& nLines,
-	const float& norm
+	const float& norm,
+	const A_long& frameSize
 ) noexcept
 {
 	bool change = false;
+	const size_t bytesSize = frameSize * sizeof(float);
+	memcpy(imOut, imIn, bytesSize);
 
 	for (A_long l = 0; l < nLines; l++)
 	{
@@ -737,7 +745,8 @@ int dilate_max_plus_symmetric_iterated
 	const A_long& k,
 	const A_long& n_lines,
 	float** pOut,
-	const float& normalizer
+	const float& normalizer,
+	const A_long& frameSize
 ) noexcept
 {
 	A_long iteration = 0;
@@ -748,7 +757,7 @@ int dilate_max_plus_symmetric_iterated
 
 	while (iteration < k && true == changed)
 	{
-		changed = dilate_max_plus_symmetric (imgSrc, imgDst, I, J, W, n_lines, normalizer);
+		changed = dilate_max_plus_symmetric (imgSrc, imgDst, I, J, W, n_lines, normalizer, frameSize);
 
 		if (nullptr != pOut) { *pOut = imgDst; }
 
@@ -783,13 +792,13 @@ inline A_long morpho_open_impl
 	if (imProc1 && imProc2)
 	{
 		float* __restrict im_proc[2]{ imProc1.get(), imProc2.get() };
-		const A_long kMax = erode_max_plus_symmetric_iterated (I, J, Weights, imIn, im_proc, it, nonZeros, &pOut, normalizer);
+		const A_long kMax = erode_max_plus_symmetric_iterated (I, J, Weights, imIn, im_proc, it, nonZeros, &pOut, normalizer, frameSize);
 		const size_t memSize = frameSize * sizeof(float);
 
 		if (kMax == it)
 		{
 			memcpy (imIn, pOut, memSize);
-			dilate_max_plus_symmetric_iterated (I, J, Weights, imIn, im_proc, it, nonZeros, &pOut, normalizer);
+			dilate_max_plus_symmetric_iterated (I, J, Weights, imIn, im_proc, it, nonZeros, &pOut, normalizer, frameSize);
 		} /* if (kMax == it) */
 
 		memcpy (imOut, pOut, memSize);
