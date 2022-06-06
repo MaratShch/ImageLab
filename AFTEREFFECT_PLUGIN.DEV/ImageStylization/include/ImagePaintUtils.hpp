@@ -2,6 +2,7 @@
 
 #include "CommonPixFormat.hpp"
 #include "ClassRestrictions.hpp"
+#include "ColorTransformMatrix.hpp"
 #include <malloc.h>
 #include <stdio.h>
 #include <vector>
@@ -280,6 +281,41 @@ inline void freeTmpBuffer (float* ptr) noexcept
 }
 
 
+template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+inline void Color2YUV
+(
+	const T* __restrict pSrc,
+	float*   __restrict pY,
+	float*   __restrict pU,
+	float*   __restrict pV,
+	const A_long&       width,
+	const A_long&       height,
+	const A_long&       src_pitch,
+	const A_long&       tmp_pitch,
+	const A_long&       addendum = 0
+) noexcept
+{
+	const float* pRgb2Yuv = RGB2YUV[BT709];
+
+	for (A_long j = 0; j < height; j++)
+	{
+		const T* __restrict pSrcLine = pSrc + j * src_pitch;
+		float*   __restrict pYLine = pY + j * tmp_pitch;
+		float*   __restrict pULine = pU + j * tmp_pitch;
+		float*   __restrict pVLine = pV + j * tmp_pitch;
+
+		for (A_long i = 0; i < width; i++)
+		{
+			pYLine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[0] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[1] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[2];
+			pULine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[3] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[4] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[5] + addendum;
+			pVLine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[6] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[7] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[8] + addendum;
+		} /* for (A_long i = 0; i < width; i++) */
+	} /* for (A_long j = 0; j < height; j++) */
+	
+	return;
+}
+
+
 /* =================================================================== */
 /* simple and rapid (non precise) convert RGB to Black-and-White image */
 /* =================================================================== */
@@ -301,9 +337,6 @@ inline void Color2Bw
 		float*   __restrict pDstLine = pDst + j * tmp_pitch;
 		for (A_long i = 0; i < width; i++)
 		{
-#ifdef _DEBUG
-			const T& srcPixel = pSrcLine[i];
-#endif
 			pDstLine[i] = (static_cast<float>(pSrcLine[i].R) + static_cast<float>(pSrcLine[i].G) + static_cast<float>(pSrcLine[i].B)) * reciproc3;
 		}
 	}
