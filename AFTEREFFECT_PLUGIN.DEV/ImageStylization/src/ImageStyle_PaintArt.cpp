@@ -6,10 +6,10 @@
 #include "ImageAuxPixFormat.hpp"
 #include "ImagePaintUtils.hpp"
 
-
+#if 1
 void write_bw_to_destination
 (
-	const float* __restrict pSrc,					/* processed image								 	*/
+	const float* __restrict pSrc,					/* processed image - Y							 	*/
 	const PF_Pixel_BGRA_8u* __restrict pSrcOrig,	/* original source - for take alpha channel value	*/
 	PF_Pixel_BGRA_8u* __restrict pDst,				/* destination buffer								*/
 	A_long sizeX,
@@ -64,6 +64,7 @@ void write_bw_to_destination
 
 	return;
 }
+#endif
 
 
 static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
@@ -97,20 +98,21 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	/* allocate memory for store temporary results */
 	float* pPtr1 = allocTmpBuffer (height, width);
 	float* pPtr2 = allocTmpBuffer (height, width);
+	float* pPtr3 = allocTmpBuffer (height, width);
 
 	bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2)
+	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
 	{
 		auto const& tmpBufPitch = width;
 
 		/* convert RGB to BW */
-		Color2Bw (localSrc, pPtr1, width, height, line_pitch, tmpBufPitch);
+		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch, -128.f);
 
 		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
-		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, pPtr2, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
 		{
 			const A_long nonZeros = count_sparse_matrix_non_zeros (sparseMatrix, frameSize);
 
@@ -130,6 +132,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 
 				/* fill output buffer */
 				write_bw_to_destination (imResPtr, localSrc, localDst, width, height, line_pitch, line_pitch, tmpBufPitch);
+//				Write2Destination (localSrc, localDst, imResPtr, pPtr2, pPtr3, width, height, line_pitch, line_pitch, tmpBufPitch, 128.f, 255.f);
 			}
 			else 
 				errCode = PF_Err_OUT_OF_MEMORY;
@@ -143,7 +146,8 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	/* free temporary memory */
 	freeTmpBuffer (pPtr1);
 	freeTmpBuffer (pPtr2);
-	pPtr1 = pPtr2 = nullptr;
+	freeTmpBuffer (pPtr3);
+	pPtr1 = pPtr2 = pPtr3 = nullptr;
 
 	return errCode;
 }

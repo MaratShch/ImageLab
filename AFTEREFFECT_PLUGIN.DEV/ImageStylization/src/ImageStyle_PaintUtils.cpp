@@ -239,8 +239,7 @@ void diagonalize_structure_tensors
 	std::unique_ptr<float[]>& Lambda1,
 	std::unique_ptr<float[]>& Lambda2,
 	std::unique_ptr<float[]>& Eigvect2_x,
-	std::unique_ptr<float[]>& Eigvect2_y,
-	std::unique_ptr<float[]>& Anisotropy
+	std::unique_ptr<float[]>& Eigvect2_y
 ) noexcept
 {
 	const float* __restrict a{ A.get() };
@@ -250,7 +249,6 @@ void diagonalize_structure_tensors
 	float* __restrict lambda2{ Lambda2.get() };
 	float* __restrict eigvect2_x{ Eigvect2_x.get() };
 	float* __restrict eigvect2_y{ Eigvect2_y.get() };
-	float* __restrict anisotropy{ Anisotropy.get() };
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -264,8 +262,6 @@ void diagonalize_structure_tensors
 
 			lambda1[idx] = 0.5f * (trace + sqrtDelta);
 			lambda2[idx] = 0.5f * (trace - sqrtDelta);
-
-			anisotropy[idx] = (0.f == trace ? 0.f : 1.f - 2.f * lambda2[idx] / trace);
 
 			const float x1 = 2.f * c[idx];
 			const float x2 = b[idx] - a[idx] - FastCompute::Sqrt(delta);
@@ -528,7 +524,6 @@ bool bw_image2cocircularity_graph_impl
 (
 	const float* __restrict im,
 	SparseMatrix<float>& S,
-	float* __restrict im_anisotropy,
 	const A_long& width,
 	const A_long& height,
 	const A_long& pitch,
@@ -553,11 +548,10 @@ bool bw_image2cocircularity_graph_impl
 
 	auto eigvect2_x = std::make_unique<float []>(frameSize);
 	auto eigvect2_y = std::make_unique<float []>(frameSize);
-	auto anisotropy = std::make_unique<float []>(frameSize);
 
 	bool retResult = false;
 
-	if (gX && gY && a && b && c && a_reg && b_reg && c_reg && lambda1 && lambda2 && eigvect2_x && eigvect2_y && anisotropy)
+	if (gX && gY && a && b && c && a_reg && b_reg && c_reg && lambda1 && lambda2 && eigvect2_x && eigvect2_y)
 	{
 #ifdef _DEBUG
 		/* native buffer pointers forn DBG purpose only */
@@ -577,15 +571,7 @@ bool bw_image2cocircularity_graph_impl
 		structure_tensors0 (gX, gY, width, height, a, b, c);
 		smooth_structure_tensors (a, b, c, sigma, width, height, a_reg, b_reg, c_reg);
 
-		diagonalize_structure_tensors (a_reg, b_reg, c_reg, width, height, lambda1, lambda2, eigvect2_x, eigvect2_y, anisotropy);
-
-		auto __restrict Anisotropy{ anisotropy.get() };
-		for (A_long j = 0; j < height; j++)
-		{
-			float* pSrc = im_anisotropy + j * pitch;
-			for (A_long i = 0; i < width; i++)
-				pSrc[i] = Anisotropy[i] * 255.f;
-		}
+		diagonalize_structure_tensors (a_reg, b_reg, c_reg, width, height, lambda1, lambda2, eigvect2_x, eigvect2_y);
 
 		compute_adjacency_matrix (S, eigvect2_x, eigvect2_y, p, width, height, coCirc, coCone);
 		retResult = true;
@@ -598,7 +584,6 @@ bool bw_image2cocircularity_graph
 (
 	const float* __restrict im,
 	std::unique_ptr<SparseMatrix<float>>& S,
-	float* __restrict im_anisotropy,
 	A_long width,
 	A_long height,
 	A_long pitch,
@@ -608,7 +593,7 @@ bool bw_image2cocircularity_graph
 	A_long p
 ) noexcept
 {
-	return bw_image2cocircularity_graph_impl (im, *S, im_anisotropy, width, height, pitch, sigma, coCirc, coCone, p);
+	return bw_image2cocircularity_graph_impl (im, *S, width, height, pitch, sigma, coCirc, coCone, p);
 }
 
 

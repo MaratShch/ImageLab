@@ -60,7 +60,6 @@ bool bw_image2cocircularity_graph_impl
 (
 	const float* __restrict im,
 	SparseMatrix<float>& S,
-	float* __restrict im_anisotropy,
 	const A_long& width,
 	const A_long& height,
 	const A_long& pitch,
@@ -74,7 +73,6 @@ bool bw_image2cocircularity_graph
 (
 	const float* __restrict im,
 	std::unique_ptr<SparseMatrix<float>>& S,
-	      float* __restrict im_anisotropy,
 	A_long width,
 	A_long height,
 	A_long pitch,
@@ -292,11 +290,12 @@ inline void Color2YUV
 	const A_long&       height,
 	const A_long&       src_pitch,
 	const A_long&       tmp_pitch,
-	const A_long&       addendum = 0
+	const float&        addendum = 0.f
 ) noexcept
 {
-	const float* pRgb2Yuv = RGB2YUV[BT709];
+	const float* __restrict pRgb2Yuv = RGB2YUV[BT709];
 
+	__VECTOR_ALIGNED__
 	for (A_long j = 0; j < height; j++)
 	{
 		const T* __restrict pSrcLine = pSrc + j * src_pitch;
@@ -312,6 +311,52 @@ inline void Color2YUV
 		} /* for (A_long i = 0; i < width; i++) */
 	} /* for (A_long j = 0; j < height; j++) */
 	
+	return;
+}
+
+
+template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+inline void Write2Destination
+(
+	const T* __restrict pSrc,
+	      T* __restrict pDst,
+	float*   __restrict pY,
+	float*   __restrict pU,
+	float*   __restrict pV,
+	const A_long&       width,
+	const A_long&       height,
+	const A_long&       src_pitch,
+	const A_long&       dst_pitch,
+	const A_long&       proc_pitch,
+	const float&        addendum = 0.f,
+	const float&        clamp = 0.f
+) noexcept
+{
+	const float* __restrict pYuv2Rgb = YUV2RGB[BT709];
+
+	__VECTOR_ALIGNED__
+	for (A_long j = 0; j < height; j++)
+	{
+		const T* __restrict pSrcLine = pSrc + j * src_pitch;
+		      T* __restrict pDstLine = pDst + j * src_pitch;
+		float*   __restrict pYLine = pY + j * proc_pitch;
+		float*   __restrict pULine = pU + j * proc_pitch;
+		float*   __restrict pVLine = pV + j * proc_pitch;
+
+		for (A_long i = 0; i < width; i++)
+		{
+			const float R = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[0] + pULine[i] * pYuv2Rgb[1] + pVLine[i] * pYuv2Rgb[2], 0.f, clamp);
+			const float G = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[3] + pULine[i] * pYuv2Rgb[4] + pVLine[i] * pYuv2Rgb[5] + addendum, 0.f, clamp);
+			const float B = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[6] + pULine[i] * pYuv2Rgb[7] + pVLine[i] * pYuv2Rgb[8] + addendum, 0.f, clamp);
+
+			pDstLine[i].B = B;
+			pDstLine[i].G = G;
+			pDstLine[i].R = R;
+			pDstLine[i].A = pSrcLine[i].A;
+
+		} /* for (A_long i = 0; i < width; i++) */
+	} /* for (A_long j = 0; j < height; j++) */
+
 	return;
 }
 
