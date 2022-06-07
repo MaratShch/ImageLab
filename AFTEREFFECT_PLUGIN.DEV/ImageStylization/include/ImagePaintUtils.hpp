@@ -289,8 +289,7 @@ inline void Color2YUV
 	const A_long&       width,
 	const A_long&       height,
 	const A_long&       src_pitch,
-	const A_long&       tmp_pitch,
-	const float&        addendum = 0.f
+	const A_long&       tmp_pitch
 ) noexcept
 {
 	const float* __restrict pRgb2Yuv = RGB2YUV[BT709];
@@ -306,8 +305,8 @@ inline void Color2YUV
 		for (A_long i = 0; i < width; i++)
 		{
 			pYLine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[0] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[1] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[2];
-			pULine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[3] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[4] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[5] + addendum;
-			pVLine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[6] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[7] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[8] + addendum;
+			pULine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[3] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[4] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[5];
+			pVLine[i] = static_cast<float>(pSrcLine[i].R) * pRgb2Yuv[6] + static_cast<float>(pSrcLine[i].G) * pRgb2Yuv[7] + static_cast<float>(pSrcLine[i].B) * pRgb2Yuv[8];
 		} /* for (A_long i = 0; i < width; i++) */
 	} /* for (A_long j = 0; j < height; j++) */
 	
@@ -328,8 +327,7 @@ inline void Write2Destination
 	const A_long&       src_pitch,
 	const A_long&       dst_pitch,
 	const A_long&       proc_pitch,
-	const float&        addendum = 0.f,
-	const float&        clamp = 0.f
+	const float&        clamp = 255.f
 ) noexcept
 {
 	const float* __restrict pYuv2Rgb = YUV2RGB[BT709];
@@ -346,8 +344,8 @@ inline void Write2Destination
 		for (A_long i = 0; i < width; i++)
 		{
 			const float R = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[0] + pULine[i] * pYuv2Rgb[1] + pVLine[i] * pYuv2Rgb[2], 0.f, clamp);
-			const float G = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[3] + pULine[i] * pYuv2Rgb[4] + pVLine[i] * pYuv2Rgb[5] + addendum, 0.f, clamp);
-			const float B = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[6] + pULine[i] * pYuv2Rgb[7] + pVLine[i] * pYuv2Rgb[8] + addendum, 0.f, clamp);
+			const float G = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[3] + pULine[i] * pYuv2Rgb[4] + pVLine[i] * pYuv2Rgb[5], 0.f, clamp);
+			const float B = CLAMP_VALUE(pYLine[i] * pYuv2Rgb[6] + pULine[i] * pYuv2Rgb[7] + pVLine[i] * pYuv2Rgb[8], 0.f, clamp);
 
 			pDstLine[i].B = B;
 			pDstLine[i].G = G;
@@ -357,55 +355,5 @@ inline void Write2Destination
 		} /* for (A_long i = 0; i < width; i++) */
 	} /* for (A_long j = 0; j < height; j++) */
 
-	return;
-}
-
-
-/* =================================================================== */
-/* simple and rapid (non precise) convert RGB to Black-and-White image */
-/* =================================================================== */
-template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
-inline void Color2Bw
-(
-	const T* __restrict pSrc,
-	float*   __restrict pDst,
-	const A_long&       width,
-	const A_long&       height,
-	const A_long&       src_pitch,
-	const A_long&       tmp_pitch 
-) noexcept
-{
-	constexpr float reciproc3{ 1.f / 3.f };
-	for (A_long j = 0; j < height; j++)
-	{
-		const T* __restrict pSrcLine = pSrc + j * src_pitch;
-		float*   __restrict pDstLine = pDst + j * tmp_pitch;
-		for (A_long i = 0; i < width; i++)
-		{
-			pDstLine[i] = (static_cast<float>(pSrcLine[i].R) + static_cast<float>(pSrcLine[i].G) + static_cast<float>(pSrcLine[i].B)) * reciproc3;
-		}
-	}
-	return;
-}
-
-
-template <class T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline void Color2Bw
-(
-	const T* __restrict pSrc,
-	float*   __restrict pDst,
-	const A_long&       width,
-	const A_long&       height,
-	const A_long&       src_pitch,
-	const A_long&       tmp_pitch
-) noexcept
-{
-	for (A_long j = 0; j < height; j++)
-	{
-		const T* __restrict pSrcLine = pSrc + j * src_pitch;
-		float*   __restrict pDstLine = pDst + j * tmp_pitch;
-		for (A_long i = 0; i < width; i++)
-			pSrcLine[i] = static_cast<float>(pSrc[i].Y);
-	}
 	return;
 }

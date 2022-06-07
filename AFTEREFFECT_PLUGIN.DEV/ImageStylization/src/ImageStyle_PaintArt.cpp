@@ -6,66 +6,6 @@
 #include "ImageAuxPixFormat.hpp"
 #include "ImagePaintUtils.hpp"
 
-#if 1
-void write_bw_to_destination
-(
-	const float* __restrict pSrc,					/* processed image - Y							 	*/
-	const PF_Pixel_BGRA_8u* __restrict pSrcOrig,	/* original source - for take alpha channel value	*/
-	PF_Pixel_BGRA_8u* __restrict pDst,				/* destination buffer								*/
-	A_long sizeX,
-	A_long sizeY,
-	A_long srcPitch,
-	A_long dstPitch,
-	A_long procPitch
-) noexcept
-{
-	for (A_long j = 0; j < sizeY; j++)
-	{
-		const float* __restrict pProc = pSrc + j * procPitch;
-		const PF_Pixel_BGRA_8u* __restrict pFrameSrc = pSrcOrig + j * srcPitch;
-		PF_Pixel_BGRA_8u* __restrict pFrameDst = pDst + j * dstPitch;
-
-		for (A_long i = 0; i < sizeX; i++)
-		{
-			pFrameDst[i].A = pFrameSrc[i].A;
-			pFrameDst[i].B = pFrameDst[i].G = pFrameDst[i].R = static_cast<A_u_char>(CLAMP_VALUE(pProc[i], 0.f, 255.f));
-		} /* for (A_long i = 0; i < sizeX; i++) */
-	} /* for (A_long j = 0; j < sizeY; j++) */
-
-	return;
-}
-
-template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
-void write_bw_to_destination
-(
-	const float* __restrict pSrc,		/* processed image								 	*/	
-	const T* __restrict     pSrcOrig,	/* original source - for take alpha channel value	*/
-	T* __restrict pDst,					/* destination buffer								*/					
-	A_long sizeX,
-	A_long sizeY,
-	A_long srcPitch,
-	A_long dstPitch,
-	A_long procPitch
-) noexcept
-{
-	__VECTOR_ALIGNED__
-	for (A_long j = 0; j < sizeY; j++)
-	{
-		const float* __restrict pProc = pSrc + j * procPitch;
-		const T* __restrict pFrameSrc = pSrcOrig + j * srcPitch;
-		      T* __restrict pFrameDst = pDst + j * dstPitch;
-		
-		for (A_long i = 0; i < sizeX; i++)
-		{
-			pFrameDst[i].A = pFrameSrc[i].A;
-			pFrameDst[i].B = pFrameDst[i].G = pFrameDst[i].R = pProc[i];
-		} /* for (A_long i = 0; i < sizeX; i++) */
-	} /* for (A_long j = 0; j < sizeY; j++) */
-
-	return;
-}
-#endif
-
 
 static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 (
@@ -107,7 +47,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		auto const& tmpBufPitch = width;
 
 		/* convert RGB to BW */
-		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch, -128.f);
+		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
 
 		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
@@ -131,8 +71,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 				morpho_open (pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
 
 				/* fill output buffer */
-				write_bw_to_destination (imResPtr, localSrc, localDst, width, height, line_pitch, line_pitch, tmpBufPitch);
-//				Write2Destination (localSrc, localDst, imResPtr, pPtr2, pPtr3, width, height, line_pitch, line_pitch, tmpBufPitch, 128.f, 255.f);
+				Write2Destination (localSrc, localDst, imResPtr /* Y */, pPtr2 /* U */, pPtr3 /* V */, width, height, line_pitch, line_pitch, tmpBufPitch);
 			}
 			else 
 				errCode = PF_Err_OUT_OF_MEMORY;
@@ -169,9 +108,6 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-	/* convert RGB to BW */
-	float* pBwImage = nullptr;
-	Color2Bw (localSrc, pBwImage, width, height, line_pitch, width);
 
 	return PF_Err_NONE;
 }
@@ -192,10 +128,6 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
-
-	/* convert RGB to BW */
-	float* pBwImage = nullptr;
-	Color2Bw (localSrc, pBwImage, width, height, line_pitch, width);
 
 	return PF_Err_NONE;
 }
