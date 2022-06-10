@@ -336,7 +336,7 @@ inline void Write2Destination
 	for (A_long j = 0; j < height; j++)
 	{
 		const T* __restrict pSrcLine = pSrc + j * src_pitch;
-		      T* __restrict pDstLine = pDst + j * src_pitch;
+		      T* __restrict pDstLine = pDst + j * dst_pitch;
 		float*   __restrict pYLine = pY + j * proc_pitch;
 		float*   __restrict pULine = pU + j * proc_pitch;
 		float*   __restrict pVLine = pV + j * proc_pitch;
