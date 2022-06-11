@@ -33,7 +33,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
 	const float coCirc = std::cos(coCircParam);
 	const float coCone = std::cos(coConeParam);
-	const float sigma = 5.0f;
+	constexpr float sigma = 5.0f;
 
 	/* allocate memory for store temporary results */
 	float* pPtr1 = allocTmpBuffer (height, width);
@@ -47,7 +47,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		auto const& tmpBufPitch = width;
 
 		/* convert RGB to BW */
-		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
+		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
 
 		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
@@ -100,16 +100,81 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef*  __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
+	PF_Err errCode{ PF_Err_NONE };
 
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
+	constexpr float normalizer = 255.f;
+	constexpr float reciproc180 = 1.0f / 180.0f;
+	constexpr float angular = 9.f;	/* read value from sliders	*/
+	constexpr float angle = 30.f;	/* read value from sliders	*/
+	constexpr A_long iter = 5;		/* read value from sliders	*/
+	constexpr float coCircParam = FastCompute::PI * angular * reciproc180;
+	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
+	const float coCirc = std::cos(coCircParam);
+	const float coCone = std::cos(coConeParam);
+	constexpr float sigma = 5.0f;
 
-	return PF_Err_NONE;
+	/* allocate memory for store temporary results */
+	float* pPtr1 = allocTmpBuffer(height, width);
+	float* pPtr2 = allocTmpBuffer(height, width);
+	float* pPtr3 = allocTmpBuffer(height, width);
+
+	bool cocircularityRes = false;
+
+	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
+	{
+		auto const& tmpBufPitch = width;
+
+		/* convert RGB to BW */
+		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
+
+		const A_long frameSize = width * height;
+		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
+
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
+		{
+			const A_long nonZeros = count_sparse_matrix_non_zeros(sparseMatrix, frameSize);
+
+			auto I = std::make_unique<A_long[]>(nonZeros);
+			auto J = std::make_unique<A_long[]>(nonZeros);
+			auto Weights = std::make_unique<float[]>(nonZeros);
+			auto ImRes = std::make_unique<float[]>(frameSize);
+
+			if (I && J && Weights && ImRes)
+			{
+				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
+				auto __restrict imResPtr = ImRes.get();
+#ifdef _DEBUG
+				const A_long morphoRes =
+#endif
+				morpho_open(pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
+
+				/* fill output buffer */
+				constexpr float clamp_val{ 32767.f };
+				Write2Destination (localSrc, localDst, imResPtr /* Y */, pPtr2 /* U */, pPtr3 /* V */, width, height, line_pitch, line_pitch, tmpBufPitch, clamp_val);
+			}
+			else
+				errCode = PF_Err_OUT_OF_MEMORY;
+		}
+		else
+			errCode = PF_Err_OUT_OF_MEMORY;
+	}
+	else
+		errCode = PF_Err_OUT_OF_MEMORY;
+
+	/* free temporary memory */
+	freeTmpBuffer(pPtr1);
+	freeTmpBuffer(pPtr2);
+	freeTmpBuffer(pPtr3);
+	pPtr1 = pPtr2 = pPtr3 = nullptr;
+
+	return errCode;
 }
 
 
@@ -121,15 +186,81 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef*  __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
+	PF_Err errCode{ PF_Err_NONE };
 
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-	return PF_Err_NONE;
+	constexpr float normalizer = 255.f;
+	constexpr float reciproc180 = 1.0f / 180.0f;
+	constexpr float angular = 9.f;	/* read value from sliders	*/
+	constexpr float angle = 30.f;	/* read value from sliders	*/
+	constexpr A_long iter = 5;		/* read value from sliders	*/
+	constexpr float coCircParam = FastCompute::PI * angular * reciproc180;
+	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
+	const float coCirc = std::cos(coCircParam);
+	const float coCone = std::cos(coConeParam);
+	constexpr float sigma = 5.0f;
+
+	/* allocate memory for store temporary results */
+	float* pPtr1 = allocTmpBuffer(height, width);
+	float* pPtr2 = allocTmpBuffer(height, width);
+	float* pPtr3 = allocTmpBuffer(height, width);
+
+	bool cocircularityRes = false;
+
+	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
+	{
+		auto const& tmpBufPitch = width;
+
+		/* convert RGB to BW */
+		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
+
+		const A_long frameSize = width * height;
+		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
+
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
+		{
+			const A_long nonZeros = count_sparse_matrix_non_zeros (sparseMatrix, frameSize);
+
+			auto I = std::make_unique<A_long[]>(nonZeros);
+			auto J = std::make_unique<A_long[]>(nonZeros);
+			auto Weights = std::make_unique<float[]>(nonZeros);
+			auto ImRes = std::make_unique<float[]>(frameSize);
+
+			if (I && J && Weights && ImRes)
+			{
+				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
+				auto __restrict imResPtr = ImRes.get();
+#ifdef _DEBUG
+				const A_long morphoRes =
+#endif
+				morpho_open(pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
+
+				/* fill output buffer */
+				constexpr float clamp_val{ f32_value_white };
+				Write2Destination (localSrc, localDst, imResPtr /* Y */, pPtr2 /* U */, pPtr3 /* V */, width, height, line_pitch, line_pitch, tmpBufPitch, clamp_val);
+			}
+			else
+				errCode = PF_Err_OUT_OF_MEMORY;
+		}
+		else
+			errCode = PF_Err_OUT_OF_MEMORY;
+	}
+	else
+		errCode = PF_Err_OUT_OF_MEMORY;
+
+	/* free temporary memory */
+	freeTmpBuffer(pPtr1);
+	freeTmpBuffer(pPtr2);
+	freeTmpBuffer(pPtr3);
+	pPtr1 = pPtr2 = pPtr3 = nullptr;
+
+	return errCode;
 }
 
 
@@ -142,7 +273,80 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef*  __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+	PF_Pixel_VUYA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
+	PF_Err errCode{ PF_Err_NONE };
+
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+
+	constexpr float normalizer = 255.f;
+	constexpr float reciproc180 = 1.0f / 180.0f;
+	constexpr float angular = 9.f;	/* read value from sliders	*/
+	constexpr float angle = 30.f;	/* read value from sliders	*/
+	constexpr A_long iter = 5;		/* read value from sliders	*/
+	constexpr float coCircParam = FastCompute::PI * angular * reciproc180;
+	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
+	const float coCirc = std::cos(coCircParam);
+	const float coCone = std::cos(coConeParam);
+	constexpr float sigma = 5.0f;
+
+	/* allocate memory for store temporary results */
+	float* pPtr1 = allocTmpBuffer(height, width);
+	float* pPtr2 = allocTmpBuffer(height, width);
+	float* pPtr3 = allocTmpBuffer(height, width);
+
+	bool cocircularityRes = false;
+
+	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
+	{
+		auto const& tmpBufPitch = width;
+
+		/* convert RGB to BW */
+		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
+
+		const A_long frameSize = width * height;
+		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
+
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
+		{
+			const A_long nonZeros = count_sparse_matrix_non_zeros (sparseMatrix, frameSize);
+
+			auto I = std::make_unique<A_long[]>(nonZeros);
+			auto J = std::make_unique<A_long[]>(nonZeros);
+			auto Weights = std::make_unique<float[]>(nonZeros);
+			auto ImRes = std::make_unique<float[]>(frameSize);
+
+			if (I && J && Weights && ImRes)
+			{
+				sparse_matrix_to_arrays (sparseMatrix, I, J, Weights, frameSize);
+				auto __restrict imResPtr = ImRes.get();
+#ifdef _DEBUG
+				const A_long morphoRes =
+#endif
+				morpho_open (pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
+
+				/* fill output buffer */
+				Write2Destination (localSrc, localDst, imResPtr /* Y */, pPtr2 /* U */, pPtr3 /* V */, width, height, line_pitch, line_pitch, tmpBufPitch);
+			}
+			else
+				errCode = PF_Err_OUT_OF_MEMORY;
+		}
+		else
+			errCode = PF_Err_OUT_OF_MEMORY;
+	}
+	else
+		errCode = PF_Err_OUT_OF_MEMORY;
+
+	/* free temporary memory */
+	freeTmpBuffer(pPtr1);
+	freeTmpBuffer(pPtr2);
+	freeTmpBuffer(pPtr3);
+	pPtr1 = pPtr2 = pPtr3 = nullptr;
+
+	return errCode;
 }
 
 
@@ -154,7 +358,81 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef*  __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+	PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(output->data);
+	PF_Err errCode{ PF_Err_NONE };
+
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+
+	constexpr float normalizer = 255.f;
+	constexpr float reciproc180 = 1.0f / 180.0f;
+	constexpr float angular = 9.f;	/* read value from sliders	*/
+	constexpr float angle = 30.f;	/* read value from sliders	*/
+	constexpr A_long iter = 5;		/* read value from sliders	*/
+	constexpr float coCircParam = FastCompute::PI * angular * reciproc180;
+	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
+	const float coCirc = std::cos(coCircParam);
+	const float coCone = std::cos(coConeParam);
+	constexpr float sigma = 5.0f;
+
+	/* allocate memory for store temporary results */
+	float* pPtr1 = allocTmpBuffer(height, width);
+	float* pPtr2 = allocTmpBuffer(height, width);
+	float* pPtr3 = allocTmpBuffer(height, width);
+
+	bool cocircularityRes = false;
+
+	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
+	{
+		auto const& tmpBufPitch = width;
+
+		/* convert RGB to BW */
+		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
+
+		const A_long frameSize = width * height;
+		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
+
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
+		{
+			const A_long nonZeros = count_sparse_matrix_non_zeros(sparseMatrix, frameSize);
+
+			auto I = std::make_unique<A_long[]>(nonZeros);
+			auto J = std::make_unique<A_long[]>(nonZeros);
+			auto Weights = std::make_unique<float[]>(nonZeros);
+			auto ImRes = std::make_unique<float[]>(frameSize);
+
+			if (I && J && Weights && ImRes)
+			{
+				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
+				auto __restrict imResPtr = ImRes.get();
+#ifdef _DEBUG
+				const A_long morphoRes =
+#endif
+				morpho_open(pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
+
+				/* fill output buffer */
+				constexpr float clamp_val{ f32_value_white };
+				Write2Destination(localSrc, localDst, imResPtr /* Y */, pPtr2 /* U */, pPtr3 /* V */, width, height, line_pitch, line_pitch, tmpBufPitch, clamp_val);
+			}
+			else
+				errCode = PF_Err_OUT_OF_MEMORY;
+		}
+		else
+			errCode = PF_Err_OUT_OF_MEMORY;
+	}
+	else
+		errCode = PF_Err_OUT_OF_MEMORY;
+
+	/* free temporary memory */
+	freeTmpBuffer(pPtr1);
+	freeTmpBuffer(pPtr2);
+	freeTmpBuffer(pPtr3);
+	pPtr1 = pPtr2 = pPtr3 = nullptr;
+
+	return errCode;
 }
 
 
@@ -248,7 +526,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
 	const float coCirc = std::cos(coCircParam);
 	const float coCone = std::cos(coConeParam);
-	const float sigma = 5.0f;
+	constexpr float sigma = 5.0f;
 
 	/* allocate memory for store temporary results */
 	float* pPtr1 = allocTmpBuffer(height, width);
@@ -261,7 +539,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 	{
 		auto const& tmpBufPitch = width;
 
-		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
+		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
 
 		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
@@ -314,14 +592,78 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_EffectWorld* __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	PF_Pixel_ARGB_16u*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input->data);
 	PF_Pixel_ARGB_16u*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
+	PF_Err errCode{ PF_Err_NONE };
 
 	const A_long& height = output->height;
 	const A_long& width = output->width;
-	const A_long& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-	const A_long& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+
+	constexpr float normalizer = 255.f;
+	constexpr float reciproc180 = 1.0f / 180.0f;
+	constexpr float angular = 9.f;	/* read value from sliders	*/
+	constexpr float angle = 30.f;	/* read value from sliders	*/
+	constexpr A_long iter = 5;		/* read value from sliders	*/
+	constexpr float coCircParam = FastCompute::PI * angular * reciproc180;
+	constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
+	const float coCirc = std::cos(coCircParam);
+	const float coCone = std::cos(coConeParam);
+	constexpr float sigma = 5.0f;
+
+	/* allocate memory for store temporary results */
+	float* pPtr1 = allocTmpBuffer(height, width);
+	float* pPtr2 = allocTmpBuffer(height, width);
+	float* pPtr3 = allocTmpBuffer(height, width);
+
+	bool cocircularityRes = false;
+
+	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
+	{
+		auto const& tmpBufPitch = width;
+
+		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
+
+		const A_long frameSize = width * height;
+		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
+
+		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
+		{
+			const A_long nonZeros = count_sparse_matrix_non_zeros(sparseMatrix, frameSize);
+
+			auto I = std::make_unique<A_long[]>(nonZeros);
+			auto J = std::make_unique<A_long[]>(nonZeros);
+			auto Weights = std::make_unique<float[]>(nonZeros);
+			auto ImRes = std::make_unique<float[]>(frameSize);
+
+			if (I && J && Weights && ImRes)
+			{
+				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
+				auto __restrict imResPtr = ImRes.get();
+#ifdef _DEBUG
+				const A_long morphoRes =
+#endif
+				morpho_open(pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
+
+				/* fill output buffer */
+				Write2Destination(localSrc, localDst, imResPtr /* Y */, pPtr2 /* U */, pPtr3 /* V */, width, height, src_line_pitch, dst_line_pitch, tmpBufPitch);
+			}
+			else
+				errCode = PF_Err_OUT_OF_MEMORY;
+		}
+		else
+			errCode = PF_Err_OUT_OF_MEMORY;
+	}
+	else
+		errCode = PF_Err_OUT_OF_MEMORY;
+
+	/* free temporary memory */
+	freeTmpBuffer(pPtr1);
+	freeTmpBuffer(pPtr2);
+	freeTmpBuffer(pPtr3);
+	pPtr1 = pPtr2 = pPtr3 = nullptr;
 
 	return PF_Err_NONE;
 }

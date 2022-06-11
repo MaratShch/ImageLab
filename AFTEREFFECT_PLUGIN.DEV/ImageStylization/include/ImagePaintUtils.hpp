@@ -314,6 +314,38 @@ inline void Color2YUV
 }
 
 
+template <class T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
+inline void Color2YUV
+(
+	const T* __restrict pSrc,
+	float*   __restrict pY,
+	float*   __restrict pU,
+	float*   __restrict pV,
+	const A_long&       width,
+	const A_long&       height,
+	const A_long&       src_pitch,
+	const A_long&       tmp_pitch
+) noexcept
+{
+	__VECTOR_ALIGNED__
+	for (A_long j = 0; j < height; j++)
+	{
+		const T* __restrict pSrcLine = pSrc + j * src_pitch;
+		float*   __restrict pYLine = pY + j * tmp_pitch;
+		float*   __restrict pULine = pU + j * tmp_pitch;
+		float*   __restrict pVLine = pV + j * tmp_pitch;
+
+		for (A_long i = 0; i < width; i++)
+		{
+			pYLine[i] = static_cast<float>(pSrcLine[i].Y);
+			pULine[i] = static_cast<float>(pSrcLine[i].U);
+			pVLine[i] = static_cast<float>(pSrcLine[i].V);
+		} /* for (A_long i = 0; i < width; i++) */
+	} /* for (A_long j = 0; j < height; j++) */
+
+	return;
+}
+
 template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
 inline void Write2Destination
 (
@@ -352,6 +384,42 @@ inline void Write2Destination
 			pDstLine[i].R = R;
 			pDstLine[i].A = pSrcLine[i].A;
 
+		} /* for (A_long i = 0; i < width; i++) */
+	} /* for (A_long j = 0; j < height; j++) */
+
+	return;
+}
+
+
+template <class T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
+inline void Write2Destination
+(
+	const T* __restrict pSrc,
+	T* __restrict pDst,
+	float*   __restrict pY,
+	float*   __restrict pU,
+	float*   __restrict pV,
+	const A_long&       width,
+	const A_long&       height,
+	const A_long&       src_pitch,
+	const A_long&       dst_pitch,
+	const A_long&       proc_pitch,
+	const float&        clamp = 255.f
+) noexcept
+{
+	__VECTOR_ALIGNED__
+	for (A_long j = 0; j < height; j++)
+	{
+		const T* __restrict pSrcLine = pSrc + j * src_pitch;
+		T* __restrict pDstLine = pDst + j * dst_pitch;
+		float*   __restrict pYLine = pY + j * proc_pitch;
+
+		for (A_long i = 0; i < width; i++)
+		{
+			pDstLine[i].Y = CLAMP_VALUE(pYLine[i], 0.f, clamp);
+			pDstLine[i].U = pSrcLine[i].U;
+			pDstLine[i].V = pSrcLine[i].V;
+			pDstLine[i].A = pSrcLine[i].A;
 		} /* for (A_long i = 0; i < width; i++) */
 	} /* for (A_long j = 0; j < height; j++) */
 
