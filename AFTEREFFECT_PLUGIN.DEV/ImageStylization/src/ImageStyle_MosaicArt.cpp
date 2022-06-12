@@ -5,7 +5,7 @@
 #include "FastAriphmetics.hpp"
 #include "SegmentationUtils.hpp"
 #include "ImageAuxPixFormat.hpp"
-#include "SlicUtils.hpp"
+#include "ImageMosaicUtils.hpp"
 
 
 static PF_Err PR_ImageStyle_MosaicArt_BGRA_8u

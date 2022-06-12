@@ -151,11 +151,11 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageAuxPixFormat.hpp" />
     <ClInclude Include="include\ImageFFT.hpp" />
+    <ClInclude Include="include\ImageMosaicUtils.hpp" />
     <ClInclude Include="include\ImagePaintUtils.hpp" />
     <ClInclude Include="include\ImageStylization.hpp" />
     <ClInclude Include="include\SegmentationStructs.hpp" />
     <ClInclude Include="include\SegmentationUtils.hpp" />
-    <ClInclude Include="include\SlicUtils.hpp" />
     <ClInclude Include="include\StylizationEnums.hpp" />
     <ClInclude Include="include\StylizationStructs.hpp" />
     <ClInclude Include="include\StylizationImageGradient.hpp" />
