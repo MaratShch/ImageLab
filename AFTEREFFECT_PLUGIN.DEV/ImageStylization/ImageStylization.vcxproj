@@ -168,6 +168,7 @@
     <ClCompile Include="src\ImageStyle_GlassyEffect.cpp" />
     <ClCompile Include="src\ImageStyle_ImpressionismArt.cpp" />
     <ClCompile Include="src\ImageStyle_MosaicArt.cpp" />
+    <ClCompile Include="src\ImageStyle_MosaicUtils.cpp" />
     <ClCompile Include="src\ImageStyle_NewsPaper.cpp" />
     <ClCompile Include="src\ImageStyle_OilPaint.cpp" />
     <ClCompile Include="src\ImageStyle_PaintArt.cpp" />

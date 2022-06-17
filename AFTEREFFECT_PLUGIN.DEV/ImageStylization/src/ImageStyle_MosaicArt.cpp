@@ -24,8 +24,14 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_8u
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
+	/* parameters */
+	const float m = 40.f;
+	const A_long k = 1000, g = 0;
+	const ArtMosaic::Color<int>GrayColor (128, 128, 128);
 
-	return PF_Err_NONE;
+	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+
+	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
 
 
@@ -45,7 +51,14 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_16u
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-	return PF_Err_NONE;
+	/* parameters */
+	const float m = 40.f;
+	const A_long k = 1000, g = 0;
+	const ArtMosaic::Color<int>GrayColor (16383, 16383, 16383);
+
+	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+
+	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
 
 
@@ -65,6 +78,14 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_32f
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
+	/* parameters */
+	const float m = 40.f;
+	const A_long k = 1000, g = 0;
+	const ArtMosaic::Color<float>GrayColor (0.5f, 0.5f, 0.5f);
+
+	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+
+	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 	return PF_Err_NONE;
 }
 

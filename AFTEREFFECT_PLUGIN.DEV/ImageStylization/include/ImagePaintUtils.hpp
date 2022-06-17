@@ -3,8 +3,6 @@
 #include "CommonPixFormat.hpp"
 #include "ClassRestrictions.hpp"
 #include "ColorTransformMatrix.hpp"
-#include <malloc.h>
-#include <stdio.h>
 #include <vector>
 #include <map>
 
@@ -129,16 +127,15 @@ void convolution
 
 void diagonalize_structure_tensors
 (
-	const std::unique_ptr<float[]>& a,
-	const std::unique_ptr<float[]>& b,
-	const std::unique_ptr<float[]>& c,
+	const std::unique_ptr<float[]>& A,
+	const std::unique_ptr<float[]>& B,
+	const std::unique_ptr<float[]>& C,
 	A_long sizeX,
 	A_long sizeY,
-	std::unique_ptr<float[]>& lambda1,
-	std::unique_ptr<float[]>& lambda2,
-	std::unique_ptr<float[]>& eigvect2_x,
-	std::unique_ptr<float[]>& eigvect2_y,
-	std::unique_ptr<float[]>& anisotropy
+	std::unique_ptr<float[]>& Lambda1,
+	std::unique_ptr<float[]>& Lambda2,
+	std::unique_ptr<float[]>& Eigvect2_x,
+	std::unique_ptr<float[]>& Eigvect2_y
 ) noexcept;
 
 void compute_adjacency_matrix
