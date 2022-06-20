@@ -54,14 +54,21 @@ namespace ArtMosaic
 	};
 
 
-	template <typename U>
+	template <typename T>
 	class Superpixel
 	{
 		public:
-			CLASS_NON_COPYABLE(Superpixel);
-			CLASS_NON_MOVABLE(Superpixel);
 
-			explicit Superpixel (const A_long& x0, const A_long& y0, const U& c) 
+			explicit Superpixel (const A_long x0, const A_long y0, const T& c) 
+			{
+				pix = nullptr;
+				col = c;
+				x = static_cast<float>(x0);
+				y = static_cast<float>(y0);
+				size = 0;
+			}
+
+			explicit Superpixel(const A_long x0, const A_long y0, const T&& c)
 			{
 				pix = nullptr;
 				col = c;
@@ -79,20 +86,59 @@ namespace ArtMosaic
 
 		private:
 			Pixel* pix;
-			U col;
+			T col;
 			float x, y;
 			int size;
 
 	};
 	
+	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	inline void moveMinimalGradient
+	(
+		std::vector<Superpixel<T>>& sp,
+		const T* __restrict I,
+		const A_long& radius,
+		const A_long& K
+	) noexcept
+	{
+		for (A_long k = 0; k < K; k++)
+		{
+			constexpr int minNorm = std::numeric_limits<int>::max();
+
+		} /* for (A_long k = 0; k < K; k++) */
+		/*
+		    size_t K = sp.size();
+    for(size_t k=0; k<K; k++) {
+        int minNorm = std::numeric_limits<int>::max();
+        const int x=(int)sp[k].x, y=(int)sp[k].y;
+        for(int j=-radius; j<=radius; j++)
+            for(int i=-radius; i<=radius; i++) {
+                Pixel p(x+i,y+j);
+                if(I.inside(p)) {
+                    int g = sqNormGradient(I,p);
+                    if(g < minNorm) {
+                        sp[k].x = (float)p.x;
+                        sp[k].y = (float)p.y;
+                        minNorm = g;
+                    }
+                }
+            }
+    }
+
+		*/
+
+
+		return;
+	}
+
 
 	template <typename U, typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
-	std::vector<Superpixel<T>> SimpleLinearIterativeClustering
+	inline std::vector<Superpixel<T>> SimpleLinearIterativeClustering
 	(
 		const T* __restrict pSrc,
 		std::unique_ptr<Color<U>[]>& pOut,
 		const float& m,
-		const A_long& K,
+		      A_long& K,
 		const A_long& g,
 		const A_long& sizeX,
 		const A_long& sizeY,
@@ -120,20 +166,16 @@ namespace ArtMosaic
 		for (j = 0; j < nY; j++)
 		{
 			const A_long jj = j * S + s + halfPadH;
-
 			for (i = 0; i < nX; i++)
 			{
 				const A_long ii = i * S + s + halfPadW;
-
 				if (0 <= ii && ii < sizeX && 0 <= jj && jj < sizeY)
-				{
-		//			sp.push_back(Superpixel<T>(ii, jj, pSrc[jj * srcPitch + ii]));
-				}
+					sp.push_back(Superpixel<T>(ii, jj, pSrc[jj * srcPitch + ii]));
 			}
 		}
+		K = static_cast<A_long>(sp.size());
 
-//		K = (int)sp.size();
-
+		moveMinimalGradient(sp, pSrc, g, K);
 
 		return sp;
 	}
@@ -146,7 +188,7 @@ namespace ArtMosaic
 		      T* __restrict pDst,
 		const Color<U>& GrayColor,
 		const float& m,
-		const A_long& k,
+		      A_long& k,
 		const A_long& g,
 		const A_long& sizeX,
 		const A_long& sizeY,

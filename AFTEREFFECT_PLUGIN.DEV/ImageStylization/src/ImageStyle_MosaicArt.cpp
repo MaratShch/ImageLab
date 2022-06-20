@@ -26,8 +26,9 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_8u
 
 	/* parameters */
 	const float m = 40.f;
-	const A_long k = 1000, g = 0;
-	const ArtMosaic::Color<int>GrayColor (128, 128, 128);
+	A_long k = 1000, g = 0;
+	constexpr int minNorm = std::numeric_limits<unsigned char>::max() / 2;
+	const ArtMosaic::Color<int>GrayColor (minNorm, minNorm, minNorm);
 
 	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
 
@@ -53,8 +54,9 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_16u
 
 	/* parameters */
 	const float m = 40.f;
-	const A_long k = 1000, g = 0;
-	const ArtMosaic::Color<int>GrayColor (16383, 16383, 16383);
+	A_long k = 1000, g = 0;
+	constexpr int minNorm = std::numeric_limits<unsigned short int>::max() / 2 / 2;
+	const ArtMosaic::Color<int>GrayColor(minNorm, minNorm, minNorm);
 
 	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
 
@@ -80,7 +82,7 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_32f
 
 	/* parameters */
 	const float m = 40.f;
-	const A_long k = 1000, g = 0;
+	A_long k = 1000, g = 0;
 	const ArtMosaic::Color<float>GrayColor (0.5f, 0.5f, 0.5f);
 
 	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);

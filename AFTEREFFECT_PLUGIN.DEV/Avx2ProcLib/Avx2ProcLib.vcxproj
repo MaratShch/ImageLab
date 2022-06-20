@@ -163,6 +163,7 @@
     <ClInclude Include="include\Avx2Log.hpp" />
     <ClInclude Include="include\Avx2Median.hpp" />
     <ClInclude Include="include\Avx2ProcLib.hpp" />
+    <ClInclude Include="include\Avx2SimpleConvert.h" />
     <ClInclude Include="src\Avx2Median\Avx2MedianInternal.hpp" />
     <ClInclude Include="src\Avx2Median\Avx2MedianScalar.hpp" />
   </ItemGroup>

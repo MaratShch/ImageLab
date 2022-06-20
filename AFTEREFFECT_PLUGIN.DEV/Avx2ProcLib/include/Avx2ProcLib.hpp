@@ -4,3 +4,4 @@
 #include "Avx2Histogram.hpp"
 #include "Avx2Median.hpp"
 #include "Avx2Morphology.hpp"
+#include "Avx2SimpleConvert.h"
