@@ -84,7 +84,6 @@ namespace ArtMosaic
 //				return wSpace * wSpace * eucldist + colordist;
 //			}
 
-		private:
 			Pixel* pix;
 			T col;
 			float x, y;
@@ -92,42 +91,91 @@ namespace ArtMosaic
 
 	};
 	
+	inline bool isInside
+	(
+		const int& x, 
+		const int& y,
+		const int& w,
+		const int& h
+	) noexcept 
+	{
+		return (0 <= x && x < w && 0 <= y && y < h);
+	}
+
+	inline bool isInside
+	(
+		const Pixel& p,
+		const int& w,
+		const int& h
+	) noexcept
+	{
+		return isInside (p.x, p.y, w, h);
+	}
+
+#if 0
+	int sqNormGradient(const Image<Color>& I, const Pixel& p) {
+		int g = 0;
+		Pixel q = p;
+		++q.x;
+		if (!I.inside(q))
+			q.x = p.x - 1;
+		if (!I.inside(q))
+			q.x = p.x; // case w=1
+		g += color_dist(I(q), I(p));
+
+		q = p;
+		++q.y;
+		if (!I.inside(q))
+			q.y = p.y - 1;
+		if (!I.inside(q))
+			q.y = p.y; // case h=1
+		g += color_dist(I(q), I(p));
+		return g;
+	}
+#endif
+
 	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
 	inline void moveMinimalGradient
 	(
 		std::vector<Superpixel<T>>& sp,
 		const T* __restrict I,
 		const A_long& radius,
-		const A_long& K
+		const A_long& K,
+		const A_long& sizeX,
+		const A_long& sizeY
 	) noexcept
 	{
 		for (A_long k = 0; k < K; k++)
 		{
-			constexpr int minNorm = std::numeric_limits<int>::max();
+			int j, i;
+			A_long minNorm = std::numeric_limits<A_long>::max();
+
+			const int x = static_cast<int>(sp[k].x);
+			const int y = static_cast<int>(sp[k].y);
+
+			for (j = -radius; j <= radius; j++)
+			{
+				for (i = -radius; i <= radius; i++)
+				{
+					Pixel p(x + i, y + j);
+					if (isInside(p, sizeX, sizeY))
+					{
+						A_long g = 0;// sqNormGradient(I, p); !!!!
+						if (g < minNorm)
+						{
+							sp[k].x = static_cast<float>(p.x);
+							sp[k].y = static_cast<float>(p.y);
+							minNorm = g;
+						} /* if (g < minNorm) */
+
+					} /* if (isInside(p, sizeX, sizeY)) */
+
+				} /* for (i = -radius; i <= radius; i++) */
+
+			} /* for (j = -radius; j <= radius; j++) */
 
 		} /* for (A_long k = 0; k < K; k++) */
-		/*
-		    size_t K = sp.size();
-    for(size_t k=0; k<K; k++) {
-        int minNorm = std::numeric_limits<int>::max();
-        const int x=(int)sp[k].x, y=(int)sp[k].y;
-        for(int j=-radius; j<=radius; j++)
-            for(int i=-radius; i<=radius; i++) {
-                Pixel p(x+i,y+j);
-                if(I.inside(p)) {
-                    int g = sqNormGradient(I,p);
-                    if(g < minNorm) {
-                        sp[k].x = (float)p.x;
-                        sp[k].y = (float)p.y;
-                        minNorm = g;
-                    }
-                }
-            }
-    }
-
-		*/
-
-
+		
 		return;
 	}
 
@@ -169,20 +217,20 @@ namespace ArtMosaic
 			for (i = 0; i < nX; i++)
 			{
 				const A_long ii = i * S + s + halfPadW;
-				if (0 <= ii && ii < sizeX && 0 <= jj && jj < sizeY)
+				if (isInside(ii, jj, sizeX, sizeY))
 					sp.push_back(Superpixel<T>(ii, jj, pSrc[jj * srcPitch + ii]));
 			}
 		}
 		K = static_cast<A_long>(sp.size());
 
-		moveMinimalGradient(sp, pSrc, g, K);
+		moveMinimalGradient (sp, pSrc, g, K, sizeX, sizeY);
 
 		return sp;
 	}
 
 
 	template <typename U, typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
-	bool SlicImage
+	inline bool SlicImage
 	(
 		const T* __restrict pSrc,
 		      T* __restrict pDst,
