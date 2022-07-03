@@ -18,7 +18,7 @@ namespace ArtMosaic
 	template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
 	inline constexpr float color_distance(const T& c1, const T& c2) noexcept
 	{
-		return (static_cast<float>(sq(c1.B - c2.B) + sq(c1.G - c2.G) + sq(c1.R - c2.R)));
+		return (static_cast<float>(sq(c1.b - c2.b) + sq(c1.g - c2.g) + sq(c1.r - c2.r)));
 	}
 
 
@@ -26,12 +26,12 @@ namespace ArtMosaic
 	{
 	public:
 		PixelPos x, y;
-		Pixel(const PixelPos& x0, const PixelPos& y0)
+		Pixel(const PixelPos& x0, const PixelPos& y0) noexcept
 		{
 			x = x0;
 			y = y0;
 		}
-		Pixel()
+		Pixel() noexcept
 		{ 
 			Pixel(0, 0);
 		}
@@ -44,8 +44,8 @@ namespace ArtMosaic
 	public:
 		T r, g, b;
 
-		Color() { ; }
-		Color(const T& r0, const T& g0, const T& b0)
+		Color() noexcept { ; }
+		Color(const T& r0, const T& g0, const T& b0) noexcept
 		{
 			r = r0;
 			g = g0;
@@ -59,7 +59,7 @@ namespace ArtMosaic
 	{
 		public:
 
-			explicit Superpixel (const A_long x0, const A_long y0, const T& c) 
+			explicit Superpixel (const A_long x0, const A_long y0, const T& c) noexcept
 			{
 				pix = nullptr;
 				col = c;
@@ -68,7 +68,7 @@ namespace ArtMosaic
 				size = 0;
 			}
 
-			explicit Superpixel(const A_long x0, const A_long y0, const T&& c)
+			explicit Superpixel(const A_long x0, const A_long y0, const T&& c) noexcept
 			{
 				pix = nullptr;
 				col = c;
@@ -93,10 +93,10 @@ namespace ArtMosaic
 	
 	inline bool isInside
 	(
-		const int& x, 
-		const int& y,
-		const int& w,
-		const int& h
+		const A_long& x,
+		const A_long& y,
+		const A_long& w,
+		const A_long& h
 	) noexcept 
 	{
 		return (0 <= x && x < w && 0 <= y && y < h);
@@ -105,34 +105,64 @@ namespace ArtMosaic
 	inline bool isInside
 	(
 		const Pixel& p,
-		const int& w,
-		const int& h
+		const A_long& w,
+		const A_long& h
 	) noexcept
 	{
 		return isInside (p.x, p.y, w, h);
 	}
 
-#if 0
-	int sqNormGradient(const Image<Color>& I, const Pixel& p) {
-		int g = 0;
+	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	inline Color<float> getSrcPixel
+	(
+		const T* __restrict I,
+		const Pixel& p,
+		const A_long pitch
+	) noexcept
+	{
+		const T& srcPixel = I[p.x + p.y * pitch];
+		Color<float> c(srcPixel.R, srcPixel.G, srcPixel.B);
+		return c;
+	}
+
+
+	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	inline A_long sqNormGradient
+	(
+		const T* __restrict I,
+		const Pixel& p,
+		const A_long& w,
+		const A_long& h,
+		const A_long& pitch
+	) noexcept
+	{
+		A_long g = 0;
 		Pixel q = p;
 		++q.x;
-		if (!I.inside(q))
+		if (!isInside(q, w, h))
 			q.x = p.x - 1;
-		if (!I.inside(q))
+		if (!isInside(q, w, h))
 			q.x = p.x; // case w=1
-		g += color_dist(I(q), I(p));
+		{
+			Color<float> c1 = getSrcPixel(I, q, pitch);
+			Color<float> c2 = getSrcPixel(I, p, pitch);
+			g += static_cast<A_long>(color_distance(c1, c2));
+		}
 
 		q = p;
 		++q.y;
-		if (!I.inside(q))
+		if (isInside(q, w, h))
 			q.y = p.y - 1;
-		if (!I.inside(q))
+		if (isInside(q, w, h))
 			q.y = p.y; // case h=1
-		g += color_dist(I(q), I(p));
+		{
+			Color<float> c1 = getSrcPixel(I, q, pitch);
+			Color<float> c2 = getSrcPixel(I, p, pitch);
+			g += static_cast<A_long>(color_distance(c1, c2));
+		}
 		return g;
 	}
-#endif
+
 
 	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
 	inline void moveMinimalGradient
@@ -142,7 +172,8 @@ namespace ArtMosaic
 		const A_long& radius,
 		const A_long& K,
 		const A_long& sizeX,
-		const A_long& sizeY
+		const A_long& sizeY,
+		const A_long& pitch
 	) noexcept
 	{
 		for (A_long k = 0; k < K; k++)
@@ -160,7 +191,7 @@ namespace ArtMosaic
 					Pixel p(x + i, y + j);
 					if (isInside(p, sizeX, sizeY))
 					{
-						A_long g = 0;// sqNormGradient(I, p); !!!!
+						const A_long g = sqNormGradient(I, p, sizeX, sizeY, pitch);
 						if (g < minNorm)
 						{
 							sp[k].x = static_cast<float>(p.x);
@@ -223,7 +254,7 @@ namespace ArtMosaic
 		}
 		K = static_cast<A_long>(sp.size());
 
-		moveMinimalGradient (sp, pSrc, g, K, sizeX, sizeY);
+		moveMinimalGradient (sp, pSrc, g, K, sizeX, sizeY, srcPitch);
 
 		return sp;
 	}
