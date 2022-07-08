@@ -8,6 +8,15 @@ namespace ArtMosaic
 {
 	using PixelPos = A_long;
 
+	typedef struct ProcPixel
+	{
+		float R;
+		float G;
+		float B;
+	}ProcPixel;
+
+	void fillProcBuf (ProcPixel* pBuf, const A_long& pixNumber, const float& val) noexcept;
+	void fillProcBuf (std::unique_ptr<ProcPixel[]>& pBuf, const A_long& pixNumber, const float& val) noexcept;
 
 	template <typename T>
 	inline constexpr T sq (const T& x) noexcept
@@ -116,6 +125,20 @@ namespace ArtMosaic
 	inline Color<float> getSrcPixel
 	(
 		const T* __restrict I,
+		const A_long& x,
+		const A_long& y,
+		const A_long pitch
+	) noexcept
+	{
+		const T& srcPixel = I[x + y * pitch];
+		Color<float> pix(srcPixel.R, srcPixel.G, srcPixel.B);
+		return pix;
+	}
+
+	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	inline Color<float> getSrcPixel
+	(
+		const T* __restrict I,
 		const Pixel& p,
 		const A_long pitch
 	) noexcept
@@ -178,11 +201,11 @@ namespace ArtMosaic
 	{
 		for (A_long k = 0; k < K; k++)
 		{
-			int j, i;
+			A_long j, i;
 			A_long minNorm = std::numeric_limits<A_long>::max();
 
-			const int x = static_cast<int>(sp[k].x);
-			const int y = static_cast<int>(sp[k].y);
+			const A_long x = static_cast<A_long>(sp[k].x);
+			const A_long y = static_cast<A_long>(sp[k].y);
 
 			for (j = -radius; j <= radius; j++)
 			{
@@ -212,6 +235,45 @@ namespace ArtMosaic
 
 
 	template <typename U, typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	void assignmentStep
+	(
+		std::vector<Superpixel<T>>& sp,
+		const T* __restrict pSrc,
+		const float& wSpace, 
+		const A_long& S,
+		std::unique_ptr<Color<U>[]>& l,
+		std::unique_ptr<ProcPixel[]>& d,
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long pitch
+	)
+	{
+		A_long i, j;
+		const A_long size = static_cast<A_long>(sp.size());
+		for (A_long k = 0; k < size; k++)
+		{
+			for (i = -S; i < S; i++)
+			{
+				for (j = -S; j < S; j++)
+				{
+					A_long ip = static_cast<int>((sp[k].x + 0.50f) + i);
+					A_long jp = static_cast<int>((sp[k].y + 0.50f) + j);
+
+					if (isInside(ip, jp, sizeX, sizeY))
+					{
+						const Color<float> pixel = getSrcPixel(pSrc, ip, jp, pitch);
+
+					}
+				} /* for (int j = -S; j < S; j++) */
+
+			} /* for (int i = -S; i < S; i++) */
+
+		} /* for (A_long k = 0; k < size; k++) */
+		return;
+	}
+
+
+	template <typename U, typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
 	inline std::vector<Superpixel<T>> SimpleLinearIterativeClustering
 	(
 		const T* __restrict pSrc,
@@ -224,9 +286,7 @@ namespace ArtMosaic
 		const A_long& srcPitch
 	) noexcept
 	{
-		auto pOutBuffer{ pOut.get() };
 		std::vector<Superpixel<T>> sp;
-
 		A_long j, i;
 
 		/* init superpixel */
@@ -255,6 +315,31 @@ namespace ArtMosaic
 		K = static_cast<A_long>(sp.size());
 
 		moveMinimalGradient (sp, pSrc, g, K, sizeX, sizeY, srcPitch);
+	
+		const float wSpace = m / static_cast<float>(S); 
+		std::vector<float> il(6, 0); 
+		std::vector<std::vector<float>> centers(sp.size(), il);
+
+		constexpr A_long MaxIterSlic = 1000;
+		constexpr float RmseMax = 0.5f;
+		constexpr float InitialError = 2.f * RmseMax + 1.f;
+		float E = InitialError;
+
+		const A_long procBufSize = sizeX * sizeY;
+		const A_long bytesSize = procBufSize * sizeof(ProcPixel);
+		auto procBuffer = std::make_unique<ProcPixel[]>(procBufSize);
+
+		if (procBuffer)
+		{
+			constexpr float fillValue = std::numeric_limits<float>::max();
+
+			for (i = 0; i < MaxIterSlic && E > RmseMax; i++)
+			{
+				fillProcBuf (procBuffer, procBufSize, fillValue);
+				assignmentStep (sp, pSrc, wSpace, S, pOut, procBuffer, sizeX, sizeY, srcPitch);
+			} /* for (i = 0; i < MaxIterSlic && E > RmseMax; i++) */
+
+		} /* if (procBuffer) */
 
 		return sp;
 	}
@@ -279,7 +364,10 @@ namespace ArtMosaic
 		const A_long frameSize = CreateAlignment (sizeX * sizeY, CACHE_LINE);
 		auto tmpOut = std::make_unique<Color<U>[]>(frameSize);
 
-		std::vector<Superpixel<T>> sp = SimpleLinearIterativeClustering (pSrc, tmpOut, m, k, g, sizeX, sizeY, srcPitch);
+		if (tmpOut)
+		{
+			std::vector<Superpixel<T>> sp = SimpleLinearIterativeClustering(pSrc, tmpOut, m, k, g, sizeX, sizeY, srcPitch);
+		}
 
 		return true;
 	}
