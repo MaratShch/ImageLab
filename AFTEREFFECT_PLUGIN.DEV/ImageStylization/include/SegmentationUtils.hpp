@@ -20,7 +20,8 @@ std::vector<Hsegment> compute_color_palette
 	std::vector<int32_t>& ftcseg,
 	int32_t w,
 	int32_t h,
-	int32_t p,
+	int32_t p1,
+	int32_t p2,
 	float eps
 ) noexcept;
 

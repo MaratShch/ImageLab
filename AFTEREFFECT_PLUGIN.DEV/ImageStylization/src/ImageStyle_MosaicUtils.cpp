@@ -34,5 +34,3 @@ void ArtMosaic::fillProcBuf(std::unique_ptr<ProcPixel[]>& pBuf, const A_long& pi
 {
 	ArtMosaic::fillProcBuf (pBuf.get(), pixNumber, val);
 }
-
-

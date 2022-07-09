@@ -86,7 +86,7 @@ namespace ArtMosaic
 				size = 0;
 			}
 
-//			float distance (const A_long& i, const A_long& j, const Color<U>& c, const float& wSpace) const noexcept
+//			float distance (const A_long& i, const A_long& j, const Color<float>& c, const float& wSpace) const noexcept;
 //			{
 //				const float eucldist = sq(x - static_cast<float>(i)) + sq(y - static_cast<float>(j));
 //				const float colordist = color_distance (col, c);
@@ -261,7 +261,8 @@ namespace ArtMosaic
 
 					if (isInside(ip, jp, sizeX, sizeY))
 					{
-						const Color<float> pixel = getSrcPixel(pSrc, ip, jp, pitch);
+						const Color<float> color = getSrcPixel(pSrc, ip, jp, pitch);
+//						float dist = sp[k].dist5D (ip, jp, color, wSpace);
 
 					}
 				} /* for (int j = -S; j < S; j++) */

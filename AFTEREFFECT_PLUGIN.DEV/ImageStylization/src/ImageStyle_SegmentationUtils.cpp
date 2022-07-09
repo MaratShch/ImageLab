@@ -423,8 +423,8 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 
 		while (true == do_merging && nIntervals > j)
 		{
-			CACHE_ALIGN CostData cData;
-			CACHE_ALIGN CostData cDataLowest;
+			CostData cData;
+			CostData cDataLowest;
 			int32_t iLowest = -1;
 			const int32_t nIntervalCnt = nIntervals - j;
 
@@ -455,10 +455,10 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 			if ((-1 != iLowest) && (cDataLowest.cost < 0))
 			{
 				/* remove minima with index ilowest+1 to ilowest+j */
-				auto& iterator1 = SeparatorVector.begin() + (iLowest + 1);
+				auto iterator1 = SeparatorVector.begin() + (iLowest + 1);
 				SeparatorVector.erase(iterator1, iterator1 + j);
 
-				auto& iterator2 = MaximaVectorOut.begin() + iLowest;
+				auto iterator2 = MaximaVectorOut.begin() + iLowest;
 				//remove maxima associated to the removed minima
 				if (1 == cDataLowest.typemerging)
 				{
@@ -722,7 +722,8 @@ std::vector<Hsegment> compute_color_palette
 	std::vector<int32_t>& ftcseg,
 	int32_t w,
 	int32_t h,
-	int32_t p,
+	int32_t p1,
+	int32_t p2,
 	float eps
 ) noexcept
 {
@@ -743,7 +744,7 @@ std::vector<Hsegment> compute_color_palette
 			histS[iS]++;
 		}
 		//segment saturation histogram
-		std::vector<int> ftcsegS = ftc_utils_segmentation(histS, nbinsS, eps, false);
+		std::vector<int> ftcsegS = ftc_utils_segmentation (histS, nbinsS, eps, false);
 
 		channel_segmentation_saturation(hsi, bgra, hSegments[i], nbinsS, qS, ftcsegS);
 		const int32_t& nsegmentsS = static_cast<int32_t>(hSegments[i].sSegments.size());

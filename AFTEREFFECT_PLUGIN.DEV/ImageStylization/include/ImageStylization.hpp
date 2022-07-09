@@ -3,7 +3,7 @@
 #include "CommonAdobeAE.hpp"
 #include "StylizationEnums.hpp"
 #include "StylizationStructs.hpp"
-
+#include "FastAriphmetics.hpp"
 
 constexpr char strName[] = "Image Stylization";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage Stylization plugin.";
@@ -67,6 +67,61 @@ const float* __restrict get_random_buffer(void) noexcept;
 void utils_create_random_buffer(void) noexcept;
 
 
+inline float* allocTmpBuffer(const A_long& height, const A_long& pitch, const A_long bands = 1, float** procBuf = nullptr) noexcept
+{
+	const A_long line_pitch = FastCompute::Abs(pitch);
+	const size_t elemNumber = height * line_pitch * bands;
+	float* rawPtr = new float[elemNumber];
+#ifdef _DEBUG
+	memset(rawPtr, 0, elemNumber * sizeof(float));
+#endif
+	if (nullptr != procBuf)
+		*procBuf = rawPtr + ((pitch < 0) ? elemNumber - line_pitch : 0);
+
+	return rawPtr;
+}
+
+inline void freeTmpBuffer(float* ptr) noexcept
+{
+	if (nullptr != ptr)
+	{
+		delete[] ptr;
+		ptr = nullptr;
+	}
+	return;
+}
+
+
+template <class T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+void CopnvertImgToF32Rgb
+(
+	const T* __restrict pSrc,
+	float* __restrict pR,
+	float* __restrict pG,
+	float* __restrict pB,
+	const A_long& sizeX,
+	const A_long& sizeY,
+	const A_long& srcPitch,
+	const A_long& tmpPitch
+) noexcept
+{
+	__VECTOR_ALIGNED__
+	for (A_long j = 0; j < height; j++)
+	{
+		const T* __restrict pSrcLine = pSrc + j * src_pitch;
+		float*   __restrict pRLine = pR + j * tmp_pitch;
+		float*   __restrict pGLine = pG + j * tmp_pitch;
+		float*   __restrict pBLine = pB + j * tmp_pitch;
+
+		for (A_long i = 0; i < width; i++)
+		{
+			pRLine[i] = static_cast<float>(pSrcLine[i].R);
+			pGLine[i] = static_cast<float>(pSrcLine[i].G);
+			pBLine[i] = static_cast<float>(pSrcLine[i].B);
+		} /* for (A_long i = 0; i < width; i++) */
+	} /* for (A_long j = 0; j < height; j++) */
+	return;
+}
 
 
 /* FUNCTION PROTOTYPES */

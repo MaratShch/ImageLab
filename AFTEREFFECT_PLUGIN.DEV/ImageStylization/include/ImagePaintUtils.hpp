@@ -251,32 +251,9 @@ bool dilate_max_plus_symmetric
 
 
 
-inline float* allocTmpBuffer (const A_long& height, const A_long& pitch, float** procBuf = nullptr) noexcept
-{
-	const A_long line_pitch = FastCompute::Abs(pitch);
-	const size_t elemNumber = height * line_pitch;
-	float* rawPtr = new float[elemNumber];
-#ifdef _DEBUG
-	memset(rawPtr, 0, elemNumber * sizeof(float));
-#endif
-	if (nullptr != procBuf)
-		*procBuf = rawPtr + ((pitch < 0) ? elemNumber - line_pitch : 0);
-
-	return rawPtr;
-}
-
-inline void freeTmpBuffer (float* ptr) noexcept
-{
-	if (nullptr != ptr)
-	{
-		delete[] ptr;
-		ptr = nullptr;
-	}
-	return;
-}
 
 
-template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+template <class T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void Color2YUV
 (
 	const T* __restrict pSrc,
@@ -343,7 +320,7 @@ inline void Color2YUV
 	return;
 }
 
-template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+template <class T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void Write2Destination
 (
 	const T* __restrict pSrc,

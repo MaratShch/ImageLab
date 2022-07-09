@@ -87,10 +87,10 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	auto const tmp_pitch = width;
 
 	constexpr float sMin = static_cast<float>(nbinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
-	const size_t requiredMemSize = width * height * sizeof(float) * 3;
-
+	const size_t requiredMemSize = tmp_pitch * height * sizeof(float) * 3;
 	int j, i, nhighsat;
 	int hH, sS, iI;
 	float H, S, I;
@@ -170,7 +170,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		else
 		{
 			ftcSeg = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-//			hSegments = compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, epsilon);
+			hSegments = compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, tmp_pitch, epsilon);
 		}
 
 		std::vector<dataRGB> meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI;
