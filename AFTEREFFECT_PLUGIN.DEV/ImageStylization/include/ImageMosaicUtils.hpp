@@ -24,7 +24,7 @@ namespace ArtMosaic
 		return (x * x);
 	}
 
-	template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	template <class T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline constexpr float color_distance(const T& c1, const T& c2) noexcept
 	{
 		return (static_cast<float>(sq(c1.b - c2.b) + sq(c1.g - c2.g) + sq(c1.r - c2.r)));
@@ -47,14 +47,14 @@ namespace ArtMosaic
 	};
 
 
-	template <typename T>
 	class Color
 	{
 	public:
-		T r, g, b;
+		float r, g, b;
 
-		Color() noexcept { ; }
-		Color(const T& r0, const T& g0, const T& b0) noexcept
+		Color() noexcept { r = g = b = 0; }
+
+		Color(const float& r0, const float& g0, const float& b0) noexcept
 		{
 			r = r0;
 			g = g0;
@@ -63,12 +63,11 @@ namespace ArtMosaic
 	};
 
 
-	template <typename T>
 	class Superpixel
 	{
 		public:
 
-			explicit Superpixel (const A_long x0, const A_long y0, const T& c) noexcept
+			explicit Superpixel (const A_long x0, const A_long y0, const Color& c) noexcept
 			{
 				pix = nullptr;
 				col = c;
@@ -77,14 +76,6 @@ namespace ArtMosaic
 				size = 0;
 			}
 
-			explicit Superpixel(const A_long x0, const A_long y0, const T&& c) noexcept
-			{
-				pix = nullptr;
-				col = c;
-				x = static_cast<float>(x0);
-				y = static_cast<float>(y0);
-				size = 0;
-			}
 
 //			float distance (const A_long& i, const A_long& j, const Color<float>& c, const float& wSpace) const noexcept;
 //			{
@@ -94,12 +85,13 @@ namespace ArtMosaic
 //			}
 
 			Pixel* pix;
-			T col;
+			Color col;
 			float x, y;
 			int size;
 
 	};
-	
+
+
 	inline bool isInside
 	(
 		const A_long& x,
@@ -121,7 +113,9 @@ namespace ArtMosaic
 		return isInside (p.x, p.y, w, h);
 	}
 
-	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+
+#if 0	
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline Color<float> getSrcPixel
 	(
 		const T* __restrict I,
@@ -135,7 +129,7 @@ namespace ArtMosaic
 		return pix;
 	}
 
-	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline Color<float> getSrcPixel
 	(
 		const T* __restrict I,
@@ -149,7 +143,7 @@ namespace ArtMosaic
 	}
 
 
-	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline A_long sqNormGradient
 	(
 		const T* __restrict I,
@@ -187,7 +181,7 @@ namespace ArtMosaic
 	}
 
 
-	template <typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline void moveMinimalGradient
 	(
 		std::vector<Superpixel<T>>& sp,
@@ -234,7 +228,7 @@ namespace ArtMosaic
 	}
 
 
-	template <typename U, typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	template <typename U, typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	void assignmentStep
 	(
 		std::vector<Superpixel<T>>& sp,
@@ -274,7 +268,7 @@ namespace ArtMosaic
 	}
 
 
-	template <typename U, typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	template <typename U, typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline std::vector<Superpixel<T>> SimpleLinearIterativeClustering
 	(
 		const T* __restrict pSrc,
@@ -344,14 +338,81 @@ namespace ArtMosaic
 
 		return sp;
 	}
+#endif
+
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+	inline void moveMinimalGradient
+	(
+		std::vector<Superpixel>& sp,
+		const T* __restrict I,
+		const A_long& radius,
+		const A_long& K,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& pitch
+	) noexcept
+	{
+		return;
+	}
 
 
-	template <typename U, typename T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+	inline std::vector<Superpixel> SlicImageImpl
+	(
+		const T* __restrict pSrc,
+		const Color& GrayColor,
+		const float& m,
+		A_long& K,
+		const A_long& g,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& srcPitch
+	) noexcept
+	{
+		std::vector<Superpixel> sp;
+		A_long j, i;
+
+		/* init superpixel */
+		const float superPixInitVal = static_cast<float>(sizeX * sizeY) / static_cast<float>(K);
+		const A_long S  = FastCompute::Max(1, static_cast<A_long>(FastCompute::Sqrt(superPixInitVal)));
+		const A_long nX = FastCompute::Max(1, sizeX / S);
+		const A_long nY = FastCompute::Max(1, sizeY / S);
+
+		const A_long padw = FastCompute::Max(0, sizeX - S * nX);
+		const A_long padh = FastCompute::Max(0, sizeY - S * nY);
+		const A_long s = S >> 1;
+
+		const A_long halfPadW = padw >> 1;
+		const A_long halfPadH = padh >> 1;
+
+		for (j = 0; j < nY; j++)
+		{
+			const A_long jj = j * S + s + halfPadH;
+			for (i = 0; i < nX; i++)
+			{
+				const A_long ii = i * S + s + halfPadW;
+				if (isInside(ii, jj, sizeX, sizeY))
+				{
+					const T& srcPix = pSrc[jj * srcPitch + ii];
+					Color color(static_cast<float>(srcPix.R), static_cast<float>(srcPix.G), static_cast<float>(srcPix.B));
+					sp.push_back(Superpixel(ii, jj, color));
+				}
+			}
+		}
+		K = static_cast<A_long>(sp.size());
+
+		moveMinimalGradient (sp, pSrc, g, K, sizeX, sizeY, srcPitch);
+
+		return sp;
+	}
+
+
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline bool SlicImage
 	(
 		const T* __restrict pSrc,
 		      T* __restrict pDst,
-		const Color<U>& GrayColor,
+		const Color& grayColor,
 		const float& m,
 		      A_long& k,
 		const A_long& g,
@@ -362,13 +423,13 @@ namespace ArtMosaic
 	) noexcept
 	{
 		int GridStep = 0;
-		const A_long frameSize = CreateAlignment (sizeX * sizeY, CACHE_LINE);
-		auto tmpOut = std::make_unique<Color<U>[]>(frameSize);
+//		const A_long frameSize = sizeX * sizeY;
+//		auto tmpOut = std::make_unique<Color<U>[]>(frameSize);
 
-		if (tmpOut)
-		{
-			std::vector<Superpixel<T>> sp = SimpleLinearIterativeClustering(pSrc, tmpOut, m, k, g, sizeX, sizeY, srcPitch);
-		}
+//		if (tmpOut)
+//		{
+			std::vector<Superpixel> sp = SlicImageImpl (pSrc, grayColor, m, k, g, sizeX, sizeY, srcPitch);
+//		}
 
 		return true;
 	}
