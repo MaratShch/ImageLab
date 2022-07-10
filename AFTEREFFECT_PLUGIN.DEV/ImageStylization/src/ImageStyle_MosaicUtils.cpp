@@ -7,9 +7,9 @@
 #include "ImageMosaicUtils.hpp"
 
 
-void ArtMosaic::fillProcBuf (ProcPixel* pBuf, const A_long& pixNumber, const float& val) noexcept
+void ArtMosaic::fillProcBuf (Color* pBuf, const A_long& pixNumber, const float& val) noexcept
 {
-	constexpr A_long elemInStruct = sizeof(pBuf[0]) / sizeof(pBuf[0].R);
+	constexpr A_long elemInStruct = sizeof(pBuf[0]) / sizeof(pBuf[0].r);
 	const A_long rawSize    = pixNumber * elemInStruct;
 	const A_long rawSize24  = rawSize / 24;
 	const A_long rawFract24 = rawSize % 24;
@@ -30,7 +30,7 @@ void ArtMosaic::fillProcBuf (ProcPixel* pBuf, const A_long& pixNumber, const flo
 	return;
 }
 
-void ArtMosaic::fillProcBuf(std::unique_ptr<ProcPixel[]>& pBuf, const A_long& pixNumber, const float& val) noexcept
+void ArtMosaic::fillProcBuf (std::unique_ptr<Color[]>& pBuf, const A_long& pixNumber, const float& val) noexcept
 {
 	ArtMosaic::fillProcBuf (pBuf.get(), pixNumber, val);
 }
