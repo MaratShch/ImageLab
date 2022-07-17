@@ -2,7 +2,7 @@
 
 #include "CommonPixFormat.hpp"
 #include "ClassRestrictions.hpp"
-
+#include <stack>
 
 namespace ArtMosaic
 {
@@ -12,7 +12,7 @@ namespace ArtMosaic
 	{
 	public:
 		PixelPos x, y;
-		Pixel(const PixelPos& x0, const PixelPos& y0) noexcept
+		Pixel (const PixelPos& x0, const PixelPos& y0) noexcept
 		{
 			x = x0;
 			y = y0;
@@ -24,7 +24,7 @@ namespace ArtMosaic
 	};
 
 
-	class Color
+	class Color final
 	{
 	public:
 		float r, g, b;
@@ -37,6 +37,8 @@ namespace ArtMosaic
 			g = g0;
 			b = b0;
 		}
+
+		~Color() = default;
 	};
 
 
@@ -57,7 +59,7 @@ namespace ArtMosaic
 	{
 		public:
 
-		explicit Superpixel(const A_long& x0, const A_long& y0, const Color& c) noexcept
+		explicit Superpixel (const A_long& x0, const A_long& y0, const Color& c) noexcept
 		{
 			col = c;
 			x = static_cast<float>(x0);
@@ -66,14 +68,14 @@ namespace ArtMosaic
 			pix = nullptr;
 		}
 
-//		explicit Superpixel(const A_long& x0, const A_long y0, const Color&& c) noexcept
-//		{
-//			col = c;
-//			x = static_cast<float>(x0);
-//			y = static_cast<float>(y0);
-//			size = 0;
-//			pix = nullptr;
-//		}
+		explicit Superpixel (const A_long& x0, const A_long y0, const Color&& c) noexcept
+		{
+			col = c;
+			x = static_cast<float>(x0);
+			y = static_cast<float>(y0);
+			size = 0;
+			pix = nullptr;
+		}
 
 
 		float distance (const A_long& i, const A_long& j, const Color& c, const float& wSpace) const noexcept
@@ -86,14 +88,22 @@ namespace ArtMosaic
 		Pixel* pix;
 		Color col;
 		float x, y;
-		int size;
+		A_long size;
 
 	};
 
-	void fillProcBuf (Color* pBuf, const A_long& pixNumber, const float& val) noexcept;
-	void fillProcBuf (std::unique_ptr<Color[]>& pBuf, const A_long& pixNumber, const float& val) noexcept;
+	void fillProcBuf   (Color* pBuf, const A_long& pixNumber, const float& val) noexcept;
+	void fillProcBuf   (std::unique_ptr<Color[]>& pBuf,  const A_long& pixNumber, const float& val) noexcept;
+	void fillProcBuf   (A_long* pBuf, const A_long& pixNumber, const A_long& val) noexcept;
+	void fillProcBuf   (std::unique_ptr<A_long[]>& pBuf, const A_long& pixNumber, const A_long& val) noexcept;
 
+	float computeError (const std::vector<Superpixel>& sp, const std::vector<std::vector<float>>& centers) noexcept;
+	void  moveCenters  (std::vector<Superpixel>& sp, const std::vector< std::vector<float>>& centers) noexcept;
 
+	Pixel neighbor (const PixelPos& i, const PixelPos& j, const A_long& n) noexcept;
+	Pixel neighbor (const Pixel& p, const A_long& n) noexcept;
+
+	void labelCC(std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
 
 
 	inline bool isInside
@@ -239,14 +249,17 @@ namespace ArtMosaic
 		const T* __restrict pSrc,
 		const float& wSpace,
 		const A_long& S,
-		std::unique_ptr<Color[]>& l,
-		std::unique_ptr<Color[]>& d,
+		std::unique_ptr<A_long[]>& L,
+		std::unique_ptr<float []>& D,
 		const A_long sizeX,
 		const A_long sizeY,
 		const A_long pitch
 	)
 	{
 		A_long i, j;
+		auto l = L.get();
+		auto d = D.get();
+
 		const A_long size = static_cast<A_long>(sp.size());
 		for (A_long k = 0; k < size; k++)
 		{
@@ -261,13 +274,12 @@ namespace ArtMosaic
 					{
 						const Color color = getSrcPixel(pSrc, ip, jp, pitch);
 						float dist = sp[k].distance (ip, jp, color, wSpace);
-						
-						//if (d(ip, jp) > dist)
-						//{
-						//	d(ip, jp) = dist;
-						//	l(ip, jp) = k;
-						//}
-
+						const A_long idx = jp * sizeX + ip;
+						if (d[idx] > dist)
+						{
+							d[idx] = dist;
+							l[idx] = k;
+						}
 					}
 				} /* for (int j = -S; j < S; j++) */
 
@@ -277,12 +289,133 @@ namespace ArtMosaic
 		return;
 	}
 
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+	void updateStep
+	(
+		std::vector<std::vector<float>>& centers,
+		std::unique_ptr<A_long[]>& L,
+		const T* __restrict pSrc,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& pitch
+	) noexcept
+	{
+		A_long i, j;
+
+		auto l = L.get();
+		const A_long K = static_cast<A_long>(centers.size());
+
+		for (A_long kk = 0; kk < K; kk++)
+		{
+			for (A_long ll = 0; ll < 6; ll++)
+			{
+				centers[kk][ll] = 0;
+			}
+		}
+
+		for (j = 0; j < sizeY; j++)
+		{
+			for (i = 0; i < sizeX; i++)
+			{
+				const A_long tmpIdx = i + j * sizeX;
+				const A_long srcIdx = i + j * pitch;
+
+				if (l[tmpIdx] < 0)
+					continue;
+
+				/* because source pixel defined as templated parameter - let's convert R,G,B component to common type cover all possible pixel types */
+				const float pix[5] = { 
+					static_cast<float>(i),
+					static_cast<float>(j),
+					static_cast<float>(pSrc[srcIdx].R),
+					static_cast<float>(pSrc[srcIdx].G),
+					static_cast<float>(pSrc[srcIdx].B)
+				};
+
+				std::vector<float>& c = centers[l[tmpIdx]];
+				for (A_long s = 0; s < 5; s++)
+					c[s] += pix[s];
+				++c[5];
+			}
+		}
+
+		for (A_long kk = 0; kk < K; kk++)
+		{
+			if (centers[kk][5] > 0)
+			{
+				for (A_long ss = 0; ss < 5; ss++)
+					centers[kk][ss] /= centers[kk][5];
+			}
+		}
+		return;
+	}
+
+
+
+
+
+	inline bool enforceConnectivity
+	(
+		std::vector<Superpixel>& sp,
+		std::unique_ptr<A_long[]>& L,
+		const PF_Pixel_ARGB_32f* __restrict pSrc,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& pitch
+	) noexcept
+	{
+		std::vector<int32_t> H;
+
+		return true;
+	}
+
+	inline bool enforceConnectivity
+	(
+		std::vector<Superpixel>& sp,
+		std::unique_ptr<A_long[]>& L,
+		const PF_Pixel_BGRA_32f* __restrict pSrc,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& pitch
+	) noexcept
+	{
+		std::vector<int32_t> H;
+
+		return true;
+	}
+
+
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+	inline bool enforceConnectivity
+	(
+		std::vector<Superpixel>& sp,
+		std::unique_ptr<A_long []>& L,
+		const T* __restrict pSrc,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& pitch
+	) noexcept
+	{
+		std::vector<int32_t> H;
+		auto CC = std::make_unique<A_long[]>(sizeX * sizeY);
+		bool retVal = false;
+
+		if (CC)
+		{
+			labelCC (CC, H, L, sizeX, sizeY);
+
+			retVal = true;
+		}
+
+		return retVal;
+	}
+
 
 	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline std::vector<Superpixel> SlicImageImpl
 	(
 		const T* __restrict pSrc,
-		std::unique_ptr<Color[]>& pOut,
+		std::unique_ptr<Color []>& pOut,
 		const Color& GrayColor,
 		const float& m,
 		A_long& K,
@@ -294,6 +427,7 @@ namespace ArtMosaic
 	{
 		std::vector<Superpixel> sp;
 		A_long j, i;
+		bool bVal = false;
 
 		/* init superpixel */
 		const float superPixInitVal = static_cast<float>(sizeX * sizeY) / static_cast<float>(K);
@@ -318,7 +452,7 @@ namespace ArtMosaic
 				{
 					const T& srcPix = pSrc[jj * srcPitch + ii];
 					Color color(static_cast<float>(srcPix.R), static_cast<float>(srcPix.G), static_cast<float>(srcPix.B));
-					sp.push_back(Superpixel(ii, jj, color));
+					sp.push_back(Superpixel(ii, jj, std::move(color)));
 				}
 			}
 		}
@@ -336,18 +470,35 @@ namespace ArtMosaic
 		float E = InitialError;
 
 		const A_long procBufSize = sizeX * sizeY;
-		const A_long bytesSize = procBufSize * sizeof(Color);
 		auto procBuf = std::make_unique<Color[]>(procBufSize);
 
-		if (procBuf)
+		auto D = std::make_unique<float []>(procBufSize);
+		auto L = std::make_unique<A_long[]>(procBufSize);
+
+#ifdef _DEBUG
+		A_long dbgLoopCnt = 0;
+#endif
+
+		if (procBuf && D && L)
 		{
 			for (i = 0; i < MaxIterSlic && E > RmseMax; i++)
 			{
+#ifdef _DEBUG
+				dbgLoopCnt++;
+#endif
 				fillProcBuf (procBuf, procBufSize, std::numeric_limits<float>::max());
-				assignmentStep (sp, pSrc, wSpace, S, pOut, procBuf,sizeX, sizeY, srcPitch);
+				assignmentStep (sp, pSrc, wSpace, S, L, D ,sizeX, sizeY, srcPitch);
+				updateStep (centers, L, pSrc, sizeX, sizeY, srcPitch);
+				E = computeError (sp, centers);
+				moveCenters (sp, centers);
 			} /* for (i = 0; i < MaxIterSlic && E > RmseMax; i++) */
 		}
 		
+		if (true == (bVal = enforceConnectivity(sp, L, pSrc, sizeX, sizeY, srcPitch)))
+		{
+
+		}
+
 		return sp;
 	}
 
@@ -375,7 +526,7 @@ namespace ArtMosaic
 
 		if (pOut)
 		{
-			std::vector<Superpixel> sp = SlicImageImpl(pSrc, pOut, grayColor, m, k, g, sizeX, sizeY, srcPitch);
+			std::vector<Superpixel> sp = SlicImageImpl (pSrc, pOut, grayColor, m, k, g, sizeX, sizeY, srcPitch);
 			bResult = true;
 		}
 
