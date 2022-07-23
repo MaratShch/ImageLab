@@ -145,8 +145,8 @@ void ArtMosaic::labelCC
 
 			S.push(ArtMosaic::Pixel(i, j));
 
-			A_long label = l[idx];
-			A_long labelcc = static_cast<A_long>(H.size());
+			const A_long label = l[idx];
+			const A_long labelcc = static_cast<A_long>(H.size());
 			cc[idx] = labelcc;
 			H.push_back(0);
 
@@ -173,8 +173,8 @@ void ArtMosaic::labelCC
 	return;
 }
 
-#if 0
-void discardMinorCC
+
+void ArtMosaic::discardMinorCC
 (
 	std::unique_ptr<A_long[]>& CC,
 	const std::vector<int>& H,
@@ -182,12 +182,15 @@ void discardMinorCC
 	const A_long& K,
 	const A_long& sizeX,
 	const A_long& sizeY
-)
+) noexcept
 {
-	const int w = sizeX, h = sizeY;
-	std::vector<int> maxSizeCC(K, -1); // superpixel -> label of largest cc
+	const A_long w = sizeX, h = sizeY;
+	std::vector<A_long> maxSizeCC (K, -1); // superpixel -> label of largest cc
 
-									   // Fill maxSizeCC
+	auto cc = CC.get();
+	auto l = L.get();
+
+#if 0									   // Fill maxSizeCC
 	for (int j = 0; j<h; j++)
 		for (int i = 0; i<w; i++) {
 			int labelcc = cc(i, j);
@@ -207,5 +210,17 @@ void discardMinorCC
 				l(i, j) = -1;
 			}
 		}
-}
 #endif
+	return;
+}
+
+
+void ArtMosaic::computeSuperpixelColors
+(
+	std::vector<ArtMosaic::Superpixel>& sp,
+	std::unique_ptr<A_long[]>& L//,
+//	const Image<Color>& I
+) noexcept
+{
+	return;
+}

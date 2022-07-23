@@ -103,8 +103,9 @@ namespace ArtMosaic
 	Pixel neighbor (const PixelPos& i, const PixelPos& j, const A_long& n) noexcept;
 	Pixel neighbor (const Pixel& p, const A_long& n) noexcept;
 
-	void labelCC(std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
-
+	void labelCC (std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
+	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<int>& H, std::unique_ptr<A_long[]>& L, const A_long& K, const A_long& sizeX, const A_long& sizeY) noexcept;
+	void computeSuperpixelColors (std::vector<Superpixel>& sp, std::unique_ptr<A_long[]>& L/*, const Image<Color>& I */) noexcept;
 
 	inline bool isInside
 	(
