@@ -27,28 +27,30 @@ PF_Err ProcessImgInPR
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
-					err = NoiseCleanPr_BGRA_4444_8u(in_data, out_data, params, output);
+					err = NoiseCleanPr_BGRA_4444_8u (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
-			//		bValue = ProcessPrImage_BGRA_4444_16u(in_data, out_data, params, output, choosedKernel);
+				err = NoiseCleanPr_BGRA_4444_16u (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u:
 			case PrPixelFormat_VUYA_4444_8u_709:
 			{
-				auto const& isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+				auto const isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+				err = NoiseCleanPr_VUYA_4444_8u (in_data, out_data, params, output, isBT709);
 			}
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-			//		bValue = ProcessPrImage_BGRA_4444_32f(in_data, out_data, params, output, choosedKernel);
+				err = NoiseCleanPr_BGRA_4444_32f (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
 			{
-				auto const& isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+				auto const isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
+				err = NoiseCleanPr_VUYA_4444_32f (in_data, out_data, params, output, isBT709);
 			}
 			break;
 

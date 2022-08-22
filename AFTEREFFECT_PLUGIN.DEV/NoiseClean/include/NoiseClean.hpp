@@ -4,7 +4,7 @@
 #include "NoiseCleanEnums.hpp"
 
 constexpr char strName[] = "Noise Clean";
-constexpr char strCopyright[] = "\n2019-2021. ImageLab2 Copyright(c).\rNoise Clean plugin.";
+constexpr char strCopyright[] = "\n2019-2022. ImageLab2 Copyright(c).\rNoise Clean plugin.";
 constexpr int NoiseClean_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int NoiseClean_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int NoiseClean_VersionSub = 0;
@@ -46,3 +46,54 @@ PF_Err NoiseCleanPr_BGRA_4444_8u
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
 ) noexcept;
+
+PF_Err NoiseCleanPr_BGRA_4444_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseCleanPr_BGRA_4444_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseCleanPr_VUYA_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output,
+	const bool isBT709 = true
+) noexcept;
+
+PF_Err NoiseCleanPr_VUYA_4444_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output,
+	const bool isBT709 = true
+) noexcept;
+
+PF_Err NoiseCleanAe_ARGB_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseCleanAe_ARGB_4444_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+

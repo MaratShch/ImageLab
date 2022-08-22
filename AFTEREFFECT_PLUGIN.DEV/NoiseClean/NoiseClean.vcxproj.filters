@@ -30,6 +30,24 @@
     <ClCompile Include="src\NoiseClean_BGRA_8u.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\NoiseClean_BGRA_16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\NoiseClean_BGRA_32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\NoiseClean_VUYA_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\NoiseClean_VUYA_32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\NoiseClean_ARGB_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\NoiseClean_ARGB_16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\NoiseClean.hpp">

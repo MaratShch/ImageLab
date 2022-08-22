@@ -184,33 +184,45 @@ void ArtMosaic::discardMinorCC
 	const A_long& sizeY
 ) noexcept
 {
+	A_long j, i;
 	const A_long w = sizeX, h = sizeY;
 	std::vector<A_long> maxSizeCC (K, -1); // superpixel -> label of largest cc
 
 	auto cc = CC.get();
 	auto l = L.get();
+	
+	for (j = 0; j < sizeY; j++) // Fill maxSizeCC
+	{
+		const A_long line_idx = j * sizeX;
+		for (i = 0; i < sizeX; i++)
+		{
+			const A_long idx = line_idx + i;
+			const A_long labelCC = cc[idx];
+			const A_long labelS = l[idx];
+			if (labelS >= 0)
+			{
+				A_long& s = maxSizeCC[labelS];
+				if (s < 0 || H[s] < H[labelCC])
+					s = labelCC;
+			} /* if (labelS >= 0) */
+		} /* for (i = 0; i < sizeX; i++) */
+	} /* for (A_long j = 0; j < sizeY; j++) */
 
-#if 0									   // Fill maxSizeCC
-	for (int j = 0; j<h; j++)
-		for (int i = 0; i<w; i++) {
-			int labelcc = cc(i, j);
-			int labelS = l(i, j); // Label of superpixel
-			if (labelS >= 0) {
-				int& s = maxSizeCC[labelS];
-				if (s<0 || H[s]<H[labelcc])
-					s = labelcc;
+	for (j = 0; j < sizeY; j++) // Make orphans the minor cc of each superpixel
+	{
+		const A_long line_idx = j * sizeX;
+		for (i = 0; i < sizeX; i++)
+		{
+			const A_long idx = line_idx + i;
+			auto ll = l[idx];
+			if (l[idx] >= 0 && cc[idx] != maxSizeCC[ll])
+			{
+				cc[idx] = -1;
+				l [idx] = -1;
 			}
-		}
+		} /* for (i = 0; i < sizeX; i++) */
+	} /* for (A_long j = 0; j < sizeY; j++) */
 
-	// Make orphans the minor cc of each superpixel
-	for (int j = 0; j<h; j++)
-		for (int i = 0; i<w; i++) {
-			if (l(i, j) >= 0 && cc(i, j) != maxSizeCC[l(i, j)]) {
-				cc(i, j) = -1;
-				l(i, j) = -1;
-			}
-		}
-#endif
 	return;
 }
 
@@ -218,8 +230,26 @@ void ArtMosaic::discardMinorCC
 void ArtMosaic::computeSuperpixelColors
 (
 	std::vector<ArtMosaic::Superpixel>& sp,
-	std::unique_ptr<A_long[]>& L//,
+	std::unique_ptr<A_long[]>& L,
+//	const Image<Color>& I,
+    const A_long& sizeX,
+	const A_long& sizeY
+) noexcept
+{
+	const A_long size = sizeX * sizeY;
+	const A_long K = static_cast<const A_long>(sp.size());
+
+	return;
+}
+
+
+void ArtMosaic::assignOrphans
+(
+	const std::vector<ArtMosaic::Superpixel>& sp,
+//	Image<int>& l,
 //	const Image<Color>& I
+	const A_long& sizeX,
+	const A_long& sizeY
 ) noexcept
 {
 	return;

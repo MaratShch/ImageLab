@@ -1,7 +1,7 @@
 #include "NoiseClean.hpp"
 
 
-PF_Err NoiseCleanPr_BGRA_4444_8u
+PF_Err NoiseCleanPr_BGRA_4444_16u
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,

@@ -135,7 +135,13 @@
     <ClCompile Include="src\NoiseClean.cpp" />
     <ClCompile Include="src\NoiseCleanInAe.cpp" />
     <ClCompile Include="src\NoiseCleanInPr.cpp" />
+    <ClCompile Include="src\NoiseClean_ARGB_16u.cpp" />
+    <ClCompile Include="src\NoiseClean_ARGB_8u.cpp" />
+    <ClCompile Include="src\NoiseClean_BGRA_16u.cpp" />
+    <ClCompile Include="src\NoiseClean_BGRA_32f.cpp" />
     <ClCompile Include="src\NoiseClean_BGRA_8u.cpp" />
+    <ClCompile Include="src\NoiseClean_VUYA_32f.cpp" />
+    <ClCompile Include="src\NoiseClean_VUYA_8u.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />

@@ -91,36 +91,8 @@ Render(
 	PF_LayerDef		*output)
 {
 	PF_Err err = PF_Err_NONE;
-
-	if (PremierId == in_data->appl_id)
-	{
-		/* This plugin called frop PR - check video fomat */
-		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-			AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-				in_data,
-				kPFPixelFormatSuite,
-				kPFPixelFormatSuiteVersion1,
-				out_data);
-
-		PF_Err errFormat = PF_Err_INVALID_INDEX;
-		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-
-		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
-		{
-			err = ProcessImgInPR(in_data, out_data, params, output);
-		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-		else
-		{
-			// In Premiere Pro, this message will appear in the Events panel
-			PF_STRCPY(out_data->return_msg, "Unsupoorted image format...");
-			err = PF_Err_INVALID_INDEX;
-		}
-	}
-	else
-	{
-		/* This plugin called from AE */
-		err = ProcessImgInAE(in_data, out_data, params, output);
-	}
+	err = (PremierId == in_data->appl_id) ? 
+		ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output);
 
 	return err;
 }

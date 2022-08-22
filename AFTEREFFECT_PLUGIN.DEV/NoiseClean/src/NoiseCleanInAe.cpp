@@ -1,7 +1,7 @@
 #include "NoiseClean.hpp"
 
 
-PF_Err NoiseCleanInAE_8bits
+inline PF_Err NoiseCleanInAE_8bits
 (
 	PF_InData*   in_data,
 	PF_OutData*  out_data,
@@ -9,12 +9,11 @@ PF_Err NoiseCleanInAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
-	PF_Err err = PF_Err_NONE;
-	return err;
+	return NoiseCleanAe_ARGB_4444_8u (in_data, out_data, params, output);
 }
 
 
-PF_Err NoiseCleanInAE_16bits
+inline PF_Err NoiseCleanInAE_16bits
 (
 	PF_InData*   in_data,
 	PF_OutData*  out_data,
@@ -22,8 +21,7 @@ PF_Err NoiseCleanInAE_16bits
 	PF_LayerDef* output
 ) noexcept
 {
-	PF_Err err = PF_Err_NONE;
-	return err;
+	return NoiseCleanAe_ARGB_4444_16u (in_data, out_data, params, output);
 }
 
 

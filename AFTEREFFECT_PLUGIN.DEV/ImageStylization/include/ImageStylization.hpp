@@ -6,14 +6,14 @@
 #include "FastAriphmetics.hpp"
 
 constexpr char strName[] = "Image Stylization";
-constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage Stylization plugin.";
+constexpr char strCopyright[] = "\n2019-2022. ImageLab2 Copyright(c).\rImage Stylization plugin.";
 constexpr int ImageStyle_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ImageStyle_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int ImageStyle_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;
 #endif
 constexpr int ImageStyle_VersionBuild = 1;
 

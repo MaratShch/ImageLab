@@ -105,7 +105,8 @@ namespace ArtMosaic
 
 	void labelCC (std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
 	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<int>& H, std::unique_ptr<A_long[]>& L, const A_long& K, const A_long& sizeX, const A_long& sizeY) noexcept;
-	void computeSuperpixelColors (std::vector<Superpixel>& sp, std::unique_ptr<A_long[]>& L/*, const Image<Color>& I */) noexcept;
+	void computeSuperpixelColors(std::vector<Superpixel>& sp, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
+	void assignOrphans(const std::vector<Superpixel>& sp, /* Image<int>& l, const Image<Color>& I */ const A_long& sizeX, const A_long& sizeY) noexcept;
 
 	inline bool isInside
 	(
@@ -404,6 +405,12 @@ namespace ArtMosaic
 		if (CC)
 		{
 			labelCC (CC, H, L, sizeX, sizeY);
+
+			const A_long K = static_cast<const A_long>(sp.size());
+			discardMinorCC (CC, H, L, K, sizeX, sizeY);
+
+//			computeSuperpixelColors(sp, l, I);
+//			assignOrphans(sp, l, I);
 
 			retVal = true;
 		}
