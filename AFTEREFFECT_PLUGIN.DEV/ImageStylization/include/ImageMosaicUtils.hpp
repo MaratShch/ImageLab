@@ -419,7 +419,7 @@ namespace ArtMosaic
 
 
 	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-	inline std::vector<Superpixel> SlicImageImpl
+	bool SlicImageImpl
 	(
 		const T* __restrict pSrc,
 		std::unique_ptr<Color []>& pOut,
@@ -501,12 +501,14 @@ namespace ArtMosaic
 			} /* for (i = 0; i < MaxIterSlic && E > RmseMax; i++) */
 		}
 		
-		if (true == (bVal = enforceConnectivity(sp, L, pSrc, sizeX, sizeY, srcPitch)))
+		if (true == (bVal = enforceConnectivity (sp, L, pSrc, sizeX, sizeY, srcPitch)))
 		{
+			/* SLIC OUTPUT */
 
+			bVal = true;
 		}
 
-		return sp;
+		return bVal;
 	}
 
 
@@ -529,14 +531,7 @@ namespace ArtMosaic
 		const A_long bufSize = CreateAlignment(sizeX * sizeY, CACHE_LINE);
 		auto pOut = std::make_unique<Color[]>(bufSize);
 
-		bool bResult = false;
-
-		if (pOut)
-		{
-			std::vector<Superpixel> sp = SlicImageImpl (pSrc, pOut, grayColor, m, k, g, sizeX, sizeY, srcPitch);
-			bResult = true;
-		}
-
+		const bool bResult = pOut ? SlicImageImpl (pSrc, pOut, grayColor, m, k, g, sizeX, sizeY, srcPitch) : false;
 		return bResult;
 	}
 
