@@ -101,7 +101,23 @@ static PF_Err PR_ImageStyle_MosaicArt_VUYA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+	PF_Pixel_VUYA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
+
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+
+	/* parameters */
+	const float m = 40.f;
+	A_long k = 1000, g = 0;
+	constexpr int minNorm = std::numeric_limits<unsigned char>::max() / 2;
+	const ArtMosaic::Color GrayColor(minNorm, minNorm, minNorm);
+
+	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+
+	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
 
 
@@ -113,7 +129,22 @@ static PF_Err PR_ImageStyle_MosaicArt_VUYA_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef*  __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+	PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(output->data);
+
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+
+	/* parameters */
+	const float m = 40.f;
+	A_long k = 1000, g = 0;
+	const ArtMosaic::Color GrayColor(0.5f, 0.5f, 0.5f);
+
+	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+
+	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
 
 
@@ -188,7 +219,23 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	PF_Pixel_ARGB_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_8u*  __restrict>(pfLayer->data);
+	PF_Pixel_ARGB_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u*  __restrict>(output->data);
+
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+	/* parameters */
+	const float m = 40.f;
+	A_long k = 1000, g = 0;
+	constexpr int minNorm = std::numeric_limits<unsigned char>::max() / 2;
+	const ArtMosaic::Color GrayColor(minNorm, minNorm, minNorm);
+
+	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+
+	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
 
 
@@ -200,5 +247,21 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(pfLayer->data);
+	PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+
+	/* parameters */
+	const float m = 40.f;
+	A_long k = 1000, g = 0;
+	constexpr int minNorm = std::numeric_limits<short int>::max() / 2;
+	const ArtMosaic::Color GrayColor(minNorm, minNorm, minNorm);
+
+	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+
+	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }

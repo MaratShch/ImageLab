@@ -5,7 +5,7 @@
 #include "FastAriphmetics.hpp"
 #include "ImageAuxPixFormat.hpp"
 #include "ImageMosaicUtils.hpp"
-#include <queue>
+
 
 
 void ArtMosaic::fillProcBuf (Color* pBuf, const A_long& pixNumber, const float& val) noexcept
@@ -228,114 +228,4 @@ void ArtMosaic::discardMinorCC
 }
 
 
-void ArtMosaic::computeSuperpixelColors
-(
-	std::vector<ArtMosaic::Superpixel>& sp,
-	std::unique_ptr<A_long[]>& L,
-//	const Image<Color>& I,
-    const A_long& sizeX,
-	const A_long& sizeY
-) noexcept
-{
-	A_long j, i, k;
-	const A_long size = sizeX * sizeY;
-	const A_long K = static_cast<const A_long>(sp.size());
-	const A_long bufSize = K * 4;
 
-	auto col = std::make_unique<int []>(bufSize);
-	if (col)
-	{
-		ArtMosaic::fillProcBuf (col, bufSize, 0);
-		auto l = L.get();
-
-		for (j = 0; j < sizeY; j++)
-		{
-			for (i = 0; i < sizeX; i++)
-			{
-				const A_long idx = j * sizeX + i;
-				A_long k = l[idx];
-				if (k >= 0)
-				{
-					//				Color c = I(i, j);
-				} /* if (k >= 0) */
-
-			} /* for (i = 0; i < sizeX; i++) */
-		} /* for (j = 0; j < sizeY; j++) */
-
-		auto _col = col.get();
-		for (k = 0; k < K; k++)
-		{
-			const auto& col0 = _col[k * 4 + 0];
-			const auto& col1 = _col[k * 4 + 1];
-			const auto& col2 = _col[k * 4 + 2];
-			const auto& col3 = _col[k * 4 + 3];
-
-			if (col3 > 0)
-			{
-				Color c (col0 / col3, col1 / col3, col2 / col3);
-				sp[k].col = c;
-			} /* if (col3 > 0) */
-		} /* for (k = 0; k < K; k++) */
-
-	} /* if (col) */
-
-	return;
-}
-
-
-void ArtMosaic::assignOrphans
-(
-	const std::vector<ArtMosaic::Superpixel>& sp,
-	std::unique_ptr<A_long[]>& L,
-	//	const Image<Color>& I
-	const A_long& sizeX,
-	const A_long& sizeY
-) noexcept
-{
-	A_long i, j, dist;
-	std::queue<ArtMosaic::Pixel> Q;
-	auto l = L.get();
-	constexpr A_long cMinVal{ std::numeric_limits<A_long>::min() };
-
-	for (j = 0; j < sizeY; j++)
-	{
-		for (i = 0; i < sizeX; i++)
-		{
-			const A_long idx = j * sizeX + i;
-			if (l[idx] < 0)
-				l[idx] = cMinVal;
-		} /* for (i = 0; i < sizeX; i++) */
-	} /* for (j = 0; j < sizeY; j++) */
-
-	for (dist = -1; TRUE; --dist)
-	{
-		size_t Qsize = Q.size();
-		for (j = 0; j < sizeY; j++)
-		{
-			for (i = 0; i < sizeX; i++)
-			{
-				const A_long idx = j * sizeX + i;
-				if (l[idx] > dist)
-				{
-					for (A_long n = 0; n < 4; n++)
-					{
-						Pixel q = ArtMosaic::neighbor (i, j, n);
-
-//						if (l.inside(q) && l(q)<dist) {
-//							l(q) = dist;
-//							Q.push(q);
-
-					} /* for (A_long n = 0; n < 4; n++) */
-
-				} /* if (l[idx] > dist) */
-			} /* for (i = 0; i < sizeX; i++) */
-		} /* for (j = 0; j < sizeY; j++) */
-
-		if (Qsize == Q.size())
-			break;
-		Qsize = Q.size();
-
-	} /* for (dist = -1; TRUE; --dist) */
-
-	return;
-}

@@ -3,6 +3,7 @@
 #include "CommonPixFormat.hpp"
 #include "ClassRestrictions.hpp"
 #include <stack>
+#include <queue>
 
 namespace ArtMosaic
 {
@@ -105,8 +106,6 @@ namespace ArtMosaic
 
 	void labelCC (std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
 	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<int>& H, std::unique_ptr<A_long[]>& L, const A_long& K, const A_long& sizeX, const A_long& sizeY) noexcept;
-	void computeSuperpixelColors(std::vector<Superpixel>& sp, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
-	void assignOrphans(const std::vector<Superpixel>& sp, std::unique_ptr<A_long[]>& L, /* const Image<Color>& I */ const A_long& sizeX, const A_long& sizeY) noexcept;
 
 	inline bool isInside
 	(
@@ -353,7 +352,123 @@ namespace ArtMosaic
 	}
 
 
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+	void computeSuperpixelColors
+	(
+		const T* __restrict pSrc,
+		std::vector<ArtMosaic::Superpixel>& sp,
+		std::unique_ptr<A_long[]>& L,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& pitch
+	) noexcept
+	{
+		A_long j, i, k;
+		const A_long size = sizeX * sizeY;
+		const A_long K = static_cast<const A_long>(sp.size());
+		const A_long bufSize = K * 4;
 
+		auto col = std::make_unique<int[]>(bufSize);
+		if (col)
+		{
+			fillProcBuf(col, bufSize, 0);
+			auto l = L.get();
+			auto const _col = col.get();
+
+			for (j = 0; j < sizeY; j++)
+			{
+				for (i = 0; i < sizeX; i++)
+				{
+					const A_long idx = j * sizeX + i;
+					const A_long k = l[idx];
+					if (k >= 0)
+					{
+						const T& colorPixel = pSrc[j * pitch + i];
+						_col[k * 4 + 0] += colorPixel.R;
+						_col[k * 4 + 1] += colorPixel.G;
+						_col[k * 4 + 2] += colorPixel.B;
+						_col[k * 4 + 3] ++;
+					} /* if (k >= 0) */
+
+				} /* for (i = 0; i < sizeX; i++) */
+			} /* for (j = 0; j < sizeY; j++) */
+
+			for (k = 0; k < K; k++)
+			{
+				const auto& col0 = _col[k * 4 + 0];
+				const auto& col1 = _col[k * 4 + 1];
+				const auto& col2 = _col[k * 4 + 2];
+				const auto& col3 = _col[k * 4 + 3];
+
+				if (col3 > 0)
+				{
+					sp[k].col = Color(col0 / col3, col1 / col3, col2 / col3);
+				} /* if (col3 > 0) */
+			} /* for (k = 0; k < K; k++) */
+
+		} /* if (col) */
+
+		return;
+	}
+
+
+	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+	void assignOrphans
+	(
+		const T* __restrict pSrc,
+		const std::vector<ArtMosaic::Superpixel>& sp,
+		std::unique_ptr<A_long[]>& L,
+		const A_long& sizeX,
+		const A_long& sizeY
+	) noexcept
+	{
+		A_long i, j, dist;
+		std::queue<ArtMosaic::Pixel> Q;
+		auto l = L.get();
+		constexpr A_long cMinVal{ std::numeric_limits<A_long>::min() };
+
+		for (j = 0; j < sizeY; j++)
+		{
+			for (i = 0; i < sizeX; i++)
+			{
+				const A_long idx = j * sizeX + i;
+				if (l[idx] < 0)
+					l[idx] = cMinVal;
+			} /* for (i = 0; i < sizeX; i++) */
+		} /* for (j = 0; j < sizeY; j++) */
+
+		for (dist = -1; TRUE; --dist)
+		{
+			size_t Qsize = Q.size();
+			for (j = 0; j < sizeY; j++)
+			{
+				for (i = 0; i < sizeX; i++)
+				{
+					const A_long idx = j * sizeX + i;
+					if (l[idx] > dist)
+					{
+						for (A_long n = 0; n < 4; n++)
+						{
+							Pixel q = neighbor(i, j, n);
+
+							//						if (l.inside(q) && l(q)<dist) {
+							//							l(q) = dist;
+							//							Q.push(q);
+
+						} /* for (A_long n = 0; n < 4; n++) */
+
+					} /* if (l[idx] > dist) */
+				} /* for (i = 0; i < sizeX; i++) */
+			} /* for (j = 0; j < sizeY; j++) */
+
+			if (Qsize == Q.size())
+				break;
+			Qsize = Q.size();
+
+		} /* for (dist = -1; TRUE; --dist) */
+
+		return;
+	}
 
 
 	inline bool enforceConnectivity
@@ -387,6 +502,8 @@ namespace ArtMosaic
 	}
 
 
+
+
 	template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 	inline bool enforceConnectivity
 	(
@@ -408,8 +525,8 @@ namespace ArtMosaic
 
 			const A_long K = static_cast<const A_long>(sp.size());
 			discardMinorCC (CC, H, L, K, sizeX, sizeY);
-			computeSuperpixelColors (sp, L, sizeX, sizeY);
-			assignOrphans (sp, L, sizeX, sizeY);
+			computeSuperpixelColors (pSrc, sp, L, sizeX, sizeY, pitch);
+			assignOrphans (pSrc, sp, L, sizeX, sizeY);
 
 			retVal = true;
 		}
@@ -422,6 +539,7 @@ namespace ArtMosaic
 	bool SlicImageImpl
 	(
 		const T* __restrict pSrc,
+		const T* __restrict pDst,
 		std::unique_ptr<Color []>& pOut,
 		const Color& GrayColor,
 		const float& m,
@@ -527,12 +645,35 @@ namespace ArtMosaic
 		const A_long& dstPitch
 	) noexcept
 	{
-		int GridStep = 0;
+		const A_long bufSize = CreateAlignment (sizeX * sizeY, CACHE_LINE);
+		auto pOut = std::make_unique<Color[]>(bufSize);
+
+		const bool bResult = pOut ? SlicImageImpl (pSrc, pDst, pOut, grayColor, m, k, g, sizeX, sizeY, srcPitch) : false;
+		return bResult;
+	}
+
+
+	template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
+	inline bool SlicImage
+	(
+		const T* __restrict pSrc,
+		T* __restrict pDst,
+		const Color& grayColor,
+		const float& m,
+		A_long& k,
+		const A_long& g,
+		const A_long& sizeX,
+		const A_long& sizeY,
+		const A_long& srcPitch,
+		const A_long& dstPitch
+	) noexcept
+	{
 		const A_long bufSize = CreateAlignment(sizeX * sizeY, CACHE_LINE);
 		auto pOut = std::make_unique<Color[]>(bufSize);
 
-		const bool bResult = pOut ? SlicImageImpl (pSrc, pOut, grayColor, m, k, g, sizeX, sizeY, srcPitch) : false;
-		return bResult;
+//		const bool bResult = pOut ? SlicImageImpl(pSrc, pDst, pOut, grayColor, m, k, g, sizeX, sizeY, srcPitch) : false;
+//		return bResult;
+		return false;
 	}
 
 }; /* ArtMosaic */
