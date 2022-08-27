@@ -9,7 +9,7 @@ namespace ArtMosaic
 {
 	using PixelPos = A_long;
 
-	class Pixel
+	class Pixel final
 	{
 	public:
 		PixelPos x, y;
@@ -21,6 +21,13 @@ namespace ArtMosaic
 		Pixel() noexcept
 		{
 			Pixel(0, 0);
+		}
+
+		~Pixel() = default;
+
+		inline const A_long getIdx (const A_long& pitch) const noexcept
+		{
+			return x + y * pitch;
 		}
 	};
 
@@ -419,10 +426,11 @@ namespace ArtMosaic
 		const std::vector<ArtMosaic::Superpixel>& sp,
 		std::unique_ptr<A_long[]>& L,
 		const A_long& sizeX,
-		const A_long& sizeY
+		const A_long& sizeY,
+		const A_long& pitch
 	) noexcept
 	{
-		A_long i, j, dist;
+		A_long i, j, dist, n;
 		std::queue<ArtMosaic::Pixel> Q;
 		auto l = L.get();
 		constexpr A_long cMinVal{ std::numeric_limits<A_long>::min() };
@@ -450,11 +458,12 @@ namespace ArtMosaic
 						for (A_long n = 0; n < 4; n++)
 						{
 							Pixel q = neighbor(i, j, n);
-
-							//						if (l.inside(q) && l(q)<dist) {
-							//							l(q) = dist;
-							//							Q.push(q);
-
+							const A_long lIdx = q.getIdx(sizeX);
+							if (isInside(q, sizeX, sizeY) && l[lIdx] < dist)
+							{
+								l[lIdx] = dist;
+								Q.push(q);
+							}
 						} /* for (A_long n = 0; n < 4; n++) */
 
 					} /* if (l[idx] > dist) */
@@ -464,8 +473,36 @@ namespace ArtMosaic
 			if (Qsize == Q.size())
 				break;
 			Qsize = Q.size();
-
 		} /* for (dist = -1; TRUE; --dist) */
+
+		while (!Q.empty())
+		{ 
+			Pixel p = Q.front();
+			Q.pop();
+			A_long nearest = -1;
+			float minDist = std::numeric_limits<float>::max();
+
+			for (n = 0; n < 4; n++)
+			{ 
+				Pixel q = neighbor(p, n);
+				const A_long idx = q.getIdx(sizeX);
+				if (!isInside(q, sizeX, sizeY) || l[idx])
+					continue;
+
+				const T& srcPixel = pSrc[p.getIdx(pitch)];
+				const Color col1(static_cast<float>(srcPixel.R), static_cast<float>(srcPixel.G), static_cast<float>(srcPixel.B));
+				const Color col2 = sp[l[q.getIdx(sizeX)]].col;
+
+				float dist = color_distance(col1, col2);
+				if (dist < minDist)
+				{
+					minDist = dist;
+					nearest = l[q.getIdx(sizeX)];
+				}
+			} /* for (n = 0; n < 4; n++) */
+
+			l[p.getIdx(sizeX)] = nearest;
+		} /* while (!Q.empty()) */
 
 		return;
 	}
@@ -526,7 +563,7 @@ namespace ArtMosaic
 			const A_long K = static_cast<const A_long>(sp.size());
 			discardMinorCC (CC, H, L, K, sizeX, sizeY);
 			computeSuperpixelColors (pSrc, sp, L, sizeX, sizeY, pitch);
-			assignOrphans (pSrc, sp, L, sizeX, sizeY);
+			assignOrphans (pSrc, sp, L, sizeX, sizeY, pitch);
 
 			retVal = true;
 		}
