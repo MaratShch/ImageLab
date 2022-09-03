@@ -27,10 +27,11 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_8u
 	/* parameters */
 	const float m = 40.f;
 	A_long k = 1000, g = 0;
-	constexpr int minNorm = std::numeric_limits<unsigned char>::max() / 2;
-	const ArtMosaic::Color GrayColor (minNorm, minNorm, minNorm);
+	constexpr int maxNorm = std::numeric_limits<unsigned char>::max();
+	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
+	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
 
-	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
@@ -55,10 +56,11 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_16u
 	/* parameters */
 	const float m = 40.f;
 	A_long k = 1000, g = 0;
-	constexpr int minNorm = std::numeric_limits<short int>::max() / 2;
-	const ArtMosaic::Color GrayColor(minNorm, minNorm, minNorm);
+	constexpr int maxNorm = std::numeric_limits<short int>::max();
+	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
+	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
 
-	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
@@ -84,8 +86,9 @@ static PF_Err PR_ImageStyle_MosaicArt_BGRA_32f
 	const float m = 40.f;
 	A_long k = 1000, g = 0;
 	const ArtMosaic::Color GrayColor (0.5f, 0.5f, 0.5f);
+	const ArtMosaic::Color WhiteColor(f32_value_white, f32_value_white, f32_value_white);
 
-	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 	return PF_Err_NONE;
@@ -112,10 +115,11 @@ static PF_Err PR_ImageStyle_MosaicArt_VUYA_8u
 	/* parameters */
 	const float m = 40.f;
 	A_long k = 1000, g = 0;
-	constexpr int minNorm = std::numeric_limits<unsigned char>::max() / 2;
-	const ArtMosaic::Color GrayColor(minNorm, minNorm, minNorm);
+	constexpr int maxNorm = std::numeric_limits<unsigned char>::max();
+	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
+	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
 
-	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
@@ -141,8 +145,9 @@ static PF_Err PR_ImageStyle_MosaicArt_VUYA_32f
 	const float m = 40.f;
 	A_long k = 1000, g = 0;
 	const ArtMosaic::Color GrayColor(0.5f, 0.5f, 0.5f);
+	const ArtMosaic::Color WhiteColor(f32_value_white, f32_value_white, f32_value_white);
 
-	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
@@ -230,10 +235,11 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_8u
 	/* parameters */
 	const float m = 40.f;
 	A_long k = 1000, g = 0;
-	constexpr int minNorm = std::numeric_limits<unsigned char>::max() / 2;
-	const ArtMosaic::Color GrayColor(minNorm, minNorm, minNorm);
+	constexpr int maxNorm = std::numeric_limits<unsigned char>::max();
+	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
+	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
 
-	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
@@ -258,10 +264,11 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_16u
 	/* parameters */
 	const float m = 40.f;
 	A_long k = 1000, g = 0;
-	constexpr int minNorm = std::numeric_limits<short int>::max() / 2;
-	const ArtMosaic::Color GrayColor(minNorm, minNorm, minNorm);
+	constexpr int maxNorm = std::numeric_limits<short int>::max();
+	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
+	const ArtMosaic::Color GrayColor(maxNorm / 2, maxNorm / 2, maxNorm / 2);
 
-	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, m, k, g, width, height, line_pitch, line_pitch);
+	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }

@@ -683,7 +683,8 @@ namespace ArtMosaic
 		      T* __restrict pDst,
 		const std::vector<Superpixel>& sp,
 		      std::unique_ptr<A_long[]>& L,
-		const Color& col,
+		const Color& borderCol,
+		const Color& whiteCol,
 		const A_long& sizeX,
 		const A_long& sizeY,
 		const A_long& srcPitch,
@@ -691,6 +692,37 @@ namespace ArtMosaic
 		bool borders = true
 	)
 	{
+		/* Replacing the color of each pixel by its Superparent's color */
+		A_long j, i;
+		auto l = L.get();
+
+		for (j = 0; j < sizeY; j++)
+		{
+			const A_long srcLineIdx = j * srcPitch;
+			const A_long dstLineIdx = j * dstPitch;
+			const A_long tmpLineIdx = j * sizeX;
+
+			for (i = 0; i < sizeX; i++)
+			{
+				pDst[dstLineIdx + i].A = pSrc[srcLineIdx + i].A;
+				auto const& lVal = l[tmpLineIdx + i];
+				if (lVal >= 0)
+				{
+					pDst[dstLineIdx + i].R = sp[lVal].col.r;
+					pDst[dstLineIdx + i].G = sp[lVal].col.g;
+					pDst[dstLineIdx + i].B = sp[lVal].col.b;
+
+				} 
+				else
+				{
+					pDst[dstLineIdx + i].R = whiteCol.r;
+					pDst[dstLineIdx + i].G = whiteCol.g;
+					pDst[dstLineIdx + i].B = whiteCol.b;
+				}
+
+			} /* for (i = 0; i < sizeX; i++) */
+		} /* for (j = 0; j < sizeY; j++) */
+
 		return;
 	}
 
@@ -701,6 +733,7 @@ namespace ArtMosaic
 		const T* __restrict pSrc,
 		      T* __restrict pDst,
 		const Color& grayColor,
+		const Color& whiteColor,
 		const float& m,
 		      A_long& k,
 		const A_long& g,
@@ -721,7 +754,7 @@ namespace ArtMosaic
 			if (0 != (vectorSize = sp.size()))
 			{
 				/* SLIC OUTPUT */
-				slic_output (pSrc, pDst, sp, L, grayColor, sizeX, sizeY, srcPitch, dstPitch, true);
+				slic_output (pSrc, pDst, sp, L, grayColor, whiteColor, sizeX, sizeY, srcPitch, dstPitch, true);
 
 				bResult = true;
 			}
@@ -737,6 +770,7 @@ namespace ArtMosaic
 		const T* __restrict pSrc,
 		T* __restrict pDst,
 		const Color& grayColor,
+		const Color& whiteColor,
 		const float& m,
 		A_long& k,
 		const A_long& g,
