@@ -59,10 +59,39 @@ void ArtMosaic::fillProcBuf (A_long* pBuf, const A_long& pixNumber, const A_long
 	return;
 }
 
-
 void ArtMosaic::fillProcBuf(std::unique_ptr<A_long[]>& pBuf, const A_long& pixNumber, const A_long& val) noexcept
 {
 	ArtMosaic::fillProcBuf (pBuf.get(), pixNumber, val);
+}
+
+
+void ArtMosaic::fillProcBuf (float* pBuf, const A_long& pixNumber, const float& val) noexcept
+{
+	const A_long rawSize16 = pixNumber / 16;
+	const A_long rawFract16 = pixNumber % 16;
+	const __m256 fPattern = _mm256_set_ps(val, val, val, val, val, val, val, val);
+	__m256* pBufAvxPtr = reinterpret_cast<__m256*>(pBuf);
+
+	for (A_long i = 0; i < rawSize16; i++)
+	{
+		_mm256_store_ps (reinterpret_cast<float*>(pBufAvxPtr), fPattern), pBufAvxPtr++;
+		_mm256_store_ps (reinterpret_cast<float*>(pBufAvxPtr), fPattern), pBufAvxPtr++;
+	}
+
+	if (0 != rawFract16)
+	{
+		float* pBufPtr = reinterpret_cast<float*>(pBufAvxPtr);
+		for (A_long i = 0; i < rawFract16; i++)
+			pBufPtr[i] = val;
+	}
+
+	return;
+}
+
+
+void ArtMosaic::fillProcBuf(std::unique_ptr<float[]>& pBuf, const A_long& pixNumber, const float& val) noexcept
+{
+	ArtMosaic::fillProcBuf(pBuf.get(), pixNumber, val);
 }
 
 
