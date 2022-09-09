@@ -723,6 +723,11 @@ namespace ArtMosaic
 			} /* for (i = 0; i < sizeX; i++) */
 		} /* for (j = 0; j < sizeY; j++) */
 
+		if (true == borders)
+		{
+
+		} /* if (true == border) */
+
 		return;
 	}
 
@@ -750,6 +755,8 @@ namespace ArtMosaic
 
 		if (L)
 		{
+			fillProcBuf(L, bufSize, -1);
+
 			std::vector<Superpixel> sp = SlicImageImpl(pSrc, L, grayColor, m, k, g, sizeX, sizeY, srcPitch);
 			if (0 != (vectorSize = sp.size()))
 			{
