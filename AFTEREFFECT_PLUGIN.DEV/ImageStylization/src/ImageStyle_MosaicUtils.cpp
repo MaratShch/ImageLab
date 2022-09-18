@@ -220,7 +220,7 @@ void ArtMosaic::discardMinorCC
 
 	auto cc = CC.get();
 	auto l = L.get();
-	
+
 	for (j = 0; j < sizeY; j++) // Fill maxSizeCC
 	{
 		const A_long line_idx = j * sizeX;
@@ -232,7 +232,7 @@ void ArtMosaic::discardMinorCC
 			if (labelS >= 0)
 			{
 				A_long& s = maxSizeCC[labelS];
-				if (s < 0 || H[s] < H[labelCC])
+				if (s < 0 || H[s] < H[labelCC]) /* MRT!!! s and labelCC == -1 */
 					s = labelCC;
 			} /* if (labelS >= 0) */
 		} /* for (i = 0; i < sizeX; i++) */

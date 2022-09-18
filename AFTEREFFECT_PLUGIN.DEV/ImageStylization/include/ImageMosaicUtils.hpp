@@ -601,9 +601,12 @@ namespace ArtMosaic
 		bool bVal = false;
 
 #ifdef _DEBUG
+		constexpr uint32_t maxBufSize = 64;
 		volatile uint32_t dbgLoopCnt = 0u;
 		volatile size_t spSize = 0ull;
 		volatile size_t centerSize = 0ull;
+		volatile uint32_t cntEVal = 0u;
+		CACHE_ALIGN float eDbgVal[maxBufSize]{};
 #endif
 
 		/* init superpixel */
@@ -655,6 +658,12 @@ namespace ArtMosaic
 			for (i = 0; i < MaxIterSlic && E > RmseMax; i++)
 			{
 #ifdef _DEBUG
+				if (cntEVal < maxBufSize && i > 0)
+				{
+					eDbgVal[cntEVal] = E;
+					cntEVal++;
+				}
+
 				dbgLoopCnt++;
 				spSize = sp.size();
 				centerSize = centers.size();
@@ -696,6 +705,11 @@ namespace ArtMosaic
 		A_long j, i;
 		auto l = L.get();
 
+#ifdef _DEBUG
+		A_long dbgBuffer[1024] = {};
+		A_long dbgBufCnt = 0;
+#endif
+
 		for (j = 0; j < sizeY; j++)
 		{
 			const A_long srcLineIdx = j * srcPitch;
@@ -715,6 +729,13 @@ namespace ArtMosaic
 				} 
 				else
 				{
+#ifdef _DEBUG
+					if (dbgBufCnt < 1024)
+					{
+						dbgBuffer[dbgBufCnt] = lVal;
+						dbgBufCnt++;
+					}
+#endif`
 					pDst[dstLineIdx + i].R = whiteCol.r;
 					pDst[dstLineIdx + i].G = whiteCol.g;
 					pDst[dstLineIdx + i].B = whiteCol.b;
