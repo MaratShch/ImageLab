@@ -607,6 +607,12 @@ namespace ArtMosaic
 		volatile size_t centerSize = 0ull;
 		volatile uint32_t cntEVal = 0u;
 		CACHE_ALIGN float eDbgVal[maxBufSize]{};
+
+		constexpr int offset = 15040;
+		auto l = L.get();
+		A_long* dbgPtrL0 = l;
+		A_long* dbgPtrL1 = l + offset;
+
 #endif
 
 		/* init superpixel */
@@ -675,8 +681,8 @@ namespace ArtMosaic
 				moveCenters (sp, centers);
 			} /* for (i = 0; i < MaxIterSlic && E > RmseMax; i++) */
 
-			bVal = enforceConnectivity(sp, L, pSrc, sizeX, sizeY, srcPitch);
-		} /* if (procBuf && D && L) */
+			bVal = enforceConnectivity(sp, L, pSrc, sizeX, sizeY, srcPitch); // !!!!!
+		} /* if (D) */
 		
 		if (false == bVal)
 			sp.clear();
@@ -706,7 +712,9 @@ namespace ArtMosaic
 		auto l = L.get();
 
 #ifdef _DEBUG
-		A_long dbgBuffer[1024] = {};
+		constexpr A_long maxDbgBufSize = 1024;
+		A_long dbgBuffer1[maxDbgBufSize] = {};
+		A_long dbgBuffer2[maxDbgBufSize] = {};
 		A_long dbgBufCnt = 0;
 #endif
 
@@ -730,9 +738,10 @@ namespace ArtMosaic
 				else
 				{
 #ifdef _DEBUG
-					if (dbgBufCnt < 1024)
+					if (dbgBufCnt < maxDbgBufSize)
 					{
-						dbgBuffer[dbgBufCnt] = lVal;
+						dbgBuffer1[dbgBufCnt] = lVal;
+						dbgBuffer2[dbgBufCnt] = tmpLineIdx + i;
 						dbgBufCnt++;
 					}
 #endif`

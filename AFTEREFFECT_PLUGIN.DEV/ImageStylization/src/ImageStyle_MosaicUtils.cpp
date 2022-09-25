@@ -156,7 +156,7 @@ void ArtMosaic::labelCC
 	const A_long& sizeX,
 	const A_long& sizeY
 ) noexcept
-{
+{ ///////// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	std::stack<ArtMosaic::Pixel> S;
 	auto cc = CC.get();
 	auto l  = L.get();
@@ -167,7 +167,7 @@ void ArtMosaic::labelCC
 	for (A_long j = 0; j < sizeY; j++)
 	{
 		const A_long lineIdx = j * sizeX;
-		for (A_long i = 0; i < sizeY; i++)
+		for (A_long i = 0; i < sizeX; i++)
 		{
 			const A_long idx = i + lineIdx;
 			if (-1 != cc[idx])
@@ -197,7 +197,7 @@ void ArtMosaic::labelCC
 				}
 			} /* while (!S.empty()) */
 
-		} /* for (A_long i = 0; i < sizeY; i++) */
+		} /* for (A_long i = 0; i < sizeX; i++) */
 	} /* for (A_long j = 0; j < sizeY; j++) */
 
 	return;
@@ -227,14 +227,14 @@ void ArtMosaic::discardMinorCC
 		for (i = 0; i < sizeX; i++)
 		{
 			const A_long idx = line_idx + i;
-			const A_long labelCC = cc[idx];
-			const A_long labelS = l[idx];
-			if (labelS >= 0)
+			const A_long& labelCC = cc[idx];
+			const A_long& labelS = l[idx];
+			if (labelS >= 0 && labelCC >= 0)
 			{
 				A_long& s = maxSizeCC[labelS];
-				if (s < 0 || H[s] < H[labelCC]) /* MRT!!! s and labelCC == -1 */
+				if (s < 0 || H[s] < H[labelCC])
 					s = labelCC;
-			} /* if (labelS >= 0) */
+			} /* if (labelS >= 0 && labelCC >= 0) */
 		} /* for (i = 0; i < sizeX; i++) */
 	} /* for (A_long j = 0; j < sizeY; j++) */
 
@@ -244,8 +244,10 @@ void ArtMosaic::discardMinorCC
 		for (i = 0; i < sizeX; i++)
 		{
 			const A_long idx = line_idx + i;
-			auto ll = l[idx];
-			if (l[idx] >= 0 && cc[idx] != maxSizeCC[ll])
+			const auto& lIdx = l[idx];
+			const auto& cIdx = cc[idx];
+			const auto& maxIdx = maxSizeCC[lIdx];
+			if (lIdx >= 0 && cIdx != maxIdx)
 			{
 				cc[idx] = -1;
 				l [idx] = -1;
