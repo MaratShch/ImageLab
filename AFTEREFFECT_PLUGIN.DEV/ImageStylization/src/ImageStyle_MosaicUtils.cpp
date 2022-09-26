@@ -5,7 +5,9 @@
 #include "FastAriphmetics.hpp"
 #include "ImageAuxPixFormat.hpp"
 #include "ImageMosaicUtils.hpp"
-
+#ifdef _DEBUG
+#include <cassert>
+#endif
 
 
 void ArtMosaic::fillProcBuf (Color* pBuf, const A_long& pixNumber, const float& val) noexcept
@@ -123,22 +125,22 @@ void ArtMosaic::moveCenters (std::vector<ArtMosaic::Superpixel>& sp, const std::
 
 ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::PixelPos& i, const ArtMosaic::PixelPos& j, const A_long& n) noexcept
 {
-	if (n >= 0 && n < 4)
+#ifdef _DEBUG
+	assert(("Invalid index n! Your algorithm is worng!!!", n >= 0 && n < 4));
+#endif
+	ArtMosaic::Pixel p(i, j);
+	switch (n)
 	{
-		ArtMosaic::Pixel p(i, j);
-
-		switch (n)
-		{
-			case 0: ++p.x; break;
-			case 1: --p.y; break;
-			case 2: --p.x; break;
-			case 3: ++p.y; break;
-		}
-
-		return p;
+		case 0: ++p.x; break;
+		case 1: --p.y; break;
+		case 2: --p.x; break;
+		case 3: ++p.y; break;
+#ifdef _DEBUG
+		default: assert(("Default case not supported. Your algorithm is worng!!!", false));
+#endif
 	}
 
-	return ArtMosaic::Pixel();
+	return p;
 }
 
 
@@ -177,7 +179,7 @@ void ArtMosaic::labelCC
 
 			const A_long label = l[idx];
 			const A_long labelcc = static_cast<A_long>(H.size());
-			cc[idx] = labelcc;
+			cc[idx] = labelcc; // !!!!
 			H.push_back(0);
 
 			while (!S.empty())
@@ -188,8 +190,9 @@ void ArtMosaic::labelCC
 				for (A_long n = 0; n < 4; n++)
 				{
 					ArtMosaic::Pixel q = ArtMosaic::neighbor (p, n);
-					const A_long qIdx = q.x + q.y * sizeX;
-					if (isInside(q, sizeX, sizeY) && -1 == cc[qIdx] && label == l[qIdx])
+					const A_long qIdx = q.getIdx(sizeX);
+					const auto inside = isInside(q, sizeX, sizeY);
+					if (inside && -1 == cc[qIdx] && label == l[qIdx])
 					{
 						S.push(q);
 						cc[qIdx] = labelcc;
@@ -227,8 +230,8 @@ void ArtMosaic::discardMinorCC
 		for (i = 0; i < sizeX; i++)
 		{
 			const A_long idx = line_idx + i;
-			const A_long& labelCC = cc[idx];
-			const A_long& labelS = l[idx];
+			const A_long labelCC = cc[idx];
+			const A_long labelS = l[idx];
 			if (labelS >= 0 && labelCC >= 0)
 			{
 				A_long& s = maxSizeCC[labelS];
