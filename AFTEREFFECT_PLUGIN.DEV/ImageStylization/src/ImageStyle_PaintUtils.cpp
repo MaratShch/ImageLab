@@ -21,8 +21,8 @@ void linear_gradient_gray
 	const A_long shortSizeX {sizeX - 1};
 	const A_long shortSizeY {sizeY - 1};
 
-	auto __restrict pGx = gX.get();
-	auto __restrict pGy = gY.get();
+	auto pGx = gX.get();
+	auto pGy = gY.get();
 
 	for (j = 0; j < sizeY; j++)
 	{
@@ -115,7 +115,7 @@ inline void gaussian_kernel
 	const float&  sigma
 ) noexcept
 {
-	auto __restrict kernel = gKernel.get();
+	auto kernel = gKernel.get();
 
 	for (A_long i = -radius; i <= radius; i++)
 		kernel[i + radius] = FastCompute::Exp(-(FastCompute::Pow(static_cast<float>(i) / sigma, 2.f) / 2.f));
@@ -136,10 +136,10 @@ void convolution
 ) noexcept
 {
 	auto imOutXSmartPtr = std::make_unique<float[]>(sizeX * sizeY);
-	auto __restrict imOutX = imOutXSmartPtr.get();
-	auto __restrict imOut  = gImOut.get();
-	const float* __restrict imIn   = gImIn.get();
-	const float* __restrict kernel = gKernel.get();
+	auto imOutX = imOutXSmartPtr.get();
+	auto imOut  = gImOut.get();
+	const float* imIn   = gImIn.get();
+	const float* kernel = gKernel.get();
 
 	A_long x, y, i, i0;
 
@@ -380,8 +380,8 @@ void compute_adjacency_matrix
 	A_long i_min1 = 0, i_max1 = 0, i_min2 = 0, i_max2 = 0;
 	A_long j_min1 = 0, j_max1 = 0, j_min2 = 0, j_max2 = 0;
 	A_long x1 = 0, y1 = 0;
-	auto __restrict Eigvect2_x = eigvect2_x.get();
-	auto __restrict Eigvect2_y = eigvect2_y.get();
+	auto Eigvect2_x = eigvect2_x.get();
+	auto Eigvect2_y = eigvect2_y.get();
 
 	for (A_long i = 0; i < sizeY; i++)
 	{
@@ -416,8 +416,8 @@ void compute_adjacency_matrix
 
 			if (Row_list && Col_list)
 			{
-				auto __restrict row_list = Row_list.get();
-				auto __restrict col_list = Col_list.get();
+				auto row_list = Row_list.get();
+				auto col_list = Col_list.get();
 
 				pixel_list (row_list, col_list, i_min1, i_min2, i_max1, i_max2, j_min1, j_min2, j_max1, j_max2);
 

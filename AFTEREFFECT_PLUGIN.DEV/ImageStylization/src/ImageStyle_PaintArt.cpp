@@ -64,7 +64,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays (sparseMatrix, I, J, Weights, frameSize);
-				auto __restrict imResPtr = ImRes.get();
+				auto imResPtr = ImRes.get();
 #ifdef _DEBUG
 				const A_long morphoRes =
 #endif
@@ -149,7 +149,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
-				auto __restrict imResPtr = ImRes.get();
+				auto imResPtr = ImRes.get();
 #ifdef _DEBUG
 				const A_long morphoRes =
 #endif
@@ -235,7 +235,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
-				auto __restrict imResPtr = ImRes.get();
+				auto imResPtr = ImRes.get();
 #ifdef _DEBUG
 				const A_long morphoRes =
 #endif
@@ -322,7 +322,7 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_8u
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays (sparseMatrix, I, J, Weights, frameSize);
-				auto __restrict imResPtr = ImRes.get();
+				auto imResPtr = ImRes.get();
 #ifdef _DEBUG
 				const A_long morphoRes =
 #endif
@@ -407,7 +407,7 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_32f
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
-				auto __restrict imResPtr = ImRes.get();
+				auto imResPtr = ImRes.get();
 #ifdef _DEBUG
 				const A_long morphoRes =
 #endif
@@ -556,7 +556,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
-				auto __restrict imResPtr = ImRes.get();
+				auto imResPtr = ImRes.get();
 #ifdef _DEBUG
 				const A_long morphoRes =
 #endif
@@ -641,7 +641,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 			if (I && J && Weights && ImRes)
 			{
 				sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
-				auto __restrict imResPtr = ImRes.get();
+				auto imResPtr = ImRes.get();
 #ifdef _DEBUG
 				const A_long morphoRes =
 #endif

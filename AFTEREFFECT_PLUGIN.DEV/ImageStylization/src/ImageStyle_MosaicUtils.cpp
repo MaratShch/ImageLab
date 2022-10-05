@@ -149,6 +149,9 @@ ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::Pixel& p, const A_long& n
 	return ArtMosaic::neighbor (p.x, p.y, n);
 }
 
+#ifdef _DEBUG
+volatile uint32_t dbgLoopCnt;
+#endif
 
 void ArtMosaic::labelCC
 (
@@ -163,6 +166,10 @@ void ArtMosaic::labelCC
 	auto cc = CC.get();
 	auto l  = L.get();
 
+#ifdef _DEBUG
+	dbgLoopCnt = 0u;
+#endif
+
 	const A_long size = sizeX * sizeY;
 	ArtMosaic::fillProcBuf(cc, size, -1);
 
@@ -171,6 +178,10 @@ void ArtMosaic::labelCC
 		const A_long lineIdx = j * sizeX;
 		for (A_long i = 0; i < sizeX; i++)
 		{
+#ifdef _DEBUG
+			dbgLoopCnt++;
+#endif
+
 			const A_long idx = i + lineIdx;
 			if (-1 != cc[idx])
 				continue;
@@ -210,7 +221,7 @@ void ArtMosaic::labelCC
 void ArtMosaic::discardMinorCC
 (
 	std::unique_ptr<A_long[]>& CC,
-	const std::vector<int>& H,
+	const std::vector<A_long>& H,
 	std::unique_ptr<A_long[]>& L,
 	const A_long& K,
 	const A_long& sizeX,

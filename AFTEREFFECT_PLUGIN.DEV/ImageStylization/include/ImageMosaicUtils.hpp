@@ -113,7 +113,7 @@ namespace ArtMosaic
 	Pixel neighbor (const Pixel& p, const A_long& n) noexcept;
 
 	void labelCC (std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
-	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<int>& H, std::unique_ptr<A_long[]>& L, const A_long& K, const A_long& sizeX, const A_long& sizeY) noexcept;
+	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<A_long>& H, std::unique_ptr<A_long[]>& L, const A_long& K, const A_long& sizeX, const A_long& sizeY) noexcept;
 
 	inline bool isInside
 	(
@@ -562,12 +562,13 @@ namespace ArtMosaic
 		const A_long& pitch
 	) noexcept
 	{
-		std::vector<int32_t> H;
 		auto CC = std::make_unique<A_long[]>(sizeX * sizeY);
 		bool retVal = false;
 
 		if (CC)
 		{
+			std::vector<A_long> H;
+
 			labelCC (CC, H, L, sizeX, sizeY);
 
 			const A_long K = static_cast<const A_long>(sp.size());
