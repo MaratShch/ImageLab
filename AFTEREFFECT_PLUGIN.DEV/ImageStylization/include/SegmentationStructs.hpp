@@ -21,6 +21,7 @@ typedef struct CostData
 typedef struct Isegment
 {
 	std::vector<int32_t> pixels;
+	std::vector<int32_t> srcIdx;
 	float R;
 	float G;
 	float B;
@@ -31,6 +32,7 @@ typedef struct Isegment
 typedef struct Ssegment
 {
 	std::vector<int32_t> pixels;
+	std::vector<int32_t> srcIdx;
 	std::vector<Isegment> iSegments;
 	float R;
 	float G;
@@ -43,6 +45,7 @@ typedef struct Ssegment
 typedef struct Hsegment
 {
 	std::vector<int32_t> pixels;
+	std::vector<int32_t> srcIdx;
 	std::vector<Ssegment> sSegments;
 	float R;
 	float G;

@@ -526,7 +526,7 @@ inline std::vector<Hsegment> hue_segmentation
 	CACHE_ALIGN int32_t idSegments[256]{};
 	std::vector<Hsegment>hSegments;
 	int32_t nsegments = static_cast<int32_t>(ftcseg.size());
-	int32_t i, j, k, n;
+	int32_t i, j, k;
 	int32_t iH;
 
 	if ((2 == nsegments) && (0 == ftcseg[0]) && (ftcseg[1] == nbins - 1))
@@ -562,10 +562,12 @@ inline std::vector<Hsegment> hue_segmentation
 	for (j = 0; j < sizeY; j++)
 	{
 		const A_long lineIdx = j * srcPitch;
+		const A_long nIdx    = j * sizeX;
+
 		for (i = 0; i < sizeX; i++)
 		{
 			const A_long pixIdx = lineIdx + i;
-			n = j * sizeX + i;
+			const A_long n = nIdx + i;
 
 			iH = static_cast<int32_t>(hsi[n].H / qH);
 			if (iH >= nbins)
@@ -573,6 +575,7 @@ inline std::vector<Hsegment> hue_segmentation
 
 			const int32_t& idseg = idSegments[iH];
 			hSegments[idseg].pixels.push_back(n);
+			hSegments[idseg].srcIdx.push_back(pixIdx);
 			hSegments[idseg].R += static_cast<float>(bgra[pixIdx].R);
 			hSegments[idseg].G += static_cast<float>(bgra[pixIdx].G);
 			hSegments[idseg].B += static_cast<float>(bgra[pixIdx].B);
@@ -629,7 +632,8 @@ inline void channel_segmentation_saturation
 
 	for (k = 0; k < pSize; k++)
 	{
-		const int32_t& n = hSeg.pixels[k];
+		const int32_t& n      = hSeg.pixels[k];
+		const int32_t& srcIdx = hSeg.srcIdx[k];
 		i = static_cast<int32_t>(hsi[n].S / q);
 		
 		if (i >= nbins)
@@ -637,9 +641,10 @@ inline void channel_segmentation_saturation
 
 		const int32_t& idSeg = idSegment[i];
 		hSeg.sSegments[idSeg].pixels.push_back(n);
-		hSeg.sSegments[idSeg].R += static_cast<float>(bgra[n].R);
-		hSeg.sSegments[idSeg].G += static_cast<float>(bgra[n].G);
-		hSeg.sSegments[idSeg].B += static_cast<float>(bgra[n].B);
+		hSeg.sSegments[idSeg].srcIdx.push_back(srcIdx);
+		hSeg.sSegments[idSeg].R += static_cast<float>(bgra[srcIdx].R);
+		hSeg.sSegments[idSeg].G += static_cast<float>(bgra[srcIdx].G);
+		hSeg.sSegments[idSeg].B += static_cast<float>(bgra[srcIdx].B);
 	}
 
 	//Get average RGB values for each segment
@@ -663,7 +668,7 @@ inline void channel_segmentation_intensity
 	const A_long sizeX,
 	const A_long sizeY,
 	const A_long srcPitch,
-	struct Ssegment&Sseg,
+	struct Ssegment& Sseg,
 	int nbins,
 	float q,
 	std::vector<int32_t> ftcseg
@@ -691,17 +696,21 @@ inline void channel_segmentation_intensity
 
 	//assign each pixel to one of the segments
 	const int32_t& sSegSize = static_cast<int32_t>(Sseg.pixels.size());
-	for (k = 0; k < sSegSize; k++) {
-		const int32_t& n = Sseg.pixels[k];
+	for (k = 0; k < sSegSize; k++)
+	{
+		const int32_t& n      = Sseg.pixels[k];
+		const int32_t& srcIdx = Sseg.srcIdx[k];
+
 		i = static_cast<int32_t>(hsi[n].I / q);
 		if (i >= nbins)
 			i = nbins - 1;
 		const int32_t& idseg = idSegment[i];
-////???
+
 		Sseg.iSegments[idseg].pixels.push_back(n);
-		Sseg.iSegments[idseg].R += static_cast<float>(bgra[n].R);
-		Sseg.iSegments[idseg].G += static_cast<float>(bgra[n].G);
-		Sseg.iSegments[idseg].B += static_cast<float>(bgra[n].B);
+		Sseg.iSegments[idseg].srcIdx.push_back(srcIdx);
+		Sseg.iSegments[idseg].R += static_cast<float>(bgra[srcIdx].R);
+		Sseg.iSegments[idseg].G += static_cast<float>(bgra[srcIdx].G);
+		Sseg.iSegments[idseg].B += static_cast<float>(bgra[srcIdx].B);
 	}
 
 	//Get average RGB values for each segment
@@ -774,7 +783,7 @@ std::vector<Hsegment> compute_color_palette
 
 			std::vector<int32_t> ftcsegI = ftc_utils_segmentation(histI, nbinsI, eps, false);
 
-			channel_segmentation_intensity(hsi, bgra, sizeX, sizeY, srcPitch, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
+			channel_segmentation_intensity (hsi, bgra, sizeX, sizeY, srcPitch, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
 		}
 
 	}
