@@ -10,6 +10,10 @@ std::vector<Hsegment> compute_color_palette
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
 	const PF_Pixel_BGRA_8u* __restrict bgra,
+	const A_long width,
+	const A_long height,
+	const A_long srcPitch,
+	const A_long tmpPitch,
 	float Smin,
 	int32_t nbins,
 	int32_t nbinsS,
@@ -18,10 +22,6 @@ std::vector<Hsegment> compute_color_palette
 	float qS,
 	float qI,
 	std::vector<int32_t>& ftcseg,
-	int32_t w,
-	int32_t h,
-	int32_t p1,
-	int32_t p2,
 	float eps
 ) noexcept;
 

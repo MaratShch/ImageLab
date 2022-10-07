@@ -513,21 +513,21 @@ inline std::vector<Hsegment> hue_segmentation
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
 	const T*                __restrict bgra,
+	const A_long sizeX,
+	const A_long sizeY,
+	const A_long srcPitch,
 	float Smin,
 	int32_t nbins,
 	float qH,
 	std::vector<int32_t>& ftcseg,
-	int32_t w,
-	int32_t h,
 	const bool& optionGray = false
 ) noexcept
 {
 	CACHE_ALIGN int32_t idSegments[256]{};
 	std::vector<Hsegment>hSegments;
 	int32_t nsegments = static_cast<int32_t>(ftcseg.size());
-	int32_t i, k, n;
+	int32_t i, j, k, n;
 	int32_t iH;
-	const int32_t imgSize = w * h;
 
 	if ((2 == nsegments) && (0 == ftcseg[0]) && (ftcseg[1] == nbins - 1))
 	{
@@ -559,17 +559,24 @@ inline std::vector<Hsegment> hue_segmentation
 	}
 
 	//assign each pixel to one of the segments
-	for (n = 0; n < imgSize; n++)
+	for (j = 0; j < sizeY; j++)
 	{
-		iH = static_cast<int32_t>(hsi[n].H / qH);
-		if (iH >= nbins)
-			iH = nbins - 1;
+		const A_long lineIdx = j * srcPitch;
+		for (i = 0; i < sizeX; i++)
+		{
+			const A_long pixIdx = lineIdx + i;
+			n = j * sizeX + i;
 
-		const int32_t& idseg = idSegments[iH];
-		hSegments[idseg].pixels.push_back(n);
-		hSegments[idseg].R += static_cast<float>(bgra[n].R);
-		hSegments[idseg].G += static_cast<float>(bgra[n].G);
-		hSegments[idseg].B += static_cast<float>(bgra[n].B);
+			iH = static_cast<int32_t>(hsi[n].H / qH);
+			if (iH >= nbins)
+				iH = nbins - 1;
+
+			const int32_t& idseg = idSegments[iH];
+			hSegments[idseg].pixels.push_back(n);
+			hSegments[idseg].R += static_cast<float>(bgra[pixIdx].R);
+			hSegments[idseg].G += static_cast<float>(bgra[pixIdx].G);
+			hSegments[idseg].B += static_cast<float>(bgra[pixIdx].B);
+		}
 	}
 
 	//Get average RGB values for each segment
@@ -653,6 +660,9 @@ inline void channel_segmentation_intensity
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
 	const T* __restrict bgra,
+	const A_long sizeX,
+	const A_long sizeY,
+	const A_long srcPitch,
 	struct Ssegment&Sseg,
 	int nbins,
 	float q,
@@ -712,6 +722,10 @@ std::vector<Hsegment> compute_color_palette
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
 	const PF_Pixel_BGRA_8u* __restrict bgra,
+	const A_long sizeX,
+	const A_long sizeY,
+	const A_long srcPitch,
+	const A_long tmpPitch,
 	float Smin,
 	int32_t nbins,
 	int32_t nbinsS,
@@ -720,14 +734,10 @@ std::vector<Hsegment> compute_color_palette
 	float qS,
 	float qI,
 	std::vector<int32_t>& ftcseg,
-	int32_t w,
-	int32_t h,
-	int32_t p1,
-	int32_t p2,
 	float eps
 ) noexcept
 {
-	std::vector<Hsegment> hSegments = hue_segmentation (hsi, bgra, Smin, nbins, qH, ftcseg, w, h);
+	std::vector<Hsegment> hSegments = hue_segmentation (hsi, bgra, sizeX, sizeY, srcPitch, Smin, nbins, qH, ftcseg);
 	const int32_t nsegmentsH = static_cast<int32_t>(hSegments.size());
 	int32_t i, j, k, iS = 0;
 
@@ -764,7 +774,7 @@ std::vector<Hsegment> compute_color_palette
 
 			std::vector<int32_t> ftcsegI = ftc_utils_segmentation(histI, nbinsI, eps, false);
 
-			channel_segmentation_intensity(hsi, bgra, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
+			channel_segmentation_intensity(hsi, bgra, sizeX, sizeY, srcPitch, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
 		}
 
 	}

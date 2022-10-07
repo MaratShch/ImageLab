@@ -34,7 +34,6 @@ inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& 
 	const float BminusI = B - I;
 
 	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
-//	S = sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
 
 	if (fabs(S) > denom)
 	{
@@ -45,8 +44,6 @@ inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& 
 			cosH /= FabsH;
 
 		float h = (FastCompute::Acos(cosH)) * OneRadian;
-//		float h = acos(cosH) * OneRadian;
-
 		float proj2 = -2.f * RminusI + GminusI + BminusI;
 		
 		if (proj2 < 0.f)
@@ -84,10 +81,10 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
 
-	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-	auto const tmp_pitch = width;
+	const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	const A_long width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	const A_long tmp_pitch = width;
 
 	constexpr float sMin = static_cast<float>(nbinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const size_t requiredMemSize = tmp_pitch * height * sizeof(float) * 3;
@@ -130,9 +127,9 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 				const A_long pix_idx = line_idx + i;
 
 				/* convert RGB to sRGB */
-				const float& B = static_cast<float>(localSrc[pix_idx].B);
-				const float& G = static_cast<float>(localSrc[pix_idx].G);
-				const float& R = static_cast<float>(localSrc[pix_idx].R);
+				const float B = static_cast<float>(localSrc[pix_idx].B);
+				const float G = static_cast<float>(localSrc[pix_idx].G);
+				const float R = static_cast<float>(localSrc[pix_idx].R);
 
 				/* convert sRGB to HSI color space */
 				sRgb2NewHsi (R, G, B, H, S, I);
@@ -170,7 +167,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 		else
 		{
 			ftcSeg = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-			hSegments = compute_color_palette (pTmpStorage, localSrc, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, height, width, line_pitch, tmp_pitch, epsilon);
+			hSegments = compute_color_palette (pTmpStorage, localSrc, width, height, line_pitch, tmp_pitch, sMin, nbinsH, nbinsS, nbinsI, qH, qS, qI, ftcSeg, epsilon);
 		}
 
 		std::vector<dataRGB> meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI;
