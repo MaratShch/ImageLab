@@ -685,8 +685,10 @@ namespace ArtMosaic
 			bVal = enforceConnectivity(sp, L, pSrc, sizeX, sizeY, srcPitch); // !!!!!
 		} /* if (D) */
 		
-		if (false == bVal)
+		if (false == bVal && true != sp.empty())
+		{
 			sp.clear();
+		}
 
 		return sp;
 	}
@@ -754,9 +756,26 @@ namespace ArtMosaic
 			} /* for (i = 0; i < sizeX; i++) */
 		} /* for (j = 0; j < sizeY; j++) */
 
-		if (true == borders)
+		if (true == borders) /* draw mosaic cell border */
 		{
+			for (j = 0; j < sizeY; j++)
+			{
+				const A_long dstLineIdx = j * dstPitch;
+				for (i = 0; i < sizeX; i++)
+				{
+					Pixel p1(i + 1, j);
+					Pixel p2(i, j + 1);
 
+					auto const& lVal = l[i + j * sizeX];
+					if ((isInside(p1, sizeX, sizeY) && l[p1.getIdx(sizeX)] != lVal) ||
+						(isInside(p2, sizeX, sizeY) && l[p2.getIdx(sizeX)] != lVal))
+					{
+						pDst[dstLineIdx + i].R = borderCol.r;
+						pDst[dstLineIdx + i].G = borderCol.g;
+						pDst[dstLineIdx + i].B = borderCol.b;
+					}
+				} /* for (i = 0; i < sizeX; i++) */
+			} /* for (j = 0; j < sizeY; j++) */
 		} /* if (true == border) */
 
 		return;
