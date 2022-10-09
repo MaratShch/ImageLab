@@ -5,143 +5,123 @@
 #include "ImageAuxPixFormat.hpp"
 
 
-inline std::vector<int32_t> ftc_utils_get_minima(const int32_t* __restrict pHist, const int32_t histSize) noexcept
+
+
+inline std::vector<int32_t> ftc_utils_get_minima (const int32_t* __restrict pHist, const int32_t histSize) noexcept
 {
-	CACHE_ALIGN int type[256 /*hist_size_H * circular_size*/]{};
 	std::vector<int32_t> vectorOut;
+	auto sPtype = std::make_unique<int32_t []>(histSize);
 
-	const int32_t lastSample = histSize - 1;
-	int32_t prev, curr, next;
-	int32_t i, j;
-
-	type[0] = 5;
-	__VECTOR_ALIGNED__
-	prev = pHist[0];
-	for (i = 1; i < lastSample; i++)
+	if (sPtype)
 	{
-		curr = pHist[i];
-		next = pHist[i + 1];
+		auto type = sPtype.get();
+		memset(type, 0, histSize * sizeof(type[0]));
 
-		type[i] = 0;
-		const int32_t diffprev = curr - prev;
-		const int32_t diffnext = curr - next;
+		const int32_t lastSample = histSize - 1;
+		int32_t next;
+		int32_t i, j;
 
-		if (diffprev < 0)
+		type[0] = 5;
+		type[lastSample] = 5;
+
+		for (i = 1; i < lastSample; i++)
 		{
-			if (diffnext < 0)
-				type[i] = 1; /* minimum */
-			else if (diffnext == 0)
-				type[i] = 2; /* potential left endpoint of flat minimum */
-		}
-		else if (diffprev == 0)
-		{
-			if (diffnext < 0)
-				type[i] = 3; /* potential right endpoint of flat minimum */
-			else if (diffnext == 0)
-				type[i] = 4; /* flat */
+			type[i] = 0;
+			const int32_t diffprev = pHist[i] - pHist[i - 1];
+			const int32_t diffnext = pHist[i] - pHist[i + 1];
+
+			if ((diffprev < 0)  && (diffnext < 0))  type[i] = 1; /* minimum */
+			if ((diffprev == 0) && (diffnext == 0)) type[i] = 4; /* flat    */
+			if ((diffprev < 0)  && (diffnext == 0)) type[i] = 2; /* left    */
+			if ((diffprev == 0) && (diffnext < 0))  type[i] = 3; /* right   */
+
 		}
 
-		prev = curr;
-	}
-	type[lastSample] = 5;
-
-	/* check flat minima */
-	for (i = 1; i < lastSample; i++)
-	{
-		if (2 == type[i])
+		/* check flat minima */
+		for (i = 1; i < lastSample; i++)
 		{
-			//potential left endpoint of flat minimum
-			//look for right endpoint
-			for (j = i + 1; (j < lastSample) && (type[j] == 4); j++);
-			if (3 == type[j])
+			if (2 == type[i])
 			{
-				//found right endpoint
-				//mark center of flat zone as minimum
-				type[(i + j) >> 1] = 1;
+				//potential left endpoint of flat minimum
+				//look for right endpoint
+				for (j = i + 1; (j < lastSample) && (type[j] == 4); j++);
+				if (3 == type[j])
+				{
+					//found right endpoint
+					//mark center of flat zone as minimum
+					type[(i + j) / 2] = 1;
+				}
 			}
 		}
+
+		vectorOut.push_back(0); //left endpoint
+		for (i = 1; i < lastSample; i++) {
+			if (1 == type[i])
+			{
+				vectorOut.push_back(i); //minimum
+			}
+		}
+		vectorOut.push_back(lastSample); //right endpoint
 	}
 
-	vectorOut.push_back(0); //left endpoint
-	for (i = 1; i < lastSample; i++) {
-		if (1 == type[i])
-		{
-			vectorOut.push_back(i); //minimum
-		}
-	}
-	vectorOut.push_back(lastSample); //right endpoint
 	return vectorOut;
 }
 
 
 inline std::vector<int32_t> ftc_utils_get_maxima(const int32_t* __restrict pHist, const int32_t histSize) noexcept
 {
-	CACHE_ALIGN int32_t type[256 /*hist_size_H * circular_size*/]{};
 	std::vector<int> vectorOut;
+	auto sPtype = std::make_unique<int32_t[]>(histSize);
 
-	const int32_t& lastSample = histSize - 1;
-	int32_t prev, curr, next;
-	int32_t i, j;
-
-	type[0] = 0;
-	__VECTOR_ALIGNED__
-		prev = pHist[0];
-	for (i = 1; i < lastSample; i++)
+	if (sPtype)
 	{
-		curr = pHist[i];
-		next = pHist[i + 1];
+		auto type = sPtype.get();
+		memset(type, 0, histSize * sizeof(type[0]));
 
-		type[i] = 0;
-		const int32_t diffprev = curr - prev;
-		const int32_t diffnext = curr - next;
+		const int32_t lastSample = histSize - 1;
+		int32_t prev, curr, next;
+		int32_t i, j;
 
-		if (diffprev > 0)
+		for (i = 1; i < lastSample; i++)
 		{
-			if (diffnext > 0)
-				type[i] = 1; /* maximum */
-			else if (diffnext == 0)
-				type[i] = 2; /* potential left endpoint of flat maximum */
-		}
-		else if (diffprev == 0)
-		{
-			if (diffnext > 0)
-				type[i] = 3; /* potential right endpoint of flat maximum  */
+			type[i] = 0;
+			const int32_t diffprev = pHist[i] - pHist[i - 1];
+			const int32_t diffnext = pHist[i] - pHist[i + 1];
+
+			if ((diffprev > 0)  && (diffnext > 0))  type[i] = 1; //maximum
+			if ((diffprev == 0) && (diffnext == 0)) type[i] = 4; //flat
+			if ((diffprev > 0)  && (diffnext == 0)) type[i] = 2; //potential left endpoint of flat maximum
+			if ((diffprev == 0) && (diffnext > 0))  type[i] = 3; //potential right endpoint of flat maximum 
 		}
 
-		prev = curr;
-	}
-	type[lastSample] = 0;
+		/* check endpoints */
+		type[0] = type[lastSample] = 0;
+		if (pHist[0] > pHist[1]) type[0] = 1; /* maximum */
+		if (pHist[0] == pHist[1]) type[0] = 2; /* potential left endpoint of flat maximum */
+		if (pHist[lastSample] > pHist[lastSample - 1]) type[lastSample] = 1; /* maximum */
+		if (pHist[lastSample] == pHist[lastSample - 1]) type[lastSample] = 3; /* potential right endpoint of flat maximum */
 
-	/* check endpoints */
-	if (pHist[0] >  pHist[1]) type[0] = 1; /* maximum */
-	if (pHist[0] == pHist[1]) type[0] = 2; /* potential left endpoint of flat maximum */
-	if (pHist[lastSample]  > pHist[lastSample - 1]) type[lastSample] = 1; /* maximum */
-	if (pHist[lastSample] == pHist[lastSample - 1]) type[lastSample] = 3; /* potential right endpoint of flat maximum */
-
-	for (i = 0; i < histSize; i++)
-	{
-		if (type[i] == 2)
-		{ /* potential left endpoint of flat maximum
-		  look for right endpoint */
-			for (j = i + 1; (j < histSize - 1) && (type[j] == 4); j++);
-			if (type[j] == 3)
-			{
-				/* found right endpoint
-				mark center of flat zone as maximum */
-				type[(i + j) >> 1] = 1;
+		for (i = 0; i < histSize; i++)
+		{
+			if (type[i] == 2)
+			{ /* potential left endpoint of flat maximum
+			  look for right endpoint */
+				for (j = i + 1; (j < lastSample) && (type[j] == 4); j++);
+				if (type[j] == 3)
+				{
+					/* found right endpoint
+					mark center of flat zone as maximum */
+					type[(i + j) / 2] = 1;
+				}
 			}
 		}
-	}
 
-	//output list of maxima
-	for (i = 0; i < histSize; i++)
-	{
-		if (1 == type[i])
+		//output list of maxima
+		for (i = 0; i < histSize; i++)
 		{
-			/* maximum */
-			vectorOut.push_back(i);
+			if (1 == type[i]) vectorOut.push_back(i);
 		}
-	}
+	} /* if (sPtype) */
 	return vectorOut;
 }
 
@@ -152,13 +132,9 @@ inline bool cost_already_computed(std::vector<CostData>& listCosts, const int32_
 	const int32_t costsSize = static_cast<int32_t>(listCosts.size());
 	bool found = false;
 
-	__VECTOR_ALIGNED__
-	for (int32_t k = 0; k < costsSize && false == found; k++)
+	for (int32_t k = 0; (k < costsSize) && (false == found); k++)
 	{
-		auto const& iMin1 = listCosts[k].imin1;
-		auto const& iMin2 = listCosts[k].imin2;
-
-		if ((iMin1 == imin1) && (iMin2 == imin2))
+		if ((listCosts[k].imin1 == imin1) && (listCosts[k].imin2 == imin2))
 		{
 			cdata = listCosts[k];
 			found = true;
@@ -306,7 +282,6 @@ inline float cost_monotone(const int32_t* __restrict hist0, int32_t i1, int32_t 
 	const int32_t& L = i2 - i1 + 1;
 	int32_t i, j;
 
-	__VECTOR_ALIGNED__
 	for (i = 0; i < L; i++)
 		hist[i] = static_cast<float>(hist0[i1 + i]);
 
@@ -339,31 +314,30 @@ inline float cost_monotone(const int32_t* __restrict hist0, int32_t i1, int32_t 
 		}
 	}
 
-	float const cost = static_cast<float>(N) * Hmax - (std::log(static_cast<float>(L*(L + 1) >> 1)) - logeps);
+	float const cost = static_cast<float>(N) * Hmax - (std::log(static_cast<float>(L*(L + 1) / 2)) - logeps);
 
 	return cost;
 }
 
 
-inline CostData cost_merging(
+CostData cost_merging
+(
 	const int32_t* __restrict hist,
 	std::vector<CostData>& listCosts,
 	std::vector<int>& separators,
 	std::vector<int>& maxima,
 	int i1,
 	int i2,
-	float logeps) noexcept
+	float logeps
+) noexcept
 {
-	CostData cData{};
+	CostData cData;
 
-	auto const& separatorsI1 = separators[i1];
-	auto const& separatorsI2 = separators[i2];
-	auto const& maximaI2 = maxima[i2 - 1];
+	const float cost1 = cost_monotone(hist, separators[i1], maxima[i2 - 1], 1, logeps); //increasing
+	const float cost2 = cost_monotone(hist, maxima[i1], separators[i2], 0, logeps); //decreasing
 
-	const float& cost1 = cost_monotone(hist, separatorsI1, maximaI2, 1, logeps); //increasing
-	const float& cost2 = cost_monotone(hist, separatorsI1, separatorsI2, 0, logeps); //decreasing
-
-	if (cost1 < cost2) {
+	if (cost1 < cost2)
+	{
 		cData.cost = cost1;
 		cData.typemerging = 1;
 	}
@@ -374,7 +348,7 @@ inline CostData cost_merging(
 	cData.imin1 = separators[i1];
 	cData.imin2 = separators[i2];
 
-	listCosts.push_back(cData);
+	listCosts.push_back(std::move(cData));
 
 	return cData;
 }
@@ -386,20 +360,19 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 	int32_t* pHistogram = nullptr;
 	const float fLogEps = log(epsilon);
 	int32_t histSize = 0;
+	int32_t i = 0, j = 0, n = 0;
 	const bool circularHist = !isGray;
 
 	/* make circular histogram */
 	if (false == isGray)
 	{
 		const int32_t inHistDblSize = 2 * inHistSize;
-		memset(circularH, 0, sizeof(circularH));
-		__VECTOR_ALIGNED__
-		for (int i = 0; i < inHistSize; i++)
-		{
-			circularH[i] = inHist[i];
-			circularH[i + inHistSize] = inHist[i];
-			circularH[i + inHistDblSize] = inHist[i];
-		}
+		constexpr size_t histMemSize = sizeof(circularH);
+		memset(circularH, 0, histMemSize);
+
+		for (i = 0; i < inHistSize; i++)
+			circularH[i] = circularH[i + inHistSize] = circularH[i + inHistDblSize] = inHist[i];
+
 		pHistogram = circularH;
 		histSize = inHistSize * circular_size;
 	}
@@ -413,13 +386,13 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 	std::vector<int32_t> MaximaVectorOut = ftc_utils_get_maxima(pHistogram, histSize);
 	int32_t nIntervals = static_cast<int32_t>(SeparatorVector.size()) - 1;
 
-	int32_t j = 1, i = 0;
+	j = 1;
 	std::vector<CostData> listCosts;
 
 	while (nIntervals > j)
 	{
 		bool do_merging = true;
-		bool costComputed = false;
+		bool costComputed = true;
 
 		while (true == do_merging && nIntervals > j)
 		{
@@ -431,14 +404,14 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 			for (i = 0; i < nIntervalCnt; i++)
 			{
 				auto const i_j_sum = i + j + 1;
-				auto const SeparatorJ = SeparatorVector[i_j_sum];
+				auto const SeparatorIJ = SeparatorVector[i_j_sum];
 				auto const SeparatorI = SeparatorVector[i];
-				auto const SeparatorDiffs = SeparatorJ - SeparatorI;
+				auto const SeparatorDiffs = SeparatorIJ - SeparatorI;
 
-				if (circularHist && SeparatorDiffs > histSize)
+				if (circularHist && (SeparatorDiffs > histSize))
 					continue;
 
-				if (false == (costComputed = cost_already_computed(listCosts, SeparatorI, SeparatorJ, cData)))
+				if (!(costComputed = cost_already_computed(listCosts, SeparatorI, SeparatorIJ, cData)))
 				{
 					cData = cost_merging(pHistogram, listCosts, SeparatorVector, MaximaVectorOut, i, i_j_sum, fLogEps);
 				} /* if (false == (costComputed = cost_already_computed(listCost, listCostSize, SeparatorI, SeparatorJ, CData))) */
@@ -452,24 +425,20 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 			} /* for (i = 0; i < nIntervalMinusJ; i++) */
 
 			  /* merge intervals with lowest cost, if it is smaller than 0 */
-			if ((-1 != iLowest) && (cDataLowest.cost < 0))
+			if ((-1 != iLowest) && (cDataLowest.cost < 0.f))
 			{
 				/* remove minima with index ilowest+1 to ilowest+j */
-				auto iterator1 = SeparatorVector.begin() + (iLowest + 1);
-				SeparatorVector.erase(iterator1, iterator1 + j);
+				SeparatorVector.erase(SeparatorVector.begin() + iLowest + 1, SeparatorVector.begin() + iLowest + 1 + j);
 
 				auto iterator2 = MaximaVectorOut.begin() + iLowest;
 				//remove maxima associated to the removed minima
 				if (1 == cDataLowest.typemerging)
-				{
 					MaximaVectorOut.erase(iterator2, iterator2 + j);
-				}
 				if (2 == cDataLowest.typemerging)
-				{
 					MaximaVectorOut.erase(iterator2 + 1, iterator2 + j + 1);
-				}
 
-				nIntervals = static_cast<int32_t>(SeparatorVector.size()) - 1;
+				n = static_cast<int32_t>(SeparatorVector.size());
+				nIntervals = n - 1;
 			} /* if ((-1 != iLowest) && (CDataLowest.cost < 0)) */
 			else
 			{
@@ -482,14 +451,12 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 
 	} /* while (nIntervals > j) */
 
-	std::vector<int32_t> separatorsC;
-
 	if (false == isGray)
 	{
+		std::vector<int32_t> separatorsC;
 		const int32_t doubleHistSize = 2 * inHistSize;
-		const int32_t separatorVecSize = static_cast<int32_t>(SeparatorVector.size());
 
-		for (j = 0; j < separatorVecSize; j++)
+		for (j = 0; j < static_cast<int32_t>(SeparatorVector.size()); j++)
 		{
 			if ((SeparatorVector[j] >= inHistSize) && (SeparatorVector[j] < doubleHistSize))
 			{
@@ -502,226 +469,229 @@ std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t
 			separatorsC.push_back(0);
 			separatorsC.push_back(inHistSize - 1);
 		}
-	}
 
-	return ((false == isGray) ? separatorsC : SeparatorVector);
+		return separatorsC;
+	} /* if (false == isGray) */   
+
+	return SeparatorVector;
 }
 
 
-template <typename T>
 inline std::vector<Hsegment> hue_segmentation
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
-	const T*                __restrict bgra,
+	const fDataRGB*         __restrict pSrcImage,
 	const A_long sizeX,
 	const A_long sizeY,
-	const A_long srcPitch,
 	float Smin,
 	int32_t nbins,
 	float qH,
-	std::vector<int32_t>& ftcseg,
+	std::vector<int32_t> ftcseg,
 	const bool& optionGray = false
 ) noexcept
 {
-	CACHE_ALIGN int32_t idSegments[256]{};
-	std::vector<Hsegment>hSegments;
-	int32_t nsegments = static_cast<int32_t>(ftcseg.size());
-	int32_t i, j, k;
+	A_long i, j, k, n = 0;
 	int32_t iH;
+	std::vector<Hsegment>hSegments;
+	auto idSegmentSPtr = std::make_unique<int32_t[]>(nbins);
 
-	if ((2 == nsegments) && (0 == ftcseg[0]) && (ftcseg[1] == nbins - 1))
+	if (idSegmentSPtr)
 	{
-		nsegments = 1;
-	}
+		auto idSegments = idSegmentSPtr.get();
+		int32_t nsegments = static_cast<int32_t>(ftcseg.size());
 
-	for (i = 0; i < nsegments; i++)
-	{
-		if (i < nsegments - 1)
+		if ((2 == nsegments) && (0 == ftcseg[0]) && (ftcseg[1] == nbins - 1))
 		{
-			for (k = ftcseg[i]; k < ftcseg[i + 1]; k++)
-				idSegments[k] = i;
+			nsegments = 1;
 		}
-		else
+
+		for (i = 0; i < nsegments; i++)
 		{
-			for (k = ftcseg[i]; k < nbins; k++)
-				idSegments[k] = i;
-			for (k = 0; k < ftcseg[0]; k++)
-				idSegments[k] = i;
+			if (i < nsegments - 1)
+			{
+				for (k = ftcseg[i]; k < ftcseg[i + 1]; k++)
+					idSegments[k] = i;
+			}
+			else
+			{
+				for (k = ftcseg[i]; k < nbins; k++)
+					idSegments[k] = i;
+				for (k = 0; k < ftcseg[0]; k++)
+					idSegments[k] = i;
+			}
 		}
-	}
 
-	for (i = 0; i < nsegments; i++)
-	{
-		Hsegment Hseg{};
-		Hseg.Hmin = ftcseg[i] * qH;
-		Hseg.Hmax = (i < nsegments - 1) ? (ftcseg[i + 1] * qH) : (ftcseg[0] * qH);
-		hSegments.push_back(Hseg);
-	}
-
-	//assign each pixel to one of the segments
-	for (j = 0; j < sizeY; j++)
-	{
-		const A_long lineIdx = j * srcPitch;
-		const A_long nIdx    = j * sizeX;
-
-		for (i = 0; i < sizeX; i++)
+		for (i = 0; i < nsegments; i++)
 		{
-			const A_long pixIdx = lineIdx + i;
-			const A_long n = nIdx + i;
+			Hsegment Hseg;
+			Hseg.R = Hseg.G = Hseg.B = 0.f;
+			Hseg.Hmin = ftcseg[i] * qH;
+			Hseg.Hmax = (i < nsegments - 1) ? (ftcseg[i + 1] * qH) : (ftcseg[0] * qH);
+			hSegments.push_back(std::move(Hseg));
+		}
 
-			iH = static_cast<int32_t>(hsi[n].H / qH);
-			if (iH >= nbins)
-				iH = nbins - 1;
+		//assign each pixel to one of the segments
+		const A_long imgSize = sizeX * sizeY;
+		A_long idseg = 0;
+		for (n = 0; n < imgSize; n++)
+		{
+			auto const& sN = hsi[n].S;
+			if (sN > Smin)
+			{
+				iH = static_cast<int32_t>(hsi[n].H / qH);
+				if (iH >= nbins)
+					iH = nbins - 1;
 
-			const int32_t& idseg = idSegments[iH];
-			hSegments[idseg].pixels.push_back(n);
-			hSegments[idseg].srcIdx.push_back(pixIdx);
-			hSegments[idseg].R += static_cast<float>(bgra[pixIdx].R);
-			hSegments[idseg].G += static_cast<float>(bgra[pixIdx].G);
-			hSegments[idseg].B += static_cast<float>(bgra[pixIdx].B);
+				idseg = idSegments[iH];
+				hSegments[idseg].pixels.push_back(n);
+				hSegments[idseg].R += pSrcImage[n].R;
+				hSegments[idseg].G += pSrcImage[n].G;
+				hSegments[idseg].B += pSrcImage[n].B;
+			}
+		}
+
+		//Get average RGB values for each segment
+		for (i = 0; i < nsegments; i++)
+		{
+			const float pSize = static_cast<float>(hSegments[i].pixels.size());
+			hSegments[i].R = hSegments[i].R / pSize + 0.5f;
+			hSegments[i].G = hSegments[i].G / pSize + 0.5f;
+			hSegments[i].B = hSegments[i].B / pSize + 0.5f;
 		}
 	}
-
-	//Get average RGB values for each segment
-	for (i = 0; i < nsegments; i++)
-	{
-		const float& pSize = static_cast<float>(hSegments[i].pixels.size());
-		hSegments[i].R = hSegments[i].R / pSize + 0.5f;
-		hSegments[i].G = hSegments[i].G / pSize + 0.5f;
-		hSegments[i].B = hSegments[i].B / pSize + 0.5f;
-	}
-
 	return hSegments;
 }
 
 
-template <typename T>
 inline void channel_segmentation_saturation
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
-	const T* __restrict bgra,
+	const fDataRGB*         __restrict bgra,
+	const A_long sizeX,
+	const A_long sizeY,
 	struct Hsegment& hSeg,
 	int32_t nbins,
 	float q,
-	std::vector<int32_t>& ftcseg
+	std::vector<int32_t> ftcseg
 ) noexcept
 {
-	CACHE_ALIGN int32_t idSegment[256]{};
-	const int32_t& nsegments = static_cast<int32_t>(ftcseg.size()) - 1;
-	int32_t ii, k;
-	int32_t i;
+	int32_t i = 0, k = 0;
 
-	//assign same ID to all bins belonging to same segment
-	for (ii = 0; ii < nsegments; ii++)
+	auto idSegmentSPtr = std::make_unique<int32_t[]>(nbins);
+	if (idSegmentSPtr)
 	{
-		for (k = ftcseg[ii]; k <= ftcseg[ii + 1]; k++)
-			idSegment[k] = ii;
-	}
+		auto idSegment = idSegmentSPtr.get();
+		const int32_t nsegments = static_cast<int32_t>(ftcseg.size()) - 1;
 
-	//store information of each segment in a data structure (for each Hsegment)
-	for (ii = 0; ii < nsegments; ii++)
-	{
-		Ssegment sSeg {};
-		sSeg.Smin = ftcseg[ii] * q;
-		sSeg.Smax = ftcseg[ii + 1] * q;
-		hSeg.sSegments.push_back(sSeg);
-	}
+		//assign same ID to all bins belonging to same segment
+		for (i = 0; i < nsegments; i++)
+		{
+			for (k = ftcseg[i]; k <= ftcseg[i + 1]; k++)
+				idSegment[k] = i;
+		}
 
-	//assign each pixel to one of the segments
-	const int32_t& pSize = static_cast<int32_t>(hSeg.pixels.size());
+		//store information of each segment in a data structure (for each Hsegment)
+		for (i = 0; i < nsegments; i++)
+		{
+			Ssegment sSeg;
+			sSeg.R = sSeg.G = sSeg.B = 0.f;
+			sSeg.Smin = ftcseg[i] * q;
+			sSeg.Smax = ftcseg[i + 1] * q;
+			hSeg.sSegments.push_back(std::move(sSeg));
+		}
 
-	for (k = 0; k < pSize; k++)
-	{
-		const int32_t& n      = hSeg.pixels[k];
-		const int32_t& srcIdx = hSeg.srcIdx[k];
-		i = static_cast<int32_t>(hsi[n].S / q);
-		
-		if (i >= nbins)
-			i = nbins - 1;
+		//assign each pixel to one of the segments
+		for (k = 0; k < static_cast<int32_t>(hSeg.pixels.size()); k++)
+		{
+			auto const& n = hSeg.pixels[k];
+			i = static_cast<int32_t>(hsi[n].S / q);
 
-		const int32_t& idSeg = idSegment[i];
-		hSeg.sSegments[idSeg].pixels.push_back(n);
-		hSeg.sSegments[idSeg].srcIdx.push_back(srcIdx);
-		hSeg.sSegments[idSeg].R += static_cast<float>(bgra[srcIdx].R);
-		hSeg.sSegments[idSeg].G += static_cast<float>(bgra[srcIdx].G);
-		hSeg.sSegments[idSeg].B += static_cast<float>(bgra[srcIdx].B);
-	}
+			if (i >= nbins)
+				i = nbins - 1;
 
-	//Get average RGB values for each segment
-	const int32_t& vSize = static_cast<int32_t>(hSeg.sSegments.size());
-	for (i = 0; i < vSize; i++)
-	{
-		const float& pSize = static_cast<float>(hSeg.sSegments[i].pixels.size());
-		hSeg.sSegments[i].R = hSeg.sSegments[i].R / pSize + 0.5f;
-		hSeg.sSegments[i].G = hSeg.sSegments[i].G / pSize + 0.5f;
-		hSeg.sSegments[i].B = hSeg.sSegments[i].B / pSize + 0.5f;
+			const int32_t idSeg = idSegment[i];
+			hSeg.sSegments[idSeg].pixels.push_back(n); //// !!!!!!!!!
+			hSeg.sSegments[idSeg].R += bgra[n].R;
+			hSeg.sSegments[idSeg].G += bgra[n].G;
+			hSeg.sSegments[idSeg].B += bgra[n].B;
+		}
+
+		//Get average RGB values for each segment
+		for (i = 0; i < static_cast<int32_t>(hSeg.sSegments.size()); i++)
+		{
+			const float pSize = static_cast<float>(hSeg.sSegments[i].pixels.size());
+			hSeg.sSegments[i].R = hSeg.sSegments[i].R / pSize + 0.5f;
+			hSeg.sSegments[i].G = hSeg.sSegments[i].G / pSize + 0.5f;
+			hSeg.sSegments[i].B = hSeg.sSegments[i].B / pSize + 0.5f;
+		}
 	}
 	return;
 }
 
 
-template <typename T>
 inline void channel_segmentation_intensity
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
-	const T* __restrict bgra,
+	const fDataRGB*         __restrict bgra,
 	const A_long sizeX,
 	const A_long sizeY,
-	const A_long srcPitch,
 	struct Ssegment& Sseg,
 	int nbins,
 	float q,
 	std::vector<int32_t> ftcseg
 )
 {
-	CACHE_ALIGN int32_t idSegment[256]{};
-	const int32_t nsegments = ftcseg.size() - 1;
-	int32_t ii, k, i;
+	int32_t i = 0, k = 0;
 
-	//assign same ID to all bins belonging to same segment
-	for (ii = 0; ii < nsegments; ii++)
+	auto idSegmentSPtr = std::make_unique<int32_t[]>(nbins);
+	if (idSegmentSPtr)
 	{
-		for (k = ftcseg[ii]; k <= ftcseg[ii + 1]; k++)
-			idSegment[k] = ii;
-	}
+		auto idSegment = idSegmentSPtr.get();
+		const int32_t nsegments = ftcseg.size() - 1;
 
-	//store information of each segment in a data structure (for each Ssegment)
-	for (ii = 0; ii < nsegments; ii++)
-	{
-		Isegment Iseg {}; //empty struct
-		Iseg.Imin = static_cast<float>(ftcseg[ii])     * q;
-		Iseg.Imax = static_cast<float>(ftcseg[ii + 1]) * q;
-		Sseg.iSegments.push_back(Iseg);
-	}
+		//assign same ID to all bins belonging to same segment
+		for (i = 0; i < nsegments; i++)
+		{
+			for (k = ftcseg[i]; k <= ftcseg[i + 1]; k++)
+				idSegment[k] = i;
+		}
 
-	//assign each pixel to one of the segments
-	const int32_t& sSegSize = static_cast<int32_t>(Sseg.pixels.size());
-	for (k = 0; k < sSegSize; k++)
-	{
-		const int32_t& n      = Sseg.pixels[k];
-		const int32_t& srcIdx = Sseg.srcIdx[k];
+		//store information of each segment in a data structure (for each Ssegment)
+		for (i = 0; i < nsegments; i++)
+		{
+			Isegment Iseg;
+			Iseg.R = Iseg.G = Iseg.B = 0.f;
+			Iseg.Imin = static_cast<float>(ftcseg[i])     * q;
+			Iseg.Imax = static_cast<float>(ftcseg[i + 1]) * q;
+			Sseg.iSegments.push_back(std::move(Iseg));
+		}
 
-		i = static_cast<int32_t>(hsi[n].I / q);
-		if (i >= nbins)
-			i = nbins - 1;
-		const int32_t& idseg = idSegment[i];
+		//assign each pixel to one of the segments
+		for (k = 0; k < static_cast<int32_t>(Sseg.pixels.size()); k++)
+		{
+			auto const& n = Sseg.pixels[k];
 
-		Sseg.iSegments[idseg].pixels.push_back(n);
-		Sseg.iSegments[idseg].srcIdx.push_back(srcIdx);
-		Sseg.iSegments[idseg].R += static_cast<float>(bgra[srcIdx].R);
-		Sseg.iSegments[idseg].G += static_cast<float>(bgra[srcIdx].G);
-		Sseg.iSegments[idseg].B += static_cast<float>(bgra[srcIdx].B);
-	}
+			i = static_cast<int32_t>(hsi[n].I / q);
+			if (i >= nbins)
+				i = nbins - 1;
 
-	//Get average RGB values for each segment
-	const int32_t& iSegSize = static_cast<int32_t>(Sseg.iSegments.size());
-	for (i = 0; i < iSegSize; i++) {
-		const float& pixSize = static_cast<float>(Sseg.iSegments[i].pixels.size());
-		Sseg.iSegments[i].R = static_cast<int32_t>(Sseg.iSegments[i].R / pixSize + 0.5f);
-		Sseg.iSegments[i].G = static_cast<int32_t>(Sseg.iSegments[i].G / pixSize + 0.5f);
-		Sseg.iSegments[i].B = static_cast<int32_t>(Sseg.iSegments[i].B / pixSize + 0.5f);
-	}
+			auto const& idseg = idSegment[i];
 
+			Sseg.iSegments[idseg].pixels.push_back(n);
+			Sseg.iSegments[idseg].R += bgra[n].R;
+			Sseg.iSegments[idseg].G += bgra[n].G;
+			Sseg.iSegments[idseg].B += bgra[n].B;
+		} /* for (k = 0; k < static_cast<int32_t>(Sseg.pixels.size()); k++) */
+
+		//Get average RGB values for each segment
+		for (i = 0; i < static_cast<int32_t>(Sseg.iSegments.size()); i++)
+		{
+			const float& pixSize = static_cast<float>(Sseg.iSegments[i].pixels.size());
+			Sseg.iSegments[i].R = (Sseg.iSegments[i].R / pixSize + 0.5f);
+			Sseg.iSegments[i].G = (Sseg.iSegments[i].G / pixSize + 0.5f);
+			Sseg.iSegments[i].B = (Sseg.iSegments[i].B / pixSize + 0.5f);
+		}
+	} /* if (idSegmentSPtr) */
 	return;
 }
 
@@ -730,11 +700,9 @@ inline void channel_segmentation_intensity
 std::vector<Hsegment> compute_color_palette
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
-	const PF_Pixel_BGRA_8u* __restrict bgra,
+	const fDataRGB*         __restrict imgSrc,
 	const A_long sizeX,
 	const A_long sizeY,
-	const A_long srcPitch,
-	const A_long tmpPitch,
 	float Smin,
 	int32_t nbins,
 	int32_t nbinsS,
@@ -746,48 +714,50 @@ std::vector<Hsegment> compute_color_palette
 	float eps
 ) noexcept
 {
-	std::vector<Hsegment> hSegments = hue_segmentation (hsi, bgra, sizeX, sizeY, srcPitch, Smin, nbins, qH, ftcseg);
+	std::vector<Hsegment> hSegments = hue_segmentation (hsi, imgSrc, sizeX, sizeY, Smin, nbins, qH, ftcseg);
 	const int32_t nsegmentsH = static_cast<int32_t>(hSegments.size());
 	int32_t i, j, k, iS = 0;
 
-	for (i = 0; i < nsegmentsH; i++)
+	auto histSPtr = std::make_unique<int32_t[]>(nbins);
+	if (histSPtr)
 	{
-		CACHE_ALIGN int32_t histS[256]{};
-
-		const int32_t pSize = static_cast<const int32_t>(hSegments[i].pixels.size());
-		for (k = 0; k < pSize; k++)
+		auto histS = histSPtr.get();
+		for (i = 0; i < nsegmentsH; i++)
 		{
-			iS = static_cast<int32_t>(hsi[hSegments[i].pixels[k]].S / qS);
-			if (iS >= nbinsS)
-				iS = nbinsS - 1;
-			histS[iS]++;
-		}
-		//segment saturation histogram
-		std::vector<int> ftcsegS = ftc_utils_segmentation (histS, nbinsS, eps, false);
-
-		channel_segmentation_saturation(hsi, bgra, hSegments[i], nbinsS, qS, ftcsegS);
-		const int32_t& nsegmentsS = static_cast<int32_t>(hSegments[i].sSegments.size());
-
-		for (j = 0; j < nsegmentsS; j++)
-		{
-			CACHE_ALIGN int32_t histI[256]{};
-
-			const int32_t& pSizeS = static_cast<const int32_t>(hSegments[i].sSegments[j].pixels.size());
-			for (k = 0; k < pSizeS; k++)
+			memset (histS, 0, nbinsS * sizeof(histS[0]));
+			for (k = 0; k < static_cast<const int32_t>(hSegments[i].pixels.size()); k++)
 			{
-				int32_t iI = static_cast<int32_t>(hsi[hSegments[i].sSegments[j].pixels[k]].I / qI);
-				if (iI >= nbinsI)
-					iI = nbinsI - 1;
-				histI[iI]++;
+				iS = static_cast<int32_t>(hsi[hSegments[i].pixels[k]].S / qS);
+				if (iS >= nbinsS)
+					iS = nbinsS - 1;
+				histS[iS]++;
 			}
+			//segment saturation histogram
+			std::vector<int> ftcsegS = ftc_utils_segmentation (histS, nbinsS, eps, false);
 
-			std::vector<int32_t> ftcsegI = ftc_utils_segmentation(histI, nbinsI, eps, false);
+			channel_segmentation_saturation (hsi, imgSrc, sizeX, sizeY, hSegments[i], nbinsS, qS, ftcsegS);
 
-			channel_segmentation_intensity (hsi, bgra, sizeX, sizeY, srcPitch, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
-		}
-
-	}
-
+			auto histIPtr = std::make_unique<int32_t[]>(nbins);
+			if (histIPtr)
+			{
+				auto histI = histIPtr.get();
+				for (j = 0; j < static_cast<int32_t>(hSegments[i].sSegments.size()); j++)
+				{
+					memset (histI, 0, nbinsI * sizeof(histI[0]));
+					for (k = 0; k <  static_cast<const int32_t>(hSegments[i].sSegments[j].pixels.size()); k++)
+					{
+						int32_t iI = static_cast<int32_t>(hsi[hSegments[i].sSegments[j].pixels[k]].I / qI);
+						if (iI >= nbinsI)
+							iI = nbinsI - 1;
+						histI[iI]++;
+					}
+					
+					std::vector<int32_t> ftcsegI = ftc_utils_segmentation (histI, nbinsI, eps, false);
+					channel_segmentation_intensity (hsi, imgSrc, sizeX, sizeY, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
+				}
+			} /* if (histIPtr) */
+		} /* for (i = 0; i < nsegmentsH; i++) */
+	} /* 	if (histSPtr) */
 	return hSegments;
 }
 
@@ -810,26 +780,26 @@ void get_list_grays_colors
 	const int32_t iSegmentSize = static_cast<const int32_t>(Isegments.size());
 	for (i = 0; i < iSegmentSize; i++)
 	{
-		const dataRGB rgb
+		dataRGB rgb
 		{
 			static_cast<int32_t>(Isegments[i].R),
 			static_cast<int32_t>(Isegments[i].G),
 			static_cast<int32_t>(Isegments[i].B)
 		};
-		meanRGB_I.push_back(rgb);
+		meanRGB_I.push_back(std::move(rgb));
 	}
 
 	/* get average RGB value of Hue modes */
 	const int32_t hSegmentSize = static_cast<const int32_t>(Hsegments.size());
 	for (i = 0; i < hSegmentSize; i++)
 	{
-		const dataRGB rgb
+		dataRGB rgb
 		{
 			static_cast<int32_t>(Hsegments[i].R),
 			static_cast<int32_t>(Hsegments[i].G),
 			static_cast<int32_t>(Hsegments[i].B)
 		};
-		meanRGB_H.push_back(rgb);
+		meanRGB_H.push_back(std::move(rgb));
 	}
 
 
@@ -839,13 +809,13 @@ void get_list_grays_colors
 		const int32_t sSegmentSize = static_cast<const int32_t>(Hsegments[i].sSegments.size());
 		for (j = 0; j < sSegmentSize; j++)
 		{
-			const dataRGB rgb
+			dataRGB rgb
 			{
 				static_cast<int32_t>(Hsegments[i].sSegments[j].R),
 				static_cast<int32_t>(Hsegments[i].sSegments[j].G),
 				static_cast<int32_t>(Hsegments[i].sSegments[j].B)
 			};
-			meanRGB_HS.push_back(rgb);
+			meanRGB_HS.push_back(std::move(rgb));
 		}
 	}
 
@@ -861,13 +831,13 @@ void get_list_grays_colors
 			const int32_t iSegSize = static_cast<const int32_t>(Hsegments[i].sSegments[j].iSegments.size());
 			for (k = 0; k < iSegSize; k++)
 			{
-				const dataRGB rgb
+				dataRGB rgb
 				{
 					static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].R),
 					static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].G),
 					static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].B)
 				};
-				meanRGB_HSI.push_back(rgb);
+				meanRGB_HSI.push_back(std::move(rgb));
 				ncolorsHSI++;
 			}
 		}

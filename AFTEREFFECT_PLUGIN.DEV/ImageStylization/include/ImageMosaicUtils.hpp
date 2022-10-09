@@ -708,7 +708,7 @@ namespace ArtMosaic
 		const A_long& srcPitch,
 		const A_long& dstPitch,
 		bool borders = true
-	)
+	) noexcept
 	{
 		/* Replacing the color of each pixel by its Superparent's color */
 		A_long j, i;

@@ -9,7 +9,7 @@
 
 constexpr int circular_size = 3;
 constexpr int hist_size_H = 360;
-constexpr int hist_size_S = 256;
+constexpr int hist_size_S = 208;
 constexpr int hist_size_I = 256;
 constexpr unsigned int max_buf_idx = 4u;
 

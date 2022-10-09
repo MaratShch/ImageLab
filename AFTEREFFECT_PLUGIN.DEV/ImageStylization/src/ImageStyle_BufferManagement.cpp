@@ -98,12 +98,8 @@ bool test_temporary_buffers(ImageStyleTmpStorage* pStr, const size_t& mem_size) 
 
 			if (nullptr != pStorage1)
 			{
-#ifdef _DEBUG
-				memset(pStorage1, 0, bufSize);
-#endif
 				pStr->pStorage1 = pStorage1;
 				pStr->bufMemSize = bufSize;
-
 				bTestResult = true;
 			}
 		}
