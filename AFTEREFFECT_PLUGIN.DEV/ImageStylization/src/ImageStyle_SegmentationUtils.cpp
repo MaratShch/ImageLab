@@ -825,9 +825,9 @@ void get_segmented_image
 		for (A_long i = 0; i < w; i++)
 		{
 			pDstLine[i].A = pSrcLine[i].A;
-			pDstLine[i].R = static_cast<A_u_char>(fR[fTmpStorageIdx + i]);
-			pDstLine[i].G = static_cast<A_u_char>(fG[fTmpStorageIdx + i]);
-			pDstLine[i].B = static_cast<A_u_char>(fB[fTmpStorageIdx + i]);
+			pDstLine[i].R = static_cast<A_u_char>(CLAMP_VALUE(fR[fTmpStorageIdx + i], 0.f, 255.f));
+			pDstLine[i].G = static_cast<A_u_char>(CLAMP_VALUE(fG[fTmpStorageIdx + i], 0.f, 255.f));
+			pDstLine[i].B = static_cast<A_u_char>(CLAMP_VALUE(fB[fTmpStorageIdx + i], 0.f, 255.f));
 		}
 	}
 
