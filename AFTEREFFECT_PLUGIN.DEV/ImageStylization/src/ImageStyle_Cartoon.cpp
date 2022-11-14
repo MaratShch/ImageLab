@@ -18,27 +18,32 @@ inline void sRgb2NewHsi (float R, float G, float B, float& H, float& S, float& I
 {
 	constexpr float Sqrt2 = 1.414213562373f; /* sqrt isn't defined as constexpr */
 	constexpr float OneRadian = 180.f / FastCompute::PI;
-	constexpr float div3 = 1.f / 3.f;
+	constexpr float div3  = 1.f / 3.f;
 	constexpr float denom = 1.f / 1e7f;
 
-	I = div3 * (R + G + B);
+	I = (R + G + B) * div3;
 	const float RminusI = R - I;
 	const float GminusI = G - I;
 	const float BminusI = B - I;
 
+	H = 0.f;
+
 //	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
-	S = sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+	S = std::sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
 
-	if (fabs(S) > denom)
-	{
+	if (S == 0.f)
+		return;
+
+//	if (std::fabs(S) > denom)
+//	{
 		float cosH = (G - B) / (Sqrt2 * S);
-		const float FabsH = fabs(cosH);
+		const float cosAbsH = std::abs(cosH);
 
-		if (FabsH > 1.f)
-			cosH /= FabsH;
+		if (cosAbsH > 1.f) 
+			cosH /= cosAbsH;
 
 //		float h = (FastCompute::Acos(cosH)) * OneRadian;
-		float h = acos(cosH) * OneRadian;
+		float h = std::acos(cosH) * OneRadian;
 		float proj2 = -2.f * RminusI + GminusI + BminusI;
 		
 		if (proj2 < 0.f)
@@ -51,11 +56,11 @@ inline void sRgb2NewHsi (float R, float G, float B, float& H, float& S, float& I
 			h = 0.f;
 
 		H = h;
-	}
-	else
-	{
-		H = 0.f;
-	}
+//	}
+//	else
+//	{
+//		H = S = 0.f;
+//	}
 
 	return;
 }
@@ -98,7 +103,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	if (nBinsI * qI < hist_size_I) nBinsI++;
 
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
-
+	const bool  bForceGray = false; // reads this value from check box on control pannel
 	bool bMemSizeTest = false;
 
 	j = i = nhighsat = 0;
@@ -122,7 +127,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
 
 			auto tmpFloatPtr = tmpFloatData.get();
-			utils_prepare_data (localSrc, tmpFloatPtr, width, height, line_pitch, 1.f);
+			utils_prepare_data (localSrc, tmpFloatPtr, width, height, line_pitch, -1.f);
 
 			memset(reinterpret_cast<void*>(pTmpStorage), 0, requiredMemSize);
 
@@ -164,13 +169,14 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 			std::vector<Hsegment>hSegments;
 			std::vector<Isegment>iSegments;
 
-			if (true == isGray)
+			if (true == isGray || true == bForceGray)
 			{
 				ftcSegI = ftc_utils_segmentation (histI, nBinsI, epsilon, isGray);
+				iSegments = compute_gray_palette (pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
 			}
 			else
 			{
-				ftcSegH = ftc_utils_segmentation (histH, nBinsH, epsilon, isGray);
+				ftcSegH = ftc_utils_segmentation  (histH, nBinsH, epsilon, isGray);
 				hSegments = compute_color_palette (pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 			}
 

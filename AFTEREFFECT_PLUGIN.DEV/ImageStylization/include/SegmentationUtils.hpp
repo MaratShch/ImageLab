@@ -18,7 +18,7 @@ inline void utils_prepare_data
 {
 	A_long i, j;
 
-	if (reciproc < 1.f)
+	if (reciproc > 0.f)
 	{
 		for (j = 0; j < sizeY; j++)
 		{
@@ -69,8 +69,8 @@ inline void utils_prepare_data
 
 std::vector<int32_t> ftc_utils_segmentation
 (
-	const int32_t* inHist, 
-	const int32_t& inHistSize, 
+	int32_t* inHist, 
+	int32_t inHistSize, 
 	float epsilon, 
 	bool circularHist
 ) noexcept;
@@ -89,7 +89,7 @@ std::vector<Hsegment> compute_color_palette
 	float qH,
 	float qS,
 	float qI,
-	std::vector<int32_t>& ftcseg,
+	std::vector<int32_t> ftcseg,
 	float eps
 ) noexcept;
 
@@ -124,4 +124,16 @@ CostData cost_merging
 	int i1,
 	int i2,
 	float logeps
+) noexcept;
+
+std::vector<Isegment> compute_gray_palette
+(
+	const PF_Pixel_HSI_32f* __restrict hsi,
+	const fDataRGB*         __restrict imgSrc,
+	const A_long sizeX,
+	const A_long sizeY,
+	float Smin,
+	int32_t nbinsI,
+	float qI,
+	std::vector<int32_t> ftcsegI
 ) noexcept;

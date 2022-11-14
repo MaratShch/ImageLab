@@ -354,31 +354,33 @@ CostData cost_merging
 }
 
 
-std::vector<int32_t> ftc_utils_segmentation(const int32_t* inHist, const int32_t& inHistSize, float epsilon, bool isGray) noexcept
+std::vector<int32_t> ftc_utils_segmentation (int32_t* inHist, int32_t inHistSize, float epsilon, bool isGray) noexcept
 {
-	CACHE_ALIGN int32_t circularH[hist_size_H * circular_size];
 	int32_t* pHistogram = nullptr;
-	const float fLogEps = log(epsilon);
+	const float fLogEps = std::log(epsilon);
 	int32_t histSize = 0;
 	int32_t i = 0, j = 0, n = 0;
 	const bool circularHist = !isGray;
 
+	const int32_t cyclicHistSize = inHistSize * 3;
+	auto pCircularH = std::make_unique<int32_t[]>(cyclicHistSize);
+	auto circularH = pCircularH.get();
+
 	/* make circular histogram */
 	if (false == isGray)
 	{
-		const int32_t inHistDblSize = 2 * inHistSize;
 		constexpr size_t histMemSize = sizeof(circularH);
-		memset(circularH, 0, histMemSize);
+		memset (circularH, 0, cyclicHistSize);
 
 		for (i = 0; i < inHistSize; i++)
-			circularH[i] = circularH[i + inHistSize] = circularH[i + inHistDblSize] = inHist[i];
+			circularH[i] = circularH[i + inHistSize] = circularH[i + 2 * inHistSize] = inHist[i];
 
 		pHistogram = circularH;
 		histSize = inHistSize * circular_size;
 	}
 	else
 	{
-		pHistogram = const_cast<int32_t*>(inHist);
+		pHistogram = inHist;
 		histSize = inHistSize;
 	}
 
@@ -490,34 +492,35 @@ inline std::vector<Hsegment> hue_segmentation
 	const bool& optionGray = false
 ) noexcept
 {
-	A_long i, j, k, n = 0;
-	int32_t iH;
-	std::vector<Hsegment>hSegments;
+	std::vector<Hsegment>hSegments{};
+	A_long i, j, n = 0;
+	int32_t iH = 0;
+
+#ifdef _DEBUG
+	uint32_t loopDbgCnt = 0u;
+#endif
+
+	int32_t nsegments = static_cast<int32_t>(ftcseg.size());
+	if ((nsegments == 2) && (ftcseg[0] == 0) && (ftcseg[1] == nbins - 1))
+		nsegments = 1;
+
 	auto idSegmentSPtr = std::make_unique<int32_t[]>(nbins);
 
 	if (idSegmentSPtr)
 	{
 		auto idSegments = idSegmentSPtr.get();
-		int32_t nsegments = static_cast<int32_t>(ftcseg.size());
-
-		if ((2 == nsegments) && (0 == ftcseg[0]) && (ftcseg[1] == nbins - 1))
-		{
-			nsegments = 1;
-		}
+		memset (idSegments, 0, nbins * sizeof(idSegments[0]));
 
 		for (i = 0; i < nsegments; i++)
 		{
 			if (i < nsegments - 1)
 			{
-				for (k = ftcseg[i]; k < ftcseg[i + 1]; k++)
-					idSegments[k] = i;
+				for (int32_t k = ftcseg[i]; k < ftcseg[i + 1]; k++) idSegments[k] = i;
 			}
 			else
 			{
-				for (k = ftcseg[i]; k < nbins; k++)
-					idSegments[k] = i;
-				for (k = 0; k < ftcseg[0]; k++)
-					idSegments[k] = i;
+				for (int32_t k = ftcseg[i]; k < nbins; k++) idSegments[k] = i;
+				for (int32_t k = 0; k < ftcseg[0]; k++) idSegments[k] = i;
 			}
 		}
 
@@ -532,22 +535,20 @@ inline std::vector<Hsegment> hue_segmentation
 
 		//assign each pixel to one of the segments
 		const A_long imgSize = sizeX * sizeY;
-		A_long idseg = 0;
 		for (n = 0; n < imgSize; n++)
 		{
-			auto const& sN = hsi[n].S;
-			if (sN > Smin)
-			{
-				iH = static_cast<int32_t>(hsi[n].H / qH);
-				if (iH >= nbins)
-					iH = nbins - 1;
+			iH = static_cast<int32_t>(hsi[n].H / qH);
+			if (iH >= nbins)
+				iH = nbins - 1;
 
-				idseg = idSegments[iH];
-				hSegments[idseg].pixels.push_back(n);
-				hSegments[idseg].R += pSrcImage[n].R;
-				hSegments[idseg].G += pSrcImage[n].G;
-				hSegments[idseg].B += pSrcImage[n].B;
-			}
+			const auto& idseg = idSegments[iH];
+			hSegments[idseg].pixels.push_back(n);
+			hSegments[idseg].R += pSrcImage[n].R;
+			hSegments[idseg].G += pSrcImage[n].G;
+			hSegments[idseg].B += pSrcImage[n].B;
+#ifdef _DEBUG
+			loopDbgCnt++;
+#endif
 		}
 
 		//Get average RGB values for each segment
@@ -558,7 +559,7 @@ inline std::vector<Hsegment> hue_segmentation
 			hSegments[i].G = hSegments[i].G / pSize + 0.5f;
 			hSegments[i].B = hSegments[i].B / pSize + 0.5f;
 		}
-	}
+	} /* if (idSegmentSPtr) */
 	return hSegments;
 }
 
@@ -581,6 +582,8 @@ inline void channel_segmentation_saturation
 	if (idSegmentSPtr)
 	{
 		auto idSegment = idSegmentSPtr.get();
+		memset(idSegment, 0, nbins * sizeof(int32_t));
+
 		const int32_t nsegments = static_cast<int32_t>(ftcseg.size()) - 1;
 
 		//assign same ID to all bins belonging to same segment
@@ -647,6 +650,8 @@ inline void channel_segmentation_intensity
 	if (idSegmentSPtr)
 	{
 		auto idSegment = idSegmentSPtr.get();
+		memset(idSegment, 0, nbins * sizeof(int32_t));
+
 		const int32_t nsegments = ftcseg.size() - 1;
 
 		//assign same ID to all bins belonging to same segment
@@ -710,22 +715,27 @@ std::vector<Hsegment> compute_color_palette
 	float qH,
 	float qS,
 	float qI,
-	std::vector<int32_t>& ftcseg,
+	std::vector<int32_t> ftcseg,
 	float eps
 ) noexcept
 {
-	std::vector<Hsegment> hSegments = hue_segmentation (hsi, imgSrc, sizeX, sizeY, Smin, nbins, qH, ftcseg);
-	const int32_t nsegmentsH = static_cast<int32_t>(hSegments.size());
+	std::vector<Hsegment> hSegments{};
 	int32_t i, j, k, iS = 0;
 
-	auto histSPtr = std::make_unique<int32_t[]>(nbins);
-	if (histSPtr)
+	auto histSPtr = std::make_unique<int32_t[]>(nbinsS);
+	auto histIPtr = std::make_unique<int32_t[]>(nbinsI);
+
+	if (histSPtr && histIPtr)
 	{
+		hSegments  = hue_segmentation (hsi, imgSrc, sizeX, sizeY, Smin, nbins, qH, ftcseg);
+		const int32_t nsegmentsH = static_cast<int32_t>(hSegments.size());
+
 		auto histS = histSPtr.get();
 		for (i = 0; i < nsegmentsH; i++)
 		{
 			memset (histS, 0, nbinsS * sizeof(histS[0]));
-			for (k = 0; k < static_cast<const int32_t>(hSegments[i].pixels.size()); k++)
+			const int32_t hSegPixSize = static_cast<const int32_t>(hSegments[i].pixels.size());
+			for (k = 0; k < hSegPixSize; k++)
 			{
 				iS = static_cast<int32_t>(hsi[hSegments[i].pixels[k]].S / qS);
 				if (iS >= nbinsS)
@@ -733,31 +743,29 @@ std::vector<Hsegment> compute_color_palette
 				histS[iS]++;
 			}
 			//segment saturation histogram
-			std::vector<int> ftcsegS = ftc_utils_segmentation (histS, nbinsS, eps, false);
+			std::vector<int32_t> ftcsegS = ftc_utils_segmentation (histS, nbinsS, eps, true);
 
 			channel_segmentation_saturation (hsi, imgSrc, sizeX, sizeY, hSegments[i], nbinsS, qS, ftcsegS);
 
-			auto histIPtr = std::make_unique<int32_t[]>(nbins);
-			if (histIPtr)
+			auto histI = histIPtr.get();
+			const int32_t sSegPixSize = static_cast<int32_t>(hSegments[i].sSegments.size());
+			for (j = 0; j < sSegPixSize; j++)
 			{
-				auto histI = histIPtr.get();
-				for (j = 0; j < static_cast<int32_t>(hSegments[i].sSegments.size()); j++)
+				memset (histI, 0, nbinsI * sizeof(histI[0]));
+				const int32_t iSegPixSize = static_cast<const int32_t>(hSegments[i].sSegments[j].pixels.size());
+				for (k = 0; k < iSegPixSize; k++)
 				{
-					memset (histI, 0, nbinsI * sizeof(histI[0]));
-					for (k = 0; k <  static_cast<const int32_t>(hSegments[i].sSegments[j].pixels.size()); k++)
-					{
-						int32_t iI = static_cast<int32_t>(hsi[hSegments[i].sSegments[j].pixels[k]].I / qI);
-						if (iI >= nbinsI)
-							iI = nbinsI - 1;
-						histI[iI]++;
-					}
-					
-					std::vector<int32_t> ftcsegI = ftc_utils_segmentation (histI, nbinsI, eps, false);
-					channel_segmentation_intensity (hsi, imgSrc, sizeX, sizeY, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
+					int32_t iI = static_cast<int32_t>(hsi[hSegments[i].sSegments[j].pixels[k]].I / qI);
+					if (iI >= nbinsI)
+						iI = nbinsI - 1;
+					histI[iI]++;
 				}
-			} /* if (histIPtr) */
+					
+				std::vector<int32_t> ftcsegI = ftc_utils_segmentation (histI, nbinsI, eps, true);
+				channel_segmentation_intensity (hsi, imgSrc, sizeX, sizeY, hSegments[i].sSegments[j], nbinsI, qI, ftcsegI);
+			}
 		} /* for (i = 0; i < nsegmentsH; i++) */
-	} /* 	if (histSPtr) */
+	} /* if (histSPtr && histIPtr) */
 	return hSegments;
 }
 
@@ -882,4 +890,22 @@ void get_segmented_image
 	}
 
 	return;
+}
+
+
+std::vector<Isegment> compute_gray_palette
+(
+	const PF_Pixel_HSI_32f* __restrict hsi,
+	const fDataRGB*         __restrict imgSrc,
+	const A_long sizeX,
+	const A_long sizeY,
+	float Smin,
+	int32_t nbinsI,
+	float qI,
+	std::vector<int32_t> ftcsegI
+) noexcept
+{
+	std::vector<Isegment> iSegments;
+
+	return iSegments;
 }
