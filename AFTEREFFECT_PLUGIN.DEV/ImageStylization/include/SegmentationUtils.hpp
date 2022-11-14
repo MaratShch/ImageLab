@@ -93,27 +93,6 @@ std::vector<Hsegment> compute_color_palette
 	float eps
 ) noexcept;
 
-void get_list_grays_colors
-(
-	std::vector<Isegment>& Isegments,
-	std::vector<Hsegment>& Hsegments,
-	std::vector<dataRGB>& meanRGB_I,
-	std::vector<dataRGB>& meanRGB_H,
-	std::vector<dataRGB>& meanRGB_HS,
-	std::vector<dataRGB>& meanRGB_HSI,
-	std::vector<int32_t>& icolorsH,
-	std::vector<int32_t>& icolorsS
-) noexcept;
-
-void get_segmented_image
-(
-	std::vector<Isegment> Isegments,
-	std::vector<Hsegment> Hsegments,
-	PF_Pixel_BGRA_8u* __restrict bgra,
-	int32_t w,
-	int32_t h,
-	int32_t pitch
-) noexcept;
 
 CostData cost_merging
 (
@@ -136,4 +115,17 @@ std::vector<Isegment> compute_gray_palette
 	int32_t nbinsI,
 	float qI,
 	std::vector<int32_t> ftcsegI
+) noexcept;
+
+void get_segmented_image
+(
+	std::vector<Isegment>& Isegments,
+	std::vector<Hsegment>& Hsegments,
+	const PF_Pixel_BGRA_8u* __restrict srcBgra,
+	fDataRGB* __restrict fRGB,
+	PF_Pixel_BGRA_8u* __restrict dstBgra,
+	A_long sizeX,
+	A_long sizeY,
+	A_long srcPitch,
+	A_long dstPitch
 ) noexcept;

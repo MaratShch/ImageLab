@@ -770,122 +770,64 @@ std::vector<Hsegment> compute_color_palette
 }
 
 
-void get_list_grays_colors
+void get_segmented_image
 (
 	std::vector<Isegment>& Isegments,
 	std::vector<Hsegment>& Hsegments,
-	std::vector<dataRGB>& meanRGB_I,
-	std::vector<dataRGB>& meanRGB_H,
-	std::vector<dataRGB>& meanRGB_HS,
-	std::vector<dataRGB>& meanRGB_HSI,
-	std::vector<int32_t>& icolorsH,
-	std::vector<int32_t>& icolorsS
-) noexcept
-{
-	int32_t i, j, k;
-
-	/* get gray-levels */
-	const int32_t iSegmentSize = static_cast<const int32_t>(Isegments.size());
-	for (i = 0; i < iSegmentSize; i++)
-	{
-		dataRGB rgb
-		{
-			static_cast<int32_t>(Isegments[i].R),
-			static_cast<int32_t>(Isegments[i].G),
-			static_cast<int32_t>(Isegments[i].B)
-		};
-		meanRGB_I.push_back(std::move(rgb));
-	}
-
-	/* get average RGB value of Hue modes */
-	const int32_t hSegmentSize = static_cast<const int32_t>(Hsegments.size());
-	for (i = 0; i < hSegmentSize; i++)
-	{
-		dataRGB rgb
-		{
-			static_cast<int32_t>(Hsegments[i].R),
-			static_cast<int32_t>(Hsegments[i].G),
-			static_cast<int32_t>(Hsegments[i].B)
-		};
-		meanRGB_H.push_back(std::move(rgb));
-	}
-
-
-	/* get average RGB value of Hue-Saturation modes */
-	for (i = 0; i < hSegmentSize; i++)
-	{
-		const int32_t sSegmentSize = static_cast<const int32_t>(Hsegments[i].sSegments.size());
-		for (j = 0; j < sSegmentSize; j++)
-		{
-			dataRGB rgb
-			{
-				static_cast<int32_t>(Hsegments[i].sSegments[j].R),
-				static_cast<int32_t>(Hsegments[i].sSegments[j].G),
-				static_cast<int32_t>(Hsegments[i].sSegments[j].B)
-			};
-			meanRGB_HS.push_back(std::move(rgb));
-		}
-	}
-
-	/* get average RGB value of Hue-Saturation-Intensity modes */
-	int32_t ncolorsHSI = 0;
-	for (i = 0; i < hSegmentSize; i++)
-	{
-		icolorsH.push_back(ncolorsHSI);
-		const int32_t sSegSize = static_cast<const int32_t>(Hsegments[i].sSegments.size());
-		for (j = 0; j < sSegSize; j++)
-		{
-			icolorsS.push_back(ncolorsHSI);
-			const int32_t iSegSize = static_cast<const int32_t>(Hsegments[i].sSegments[j].iSegments.size());
-			for (k = 0; k < iSegSize; k++)
-			{
-				dataRGB rgb
-				{
-					static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].R),
-					static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].G),
-					static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].B)
-				};
-				meanRGB_HSI.push_back(std::move(rgb));
-				ncolorsHSI++;
-			}
-		}
-	}
-	return;
-}
-
-
-void get_segmented_image
-(
-	std::vector<Isegment> Isegments,
-	std::vector<Hsegment> Hsegments,
-	PF_Pixel_BGRA_8u* __restrict bgra,
-	int32_t w,
-	int32_t h,
-	int32_t pitch
+	const PF_Pixel_BGRA_8u* __restrict srcBgra,
+	fDataRGB* __restrict fRGB,
+	PF_Pixel_BGRA_8u* __restrict dstBgra,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
 ) noexcept
 {
 	const int32_t hSize = static_cast<int32_t> (Hsegments.size());
+	const A_long imgSize = w * h;
+
+	/* lets re-use temporary buffer for assemble output segmnented image */
+	float* fR = reinterpret_cast<float*>(fRGB); 
+	float* fG = fR + imgSize;
+	float* fB = fG + imgSize;
+
 	//Get color segmented image
-	for (int32_t i = 0; i < hSize; i++)
+	for (A_long i = 0; i < hSize; i++)
 	{
 		const int32_t sSize = static_cast<int32_t>(Hsegments[i].sSegments.size());
-		for (int j = 0; j < sSize; j++)
+		for (A_long j = 0; j < sSize; j++)
 		{
 			const int32_t iSize = static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments.size());
 			for (int k = 0; k < iSize; k++)
 			{
-				const int32_t Rmean = static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].R);
-				const int32_t Gmean = static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].G);
-				const int32_t Bmean = static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].B);
+				const float Rmean = Hsegments[i].sSegments[j].iSegments[k].R;
+				const float Gmean = Hsegments[i].sSegments[j].iSegments[k].G;
+				const float Bmean = Hsegments[i].sSegments[j].iSegments[k].B;
 				const int32_t pSize = static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].pixels.size());
 				
-//				for (int32_t n = 0; n < pSize; n++)
-//				{
-//					R[Hsegments[i].Ssegments[j].Isegments[k].pixels[n]] = Rmean;
-//					G[Hsegments[i].Ssegments[j].Isegments[k].pixels[n]] = Gmean;
-//					B[Hsegments[i].Ssegments[j].Isegments[k].pixels[n]] = Bmean;
-//				}
+				for (int32_t n = 0; n < pSize; n++)
+				{
+					fR[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Rmean;
+					fG[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Gmean;
+					fB[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Bmean;
+				}
 			}
+		}
+	}
+
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_BGRA_8u* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_BGRA_8u* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		for (A_long i = 0; i < w; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = static_cast<A_u_char>(fR[fTmpStorageIdx + i]);
+			pDstLine[i].G = static_cast<A_u_char>(fG[fTmpStorageIdx + i]);
+			pDstLine[i].B = static_cast<A_u_char>(fB[fTmpStorageIdx + i]);
 		}
 	}
 

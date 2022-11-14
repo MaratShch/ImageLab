@@ -57,6 +57,8 @@ typedef struct dataRGB
 	int32_t R;
 	int32_t G;
 	int32_t B;
+
+	dataRGB::dataRGB (int32_t r, int32_t g, int32_t b) { R = r, G = g, B = b; }
 };
 
 typedef struct fDataRGB

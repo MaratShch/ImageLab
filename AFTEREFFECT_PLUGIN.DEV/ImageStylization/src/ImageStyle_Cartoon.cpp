@@ -28,8 +28,8 @@ inline void sRgb2NewHsi (float R, float G, float B, float& H, float& S, float& I
 
 	H = 0.f;
 
-//	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
-	S = std::sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
+//	S = std::sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
 
 	if (S == 0.f)
 		return;
@@ -180,15 +180,8 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 				hSegments = compute_color_palette (pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 			}
 
-			std::vector<dataRGB> meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI;
-			std::vector<int32_t> icolorsH;
-			std::vector<int32_t> icolorsS;
-
-			/* get list of gray levels and colors */
-	//		get_list_grays_colors (iSegments, hSegments, meanRGB_I, meanRGB_H, meanRGB_HS, meanRGB_HSI, icolorsH, icolorsS);
-
 			/* create segmented image */
-
+			get_segmented_image (iSegments, hSegments, localSrc, tmpFloatPtr, localDst, width, height, line_pitch, line_pitch);
 
 		} /* if (true == bMemSizeTest) */
 		else
