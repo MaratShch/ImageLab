@@ -796,11 +796,14 @@ void get_segmented_image
 	for (A_long i = 0; i < iSize; i++)
 	{
 		const A_long iSegSize = static_cast<A_long>(Isegments[i].pixels.size());
+		const float Rmean = Isegments[i].R;
+		const float Gmean = Isegments[i].G;
+		const float Bmean = Isegments[i].B;
 		for (A_long n = 0; n < iSegSize; n++)
 		{
-			fR[Isegments[i].pixels[n]] = Isegments[i].R;
-			fG[Isegments[i].pixels[n]] = Isegments[i].G;
-			fB[Isegments[i].pixels[n]] = Isegments[i].B;
+			fR[Isegments[i].pixels[n]] = Rmean;
+			fG[Isegments[i].pixels[n]] = Gmean;
+			fB[Isegments[i].pixels[n]] = Bmean;
 		} /* for (A_long n = 0; n < iSegSize; n++) */
 	} /* for (A_long i = 0; i < iSize; i++) */
 
