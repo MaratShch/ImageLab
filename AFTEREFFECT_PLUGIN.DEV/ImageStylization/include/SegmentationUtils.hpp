@@ -24,7 +24,8 @@ inline void utils_prepare_data
 		{
 			const A_long srcLineIdx = j * pitchSrc;
 			const A_long tmpLineIdx = j * sizeX;
-
+			
+			__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
 				pTmp[tmpLineIdx + i].R = static_cast<float>(pSrc[srcLineIdx + i].R) * reciproc;
@@ -40,6 +41,7 @@ inline void utils_prepare_data
 			const A_long srcLineIdx = j * pitchSrc;
 			const A_long tmpLineIdx = j * sizeX;
 
+			__VECTOR_ALIGNED__
 			for (i = 0; i < sizeX; i++)
 			{
 				pTmp[tmpLineIdx + i].R = static_cast<float>(pSrc[srcLineIdx + i].R);
@@ -128,4 +130,17 @@ void get_segmented_image
 	A_long sizeY,
 	A_long srcPitch,
 	A_long dstPitch
+) noexcept;
+
+A_long convert2HSI
+(
+	const fDataRGB* __restrict   pRGB,
+	PF_Pixel_HSI_32f* __restrict pHSI,
+	int32_t* __restrict histH,
+	int32_t* __restrict histI,
+	const A_long& sizeX,
+	const A_long& sizeY,
+	const float& qH,
+	const float& qI,
+	const float& sMin
 ) noexcept;

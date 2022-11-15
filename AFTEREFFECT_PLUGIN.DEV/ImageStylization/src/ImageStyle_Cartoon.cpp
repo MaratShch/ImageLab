@@ -14,7 +14,7 @@ constexpr float qS = 5.0f;
 constexpr float qI = 5.0f;
 
 
-inline void sRgb2NewHsi (float R, float G, float B, float& H, float& S, float& I) noexcept
+inline void sRgb2NewHsi (const float& R, const float& G, const float& B, float& H, float& S, float& I) noexcept
 {
 	constexpr float Sqrt2 = 1.414213562373f; /* sqrt isn't defined as constexpr */
 	constexpr float OneRadian = 180.f / FastCompute::PI;
@@ -22,28 +22,22 @@ inline void sRgb2NewHsi (float R, float G, float B, float& H, float& S, float& I
 	constexpr float denom = 1.f / 1e7f;
 
 	I = (R + G + B) * div3;
+
 	const float RminusI = R - I;
 	const float GminusI = G - I;
 	const float BminusI = B - I;
 
-	H = 0.f;
-
 	S = FastCompute::Sqrt (RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
-//	S = std::sqrt(RminusI * RminusI + GminusI * GminusI + BminusI * BminusI);
 
-	if (S == 0.f)
-		return;
-
-//	if (std::fabs(S) > denom)
-//	{
+	if (FastCompute::Abs(S) > denom)
+	{
 		float cosH = (G - B) / (Sqrt2 * S);
-		const float cosAbsH = std::abs(cosH);
+		const float cosAbsH = FastCompute::Abs(cosH);
 
 		if (cosAbsH > 1.f) 
 			cosH /= cosAbsH;
 
-//		float h = (FastCompute::Acos(cosH)) * OneRadian;
-		float h = std::acos(cosH) * OneRadian;
+		float h = (FastCompute::Acos(cosH)) * OneRadian;
 		float proj2 = -2.f * RminusI + GminusI + BminusI;
 		
 		if (proj2 < 0.f)
@@ -56,14 +50,63 @@ inline void sRgb2NewHsi (float R, float G, float B, float& H, float& S, float& I
 			h = 0.f;
 
 		H = h;
-//	}
-//	else
-//	{
-//		H = S = 0.f;
-//	}
+	}
+	else
+	{
+		H = S = 0.f;
+	}
 
 	return;
 }
+
+
+A_long convert2HSI
+(
+	const fDataRGB* __restrict   pRGB,
+	PF_Pixel_HSI_32f* __restrict pHSI,
+	int32_t* __restrict histH,
+	int32_t* __restrict histI,
+	const A_long& sizeX,
+	const A_long& sizeY,
+	const float& qH,
+	const float& qI,
+	const float& sMin
+) noexcept
+{
+	A_long nSaturated = 0;
+	float H = 0.f, S = 0.f, I = 0.f;
+
+	memset(histH, 0, hist_size_H * sizeof(histH[0]));
+	memset(histI, 0, hist_size_I * sizeof(histI[0]));
+
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const A_long lineIdx = j * sizeX;
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			sRgb2NewHsi (pRGB[lineIdx + i].R, pRGB[lineIdx + i].G, pRGB[lineIdx + i].B, H, S, I);
+
+			pHSI[lineIdx + i].H = H;
+			pHSI[lineIdx + i].S = S;
+			pHSI[lineIdx + i].I = I;
+
+			if (S > sMin)
+			{
+				const int32_t hH = static_cast<int32_t>(H / qH);
+				histH[hH]++;
+				nSaturated++;
+			}
+			else
+			{
+				const int32_t iI = static_cast<int>(I / qI);
+				histI[iI]++;
+			}
+		}
+	}
+	return nSaturated;
+}
+
 
 
 static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
@@ -74,8 +117,8 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	CACHE_ALIGN int32_t histH[hist_size_H]{};
-	CACHE_ALIGN int32_t histI[hist_size_I]{};
+	CACHE_ALIGN int32_t histH[hist_size_H];
+	CACHE_ALIGN int32_t histI[hist_size_I];
 
 	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
 	PF_Pixel_HSI_32f*       __restrict pTmpStorage = nullptr;
@@ -90,9 +133,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	const A_long imgSize = height * width;
 
 	const size_t requiredMemSize = imgSize * sizeof(float) * 3;
-	int j, i, nhighsat;
-	int hH, sS, iI;
-	float H, S, I;
+	int j = 0, i = 0;
 
 	int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
 	int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
@@ -105,10 +146,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
 	bool bMemSizeTest = false;
-
-	j = i = nhighsat = 0;
-	hH = sS = iI = 0;
-	H = S = I = 0.f;
 
 	auto tmpFloatData = std::make_unique<fDataRGB []>(imgSize);
 
@@ -129,36 +166,10 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 			auto tmpFloatPtr = tmpFloatData.get();
 			utils_prepare_data (localSrc, tmpFloatPtr, width, height, line_pitch, -1.f);
 
-			memset(reinterpret_cast<void*>(pTmpStorage), 0, requiredMemSize);
-
-			/* first path - build the statistics about frame [build histogram] */
-			for (j = 0; j < height; j++)
-			{
-				const A_long line_idx = j * width;
-				for (i = 0; i < width; i++)
-				{
-					const A_long pix_idx = line_idx + i;
-
-					/* convert sRGB to HSI color space */
-					sRgb2NewHsi (tmpFloatPtr[pix_idx].R, tmpFloatPtr[pix_idx].G, tmpFloatPtr[pix_idx].B, H, S, I);
-
-					pTmpStorage[pix_idx].H = H;
-					pTmpStorage[pix_idx].S = S;
-					pTmpStorage[pix_idx].I = I;
-
-					if (S > sMin)
-					{
-						hH = static_cast<int>(H / qH);
-						histH[hH]++;
-						nhighsat++;
-					}
-					else
-					{
-						iI = static_cast<int>(I / qI);
-						histI[iI]++;
-					}
-				} /* for (i = 0; i < width; i++) */
-			} /* for (j = 0; j < height; j++) */
+//			memset(reinterpret_cast<void*>(pTmpStorage), 0, requiredMemSize);
+			
+			/* furst path - convert image to HSI and build H and I histogramm */
+			const A_long nhighsat = convert2HSI (tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
 
 			/* second path - segment histogram and build palette */
 			auto const isGray{ 0 == nhighsat };

@@ -783,7 +783,8 @@ void get_segmented_image
 	A_long dstPitch
 ) noexcept
 {
-	const int32_t hSize = static_cast<int32_t> (Hsegments.size());
+	const A_long iSize = static_cast<A_long> (Isegments.size());
+	const A_long hSize = static_cast<A_long> (Hsegments.size());
 	const A_long imgSize = w * h;
 
 	/* lets re-use temporary buffer for assemble output segmnented image */
@@ -791,21 +792,33 @@ void get_segmented_image
 	float* fG = fR + imgSize;
 	float* fB = fG + imgSize;
 
-	//Get color segmented image
+	/* Get gray-level segmented image */
+	for (A_long i = 0; i < iSize; i++)
+	{
+		const A_long iSegSize = static_cast<A_long>(Isegments[i].pixels.size());
+		for (A_long n = 0; n < iSegSize; n++)
+		{
+			fR[Isegments[i].pixels[n]] = Isegments[i].R;
+			fG[Isegments[i].pixels[n]] = Isegments[i].G;
+			fB[Isegments[i].pixels[n]] = Isegments[i].B;
+		} /* for (A_long n = 0; n < iSegSize; n++) */
+	} /* for (A_long i = 0; i < iSize; i++) */
+
+	/* Get color segmented image */
 	for (A_long i = 0; i < hSize; i++)
 	{
-		const int32_t sSize = static_cast<int32_t>(Hsegments[i].sSegments.size());
+		const A_long sSize = static_cast<A_long>(Hsegments[i].sSegments.size());
 		for (A_long j = 0; j < sSize; j++)
 		{
-			const int32_t iSize = static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments.size());
-			for (int k = 0; k < iSize; k++)
+			const A_long iSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments.size());
+			for (A_long k = 0; k < iSize; k++)
 			{
 				const float Rmean = Hsegments[i].sSegments[j].iSegments[k].R;
 				const float Gmean = Hsegments[i].sSegments[j].iSegments[k].G;
 				const float Bmean = Hsegments[i].sSegments[j].iSegments[k].B;
-				const int32_t pSize = static_cast<int32_t>(Hsegments[i].sSegments[j].iSegments[k].pixels.size());
+				const A_long pSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments[k].pixels.size());
 				
-				for (int32_t n = 0; n < pSize; n++)
+				for (A_long n = 0; n < pSize; n++)
 				{
 					fR[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Rmean;
 					fG[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Gmean;
@@ -813,7 +826,7 @@ void get_segmented_image
 				}
 			}
 		}
-	}
+	} /* for (A_long i = 0; i < hSize; i++) */
 
 	/* store assembled segmented image */
 	for (A_long j = 0; j < h; j++)
@@ -822,6 +835,7 @@ void get_segmented_image
 		PF_Pixel_BGRA_8u* pDstLine = dstBgra + j * dstPitch;
 		const A_long fTmpStorageIdx = j * w;
 
+		__VECTOR_ALIGNED__
 		for (A_long i = 0; i < w; i++)
 		{
 			pDstLine[i].A = pSrcLine[i].A;
@@ -848,6 +862,57 @@ std::vector<Isegment> compute_gray_palette
 ) noexcept
 {
 	std::vector<Isegment> iSegments;
+	auto sIdsegmentsI = std::make_unique<int32_t []>(nbinsI);
+	int ii, n;
+
+	if (sIdsegmentsI)
+	{
+		auto idsegmentsI = sIdsegmentsI.get();
+		const int32_t nsegmentsI = ftcsegI.size() - 1;
+
+		for (ii = 0; ii < nsegmentsI; ii++)
+		{
+			for (int32_t k = ftcsegI[ii]; k <= ftcsegI[ii + 1]; k++)
+				idsegmentsI[k] = ii;
+		} /* for (int32_t ii = 0; ii < nsegmentsI; ii++) */
+
+		for (ii = 0; ii < nsegmentsI; ii++)
+		{
+			Isegment Iseg;
+			Iseg.R = Iseg.G = Iseg.B = 0.f;
+			Iseg.Imin = ftcsegI[ii] * qI;
+			Iseg.Imax = ftcsegI[ii + 1] * qI;
+			iSegments.push_back(std::move(Iseg));
+		} /* for (ii = 0; ii < nsegmentsI; ii++) */
+
+		const A_long imgSize = sizeX * sizeY;
+		for (n = 0; n < imgSize; n++)
+		{
+			auto const& S = hsi[n].S;
+			if (S <= Smin)
+			{
+				int32_t iI = static_cast<int32_t>(hsi[n].I / qI);
+				if (iI >= nbinsI)
+					iI = nbinsI - 1;
+
+				const int32_t idseg = idsegmentsI[iI];
+				iSegments[idseg].pixels.push_back(n);
+				iSegments[idseg].R += imgSrc[n].R;
+				iSegments[idseg].G += imgSrc[n].G;
+				iSegments[idseg].B += imgSrc[n].B;
+			}
+		} /* for (n = 0; n < imgSize; n++) */
+
+		for (int32_t i = 0; i < nsegmentsI; i++)
+		{
+			const float pSize = static_cast<float>(iSegments[i].pixels.size());
+			const float Rmean = iSegments[i].R / pSize + 0.5f;
+			const float Gmean = iSegments[i].G / pSize + 0.5f;
+			const float Bmean = iSegments[i].B / pSize + 0.5f;
+
+			iSegments[i].R = iSegments[i].G = iSegments[i].B = (Rmean + Gmean + Bmean) / 3.f + 0.5f;
+		} /* for (int32_t i = 0; i < nsegmentsI; i++) */
+	} /* if (sIdsegmentsI) */
 
 	return iSegments;
 }
