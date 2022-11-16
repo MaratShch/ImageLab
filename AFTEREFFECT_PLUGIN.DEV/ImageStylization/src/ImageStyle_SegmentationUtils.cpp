@@ -3,7 +3,7 @@
 #include "SegmentationUtils.hpp"
 #include "FastAriphmetics.hpp"
 #include "ImageAuxPixFormat.hpp"
-
+#include "ColorTransformMatrix.hpp"
 
 
 
@@ -770,88 +770,6 @@ std::vector<Hsegment> compute_color_palette
 }
 
 
-void get_segmented_image
-(
-	std::vector<Isegment>& Isegments,
-	std::vector<Hsegment>& Hsegments,
-	const PF_Pixel_BGRA_8u* __restrict srcBgra,
-	fDataRGB* __restrict fRGB,
-	PF_Pixel_BGRA_8u* __restrict dstBgra,
-	A_long w,
-	A_long h,
-	A_long srcPitch,
-	A_long dstPitch
-) noexcept
-{
-	const A_long iSize = static_cast<A_long> (Isegments.size());
-	const A_long hSize = static_cast<A_long> (Hsegments.size());
-	const A_long imgSize = w * h;
-
-	/* lets re-use temporary buffer for assemble output segmnented image */
-	float* fR = reinterpret_cast<float*>(fRGB); 
-	float* fG = fR + imgSize;
-	float* fB = fG + imgSize;
-
-	/* Get gray-level segmented image */
-	for (A_long i = 0; i < iSize; i++)
-	{
-		const A_long iSegSize = static_cast<A_long>(Isegments[i].pixels.size());
-		const float Rmean = Isegments[i].R;
-		const float Gmean = Isegments[i].G;
-		const float Bmean = Isegments[i].B;
-		for (A_long n = 0; n < iSegSize; n++)
-		{
-			fR[Isegments[i].pixels[n]] = Rmean;
-			fG[Isegments[i].pixels[n]] = Gmean;
-			fB[Isegments[i].pixels[n]] = Bmean;
-		} /* for (A_long n = 0; n < iSegSize; n++) */
-	} /* for (A_long i = 0; i < iSize; i++) */
-
-	/* Get color segmented image */
-	for (A_long i = 0; i < hSize; i++)
-	{
-		const A_long sSize = static_cast<A_long>(Hsegments[i].sSegments.size());
-		for (A_long j = 0; j < sSize; j++)
-		{
-			const A_long iSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments.size());
-			for (A_long k = 0; k < iSize; k++)
-			{
-				const float Rmean = Hsegments[i].sSegments[j].iSegments[k].R;
-				const float Gmean = Hsegments[i].sSegments[j].iSegments[k].G;
-				const float Bmean = Hsegments[i].sSegments[j].iSegments[k].B;
-				const A_long pSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments[k].pixels.size());
-				
-				for (A_long n = 0; n < pSize; n++)
-				{
-					fR[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Rmean;
-					fG[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Gmean;
-					fB[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Bmean;
-				}
-			}
-		}
-	} /* for (A_long i = 0; i < hSize; i++) */
-
-	/* store assembled segmented image */
-	for (A_long j = 0; j < h; j++)
-	{
-		const PF_Pixel_BGRA_8u* pSrcLine = srcBgra + j * srcPitch;
-		PF_Pixel_BGRA_8u* pDstLine = dstBgra + j * dstPitch;
-		const A_long fTmpStorageIdx = j * w;
-
-		__VECTOR_ALIGNED__
-		for (A_long i = 0; i < w; i++)
-		{
-			pDstLine[i].A = pSrcLine[i].A;
-			pDstLine[i].R = static_cast<A_u_char>(CLAMP_VALUE(fR[fTmpStorageIdx + i], 0.f, 255.f));
-			pDstLine[i].G = static_cast<A_u_char>(CLAMP_VALUE(fG[fTmpStorageIdx + i], 0.f, 255.f));
-			pDstLine[i].B = static_cast<A_u_char>(CLAMP_VALUE(fB[fTmpStorageIdx + i], 0.f, 255.f));
-		}
-	}
-
-	return;
-}
-
-
 std::vector<Isegment> compute_gray_palette
 (
 	const PF_Pixel_HSI_32f* __restrict hsi,
@@ -918,4 +836,388 @@ std::vector<Isegment> compute_gray_palette
 	} /* if (sIdsegmentsI) */
 
 	return iSegments;
+}
+
+
+void get_segmented_image
+(
+	std::vector<Isegment>& Isegments,
+	std::vector<Hsegment>& Hsegments,
+	const PF_Pixel_BGRA_8u* __restrict srcBgra,
+	fDataRGB* __restrict fRGB,
+	PF_Pixel_BGRA_8u* __restrict dstBgra,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	const A_long iSize = static_cast<A_long> (Isegments.size());
+	const A_long hSize = static_cast<A_long> (Hsegments.size());
+	const A_long imgSize = w * h;
+
+	/* lets re-use temporary buffer for assemble output segmnented image */
+	float* fR = reinterpret_cast<float*>(fRGB);
+	float* fG = fR + imgSize;
+	float* fB = fG + imgSize;
+
+	/* Get gray-level segmented image */
+	for (A_long i = 0; i < iSize; i++)
+	{
+		const A_long iSegSize = static_cast<A_long>(Isegments[i].pixels.size());
+		const float Rmean = Isegments[i].R;
+		const float Gmean = Isegments[i].G;
+		const float Bmean = Isegments[i].B;
+		for (A_long n = 0; n < iSegSize; n++)
+		{
+			fR[Isegments[i].pixels[n]] = Rmean;
+			fG[Isegments[i].pixels[n]] = Gmean;
+			fB[Isegments[i].pixels[n]] = Bmean;
+		} /* for (A_long n = 0; n < iSegSize; n++) */
+	} /* for (A_long i = 0; i < iSize; i++) */
+
+	  /* Get color segmented image */
+	for (A_long i = 0; i < hSize; i++)
+	{
+		const A_long sSize = static_cast<A_long>(Hsegments[i].sSegments.size());
+		for (A_long j = 0; j < sSize; j++)
+		{
+			const A_long iSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments.size());
+			for (A_long k = 0; k < iSize; k++)
+			{
+				const float Rmean = Hsegments[i].sSegments[j].iSegments[k].R;
+				const float Gmean = Hsegments[i].sSegments[j].iSegments[k].G;
+				const float Bmean = Hsegments[i].sSegments[j].iSegments[k].B;
+				const A_long pSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments[k].pixels.size());
+
+				for (A_long n = 0; n < pSize; n++)
+				{
+					fR[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Rmean;
+					fG[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Gmean;
+					fB[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Bmean;
+				}
+			}
+		}
+	} /* for (A_long i = 0; i < hSize; i++) */
+
+	  /* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_BGRA_8u* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_BGRA_8u* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+			for (A_long i = 0; i < w; i++)
+			{
+				pDstLine[i].A = pSrcLine[i].A;
+				pDstLine[i].R = static_cast<A_u_char>(CLAMP_VALUE(fR[fTmpStorageIdx + i], 0.f, 255.f));
+				pDstLine[i].G = static_cast<A_u_char>(CLAMP_VALUE(fG[fTmpStorageIdx + i], 0.f, 255.f));
+				pDstLine[i].B = static_cast<A_u_char>(CLAMP_VALUE(fB[fTmpStorageIdx + i], 0.f, 255.f));
+			}
+	}
+
+	return;
+}
+
+
+void assemble_segmented_image
+(
+	std::vector<Isegment>& Isegments,
+	std::vector<Hsegment>& Hsegments,
+	float* __restrict fR,
+	float* __restrict fG,
+	float* __restrict fB,
+	A_long w,
+	A_long h
+) noexcept
+{
+	const A_long iSize = static_cast<A_long> (Isegments.size());
+	const A_long hSize = static_cast<A_long> (Hsegments.size());
+	const A_long imgSize = w * h;
+
+	/* Get gray-level segmented image */
+	for (A_long i = 0; i < iSize; i++)
+	{
+		const A_long iSegSize = static_cast<A_long>(Isegments[i].pixels.size());
+		const float Rmean = Isegments[i].R;
+		const float Gmean = Isegments[i].G;
+		const float Bmean = Isegments[i].B;
+		for (A_long n = 0; n < iSegSize; n++)
+		{
+			fR[Isegments[i].pixels[n]] = Rmean;
+			fG[Isegments[i].pixels[n]] = Gmean;
+			fB[Isegments[i].pixels[n]] = Bmean;
+		} /* for (A_long n = 0; n < iSegSize; n++) */
+	} /* for (A_long i = 0; i < iSize; i++) */
+
+	  /* Get color segmented image */
+	for (A_long i = 0; i < hSize; i++)
+	{
+		const A_long sSize = static_cast<A_long>(Hsegments[i].sSegments.size());
+		for (A_long j = 0; j < sSize; j++)
+		{
+			const A_long iSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments.size());
+			for (A_long k = 0; k < iSize; k++)
+			{
+				const float Rmean = Hsegments[i].sSegments[j].iSegments[k].R;
+				const float Gmean = Hsegments[i].sSegments[j].iSegments[k].G;
+				const float Bmean = Hsegments[i].sSegments[j].iSegments[k].B;
+				const A_long pSize = static_cast<A_long>(Hsegments[i].sSegments[j].iSegments[k].pixels.size());
+
+				for (A_long n = 0; n < pSize; n++)
+				{
+					fR[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Rmean;
+					fG[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Gmean;
+					fB[Hsegments[i].sSegments[j].iSegments[k].pixels[n]] = Bmean;
+				}
+			}
+		}
+	} /* for (A_long i = 0; i < hSize; i++) */
+
+	return;
+}
+
+
+void store_segmented_image
+(
+	const PF_Pixel_BGRA_8u* __restrict srcBgra,
+	PF_Pixel_BGRA_8u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_BGRA_8u* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_BGRA_8u* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < w; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = static_cast<A_u_char>(CLAMP_VALUE(fR[fTmpStorageIdx + i], 0.f, 255.f));
+			pDstLine[i].G = static_cast<A_u_char>(CLAMP_VALUE(fG[fTmpStorageIdx + i], 0.f, 255.f));
+			pDstLine[i].B = static_cast<A_u_char>(CLAMP_VALUE(fB[fTmpStorageIdx + i], 0.f, 255.f));
+		}
+	}
+	return;
+}
+
+
+void store_segmented_image
+(
+	const PF_Pixel_ARGB_8u* __restrict srcBgra,
+	PF_Pixel_ARGB_8u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_ARGB_8u* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_ARGB_8u* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < w; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = static_cast<A_u_char>(CLAMP_VALUE(fR[fTmpStorageIdx + i], 0.f, 255.f));
+			pDstLine[i].G = static_cast<A_u_char>(CLAMP_VALUE(fG[fTmpStorageIdx + i], 0.f, 255.f));
+			pDstLine[i].B = static_cast<A_u_char>(CLAMP_VALUE(fB[fTmpStorageIdx + i], 0.f, 255.f));
+		}
+	}
+	return;
+}
+
+
+void store_segmented_image
+(
+	const PF_Pixel_ARGB_16u* __restrict srcBgra,
+	PF_Pixel_ARGB_16u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	constexpr float mult = 32768.f / 256.f;
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_ARGB_16u* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_ARGB_16u* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < w; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = static_cast<A_u_short>(CLAMP_VALUE(fR[fTmpStorageIdx + i] * mult, 0.f, 32767.f));
+			pDstLine[i].G = static_cast<A_u_short>(CLAMP_VALUE(fG[fTmpStorageIdx + i] * mult, 0.f, 32767.f));
+			pDstLine[i].B = static_cast<A_u_short>(CLAMP_VALUE(fB[fTmpStorageIdx + i] * mult, 0.f, 32767.f));
+		}
+	}
+	return;
+}
+
+void store_segmented_image
+(
+	const PF_Pixel_BGRA_16u* __restrict srcBgra,
+	PF_Pixel_BGRA_16u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	constexpr float mult = 32768.f / 256.f;
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_BGRA_16u* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_BGRA_16u* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < w; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = static_cast<A_u_short>(CLAMP_VALUE(fR[fTmpStorageIdx + i] * mult, 0.f, 32767.f));
+			pDstLine[i].G = static_cast<A_u_short>(CLAMP_VALUE(fG[fTmpStorageIdx + i] * mult, 0.f, 32767.f));
+			pDstLine[i].B = static_cast<A_u_short>(CLAMP_VALUE(fB[fTmpStorageIdx + i] * mult, 0.f, 32767.f));
+		}
+	}
+	return;
+}
+
+
+void store_segmented_image
+(
+	const PF_Pixel_BGRA_32f* __restrict srcBgra,
+	PF_Pixel_BGRA_32f* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	constexpr float mult = 1.0f / 256.0f;
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_BGRA_32f* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_BGRA_32f* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < w; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = CLAMP_VALUE(fR[fTmpStorageIdx + i] * mult, f32_value_black, f32_value_white);
+			pDstLine[i].G = CLAMP_VALUE(fG[fTmpStorageIdx + i] * mult, f32_value_black, f32_value_white);
+			pDstLine[i].B = CLAMP_VALUE(fB[fTmpStorageIdx + i] * mult, f32_value_black, f32_value_white);
+		}
+	}
+	return;
+}
+
+
+void store_segmented_image
+(
+	const PF_Pixel_VUYA_8u* __restrict srcBgra,
+	PF_Pixel_VUYA_8u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	const float* __restrict rgb2yuv = RGB2YUV[BT709];
+
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_VUYA_8u* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_VUYA_8u* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < w; i++)
+		{
+			const float R = CLAMP_VALUE(fR[fTmpStorageIdx + i], 0.f, 255.f);
+			const float G = CLAMP_VALUE(fG[fTmpStorageIdx + i], 0.f, 255.f);
+			const float B = CLAMP_VALUE(fB[fTmpStorageIdx + i], 0.f, 255.f);
+
+			pDstLine[i].Y = static_cast<A_u_char>(R * rgb2yuv[0] + G * rgb2yuv[1] + B * rgb2yuv[2]);
+			pDstLine[i].U = static_cast<A_u_char>(R * rgb2yuv[3] + G * rgb2yuv[4] + B * rgb2yuv[5] + 128.f);
+			pDstLine[i].V = static_cast<A_u_char>(R * rgb2yuv[6] + G * rgb2yuv[7] + B * rgb2yuv[8] + 128.f);
+			pDstLine[i].A = pSrcLine[i].A;
+		}
+	}
+	return;
+}
+
+void store_segmented_image
+(
+	const PF_Pixel_VUYA_32f* __restrict srcBgra,
+	PF_Pixel_VUYA_32f* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept
+{
+	const float* __restrict rgb2yuv = RGB2YUV[BT709];
+	constexpr float mult = 1.0f / 256.0f;
+	/* store assembled segmented image */
+	for (A_long j = 0; j < h; j++)
+	{
+		const PF_Pixel_VUYA_32f* pSrcLine = srcBgra + j * srcPitch;
+		PF_Pixel_VUYA_32f* pDstLine = dstBgra + j * dstPitch;
+		const A_long fTmpStorageIdx = j * w;
+
+		__VECTOR_ALIGNED__
+			for (A_long i = 0; i < w; i++)
+			{
+				const float R = CLAMP_VALUE(fR[fTmpStorageIdx + i], 0.f, 255.f);
+				const float G = CLAMP_VALUE(fG[fTmpStorageIdx + i], 0.f, 255.f);
+				const float B = CLAMP_VALUE(fB[fTmpStorageIdx + i], 0.f, 255.f);
+
+				pDstLine[i].Y = (R * rgb2yuv[0] + G * rgb2yuv[1] + B * rgb2yuv[2]) * mult;
+				pDstLine[i].U = (R * rgb2yuv[3] + G * rgb2yuv[4] + B * rgb2yuv[5]) * mult;
+				pDstLine[i].V = (R * rgb2yuv[6] + G * rgb2yuv[7] + B * rgb2yuv[8]) * mult;
+				pDstLine[i].A = pSrcLine[i].A;
+			}
+	}
+	return;
 }

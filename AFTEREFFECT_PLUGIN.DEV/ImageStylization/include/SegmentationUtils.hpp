@@ -65,6 +65,34 @@ inline void utils_prepare_data
 	const float&  reciproc
 ) noexcept
 {
+	A_long i, j;
+	const float* __restrict yuv2rgb = YUV2RGB[BT709];
+	const float uSub = (reciproc < 0.f ? 128.f : 0.f);
+	const float vSub = (reciproc < 0.f ? 128.f : 0.f);
+	const float mult = (reciproc < 0.f ? 1.f : 255.f);
+
+	for (j = 0; j < sizeY; j++)
+	{
+		const A_long srcLineIdx = j * pitchSrc;
+		const A_long tmpLineIdx = j * sizeX;
+
+		__VECTOR_ALIGNED__
+		for (i = 0; i < sizeX; i++)
+		{
+			pTmp[tmpLineIdx + i].R = (static_cast<float>(pSrc[srcLineIdx + i].Y)         * yuv2rgb[0] + 
+				                     (static_cast<float>(pSrc[srcLineIdx + i].U) - uSub) * yuv2rgb[1] + 
+				                     (static_cast<float>(pSrc[srcLineIdx + i].V) - vSub) * yuv2rgb[2]) * mult;
+
+			pTmp[tmpLineIdx + i].G = (static_cast<float>(pSrc[srcLineIdx + i].Y)         * yuv2rgb[3] +
+				                     (static_cast<float>(pSrc[srcLineIdx + i].U) - uSub) * yuv2rgb[4] +
+				                     (static_cast<float>(pSrc[srcLineIdx + i].V) - vSub) * yuv2rgb[5]) * mult;
+
+			pTmp[tmpLineIdx + i].B = (static_cast<float>(pSrc[srcLineIdx + i].Y)         * yuv2rgb[6] +
+				                     (static_cast<float>(pSrc[srcLineIdx + i].U) - uSub) * yuv2rgb[7] +
+				                     (static_cast<float>(pSrc[srcLineIdx + i].V) - vSub) * yuv2rgb[8]) * mult;
+		}
+	}
+
 	return;
 }
 
@@ -119,19 +147,6 @@ std::vector<Isegment> compute_gray_palette
 	std::vector<int32_t> ftcsegI
 ) noexcept;
 
-void get_segmented_image
-(
-	std::vector<Isegment>& Isegments,
-	std::vector<Hsegment>& Hsegments,
-	const PF_Pixel_BGRA_8u* __restrict srcBgra,
-	fDataRGB* __restrict fRGB,
-	PF_Pixel_BGRA_8u* __restrict dstBgra,
-	A_long sizeX,
-	A_long sizeY,
-	A_long srcPitch,
-	A_long dstPitch
-) noexcept;
-
 A_long convert2HSI
 (
 	const fDataRGB* __restrict   pRGB,
@@ -143,4 +158,106 @@ A_long convert2HSI
 	const float& qH,
 	const float& qI,
 	const float& sMin
+) noexcept;
+
+void assemble_segmented_image
+(
+	std::vector<Isegment>& Isegments,
+	std::vector<Hsegment>& Hsegments,
+	float* __restrict fR,
+	float* __restrict fG,
+	float* __restrict fB,
+	A_long w,
+	A_long h
+) noexcept;
+
+void store_segmented_image
+(
+	const PF_Pixel_BGRA_8u* __restrict srcBgra,
+	PF_Pixel_BGRA_8u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept;
+
+void store_segmented_image
+(
+	const PF_Pixel_ARGB_8u* __restrict srcBgra,
+	PF_Pixel_ARGB_8u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept;
+
+void store_segmented_image
+(
+	const PF_Pixel_ARGB_16u* __restrict srcBgra,
+	PF_Pixel_ARGB_16u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept;
+
+void store_segmented_image
+(
+	const PF_Pixel_BGRA_16u* __restrict srcBgra,
+	PF_Pixel_BGRA_16u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept;
+
+void store_segmented_image
+(
+	const PF_Pixel_BGRA_32f* __restrict srcBgra,
+	PF_Pixel_BGRA_32f* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept;
+
+void store_segmented_image
+(
+	const PF_Pixel_VUYA_8u* __restrict srcBgra,
+	PF_Pixel_VUYA_8u* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
+) noexcept;
+
+void store_segmented_image
+(
+	const PF_Pixel_VUYA_32f* __restrict srcBgra,
+	PF_Pixel_VUYA_32f* __restrict dstBgra,
+	const float* __restrict fR,
+	const float* __restrict fG,
+	const float* __restrict fB,
+	A_long w,
+	A_long h,
+	A_long srcPitch,
+	A_long dstPitch
 ) noexcept;

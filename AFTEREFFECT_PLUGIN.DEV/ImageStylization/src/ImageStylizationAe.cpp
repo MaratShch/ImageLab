@@ -11,7 +11,7 @@ PF_Err ImageStyleInAE_8bits
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	eSTYLIZATION const& lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
+	eSTYLIZATION const lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
 
 	switch (lwbType)
 	{
@@ -80,7 +80,7 @@ PF_Err ImageStyleInAE_16bits
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	eSTYLIZATION const& lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
+	eSTYLIZATION const lwbType = static_cast<eSTYLIZATION>(params[IMAGE_STYLE_POPUP]->u.pd.value - 1);
 
 	switch (lwbType)
 	{
