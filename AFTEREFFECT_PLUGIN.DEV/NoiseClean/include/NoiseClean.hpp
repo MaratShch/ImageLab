@@ -17,7 +17,7 @@ constexpr int NoiseClean_VersionBuild = 1;
 
 typedef enum {
 	NOISE_CLEAN_INPUT,
-	NOISE_CLEN_TOTAL_PARAMS
+	NOISE_CLEAN_TOTAL_PARAMS
 }Item;
 
 

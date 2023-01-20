@@ -109,8 +109,8 @@ namespace ArtMosaic
 	float computeError (const std::vector<Superpixel>& sp, const std::vector<std::vector<float>>& centers) noexcept;
 	void  moveCenters  (std::vector<Superpixel>& sp, const std::vector< std::vector<float>>& centers) noexcept;
 
-	Pixel neighbor (const PixelPos& i, const PixelPos& j, const A_long& n) noexcept;
-	Pixel neighbor (const Pixel& p, const A_long& n) noexcept;
+	Pixel neighbor (const PixelPos i, const PixelPos j, const A_long n) noexcept;
+	Pixel neighbor (const Pixel& p, const A_long n) noexcept;
 
 	void labelCC (std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
 	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<A_long>& H, std::unique_ptr<A_long[]>& L, const A_long& K, const A_long& sizeX, const A_long& sizeY) noexcept;
@@ -572,7 +572,9 @@ namespace ArtMosaic
 			labelCC (CC, H, L, sizeX, sizeY);
 
 			const A_long K = static_cast<const A_long>(sp.size());
-			discardMinorCC (CC, H, L, K, sizeX, sizeY);
+
+			discardMinorCC (CC, H, L, K, sizeX, sizeY); // !!!!!
+			
 			computeSuperpixelColors (pSrc, sp, L, sizeX, sizeY, pitch);
 			assignOrphans (pSrc, sp, L, sizeX, sizeY, pitch);
 
@@ -602,18 +604,17 @@ namespace ArtMosaic
 		bool bVal = false;
 
 #ifdef _DEBUG
+		constexpr int offset = 15040;
+		auto l = L.get();
+		A_long* dbgPtrL0 = l;
+		A_long* dbgPtrL1 = l + offset;
+
 		constexpr uint32_t maxBufSize = 64;
 		volatile uint32_t dbgLoopCnt = 0u;
 		volatile size_t spSize = 0ull;
 		volatile size_t centerSize = 0ull;
 		volatile uint32_t cntEVal = 0u;
 		CACHE_ALIGN float eDbgVal[maxBufSize]{};
-
-		constexpr int offset = 15040;
-		auto l = L.get();
-		A_long* dbgPtrL0 = l;
-		A_long* dbgPtrL1 = l + offset;
-
 #endif
 
 		/* init superpixel */
@@ -730,13 +731,13 @@ namespace ArtMosaic
 			for (i = 0; i < sizeX; i++)
 			{
 				pDst[dstLineIdx + i].A = pSrc[srcLineIdx + i].A;
-				auto const& lVal = l[tmpLineIdx + i];
+				auto const lIdx = tmpLineIdx + i;
+				auto const& lVal = l[lIdx];
 				if (lVal >= 0)
 				{
 					pDst[dstLineIdx + i].R = sp[lVal].col.r;
 					pDst[dstLineIdx + i].G = sp[lVal].col.g;
 					pDst[dstLineIdx + i].B = sp[lVal].col.b;
-
 				} 
 				else
 				{

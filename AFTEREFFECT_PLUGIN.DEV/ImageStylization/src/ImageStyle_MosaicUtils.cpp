@@ -123,10 +123,10 @@ void ArtMosaic::moveCenters (std::vector<ArtMosaic::Superpixel>& sp, const std::
 }
 
 
-ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::PixelPos& i, const ArtMosaic::PixelPos& j, const A_long& n) noexcept
+ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::PixelPos i, const ArtMosaic::PixelPos j, const A_long n) noexcept
 {
 #ifdef _DEBUG
-	assert(("Invalid index n! Your algorithm is worng!!!", n >= 0 && n < 4));
+	assert(("Invalid index n! Your algorithm is wrong!!!", n >= 0 && n < 4));
 #endif
 	ArtMosaic::Pixel p(i, j);
 	switch (n)
@@ -136,7 +136,7 @@ ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::PixelPos& i, const ArtMos
 		case 2: --p.x; break;
 		case 3: ++p.y; break;
 #ifdef _DEBUG
-		default: assert(("Default case not supported. Your algorithm is worng!!!", false));
+		default: assert(("Default case not supported. Your algorithm is wrong!!!", false));
 #endif
 	}
 
@@ -144,7 +144,7 @@ ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::PixelPos& i, const ArtMos
 }
 
 
-ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::Pixel& p, const A_long& n) noexcept
+ArtMosaic::Pixel ArtMosaic::neighbor (const ArtMosaic::Pixel& p, const A_long n) noexcept
 {
 	return ArtMosaic::neighbor (p.x, p.y, n);
 }
@@ -168,6 +168,7 @@ void ArtMosaic::labelCC
 
 #ifdef _DEBUG
 	dbgLoopCnt = 0u;
+	auto dbgPtr1 = cc + 15040;
 #endif
 
 	const A_long size = sizeX * sizeY;
@@ -261,7 +262,7 @@ void ArtMosaic::discardMinorCC
 			const auto& lIdx = l[idx];
 			const auto& cIdx = cc[idx];
 			const auto& maxIdx = maxSizeCC[lIdx];
-			if (lIdx >= 0 && cIdx != maxIdx)
+			if (lIdx >= 0 && cIdx != maxIdx) // lIdx = 1, cIdx == -1, maxIdx = 1, idx = 15040
 			{
 				cc[idx] = -1;
 				l [idx] = -1;

@@ -58,9 +58,9 @@ public:
 	table3D  Lut3D;
 
 	CubeLUT(void);
-	~CubeLUT();
+	virtual ~CubeLUT();
 
-	const std::string& GetLutName(void) { return lutName; }
+	const lutFileName& GetLutName(void) { return lutName; }
 
 	LUTState LoadCubeFile (const std::string& fileName);
 	LUTState LoadCubeFile (std::ifstream& lutFile);

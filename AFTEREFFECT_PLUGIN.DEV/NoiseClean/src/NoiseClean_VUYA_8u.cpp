@@ -10,7 +10,7 @@ PF_Err NoiseCleanPr_VUYA_4444_8u
 	const bool isBT709
 ) noexcept
 {
-	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[NOISE_CLEN_TOTAL_PARAMS]->u.ld);
+	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[NOISE_CLEAN_TOTAL_PARAMS]->u.ld);
 	const PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
 

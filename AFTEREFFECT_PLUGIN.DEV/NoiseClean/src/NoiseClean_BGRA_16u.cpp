@@ -9,7 +9,7 @@ PF_Err NoiseCleanPr_BGRA_4444_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[NOISE_CLEN_TOTAL_PARAMS]->u.ld);
+	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[NOISE_CLEAN_TOTAL_PARAMS]->u.ld);
 	const PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
 

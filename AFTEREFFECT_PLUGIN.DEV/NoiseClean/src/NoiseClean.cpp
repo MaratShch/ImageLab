@@ -78,7 +78,7 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	out_data->num_params = NOISE_CLEN_TOTAL_PARAMS;
+	out_data->num_params = NOISE_CLEAN_TOTAL_PARAMS;
 	return PF_Err_NONE;
 }
 
