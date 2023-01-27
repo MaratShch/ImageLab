@@ -190,7 +190,7 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 			}
 
 			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+			float* __restrict fR = reinterpret_cast<float* __restrict>(tmpFloatPtr);
 			float* __restrict fG = fR + imgSize;
 			float* __restrict fB = fG + imgSize;
 			assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);

@@ -1,6 +1,9 @@
 #include "AutomaticWhiteBalance.hpp"
 #include "AlgMemoryHandler.hpp"
+#include <mutex>
 
+// add temporal solution till implementation memory storage
+std::mutex gBufferProtect;
 
 static PF_Err
 About(
@@ -171,6 +174,7 @@ Render (
 		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 		{
+			const std::lock_guard<std::mutex> lock(gBufferProtect);
 			err = ProcessImgInPR (in_data, out_data, params, output, destinationPixelFormat);
 		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
 		else
@@ -183,6 +187,7 @@ Render (
 	else
 	{
 		/* This plugin called from AE */
+		const std::lock_guard<std::mutex> lock(gBufferProtect);
 		err = ProcessImgInAE (in_data, out_data, params, output);
 	}
 
