@@ -128,6 +128,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
+    <ClCompile Include="src\FFTUtils.cpp" />
+    <ClCompile Include="src\MemoryBlock.cpp" />
+    <ClCompile Include="src\MemoryInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
@@ -142,7 +145,10 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\FFTUtils.hpp" />
+    <ClInclude Include="include\MemoryBlock.hpp" />
     <ClInclude Include="include\ImageLabUtils.hpp" />
+    <ClInclude Include="include\MemoryInterface.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

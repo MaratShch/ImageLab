@@ -21,6 +21,15 @@
     <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\FFTUtils.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MemoryBlock.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MemoryInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabUtils.hpp">
@@ -61,6 +70,15 @@
     </ClInclude>
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MemoryBlock.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\FFTUtils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MemoryInterface.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
