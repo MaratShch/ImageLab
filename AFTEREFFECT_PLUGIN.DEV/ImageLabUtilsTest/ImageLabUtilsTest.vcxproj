@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{D266F837-A6FD-48CD-820D-578816B7AC3D}</ProjectGuid>
-    <RootNamespace>ImageLabUtils</RootNamespace>
+    <ProjectGuid>{A4DCE7E6-A23D-4933-827C-E611F8C25766}</ProjectGuid>
+    <RootNamespace>ImageLabUtilsTest</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -38,13 +38,13 @@
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -71,14 +71,10 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
-    <TargetExt>.dll</TargetExt>
-    <ExtensionsToDeleteOnClean>*.dll;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
-    <TargetExt>.dll</TargetExt>
-    <ExtensionsToDeleteOnClean>*.dll;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -92,8 +88,8 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\Common;</AdditionalIncludeDirectories>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AdditionalIncludeDirectories>include;..\Common;..\ImageLabUtils\include</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -117,12 +113,9 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>include;..\Common;</AdditionalIncludeDirectories>
-      <DebugInformationFormat>None</DebugInformationFormat>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <AdditionalIncludeDirectories>include;..\Common;..\ImageLabUtils\include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -130,30 +123,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\DllMain.cpp" />
-    <ClCompile Include="src\FFTUtils.cpp" />
-    <ClCompile Include="src\MemoryBlock.cpp" />
-    <ClCompile Include="src\MemoryInterface.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
-    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
-    <ClInclude Include="..\Common\Common.hpp" />
-    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
-    <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
-    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
-    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
-    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
-    <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
-    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
-    <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
-    <ClInclude Include="..\Common\LibExport.hpp" />
-    <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\FFTUtils.hpp" />
-    <ClInclude Include="include\MemoryBlock.hpp" />
-    <ClInclude Include="include\ImageLabUtils.hpp" />
-    <ClInclude Include="include\MemoryInterface.hpp" />
-    <ClInclude Include="include\UtilsSemaphore.hpp" />
+    <ClCompile Include="src\TestMain.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

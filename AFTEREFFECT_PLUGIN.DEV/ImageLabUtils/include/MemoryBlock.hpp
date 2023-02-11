@@ -1,20 +1,21 @@
+#pragma once 
+
 #include <memory>
+#include "LibExport.hpp"
 #include "ClassRestrictions.hpp"
 
 namespace ImageLabMemoryUtils
 {
 	
-	class CMemoryBlock
+	class DLL_LINK CMemoryBlock
 	{
 		private:
 			int32_t m_memorySize;
 			int32_t m_alignment;
 			void*   m_memoryPtr;
-#ifdef _DEBUG
-			uint64_t m_usageCounter;
-#endif
+
 			void memBlockFree (void) noexcept;
-			bool memBlockAlloc(int32_t mSize, int32_t mAlign) noexcept;
+			void* memBlockAlloc(int32_t mSize, int32_t mAlign) noexcept;
 
 		public:
 			CLASS_NON_COPYABLE(CMemoryBlock);
@@ -23,7 +24,7 @@ namespace ImageLabMemoryUtils
 			CMemoryBlock (int32_t memSize, int32_t alignment = 0);
 			virtual ~CMemoryBlock(void);
 
-			bool memBlockRealloc  (int32_t memSize, int32_t alignment) noexcept;
+			void* memBlockRealloc  (int32_t memSize, int32_t alignment) noexcept;
 
 			bool getMemProperties (void** pMem, int32_t* pSize, int32_t* pAlign) const noexcept
 			{
@@ -33,12 +34,10 @@ namespace ImageLabMemoryUtils
 					*pSize = m_memorySize;
 				if (nullptr != pAlign)
 					*pAlign = m_alignment;
-#ifdef _DEBUG
-				m_usageCounter++;
-#endif
 				return true;
 			}
 
+			void* getMemoryBlock(void) const noexcept { return m_memoryPtr; }
 			inline bool operator >  (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize >  mBlock.m_memorySize ? true : false); } 
 			inline bool operator <  (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize <  mBlock.m_memorySize ? true : false); }
 			inline bool operator >= (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize >= mBlock.m_memorySize ? true : false); }

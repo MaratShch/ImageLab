@@ -67,7 +67,7 @@ namespace FastCompute
 	}
 
 	template<typename T>
-	inline constexpr auto Abs (const T& x)-> std::enable_if_t<std::is_unsigned<T>::value, T>
+	inline constexpr auto Abs (const T& x)-> std::enable_if_t<std::is_unsigned<T>::value, T> 
 	{
 		return x;
 	}

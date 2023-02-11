@@ -6,9 +6,6 @@ CMemoryBlock::CMemoryBlock (void)
 {
 	m_memoryPtr = nullptr;
 	m_memorySize = m_alignment = 0;
-#ifdef _DEBUG
-	m_usageCounter = 0ull;
-#endif
 	return;
 }
 
@@ -17,9 +14,6 @@ CMemoryBlock::CMemoryBlock (int32_t memSize, int32_t alignment)
 {
 	m_memoryPtr = nullptr;
 	m_memorySize = m_alignment = 0;
-#ifdef _DEBUG
-	m_usageCounter = 0ull;
-#endif
 	memBlockAlloc(memSize, alignment);
 	return;
 }
@@ -32,10 +26,9 @@ CMemoryBlock::~CMemoryBlock (void)
 }
 
 
-bool CMemoryBlock::memBlockAlloc(int32_t mSize, int32_t mAlign)
+void* CMemoryBlock::memBlockAlloc(int32_t mSize, int32_t mAlign)
 {
 	void* p = nullptr;
-	bool bRet = false;
 
 	if (0 == mAlign)
 		p = malloc(static_cast<size_t>(mSize));
@@ -47,9 +40,8 @@ bool CMemoryBlock::memBlockAlloc(int32_t mSize, int32_t mAlign)
 		m_memoryPtr = p;
 		m_memorySize = mSize;
 		m_alignment = mAlign;
-		bRet = true;
 	}
-	return bRet;
+	return m_memoryPtr;
 }
 
 
@@ -69,7 +61,7 @@ void CMemoryBlock::memBlockFree(void)
 }
 
 
-bool CMemoryBlock::memBlockRealloc (int32_t memSize, int32_t alignment)
+void* CMemoryBlock::memBlockRealloc (int32_t memSize, int32_t alignment)
 {
 	memBlockFree();
 	return memBlockAlloc(memSize, alignment);
