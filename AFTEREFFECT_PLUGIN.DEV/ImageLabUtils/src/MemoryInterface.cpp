@@ -9,7 +9,7 @@ DLL_LINK std::mutex CMemoryInterface::s_protectMutex;
 
 
 
-CMemoryInterface* getMemoryInterface(void) noexcept
+CMemoryInterface* ImageLabMemoryUtils::getMemoryInterface (void) noexcept
 {
 	return CMemoryInterface::getInstance();
 }

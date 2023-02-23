@@ -19,6 +19,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SepiaColor", "SepiaColor", "{D96FA20C-C88C-42B1-A747-996BB8E10950}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AutomaticWhiteBalance", "AutomaticWhiteBalance\AutomaticWhiteBalance.vcxproj", "{959C8E49-51FB-440C-B8B8-49AF813C0A1E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D266F837-A6FD-48CD-820D-578816B7AC3D} = {D266F837-A6FD-48CD-820D-578816B7AC3D}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AutomaticWhiteBalance", "AutomaticWhiteBalance", "{AEBFCB69-32B0-4EF6-AC59-119A9283707F}"
 EndProject
@@ -52,6 +55,9 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NoiseClean", "NoiseClean\NoiseClean.vcxproj", "{9989CCE1-526A-4290-A000-9C09357DE0D7}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageStylization", "ImageStylization\ImageStylization.vcxproj", "{C62ADF86-5293-4E96-B481-4E66CAD91993}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D266F837-A6FD-48CD-820D-578816B7AC3D} = {D266F837-A6FD-48CD-820D-578816B7AC3D}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageStylization", "ImageStylization", "{2E676B5C-0931-4FA6-B9B7-4B3CA96275C7}"
 EndProject

@@ -178,6 +178,7 @@
     <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp" />
     <ClCompile Include="src\ImageStyle_SketchCharcoal.cpp" />
     <ClCompile Include="src\ImageStyle_SketchPencil.cpp" />
+    <ClCompile Include="src\ImageStyle_UtilsLibLink.cpp" />
     <ClCompile Include="src\ImageStylization.cpp" />
     <ClCompile Include="src\ImageStylizationAe.cpp" />
     <ClCompile Include="src\ImageStylizationPr.cpp" />
