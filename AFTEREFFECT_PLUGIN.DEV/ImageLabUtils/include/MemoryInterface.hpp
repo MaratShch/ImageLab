@@ -5,62 +5,45 @@
 #include <thread>
 #include <vector>
 #include "LibExport.hpp"
-#include "MemoryBlock.hpp"
-#include "UtilsSemaphore.hpp"
-
+#include "ClassRestrictions.hpp"
+#include "MemoryHolder.hpp"
 
 namespace ImageLabMemoryUtils
 {
-	class DLL_LINK MemoryAccess
+	class DLL_LINK CMemoryInterface
 	{
 		public:
-			CLASS_NON_COPYABLE(MemoryAccess);
-			CLASS_NON_MOVABLE(MemoryAccess);
-
-			MemoryAccess (uint32_t cpu_cores);
-			~MemoryAccess();
-			uint32_t GetMemoryBlock(uint32_t requestSize);
-			void ReleaseMemoryBlock(uint32_t blockId);
-	private:
-			Semaphore mSemaphore;
-			uint32_t m_accessPool;
-			uint32_t m_busyMask;
-			std::vector<CMemoryBlock*> m_MemHandle;
-			std::atomic<uint32_t> m_Busy;
-	};
-
-
-	class DLL_LINK MemoryInterface
-	{
-		public:
-		static MemoryInterface* getInstance()
+		static CMemoryInterface* getInstance()
 		{
-			MemoryInterface* iMemory = s_instance.load (std::memory_order_acquire);
+			CMemoryInterface* iMemory = s_instance.load (std::memory_order_acquire);
 			if (nullptr == iMemory)
 			{
 				std::lock_guard<std::mutex> myLock(s_protectMutex);
 				iMemory = s_instance.load(std::memory_order_relaxed);
 				if (nullptr == iMemory)
 				{
-					iMemory = new MemoryInterface();
+					iMemory = new CMemoryInterface();
 					s_instance.store(iMemory, std::memory_order_release);
 				}
 			}
 			return iMemory;
 		} /* static MemoryInterface* getInstance() */
 
+		int32_t allocMemoryBlock(const int32_t& size, void** pMem, const int32_t& alignment = 0);
+		void releaseMemoryBlock(int32_t id);
+
 		private:
-		MemoryInterface();
-		~MemoryInterface();
+			CMemoryInterface();
+			~CMemoryInterface();
 
-		CLASS_NON_COPYABLE(MemoryInterface);
-		CLASS_NON_MOVABLE(MemoryInterface);
+		CLASS_NON_COPYABLE(CMemoryInterface);
+		CLASS_NON_MOVABLE(CMemoryInterface);
 
-		static std::atomic<MemoryInterface*> s_instance;
+		static std::atomic<CMemoryInterface*> s_instance;
 		static std::mutex s_protectMutex;
 
-		MemoryAccess mMemAccess;
+		CMemoryHolder m_MemHolder;
 	};
 
-	MemoryInterface* getMemoryInterface(void) noexcept;
+	CMemoryInterface* getMemoryInterface(void) noexcept;
 }

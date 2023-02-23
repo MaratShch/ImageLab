@@ -24,10 +24,13 @@
     <ClCompile Include="src\FFTUtils.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\MemoryBlock.cpp">
+    <ClCompile Include="src\MemoryInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\MemoryInterface.cpp">
+    <ClCompile Include="src\MemoryHolder.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MemoryBlock.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -71,20 +74,26 @@
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\FFTUtils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
     <ClInclude Include="include\MemoryBlock.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\FFTUtils.hpp">
+    <ClInclude Include="include\MemoryHolder.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\MemoryInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\UtilsSemaphore.hpp">
+    <ClInclude Include="include\MemoryPolicy.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
-      <Filter>include_common</Filter>
+    <ClInclude Include="include\UtilsSemaphore.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

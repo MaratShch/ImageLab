@@ -4,7 +4,7 @@
 #include <atomic>
 #include "ClassRestrictions.hpp"
 
-class Semaphore
+class CSemaphore
 {
 private:
 	HANDLE   m_hSemaphore;
@@ -12,17 +12,17 @@ private:
 	const uint32_t m_maxCnt;
 
 public:
-	CLASS_NON_COPYABLE(Semaphore);
-	CLASS_NON_MOVABLE(Semaphore);
+	CLASS_NON_COPYABLE(CSemaphore);
+	CLASS_NON_MOVABLE(CSemaphore);
 
-	explicit Semaphore (uint32_t initial_count) noexcept :
+	explicit CSemaphore(uint32_t initial_count) noexcept :
 	m_maxCnt(initial_count)
 	{
 		m_atomicCount = initial_count;
 		m_hSemaphore = CreateSemaphore (NULL, m_atomicCount, m_atomicCount, NULL);
 	};
 
-	~Semaphore() noexcept
+	~CSemaphore() noexcept
 	{
 		while (m_maxCnt - m_atomicCount)
 		{
@@ -43,11 +43,6 @@ public:
 			bRet = true;
 		}
 		return bRet;
-	}
-
-	bool Wait (void) noexcept
-	{
-		return Wait(-1);
 	}
 
 	bool Release (void) noexcept

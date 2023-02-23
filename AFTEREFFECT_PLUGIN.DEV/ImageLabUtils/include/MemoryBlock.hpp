@@ -1,32 +1,17 @@
-#pragma once 
-
-#include <memory>
-#include "LibExport.hpp"
-#include "ClassRestrictions.hpp"
+#pragma once
+#include <stdint.h>
+#include <type_traits>
 
 namespace ImageLabMemoryUtils
 {
-	
-	class DLL_LINK CMemoryBlock
+
+	class CMemoryBlock
 	{
-		private:
-			int32_t m_memorySize;
-			int32_t m_alignment;
-			void*   m_memoryPtr;
-
-			void memBlockFree (void) noexcept;
-			void* memBlockAlloc(int32_t mSize, int32_t mAlign) noexcept;
-
 		public:
-			CLASS_NON_COPYABLE(CMemoryBlock);
-			CLASS_NON_MOVABLE(CMemoryBlock);
-			CMemoryBlock (void);
-			CMemoryBlock (int32_t memSize, int32_t alignment = 0);
+			CMemoryBlock(void);
 			virtual ~CMemoryBlock(void);
 
-			void* memBlockRealloc  (int32_t memSize, int32_t alignment) noexcept;
-
-			bool getMemProperties (void** pMem, int32_t* pSize, int32_t* pAlign) const noexcept
+			bool getMemProperties(void** pMem, uint32_t* pSize, uint32_t* pAlign = nullptr) const noexcept
 			{
 				if (nullptr != pMem)
 					*pMem = m_memoryPtr;
@@ -37,8 +22,13 @@ namespace ImageLabMemoryUtils
 				return true;
 			}
 
-			void* getMemoryBlock(void) const noexcept { return m_memoryPtr; }
-			inline bool operator >  (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize >  mBlock.m_memorySize ? true : false); } 
+			bool memBlockAlloc(uint32_t mSize, uint32_t mAlign = 0u);
+			void memBlockFree(void);
+
+			inline uint32_t getMemSize(void) const noexcept { return m_memorySize; }
+			inline void*    getMemPtr(void)  const noexcept { return m_memoryPtr; }
+
+			inline bool operator >  (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize >  mBlock.m_memorySize ? true : false); }
 			inline bool operator <  (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize <  mBlock.m_memorySize ? true : false); }
 			inline bool operator >= (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize >= mBlock.m_memorySize ? true : false); }
 			inline bool operator <= (const CMemoryBlock& mBlock) const noexcept { return (this->m_memorySize <= mBlock.m_memorySize ? true : false); }
@@ -67,6 +57,10 @@ namespace ImageLabMemoryUtils
 				return (this->m_memorySize <= mSize ? true : false);
 			}
 
+		private:
+			uint32_t m_memorySize;
+			uint32_t m_alignment;
+			void*    m_memoryPtr;
 	};
 
-};
+} // namespace ImageLabMemoryUtils;

@@ -2,35 +2,13 @@
 
 using namespace ImageLabMemoryUtils;
 
-CMemoryBlock::CMemoryBlock (void)
-{
-	m_memoryPtr = nullptr;
-	m_memorySize = m_alignment = 0;
-	return;
-}
 
-
-CMemoryBlock::CMemoryBlock (int32_t memSize, int32_t alignment)
-{
-	m_memoryPtr = nullptr;
-	m_memorySize = m_alignment = 0;
-	memBlockAlloc(memSize, alignment);
-	return;
-}
-
-
-CMemoryBlock::~CMemoryBlock (void)
-{
-	memBlockFree();
-	return;
-}
-
-
-void* CMemoryBlock::memBlockAlloc(int32_t mSize, int32_t mAlign)
+bool CMemoryBlock::memBlockAlloc (uint32_t mSize, uint32_t mAlign)
 {
 	void* p = nullptr;
+	bool bRet = false;
 
-	if (0 == mAlign)
+	if (0u == mAlign)
 		p = malloc(static_cast<size_t>(mSize));
 	else
 		p = _aligned_malloc(static_cast<size_t>(mSize), static_cast<size_t>(mAlign));
@@ -40,14 +18,15 @@ void* CMemoryBlock::memBlockAlloc(int32_t mSize, int32_t mAlign)
 		m_memoryPtr = p;
 		m_memorySize = mSize;
 		m_alignment = mAlign;
+		bRet = true;
 	}
-	return m_memoryPtr;
+
+	return bRet;
 }
 
-
-void CMemoryBlock::memBlockFree(void)
+void CMemoryBlock::memBlockFree(void) 
 {
-	if (nullptr != m_memoryPtr)
+	if (nullptr != m_memoryPtr && 0u != m_memorySize)
 	{
 		if (0 != m_alignment)
 			_aligned_free(m_memoryPtr);
@@ -55,14 +34,19 @@ void CMemoryBlock::memBlockFree(void)
 			free(m_memoryPtr);
 
 		m_memoryPtr = nullptr;
+		m_memorySize = m_alignment = 0;
 	}
-	m_memorySize = m_alignment = 0;
 	return;
 }
 
+CMemoryBlock::CMemoryBlock()
+{
+	m_memorySize = m_alignment = 0u;
+	m_memoryPtr = nullptr;
+}
 
-void* CMemoryBlock::memBlockRealloc (int32_t memSize, int32_t alignment)
+CMemoryBlock::~CMemoryBlock()
 {
 	memBlockFree();
-	return memBlockAlloc(memSize, alignment);
 }
+

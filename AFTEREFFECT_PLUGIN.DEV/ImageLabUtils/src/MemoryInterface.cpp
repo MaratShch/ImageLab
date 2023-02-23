@@ -1,63 +1,41 @@
 #include "MemoryInterface.hpp"
-#include "UtilsSemaphore.hpp"
 #include "CommonBitsOperations.hpp"
+#include "FastAriphmetics.hpp"
 
 using namespace ImageLabMemoryUtils;
 
-DLL_LINK std::atomic<MemoryInterface*> MemoryInterface::s_instance;
-DLL_LINK std::mutex MemoryInterface::s_protectMutex;
+DLL_LINK std::atomic<CMemoryInterface*> CMemoryInterface::s_instance;
+DLL_LINK std::mutex CMemoryInterface::s_protectMutex;
 
 
-MemoryAccess::MemoryAccess (uint32_t cpu_cores) :
-	mSemaphore (cpu_cores),
-	m_accessPool(cpu_cores)
+
+CMemoryInterface* getMemoryInterface(void) noexcept
 {
-	uint32_t busyMask = 0x0;
-	m_Busy = 0u;
-	m_MemHandle.resize(cpu_cores);
-	for (auto i = 0; i < m_MemHandle.size(); i++)
-	{
-		m_MemHandle[i] = new CMemoryBlock;
-		busyMask = IMLAB_BIT_SET(busyMask, i);
-	}
-	m_busyMask = busyMask;
-
-	return;
+	return CMemoryInterface::getInstance();
 }
 
-MemoryAccess::~MemoryAccess()
-{
-	for (auto i = 0; i < m_MemHandle.size(); i++)
-	{
-		delete m_MemHandle[i];
-		m_MemHandle[i] = nullptr;
-	}
-
-	return;
-}
-
-uint32_t MemoryAccess::GetMemoryBlock (uint32_t requestedSize) noexcept
-{
-	return 0u;
-}
-
-void MemoryAccess::ReleaseMemoryBlock(uint32_t blockId) noexcept
+CMemoryInterface::CMemoryInterface()
 {
 	return;
 }
 
-MemoryInterface* getMemoryInterface(void) noexcept
-{
-	return MemoryInterface::getInstance();
-}
-
-MemoryInterface::MemoryInterface() :
-	mMemAccess(std::thread::hardware_concurrency() + 1)
+CMemoryInterface::~CMemoryInterface()
 {
 	return;
 }
 
-MemoryInterface::~MemoryInterface()
+
+int32_t CMemoryInterface::allocMemoryBlock(const int32_t& size, void** pMem, const int32_t& alignment)
 {
+	void* pMemory = nullptr;
+	const int32_t blockIdx = m_MemHolder.AllocMemory (static_cast<uint32_t>(size), &pMemory);
+	*pMem = pMemory;
+	return blockIdx;
+}
+
+
+void CMemoryInterface::releaseMemoryBlock (int32_t id)
+{
+	m_MemHolder.ReleaseMemory(id);
 	return;
 }

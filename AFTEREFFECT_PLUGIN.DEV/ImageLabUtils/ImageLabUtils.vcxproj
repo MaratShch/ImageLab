@@ -133,6 +133,7 @@
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\FFTUtils.cpp" />
     <ClCompile Include="src\MemoryBlock.cpp" />
+    <ClCompile Include="src\MemoryHolder.cpp" />
     <ClCompile Include="src\MemoryInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -150,9 +151,11 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\FFTUtils.hpp" />
-    <ClInclude Include="include\MemoryBlock.hpp" />
     <ClInclude Include="include\ImageLabUtils.hpp" />
+    <ClInclude Include="include\MemoryBlock.hpp" />
+    <ClInclude Include="include\MemoryHolder.hpp" />
     <ClInclude Include="include\MemoryInterface.hpp" />
+    <ClInclude Include="include\MemoryPolicy.hpp" />
     <ClInclude Include="include\UtilsSemaphore.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
