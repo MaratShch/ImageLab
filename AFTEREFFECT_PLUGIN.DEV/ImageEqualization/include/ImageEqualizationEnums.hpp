@@ -1,0 +1,8 @@
+#pragma once
+
+
+typedef enum {
+	IMAGE_EQUALIZATION_FILTER_INPUT,
+	IMAGE_EQUALIZATION_FILTER_TOTAL_PARAMS
+}Item;
+
