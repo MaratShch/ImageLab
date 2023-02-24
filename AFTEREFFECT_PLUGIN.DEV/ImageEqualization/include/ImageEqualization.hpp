@@ -16,13 +16,28 @@ constexpr int EqualizationFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_REL
 constexpr int EqualizationFilter_VersionBuild = 1;
 
 
+constexpr char STR_EQ_ALGO_POPUP[] = "Equalization Presets";
+
+constexpr char STR_EQ_ALGO_TYPE[] =	"None|"
+                                    "Manual|"
+                                    "Linear|" 
+									"Details in dark|"
+									"Details in light|"
+									"Exponential";
+
+constexpr char STR_EQ_DARK_SLIDER[]     = "Dark channel details";
+constexpr char STR_EQ_LIGHT_SLIDER[]    = "Light channel details";
+constexpr char STR_EQ_PEDESTAL_SLIDER[] = "Dark pedestal";
+constexpr char STR_EQ_CHECKBOX_FLICK[]  = "Flicker removing";
+
+
 /* FUNCTION PROTOTYPES */
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
 ) noexcept;
 
 PF_Err

@@ -95,7 +95,68 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	out_data->num_params = 1;
+	CACHE_ALIGN PF_ParamDef	def{};
+	PF_Err		err{ PF_Err_NONE };
+	constexpr PF_ParamFlags flags{ PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP };
+	constexpr PF_ParamUIFlags ui_flags{ PF_PUI_NONE };
+	constexpr PF_ParamUIFlags ui_flags_sliders{ ui_flags | PF_PUI_DISABLED };
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags;
+	PF_ADD_POPUP(
+		STR_EQ_ALGO_POPUP,          /* pop-up name          */
+		IMAGE_EQ_NONE,              /* number of operations */
+		IMAGE_EQ_ALGO_TOTALS,       /* default operation    */
+		STR_EQ_ALGO_TYPE,           /* string for pop-up    */
+		IMAGE_EQUALIZATION_POPUP_PRESET); /* control ID           */
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags_sliders;
+	PF_ADD_SLIDER(
+		STR_EQ_DARK_SLIDER,
+		channelSliderMin,
+		channelSliderMax,
+		channelSliderMin,
+		channelSliderMax,
+		channelSLiderDef,
+		IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER);
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags_sliders;
+	PF_ADD_SLIDER(
+		STR_EQ_LIGHT_SLIDER,
+		channelSliderMin,
+		channelSliderMax,
+		channelSliderMin,
+		channelSliderMax,
+		channelSLiderDef,
+		IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER);
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags_sliders;
+	PF_ADD_SLIDER(
+		STR_EQ_PEDESTAL_SLIDER,
+		channelSliderMin,
+		channelSliderMax,
+		channelSliderMin,
+		channelSliderMax,
+		channelSLiderDef,
+		IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER);
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags_sliders;
+	PF_ADD_CHECKBOXX(
+		STR_EQ_CHECKBOX_FLICK,		/* check-box name		*/
+		FALSE,						/* default value		*/
+		0,							/* flag					*/
+		IMAGE_EQUALIZATION_FLICK_REMOVE_CHECKBOX);	/* control ID           */
+
+	out_data->num_params = IMAGE_EQUALIZATION_FILTER_TOTAL_PARAMS;
 	return PF_Err_NONE;
 }
 

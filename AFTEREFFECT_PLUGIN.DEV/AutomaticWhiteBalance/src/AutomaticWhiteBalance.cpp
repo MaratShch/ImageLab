@@ -87,7 +87,6 @@ ParamsSetup(
 	constexpr PF_ParamUIFlags popup_ui_flags = PF_PUI_NONE;
 
 	AEFX_CLR_STRUCT_EX(def);
-
 	def.flags = popup_flags;
 	def.ui_flags = popup_ui_flags;
 	PF_ADD_POPUP(
@@ -98,7 +97,6 @@ ParamsSetup(
 		AWB_ILLUMINATE_POPUP);	/* control ID			*/
 
 	AEFX_CLR_STRUCT_EX(def);
-
 	def.flags = popup_flags;
 	def.ui_flags = popup_ui_flags;
 	PF_ADD_POPUP(
@@ -110,7 +108,6 @@ ParamsSetup(
 
 
 	AEFX_CLR_STRUCT_EX(def);
-
 	def.flags = popup_flags;
 	def.ui_flags = popup_ui_flags;
 	PF_ADD_POPUP(
@@ -121,7 +118,8 @@ ParamsSetup(
 		AWB_COLOR_SPACE_POPUP);		/* control ID			*/
 
 	AEFX_CLR_STRUCT_EX(def);
-
+	def.flags = popup_flags;
+	def.ui_flags = popup_ui_flags;
 	PF_ADD_SLIDER(
 		THRESHOLD_NAME,
 		gMinGrayThreshold,
@@ -132,7 +130,8 @@ ParamsSetup(
 		AWB_THRESHOLD_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
-
+	def.flags = popup_flags;
+	def.ui_flags = popup_ui_flags;
 	PF_ADD_SLIDER(
 		ITERATIONS_NAME,
 		iterMinCnt,
@@ -143,9 +142,6 @@ ParamsSetup(
 		AWB_ITERATIONS_SLIDER);
 
 	out_data->num_params = AWB_TOTAL_CONTROLS;
-
-	/* cleanup on exit for DBG purpose only */
-	AEFX_CLR_STRUCT_EX(def);
 
 	return err;
 }

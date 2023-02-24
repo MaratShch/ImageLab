@@ -65,11 +65,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ImageEqualization.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="src\ImageEqualization.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -84,5 +79,10 @@
     <ResourceCompile Include="ImageEqualization.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ImageEqualization.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
