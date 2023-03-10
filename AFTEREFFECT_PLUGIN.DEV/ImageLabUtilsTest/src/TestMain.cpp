@@ -29,7 +29,7 @@ int main(void)
 	pInstance1->releaseMemoryBlock(id2);
 
 	id1 = pInstance1->allocMemoryBlock(memSize1, &ptr1);
-	id2 = pInstance1->allocMemoryBlock(memSize1, &ptr2);
+	id2 = pInstance2->allocMemoryBlock(memSize1, &ptr2);
 
 	return 0;
 }

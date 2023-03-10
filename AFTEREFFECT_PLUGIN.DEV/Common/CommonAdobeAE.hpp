@@ -45,6 +45,13 @@ MakeParamCopy (PF_ParamDef* __restrict actual[], PF_ParamDef copy[], const int32
 	return;
 }
 
+inline bool
+IsDisabledUI (const PF_ParamUIFlags& uiFlag) noexcept
+{
+	return ((uiFlag & PF_PUI_DISABLED) ? true : false);
+}
+
+
 
 #ifdef __cplusplus
  #define PLUGIN_ENTRY_POINT_CALL	extern "C" DllExport

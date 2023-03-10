@@ -89,6 +89,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabUtilsTest", "ImageL
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageEqualization", "ImageEqualization\ImageEqualization.vcxproj", "{D4D4D150-68CA-4C49-BF57-62EFAEC4E8EE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{991576B7-BC5F-466E-A5FB-FA4AC6E541E5} = {991576B7-BC5F-466E-A5FB-FA4AC6E541E5}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageEqualization", "ImageEqualization", "{014B0CC8-E272-4269-9B8F-7DA0BE942665}"
 EndProject

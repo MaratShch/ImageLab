@@ -1,9 +1,28 @@
 #include "ImageEqualization.hpp"
 #include "PrSDKAESupport.h"
 
+#ifdef _DEBUG
+#include <atomic>
+constexpr uint32_t traceBufferSize = 1024u;
+std::atomic<uint32_t> traceCmdIdx = 0u;
+CACHE_ALIGN static uint32_t traceCmdBuffer[traceBufferSize]{};
+
+#ifndef _DBG_TRACE_COMMAND
+#define _DBG_TRACE_COMMAND(cmd)				\
+ {											\
+	if (traceCmdIdx < traceBufferSize)		\
+		traceCmdBuffer[traceCmdIdx++] = cmd;\
+	else									\
+		traceCmdIdx.exchange(0u);			\
+ }
+#endif // _DBG_TRACE_COMMAND
+#else
+#define _DBG_TRACE_COMMAND(cmd)		
+#endif // _DEBUG
+
 
 static PF_Err
-About(
+About (
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
@@ -21,7 +40,7 @@ About(
 
 
 static PF_Err
-GlobalSetup(
+GlobalSetup (
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
@@ -64,12 +83,12 @@ GlobalSetup(
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
 
@@ -89,14 +108,14 @@ GlobalSetDown (
 
 
 static PF_Err
-ParamsSetup(
+ParamsSetup (
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	CACHE_ALIGN PF_ParamDef	def{};
-	PF_Err		err{ PF_Err_NONE };
+	PF_ParamDef	def;
+	PF_Err		err = PF_Err_NONE;
 	constexpr PF_ParamFlags flags{ PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP };
 	constexpr PF_ParamUIFlags ui_flags{ PF_PUI_NONE };
 	constexpr PF_ParamUIFlags ui_flags_sliders{ ui_flags | PF_PUI_DISABLED };
@@ -106,8 +125,8 @@ ParamsSetup(
 	def.ui_flags = ui_flags;
 	PF_ADD_POPUP(
 		STR_EQ_ALGO_POPUP,          /* pop-up name          */
-		IMAGE_EQ_NONE,              /* number of operations */
-		IMAGE_EQ_ALGO_TOTALS,       /* default operation    */
+		IMAGE_EQ_ALGO_TOTALS,       /* number of operations */
+		IMAGE_EQ_NONE,				/* default operation    */
 		STR_EQ_ALGO_TYPE,           /* string for pop-up    */
 		IMAGE_EQUALIZATION_POPUP_PRESET); /* control ID           */
 
@@ -149,33 +168,96 @@ ParamsSetup(
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
-	def.ui_flags = ui_flags_sliders;
+	def.ui_flags = ui_flags;
 	PF_ADD_CHECKBOXX(
-		STR_EQ_CHECKBOX_FLICK,		/* check-box name		*/
-		FALSE,						/* default value		*/
-		0,							/* flag					*/
-		IMAGE_EQUALIZATION_FLICK_REMOVE_CHECKBOX);	/* control ID           */
+		STR_EQ_CHECKBOX_FLICK,
+		FALSE,
+		0,
+		IMAGE_EQUALIZATION_FLICK_REMOVE_CHECKBOX);
 
 	out_data->num_params = IMAGE_EQUALIZATION_FILTER_TOTAL_PARAMS;
 	return PF_Err_NONE;
 }
 
-
 static PF_Err
-Render(
+SequenceSetup (
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
+	return PF_Err_NONE;
 }
 
 
+static PF_Err
+SequenceReSetup (
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
+}
 
 
 static PF_Err
-UserChangedParam(
+SequenceFlatten (
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
+}
+
+
+static PF_Err
+SequenceSetDown (
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
+}
+
+
+static PF_Err
+Render (
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return ((PremierId == in_data->appl_id ? ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output)));
+}
+
+
+static PF_Err
+SmartPreRender (
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
+}
+
+
+static PF_Err
+SmartRender (
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
+}
+
+
+static PF_Err
+UserChangedParam (
 	PF_InData						*in_data,
 	PF_OutData						*out_data,
 	PF_ParamDef						*params[],
@@ -183,7 +265,68 @@ UserChangedParam(
 	const PF_UserChangedParamExtra	*which_hitP
 )
 {
-	return PF_Err_NONE;
+	PF_Err err = PF_Err_NONE;
+	uint32_t updateUI = 0u;
+
+	switch (which_hitP->param_index)
+	{
+		case IMAGE_EQUALIZATION_POPUP_PRESET:
+		{
+			AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 =
+				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+
+			const ImageEqPopupAlgo algoType = static_cast<const ImageEqPopupAlgo>(params[IMAGE_EQUALIZATION_POPUP_PRESET]->u.pd.value - 1);
+			if (IMAGE_EQ_MANUAL == algoType)
+			{
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI |= 0x1u;
+				}
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI |= 0x1u;
+				}
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI |= 0x1u;
+				}
+			}
+			else
+			{
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI |= 0x1u;
+				}
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI |= 0x1u;
+				}
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI |= 0x1u;
+				}
+			}
+			/* update UI */
+			if (0u != updateUI)
+			{
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER,  params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER, params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER, params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]);
+			}
+		}
+		break;
+
+		default:
+		break;
+	}
+
+	return err;
 }
 
 
@@ -195,8 +338,7 @@ UpdateParameterUI(
 	PF_LayerDef			*output
 )
 {
-	PF_Err		err = PF_Err_NONE;
-	return err;
+	return PF_Err_NONE;
 }
 
 
@@ -213,6 +355,8 @@ EffectMain (
 	PF_Err		err = PF_Err_NONE;
 
 	try {
+		_DBG_TRACE_COMMAND(static_cast<uint32_t>(cmd));
+
 		switch (cmd)
 		{
 			case PF_Cmd_ABOUT:
@@ -231,8 +375,32 @@ EffectMain (
 				ERR(ParamsSetup(in_data, out_data, params, output));
 			break;
 
+			case PF_Cmd_SEQUENCE_SETUP:
+				ERR(SequenceSetup(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_SEQUENCE_RESETUP:
+				ERR(SequenceReSetup(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_SEQUENCE_FLATTEN:
+				ERR(SequenceFlatten(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_SEQUENCE_SETDOWN:
+				ERR(SequenceSetDown(in_data, out_data, params, output));
+			break;
+			
 			case PF_Cmd_RENDER:
 				ERR(Render(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_SMART_PRE_RENDER:
+				ERR(SmartPreRender(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_SMART_RENDER:
+				ERR(SmartRender(in_data, out_data, params, output));
 			break;
 
 			case PF_Cmd_USER_CHANGED_PARAM:

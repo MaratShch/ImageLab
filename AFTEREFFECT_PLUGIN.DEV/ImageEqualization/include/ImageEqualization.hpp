@@ -2,6 +2,8 @@
 
 #include "CommonAdobeAE.hpp"
 #include "ImageEqualizationEnums.hpp"
+#include "ImageEqualizationFuncProto.hpp"
+
 
 constexpr char strName[] = "Image Equalization";
 constexpr char strCopyright[] = "\n2019-2023. ImageLab2 Copyright(c).\rImage Equalization plugin.";
@@ -23,7 +25,8 @@ constexpr char STR_EQ_ALGO_TYPE[] =	"None|"
                                     "Linear|" 
 									"Details in dark|"
 									"Details in light|"
-									"Exponential";
+									"Exponential|"
+	                                "Sigmoid";
 
 constexpr char STR_EQ_DARK_SLIDER[]     = "Dark channel details";
 constexpr char STR_EQ_LIGHT_SLIDER[]    = "Light channel details";
@@ -49,3 +52,11 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept;
 
+
+PF_Err PR_ImageEq_Linear_BGRA_4444_8u
+(
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
+) noexcept;

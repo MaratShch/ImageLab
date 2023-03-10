@@ -73,8 +73,18 @@ namespace AVX2
 		void make_histogram_binarization
 		(
 			const HistBin* __restrict pHistogram,
-			      uint8_t* __restrict pBinHistogram,
-			      A_long              histElemSize
+			      HistBin* __restrict pBinHistogram,
+			      A_long              histElemSize,
+			      A_long              noiseLevel = 0
+		) noexcept;
+
+		void make_histogram_bin_cumulative_sum
+		(
+			const HistBin* __restrict pHistogram,
+			      HistBin* __restrict pBinHistogram,
+			      HistBin* __restrict pCumSumHistogram,
+			      A_long              histElemSize,
+			      A_long              noiseLevel
 		) noexcept;
 
 	}

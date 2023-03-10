@@ -63,6 +63,15 @@
     <ClInclude Include="include\ImageEqualizationEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageEqualizationFuncProto.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageHistogram.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLUT.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageEqualization.cpp">
@@ -72,6 +81,27 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\EqualizationInPr.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_DetailsDark.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_DetailsLight.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_Exponential.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_Linear.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_Manual.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_Sigmoid.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\EqualizationFilterAvx2.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
