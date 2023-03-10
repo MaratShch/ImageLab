@@ -33,12 +33,14 @@ PF_Err PR_ImageEq_Linear_VUYA_4444_8u_709
 	AVX2::Histogram::make_luma_histogram_VUYA4444_8u(localSrc, histIn, histSize, width, height, line_pitch);
 	/* make histogram binarization */
 	AVX2::Histogram::make_histogram_binarization(histIn, histBin, histSize, noiseLevel);
-	/* make cumulative SUM of hiostogram elements */
+	/* make cumulative SUM of binary histogram elements */
 	AVX2::MiscUtils::cum_sum_uint32(histBin, histOut, histSize);
 	/* generate LUT */
-	imgLinearLutGenerate (histOut, lut, histSize);
+	constexpr int32_t lastHistElem = histSize - 1;
+	const float coeff = static_cast<float>(lastHistElem) / static_cast<float>(histOut[lastHistElem]);
+	AVX2::MiscUtils::generate_lut_uint32(histOut, lut, coeff, histSize);
 	/* apply LUT to the image */
-	imgApplyLut (localSrc, localDst, lut, width, height, line_pitch);
+	imgApplyLut (localSrc, localDst, lut, width, height, line_pitch, line_pitch);
 
 	return PF_Err_NONE;
 }
