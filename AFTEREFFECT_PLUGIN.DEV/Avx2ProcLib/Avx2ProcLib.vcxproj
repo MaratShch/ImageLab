@@ -158,12 +158,13 @@
     <ClInclude Include="include\Avx2Array.hpp" />
     <ClInclude Include="include\Avx2BitonicSort.hpp" />
     <ClInclude Include="include\Avx2ColorConvert.hpp" />
+    <ClInclude Include="include\Avx2MiscUtils.hpp" />
     <ClInclude Include="include\Avx2Morphology.hpp" />
     <ClInclude Include="include\Avx2Histogram.hpp" />
     <ClInclude Include="include\Avx2Log.hpp" />
     <ClInclude Include="include\Avx2Median.hpp" />
     <ClInclude Include="include\Avx2ProcLib.hpp" />
-    <ClInclude Include="include\Avx2SimpleConvert.h" />
+    <ClInclude Include="include\Avx2SimpleConvert.hpp" />
     <ClInclude Include="src\Avx2Median\Avx2MedianInternal.hpp" />
     <ClInclude Include="src\Avx2Median\Avx2MedianScalar.hpp" />
   </ItemGroup>

@@ -11,7 +11,8 @@ namespace AVX2
 	{
 		// loads 128 bytes = 32 floats
 		// converts and packs with signed saturation to 32 int8_t
-		__m256i pack_float_int8 (const float* p) {
+		inline __m256i pack_float_int8 (const float* p) noexcept
+		{
 			__m256i a = _mm256_cvtps_epi32(_mm256_loadu_ps(p));
 			__m256i b = _mm256_cvtps_epi32(_mm256_loadu_ps(p + 8));
 			__m256i c = _mm256_cvtps_epi32(_mm256_loadu_ps(p + 16));
@@ -30,7 +31,7 @@ namespace AVX2
 		/*
 		If you want to convert e.g. 16 doubles to 16 chars per iteration using AVX/SSE then here is some code that works:
 		*/
-		__m128i proc (const __m256d in0, const __m256d in1, const __m256d in2, const __m256d in3)
+		inline __m128i proc (const __m256d in0, const __m256d in1, const __m256d in2, const __m256d in3) noexcept
 		{
 			__m128i v0 = _mm256_cvtpd_epi32(in0);
 			__m128i v1 = _mm256_cvtpd_epi32(in1);

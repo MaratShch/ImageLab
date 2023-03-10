@@ -93,7 +93,10 @@
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\Avx2SimpleConvert.h">
+    <ClInclude Include="include\Avx2SimpleConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Avx2MiscUtils.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

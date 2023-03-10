@@ -70,22 +70,50 @@ namespace AVX2
 		) noexcept;
 
 
-		void make_histogram_binarization
+		inline void make_histogram_binarization
 		(
 			const HistBin* __restrict pHistogram,
-			      HistBin* __restrict pBinHistogram,
-			      A_long              histElemSize,
-			      A_long              noiseLevel = 0
-		) noexcept;
+			HistBin* __restrict pBinHistogram,
+			A_long                    histElemSize,
+			A_long                    noiseLevel
+		) noexcept
+		{
+			const A_long noise = (noiseLevel > 0 ? noiseLevel : 1);
+			constexpr A_long elemSize = static_cast<A_long>(sizeof(pHistogram[0]));
+			constexpr A_long loadElems = Avx2BytesSize / elemSize;
+			const A_long loopCnt = histElemSize / (loadElems * 2);
+			const A_long loopCntFrac = histElemSize - loopCnt * loadElems * 2;
 
-		void make_histogram_bin_cumulative_sum
-		(
-			const HistBin* __restrict pHistogram,
-			      HistBin* __restrict pBinHistogram,
-			      HistBin* __restrict pCumSumHistogram,
-			      A_long              histElemSize,
-			      A_long              noiseLevel
-		) noexcept;
+			const __m256i* __restrict pInVector = reinterpret_cast<const __m256i* __restrict>(pHistogram);
+			__m256i* __restrict pOutVector = reinterpret_cast<__m256i* __restrict>(pBinHistogram);
+			const __m256i noisePacket = _mm256_setr_epi32(noise, noise, noise, noise, noise, noise, noise, noise);
+
+			for (A_long x = 0; x < loopCnt; x++)
+			{
+				/* load 2 vectors 8 x 32 bits*/
+				__m256i packetVal1 = _mm256_loadu_si256(pInVector++);
+				__m256i packetVal2 = _mm256_loadu_si256(pInVector++);
+
+				/* compare each vector with zero */
+				__m256i cmpVal1 = _mm256_cmpgt_epi32(packetVal1, noisePacket);
+				__m256i cmpVal2 = _mm256_cmpgt_epi32(packetVal2, noisePacket);
+
+				/* shift each result rigth on 31 bits for make binarization */
+				__m256i binVal1 = _mm256_srli_epi32(cmpVal1, 31);
+				__m256i binVal2 = _mm256_srli_epi32(cmpVal2, 31);
+
+				/* store binarized histogram */
+				_mm256_storeu_si256(pOutVector++, binVal1);
+				_mm256_storeu_si256(pOutVector++, binVal2);
+			}
+			const HistBin* __restrict p1 = reinterpret_cast<const HistBin* __restrict>(pInVector);
+			      HistBin* __restrict p2 = reinterpret_cast<      HistBin* __restrict>(pOutVector);
+			for (A_long x = 0; x < loopCntFrac; x++)
+				p2[x] = p1[x] > noise ? 1 : 0;
+
+			return;
+		}
+
 
 	}
 }

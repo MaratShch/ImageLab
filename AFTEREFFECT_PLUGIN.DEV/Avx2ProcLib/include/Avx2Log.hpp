@@ -9,7 +9,7 @@ namespace AVX2
 	namespace Debug
 	{
 		template<class T>
-		typename std::enable_if<std::is_integral<T>::value>::type Avx2RegLog(const __m256i& value)
+		typename std::enable_if<std::is_integral<T>::value>::type Avx2RegLog(const __m256i& value) noexcept
 		{
 			constexpr size_t n = sizeof(__m256i) / sizeof(T);
 			__declspec(align(32)) T buffer[n];
@@ -28,7 +28,7 @@ namespace AVX2
 		}
 
 		template<class T>
-		typename std::enable_if<std::is_floating_point<T>::value>::type Avx2RegLog(const __m256& value)
+		typename std::enable_if<std::is_floating_point<T>::value>::type Avx2RegLog(const __m256& value) noexcept
 		{
 			constexpr size_t n = sizeof(__m256) / sizeof(T);
 			__declspec(align(32)) T buffer[n];
@@ -39,4 +39,5 @@ namespace AVX2
 		}
 
 	} /* namespace Debug */
+
 }/* AVX2 */
