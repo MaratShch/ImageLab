@@ -19,6 +19,7 @@ namespace AVX2
 		static constexpr size_t Avx2BitsSize   = 256;
 		static constexpr size_t Avx2BytesSize  = Avx2BitsSize / 8;
 
+		constexpr float HistFloatPointNorm = static_cast<float>(u16_value_white);
 
 		inline void clean_hist_buffer(void* __restrict pBuffer, const size_t bytesSize) noexcept
 		{
@@ -69,6 +70,15 @@ namespace AVX2
 			A_long linePitch
 		) noexcept;
 
+		void make_luma_histogram_VUYA4444_32f
+		(
+			const PF_Pixel_VUYA_32f* __restrict pImage,
+			HistBin*  __restrict  pFinalHistogramY,
+			A_long histBufSizeBytes,
+			A_long sizeX,
+			A_long sizeY,
+			A_long linePitch
+		) noexcept;
 
 		inline void make_histogram_binarization
 		(

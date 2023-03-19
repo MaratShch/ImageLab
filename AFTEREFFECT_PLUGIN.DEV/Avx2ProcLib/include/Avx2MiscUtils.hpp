@@ -43,5 +43,19 @@ namespace AVX2
 			return;
 		}
 
+		inline void generate_lut_float32(const uint32_t* __restrict pCumSum, float* __restrict pLut, const float coeff, int32_t size) noexcept
+		{
+			const __m256 fReciproc = _mm256_rcp_ps(_mm256_set1_ps(32767.f));
+			const __m256 fMult = _mm256_mul_ps(_mm256_set1_ps(coeff), fReciproc);
+
+			for (int32_t i = 0; i < size; i += 8)
+			{
+				__m256 srcVec = _mm256_cvtepi32_ps(_mm256_loadu_si256(reinterpret_cast<const __m256i* __restrict>(&pCumSum[i])));
+				__m256 outVec = _mm256_mul_ps(srcVec, fMult);
+				_mm256_store_ps(&pLut[i], outVec);
+			}
+			return;
+		}
+
 	}
 }

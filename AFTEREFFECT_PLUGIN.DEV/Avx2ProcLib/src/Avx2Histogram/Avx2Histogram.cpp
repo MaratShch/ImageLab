@@ -215,7 +215,7 @@ void AVX2::Histogram::make_histogram_BGRA4444_16u
 
 
 /*
-	make luminance histogram from packed format - VUYA)444_8u by AVX2 instructions set:
+	make luminance histogram from packed format - VUYA4444_8u by AVX2 instructions set:
 
 	Image buffer layout [each cell - 8 bits unsigned in range 0...255]:
 
@@ -299,4 +299,88 @@ void AVX2::Histogram::make_luma_histogram_VUYA4444_8u
 	}
 
 	return;
+}
+
+
+/*
+make luminance histogram from packed format - VUYA4444_32f by AVX2 instructions set:
+
+Image buffer layout [each cell - 32 floating point in range 0.0...1.0 will be converted to the 16 bits 0...32767]:
+
+lsb                             msb
++-------------------------------+
+| V | U | Y | A | V | U | Y | A | ...
++-------------------------------+
+
+*/
+/* AVX2 optimizations */
+void AVX2::Histogram::make_luma_histogram_VUYA4444_32f
+(
+	const PF_Pixel_VUYA_32f* __restrict pImage,
+	HistBin*  __restrict  pFinalHistogramY,
+	A_long histBufSizeBytes,
+	A_long sizeX,
+	A_long sizeY,
+	A_long linePitch
+) noexcept
+{
+	constexpr int32_t internalSize = static_cast<int32_t>(u16_value_white + 1);
+	constexpr A_long pixSize = static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+	constexpr A_long loadElems = (2 * Avx2BytesSize) / pixSize; /* double load */
+	constexpr A_long bufIncrement = sizeof(__m256) / sizeof(float);
+	const A_long loopCnt = sizeX / loadElems;
+	const A_long loopFract = sizeX - loadElems * loopCnt;
+
+	CACHE_ALIGN HistBin histY[2][internalSize]{};
+
+	A_long x, y, z;
+	constexpr float fM = 32767.f;
+	const __m256 fMult = _mm256_setr_ps(fM, fM, fM, fM, fM, fM, fM, fM);
+
+	for (y = 0; y < sizeY; y++)
+	{
+		const float* __restrict pBufVector = reinterpret_cast<const float* __restrict>(pImage + y * linePitch);
+
+		/* AVX2 vector part */
+		for (x = 0; x < loopCnt; x += 2)
+		{
+			/* non-aligned load 8 packet pixels at once */
+			const __m256 packetSrc1 = _mm256_loadu_ps(pBufVector);
+			pBufVector += bufIncrement;
+			const __m256 packetSrc2 = _mm256_loadu_ps(pBufVector);
+			pBufVector += bufIncrement;
+
+			/* val * 32767.f */
+			__m256 fVal1 = _mm256_mul_ps(packetSrc1, fMult);
+			__m256 fVal2 = _mm256_mul_ps(packetSrc2, fMult);
+
+			/* int (val * 32767.f) */
+			__m256i cVal1 = _mm256_cvtps_epi32(fVal1);
+			__m256i cVal2 = _mm256_cvtps_epi32(fVal2);
+
+			histY[0][_mm256_extract_epi32(cVal1, 2) ]++;
+			histY[1][_mm256_extract_epi32(cVal2, 2)]++;
+			histY[0][_mm256_extract_epi32(cVal1, 6)]++;
+			histY[1][_mm256_extract_epi32(cVal2, 6)]++;
+		} /* for (x = 0; x < loopCnt; x += 2) */
+		  /* scalar part - no vectorizing for complete processing rest of pixels in end of line */
+		const PF_Pixel_VUYA_32f* pBuScalar = reinterpret_cast<const PF_Pixel_VUYA_32f*>(pBufVector);
+		for (z = 0; z < loopFract; z++)
+		{
+			const int idx = z & 0x1;
+			const int val = static_cast<int32_t>(pBuScalar[z].Y * fM);
+			histY[idx][val]++;
+		} /* for (z = x; z < loopFract; z++) */
+
+	} /* for (y = 0; y < sizeY; y++) */
+
+	  /* final path - merge all temporary histogram buffers to final histogram */
+	__VECTOR_ALIGNED__
+	for (x = 0; x < internalSize; x++)
+	{
+		pFinalHistogramY[x] = histY[0][x] + histY[1][x];
+	}
+
+	return;
+
 }

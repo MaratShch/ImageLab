@@ -46,5 +46,32 @@ inline void imgApplyLut
 		}
 	}
 	return;
+}
 
+inline void imgApplyLut
+(
+	const PF_Pixel_VUYA_32f* __restrict inSrc,
+	      PF_Pixel_VUYA_32f* __restrict outSrc,
+	const float*             __restrict pLut,
+	const int32_t& sizeX,
+	const int32_t& sizeY,
+	const int32_t& src_line_pitch,
+	const int32_t& dst_line_pitch
+) noexcept
+{
+	for (int32_t j = 0; j < sizeY; j++)
+	{
+		const PF_Pixel_VUYA_32f* __restrict lineSrcPtr = inSrc  + j * src_line_pitch;
+		      PF_Pixel_VUYA_32f* __restrict lineDstPtr = outSrc + j * dst_line_pitch;
+
+		__VECTOR_ALIGNED__
+		for (int32_t i = 0; i < sizeX; i++)
+		{
+			lineDstPtr[i].V = lineSrcPtr[i].V;
+			lineDstPtr[i].U = lineSrcPtr[i].U;
+			lineDstPtr[i].Y = pLut[static_cast<int32_t>(32767.f * lineSrcPtr[i].Y)];
+			lineDstPtr[i].A = lineSrcPtr[i].A;
+		}
+	}
+	return;
 }
