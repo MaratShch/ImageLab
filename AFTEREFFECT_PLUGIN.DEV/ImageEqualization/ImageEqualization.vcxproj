@@ -142,6 +142,7 @@
     <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />

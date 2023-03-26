@@ -290,6 +290,30 @@ PF_Err AE_ImageStyle_PointillismArt_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err PR_ImageStyle_CubismArt
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+
+PF_Err AE_ImageStyle_CubismArt_ARGB_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_CubismArt_ARGB_16u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
 
 PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
 (

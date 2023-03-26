@@ -72,6 +72,9 @@
     <ClInclude Include="include\ImageLUT.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageEqualization.cpp">

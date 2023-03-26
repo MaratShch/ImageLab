@@ -59,6 +59,9 @@ PF_Err ProcessImgInPR
 			err = PR_ImageStyle_MosaicArt (in_data, out_data, params, output);
 		break;
 
+		case eSTYLE_CUBISM:
+		break;
+
 		case eSTYLE_NONE:
 		default:
 			err = PF_COPY(&params[IMAGE_STYLE_INPUT]->u.ld, output, NULL, NULL);

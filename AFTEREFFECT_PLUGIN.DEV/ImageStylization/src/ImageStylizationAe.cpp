@@ -59,6 +59,10 @@ PF_Err ImageStyleInAE_8bits
 			err = AE_ImageStyle_MosaicArt_ARGB_8u (in_data, out_data, params, output);
 		break;
 
+		case eSTYLE_CUBISM:
+			err = AE_ImageStyle_CubismArt_ARGB_8u (in_data, out_data, params, output);
+		break;
+
 		case eSTYLE_NONE:
 		default:
 			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->
@@ -126,6 +130,10 @@ PF_Err ImageStyleInAE_16bits
 
 		case eSTYLE_MOSAIC:
 			err = AE_ImageStyle_MosaicArt_ARGB_16u (in_data, out_data, params, output);
+		break;
+
+		case eSTYLE_CUBISM:
+			err = AE_ImageStyle_CubismArt_ARGB_16u (in_data, out_data, params, output);
 		break;
 
 		case eSTYLE_NONE:
