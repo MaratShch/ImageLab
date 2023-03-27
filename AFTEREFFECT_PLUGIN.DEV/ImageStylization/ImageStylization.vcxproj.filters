@@ -149,7 +149,7 @@
     <ClCompile Include="src\ImageStyle_UtilsLibLink.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageStyle_CubsimArt.cpp">
+    <ClCompile Include="src\ImageStyle_CubismArt.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

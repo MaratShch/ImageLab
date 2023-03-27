@@ -166,7 +166,7 @@
     <ClCompile Include="src\ImageStyle_Cartoon.cpp" />
     <ClCompile Include="src\ImageStyle_BufferManagement.cpp" />
     <ClCompile Include="src\ImageStyle_ColorNewsPaper.cpp" />
-    <ClCompile Include="src\ImageStyle_CubsimArt.cpp" />
+    <ClCompile Include="src\ImageStyle_CubismArt.cpp" />
     <ClCompile Include="src\ImageStyle_GlassyEffect.cpp" />
     <ClCompile Include="src\ImageStyle_ImpressionismArt.cpp" />
     <ClCompile Include="src\ImageStyle_MosaicArt.cpp" />

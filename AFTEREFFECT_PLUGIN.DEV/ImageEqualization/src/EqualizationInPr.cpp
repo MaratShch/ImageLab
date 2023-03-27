@@ -301,6 +301,7 @@ PF_Err PR_ImageEq_Sigmoid
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
+				err = PR_ImageEq_Sigmoid_VUYA_4444_32f_709(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_RGB_444_10u:
