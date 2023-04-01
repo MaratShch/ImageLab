@@ -83,6 +83,8 @@ constexpr size_t PF_Pixel_RGB_10u_size   = sizeof(PF_Pixel_RGB_10u);
 
 constexpr A_u_char u8_value_black = 0u;
 constexpr A_u_char u8_value_white = 255u;
+constexpr A_u_short u10_value_black = 0u;
+constexpr A_u_short u10_value_white = 1023u;
 constexpr A_u_short u16_value_black = 0u;
 constexpr A_u_short u16_value_white = 32767u;
 constexpr PF_FpShort f32_value_black = 0.f;

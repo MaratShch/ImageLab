@@ -438,6 +438,13 @@ namespace FastCompute
 		return half * (Exp(x) + Exp(-x));
 	}
 
+	template <typename T>
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type sigmoid (const T& fVal) noexcept
+	{
+		constexpr T one{ 1 };
+		return one / (one + Exp(-fVal));
+	}
+
 
 
 #ifndef __NVCC__

@@ -290,6 +290,7 @@ PF_Err PR_ImageEq_Sigmoid
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
+				err = PR_ImageEq_Sigmoid_BGRA_4444_16u (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
