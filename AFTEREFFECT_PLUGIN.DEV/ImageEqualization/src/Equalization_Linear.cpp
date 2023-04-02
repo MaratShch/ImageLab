@@ -146,14 +146,3 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_32f
 }
 
 
-
-PF_Err PR_ImageEq_Linear_RGB_444_10u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output
-) noexcept
-{
-	return PF_Err_NONE;
-}
