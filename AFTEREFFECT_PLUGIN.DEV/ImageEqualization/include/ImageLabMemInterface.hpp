@@ -5,14 +5,14 @@
 typedef void*  (WINAPI *OpenMemInterface) (void);
 typedef void   (WINAPI *CloseMemInterface)(void* p);
 typedef int32_t(WINAPI *AllocMemBlock)    (void* pMemHandle, int32_t size, int32_t align, void** pMem);
-typedef void   (WINAPI *FreeMemBlock)     (int32_t id);
+typedef void   (WINAPI *FreeMemBlock)     (void* pMemHandle, int32_t id);
 
 typedef struct MemoryManagerInterface
 {
 	OpenMemInterface  MemoryInterfaceOpen;
 	CloseMemInterface MemoryInterfaceClose;
 	AllocMemBlock     MemoryInterfaceAllocBlock;
-	FreeMemBlock      MemoryInterfacReleaseBlock;
+	FreeMemBlock      MemoryInterfaceReleaseBlock;
 	DWORD             _dbgLastError;
 };
 

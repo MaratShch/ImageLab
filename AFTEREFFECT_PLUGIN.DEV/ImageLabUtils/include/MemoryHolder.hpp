@@ -11,12 +11,12 @@
 
 namespace ImageLabMemoryUtils
 {
-	inline const int32_t CreateMemHanler(const int32_t& idx) { return idx  | 0xFF0000; }
-	inline const int32_t CreateBlockIdx(const int32_t& hndl) { return hndl & 0x00FFFF; }
+	inline int32_t CreateMemHanler(int32_t idx) noexcept { return idx  | 0xFF0000; }
+	inline int32_t CreateBlockIdx (int32_t hndl)noexcept { return hndl & 0x00FFFF; }
 
 	constexpr int32_t INVALID_MEMORY_BLOCK = -1;
 
-	class DLL_LINK CMemoryHolder
+	class CMemoryHolder
 	{
 		public:
 			CLASS_NON_COPYABLE(CMemoryHolder);

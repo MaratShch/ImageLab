@@ -4,7 +4,7 @@
 #include <atomic>
 #include "ClassRestrictions.hpp"
 
-class DLL_LINK CSemaphore
+class CSemaphore
 {
 private:
 	HANDLE   m_hSemaphore;

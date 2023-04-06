@@ -11,7 +11,7 @@
 
 namespace ImageLabMemoryUtils
 {
-	class DLL_LINK CMemoryInterface
+	class CMemoryInterface
 	{
 		public:
 		static CMemoryInterface* getInstance()
@@ -40,10 +40,10 @@ namespace ImageLabMemoryUtils
 		CLASS_NON_COPYABLE(CMemoryInterface);
 		CLASS_NON_MOVABLE(CMemoryInterface);
 
+		CMemoryHolder m_MemHolder;
+
 		static std::atomic<CMemoryInterface*> s_instance;
 		static std::mutex s_protectMutex;
-
-		CMemoryHolder m_MemHolder;
 	};
 
 }

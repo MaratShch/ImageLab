@@ -6,7 +6,7 @@
 namespace ImageLabMemoryUtils
 {
 
-	class DLL_LINK CMemoryBlock
+	class CMemoryBlock
 	{
 		public:
 			CMemoryBlock() = default;

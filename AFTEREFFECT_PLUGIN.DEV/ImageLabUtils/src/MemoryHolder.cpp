@@ -84,7 +84,7 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 
 void CMemoryHolder::releaseMemoryBlock (int32_t blockIdx)
 {
-	if (m_HolderCapacity > blockIdx && INVALID_MEMORY_BLOCK != blockIdx)
+	if (INVALID_MEMORY_BLOCK != blockIdx && blockIdx < m_HolderCapacity)
 	{
 		/* lock queue access */
 		std::unique_lock<std::mutex> lock(m_QueueMutualAccess);
@@ -118,12 +118,12 @@ int32_t CMemoryHolder::AllocMemory (uint32_t memSize, void** ptr, const MemOwned
 		*ptr = m_Holder[blockId]->getMemPtr();
 	}
 
-	return ::CreateMemHanler(blockId);
+	return blockId;// ::CreateMemHanler(blockId);
 }
 
 void CMemoryHolder::ReleaseMemory (int32_t blockId)
 {
-	const int32_t Id = ::CreateBlockIdx(blockId);
+	const int32_t Id = blockId;// ::CreateBlockIdx(blockId);
 	releaseMemoryBlock(Id);
 	return;
 }
