@@ -2,7 +2,7 @@
 
 #include "Common.hpp"
 #include "CommonPixFormat.hpp"
-
+#include "Avx2ColorConvert.hpp"
 
 inline void imgLinearLutGenerate
 (
@@ -47,6 +47,47 @@ inline void imgApplyLut
 	}
 	return;
 }
+
+inline void imgApplyLut
+(
+	const PF_Pixel_VUYA_8u* __restrict inSrc,
+	      PF_Pixel_BGRA_8u* __restrict outSrc,
+	const uint32_t* __restrict pLut,
+	const int32_t& sizeX,
+	const int32_t& sizeY,
+	const int32_t& src_line_pitch,
+	const int32_t& dst_line_pitch
+) noexcept
+{
+	namespace ColorCoeff = AVX2::ColorConvert::InternalColorConvert;
+	constexpr int32_t value_black = static_cast<int32_t>(u8_value_black);
+	constexpr int32_t value_white = static_cast<int32_t>(u8_value_white);
+
+	for (int32_t j = 0; j < sizeY; j++)
+	{
+		const PF_Pixel_VUYA_8u* __restrict lineSrcPtr = inSrc  + j * src_line_pitch;
+		      PF_Pixel_BGRA_8u* __restrict lineDstPtr = outSrc + j * dst_line_pitch;
+
+		__VECTOR_ALIGNED__
+		for (int32_t i = 0; i < sizeX; i++)
+		{
+			const int32_t newY = static_cast<int32_t>(pLut[lineSrcPtr[i].Y]);
+			const int32_t U    = static_cast<int32_t>(inSrc[i].U);
+			const int32_t V    = static_cast<int32_t>(inSrc[i].V);
+
+			const int32_t R = (newY * ColorCoeff::rY + U * ColorCoeff::rU + V * ColorCoeff::rV) >> ColorCoeff::Shift;
+			const int32_t G = (newY * ColorCoeff::gY + U * ColorCoeff::gU + V * ColorCoeff::gV) >> ColorCoeff::Shift;
+			const int32_t B = (newY * ColorCoeff::bY + U * ColorCoeff::bU + V * ColorCoeff::bV) >> ColorCoeff::Shift;
+
+			lineDstPtr[i].B = static_cast<uint8_t>(CLAMP_VALUE(B, value_black, value_white));
+			lineDstPtr[i].G = static_cast<uint8_t>(CLAMP_VALUE(G, value_black, value_white));
+			lineDstPtr[i].R = static_cast<uint8_t>(CLAMP_VALUE(R, value_black, value_white));
+			lineDstPtr[i].A = inSrc[i].A;
+		}
+	}
+	return;
+}
+
 
 inline void imgApplyLut
 (

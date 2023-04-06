@@ -57,4 +57,3 @@ inline void imgHistogramCumSum
 		out[i] = (in[i] > noiseThreashold ? 1u : 0u) + out[i - 1];
 	return;
 }
-

@@ -358,7 +358,7 @@ void AVX2::Histogram::make_luma_histogram_VUYA4444_32f
 			__m256i cVal1 = _mm256_cvtps_epi32(fVal1);
 			__m256i cVal2 = _mm256_cvtps_epi32(fVal2);
 
-			histY[0][_mm256_extract_epi32(cVal1, 2) ]++;
+			histY[0][_mm256_extract_epi32(cVal1, 2)]++;
 			histY[1][_mm256_extract_epi32(cVal2, 2)]++;
 			histY[0][_mm256_extract_epi32(cVal1, 6)]++;
 			histY[1][_mm256_extract_epi32(cVal2, 6)]++;

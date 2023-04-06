@@ -16,7 +16,7 @@ namespace ImageLabMemoryUtils
 
 	constexpr int32_t INVALID_MEMORY_BLOCK = -1;
 
-	class CMemoryHolder
+	class DLL_LINK CMemoryHolder
 	{
 		public:
 			CLASS_NON_COPYABLE(CMemoryHolder);
@@ -25,7 +25,7 @@ namespace ImageLabMemoryUtils
 			CMemoryHolder ();
 			virtual ~CMemoryHolder();
 
-			int32_t AllocMemory(uint32_t memSize, void** ptr, const MemOwnedPolicy& = MemOwnedPolicy::MEM_POLICY_NORMAL);
+			int32_t AllocMemory(uint32_t memSize, void** ptr, const MemOwnedPolicy = MemOwnedPolicy::MEM_POLICY_NORMAL);
 			void ReleaseMemory(int32_t blockId);
 
 		private:

@@ -5,7 +5,7 @@
 #include "Avx2Log.hpp"
 #include "Common.hpp"
 #include "CommonPixFormat.hpp"
-
+#include "LibExport.hpp"
 
 namespace AVX2
 {

@@ -11,16 +11,14 @@ CMemoryHolder::CMemoryHolder () :
 	m_Semaphore(m_HolderCapacity)
 {
 	m_TotalAllocated = 0ull;
-	m_BusyBlocks.clear();
-
 	m_Holder.resize(m_HolderCapacity);
+
 	for (int32_t i = 0; i < static_cast<int32_t>(m_HolderCapacity); i++)
 	{
 		m_Holder[i] = new CMemoryBlock;
 		m_FreeBlocks.push_front(i);
 	}
 
-	m_FreeBlocks.shrink_to_fit();
 	return;
 }
 
@@ -86,7 +84,7 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 
 void CMemoryHolder::releaseMemoryBlock (int32_t blockIdx)
 {
-	if (m_HolderCapacity >= blockIdx)
+	if (m_HolderCapacity > blockIdx && INVALID_MEMORY_BLOCK != blockIdx)
 	{
 		/* lock queue access */
 		std::unique_lock<std::mutex> lock(m_QueueMutualAccess);
@@ -111,7 +109,7 @@ void CMemoryHolder::releaseMemoryBlock (int32_t blockIdx)
 }
 
 
-int32_t CMemoryHolder::AllocMemory (uint32_t memSize, void** ptr, const MemOwnedPolicy& /* memory policy reserved for future implementation */)
+int32_t CMemoryHolder::AllocMemory (uint32_t memSize, void** ptr, const MemOwnedPolicy /* memory policy reserved for future implementation */)
 {
 	int32_t blockId = INVALID_MEMORY_BLOCK;
 	if (0 != memSize && nullptr != ptr)

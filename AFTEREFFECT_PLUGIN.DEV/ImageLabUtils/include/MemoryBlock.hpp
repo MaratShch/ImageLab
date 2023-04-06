@@ -1,15 +1,16 @@
 #pragma once
 #include <stdint.h>
 #include <type_traits>
+#include "LibExport.hpp"
 
 namespace ImageLabMemoryUtils
 {
 
-	class CMemoryBlock
+	class DLL_LINK CMemoryBlock
 	{
 		public:
-			CMemoryBlock(void);
-			virtual ~CMemoryBlock(void);
+			CMemoryBlock() = default;
+			virtual ~CMemoryBlock(void) { memBlockFree(); };
 
 			bool getMemProperties(void** pMem, uint32_t* pSize, uint32_t* pAlign = nullptr) const noexcept
 			{
@@ -22,8 +23,8 @@ namespace ImageLabMemoryUtils
 				return true;
 			}
 
-			bool memBlockAlloc(uint32_t mSize, uint32_t mAlign = 0u);
-			void memBlockFree(void);
+			bool memBlockAlloc(uint32_t mSize, uint32_t mAlign = 0u) noexcept;
+			void memBlockFree(void) noexcept;
 
 			inline uint32_t getMemSize(void) const noexcept { return m_memorySize; }
 			inline void*    getMemPtr(void)  const noexcept { return m_memoryPtr; }
@@ -58,9 +59,10 @@ namespace ImageLabMemoryUtils
 			}
 
 		private:
-			uint32_t m_memorySize;
-			uint32_t m_alignment;
-			void*    m_memoryPtr;
+			uint32_t m_memorySize = 0;
+			uint32_t m_alignment = 0;
+			void*    m_memoryPtr = nullptr;
 	};
 
 } // namespace ImageLabMemoryUtils;
+

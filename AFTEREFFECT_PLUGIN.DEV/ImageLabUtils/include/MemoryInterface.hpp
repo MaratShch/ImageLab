@@ -8,6 +8,7 @@
 #include "ClassRestrictions.hpp"
 #include "MemoryHolder.hpp"
 
+
 namespace ImageLabMemoryUtils
 {
 	class DLL_LINK CMemoryInterface
@@ -29,12 +30,12 @@ namespace ImageLabMemoryUtils
 			return iMemory;
 		} /* static MemoryInterface* getInstance() */
 
-		int32_t allocMemoryBlock(const int32_t& size, void** pMem, const int32_t& alignment = 0);
+		int32_t allocMemoryBlock(const int32_t size, void** pMem, const int32_t alignment = 0);
 		void releaseMemoryBlock(int32_t id);
 
 		private:
-			CMemoryInterface();
-			~CMemoryInterface();
+			CMemoryInterface() {};
+			~CMemoryInterface(){};
 
 		CLASS_NON_COPYABLE(CMemoryInterface);
 		CLASS_NON_MOVABLE(CMemoryInterface);
@@ -45,5 +46,4 @@ namespace ImageLabMemoryUtils
 		CMemoryHolder m_MemHolder;
 	};
 
-	CMemoryInterface* getMemoryInterface(void) noexcept;
 }

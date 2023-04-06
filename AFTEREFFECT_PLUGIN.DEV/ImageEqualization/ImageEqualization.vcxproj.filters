@@ -75,6 +75,9 @@
     <ClInclude Include="..\Common\CommonTypeTraits.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageEqualization.cpp">
@@ -104,7 +107,10 @@
     <ClCompile Include="src\Equalization_Sigmoid.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\EqualizationFilterAvx2.cpp">
+    <ClCompile Include="src\ImageEqualization_LibLink.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

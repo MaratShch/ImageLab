@@ -1,3 +1,4 @@
+#include <windows.h>
 #include "ImageLabUtils.hpp"
 
 
@@ -6,11 +7,12 @@ BOOL APIENTRY DllMain (HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /
 	switch (ul_reason_for_call)
 	{
 		case DLL_PROCESS_DETACH:
-			/* singletone memory interface object */
-			(void)ImageLabMemoryUtils::getMemoryInterface();
+			ReleaseMemoryHandler(nullptr);
 		break;
 
 		case DLL_PROCESS_ATTACH:
+			/* singletone memory interface object */
+			(void)CreateMemoryHandler();
 		break;
 
 		case DLL_THREAD_ATTACH:

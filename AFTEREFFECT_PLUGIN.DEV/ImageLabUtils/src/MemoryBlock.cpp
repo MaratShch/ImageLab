@@ -1,3 +1,4 @@
+#include <windows.h>
 #include "MemoryBlock.hpp"
 
 using namespace ImageLabMemoryUtils;
@@ -9,14 +10,10 @@ bool CMemoryBlock::memBlockAlloc (uint32_t mSize, uint32_t mAlign)
 
 	if (mSize > 0u)
 	{
-		void* p = nullptr;
-
-		if (0u == mAlign)
-			p = ::malloc(static_cast<size_t>(mSize));
-		else
-			p = ::_aligned_malloc(static_cast<size_t>(mSize), static_cast<size_t>(mAlign));
-
-		if (nullptr != p)
+		const SIZE_T memSize = static_cast<SIZE_T>(mSize);
+		constexpr DWORD allocType = MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN;
+		LPVOID p = VirtualAlloc (NULL, memSize, allocType, PAGE_READWRITE);
+		if (NULL != p)
 		{
 			m_memoryPtr = p;
 			m_memorySize = mSize;
@@ -32,25 +29,10 @@ void CMemoryBlock::memBlockFree(void)
 {
 	if (nullptr != m_memoryPtr && 0u != m_memorySize)
 	{
-		if (0 != m_alignment)
-			::_aligned_free(m_memoryPtr);
-		else
-			::free(m_memoryPtr);
-
+		VirtualFree (m_memoryPtr, 0, MEM_RELEASE);
 		m_memoryPtr = nullptr;
 		m_memorySize = m_alignment = 0;
 	}
 	return;
-}
-
-CMemoryBlock::CMemoryBlock()
-{
-	m_memorySize = m_alignment = 0u;
-	m_memoryPtr = nullptr;
-}
-
-CMemoryBlock::~CMemoryBlock()
-{
-	memBlockFree();
 }
 

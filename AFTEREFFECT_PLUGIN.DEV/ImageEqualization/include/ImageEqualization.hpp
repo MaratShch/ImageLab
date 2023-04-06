@@ -3,6 +3,11 @@
 #include "CommonAdobeAE.hpp"
 #include "ImageEqualizationEnums.hpp"
 #include "ImageEqualizationFuncProto.hpp"
+#include "ImageLabMemInterface.hpp"
+
+bool LoadMemoryInterfaceProvider(int32_t appId, int32_t major, int32_t minor = 0);
+int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem);
+void FreeMemoryBlock (int32_t id);
 
 
 constexpr char strName[] = "Image Equalization";
@@ -32,7 +37,6 @@ constexpr char STR_EQ_DARK_SLIDER[]     = "Dark channel details";
 constexpr char STR_EQ_LIGHT_SLIDER[]    = "Light channel details";
 constexpr char STR_EQ_PEDESTAL_SLIDER[] = "Dark pedestal";
 constexpr char STR_EQ_CHECKBOX_FLICK[]  = "Flicker removing";
-
 
 /* FUNCTION PROTOTYPES */
 PF_Err ProcessImgInPR

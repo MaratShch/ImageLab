@@ -5,6 +5,26 @@ namespace AVX2
 {
 	namespace ColorConvert
 	{
+		void BGRA8u_to_VUYA8u
+		(
+			const PF_Pixel_BGRA_8u* __restrict pSrcImage,
+			PF_Pixel_VUYA_8u* __restrict pDstImage,
+			A_long sizeX,
+			A_long sizeY,
+			A_long linePitch
+		) noexcept;
+
+		void VUYA8u_to_BGRA8u
+		(
+			const PF_Pixel_VUYA_8u* __restrict pSrcImage,
+			PF_Pixel_BGRA_8u* __restrict pDstImage,
+			A_long sizeX,
+			A_long sizeY,
+			A_long linePitch
+		) noexcept;
+
+		static constexpr size_t Avx2BitsSize = 256;
+		static constexpr size_t Avx2BytesSize = Avx2BitsSize / 8;
 
 		namespace InternalColorConvert
 		{
@@ -180,6 +200,102 @@ namespace AVX2
 		} /* inline __m256i Convert_bgra2vuya_8u (const __m256i& bgraX8) noexcept */
 
 
+		inline __m256i Convert_bgra2vuya_8u (const __m256i& bgraX8, const __m256i& errCorr, const __m256i& coeffY, const __m256i& coeffU, const __m256i& coeffV) noexcept
+		{
+			/* extract 4 low pixels from uint8_t to int16_t */
+			__m256i bgra03 = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(bgraX8, 0));
+			/* extract 4 high pixels from uint8_t to int16_t */
+			__m256i bgra47 = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(bgraX8, 1));
+
+			/* COMPUTE Y COMPONENT */
+			/* DOT operation for pixels 0 - 3:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
+			__m256i dotY1 = _mm256_madd_epi16(bgra03, coeffY);
+			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
+			__m256i dotY2 = _mm256_madd_epi16(bgra47, coeffY);
+
+			/* SUM between DOT elements */
+			__m256i addDotsY1 = _mm256_add_epi32(dotY1, _mm256_slli_epi64(dotY1, 32));
+			__m256i addDotsY2 = _mm256_add_epi32(dotY2, _mm256_slli_epi64(dotY2, 32));
+
+			/* final shift for get Y value: normalize ariphmetic result */
+			__m256i Y03 = _mm256_srai_epi32(addDotsY1, InternalColorConvert::Shift);
+			__m256i Y47 = _mm256_srai_epi32(addDotsY2, InternalColorConvert::Shift);
+
+			/* COMPUTE U COMPONENT */
+			/* DOT operation for pixels 0 - 3:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
+			__m256i dotU1 = _mm256_madd_epi16(bgra03, coeffU);
+			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
+			__m256i dotU2 = _mm256_madd_epi16(bgra47, coeffU);
+
+			/* SUM between DOT elements */
+			__m256i addDotsU1 = _mm256_add_epi32(dotU1, _mm256_slli_epi64(dotU1, 32));
+			__m256i addDotsU2 = _mm256_add_epi32(dotU2, _mm256_slli_epi64(dotU2, 32));
+
+			/* final shift for get Y value: normalize ariphmetic result */
+			__m256i U03 = _mm256_srai_epi32(addDotsU1, InternalColorConvert::Shift);
+			__m256i U47 = _mm256_srai_epi32(addDotsU2, InternalColorConvert::Shift);
+
+			/* COMPUTE V COMPONENT */
+			__m256i dotV1 = _mm256_madd_epi16(bgra03, coeffV);
+			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
+			__m256i dotV2 = _mm256_madd_epi16(bgra47, coeffV);
+
+			/* SUM between DOT elements */
+			__m256i addDotsV1 = _mm256_add_epi32(dotV1, _mm256_slli_epi64(dotV1, 32));
+			__m256i addDotsV2 = _mm256_add_epi32(dotV2, _mm256_slli_epi64(dotV2, 32));
+
+			/* final shift for get Y value: normalize ariphmetic result */
+			__m256i V03 = _mm256_srai_epi32(addDotsV1, InternalColorConvert::Shift);
+			__m256i V47 = _mm256_srai_epi32(addDotsV2, InternalColorConvert::Shift);
+
+			/* final PACK to VUYA vector */
+			/* compine all Y values to single vector 32 bits */
+			const __m256i& permute_idx = _mm256_setr_epi32(1, 3, 5, 7, 0, 2, 4, 6);
+			const __m256i& addUV = _mm256_setr_epi32(128, 128, 128, 128, 128, 128, 128, 128);
+			__m256i Y = _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(Y03, permute_idx), _mm256_permutevar8x32_epi32(Y47, permute_idx), 0x20);
+			__m256i U = _mm256_add_epi32(addUV, _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(U03, permute_idx), _mm256_permutevar8x32_epi32(U47, permute_idx), 0x20));
+			__m256i V = _mm256_add_epi32(addUV, _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(V03, permute_idx), _mm256_permutevar8x32_epi32(V47, permute_idx), 0x20));
+
+			/* prepare Y [set Y value on cpecific byte positions] */
+			Y = _mm256_shuffle_epi8(Y,
+				_mm256_setr_epi8(
+					128, 128, 0, 128,
+					128, 128, 4, 128,
+					128, 128, 8, 128,
+					128, 128, 12, 128,
+					128, 128, 16, 128,
+					128, 128, 20, 128,
+					128, 128, 24, 128,
+					128, 126, 28, 128)
+			);
+
+			/* prepare U [set U value on cpecific byte positions] */
+			U = _mm256_shuffle_epi8(U,
+				_mm256_setr_epi8(
+					128, 0, 128, 128,
+					128, 4, 128, 128,
+					128, 8, 128, 128,
+					128, 12, 128, 128,
+					128, 16, 128, 128,
+					128, 20, 128, 128,
+					128, 24, 128, 128,
+					128, 28, 128, 128)
+			);
+
+			/* compbine V and U component */
+			__m256i VU = _mm256_or_si256(V, U);
+
+			/* combine VU and Y component */
+			__m256i VUY = _mm256_or_si256(VU, Y);
+
+			/* combine VUY with ALPHA channel from source pixel */
+			__m256i VUYA = _mm256_blendv_epi8(bgraX8, VUY,
+				_mm256_setr_epi32(0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF)
+			);
+
+			return VUYA;
+		}
+
 		inline __m256i Convert_vuya2bgra_8u (const __m256i& vuyaX8) noexcept
 		{
 			const __m256i& subVal = _mm256_setr_epi16(
@@ -251,7 +367,7 @@ namespace AVX2
 			__m256i addDotsG2 = _mm256_add_epi32(dorG47, _mm256_slli_epi64(dorG47, 32));
 			__m256i addDotsB2 = _mm256_add_epi32(dorB47, _mm256_slli_epi64(dorB47, 32));
 
-			/* final shift for get R value: normalize ariphmetic result */
+			/* final shift for get R,G,B values: normalize ariphmetic result */
 			__m256i R03 = _mm256_srai_epi32(addDotsR1, InternalColorConvert::Shift);
 			__m256i R47 = _mm256_srai_epi32(addDotsR2, InternalColorConvert::Shift);
 			__m256i G03 = _mm256_srai_epi32(addDotsG1, InternalColorConvert::Shift);

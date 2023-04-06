@@ -1,7 +1,11 @@
 #pragma once
 
 #ifdef _WINDLL
- #define DLL_LINK __declspec(dllexport)
+ #ifdef _IMAGELAB_DLL_LINK 
+  #define DLL_LINK __declspec(dllimport)
+ #else
+  #define DLL_LINK __declspec(dllexport)
+#endif
 #else
  #define DLL_LINK __declspec(dllimport)
 #endif
