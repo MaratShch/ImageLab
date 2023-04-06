@@ -72,8 +72,8 @@ inline void imgApplyLut
 		for (int32_t i = 0; i < sizeX; i++)
 		{
 			const int32_t newY = static_cast<int32_t>(pLut[lineSrcPtr[i].Y]);
-			const int32_t U    = static_cast<int32_t>(lineSrcPtr[i].U);
-			const int32_t V    = static_cast<int32_t>(lineSrcPtr[i].V);
+			const int32_t U    = static_cast<int32_t>(lineSrcPtr[i].U) - 128;
+			const int32_t V    = static_cast<int32_t>(lineSrcPtr[i].V) - 128;
 
 			const int32_t R = (newY * ColorCoeff::rY + U * ColorCoeff::rU + V * ColorCoeff::rV) >> ColorCoeff::Shift;
 			const int32_t G = (newY * ColorCoeff::gY + U * ColorCoeff::gU + V * ColorCoeff::gV) >> ColorCoeff::Shift;

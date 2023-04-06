@@ -118,12 +118,12 @@ int32_t CMemoryHolder::AllocMemory (uint32_t memSize, void** ptr, const MemOwned
 		*ptr = m_Holder[blockId]->getMemPtr();
 	}
 
-	return blockId;// ::CreateMemHanler(blockId);
+	return ::CreateMemHanler(blockId);
 }
 
 void CMemoryHolder::ReleaseMemory (int32_t blockId)
 {
-	const int32_t Id = blockId;// ::CreateBlockIdx(blockId);
+	const int32_t Id = ::CreateBlockIdx(blockId);
 	releaseMemoryBlock(Id);
 	return;
 }
