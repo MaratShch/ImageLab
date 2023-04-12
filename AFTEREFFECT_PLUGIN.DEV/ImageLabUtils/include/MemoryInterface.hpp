@@ -31,7 +31,8 @@ namespace ImageLabMemoryUtils
 		} /* static MemoryInterface* getInstance() */
 
 		int32_t allocMemoryBlock(const int32_t size, void** pMem, const int32_t alignment = 0);
-		void releaseMemoryBlock(int32_t id);
+		void releaseMemoryBlock (int32_t id);
+		int64_t getMemoryStatistics(void);
 
 		private:
 			CMemoryInterface() {};

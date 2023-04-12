@@ -78,6 +78,9 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageEqualization.cpp">
@@ -87,12 +90,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\EqualizationInPr.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Equalization_DetailsDark.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Equalization_DetailsLight.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Equalization_Exponential.cpp">
@@ -111,6 +108,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\DllMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_Dark.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_Bright.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

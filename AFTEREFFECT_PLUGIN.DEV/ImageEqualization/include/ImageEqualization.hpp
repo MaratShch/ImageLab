@@ -5,9 +5,9 @@
 #include "ImageEqualizationFuncProto.hpp"
 #include "ImageLabMemInterface.hpp"
 
-bool LoadMemoryInterfaceProvider(int32_t appId, int32_t major, int32_t minor = 0);
-int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem);
-void FreeMemoryBlock (int32_t id);
+bool LoadMemoryInterfaceProvider(int32_t appId, int32_t major, int32_t minor = 0) noexcept;
+int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
+void FreeMemoryBlock   (int32_t id) noexcept;
 
 
 constexpr char strName[] = "Image Equalization";
@@ -26,12 +26,12 @@ constexpr int EqualizationFilter_VersionBuild = 1;
 constexpr char STR_EQ_ALGO_POPUP[] = "Equalization Presets";
 
 constexpr char STR_EQ_ALGO_TYPE[] =	"None|"
-                                    "Manual|"
                                     "Linear|" 
-									"Details in dark|"
-									"Details in light|"
+									"Bright|"
+									"Dark|"
 									"Exponential|"
-	                                "Sigmoid";
+	                                "Sigmoid|"
+									"Manual";
 
 constexpr char STR_EQ_DARK_SLIDER[]     = "Dark channel details";
 constexpr char STR_EQ_LIGHT_SLIDER[]    = "Light channel details";

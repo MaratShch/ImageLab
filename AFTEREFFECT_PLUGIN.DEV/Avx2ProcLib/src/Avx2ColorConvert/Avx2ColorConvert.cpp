@@ -70,9 +70,31 @@ void AVX2::ColorConvert::BGRA8u_to_VUYA8u
 
 		/* scalar process for fraction pixels */
 		const PF_Pixel_BGRA_8u* pSrcScalar = reinterpret_cast<const PF_Pixel_BGRA_8u*>(pSrcBufVector);
-		      PF_Pixel_BGRA_8u* pDstScalar = reinterpret_cast<      PF_Pixel_BGRA_8u*>(pDstBufVector);
+		      PF_Pixel_VUYA_8u* pDstScalar = reinterpret_cast<      PF_Pixel_VUYA_8u*>(pDstBufVector);
 		for (A_long x = 0; x < loopFract; x++)
 		{
+			pDstScalar[x].A = pSrcScalar[x].A;
+
+			pDstScalar[x].Y = 
+			(
+				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::yR +
+				static_cast<int32_t>(pSrcScalar[x].G) * InternalColorConvert::yG +
+				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::yB
+			) >> InternalColorConvert::Shift;
+
+			pDstScalar[x].U =
+			(
+				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::uR +
+				static_cast<int32_t>(pSrcScalar[x].G) * InternalColorConvert::uG +
+				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::uB
+			) >> InternalColorConvert::Shift;
+
+			pDstScalar[x].U =
+			(
+				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::vR +
+				static_cast<int32_t>(pSrcScalar[x].G) * InternalColorConvert::vG +
+				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::vB
+			) >> InternalColorConvert::Shift;
 
 		} /* for (A_long x = 0; x < loopFract; x++) */
 	}/* for (y = 0; y < sizeY; y++) */

@@ -144,6 +144,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
+    <ClInclude Include="..\Common\ColorTransform.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
@@ -189,8 +190,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\EqualizationInAe.cpp" />
     <ClCompile Include="src\EqualizationInPr.cpp" />
-    <ClCompile Include="src\Equalization_DetailsDark.cpp" />
-    <ClCompile Include="src\Equalization_DetailsLight.cpp" />
+    <ClCompile Include="src\Equalization_Bright.cpp" />
+    <ClCompile Include="src\Equalization_Dark.cpp" />
     <ClCompile Include="src\Equalization_Exponential.cpp" />
     <ClCompile Include="src\Equalization_Linear.cpp" />
     <ClCompile Include="src\Equalization_Manual.cpp" />

@@ -23,6 +23,7 @@ inline void imgHistogram
 	return;
 }
 
+
 inline void imgHistogram
 (
 	const PF_Pixel_VUYA_32f* __restrict srcImage,

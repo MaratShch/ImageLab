@@ -34,11 +34,15 @@ int32_t AllocMemoryBlock (void* pMemHandle, int32_t size, int32_t align, void** 
 }
 
 
-void ReleaseMemoryBlock(void* pMemHandle, int32_t id)
+void ReleaseMemoryBlock (void* pMemHandle, int32_t id)
 {
 	ImageLabMemoryUtils::CMemoryInterface* p = reinterpret_cast<ImageLabMemoryUtils::CMemoryInterface*>(pMemHandle);
 	if (nullptr != p)
 		p->releaseMemoryBlock(id);
 }
 
-
+int64_t GetMemoryStatistics (void* pMemHandle)
+{
+	ImageLabMemoryUtils::CMemoryInterface* p = reinterpret_cast<ImageLabMemoryUtils::CMemoryInterface*>(pMemHandle);
+	return (nullptr != p) ? p->getMemoryStatistics() : -1LL;
+}

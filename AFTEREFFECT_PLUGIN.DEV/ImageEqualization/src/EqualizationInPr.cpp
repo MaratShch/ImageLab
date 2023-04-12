@@ -109,7 +109,7 @@ PF_Err PR_ImageEq_Linear
 }
 
 
-PF_Err PR_ImageEq_DetailsDark
+PF_Err PR_ImageEq_Bright
 (
 	PF_InData*    in_data,
 	PF_OutData*   out_data,
@@ -126,23 +126,35 @@ PF_Err PR_ImageEq_DetailsDark
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
+				err = PR_ImageEq_Bright_BGRA_4444_8u (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
+				err = PR_ImageEq_Bright_BGRA_4444_16u (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
+				err = PR_ImageEq_Bright_BGRA_4444_32f (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u:
+				err = PR_ImageEq_Bright_VUYA_4444_8u (in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_8u_709:
+				err = PR_ImageEq_Bright_VUYA_4444_8u_709 (in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:
+				err = PR_ImageEq_Bright_VUYA_4444_32f (in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_32f_709:
+				err = PR_ImageEq_Bright_VUYA_4444_32f_709 (in_data, out_data, params, output);
 			break;
 
 			default:
+				err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
 			break;
 		} /* switch (destinationPixelFormat) */
 
@@ -157,7 +169,7 @@ PF_Err PR_ImageEq_DetailsDark
 }
 
 
-PF_Err PR_ImageEq_DetailsLight
+PF_Err PR_ImageEq_Dark
 (
 	PF_InData*    in_data,
 	PF_OutData*   out_data,
@@ -174,23 +186,35 @@ PF_Err PR_ImageEq_DetailsLight
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
+				err = PR_ImageEq_Dark_BGRA_4444_8u(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
+				err = PR_ImageEq_Dark_BGRA_4444_16u(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
+				err = PR_ImageEq_Dark_BGRA_4444_32f(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u:
+				err = PR_ImageEq_Dark_VUYA_4444_8u(in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_8u_709:
+				err = PR_ImageEq_Dark_VUYA_4444_8u_709(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:
+				err = PR_ImageEq_Dark_VUYA_4444_32f(in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_32f_709:
+				err = PR_ImageEq_Dark_VUYA_4444_32f_709(in_data, out_data, params, output);
 			break;
 
 			default:
+				err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
 			break;
 		} /* switch (destinationPixelFormat) */
 
@@ -328,12 +352,12 @@ PF_Err ProcessImgInPR
 			PR_ImageEq_Linear (in_data, out_data, params, output);
 		break;
 
-		case IMAGE_EQ_DETAILS_DARK:
-			PR_ImageEq_DetailsDark (in_data, out_data, params, output);
+		case IMAGE_EQ_BRIGHT:
+			PR_ImageEq_Bright (in_data, out_data, params, output);
 		break;
 
-		case IMAGE_EQ_DETAILS_LIGHT:
-			PR_ImageEq_DetailsLight (in_data, out_data, params, output);
+		case IMAGE_EQ_DARK:
+			PR_ImageEq_Dark (in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_EXPONENTIAL:

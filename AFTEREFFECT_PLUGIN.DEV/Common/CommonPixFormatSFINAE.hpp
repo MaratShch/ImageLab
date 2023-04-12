@@ -32,7 +32,8 @@ class is_YUV_proc
 	*/
 	template <typename TT,
 		typename std::enable_if<
-		std::is_same<TT, PF_Pixel_VUYA_8u>::value ||
+		std::is_same<TT, PF_Pixel_VUYA_8u>::value  ||
+		std::is_same<TT, PF_Pixel_VUYA_16u>::value ||
 		std::is_same<TT, PF_Pixel_VUYA_32f>::value>::type* = nullptr>
 		static auto test(int)->std::true_type;
 

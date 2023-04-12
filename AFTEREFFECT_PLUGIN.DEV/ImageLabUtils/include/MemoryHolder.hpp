@@ -28,11 +28,17 @@ namespace ImageLabMemoryUtils
 			int32_t AllocMemory(uint32_t memSize, void** ptr, const MemOwnedPolicy = MemOwnedPolicy::MEM_POLICY_NORMAL);
 			void ReleaseMemory(int32_t blockId);
 
+			const int64_t GetTotalAllocatedMem (void) const
+			{
+				const int64_t totalBytes{ m_TotalAllocated };
+				return totalBytes;
+			}
+
 		private:
 			int32_t searchMemoryBlock (uint32_t reqSize = 0);
-			void releaseMemoryBlock(int32_t blockIdx);
+			void releaseMemoryBlock (int32_t blockIdx);
 
-			uint32_t m_HolderCapacity;
+			const uint32_t m_HolderCapacity;
 			std::atomic<uint64_t> m_TotalAllocated;
 			std::mutex m_QueueMutualAccess;
 			std::deque<int32_t> m_FreeBlocks;

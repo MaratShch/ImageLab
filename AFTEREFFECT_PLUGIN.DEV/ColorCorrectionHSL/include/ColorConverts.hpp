@@ -39,7 +39,7 @@ inline void sRgb2hsl(const float& R, const float& G, const float& B, float& H, f
 	}
 	else
 	{
-		auto const& subMaxMin = maxVal - minVal;
+		auto const subMaxMin = maxVal - minVal;
 		saturation = (100.0f * subMaxMin) / ((luminance < 50.0f) ? sumMaxMin : (2.0f - sumMaxMin));
 		if (R == maxVal)
 			hue = (60.0f * (G - B)) / subMaxMin;

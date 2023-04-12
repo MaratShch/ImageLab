@@ -5,6 +5,7 @@
 #include "Avx2Histogram.hpp"
 #include "Avx2MiscUtils.hpp"
 #include "ImageLabUtils.hpp"
+#include "ColorTransform.hpp"
 
 
 PF_Err PR_ImageEq_Linear_VUYA_4444_8u_709
@@ -21,7 +22,6 @@ PF_Err PR_ImageEq_Linear_VUYA_4444_8u_709
 	CACHE_ALIGN uint32_t histIn [histSize]{};
 	CACHE_ALIGN uint32_t histOut[histSize]{};
 	CACHE_ALIGN uint32_t histBin[histSize]{};
-	CACHE_ALIGN uint32_t cumSum [histSize]{};
 	CACHE_ALIGN uint32_t lut    [histSize]{};
 
 	const PF_LayerDef*      __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
@@ -127,11 +127,10 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_8u
 	constexpr int32_t histSize = u8_value_white + 1;
 	constexpr int32_t noiseLevel = 1;
 
-	CACHE_ALIGN uint32_t histIn[histSize]{};
+	CACHE_ALIGN uint32_t histIn [histSize]{};
 	CACHE_ALIGN uint32_t histOut[histSize]{};
 	CACHE_ALIGN uint32_t histBin[histSize]{};
-	CACHE_ALIGN uint32_t cumSum[histSize]{};
-	CACHE_ALIGN uint32_t lut[histSize]{};
+	CACHE_ALIGN uint32_t lut    [histSize]{};
 
 	const PF_LayerDef*      __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
@@ -146,18 +145,17 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_8u
 
 	/* Get memory block */
 	void* pMemoryBlock = nullptr;
-	const int32_t blockId = GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
+	const int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
 
 	if (-1 != blockId && nullptr != pMemoryBlock)
 	{
 		PF_Pixel_VUYA_8u* __restrict pSrcYUV = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemoryBlock);
-		/* becuase we have a negative line pitch in source - let's get pointer on the last line in temporary buffer */
+		/* let's chek if we have negative line pitch */
 		const int32_t startOffset = ((line_pitch < 0) ? frameSize + line_pitch : 0);
 		pSrcYUV += startOffset;
 
 		/* convert BGRA image to VUYA image format */
 		AVX2::ColorConvert::BGRA8u_to_VUYA8u (localSrc, pSrcYUV, width, height, line_pitch);
-
 		/* create histogram of the luminance channel */
 		AVX2::Histogram::make_luma_histogram_VUYA4444_8u (pSrcYUV, histIn, histSize, width, height, line_pitch);
 		/* make histogram binarization */
@@ -172,7 +170,7 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_8u
 		/* apply LUT to the image */
 		imgApplyLut (pSrcYUV, localDst, lut, width, height, line_pitch, line_pitch);
 
-		FreeMemoryBlock (blockId);
+		::FreeMemoryBlock (blockId);
 		errCode = PF_Err_NONE;
 	}/* if (nullptr != pMemInstance) */
 
@@ -201,4 +199,107 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_32f
 	return PF_Err_NONE;
 }
 
+PF_Err AE_ImageEq_Linear_ARGB_4444_8u
+(
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
+) noexcept
+{
+	constexpr int32_t histSize = u8_value_white + 1;
+	constexpr int32_t noiseLevel = 1;
+	CACHE_ALIGN uint32_t histIn [histSize]{};
+	CACHE_ALIGN uint32_t histOut[histSize]{};
+	CACHE_ALIGN uint32_t histBin[histSize]{};
+	CACHE_ALIGN uint32_t lut    [histSize]{};
 
+	PF_Err errCode = PF_Err_OUT_OF_MEMORY;
+	const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
+	const PF_Pixel_ARGB_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+	      PF_Pixel_ARGB_8u*  __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+	const auto& height = output->height;
+	const auto& width  = output->width;
+	const auto src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	const auto dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+	const size_t frameSize = height * FastCompute::Abs(src_line_pitch);
+	const size_t requiredMemSize = CreateAlignment (frameSize * PF_Pixel_VUYA_8u_size, static_cast<size_t>(CACHE_LINE));
+
+	/* Get memory block */
+	void* pMemoryBlock = nullptr;
+	const int32_t blockId = ::GetMemoryBlock (requiredMemSize, 0, &pMemoryBlock);
+
+	if (-1 != blockId && nullptr != pMemoryBlock)
+	{
+		PF_Pixel_VUYA_8u* __restrict pSrcYUV = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pMemoryBlock);
+		/* let's chek if we have negative line pitch */
+		const int32_t startOffset = ((src_line_pitch < 0) ? frameSize + src_line_pitch : 0);
+		pSrcYUV += startOffset;
+
+		constexpr int32_t subtractor = 128;
+		imgRGB2YUV (localSrc, pSrcYUV, BT709, width, height, src_line_pitch, dst_line_pitch, subtractor);
+
+		/* create histogram of the luminance channel */
+		AVX2::Histogram::make_luma_histogram_VUYA4444_8u(pSrcYUV, histIn, histSize, width, height, src_line_pitch);
+		/* make histogram binarization */
+		AVX2::Histogram::make_histogram_binarization(histIn, histBin, histSize, noiseLevel);
+		/* make cumulative SUM of binary histogram elements */
+		AVX2::MiscUtils::cum_sum_uint32 (histBin, histOut, histSize);
+		/* generate LUT */
+		constexpr int32_t lastHistElem = histSize - 1;
+		const float coeff = static_cast<float>(lastHistElem) / static_cast<float>(histOut[lastHistElem]);
+		AVX2::MiscUtils::generate_lut_uint32(histOut, lut, coeff, histSize);
+
+		/* apply LUT to the image */
+		imgApplyLut (pSrcYUV, localDst, lut, width, height, src_line_pitch, dst_line_pitch);
+
+		::FreeMemoryBlock(blockId);
+		errCode = PF_Err_NONE;
+	}
+
+	return errCode;
+}
+
+
+PF_Err AE_ImageEq_Linear_ARGB_4444_16u
+(
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
+) noexcept
+{
+	A_long i, j;
+	PF_Err errCode = PF_Err_OUT_OF_MEMORY;
+	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
+	PF_Pixel_ARGB_16u*  __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input->data);
+	PF_Pixel_ARGB_16u*  __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+	const auto& height = output->height;
+	const auto& width  = output->width;
+	const auto src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	const auto dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+
+	const size_t frameSize = height * FastCompute::Abs(src_line_pitch);
+	const size_t requiredMemSize = CreateAlignment (frameSize * PF_Pixel_VUYA_16u_size, static_cast<size_t>(CACHE_LINE));
+
+	/* Get memory block */
+	void* pMemoryBlock = nullptr;
+	const int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
+
+	if (-1 != blockId && nullptr != pMemoryBlock)
+	{
+		PF_Pixel_VUYA_16u* __restrict pSrcYUV = reinterpret_cast<PF_Pixel_VUYA_16u* __restrict>(pMemoryBlock);
+		/* because we have a negative line pitch in source - let's get pointer on the last line in temporary buffer */
+		const int32_t startOffset = ((src_line_pitch < 0) ? frameSize + src_line_pitch : 0);
+		pSrcYUV += startOffset;
+
+		imgRGB2YUV (localSrc, pSrcYUV, BT709, width, height, src_line_pitch, dst_line_pitch);
+
+		errCode = PF_Err_NONE;
+	}
+
+	return errCode;
+}
