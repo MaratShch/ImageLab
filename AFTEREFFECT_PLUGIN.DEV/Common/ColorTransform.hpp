@@ -24,7 +24,7 @@ void imgRGB2YUV
 	for (int32_t j = 0; j < sizeY; j++)
 	{
 		const T* __restrict pSrcLine = srcImage + j * src_line_pitch;
-		U* __restrict pDstLine = dstImage + j * dst_line_pitch;
+		      U* __restrict pDstLine = dstImage + j * dst_line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (int32_t i = 0; i < sizeX; i++)
@@ -48,9 +48,26 @@ inline void imgYUV2RGB
 	int32_t sizeX,
 	int32_t sizeY,
 	int32_t src_line_pitch,
-	int32_t dst_line_pitch
+	int32_t dst_line_pitch,
+	int32_t addendum 
 ) noexcept
 {
+	const float* __restrict colorMatrix = YUV2RGB[transformSpace];
+
+	for (int32_t j = 0; j < sizeY; j++)
+	{
+		const T* __restrict pSrcLine = srcImage + j * src_line_pitch;
+		      U* __restrict pDstLine = dstImage + j * dst_line_pitch;
+
+		__VECTOR_ALIGNED__
+		for (int32_t i = 0; i < sizeX; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = pSrcLine[i].Y * colorMatrix[0] + pSrcLine[i].U * colorMatrix[1] + pSrcLine[i].V * colorMatrix[2];
+			pDstLine[i].G = pSrcLine[i].Y * colorMatrix[3] + pSrcLine[i].U * colorMatrix[4] + pSrcLine[i].V * colorMatrix[5] + addendum;
+			pDstLine[i].B = pSrcLine[i].Y * colorMatrix[6] + pSrcLine[i].U * colorMatrix[7] + pSrcLine[i].V * colorMatrix[8] + addendum;
+		}
+	}
 	return;
 }
 

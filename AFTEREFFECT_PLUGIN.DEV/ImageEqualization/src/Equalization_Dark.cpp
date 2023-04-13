@@ -271,7 +271,7 @@ PF_Err AE_ImageEq_Dark_ARGB_4444_8u
 	const float* __restrict yuv2rgb = YUV2RGB[BT709];
 
 	const auto& height = output->height;
-	const auto& width = output->width;
+	const auto& width  = output->width;
 	const auto src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	const auto dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 

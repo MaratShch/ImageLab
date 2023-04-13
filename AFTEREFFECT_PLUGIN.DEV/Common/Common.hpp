@@ -40,6 +40,7 @@ static inline void AEFX_CLR_STRUCT_EX(T& str) noexcept
 	memset (static_cast<void*>(&str), 0, sizeof(T));
 }
 
+
 template <typename T>
 inline void Image_SimpleCopy
 (
@@ -53,10 +54,9 @@ inline void Image_SimpleCopy
 {
 	for (int32_t j = 0; j < height; j++)
 	{
-		for (int32_t i = 0; i < width; i++)
-		{
-			dstBuffer[j * dst_line_pitch + width] = srcBuffer[j * src_line_pitch + width];
-		}
+		const T* __restrict pSrcLine = srcBuffer + j * src_line_pitch;
+		      T* __restrict pDstLine = dstBuffer + j * dst_line_pitch;
+		for (int32_t i = 0; i < width; i++) { pDstLine[i] = pSrcLine[i]; }
 	}
 	return;
 }
