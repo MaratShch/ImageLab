@@ -97,7 +97,8 @@ inline void imgApplyLut
 	const int32_t& sizeX,
 	const int32_t& sizeY,
 	const int32_t& src_line_pitch,
-	const int32_t& dst_line_pitch
+	const int32_t& dst_line_pitch,
+	const int32_t& subtractor = 0
 ) noexcept
 {
 	namespace ColorCoeff = AVX2::ColorConvert::InternalColorConvert;
@@ -113,8 +114,8 @@ inline void imgApplyLut
 		for (int32_t i = 0; i < sizeX; i++)
 		{
 			const int32_t newY = static_cast<int32_t>(pLut[lineSrcPtr[i].Y]);
-			const int32_t U = static_cast<int32_t>(lineSrcPtr[i].U) - 128;
-			const int32_t V = static_cast<int32_t>(lineSrcPtr[i].V) - 128;
+			const int32_t U = static_cast<int32_t>(lineSrcPtr[i].U) - subtractor;
+			const int32_t V = static_cast<int32_t>(lineSrcPtr[i].V) - subtractor;
 
 			const int32_t R = (newY * ColorCoeff::rY + U * ColorCoeff::rU + V * ColorCoeff::rV) >> ColorCoeff::Shift;
 			const int32_t G = (newY * ColorCoeff::gY + U * ColorCoeff::gU + V * ColorCoeff::gV) >> ColorCoeff::Shift;

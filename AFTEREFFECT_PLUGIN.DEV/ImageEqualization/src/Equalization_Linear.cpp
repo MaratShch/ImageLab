@@ -220,12 +220,14 @@ PF_Err AE_ImageEq_Linear_ARGB_4444_8u
 	const PF_Pixel_ARGB_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
 	      PF_Pixel_ARGB_8u*  __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-    const auto& height = output->height;
-	const auto& width  = output->width;
-	const auto src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-	const auto dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-	const size_t frameSize = height * FastCompute::Abs(src_line_pitch);
+    auto const& height = output->height;
+	auto const& width  = output->width;
+
+	const int32_t yuv_line_pitch = src_line_pitch;
+	const size_t frameSize = height * FastCompute::Abs(yuv_line_pitch);
 	const size_t requiredMemSize = CreateAlignment (frameSize * PF_Pixel_VUYA_8u_size, static_cast<size_t>(CACHE_LINE));
 
 	/* Get memory block */
@@ -239,24 +241,22 @@ PF_Err AE_ImageEq_Linear_ARGB_4444_8u
 		const int32_t startOffset = ((src_line_pitch < 0) ? frameSize + src_line_pitch : 0);
 		pSrcYUV += startOffset;
 
-		constexpr int32_t coeff1 = 128;
-		imgRGB2YUV (localSrc, pSrcYUV, BT709, width, height, src_line_pitch, dst_line_pitch, coeff1);
+		constexpr int32_t convert_addendum = 128;
+		imgRGB2YUV (localSrc, pSrcYUV, BT709, width, height, src_line_pitch, yuv_line_pitch, convert_addendum);
 
 		/* create histogram of the luminance channel */
-//		AVX2::Histogram::make_luma_histogram_VUYA4444_8u(pSrcYUV, histIn, histSize, width, height, src_line_pitch);
+		AVX2::Histogram::make_luma_histogram_VUYA4444_8u(pSrcYUV, histIn, histSize, width, height, src_line_pitch);
 		/* make histogram binarization */
-//		AVX2::Histogram::make_histogram_binarization(histIn, histBin, histSize, noiseLevel);
+		AVX2::Histogram::make_histogram_binarization(histIn, histBin, histSize, noiseLevel);
 		/* make cumulative SUM of binary histogram elements */
-//		AVX2::MiscUtils::cum_sum_uint32 (histBin, histOut, histSize);
+		AVX2::MiscUtils::cum_sum_uint32 (histBin, histOut, histSize);
 		/* generate LUT */
-//		constexpr int32_t lastHistElem = histSize - 1;
-//		const float coeff = static_cast<float>(lastHistElem) / static_cast<float>(histOut[lastHistElem]);
-//		AVX2::MiscUtils::generate_lut_uint32 (histOut, lut, coeff, histSize);
+		constexpr int32_t lastHistElem = histSize - 1;
+		const float coeff = static_cast<float>(lastHistElem) / static_cast<float>(histOut[lastHistElem]);
+		AVX2::MiscUtils::generate_lut_uint32 (histOut, lut, coeff, histSize);
 
 		/* apply LUT to the image */
-//		imgApplyLut (pSrcYUV, localDst, lut, width, height, src_line_pitch, dst_line_pitch);
-
-		imgYUV2RGB (pSrcYUV, localDst, BT709, width, height, src_line_pitch, dst_line_pitch, coeff1);
+		imgApplyLut (pSrcYUV, localDst, lut, width, height, yuv_line_pitch, dst_line_pitch, convert_addendum);
 
 		::FreeMemoryBlock(blockId);
 		errCode = PF_Err_NONE;
