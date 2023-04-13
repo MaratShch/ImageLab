@@ -1,7 +1,7 @@
 REM https://stackoverflow.com/questions/14932315/how-to-compile-qt-5-under-windows-or-linux-32-or-64-bit-static-or-dynamic-on-v
 REM QT sources: http://download.qt.io/official_releases/
 
-set QT_VERSION=5.15.8
+set QT_VERSION=5.15.9
 rm -fr %QT_VERSION%_build
  
 cls
