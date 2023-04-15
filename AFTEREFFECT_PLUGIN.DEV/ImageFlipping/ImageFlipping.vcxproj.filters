@@ -14,11 +14,14 @@
       <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
     <Filter Include="include_common">
-      <UniqueIdentifier>{82b06d19-8abe-4105-9db1-7e37d93a8bf2}</UniqueIdentifier>
+      <UniqueIdentifier>{3baaacd1-18d6-4a26-84cd-288ce9fe7173}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
@@ -30,10 +33,19 @@
     <ClInclude Include="..\Common\CommonAdobeAE.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
     <ClInclude Include="..\Common\CommonDebugUtils.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\CommonPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\CompileTimeUtils.hpp">
@@ -45,59 +57,11 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="..\Common\Param_Utils.h">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="include\MedianFilter.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\MedianFilterEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\MedianFilterAvx2.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\ColorTransform.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\MedianFilter.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\MedianFilterInAe.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\MedianFilterInPr.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\MedianFilterAvx2.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\MedianFilterConstantTime.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="MedianFilter.rc">
-      <Filter>resource</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="MedianFilter.r">
-      <Filter>resource</Filter>
-    </CustomBuild>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

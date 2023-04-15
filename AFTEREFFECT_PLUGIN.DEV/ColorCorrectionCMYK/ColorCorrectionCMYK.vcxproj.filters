@@ -98,6 +98,18 @@
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\LibExport.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorCorrectionCMYK.rc">

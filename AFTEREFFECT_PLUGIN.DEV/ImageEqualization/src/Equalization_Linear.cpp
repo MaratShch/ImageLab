@@ -274,33 +274,58 @@ PF_Err AE_ImageEq_Linear_ARGB_4444_16u
 	PF_LayerDef*  output
 ) noexcept
 {
-	A_long i, j;
+	constexpr int32_t histSize = u16_value_white + 1;
+	constexpr int32_t noiseLevel = 1;
+
+	CACHE_ALIGN uint32_t histIn [histSize]{};
+	CACHE_ALIGN uint32_t histOut[histSize]{};
+	CACHE_ALIGN uint32_t histBin[histSize]{};
+	CACHE_ALIGN uint32_t lut    [histSize]{};
+
 	PF_Err errCode = PF_Err_OUT_OF_MEMORY;
-	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
-	PF_Pixel_ARGB_16u*  __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input->data);
-	PF_Pixel_ARGB_16u*  __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
+	const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
+	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-	const auto& height = output->height;
-	const auto& width  = output->width;
-	const auto src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-	const auto dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-	const size_t frameSize = height * FastCompute::Abs(src_line_pitch);
-	const size_t requiredMemSize = CreateAlignment (frameSize * PF_Pixel_VUYA_16u_size, static_cast<size_t>(CACHE_LINE));
+	auto const& height = output->height;
+	auto const& width  = output->width;
+
+	const int32_t yuv_line_pitch = src_line_pitch;
+	const size_t frameSize = height * FastCompute::Abs(yuv_line_pitch);
+	const size_t requiredMemSize = CreateAlignment(frameSize * PF_Pixel_VUYA_16u_size, static_cast<size_t>(CACHE_LINE));
 
 	/* Get memory block */
 	void* pMemoryBlock = nullptr;
-	const int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
+	const int32_t blockId = ::GetMemoryBlock (requiredMemSize, 0, &pMemoryBlock);
 
 	if (-1 != blockId && nullptr != pMemoryBlock)
 	{
 		PF_Pixel_VUYA_16u* __restrict pSrcYUV = reinterpret_cast<PF_Pixel_VUYA_16u* __restrict>(pMemoryBlock);
-		/* because we have a negative line pitch in source - let's get pointer on the last line in temporary buffer */
+		/* let's chek if we have negative line pitch */
 		const int32_t startOffset = ((src_line_pitch < 0) ? frameSize + src_line_pitch : 0);
 		pSrcYUV += startOffset;
 
-		imgRGB2YUV (localSrc, pSrcYUV, BT709, width, height, src_line_pitch, dst_line_pitch);
+		constexpr int32_t convert_addendum = 16384;
+		imgRGB2YUV(localSrc, pSrcYUV, BT709, width, height, src_line_pitch, yuv_line_pitch, convert_addendum);
 
+		/* create histogram of the luminance channel (require AVX2 implementation in future) */
+		imgHistogram (pSrcYUV, width, height, src_line_pitch, histIn);
+		/* make histogram binarization */
+		AVX2::Histogram::make_histogram_binarization (histIn, histBin, histSize, noiseLevel);
+		/* make cumulative SUM of binary histogram elements */
+		AVX2::MiscUtils::cum_sum_uint32 (histBin, histOut, histSize);
+		/* generate LUT */
+		constexpr int32_t lastHistElem = histSize - 1;
+		const float coeff = static_cast<float>(lastHistElem) / static_cast<float>(histOut[lastHistElem]);
+		AVX2::MiscUtils::generate_lut_uint32(histOut, lut, coeff, histSize);
+
+		/* apply LUT to the image */
+		imgApplyLut (pSrcYUV, localDst, lut, width, height, yuv_line_pitch, dst_line_pitch, convert_addendum);
+
+		::FreeMemoryBlock(blockId);
 		errCode = PF_Err_NONE;
 	}
 

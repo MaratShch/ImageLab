@@ -77,6 +77,21 @@
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\LibExport.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ColorizeMe.r">
