@@ -1,9 +1,5 @@
 #include "AutomaticWhiteBalance.hpp"
-#include "AlgMemoryHandler.hpp"
-#include <mutex>
 
-// add temporal solution till implementation memory storage
-std::mutex gBufferProtect;
 
 static PF_Err
 About(
@@ -30,6 +26,8 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+	LoadMemoryInterfaceProvider (in_data->appl_id, in_data->version.major, in_data->version.minor);
+
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
@@ -67,9 +65,7 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 	}
 
-	/* pre-allocate double buffer for 1080p video */
-	constexpr size_t memBytesSizeFor1080 = 1920 * 1080 * sizeof(PF_Pixel8);
-	return (true == getMemoryHandler()->MemInit(memBytesSizeFor1080) ? PF_Err_NONE : PF_Err_OUT_OF_MEMORY);
+	return PF_Err_NONE;
 }
 
 
@@ -170,7 +166,6 @@ Render (
 		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 		{
-			const std::lock_guard<std::mutex> lock(gBufferProtect);
 			err = ProcessImgInPR (in_data, out_data, params, output, destinationPixelFormat);
 		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
 		else
@@ -183,7 +178,6 @@ Render (
 	else
 	{
 		/* This plugin called from AE */
-		const std::lock_guard<std::mutex> lock(gBufferProtect);
 		err = ProcessImgInAE (in_data, out_data, params, output);
 	}
 

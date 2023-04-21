@@ -1,4 +1,3 @@
-#include "AlgMemoryHandler.hpp"
 #include "ColorTransformMatrix.hpp"
 #include "FastAriphmetics.hpp"
 
@@ -7,7 +6,7 @@ template <typename T>
 inline void simple_image_copy
 (
 	const T* __restrict srcPix,
-	T* __restrict dstPix,
+	      T* __restrict dstPix,
 	const A_long width,
 	const A_long height,
 	const A_long srcPitch,

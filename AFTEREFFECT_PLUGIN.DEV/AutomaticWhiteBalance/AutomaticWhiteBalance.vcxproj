@@ -137,8 +137,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="include\AlgMemoryHandler.hpp" />
-    <ClCompile Include="src\AlgMemoryHandler.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalance.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalanceAE.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalancePR.cpp" />
@@ -163,6 +161,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgCommonFunctins.hpp" />
     <ClInclude Include="include\AutomaticWhiteBalance.hpp" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="AutomaticWhiteBalance.r">

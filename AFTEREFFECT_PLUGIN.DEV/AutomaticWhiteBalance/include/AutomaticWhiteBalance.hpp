@@ -18,6 +18,10 @@ constexpr int AWB_VersionBuild = 1;
 constexpr char strName[] = "Automatic White Balance";
 constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rAutomatic White Balance based on gray-point algorithm.";
 
+bool LoadMemoryInterfaceProvider (int32_t appId, int32_t major, int32_t minor = 0) noexcept;
+int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
+void FreeMemoryBlock (int32_t id) noexcept;
+
 typedef enum
 {
 	AWB_INPUT,

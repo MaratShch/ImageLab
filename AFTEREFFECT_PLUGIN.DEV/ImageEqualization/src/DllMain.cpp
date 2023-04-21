@@ -1,8 +1,9 @@
 #include <windows.h>
 #include <Libloaderapi.h>
+#include <string>
 #include "Common.hpp"
 #include "ImageEqualization.hpp"
-#include <string>
+
 
 static MemoryManagerInterface memInterface{};
 static HMODULE hLib = NULL;

@@ -30,12 +30,6 @@
     <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgMemoryHandler.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="include\AlgMemoryHandler.hpp">
-      <Filter>include</Filter>
-    </ClCompile>
     <ClCompile Include="src\CorrectionMatrix.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -91,6 +85,9 @@
     </ClInclude>
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
