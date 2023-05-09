@@ -3,18 +3,20 @@
 #include "ColorizeMe.hpp"
 
 static constexpr char dialogTitle[] = "Select a LUT File";
+constexpr size_t filePathSize = MAX_PATH;
 
 const std::string GetLutFileName (void)
 {
 	std::string lutName;
-	char filename[MAX_PATH]{};
+	TCHAR filename[filePathSize]{};
 	OPENFILENAME ofn{};
+	constexpr size_t ofnStrSize = sizeof(ofn);
 
-	ofn.lStructSize = sizeof(ofn);
+	ofn.lStructSize = ofnStrSize;
 	ofn.hwndOwner = NULL;  // If you have a window to center over, put its HANDLE here
 	ofn.lpstrFilter = "CUBE Files\0*.cube\0";
 	ofn.lpstrFile = filename;
-	ofn.nMaxFile = MAX_PATH;
+	ofn.nMaxFile = filePathSize;
 	ofn.lpstrTitle = dialogTitle;
 	ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST;
 

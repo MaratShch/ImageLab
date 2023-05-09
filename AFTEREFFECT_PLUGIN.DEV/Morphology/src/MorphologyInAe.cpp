@@ -46,18 +46,23 @@ PF_Err MorphologyFilterInAE_8bits
 		break;
 
 		case SE_OP_OPEN:
+			Morphology_Open (localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 
 		case SE_OP_CLOSE:
+			Morphology_Close (localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 		
 		case SE_OP_THIN:
+			Morphology_Thin (localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
 
 		case SE_OP_THICK:
+			Morphology_Thick (localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<uint8_t>(UCHAR_MAX));
 		break;
-		
+
 		case SE_OP_GRADIENT:
+			Morphology_Gradient (localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<uint8_t>(UCHAR_MAX), static_cast<uint8_t>(0u));
 		break;
 
 		default:
@@ -114,18 +119,23 @@ PF_Err MorphologyFilterInAE_16bits
 		break;
 
 		case SE_OP_OPEN:
+			Morphology_Open(localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<A_u_short>(SHRT_MAX), static_cast<A_u_short>(0u));
 		break;
 
 		case SE_OP_CLOSE:
+			Morphology_Close(localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<A_u_short>(SHRT_MAX), static_cast<A_u_short>(0u));
 		break;
 
 		case SE_OP_THIN:
+			Morphology_Thin(localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<A_u_short>(SHRT_MAX));
 		break;
 
 		case SE_OP_THICK:
+			Morphology_Thick(localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<A_u_short>(SHRT_MAX));
 		break;
 
 		case SE_OP_GRADIENT:
+			Morphology_Gradient(localSrc, localDst, seElementVal, sizeSe, height, width, src_pitch, dst_pitch, static_cast<A_u_short>(SHRT_MAX), static_cast<uint16_t>(0u));
 		break;
 
 		default:

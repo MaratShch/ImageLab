@@ -112,6 +112,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChromaticAberration", "Chro
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ChromaticAberration", "ChromaticAberration", "{D6345B2A-5574-4BD9-BFE6-22BE1D54F97E}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BlackAndWhite", "BlackAndWhite", "{6AAB9230-ACA6-4CB1-91C6-474D1D6314BE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

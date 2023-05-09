@@ -59,12 +59,11 @@ GlobalSetup(
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
 	}
 
 	return PF_Err_NONE;
@@ -78,7 +77,34 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	out_data->num_params = NOISE_CLEAN_TOTAL_PARAMS;
+	PF_ParamDef	def;
+	constexpr PF_ParamFlags flags      = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+
+	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
+	PF_ADD_POPUP(
+		strAlgoPopupName,			/* pop-up name			*/
+		eNOISE_CLEAN_TOTAL_ALGOS,	/* number of variants	*/
+		eNOISE_CLEAN_NONE,			/* default variant		*/
+		strAlgoTypes,				/* string for pop-up	*/
+		eNOISE_CLEAN_ALGO_POPUP);	/* control ID			*/
+
+	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
+	PF_ADD_SLIDER(
+		strWindowSlider,
+		cBilateralWindowMin,
+		cBilateralWindowMax,
+		cBilateralWindowMin,
+		cBilateralWindowMax,
+		cBilateralWindowDefault,
+		eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER);
+
+#ifdef _DEBUG
+	// for DBG purpose only*
+	AEFX_CLR_STRUCT_EX(def);
+#endif
+
+	out_data->num_params = eNOISE_CLEAN_TOTAL_PARAMS;
 	return PF_Err_NONE;
 }
 
@@ -90,11 +116,7 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err err = PF_Err_NONE;
-	err = (PremierId == in_data->appl_id) ? 
-		ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output);
-
-	return err;
+	return (PremierId == in_data->appl_id) ? ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output);
 }
 
 

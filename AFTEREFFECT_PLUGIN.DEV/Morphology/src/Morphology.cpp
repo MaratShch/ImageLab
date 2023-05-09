@@ -102,7 +102,7 @@ ParamsSetup (
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
-	def.ui_flags = (ui_flags | PF_PUI_INVISIBLE);
+	def.ui_flags = ui_flags;
 	PF_ADD_POPUP(
 		MorphSeType,                /* pop-up name          */
 		SE_TYPE_TOTALS,             /* number of operations */
@@ -112,7 +112,7 @@ ParamsSetup (
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
-	def.ui_flags = (ui_flags | PF_PUI_INVISIBLE);
+	def.ui_flags = ui_flags;
 	PF_ADD_POPUP(
 		MorphSeSize,                /* pop-up name          */
 		SE_TYPE_TOTALS,             /* number of operations */
@@ -222,14 +222,14 @@ UserChangedParam(
 		}
 		break;
 
-//		case MORPHOLOGY_ELEMENT_TYPE:
-//		{
-//			bActive = true;
-//			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite =
-//				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
-//			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
-//		}
-//		break;
+		case MORPHOLOGY_ELEMENT_TYPE:
+		{
+			bActive = true;
+			AEFX_SuiteScoper<PF_ParamUtilsSuite3> ParamSite =
+				AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+			ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_ELEMENT_TYPE, pMorphologyTypeParam);
+		}
+		break;
 
 		case MORPHOLOGY_KERNEL_SIZE:
 		{
@@ -275,13 +275,13 @@ UpdateParameterUI(
 	if (SE_OP_NONE == params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value)
 	{
 		param_copy[MORPHOLOGY_KERNEL_SIZE].param_type = PF_Param_POPUP;
-		param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags |= PF_PUI_INVISIBLE;
+//		param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags |= PF_PUI_INVISIBLE;
 		ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, &param_copy[MORPHOLOGY_KERNEL_SIZE]);
 	}
 	else if (SE_OP_NONE != params[MORPHOLOGY_OPERATION_TYPE]->u.pd.value && !(param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags & PF_PUI_INVISIBLE))
 	{
 		param_copy[MORPHOLOGY_KERNEL_SIZE].param_type = PF_Param_POPUP;
-		param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags &= ~PF_PUI_INVISIBLE;
+//		param_copy[MORPHOLOGY_KERNEL_SIZE].ui_flags &= ~PF_PUI_INVISIBLE;
 		ParamSite->PF_UpdateParamUI(in_data->effect_ref, MORPHOLOGY_KERNEL_SIZE, &param_copy[MORPHOLOGY_KERNEL_SIZE]);
 	}
 

@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9989CCE1-526A-4290-A000-9C09357DE0D7}</ProjectGuid>
     <RootNamespace>NoiseClean</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -97,6 +97,9 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -124,7 +127,9 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -132,16 +137,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\Algo_Advanced.cpp" />
+    <ClCompile Include="src\Algo_BilateralLuma.cpp" />
+    <ClCompile Include="src\Algo_BilateralRGB.cpp" />
+    <ClCompile Include="src\Algo_PeronaMalik.cpp" />
     <ClCompile Include="src\NoiseClean.cpp" />
     <ClCompile Include="src\NoiseCleanInAe.cpp" />
     <ClCompile Include="src\NoiseCleanInPr.cpp" />
-    <ClCompile Include="src\NoiseClean_ARGB_16u.cpp" />
-    <ClCompile Include="src\NoiseClean_ARGB_8u.cpp" />
-    <ClCompile Include="src\NoiseClean_BGRA_16u.cpp" />
-    <ClCompile Include="src\NoiseClean_BGRA_32f.cpp" />
-    <ClCompile Include="src\NoiseClean_BGRA_8u.cpp" />
-    <ClCompile Include="src\NoiseClean_VUYA_32f.cpp" />
-    <ClCompile Include="src\NoiseClean_VUYA_8u.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
@@ -161,6 +163,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\NoiseClean.hpp" />
     <ClInclude Include="include\NoiseCleanEnums.hpp" />
+    <ClInclude Include="include\NoiseCleanPrototypes.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="NoiseClean.r">

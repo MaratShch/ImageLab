@@ -11,63 +11,30 @@ PF_Err ProcessImgInPR
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
+	eNOISE_CLEAN_TYPE const algoType = static_cast<eNOISE_CLEAN_TYPE const>(params[eNOISE_CLEAN_ALGO_POPUP]->u.pd.value - 1);
 
-	/* This plugin called frop PR - check video fomat */
-	AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-		AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-			in_data,
-			kPFPixelFormatSuite,
-			kPFPixelFormatSuiteVersion1,
-			out_data);
-
-	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+	switch (algoType)
 	{
-		switch (destinationPixelFormat)
-		{
-			case PrPixelFormat_BGRA_4444_8u:
-					err = NoiseCleanPr_BGRA_4444_8u (in_data, out_data, params, output);
-			break;
+		case eNOISE_CLEAN_BILATERAL_LUMA:
+			err = NoiseClean_AlgoBilateral (in_data, out_data, params, output);
+		break;
 
-			case PrPixelFormat_BGRA_4444_16u:
-				err = NoiseCleanPr_BGRA_4444_16u (in_data, out_data, params, output);
-			break;
+		case eNOISE_CLEAN_BILATERAL_RGB:
+			err = NoiseClean_AlgoBilateralRGB (in_data, out_data, params, output);
+		break;
 
-			case PrPixelFormat_VUYA_4444_8u:
-			case PrPixelFormat_VUYA_4444_8u_709:
-			{
-				auto const isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
-				err = NoiseCleanPr_VUYA_4444_8u (in_data, out_data, params, output, isBT709);
-			}
-			break;
+		case eNOISE_CLEAN_PERONA_MALIK:
+			err = NoiseClean_AlgoPeronaMalik (in_data, out_data, params, output);
+		break;
 
-			case PrPixelFormat_BGRA_4444_32f:
-				err = NoiseCleanPr_BGRA_4444_32f (in_data, out_data, params, output);
-			break;
-
-			case PrPixelFormat_VUYA_4444_32f:
-			case PrPixelFormat_VUYA_4444_32f_709:
-			{
-				auto const isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
-				err = NoiseCleanPr_VUYA_4444_32f (in_data, out_data, params, output, isBT709);
-			}
-			break;
-
-			case PrPixelFormat_RGB_444_10u:
-			//		bValue = ProcessPrImage_RGB_444_10u(in_data, out_data, params, output, choosedKernel);
-			break;
-
-			default:
-			break;
-		} /* switch (destinationPixelFormat) */
-
-	} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-	else
-	{
-		/* error in determine pixel format */
-		err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+		case eNOISE_CLEAN_ADVANCED_DENOISE:
+			err = NoiseClean_AlgoAdvanced (in_data, out_data, params, output);
+		break;
+		
+		case eNOISE_CLEAN_NONE:
+		default:
+			err = PF_COPY(&params[eNOISE_CLEAN_INPUT]->u.ld, output, NULL, NULL);
+		break;
 	}
-
 	return err;
 }

@@ -27,25 +27,16 @@
     <ClCompile Include="src\NoiseCleanInPr.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\NoiseClean_BGRA_8u.cpp">
+    <ClCompile Include="src\Algo_BilateralLuma.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\NoiseClean_BGRA_16u.cpp">
+    <ClCompile Include="src\Algo_BilateralRGB.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\NoiseClean_BGRA_32f.cpp">
+    <ClCompile Include="src\Algo_Advanced.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\NoiseClean_VUYA_8u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\NoiseClean_VUYA_32f.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\NoiseClean_ARGB_8u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\NoiseClean_ARGB_16u.cpp">
+    <ClCompile Include="src\Algo_PeronaMalik.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -100,6 +91,9 @@
     </ClInclude>
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\NoiseCleanPrototypes.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

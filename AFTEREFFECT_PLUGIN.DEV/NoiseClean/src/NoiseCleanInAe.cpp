@@ -9,7 +9,34 @@ inline PF_Err NoiseCleanInAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
-	return NoiseCleanAe_ARGB_4444_8u (in_data, out_data, params, output);
+	PF_Err err = PF_Err_NONE;
+	eNOISE_CLEAN_TYPE const algoType = static_cast<eNOISE_CLEAN_TYPE const>(params[eNOISE_CLEAN_ALGO_POPUP]->u.pd.value - 1);
+
+	switch (algoType)
+	{
+		case eNOISE_CLEAN_BILATERAL_LUMA:
+			err = NoiseClean_AlgoBilateralAe8 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_BILATERAL_RGB:
+//			err = NoiseClean_AlgoBilateralRGBAe8 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_PERONA_MALIK:
+//			err = NoiseClean_AlgoPeronaMalikAe8 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_ADVANCED_DENOISE:
+//			err = NoiseClean_AlgoAdvancedAe8 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_NONE:
+			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->copy(in_data->effect_ref, &params[eNOISE_CLEAN_INPUT]->u.ld, output, NULL, NULL);
+		default:
+		break;
+	}
+
+	return err;
 }
 
 
@@ -21,7 +48,34 @@ inline PF_Err NoiseCleanInAE_16bits
 	PF_LayerDef* output
 ) noexcept
 {
-	return NoiseCleanAe_ARGB_4444_16u (in_data, out_data, params, output);
+	PF_Err err = PF_Err_NONE;
+	eNOISE_CLEAN_TYPE const algoType = static_cast<eNOISE_CLEAN_TYPE const>(params[eNOISE_CLEAN_ALGO_POPUP]->u.pd.value - 1);
+
+	switch (algoType)
+	{
+		case eNOISE_CLEAN_BILATERAL_LUMA:
+			err = NoiseClean_AlgoBilateralAe16 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_BILATERAL_RGB:
+//			err = NoiseClean_AlgoBilateralRGBAe16 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_PERONA_MALIK:
+//			err = NoiseClean_AlgoPeronaMalikAe16 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_ADVANCED_DENOISE:
+//			err = NoiseClean_AlgoAdvancedAe16 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_NONE:
+		default:
+			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->copy_hq(in_data->effect_ref, &params[eNOISE_CLEAN_INPUT]->u.ld, output, NULL, NULL);
+		break;
+	}
+
+	return err;
 }
 
 
