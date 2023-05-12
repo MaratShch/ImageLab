@@ -394,9 +394,16 @@ namespace FastCompute
 	template <typename T>
 	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T& x) noexcept
 	{
-		constexpr T Pi{ 3.14159265358979323846 };
-		constexpr T HalfPi{ Pi / static_cast<T>(2) };
-		return Sin (x + HalfPi);
+		constexpr T PIx2 = static_cast<T>(3.14159265358979323846) * static_cast<T>(2.0);
+		constexpr T One{ 1 };
+		constexpr T tp = One / PIx2;
+		x *= tp;
+		x -= static_cast<T>(0.250) + std::floor(x + static_cast<T>(0.250));
+		x *= static_cast<T>(16.0) * (Abs(x) - static_cast<T>(0.5));
+#if FAST_COMPUTE_EXTRA_PRECISION
+		x += static_cast<T>(0.225) * x * (Abs(x) - static_cast<T>(1.0));
+#endif
+		return x;
 	}
 
 	template <typename T>
