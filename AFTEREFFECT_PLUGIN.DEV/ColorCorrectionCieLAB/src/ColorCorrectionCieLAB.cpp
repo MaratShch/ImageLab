@@ -76,7 +76,7 @@ GlobalSetup(
 
 
 static PF_Err
-ParamsSetup(
+ParamsSetup (
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
@@ -98,13 +98,16 @@ ParamsSetup(
 		eCIELAB_SLIDER_L_COARSE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_SLIDER(
+	PF_ADD_FLOAT_SLIDERX(
 		strLfine,
 		fine_min_level,
 		fine_max_level,
 		fine_min_level,
 		fine_max_level,
 		fine_def_level,
+		PF_Precision_TENTHS,
+		0,
+		0,
 		eCIELAB_SLIDER_L_FINE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
@@ -118,13 +121,16 @@ ParamsSetup(
 		eCIELAB_SLIDER_A_COARSE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_SLIDER(
+	PF_ADD_FLOAT_SLIDERX(
 		strAfine,
 		fine_min_level,
 		fine_max_level,
 		fine_min_level,
 		fine_max_level,
 		fine_def_level,
+		PF_Precision_TENTHS,
+		0,
+		0,
 		eCIELAB_SLIDER_A_FINE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
@@ -138,13 +144,16 @@ ParamsSetup(
 		eCIELAB_SLIDER_B_COARSE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_SLIDER(
+	PF_ADD_FLOAT_SLIDERX(
 		strBfine,
 		fine_min_level,
 		fine_max_level,
 		fine_min_level,
 		fine_max_level,
 		fine_def_level,
+		PF_Precision_TENTHS,
+		0,
+		0,
 		eCIELAB_SLIDER_B_FINE);
 
 	out_data->num_params = eCIELAB_TOTAL_PARAMS;

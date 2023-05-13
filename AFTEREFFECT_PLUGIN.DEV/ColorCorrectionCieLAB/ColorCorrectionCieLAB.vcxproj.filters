@@ -69,6 +69,9 @@
     <ClInclude Include="include\ColorCorrectionCieLABEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorCorrectionCieLAB.cpp">

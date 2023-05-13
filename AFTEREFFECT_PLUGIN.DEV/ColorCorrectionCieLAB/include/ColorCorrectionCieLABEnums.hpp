@@ -18,9 +18,9 @@ constexpr int32_t coarse_min_level = -100;
 constexpr int32_t coarse_max_level = 100;
 constexpr int32_t coarse_def_level = 0;
 
-constexpr int32_t fine_min_level = -10;
-constexpr int32_t fine_max_level = 10;
-constexpr int32_t fine_def_level = 0;
+constexpr float fine_min_level = -10.f;
+constexpr float fine_max_level = 10.f;
+constexpr float fine_def_level = 0.f;
 
 constexpr char strLcoarse[] = "L level coarse";
 constexpr char strLfine  [] = "L level fine";
