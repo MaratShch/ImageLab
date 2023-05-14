@@ -165,8 +165,8 @@ namespace FastCompute
 		constexpr float reciproc3 = 1.0f / 3.0f;
 
 		union { int ix; float x; };
-		const int& sign = (x0 < 0) ? 0x80000000 : 0x0;
-		const float& xx0 = fabs(x0);
+		const int sign = (x0 < 0) ? 0x80000000 : 0x0;
+		const float xx0 = fabs(x0);
 
 		x = xx0;
 		ix = (ix >> 2) + (ix >> 4);           // Approximate divide by 3.

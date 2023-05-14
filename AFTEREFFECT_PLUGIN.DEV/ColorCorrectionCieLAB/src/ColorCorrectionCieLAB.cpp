@@ -90,11 +90,11 @@ ParamsSetup (
 	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
 	PF_ADD_SLIDER(
 		strLcoarse,
-		coarse_min_level,
-		coarse_max_level,
-		coarse_min_level,
-		coarse_max_level,
-		coarse_def_level,
+		L_coarse_min_level,
+		L_coarse_max_level,
+		L_coarse_min_level,
+		L_coarse_max_level,
+		L_coarse_def_level,
 		eCIELAB_SLIDER_L_COARSE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
@@ -113,11 +113,11 @@ ParamsSetup (
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_SLIDER(
 		strAcoarse,
-		coarse_min_level,
-		coarse_max_level,
-		coarse_min_level,
-		coarse_max_level,
-		coarse_def_level,
+		AB_coarse_min_level,
+		AB_coarse_max_level,
+		AB_coarse_min_level,
+		AB_coarse_max_level,
+		AB_coarse_def_level,
 		eCIELAB_SLIDER_A_COARSE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
@@ -136,11 +136,11 @@ ParamsSetup (
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_SLIDER(
 		strBcoarse,
-		coarse_min_level,
-		coarse_max_level,
-		coarse_min_level,
-		coarse_max_level,
-		coarse_def_level,
+		AB_coarse_min_level,
+		AB_coarse_max_level,
+		AB_coarse_min_level,
+		AB_coarse_max_level,
+		AB_coarse_def_level,
 		eCIELAB_SLIDER_B_COARSE);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);

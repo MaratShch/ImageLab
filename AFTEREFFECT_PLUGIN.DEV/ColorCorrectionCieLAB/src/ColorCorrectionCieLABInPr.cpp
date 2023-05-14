@@ -1,35 +1,51 @@
-#include "ColorCorrectionCIELab.hpp"
+﻿#include "ColorCorrectionCIELab.hpp"
 #include "ColorCorrectionCIELabEnums.hpp"
+#include "ColorTransformMatrix.hpp"
 #include "PrSDKAESupport.h"
 #include "FastAriphmetics.hpp"
 
-template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-inline fCIELabPix RGB2CIELab (const T& pixelRGB) noexcept
+/* 
+ MATLAB reference:
+ % lab = rgb2lab([10/255 124/255 240/255]) <- RGB
+ % 52.6946   15.7288  -65.8706             <- LAB
+
+ http://www.easyrgb.com/en/math.php
+
+*/
+
+inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* __restrict fIlluminant) noexcept
 {
-	constexpr float powCoeff = 2.19921875f;
-	constexpr float reciproc255 = 1.f / 255.f;
+	/* in first convert: sRGB -> XYZ */
+	constexpr float reciproc12 = 1.f  / 12.92f;
+	constexpr float reciproc16 = 16.f / 116.f;
+	constexpr float reciproc1  = 1.f  / 1.055f;
 
-	const float tR = FastCompute::Pow(static_cast<float>(pixelRGB.R) * reciproc255, powCoeff);
-	const float tG = FastCompute::Pow(static_cast<float>(pixelRGB.G) * reciproc255, powCoeff);
-	const float tB = FastCompute::Pow(static_cast<float>(pixelRGB.B) * reciproc255, powCoeff);
+	const float varR = ((pixelRGB.R > 0.04045f) ? FastCompute::Pow((pixelRGB.R + 0.055f) * reciproc1, 2.40f) : pixelRGB.R * reciproc12);
+	const float varG = ((pixelRGB.G > 0.04045f) ? FastCompute::Pow((pixelRGB.G + 0.055f) * reciproc1, 2.40f) : pixelRGB.G * reciproc12);
+	const float varB = ((pixelRGB.B > 0.04045f) ? FastCompute::Pow((pixelRGB.B + 0.055f) * reciproc1, 2.40f) : pixelRGB.B * reciproc12);
 
-	const float x = tR * 0.60672089f + tG * 0.19521921f + tB * 0.19799678f;
-	const float y = tR * 0.29738000f + tG * 0.62735000f + tB * 0.07552700f;
-	const float z = tR * 0.02482481f + tG * 0.06492290f + tB * 0.91024310f;
+	const float X = varR * 41.24f + varG * 35.76f + varB * 18.05f;
+	const float Y = varR * 21.26f + varG * 71.52f + varB * 7.220f;
+	const float Z = varR * 1.930f + varG * 11.92f + varB * 95.05f;
 
-	const float x1 = (x > 0.0088560f) ? FastCompute::Cbrt(x) : 7.7870f * x + 0.1379310f;
-	const float y1 = (y > 0.0088560f) ? FastCompute::Cbrt(y) : 7.7870f * y + 0.1379310f;
-	const float z1 = (z > 0.0088560f) ? FastCompute::Cbrt(z) : 7.7870f * z + 0.1379310f;
+	/* convert: XYZ - > Cie-L*ab */
+	const float varX = X / fIlluminant[0];
+	const float varY = Y / fIlluminant[1];
+	const float varZ = Z / fIlluminant[2];
+
+	const float vX = (varX > 0.0088560f) ? FastCompute::Cbrt(varX) : 7.7870f * varX + reciproc16;
+	const float vY = (varY > 0.0088560f) ? FastCompute::Cbrt(varY) : 7.7870f * varY + reciproc16;
+	const float vZ = (varZ > 0.0088560f) ? FastCompute::Cbrt(varZ) : 7.7870f * varZ + reciproc16;
 
 	fCIELabPix pixelLAB;
-	pixelLAB.L = 116.0f * y1 - 16.0f;
-	pixelLAB.a = 500.0f * (x1 - y1);
-	pixelLAB.b = 200.0f * (y1 - z1);
+	pixelLAB.L = 116.f * vX - 16.f;
+	pixelLAB.a = 500.f * (vX - vY);
+	pixelLAB.b = 200.f * (vY - vZ);
 
 	return pixelLAB;
 }
 
-inline fRGB CIELab2RGB (const fCIELabPix& pixelCIELab, const float& black, const float& white) noexcept
+inline fRGB CIELab2RGB (const fCIELabPix& pixelCIELab) noexcept
 {
 	constexpr float reciproc116 = 1.f / 116.f;
 	constexpr float reciproc500 = 1.f / 500.f;
@@ -52,14 +68,10 @@ inline fRGB CIELab2RGB (const fCIELabPix& pixelCIELab, const float& black, const
 	const float g1 = FastCompute::Exp(0.4547070f * FastCompute::Log(gg));
 	const float b1 = FastCompute::Exp(0.4547070f * FastCompute::Log(bb));
 
-	const float iR = CLAMP_VALUE(r1 * 255.0f, black, white);
-	const float iG = CLAMP_VALUE(g1 * 255.0f, black, white);
-	const float iB = CLAMP_VALUE(b1 * 255.0f, black, white);
-
 	fRGB pixelRGB;
-	pixelRGB.R = iR;
-	pixelRGB.G = iG;
-	pixelRGB.B = iB;
+	pixelRGB.R = r1;
+	pixelRGB.G = g1;
+	pixelRGB.B = b1;
 
 	return pixelRGB;
 }
@@ -82,38 +94,46 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 	const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-	PF_Err err = PF_Err_NONE;
-	
+	constexpr float reciproc255 = 1.f / 255.f;
+
+	const float* __restrict cIlluminant = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+
 	for (A_long j = 0; j < sizeY; j++)
 	{
 		const PF_Pixel_BGRA_8u* __restrict pSrcLine = localSrc + j * line_pitch;
   		      PF_Pixel_BGRA_8u* __restrict pDstLine = localDst + j * line_pitch;
 
+        __VECTORIZATION__
 		for (A_long i = 0; i < sizeX; i++)
 		{
 			/* convert RGB to CIELab */
-			fCIELabPix pixCIELab = RGB2CIELab (pSrcLine[i]);
+			fRGB pixRGB;
+			pixRGB.R = static_cast<float>(pSrcLine[i].R) * reciproc255;
+			pixRGB.G = static_cast<float>(pSrcLine[i].G) * reciproc255;
+			pixRGB.B = static_cast<float>(pSrcLine[i].B) * reciproc255;
+
+			fCIELabPix pixCIELab = RGB2CIELab (pixRGB, cIlluminant);
 
 			/* add values from sliders */
 			pixCIELab.L += L_level;
 			pixCIELab.a += A_level;
 			pixCIELab.b += B_level;
-
-			constexpr float clampMin = static_cast<float>(u8_value_black);
-			constexpr float clampMax = static_cast<float>(u8_value_white);
+			
+			pixCIELab.L = CLAMP_VALUE(pixCIELab.L, static_cast<float>(L_coarse_min_level),  static_cast<float>(L_coarse_max_level));
+			pixCIELab.a = CLAMP_VALUE(pixCIELab.a, static_cast<float>(AB_coarse_min_level), static_cast<float>(AB_coarse_max_level));
+			pixCIELab.b = CLAMP_VALUE(pixCIELab.b, static_cast<float>(AB_coarse_min_level), static_cast<float>(AB_coarse_max_level));
 
 			/* back convert to RGB */
-			fRGB dstPixel = CIELab2RGB (pixCIELab, clampMin, clampMax);
-			pDstLine[i].B = static_cast<A_u_char>(dstPixel.B);
-			pDstLine[i].G = static_cast<A_u_char>(dstPixel.G);
-			pDstLine[i].R = static_cast<A_u_char>(dstPixel.R);
+			fRGB pixRGBOut = CIELab2RGB (pixCIELab);
+			pDstLine[i].B = static_cast<A_u_char>(pixRGBOut.B * 255.f);
+			pDstLine[i].G = static_cast<A_u_char>(pixRGBOut.G * 255.f);
+			pDstLine[i].R = static_cast<A_u_char>(pixRGBOut.R * 255.f);
 			pDstLine[i].A = pSrcLine[i].A;
 
 		} /* for (A_long i = 0; i < sizeX; i++) */
 	} /* for (A_long j = 0; j < sizeY; j++) */
 
-
-	return err;
+	return PF_Err_NONE;
 }
 
 
