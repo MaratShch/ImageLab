@@ -14,7 +14,7 @@ typedef enum {
 }eItem;
 
 
-constexpr int32_t L_coarse_min_level = 0;
+constexpr int32_t L_coarse_min_level = -100;
 constexpr int32_t L_coarse_max_level = 100;
 constexpr int32_t L_coarse_def_level = 0;
 constexpr int32_t AB_coarse_min_level = -128;

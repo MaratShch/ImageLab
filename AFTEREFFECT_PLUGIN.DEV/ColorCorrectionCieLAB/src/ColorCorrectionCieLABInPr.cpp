@@ -13,7 +13,7 @@
 
 */
 
-inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* __restrict fIlluminant) noexcept
+inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* __restrict fReferences) noexcept
 {
 	/* in first convert: sRGB -> XYZ */
 	constexpr float reciproc12 = 1.f  / 12.92f;
@@ -29,9 +29,9 @@ inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* __restrict fIll
 	const float Z = varR * 1.930f + varG * 11.92f + varB * 95.05f;
 
 	/* convert: XYZ - > Cie-L*ab */
-	const float varX = X / fIlluminant[0];
-	const float varY = Y / fIlluminant[1];
-	const float varZ = Z / fIlluminant[2];
+	const float varX = X / fReferences[0];
+	const float varY = Y / fReferences[1];
+	const float varZ = Z / fReferences[2];
 
 	const float vX = (varX > 0.0088560f) ? FastCompute::Cbrt(varX) : 7.7870f * varX + reciproc16;
 	const float vY = (varY > 0.0088560f) ? FastCompute::Cbrt(varY) : 7.7870f * varY + reciproc16;
@@ -45,33 +45,37 @@ inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* __restrict fIll
 	return pixelLAB;
 }
 
-inline fRGB CIELab2RGB (const fCIELabPix& pixelCIELab) noexcept
+inline fRGB CIELab2RGB (const fCIELabPix& pixelCIELab, const float* __restrict fReferences) noexcept
 {
+	constexpr float reciproc7   = 1.f / 7.7870f;
+	constexpr float reciproc100 = 1.f / 100.f;
 	constexpr float reciproc116 = 1.f / 116.f;
-	constexpr float reciproc500 = 1.f / 500.f;
 	constexpr float reciproc200 = 1.f / 200.f;
-	constexpr float reciproc7 = 1.f / 7.7870f;
+	constexpr float reciproc500 = 1.f / 500.f;
+	constexpr float reciproc6116 = 16.f / 116.f;
 
-	const float y = (pixelCIELab.L + 16.0f) * reciproc116;
-	const float x = pixelCIELab.a * reciproc500 + y;
-	const float z = y - pixelCIELab.b * reciproc200;
+	/* CIEL*a*b -> XYZ */
+	const float var_Y = (pixelCIELab.L + 16.f) * reciproc116;
+	const float var_X = pixelCIELab.a * reciproc500 + var_Y;
+	const float	var_Z = var_Y - pixelCIELab.b * reciproc200;
 
-	const float x1 = ((x > 0.2068930f) ? x * x * x : (x - 0.1379310f) * reciproc7) * 0.950470f;
-	const float y1 =  (y > 0.2068930f) ? y * y * y : (y - 0.1379310f) * reciproc7;
-	const float z1 = ((z > 0.2068930f) ? z * z * z : (z - 0.1379310f) * reciproc7) * 1.088830f;
+	const float x1 = (var_X > 0.2068930f) ? var_X * var_X * var_X : (var_X - reciproc6116) * reciproc7;
+	const float y1 = (var_Y > 0.2068930f) ? var_Y * var_Y * var_Y : (var_Y - reciproc6116) * reciproc7;
+	const float z1 = (var_Z > 0.2068930f) ? var_Z * var_Z * var_Z : (var_Z - reciproc6116) * reciproc7;
 
-	const float rr = x1 *  2.041370f + y1 * -0.564950f + z1 * -0.344690f;
-	const float gg = x1 * -0.962700f + y1 *  1.876010f + z1 *  0.041560f;
-	const float bb = x1 *  0.013450f + y1 * -0.118390f + z1 *  1.015410f;
+	const float X = x1 * fReferences[0] * reciproc100;
+	const float Y = y1 * fReferences[1] * reciproc100;
+	const float Z = z1 * fReferences[2] * reciproc100;
 
-	const float r1 = FastCompute::Exp(0.4547070f * FastCompute::Log(rr));
-	const float g1 = FastCompute::Exp(0.4547070f * FastCompute::Log(gg));
-	const float b1 = FastCompute::Exp(0.4547070f * FastCompute::Log(bb));
+	const float var_R = X *  3.2406f + Y * -1.5372f + Z * -0.4986f;
+	const float var_G = X * -0.9689f + Y *  1.8758f + Z *  0.0415f;
+	const float var_B = X *  0.0557f + Y * -0.2040f + Z *  1.0570f;
 
+	constexpr float reciproc24 = 1.f / 2.4f;
 	fRGB pixelRGB;
-	pixelRGB.R = r1;
-	pixelRGB.G = g1;
-	pixelRGB.B = b1;
+	pixelRGB.R = (var_R > 0.0031308f ? 1.055f * (FastCompute::Pow(var_R, reciproc24)) - 0.055f : 12.92f * var_R);
+	pixelRGB.G = (var_G > 0.0031308f ? 1.055f * (FastCompute::Pow(var_G, reciproc24)) - 0.055f : 12.92f * var_G);
+	pixelRGB.B = (var_B > 0.0031308f ? 1.055f * (FastCompute::Pow(var_B, reciproc24)) - 0.055f : 12.92f * var_B);
 
 	return pixelRGB;
 }
@@ -96,7 +100,7 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 	constexpr float reciproc255 = 1.f / 255.f;
 
-	const float* __restrict cIlluminant = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+	const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -112,7 +116,7 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 			pixRGB.G = static_cast<float>(pSrcLine[i].G) * reciproc255;
 			pixRGB.B = static_cast<float>(pSrcLine[i].B) * reciproc255;
 
-			fCIELabPix pixCIELab = RGB2CIELab (pixRGB, cIlluminant);
+			fCIELabPix pixCIELab = RGB2CIELab (pixRGB, fReferences);
 
 			/* add values from sliders */
 			pixCIELab.L += L_level;
@@ -124,10 +128,10 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 			pixCIELab.b = CLAMP_VALUE(pixCIELab.b, static_cast<float>(AB_coarse_min_level), static_cast<float>(AB_coarse_max_level));
 
 			/* back convert to RGB */
-			fRGB pixRGBOut = CIELab2RGB (pixCIELab);
-			pDstLine[i].B = static_cast<A_u_char>(pixRGBOut.B * 255.f);
-			pDstLine[i].G = static_cast<A_u_char>(pixRGBOut.G * 255.f);
-			pDstLine[i].R = static_cast<A_u_char>(pixRGBOut.R * 255.f);
+			fRGB pixRGBOut = CIELab2RGB (pixCIELab, fReferences);
+			pDstLine[i].B = static_cast<A_u_char>(CLAMP_VALUE(pixRGBOut.B * 255.f, static_cast<float>(u8_value_black), static_cast<float>(u8_value_white)));
+			pDstLine[i].G = static_cast<A_u_char>(CLAMP_VALUE(pixRGBOut.G * 255.f, static_cast<float>(u8_value_black), static_cast<float>(u8_value_white)));
+			pDstLine[i].R = static_cast<A_u_char>(CLAMP_VALUE(pixRGBOut.R * 255.f, static_cast<float>(u8_value_black), static_cast<float>(u8_value_white)));
 			pDstLine[i].A = pSrcLine[i].A;
 
 		} /* for (A_long i = 0; i < sizeX; i++) */
