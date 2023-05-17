@@ -13,7 +13,7 @@
 
 */
 
-inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* __restrict fReferences) noexcept
+inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* fReferences) noexcept
 {
 	/* in first convert: sRGB -> XYZ */
 	constexpr float reciproc12 = 1.f  / 12.92f;
@@ -45,7 +45,7 @@ inline fCIELabPix RGB2CIELab (const fRGB& pixelRGB, const float* __restrict fRef
 	return pixelLAB;
 }
 
-inline fRGB CIELab2RGB (const fCIELabPix& pixelCIELab, const float* __restrict fReferences) noexcept
+inline fRGB CIELab2RGB (const fCIELabPix& pixelCIELab, const float* fReferences) noexcept
 {
 	constexpr float reciproc7   = 1.f / 7.7870f;
 	constexpr float reciproc100 = 1.f / 100.f;
@@ -106,8 +106,7 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 	{
 		const PF_Pixel_BGRA_8u* __restrict pSrcLine = localSrc + j * line_pitch;
   		      PF_Pixel_BGRA_8u* __restrict pDstLine = localDst + j * line_pitch;
-
-        __VECTORIZATION__
+        
 		for (A_long i = 0; i < sizeX; i++)
 		{
 			/* convert RGB to CIELab */
