@@ -100,7 +100,7 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
-      <FloatingPointModel>Precise</FloatingPointModel>
+      <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -132,7 +132,7 @@
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
-      <FloatingPointModel>Precise</FloatingPointModel>
+      <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

@@ -85,13 +85,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ColorCorrectionCieLAB.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="ColorCorrectionCieLAB.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ColorCorrectionCieLAB.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

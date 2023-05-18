@@ -2,6 +2,7 @@
 #include "ColorCorrectionCieLABEnums.hpp"
 #include "PrSDKAESupport.h"
 
+
 static PF_Err
 About(
 	PF_InData		*in_data,
@@ -62,13 +63,13 @@ GlobalSetup(
 
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
 	}
 
 	return err;
@@ -82,7 +83,7 @@ ParamsSetup (
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_ParamDef	def{};
+	PF_ParamDef	def;
 	PF_Err		err = PF_Err_NONE;
 	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
@@ -194,18 +195,6 @@ SmartRender(
 }
 
 
-inline void
-ResetParams(
-	PF_InData						*in_data,
-	PF_OutData						*out_data,
-	PF_ParamDef						*params[]
-) noexcept
-{
-	return;
-}
-
-
-
 static PF_Err
 UserChangedParam(
 	PF_InData						*in_data,
@@ -233,43 +222,6 @@ UpdateParameterUI(
 	return err;
 }
 
-
-static PF_Err
-HandleEvent(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output,
-	PF_EventExtra	*extra
-)
-{
-	PF_Err		err = PF_Err_NONE;
-
-	switch (extra->e_type)
-	{
-		case PF_Event_NEW_CONTEXT:
-		break;
-		
-		case PF_Event_ACTIVATE:
-		break;
-
-		case PF_Event_DO_CLICK:
-		break;
-
-		case PF_Event_DRAG:
-		break;
-
-		case PF_Event_DRAW:
-		break;
-
-		case PF_Event_ADJUST_CURSOR:
-		break;
-		
-		default:
-		break;
-	}
-	return err;
-}
 
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
@@ -313,10 +265,6 @@ EffectMain(
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
-
-//			case PF_Cmd_EVENT:
-//				err = HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra));
-	//		break;
 
 			default:
 			break;
