@@ -12,7 +12,9 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 	PF_LayerDef*  output,
 	const float   L_level,
 	const float   A_level,
-	const float   B_level
+	const float   B_level,
+	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_ILLUMINANT illuminant
 ) noexcept
 {
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eCIELAB_INPUT]->u.ld);
@@ -23,7 +25,7 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 	constexpr float reciproc = 1.f / static_cast<float>(u8_value_white);
 
-	const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+	const float* __restrict fReferences = cCOLOR_ILLUMINANT[observer][illuminant];
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -71,7 +73,9 @@ PF_Err CIELabCorrect_BGRA_4444_16u
 	PF_LayerDef*  output,
 	const float   L_level,
 	const float   A_level,
-	const float   B_level
+	const float   B_level,
+	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_ILLUMINANT illuminant
 ) noexcept
 {
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eCIELAB_INPUT]->u.ld);
@@ -82,7 +86,7 @@ PF_Err CIELabCorrect_BGRA_4444_16u
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 	constexpr float reciproc = 1.f / static_cast<float>(u16_value_white);
 
-	const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+	const float* __restrict fReferences = cCOLOR_ILLUMINANT[observer][illuminant];
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -130,7 +134,9 @@ PF_Err CIELabCorrect_BGRA_4444_32f
 	PF_LayerDef*  output,
 	const float   L_level,
 	const float   A_level,
-	const float   B_level
+	const float   B_level,
+	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_ILLUMINANT illuminant
 ) noexcept
 {
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eCIELAB_INPUT]->u.ld);
@@ -140,7 +146,7 @@ PF_Err CIELabCorrect_BGRA_4444_32f
 	const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-	const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+	const float* __restrict fReferences = cCOLOR_ILLUMINANT[observer][illuminant];
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -189,7 +195,9 @@ PF_Err CIELabCorrect_VUYA_4444_8u
 	const float   L_level,
 	const float   A_level,
 	const float   B_level,
-	const bool    isBT709 = true
+	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_ILLUMINANT illuminant,
+	const bool    isBT709
 ) noexcept
 {
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eCIELAB_INPUT]->u.ld);
@@ -200,7 +208,7 @@ PF_Err CIELabCorrect_VUYA_4444_8u
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 	constexpr float reciproc = 1.f / static_cast<float>(u8_value_white);
 
-	const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+	const float* __restrict fReferences = cCOLOR_ILLUMINANT[observer][illuminant];
 	const float* __restrict pYUV2RGB = YUV2RGB[true == isBT709 ? BT709 : BT601];
 	const float* __restrict pRGB2YUV = RGB2YUV[true == isBT709 ? BT709 : BT601];
 
@@ -268,7 +276,9 @@ PF_Err CIELabCorrect_VUYA_4444_32f
 	const float   L_level,
 	const float   A_level,
 	const float   B_level,
-	const bool    isBT709 = true
+	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_ILLUMINANT illuminant,
+	const bool    isBT709
 ) noexcept
 {
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eCIELAB_INPUT]->u.ld);
@@ -278,7 +288,7 @@ PF_Err CIELabCorrect_VUYA_4444_32f
 	const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-	const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+	const float* __restrict fReferences = cCOLOR_ILLUMINANT[observer][illuminant];
 	const float* __restrict pYUV2RGB = YUV2RGB[true == isBT709 ? BT709 : BT601];
 	const float* __restrict pRGB2YUV = RGB2YUV[true == isBT709 ? BT709 : BT601];
 
@@ -335,12 +345,12 @@ PF_Err ProcessImgInPR
 	PF_Err err = PF_Err_NONE;
 
 	/* get sliders values */
-	auto const& L_coarse = params[eCIELAB_SLIDER_L_COARSE]->u.sd.value;
-	auto const& L_fine   = params[eCIELAB_SLIDER_L_FINE  ]->u.fs_d.value;
-	auto const& A_coarse = params[eCIELAB_SLIDER_A_COARSE]->u.sd.value;
-	auto const& A_fine   = params[eCIELAB_SLIDER_A_FINE  ]->u.fs_d.value;
-	auto const& B_coarse = params[eCIELAB_SLIDER_B_COARSE]->u.sd.value;
-	auto const& B_fine   = params[eCIELAB_SLIDER_B_FINE  ]->u.fs_d.value;
+	auto const L_coarse = params[eCIELAB_SLIDER_L_COARSE]->u.sd.value;
+	auto const L_fine   = params[eCIELAB_SLIDER_L_FINE  ]->u.fs_d.value;
+	auto const A_coarse = params[eCIELAB_SLIDER_A_COARSE]->u.sd.value;
+	auto const A_fine   = params[eCIELAB_SLIDER_A_FINE  ]->u.fs_d.value;
+	auto const B_coarse = params[eCIELAB_SLIDER_B_COARSE]->u.sd.value;
+	auto const B_fine   = params[eCIELAB_SLIDER_B_FINE  ]->u.fs_d.value;
 
 	const float L_level = static_cast<float>(static_cast<double>(L_coarse) + L_fine);
 	const float A_level = static_cast<float>(static_cast<double>(A_coarse) + A_fine);
@@ -352,21 +362,21 @@ PF_Err ProcessImgInPR
 	}
 	else
 	{
+		/* in case of processing enable - let's check illuminant and observer using for compute color transofrm */
+		const eCOLOR_OBSEREVER  iObserver   = static_cast<const eCOLOR_OBSEREVER> (params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
+		const eCOLOR_ILLUMINANT iIlluminant = static_cast<const eCOLOR_ILLUMINANT>(params[eCIELAB_POPUP_ILLUMINANT]->u.pd.value - 1);
+
 		/* This plugin called frop PR - check video fomat */
 		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 		if (PF_Err_NONE == (AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data)->GetPixelFormat(output, &destinationPixelFormat)))
 		{
 			switch (destinationPixelFormat)
 			{
-				case PrPixelFormat_BGRA_4444_8u:
-					err = CIELabCorrect_BGRA_4444_8u (in_data, out_data, params, output, L_level, A_level, B_level);
-				break;
-
 				case PrPixelFormat_VUYA_4444_8u_709:
 				case PrPixelFormat_VUYA_4444_8u:
 				{
 					auto const isBT709 = (destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709);
-					err = CIELabCorrect_VUYA_4444_8u (in_data, out_data, params, output, L_level, A_level, B_level, isBT709);
+					err = CIELabCorrect_VUYA_4444_8u(in_data, out_data, params, output, L_level, A_level, B_level, iObserver, iIlluminant, isBT709);
 				}
 				break;
 
@@ -374,16 +384,20 @@ PF_Err ProcessImgInPR
 				case PrPixelFormat_VUYA_4444_32f:
 				{
 					auto const isBT709 = (destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709);
-					err = CIELabCorrect_VUYA_4444_32f (in_data, out_data, params, output, L_level, A_level, B_level, isBT709);
+					err = CIELabCorrect_VUYA_4444_32f(in_data, out_data, params, output, L_level, A_level, B_level, iObserver, iIlluminant, isBT709);
 				}
 				break;
 
+				case PrPixelFormat_BGRA_4444_8u:
+					err = CIELabCorrect_BGRA_4444_8u (in_data, out_data, params, output, L_level, A_level, B_level, iObserver, iIlluminant);
+				break;
+
 				case PrPixelFormat_BGRA_4444_16u:
-					err = CIELabCorrect_BGRA_4444_16u (in_data, out_data, params, output, L_level, A_level, B_level);
+					err = CIELabCorrect_BGRA_4444_16u (in_data, out_data, params, output, L_level, A_level, B_level, iObserver, iIlluminant);
 				break;
 
 				case PrPixelFormat_BGRA_4444_32f:
-					err = CIELabCorrect_BGRA_4444_32f (in_data, out_data, params, output, L_level, A_level, B_level);
+					err = CIELabCorrect_BGRA_4444_32f (in_data, out_data, params, output, L_level, A_level, B_level, iObserver, iIlluminant);
 				break;
 
 				default:

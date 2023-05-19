@@ -63,13 +63,14 @@ GlobalSetup(
 
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
+
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 	}
 
 	return err;
@@ -87,6 +88,22 @@ ParamsSetup (
 	PF_Err		err = PF_Err_NONE;
 	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_POPUP(
+		strObserver,		/* pop-up name          */
+		TOTAL_OBSERVERS,    /* number of operations */
+		CIE_1931,			/* default operation    */
+		strObserverType,    /* string for pop-up    */
+		eCIELAB_POPUP_OBSERVER); /* control ID           */
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_POPUP(
+		strIlluminant,		/* pop-up name          */
+		TOTAL_ILLUMINANTS,  /* number of operations */
+		ILLUMINANT_D65+1,	/* default operation    */
+		strIlluminanatVal,  /* string for pop-up    */
+		eCIELAB_POPUP_ILLUMINANT); /* control ID           */
 
 	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
 	PF_ADD_SLIDER(

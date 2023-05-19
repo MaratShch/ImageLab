@@ -2,6 +2,7 @@
 
 #include "CommonAdobeAE.hpp"
 #include "CommonAuxPixFormat.hpp"
+#include "ColorTransformMatrix.hpp"
 
 constexpr char strName[] = "Color Correction CieLAB";
 constexpr char strCopyright[] = "\n2019-2023. ImageLab2 Copyright(c).\rColor Correction in CieLAB color space.";

@@ -13,12 +13,12 @@ inline PF_Err ColorCorrectionCieLABInAe_8bits
 ) noexcept
 {
 	/* get sliders values */
-	auto const& L_coarse = params[eCIELAB_SLIDER_L_COARSE]->u.sd.value;
-	auto const& L_fine   = params[eCIELAB_SLIDER_L_FINE  ]->u.fs_d.value;
-	auto const& A_coarse = params[eCIELAB_SLIDER_A_COARSE]->u.sd.value;
-	auto const& A_fine   = params[eCIELAB_SLIDER_A_FINE  ]->u.fs_d.value;
-	auto const& B_coarse = params[eCIELAB_SLIDER_B_COARSE]->u.sd.value;
-	auto const& B_fine   = params[eCIELAB_SLIDER_B_FINE  ]->u.fs_d.value;
+	auto const L_coarse = params[eCIELAB_SLIDER_L_COARSE]->u.sd.value;
+	auto const L_fine   = params[eCIELAB_SLIDER_L_FINE  ]->u.fs_d.value;
+	auto const A_coarse = params[eCIELAB_SLIDER_A_COARSE]->u.sd.value;
+	auto const A_fine   = params[eCIELAB_SLIDER_A_FINE  ]->u.fs_d.value;
+	auto const B_coarse = params[eCIELAB_SLIDER_B_COARSE]->u.sd.value;
+	auto const B_fine   = params[eCIELAB_SLIDER_B_FINE  ]->u.fs_d.value;
 
 	const float L_level = static_cast<float>(static_cast<double>(L_coarse) + L_fine);
 	const float A_level = static_cast<float>(static_cast<double>(A_coarse) + A_fine);
@@ -34,18 +34,22 @@ inline PF_Err ColorCorrectionCieLABInAe_8bits
 	}
 	else
 	{
-		const PF_EffectWorld*    __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eCIELAB_INPUT]->u.ld);
+		/* in case of processing enable - let's check illuminant and observer using for compute color transofrm */
+		const eCOLOR_OBSEREVER  iObserver   = static_cast<const eCOLOR_OBSEREVER >(params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
+		const eCOLOR_ILLUMINANT iIlluminant = static_cast<const eCOLOR_ILLUMINANT>(params[eCIELAB_POPUP_ILLUMINANT]->u.pd.value - 1);
+
+		const PF_EffectWorld*    __restrict input   = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eCIELAB_INPUT]->u.ld);
 		const PF_Pixel_ARGB_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
 		      PF_Pixel_ARGB_8u*  __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-		auto const& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-		auto const& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+		auto const src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+		auto const dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-		auto const& sizeY = output->height;
-		auto const& sizeX = output->width;
+		auto const sizeY = output->height;
+		auto const sizeX = output->width;
 		constexpr float reciproc = 1.f / static_cast<float>(u8_value_white);
 
-		const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+		const float* __restrict fReferences = cCOLOR_ILLUMINANT[iObserver][iIlluminant];
 
 		for (A_long j = 0; j < sizeY; j++)
 		{
@@ -94,12 +98,12 @@ inline PF_Err ColorCorrectionCieLABInAe_16bits
 ) noexcept
 {
 	/* get sliders values */
-	auto const& L_coarse = params[eCIELAB_SLIDER_L_COARSE]->u.sd.value;
-	auto const& L_fine   = params[eCIELAB_SLIDER_L_FINE  ]->u.fs_d.value;
-	auto const& A_coarse = params[eCIELAB_SLIDER_A_COARSE]->u.sd.value;
-	auto const& A_fine   = params[eCIELAB_SLIDER_A_FINE  ]->u.fs_d.value;
-	auto const& B_coarse = params[eCIELAB_SLIDER_B_COARSE]->u.sd.value;
-	auto const& B_fine   = params[eCIELAB_SLIDER_B_FINE  ]->u.fs_d.value;
+	auto const L_coarse = params[eCIELAB_SLIDER_L_COARSE]->u.sd.value;
+	auto const L_fine   = params[eCIELAB_SLIDER_L_FINE  ]->u.fs_d.value;
+	auto const A_coarse = params[eCIELAB_SLIDER_A_COARSE]->u.sd.value;
+	auto const A_fine   = params[eCIELAB_SLIDER_A_FINE  ]->u.fs_d.value;
+	auto const B_coarse = params[eCIELAB_SLIDER_B_COARSE]->u.sd.value;
+	auto const B_fine   = params[eCIELAB_SLIDER_B_FINE  ]->u.fs_d.value;
 
 	const float L_level = static_cast<float>(static_cast<double>(L_coarse) + L_fine);
 	const float A_level = static_cast<float>(static_cast<double>(A_coarse) + A_fine);
@@ -115,18 +119,22 @@ inline PF_Err ColorCorrectionCieLABInAe_16bits
 	}
 	else
 	{
-		const PF_EffectWorld*     __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eCIELAB_INPUT]->u.ld);
+		/* in case of processing enable - let's check illuminant and observer using for compute color transofrm */
+		const eCOLOR_OBSEREVER  iObserver   = static_cast<const eCOLOR_OBSEREVER >(params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
+		const eCOLOR_ILLUMINANT iIlluminant = static_cast<const eCOLOR_ILLUMINANT>(params[eCIELAB_POPUP_ILLUMINANT]->u.pd.value - 1);
+
+		const PF_EffectWorld*     __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eCIELAB_INPUT]->u.ld);
 		const PF_Pixel_ARGB_16u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
 		      PF_Pixel_ARGB_16u*  __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-		auto const& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-		auto const& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+		auto const src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+		auto const dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-		auto const& sizeY = output->height;
-		auto const& sizeX = output->width;
+		auto const sizeY = output->height;
+		auto const sizeX = output->width;
 		constexpr float reciproc = 1.f / static_cast<float>(u16_value_white);
 
-		const float* __restrict fReferences = cCOLOR_ILLUMINANT[CIE_1931][ILLUMINANT_D65];
+		const float* __restrict fReferences = cCOLOR_ILLUMINANT[iObserver][iIlluminant];
 
 		for (A_long j = 0; j < sizeY; j++)
 		{
@@ -177,5 +185,5 @@ ProcessImgInAE
 {
 	return (PF_WORLD_IS_DEEP(output) ?
 		ColorCorrectionCieLABInAe_16bits(in_data, out_data, params, output) :
-		ColorCorrectionCieLABInAe_8bits(in_data, out_data, params, output));
+		ColorCorrectionCieLABInAe_8bits (in_data, out_data, params, output));
 }
