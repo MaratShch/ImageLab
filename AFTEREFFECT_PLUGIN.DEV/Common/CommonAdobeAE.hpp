@@ -34,6 +34,37 @@
 #endif
 
 
+inline void AEFX_INIT_PARAM_STRUCTURE(PF_ParamDef& strDef, const PF_ParamFlags& paramFlag, const PF_ParamUIFlags& uiFlag) noexcept
+{
+	AEFX_CLR_STRUCT_EX(strDef);
+	strDef.flags = paramFlag;
+	strDef.ui_flags = uiFlag;
+}
+
+
+template <typename T>
+inline void Image_SimpleCopy
+(
+	const T* __restrict srcBuffer,
+	T* __restrict dstBuffer,
+	const int32_t&      height,
+	const int32_t&      width,
+	const int32_t&      src_line_pitch,
+	const int32_t&      dst_line_pitch
+) noexcept
+{
+	for (int32_t j = 0; j < height; j++)
+	{
+		const T* __restrict pSrcLine = srcBuffer + j * src_line_pitch;
+		T* __restrict pDstLine = dstBuffer + j * dst_line_pitch;
+		__VECTORIZATION__
+			for (int32_t i = 0; i < width; i++) { pDstLine[i] = pSrcLine[i]; }
+	}
+	return;
+}
+
+
+
 inline void
 MakeParamCopy (PF_ParamDef* __restrict actual[], PF_ParamDef copy[], const int32_t& size) noexcept
 {

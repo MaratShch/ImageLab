@@ -7,11 +7,12 @@
 #pragma comment(lib, "..\\BUILD.OUT\\Release\\ImageLabUtils.lib")
 #endif
 
-using namespace ImageLabMemoryUtils;
+//using namespace ImageLabMemoryUtils;
 
 
 int main(void)
 {
+#if 0
 	CMemoryInterface* pInstance1 = CMemoryInterface::getInstance();
 	CMemoryInterface* pInstance2 = CMemoryInterface::getInstance();
 
@@ -30,6 +31,6 @@ int main(void)
 
 	id1 = pInstance1->allocMemoryBlock(memSize1, &ptr1);
 	id2 = pInstance2->allocMemoryBlock(memSize1, &ptr2);
-
+#endif
 	return 0;
 }

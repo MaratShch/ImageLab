@@ -91,19 +91,19 @@ ParamsSetup (
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_POPUP(
-		strObserver,		/* pop-up name          */
-		TOTAL_OBSERVERS,    /* number of operations */
-		CIE_1931,			/* default operation    */
-		strObserverType,    /* string for pop-up    */
-		eCIELAB_POPUP_OBSERVER); /* control ID           */
+		strObserver,					/* pop-up name          */
+		observer_TOTAL_OBSERVERS,		/* number of operations */
+		observer_CIE_1931,				/* default operation    */
+		strObserverType,				/* string for pop-up    */
+		eCIELAB_POPUP_OBSERVER);		/* control ID           */
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_POPUP(
-		strIlluminant,		/* pop-up name          */
-		TOTAL_ILLUMINANTS,  /* number of operations */
-		ILLUMINANT_D65+1,	/* default operation    */
-		strIlluminanatVal,  /* string for pop-up    */
-		eCIELAB_POPUP_ILLUMINANT); /* control ID           */
+		strIlluminant,				/* pop-up name          */
+		color_TOTAL_ILLUMINANTS,	/* number of operations */
+		color_ILLUMINANT_D65 +1,	/* default operation    */
+		strIlluminanatVal,			/* string for pop-up    */
+		eCIELAB_POPUP_ILLUMINANT);	/* control ID           */
 
 	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
 	PF_ADD_SLIDER(
