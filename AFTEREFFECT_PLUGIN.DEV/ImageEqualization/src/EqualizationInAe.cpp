@@ -37,6 +37,9 @@ ImageEqualizationInAE_8bits
 			err = AE_ImageEq_Sigmoid_ARGB_4444_8u (in_data, out_data, params, output);
 		break;
 
+		case IMAGE_EQ_ADVANCED:
+		break;
+
 		case IMAGE_EQ_NONE:
 		default:
 			PF_EffectWorld* input = reinterpret_cast<PF_EffectWorld*>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
@@ -82,6 +85,9 @@ ImageEqualizationInAE_16bits
 
 		case IMAGE_EQ_SIGMOID:
 			err = AE_ImageEq_Sigmoid_ARGB_4444_16u (in_data, out_data, params, output);
+		break;
+
+		case IMAGE_EQ_ADVANCED:
 		break;
 
 		case IMAGE_EQ_NONE:

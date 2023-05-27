@@ -31,6 +31,7 @@ constexpr char STR_EQ_ALGO_TYPE[] =	"None|"
 									"Dark|"
 									"Exponential|"
 	                                "Sigmoid|"
+	                                "Advanced|"
 									"Manual";
 
 constexpr char STR_EQ_DARK_SLIDER[]     = "Dark channel details";

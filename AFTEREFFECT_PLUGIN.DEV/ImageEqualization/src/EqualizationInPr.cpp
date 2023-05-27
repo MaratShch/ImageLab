@@ -330,6 +330,58 @@ PF_Err PR_ImageEq_Sigmoid
 }
 
 
+PF_Err PR_ImageEq_Advanced
+(
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
+) noexcept
+{
+	PF_Err err = PF_Err_NONE;
+	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
+
+	/* This plugin called from PR - check video fomat */
+	if (PF_Err_NONE == AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data)->GetPixelFormat(output, &destinationPixelFormat))
+	{
+		switch (destinationPixelFormat)
+		{
+			case PrPixelFormat_BGRA_4444_8u:
+				err = PR_ImageEq_Advanced_BGRA_4444_8u(in_data, out_data, params, output);
+			break;
+
+			case PrPixelFormat_BGRA_4444_16u:
+				err = PR_ImageEq_Advanced_BGRA_4444_16u(in_data, out_data, params, output);
+			break;
+
+			case PrPixelFormat_BGRA_4444_32f:
+				err = PR_ImageEq_Advanced_BGRA_4444_32f(in_data, out_data, params, output);
+			break;
+
+			case PrPixelFormat_VUYA_4444_8u:
+			case PrPixelFormat_VUYA_4444_8u_709:
+				err = PR_ImageEq_Advanced_VUYA_4444_8u_709(in_data, out_data, params, output);
+			break;
+
+			case PrPixelFormat_VUYA_4444_32f:
+			case PrPixelFormat_VUYA_4444_32f_709:
+				err = PR_ImageEq_Advanced_VUYA_4444_32f_709(in_data, out_data, params, output);
+			break;
+
+			default:
+			break;
+		} /* switch (destinationPixelFormat) */
+
+	} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
+	else
+	{
+		/* error in determine pixel format */
+		err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+	}
+
+	return err;
+}
+
 
 PF_Err ProcessImgInPR
 (
@@ -344,10 +396,6 @@ PF_Err ProcessImgInPR
 
 	switch (eqType)
 	{
-		case IMAGE_EQ_MANUAL:
-			PR_ImageEq_Manual (in_data, out_data, params, output);
-		break;
-		
 		case IMAGE_EQ_LINEAR:
 			PR_ImageEq_Linear (in_data, out_data, params, output);
 		break;
@@ -366,6 +414,14 @@ PF_Err ProcessImgInPR
 
 		case IMAGE_EQ_SIGMOID:
 			PR_ImageEq_Sigmoid (in_data, out_data, params, output);
+		break;
+
+		case IMAGE_EQ_ADVANCED:
+			PR_ImageEq_Advanced (in_data, out_data, params, output);
+		break;
+
+		case IMAGE_EQ_MANUAL:
+			PR_ImageEq_Manual (in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_NONE:

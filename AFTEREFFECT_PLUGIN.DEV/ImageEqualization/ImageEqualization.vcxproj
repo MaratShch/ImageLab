@@ -161,6 +161,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageEqualization.hpp" />
+    <ClInclude Include="include\ImageEqualizationColorTransform.hpp" />
     <ClInclude Include="include\ImageEqualizationEnums.hpp" />
     <ClInclude Include="include\ImageEqualizationFuncProto.hpp" />
     <ClInclude Include="include\ImageHistogram.hpp" />
@@ -192,6 +193,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\EqualizationInAe.cpp" />
     <ClCompile Include="src\EqualizationInPr.cpp" />
+    <ClCompile Include="src\Equalization_Advanced.cpp" />
+    <ClCompile Include="src\Equalization_AdvancedEx.cpp" />
     <ClCompile Include="src\Equalization_Bright.cpp" />
     <ClCompile Include="src\Equalization_Dark.cpp" />
     <ClCompile Include="src\Equalization_Exponential.cpp" />

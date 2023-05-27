@@ -81,6 +81,9 @@
     <ClInclude Include="..\Common\ColorTransform.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageEqualizationColorTransform.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageEqualization.cpp">
@@ -114,6 +117,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Equalization_Bright.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_Advanced.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Equalization_AdvancedEx.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
