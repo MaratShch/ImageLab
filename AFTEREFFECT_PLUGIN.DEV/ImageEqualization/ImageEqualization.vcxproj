@@ -160,6 +160,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ImageCoefficients.txt" />
     <ClInclude Include="include\ImageEqualization.hpp" />
     <ClInclude Include="include\ImageEqualizationColorTransform.hpp" />
     <ClInclude Include="include\ImageEqualizationEnums.hpp" />

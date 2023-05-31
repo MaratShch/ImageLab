@@ -4,6 +4,11 @@
 #include "CommonAuxPixFormat.hpp"
 #include "ImageEqualizationColorTransform.hpp"
 
+CACHE_ALIGN constexpr float cstar_gmax[] = {
+	#include "ImageCoefficients.txt"
+};
+constexpr size_t coeffArraySize = sizeof(cstar_gmax);
+
 
 void fCIELabHueImprove
 (
@@ -70,10 +75,22 @@ void fCIELabHueImprove
 		};
 
 		constexpr float reciproc116 = 1.f / 116.f;
-		const float fY = (pLabSrc[i].L + 16.f) * reciproc116;
 		const float sq_h_out = h_out * h_out;
+		const float fY = (pLabSrc[i].L + 16.f) * reciproc116;
 		const float fX =  sign(pLabSrc[i].a) * cs_out / (500.f * FastCompute::Sqrt(1.f + sq_h_out)) + fY;
 		const float fZ = -sign(pLabSrc[i].b) * cs_out / (200.f * FastCompute::Sqrt(1.f + 1.f / sq_h_out)) + fY;
+
+		constexpr float reciproc16 = 16.f / 116.f;
+		constexpr float reciproc7x = 0.9505f / 7.78f;
+		constexpr float reciproc7y = 1.f / 7.78f;
+		constexpr float reciproc7z = 1.089f / 7.78f;
+		const float X = (fX > 0.20689f ? (0.9505f * fX * fX * fX) : ((fX - reciproc16) * reciproc7x));
+		const float Y = (fY > 0.20689f ? (fY * fY * fY)           :  (fY - reciproc16) * reciproc7y);
+		const float Z = (fZ > 0.20689f ? (1.089f * fZ * fZ * fZ)  :  (fZ - reciproc16) * reciproc7z);
+
+		const int32_t indexY = static_cast<const int32_t>(100.f * Y);
+		const int32_t hangle_out_i = static_cast<const int32_t>(hangle_out);
+
 
 	}
 
