@@ -10,7 +10,8 @@ void fCIELabHueImprove
 	A_long sizeX,
 	A_long sizeY,
 	float  alpha,
-	float  lightness
+	float  lightness,
+	float  cs_out_max
 ) noexcept;
 
 PF_Err PR_ImageEq_Linear_BGRA_4444_8u

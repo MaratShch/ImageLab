@@ -44,9 +44,9 @@ PF_Err PR_ImageEq_Advanced_BGRA_4444_8u
 #endif // _DEBUG
 
 		/* convert from RGB to CIEL*a*b color space */
-		ConvertToLabColorSpace (localSrc, srcLabBuffer, sizeX, sizeY, line_pitch, FastCompute::Abs(sizeX), scale2fRGB);
+		const float cs_out_max = ConvertToLabColorSpace (localSrc, srcLabBuffer, sizeX, sizeY, line_pitch, sizeX, scale2fRGB);
 
-		fCIELabHueImprove (srcLabBuffer, cs_buffer, sizeX, sizeY, 85.f, lightness_enhanecemnt);
+		fCIELabHueImprove (srcLabBuffer, cs_buffer, sizeX, sizeY, 85.f, lightness_enhanecemnt, cs_out_max);
 
 		/* release memory block */
 		::FreeMemoryBlock(blockId);

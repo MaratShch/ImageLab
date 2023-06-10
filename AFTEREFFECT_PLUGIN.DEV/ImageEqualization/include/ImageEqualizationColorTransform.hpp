@@ -8,10 +8,10 @@ constexpr eCOLOR_ILLUMINANT gDefaultIlluminant = color_ILLUMINANT_D65;
 
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-inline void ConvertToLabColorSpace
+inline float ConvertToLabColorSpace
 (
-	const T*     pSrc,
-	fCIELabPix*  pDst,
+	const T*     __restrict pSrc,
+	fCIELabPix*  __restrict pDst,
 	const A_long& sizeX,
 	const A_long& sizeY,
 	const A_long& src_pitch,
@@ -25,6 +25,7 @@ inline void ConvertToLabColorSpace
 		cCOLOR_ILLUMINANT[gDefaultObserver][gDefaultIlluminant][1],
 		cCOLOR_ILLUMINANT[gDefaultObserver][gDefaultIlluminant][2]
 	};
+	float cs_out_max = FLT_MIN;
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -32,7 +33,7 @@ inline void ConvertToLabColorSpace
 		fCIELabPix*  __restrict pDstLine = pDst + j * dst_pitch;
 
 		/* lambda for convert from RGB to sRGB */
-		auto const convert2fRGB = [&](const T p, const float val)
+		auto const convert2fRGB = [&](const T p, const float val) noexcept
 		{
 			fRGB outPix;
 			outPix.R = p.R * val, outPix.G = p.G * val, outPix.B = p.B * val;
@@ -40,14 +41,20 @@ inline void ConvertToLabColorSpace
 		};
 
 		for (A_long i = 0; i < sizeX; i++)
-			pDstLine[i] = RGB2CIELab (convert2fRGB(pSrcLine[i], scale), colorReferences);
+		{
+			pDstLine[i] = RGB2CIELab(convert2fRGB(pSrcLine[i], scale), colorReferences);
+			auto const& a = pDstLine[i].a;
+			auto const& b = pDstLine[i].b;
+			const float cs_out = FastCompute::Sqrt(a * a + b * b);
+			cs_out_max = FastCompute::Max(cs_out_max, cs_out);
+		}
 	}
-	return;
+	return cs_out_max;
 }
 
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline void ConvertToLabColorSpace
+inline float ConvertToLabColorSpace
 (
 	const T*    __restrict pSrc,
 	fCIELabPix* __restrict pDst,
