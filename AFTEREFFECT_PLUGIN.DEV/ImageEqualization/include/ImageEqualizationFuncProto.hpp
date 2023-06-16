@@ -5,8 +5,9 @@
 
 void fCIELabHueImprove
 (
-	fCIELabPix* __restrict pLabSrc,
-	float*      __restrict cs_out,
+	const fCIELabPix*  pLabSrc,
+	fXYZPix*           xyz,
+	const float*       cs_out,
 	A_long sizeX,
 	A_long sizeY,
 	float  alpha,

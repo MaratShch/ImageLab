@@ -3,6 +3,7 @@
 #include "ColorTransform.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "ImageEqualizationColorTransform.hpp"
+#include <memory>
 
 
 PF_Err PR_ImageEq_Advanced_BGRA_4444_8u
@@ -22,8 +23,9 @@ PF_Err PR_ImageEq_Advanced_BGRA_4444_8u
 	auto const sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
+	constexpr size_t components_size = fCIELabPix_size /* CIELab buffer */ + fXYZPix_size /* XYZ buffer */ + sizeof(float)/* cs_out buffer */;
 	const size_t frameSize = sizeX * sizeY;
-	const size_t memSizeForTmpBuffers = frameSize * fCIELabPix_size /* CIELab buffer */ + frameSize * sizeof(float) /* cs_out buffer */;
+	const size_t memSizeForTmpBuffers = frameSize * components_size;
 	const size_t requiredMemSize = CreateAlignment(memSizeForTmpBuffers, static_cast<size_t>(CACHE_LINE));
 
 	/* Get memory block */
@@ -34,8 +36,10 @@ PF_Err PR_ImageEq_Advanced_BGRA_4444_8u
 	{
 		constexpr float scale2fRGB = 1.f / static_cast<float>(u8_value_white);
 		const float* __restrict fReferences = cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65];
+		
 		fCIELabPix* srcLabBuffer = reinterpret_cast<fCIELabPix*>(pMemoryBlock);
-		float* cs_buffer = reinterpret_cast<float*>(srcLabBuffer + frameSize);
+		float*      cs_out       = reinterpret_cast<float*     >(srcLabBuffer + frameSize);
+		fXYZPix*    xyz_buffer   = reinterpret_cast<fXYZPix*   >(cs_out + frameSize);
 
 		constexpr float lightness_enhanecemnt = 1.25f;
 
@@ -44,9 +48,9 @@ PF_Err PR_ImageEq_Advanced_BGRA_4444_8u
 #endif // _DEBUG
 
 		/* convert from RGB to CIEL*a*b color space */
-		const float cs_out_max = ConvertToLabColorSpace (localSrc, srcLabBuffer, sizeX, sizeY, line_pitch, sizeX, scale2fRGB);
+		const float cs_out_max = ConvertToLabColorSpace (localSrc, srcLabBuffer, cs_out, sizeX, sizeY, line_pitch, sizeX, scale2fRGB);
 
-		fCIELabHueImprove (srcLabBuffer, cs_buffer, sizeX, sizeY, 85.f, lightness_enhanecemnt, cs_out_max);
+		fCIELabHueImprove (srcLabBuffer, xyz_buffer, cs_out, sizeX, sizeY, 85.f, lightness_enhanecemnt, cs_out_max);
 
 		/* release memory block */
 		::FreeMemoryBlock(blockId);
@@ -92,7 +96,7 @@ PF_Err PR_ImageEq_Advanced_BGRA_4444_16u
 #endif // _DEBUG
 
 		/* convert from RGB to CIEL*a*b color space */
-		ConvertToLabColorSpace (localSrc, srcLabBuffer, sizeX, sizeY, line_pitch, FastCompute::Abs(sizeX), scale2fRGB);
+//		ConvertToLabColorSpace (localSrc, srcLabBuffer, sizeX, sizeY, line_pitch, FastCompute::Abs(sizeX), scale2fRGB);
 
 		/* release memory block */
 		::FreeMemoryBlock(blockId);

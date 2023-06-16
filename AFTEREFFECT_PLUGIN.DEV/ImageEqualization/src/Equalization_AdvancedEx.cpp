@@ -7,9 +7,7 @@
 CACHE_ALIGN constexpr float cstar_gmax[] = {
 	#include "ImageCoefficients.txt"
 };
-#ifdef _DEBUG
- constexpr size_t coeffArraySize = sizeof(cstar_gmax);
-#endif
+constexpr size_t coeffArraySize = sizeof(cstar_gmax);
 
  
 inline const void __xyz2rgb (const float& x, const float& y, const float& z, float& r, float& g, float& b) noexcept
@@ -21,22 +19,25 @@ inline const void __xyz2rgb (const float& x, const float& y, const float& z, flo
 	return;
  };
 
-
+#ifdef _DEBUG
+int32_t dbg_indexH_min = INT_MAX;
+int32_t dbg_indexH_max = INT_MIN;
+int32_t dbg_indexY_min = INT_MAX;
+int32_t dbg_indexY_max = INT_MIN;
+#endif
 
 void fCIELabHueImprove
 (
-	fCIELabPix* __restrict pLabSrc,
-	float*      __restrict cs_out,
+	const fCIELabPix* pLabSrc,
+	fXYZPix*          xyz_out,
+	const float*      cs_out,
 	A_long sizeX,
 	A_long sizeY,
 	float  alpha,
 	float  ligntness,
-	float cs_out_max
+	float  cs_out_max
 ) noexcept
 {
-	const A_long imgSize{ sizeX * sizeY };
-	A_long i;
-
 	auto const sign = [&](const float f) noexcept {
 		return (f > 0.f ? 1.f : (f < 0.f) ? -1.f : 0.f);
 	};
@@ -56,19 +57,19 @@ void fCIELabHueImprove
 		return gR * gG * gB;
 	};
 
+	const A_long imgSize = sizeX * sizeY;
 	const float reciprocCsOutMax = 1.f / cs_out_max;
 	const float lightness_reciproc = 1.f / ligntness;
 	constexpr float reciproc180  = 1.f / 180.f;
 	constexpr float ligh_reciproc_100 = 1.f / 100.f;
 
-	__VECTOR_ALIGNED__
-	for (i = 0; i < imgSize; i++)
+	for (A_long i = 0; i < imgSize; i++)
 	{
-		auto const L = pLabSrc[i].L;
-		auto const a = pLabSrc[i].a;
-		auto const b = pLabSrc[i].b;
+		auto const& L = pLabSrc[i].L;
+		auto const& a = pLabSrc[i].a;
+		auto const& b = pLabSrc[i].b;
 		const float wc = tone_map_inc (cs_out[i] * reciprocCsOutMax);
-		const float hangle_out2 = FastCompute::Atan2 (b, a) * reciproc180;
+		const float hangle_out2 = std::atan2 (b, a) * reciproc180;
 		constexpr float alpha = -10.f;
 		const float expVal = FastCompute::Exp (alpha * hangle_out2 * hangle_out2);
 		const float wx = 3.f * wc * expVal + 1.f;
@@ -81,7 +82,7 @@ void fCIELabHueImprove
 
 		const float csOut = FastCompute::Sqrt (pLabSrcA * pLabSrcA + pLabSrcB * pLabSrcB);
 		const float h_out  = ((csOut >= 0.1f) ? pLabSrcB / pLabSrcA : 0.f);
-		const float hangle_out = FastCompute::Atan2 (pLabSrcB, pLabSrcA) + ((pLabSrcB < 0.f) ? 360.f : 0.f);
+		const float hangle_out = std::atan2 (pLabSrcB, pLabSrcA) + ((pLabSrcB < 0.f) ? 360.f : 0.f);
 
 		constexpr float reciproc116 = 1.f / 116.f;
 		const float sq_h_out = h_out * h_out;
@@ -97,49 +98,56 @@ void fCIELabHueImprove
 		float Y = (fY > 0.20689f ? (fY * fY * fY)           :  (fY - reciproc16) * reciproc7y);
 		float Z = (fZ > 0.20689f ? (1.089f * fZ * fZ * fZ)  :  (fZ - reciproc16) * reciproc7z);
 
-		const int32_t indexY = FastCompute::Min(100, static_cast<const int32_t>(100.f * Y));
-		const int32_t indexH = static_cast<const int32_t>(hangle_out);
+		const int32_t indexY = FastCompute::Min(99,  static_cast<const int32_t>(100.f * Y));	/* 0 ... 100 */
+		const int32_t indexH = FastCompute::Min(359, static_cast<const int32_t>(hangle_out));	/* 0 ... 360 */
 
 		constexpr float Xn = 0.9505f;
 		constexpr float Zn = 1.0890f;
 
 		float rr, gg, bb, gamut_desc;
+		float fCsOut = 0.f;
+
 #ifdef _DEBUG
 		rr = gg = bb = gamut_desc = 0.f;
+
+		dbg_indexH_min = FastCompute::Min(dbg_indexH_min, indexH); // 0
+		dbg_indexH_max = FastCompute::Max(dbg_indexH_max, indexH); // 362 !!!
+		dbg_indexY_min = FastCompute::Min(dbg_indexY_min, indexY); // 0
+		dbg_indexY_max = FastCompute::Max(dbg_indexY_max, indexY); // 99
 #endif
 		__xyz2rgb(Xn * fX * fX * fX, fY * fY * fY, Zn * fZ * fZ * fZ, rr, gg, bb);
+
 		if (1.f == (gamut_desc = gamut_descript(rr, gg, bb)))
 		{
-			cs_out[i] = csOut;
+			fCsOut = csOut;
 		}
 		else
 		{
 			if (0 == indexY || 100 == indexY)
 			{
 				if (0 == indexH || 360 == indexH)
-					cs_out[i] = FastCompute::Min(cstar_gmax[indexY], cstar_gmax[indexY * 359]);
+					fCsOut = FastCompute::Min(cstar_gmax[indexY], cstar_gmax[indexY * 359]);
 				else
-					cs_out[i] = FastCompute::Min(cstar_gmax[indexY + 359 * indexH], cstar_gmax[indexY + 359 * (indexH + 1)]);
+					fCsOut = FastCompute::Min(cstar_gmax[indexY + 100 * indexH], cstar_gmax[indexY + 100 * (indexH + 1)]);
 			}
 			else if (indexH == 0 || indexH == 360)
 			{
 				const float cs = FastCompute::Min3(cstar_gmax[indexY], cstar_gmax[indexY + 1], cstar_gmax[indexY * 359]);
-				cs_out[i] = FastCompute::Min(cs, cstar_gmax[(indexY + 1) * 359]);
+				fCsOut = FastCompute::Min(cs, cstar_gmax[(indexY + 1) * 359]);
 			}
 			else
 			{
-				const float cs = FastCompute::Min3(cstar_gmax[indexY + 359 * indexH], cstar_gmax[indexY + 1 + 359 * indexH], cstar_gmax[indexY + 359 * indexH]);
-				cs_out[i] = FastCompute::Min(cs, cstar_gmax[indexY + 1 + 359 * (1 + indexH)]);
+				const float cs = FastCompute::Min3(cstar_gmax[indexY + 100 * indexH], cstar_gmax[indexY + 1 + 100 * indexH], cstar_gmax[indexY + 100 * indexH]);
+				fCsOut = FastCompute::Min(cs, cstar_gmax[indexY + 1 + 100 * (1 + indexH)]);
 			}
 		}
 
-		fX =  sign(pLabSrcA) * cs_out[i] / (500.f * FastCompute::Sqrt(1.f + sq_h_out)) + fY;
-		fZ = -sign(pLabSrcB) * cs_out[i] / (200.f * FastCompute::Sqrt(1.f + 1.f / sq_h_out)) + fY;
-		 
-		X = (fX > 0.20689f) ? 0.9505f * fX * fX * fX : (fX - reciproc16) * reciproc7x;
-		Y = (fY > 0.20689f) ? fY * fY * fY           : (fY - reciproc16) * reciproc7y;
-		Z = (fZ > 0.20689f) ? 1.0890f * fZ * fZ * fZ : (fZ - reciproc16) * reciproc7z;
-
+		fX =  sign(pLabSrcA) * fCsOut / (500.f * FastCompute::Sqrt(1.f + sq_h_out)) + fY;
+		fZ = -sign(pLabSrcB) * fCsOut / (200.f * FastCompute::Sqrt(1.f + 1.f / sq_h_out)) + fY;
+		
+		xyz_out[i].X = (fX > 0.20689f) ? 0.9505f * fX * fX * fX : (fX - reciproc16) * reciproc7x;
+		xyz_out[i].Y = (fY > 0.20689f) ? fY * fY * fY           : (fY - reciproc16) * reciproc7y;
+		xyz_out[i].Z = (fZ > 0.20689f) ? 1.0890f * fZ * fZ * fZ : (fZ - reciproc16) * reciproc7z;
 
 	}/* for (i = 0; i < imgSize; i++) */ 
 

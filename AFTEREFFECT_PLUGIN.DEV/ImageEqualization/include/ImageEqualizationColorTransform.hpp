@@ -12,6 +12,7 @@ inline float ConvertToLabColorSpace
 (
 	const T*     __restrict pSrc,
 	fCIELabPix*  __restrict pDst,
+	float*       __restrict csOut,
 	const A_long& sizeX,
 	const A_long& sizeY,
 	const A_long& src_pitch,
@@ -29,8 +30,9 @@ inline float ConvertToLabColorSpace
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
-		const T*     __restrict pSrcLine = pSrc + j * src_pitch;
-		fCIELabPix*  __restrict pDstLine = pDst + j * dst_pitch;
+		const T*     __restrict pSrcLine   = pSrc  + j * src_pitch;
+		fCIELabPix*  __restrict pDstLine   = pDst  + j * sizeX;
+		float*       __restrict pCsOutLine = csOut + j * sizeX;
 
 		/* lambda for convert from RGB to sRGB */
 		auto const convert2fRGB = [&](const T p, const float val) noexcept
@@ -46,6 +48,7 @@ inline float ConvertToLabColorSpace
 			auto const& a = pDstLine[i].a;
 			auto const& b = pDstLine[i].b;
 			const float cs_out = FastCompute::Sqrt(a * a + b * b);
+			pCsOutLine[i] = cs_out;
 			cs_out_max = FastCompute::Max(cs_out_max, cs_out);
 		}
 	}
@@ -56,8 +59,9 @@ inline float ConvertToLabColorSpace
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 inline float ConvertToLabColorSpace
 (
-	const T*    __restrict pSrc,
-	fCIELabPix* __restrict pDst,
+	const T*     __restrict pSrc,
+	fCIELabPix*  __restrict pDst,
+	float*       __restrict csOut,
 	const A_long& sizeX,
 	const A_long& sizeY,
 	const A_long& src_pitch,

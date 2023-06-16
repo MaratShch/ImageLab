@@ -6,6 +6,23 @@
 #pragma pack(1)
 
 template <typename T>
+struct _tXYZPix
+{
+	T X;
+	T Y;
+	T Z;
+};
+
+using fXYZPix    = _tXYZPix<float>;
+using dXYZLabPix = _tXYZPix<double>;
+using i32XYZPix  = _tXYZPix<int32_t>;
+
+constexpr size_t fXYZPix_size   = sizeof(fXYZPix);
+constexpr size_t dXYZPix_size   = sizeof(dXYZLabPix);
+constexpr size_t i32XYZPix_size = sizeof(i32XYZPix);
+
+
+template <typename T>
 struct _tCIELabPix
 {
 	T L;
