@@ -153,4 +153,3 @@ void fCIELabHueImprove
 
 	return;
 }
-

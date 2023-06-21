@@ -34,7 +34,8 @@ PF_Err PR_ImageEq_Advanced_BGRA_4444_8u
 
 	if (-1 != blockId && nullptr != pMemoryBlock)
 	{
-		constexpr float scale2fRGB = 1.f / static_cast<float>(u8_value_white);
+		constexpr float scale = static_cast<float>(u8_value_white);
+		constexpr float scale2sRGB = 1.f / scale;
 		const float* __restrict fReferences = cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65];
 		
 		fCIELabPix* srcLabBuffer = reinterpret_cast<fCIELabPix*>(pMemoryBlock);
@@ -48,9 +49,13 @@ PF_Err PR_ImageEq_Advanced_BGRA_4444_8u
 #endif // _DEBUG
 
 		/* convert from RGB to CIEL*a*b color space */
-		const float cs_out_max = ConvertToLabColorSpace (localSrc, srcLabBuffer, cs_out, sizeX, sizeY, line_pitch, sizeX, scale2fRGB);
+		const float cs_out_max = ConvertToLabColorSpace (localSrc, srcLabBuffer, cs_out, sizeX, sizeY, line_pitch, sizeX, scale2sRGB);
 
+		/* improve */
 		fCIELabHueImprove (srcLabBuffer, xyz_buffer, cs_out, sizeX, sizeY, 85.f, lightness_enhanecemnt, cs_out_max);
+
+		/* convert improved XYZ to RGB */
+		ImprovedImageRestore (localSrc, localDst, xyz_buffer, sizeX, sizeY, line_pitch, sizeX, line_pitch, scale);
 
 		/* release memory block */
 		::FreeMemoryBlock(blockId);
