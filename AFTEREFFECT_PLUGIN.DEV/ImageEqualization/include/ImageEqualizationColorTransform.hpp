@@ -121,9 +121,9 @@ inline void ImprovedImageRestore
 			const fRGB rgbCorrect = gamma_srgb (xyz2rgb (pXyzLine[i]));
 
 			/* copy from source Alpha-channel values */
-			pDstLine[i].B = rgbCorrect.B * scale;
-			pDstLine[i].G = rgbCorrect.G * scale;
-			pDstLine[i].R = rgbCorrect.R * scale;
+			pDstLine[i].B = CLAMP_VALUE(rgbCorrect.B * scale, 0.f, scale);
+			pDstLine[i].G = CLAMP_VALUE(rgbCorrect.G * scale, 0.f, scale);
+			pDstLine[i].R = CLAMP_VALUE(rgbCorrect.R * scale, 0.f, scale);
 			pDstLine[i].A = pSrcLine[i].A;
 		} /* for (i = 0; i < sizeX; i++) */
 
