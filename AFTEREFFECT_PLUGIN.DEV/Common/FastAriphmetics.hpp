@@ -369,6 +369,13 @@ namespace FastCompute
 		return 0.0f; // x,y = 0. Could return NaN instead.
 	}
 
+	inline float Atan2d (const float& y, const float& x) noexcept
+	{
+		constexpr float coeff = 180.f / FastCompute::PI;
+		return (coeff * Atan2(y, x));
+	}
+
+
 	template <typename T>
 	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sin (const T& x) noexcept
 	{
