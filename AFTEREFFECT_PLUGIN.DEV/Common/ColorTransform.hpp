@@ -81,9 +81,9 @@ inline fCIELabPix RGB2CIELab
 ) noexcept
 {
 	/* in first convert: sRGB -> XYZ */
-	constexpr float reciproc12 = 1.f / 12.92f;
+	constexpr float reciproc12 = 1.f  / 12.92f;
 	constexpr float reciproc16 = 16.f / 116.f;
-	constexpr float reciproc1 = 1.f / 1.055f;
+	constexpr float reciproc1  = 1.f  / 1.055f;
 
 	const float varR = ((pixelRGB.R > 0.04045f) ? FastCompute::Pow((pixelRGB.R + 0.055f) * reciproc1, 2.40f) : pixelRGB.R * reciproc12);
 	const float varG = ((pixelRGB.G > 0.04045f) ? FastCompute::Pow((pixelRGB.G + 0.055f) * reciproc1, 2.40f) : pixelRGB.G * reciproc12);

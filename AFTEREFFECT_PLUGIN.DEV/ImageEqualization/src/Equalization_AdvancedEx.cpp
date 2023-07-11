@@ -12,7 +12,12 @@ constexpr size_t coeffArraySize = sizeof(cstar_gmax);
  
 inline const void __xyz2rgb (const float& x, const float& y, const float& z, float& r, float& g, float& b) noexcept
 {
-	CACHE_ALIGN constexpr float xyz2rgb[] = { 3.2410f, -1.5374f, -0.4986f, -0.9692f, 1.8760f, 0.0416f, 0.0556f, -0.2040f, 1.0570 };
+	CACHE_ALIGN constexpr float xyz2rgb[9] = 
+	{ 
+		XYZtosRGB[0], XYZtosRGB[1], XYZtosRGB[2],
+		XYZtosRGB[3], XYZtosRGB[4], XYZtosRGB[5],
+		XYZtosRGB[6], XYZtosRGB[7], XYZtosRGB[8]
+	};
 	r = x * xyz2rgb[0] + y * xyz2rgb[1] + z * xyz2rgb[2];
 	g = x * xyz2rgb[3] + y * xyz2rgb[4] + z * xyz2rgb[5];
 	b = x * xyz2rgb[6] + y * xyz2rgb[7] + z * xyz2rgb[8];

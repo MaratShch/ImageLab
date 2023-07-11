@@ -38,6 +38,7 @@ ImageEqualizationInAE_8bits
 		break;
 
 		case IMAGE_EQ_ADVANCED:
+			err = AE_ImageEq_Advanced_ARGB_4444_8u (in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_NONE:
@@ -88,6 +89,7 @@ ImageEqualizationInAE_16bits
 		break;
 
 		case IMAGE_EQ_ADVANCED:
+			err = AE_ImageEq_Advanced_ARGB_4444_16u (in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_NONE:
