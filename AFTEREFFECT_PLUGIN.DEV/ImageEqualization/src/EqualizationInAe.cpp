@@ -16,6 +16,7 @@ ImageEqualizationInAE_8bits
 	switch (eqType)
 	{
 		case IMAGE_EQ_MANUAL:
+			err = AE_ImageEq_Manual_ARGB_4444_8u(in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_LINEAR:
@@ -31,6 +32,7 @@ ImageEqualizationInAE_8bits
 		break;
 
 		case IMAGE_EQ_EXPONENTIAL:
+			err = AE_ImageEq_Exponential_ARGB_4444_8u(in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_SIGMOID:
@@ -67,6 +69,7 @@ ImageEqualizationInAE_16bits
 	switch (eqType)
 	{
 		case IMAGE_EQ_MANUAL:
+			err = AE_ImageEq_Manual_ARGB_4444_16u(in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_LINEAR:
@@ -82,6 +85,7 @@ ImageEqualizationInAE_16bits
 		break;
 
 		case IMAGE_EQ_EXPONENTIAL:
+			err = AE_ImageEq_Exponential_ARGB_4444_16u (in_data, out_data, params, output);
 		break;
 
 		case IMAGE_EQ_SIGMOID:

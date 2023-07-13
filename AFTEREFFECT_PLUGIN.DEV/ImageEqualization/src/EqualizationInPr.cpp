@@ -19,20 +19,31 @@ PF_Err PR_ImageEq_Manual
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
+				err = PR_ImageEq_Manual_BGRA_4444_8u(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
+				err = PR_ImageEq_Manual_BGRA_4444_16u(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
+				err = PR_ImageEq_Manual_BGRA_4444_32f(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u:
+				err = PR_ImageEq_Manual_VUYA_4444_8u(in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_8u_709:
+				err = PR_ImageEq_Manual_VUYA_4444_8u_709(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:
+				err = PR_ImageEq_Manual_VUYA_4444_32f(in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_32f_709:
+				err = PR_ImageEq_Manual_VUYA_4444_32f_709(in_data, out_data, params, output);
 			break;
 
 			default:
@@ -246,23 +257,35 @@ PF_Err PR_ImageEq_Exponential
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
+				err = PR_ImageEq_Exponential_BGRA_4444_8u(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
+				err = PR_ImageEq_Exponential_BGRA_4444_16u(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
+				err = PR_ImageEq_Exponential_BGRA_4444_32f(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u:
+				err = PR_ImageEq_Exponential_VUYA_4444_8u(in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_8u_709:
+				err = PR_ImageEq_Exponential_VUYA_4444_8u_709(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:
+				err = PR_ImageEq_Exponential_VUYA_4444_32f(in_data, out_data, params, output);
+			break;
+
 			case PrPixelFormat_VUYA_4444_32f_709:
+				err = PR_ImageEq_Exponential_VUYA_4444_32f_709(in_data, out_data, params, output);
 			break;
 
 			default:
+				err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
 			break;
 		} /* switch (destinationPixelFormat) */
 
