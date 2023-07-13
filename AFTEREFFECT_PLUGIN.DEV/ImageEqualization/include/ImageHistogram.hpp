@@ -48,13 +48,13 @@ inline void imgHistogramCumSum
 (
 	const uint32_t* __restrict in,
 	uint32_t* __restrict out,
-	const int32_t& noiseThreashold,
+	const int32_t& noiseThreshold,
 	const int32_t& size
 ) noexcept
 {
 	__VECTOR_ALIGNED__
-	out[0] = (in[0] > noiseThreashold ? 1u : 0u);
+	out[0] = (in[0] > noiseThreshold ? 1u : 0u);
 	for (int32_t i = 1; i < size; i++)
-		out[i] = (in[i] > noiseThreashold ? 1u : 0u) + out[i - 1];
+		out[i] = (in[i] > noiseThreshold ? 1u : 0u) + out[i - 1];
 	return;
 }

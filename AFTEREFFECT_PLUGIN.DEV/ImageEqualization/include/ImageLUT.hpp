@@ -52,7 +52,7 @@ inline void imgApplyLut
 (
 	const PF_Pixel_VUYA_8u* __restrict inSrc,
 	      PF_Pixel_BGRA_8u* __restrict outSrc,
-	const uint32_t* __restrict pLut,
+	const uint32_t*         __restrict pLut,
 	const int32_t& sizeX,
 	const int32_t& sizeY,
 	const int32_t& src_line_pitch,
@@ -162,8 +162,8 @@ inline void imgApplyLut
 inline void imgApplyLut
 (
 	const PF_Pixel_VUYA_16u* __restrict inSrc,
-	PF_Pixel_ARGB_16u* __restrict outSrc,
-	const uint32_t*         __restrict pLut,
+	      PF_Pixel_ARGB_16u* __restrict outSrc,
+	const uint32_t*          __restrict pLut,
 	const int32_t& sizeX,
 	const int32_t& sizeY,
 	const int32_t& src_line_pitch,

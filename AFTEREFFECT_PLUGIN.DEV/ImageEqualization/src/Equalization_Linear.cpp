@@ -201,7 +201,7 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_16u
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
 	const size_t frameSize = height * FastCompute::Abs(line_pitch);
-	const size_t requiredMemSize = CreateAlignment(frameSize * PF_Pixel_BGRA_8u_size, static_cast<size_t>(CACHE_LINE));
+	const size_t requiredMemSize = CreateAlignment(frameSize * PF_Pixel_VUYA_16u_size, static_cast<size_t>(CACHE_LINE));
 
 	/* Get memory block */
 	void* pMemoryBlock = nullptr;
