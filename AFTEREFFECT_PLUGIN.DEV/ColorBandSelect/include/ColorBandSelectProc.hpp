@@ -3,7 +3,7 @@
 #include "ColorTransformMatrix.hpp"
 
 /* RGB processing */
-template <class T, std::enable_if_t<!is_YUV_proc<T>::value>* = nullptr>
+template <class T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void ImgCopyByChannelMask
 (
 	const T* __restrict pSrcImg,

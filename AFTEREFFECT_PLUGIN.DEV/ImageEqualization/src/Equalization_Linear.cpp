@@ -177,6 +177,7 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_8u
 	return errCode;
 }
 
+
 PF_Err PR_ImageEq_Linear_BGRA_4444_16u
 (
 	PF_InData*    in_data,
@@ -185,8 +186,67 @@ PF_Err PR_ImageEq_Linear_BGRA_4444_16u
 	PF_LayerDef*  output
 ) noexcept
 {
-	return PF_Err_NONE;
+	constexpr int32_t histSize = u16_value_white + 1;
+	constexpr int32_t noiseLevel = 1;
+
+	CACHE_ALIGN uint32_t histOut[histSize]{};
+
+	PF_Err errCode = PF_Err_OUT_OF_MEMORY;
+	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_EQUALIZATION_FILTER_INPUT]->u.ld);
+	const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
+	      PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
+
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+
+	const size_t frameSize = height * FastCompute::Abs(line_pitch);
+	const size_t requiredMemSize = CreateAlignment(frameSize * PF_Pixel_BGRA_8u_size, static_cast<size_t>(CACHE_LINE));
+
+	/* Get memory block */
+	void* pMemoryBlock = nullptr;
+	const int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
+
+	if (-1 != blockId && nullptr != pMemoryBlock)
+	{
+		PF_Pixel_VUYA_16u* __restrict pSrcYUV = reinterpret_cast<PF_Pixel_VUYA_16u* __restrict>(pMemoryBlock);
+		/* let's chek if we have negative line pitch */
+		const int32_t startOffset = ((line_pitch < 0) ? frameSize + line_pitch : 0);
+		pSrcYUV += startOffset;
+
+		constexpr int32_t convert_addendum = 16384;
+		imgRGB2YUV(localSrc, pSrcYUV, BT709, width, height, line_pitch, line_pitch, convert_addendum);
+
+		{
+			CACHE_ALIGN uint32_t histIn [histSize]{};
+			CACHE_ALIGN uint32_t histBin[histSize]{};
+
+			/* create histogram of the luminance channel (require AVX2 implementation in future) */
+			imgHistogram(pSrcYUV, width, height, line_pitch, histIn);
+			/* make histogram binarization */
+			AVX2::Histogram::make_histogram_binarization(histIn, histBin, histSize, noiseLevel);
+			/* make cumulative SUM of binary histogram elements */
+			AVX2::MiscUtils::cum_sum_uint32(histBin, histOut, histSize);
+		}
+
+		/* generate LUT */
+		constexpr int32_t lastHistElem = histSize - 1;
+		const float coeff = static_cast<float>(lastHistElem) / static_cast<float>(histOut[lastHistElem]);
+		{
+			CACHE_ALIGN uint32_t lut[histSize]{};
+
+			AVX2::MiscUtils::generate_lut_uint32(histOut, lut, coeff, histSize);
+			/* apply LUT to the image */
+			imgApplyLut(pSrcYUV, localDst, lut, width, height, line_pitch, line_pitch, convert_addendum);
+		}
+
+		::FreeMemoryBlock(blockId);
+		errCode = PF_Err_NONE;
+	}
+
+	return errCode;
 }
+
 
 PF_Err PR_ImageEq_Linear_BGRA_4444_32f
 (

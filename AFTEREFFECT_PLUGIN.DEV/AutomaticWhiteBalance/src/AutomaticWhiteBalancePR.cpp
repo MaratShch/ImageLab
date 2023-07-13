@@ -49,7 +49,7 @@ static bool ProcessPrImage_BGRA_4444_8u
 	void* pMemoryBlock = nullptr;
 	const int32_t blocksNumber = FastCompute::Min (2, (iterCnt - 1));
 
-	if (blocksNumber)
+	if (blocksNumber > 0)
 	{
 		const size_t  frameSize = width * height;
 		const size_t  requiredMemSize = blocksNumber * frameSize * PF_Pixel_BGRA_8u_size;
@@ -178,7 +178,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 	void* pMemoryBlock = nullptr;
 	const int32_t blocksNumber = FastCompute::Min (2, (iterCnt - 1));
 
-	if (blocksNumber)
+	if (blocksNumber > 0)
 	{
 		const size_t  frameSize = width * height;
 		const size_t  requiredMemSize = blocksNumber * frameSize * PF_Pixel_BGRA_16u_size;
@@ -310,7 +310,7 @@ static bool ProcessPrImage_VUYA_4444_8u
 	void* pMemoryBlock = nullptr;
 	const int32_t blocksNumber = FastCompute::Min(2, (iterCnt - 1));
 
-	if (blocksNumber)
+	if (blocksNumber > 0)
 	{
 		const size_t  frameSize = width * height;
 		const size_t  requiredMemSize = blocksNumber * frameSize * PF_Pixel_VUYA_8u_size;

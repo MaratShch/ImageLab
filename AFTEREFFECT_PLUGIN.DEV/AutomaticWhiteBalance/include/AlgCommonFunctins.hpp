@@ -95,7 +95,6 @@ inline void collect_yuv_statistics
 	float Y, U, V;
 	int32_t totalGray = 0;
 
-	const float* __restrict colorMatrixIn = RGB2YUV[colorSpace];
 	constexpr float subtractor = (4ull == sizeof(T) ? 128.f : 0.f);
 
 	__VECTOR_ALIGNED__
