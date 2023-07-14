@@ -17,7 +17,11 @@ constexpr int NoiseClean_VersionBuild = 1;
 
 
 /* FUNCTION PROTOTYPES */
-void gaussian_weights (A_long fRadius);
+bool LoadMemoryInterfaceProvider(int32_t appId, int32_t major, int32_t minor = 0) noexcept;
+int32_t GetMemoryBlock(int32_t size, int32_t align, void** pMem) noexcept;
+void FreeMemoryBlock(int32_t id) noexcept;
+
+void gaussian_weights (A_long filterRadius, float gMesh[][cBilateralWindowMax]) noexcept;
 
 PF_Err ProcessImgInPR
 (

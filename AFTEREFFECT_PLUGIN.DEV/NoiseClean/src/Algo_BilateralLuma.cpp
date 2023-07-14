@@ -1,7 +1,7 @@
 #include "NoiseClean.hpp"
 #include "FastAriphmetics.hpp"
 #include "PrSDKAESupport.h"
-
+#include "ImageLabMemInterface.hpp"
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoBilateralLuma
@@ -121,6 +121,34 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	CACHE_ALIGN float gMesh[cBilateralWindowMax][cBilateralWindowMax]{};
 	CACHE_ALIGN float pH[cBilateralWindowMax * cBilateralWindowMax]{};
 	CACHE_ALIGN float pF[cBilateralWindowMax * cBilateralWindowMax]{};
+
+	constexpr float sigma = cBilateralSigma;
+	constexpr float sigmaDiv = 2.f * sigma * sigma;
+	constexpr float reciProcSigma = 1.f / sigmaDiv;
+	const float  reciprocWhite = 1.f / whiteValue;
+	const A_long filterRadius = windowSize >> 1;
+	const A_long lastLine  = sizeY - 1;
+	const A_long lastPixel = sizeX - 1;
+	A_long idx = 0;
+
+	const size_t frameSize = sizeX * sizeY;
+	const size_t requiredMemSize = frameSize * sizeof(T);
+	const size_t memSizeForTmpBuffers = CreateAlignment (requiredMemSize, static_cast<size_t>(CACHE_LINE));
+
+	void* pMemoryBlock = nullptr;
+	A_long memBlockId = -1;
+
+	memBlockId = ::GetMemoryBlock (memSizeForTmpBuffers, 0, &pMemoryBlock);
+	if (-1 != memBlockId && nullptr != pMemoryBlock)
+	{
+		/* compute gaussian weights */
+		gaussian_weights(filterRadius, gMesh);
+
+		/* convert RGB buffer to YUV color space */
+
+		/* release memory block */
+		::FreeMemoryBlock (memBlockId);
+	}
 
 	return PF_Err_NONE;
 }
