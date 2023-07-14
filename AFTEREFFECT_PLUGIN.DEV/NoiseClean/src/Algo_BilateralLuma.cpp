@@ -3,28 +3,6 @@
 #include "PrSDKAESupport.h"
 
 
-CACHE_ALIGN static float gMesh[cBilateralWindowMax][cBilateralWindowMax] = { 0 };
-
-void gaussian_weights (A_long filterRadius)
-{
-	A_long i, j;
-	A_long x, y;
-
-	constexpr float divider = 2.0f * cBilateralGaussSigma * cBilateralGaussSigma;
-	for (y = -filterRadius, j = 0; j <= filterRadius; j++, y++)
-	{
-		__LOOP_UNROLL(3)
-		for (x = -filterRadius, i = 0; i <= filterRadius; i++, x++)
-		{
-			const float dSum = static_cast<float>((x * x) + (y * y));
-			gMesh[j][i] = FastCompute::Exp(-dSum / divider);
-		}
-	}
-
-	return;
-}
-
-
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoBilateralLuma
 (
@@ -38,9 +16,10 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	 const float        whiteValue = static_cast<float>(u8_value_white)
 ) noexcept
 {
-	CACHE_ALIGN float pF[cBilateralWindowMax * cBilateralWindowMax]{};
+	CACHE_ALIGN float gMesh[cBilateralWindowMax][cBilateralWindowMax]{};
 	CACHE_ALIGN float pH[cBilateralWindowMax * cBilateralWindowMax]{};
-
+	CACHE_ALIGN float pF[cBilateralWindowMax * cBilateralWindowMax]{};
+	
 	constexpr float sigma = cBilateralSigma;
 	constexpr float sigmaDiv = 2.f * sigma * sigma;
 	constexpr float reciProcSigma = 1.f / sigmaDiv;
@@ -51,7 +30,7 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	A_long idx = 0;
 
 	/* compute gaussian weights */
-	gaussian_weights (filterRadius);
+	gaussian_weights (filterRadius, gMesh);
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -131,14 +110,18 @@ PF_Err NoiseClean_AlgoBilateralLuma
 (
 	const T* __restrict pSrc,
 	      T* __restrict pDst,
-	const A_long&       sizeX,
-	const A_long&       sizeY,
-	const A_long&       srcPitch,
-	const A_long&       dstPitch,
-	const A_long&       windowSize,
-	const float&        whiteValue = static_cast<float>(u8_value_white)
+	const A_long        sizeX,
+	const A_long        sizeY,
+	const A_long        srcPitch,
+	const A_long        dstPitch,
+	const A_long        windowSize,
+	const float         whiteValue = static_cast<float>(u8_value_white)
 ) noexcept
 {
+	CACHE_ALIGN float gMesh[cBilateralWindowMax][cBilateralWindowMax]{};
+	CACHE_ALIGN float pH[cBilateralWindowMax * cBilateralWindowMax]{};
+	CACHE_ALIGN float pF[cBilateralWindowMax * cBilateralWindowMax]{};
+
 	return PF_Err_NONE;
 }
 

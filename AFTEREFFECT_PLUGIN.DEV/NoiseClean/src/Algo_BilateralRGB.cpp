@@ -7,11 +7,11 @@ PF_Err NoiseClean_AlgoBilateralColor
 (
 	const T* __restrict pSrc,
 	T* __restrict pDst,
-	const A_long&      sizeX,
-	const A_long&      sizeY,
-	const A_long&      srcPitch,
-	const A_long&      dstPitch,
-	const A_long&      windowSize
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch,
+	const A_long  windowSize
 ) noexcept
 {
 	return PF_Err_NONE;
@@ -23,11 +23,11 @@ PF_Err NoiseClean_AlgoBilateralColor
 (
 	const T* __restrict pSrc,
 	T* __restrict pDst,
-	const A_long&       sizeX,
-	const A_long&       sizeY,
-	const A_long&       srcPitch,
-	const A_long&       dstPitch,
-	const A_long&       windowSize
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch,
+	const A_long  windowSize
 ) noexcept
 {
 	return PF_Err_NONE;

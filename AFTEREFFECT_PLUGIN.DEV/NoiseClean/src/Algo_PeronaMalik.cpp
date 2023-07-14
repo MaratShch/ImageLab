@@ -7,11 +7,10 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
 	const T* __restrict pSrc,
 	T* __restrict pDst,
-	const A_long&      sizeX,
-	const A_long&      sizeY,
-	const A_long&      srcPitch,
-	const A_long&      dstPitch,
-	const A_long&      windowSize
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch
 ) noexcept
 {
 	return PF_Err_NONE;
@@ -23,11 +22,10 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
 	const T* __restrict pSrc,
 	T* __restrict pDst,
-	const A_long&       sizeX,
-	const A_long&       sizeY,
-	const A_long&       srcPitch,
-	const A_long&       dstPitch,
-	const A_long&       windowSize
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch
 ) noexcept
 {
 	return PF_Err_NONE;
@@ -47,8 +45,6 @@ PF_Err NoiseClean_AlgoPeronaMalik
 	A_long sizeX = 0, sizeY = 0, linePitch = 0;
 
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eNOISE_CLEAN_INPUT]->u.ld);
-	/* get "Bilateral Window size" from slider */
-	const int32_t bilateralWindowSize = CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax);
 
 	/* This plugin called frop PR - check video fomat */
 	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
@@ -64,7 +60,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
 			}
 			break;
 
@@ -77,7 +73,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
 			}
 			break;
 
@@ -90,7 +86,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
 			}
 			break;
 
@@ -102,7 +98,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right   - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
 			}
 			break;
 
@@ -114,7 +110,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
 			}
 			break;
 

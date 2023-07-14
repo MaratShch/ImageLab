@@ -140,6 +140,7 @@
     <ClCompile Include="src\Algo_Advanced.cpp" />
     <ClCompile Include="src\Algo_BilateralLuma.cpp" />
     <ClCompile Include="src\Algo_BilateralRGB.cpp" />
+    <ClCompile Include="src\Algo_GaussianWeights.cpp" />
     <ClCompile Include="src\Algo_PeronaMalik.cpp" />
     <ClCompile Include="src\NoiseClean.cpp" />
     <ClCompile Include="src\NoiseCleanInAe.cpp" />

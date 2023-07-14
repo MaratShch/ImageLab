@@ -1,6 +1,9 @@
 #pragma once
 
 #include "CommonAdobeAE.hpp"
+#include "NoiseCleanEnums.hpp"
+
+void gaussian_weights(A_long filterRadius, float gMesh[][cBilateralWindowMax]) noexcept;
 
 PF_Err NoiseClean_AlgoBilateral
 (
