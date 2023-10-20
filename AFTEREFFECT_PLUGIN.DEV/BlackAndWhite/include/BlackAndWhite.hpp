@@ -21,4 +21,20 @@ typedef enum {
 	IMAGE_BW_FILTER_TOTAL_PARAMS
 }Item;
 
-constexpr char cAdvanced[] = "Advanced algorithm";
+constexpr char cAdvanced[] = "Advanced Algorithm";
+
+PF_Err ProcessImgInPR
+(
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
+) noexcept;
+
+PF_Err ProcessImgInAE
+(
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
+) noexcept;

@@ -68,12 +68,13 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="BlackAndWhite.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="src\BlackAndWhite.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BlackAndWhiteInAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BlackAndWhiteInPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -81,5 +82,8 @@
     <ResourceCompile Include="BlackAndWhite.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="BlackAndWhite.r" />
   </ItemGroup>
 </Project>

@@ -60,6 +60,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\BlackAndWhite.cpp" />
+    <ClCompile Include="src\BlackAndWhiteInAE.cpp" />
+    <ClCompile Include="src\BlackAndWhiteInPR.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="BlackAndWhite.rc" />
@@ -74,26 +76,26 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
@@ -142,6 +144,9 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -167,6 +172,9 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
