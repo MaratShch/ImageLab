@@ -407,7 +407,7 @@ namespace FastCompute
 		x *= tp;
 		x -= static_cast<T>(0.250) + std::floor(x + static_cast<T>(0.250));
 		x *= static_cast<T>(16.0) * (Abs(x) - static_cast<T>(0.5));
-#if FAST_COMPUTE_EXTRA_PRECISION
+#ifdef FAST_COMPUTE_EXTRA_PRECISION
 		x += static_cast<T>(0.225) * x * (Abs(x) - static_cast<T>(1.0));
 #endif
 		return x;

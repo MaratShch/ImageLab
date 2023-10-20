@@ -268,7 +268,7 @@ PF_Err NoiseClean_AlgoBilateralAe8
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-	auto const sizeY = output->height;
+	auto const sizeY  = output->height;
 	auto const sizeX  = output->width;
 
 	return NoiseClean_AlgoBilateralLuma (localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, bilateralWindowSize, static_cast<float>(u8_value_white));

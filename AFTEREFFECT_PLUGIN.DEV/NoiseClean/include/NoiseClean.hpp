@@ -22,6 +22,7 @@ int32_t GetMemoryBlock(int32_t size, int32_t align, void** pMem) noexcept;
 void FreeMemoryBlock(int32_t id) noexcept;
 
 void gaussian_weights (A_long filterRadius, float gMesh[][cBilateralWindowMax]) noexcept;
+void gaussian_weights (A_long filterRadius, float* __restrict gMesh) noexcept;
 
 PF_Err ProcessImgInPR
 (
