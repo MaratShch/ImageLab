@@ -66,6 +66,9 @@
     <ClInclude Include="include\BlackAndWhite.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\BlackAndWhiteProc.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\BlackAndWhite.cpp">
@@ -84,6 +87,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="BlackAndWhite.r" />
+    <CustomBuild Include="BlackAndWhite.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

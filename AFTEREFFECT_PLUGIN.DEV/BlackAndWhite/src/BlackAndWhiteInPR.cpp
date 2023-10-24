@@ -1,33 +1,5 @@
-#include "BlackAndWhite.hpp"
+#include "BlackAndWhiteProc.hpp"
 #include "PrSDKAESupport.h"
-
-
-template <typename U, typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline void ProcessImageYUV
-(
-	const T* __restrict pSrc,
-	      T* __restrict pDst,
-	A_long              sizeX,
-	A_long              sizeY,
-	A_long              linePitch,
-	U                   noColor
-) noexcept
-{
-	for (A_long j = 0; j < sizeY; j++)
-	{
-		const T* __restrict pSrcLine = pSrc + j * linePitch;
-		      T* __restrict pDstLine = pDst + j * linePitch;
-  	    for (A_long i = 0; i < sizeX; i++)
-		{
-			pDstLine[i].V = noColor;
-			pDstLine[i].U = noColor;
-			pDstLine[i].Y = pSrcLine[i].Y;
-			pDstLine[i].A = pSrcLine[i].A;
-		}
-	}
-
-	return;
-}
 
 
 PF_Err ProcessImgInPR
@@ -50,16 +22,40 @@ PF_Err ProcessImgInPR
 		{
 			case PrPixelFormat_BGRA_4444_8u:
 			{
+				const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
+				      PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
+
+				auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+
+				ProcessImage (localSrc, localDst, width, height, line_pitch, 0);
 			}
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
 			{
+				const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
+				      PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
+
+				auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+
+				ProcessImage (localSrc, localDst, width, height, line_pitch, 0);
 			}
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
 			{
+				const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+				      PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
+
+				auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+
+				ProcessImage (localSrc, localDst, width, height, line_pitch, 0);
 			}
 			break;
 
@@ -74,7 +70,7 @@ PF_Err ProcessImgInPR
 				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-				ProcessImageYUV (localSrc, localDst, width, height, line_pitch, noColor);
+				ProcessImage (localSrc, localDst, width, height, line_pitch, noColor);
 			}
 			break;
 
@@ -89,7 +85,7 @@ PF_Err ProcessImgInPR
 				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-				ProcessImageYUV(localSrc, localDst, width, height, line_pitch, noColor);
+				ProcessImage (localSrc, localDst, width, height, line_pitch, noColor);
 			}
 			break;
 

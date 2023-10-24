@@ -1,4 +1,4 @@
-#include "BlackAndWhite.hpp"
+#include "BlackAndWhiteProc.hpp"
 #include "PrSDKAESupport.h"
 
 static PF_Err

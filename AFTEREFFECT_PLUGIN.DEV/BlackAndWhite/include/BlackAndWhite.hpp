@@ -2,8 +2,7 @@
 
 #include "CommonAdobeAE.hpp"
 
-
-constexpr char strName[] = "Image Flipping";
+constexpr char strName[] = "BlackAndWhite";
 constexpr char strCopyright[] = "\n2019-2023. ImageLab2 Copyright(c).\rImage Black and White plugin.";
 constexpr int EqualizationFilter_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int EqualizationFilter_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;

@@ -36,6 +36,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\BlackAndWhite.hpp" />
+    <ClInclude Include="include\BlackAndWhiteProc.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="BlackAndWhite.r">
@@ -173,8 +174,11 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
-      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <FlushDenormalResultsToZero>
+      </FlushDenormalResultsToZero>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
