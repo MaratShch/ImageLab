@@ -143,11 +143,13 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
-      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <FlushDenormalResultsToZero>
+      </FlushDenormalResultsToZero>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -168,7 +170,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <WarningLevel>Level3</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>

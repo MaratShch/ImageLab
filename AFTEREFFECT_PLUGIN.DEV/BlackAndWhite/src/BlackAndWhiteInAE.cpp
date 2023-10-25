@@ -1,4 +1,4 @@
-#include "BlackAndWhite.hpp"
+#include "BlackAndWhiteProc.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -10,6 +10,18 @@ static PF_Err ProcessImgInAE_8bits
 	PF_LayerDef*  output
 ) noexcept
 {
+	const PF_EffectWorld*   input    = reinterpret_cast<const PF_EffectWorld*>(&params[IMAGE_BW_FILTER_INPUT]->u.ld);
+	const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+	auto const& height = output->height;
+	auto const& width  = output->width;
+
+	ProcessImage (localSrc, localDst, width, height, src_pitch, dst_pitch, 0);
+
 	return PF_Err_NONE;
 }
 
@@ -21,6 +33,18 @@ static PF_Err ProcessImgInAE_16bits
 	PF_LayerDef*  output
 ) noexcept
 {
+	const PF_EffectWorld*   input = reinterpret_cast<const PF_EffectWorld*>(&params[IMAGE_BW_FILTER_INPUT]->u.ld);
+	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+
+	auto const& height = output->height;
+	auto const& width  = output->width;
+
+	ProcessImage (localSrc, localDst, width, height, src_pitch, dst_pitch, 0);
+
 	return PF_Err_NONE;
 }
 
