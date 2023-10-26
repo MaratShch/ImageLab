@@ -14,6 +14,8 @@ PF_Err ProcessImgInPR
 	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 	PF_Err err{ PF_Err_NONE };
 
+	const A_long algoAdvanced = params[IMAGE_BW_ADVANCED_ALGO]->u.bd.value;
+
 	/* This plugin called from PR - check video format */
 	if (PF_Err_NONE == AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data)->GetPixelFormat(output, &destinationPixelFormat))
 	{
@@ -28,7 +30,10 @@ PF_Err ProcessImgInPR
 				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-				ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0);
+				if (0 != algoAdvanced)
+					ProcessImageAdvanced (localSrc, localDst, width, height, line_pitch, line_pitch);
+				else
+					ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0);
 			}
 			break;
 
@@ -41,7 +46,10 @@ PF_Err ProcessImgInPR
 				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-				ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0);
+				if (0 != algoAdvanced)
+					ProcessImageAdvanced (localSrc, localDst, width, height, line_pitch, line_pitch);
+				else
+					ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0);
 			}
 			break;
 
@@ -54,7 +62,10 @@ PF_Err ProcessImgInPR
 				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-				ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0.f);
+				if (0 != algoAdvanced)
+					ProcessImageAdvanced (localSrc, localDst, width, height, line_pitch, line_pitch);
+				else
+					ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0);
 			}
 			break;
 
@@ -97,7 +108,10 @@ PF_Err ProcessImgInPR
 				auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
-				ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0);
+				if (0 != algoAdvanced)
+					ProcessImageAdvanced (localSrc, localDst, width, height, line_pitch, line_pitch);
+				else
+					ProcessImage (localSrc, localDst, width, height, line_pitch, line_pitch, 0);
 			}
 			break;
 
