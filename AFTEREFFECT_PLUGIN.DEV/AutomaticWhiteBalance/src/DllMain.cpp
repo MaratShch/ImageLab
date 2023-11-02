@@ -38,9 +38,9 @@ static void InitializeMemoryUtilsInterface(const HINSTANCE h) noexcept
 	if (NULL != h)
 	{
 		memInterface.MemoryInterfaceOpen = reinterpret_cast<OpenMemInterface>    (GetProcAddress(h, __TEXT("CreateMemoryHandler")));
-		memInterface.MemoryInterfaceClose = reinterpret_cast<CloseMemInterface>   (GetProcAddress(h, __TEXT("ReleaseMemoryHandler")));
-		memInterface.MemoryInterfaceAllocBlock = reinterpret_cast<AllocMemBlock>(GetProcAddress(h, __TEXT("AllocMemoryBlock")));
-		memInterface.MemoryInterfaceReleaseBlock = reinterpret_cast<FreeMemBlock> (GetProcAddress(h, __TEXT("ReleaseMemoryBlock")));
+		memInterface.MemoryInterfaceClose = reinterpret_cast<CloseMemInterface>  (GetProcAddress(h, __TEXT("ReleaseMemoryHandler")));
+		memInterface.MemoryInterfaceAllocBlock = reinterpret_cast<AllocMemBlock> (GetProcAddress(h, __TEXT("AllocMemoryBlock")));
+		memInterface.MemoryInterfaceReleaseBlock = reinterpret_cast<FreeMemBlock>(GetProcAddress(h, __TEXT("ReleaseMemoryBlock")));
 
 		if (NULL != memInterface.MemoryInterfaceOpen)
 		{
@@ -89,7 +89,7 @@ bool LoadMemoryInterfaceProvider(int32_t appId, int32_t major, int32_t minor) no
 #ifdef _DEBUG
 	const BOOL bDisableThreadCall =
 #endif
-		DisableThreadLibraryCalls(hLib);
+	DisableThreadLibraryCalls(hLib);
 	InitializeMemoryUtilsInterface(hLib);
 
 	return true;

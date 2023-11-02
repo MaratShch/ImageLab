@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+#include "AE_Effect.h"
 
 typedef enum
 {
@@ -36,7 +38,7 @@ constexpr static char strStyleEffect[] =
 	"Art: Cubism"
 };
 
-constexpr int32_t toatal_variants = 2;
+constexpr int32_t total_variants = 2;
 constexpr int32_t param_name_length = PF_MAX_EFFECT_PARAM_NAME_LEN + 1;
 
 /* glass effect min/max settinig */
@@ -44,7 +46,7 @@ constexpr int32_t glassyMin = 0;
 constexpr int32_t glassyMax = 40;
 constexpr int32_t glassyDefault = glassyMin;
 
-constexpr char StyleSlider1[toatal_variants][param_name_length] =
+constexpr char StyleSlider1[total_variants][param_name_length] =
 {
 	"N/A",
 	"Dispersion"

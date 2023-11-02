@@ -11,7 +11,6 @@ void gaussian_weights (A_long filterRadius, float gMesh[][cBilateralWindowMax]) 
 	constexpr float divider = 2.0f * cBilateralGaussSigma * cBilateralGaussSigma;
 	for (y = -filterRadius, j = 0; j <= filterRadius; j++, y++)
 	{
-		__LOOP_UNROLL(3)
 		for (x = -filterRadius, i = 0; i <= filterRadius; i++, x++)
 		{
 			const float dSum = static_cast<float>((x * x) + (y * y));

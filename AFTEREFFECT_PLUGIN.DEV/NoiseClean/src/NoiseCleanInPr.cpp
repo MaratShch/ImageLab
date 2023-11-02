@@ -11,7 +11,7 @@ PF_Err ProcessImgInPR
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	eNOISE_CLEAN_TYPE const algoType = static_cast<eNOISE_CLEAN_TYPE const>(params[eNOISE_CLEAN_ALGO_POPUP]->u.pd.value - 1);
+	const eNOISE_CLEAN_TYPE algoType = static_cast<eNOISE_CLEAN_TYPE const>(params[eNOISE_CLEAN_ALGO_POPUP]->u.pd.value - 1);
 
 	switch (algoType)
 	{

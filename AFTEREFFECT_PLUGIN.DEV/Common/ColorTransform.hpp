@@ -103,9 +103,9 @@ inline fCIELabPix RGB2CIELab
 	const float vZ = (varZ > 0.0088560f) ? FastCompute::Cbrt(varZ) : 7.7870f * varZ + reciproc16;
 
 	fCIELabPix pixelLAB;
-	pixelLAB.L = 116.f * vX - 16.f;
-	pixelLAB.a = 500.f * (vX - vY);
-	pixelLAB.b = 200.f * (vY - vZ);
+	pixelLAB.L = CLAMP_VALUE(116.f * vX - 16.f, -100.0f, 100.0f);
+	pixelLAB.a = CLAMP_VALUE(500.f * (vX - vY), -128.0f, 128.0f);
+	pixelLAB.b = CLAMP_VALUE(200.f * (vY - vZ), -128.0f, 128.0f);
 
 	return pixelLAB;
 }
@@ -145,6 +145,10 @@ inline fRGB CIELab2RGB
 	pixelRGB.R = (var_R > 0.0031308f ? 1.055f * (FastCompute::Pow(var_R, reciproc24)) - 0.055f : 12.92f * var_R);
 	pixelRGB.G = (var_G > 0.0031308f ? 1.055f * (FastCompute::Pow(var_G, reciproc24)) - 0.055f : 12.92f * var_G);
 	pixelRGB.B = (var_B > 0.0031308f ? 1.055f * (FastCompute::Pow(var_B, reciproc24)) - 0.055f : 12.92f * var_B);
+
+	pixelRGB.R = CLAMP_VALUE(pixelRGB.R, 0.f, f32_value_white);
+	pixelRGB.G = CLAMP_VALUE(pixelRGB.G, 0.f, f32_value_white);
+	pixelRGB.B = CLAMP_VALUE(pixelRGB.B, 0.f, f32_value_white);
 
 	return pixelRGB;
 }

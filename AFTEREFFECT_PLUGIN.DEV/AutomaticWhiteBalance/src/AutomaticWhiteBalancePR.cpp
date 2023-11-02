@@ -367,10 +367,11 @@ static bool ProcessPrImage_VUYA_4444_8u
 				// U and V no longer improving, so just copy source to destination and break the loop
 				simple_image_copy(srcInput, localDst, height, width, srcPitch, line_pitch);
 
+				/* release temporary memory buffers on exit from function */
 				if (-1 != memBlockId)
 					::FreeMemoryBlock(memBlockId);
 
-				/* release temporary memory buffers on exit from function */
+				memBlockId = -1;
 				return true; // U and V no longer improving
 			}
 		} /* if (k > 0) */
