@@ -40,7 +40,7 @@ constexpr size_t i32CIELabPix_size = sizeof(i32CIELabPix);
 
 
 template <typename T>
-struct _tRGB
+struct _tRGB /* sRGB pixel value range */
 {
 	T R;
 	T G;
@@ -48,6 +48,9 @@ struct _tRGB
 };
 
 using fRGB = _tRGB<float>;
+using dRGB = _tRGB<double>;
+
 constexpr size_t fRGB_size = sizeof(fRGB);
+constexpr size_t dRGB_size = sizeof(dRGB);
 
 #pragma pack(pop)

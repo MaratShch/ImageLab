@@ -276,7 +276,7 @@ PF_Err NoiseClean_AlgoBilateralColor
 		BilateralFilter (pTmpBuffer1, pTmpBuffer2, sizeX, sizeY, windowSize);
 
 		/* convert back from CIEL*a*b to RGB */
-		ConvertCIELabToRGB (pSrc, pTmpBuffer1, pDst, sizeX, sizeY, srcPitch, dstPitch, fDiv);
+		ConvertCIELabToRGB (pSrc, pTmpBuffer2, pDst, sizeX, sizeY, srcPitch, dstPitch, fDiv);
 
 		/* release memory storage */
 		MemoryBufferRelease (blockId);
