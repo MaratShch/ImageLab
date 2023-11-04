@@ -14,8 +14,8 @@ inline A_long MemoryBufferAlloc
 {
 	void* pAlgoMemory = nullptr;
 	const A_long frameSize = sizeX * sizeY;
-	constexpr A_long doubleBuffer = 2;
-	const size_t requiredMemSize = ::CreateAlignment (frameSize * fCIELabPix_size * doubleBuffer, static_cast<size_t>(CACHE_LINE));
+	constexpr size_t doubleBuffer = 2;
+	const size_t requiredMemSize = ::CreateAlignment (frameSize * (fCIELabPix_size * doubleBuffer), static_cast<size_t>(CACHE_LINE));
 	const A_long blockId = ::GetMemoryBlock (static_cast<int32_t>(requiredMemSize), 0, &pAlgoMemory);
 
 	if (nullptr != pAlgoMemory)
@@ -44,7 +44,7 @@ inline void MemoryBufferRelease
 
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-inline void ConvertToCIELab
+void ConvertToCIELab
 (
 	const T*    __restrict pSrc,
 	fCIELabPix* __restrict pDst,
@@ -80,7 +80,7 @@ inline void ConvertToCIELab
 }
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline void ConvertToCIELab
+void ConvertToCIELab
 (
 	const T*    __restrict pSrc,
 	fCIELabPix* __restrict pDst,
@@ -95,7 +95,7 @@ inline void ConvertToCIELab
 
 
 template <typename T>
-inline void ConvertCIELabToRGB
+void ConvertCIELabToRGB
 (
 	const T*    __restrict pSrc,
 	fCIELabPix* __restrict pTmp,
@@ -135,7 +135,7 @@ inline void ConvertCIELabToRGB
 }
 
 
-inline void BilateralFilter
+void BilateralFilter
 (
 	const fCIELabPix* __restrict pIn,
 	      fCIELabPix* __restrict pOut,
@@ -144,6 +144,62 @@ inline void BilateralFilter
 	const A_long  windowSize
 )
 {
+	CACHE_ALIGN float gMesh[cBilateralWindowMax][cBilateralWindowMax]{};
+	CACHE_ALIGN float pH[cBilateralWindowMax * cBilateralWindowMax]{};
+	CACHE_ALIGN float pF[cBilateralWindowMax * cBilateralWindowMax]{};
+
+	constexpr float sigma = 10.f;
+	constexpr float reciproc = 1.f / (sigma * sigma * 2.0f);
+	const A_long lastPixelIdx = sizeX - 1;
+	const A_long lastLineIdx  = sizeY - 1;
+
+	const A_long filterRadius = FastCompute::Max(1, windowSize >> 1);
+
+	/* compute gaussian weights */
+	gaussian_weights (filterRadius, gMesh);
+
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const A_long jMin = FastCompute::Max(j - filterRadius, 0);
+		const A_long jMax = FastCompute::Min(j + filterRadius, lastLineIdx);
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			/* define processing window coordinates */
+			const A_long iMin = FastCompute::Max(i - filterRadius, 0);
+			const A_long iMax = FastCompute::Min(i + filterRadius, lastPixelIdx);
+
+			/* define processed pixel */
+			const fCIELabPix& refPix = pIn[j * sizeX + i];
+
+			/* define process window sizes */
+			const A_long jDiff = (jMax - jMin) + 1;
+			const A_long iDiff = (iMax - iMin) + 1;
+
+			/* compute Gaussian range weights and fiter responce */
+			A_long k, l, wIdx = 0;
+			for (k = 0; k < jDiff; k++)
+			{
+				/* line index in processed window */
+				const A_long jIdx = (jMin + k) * sizeX + iMin;
+				for (l = 0; l < iDiff; l++)
+				{
+					const fCIELabPix& curPix = pIn[jIdx + l];
+					const float dL = curPix.L - refPix.L;
+					const float da = curPix.a - curPix.a;
+					const float db = curPix.b - curPix.b;
+				
+					const float dot = -((dL * dL) + (da * da) + (db * db));
+					pH[wIdx++] = FastCompute::Exp(dot * reciproc);
+				}
+			} /* for (A_long k = 0; k < jDiff; k++) */
+
+			float fNorm = 0.f;
+
+		} /* for (A_long i = 0; i < sizeX; i++) */
+
+	} /* for (A_long j = 0; j < sizeY; j++) */
+
 	return;
 }
 
