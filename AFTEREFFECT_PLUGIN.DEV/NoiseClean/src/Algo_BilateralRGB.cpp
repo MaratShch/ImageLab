@@ -177,11 +177,11 @@ void BilateralFilter
 			const A_long iDiff = (iMax - iMin) + 1;
 
 			/* compute Gaussian range weights and fiter responce */
-			A_long k, l, wIdx = 0;
+			A_long k, l, jIdx = 0, wIdx = 0;
 			for (k = 0; k < jDiff; k++)
 			{
 				/* line index in processed window */
-				const A_long jIdx = (jMin + k) * sizeX + iMin;
+				jIdx = (jMin + k) * sizeX + iMin;
 				for (l = 0; l < iDiff; l++)
 				{
 					const fCIELabPix& curPix = pIn[jIdx + l];
@@ -195,7 +195,37 @@ void BilateralFilter
 			} /* for (A_long k = 0; k < jDiff; k++) */
 
 			float fNorm = 0.f;
+			jIdx = jMin - j + filterRadius;
+			for (wIdx = k = 0; k < jDiff; k++)
+			{
+				A_long iIdx = iMin - i + filterRadius;
+				for (l = 0; l < iDiff; l++)
+				{
+					pF[wIdx] = pH[wIdx] * gMesh[jIdx][iIdx];
+					fNorm += pF[wIdx];
+					iIdx++, wIdx++;
+				}
+				jIdx++;
+			}
 
+			float bSum1 = 0.f, bSum2 = 0.f, bSum3 = 0.f;
+			for (wIdx = k = 0; k < jDiff; k++)
+			{
+				jIdx = (jMin + k) * sizeX + iMin;
+				for (l = 0; l < iDiff; l++)
+				{
+					const fCIELabPix& labPix = pIn[jIdx + l];
+					bSum1 += (pF[wIdx] * labPix.L);
+					bSum2 += (pF[wIdx] * labPix.a);
+					bSum3 += (pF[wIdx] * labPix.b);
+					wIdx++;
+				}
+			}
+
+			fCIELabPix& outPix = pOut[j * sizeX + i];
+			outPix.L = bSum1 / fNorm;
+			outPix.a = bSum2 / fNorm;
+			outPix.b = bSum3 / fNorm;
 		} /* for (A_long i = 0; i < sizeX; i++) */
 
 	} /* for (A_long j = 0; j < sizeY; j++) */
