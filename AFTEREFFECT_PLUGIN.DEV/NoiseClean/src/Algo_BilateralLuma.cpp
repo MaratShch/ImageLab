@@ -21,8 +21,7 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	CACHE_ALIGN float pF[cBilateralWindowMax * cBilateralWindowMax]{};
 	
 	constexpr float sigma = cBilateralSigma;
-	constexpr float sigmaDiv = 2.f * sigma * sigma;
-	constexpr float reciProcSigma = 1.f / sigmaDiv;
+	constexpr float reciProcSigma = 1.f / (2.f * sigma * sigma);
 	const float  reciprocWhite = 1.f / whiteValue;
 	const A_long filterRadius = windowSize >> 1;
 	const A_long lastLine  = sizeY - 1;

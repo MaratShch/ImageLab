@@ -3,7 +3,7 @@
 #include "ColorTransform.hpp"
 #include "CommonAuxPixFormat.hpp"
 
-constexpr eCOLOR_OBSEREVER  gDefaultObserver   = observer_CIE_1931;
+constexpr eCOLOR_OBSERVER   gDefaultObserver   = observer_CIE_1931;
 constexpr eCOLOR_ILLUMINANT gDefaultIlluminant = color_ILLUMINANT_D65;
 
 

@@ -35,7 +35,7 @@ inline PF_Err ColorCorrectionCieLABInAe_8bits
 	else
 	{
 		/* in case of processing enable - let's check illuminant and observer using for compute color transofrm */
-		const eCOLOR_OBSEREVER  iObserver   = static_cast<const eCOLOR_OBSEREVER >(params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
+		const eCOLOR_OBSERVER  iObserver   = static_cast<const eCOLOR_OBSERVER >(params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
 		const eCOLOR_ILLUMINANT iIlluminant = static_cast<const eCOLOR_ILLUMINANT>(params[eCIELAB_POPUP_ILLUMINANT]->u.pd.value - 1);
 
 		const PF_EffectWorld*    __restrict input   = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eCIELAB_INPUT]->u.ld);
@@ -120,7 +120,7 @@ inline PF_Err ColorCorrectionCieLABInAe_16bits
 	else
 	{
 		/* in case of processing enable - let's check illuminant and observer using for compute color transofrm */
-		const eCOLOR_OBSEREVER  iObserver   = static_cast<const eCOLOR_OBSEREVER >(params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
+		const eCOLOR_OBSERVER  iObserver   = static_cast<const eCOLOR_OBSERVER >(params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
 		const eCOLOR_ILLUMINANT iIlluminant = static_cast<const eCOLOR_ILLUMINANT>(params[eCIELAB_POPUP_ILLUMINANT]->u.pd.value - 1);
 
 		const PF_EffectWorld*     __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eCIELAB_INPUT]->u.ld);

@@ -13,7 +13,7 @@ PF_Err CIELabCorrect_BGRA_4444_8u
 	const float   L_level,
 	const float   A_level,
 	const float   B_level,
-	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_OBSERVER  observer,
 	const eCOLOR_ILLUMINANT illuminant
 ) noexcept
 {
@@ -74,7 +74,7 @@ PF_Err CIELabCorrect_BGRA_4444_16u
 	const float   L_level,
 	const float   A_level,
 	const float   B_level,
-	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_OBSERVER  observer,
 	const eCOLOR_ILLUMINANT illuminant
 ) noexcept
 {
@@ -135,7 +135,7 @@ PF_Err CIELabCorrect_BGRA_4444_32f
 	const float   L_level,
 	const float   A_level,
 	const float   B_level,
-	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_OBSERVER  observer,
 	const eCOLOR_ILLUMINANT illuminant
 ) noexcept
 {
@@ -195,7 +195,7 @@ PF_Err CIELabCorrect_VUYA_4444_8u
 	const float   L_level,
 	const float   A_level,
 	const float   B_level,
-	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_OBSERVER  observer,
 	const eCOLOR_ILLUMINANT illuminant,
 	const bool    isBT709
 ) noexcept
@@ -276,7 +276,7 @@ PF_Err CIELabCorrect_VUYA_4444_32f
 	const float   L_level,
 	const float   A_level,
 	const float   B_level,
-	const eCOLOR_OBSEREVER  observer,
+	const eCOLOR_OBSERVER  observer,
 	const eCOLOR_ILLUMINANT illuminant,
 	const bool    isBT709
 ) noexcept
@@ -363,7 +363,7 @@ PF_Err ProcessImgInPR
 	else
 	{
 		/* in case of processing enable - let's check illuminant and observer using for compute color transofrm */
-		const eCOLOR_OBSEREVER  iObserver   = static_cast<const eCOLOR_OBSEREVER> (params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
+		const eCOLOR_OBSERVER  iObserver   = static_cast<const eCOLOR_OBSERVER> (params[eCIELAB_POPUP_OBSERVER  ]->u.pd.value - 1);
 		const eCOLOR_ILLUMINANT iIlluminant = static_cast<const eCOLOR_ILLUMINANT>(params[eCIELAB_POPUP_ILLUMINANT]->u.pd.value - 1);
 
 		/* This plugin called frop PR - check video fomat */

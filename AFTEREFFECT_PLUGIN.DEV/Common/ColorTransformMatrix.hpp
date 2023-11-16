@@ -10,7 +10,7 @@ typedef enum eCOLOR_SPACE
 	SMPTE240M
 };
 
-typedef enum eCOLOR_OBSEREVER
+typedef enum eCOLOR_OBSERVER
 {
 	observer_CIE_1931 = 0, /*  2° (CIE 1931) */
 	observer_CIE_1964,     /* 10° (CIE 1964) */

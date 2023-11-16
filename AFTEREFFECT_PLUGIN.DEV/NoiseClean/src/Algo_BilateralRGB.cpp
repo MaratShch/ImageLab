@@ -4,6 +4,9 @@
 #include "CompileTimeUtils.hpp"
 #include "ColorTransform.hpp"
 
+constexpr eCOLOR_OBSERVER   CieLabDefaultObserver  { observer_CIE_1931 };
+constexpr eCOLOR_ILLUMINANT CieLabDefaultIlluminant{ color_ILLUMINANT_D65 };
+
 inline A_long MemoryBufferAlloc
 (
 	const A_long&  sizeX,
@@ -12,10 +15,12 @@ inline A_long MemoryBufferAlloc
 	fCIELabPix**   pBuf2
 ) noexcept
 {
+	constexpr size_t doubleBuffer{ 2 };
+	constexpr size_t sizeAlignment{ CACHE_LINE };
+	const size_t frameSize = static_cast<size_t>(sizeX * sizeY);
+	const size_t requiredMemSize = ::CreateAlignment (frameSize * (fCIELabPix_size * doubleBuffer), sizeAlignment);
 	void* pAlgoMemory = nullptr;
-	const A_long frameSize = sizeX * sizeY;
-	constexpr size_t doubleBuffer = 2;
-	const size_t requiredMemSize = ::CreateAlignment (frameSize * (fCIELabPix_size * doubleBuffer), static_cast<size_t>(CACHE_LINE));
+
 	const A_long blockId = ::GetMemoryBlock (static_cast<int32_t>(requiredMemSize), 0, &pAlgoMemory);
 
 	if (nullptr != pAlgoMemory)
@@ -55,9 +60,9 @@ void ConvertToCIELab
 ) noexcept
 {
 	constexpr float fReferences[3] = {
-		cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65][0],
-		cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65][1],
-		cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65][2],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][0],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][1],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
 	};
 
 	for (A_long j = 0; j < sizeY; j++)
@@ -90,6 +95,39 @@ void ConvertToCIELab
 	const float   fNorm
 ) noexcept
 {
+	CACHE_ALIGN constexpr float Yuv2Rgb[9] =
+	{
+		YUV2RGB[BT709][0], YUV2RGB[BT709][1], YUV2RGB[BT709][2],
+		YUV2RGB[BT709][3], YUV2RGB[BT709][4], YUV2RGB[BT709][5],
+		YUV2RGB[BT709][6], YUV2RGB[BT709][7], YUV2RGB[BT709][8]
+	};
+	constexpr float fReferences[3] =
+	{
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][0],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][1],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
+	};
+
+	const float fSubtractor = (fNorm < 1.f) ? 128.f : 0.f;
+
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const T* __restrict pSrcLine = pSrc + j * srcPitch;
+		fCIELabPix* pDstLine = pDst + j * sizeX;
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			fRGB srcRgb;
+			const T& yuvPixel = pSrcLine[i];
+			srcRgb.R = fNorm *  (yuvPixel.Y * Yuv2Rgb[0] + yuvPixel.U * Yuv2Rgb[1] + yuvPixel.V * Yuv2Rgb[2]);
+			srcRgb.G = fNorm * ((yuvPixel.Y * Yuv2Rgb[3] + yuvPixel.U * Yuv2Rgb[4] + yuvPixel.V * Yuv2Rgb[5]) - fSubtractor);
+			srcRgb.B = fNorm * ((yuvPixel.Y * Yuv2Rgb[6] + yuvPixel.U * Yuv2Rgb[7] + yuvPixel.V * Yuv2Rgb[8]) - fSubtractor);
+			pDstLine[i] = RGB2CIELab (srcRgb, fReferences);
+		}
+	}
+
+	return;
+
 	return;
 }
 
@@ -108,9 +146,9 @@ void ConvertCIELabToRGB
 ) noexcept
 {
 	constexpr float fReferences[3] = {
-		cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65][0],
-		cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65][1],
-		cCOLOR_ILLUMINANT[observer_CIE_1931][color_ILLUMINANT_D65][2],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][0],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][1],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
 	};
 
 	for (A_long j = 0; j < sizeY; j++)
@@ -121,8 +159,7 @@ void ConvertCIELabToRGB
 
 		for (A_long i = 0; i < sizeX; i++)
 		{
-			const fCIELabPix& pixelLab = pTmpLine[i];
-			const fRGB rgb = CIELab2RGB (pixelLab, fReferences);
+			const fRGB rgb = CIELab2RGB (pTmpLine[i], fReferences);
 
 			pDstLine[i].B = rgb.B * fNorm;
 			pDstLine[i].G = rgb.G * fNorm;
@@ -135,6 +172,51 @@ void ConvertCIELabToRGB
 }
 
 
+template <typename T>
+void ConvertCIELabToYUV
+(
+	const T*    __restrict pSrc,
+	fCIELabPix* __restrict pTmp,
+	T*    __restrict pDst,
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch,
+	const float   fNorm
+) noexcept
+{
+	CACHE_ALIGN constexpr float Rgb2Yuv[9] =
+	{
+		RGB2YUV[BT709][0], RGB2YUV[BT709][1], RGB2YUV[BT709][2],
+		RGB2YUV[BT709][3], RGB2YUV[BT709][4], RGB2YUV[BT709][5],
+		RGB2YUV[BT709][6], RGB2YUV[BT709][7], RGB2YUV[BT709][8]
+	};
+	constexpr float fReferences[3] = {
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][0],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][1],
+		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
+	};
+
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const T* __restrict pSrcLine = pSrc + j * srcPitch;
+		      T* __restrict pDstLine = pDst + j * dstPitch;
+		fCIELabPix* __restrict pTmpLine = pTmp + j * sizeX;
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			const fRGB rgb = CIELab2RGB (pTmpLine[i], fReferences);
+
+//			pDstLine[i].B = rgb.B * fNorm;
+//			pDstLine[i].G = rgb.G * fNorm;
+//			pDstLine[i].R = rgb.R * fNorm;
+			pDstLine[i].A = pSrcLine[i].A;
+		}
+	}
+
+	return;
+}
+
 void BilateralFilter
 (
 	const fCIELabPix* __restrict pIn,
@@ -142,7 +224,7 @@ void BilateralFilter
 	const A_long  sizeX,
 	const A_long  sizeY,
 	const A_long  windowSize
-)
+) noexcept
 {
 	CACHE_ALIGN float gMesh[cBilateralWindowMax][cBilateralWindowMax]{};
 	CACHE_ALIGN float pH[cBilateralWindowMax * cBilateralWindowMax]{};
@@ -222,10 +304,11 @@ void BilateralFilter
 				}
 			}
 
+			const float reciprocNorm = 1.f / fNorm;
 			fCIELabPix& outPix = pOut[j * sizeX + i];
-			outPix.L = bSum1 / fNorm;
-			outPix.a = bSum2 / fNorm;
-			outPix.b = bSum3 / fNorm;
+			outPix.L = bSum1 * reciprocNorm;
+			outPix.a = bSum2 * reciprocNorm;
+			outPix.b = bSum3 * reciprocNorm;
 		} /* for (A_long i = 0; i < sizeX; i++) */
 
 	} /* for (A_long j = 0; j < sizeY; j++) */
@@ -247,21 +330,24 @@ PF_Err NoiseClean_AlgoBilateralColor
 	const float   fDiv
 ) noexcept
 {
-	PF_Err err = PF_Err_OUT_OF_MEMORY;
-
 	/* allocate temporary memory storage */
 	fCIELabPix* pTmpBuffer1 = nullptr;
 	fCIELabPix* pTmpBuffer2 = nullptr;
+	PF_Err err = PF_Err_OUT_OF_MEMORY;
+	const float fNorm = 1.0f / fDiv;
 
-	A_long blockId = MemoryBufferAlloc(sizeX, sizeY, &pTmpBuffer1, &pTmpBuffer2);
+	A_long blockId = MemoryBufferAlloc (sizeX, sizeY, &pTmpBuffer1, &pTmpBuffer2);
 
 	if (nullptr != pTmpBuffer1 && nullptr != pTmpBuffer2 && -1 != blockId)
 	{
-		/* convert RGB to CIEL*a*b  */
+		/* convert YUV to CIEL*a*b  */
+		ConvertToCIELab (pSrc, pTmpBuffer1, sizeX, sizeY, srcPitch, fNorm);
 
 		/* perform bilateral filter denoising */
+		BilateralFilter (pTmpBuffer1, pTmpBuffer2, sizeX, sizeY, windowSize);
 
 		/* convert back from CIEL*a*b to RGB */
+		ConvertCIELabToYUV (pSrc, pTmpBuffer2, pDst, sizeX, sizeY, srcPitch, dstPitch, fDiv);
 
 		/* release memory storage */
 		MemoryBufferRelease (blockId);
@@ -291,11 +377,10 @@ PF_Err NoiseClean_AlgoBilateralColor
 	fCIELabPix* pTmpBuffer1 = nullptr;
 	fCIELabPix* pTmpBuffer2 = nullptr;
 	PF_Err err = PF_Err_OUT_OF_MEMORY;
-
 	const float fNorm = 1.0f / fDiv;
 
 	/* allocate temporary memory storage */
-	A_long blockId = MemoryBufferAlloc(sizeX, sizeY, &pTmpBuffer1, &pTmpBuffer2);
+	A_long blockId = MemoryBufferAlloc (sizeX, sizeY, &pTmpBuffer1, &pTmpBuffer2);
 
 	if (nullptr != pTmpBuffer1 && nullptr != pTmpBuffer2 && -1 != blockId)
 	{
@@ -333,8 +418,8 @@ PF_Err NoiseClean_AlgoBilateralRGB
 	A_long sizeX = 0, sizeY = 0, linePitch = 0;
 
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eNOISE_CLEAN_INPUT]->u.ld);
-	/* get "Bilateral Window size" from slider */
-	const int32_t bilateralWindowSize = 1 | CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax);
+	/* get "Bilateral Window size" from slider (always ODD NUMBER) */
+	const A_long bilateralWindowSize = ODD_VALUE (CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
 
 	/* This plugin called frop PR - check video fomat */
 	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;

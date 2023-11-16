@@ -55,4 +55,11 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IsPowerOf
 }
 
 
+template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type ODD_VALUE(const T& x)
+{
+	return (x | static_cast<T>(1));
+}
+
+
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */
