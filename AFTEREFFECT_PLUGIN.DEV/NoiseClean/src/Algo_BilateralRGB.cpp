@@ -108,7 +108,7 @@ void ConvertToCIELab
 		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
 	};
 
-	const float fSubtractor = (fNorm < 1.f) ? 128.f : 0.f;
+	const float fSubtractor = (fNorm < 1.0f) ? 128.0f : 0.0f;
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -118,10 +118,12 @@ void ConvertToCIELab
 		for (A_long i = 0; i < sizeX; i++)
 		{
 			fRGB srcRgb;
-			const T& yuvPixel = pSrcLine[i];
-			srcRgb.R = fNorm *  (yuvPixel.Y * Yuv2Rgb[0] + yuvPixel.U * Yuv2Rgb[1] + yuvPixel.V * Yuv2Rgb[2]);
-			srcRgb.G = fNorm * ((yuvPixel.Y * Yuv2Rgb[3] + yuvPixel.U * Yuv2Rgb[4] + yuvPixel.V * Yuv2Rgb[5]) - fSubtractor);
-			srcRgb.B = fNorm * ((yuvPixel.Y * Yuv2Rgb[6] + yuvPixel.U * Yuv2Rgb[7] + yuvPixel.V * Yuv2Rgb[8]) - fSubtractor);
+			const float Y = pSrcLine[i].Y;
+			const float U = pSrcLine[i].U - fSubtractor;
+			const float V = pSrcLine[i].V - fSubtractor;
+			srcRgb.R = fNorm * (Y * Yuv2Rgb[0] + U * Yuv2Rgb[1] + V * Yuv2Rgb[2]);
+			srcRgb.G = fNorm * (Y * Yuv2Rgb[3] + U * Yuv2Rgb[4] + V * Yuv2Rgb[5]);
+			srcRgb.B = fNorm * (Y * Yuv2Rgb[6] + U * Yuv2Rgb[7] + V * Yuv2Rgb[8]);
 			pDstLine[i] = RGB2CIELab (srcRgb, fReferences);
 		}
 	}
@@ -196,6 +198,7 @@ void ConvertCIELabToYUV
 		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][1],
 		cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
 	};
+	const float fAddendum = (fNorm > 1.0f) ? 128.0f : 0.0f;
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -206,10 +209,13 @@ void ConvertCIELabToYUV
 		for (A_long i = 0; i < sizeX; i++)
 		{
 			const fRGB rgb = CIELab2RGB (pTmpLine[i], fReferences);
+			const float R = rgb.R * fNorm;
+			const float G = rgb.G * fNorm;
+			const float B = rgb.B * fNorm;
 
-//			pDstLine[i].B = rgb.B * fNorm;
-//			pDstLine[i].G = rgb.G * fNorm;
-//			pDstLine[i].R = rgb.R * fNorm;
+			pDstLine[i].Y = R * Rgb2Yuv[0] + G * Rgb2Yuv[1] + B * Rgb2Yuv[2];
+			pDstLine[i].U = R * Rgb2Yuv[3] + G * Rgb2Yuv[4] + B * Rgb2Yuv[5] + fAddendum;
+			pDstLine[i].V = R * Rgb2Yuv[6] + G * Rgb2Yuv[7] + B * Rgb2Yuv[8] + fAddendum;
 			pDstLine[i].A = pSrcLine[i].A;
 		}
 	}
