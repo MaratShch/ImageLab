@@ -4,7 +4,8 @@
 #include "CompileTimeUtils.hpp"
 #include "ColorTransform.hpp"
 
-constexpr eCOLOR_OBSERVER   CieLabDefaultObserver  { observer_CIE_1931 };
+
+constexpr eCOLOR_OBSERVER   CieLabDefaultObserver{ observer_CIE_1931 };
 constexpr eCOLOR_ILLUMINANT CieLabDefaultIlluminant{ color_ILLUMINANT_D65 };
 
 inline A_long MemoryBufferAlloc
@@ -18,15 +19,15 @@ inline A_long MemoryBufferAlloc
 	constexpr size_t doubleBuffer{ 2 };
 	constexpr size_t sizeAlignment{ CACHE_LINE };
 	const size_t frameSize = static_cast<size_t>(sizeX * sizeY);
-	const size_t requiredMemSize = ::CreateAlignment (frameSize * (fCIELabPix_size * doubleBuffer), sizeAlignment);
+	const size_t requiredMemSize = ::CreateAlignment(frameSize * (fCIELabPix_size * doubleBuffer), sizeAlignment);
 	void* pAlgoMemory = nullptr;
 
-	const A_long blockId = ::GetMemoryBlock (static_cast<int32_t>(requiredMemSize), 0, &pAlgoMemory);
+	const A_long blockId = ::GetMemoryBlock(static_cast<int32_t>(requiredMemSize), 0, &pAlgoMemory);
 
 	if (nullptr != pAlgoMemory)
 	{
 #ifdef _DEBUG
-		memset (pAlgoMemory, 0, requiredMemSize);
+		memset(pAlgoMemory, 0, requiredMemSize);
 #endif
 		*pBuf1 = static_cast<fCIELabPix*>(pAlgoMemory);
 		*pBuf2 = *pBuf1 + frameSize;
@@ -43,7 +44,7 @@ inline void MemoryBufferRelease
 	A_long blockId
 ) noexcept
 {
-	::FreeMemoryBlock (blockId);
+	::FreeMemoryBlock(blockId);
 	return;
 }
 
@@ -77,7 +78,7 @@ void ConvertToCIELab
 			srcRgb.G = pSrcLine[i].G * fNorm;
 			srcRgb.B = pSrcLine[i].B * fNorm;
 
-			pDstLine[i] = RGB2CIELab (srcRgb, fReferences);
+			pDstLine[i] = RGB2CIELab(srcRgb, fReferences);
 		}
 	}
 
@@ -124,7 +125,7 @@ void ConvertToCIELab
 			srcRgb.R = fNorm * (Y * Yuv2Rgb[0] + U * Yuv2Rgb[1] + V * Yuv2Rgb[2]);
 			srcRgb.G = fNorm * (Y * Yuv2Rgb[3] + U * Yuv2Rgb[4] + V * Yuv2Rgb[5]);
 			srcRgb.B = fNorm * (Y * Yuv2Rgb[6] + U * Yuv2Rgb[7] + V * Yuv2Rgb[8]);
-			pDstLine[i] = RGB2CIELab (srcRgb, fReferences);
+			pDstLine[i] = RGB2CIELab(srcRgb, fReferences);
 		}
 	}
 
@@ -139,7 +140,7 @@ void ConvertCIELabToRGB
 (
 	const T*    __restrict pSrc,
 	fCIELabPix* __restrict pTmp,
-	      T*    __restrict pDst,
+	T*    __restrict pDst,
 	const A_long  sizeX,
 	const A_long  sizeY,
 	const A_long  srcPitch,
@@ -155,13 +156,13 @@ void ConvertCIELabToRGB
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
-		const T* __restrict pSrcLine    = pSrc + j * srcPitch;
-		      T* __restrict pDstLine    = pDst + j * dstPitch;
+		const T* __restrict pSrcLine = pSrc + j * srcPitch;
+		T* __restrict pDstLine = pDst + j * dstPitch;
 		fCIELabPix* __restrict pTmpLine = pTmp + j * sizeX;
 
 		for (A_long i = 0; i < sizeX; i++)
 		{
-			const fRGB rgb = CIELab2RGB (pTmpLine[i], fReferences);
+			const fRGB rgb = CIELab2RGB(pTmpLine[i], fReferences);
 
 			pDstLine[i].B = rgb.B * fNorm;
 			pDstLine[i].G = rgb.G * fNorm;
@@ -203,12 +204,12 @@ void ConvertCIELabToYUV
 	for (A_long j = 0; j < sizeY; j++)
 	{
 		const T* __restrict pSrcLine = pSrc + j * srcPitch;
-		      T* __restrict pDstLine = pDst + j * dstPitch;
+		T* __restrict pDstLine = pDst + j * dstPitch;
 		fCIELabPix* __restrict pTmpLine = pTmp + j * sizeX;
 
 		for (A_long i = 0; i < sizeX; i++)
 		{
-			const fRGB rgb = CIELab2RGB (pTmpLine[i], fReferences);
+			const fRGB rgb = CIELab2RGB(pTmpLine[i], fReferences);
 			const float R = rgb.R * fNorm;
 			const float G = rgb.G * fNorm;
 			const float B = rgb.B * fNorm;
@@ -467,7 +468,7 @@ PF_Err NoiseClean_AlgoBilateralRGB
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-				err = NoiseClean_AlgoBilateralColor (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize, 1.f);
+				err = NoiseClean_AlgoBilateralColor (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize, 1.0f);
 			}
 			break;
 
@@ -491,7 +492,7 @@ PF_Err NoiseClean_AlgoBilateralRGB
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-				err = NoiseClean_AlgoBilateralColor (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize, 1.f);
+				err = NoiseClean_AlgoBilateralColor (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, bilateralWindowSize, 1.0f);
 			}
 			break;
 
@@ -506,4 +507,52 @@ PF_Err NoiseClean_AlgoBilateralRGB
 	}
 
 	return err;
+}
+
+
+PF_Err NoiseClean_AlgoBilateralRGBAe8
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	const PF_EffectWorld*   __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+	const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+	/* get "Bilateral Window size" from slider */
+	const int32_t bilateralWindowSize = ODD_VALUE(CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
+
+	auto const src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const sizeY = output->height;
+	auto const sizeX = output->width;
+
+	return  NoiseClean_AlgoBilateralColor (localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, bilateralWindowSize, static_cast<float>(u8_value_white));
+}
+
+
+PF_Err NoiseClean_AlgoBilateralRGBAe16
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	const PF_EffectWorld*   __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+	/* get "Bilateral Window size" from slider */
+	const int32_t bilateralWindowSize = ODD_VALUE(CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
+
+	auto const src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const sizeY = output->height;
+	auto const sizeX = output->width;
+
+	return  NoiseClean_AlgoBilateralColor (localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, bilateralWindowSize, static_cast<float>(u16_value_white));
 }

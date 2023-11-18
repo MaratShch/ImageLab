@@ -19,7 +19,7 @@ inline PF_Err NoiseCleanInAE_8bits
 		break;
 
 		case eNOISE_CLEAN_BILATERAL_RGB:
-//			err = NoiseClean_AlgoBilateralRGBAe8 (in_data, out_data, params, output);
+			err = NoiseClean_AlgoBilateralRGBAe8 (in_data, out_data, params, output);
 		break;
 
 		case eNOISE_CLEAN_PERONA_MALIK:
@@ -58,7 +58,7 @@ inline PF_Err NoiseCleanInAE_16bits
 		break;
 
 		case eNOISE_CLEAN_BILATERAL_RGB:
-//			err = NoiseClean_AlgoBilateralRGBAe16 (in_data, out_data, params, output);
+			err = NoiseClean_AlgoBilateralRGBAe16 (in_data, out_data, params, output);
 		break;
 
 		case eNOISE_CLEAN_PERONA_MALIK:
