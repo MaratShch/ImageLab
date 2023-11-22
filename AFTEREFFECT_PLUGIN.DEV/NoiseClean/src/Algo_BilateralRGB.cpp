@@ -5,9 +5,6 @@
 #include "ColorTransform.hpp"
 
 
-constexpr eCOLOR_OBSERVER   CieLabDefaultObserver{ observer_CIE_1931 };
-constexpr eCOLOR_ILLUMINANT CieLabDefaultIlluminant{ color_ILLUMINANT_D65 };
-
 inline A_long MemoryBufferAlloc
 (
 	const A_long&  sizeX,
@@ -157,7 +154,7 @@ void ConvertCIELabToRGB
 	for (A_long j = 0; j < sizeY; j++)
 	{
 		const T* __restrict pSrcLine = pSrc + j * srcPitch;
-		T* __restrict pDstLine = pDst + j * dstPitch;
+		      T* __restrict pDstLine = pDst + j * dstPitch;
 		fCIELabPix* __restrict pTmpLine = pTmp + j * sizeX;
 
 		for (A_long i = 0; i < sizeX; i++)
@@ -204,7 +201,7 @@ void ConvertCIELabToYUV
 	for (A_long j = 0; j < sizeY; j++)
 	{
 		const T* __restrict pSrcLine = pSrc + j * srcPitch;
-		T* __restrict pDstLine = pDst + j * dstPitch;
+		      T* __restrict pDstLine = pDst + j * dstPitch;
 		fCIELabPix* __restrict pTmpLine = pTmp + j * sizeX;
 
 		for (A_long i = 0; i < sizeX; i++)
@@ -518,14 +515,14 @@ PF_Err NoiseClean_AlgoBilateralRGBAe8
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_EffectWorld*   __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+	const PF_EffectWorld*   __restrict input    = reinterpret_cast<const PF_EffectWorld*   __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
 	const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
 	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
 	/* get "Bilateral Window size" from slider */
 	const int32_t bilateralWindowSize = ODD_VALUE(CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
 
-	auto const src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	auto const sizeY = output->height;
 	auto const sizeX = output->width;
@@ -542,14 +539,14 @@ PF_Err NoiseClean_AlgoBilateralRGBAe16
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_EffectWorld*   __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+	const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld*    __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
 	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
 	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
 	/* get "Bilateral Window size" from slider */
 	const int32_t bilateralWindowSize = ODD_VALUE(CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
 
-	auto const src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 	auto const sizeY = output->height;
 	auto const sizeX = output->width;

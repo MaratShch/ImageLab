@@ -66,6 +66,17 @@ namespace FastCompute
 		return Max(Max(x, y), z);
 	}
 
+	namespace FastBitsOperations {
+		template <typename T> constexpr T BitSet  { static_cast<T>(1) };
+		template <typename T> constexpr T BitReset{ static_cast<T>(0) };
+		template <typename T>
+		inline constexpr T BitOperation(const T& op, const T& mask, const T& val) noexcept
+		{
+			/* if (op) val |= mask; else val &= ~mask  */
+			return ((val & ~mask) | (-op & mask));
+		}
+	};
+
 	template<typename T>
 	inline constexpr auto Abs (const T& x)-> std::enable_if_t<std::is_unsigned<T>::value, T> 
 	{

@@ -43,6 +43,8 @@ typedef enum eCOLOR_ILLUMINANT
 	color_TOTAL_ILLUMINANTS
 };
 
+constexpr eCOLOR_OBSERVER   CieLabDefaultObserver  { observer_CIE_1931 };
+constexpr eCOLOR_ILLUMINANT CieLabDefaultIlluminant{ color_ILLUMINANT_D65 };
 
 // define color space conversion matrix's
 static CACHE_ALIGN float constexpr RGB2YUV[][9] =

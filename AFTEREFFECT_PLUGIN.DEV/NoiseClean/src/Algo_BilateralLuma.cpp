@@ -130,8 +130,9 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	const A_long lastPixel = sizeX - 1;
 	A_long idx = 0;
 
+	constexpr size_t doubleBuffer = 2;
 	const size_t frameSize = sizeX * sizeY;
-	const size_t requiredMemSize = frameSize * sizeof(T);
+	const size_t requiredMemSize = frameSize * (sizeof(T) * doubleBuffer);
 	const size_t memSizeForTmpBuffers = CreateAlignment (requiredMemSize, static_cast<size_t>(CACHE_LINE));
 
 	void* pMemoryBlock = nullptr;
