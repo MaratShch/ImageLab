@@ -42,24 +42,30 @@ CLAMP_VALUE(const T& val, const T& min, const T& max) noexcept
 }
 
 template <typename T>
-constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(const T& x, const T& a)
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAlignment(const T& x, const T& a) noexcept
 {
+	/* create value X aligned on A */
 	return (x > 0) ? ((x + a - 1) / a * a) : a;
 }
 
 
 template <typename T>
-constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IsPowerOf2 (const T& x)
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IsPowerOf2 (const T& x) noexcept
 {
 	return (x && !(x & (x - static_cast<T>(1))));
 }
 
 
 template <typename T>
-constexpr typename std::enable_if<std::is_integral<T>::value, T>::type ODD_VALUE(const T& x)
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type ODD_VALUE(const T& x) noexcept
 {
 	return (x | static_cast<T>(1));
 }
 
+template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type EVEN_VALUE(const T& x) noexcept
+{
+	return (x & ~(static_cast<T>(1)));
+}
 
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */
