@@ -1,7 +1,6 @@
 #pragma once
 
 #include "NoiseCleanPrototypes.hpp"
-#include "NoiseCleanEnums.hpp"
 
 constexpr char strName[] = "Noise Clean";
 constexpr char strCopyright[] = "\n2019-2023. ImageLab2 Copyright(c).\rNoise Clean plugin.";

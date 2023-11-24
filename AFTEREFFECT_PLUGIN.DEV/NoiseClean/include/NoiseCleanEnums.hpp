@@ -1,4 +1,5 @@
 #pragma once
+#include "CompileTimeUtils.hpp"
 
 typedef enum {
 	eNOISE_CLEAN_INPUT,
@@ -30,8 +31,8 @@ constexpr static char strAlgoTypes[] =
 
 constexpr static char strWindowSlider[] = "Bilateral window size";
 constexpr int32_t cBilateralWindowMin = 3;
-constexpr int32_t cBilateralWindowMax = 13;
+constexpr int32_t cBilateralWindowMax = 15;
 constexpr int32_t cBilateralWindowDefault = cBilateralWindowMin;
-constexpr int32_t cBilateralMaxRadius = cBilateralWindowMax >> 1;
+constexpr int32_t cBilateralMaxRadius = HALF(cBilateralWindowMax);
 constexpr float cBilateralSigma = 0.1f;
 constexpr float cBilateralGaussSigma = 3.f;

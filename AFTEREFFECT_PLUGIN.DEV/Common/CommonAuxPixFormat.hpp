@@ -1,6 +1,9 @@
-#pragma once
+#ifndef __IMAGE_LAB_AUXILIARY_PIXEL_FORMAT_INTERNAL__
+#define __IMAGE_LAB_AUXILIARY_PIXEL_FORMAT_INTERNAL__
 
+/* define AUX pixel format, using internally by image processing API's */
 #include <cfloat>
+#include <cstdint>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -53,4 +56,22 @@ using dRGB = _tRGB<double>;
 constexpr size_t fRGB_size = sizeof(fRGB);
 constexpr size_t dRGB_size = sizeof(dRGB);
 
+
+template <typename T>
+struct _tYUV /* YUV pixel value range */
+{
+	T Y;
+	T U;
+	T V;
+};
+
+using fYUV = _tYUV<float>;
+using dYUV = _tYUV<double>;
+
+constexpr size_t fYUV_size = sizeof(fYUV);
+constexpr size_t dYUV_size = sizeof(dYUV);
+
+
 #pragma pack(pop)
+
+#endif /* __IMAGE_LAB_AUXILIARY_PIXEL_FORMAT_INTERNAL__ */

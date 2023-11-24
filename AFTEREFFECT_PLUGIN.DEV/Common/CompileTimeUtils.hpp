@@ -68,4 +68,16 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type EVEN_VALU
 	return (x & ~(static_cast<T>(1)));
 }
 
+template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, T>::type HALF(const T& x) noexcept
+{
+	return (x >> static_cast<T>(1));
+}
+
+template <typename T>
+constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type HALF(const T& x) noexcept
+{
+	return (x / static_cast<T>(2));
+}
+
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */

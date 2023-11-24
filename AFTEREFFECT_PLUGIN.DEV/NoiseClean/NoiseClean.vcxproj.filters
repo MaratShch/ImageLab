@@ -107,6 +107,9 @@
     <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\NoiseCleanAlgoMemory.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="NoiseClean.rc">

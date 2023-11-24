@@ -51,7 +51,7 @@ inline void imgYUV2RGB
 	int32_t sizeY,
 	int32_t src_line_pitch,
 	int32_t dst_line_pitch,
-	int32_t addendum 
+	int32_t addendum = 0
 ) noexcept
 {
 	const float* __restrict colorMatrix = YUV2RGB[transformSpace];

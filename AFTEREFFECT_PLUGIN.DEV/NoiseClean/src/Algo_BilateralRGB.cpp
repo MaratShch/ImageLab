@@ -1,49 +1,7 @@
-#include "NoiseClean.hpp"
+#include "NoiseCleanAlgoMemory.hpp"
 #include "PrSDKAESupport.h"
 #include "CommonAuxPixFormat.hpp"
-#include "CompileTimeUtils.hpp"
 #include "ColorTransform.hpp"
-
-
-inline A_long MemoryBufferAlloc
-(
-	const A_long&  sizeX,
-	const A_long&  sizeY,
-	fCIELabPix**   pBuf1,
-	fCIELabPix**   pBuf2
-) noexcept
-{
-	constexpr size_t doubleBuffer{ 2 };
-	constexpr size_t sizeAlignment{ CACHE_LINE };
-	const size_t frameSize = static_cast<size_t>(sizeX * sizeY);
-	const size_t requiredMemSize = ::CreateAlignment(frameSize * (fCIELabPix_size * doubleBuffer), sizeAlignment);
-	void* pAlgoMemory = nullptr;
-
-	const A_long blockId = ::GetMemoryBlock(static_cast<int32_t>(requiredMemSize), 0, &pAlgoMemory);
-
-	if (nullptr != pAlgoMemory)
-	{
-#ifdef _DEBUG
-		memset(pAlgoMemory, 0, requiredMemSize);
-#endif
-		*pBuf1 = static_cast<fCIELabPix*>(pAlgoMemory);
-		*pBuf2 = *pBuf1 + frameSize;
-	}
-	else
-		*pBuf1 = *pBuf2 = nullptr;
-
-	return blockId;
-}
-
-
-inline void MemoryBufferRelease
-(
-	A_long blockId
-) noexcept
-{
-	::FreeMemoryBlock(blockId);
-	return;
-}
 
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>

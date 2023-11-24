@@ -1,7 +1,40 @@
-#include "NoiseClean.hpp"
+#include "NoiseCleanAlgoMemory.hpp"
 #include "FastAriphmetics.hpp"
 #include "PrSDKAESupport.h"
-#include "ImageLabMemInterface.hpp"
+#include "ColorTransform.hpp"
+
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+void imgRGB2YUV
+(
+	const T* __restrict srcImage,
+	PF_Pixel_VUYA_32f* __restrict dstImage,
+	eCOLOR_SPACE transformSpace,
+	int32_t sizeX,
+	int32_t sizeY,
+	int32_t src_line_pitch,
+	int32_t dst_line_pitch,
+	float   div = 1.f
+) noexcept
+{
+	return;
+}
+
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+void imgYUV2RGB
+(
+	const PF_Pixel_VUYA_32f* __restrict srcImage,
+	T* __restrict dstImage,
+	eCOLOR_SPACE transformSpace,
+	int32_t sizeX,
+	int32_t sizeY,
+	int32_t src_line_pitch,
+	int32_t dst_line_pitch,
+	float   mult = 1.f
+) noexcept
+{
+	return;
+}
+
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoBilateralLuma
@@ -13,7 +46,7 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	 const A_long       srcPitch,
 	 const A_long       dstPitch,
 	 const A_long       windowSize,
-	 const float        whiteValue = static_cast<float>(u8_value_white)
+	 const float        whiteValue
 ) noexcept
 {
 	CACHE_ALIGN float gMesh[cBilateralWindowMax][cBilateralWindowMax]{};
@@ -49,7 +82,6 @@ PF_Err NoiseClean_AlgoBilateralLuma
 			A_long k, l;
 
 			/* compute Gaussian intencity weights */
-			__VECTORIZATION__
 			for (idx = k = 0; k < jDif; k++)
 			{
 				const int pixPos = (jMin + k) * srcPitch + iMin;
@@ -69,7 +101,6 @@ PF_Err NoiseClean_AlgoBilateralLuma
 			for (idx = k = 0; k < jDif; k++)
 			{
 				A_long iIdx = iMin - i + filterRadius;
-				__LOOP_UNROLL(3)
 				for (l = 0; l < iDif; l++)
 				{
 					pF[idx] = pH[idx] * gMesh[jIdx][iIdx];
@@ -104,54 +135,199 @@ PF_Err NoiseClean_AlgoBilateralLuma
 }
 
 
-template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoBilateralLuma
 (
-	const T* __restrict pSrc,
-	      T* __restrict pDst,
+	const PF_Pixel_BGRA_8u* __restrict pSrc,
+	      PF_Pixel_BGRA_8u* __restrict pDst,
 	const A_long        sizeX,
 	const A_long        sizeY,
 	const A_long        srcPitch,
 	const A_long        dstPitch,
 	const A_long        windowSize,
-	const float         whiteValue = static_cast<float>(u8_value_white)
+	const float         whiteValue
 ) noexcept
 {
-	CACHE_ALIGN float gMesh[cBilateralWindowMax][cBilateralWindowMax]{};
-	CACHE_ALIGN float pH[cBilateralWindowMax * cBilateralWindowMax]{};
-	CACHE_ALIGN float pF[cBilateralWindowMax * cBilateralWindowMax]{};
+	PF_Pixel_VUYA_32f* pTmp1 = nullptr; /* Because u8 pixel defined as unsigned char we can't normally convert to YUV with possible U or V negative values */
+	PF_Pixel_VUYA_32f* pTmp2 = nullptr; /* Let's convert this buffer from unsigned char RGB to float YUV                                                   */
 
-	constexpr float sigma = cBilateralSigma;
-	constexpr float sigmaDiv = 2.f * sigma * sigma;
-	constexpr float reciProcSigma = 1.f / sigmaDiv;
-	const float  reciprocWhite = 1.f / whiteValue;
-	const A_long filterRadius = windowSize >> 1;
-	const A_long lastLine  = sizeY - 1;
-	const A_long lastPixel = sizeX - 1;
-	A_long idx = 0;
+	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
 
-	constexpr size_t doubleBuffer = 2;
-	const size_t frameSize = sizeX * sizeY;
-	const size_t requiredMemSize = frameSize * (sizeof(T) * doubleBuffer);
-	const size_t memSizeForTmpBuffers = CreateAlignment (requiredMemSize, static_cast<size_t>(CACHE_LINE));
-
-	void* pMemoryBlock = nullptr;
-	A_long memBlockId = -1;
-
-	memBlockId = ::GetMemoryBlock (memSizeForTmpBuffers, 0, &pMemoryBlock);
-	if (-1 != memBlockId && nullptr != pMemoryBlock)
+	if (nullptr != pTmp1 && nullptr != pTmp2 && -1 != memBlockId)
 	{
-		/* compute gaussian weights */
-		gaussian_weights(filterRadius, gMesh);
+		constexpr int32_t convert_addendum{ 0 };
+		constexpr eCOLOR_SPACE colorSpace { BT709 };
 
-		/* convert RGB buffer to YUV color space */
+		/* convert RGB image to YUV */
+		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX, whiteValue);
+		/* call templated function for VUYA variant */
+		NoiseClean_AlgoBilateralLuma (pTmp1, pTmp2, sizeX, sizeY, sizeX, sizeX, windowSize, whiteValue);
+		/* convert processed YUV back to RGB */
+		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch, whiteValue);
 
-		/* release memory block */
-		::FreeMemoryBlock (memBlockId);
+		/* Release temporary memory */
+		MemoryBufferRelease(memBlockId);
+		memBlockId = -1;
+		pTmp1 = pTmp2 = nullptr;
 	}
 
 	return PF_Err_NONE;
 }
+
+
+PF_Err NoiseClean_AlgoBilateralLuma
+(
+	const PF_Pixel_ARGB_8u* __restrict pSrc,
+	      PF_Pixel_ARGB_8u* __restrict pDst,
+	const A_long        sizeX,
+	const A_long        sizeY,
+	const A_long        srcPitch,
+	const A_long        dstPitch,
+	const A_long        windowSize,
+	const float         whiteValue
+) noexcept
+{
+	PF_Pixel_VUYA_32f* pTmp1 = nullptr; /* Because u8 pixel defined as unsigned char we can't normally convert to YUV with possible U or V negative values */
+	PF_Pixel_VUYA_32f* pTmp2 = nullptr; /* Let's convert this buffer from unsigned char RGB to float YUV                                                   */
+
+	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
+
+	if (nullptr != pTmp1 && nullptr != pTmp2 && -1 != memBlockId)
+	{
+		constexpr eCOLOR_SPACE colorSpace { BT709 };
+
+		/* convert RGB image to YUV */
+		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX, whiteValue);
+		/* call templated function for VUYA variant */
+		NoiseClean_AlgoBilateralLuma (pTmp1, pTmp2, sizeX, sizeY, sizeX, sizeX, windowSize, whiteValue);
+		/* convert processed YUV back to RGB */
+		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch, whiteValue);
+
+		/* Release temporary memory */
+		MemoryBufferRelease (memBlockId);
+		memBlockId = -1;
+		pTmp1 = pTmp2 = nullptr;
+	}
+
+	return PF_Err_NONE;
+}
+
+
+PF_Err NoiseClean_AlgoBilateralLuma
+(
+	const PF_Pixel_BGRA_16u* __restrict pSrc,
+	      PF_Pixel_BGRA_16u* __restrict pDst,
+	const A_long        sizeX,
+	const A_long        sizeY,
+	const A_long        srcPitch,
+	const A_long        dstPitch,
+	const A_long        windowSize,
+	const float         whiteValue
+) noexcept
+{
+	PF_Pixel_VUYA_16u* pTmp1 = nullptr;
+	PF_Pixel_VUYA_16u* pTmp2 = nullptr;
+
+	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
+
+	if (nullptr != pTmp1 && nullptr != pTmp2 && -1 != memBlockId)
+	{
+		constexpr int32_t convert_addendum{ 0 };
+		constexpr eCOLOR_SPACE colorSpace{ BT709 };
+
+		/* convert RGB image to YUV */
+		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX);
+		/* call templated function for VUYA variant */
+		NoiseClean_AlgoBilateralLuma (pTmp1, pTmp2, sizeX, sizeY, sizeX, sizeX, windowSize, whiteValue);
+		/* convert processed YUV back to RGB */
+		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch);
+
+		/* Release temporary memory */
+		MemoryBufferRelease (memBlockId);
+		memBlockId = -1;
+		pTmp1 = pTmp2 = nullptr;
+	}
+
+	return PF_Err_NONE;
+}
+
+
+PF_Err NoiseClean_AlgoBilateralLuma
+(
+	const PF_Pixel_ARGB_16u* __restrict pSrc,
+	      PF_Pixel_ARGB_16u* __restrict pDst,
+	const A_long        sizeX,
+	const A_long        sizeY,
+	const A_long        srcPitch,
+	const A_long        dstPitch,
+	const A_long        windowSize,
+	const float         whiteValue
+) noexcept
+{
+	PF_Pixel_VUYA_16u* pTmp1 = nullptr;
+	PF_Pixel_VUYA_16u* pTmp2 = nullptr;
+
+	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
+
+	if (nullptr != pTmp1 && nullptr != pTmp2 && -1 != memBlockId)
+	{
+		constexpr int32_t convert_addendum{ 0 };
+		constexpr eCOLOR_SPACE colorSpace{ BT709 };
+
+		/* convert RGB image to YUV */
+		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX);
+		/* call templated function for VUYA variant */
+		NoiseClean_AlgoBilateralLuma (pTmp1, pTmp2, sizeX, sizeY, sizeX, sizeX, windowSize, whiteValue);
+		/* convert processed YUV back to RGB */
+		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch);
+
+		/* Release temporary memory */
+		MemoryBufferRelease (memBlockId);
+		memBlockId = -1;
+		pTmp1 = pTmp2 = nullptr;
+	}
+
+	return PF_Err_NONE;
+}
+
+
+PF_Err NoiseClean_AlgoBilateralLuma
+(
+	const PF_Pixel_BGRA_32f* __restrict pSrc,
+	      PF_Pixel_BGRA_32f* __restrict pDst,
+	const A_long        sizeX,
+	const A_long        sizeY,
+	const A_long        srcPitch,
+	const A_long        dstPitch,
+	const A_long        windowSize,
+	const float         whiteValue
+) noexcept
+{
+	PF_Pixel_VUYA_32f* pTmp1 = nullptr;
+	PF_Pixel_VUYA_32f* pTmp2 = nullptr;
+
+	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
+
+	if (nullptr != pTmp1 && nullptr != pTmp2 && -1 != memBlockId)
+	{
+		constexpr int32_t convert_addendum{ 0 };
+		constexpr eCOLOR_SPACE colorSpace { BT709 };
+
+		/* convert RGB image to YUV */
+		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX);
+		/* call templated function for VUYA variant */
+		NoiseClean_AlgoBilateralLuma (pTmp1, pTmp2, sizeX, sizeY, sizeX, sizeX, windowSize, whiteValue);
+		/* convert processed YUV back to RGB */
+		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch);
+
+		/* Release temporary memory */
+		MemoryBufferRelease (memBlockId);
+		memBlockId = -1;
+		pTmp1 = pTmp2 = nullptr;
+	}
+
+	return PF_Err_NONE;
+}
+
 
 
 PF_Err NoiseClean_AlgoBilateral
