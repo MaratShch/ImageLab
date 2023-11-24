@@ -56,9 +56,9 @@ inline void Image_SimpleCopy
 	for (int32_t j = 0; j < height; j++)
 	{
 		const T* __restrict pSrcLine = srcBuffer + j * src_line_pitch;
-		T* __restrict pDstLine = dstBuffer + j * dst_line_pitch;
+		      T* __restrict pDstLine = dstBuffer + j * dst_line_pitch;
 		__VECTORIZATION__
-			for (int32_t i = 0; i < width; i++) { pDstLine[i] = pSrcLine[i]; }
+		for (int32_t i = 0; i < width; i++) { pDstLine[i] = pSrcLine[i]; }
 	}
 	return;
 }

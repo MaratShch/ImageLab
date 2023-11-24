@@ -63,9 +63,21 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type ODD_VALUE
 }
 
 template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, bool>::type IsOddValue(const T& x) noexcept
+{
+	return ((x % static_cast<T>(2) != static_cast<T>(0)) ? true : false);
+}
+
+template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, T>::type EVEN_VALUE(const T& x) noexcept
 {
 	return (x & ~(static_cast<T>(1)));
+}
+
+template <typename T>
+constexpr typename std::enable_if<std::is_integral<T>::value, bool>::type IsEvenValue(const T& x) noexcept
+{
+	return ((x % static_cast<T>(2) == static_cast<T>(0)) ? true : false);
 }
 
 template <typename T>

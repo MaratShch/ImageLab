@@ -36,3 +36,6 @@ constexpr int32_t cBilateralWindowDefault = cBilateralWindowMin;
 constexpr int32_t cBilateralMaxRadius = HALF(cBilateralWindowMax);
 constexpr float cBilateralSigma = 0.1f;
 constexpr float cBilateralGaussSigma = 3.f;
+
+static_assert(IsOddValue(cBilateralWindowMin), "cBilateralWindowMin should be ODD");
+static_assert(IsOddValue(cBilateralWindowMax), "cBilateralWindowMax should be ODD");

@@ -381,7 +381,7 @@ PF_Err NoiseClean_AlgoBilateralRGB
 
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eNOISE_CLEAN_INPUT]->u.ld);
 	/* get "Bilateral Window size" from slider (always ODD NUMBER) */
-	const A_long bilateralWindowSize = ODD_VALUE (CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
+	const A_long bilateralWindowSize = CLAMP_VALUE(ODD_VALUE(static_cast<A_long>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value)), cBilateralWindowMin, cBilateralWindowMax);
 
 	/* This plugin called frop PR - check video fomat */
 	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
@@ -478,7 +478,7 @@ PF_Err NoiseClean_AlgoBilateralRGBAe8
 	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
 	/* get "Bilateral Window size" from slider */
-	const int32_t bilateralWindowSize = ODD_VALUE(CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
+	const A_long bilateralWindowSize = CLAMP_VALUE(ODD_VALUE(static_cast<A_long>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value)), cBilateralWindowMin, cBilateralWindowMax);
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
@@ -502,7 +502,7 @@ PF_Err NoiseClean_AlgoBilateralRGBAe16
 	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
 	/* get "Bilateral Window size" from slider */
-	const int32_t bilateralWindowSize = ODD_VALUE(CLAMP_VALUE(static_cast<int32_t>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value), cBilateralWindowMin, cBilateralWindowMax));
+    const A_long bilateralWindowSize = CLAMP_VALUE(ODD_VALUE(static_cast<A_long>(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->u.sd.value)), cBilateralWindowMin, cBilateralWindowMax);
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
