@@ -14,7 +14,7 @@
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="include_common">
-      <UniqueIdentifier>{8fac54f1-7aff-4470-a11a-e33798afdc00}</UniqueIdentifier>
+      <UniqueIdentifier>{ae54ef18-8756-4e2a-b7c2-e451ded143a7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -66,28 +66,28 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageStabilizer.hpp">
+    <ClInclude Include="include\Prisma.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ImageStabilizer.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageStabilizerAE.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageStabilizerPR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ImageStabilizer.r">
+    <None Include="Prisma.r">
       <Filter>resource</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ImageStabilizer.rc">
+    <ClCompile Include="src\Prisma.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PrismaAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PrismaPR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Prisma.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
   </ItemGroup>

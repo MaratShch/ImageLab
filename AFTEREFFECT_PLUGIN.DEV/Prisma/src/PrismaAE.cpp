@@ -1,7 +1,7 @@
-#include "ImageGeometry.hpp"
+#include "Prisma.hpp"
 
 
-PF_Err ImageGeometry_InAE_8bits
+PF_Err PrismaVideo_InAE_8bits
 (
 	PF_InData*   in_data,
 	PF_OutData*  out_data,
@@ -12,7 +12,7 @@ PF_Err ImageGeometry_InAE_8bits
 	return PF_Err_NONE;
 }
 
-PF_Err ImageGeometry_InAE_16bits
+PF_Err PrismaVideo_InAE_16bits
 (
 	PF_InData*   in_data,
 	PF_OutData*  out_data,
@@ -34,6 +34,6 @@ ProcessImgInAE
 ) noexcept
 {
 	return (PF_WORLD_IS_DEEP(output) ?
-		ImageGeometry_InAE_16bits(in_data, out_data, params, output) :
-		ImageGeometry_InAE_8bits (in_data, out_data, params, output));
+		PrismaVideo_InAE_16bits(in_data, out_data, params, output) :
+		PrismaVideo_InAE_8bits (in_data, out_data, params, output));
 }

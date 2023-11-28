@@ -1,5 +1,5 @@
-#ifndef __IMAGE_LAB_AVERAGE_FILTER__
-#define __IMAGE_LAB_AVERAGE_FILTER__
+#ifndef __IMAGE_LAB_IMAGE_GEOMETRY_FILTER__
+#define __IMAGE_LAB_IMAGE_GEOMETRY_FILTER__
 
 #include "CommonAdobeAE.hpp"
 
@@ -35,4 +35,4 @@ ProcessImgInAE
 ) noexcept;
 
 
-#endif /* __IMAGE_LAB_AVERAGE_FILTER__ */
+#endif /* __IMAGE_LAB_IMAGE_GEOMETRY_FILTER__ */
