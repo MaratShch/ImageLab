@@ -9,13 +9,33 @@ void imgRGB2YUV
 	const T* __restrict srcImage,
 	PF_Pixel_VUYA_32f* __restrict dstImage,
 	eCOLOR_SPACE transformSpace,
-	int32_t sizeX,
-	int32_t sizeY,
-	int32_t src_line_pitch,
-	int32_t dst_line_pitch,
+	A_long sizeX,
+	A_long sizeY,
+	A_long src_line_pitch,
+	A_long dst_line_pitch,
 	float   div = 1.f
 ) noexcept
 {
+	const float* const __restrict colorMatrix = RGB2YUV[transformSpace];
+	const float reciproc = 1.f / div;
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const T*           __restrict pSrcLine = srcImage + j * src_line_pitch;
+		PF_Pixel_VUYA_32f* __restrict pDstLine = dstImage + j * dst_line_pitch;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			const float R = static_cast<float>(pSrcLine[i].R) * reciproc;
+			const float G = static_cast<float>(pSrcLine[i].G) * reciproc;
+			const float B = static_cast<float>(pSrcLine[i].B) * reciproc;
+
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].Y = R * colorMatrix[0] + G * colorMatrix[1] + B * colorMatrix[2];
+			pDstLine[i].U = R * colorMatrix[3] + G * colorMatrix[4] + B * colorMatrix[5];
+			pDstLine[i].V = R * colorMatrix[6] + G * colorMatrix[7] + B * colorMatrix[8];
+		}
+	}
 	return;
 }
 
@@ -25,13 +45,28 @@ void imgYUV2RGB
 	const PF_Pixel_VUYA_32f* __restrict srcImage,
 	T* __restrict dstImage,
 	eCOLOR_SPACE transformSpace,
-	int32_t sizeX,
-	int32_t sizeY,
-	int32_t src_line_pitch,
-	int32_t dst_line_pitch,
-	float   mult = 1.f
+	A_long sizeX,
+	A_long sizeY,
+	A_long src_line_pitch,
+	A_long dst_line_pitch,
+	float  mult = 1.f
 ) noexcept
 {
+	const float* __restrict colorMatrix = YUV2RGB[transformSpace];
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const PF_Pixel_VUYA_32f* __restrict pSrcLine = srcImage + j * src_line_pitch;
+		T*                       __restrict pDstLine = dstImage + j * dst_line_pitch;
+
+		__VECTOR_ALIGNED__
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			pDstLine[i].A = pSrcLine[i].A;
+			pDstLine[i].R = CLAMP_VALUE (mult * (pSrcLine[i].Y * colorMatrix[0] + pSrcLine[i].U * colorMatrix[1] + pSrcLine[i].V * colorMatrix[2]), 0.f, mult);
+			pDstLine[i].G = CLAMP_VALUE (mult * (pSrcLine[i].Y * colorMatrix[3] + pSrcLine[i].U * colorMatrix[4] + pSrcLine[i].V * colorMatrix[5]), 0.f, mult);
+			pDstLine[i].B = CLAMP_VALUE (mult * (pSrcLine[i].Y * colorMatrix[6] + pSrcLine[i].U * colorMatrix[7] + pSrcLine[i].V * colorMatrix[8]), 0.f, mult);
+		}
+	}
 	return;
 }
 

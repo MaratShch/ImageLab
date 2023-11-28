@@ -6,7 +6,7 @@ template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
 	const T* __restrict pSrc,
-	T* __restrict pDst,
+	      T* __restrict pDst,
 	const A_long  sizeX,
 	const A_long  sizeY,
 	const A_long  srcPitch,
@@ -21,7 +21,7 @@ template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
 	const T* __restrict pSrc,
-	T* __restrict pDst,
+	      T* __restrict pDst,
 	const A_long  sizeX,
 	const A_long  sizeY,
 	const A_long  srcPitch,
