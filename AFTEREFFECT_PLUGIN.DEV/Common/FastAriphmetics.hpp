@@ -463,13 +463,67 @@ namespace FastCompute
 		return half * (Exp(x) + Exp(-x));
 	}
 
+#ifndef _COMPUTE_PRECISE_TANH_
+/* 
+	Fast computation of hyperbolic tangent. Rational approximation with clamping.
+	Maximum absolute errror = 2.77074604e-3 @ +/-3.29019976
+*/
+	inline const float Tanh (const float& x) noexcept
+	{
+		constexpr float n0 = -8.73291016e-1f; // -0x1.bf2000p-1
+		constexpr float n1 = -2.76107788e-2f; // -0x1.c46000p-6
+		constexpr float d0 = 2.79589844e+0f;  //  0x1.65e000p+1
+		const  float x2 = x * x;
+		const float num = fmaf(n0, x2, n1);
+		const float den = x2 + d0;
+		const float quot = num / den;
+		const float res = fmaf(quot, x, x);
+		return fminf(fmaxf(res, -1.0f), 1.0f);
+	}
+#else // _COMPUTE_PRECISE_TANH_
+/* 
+	Fast computation of hyperbolic tangent. Rational approximation with clamping
+	of the argument. Maximum absolute error = 1.98537030e-5, maximum relative
+	error = 1.98540995e-5, maximum ulp error = 333.089863.
+*/
+	inline const float Tanh (const float& x) // 10 operations
+	{
+		constexpr float cutoff = 5.76110792f; //  0x1.70b5fep+2
+		constexpr float n0 = -1.60153955e-4f; // -0x1.4fde00p-13
+		constexpr float n1 = -9.34448242e-1f; // -0x1.de7000p-1
+		constexpr float n2 = -2.19176636e+1f; // -0x1.5eaec0p+4
+		constexpr float d0 = 2.90915985e+1f; //  0x1.d17730p+4
+		constexpr float d1 = 6.57667847e+1f; //  0x1.071130p+6
+		float y = fminf(fmaxf(x, -cutoff), cutoff);
+		float y2 = y * y;
+		float num = fmaf(fmaf(n0, y2, n1), y2, n2) * y2;
+		float den = fmaf(y2 + d0, y2, d1);
+		float quot = num / den;
+		float res = fmaf(quot, y, y);
+		return res;
+	}
+#endif // _COMPUTE_PRECISE_TANH_
+
+//	inline const float Tanh (const float& x) noexcept
+//	{
+//		const float x2{ x * x };
+//		const float a = x * (135135.0f + x2 * (17325.0f + x2 * (378.0f + x2)));
+//		const float b = 135135.0f + x2 * (62370.0f + x2 * (3150.0f + x2 * 28.0f));
+//		return a / b;
+//	}
+
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type sigmoid (const T& fVal) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sigmoid (const T& fVal) noexcept
 	{
 		constexpr T one{ 1 };
 		return one / (one + Exp(-fVal));
 	}
 
+	template <typename T>
+	inline constexpr T FastSigmoid (const T& fVal) noexcept
+	{
+		return fVal / (1 + Abs(fVal));
+	}
 
 
 #ifndef __NVCC__

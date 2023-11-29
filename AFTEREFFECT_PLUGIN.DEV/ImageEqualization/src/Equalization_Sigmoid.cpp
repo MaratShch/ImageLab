@@ -37,7 +37,7 @@ PF_Err PR_ImageEq_Sigmoid_VUYA_4444_8u_709
 		{
 			lineDst[i].V = lineSrc[i].V;
 			lineDst[i].U = lineSrc[i].U;
-			lineDst[i].Y = static_cast<uint8_t>(FastCompute::sigmoid((static_cast<float>(lineSrc[i].Y) - 128.f) * sigmoidStep) * 256.f);
+			lineDst[i].Y = static_cast<uint8_t>(FastCompute::Sigmoid((static_cast<float>(lineSrc[i].Y) - 128.f) * sigmoidStep) * 256.f);
 			lineDst[i].A = lineSrc[i].A;
 		} /* for (i = 0; i < width; i++) */
 
@@ -74,7 +74,7 @@ PF_Err PR_ImageEq_Sigmoid_VUYA_4444_32f_709
 		{
 			lineDst[i].V = lineSrc[i].V;
 			lineDst[i].U = lineSrc[i].U;
-			lineDst[i].Y = FastCompute::sigmoid(sigmoidRange * lineSrc[i].Y - sigmoidMax);
+			lineDst[i].Y = FastCompute::Sigmoid(sigmoidRange * lineSrc[i].Y - sigmoidMax);
 			lineDst[i].A = lineSrc[i].A;
 		} /* for (i = 0; i < width; i++) */
 
@@ -117,7 +117,7 @@ PF_Err PR_ImageEq_Sigmoid_BGRA_4444_8u
 			const float Y = lineSrc[i].R * rgb2yuv[0] + lineSrc[i].G * rgb2yuv[1] + lineSrc[i].B * rgb2yuv[2];
 			const float U = lineSrc[i].R * rgb2yuv[3] + lineSrc[i].G * rgb2yuv[4] + lineSrc[i].B * rgb2yuv[5];
 			const float V = lineSrc[i].R * rgb2yuv[6] + lineSrc[i].G * rgb2yuv[7] + lineSrc[i].B * rgb2yuv[8];
-			const float Y_modified = FastCompute::sigmoid((Y - 128.f) * sigmoidStep) * 256.f;
+			const float Y_modified = FastCompute::Sigmoid((Y - 128.f) * sigmoidStep) * 256.f;
 
 			lineDst[i].R = static_cast<A_u_char>(CLAMP_VALUE(Y_modified * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2], static_cast<float>(u8_value_black), static_cast<float>(u8_value_white)));
 			lineDst[i].G = static_cast<A_u_char>(CLAMP_VALUE(Y_modified * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5], static_cast<float>(u8_value_black), static_cast<float>(u8_value_white)));
@@ -164,7 +164,7 @@ PF_Err PR_ImageEq_Sigmoid_BGRA_4444_16u
 			const float Y = lineSrc[i].R * rgb2yuv[0] + lineSrc[i].G * rgb2yuv[1] + lineSrc[i].B * rgb2yuv[2];
 			const float U = lineSrc[i].R * rgb2yuv[3] + lineSrc[i].G * rgb2yuv[4] + lineSrc[i].B * rgb2yuv[5];
 			const float V = lineSrc[i].R * rgb2yuv[6] + lineSrc[i].G * rgb2yuv[7] + lineSrc[i].B * rgb2yuv[8];
-			const float Y_modified = FastCompute::sigmoid((Y - 16384.f) * sigmoidStep) * 32768.f;
+			const float Y_modified = FastCompute::Sigmoid((Y - 16384.f) * sigmoidStep) * 32768.f;
 
 			lineDst[i].R = static_cast<A_u_short>(CLAMP_VALUE(Y_modified * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2], static_cast<float>(u16_value_black), static_cast<float>(u16_value_white)));
 			lineDst[i].G = static_cast<A_u_short>(CLAMP_VALUE(Y_modified * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5], static_cast<float>(u16_value_black), static_cast<float>(u16_value_white)));
@@ -209,7 +209,7 @@ PF_Err PR_ImageEq_Sigmoid_BGRA_4444_32f
 			const float Y = lineSrc[i].R * rgb2yuv[0] + lineSrc[i].G * rgb2yuv[1] + lineSrc[i].B * rgb2yuv[2];
 			const float U = lineSrc[i].R * rgb2yuv[3] + lineSrc[i].G * rgb2yuv[4] + lineSrc[i].B * rgb2yuv[5];
 			const float V = lineSrc[i].R * rgb2yuv[6] + lineSrc[i].G * rgb2yuv[7] + lineSrc[i].B * rgb2yuv[8];
-			const float Y_modified = FastCompute::sigmoid(sigmoidRange * Y - sigmoidMax);
+			const float Y_modified = FastCompute::Sigmoid(sigmoidRange * Y - sigmoidMax);
 
 			lineDst[i].R = CLAMP_VALUE(Y_modified * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2], static_cast<float>(f32_value_black), static_cast<float>(f32_value_white));
 			lineDst[i].G = CLAMP_VALUE(Y_modified * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5], static_cast<float>(f32_value_black), static_cast<float>(f32_value_white));
@@ -257,7 +257,7 @@ PF_Err AE_ImageEq_Sigmoid_ARGB_4444_8u
 			const float Y = lineSrc[i].R * rgb2yuv[0] + lineSrc[i].G * rgb2yuv[1] + lineSrc[i].B * rgb2yuv[2];
 			const float U = lineSrc[i].R * rgb2yuv[3] + lineSrc[i].G * rgb2yuv[4] + lineSrc[i].B * rgb2yuv[5];
 			const float V = lineSrc[i].R * rgb2yuv[6] + lineSrc[i].G * rgb2yuv[7] + lineSrc[i].B * rgb2yuv[8];
-			const float Y_modified = FastCompute::sigmoid((static_cast<float>(Y) - 128.f) * sigmoidStep) * 256.f;
+			const float Y_modified = FastCompute::Sigmoid((static_cast<float>(Y) - 128.f) * sigmoidStep) * 256.f;
 
 			lineDst[i].A = lineSrc[i].A;
 			lineDst[i].R = static_cast<A_u_char>(CLAMP_VALUE(Y_modified * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2], static_cast<float>(u8_value_black), static_cast<float>(u8_value_white)));
@@ -305,7 +305,7 @@ PF_Err AE_ImageEq_Sigmoid_ARGB_4444_16u
 			const float Y = lineSrc[i].R * rgb2yuv[0] + lineSrc[i].G * rgb2yuv[1] + lineSrc[i].B * rgb2yuv[2];
 			const float U = lineSrc[i].R * rgb2yuv[3] + lineSrc[i].G * rgb2yuv[4] + lineSrc[i].B * rgb2yuv[5];
 			const float V = lineSrc[i].R * rgb2yuv[6] + lineSrc[i].G * rgb2yuv[7] + lineSrc[i].B * rgb2yuv[8];
-			const float Y_modified = FastCompute::sigmoid((Y - 16384.f) * sigmoidStep) * 32768.f;
+			const float Y_modified = FastCompute::Sigmoid((Y - 16384.f) * sigmoidStep) * 32768.f;
 
 			lineDst[i].A = lineSrc[i].A;
 			lineDst[i].R = static_cast<A_u_short>(CLAMP_VALUE(Y_modified * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2], static_cast<float>(u16_value_black), static_cast<float>(u16_value_white)));
