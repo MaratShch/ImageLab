@@ -67,10 +67,14 @@ namespace FastCompute
 	}
 
 	namespace FastBitsOperations {
-		template <typename T> constexpr T BitSet  { static_cast<T>(1) };
-		template <typename T> constexpr T BitReset{ static_cast<T>(0) };
+		template <typename T> 
+		constexpr typename std::enable_if<std::is_integral<T>::value, T>::type BitSet  { static_cast<T>(1) };
+
 		template <typename T>
-		inline constexpr T BitOperation(const T& op, const T& mask, const T& val) noexcept
+		constexpr typename std::enable_if<std::is_integral<T>::value, T>::type BitReset{ static_cast<T>(0) };
+
+		template <typename T>
+		inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type BitOperation(const T& op, const T& mask, const T& val) noexcept
 		{
 			/* if (op) val |= mask; else val &= ~mask  */
 			return ((val & ~mask) | (-op & mask));
@@ -307,7 +311,7 @@ namespace FastCompute
 	inline float Asin (float x) noexcept
 	{
 		const float negate = float(x < 0.f);
-		x = abs(x);
+		x = Abs(x);
 		float ret = -0.0187293f;
 		ret *= x;
 		ret += 0.0742610f;
@@ -504,13 +508,6 @@ namespace FastCompute
 	}
 #endif // _COMPUTE_PRECISE_TANH_
 
-//	inline const float Tanh (const float& x) noexcept
-//	{
-//		const float x2{ x * x };
-//		const float a = x * (135135.0f + x2 * (17325.0f + x2 * (378.0f + x2)));
-//		const float b = 135135.0f + x2 * (62370.0f + x2 * (3150.0f + x2 * 28.0f));
-//		return a / b;
-//	}
 
 	template <typename T>
 	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sigmoid (const T& fVal) noexcept

@@ -31,7 +31,8 @@ inline PF_Err NoiseCleanInAE_8bits
 		break;
 
 		case eNOISE_CLEAN_NONE:
-			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->copy(in_data->effect_ref, &params[eNOISE_CLEAN_INPUT]->u.ld, output, NULL, NULL);
+			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->
+				copy(in_data->effect_ref, &params[eNOISE_CLEAN_INPUT]->u.ld, output, NULL, NULL);
 		default:
 		break;
 	}
@@ -71,7 +72,8 @@ inline PF_Err NoiseCleanInAE_16bits
 
 		case eNOISE_CLEAN_NONE:
 		default:
-			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->copy_hq(in_data->effect_ref, &params[eNOISE_CLEAN_INPUT]->u.ld, output, NULL, NULL);
+			err = AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data)->
+				copy_hq(in_data->effect_ref, &params[eNOISE_CLEAN_INPUT]->u.ld, output, NULL, NULL);
 		break;
 	}
 

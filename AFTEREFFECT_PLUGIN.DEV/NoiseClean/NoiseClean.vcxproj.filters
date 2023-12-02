@@ -110,6 +110,9 @@
     <ClInclude Include="include\NoiseCleanAlgoMemory.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\NoiseCleanGFunction.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="NoiseClean.rc">

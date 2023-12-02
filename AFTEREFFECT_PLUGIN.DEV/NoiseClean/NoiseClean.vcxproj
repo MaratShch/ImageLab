@@ -168,6 +168,7 @@
     <ClInclude Include="include\NoiseClean.hpp" />
     <ClInclude Include="include\NoiseCleanAlgoMemory.hpp" />
     <ClInclude Include="include\NoiseCleanEnums.hpp" />
+    <ClInclude Include="include\NoiseCleanGFunction.hpp" />
     <ClInclude Include="include\NoiseCleanPrototypes.hpp" />
   </ItemGroup>
   <ItemGroup>
