@@ -90,28 +90,26 @@ template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
 	const T* __restrict pSrc,
-	T* __restrict pDst,
-	const A_long  sizeX,
-	const A_long  sizeY,
-	const A_long  srcPitch,
-	const A_long  dstPitch,
-	const float   noiseLevel,
-	const float   timeStep,
-	const float   maxVal,
-	const float   dispersion
+	      T* __restrict pDst,
+	A_long  sizeX,
+	A_long  sizeY,
+	A_long  srcPitch,
+	A_long  dstPitch,
+	float   noiseLevel,
+	float   timeStep,
+	float   maxVal,
+	float   dispersion
 ) noexcept
 {
-	T* pTmp1 = nullptr;
-	T* pTmp2 = nullptr;
-
-	PF_Err err = PF_Err_OUT_OF_MEMORY;
+	T* pTmp[2] {};
 	constexpr float minimalStep = 0.001f;
+	PF_Err err = PF_Err_OUT_OF_MEMORY;
 
-	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
-	if (nullptr != pTmp1 && nullptr != pTmp2 && -1 != memBlockId)
+	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp[0], &pTmp[1]);
+	if (nullptr != pTmp[0] && nullptr != pTmp[1] && -1 != memBlockId)
 	{
 		float currentDispersion = 0.0f;
-		float currentTimeStep = FastCompute::Min(timeStep, dispersion - currentDispersion);
+		float currentTimeStep = FastCompute::Min (timeStep, dispersion - currentDispersion);
 
 		A_long ping = 0x0, pong = 0x1;
 		A_long iterCnt = 0;
@@ -140,7 +138,7 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 
 		MemoryBufferRelease(memBlockId);
 		memBlockId = -1;
-		pTmp1 = pTmp2 = nullptr;
+		pTmp[0] = pTmp[1] = nullptr;
 		err = PF_Err_NONE;
 	}
 
@@ -167,6 +165,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 	{
 		const float fNoiseLevel = 0.3f;
 		const float fTimeStep = 1.f;
+		const float fDispersion = 2.0f;
 
 		switch (destinationPixelFormat)
 		{
@@ -191,7 +190,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white));
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white), fDispersion);
 			}
 			break;
 
