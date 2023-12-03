@@ -6,17 +6,17 @@
 
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline PF_Err NoiseClean_AlgoAnisotropicDiffusion
+PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
 	const T* __restrict pSrc,
 	      T* __restrict pDst,
-	const A_long&  sizeX,
-	const A_long&  sizeY,
-	const A_long&  srcPitch,
-	const A_long&  dstPitch,
-	const float&   noiseLevel,
-	const float&   timeStep,
-	const float&   maxVal
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch,
+	const float   noiseLevel,
+	const float   timeStep,
+	const float   maxVal
 ) noexcept
 {
 	A_long i, j;
@@ -37,7 +37,7 @@ inline PF_Err NoiseClean_AlgoAnisotropicDiffusion
 		for (i = 0; i < sizeX; i++)
 		{
 			const A_long prevPixel = FastCompute::Max(0,         i - 1);
-			const A_long nextPixel = FastCompute::Max(lastPixel, i + 1);
+			const A_long nextPixel = FastCompute::Min(lastPixel, i + 1);
 
 			const T& north   = pPrevLine[i];
 			const T& south   = pNextLine[i];
@@ -56,34 +56,16 @@ inline PF_Err NoiseClean_AlgoAnisotropicDiffusion
 				               Gfunction (diffWest,  noiseLevel) * diffWest  +
 				               Gfunction (diffEast,  noiseLevel) * diffEast;
 			
+			const float finalY = CLAMP_VALUE(currentY + fSum * timeStep, 0.f, maxVal);
 			pDstLine[i].V = current.V;
 			pDstLine[i].U = current.U;
-			pDstLine[i].Y = CLAMP_VALUE(currentY + fSum * timeStep, 0.f, maxVal);
+			pDstLine[i].Y = finalY;
 			pDstLine[i].A = current.A;
 		}
 	}
 
 	return PF_Err_NONE;
 }
-
-
-template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-PF_Err NoiseClean_AlgoAnisotropicDiffusion
-(
-	const T* __restrict pSrc,
-	      T* __restrict pDst,
-	const A_long  sizeX,
-	const A_long  sizeY,
-	const A_long  srcPitch,
-	const A_long  dstPitch,
-	const float   noiseLevel,
-	const float   timeStep,
-	const float   maxVal
-) noexcept
-{
-	return PF_Err_NONE;
-}
-
 
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
@@ -108,27 +90,42 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp[0], &pTmp[1]);
 	if (nullptr != pTmp[0] && nullptr != pTmp[1] && -1 != memBlockId)
 	{
+		T* srcBuffer = nullptr;
+		T* dstBuffer = nullptr;
+
 		float currentDispersion = 0.0f;
 		float currentTimeStep = FastCompute::Min (timeStep, dispersion - currentDispersion);
 
 		A_long ping = 0x0, pong = 0x1;
 		A_long iterCnt = 0;
+		A_long pitchSrc = 0, pitchDst = 0;
 
 		do
 		{
 			if (0 == iterCnt)
 			{
-
+				srcBuffer = const_cast<T*>(pSrc);
+				dstBuffer = pTmp[ping];
+				pitchSrc  = srcPitch;
+				pitchDst  = sizeX;
 			}
 			else if (currentDispersion + timeStep < dispersion)
 			{
+				srcBuffer = pTmp[ping];
+				dstBuffer = pTmp[pong];
+				pitchSrc  = pitchDst = sizeX;
 				ping ^= 0x1;
 				pong ^= 0x1;
 			}
 			else
 			{
-
+				srcBuffer = pTmp[ping];
+				dstBuffer = pDst;
+				pitchSrc  = sizeX;
+				pitchDst  = dstPitch;
 			}
+
+			err = NoiseClean_AlgoAnisotropicDiffusion (srcBuffer, dstBuffer, sizeX, sizeY, pitchSrc, pitchDst, noiseLevel, timeStep, maxVal);
 
 			iterCnt++;
 			currentDispersion += currentTimeStep;
@@ -144,6 +141,27 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 
 	return err;
 }
+
+
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+PF_Err NoiseClean_AlgoAnisotropicDiffusion
+(
+	const T* __restrict pSrc,
+	T* __restrict pDst,
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch,
+	const float   noiseLevel,
+	const float   timeStep,
+	const float   maxVal
+) noexcept
+{
+	return PF_Err_NONE;
+}
+
+
+
 
 
 PF_Err NoiseClean_AlgoPeronaMalik
@@ -163,9 +181,9 @@ PF_Err NoiseClean_AlgoPeronaMalik
 	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 	if (PF_Err_NONE == (AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data)->GetPixelFormat(output, &destinationPixelFormat)))
 	{
-		const float fNoiseLevel = 0.3f;
-		const float fTimeStep = 1.f;
-		const float fDispersion = 2.0f;
+		const float fNoiseLevel = 3.f;
+		const float fTimeStep = 5.f / 10.f;
+		const float fDispersion = 10.0f;
 
 		switch (destinationPixelFormat)
 		{
