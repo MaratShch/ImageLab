@@ -1,4 +1,5 @@
 #include "NoiseClean.hpp"
+#include "NoiseCleanGUI.hpp"
 #include "PrSDKAESupport.h"
 
 static PF_Err
@@ -80,8 +81,9 @@ ParamsSetup(
 	PF_LayerDef		*output)
 {
 	PF_ParamDef	def;
-	constexpr PF_ParamFlags flags      = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+	constexpr PF_ParamFlags   flags    = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+	constexpr PF_ParamUIFlags ui_flags_disables = ui_flags | PF_PUI_DISABLED;
 
 	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
 	PF_ADD_POPUP(
@@ -91,15 +93,45 @@ ParamsSetup(
 		strAlgoTypes,				/* string for pop-up	*/
 		eNOISE_CLEAN_ALGO_POPUP);	/* control ID			*/
 
-	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
+	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags_disables);
 	PF_ADD_SLIDER(
-		strWindowSlider,
+		strWindowSlider1,
 		cBilateralWindowMin,
 		cBilateralWindowMax,
 		cBilateralWindowMin,
 		cBilateralWindowMax,
 		cBilateralWindowDefault,
 		eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER);
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_disables);
+	PF_ADD_SLIDER(
+		strWindowSlider2,
+		cDispersionMin,
+		cDispersionMax,
+		cDispersionMin,
+		cDispersionMax,
+		cDispersionDefault,
+		eNOISE_CLEAN_ANYSOTROPIC_DISPERSION);
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_disables);
+	PF_ADD_SLIDER(
+		strWindowSlider3,
+		cTimeStepMin,
+		cTimeStepMax,
+		cTimeStepMin,
+		cTimeStepMax,
+		cTimeStepDefault,
+		eNOISE_CLEAN_ANYSOTROPIC_TIMESTEP);
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_disables);
+	PF_ADD_SLIDER(
+		strWindowSlider4,
+		cNoiseLevelMin,
+		cNoiseLevelMax,
+		cNoiseLevelMin,
+		cNoiseLevelMax,
+		cNoiseLevelDefault,
+		eNOISE_CLEAN_ANYSOTROPIC_NOISELEVEL);
 
 #ifdef _DEBUG
 	// for DBG purpose only*
@@ -136,6 +168,43 @@ UserChangedParam(
 )
 {
 	PF_Err err = PF_Err_NONE;
+	A_long updateUI = 0u;
+	const auto& param_index = which_hitP->param_index;
+
+	switch (param_index)
+	{
+		case eNOISE_CLEAN_ALGO_POPUP:
+		{
+			/* Algo type - popup chnaged. Let's check what we need to do */
+			const auto algoType { static_cast<const eItem>(params[eNOISE_CLEAN_ALGO_POPUP]->u.pd.value - 1) };
+			switch (algoType)
+			{
+				case eNOISE_CLEAN_NONE:
+					DiableAllSLiders (in_data, out_data, params);
+				break;
+
+				case eNOISE_CLEAN_BILATERAL_LUMA:
+				case eNOISE_CLEAN_BILATERAL_RGB:
+					SwitchToBilateral (in_data, out_data, params);
+				break;
+
+				case eNOISE_CLEAN_PERONA_MALIK:
+					SwitchToAnysotropic (in_data, out_data, params);
+				break;
+
+				case eNOISE_CLEAN_ADVANCED_DENOISE:
+				default:
+					/* nothing to do */
+				break;
+			} /* switch (algoType) */
+		}
+		break;
+
+		default:
+			/* nothing to do */
+		break;
+	} /* switch (which_hitP->param_index) */
+
 	return err;
 }
 

@@ -5,6 +5,9 @@ typedef enum {
 	eNOISE_CLEAN_INPUT,
 	eNOISE_CLEAN_ALGO_POPUP,
 	eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER,
+	eNOISE_CLEAN_ANYSOTROPIC_DISPERSION,
+	eNOISE_CLEAN_ANYSOTROPIC_TIMESTEP,
+	eNOISE_CLEAN_ANYSOTROPIC_NOISELEVEL,
 	eNOISE_CLEAN_TOTAL_PARAMS
 }eItem;
 
@@ -25,11 +28,17 @@ constexpr static char strAlgoTypes[] =
 	"None|"
 	"Bilateral|"
 	"Bilateral RGB|"
-	"Perona Malik|"
+	"Anisotropic Diffusion|"
 	"Advanced Denoise"
 };
 
-constexpr static char strWindowSlider[] = "Bilateral window size";
+/* Sliders names */
+constexpr static char strWindowSlider1[] = "Window size";
+constexpr static char strWindowSlider2[] = "Dispersion ";
+constexpr static char strWindowSlider3[] = "Time step  ";
+constexpr static char strWindowSlider4[] = "Noise level";
+
+/* Bilateral filters properties */
 constexpr int32_t cBilateralWindowMin = 3;
 constexpr int32_t cBilateralWindowMax = 15;
 constexpr int32_t cBilateralWindowDefault = cBilateralWindowMin;
@@ -37,5 +46,20 @@ constexpr int32_t cBilateralMaxRadius = HALF(cBilateralWindowMax);
 constexpr float cBilateralSigma = 0.1f;
 constexpr float cBilateralGaussSigma = 3.f;
 
+/* Anysotropic Diffusion filters properties */
+constexpr int32_t cDispersionMin = 1;
+constexpr int32_t cDispersionMax = 10;
+constexpr int32_t cDispersionDefault = cDispersionMin;
+
+constexpr int32_t cTimeStepMin = 1;
+constexpr int32_t cTimeStepMax = 10;
+constexpr int32_t cTimeStepDefault = cTimeStepMin;
+
+constexpr int32_t cNoiseLevelMin = 1;
+constexpr int32_t cNoiseLevelMax = 10;
+constexpr int32_t cNoiseLevelDefault = cNoiseLevelMin;
+
+
+/* Compilation time check */
 static_assert(IsOddValue(cBilateralWindowMin), "cBilateralWindowMin should be ODD");
 static_assert(IsOddValue(cBilateralWindowMax), "cBilateralWindowMax should be ODD");

@@ -100,6 +100,7 @@
       <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -130,6 +131,7 @@
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -138,12 +140,28 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Algo_Advanced.cpp" />
-    <ClCompile Include="src\Algo_BilateralLuma.cpp" />
-    <ClCompile Include="src\Algo_BilateralRGB.cpp" />
-    <ClCompile Include="src\Algo_GaussianWeights.cpp" />
-    <ClCompile Include="src\Algo_PeronaMalik.cpp" />
+    <ClCompile Include="src\Algo_BilateralLuma.cpp">
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+    </ClCompile>
+    <ClCompile Include="src\Algo_BilateralRGB.cpp">
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+    </ClCompile>
+    <ClCompile Include="src\Algo_GaussianWeights.cpp">
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+    </ClCompile>
+    <ClCompile Include="src\Algo_PeronaMalik.cpp">
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+    </ClCompile>
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\NoiseClean.cpp" />
+    <ClCompile Include="src\NoiseCleanGUI.cpp">
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+    </ClCompile>
     <ClCompile Include="src\NoiseCleanInAe.cpp" />
     <ClCompile Include="src\NoiseCleanInPr.cpp" />
   </ItemGroup>
@@ -169,6 +187,7 @@
     <ClInclude Include="include\NoiseCleanAlgoMemory.hpp" />
     <ClInclude Include="include\NoiseCleanEnums.hpp" />
     <ClInclude Include="include\NoiseCleanGFunction.hpp" />
+    <ClInclude Include="include\NoiseCleanGUI.hpp" />
     <ClInclude Include="include\NoiseCleanPrototypes.hpp" />
   </ItemGroup>
   <ItemGroup>

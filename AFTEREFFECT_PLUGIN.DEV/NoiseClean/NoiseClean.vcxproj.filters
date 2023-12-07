@@ -45,6 +45,9 @@
     <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\NoiseCleanGUI.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\NoiseClean.hpp">
@@ -111,6 +114,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\NoiseCleanGFunction.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\NoiseCleanGUI.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
