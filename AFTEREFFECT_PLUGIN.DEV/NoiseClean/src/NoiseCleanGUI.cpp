@@ -1,14 +1,14 @@
 #include "NoiseClean.hpp"
 
 
-void DiableAllSLiders
+void SwitchToNoAlgo
 (
 	PF_InData	*in_data,
 	PF_OutData	*out_data,
 	PF_ParamDef	*params[]
 ) noexcept
 {
-	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 { std::move(AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)) };
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 { AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data) };
 	if (false == IsDisabledUI (params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->ui_flags))
 	{
 		params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->ui_flags |= PF_PUI_DISABLED;
@@ -40,7 +40,7 @@ void SwitchToBilateral
 	PF_ParamDef	*params[]
 ) noexcept
 {
-	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3{ std::move(AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)) };
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3{ AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data) };
 	if (true == IsDisabledUI(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->ui_flags))
 	{
 		params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
@@ -72,7 +72,7 @@ void SwitchToAnysotropic
 	PF_ParamDef	*params[]
 ) noexcept
 {
-	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3{ std::move(AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)) };
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3{ AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data) };
 	if (false == IsDisabledUI(params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->ui_flags))
 	{
 		params[eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER]->ui_flags |= PF_PUI_DISABLED;

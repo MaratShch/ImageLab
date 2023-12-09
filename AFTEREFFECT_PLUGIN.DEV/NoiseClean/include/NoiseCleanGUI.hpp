@@ -3,7 +3,7 @@
 
 #include "PrSDKAESupport.h"
 
-void DiableAllSLiders
+void SwitchToNoAlgo
 (
 	PF_InData	*in_data,
 	PF_OutData	*out_data,

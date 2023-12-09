@@ -6,7 +6,10 @@
 #include "ColorTransformMatrix.hpp"
 #include "FastAriphmetics.hpp"
 
-
+/* 
+   IMPORTANT! RGB and YUV pixels should be from same domain, meaning if the
+              RGB pixel is U8 - the YUV pixel should be U8 too
+*/
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
           typename U, std::enable_if_t<is_YUV_proc<U>::value>* = nullptr>
 void imgRGB2YUV
@@ -40,6 +43,10 @@ void imgRGB2YUV
 	return;
 }
 
+/*
+	IMPORTANT! RGB and YUV pixels should be from same domain, meaning if the
+	RGB pixel is U8 - the YUV pixel should be U8 too
+*/
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr,
 	      typename U, std::enable_if_t<is_RGB_proc<U>::value>* = nullptr>
 inline void imgYUV2RGB

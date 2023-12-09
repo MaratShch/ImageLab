@@ -3,7 +3,7 @@
 #include "NoiseCleanGFunction.hpp"
 #include "FastAriphmetics.hpp"
 #include "NoiseCleanAlgoMemory.hpp"
-
+#include "ColorTransformMatrix.hpp"
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoAnisotropicDiffusion
@@ -143,23 +143,125 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 }
 
 
+/*
+	convert from RGB domain from all supported pixel bit depth to YUVA_32f domain
+*/
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+inline void imgRGB2YUVConvert
+(
+	const T*           __restrict pSrc,
+	PF_Pixel_VUYA_32f* __restrict pDst,
+	A_long  sizeX,
+	A_long  sizeY,
+	A_long  srcPitch,
+	A_long  dstPitch,
+	float   maxVal,
+	eCOLOR_SPACE transformSpace
+) noexcept
+{
+	const float* __restrict colorMatrix = RGB2YUV[transformSpace];
+	const float reciprocVal = 1.0f / maxVal;
+
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const T*           __restrict pSrcLine = pSrc + j * srcPitch;
+		PF_Pixel_VUYA_32f* __restrict pDstLine = pDst + j * dstPitch;
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			const float B = static_cast<float>(pSrcLine[i].B) * reciprocVal;
+			const float G = static_cast<float>(pSrcLine[i].G) * reciprocVal;
+			const float R = static_cast<float>(pSrcLine[i].R) * reciprocVal;
+
+			pDstLine[i].A = static_cast<float>(pSrcLine[i].A);
+			pDstLine[i].Y = R * colorMatrix[0] + G * colorMatrix[1] + B * colorMatrix[2];
+			pDstLine[i].U = R * colorMatrix[3] + G * colorMatrix[4] + B * colorMatrix[5];
+			pDstLine[i].V = R * colorMatrix[6] + G * colorMatrix[7] + B * colorMatrix[8];
+		} /* for (A_long i = 0; i < sizeX; i++) */
+	} /* for (A_long j = 0; j < sizeY; j++) */
+
+	return;
+}
+
+
+/* 
+	convert from YUVA_32f domain to RGB domain with all supported pixels bit depth
+*/
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+inline void imgYUV2RGBConvert
+(
+	const PF_Pixel_VUYA_32f* __restrict pSrc,
+	T*                       __restrict pDst,
+	A_long  sizeX,
+	A_long  sizeY,
+	A_long  srcPitch,
+	A_long  dstPitch,
+	float   maxVal,
+	eCOLOR_SPACE transformSpace
+) noexcept
+{
+	const float* __restrict colorMatrix = YUV2RGB[transformSpace];
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const PF_Pixel_VUYA_32f* __restrict pSrcLine = pSrc + j * srcPitch;
+		T*                       __restrict pDstLine = pDst + j * dstPitch;
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			const float R = pSrcLine[i].Y * colorMatrix[0] + pSrcLine[i].U * colorMatrix[1] + pSrcLine[i].V * colorMatrix[2];
+			const float G = pSrcLine[i].Y * colorMatrix[3] + pSrcLine[i].U * colorMatrix[4] + pSrcLine[i].V * colorMatrix[5];
+			const float B = pSrcLine[i].Y * colorMatrix[6] + pSrcLine[i].U * colorMatrix[7] + pSrcLine[i].V * colorMatrix[8];
+
+			pDstLine[i].B = CLAMP_VALUE(B * maxVal, 0.f, maxVal);
+			pDstLine[i].G = CLAMP_VALUE(G * maxVal, 0.f, maxVal);
+			pDstLine[i].R = CLAMP_VALUE(R * maxVal, 0.f, maxVal);
+			pDstLine[i].A = pSrcLine[i].A;
+		} /* for (A_long i = 0; i < sizeX; i++) */
+	} /* for (A_long j = 0; j < sizeY; j++) */
+
+	return;
+}
+
+
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
 	const T* __restrict pSrc,
-	T* __restrict pDst,
-	const A_long  sizeX,
-	const A_long  sizeY,
-	const A_long  srcPitch,
-	const A_long  dstPitch,
-	const float   noiseLevel,
-	const float   timeStep,
-	const float   maxVal
+	      T* __restrict pDst,
+	A_long  sizeX,
+	A_long  sizeY,
+	A_long  srcPitch,
+	A_long  dstPitch,
+	float   noiseLevel,
+	float   timeStep,
+	float   maxVal,
+	float   dispersion
 ) noexcept
 {
-	return PF_Err_NONE;
-}
+	PF_Pixel_VUYA_32f* pTmp[2]{};
+	constexpr float minimalStep = 0.001f;
+	PF_Err err = PF_Err_OUT_OF_MEMORY;
 
+	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp[0], &pTmp[1]);
+	if (nullptr != pTmp[0] && nullptr != pTmp[1] && -1 != memBlockId)
+	{
+		PF_Pixel_VUYA_32f* srcBuffer = nullptr;
+		PF_Pixel_VUYA_32f* dstBuffer = nullptr;
+
+		/* convert BGRA image to VUYA_32f */
+		imgRGB2YUVConvert (pSrc, pTmp[0], sizeX, sizeY, srcPitch, sizeX, maxVal, BT709);
+
+		/* convert VUYA_32f back to BGRA */
+		imgYUV2RGBConvert (pTmp[0], pDst, sizeX, sizeY, sizeX, dstPitch, maxVal, BT709);
+
+		MemoryBufferRelease (memBlockId);
+		memBlockId = -1;
+		pTmp[0] = pTmp[1] = nullptr;
+		err = PF_Err_NONE;
+	}
+
+	return err;
+}
 
 
 
@@ -174,16 +276,18 @@ PF_Err NoiseClean_AlgoPeronaMalik
 {
 	PF_Err err = PF_Err_NONE;
 	A_long sizeX = 0, sizeY = 0, linePitch = 0;
-
-	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 
 	/* This plugin called frop PR - check video fomat */
-	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 	if (PF_Err_NONE == (AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data)->GetPixelFormat(output, &destinationPixelFormat)))
 	{
+		/* read sliders positions */
+
 		const float fNoiseLevel = 3.f;
 		const float fTimeStep = 5.f / 10.f;
 		const float fDispersion = 10.0f;
+
+		const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eNOISE_CLEAN_INPUT]->u.ld);
 
 		switch (destinationPixelFormat)
 		{
@@ -195,7 +299,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white));
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white), fDispersion);
 			}
 			break;
 
@@ -221,7 +325,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white);
+				err = NoiseClean_AlgoAnisotropicDiffusion(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
 			}
 			break;
 
@@ -233,7 +337,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right   - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u16_value_white));
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u16_value_white), fDispersion);
 			}
 			break;
 
@@ -245,7 +349,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
 			}
 			break;
 

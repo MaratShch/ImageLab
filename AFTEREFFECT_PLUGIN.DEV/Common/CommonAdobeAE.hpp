@@ -39,6 +39,7 @@ inline void AEFX_INIT_PARAM_STRUCTURE(PF_ParamDef& strDef, const PF_ParamFlags& 
 	AEFX_CLR_STRUCT_EX(strDef);
 	strDef.flags = paramFlag;
 	strDef.ui_flags = uiFlag;
+	return;
 }
 
 
@@ -46,7 +47,7 @@ template <typename T>
 inline void Image_SimpleCopy
 (
 	const T* __restrict srcBuffer,
-	T* __restrict dstBuffer,
+	      T* __restrict dstBuffer,
 	const int32_t&      height,
 	const int32_t&      width,
 	const int32_t&      src_line_pitch,
