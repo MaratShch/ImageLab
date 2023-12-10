@@ -68,6 +68,70 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 }
 
 
+PF_Err NoiseClean_AlgoAnisotropicDiffusion
+(
+	const PF_Pixel_VUYA_32f* __restrict pSrc,
+	      PF_Pixel_VUYA_32f* __restrict pDst,
+	const A_long  sizeX,
+	const A_long  sizeY,
+	const A_long  srcPitch,
+	const A_long  dstPitch,
+	const float   noiseLevel,
+	const float   timeStep,
+	const float   maxVal
+) noexcept
+{
+	A_long i, j;
+
+	const A_long lastLine = sizeY - 1;
+	const A_long lastPixel = sizeX - 1;
+
+	constexpr float fScale = 255.f;
+	constexpr float fNorm = 1.f / fScale;
+
+	for (j = 0; j < sizeY; j++)
+	{
+		const A_long prevLine = FastCompute::Max(0, j - 1);
+		const A_long nextLine = FastCompute::Min(lastLine, j + 1);
+
+		const PF_Pixel_VUYA_32f* __restrict pPrevLine = pSrc + srcPitch * prevLine;
+		const PF_Pixel_VUYA_32f* __restrict pCurrLine = pSrc + srcPitch * j;
+		const PF_Pixel_VUYA_32f* __restrict pNextLine = pSrc + srcPitch * nextLine;
+		      PF_Pixel_VUYA_32f* __restrict pDstLine  = pDst + dstPitch * j;
+
+		for (i = 0; i < sizeX; i++)
+		{
+			const A_long prevPixel = FastCompute::Max(0, i - 1);
+			const A_long nextPixel = FastCompute::Min(lastPixel, i + 1);
+
+			const PF_Pixel_VUYA_32f& north   = pPrevLine[i];
+			const PF_Pixel_VUYA_32f& south   = pNextLine[i];
+			const PF_Pixel_VUYA_32f& west    = pCurrLine[prevPixel];
+			const PF_Pixel_VUYA_32f& current = pCurrLine[i];
+			const PF_Pixel_VUYA_32f& east    = pCurrLine[nextPixel];
+
+			const float currentY  = fScale * current.Y;
+			const float diffNorth = fScale * north.Y - currentY;
+			const float diffSouth = fScale * south.Y - currentY;
+			const float diffWest  = fScale * west.Y  - currentY;
+			const float diffEast  = fScale * east.Y  - currentY;
+
+			const float fSum = Gfunction(diffNorth, noiseLevel) * diffNorth +
+				               Gfunction(diffSouth, noiseLevel) * diffSouth +
+				               Gfunction(diffWest, noiseLevel)  * diffWest +
+				               Gfunction(diffEast, noiseLevel)  * diffEast;
+
+			const float finalY = CLAMP_VALUE(fNorm * (currentY + fSum * timeStep), 0.f, maxVal);
+			pDstLine[i].V = fNorm * current.V;
+			pDstLine[i].U = fNorm * current.U;
+			pDstLine[i].Y = finalY;
+			pDstLine[i].A = current.A;
+		}
+	}
+
+	return PF_Err_NONE;
+}
+
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoAnisotropicDiffusion
 (
@@ -245,14 +309,29 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp[0], &pTmp[1]);
 	if (nullptr != pTmp[0] && nullptr != pTmp[1] && -1 != memBlockId)
 	{
-		PF_Pixel_VUYA_32f* srcBuffer = nullptr;
-		PF_Pixel_VUYA_32f* dstBuffer = nullptr;
+		A_long ping = 0x0, pong = 0x1;
+		A_long pitchSrc = 0, pitchDst = 0;
 
 		/* convert BGRA image to VUYA_32f */
-		imgRGB2YUVConvert (pSrc, pTmp[0], sizeX, sizeY, srcPitch, sizeX, maxVal, BT709);
+		imgRGB2YUVConvert (pSrc, pTmp[ping], sizeX, sizeY, srcPitch, sizeX, maxVal, BT709);
+
+		float currentDispersion = 0.0f;
+		float currentTimeStep = FastCompute::Min(timeStep, dispersion - currentDispersion);
+
+		do
+		{
+			err = NoiseClean_AlgoAnisotropicDiffusion (pTmp[ping], pTmp[pong], sizeX, sizeY, sizeX, sizeX, noiseLevel, timeStep, maxVal);
+
+			currentDispersion += currentTimeStep;
+			currentTimeStep = FastCompute::Min (timeStep, dispersion - currentDispersion);
+
+			ping ^= 0x1;
+			pong ^= 0x1;
+
+		} while (currentDispersion <= dispersion && currentTimeStep > minimalStep && err == PF_Err_NONE);
 
 		/* convert VUYA_32f back to BGRA */
-		imgYUV2RGBConvert (pTmp[0], pDst, sizeX, sizeY, sizeX, dstPitch, maxVal, BT709);
+		imgYUV2RGBConvert (pTmp[ping], pDst, sizeX, sizeY, sizeX, dstPitch, maxVal, BT709);
 
 		MemoryBufferRelease (memBlockId);
 		memBlockId = -1;
