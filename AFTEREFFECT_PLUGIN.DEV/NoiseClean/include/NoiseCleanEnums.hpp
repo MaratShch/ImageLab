@@ -47,17 +47,17 @@ constexpr float cBilateralSigma = 0.1f;
 constexpr float cBilateralGaussSigma = 3.f;
 
 /* Anysotropic Diffusion filters properties */
-constexpr float cDispersionMin = 1.f;
-constexpr float cDispersionMax = 12.f;
-constexpr float cDispersionDefault = 2.f;
+constexpr double cDispersionMin = 1.0;
+constexpr double cDispersionMax = 12.0;
+constexpr double cDispersionDefault = 2.0;
 
-constexpr float cTimeStepMin = 0.1f;
-constexpr float cTimeStepMax = 1.f;
-constexpr float cTimeStepDefault = 0.5f;
+constexpr double cTimeStepMin = 0.1;
+constexpr double cTimeStepMax = 1.0;
+constexpr double cTimeStepDefault = 0.5;
 
-constexpr float cNoiseLevelMin = 1;
-constexpr float cNoiseLevelMax = 10;
-constexpr float cNoiseLevelDefault = cNoiseLevelMin;
+constexpr double cNoiseLevelMin = 1.0;
+constexpr double cNoiseLevelMax = 10.0;
+constexpr double cNoiseLevelDefault = cNoiseLevelMin;
 
 
 /* Compilation time check */
