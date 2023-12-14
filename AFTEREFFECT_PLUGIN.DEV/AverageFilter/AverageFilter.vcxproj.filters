@@ -82,13 +82,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="AverageFilter.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="AverageFilter.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="AverageFilter.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

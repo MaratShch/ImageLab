@@ -60,9 +60,9 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
@@ -104,33 +104,42 @@ ParamsSetup(
 		eNOISE_CLEAN_BILATERAL_WINDOW_SLIDER);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_disables);
-	PF_ADD_SLIDER(
+	PF_ADD_FLOAT_SLIDERX(
 		strWindowSlider2,
 		cDispersionMin,
 		cDispersionMax,
 		cDispersionMin,
 		cDispersionMax,
 		cDispersionDefault,
+		PF_Precision_TENTHS,
+		0,
+		0,
 		eNOISE_CLEAN_ANYSOTROPIC_DISPERSION);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_disables);
-	PF_ADD_SLIDER(
+	PF_ADD_FLOAT_SLIDERX(
 		strWindowSlider3,
 		cTimeStepMin,
 		cTimeStepMax,
 		cTimeStepMin,
 		cTimeStepMax,
 		cTimeStepDefault,
+		PF_Precision_TENTHS,
+		0,
+		0,
 		eNOISE_CLEAN_ANYSOTROPIC_TIMESTEP);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_disables);
-	PF_ADD_SLIDER(
+	PF_ADD_FLOAT_SLIDERX(
 		strWindowSlider4,
 		cNoiseLevelMin,
 		cNoiseLevelMax,
 		cNoiseLevelMin,
 		cNoiseLevelMax,
 		cNoiseLevelDefault,
+		PF_Precision_TENTHS,
+		0,
+		0,
 		eNOISE_CLEAN_ANYSOTROPIC_NOISELEVEL);
 
 #ifdef _DEBUG

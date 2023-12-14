@@ -40,21 +40,21 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 			const A_long nextPixel = FastCompute::Min(lastPixel, i + 1);
 
 			const T& north   = pPrevLine[i];
-			const T& south   = pNextLine[i];
 			const T& west    = pCurrLine[prevPixel];
 			const T& current = pCurrLine[i];
 			const T& east    = pCurrLine[nextPixel];
+			const T& south   = pNextLine[i];
 
 			const float currentY  = static_cast<float>(current.Y);
 			const float diffNorth = static_cast<float>(north.Y) - currentY;
+			const float diffWest  = static_cast<float>(west.Y ) - currentY;
+			const float diffEast  = static_cast<float>(east.Y ) - currentY;
 			const float diffSouth = static_cast<float>(south.Y) - currentY;
-			const float diffWest  = static_cast<float>(west.Y)  - currentY;
-			const float diffEast  = static_cast<float>(east.Y)  - currentY;
 
 			const float fSum = Gfunction (diffNorth, noiseLevel) * diffNorth +
-				               Gfunction (diffSouth, noiseLevel) * diffSouth +
 				               Gfunction (diffWest,  noiseLevel) * diffWest  +
-				               Gfunction (diffEast,  noiseLevel) * diffEast;
+				               Gfunction (diffEast,  noiseLevel) * diffEast  +
+				               Gfunction (diffSouth, noiseLevel) * diffSouth;
 			
 			const float finalY = CLAMP_VALUE(currentY + fSum * timeStep, 0.f, maxVal);
 			pDstLine[i].V = current.V;
@@ -67,70 +67,6 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 	return PF_Err_NONE;
 }
 
-
-PF_Err NoiseClean_AlgoAnisotropicDiffusion
-(
-	const PF_Pixel_VUYA_32f* __restrict pSrc,
-	      PF_Pixel_VUYA_32f* __restrict pDst,
-	const A_long  sizeX,
-	const A_long  sizeY,
-	const A_long  srcPitch,
-	const A_long  dstPitch,
-	const float   noiseLevel,
-	const float   timeStep,
-	const float   maxVal
-) noexcept
-{
-	A_long i, j;
-
-	const A_long lastLine = sizeY - 1;
-	const A_long lastPixel = sizeX - 1;
-
-	constexpr float fScale = 255.f;
-	constexpr float fNorm = 1.f / fScale;
-
-	for (j = 0; j < sizeY; j++)
-	{
-		const A_long prevLine = FastCompute::Max(0, j - 1);
-		const A_long nextLine = FastCompute::Min(lastLine, j + 1);
-
-		const PF_Pixel_VUYA_32f* __restrict pPrevLine = pSrc + srcPitch * prevLine;
-		const PF_Pixel_VUYA_32f* __restrict pCurrLine = pSrc + srcPitch * j;
-		const PF_Pixel_VUYA_32f* __restrict pNextLine = pSrc + srcPitch * nextLine;
-		      PF_Pixel_VUYA_32f* __restrict pDstLine  = pDst + dstPitch * j;
-
-		for (i = 0; i < sizeX; i++)
-		{
-			const A_long prevPixel = FastCompute::Max(0, i - 1);
-			const A_long nextPixel = FastCompute::Min(lastPixel, i + 1);
-
-			const PF_Pixel_VUYA_32f& north   = pPrevLine[i];
-			const PF_Pixel_VUYA_32f& south   = pNextLine[i];
-			const PF_Pixel_VUYA_32f& west    = pCurrLine[prevPixel];
-			const PF_Pixel_VUYA_32f& current = pCurrLine[i];
-			const PF_Pixel_VUYA_32f& east    = pCurrLine[nextPixel];
-
-			const float currentY  = fScale * current.Y;
-			const float diffNorth = fScale * north.Y - currentY;
-			const float diffSouth = fScale * south.Y - currentY;
-			const float diffWest  = fScale * west.Y  - currentY;
-			const float diffEast  = fScale * east.Y  - currentY;
-
-			const float fSum = Gfunction(diffNorth, noiseLevel) * diffNorth +
-				               Gfunction(diffSouth, noiseLevel) * diffSouth +
-				               Gfunction(diffWest, noiseLevel)  * diffWest +
-				               Gfunction(diffEast, noiseLevel)  * diffEast;
-
-			const float finalY = CLAMP_VALUE(fNorm * (currentY + fSum * timeStep), 0.f, maxVal);
-			pDstLine[i].V = fNorm * current.V;
-			pDstLine[i].U = fNorm * current.U;
-			pDstLine[i].Y = finalY;
-			pDstLine[i].A = current.A;
-		}
-	}
-
-	return PF_Err_NONE;
-}
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NoiseClean_AlgoAnisotropicDiffusion
@@ -195,7 +131,7 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 			currentDispersion += currentTimeStep;
 			currentTimeStep = FastCompute::Min (timeStep, dispersion - currentDispersion);
 
-		} while (currentDispersion <= dispersion && currentTimeStep > minimalStep && err == PF_Err_NONE);
+		} while (currentDispersion <= dispersion && currentTimeStep > minimalStep);
 
 		MemoryBufferRelease(memBlockId);
 		memBlockId = -1;
@@ -207,6 +143,7 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 }
 
 
+#if 0
 /*
 	convert from RGB domain from all supported pixel bit depth to YUVA_32f domain
 */
@@ -224,7 +161,7 @@ inline void imgRGB2YUVConvert
 ) noexcept
 {
 	const float* __restrict colorMatrix = RGB2YUV[transformSpace];
-	const float reciprocVal = 1.0f / maxVal;
+	const float multVal = maxVal;
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -233,9 +170,9 @@ inline void imgRGB2YUVConvert
 
 		for (A_long i = 0; i < sizeX; i++)
 		{
-			const float B = static_cast<float>(pSrcLine[i].B) * reciprocVal;
-			const float G = static_cast<float>(pSrcLine[i].G) * reciprocVal;
-			const float R = static_cast<float>(pSrcLine[i].R) * reciprocVal;
+			const float B = static_cast<float>(pSrcLine[i].B) * multVal;
+			const float G = static_cast<float>(pSrcLine[i].G) * multVal;
+			const float R = static_cast<float>(pSrcLine[i].R) * multVal;
 
 			pDstLine[i].A = static_cast<float>(pSrcLine[i].A);
 			pDstLine[i].Y = R * colorMatrix[0] + G * colorMatrix[1] + B * colorMatrix[2];
@@ -265,6 +202,8 @@ inline void imgYUV2RGBConvert
 ) noexcept
 {
 	const float* __restrict colorMatrix = YUV2RGB[transformSpace];
+	const float multVal = 1.f / maxVal;
+
 	for (A_long j = 0; j < sizeY; j++)
 	{
 		const PF_Pixel_VUYA_32f* __restrict pSrcLine = pSrc + j * srcPitch;
@@ -276,9 +215,9 @@ inline void imgYUV2RGBConvert
 			const float G = pSrcLine[i].Y * colorMatrix[3] + pSrcLine[i].U * colorMatrix[4] + pSrcLine[i].V * colorMatrix[5];
 			const float B = pSrcLine[i].Y * colorMatrix[6] + pSrcLine[i].U * colorMatrix[7] + pSrcLine[i].V * colorMatrix[8];
 
-			pDstLine[i].B = CLAMP_VALUE(B * maxVal, 0.f, maxVal);
-			pDstLine[i].G = CLAMP_VALUE(G * maxVal, 0.f, maxVal);
-			pDstLine[i].R = CLAMP_VALUE(R * maxVal, 0.f, maxVal);
+			pDstLine[i].B = CLAMP_VALUE(B * multVal, 0.f, maxVal);
+			pDstLine[i].G = CLAMP_VALUE(G * multVal, 0.f, maxVal);
+			pDstLine[i].R = CLAMP_VALUE(R * multVal, 0.f, maxVal);
 			pDstLine[i].A = pSrcLine[i].A;
 		} /* for (A_long i = 0; i < sizeX; i++) */
 	} /* for (A_long j = 0; j < sizeY; j++) */
@@ -341,7 +280,7 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 
 	return err;
 }
-
+#endif
 
 
 
@@ -362,11 +301,10 @@ PF_Err NoiseClean_AlgoPeronaMalik
 	{
 		/* read sliders positions */
 
-		const float fNoiseLevel = 3.f;
-		const float fTimeStep = 5.f / 10.f;
-		const float fDispersion = 10.0f;
-
-		const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+		const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eNOISE_CLEAN_INPUT ]->u.ld);
+		const float fDispersion = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_DISPERSION]->u.fs_d.value);
+		const float fTimeStep   = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_TIMESTEP  ]->u.fs_d.value);
+		const float fNoiseLevel = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_NOISELEVEL]->u.fs_d.value);
 
 		switch (destinationPixelFormat)
 		{
@@ -378,7 +316,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white), fDispersion);
+//				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white), fDispersion);
 			}
 			break;
 
@@ -404,7 +342,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
 			}
 			break;
 
@@ -416,7 +354,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right   - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u16_value_white), fDispersion);
+//				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u16_value_white), fDispersion);
 			}
 			break;
 
@@ -428,7 +366,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
+//				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
 			}
 			break;
 
