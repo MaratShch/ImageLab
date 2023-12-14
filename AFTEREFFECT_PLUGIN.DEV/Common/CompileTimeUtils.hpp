@@ -92,4 +92,11 @@ constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type HAL
 	return (x / static_cast<T>(2));
 }
 
+template <typename T>
+constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Lerp (const T& v0, const T& v2, const T& t) noexcept
+{
+	return (static_cast<T>(1) - t) * v0 + t * v1;
+}
+
+
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */
