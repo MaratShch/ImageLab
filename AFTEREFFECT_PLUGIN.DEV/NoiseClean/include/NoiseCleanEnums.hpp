@@ -26,8 +26,8 @@ constexpr static char strAlgoPopupName[] = "Denoise algorithm";
 constexpr static char strAlgoTypes[] =
 {
 	"None|"
-	"Bilateral|"
-	"Bilateral RGB|"
+	"Bilateral Luminance|"
+	"Bilateral RGB Color|"
 	"Anisotropic Diffusion|"
 	"Advanced Denoise"
 };
@@ -47,17 +47,17 @@ constexpr float cBilateralSigma = 0.1f;
 constexpr float cBilateralGaussSigma = 3.f;
 
 /* Anysotropic Diffusion filters properties */
-constexpr double cDispersionMin = 1.0;
-constexpr double cDispersionMax = 12.0;
-constexpr double cDispersionDefault = 2.0;
+constexpr int32_t cDispersionMin = 10;
+constexpr int32_t cDispersionMax = 120;
+constexpr int32_t cDispersionDefault = 20;
 
-constexpr double cTimeStepMin = 0.1;
-constexpr double cTimeStepMax = 1.0;
-constexpr double cTimeStepDefault = 0.5;
+constexpr int32_t cTimeStepMin = 1;
+constexpr int32_t cTimeStepMax = 10;
+constexpr int32_t cTimeStepDefault = 5;
 
-constexpr double cNoiseLevelMin = 1.0;
-constexpr double cNoiseLevelMax = 10.0;
-constexpr double cNoiseLevelDefault = cNoiseLevelMin;
+constexpr int32_t cNoiseLevelMin = 10;
+constexpr int32_t cNoiseLevelMax = 100;
+constexpr int32_t cNoiseLevelDefault = cNoiseLevelMin;
 
 
 /* Compilation time check */
