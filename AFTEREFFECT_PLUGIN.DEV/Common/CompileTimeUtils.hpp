@@ -93,9 +93,9 @@ constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type HAL
 }
 
 template <typename T>
-constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Lerp (const T& v0, const T& v2, const T& t) noexcept
+constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Lerp (const T& v0, const T& v1, const T& t) noexcept
 {
-	return (static_cast<T>(1) - t) * v0 + t * v1;
+	return v0 + (v1 - v0) * f;
 }
 
 
