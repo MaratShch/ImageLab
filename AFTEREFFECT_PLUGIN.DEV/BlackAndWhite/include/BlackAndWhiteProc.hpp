@@ -43,6 +43,7 @@ inline void ProcessImage
 	const U             noColor
 ) noexcept
 {
+	(void)noColor; /* this parameter is not using in RGB variant */
 	float constexpr colorMatrix1[3] = { RGB2YUV[BT709][0], RGB2YUV[BT709][1], RGB2YUV[BT709][2] };
 
 	for (A_long j = 0; j < sizeY; j++)
@@ -71,6 +72,7 @@ inline void ProcessImage
 	const U             noColor
 ) noexcept
 {
+	(void)noColor; /* this parameter is not using in RGB variant */
 	float constexpr colorMatrix1[3] = { RGB2YUV[BT709][0], RGB2YUV[BT709][1], RGB2YUV[BT709][2] };
 
 	for (A_long j = 0; j < sizeY; j++)
