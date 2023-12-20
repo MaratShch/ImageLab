@@ -143,9 +143,13 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 								Gfunction (diffEastB,  noiseLevel) * diffEastB  +
 								Gfunction (diffSouthB, noiseLevel) * diffSouthG;
 
-			pDstLine[i].R = CLAMP_VALUE(currentR + fSumR * timeStep, 0.f, maxVal);
-			pDstLine[i].G = CLAMP_VALUE(currentG + fSumG * timeStep, 0.f, maxVal);
-			pDstLine[i].B = CLAMP_VALUE(currentB + fSumB * timeStep, 0.f, maxVal);
+			const float newR = currentR + fSumR * timeStep;
+			const float newG = currentG + fSumG * timeStep;
+			const float newB = currentB + fSumB * timeStep;
+
+			pDstLine[i].R = CLAMP_VALUE(newR, 0.f, maxVal);
+			pDstLine[i].G = CLAMP_VALUE(newG, 0.f, maxVal);
+			pDstLine[i].B = CLAMP_VALUE(newB, 0.f, maxVal);
 			pDstLine[i].A = current.A;
 		}
 	}
@@ -165,8 +169,8 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 	A_long  dstPitch,
 	float   noiseLevel,
 	float   timeStep,
-	float   maxVal,
-	float   dispersion
+	float   dispersion,
+	float   maxVal
 ) noexcept
 {
 	T* pTmp[2] {};
@@ -272,7 +276,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white), fDispersion);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, fDispersion, static_cast<float>(u8_value_white));
 			}
 			break;
 
@@ -285,7 +289,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u8_value_white), fDispersion);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, fDispersion, static_cast<float>(u8_value_white));
 			}
 			break;
 
@@ -298,7 +302,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, fDispersion, f32_value_white);
 			}
 			break;
 
@@ -307,10 +311,14 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
 					  PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
 				sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-				sizeX = pfLayer->extent_hint.right   - pfLayer->extent_hint.left;
+				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, static_cast<float>(u16_value_white), fDispersion);
+				constexpr float coeffCorrection = static_cast<float>(u16_value_white) / static_cast<float>(u8_value_white);
+
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, 
+					                                       fNoiseLevel, fTimeStep * coeffCorrection, fDispersion * coeffCorrection,
+					                                       static_cast<float>(u16_value_white));
 			}
 			break;
 
@@ -322,7 +330,7 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, f32_value_white, fDispersion);
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, fDispersion, f32_value_white);
 			}
 			break;
 

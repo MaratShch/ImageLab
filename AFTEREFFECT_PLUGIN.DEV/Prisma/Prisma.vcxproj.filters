@@ -71,11 +71,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Prisma.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="src\Prisma.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -90,5 +85,10 @@
     <ResourceCompile Include="Prisma.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Prisma.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
