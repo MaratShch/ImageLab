@@ -104,7 +104,7 @@ inline void collect_yuv_statistics
 			for (A_long i = 0; i < width; i++)
 			{
 				const A_long p_idx = l_idx + i; /* pixel IDX */
-												/* convert RGB to YUV color space */
+												
 				Y = pSrc[p_idx].Y;
 				U = pSrc[p_idx].U - subtractor;
 				V = pSrc[p_idx].V - subtractor;

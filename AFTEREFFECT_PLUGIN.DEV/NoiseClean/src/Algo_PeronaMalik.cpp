@@ -170,14 +170,14 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 	float   noiseLevel,
 	float   timeStep,
 	float   dispersion,
-	float   maxVal
+	float   maxVal,
+	float   minimalStep = 0.0010f
 ) noexcept
 {
 	T* pTmp[2] {};
 #ifdef _DEBUG
 	uint64_t dbgLoopCnt = 0u;
 #endif
-	constexpr float minimalStep = 0.0010f;
 	PF_Err err = PF_Err_OUT_OF_MEMORY;
 
 	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp[0], &pTmp[1]);
@@ -314,11 +314,9 @@ PF_Err NoiseClean_AlgoPeronaMalik
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-				constexpr float coeffCorrection = static_cast<float>(u16_value_white) / static_cast<float>(u8_value_white);
+				constexpr float minimalStep = 0.256f;
 
-				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, 
-					                                       fNoiseLevel, fTimeStep * coeffCorrection, fDispersion * coeffCorrection,
-					                                       static_cast<float>(u16_value_white));
+				err = NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fNoiseLevel, fTimeStep, fDispersion, static_cast<float>(u16_value_white), minimalStep);
 			}
 			break;
 

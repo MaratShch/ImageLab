@@ -259,8 +259,8 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	const float         whiteValue
 ) noexcept
 {
-	PF_Pixel_VUYA_16u* pTmp1 = nullptr;
-	PF_Pixel_VUYA_16u* pTmp2 = nullptr;
+	PF_Pixel_VUYA_32f* pTmp1 = nullptr;
+	PF_Pixel_VUYA_32f* pTmp2 = nullptr;
 
 	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
 
@@ -269,12 +269,12 @@ PF_Err NoiseClean_AlgoBilateralLuma
 		constexpr int32_t convert_addendum{ 0 };
 		constexpr eCOLOR_SPACE colorSpace{ BT709 };
 
-		/* convert RGB image to YUV */
-		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX);
+		/* convert RGB image to YUV_32f */
+		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX, whiteValue);
 		/* call templated function for VUYA variant */
 		NoiseClean_AlgoBilateralLuma (pTmp1, pTmp2, sizeX, sizeY, sizeX, sizeX, windowSize, whiteValue);
-		/* convert processed YUV back to RGB */
-		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch);
+		/* convert processed YUV_32f back to RGB */
+		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch, whiteValue);
 
 		/* Release temporary memory */
 		MemoryBufferRelease (memBlockId);
@@ -298,8 +298,8 @@ PF_Err NoiseClean_AlgoBilateralLuma
 	const float         whiteValue
 ) noexcept
 {
-	PF_Pixel_VUYA_16u* pTmp1 = nullptr;
-	PF_Pixel_VUYA_16u* pTmp2 = nullptr;
+	PF_Pixel_VUYA_32f* pTmp1 = nullptr;
+	PF_Pixel_VUYA_32f* pTmp2 = nullptr;
 
 	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp1, &pTmp2);
 
@@ -308,12 +308,12 @@ PF_Err NoiseClean_AlgoBilateralLuma
 		constexpr int32_t convert_addendum{ 0 };
 		constexpr eCOLOR_SPACE colorSpace{ BT709 };
 
-		/* convert RGB image to YUV */
-		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX);
+		/* convert RGB image to YUV_32f */
+		imgRGB2YUV (pSrc, pTmp1, colorSpace, sizeX, sizeY, srcPitch, sizeX, whiteValue);
 		/* call templated function for VUYA variant */
 		NoiseClean_AlgoBilateralLuma (pTmp1, pTmp2, sizeX, sizeY, sizeX, sizeX, windowSize, whiteValue);
-		/* convert processed YUV back to RGB */
-		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch);
+		/* convert processed YUV_32f back to RGB */
+		imgYUV2RGB (pTmp2, pDst, colorSpace, sizeX, sizeY, sizeX, dstPitch, whiteValue);
 
 		/* Release temporary memory */
 		MemoryBufferRelease (memBlockId);
