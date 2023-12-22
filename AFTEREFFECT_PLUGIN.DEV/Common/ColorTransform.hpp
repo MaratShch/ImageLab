@@ -7,8 +7,8 @@
 #include "FastAriphmetics.hpp"
 
 /* 
-   IMPORTANT! RGB and YUV pixels should be from same domain, meaning if the
-              RGB pixel is U8 - the YUV pixel should be U8 too
+   IMPORTANT! RGB and YUV pixels should be with same bits width.
+              If RGB pixel is U8 - the YUV pixel should be U8 too
 */
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
           typename U, std::enable_if_t<is_YUV_proc<U>::value>* = nullptr>
@@ -31,7 +31,6 @@ void imgRGB2YUV
 		const T* __restrict pSrcLine = srcImage + j * src_line_pitch;
 		      U* __restrict pDstLine = dstImage + j * dst_line_pitch;
 
-		__VECTOR_ALIGNED__
 		for (int32_t i = 0; i < sizeX; i++)
 		{
 			pDstLine[i].A = pSrcLine[i].A;
@@ -44,8 +43,8 @@ void imgRGB2YUV
 }
 
 /*
-	IMPORTANT! RGB and YUV pixels should be from same domain, meaning if the
-	RGB pixel is U8 - the YUV pixel should be U8 too
+	IMPORTANT!	RGB and YUV pixels should be with same bits width.
+				If RGB pixel is U8 - the YUV pixel should be U8 too
 */
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr,
 	      typename U, std::enable_if_t<is_RGB_proc<U>::value>* = nullptr>
@@ -68,7 +67,6 @@ inline void imgYUV2RGB
 		const T* __restrict pSrcLine = srcImage + j * src_line_pitch;
 		      U* __restrict pDstLine = dstImage + j * dst_line_pitch;
 
-		__VECTOR_ALIGNED__
 		for (int32_t i = 0; i < sizeX; i++)
 		{
 			pDstLine[i].A = pSrcLine[i].A;
