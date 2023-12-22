@@ -4,7 +4,7 @@ REM Parallel build: set CL=/MP
 REM Approximatly 30,5GB disk free space required for successfull build
 
 
-set QT_VERSION=5.15.11
+set QT_VERSION=5.15.12
 rm -fr %QT_VERSION%_build
  
 cls
