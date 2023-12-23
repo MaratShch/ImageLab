@@ -148,6 +148,7 @@
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
     </ClCompile>
+    <ClCompile Include="src\Algo_BSDE.cpp" />
     <ClCompile Include="src\Algo_GaussianWeights.cpp">
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>

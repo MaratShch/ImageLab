@@ -68,3 +68,44 @@ PF_Err NoiseClean_AlgoPeronaMalik
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
 ) noexcept;
+
+PF_Err NoiseClean_AlgoPeronaMalikAe8
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseClean_AlgoPeronaMalikAe16
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+
+PF_Err NoiseClean_AlgoBSDE
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseClean_AlgoBSDEAe8
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseClean_AlgoBSDEAe16
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;

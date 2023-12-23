@@ -27,6 +27,10 @@ PF_Err ProcessImgInPR
 			err = NoiseClean_AlgoPeronaMalik (in_data, out_data, params, output);
 		break;
 
+		case eNOISE_CLEAN_BSDE:
+			err = NoiseClean_AlgoBSDE (in_data, out_data, params, output);
+		break;
+
 		case eNOISE_CLEAN_ADVANCED_DENOISE:
 			err = NoiseClean_AlgoAdvanced (in_data, out_data, params, output);
 		break;

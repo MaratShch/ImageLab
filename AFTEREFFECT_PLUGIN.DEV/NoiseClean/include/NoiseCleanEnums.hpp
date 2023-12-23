@@ -18,6 +18,7 @@ typedef enum
 	eNOISE_CLEAN_BILATERAL_LUMA,
 	eNOISE_CLEAN_BILATERAL_RGB,
 	eNOISE_CLEAN_PERONA_MALIK,
+	eNOISE_CLEAN_BSDE,
 	eNOISE_CLEAN_ADVANCED_DENOISE,
 	eNOISE_CLEAN_TOTAL_ALGOS
 }eNOISE_CLEAN_TYPE;
@@ -25,11 +26,12 @@ typedef enum
 constexpr static char strAlgoPopupName[] = "Denoise algorithm";
 constexpr static char strAlgoTypes[] =
 {
-	"None|"
-	"Bilateral Luminance|"
-	"Bilateral RGB Color|"
+	"None                 |"
+	"Bilateral Luminance  |"
+	"Bilateral RGB Color  |"
 	"Anisotropic Diffusion|"
-	"Advanced Denoise"
+	"BSDE                 |"
+	"Advanced Denoise     "
 };
 
 /* Sliders names */

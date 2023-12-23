@@ -344,3 +344,59 @@ PF_Err NoiseClean_AlgoPeronaMalik
 
 	return err;
 }
+
+
+PF_Err NoiseClean_AlgoPeronaMalikAe8
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	const PF_EffectWorld*   __restrict input    = reinterpret_cast<const PF_EffectWorld*   __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+	const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	auto const sizeY = output->height;
+	auto const sizeX = output->width;
+
+	constexpr float reciproc10 = 1.f / 10.f;
+
+	/* read sliders positions */
+	const float fDispersion = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_DISPERSION]->u.sd.value) * reciproc10;
+	const float fTimeStep   = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_TIMESTEP]->u.sd.value  ) * reciproc10;
+	const float fNoiseLevel = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_NOISELEVEL]->u.sd.value) * reciproc10;
+
+	return NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, fNoiseLevel, fTimeStep, fDispersion, static_cast<float>(u8_value_white));;
+}
+
+
+PF_Err NoiseClean_AlgoPeronaMalikAe16
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld*    __restrict>(&params[eNOISE_CLEAN_INPUT]->u.ld);
+	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const sizeY = output->height;
+	auto const sizeX = output->width;
+
+	constexpr float reciproc10 = 1.f / 10.f;
+
+	/* read sliders positions */
+	const float fDispersion = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_DISPERSION]->u.sd.value) * reciproc10;
+	const float fTimeStep   = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_TIMESTEP]->u.sd.value  ) * reciproc10;
+	const float fNoiseLevel = static_cast<const float>(params[eNOISE_CLEAN_ANYSOTROPIC_NOISELEVEL]->u.sd.value) * reciproc10;
+
+	return NoiseClean_AlgoAnisotropicDiffusion (localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, fNoiseLevel, fTimeStep, fDispersion, static_cast<float>(u16_value_white));;
+}

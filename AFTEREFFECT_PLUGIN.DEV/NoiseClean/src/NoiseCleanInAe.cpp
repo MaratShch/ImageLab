@@ -23,9 +23,13 @@ inline PF_Err NoiseCleanInAE_8bits
 		break;
 
 		case eNOISE_CLEAN_PERONA_MALIK:
-//			err = NoiseClean_AlgoPeronaMalikAe8 (in_data, out_data, params, output);
+			err = NoiseClean_AlgoPeronaMalikAe8 (in_data, out_data, params, output);
 		break;
 
+		case eNOISE_CLEAN_BSDE:
+			err = NoiseClean_AlgoBSDEAe8 (in_data, out_data, params, output);
+		break;
+	
 		case eNOISE_CLEAN_ADVANCED_DENOISE:
 //			err = NoiseClean_AlgoAdvancedAe8 (in_data, out_data, params, output);
 		break;
@@ -63,7 +67,10 @@ inline PF_Err NoiseCleanInAE_16bits
 		break;
 
 		case eNOISE_CLEAN_PERONA_MALIK:
-//			err = NoiseClean_AlgoPeronaMalikAe16 (in_data, out_data, params, output);
+			err = NoiseClean_AlgoPeronaMalikAe16 (in_data, out_data, params, output);
+		break;
+
+		case eNOISE_CLEAN_BSDE:
 		break;
 
 		case eNOISE_CLEAN_ADVANCED_DENOISE:
