@@ -30,6 +30,10 @@ inline PF_Err NoiseCleanInAE_8bits
 			err = NoiseClean_AlgoBSDEAe8 (in_data, out_data, params, output);
 		break;
 	
+		case eNOISE_CLEAN_NONLOCAL_BAYES:
+			err = NoiseClean_AlgoNonLocalBayesAe8 (in_data, out_data, params, output);
+		break;
+
 		case eNOISE_CLEAN_ADVANCED_DENOISE:
 //			err = NoiseClean_AlgoAdvancedAe8 (in_data, out_data, params, output);
 		break;
@@ -71,6 +75,10 @@ inline PF_Err NoiseCleanInAE_16bits
 		break;
 
 		case eNOISE_CLEAN_BSDE:
+		break;
+
+		case eNOISE_CLEAN_NONLOCAL_BAYES:
+			err = NoiseClean_AlgoNonLocalBayesAe16 (in_data, out_data, params, output);
 		break;
 
 		case eNOISE_CLEAN_ADVANCED_DENOISE:

@@ -77,12 +77,23 @@ MakeParamCopy (PF_ParamDef* __restrict actual[], PF_ParamDef copy[], const int32
 	return;
 }
 
-inline bool
+inline constexpr bool
 IsDisabledUI (const PF_ParamUIFlags& uiFlag) noexcept
 {
 	return ((uiFlag & PF_PUI_DISABLED) ? true : false);
 }
 
+inline void DisableUI (PF_ParamUIFlags& uiFlag) noexcept
+{
+	uiFlag |= PF_PUI_DISABLED;
+	return;
+}
+
+inline void EnableUI (PF_ParamUIFlags& uiFlag) noexcept
+{
+	uiFlag &= ~PF_PUI_DISABLED;
+	return;
+}
 
 
 #ifdef __cplusplus

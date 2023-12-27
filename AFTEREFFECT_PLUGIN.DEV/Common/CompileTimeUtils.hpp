@@ -52,44 +52,50 @@ constexpr typename std::enable_if<std::is_integral<T>::value, T>::type CreateAli
 template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IsPowerOf2 (const T& x) noexcept
 {
-	return (x && !(x & (x - static_cast<T>(1))));
+	return (x && !(x & (x - static_cast<const T>(1))));
 }
 
 
 template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, T>::type ODD_VALUE(const T& x) noexcept
 {
-	return (x | static_cast<T>(1));
+	return (x | static_cast<const T>(1));
+}
+
+template <typename T>
+constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type ODD_VALUE(const T& x) noexcept
+{
+	return (x + static_cast<const T>(1));
 }
 
 template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, bool>::type IsOddValue(const T& x) noexcept
 {
-	return ((x % static_cast<T>(2) != static_cast<T>(0)) ? true : false);
+	return ((x % static_cast<const T>(2) != static_cast<const T>(0)) ? true : false);
 }
 
 template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, T>::type EVEN_VALUE(const T& x) noexcept
 {
-	return (x & ~(static_cast<T>(1)));
+	return (x & ~(static_cast<const T>(1)));
 }
 
 template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, bool>::type IsEvenValue(const T& x) noexcept
 {
-	return ((x % static_cast<T>(2) == static_cast<T>(0)) ? true : false);
+	return ((x % static_cast<const T>(2) == static_cast<const T>(0)) ? true : false);
 }
 
 template <typename T>
 constexpr typename std::enable_if<std::is_integral<T>::value, T>::type HALF(const T& x) noexcept
 {
-	return (x >> static_cast<T>(1));
+	return (x >> static_cast<const T>(1));
 }
 
 template <typename T>
 constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type HALF(const T& x) noexcept
 {
-	return (x / static_cast<T>(2));
+	return (x / static_cast<const T>(2));
 }
 
 template <typename T>

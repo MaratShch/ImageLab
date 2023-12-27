@@ -60,10 +60,10 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
@@ -133,6 +133,16 @@ ParamsSetup(
 		cNoiseLevelDefault,
 		eNOISE_CLEAN_ANYSOTROPIC_NOISELEVEL);
 
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_disables);
+	PF_ADD_SLIDER(
+		strWindowSlider5,
+		cNonLocalBayesNoiseStdMin,
+		cNonLocalBayesNoiseStdMax,
+		cNonLocalBayesNoiseStdMin,
+		cNonLocalBayesNoiseStdMax,
+		cNonLocalBayesNoiseStdDefault,
+		eNOISE_CLEAN_NL_BAYES_SIGMA);
+
 #ifdef _DEBUG
 	// for DBG purpose only*
 	AEFX_CLR_STRUCT_EX(def);
@@ -169,9 +179,8 @@ UserChangedParam(
 {
 	PF_Err err = PF_Err_NONE;
 	A_long updateUI = 0u;
-	const auto& param_index = which_hitP->param_index;
 
-	switch (param_index)
+	switch (which_hitP->param_index)
 	{
 		case eNOISE_CLEAN_ALGO_POPUP:
 		{
@@ -192,9 +201,21 @@ UserChangedParam(
 					SwitchToAnysotropic (in_data, out_data, params);
 				break;
 
+				case eNOISE_CLEAN_BSDE:
+					SwitchToBSDE (in_data, out_data, params);
+				break;
+
+				case eNOISE_CLEAN_NONLOCAL_BAYES:
+					SwitchToNonLocalBayes (in_data, out_data, params);
+				break;
+
 				case eNOISE_CLEAN_ADVANCED_DENOISE:
+					SwitchToAdvanced (in_data, out_data, params);
+				break;
+
 				default:
-					/* nothing to do */
+					/* normally, we never should enter this case */
+					err = PF_Err_INVALID_INDEX;
 				break;
 			} /* switch (algoType) */
 		}

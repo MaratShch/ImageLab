@@ -109,3 +109,27 @@ PF_Err NoiseClean_AlgoBSDEAe16
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
 ) noexcept;
+
+PF_Err NoiseClean_AlgoNonLocalBayes
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseClean_AlgoNonLocalBayesAe8
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err NoiseClean_AlgoNonLocalBayesAe16
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept;

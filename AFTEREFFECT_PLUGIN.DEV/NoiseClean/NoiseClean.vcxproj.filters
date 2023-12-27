@@ -51,6 +51,9 @@
     <ClCompile Include="src\Algo_BSDE.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\Algo_NonLocalBayes.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\NoiseClean.hpp">
@@ -120,6 +123,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\NoiseCleanGUI.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\NoiseCleanNonLocalBayesAlgo.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

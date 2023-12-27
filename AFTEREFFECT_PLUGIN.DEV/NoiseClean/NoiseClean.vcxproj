@@ -153,6 +153,7 @@
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
     </ClCompile>
+    <ClCompile Include="src\Algo_NonLocalBayes.cpp" />
     <ClCompile Include="src\Algo_PeronaMalik.cpp">
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
@@ -189,6 +190,7 @@
     <ClInclude Include="include\NoiseCleanEnums.hpp" />
     <ClInclude Include="include\NoiseCleanGFunction.hpp" />
     <ClInclude Include="include\NoiseCleanGUI.hpp" />
+    <ClInclude Include="include\NoiseCleanNonLocalBayesAlgo.hpp" />
     <ClInclude Include="include\NoiseCleanPrototypes.hpp" />
   </ItemGroup>
   <ItemGroup>

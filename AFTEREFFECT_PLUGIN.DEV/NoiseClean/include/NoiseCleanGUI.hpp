@@ -24,5 +24,26 @@ void SwitchToAnysotropic
 	PF_ParamDef	*params[]
 ) noexcept;
 
+void SwitchToBSDE
+(
+	PF_InData	*in_data,
+	PF_OutData	*out_data,
+	PF_ParamDef	*params[]
+) noexcept;
+
+void SwitchToNonLocalBayes
+(
+	PF_InData	*in_data,
+	PF_OutData	*out_data,
+	PF_ParamDef	*params[]
+) noexcept;
+
+void SwitchToAdvanced
+(
+	PF_InData	*in_data,
+	PF_OutData	*out_data,
+	PF_ParamDef	*params[]
+) noexcept;
+
 
 #endif  /* __NOISE_CLEAN_GUI_ELEMENTS_MANAGEMENT__ */
