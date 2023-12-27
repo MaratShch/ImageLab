@@ -2,7 +2,7 @@
 #include "PrSDKAESupport.h"
 #include "NoiseCleanNonLocalBayesAlgo.hpp"
 #include "NoiseCleanAlgoMemory.hpp"
-
+#include "FastAriphmetics.hpp"
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 PF_Err NonLocalBayes_YUV_Processing
@@ -19,14 +19,29 @@ PF_Err NonLocalBayes_YUV_Processing
 ) noexcept
 {
 	fYUV* pTmp[2]{};
-	const float fCoeff = 255.f / maxColorVal;
+	const float fCoeff1 = 255.f / maxColorVal;
+	const float fCoeff2 = maxColorVal / 255.f;
+
+	/* compute ImageBoundary for left/right side and for top/botom size */
+	const auto imgMaxBoundary = 2u * FastCompute::Max (algoParams1.iBoundary, algoParams2.iBoundary);
+	const auto boundarySizeX = sizeX + imgMaxBoundary;
+	const auto boundarySizeY = sizeY + imgMaxBoundary;
 
 	/* allocate temporary buffers for processing */
-	A_long memBlockId = MemoryBufferAlloc (sizeX, sizeY, &pTmp[0], &pTmp[1]);
+	A_long memBlockId = MemoryBufferAlloc (boundarySizeX, boundarySizeY, &pTmp[0], &pTmp[1]);
 	if (nullptr != pTmp[0] && nullptr != pTmp[1] && -1 != memBlockId)
 	{
-		/* convert to fYUV with value rabge from 0 to 255 */
-		Convert2fYUV (pSrc, pTmp[0], sizeX, sizeY, srcPitch, sizeX, maxColorVal);
+		/* convert to fYUV with value range from 0 to 255 */
+		YUV2fYUV (pSrc, pTmp[0], sizeX, sizeY, srcPitch, boundarySizeX, fCoeff1);
+
+		/* first ALGO Step */
+		NonLocalBayes_fYUV_Processing (pTmp[0], pTmp[1], sizeX, sizeY, algoParams1, true);
+
+		/* second ALGO step */
+		NonLocalBayes_fYUV_Processing (pTmp[1], pTmp[0], sizeX, sizeY, algoParams2, false);
+
+		/* back convert to YUV after denoising, original source (pSrc) used only for save ALPHA channel values to destination */
+		fYUV2YUV (pSrc, pTmp[0], pDst, sizeX, sizeY, srcPitch, boundarySizeX, dstPitch, fCoeff2);
 
 		/* release temporary memory buffer after processing complete */
 		MemoryBufferRelease (memBlockId);
@@ -82,6 +97,16 @@ PF_Err NoiseClean_AlgoNonLocalBayes
 
 			case PrPixelFormat_VUYA_4444_32f_709:
 			case PrPixelFormat_VUYA_4444_32f:
+			{
+				const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+				      PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
+				const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+				const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+				const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+				constexpr float fMaxColorValue = 1.0f;
+
+				err = NonLocalBayes_YUV_Processing(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, algoParamSet1, algoParamSet2, fMaxColorValue);
+			}
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:

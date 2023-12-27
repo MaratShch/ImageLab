@@ -20,8 +20,24 @@ struct AlgoBayesParams
 	uint32_t iIsFirstStep;
 };
 
+/* =================== FUNCTION PROTOTYPES ========================= */
+void NonLocalBayes_fYUV_Processing
+(
+	const fYUV* __restrict pSrc,
+	fYUV* __restrict pDst,
+	A_long                 sizeX,
+	A_long                 sizeY,
+	const AlgoBayesParams& algoParams,
+	bool                   isFirstStep
+) noexcept;
 
-inline AlgoBayesParams AlgoBayesInitParametersSet1 (const float& fSigma) noexcept
+
+
+/* ===================== INLINE FUNCTIONS ========================== */
+inline AlgoBayesParams AlgoBayesInitParametersSet1
+(
+	const float& fSigma
+) noexcept
 {
 	AlgoBayesParams algoParams;
 
@@ -40,7 +56,10 @@ inline AlgoBayesParams AlgoBayesInitParametersSet1 (const float& fSigma) noexcep
 }
 
 
-inline AlgoBayesParams AlgoBayesInitParametersSet2 (const float& fSigma) noexcept
+inline AlgoBayesParams AlgoBayesInitParametersSet2 
+(
+	const float& fSigma
+) noexcept
 {
 	AlgoBayesParams algoParams;
 
@@ -58,7 +77,8 @@ inline AlgoBayesParams AlgoBayesInitParametersSet2 (const float& fSigma) noexcep
 	return algoParams;
 }
 
-inline void Convert2fYUV
+
+inline void YUV2fYUV
 (
 	const PF_Pixel_VUYA_8u* __restrict pSrc,
 	fYUV*                   __restrict pDst,
@@ -81,11 +101,44 @@ inline void Convert2fYUV
 			pDstLine[i].V = static_cast<float>(pSrcLine[i].V);
 		}
 	}
+	return;
+}
+
+
+inline void fYUV2YUV
+(
+	const PF_Pixel_VUYA_8u* __restrict pImgSrc,
+	const fYUV*             __restrict pProcSrc,
+	PF_Pixel_VUYA_8u*       __restrict pDst,
+	const A_long&       sizeX,
+	const A_long&       sizeY,
+	const A_long&       srcPitch,
+	const A_long&       procPitch,
+	const A_long&       dstPitch,
+	const float&        fCoeff
+) noexcept
+{
+	(void)fCoeff;
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const PF_Pixel_VUYA_8u* __restrict pImgLine  = pImgSrc  + j * srcPitch;
+		const fYUV*             __restrict pProcLine = pProcSrc + j * procPitch;
+		PF_Pixel_VUYA_8u*       __restrict pDstLine  = pDst     + j * dstPitch;
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			pDstLine[i].Y = static_cast<A_u_char>(pProcLine[i].Y);
+			pDstLine[i].U = static_cast<A_u_char>(pProcLine[i].U);
+			pDstLine[i].V = static_cast<A_u_char>(pProcLine[i].V);
+			pDstLine[i].A = pImgLine[i].A;
+		}
+	}
+	return;
 }
 
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline void Convert2fYUV
+inline void YUV2fYUV
 (
 	const T* __restrict pSrc,
 	fYUV*    __restrict pDst,
@@ -107,6 +160,38 @@ inline void Convert2fYUV
 			pDstLine[i].V = pSrcLine[i].V * fCoeff;
 		}
 	}
+}
+
+
+template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
+inline void fYUV2YUV
+(
+	const T*    __restrict pImgSrc,
+	const fYUV* __restrict pProcSrc,
+	      T*    __restrict pDst,
+	const A_long&          sizeX,
+	const A_long&          sizeY,
+	const A_long&          srcPitch,
+	const A_long&          procPitch,
+	const A_long&          dstPitch,
+	const float&           fCoeff
+) noexcept
+{
+	for (A_long j = 0; j < sizeY; j++)
+	{
+		const T*    __restrict pImgLine  = pImgSrc  + j * srcPitch;
+		const fYUV* __restrict pProcLine = pProcSrc + j * procPitch;
+		     T*     __restrict pDstLine  = pDst     + j * dstPitch;
+
+		for (A_long i = 0; i < sizeX; i++)
+		{
+			pDstLine[i].Y = pProcLine[i].Y * fCoeff;
+			pDstLine[i].U = pProcLine[i].U * fCoeff;
+			pDstLine[i].V = pProcLine[i].V * fCoeff;
+			pDstLine[i].A = pImgLine[i].A;
+		}
+	}
+	return;
 }
 
 
