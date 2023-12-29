@@ -15,11 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ColorTemperature.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="include\ColorTemperature.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -39,5 +34,10 @@
     <ResourceCompile Include="ColorTemperature.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ColorTemperature.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

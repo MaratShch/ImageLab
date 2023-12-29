@@ -144,6 +144,7 @@
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
     <ClInclude Include="..\Common\Common.hpp" />
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
     <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
     <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
