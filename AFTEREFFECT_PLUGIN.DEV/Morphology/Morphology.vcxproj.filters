@@ -128,6 +128,78 @@
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\SE_Horizontal_3x3.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Horizontal_5x5.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Horizontal_7x7.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Horizontal_9x9.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Cross_3x3.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Cross_5x5.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Cross_7x7.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Cross_9x9.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Frame_3x3.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Frame_5x5.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Frame_7x7.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Frame_9x9.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Ring_3x3.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Ring_5x5.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Ring_7x7.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Ring_9x9.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Disk_3x3.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Disk_5x5.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Disk_7x7.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Disk_9x9.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Dymond_3x3.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Dymond_5x5.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Dymond_7x7.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SE_Dymond_9x9.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Morphology.rc">
