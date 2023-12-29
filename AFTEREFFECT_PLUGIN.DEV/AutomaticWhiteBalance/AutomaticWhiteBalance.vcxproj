@@ -98,6 +98,7 @@
       <StructMemberAlignment>Default</StructMemberAlignment>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -129,6 +130,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FloatingPointModel>
       </FloatingPointModel>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
