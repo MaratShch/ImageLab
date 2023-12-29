@@ -24,28 +24,38 @@ void NonLocalBayes_fYUV_Processing
 	const auto threshold = fSigma * fSigma * fGamma * (isFirstStep ? 3.f : 1.f);
 
 	/* define matrices using during Bayes' estimation */
-	const auto vecSize_group3d = nSP * sP2;
-	const auto vecSize_group3dNoisy = sW * sW * sPC;
-	const auto vecSize_group3dBasic = vecSize_group3dNoisy;
-	const auto vecSize_index = (isFirstStep ? nSP : sW * sW);
-	const auto vecSize_group3dTranspose = (isFirstStep ? nSP * sP2 : sW * sW * sPC);
-	const auto vecSize_tmpMat = (isFirstStep ? sP2 * sP2 : sPC * sPC);
-	const auto vecSize_BariCenter = (isFirstStep ? sP2 : sPC);
-	const auto vecSize_CovMat = (isFirstStep ? sP2 * sP2 : sPC * sPC);
-	const auto vecSize_CovMatTmp = vecSize_CovMat;
+	const size_t vecSize_group3d = nSP * sP2;
+	std::vector<std::vector<float>> group3d(3, std::vector<float>(vecSize_group3d));
 
-	std::vector<std::vector<float>> group3d (3, std::vector<float>(vecSize_group3d));
-	std::vector<float>  group3dNoisy (vecSize_group3dNoisy);
-	std::vector<float>  group3dBasic (vecSize_group3dBasic);
-	std::vector<A_long> index (vecSize_index);
-	std::vector<float>  group3dTranspose (vecSize_group3dTranspose);
-	std::vector<float>  tmpMat (vecSize_tmpMat);
+	const size_t vecSize_group3dNoisy = sW * sW * sPC;
+	std::vector<float>  group3dNoisy(vecSize_group3dNoisy);
+
+	const size_t vecSize_group3dBasic = vecSize_group3dNoisy;
+	std::vector<float>  group3dBasic(vecSize_group3dBasic);
+
+	const size_t vecSize_index = (isFirstStep ? nSP : sW * sW);
+	std::vector<A_long> index(vecSize_index);
+
+	const size_t vecSize_group3dTranspose = (isFirstStep ? nSP * sP2 : sW * sW * sPC);
+	std::vector<float>  group3dTranspose(vecSize_group3dTranspose);
+
+	const size_t vecSize_tmpMat = (isFirstStep ? sP2 * sP2 : sPC * sPC);
+	std::vector<float>  tmpMat(vecSize_tmpMat);
+
+	const size_t vecSize_BariCenter = (isFirstStep ? sP2 : sPC);
 	std::vector<float>  BariCenter(vecSize_BariCenter);
-	std::vector<float>  CovMat (vecSize_CovMat);
+
+	const size_t vecSize_CovMat = (isFirstStep ? sP2 * sP2 : sPC * sPC);
+	std::vector<float>  CovMat(vecSize_CovMat);
+
+	const size_t vecSize_CovMatTmp = vecSize_CovMat;
 	std::vector<float>  CovMatTmp (vecSize_CovMatTmp);
+
+	const size_t imgSize = sizeX * sizeY;
+	std::vector<float> weight (imgSize, 0.f);
+	std::vector<bool>  mask (imgSize, false);
 
 
 	return;
 }
-
 
