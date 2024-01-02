@@ -304,14 +304,6 @@ UserChangedParam (
 	PF_Err err = PF_Err_NONE;
 	bool updateUI = false;
 
-	/*
-		,
-	,
-	,
-	IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER,
-	IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER,
-
-	*/
 	switch (which_hitP->param_index)
 	{
 		case IMAGE_EQUALIZATION_POPUP_PRESET:
