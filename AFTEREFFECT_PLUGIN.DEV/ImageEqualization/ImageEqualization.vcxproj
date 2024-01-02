@@ -165,6 +165,7 @@
     <ClInclude Include="include\ImageEqualizationColorTransform.hpp" />
     <ClInclude Include="include\ImageEqualizationEnums.hpp" />
     <ClInclude Include="include\ImageEqualizationFuncProto.hpp" />
+    <ClInclude Include="include\ImageEqualizationStrings.hpp" />
     <ClInclude Include="include\ImageHistogram.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
     <ClInclude Include="include\ImageLUT.hpp" />

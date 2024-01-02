@@ -87,6 +87,9 @@
     <ClInclude Include="include\ImageCoefficients.txt">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageEqualizationStrings.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageEqualization.cpp">

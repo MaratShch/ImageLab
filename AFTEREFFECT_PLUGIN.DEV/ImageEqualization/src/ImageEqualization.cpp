@@ -134,25 +134,61 @@ ParamsSetup (
 	def.flags = flags;
 	def.ui_flags = ui_flags_sliders;
 	PF_ADD_SLIDER(
-		STR_EQ_DARK_SLIDER,
+		STR_EQ_BLACKS_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
 		channelSliderMin,
 		channelSliderMax,
 		channelSLiderDef,
-		IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER);
+		IMAGE_EQUALIZATION_BLACKS_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
 	def.ui_flags = ui_flags_sliders;
 	PF_ADD_SLIDER(
-		STR_EQ_LIGHT_SLIDER,
+		STR_EQ_SHADOWS_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
 		channelSliderMin,
 		channelSliderMax,
 		channelSLiderDef,
-		IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER);
+		IMAGE_EQUALIZATION_SHADOWS_SLIDER);
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags_sliders;
+	PF_ADD_SLIDER(
+		STR_EQ_MIDTONES_SLIDER,
+		channelSliderMin,
+		channelSliderMax,
+		channelSliderMin,
+		channelSliderMax,
+		channelSLiderDef,
+		IMAGE_EQUALIZATION_MIDTONES_SLIDER);
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags_sliders;
+	PF_ADD_SLIDER(
+		STR_EQ_WHITES_SLIDER,
+		channelSliderMin,
+		channelSliderMax,
+		channelSliderMin,
+		channelSliderMax,
+		channelSLiderDef,
+		IMAGE_EQUALIZATION_WHITES_SLIDER);
+
+	AEFX_CLR_STRUCT_EX(def);
+	def.flags = flags;
+	def.ui_flags = ui_flags_sliders;
+	PF_ADD_SLIDER(
+		STR_EQ_HIGHLIGHTS_SLIDER,
+		channelSliderMin,
+		channelSliderMax,
+		channelSliderMin,
+		channelSliderMax,
+		channelSLiderDef,
+		IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER);
 
 	AEFX_CLR_STRUCT_EX(def);
 	def.flags = flags;
@@ -266,8 +302,16 @@ UserChangedParam (
 )
 {
 	PF_Err err = PF_Err_NONE;
-	uint32_t updateUI = 0u;
+	bool updateUI = false;
 
+	/*
+		,
+	,
+	,
+	IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER,
+	IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER,
+
+	*/
 	switch (which_hitP->param_index)
 	{
 		case IMAGE_EQUALIZATION_POPUP_PRESET:
@@ -278,46 +322,79 @@ UserChangedParam (
 			const ImageEqPopupAlgo algoType = static_cast<const ImageEqPopupAlgo>(params[IMAGE_EQUALIZATION_POPUP_PRESET]->u.pd.value - 1);
 			if (IMAGE_EQ_MANUAL == algoType)
 			{
-				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags))
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_BLACKS_SLIDER]->ui_flags))
 				{
-					params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
-					updateUI |= 0x1u;
+					params[IMAGE_EQUALIZATION_BLACKS_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI = true;
 				}
-				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags))
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_SHADOWS_SLIDER]->ui_flags))
 				{
-					params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
-					updateUI |= 0x1u;
+					params[IMAGE_EQUALIZATION_SHADOWS_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI = true;
+				}
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_MIDTONES_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_MIDTONES_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI = true;
+				}
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_WHITES_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_WHITES_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI = true;
+				}
+				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
+					updateUI = true;
 				}
 				if (true == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags))
 				{
 					params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags &= ~PF_PUI_DISABLED;
-					updateUI |= 0x1u;
+					updateUI = true;;
 				}
 			}
 			else
 			{
-				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags))
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_BLACKS_SLIDER]->ui_flags))
 				{
-					params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]->ui_flags |= PF_PUI_DISABLED;
-					updateUI |= 0x1u;
+					params[IMAGE_EQUALIZATION_BLACKS_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI = true;
 				}
-				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags))
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_SHADOWS_SLIDER]->ui_flags))
 				{
-					params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]->ui_flags |= PF_PUI_DISABLED;
-					updateUI |= 0x1u;
+					params[IMAGE_EQUALIZATION_SHADOWS_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI = true;
+				}
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_MIDTONES_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_MIDTONES_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI = true;
+				}
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_WHITES_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_WHITES_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI = true;
+				}
+				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER]->ui_flags))
+				{
+					params[IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER]->ui_flags |= PF_PUI_DISABLED;
+					updateUI = true;
 				}
 				if (false == IsDisabledUI(params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags))
 				{
 					params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]->ui_flags |= PF_PUI_DISABLED;
-					updateUI |= 0x1u;
+					updateUI = true;
 				}
 			}
 			/* update UI */
-			if (0u != updateUI)
+			if (true == updateUI)
 			{
-				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER,  params[IMAGE_EQUALIZATION_DARK_DETAILS_SLIDER]);
-				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER, params[IMAGE_EQUALIZATION_LIGHT_DETAILS_SLIDER]);
-				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER, params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_BLACKS_SLIDER,       params[IMAGE_EQUALIZATION_BLACKS_SLIDER       ]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_SHADOWS_SLIDER,      params[IMAGE_EQUALIZATION_SHADOWS_SLIDER      ]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_MIDTONES_SLIDER,     params[IMAGE_EQUALIZATION_MIDTONES_SLIDER     ]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_WHITES_SLIDER,       params[IMAGE_EQUALIZATION_WHITES_SLIDER       ]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER,   params[IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER   ]);
+				paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER,params[IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER]);
 			}
 		}
 		break;

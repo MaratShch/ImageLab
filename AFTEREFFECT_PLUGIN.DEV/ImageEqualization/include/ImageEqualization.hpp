@@ -2,6 +2,7 @@
 
 #include "CommonAdobeAE.hpp"
 #include "ImageEqualizationEnums.hpp"
+#include "ImageEqualizationStrings.hpp"
 #include "ImageEqualizationFuncProto.hpp"
 #include "ImageLabMemInterface.hpp"
 
@@ -23,21 +24,6 @@ constexpr int EqualizationFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_REL
 constexpr int EqualizationFilter_VersionBuild = 1;
 
 
-constexpr char STR_EQ_ALGO_POPUP[] = "Equalization Presets";
-
-constexpr char STR_EQ_ALGO_TYPE[] =	"None|"
-                                    "Linear|" 
-									"Bright|"
-									"Dark|"
-									"Exponential|"
-	                                "Sigmoid|"
-	                                "Advanced|"
-									"Manual";
-
-constexpr char STR_EQ_DARK_SLIDER[]     = "Dark channel details";
-constexpr char STR_EQ_LIGHT_SLIDER[]    = "Light channel details";
-constexpr char STR_EQ_PEDESTAL_SLIDER[] = "Dark pedestal";
-constexpr char STR_EQ_CHECKBOX_FLICK[]  = "Flicker removing";
 
 /* FUNCTION PROTOTYPES */
 PF_Err ProcessImgInPR
