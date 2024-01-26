@@ -16,12 +16,12 @@ struct _tXYZPix
 	T Z;
 };
 
-using fXYZPix    = _tXYZPix<float>;
-using dXYZLabPix = _tXYZPix<double>;
-using i32XYZPix  = _tXYZPix<int32_t>;
+using fXYZPix   = _tXYZPix<float>;
+using dXYZPix   = _tXYZPix<double>;
+using i32XYZPix = _tXYZPix<int32_t>;
 
 constexpr size_t fXYZPix_size   = sizeof(fXYZPix);
-constexpr size_t dXYZPix_size   = sizeof(dXYZLabPix);
+constexpr size_t dXYZPix_size   = sizeof(dXYZPix);
 constexpr size_t i32XYZPix_size = sizeof(i32XYZPix);
 
 
