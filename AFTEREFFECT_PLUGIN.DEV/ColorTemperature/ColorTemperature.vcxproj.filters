@@ -21,9 +21,6 @@
     <ClInclude Include="include\ColorTemperature.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorTenmperatureProc.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
@@ -71,6 +68,18 @@
     </ClInclude>
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperatureProc.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperatureConstants.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperatureEnums.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
