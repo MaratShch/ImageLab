@@ -5,30 +5,18 @@
 #include "CommonAuxPixFormat.hpp"
 #include "ColorTemperatureConstants.hpp"
 
-constexpr float  f32WhitePoint = tWhitePoint<float>;
-constexpr double f64WhitePoint = tWhitePoint<double>;
 
-inline float rgb2cct (const fRGB& pixel) noexcept
-{
-	return __srgb2cct (pixel.R, pixel.G, pixel.B);
-}
-
-inline double rgb2cct(const dRGB& pixel) noexcept
+template <typename T>
+inline float rgb2cct (const _tXYZPix<T>& pixel) noexcept
 {
 	return __srgb2cct (pixel.R, pixel.G, pixel.B);
 }
 
 
-inline fRGB cct2rgb (const float& temperature) noexcept
+template <typename T>
+inline fRGB cct2rgb (const T& temperature) noexcept
 {
-	fRGB pixel;
-	__cct2srgb (temperature, pixel.R, pixel.G, pixel.B);
-	return pixel;
-}
-
-inline dRGB cct2rgb (const double& temperature) noexcept
-{
-	dRGB pixel;
+	_tXYZPix<T> pixel;
 	__cct2srgb (temperature, pixel.R, pixel.G, pixel.B);
 	return pixel;
 }
