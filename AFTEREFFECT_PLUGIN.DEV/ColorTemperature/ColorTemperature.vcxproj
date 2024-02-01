@@ -173,7 +173,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="include\ColorTemperatureConstants.hpp" />
     <ClInclude Include="include\ColorTemperatureEnums.hpp" />
     <ClInclude Include="include\ColorTemperatureProc.hpp" />
   </ItemGroup>

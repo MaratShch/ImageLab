@@ -1,4 +1,5 @@
 #include "ColorTemperature.hpp"
+#include "ColorTemperatureEnums.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -32,15 +33,15 @@ GlobalSetup(
 	PF_Err	err = PF_Err_NONE;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
+		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
@@ -97,6 +98,51 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+	PF_ParamDef	def;
+	constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+	
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_POPUP(
+		controlName[0],						/* pop-up name			*/
+		eTEMP_STANDARD_TOTAL,				/* number of variants	*/
+		eTEMP_STANDARD_BLACK_BODY,			/* default variant		*/
+		strStandardName,					/* string for pop-up	*/
+		COLOR_TEMPERATURE_STANDARD_POPUP);	/* control ID			*/
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_POPUP(
+		controlName[1],						/* pop-up name			*/
+		eTEMP_GAMMA_VALUE_TOTAL,			/* number of variants	*/
+		eTEMP_GAMMA_VALUE_10,		    	/* default variant		*/
+		strGammaValueName,					/* string for pop-up	*/
+		COLOR_TEMPERATURE_GAMMA_POPUP);		/* control ID			*/
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_FLOAT_SLIDERX(
+		controlName[2],
+		colorTemperature2Slider(algoColorTempMin),
+		colorTemperature2Slider(algoColorTempMax),
+		colorTemperature2Slider(algoColorTempMin),
+		colorTemperature2Slider(algoColorTempMax),
+		colorTemperature2Slider(algoColorWhitePoint),
+		PF_Precision_TENTHS,
+		0,
+		0,
+		COLOR_TEMPERATURE_VALUE_SLIDER);
+
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_SLIDER(
+		controlName[3],
+		algoColorTintMin,
+		algoColorTintMax,
+		algoColorTintMin,
+		algoColorTintMax,
+		algoColorTintDefault,
+		COLOR_TEMPERATURE_TINT_SLIDER);
+
+	out_data->num_params = COLOR_TEMPERATURE_TOTAL_CONTROLS;
 
 	return PF_Err_NONE;
 }

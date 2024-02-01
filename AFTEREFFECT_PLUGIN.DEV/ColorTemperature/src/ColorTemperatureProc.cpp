@@ -2,4 +2,3 @@
 #include "ColorTemperatureProc.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "FastAriphmetics.hpp"
-

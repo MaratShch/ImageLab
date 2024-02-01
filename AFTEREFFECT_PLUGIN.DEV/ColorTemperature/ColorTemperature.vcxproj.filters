@@ -75,9 +75,6 @@
     <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorTemperatureConstants.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ColorTemperatureEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>

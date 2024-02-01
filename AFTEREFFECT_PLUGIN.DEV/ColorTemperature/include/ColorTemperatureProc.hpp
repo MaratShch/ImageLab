@@ -3,13 +3,16 @@
 
 #include "CommonColorTemperature.hpp"
 #include "CommonAuxPixFormat.hpp"
-#include "ColorTemperatureConstants.hpp"
+
+
+template<typename T>
+constexpr T tWhitePoint{ 6500 };
 
 
 template <typename T>
 inline float rgb2cct (const _tXYZPix<T>& pixel) noexcept
 {
-	return __srgb2cct (pixel.R, pixel.G, pixel.B);
+	return __rgb2cct (pixel.R, pixel.G, pixel.B);
 }
 
 
@@ -17,7 +20,7 @@ template <typename T>
 inline fRGB cct2rgb (const T& temperature) noexcept
 {
 	_tXYZPix<T> pixel;
-	__cct2srgb (temperature, pixel.R, pixel.G, pixel.B);
+	__cct2rgb (temperature, pixel.R, pixel.G, pixel.B);
 	return pixel;
 }
 
