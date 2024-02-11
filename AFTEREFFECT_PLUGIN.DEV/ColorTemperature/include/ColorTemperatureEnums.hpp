@@ -66,7 +66,7 @@ typedef enum {
 /* ALGO- constants */
 constexpr double cLightVelocity     = 2.99792458e+08;
 constexpr double cPlanckConstant    = 6.62607015e-34;
-constexpr double cBoltzmannConstant = 1.380649e-23;
+constexpr double cBoltzmannConstant = 1.38064900e-23;
 
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ENUMS_AND_DEFINES__ */
