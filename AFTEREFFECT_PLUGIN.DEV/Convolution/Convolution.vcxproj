@@ -111,6 +111,8 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CompileAs>Default</CompileAs>
       <StructMemberAlignment>4Bytes</StructMemberAlignment>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>

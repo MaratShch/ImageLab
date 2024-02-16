@@ -131,6 +131,9 @@
     <ClInclude Include="include\NoiseCleanNonLocalBayesAlgo.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="NoiseClean.rc">
