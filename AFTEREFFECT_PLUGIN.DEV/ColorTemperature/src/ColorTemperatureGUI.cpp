@@ -28,12 +28,15 @@ PF_Err DrawEvent
 		/* acquire DrawBot Supplier and Surface; it shouldn't be released like pen or brush */
 		auto const err1 = drawbotSuite->GetSupplier(drawing_ref, &supplier_ref);
 		auto const err2 = drawbotSuite->GetSurface (drawing_ref, &surface_ref );
-		if (kASNoError == err1 && kASNoError == err2 && nullptr != supplier_ref && nullptr != surface_ref)
+		if (kSPNoError == err1 && kSPNoError == err2 && nullptr != supplier_ref && nullptr != surface_ref)
 		{
 
 		}/* if (kASNoError == err1 && kASNoError == err2 && nullptr != supplier_ref && nullptr != surface_ref) */
 
 	} /* if (PF_Err_NONE == (err = AEFX_SuiteScoper<PF_EffectCustomUISuite1> ...  */
+
+	if (PF_Err_NONE == err)
+		event_extra->evt_out_flags = PF_EO_HANDLED_EVENT;
 
 	return err;
 }
