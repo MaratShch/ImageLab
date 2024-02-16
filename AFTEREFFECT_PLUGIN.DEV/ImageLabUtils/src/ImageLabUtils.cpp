@@ -27,7 +27,10 @@ int32_t AllocMemoryBlock (void* pMemHandle, int32_t size, int32_t align, void** 
 		if (ImageLabMemoryUtils::INVALID_MEMORY_BLOCK != blockId && nullptr != pMemPtr)
 			*pMem = pMemPtr;
 		else
+		{
+			*pMem = nullptr;
 			blockId = ImageLabMemoryUtils::INVALID_MEMORY_BLOCK;
+		}
 	}
 
 	return blockId;
