@@ -78,6 +78,9 @@
     <ClInclude Include="include\ColorTemperatureEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorTemperatureGUI.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp">

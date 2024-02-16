@@ -1,5 +1,6 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
+#include "ColorTemperatureGUI.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -191,6 +192,7 @@ HandleEvent(
 		break;
 
 		case PF_Event_DRAW:
+			err = DrawEvent (in_data, out_data, params, output,	extra);
 		break;
 
 		case PF_Event_ADJUST_CURSOR:
