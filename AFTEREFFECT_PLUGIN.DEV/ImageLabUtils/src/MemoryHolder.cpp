@@ -70,12 +70,13 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 		/* re-allocate requred memory */
 		m_TotalAllocated -= m_Holder[idx]->getMemSize();
 		m_Holder[idx]->memBlockFree();
-		m_Holder[idx]->memBlockAlloc(reqSize, CACHE_LINE);
-		m_TotalAllocated += m_Holder[idx]->getMemSize();
-
-		/* put this idx into busy queue */
-		m_BusyBlocks.push_front(idx);
-		blockId = idx;
+		if (true == m_Holder[idx]->memBlockAlloc(reqSize, CACHE_LINE))
+		{
+			m_TotalAllocated += m_Holder[idx]->getMemSize();
+			/* put this idx into busy queue */
+			m_BusyBlocks.push_front(idx);
+			blockId = idx;
+		}
 	}
 	
 	return blockId;
@@ -89,7 +90,7 @@ void CMemoryHolder::releaseMemoryBlock (int32_t blockIdx)
 		/* lock queue access */
 		std::unique_lock<std::mutex> lock(m_QueueMutualAccess);
 
-		/* check if this blocvk in busy queue */
+		/* check if this block in busy queue */
 		const int32_t busyQueueCapacity = static_cast<int32_t>(m_BusyBlocks.size());
 		for (int32_t i = 0; i < busyQueueCapacity; i++)
 		{
