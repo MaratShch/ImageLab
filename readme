@@ -1,0 +1,6 @@
+Add environment variables for successfull compilation:
+
+ADOBE_AFTEREFFECT_SDK_ROOT - pointed on Adobe_After_Effects_CC_2017.1_Win_SDK folder
+ADOBE_PREMIER_SDK_ROOT - pointed on Premiere_Pro_CC_2017_Win_SDK folder
+CUDA_PATH - pointed on CUDA SDK folder (for example C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.2)
+
