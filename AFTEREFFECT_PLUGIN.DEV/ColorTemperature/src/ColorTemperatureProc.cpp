@@ -10,7 +10,7 @@ constexpr float COEFF(const float& val) noexcept { return val / 255.f; }
 	Let's try ti use table with predefine RGB value for each CCT.
 	In future this table should be replaced by Ohno(2013) or Robertson(2022) computational algorithm.
 */
-constexpr CACHE_ALIGN float cctCoeff[][3] =  /* 1000 ... 13000 Kelvins [step - 100 degrees], 2 degrees */
+static constexpr float cctCoeff[][3] =  /* 1000 ... 13000 Kelvins [step - 100 degrees], 2 degrees */
 {
 	{ COEFF(255.f), COEFF( 51.f), COEFF(  0.f) }, /* 1000  */
 	{ COEFF(255.f), COEFF( 69.f), COEFF(  0.f) }, /* 1100  */
@@ -67,7 +67,7 @@ constexpr CACHE_ALIGN float cctCoeff[][3] =  /* 1000 ... 13000 Kelvins [step - 1
 	{ COEFF(255.f), COEFF(246.f), COEFF(243.f) }, /* 6200  */
 	{ COEFF(255.f), COEFF(247.f), COEFF(245.f) }, /* 6300  */
 	{ COEFF(255.f), COEFF(248.f), COEFF(248.f) }, /* 6400  */
-	{ COEFF(255.f), COEFF(249.f), COEFF(251.f) }, /* 6500  */
+	{ COEFF(255.f), COEFF(255.f), COEFF(255.f) }, /* 6500  */
 	{ COEFF(255.f), COEFF(249.f), COEFF(253.f) }, /* 6600  */
 	{ COEFF(254.f), COEFF(250.f), COEFF(255.f) }, /* 6700  */
 	{ COEFF(252.f), COEFF(248.f), COEFF(255.f) }, /* 6800  */

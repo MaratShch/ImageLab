@@ -7,8 +7,13 @@ constexpr double  algoColorTempScale  = 1000.0;
 constexpr int32_t algoColorTempMin    = 1000;
 constexpr int32_t algoColorTempMax    = 13000;
 constexpr int32_t algoColorWhitePoint = 6500;
-constexpr int32_t algoColorTintMin    = -20;
-constexpr int32_t algoColorTintMax    = 20;
+
+constexpr double algoColorTempFineMin = -50.0;
+constexpr double algoColorTempFineMax = 50.0;
+constexpr double algoColorTempFineDef = 0.0;
+
+constexpr int32_t algoColorTintMin    = -10;
+constexpr int32_t algoColorTintMax    = 10;
 constexpr int32_t algoColorTintDefault= 0;
 
 constexpr double colorTemperature2Slider  (const int32_t& val) noexcept { return static_cast<double>(val) / algoColorTempScale;  }
@@ -17,8 +22,9 @@ constexpr int32_t slider2ColorTemperature (const double& val)  noexcept { return
 constexpr char controlName[][32] = {
 	"Standard",
 	"Gamma",
-	"Color Temperature (°K x 1000)",
-	"Tint"  
+	"Color Temperature. °K x 1000",
+	"Fine Temperature Offset",
+	"Tint"
 };
 
 constexpr char strStandardName[] = {
@@ -59,6 +65,7 @@ typedef enum {
 	COLOR_TEMPERATURE_STANDARD_POPUP,
 	COLOR_TEMPERATURE_GAMMA_POPUP,
 	COLOR_TEMPERATURE_VALUE_SLIDER,
+	COLOR_TEMPERATURE_FINE_VALUE_SLIDER,
 	COLOR_TEMPERATURE_TINT_SLIDER,
 	COLOR_TEMPERATURE_TOTAL_CONTROLS
 }Item;

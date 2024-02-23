@@ -66,13 +66,13 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
 	return err;
@@ -90,7 +90,9 @@ GlobalSetdown(
 	return PF_Err_NONE;
 }
 
-
+#ifdef _DEBUG
+ 
+#endif
 
 static PF_Err
 ParamsSetup(
@@ -132,15 +134,30 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_VALUE_SLIDER);
 
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_FLOAT_SLIDERX(
+		controlName[3],
+		algoColorTempFineMin,
+		algoColorTempFineMax,
+		algoColorTempFineMin,
+		algoColorTempFineMax,
+		algoColorTempFineDef,
+		PF_Precision_TENTHS,
+		0,
+		0,
+		COLOR_TEMPERATURE_FINE_VALUE_SLIDER);
 
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_SLIDER(
-		controlName[3],
+	PF_ADD_FLOAT_SLIDERX(
+		controlName[4],
 		algoColorTintMin,
 		algoColorTintMax,
 		algoColorTintMin,
 		algoColorTintMax,
 		algoColorTintDefault,
+		PF_Precision_TENTHS,
+		0,
+		0,
 		COLOR_TEMPERATURE_TINT_SLIDER);
 
 	out_data->num_params = COLOR_TEMPERATURE_TOTAL_CONTROLS;
@@ -239,9 +256,9 @@ EffectMain(
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-			case PF_Cmd_EVENT:
-				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
-			break;
+//			case PF_Cmd_EVENT:
+//				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
+//			break;
 
 			default:
 			break;
