@@ -3,27 +3,16 @@
 
 #include "CommonColorTemperature.hpp"
 #include "CommonAuxPixFormat.hpp"
+#include "ColorTemperatureEnums.hpp"
 
-
-template<typename T>
-constexpr T tWhitePoint{ 6500 };
-
-
-template <typename T>
-inline float rgb2cct (const _tXYZPix<T>& pixel) noexcept
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+void getColorCoefficients (const T& cct, const T& tint, T& R, T& G, T& B) noexcept
 {
-	return __rgb2cct (pixel.R, pixel.G, pixel.B);
+	constexpr T tMin {static_cast<T>(algoColorTempMin)};
+	constexpr T tMax {static_cast<T>(algoColorTempMax)};
+
+	return;
 }
-
-
-template <typename T>
-inline fRGB cct2rgb (const T& temperature) noexcept
-{
-	_tXYZPix<T> pixel;
-	__cct2rgb (temperature, pixel.R, pixel.G, pixel.B);
-	return pixel;
-}
-
 
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ALGO_PROC__ */

@@ -30,7 +30,19 @@ PF_Err DrawEvent
 		auto const err2 = drawbotSuite->GetSurface (drawing_ref, &surface_ref );
 		if (kSPNoError == err1 && kSPNoError == err2 && nullptr != supplier_ref && nullptr != surface_ref)
 		{
+			if (PF_EA_CONTROL == event_extra->effect_win.area)
+			{
+				DRAWBOT_PathRef	path_ref = nullptr;
+				auto const& drawbotSupplier{ AEFX_SuiteScoper<DRAWBOT_SupplierSuite1>(in_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, out_data) };
+				drawbotSupplier->NewPath (supplier_ref, &path_ref);
+				if (nullptr != path_ref)
+				{
 
+					/* release Parth Object */
+					drawbotSupplier->ReleaseObject (reinterpret_cast<DRAWBOT_ObjectRef>(path_ref));
+					path_ref = nullptr;
+				} /* if (nullptr != path_ref) */
+			} /* if (PF_EA_CONTROL == event_extra->effect_win.area) */
 		}/* if (kASNoError == err1 && kASNoError == err2 && nullptr != supplier_ref && nullptr != surface_ref) */
 
 	} /* if (PF_Err_NONE == (err = AEFX_SuiteScoper<PF_EffectCustomUISuite1> ...  */

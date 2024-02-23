@@ -34,5 +34,6 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept;
 
+const float* getColorCoefficients(const int32_t cct) noexcept;
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_FILTER__ */

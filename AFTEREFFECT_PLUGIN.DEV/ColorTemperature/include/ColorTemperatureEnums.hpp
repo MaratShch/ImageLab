@@ -5,7 +5,7 @@
 
 constexpr double  algoColorTempScale  = 1000.0;
 constexpr int32_t algoColorTempMin    = 1000;
-constexpr int32_t algoColorTempMax    = 15000;
+constexpr int32_t algoColorTempMax    = 13000;
 constexpr int32_t algoColorWhitePoint = 6500;
 constexpr int32_t algoColorTintMin    = -20;
 constexpr int32_t algoColorTintMax    = 20;
