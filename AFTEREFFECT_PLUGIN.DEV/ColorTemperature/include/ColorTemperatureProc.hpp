@@ -5,13 +5,18 @@
 #include "CommonAuxPixFormat.hpp"
 #include "ColorTemperatureEnums.hpp"
 
+using CCT_TYPE = float;
+using RGB_TYPE = float;
+
 typedef struct rgbCoefficients {
-	float cct;	/* correlated color temperature	in Kelvins degree	*/
-	float tint; /* tint value										*/							
-	float r;	/* coefficcient for apply to R channel				*/
-	float g;	/* coefficients for apply to G channel				*/
-	float b;	/* coefficients for apply to B channel				*/
+	CCT_TYPE cct;	/* correlated color temperature	in Kelvins degree	*/
+	CCT_TYPE tint;	/* tint value										*/
+	RGB_TYPE r;		/* coefficcient for apply to R channel				*/
+	RGB_TYPE g;		/* coefficients for apply to G channel				*/
+	RGB_TYPE b;		/* coefficients for apply to B channel				*/
 } rgbCoefficients;
 
+
+bool rebuildColorCoefficients (rgbCoefficients& cctStruct) noexcept;
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ALGO_PROC__ */

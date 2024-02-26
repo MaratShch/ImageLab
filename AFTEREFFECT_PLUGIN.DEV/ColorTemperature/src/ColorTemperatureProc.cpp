@@ -143,3 +143,13 @@ const float* getColorCoefficients (const int32_t cct) noexcept
 	const uint32_t idx = (cct - 1000) / 100;
 	return cctCoeff[idx];
 }
+
+
+bool rebuildColorCoefficients (rgbCoefficients& cctStruct) noexcept
+{
+	/* non implemented yet */
+	const CCT_TYPE cct = cctStruct.cct;
+	const RGB_TYPE tint = cctStruct.tint;
+
+	return true;
+}

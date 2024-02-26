@@ -1,5 +1,6 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
+#include "ColorTemperatureSeqData.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -65,14 +66,23 @@ PF_Err ProcessImgInPR
 	PF_Err err{ PF_Err_NONE };
 	PF_Err errFormat{ PF_Err_INVALID_INDEX };
 	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
+	bool rebuildCoeffcients = false;
 
-	/* Lets read CCT slider value */
+	/* Lets read CCT controls value */
 	auto const value_coarse_cct  = slider2ColorTemperature(params[COLOR_TEMPERATURE_VALUE_SLIDER]->u.fs_d.value);
 	auto const value_offset_cct  = params[COLOR_TEMPERATURE_FINE_VALUE_SLIDER]->u.fs_d.value;
 	auto const value_tint        = params[COLOR_TEMPERATURE_TINT_SLIDER ]->u.fs_d.value;
+	const CCT_TYPE final_cct     = static_cast<CCT_TYPE>(static_cast<PF_FpLong>(value_coarse_cct) + value_offset_cct);
 
-	const double final_cct = static_cast<double>(value_coarse_cct) + value_offset_cct;
-
+	/* get Sequence data and compare CCT and TINT values from SequenceData with current Sliders positions */
+	flatSequenceData* seqData = (reinterpret_cast<flatSequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)));
+	rgbCoefficients colorCoeff = seqData->colorCoeff;
+	if (true == (rebuildCoeffcients = checkSequenceData(colorCoeff, final_cct, static_cast<CCT_TYPE>(value_tint))))
+	{
+		/* CCT or/and TINT value changed. We need rebuild color coefficients at now */
+		rebuildColorCoefficients (colorCoeff);
+	}
+	 
 	/* This plugin called frop PR - check video fomat */
 	auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
