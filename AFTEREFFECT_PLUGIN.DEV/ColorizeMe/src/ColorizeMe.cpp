@@ -365,7 +365,7 @@ UserChangedParam(
 	PF_ParamDef						*params[],
 	PF_LayerDef						*outputP,
 	const PF_UserChangedParamExtra	*which_hitP
-) noexcept
+) 
 {
 	PF_Err err = PF_Err_NONE;
 	CubeLUT* pCubeLUT = nullptr;

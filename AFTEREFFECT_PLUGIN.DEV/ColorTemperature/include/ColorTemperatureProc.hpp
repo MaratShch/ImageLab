@@ -5,14 +5,13 @@
 #include "CommonAuxPixFormat.hpp"
 #include "ColorTemperatureEnums.hpp"
 
-template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-void getColorCoefficients (const T& cct, const T& tint, T& R, T& G, T& B) noexcept
-{
-	constexpr T tMin {static_cast<T>(algoColorTempMin)};
-	constexpr T tMax {static_cast<T>(algoColorTempMax)};
-
-	return;
-}
+typedef struct rgbCoefficients {
+	float cct;	/* correlated color temperature	in Kelvins degree	*/
+	float tint; /* tint value										*/							
+	float r;	/* coefficcient for apply to R channel				*/
+	float g;	/* coefficients for apply to G channel				*/
+	float b;	/* coefficients for apply to B channel				*/
+} rgbCoefficients;
 
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ALGO_PROC__ */

@@ -1,9 +1,9 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureGUI.hpp"
+#include "ColorTemperatureSeqData.hpp"
 #include "PrSDKAESupport.h"
-
-
+#include "AEGP_SuiteHandler.h"
 
 static PF_Err
 About(
@@ -34,16 +34,18 @@ GlobalSetup(
 	PF_Err	err = PF_Err_NONE;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT       |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT     |
-		PF_OutFlag_DEEP_COLOR_AWARE      |
-		PF_OutFlag_WIDE_TIME_INPUT;
+		PF_OutFlag_WIDE_TIME_INPUT                |
+		PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
+		PF_OutFlag_USE_OUTPUT_EXTENT              |
+		PF_OutFlag_PIX_INDEPENDENT                |
+		PF_OutFlag_DEEP_COLOR_AWARE               |
+		PF_OutFlag_SEND_UPDATE_PARAMS_UI;
 
 	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
+		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG    |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS            |
+		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT           |
+		PF_OutFlag2_SUPPORTS_GET_FLATTENED_SEQUENCE_DATA;
 
 	out_data->my_version =
 		PF_VERSION(
@@ -90,9 +92,6 @@ GlobalSetdown(
 	return PF_Err_NONE;
 }
 
-#ifdef _DEBUG
- 
-#endif
 
 static PF_Err
 ParamsSetup(
@@ -167,6 +166,188 @@ ParamsSetup(
 
 
 static PF_Err
+SequenceSetup(
+	PF_InData		*in_data,
+	PF_OutData		*out_data
+)
+{
+	PF_Err err = PF_Err_NONE;
+	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
+	if (nullptr != seqDataHndl)
+	{
+		unflatSequenceData* unflatSequenceDataH = reinterpret_cast<unflatSequenceData*>(handleSuite->host_lock_handle(seqDataHndl));
+		if (nullptr != unflatSequenceDataH)
+		{
+			AEFX_CLR_STRUCT_EX(*unflatSequenceDataH);
+			unflatSequenceDataH->isFlat = false;
+			unflatSequenceDataH->magic = sequenceDataMagic;
+			unflatSequenceDataH->colorCoeff.cct = unflatSequenceDataH->colorCoeff.tint = 0.f;
+			unflatSequenceDataH->colorCoeff.r = unflatSequenceDataH->colorCoeff.g = unflatSequenceDataH->colorCoeff.b = 0.f;
+
+			/* notify AE that this is our sequence data handle */
+			out_data->sequence_data = seqDataHndl;
+			/* unlock handle */
+			handleSuite->host_unlock_handle(seqDataHndl);
+		} /* if (nullptr != seqP) */
+	} /* if (nullptr != seqDataHndl) */
+	else
+		err = PF_Err_OUT_OF_MEMORY;
+
+	return err;
+}
+
+
+static PF_Err
+SequenceReSetup(
+	PF_InData		*in_data,
+	PF_OutData		*out_data
+)
+{
+	PF_Err err = PF_Err_NONE;
+	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
+
+	/* if sequence data is present */
+	if (nullptr != in_data->sequence_data)
+	{
+		/* get handle to flat data ... */
+		PF_Handle flatSequenceDataH = in_data->sequence_data;
+		/* ... then get its actual data pointer */
+		flatSequenceData* flatSequenceDataP = static_cast<flatSequenceData*>(GET_OBJ_FROM_HNDL(flatSequenceDataH));
+		if (nullptr != flatSequenceDataP && true == flatSequenceDataP->isFlat)
+		{
+			/* create a new handle, allocating the size of your (unflat) sequence data for it */
+			PF_Handle unflatSequenceDataH = handleSuite->host_new_handle(sizeof(unflatSequenceData));
+			if (nullptr != unflatSequenceDataH)
+			{
+				/* lock and get actual data pointer for unflat data */
+				unflatSequenceData* unflatSequenceDataP = static_cast<unflatSequenceData*>(handleSuite->host_lock_handle(unflatSequenceDataH));
+				if (nullptr != unflatSequenceDataP)
+				{
+					AEFX_CLR_STRUCT_EX(*unflatSequenceDataP);
+					/* set flag for being "unflat" */
+					unflatSequenceDataP->isFlat = false;
+					/* directly copy int value unflat -> flat */
+					unflatSequenceDataP->magic = flatSequenceDataP->magic;
+					unflatSequenceDataP->colorCoeff = flatSequenceDataP->colorCoeff;
+
+					/* notify AE of unflat sequence data */
+					out_data->sequence_data = unflatSequenceDataH;
+
+					/* dispose flat sequence data! */
+					handleSuite->host_dispose_handle(flatSequenceDataH);
+					in_data->sequence_data = nullptr;
+				} /* if (nullptr != unflatSequenceDataP) */
+				else
+					err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+				/* unlock unflat sequence data handle */
+				handleSuite->host_unlock_handle(unflatSequenceDataH);
+
+			} /* if (nullptr != unflatSequenceDataH) */
+
+		} /* if (nullptr != flatSequenceDataP && true == flatSequenceDataP->isFlat) */
+		else
+		{
+			/* use input unflat data as unchanged output */
+			out_data->sequence_data = in_data->sequence_data;
+		}
+	} /* if (nullptr != in_data->sequence_data) */
+	else
+	{
+		/* no sequence data exists ? Let's create one! */
+		err = SequenceSetup (in_data, out_data);
+	}
+
+	return err;
+}
+
+
+static PF_Err
+SequenceFlatten(
+	PF_InData		*in_data,
+	PF_OutData		*out_data
+)
+{
+	PF_Err err = PF_Err_NONE;
+	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	if (nullptr != in_data->sequence_data)
+	{
+		/* assume it's always unflat data and get its handle ... */
+		PF_Handle unflatSequenceDataH = in_data->sequence_data;
+		/* ... then get its actual data pointer */
+		unflatSequenceData* unflatSequenceDataP = static_cast<unflatSequenceData*>(GET_OBJ_FROM_HNDL(unflatSequenceDataH));
+		if (nullptr != unflatSequenceDataP)
+		{
+			/* create a new handle, allocating the size of our (flat) sequence data for it */ 
+			PF_Handle flatSequenceDataH = handleSuite->host_new_handle(sizeof(flatSequenceData));
+			if (nullptr != flatSequenceDataH)
+			{
+				/* lock and get actual data pointer for flat data */
+				flatSequenceData* flatSequenceDataP = static_cast<flatSequenceData*>(handleSuite->host_lock_handle(flatSequenceDataH));
+				if (nullptr != flatSequenceDataP)
+				{
+					/* clear structure fields */
+					AEFX_CLR_STRUCT_EX(*flatSequenceDataP);
+					/* set flag for being FLAT */
+					flatSequenceDataP->isFlat = true;
+					/* copy values from unflat to flat */
+					flatSequenceDataP->magic = unflatSequenceDataP->magic;
+					flatSequenceDataP->colorCoeff = unflatSequenceDataP->colorCoeff;
+
+					/* notify AE of new flat sequence data */
+					out_data->sequence_data = flatSequenceDataH;
+
+					/* unlock flat sequence data handle */
+					handleSuite->host_unlock_handle(flatSequenceDataH);
+				} /* if (nullptr != flatSequenceDataP) */
+
+			} /* if (nullptr != flatSequenceDataH) */
+			else
+				err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+			/* dispose unflat sequence data! */
+			handleSuite->host_dispose_handle(unflatSequenceDataH);
+			in_data->sequence_data = nullptr;
+		} /* if (nullptr != unflatSequenceDataP) */
+
+	} /* if (nullptr != in_data->sequence_data) */
+	else
+		err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+	return err;
+}
+
+
+static PF_Err
+SequenceSetdown(
+	PF_InData		*in_data,
+	PF_OutData		*out_data
+)
+{
+	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	if (nullptr != in_data->sequence_data)
+	{
+#ifdef _DEBUG
+		unflatSequenceData* unflatSequenceDataH = reinterpret_cast<unflatSequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data));
+		/* ! cleanup released handle for DBG purposes only ! */
+		unflatSequenceDataH->magic = 0x0;
+		unflatSequenceDataH->colorCoeff.cct = unflatSequenceDataH->colorCoeff.tint = unflatSequenceDataH->colorCoeff.r = unflatSequenceDataH->colorCoeff.g = unflatSequenceDataH->colorCoeff.b = 0.f;
+		unflatSequenceDataH->isFlat = false;
+#endif
+		handleSuite->host_dispose_handle(in_data->sequence_data);
+	}
+
+	/* Invalidate the sequence_data pointers in both AE's input and output data fields (to signal that we have properly disposed of the data). */
+	in_data->sequence_data  = nullptr;
+	out_data->sequence_data = nullptr;
+
+	return PF_Err_NONE;
+}
+
+
+static PF_Err
 Render(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
@@ -177,16 +358,36 @@ Render(
 }
 
 
+static PF_Err
+SmartPreRender(
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
+}
+
+
 
 static PF_Err
 SmartRender(
-	PF_InData				*in_data,
-	PF_OutData				*out_data,
-	PF_SmartRenderExtra		*extraP
-)
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
-	return err;
+	return PF_Err_NONE;
+}
+
+static PF_Err
+GetFlattenedSequenceData(
+	PF_InData		*in_data,
+	PF_OutData		*out_data,
+	PF_ParamDef		*params[],
+	PF_LayerDef		*output)
+{
+	return PF_Err_NONE;
 }
 
 
@@ -222,6 +423,41 @@ HandleEvent(
 }
 
 
+static PF_Err
+UserChangedParam(
+	PF_InData						*in_data,
+	PF_OutData						*out_data,
+	PF_ParamDef						*params[],
+	PF_LayerDef						*outputP,
+	const PF_UserChangedParamExtra	*which_hitP
+)
+{
+	return PF_Err_NONE;
+}
+
+
+
+static PF_Err
+UpdateParameterUI(
+	PF_InData			*in_data,
+	PF_OutData			*out_data,
+	PF_ParamDef			*params[],
+	PF_LayerDef			*outputP
+) noexcept
+{
+	PF_Err err = PF_Err_NONE;
+	return err;
+}
+
+
+#ifdef _DEBUG
+ #include <atomic>
+ constexpr uint32_t dbgArraySize = 2048u;
+ static uint32_t dbgArray[dbgArraySize]{};
+ std::atomic<uint32_t> dbgCnt = 0u;
+#endif
+
+
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
 	PF_Cmd			cmd,
@@ -231,9 +467,16 @@ EffectMain(
 	PF_LayerDef		*output,
 	void			*extra)
 {
-	PF_Err		err{ PF_Err_NONE };
+	PF_Err err = PF_Err_NONE;
 
 	try {
+#ifdef _DEBUG
+		if (dbgCnt < dbgArraySize)
+		{
+			dbgArray[dbgCnt] = cmd;
+			dbgCnt++;
+		}
+#endif
 		switch (cmd)
 		{
 			case PF_Cmd_ABOUT:
@@ -252,12 +495,48 @@ EffectMain(
 				ERR(ParamsSetup(in_data, out_data, params, output));
 			break;
 
+			case PF_Cmd_SEQUENCE_SETUP:
+				ERR(SequenceSetup(in_data, out_data));
+			break;
+
+			case PF_Cmd_SEQUENCE_RESETUP:
+				ERR(SequenceReSetup(in_data, out_data));
+			break;
+
+			case PF_Cmd_SEQUENCE_FLATTEN:
+				ERR(SequenceFlatten(in_data, out_data));
+			break;
+
+			case PF_Cmd_SEQUENCE_SETDOWN:
+				ERR(SequenceSetdown(in_data, out_data));
+			break;
+
 			case PF_Cmd_RENDER:
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-//			case PF_Cmd_EVENT:
-//				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
+			case PF_Cmd_USER_CHANGED_PARAM:
+				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+			break;
+
+			case PF_Cmd_UPDATE_PARAMS_UI:
+				ERR(UpdateParameterUI(in_data, out_data, params, output));
+			break;
+
+			case PF_Cmd_EVENT:
+				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
+			break;
+
+			case PF_Cmd_SMART_PRE_RENDER:
+				ERR(SmartPreRender(in_data, out_data, params, output));
+			break;
+			
+			case PF_Cmd_SMART_RENDER:
+				ERR(SmartRender(in_data, out_data, params, output));
+			break;
+
+//			case PF_Cmd_GET_FLATTENED_SEQUENCE_DATA:
+//				ERR(GetFlattenedSequenceData(in_data, out_data, params, output));
 //			break;
 
 			default:
