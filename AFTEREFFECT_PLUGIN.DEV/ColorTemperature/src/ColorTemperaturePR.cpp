@@ -10,12 +10,11 @@ PF_Err ProcessImgInPR_BGRA_4444_8u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output,
-	const int32_t& cct,
-	const double&  tint
+	const rgbCoefficients&  cctStr
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	const float* __restrict pRgbCoeff = getColorCoefficients(cct);
+	const float* __restrict pRgbCoeff = getColorCoefficients(cctStr.cct);
 	if (nullptr != pRgbCoeff)
 	{
 		const float fR = pRgbCoeff[0];
@@ -99,7 +98,7 @@ PF_Err ProcessImgInPR
 				switch (destinationPixelFormat)
 				{
 					case PrPixelFormat_BGRA_4444_8u:
-						err = ProcessImgInPR_BGRA_4444_8u(in_data, out_data, params, output, value_coarse_cct, value_tint);
+						err = ProcessImgInPR_BGRA_4444_8u(in_data, out_data, params, output, colorCoeff);
 					break;
 
 					case PrPixelFormat_BGRA_4444_16u:
