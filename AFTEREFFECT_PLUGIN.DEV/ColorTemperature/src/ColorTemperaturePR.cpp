@@ -74,53 +74,67 @@ PF_Err ProcessImgInPR
 	auto const value_tint        = params[COLOR_TEMPERATURE_TINT_SLIDER ]->u.fs_d.value;
 	const CCT_TYPE final_cct     = static_cast<CCT_TYPE>(static_cast<PF_FpLong>(value_coarse_cct) + value_offset_cct);
 
-	/* get Sequence data and compare CCT and TINT values from SequenceData with current Sliders positions */
-	flatSequenceData* seqData = (reinterpret_cast<flatSequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)));
-	rgbCoefficients colorCoeff = seqData->colorCoeff;
-	if (true == (rebuildCoeffcients = checkSequenceData(colorCoeff, final_cct, static_cast<CCT_TYPE>(value_tint))))
+	/* check sequence data handler ... */
+	if (nullptr != in_data->sequence_data)
 	{
-		/* CCT or/and TINT value changed. We need rebuild color coefficients at now */
-		rebuildColorCoefficients (colorCoeff);
-	}
-	 
-	/* This plugin called frop PR - check video fomat */
-	auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
-
-	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
-	{
-		switch (destinationPixelFormat)
+		/* ... and data attached to the handler */
+		flatSequenceData* seqData = reinterpret_cast<flatSequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data));
+		if (nullptr != seqData)
 		{
-			case PrPixelFormat_BGRA_4444_8u:
-				err = ProcessImgInPR_BGRA_4444_8u (in_data, out_data, params, output, value_coarse_cct, value_tint);
-			break;
+			rgbCoefficients colorCoeff = seqData->colorCoeff;
+			/* get Sequence data and compare CCT and TINT values from SequenceData with current Sliders positions */
+			if (true == (rebuildCoeffcients = checkSequenceData(seqData->colorCoeff, final_cct, static_cast<CCT_TYPE>(value_tint))))
+			{
+				/* CCT or/and TINT value changed. We need rebuild color coefficients at now */
+				colorCoeff.cct = seqData->colorCoeff.cct;
+				colorCoeff.tint = seqData->colorCoeff.tint;
+				rebuildColorCoefficients (colorCoeff);
+			}
 
-			case PrPixelFormat_BGRA_4444_16u:
-			break;
+			/* This plugin called frop PR - check video fomat */
+			auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
-			case PrPixelFormat_BGRA_4444_32f:
-			break;
+			if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+			{
+				switch (destinationPixelFormat)
+				{
+					case PrPixelFormat_BGRA_4444_8u:
+						err = ProcessImgInPR_BGRA_4444_8u(in_data, out_data, params, output, value_coarse_cct, value_tint);
+					break;
 
-			case PrPixelFormat_VUYA_4444_8u_709:
-			case PrPixelFormat_VUYA_4444_8u:
-			break;
+					case PrPixelFormat_BGRA_4444_16u:
+					break;
 
-			case PrPixelFormat_VUYA_4444_32f_709:
-			case PrPixelFormat_VUYA_4444_32f:
-			break;
+					case PrPixelFormat_BGRA_4444_32f:
+					break;
 
-			case PrPixelFormat_RGB_444_10u:
-			break;
+					case PrPixelFormat_VUYA_4444_8u_709:
+					case PrPixelFormat_VUYA_4444_8u:
+					break;
 
-			default:
-			break;
-		} /* switch (destinationPixelFormat) */
+					case PrPixelFormat_VUYA_4444_32f_709:
+					case PrPixelFormat_VUYA_4444_32f:
+					break;
 
-	} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-	else
-	{
-		/* error in determine pixel format */
-		err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+					case PrPixelFormat_RGB_444_10u:
+					break;
+
+					default:
+					break;
+				} /* switch (destinationPixelFormat) */
+
+			} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
+			else
+			{
+				/* error in determine pixel format */
+				err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+			}
+		} /* if (nullptr != seqData) */
+		else
+			err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 	}
+	else
+		err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	return err;
 }

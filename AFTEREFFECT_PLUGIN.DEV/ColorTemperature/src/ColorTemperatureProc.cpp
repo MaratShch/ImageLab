@@ -147,9 +147,11 @@ const float* getColorCoefficients (const int32_t cct) noexcept
 
 bool rebuildColorCoefficients (rgbCoefficients& cctStruct) noexcept
 {
-	/* non implemented yet */
 	const CCT_TYPE cct = cctStruct.cct;
 	const RGB_TYPE tint = cctStruct.tint;
 
-	return true;
+	/* Let's use Ohno-2013 algorithm fro compute RGB coefficents from Correlated Color Temperature */
+
+	/* non implemented yet */
+	return false;
 }
