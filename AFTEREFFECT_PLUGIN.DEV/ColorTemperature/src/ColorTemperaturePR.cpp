@@ -90,10 +90,9 @@ PF_Err ProcessImgInPR
 				rebuildColorCoefficients (colorCoeff);
 			}
 
-			/* This plugin called frop PR - check video fomat */
-			auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
-
-			if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+			/* This plugin called frop PR - check video format */
+			if (PF_Err_NONE == (errFormat = AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data)->
+				GetPixelFormat(output, &destinationPixelFormat)))
 			{
 				switch (destinationPixelFormat)
 				{
