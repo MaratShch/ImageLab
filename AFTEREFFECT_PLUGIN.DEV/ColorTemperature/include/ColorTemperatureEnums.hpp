@@ -18,9 +18,13 @@ constexpr int32_t algoColorTintDefault= 0;
 
 constexpr double waveLengthStart      = 360.0;
 constexpr double waveLengthStop       = 830.0;
-constexpr double wavelengthStepLow    = 5.00;
-constexpr double wavelengthStepDefault= 1.00;
-constexpr double wavelengthStepPrecise= 0.50;
+constexpr double wavelengthStepWorst  = 5.00;
+constexpr double wavelengthStepDecent = 2.00;
+constexpr double wavelengthStepFine   = 1.00;
+constexpr double wavelengthStepFinest = 0.50;
+constexpr double wavelengthStepScientific = 0.10;
+constexpr double wavelengthStepDefault  = wavelengthStepDecent;
+
 
 constexpr double colorTemperature2Slider  (const int32_t& val) noexcept { return static_cast<double>(val) / algoColorTempScale;  }
 constexpr int32_t slider2ColorTemperature (const double& val)  noexcept { return static_cast<int32_t>(val * algoColorTempScale); }
