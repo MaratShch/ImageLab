@@ -98,6 +98,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <GenerateAlternateCodePaths>AVX2</GenerateAlternateCodePaths>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -126,6 +127,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <GenerateAlternateCodePaths>AVX2</GenerateAlternateCodePaths>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -171,6 +173,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ColorCurves.hpp" />
     <ClInclude Include="include\ColorTemperature.hpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>

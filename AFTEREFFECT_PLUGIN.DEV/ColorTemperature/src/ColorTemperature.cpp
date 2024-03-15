@@ -2,6 +2,7 @@
 #include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureGUI.hpp"
 #include "ColorTemperatureSeqData.hpp"
+#include "ColorCurves.hpp"
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
 
@@ -62,7 +63,7 @@ GlobalSetup(
 	/* For Premiere - declare supported pixel formats */
 	if (PremierId == in_data->appl_id)
 	{
-		auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
+		auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
@@ -76,6 +77,8 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
+
+//	std::vector<std::vector<float>> color_curves = generate_color_curves_1931_observer (360.f, 830.f, 0.5f);
 
 	return err;
 }
@@ -172,7 +175,7 @@ SequenceSetup(
 )
 {
 	PF_Err err = PF_Err_NONE;
-	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
 	if (nullptr != seqDataHndl)
 	{
@@ -205,7 +208,7 @@ SequenceReSetup(
 )
 {
 	PF_Err err = PF_Err_NONE;
-	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
 
 	/* if sequence data is present */
@@ -271,7 +274,7 @@ SequenceFlatten(
 )
 {
 	PF_Err err = PF_Err_NONE;
-	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	if (nullptr != in_data->sequence_data)
 	{
 		/* assume it's always unflat data and get its handle ... */
@@ -326,7 +329,7 @@ SequenceSetdown(
 	PF_OutData		*out_data
 )
 {
-	auto const& handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	if (nullptr != in_data->sequence_data)
 	{
 #ifdef _DEBUG
@@ -379,6 +382,7 @@ SmartRender(
 {
 	return PF_Err_NONE;
 }
+
 
 static PF_Err
 GetFlattenedSequenceData(

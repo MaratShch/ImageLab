@@ -5,6 +5,7 @@
 #include "CommonAuxPixFormat.hpp"
 #include "ColorTemperatureEnums.hpp"
 
+using ALG_TYPE = double;
 using CCT_TYPE = float;
 using RGB_TYPE = float;
 

@@ -16,6 +16,12 @@ constexpr int32_t algoColorTintMin    = -10;
 constexpr int32_t algoColorTintMax    = 10;
 constexpr int32_t algoColorTintDefault= 0;
 
+constexpr double waveLengthStart      = 360.0;
+constexpr double waveLengthStop       = 830.0;
+constexpr double wavelengthStepLow    = 5.00;
+constexpr double wavelengthStepDefault= 1.00;
+constexpr double wavelengthStepPrecise= 0.50;
+
 constexpr double colorTemperature2Slider  (const int32_t& val) noexcept { return static_cast<double>(val) / algoColorTempScale;  }
 constexpr int32_t slider2ColorTemperature (const double& val)  noexcept { return static_cast<int32_t>(val * algoColorTempScale); }
 
@@ -69,11 +75,5 @@ typedef enum {
 	COLOR_TEMPERATURE_TINT_SLIDER,
 	COLOR_TEMPERATURE_TOTAL_CONTROLS
 }Item;
-
-/* ALGO- constants */
-constexpr double cLightVelocity     = 2.99792458e+08;
-constexpr double cPlanckConstant    = 6.62607015e-34;
-constexpr double cBoltzmannConstant = 1.38064900e-23;
-
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ENUMS_AND_DEFINES__ */
