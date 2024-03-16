@@ -9,7 +9,7 @@ constexpr int32_t CURVES_Y = 1;
 constexpr int32_t CURVES_Z = 2;
 
 /* ========= COMPUTATION FOR 2 DEGREES 1931 OBSERVER ================== */
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline T x_sample_1931 (const T& waveLength) noexcept
 {
 	constexpr T threshold1{ 442.0 };
@@ -26,7 +26,7 @@ inline T x_sample_1931 (const T& waveLength) noexcept
 		    static_cast<T>(0.065) * std::exp(tHalf * t3 * t3));
 }
 
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline T y_sample_1931 (const T& waveLength) noexcept
 {
 	constexpr T threshold1{ 568.8 };
@@ -39,7 +39,7 @@ inline T y_sample_1931 (const T& waveLength) noexcept
 	return (static_cast<T>(0.821) * std::exp(tHalf * t1 * t1) + static_cast<T>(0.286) * std::exp(tHalf * t2 * t2));
 }
 
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline T z_sample_1931 (const T& waveLength) noexcept
 {
 	constexpr T threshold1{ 437.0 };
@@ -53,7 +53,7 @@ inline T z_sample_1931 (const T& waveLength) noexcept
 }
 
 
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 std::vector<std::vector<T>> generate_color_curves_1931_observer (const T& minWlength, const T& maxWlength, const T& step)
 {
 	std::vector<std::vector<T>> vectorCurves;
@@ -81,7 +81,7 @@ std::vector<std::vector<T>> generate_color_curves_1931_observer (const T& minWle
 
 
 /* ========= COMPUTATION FOR 10 DEGREES 1964 OBSERVER ================= */
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline T x_sample_1964(const T& waveLength) noexcept
 {
 	const T a  = std::log((waveLength + static_cast<T>(570.0)) / static_cast<T>(1014.0));
@@ -91,21 +91,21 @@ inline T x_sample_1964(const T& waveLength) noexcept
 	return (t1 + t2);
 }
 
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline T y_sample_1964(const T& waveLength) noexcept
 {
 	const T t = (waveLength - static_cast<T>(556.10)) / static_cast<T>(46.140);
 	return (static_cast<T>(1.0110) * std::exp(static_cast<T>(-0.50) * t * t));
 }
 
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline T z_sample_1964(const T& waveLength) noexcept
 {
 	const T t = std::log((waveLength - static_cast<T>(266.0)) / static_cast<T>(180.40));
 	return (static_cast<T>(2.060) * std::exp(static_cast<T>(-32.0) * t * t));
 }
 
-template <typename T>
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 std::vector<std::vector<T>> generate_color_curves_1964_observer (const T& minWlength, const T& maxWlength, const T& step)
 {
 	std::vector<std::vector<T>> vectorCurves;
