@@ -12,9 +12,9 @@ constexpr double algoColorTempFineMin = -50.0;
 constexpr double algoColorTempFineMax = 50.0;
 constexpr double algoColorTempFineDef = 0.0;
 
-constexpr int32_t algoColorTintMin    = -10;
-constexpr int32_t algoColorTintMax    = 10;
-constexpr int32_t algoColorTintDefault= 0;
+constexpr double algoColorTintMin     = -10.0;
+constexpr double algoColorTintMax     =  10.0;
+constexpr double algoColorTintDefault =  0.0;
 
 constexpr double waveLengthStart      = 360.0;
 constexpr double waveLengthStop       = 830.0;

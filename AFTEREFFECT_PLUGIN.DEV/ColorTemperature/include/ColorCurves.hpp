@@ -8,6 +8,7 @@ constexpr int32_t CURVES_X = 0;
 constexpr int32_t CURVES_Y = 1;
 constexpr int32_t CURVES_Z = 2;
 
+/* ========= COMPUTATION FOR 2 DEGREES 1931 OBSERVER ================== */
 template <typename T>
 inline T x_sample_1931 (const T& waveLength) noexcept
 {
@@ -78,5 +79,56 @@ std::vector<std::vector<T>> generate_color_curves_1931_observer (const T& minWle
 	return vectorCurves;
 }
 
+
+/* ========= COMPUTATION FOR 10 DEGREES 1964 OBSERVER ================= */
+template <typename T>
+inline T x_sample_1964(const T& waveLength) noexcept
+{
+	const T a  = std::log((waveLength + static_cast<T>(570.0)) / static_cast<T>(1014.0));
+	const T t1 = static_cast<T>(0.40) * std::exp(static_cast<T>(-1250.0) * a * a);
+	const T b  = std::log((static_cast<T>(1338.0) - waveLength) / static_cast<T>(743.50));
+	const T t2 = static_cast<T>(1.130) * std::exp(static_cast<T>(-234.0) * b * b);
+	return (t1 + t2);
+}
+
+template <typename T>
+inline T y_sample_1964(const T& waveLength) noexcept
+{
+	const T t = (waveLength - static_cast<T>(556.10)) / static_cast<T>(46.140);
+	return (static_cast<T>(1.0110) * std::exp(static_cast<T>(-0.50) * t * t));
+}
+
+template <typename T>
+inline T z_sample_1964(const T& waveLength) noexcept
+{
+	const T t = std::log((waveLength - static_cast<T>(266.0)) / static_cast<T>(180.40));
+	return (static_cast<T>(2.060) * std::exp(static_cast<T>(-32.0) * t * t));
+}
+
+template <typename T>
+std::vector<std::vector<T>> generate_color_curves_1964_observer (const T& minWlength, const T& maxWlength, const T& step)
+{
+	std::vector<std::vector<T>> vectorCurves;
+	const int32_t vectorSize = static_cast<int32_t>((maxWlength - minWlength) / step) + 1;
+
+	/* resize outpuit vectors for hold curve points */
+	vectorCurves.resize(3);
+	vectorCurves[CURVES_X].resize(vectorSize);
+	vectorCurves[CURVES_Y].resize(vectorSize);
+	vectorCurves[CURVES_Z].resize(vectorSize);
+
+	/* generate X, Y, Z color curve */
+	T WaveLength{ minWlength };
+	for (int32_t i = 0; i < vectorSize; i++)
+	{
+		/* this computation happened on initialization stage, so we may use std::exp() functions for compute point curves value */
+		vectorCurves[CURVES_X][i] = x_sample_1964(WaveLength);
+		vectorCurves[CURVES_Y][i] = y_sample_1964(WaveLength);
+		vectorCurves[CURVES_Z][i] = z_sample_1964(WaveLength);
+		WaveLength += step;
+	}
+
+	return vectorCurves;
+}
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_CURVES_ALGORITHM__ */

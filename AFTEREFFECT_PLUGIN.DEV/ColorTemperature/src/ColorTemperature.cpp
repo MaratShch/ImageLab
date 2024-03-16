@@ -78,7 +78,8 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-//	std::vector<std::vector<float>> color_curves = generate_color_curves_1931_observer (360.f, 830.f, 0.5f);
+//	std::vector<std::vector<float>> color_curves_1931 = generate_color_curves_1931_observer (360.f, 830.f, 0.5f);
+//	std::vector<std::vector<float>> color_curves_1964 = generate_color_curves_1964_observer (360.f, 830.f, 0.5f);
 
 	return err;
 }
