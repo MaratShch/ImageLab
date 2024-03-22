@@ -68,7 +68,7 @@ PF_Err ProcessImgInPR
 	bool rebuildCoeffcients = false;
 
 	/* Lets read CCT controls value */
-	auto const value_coarse_cct  = slider2ColorTemperature(params[COLOR_TEMPERATURE_VALUE_SLIDER]->u.fs_d.value);
+	auto const value_coarse_cct  = slider2ColorTemperature(params[COLOR_TEMPERATURE_COARSE_VALUE_SLIDER]->u.fs_d.value);
 	auto const value_offset_cct  = params[COLOR_TEMPERATURE_FINE_VALUE_SLIDER]->u.fs_d.value;
 	auto const value_tint        = params[COLOR_TEMPERATURE_TINT_SLIDER ]->u.fs_d.value;
 	const CCT_TYPE final_cct     = static_cast<CCT_TYPE>(static_cast<PF_FpLong>(value_coarse_cct) + value_offset_cct);

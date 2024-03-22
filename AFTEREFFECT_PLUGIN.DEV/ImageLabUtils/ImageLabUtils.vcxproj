@@ -131,7 +131,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
-    <ClCompile Include="src\FFTUtils.cpp" />
     <ClCompile Include="src\ImageLabUtils.cpp" />
     <ClCompile Include="src\MemoryBlock.cpp" />
     <ClCompile Include="src\MemoryHolder.cpp" />

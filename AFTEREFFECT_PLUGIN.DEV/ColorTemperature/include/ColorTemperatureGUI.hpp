@@ -3,6 +3,20 @@
 
 #include "CommonAdobeAE.hpp"
 
+PF_Err PresetsActivation
+(
+	PF_InData	*in_data,
+	PF_OutData	*out_data,
+	PF_ParamDef	*params[]
+);
+
+PF_Err PresetsDeactivation
+(
+	PF_InData	*in_data,
+	PF_OutData	*out_data,
+	PF_ParamDef	*params[]
+);
+
 PF_Err DrawEvent
 (
 	PF_InData		*in_data,

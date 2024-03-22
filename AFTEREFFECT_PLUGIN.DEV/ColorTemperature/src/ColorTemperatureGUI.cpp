@@ -1,6 +1,133 @@
 #include "ColorTemperature.hpp"
+#include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureGUI.hpp"
 #include "AEFX_SuiteHelper.h"
+
+
+PF_Err PresetsActivation
+(
+	PF_InData	*in_data,
+	PF_OutData	*out_data,
+	PF_ParamDef	*params[]
+) 
+{
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 =
+		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+
+	bool updateUI = false;
+
+	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags))
+	{
+		EnableUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags))
+	{
+		DisableUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags))
+	{
+		DisableUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags))
+	{
+		DisableUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags))
+	{
+		DisableUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags);
+		updateUI = true;
+	}
+
+	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags))
+	{
+		DisableUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags);
+		updateUI = true;
+	}
+
+	/* update UI */
+	if (true == updateUI)
+	{
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_PRESET_TYPE_POPUP,     params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP,   params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP, params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP, params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_LOAD_PRESET_BUTTON,    params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_SAVE_PRESET_BUTTON,    params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]);
+	}
+
+	return PF_Err_NONE;
+}
+
+
+PF_Err PresetsDeactivation
+(
+	PF_InData	*in_data,
+	PF_OutData	*out_data,
+	PF_ParamDef	*params[]
+)
+{
+	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 =
+		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+
+	bool updateUI = false;
+
+	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags))
+	{
+		DisableUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags))
+	{
+		EnableUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags))
+	{
+		EnableUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags))
+	{
+		EnableUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags);
+		updateUI = true;
+	}
+
+	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags))
+	{
+		EnableUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags);
+		updateUI = true;
+	}
+
+	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags))
+	{
+		EnableUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags);
+		updateUI = true;
+	}
+
+	/* update UI */
+	if (true == updateUI)
+	{
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_PRESET_TYPE_POPUP,     params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP,   params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP, params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP, params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_LOAD_PRESET_BUTTON,    params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]);
+		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_SAVE_PRESET_BUTTON,    params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]);
+	}
+
+	return PF_Err_NONE;
+}
 
 
 PF_Err DrawEvent

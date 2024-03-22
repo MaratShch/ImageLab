@@ -1,26 +1,23 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="src">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    <Filter Include="include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
     <Filter Include="resource">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="include">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="include_common">
-      <UniqueIdentifier>{d8b9f80f-7c3e-4b11-aaae-ae3f3f367ca7}</UniqueIdentifier>
+      <UniqueIdentifier>{26b90fa0-5c24-42cb-865c-01c95006bde3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\ColorTemperature.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
@@ -40,6 +37,9 @@
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\CommonDebugUtils.hpp">
@@ -69,56 +69,19 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorTemperatureProc.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureGUI.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureSeqData.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorCurves.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureControls.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureControlsPresets.hpp">
+    <ClInclude Include="include\algo_fft.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ColorTemperature.cpp">
+    <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorTemperatureAE.cpp">
+    <ClCompile Include="src\fft_cpu.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorTemperaturePR.cpp">
+    <ClCompile Include="src\fft_gpu.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorTemperatureProc.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ColorTemperatureGUI.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="ColorTemperature.rc">
-      <Filter>resource</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="ColorTemperature.r">
-      <Filter>resource</Filter>
-    </CustomBuild>
   </ItemGroup>
 </Project>

@@ -107,26 +107,57 @@ ParamsSetup(
 	PF_ParamDef	def;
 	constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+	constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
+
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	
+	/* SetUp 'Using Preset' checkbox. Default state - non selected */
+	PF_ADD_CHECKBOXX(
+		controlItemName[0],
+		FALSE,
+		flags,
+		COLOR_TEMPERATURE_PRESET_CHECKBOX);
+
+	/* Setup 'Preset' popup - initially disable */
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+	PF_ADD_POPUP(
+		controlItemName[1],						/* pop-up name			*/
+		COLOR_TEMPERARTURE_TOTAL_PRESETS,		/* number of variants	*/
+		COLOR_TEMPERARTURE_PRESET_LANDSCAPE,	/* default variant		*/
+		controlItemPresetType,					/* string for pop-up	*/
+		COLOR_TEMPERATURE_PRESET_TYPE_POPUP);	/* control ID			*/
+
+	/* Setup 'Observer' popup - default value "2 degrees 1931" */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_POPUP(
-		controlName[0],						/* pop-up name			*/
-		eTEMP_STANDARD_TOTAL,				/* number of variants	*/
-		eTEMP_STANDARD_BLACK_BODY,			/* default variant		*/
-		strStandardName,					/* string for pop-up	*/
-		COLOR_TEMPERATURE_STANDARD_POPUP);	/* control ID			*/
+		controlItemName[2],						/* pop-up name			*/
+		COLOR_TEMPERATURE_TOTAL_OBSERVERS,		/* number of variants	*/
+		COLOR_TEMPERATURE_OBSERVER_1931_2,		/* default variant		*/
+		controlItemObserver,					/* string for pop-up	*/
+		COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP);	/* control ID			*/
 
+	/* Setup 'Illuminant' popup - default value "D65" */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_POPUP(
-		controlName[1],						/* pop-up name			*/
-		eTEMP_GAMMA_VALUE_TOTAL,			/* number of variants	*/
-		eTEMP_GAMMA_VALUE_10,		    	/* default variant		*/
-		strGammaValueName,					/* string for pop-up	*/
-		COLOR_TEMPERATURE_GAMMA_POPUP);		/* control ID			*/
+		controlItemName[3],							/* pop-up name			*/
+		COLOR_TEMPERATURE_TOTAL_ILLUMINANTS,		/* number of variants	*/
+		COLOR_TEMPERATURE_ILLUMINANT_D65,			/* default variant		*/
+		controlItemIlluminant,						/* string for pop-up	*/
+		COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP);	/* control ID			*/
 
+	/* Setup 'Wavelength step' popup - default value 2 nani meters */
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_POPUP(
+		controlItemName[4],							/* pop-up name			*/
+		COLOR_TEMPERATURE_WAVELENGTH_TOTAL_STEPS,	/* number of variants	*/
+		COLOR_TEMPERATURE_WAVELENGTH_STEP_DECENT,	/* default variant		*/
+		controlItemWavelengthStep,					/* string for pop-up	*/
+		COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP);	/* control ID			*/
+	
+	/* Setup 'Color Temperature' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
-		controlName[2],
+		controlItemName[5],
 		colorTemperature2Slider(algoColorTempMin),
 		colorTemperature2Slider(algoColorTempMax),
 		colorTemperature2Slider(algoColorTempMin),
@@ -135,11 +166,12 @@ ParamsSetup(
 		PF_Precision_TENTHS,
 		0,
 		0,
-		COLOR_TEMPERATURE_VALUE_SLIDER);
+		COLOR_TEMPERATURE_COARSE_VALUE_SLIDER);
 
+	/* Setup 'Color Temperature Offset' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
-		controlName[3],
+		controlItemName[6],
 		algoColorTempFineMin,
 		algoColorTempFineMax,
 		algoColorTempFineMin,
@@ -150,9 +182,10 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_FINE_VALUE_SLIDER);
 
+	/* Setup 'Tint' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
-		controlName[4],
+		controlItemName[7],
 		algoColorTintMin,
 		algoColorTintMax,
 		algoColorTintMin,
@@ -162,6 +195,36 @@ ParamsSetup(
 		0,
 		0,
 		COLOR_TEMPERATURE_TINT_SLIDER);
+
+	/* Setup 'Camera SPD' button - initially disabled */
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+	PF_ADD_BUTTON(
+		controlItemName[8],
+		controlItemCameraSPD,
+		0,
+		PF_ParamFlag_SUPERVISE,
+		COLOR_TEMPERATURE_CAMERA_SPD_BUTTON
+	);
+
+	/* Setup 'Load Preset' button */
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_BUTTON(
+		controlItemName[9],
+		controlItemLoadPreset,
+		0,
+		PF_ParamFlag_SUPERVISE,
+		COLOR_TEMPERATURE_LOAD_PRESET_BUTTON
+	);
+
+	/* Setup 'Save Preset' button */
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_BUTTON(
+		controlItemName[10],
+		controlItemSavePreset,
+		0,
+		PF_ParamFlag_SUPERVISE,
+		COLOR_TEMPERATURE_SAVE_PRESET_BUTTON
+	);
 
 	out_data->num_params = COLOR_TEMPERATURE_TOTAL_CONTROLS;
 
@@ -358,7 +421,9 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
+	return ((PremierId == in_data->appl_id ? 
+		ProcessImgInPR(in_data, out_data, params, output) : /* Premier host			*/
+		ProcessImgInAE(in_data, out_data, params, output)));/* After Effect host	*/
 }
 
 
@@ -437,7 +502,43 @@ UserChangedParam(
 	const PF_UserChangedParamExtra	*which_hitP
 )
 {
-	return PF_Err_NONE;
+	PF_Err errControl = PF_Err_NONE;
+
+	switch (which_hitP->param_index)
+	{
+		case COLOR_TEMPERATURE_PRESET_CHECKBOX:
+		{
+			auto const& PresetUsage = params[COLOR_TEMPERATURE_PRESET_CHECKBOX]->u.bd.value;
+			errControl = (PresetUsage ? PresetsActivation(in_data, out_data, params) : PresetsDeactivation(in_data, out_data, params));
+		}
+		break;
+
+		case COLOR_TEMPERATURE_PRESET_TYPE_POPUP:
+		{
+		}
+		break;
+
+		case COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP:
+		{
+		}
+		break;
+
+		case COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP:
+		{
+		}
+		break;
+
+		case COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP:
+		{
+		}
+		break;
+
+		default:
+			/* nothing ToDo */
+		break;
+	};
+
+	return errControl;
 }
 
 
@@ -458,7 +559,7 @@ UpdateParameterUI(
 #ifdef _DEBUG
  #include <atomic>
  constexpr uint32_t dbgArraySize = 2048u;
- static uint32_t dbgArray[dbgArraySize]{};
+ CACHE_ALIGN static uint32_t dbgArray[dbgArraySize]{};
  std::atomic<uint32_t> dbgCnt = 0u;
 #endif
 
