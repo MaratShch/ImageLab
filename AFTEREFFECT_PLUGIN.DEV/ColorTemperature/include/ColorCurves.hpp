@@ -54,10 +54,10 @@ inline T z_sample_1931 (const T& waveLength) noexcept
 
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-std::vector<std::vector<T>> generate_color_curves_1931_observer (const T& minWlength, const T& maxWlength, const T& step)
+inline std::vector<std::vector<T>> generate_color_curves_1931_observer (const T& minWlength, const T& maxWlength, const T& step) noexcept
 {
 	std::vector<std::vector<T>> vectorCurves;
-	const int32_t vectorSize = static_cast<int32_t>((maxWlength - minWlength) / step) + 1;
+	const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1;
 
 	/* resize outpuit vectors for hold curve points */
 	vectorCurves.resize(3);
@@ -106,10 +106,10 @@ inline T z_sample_1964(const T& waveLength) noexcept
 }
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-std::vector<std::vector<T>> generate_color_curves_1964_observer (const T& minWlength, const T& maxWlength, const T& step)
+inline std::vector<std::vector<T>> generate_color_curves_1964_observer (const T& minWlength, const T& maxWlength, const T& step) noexcept
 {
 	std::vector<std::vector<T>> vectorCurves;
-	const int32_t vectorSize = static_cast<int32_t>((maxWlength - minWlength) / step) + 1;
+	const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1;
 
 	/* resize outpuit vectors for hold curve points */
 	vectorCurves.resize(3);

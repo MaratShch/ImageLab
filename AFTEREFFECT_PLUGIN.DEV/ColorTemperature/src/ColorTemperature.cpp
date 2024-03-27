@@ -2,9 +2,16 @@
 #include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureGUI.hpp"
 #include "ColorTemperatureSeqData.hpp"
+#include "ColorTemperatureControlsPresets.hpp"
 #include "ColorCurves.hpp"
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
+
+/* vector contains preset settings */
+std::vector<IPreset*> vPresets;
+std::vector<std::vector<WaveLengthT>> vCMF1931;
+std::vector<std::vector<WaveLengthT>> vCMF1964;
+
 
 static PF_Err
 About(
@@ -78,8 +85,12 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-//	std::vector<std::vector<float>> color_curves_1931 = generate_color_curves_1931_observer (360.f, 830.f, 0.5f);
-//	std::vector<std::vector<float>> color_curves_1964 = generate_color_curves_1964_observer (360.f, 830.f, 0.5f);
+	/* Initialize PreSets */
+	setPresetsVector (vPresets);
+
+	/* Initialize Color Matching Functions (CMF) for Observers: "2 degrees 1931" and "10 degrees 1964" observers */
+	vCMF1931 = generate_color_curves_1931_observer (waveLengthStart, waveLengthStop, wavelengthStepFinest);
+	vCMF1964 = generate_color_curves_1964_observer (waveLengthStart, waveLengthStop, wavelengthStepFinest);
 
 	return err;
 }
@@ -182,7 +193,7 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_FINE_VALUE_SLIDER);
 
-	/* Setup 'Tint' slider */
+	/* Setup 'Tint coarse' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
 		controlItemName[7],
@@ -196,10 +207,24 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_TINT_SLIDER);
 
+	/* Setup 'Tint fine' slider */
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_FLOAT_SLIDERX(
+		controlItemName[8],
+		algoColorTintFineMin,
+		algoColorTintFineMax,
+		algoColorTintFineMin,
+		algoColorTintFineMax,
+		algoColorTintFineDefault,
+		PF_Precision_HUNDREDTHS,
+		0,
+		0,
+		COLOR_TEMPERATURE_TINT_FINE_SLIDER);
+
 	/* Setup 'Camera SPD' button - initially disabled */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
 	PF_ADD_BUTTON(
-		controlItemName[8],
+		controlItemName[9],
 		controlItemCameraSPD,
 		0,
 		PF_ParamFlag_SUPERVISE,
@@ -209,7 +234,7 @@ ParamsSetup(
 	/* Setup 'Load Preset' button */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_BUTTON(
-		controlItemName[9],
+		controlItemName[10],
 		controlItemLoadPreset,
 		0,
 		PF_ParamFlag_SUPERVISE,
@@ -219,7 +244,7 @@ ParamsSetup(
 	/* Setup 'Save Preset' button */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_BUTTON(
-		controlItemName[10],
+		controlItemName[11],
 		controlItemSavePreset,
 		0,
 		PF_ParamFlag_SUPERVISE,

@@ -3,6 +3,8 @@
 
 #include "ColorTemperatureControls.hpp"
 #include "ColorTemperatureEnums.hpp"
+#include <vector>
+
 
 typedef struct {
 	double Tx;
@@ -197,6 +199,9 @@ private:
 	const eWaveLenghthStep m_step = COLOR_TEMPERATURE_WAVELENGTH_STEP_FINEST;
 	const sTemperaturePoint m_IlluminantTempPoint = { 0.2852, 0.2741 };
 };
+
+
+bool setPresetsVector(std::vector<IPreset*>& v_presets);
 
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_CONTROLS_PRESET_CLASS__ */

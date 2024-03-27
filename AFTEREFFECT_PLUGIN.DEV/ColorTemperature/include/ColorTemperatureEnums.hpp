@@ -9,22 +9,28 @@ constexpr int32_t algoColorTempMin    = 1000;
 constexpr int32_t algoColorTempMax    = 13000;
 constexpr int32_t algoColorWhitePoint = 6500;
 
+using WaveLengthT = double;
+
 constexpr double algoColorTempFineMin = -50.0;
 constexpr double algoColorTempFineMax = 50.0;
 constexpr double algoColorTempFineDef = 0.0;
 
-constexpr double algoColorTintMin     = -10.0;
-constexpr double algoColorTintMax     =  10.0;
+constexpr double algoColorTintMin     = -50.0;
+constexpr double algoColorTintMax     =  50.0;
 constexpr double algoColorTintDefault =  0.0;
 
-constexpr double waveLengthStart      = 380.0;
-constexpr double waveLengthStop       = 700.0;
-constexpr double wavelengthStepWorst  = 5.00;
-constexpr double wavelengthStepDecent = 2.00;
-constexpr double wavelengthStepFine   = 1.00;
-constexpr double wavelengthStepFinest = 0.50;
-constexpr double wavelengthStepScientific = 0.10;
-constexpr double wavelengthStepDefault  = wavelengthStepDecent;
+constexpr double algoColorTintFineMin = -2.0;
+constexpr double algoColorTintFineMax = 2.0;
+constexpr double algoColorTintFineDefault = 0.0;
+
+constexpr WaveLengthT waveLengthStart      = 380.0;
+constexpr WaveLengthT waveLengthStop       = 740.0;
+constexpr WaveLengthT wavelengthStepWorst  = 5.00;
+constexpr WaveLengthT wavelengthStepDecent = 2.00;
+constexpr WaveLengthT wavelengthStepFine   = 1.00;
+constexpr WaveLengthT wavelengthStepFinest = 0.50;
+constexpr WaveLengthT wavelengthStepScientific = 0.10;
+constexpr WaveLengthT wavelengthStepDefault  = wavelengthStepDecent;
 
 
 constexpr double colorTemperature2Slider  (const int32_t& val) noexcept { return static_cast<double>(val) / algoColorTempScale;  }
@@ -41,6 +47,7 @@ typedef enum {
 	COLOR_TEMPERATURE_COARSE_VALUE_SLIDER,
 	COLOR_TEMPERATURE_FINE_VALUE_SLIDER,
 	COLOR_TEMPERATURE_TINT_SLIDER,
+	COLOR_TEMPERATURE_TINT_FINE_SLIDER,
 	COLOR_TEMPERATURE_CAMERA_SPD_BUTTON,
 	COLOR_TEMPERATURE_LOAD_PRESET_BUTTON,
 	COLOR_TEMPERATURE_SAVE_PRESET_BUTTON,

@@ -11,7 +11,8 @@ constexpr char controlItemName[][32] = {
 	"Wavelength Step",				/* popup		*/
 	"Color Temperature. °K x 1000", /* slider		*/
 	"Temperature Offset",			/* slider		*/
-	"Tint",							/* slider		*/
+	"Tint coarse",					/* slider		*/
+	"Tint fine",					/* slider		*/
 	"Camera SPD",					/* button		*/
 	"Load Preset",					/* button		*/
 	"Save Preset"					/* button		*/
