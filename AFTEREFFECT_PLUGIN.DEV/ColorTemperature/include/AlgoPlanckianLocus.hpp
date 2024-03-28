@@ -17,9 +17,7 @@ inline T Planck (const T& wave_length, const T& white_point) noexcept
 	constexpr T second_radiation_constant{(h * c) / k};
 
 	const T lambda = wave_length / 1e9;	/* Convert wave length from nano-meters to meters */
-
-	const T spectral_radiance = first_radiaton_constant / (std::pow(lambda, 5.0) * (std::exp(second_radiation_constant / (lambda * white_point)) - 1.0));
-	return  spectral_radiance;
+	return (first_radiaton_constant / (std::pow(lambda, 5.0) * (std::exp(second_radiation_constant / (lambda * white_point)) - 1.0)));
 }
 
 

@@ -52,10 +52,10 @@ inline const std::vector<T> init_illuminant_D65 (void) noexcept
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline const std::vector<T> init_illuminant_D65_Cloudy(void) noexcept
 {
-	constexpr T tintFactor = static_cast<T>(1.0) - white_point_D65_Cloudy_Tint;
 	std::vector<T> d65_illuminant_with_tint = init_illuminant (waveLengthStart, waveLengthStop, wavelengthStepFinest, white_point_D65);
 	/* apply Tint value */
 	const size_t vectorSize = d65_illuminant_with_tint.size();
+	constexpr T tintFactor = static_cast<T>(1.0) - static_cast<T>(white_point_D65_Cloudy_Tint);
 	for (size_t i = 0; i < vectorSize; i++)
 		d65_illuminant_with_tint[i] *= tintFactor;
 
