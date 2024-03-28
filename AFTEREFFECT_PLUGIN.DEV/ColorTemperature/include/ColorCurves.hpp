@@ -67,7 +67,7 @@ inline std::vector<std::vector<T>> generate_color_curves_1931_observer (const T&
 
 	/* generate X, Y, Z color curve */
 	T WaveLength{ minWlength };
-	for (int32_t i = 0; i < vectorSize; i++)
+	for (size_t i = 0; i < vectorSize; i++)
 	{
 		/* this computation happened on initialization stage, so we may use std::exp() functions for compute point curves value */
 		vectorCurves[CURVES_X][i] = x_sample_1931(WaveLength);
@@ -119,7 +119,7 @@ inline std::vector<std::vector<T>> generate_color_curves_1964_observer (const T&
 
 	/* generate X, Y, Z color curve */
 	T WaveLength{ minWlength };
-	for (int32_t i = 0; i < vectorSize; i++)
+	for (size_t i = 0; i < vectorSize; i++)
 	{
 		/* this computation happened on initialization stage, so we may use std::exp() functions for compute point curves value */
 		vectorCurves[CURVES_X][i] = x_sample_1964(WaveLength);
