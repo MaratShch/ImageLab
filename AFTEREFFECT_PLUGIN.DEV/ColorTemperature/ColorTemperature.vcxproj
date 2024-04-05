@@ -173,6 +173,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoColorDescriptor.hpp" />
     <ClInclude Include="include\AlgoPlanckianLocus.hpp" />
     <ClInclude Include="include\ColorCurves.hpp" />
     <ClInclude Include="include\ColorIlluminant.hpp" />
@@ -188,6 +189,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\ColorTemperatureSeqData.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoColorDescriptor.cpp" />
     <ClCompile Include="src\ColorTemperature.cpp" />
     <ClCompile Include="src\ColorTemperatureAE.cpp" />
     <ClCompile Include="src\ColorTemperatureControlsPresets.cpp" />

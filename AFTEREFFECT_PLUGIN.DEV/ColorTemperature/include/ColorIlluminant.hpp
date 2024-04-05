@@ -5,6 +5,7 @@
 #include "ColorTemperatureEnums.hpp"
 #include <limits>
 
+using IlluminantT = WaveLengthT;
 using ColorTemperatureT = WaveLengthT;
 
 /* White Point color temperature for every Illuminant in Kelvins */
@@ -12,6 +13,7 @@ constexpr ColorTemperatureT white_point_D65						= 6504.0;
 constexpr ColorTemperatureT white_point_D65_Cloudy_Tint			= 0.030;
 constexpr ColorTemperatureT white_point_Tungsten				= 3200.0;
 constexpr ColorTemperatureT white_point_FluorescentDayLight		= 6500.0;
+constexpr ColorTemperatureT white_point_WhiteFluorescent        = 4230.0;
 constexpr ColorTemperatureT white_point_FluorescentWarmWhite	= 3000.0;
 constexpr ColorTemperatureT white_point_FluorescentSoftWhite	= 4200.0;
 constexpr ColorTemperatureT white_point_Incandescent			= 2700.0;
@@ -72,6 +74,12 @@ template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::
 inline const std::vector<T> init_illuminant_FluorescentDayLight (void) noexcept
 {
 	return init_illuminant(waveLengthStart, waveLengthStop, wavelengthStepFinest, white_point_FluorescentDayLight);
+}
+
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline const std::vector<T> init_illuminant_WhiteFluorescent(void) noexcept
+{
+	return init_illuminant(waveLengthStart, waveLengthStop, wavelengthStepFinest, white_point_WhiteFluorescent);
 }
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>

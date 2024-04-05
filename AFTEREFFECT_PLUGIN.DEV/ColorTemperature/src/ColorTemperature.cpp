@@ -1,5 +1,5 @@
+#include "AlgoColorDescriptor.hpp"
 #include "ColorTemperature.hpp"
-#include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureGUI.hpp"
 #include "ColorTemperatureSeqData.hpp"
 #include "ColorTemperatureControlsPresets.hpp"
@@ -8,20 +8,12 @@
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
 
+
+/* ColorDescriptor object */
+CAlgoColorDescriptor<ColorDescriptorT>* gColorDescriptor = nullptr;
+
 /* vector contains preset settings */
-std::vector<IPreset*> vPresets;
-/* vectors of Color Observers */
-std::vector<std::vector<WaveLengthT>> vCMF1931;
-std::vector<std::vector<WaveLengthT>> vCMF1964;
-/* vectors of Illuminants */
-std::vector<double> iD65;
-std::vector<double> iD65_Cloudy;
-std::vector<double> iTungsten;
-std::vector<double> iFluorescentDayLight;
-std::vector<double> iFluorescentWarmWhite;
-std::vector<double> iFluorescentSoftWhite;
-std::vector<double> iIncandescent;
-std::vector<double> iMoonlight;
+std::vector<IPreset*> vPresets{};
 
 
 static PF_Err
@@ -99,19 +91,8 @@ GlobalSetup(
 	/* Initialize PreSets */
 	setPresetsVector (vPresets);
 
-	/* Initialize Color Matching Functions (CMF) for Observers: "2 degrees 1931" and "10 degrees 1964" observers */
-	vCMF1931 = generate_color_curves_1931_observer (waveLengthStart, waveLengthStop, wavelengthStepFinest);
-	vCMF1964 = generate_color_curves_1964_observer (waveLengthStart, waveLengthStop, wavelengthStepFinest);
-
-	/* Initialize Illuminants */
-	iD65					= init_illuminant_D65<double>();
-	iD65_Cloudy				= init_illuminant_D65_Cloudy<double>();
-	iTungsten				= init_illuminant_Tungsten<double>();
-	iFluorescentDayLight	= init_illuminant_FluorescentDayLight<double>();
-	iFluorescentWarmWhite	= init_illuminant_FluorescentWarmWhite<double>();
-	iFluorescentSoftWhite	= init_illuminant_FluorescentSoftWhite<double>();
-	iIncandescent			= init_illuminant_Incandescent<double>();
-	iMoonlight				= init_illuminant_Moonlight<double>();
+	gColorDescriptor = CAlgoColorDescriptor<ColorDescriptorT>::getInstance();
+	err = ((nullptr != gColorDescriptor && true == gColorDescriptor->Initialize()) ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
 	return err;
 }
