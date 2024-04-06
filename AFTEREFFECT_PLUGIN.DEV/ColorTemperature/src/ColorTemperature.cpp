@@ -91,6 +91,7 @@ GlobalSetup(
 	/* Initialize PreSets */
 	setPresetsVector (vPresets);
 
+	/* Initialize CAlgoColorDescriptor object single-tone */
 	gColorDescriptor = CAlgoColorDescriptor<ColorDescriptorT>::getInstance();
 	err = ((nullptr != gColorDescriptor && true == gColorDescriptor->Initialize()) ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
@@ -122,9 +123,8 @@ ParamsSetup(
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 	constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	
 	/* SetUp 'Using Preset' checkbox. Default state - non selected */
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_CHECKBOXX(
 		controlItemName[0],
 		FALSE,
