@@ -39,11 +39,11 @@ public:
 
 	bool Initialize (void) noexcept
 	{
-		if (false == m_IsInitialized)
+		if (0 == m_IsInitialized)
 		{
+			m_IsInitialized = 1;
 			generateObservers();
 			generateIlluminant();
-			m_IsInitialized = true;
 		}
 		return true;
 	}
@@ -56,7 +56,7 @@ private:
 	static std::atomic<CAlgoColorDescriptor<T>*> s_instance;
 	static std::mutex s_protectMutex;
 
-	std::atomic<bool> m_IsInitialized = false;
+	std::atomic<int32_t> m_IsInitialized = 0;
 
 	const T m_waveLengthStart = waveLengthStart;
 	const T m_waveLengthStop  = waveLengthStop;
@@ -66,6 +66,7 @@ private:
 	const T m_WhitePoint_D65_Cloudy_Tint = 0.030;
 	const T m_Whitepoint_Tungsten = 3200.0;
 	const T m_WhitePoint_FluorescentDayLight = 6500.0;
+	const T m_White_Point_WhiteFluorescent = 4230.0;
 	const T m_WhitePoint_FluorescentWarmWhite = 3000.0;
 	const T m_WhitePoint_FluorescentSoftWhite = 4200.0;
 	const T m_WhitePoint_Incandescent = 2700.0;
@@ -87,18 +88,31 @@ private:
 		return;
 	}
 
+
+	const std::vector<T> init_illuminant_D65_Cloudy (void) noexcept
+	{
+		const auto vectorSize = m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_D65].size();
+		std::vector<T> d65_illuminant_with_tint (vectorSize);
+		/* apply Tint value */
+		const T tintFactor = static_cast<T>(1.0) - static_cast<T>(m_WhitePoint_D65_Cloudy_Tint);
+		for (size_t i = 0; i < vectorSize; i++)
+			d65_illuminant_with_tint[i] = m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_D65][i] * tintFactor;
+
+		return d65_illuminant_with_tint;
+	}
+
 	void generateIlluminant (void) noexcept
 	{
 		m_Illuminant.resize(static_cast<size_t>(COLOR_TEMPERATURE_TOTAL_ILLUMINANTS));
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_D65]               = init_illuminant_D65<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_D65_CLOUDY]        = init_illuminant_D65_Cloudy<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_TUNGSTEN]          = init_illuminant_Tungsten<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_FLUORESCENT]       = init_illuminant_FluorescentDayLight<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_WHITE_FLUORESCENT] = init_illuminant_WhiteFluorescent<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_INCANDESCENT]      = init_illuminant_Incandescent<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_WARM_WHITE]        = init_illuminant_FluorescentWarmWhite<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_SOFT_WHITE]        = init_illuminant_FluorescentSoftWhite<T>();
-		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_MOONLIGHT]         = init_illuminant_Moonlight<T>();
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_D65]               = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_WhitePoint_D65);
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_D65_CLOUDY]        = init_illuminant_D65_Cloudy(); /* this API internally using D65 illuminant - please call it only after compute D65 */
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_TUNGSTEN]          = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_Whitepoint_Tungsten);
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_FLUORESCENT]       = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_WhitePoint_FluorescentDayLight);
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_WHITE_FLUORESCENT] = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_White_Point_WhiteFluorescent);
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_INCANDESCENT]      = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_WhitePoint_Incandescent);
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_WARM_WHITE]        = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_WhitePoint_FluorescentWarmWhite);
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_SOFT_WHITE]        = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_WhitePoint_FluorescentSoftWhite);
+		m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_MOONLIGHT]         = init_illuminant (m_waveLengthStart, m_waveLengthStop, m_wavelengthStep, m_WhitePoint_Moonlight);
 		return;
 	}
 

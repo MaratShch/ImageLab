@@ -10,7 +10,7 @@
 
 
 /* ColorDescriptor object */
-CAlgoColorDescriptor<ColorDescriptorT>* gColorDescriptor = nullptr;
+CAlgoColorDescriptor<ColorDescriptorT>* gColorDescriptor {nullptr};
 
 /* vector contains preset settings */
 std::vector<IPreset*> vPresets{};
