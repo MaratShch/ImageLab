@@ -29,7 +29,7 @@ public:
 			iDescriptor = s_instance.load(std::memory_order_relaxed);
 			if (nullptr == iDescriptor)
 			{
-				iDescriptor = new CAlgoColorDescriptor<T>();
+				iDescriptor = new (std::nothrow) CAlgoColorDescriptor<T>();
 				s_instance.store(iDescriptor, std::memory_order_release);
 			}
 		}

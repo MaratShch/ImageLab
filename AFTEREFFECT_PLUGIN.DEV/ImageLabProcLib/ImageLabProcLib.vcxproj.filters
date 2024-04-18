@@ -77,10 +77,10 @@
     <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\fft_cpu.cpp">
+    <ClCompile Include="src\algo_fft_cpu.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\fft_gpu.cpp">
+    <ClCompile Include="src\algo_fft_gpu.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
