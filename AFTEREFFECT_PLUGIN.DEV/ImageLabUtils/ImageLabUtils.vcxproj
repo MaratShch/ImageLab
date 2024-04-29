@@ -153,7 +153,6 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\FFTUtils.hpp" />
     <ClInclude Include="include\ImageLabUtils.hpp" />
     <ClInclude Include="include\MemoryBlock.hpp" />
     <ClInclude Include="include\MemoryHolder.hpp" />

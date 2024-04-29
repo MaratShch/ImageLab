@@ -74,9 +74,6 @@
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\FFTUtils.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\CommonBitsOperations.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
