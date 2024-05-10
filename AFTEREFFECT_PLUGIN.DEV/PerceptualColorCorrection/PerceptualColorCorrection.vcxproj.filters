@@ -69,5 +69,32 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\PerceptualColorCorrection.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PerceptualColorCorrectionAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\PerceptualColorCorrection.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PerceptualColorCorrectionAe.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PerceptualColorCorrectionPr.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="PerceptualColorCorrection.r">
+      <Filter>resource</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="PerceptualColorCorrection.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
