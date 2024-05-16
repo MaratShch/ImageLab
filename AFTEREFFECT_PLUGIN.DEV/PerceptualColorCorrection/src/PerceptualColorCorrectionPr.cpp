@@ -26,7 +26,7 @@ PF_Err RenderInPremier
 
 		////
 		fRGB* pTmpImg = new fRGB[sizeY * sizeX];
-		memset(pTmpImg, 0, sizeof(fRGB) * sizeY * sizeX);
+//		memset(pTmpImg, 0, sizeof(fRGB) * sizeY * sizeX);
 		////
 
 		switch (destinationPixelFormat)
@@ -37,16 +37,31 @@ PF_Err RenderInPremier
 				      PF_Pixel_BGRA_8u* __restrict pDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
 				const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-				constexpr float maxPixValue = 255.f;
-				QuickWhiteBalance (pSrc, pTmpImg, sizeX, sizeY, linePitch, maxPixValue);
-				dbgBufferShow(pSrc, pTmpImg, pDst, sizeX, sizeY, linePitch, linePitch, maxPixValue);
+				QuickWhiteBalance (pSrc, pTmpImg, sizeX, sizeY, linePitch);
+				dbgBufferShow (pSrc, pTmpImg, pDst, sizeX, sizeY, linePitch, linePitch);
 			}
 			break;
 
 			case PrPixelFormat_BGRA_4444_16u:
+			{
+				const PF_Pixel_BGRA_16u* __restrict pSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
+				      PF_Pixel_BGRA_16u* __restrict pDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
+				const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+
+				QuickWhiteBalance (pSrc, pTmpImg, sizeX, sizeY, linePitch);
+				dbgBufferShow (pSrc, pTmpImg, pDst, sizeX, sizeY, linePitch, linePitch);
+			}
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
+			{
+				const PF_Pixel_BGRA_32f* __restrict pSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+				      PF_Pixel_BGRA_32f* __restrict pDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
+				const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+
+				QuickWhiteBalance (pSrc, pTmpImg, sizeX, sizeY, linePitch);
+				dbgBufferShow (pSrc, pTmpImg, pDst, sizeX, sizeY, linePitch, linePitch);
+			}
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u_709:

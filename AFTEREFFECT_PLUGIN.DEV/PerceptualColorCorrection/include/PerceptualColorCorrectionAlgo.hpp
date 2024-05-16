@@ -6,39 +6,43 @@
 #include "CommonPixFormatSFINAE.hpp"
 
 
-template <typename U, typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void QuickWhiteBalance
 (
 	const T* __restrict pSrcImage,
 	fRGB*    __restrict pDstImage,
 	A_long	   sizeX,
 	A_long     sizeY,
-	A_long     linePitch,
-	const U&   maxPixValue
+	A_long     linePitch
 ) noexcept
 {
-	U sumR, sumG, sumB;
+	float sumR, sumG, sumB;
 	A_long i, j;
 
-	sumR = sumG = sumB = static_cast<U>(0.0);
-	const U reciprocMaxPixVal = static_cast<U>(1.0) / maxPixValue;
-	const U reciprocImgSize   = static_cast<U>(1.0) / static_cast<U>(sizeX * sizeY);
+	float maxPixValue = static_cast<float>(u8_value_white);
+	if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
+		maxPixValue = static_cast<float>(u16_value_white);
+	else if (std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
+		maxPixValue = f32_value_white;
+
+	sumR = sumG = sumB = 0.f;
+	const float reciprocMaxPixVal = 1.f / maxPixValue;
+	const float reciprocImgSize   = 1.f / static_cast<float>(sizeX * sizeY);
 
 	for (j = 0; j < sizeY; j++)
 	{
 		const T* __restrict pSrcLine = pSrcImage + j * linePitch;
 		for (i = 0; i < sizeX; i++)
 		{
-			sumR += (static_cast<U>(pSrcLine[i].R) * reciprocMaxPixVal);
-			sumG += (static_cast<U>(pSrcLine[i].G) * reciprocMaxPixVal);
-			sumB += (static_cast<U>(pSrcLine[i].B) * reciprocMaxPixVal);
+			sumR += (static_cast<float>(pSrcLine[i].R) * reciprocMaxPixVal);
+			sumG += (static_cast<float>(pSrcLine[i].G) * reciprocMaxPixVal);
+			sumB += (static_cast<float>(pSrcLine[i].B) * reciprocMaxPixVal);
 		}
 	}
 
-	constexpr U half{ 0.5 };
-	const U scaleFactorR = reciprocMaxPixVal * half / (sumR * reciprocImgSize);
-	const U scaleFactorG = reciprocMaxPixVal * half / (sumG * reciprocImgSize);
-	const U scaleFactorB = reciprocMaxPixVal * half / (sumB * reciprocImgSize);
+	const float scaleFactorR = reciprocMaxPixVal * 0.5f / (sumR * reciprocImgSize);
+	const float scaleFactorG = reciprocMaxPixVal * 0.5f / (sumG * reciprocImgSize);
+	const float scaleFactorB = reciprocMaxPixVal * 0.5f / (sumB * reciprocImgSize);
 
 	for (j = 0; j < sizeY; j++)
 	{
@@ -46,9 +50,9 @@ inline void QuickWhiteBalance
 		fRGB*    __restrict pDstLine = pDstImage + j * sizeX;
 		for (i = 0; i < sizeX; i++)
 		{
-			pDstLine[i].R = (static_cast<U>(pSrcLine[i].R) * scaleFactorR);
-			pDstLine[i].G = (static_cast<U>(pSrcLine[i].G) * scaleFactorG);
-			pDstLine[i].B = (static_cast<U>(pSrcLine[i].B) * scaleFactorB);
+			pDstLine[i].R = (static_cast<float>(pSrcLine[i].R) * scaleFactorR);
+			pDstLine[i].G = (static_cast<float>(pSrcLine[i].G) * scaleFactorG);
+			pDstLine[i].B = (static_cast<float>(pSrcLine[i].B) * scaleFactorB);
 		}
 	}
 
@@ -63,8 +67,7 @@ void QuickWhiteBalance
 	fRGB*    __restrict pWbImage,
 	A_long	sizeX,
 	A_long  sizeY,
-	A_long  linePitch,
-	float   maxPixValue
+	A_long  linePitch
 ) noexcept
 {
 
@@ -72,7 +75,7 @@ void QuickWhiteBalance
 }
 
 
-template <typename U, typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void dbgBufferShow
 (
 	const T*    __restrict pSrcOrigImage,
@@ -81,11 +84,16 @@ inline void dbgBufferShow
 	A_long	   sizeX,
 	A_long     sizeY,
 	A_long     srcLinePitch,
-	A_long     dstLinePitch,
-	const U&   maxPixValue
+	A_long     dstLinePitch
 ) noexcept
 {
-	constexpr U zer0 = static_cast<U>(0);
+	constexpr float zer0 = 0.f;
+
+	float maxPixValue = static_cast<float>(u8_value_white);
+	if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
+		maxPixValue = static_cast<float>(u16_value_white);
+	else if (std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
+		maxPixValue = f32_value_white;
 
 	for (A_long j = 0; j < sizeY; j++)
 	{

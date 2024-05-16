@@ -88,13 +88,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="PerceptualColorCorrection.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="PerceptualColorCorrection.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="PerceptualColorCorrection.r" />
   </ItemGroup>
 </Project>
