@@ -34,9 +34,9 @@ inline void QuickWhiteBalance
 		const T* __restrict pSrcLine = pSrcImage + j * linePitch;
 		for (i = 0; i < sizeX; i++)
 		{
-			sumR += (static_cast<float>(pSrcLine[i].R) * reciprocMaxPixVal);
-			sumG += (static_cast<float>(pSrcLine[i].G) * reciprocMaxPixVal);
-			sumB += (static_cast<float>(pSrcLine[i].B) * reciprocMaxPixVal);
+			sumR += (pSrcLine[i].R * reciprocMaxPixVal);
+			sumG += (pSrcLine[i].G * reciprocMaxPixVal);
+			sumB += (pSrcLine[i].B * reciprocMaxPixVal);
 		}
 	}
 
@@ -50,9 +50,9 @@ inline void QuickWhiteBalance
 		fRGB*    __restrict pDstLine = pDstImage + j * sizeX;
 		for (i = 0; i < sizeX; i++)
 		{
-			pDstLine[i].R = (static_cast<float>(pSrcLine[i].R) * scaleFactorR);
-			pDstLine[i].G = (static_cast<float>(pSrcLine[i].G) * scaleFactorG);
-			pDstLine[i].B = (static_cast<float>(pSrcLine[i].B) * scaleFactorB);
+			pDstLine[i].R = (pSrcLine[i].R * scaleFactorR);
+			pDstLine[i].G = (pSrcLine[i].G * scaleFactorG);
+			pDstLine[i].B = (pSrcLine[i].B * scaleFactorB);
 		}
 	}
 

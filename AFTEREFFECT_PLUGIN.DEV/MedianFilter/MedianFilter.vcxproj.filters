@@ -72,6 +72,9 @@
     <ClInclude Include="..\Common\LibExport.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\MedianFilterConstantTime.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\MedianFilter.cpp">

@@ -1,6 +1,5 @@
 #pragma once
 
-
 typedef enum {
 	MEDIAN_FILTER_INPUT,
 	MEDIAN_FILTER_SLIDER_RADIUS,

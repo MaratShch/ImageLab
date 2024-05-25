@@ -4,7 +4,7 @@
 #include "MedianFilterEnums.hpp"
 
 constexpr char strName[] = "Median Filter";
-constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rImage Stylization plugin.";
+constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rImage Stylization plugin.";
 constexpr int MedianFilter_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int MedianFilter_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int MedianFilter_VersionSub = 0;
@@ -121,11 +121,11 @@ PF_Err MeadianFilterInAE_16bits
 
 bool median_filter_constant_time_BGRA_4444_8u
 (
-	uint32_t* __restrict pInImage,
-	uint32_t* __restrict pOutImage,
+	const uint32_t* __restrict pInImage,
+	      uint32_t* __restrict pOutImage,
 	A_long sizeY,
 	A_long sizeX,
 	A_long srcLinePitch,
 	A_long dstLinePitch,
-	const A_long& kernelSize
+	A_long kernelSize
 ) noexcept;

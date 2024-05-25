@@ -1,29 +1,25 @@
 #include "MedianFilter.hpp"
+#include "MedianFilterConstantTime.hpp"
 
 bool median_filter_constant_time_BGRA_4444_8u
 (
-	uint32_t* __restrict pInImage,
-	uint32_t* __restrict pOutImage,
-	A_long sizeY,
+	const uint32_t* __restrict pSrcBuffer,
+	      uint32_t* __restrict pDstBuffer,
 	A_long sizeX,
+	A_long sizeY,
 	A_long srcLinePitch,
 	A_long dstLinePitch,
-	const A_long& kernelSize
+	A_long kernelSize
 ) noexcept
 {
-	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pInImage);
-	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(pOutImage);
-	A_long i, j;
+	CACHE_ALIGN uint16_t pChannelHistR[256]{};
+	CACHE_ALIGN uint16_t pChannelHistG[256]{};
+	CACHE_ALIGN uint16_t pChannelHistB[256]{};
+	uint16_t* pHist[3] = { pChannelHistR , pChannelHistG , pChannelHistB };
 
-	for (j = 0; j < sizeY; j++)
-	{
-		CACHE_ALIGN uint32_t mHist[3][256]{};
+	const PF_Pixel_BGRA_8u* __restrict pSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pSrcBuffer);
+	      PF_Pixel_BGRA_8u* __restrict pDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(pDstBuffer);
 
-		for (i = 0; i < sizeX; i++)
-		{
-
-		}
-	}
-
+	median_filter_constant_time_RGB (pSrc, pDst, pHist, sizeY, sizeX, srcLinePitch, dstLinePitch, kernelSize);
 	return true;
 }

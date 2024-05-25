@@ -24,7 +24,7 @@ PF_Err RenderInPremier
 		const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 		const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 
-		////
+		//// this allocation will be replaced by memory storage usage
 		fRGB* pTmpImg = new fRGB[sizeY * sizeX];
 //		memset(pTmpImg, 0, sizeof(fRGB) * sizeY * sizeX);
 		////

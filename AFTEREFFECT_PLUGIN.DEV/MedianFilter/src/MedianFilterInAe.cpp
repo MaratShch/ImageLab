@@ -1,6 +1,7 @@
 #include "MedianFilter.hpp"
 #include "MedianFilterAvx2.hpp"
 
+
 PF_Err MeadianFilterInAE_8bits
 (
 	PF_InData*   in_data,
@@ -31,17 +32,17 @@ PF_Err MeadianFilterInAE_8bits
 
 		case 3:
 		/* manually optimized variant 3x3 */
-			medianResult = median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+			medianResult = AVX2::Median::median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
 		break;
 
 		case 5:
 		/* manually optimized variant 5x5 */
-			medianResult = median_filter_5x5_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+			medianResult = AVX2::Median::median_filter_5x5_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
 		break;
 
 		case 7:
 		/* manually optimized variant 7x7 */
-			medianResult = median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
+			medianResult = AVX2::Median::median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, 0xFFFFFF00);
 		break;
 
 		default:

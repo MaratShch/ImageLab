@@ -149,6 +149,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\MedianFilter.hpp" />
     <ClInclude Include="include\MedianFilterAvx2.hpp" />
+    <ClInclude Include="include\MedianFilterConstantTime.hpp" />
     <ClInclude Include="include\MedianFilterEnums.hpp" />
   </ItemGroup>
   <ItemGroup>
