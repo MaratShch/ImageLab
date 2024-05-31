@@ -129,3 +129,14 @@ bool median_filter_constant_time_BGRA_4444_8u
 	A_long dstLinePitch,
 	A_long kernelSize
 ) noexcept;
+
+bool median_filter_constant_time_BGRA_4444_16u
+(
+	const uint32_t* __restrict pInImage,
+	uint32_t* __restrict pOutImage,
+	A_long sizeY,
+	A_long sizeX,
+	A_long srcLinePitch,
+	A_long dstLinePitch,
+	A_long kernelSize
+) noexcept;

@@ -64,14 +64,16 @@ PF_Err MedianFilter_BGRA_4444_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
-	const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
-	PF_Pixel_BGRA_16u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
+	const uint32_t*    __restrict localSrc = reinterpret_cast<const uint32_t* __restrict>(pfLayer->data);
+	      uint32_t*    __restrict localDst = reinterpret_cast<      uint32_t* __restrict>(output->data);
 
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+
 	auto const kernelSize = get_kernel_size(params);
+	bool medianResult = false;
 
 	switch (kernelSize)
 	{
@@ -97,11 +99,12 @@ PF_Err MedianFilter_BGRA_4444_16u
 		break;
 
 		default:
-		/* median via histogramm algo */
+			/* median via histogramm algo */
+			medianResult = median_filter_constant_time_BGRA_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch, kernelSize);
 		break;
 	}
 
-	return PF_Err_NONE;
+	return (true == medianResult ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 }
 
 
