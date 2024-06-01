@@ -23,7 +23,7 @@ namespace AVX2
 
 		inline void clean_hist_buffer(void* __restrict pBuffer, const size_t bytesSize) noexcept
 		{
-			__m256d  zVal{ 0 };
+			const __m256d  zVal{ 0 };
 			__m256d* p = reinterpret_cast<__m256d*>(pBuffer);
 			const size_t loopCnt = bytesSize / Avx2BytesSize;
 

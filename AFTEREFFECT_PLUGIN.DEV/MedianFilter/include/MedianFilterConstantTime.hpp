@@ -27,13 +27,13 @@ inline void initHistogram
 
 	for (A_long j = lineTop; j < lineBottom; j++)
 	{
-		const A_long lineIdx = FastCompute::Min((sizeY - 1), FastCompute::Max(0, j));
+		const A_long lineIdx = std::min((sizeY - 1), std::max(0, j));
 		const T* __restrict pLine = pSrc + lineIdx * linePitch;
 
 		for (A_long i = pixLeft; i < pixRight; i++)
 		{
-			const A_long idxPix = FastCompute::Min((sizeX - 1), FastCompute::Max(0, i));
-			const T& pixel = pLine[idxPix];
+			const A_long idxPix = std::min((sizeX - 1), std::max(0, i));
+			const T pixel = pLine[idxPix];
 
 			hR[pixel.R]++;
 			hG[pixel.G]++;
@@ -65,21 +65,21 @@ inline void updateHistogram
 	const A_long pixRight   = numbPix  + kerRadius;
 	const A_long pixPrev    = numbPix  - kerRadius - 1;
 
-	const A_long idxPixPrev = FastCompute::Min((sizeX - 1), FastCompute::Max(0, pixPrev));
-	const A_long idxPixNext = FastCompute::Min((sizeX - 1), pixRight);
+	const A_long idxPixPrev = std::min((sizeX - 1), std::max(0, pixPrev));
+	const A_long idxPixNext = std::min((sizeX - 1), pixRight);
 
 	for (A_long j = lineTop; j < lineBottom; j++)
 	{
-		const A_long lineIdx      = FastCompute::Min((sizeY - 1), FastCompute::Max(0, j));
+		const A_long lineIdx      = std::min((sizeY - 1), std::max(0, j));
 		const T* __restrict pLine = pSrc + lineIdx * linePitch;
 
-		const T& pixelPrev = pLine[idxPixPrev];
+		const T pixelPrev = pLine[idxPixPrev];
 		/* remove previous row */
 		hR[pixelPrev.R]--;
 		hG[pixelPrev.G]--;
 		hB[pixelPrev.B]--;
 
-		const T& pixelLast = pLine[idxPixNext];
+		const T pixelLast = pLine[idxPixNext];
 		/* add new row */
 		hR[pixelLast.R]++;
 		hG[pixelLast.G]++;

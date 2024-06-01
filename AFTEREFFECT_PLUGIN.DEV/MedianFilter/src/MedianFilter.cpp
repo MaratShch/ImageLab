@@ -79,8 +79,8 @@ GlobalSetDown (
 	PF_InData		*in_data,
 	PF_OutData		*out_data)
 {
-	PF_Err	err = PF_Err_NONE;
-	return err;
+	/* nothing TODO */
+	return PF_Err_NONE;
 }
 
 
@@ -123,7 +123,7 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
+	return ((PremierId == in_data->appl_id ? ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output)));
 }
 
 
@@ -150,8 +150,7 @@ UpdateParameterUI(
 	PF_LayerDef			*output
 )
 {
-	PF_Err		err = PF_Err_NONE;
-	return err;
+	return PF_Err_NONE;
 }
 
 

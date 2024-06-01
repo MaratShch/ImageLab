@@ -14,7 +14,7 @@ bool median_filter_constant_time_BGRA_4444_8u
 	A_long kernelSize
 ) noexcept
 {
-	constexpr size_t histSize = (UCHAR_MAX + 1);
+	constexpr size_t histSize{ UCHAR_MAX + 1 };
 	CACHE_ALIGN HistElem pChannelHistR[histSize];
 	CACHE_ALIGN HistElem pChannelHistG[histSize];
 	CACHE_ALIGN HistElem pChannelHistB[histSize];
@@ -33,14 +33,14 @@ bool median_filter_constant_time_BGRA_4444_16u
 (
 	const uint32_t* __restrict pSrcBuffer,
 	      uint32_t* __restrict pDstBuffer,
-	A_long sizeX,
 	A_long sizeY,
+	A_long sizeX,
 	A_long srcLinePitch,
 	A_long dstLinePitch,
 	A_long kernelSize
 ) noexcept
 {
-	constexpr size_t histSize = (SHRT_MAX + 1);
+	constexpr size_t histSize{ SHRT_MAX + 1 };
 	CACHE_ALIGN HistElem pChannelHistR[histSize];
 	CACHE_ALIGN HistElem pChannelHistG[histSize];
 	CACHE_ALIGN HistElem pChannelHistB[histSize];
@@ -51,5 +51,20 @@ bool median_filter_constant_time_BGRA_4444_16u
 
 	median_filter_constant_time_RGB (pSrc, pDst, pHistArray, histSize, sizeY, sizeX, srcLinePitch, dstLinePitch, kernelSize);
 
+	return true;
+}
+
+
+bool median_filter_constant_time_BGRA_4444_32f
+(
+	const uint32_t* __restrict pSrcBuffer,
+	uint32_t* __restrict pDstBuffer,
+	A_long sizeY,
+	A_long sizeX,
+	A_long srcLinePitch,
+	A_long dstLinePitch,
+	A_long kernelSize
+) noexcept
+{
 	return true;
 }
