@@ -4,7 +4,7 @@
 #include "MedianFilterEnums.hpp"
 
 constexpr char strName[] = "Median Filter";
-constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rImage Stylization plugin.";
+constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rMedian Filter plugin.";
 constexpr int MedianFilter_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int MedianFilter_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int MedianFilter_VersionSub = 0;
@@ -31,8 +31,6 @@ inline const int32_t get_kernel_size (PF_ParamDef* __restrict params[]) noexcept
 	auto const& kernelRadius = params[MEDIAN_FILTER_SLIDER_RADIUS]->u.sd.value;
 	return make_kernel_size (kernelRadius);
 }
-
-constexpr int32_t histBufferSize = ((sizeof(uint16_t) << 16) * sizeof(uint32_t));
 
 
 /* FUNCTION PROTOTYPES */

@@ -16,11 +16,11 @@ PF_Err MedianFilter_BGRA_4444_8u
 	uint32_t*  __restrict localSrc = reinterpret_cast<uint32_t* __restrict>(pfLayer->data);
 	uint32_t*  __restrict localDst = reinterpret_cast<uint32_t* __restrict>(output->data);
 
-	auto const height     = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	const A_long height     = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	const A_long width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-	auto const kernelSize = get_kernel_size(params);
+	const A_long kernelSize = get_kernel_size(params);
 	bool medianResult = false;
 
 	switch (kernelSize)
@@ -68,11 +68,11 @@ PF_Err MedianFilter_BGRA_4444_16u
 	const uint32_t*    __restrict localSrc = reinterpret_cast<const uint32_t* __restrict>(pfLayer->data);
 	      uint32_t*    __restrict localDst = reinterpret_cast<      uint32_t* __restrict>(output->data);
 
-	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+	const A_long height     = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	const A_long width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-	auto const kernelSize = get_kernel_size(params);
+	const A_long kernelSize = get_kernel_size(params);
 	bool medianResult = false;
 
 	switch (kernelSize)

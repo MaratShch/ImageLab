@@ -19,7 +19,7 @@ bool median_filter_constant_time_BGRA_4444_8u
 	CACHE_ALIGN HistElem pChannelHistG[histSize];
 	CACHE_ALIGN HistElem pChannelHistB[histSize];
 
-	const std::array<HistElem*, 3> pHistArray = { pChannelHistR , pChannelHistG , pChannelHistB };
+	const HistHolder pHistArray = { pChannelHistR , pChannelHistG , pChannelHistB };
 	const PF_Pixel_BGRA_8u* __restrict pSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pSrcBuffer);
 	      PF_Pixel_BGRA_8u* __restrict pDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(pDstBuffer);
 
@@ -45,7 +45,7 @@ bool median_filter_constant_time_BGRA_4444_16u
 	CACHE_ALIGN HistElem pChannelHistG[histSize];
 	CACHE_ALIGN HistElem pChannelHistB[histSize];
 
-	const std::array<HistElem*, 3> pHistArray = { pChannelHistR , pChannelHistG , pChannelHistB };
+	const HistHolder pHistArray = { pChannelHistR , pChannelHistG , pChannelHistB };
 	const PF_Pixel_BGRA_16u* __restrict pSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pSrcBuffer);
 	      PF_Pixel_BGRA_16u* __restrict pDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(pDstBuffer);
 
