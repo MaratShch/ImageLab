@@ -98,20 +98,20 @@ inline T medianPixel
 	HistElem* __restrict hR,
 	HistElem* __restrict hG,
 	HistElem* __restrict hB,
-	size_t               histSize,
+	A_long               histSize,
 	A_long               medianSample
 ) noexcept
 {
-	A_long idxR, idxG, idxB, samples;
+	A_long idxR, idxG, idxB, samplesR, samplesG, samplesB;
+	
+	for (samplesR = idxR = 0; (samplesR < medianSample) && (idxR++ < histSize);)
+		samplesR += static_cast<A_long>(hR[idxR]);
 
-	for (samples = idxR = 0; samples < medianSample; idxR++)
-		samples += hR[idxR];
+	for (samplesG = idxG = 0; (samplesG < medianSample) && (idxG++ < histSize);)
+		samplesG += static_cast<A_long>(hG[idxG]);
 
-	for (samples = idxG = 0; samples < medianSample; idxG++)
-		samples += hG[idxG];
-
-	for (samples = idxB = 0; samples < medianSample; idxB++)
-		samples += hB[idxB];
+	for (samplesB = idxB = 0; (samplesB < medianSample) && (idxB++ < histSize);)
+		samplesB += static_cast<A_long>(hB[idxB]);
 
 	T outPix;
 	outPix.A = pSrc.A;
@@ -144,9 +144,7 @@ inline void median_filter_constant_time_RGB
 	const A_long medianSample   = (kernelSize * kernelSize) >> 1;
 	const A_long kernelRadius   = kernelSize >> 1;
 
-	A_long i, j;
-
-	for (j = 0; j < sizeY; j++)
+	for (A_long j = 0; j < sizeY; j++)
 	{
 		AVX2::Histogram::clean_hist_buffer (pHistR, histBytesSize);
 		AVX2::Histogram::clean_hist_buffer (pHistG, histBytesSize);
@@ -158,7 +156,7 @@ inline void median_filter_constant_time_RGB
 
 		pOutImage[dstPixIdx] = medianPixel(pInImage[srcPixIdx], pHistR, pHistG, pHistB, histSize, medianSample);
 
-		for (i = 1; i < sizeX; i++)
+		for (A_long i = 1; i < sizeX; i++)
 		{
 			updateHistogram (pInImage, pHistR, pHistG, pHistB, kernelRadius, sizeX, sizeY, j, i, srcLinePitch);
 			pOutImage[dstPixIdx + i] = medianPixel (pInImage[srcPixIdx + i], pHistR, pHistG, pHistB, histSize, medianSample);

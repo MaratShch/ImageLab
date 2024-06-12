@@ -79,8 +79,7 @@ PF_Err MedianFilter_VUYA_4444_8u
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output,
-	const bool&             isBT709
+	PF_LayerDef* __restrict output
 ) noexcept;
 
 PF_Err MedianFilter_VUYA_4444_32f
@@ -88,8 +87,15 @@ PF_Err MedianFilter_VUYA_4444_32f
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output,
-	const bool&             isBT709
+	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err MedianFilter_RGB_444_10u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
 ) noexcept;
 
 PF_Err

@@ -152,6 +152,42 @@ PF_Err MedianFilter_BGRA_4444_32f
 }
 
 
+PF_Err MedianFilter_VUYA_4444_8u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	return PF_Err_NONE;
+}
+
+
+PF_Err MedianFilter_VUYA_4444_32f
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	return PF_Err_NONE;
+}
+
+
+PF_Err MedianFilter_RGB_444_10u
+(
+	PF_InData*   __restrict in_data,
+	PF_OutData*  __restrict out_data,
+	PF_ParamDef* __restrict params[],
+	PF_LayerDef* __restrict output
+) noexcept
+{
+	return PF_Err_NONE;
+}
+
+
 PF_Err ProcessImgInPR
 (
 	PF_InData*   __restrict in_data,
@@ -180,7 +216,22 @@ PF_Err ProcessImgInPR
 				err = MedianFilter_BGRA_4444_32f (in_data, out_data, params, output);
 			break;
 
+			case PrPixelFormat_VUYA_4444_8u_709:
+			case PrPixelFormat_VUYA_4444_8u:
+				err = MedianFilter_VUYA_4444_8u (in_data, out_data, params, output);
+			break;
+
+			case PrPixelFormat_VUYA_4444_32f_709:
+			case PrPixelFormat_VUYA_4444_32f:
+				err = MedianFilter_VUYA_4444_32f (in_data, out_data, params, output);
+			break;
+
+			case PrPixelFormat_RGB_444_10u:
+				err = MedianFilter_RGB_444_10u (in_data, out_data, params, output);
+			break;
+
 			default:
+				err = PF_Err_INVALID_INDEX;
 			break; 
 		} /* switch (destinationPixelFormat) */
 
