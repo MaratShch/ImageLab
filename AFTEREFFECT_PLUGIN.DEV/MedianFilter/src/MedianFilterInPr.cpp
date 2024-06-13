@@ -160,7 +160,44 @@ PF_Err MedianFilter_VUYA_4444_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
+	uint32_t*  __restrict localSrc = reinterpret_cast<uint32_t* __restrict>(pfLayer->data);
+	uint32_t*  __restrict localDst = reinterpret_cast<uint32_t* __restrict>(output->data);
+
+	const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	const A_long width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+
+	const A_long kernelSize = get_kernel_size(params);
+	bool medianResult = false;
+
+	switch (kernelSize)
+	{
+		case 0:
+			/* median filter disabled - just copy from source to destination */
+			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+			medianResult = true;
+		break;
+
+		case 3:
+			/* manually optimized variant 3x3 */
+		break;
+
+		case 5:
+			/* manually optimized variant 5x5 */
+		break;
+
+		case 7:
+			/* manually optimized variant 7x7 */
+		break;
+
+		default:
+		/* median via histogramm algo */
+			medianResult = median_filter_constant_time_VUYA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch, kernelSize);
+		break;
+	}
+
+	return (true == medianResult ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 }
 
 

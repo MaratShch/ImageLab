@@ -68,3 +68,26 @@ bool median_filter_constant_time_BGRA_4444_32f
 {
 	return true;
 }
+
+
+bool median_filter_constant_time_VUYA_4444_8u
+(
+	const uint32_t* __restrict pSrcBuffer,
+	      uint32_t* __restrict pDstBuffer,
+	A_long sizeY,
+	A_long sizeX,
+	A_long srcLinePitch,
+	A_long dstLinePitch,
+	A_long kernelSize
+) noexcept
+{
+	constexpr size_t histSize{ UCHAR_MAX + 1 };
+	CACHE_ALIGN HistElem pChannelHistY[histSize];
+
+	const PF_Pixel_VUYA_8u* __restrict pSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pSrcBuffer);
+	      PF_Pixel_VUYA_8u* __restrict pDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(pDstBuffer);
+
+	median_filter_constant_time_YUV (pSrc, pDst, pChannelHistY, histSize, sizeY, sizeX, srcLinePitch, dstLinePitch, kernelSize);
+
+	return true;
+}
