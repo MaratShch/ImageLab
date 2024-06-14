@@ -66,14 +66,6 @@ PF_Err MedianFilter_BGRA_4444_32f
 	PF_LayerDef* __restrict output
 ) noexcept;
 
-PF_Err MedianFilter_RGB_444_10u
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept;
-
 PF_Err MedianFilter_VUYA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -83,14 +75,6 @@ PF_Err MedianFilter_VUYA_4444_8u
 ) noexcept;
 
 PF_Err MedianFilter_VUYA_4444_32f
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept;
-
-PF_Err MedianFilter_RGB_444_10u
 (
 	PF_InData*   __restrict in_data,
 	PF_OutData*  __restrict out_data,
@@ -147,8 +131,8 @@ bool median_filter_constant_time_BGRA_4444_16u
 
 bool median_filter_constant_time_BGRA_4444_32f
 (
-	const uint32_t* __restrict pSrcBuffer,
-	uint32_t* __restrict pDstBuffer,
+	const PF_Pixel_BGRA_32f* __restrict pSrcBuffer,
+	      PF_Pixel_BGRA_32f* __restrict pDstBuffer,
 	A_long sizeY,
 	A_long sizeX,
 	A_long srcLinePitch,
@@ -159,7 +143,18 @@ bool median_filter_constant_time_BGRA_4444_32f
 bool median_filter_constant_time_VUYA_4444_8u
 (
 	const uint32_t* __restrict pSrcBuffer,
-	uint32_t* __restrict pDstBuffer,
+	      uint32_t* __restrict pDstBuffer,
+	A_long sizeY,
+	A_long sizeX,
+	A_long srcLinePitch,
+	A_long dstLinePitch,
+	A_long kernelSize
+) noexcept;
+
+bool median_filter_constant_time_VUYA_4444_32f
+(
+	const PF_Pixel_VUYA_32f* __restrict pSrcBuffer,
+	      PF_Pixel_VUYA_32f* __restrict pDstBuffer,
 	A_long sizeY,
 	A_long sizeX,
 	A_long srcLinePitch,

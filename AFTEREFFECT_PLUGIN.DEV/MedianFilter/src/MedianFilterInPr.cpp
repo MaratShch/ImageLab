@@ -70,7 +70,7 @@ PF_Err MedianFilter_BGRA_4444_16u
 
 	const A_long height     = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
 	const A_long kernelSize = get_kernel_size(params);
 	bool medianResult = false;
@@ -80,6 +80,7 @@ PF_Err MedianFilter_BGRA_4444_16u
 		case 0:
 			/* median filter disabled - just copy from source to destination */
 			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+			medianResult = true;
 		break;
 	
 	    case 3:
@@ -113,11 +114,11 @@ PF_Err MedianFilter_BGRA_4444_32f
 ) noexcept
 {
 	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
-	const uint32_t*    __restrict localSrc = reinterpret_cast<const uint32_t* __restrict>(pfLayer->data);
-	      uint32_t*    __restrict localDst = reinterpret_cast<      uint32_t* __restrict>(output->data);
+	const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+	      PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
 
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
 	auto const kernelSize = get_kernel_size(params);
@@ -128,6 +129,7 @@ PF_Err MedianFilter_BGRA_4444_32f
 		case 0:
 			/* median filter disabled - just copy from source to destination */
 			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+			medianResult = true;
 		break;
 		
 		case 3:
@@ -166,7 +168,7 @@ PF_Err MedianFilter_VUYA_4444_8u
 
 	const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
 	const A_long kernelSize = get_kernel_size(params);
 	bool medianResult = false;
@@ -209,19 +211,44 @@ PF_Err MedianFilter_VUYA_4444_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
-}
+	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
+	const PF_Pixel_VUYA_32f*  __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+	      PF_Pixel_VUYA_32f*  __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
 
+	const A_long height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	const A_long width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-PF_Err MedianFilter_RGB_444_10u
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
-{
-	return PF_Err_NONE;
+	const A_long kernelSize = get_kernel_size(params);
+	bool medianResult = false;
+
+	switch (kernelSize)
+	{
+		case 0:
+			/* median filter disabled - just copy from source to destination */
+			PF_COPY(&params[MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
+			medianResult = true;
+		break;
+
+		case 3:
+			/* manually optimized variant 3x3 */
+		break;
+
+		case 5:
+			/* manually optimized variant 5x5 */
+		break;
+
+		case 7:
+			/* manually optimized variant 7x7 */
+		break;
+
+		default:
+			/* median via histogramm algo */
+			medianResult = median_filter_constant_time_VUYA_4444_32f (localSrc, localDst, height, width, line_pitch, line_pitch, kernelSize);
+		break;
+	}
+
+	return (true == medianResult ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 }
 
 
@@ -261,10 +288,6 @@ PF_Err ProcessImgInPR
 			case PrPixelFormat_VUYA_4444_32f_709:
 			case PrPixelFormat_VUYA_4444_32f:
 				err = MedianFilter_VUYA_4444_32f (in_data, out_data, params, output);
-			break;
-
-			case PrPixelFormat_RGB_444_10u:
-				err = MedianFilter_RGB_444_10u (in_data, out_data, params, output);
 			break;
 
 			default:
