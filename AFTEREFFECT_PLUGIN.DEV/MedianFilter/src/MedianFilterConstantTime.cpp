@@ -40,7 +40,7 @@ bool median_filter_constant_time_BGRA_4444_16u
 	A_long kernelSize
 ) noexcept
 {
-	constexpr size_t histSize{ SHRT_MAX + 1 };
+	constexpr size_t histSize{ CreateAlignment(SHRT_MAX + 2, 32)};
 	CACHE_ALIGN HistElem pChannelHistR[histSize];
 	CACHE_ALIGN HistElem pChannelHistG[histSize];
 	CACHE_ALIGN HistElem pChannelHistB[histSize];
