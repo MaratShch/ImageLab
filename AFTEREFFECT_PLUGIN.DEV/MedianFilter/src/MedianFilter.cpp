@@ -73,7 +73,6 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
 	}
 
-
 	return err;
 }
 
