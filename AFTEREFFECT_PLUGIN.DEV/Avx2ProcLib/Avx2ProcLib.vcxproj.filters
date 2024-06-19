@@ -137,5 +137,8 @@
     <ClCompile Include="src\Avx2Morphology\Avx2Open.cpp">
       <Filter>src\Avx2Morphology</Filter>
     </ClCompile>
+    <ClCompile Include="src\Avx2Median\Avx2Median_3x3_BGRA4444_16u.cpp">
+      <Filter>src\Avx2Median</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

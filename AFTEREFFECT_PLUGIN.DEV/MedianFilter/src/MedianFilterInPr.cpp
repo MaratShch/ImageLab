@@ -65,8 +65,8 @@ PF_Err MedianFilter_BGRA_4444_16u
 ) noexcept
 {
 	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
-	const uint32_t*    __restrict localSrc = reinterpret_cast<const uint32_t* __restrict>(pfLayer->data);
-	      uint32_t*    __restrict localDst = reinterpret_cast<      uint32_t* __restrict>(output->data);
+	uint64_t*    __restrict localSrc = reinterpret_cast<uint64_t* __restrict>(pfLayer->data);
+	uint64_t*    __restrict localDst = reinterpret_cast<uint64_t* __restrict>(output->data);
 
 	const A_long height     = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long width      = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
@@ -85,6 +85,7 @@ PF_Err MedianFilter_BGRA_4444_16u
 	
 	    case 3:
 		/* manually optimized variant 3x3 */
+			medianResult = AVX2::Median::median_filter_3x3_BGRA_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		case 5:
@@ -97,7 +98,7 @@ PF_Err MedianFilter_BGRA_4444_16u
 
 		default:
 			/* median via histogramm algo */
-			medianResult = median_filter_constant_time_BGRA_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch, kernelSize);
+			medianResult = median_filter_constant_time_BGRA_4444_16u (reinterpret_cast<uint32_t*>(localSrc), reinterpret_cast<uint32_t*>(localDst), height, width, line_pitch, line_pitch, kernelSize);
 		break;
 	}
 
