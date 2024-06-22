@@ -120,8 +120,8 @@ bool median_filter_constant_time_BGRA_4444_8u
 
 bool median_filter_constant_time_BGRA_4444_16u
 (
-	const uint32_t* __restrict pInImage,
-	      uint32_t* __restrict pOutImage,
+	const uint64_t* __restrict pInImage,
+	      uint64_t* __restrict pOutImage,
 	A_long sizeY,
 	A_long sizeX,
 	A_long srcLinePitch,

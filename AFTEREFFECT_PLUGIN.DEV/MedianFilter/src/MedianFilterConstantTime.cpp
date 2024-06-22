@@ -31,8 +31,8 @@ bool median_filter_constant_time_BGRA_4444_8u
 
 bool median_filter_constant_time_BGRA_4444_16u
 (
-	const uint32_t* __restrict pSrcBuffer,
-	      uint32_t* __restrict pDstBuffer,
+	const uint64_t* __restrict pSrcBuffer,
+	      uint64_t* __restrict pDstBuffer,
 	A_long sizeY,
 	A_long sizeX,
 	A_long srcLinePitch,

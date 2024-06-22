@@ -100,7 +100,7 @@ PF_Err MedianFilter_BGRA_4444_16u
 
 		default:
 			/* median via histogramm algo */
-			medianResult = median_filter_constant_time_BGRA_4444_16u (reinterpret_cast<uint32_t*>(localSrc), reinterpret_cast<uint32_t*>(localDst), height, width, line_pitch, line_pitch, kernelSize);
+			medianResult = median_filter_constant_time_BGRA_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch, kernelSize);
 		break;
 	}
 
