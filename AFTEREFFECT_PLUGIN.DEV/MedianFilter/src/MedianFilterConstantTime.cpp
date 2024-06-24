@@ -29,6 +29,7 @@ bool median_filter_constant_time_BGRA_4444_8u
 }
 
 
+#pragma comment(linker, "/STACK:4194304")
 bool median_filter_constant_time_BGRA_4444_16u
 (
 	const uint64_t* __restrict pSrcBuffer,
@@ -40,7 +41,7 @@ bool median_filter_constant_time_BGRA_4444_16u
 	A_long kernelSize
 ) noexcept
 {
-	constexpr size_t histSize{ CreateAlignment(SHRT_MAX + 2, 32)};
+	constexpr size_t histSize{ CreateAlignment(SHRT_MAX + 2, 64)};
 	CACHE_ALIGN HistElem pChannelHistR[histSize];
 	CACHE_ALIGN HistElem pChannelHistG[histSize];
 	CACHE_ALIGN HistElem pChannelHistB[histSize];
