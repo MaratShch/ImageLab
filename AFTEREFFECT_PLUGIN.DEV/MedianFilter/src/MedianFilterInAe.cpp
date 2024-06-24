@@ -49,6 +49,7 @@ PF_Err MeadianFilterInAE_8bits
 
 		default:
 		/* median via histogramm algo */
+			medianResult = median_filter_constant_time_ARGB_4444_8u (localSrc, localDst, height, width, src_pitch, dst_pitch, kernelSize);
 		break;
 
 	}
