@@ -694,7 +694,7 @@ inline void PartialSort_25_elem_8u (__m256i a[25]) noexcept
 	+-------------------------------+
 
 */
-bool AVX2::Median::median_filter_5x5_BGRA_4444_16u
+bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 (
 	uint64_t* __restrict pInImage,
 	uint64_t* __restrict pOutImage,

@@ -11,11 +11,11 @@ inline void PartialVectorSort_4elem (__m256i a[4]) noexcept
 	0  0
 
 	*/
-	VectorSort16uPacked (a[0], a[2]);
-	VectorSort16uPacked (a[3], a[1]);
-	VectorSort16uPacked (a[0], a[1]);
-	VectorSort16uPacked (a[2], a[3]);
-	VectorSort16uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[0], a[2]);
+	VectorSort8uPacked (a[3], a[1]);
+	VectorSort8uPacked (a[0], a[1]);
+	VectorSort8uPacked (a[2], a[3]);
+	VectorSort8uPacked (a[1], a[2]);
 }
 
 
@@ -27,17 +27,17 @@ inline void PartialVectorSort_6elem (__m256i a[6]) noexcept
 	0  0  x
 	0  0  0
 	*/
-	VectorSort16uPacked (a[1], a[2]);
-	VectorSort16uPacked (a[4], a[5]);
-	VectorSort16uPacked (a[0], a[2]);
-	VectorSort16uPacked (a[3], a[5]);
-	VectorSort16uPacked (a[0], a[1]);
-	VectorSort16uPacked (a[3], a[4]);
-	VectorSort16uPacked (a[0], a[4]);
-	VectorSort16uPacked (a[1], a[5]);
-	VectorSort16uPacked (a[0], a[2]);
-	VectorSort16uPacked (a[1], a[3]);
-	VectorSort16uPacked (a[2], a[3]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[0], a[2]);
+	VectorSort8uPacked (a[3], a[5]);
+	VectorSort8uPacked (a[0], a[1]);
+	VectorSort8uPacked (a[3], a[4]);
+	VectorSort8uPacked (a[0], a[4]);
+	VectorSort8uPacked (a[1], a[5]);
+	VectorSort8uPacked (a[0], a[2]);
+	VectorSort8uPacked (a[1], a[3]);
+	VectorSort8uPacked (a[2], a[3]);
 }
 
 inline void PartialVectorSort_9elem (__m256i a[9]) noexcept
@@ -51,49 +51,49 @@ inline void PartialVectorSort_9elem (__m256i a[9]) noexcept
 	0  0  0
 
 	*/
-	VectorSort16uPacked (a[1], a[2]);
-	VectorSort16uPacked (a[4], a[5]);
-	VectorSort16uPacked (a[7], a[8]);
-	VectorSort16uPacked (a[0], a[1]);
-	VectorSort16uPacked (a[3], a[4]);
-	VectorSort16uPacked (a[6], a[7]);
-	VectorSort16uPacked (a[1], a[2]);
-	VectorSort16uPacked (a[4], a[5]);
-	VectorSort16uPacked (a[7], a[8]);
-	VectorSort16uPacked (a[0], a[3]);
-	VectorSort16uPacked (a[5], a[8]);
-	VectorSort16uPacked (a[4], a[7]);
-	VectorSort16uPacked (a[3], a[6]);
-	VectorSort16uPacked (a[1], a[4]);
-	VectorSort16uPacked (a[2], a[5]);
-	VectorSort16uPacked (a[4], a[7]);
-	VectorSort16uPacked (a[4], a[2]);
-	VectorSort16uPacked (a[6], a[4]);
-	VectorSort16uPacked (a[4], a[2]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[7], a[8]);
+	VectorSort8uPacked (a[0], a[1]);
+	VectorSort8uPacked (a[3], a[4]);
+	VectorSort8uPacked (a[6], a[7]);
+	VectorSort8uPacked (a[1], a[2]);
+	VectorSort8uPacked (a[4], a[5]);
+	VectorSort8uPacked (a[7], a[8]);
+	VectorSort8uPacked (a[0], a[3]);
+	VectorSort8uPacked (a[5], a[8]);
+	VectorSort8uPacked (a[4], a[7]);
+	VectorSort8uPacked (a[3], a[6]);
+	VectorSort8uPacked (a[1], a[4]);
+	VectorSort8uPacked (a[2], a[5]);
+	VectorSort8uPacked (a[4], a[7]);
+	VectorSort8uPacked (a[4], a[2]);
+	VectorSort8uPacked (a[6], a[4]);
+	VectorSort8uPacked (a[4], a[2]);
 }
 
 
-inline void LoadLinePixel0 (uint64_t* __restrict pSrc, __m256i elemLine[2]) noexcept
+inline void LoadLinePixel0 (uint32_t* __restrict pSrc, __m256i elemLine[2]) noexcept
 {
-	elemLine[0] = _mm256_loadu_si256 (reinterpret_cast<__m256i*>(pSrc));
-	elemLine[1] = _mm256_loadu_si256 (reinterpret_cast<__m256i*>(pSrc + 1));
+	elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+	elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
 }
 
-inline void LoadLinePixelLast(uint64_t* __restrict pSrc, __m256i elemline[2]) noexcept
+inline void LoadLinePixelLast(uint32_t* __restrict pSrc, __m256i elemline[2]) noexcept
 {
-	elemline[0] = _mm256_loadu_si256 (reinterpret_cast<__m256i*>(pSrc - 1));
-	elemline[1] = _mm256_loadu_si256 (reinterpret_cast<__m256i*>(pSrc));
+	elemline[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
+	elemline[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
 }
 
 
-inline void LoadLinePixel (uint64_t* __restrict pSrc, __m256i elemLine[3]) noexcept
+inline void LoadLinePixel (uint32_t* __restrict pSrc, __m256i elemLine[3]) noexcept
 {
-	elemLine[0] = _mm256_loadu_si256 (reinterpret_cast<__m256i*>(pSrc - 1));
-	elemLine[1] = _mm256_loadu_si256 (reinterpret_cast<__m256i*>(pSrc));
-	elemLine[2] = _mm256_loadu_si256 (reinterpret_cast<__m256i*>(pSrc + 1));
+	elemLine[0] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc - 1));
+	elemLine[1] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc));
+	elemLine[2] = _mm256_loadu_si256(reinterpret_cast<__m256i*>(pSrc + 1));
 }
 
-inline __m256i LoadFirstLineWindowPixel0 (uint64_t* __restrict pSrc, uint64_t* __restrict pNext, __m256i  elem[4]) noexcept
+inline __m256i LoadFirstLineWindowPixel0 (uint32_t* __restrict pSrc, uint32_t* __restrict pNext, __m256i  elem[4]) noexcept
 {
 	                                  //  +----- 
 	LoadLinePixel0 (pSrc, elem);      //  | X  0 
@@ -102,14 +102,14 @@ inline __m256i LoadFirstLineWindowPixel0 (uint64_t* __restrict pSrc, uint64_t* _
 }
 
 
-inline __m256i LoadLastLineWindowPixel0 (uint64_t* __restrict pPrev, uint64_t* __restrict pSrc, __m256i  elem[4]) noexcept
+inline __m256i LoadLastLineWindowPixel0 (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc, __m256i  elem[4]) noexcept
 {
 	LoadLinePixel0 (pPrev, elem);     //  | 0  0 
 	LoadLinePixel0 (pSrc,  elem + 2); //  | X  0
 	return elem[2];                   //  + ---- 
 }
 
-inline __m256i LoadFirstLineWindowPixelLast(uint64_t* __restrict pSrc, uint64_t* pNext, __m256i elem[4]) noexcept
+inline __m256i LoadFirstLineWindowPixelLast(uint32_t* __restrict pSrc, uint32_t* pNext, __m256i elem[4]) noexcept
 {
 							  			  //  ------+ 
 	LoadLinePixelLast (pSrc, elem);       //   0  X |
@@ -117,15 +117,15 @@ inline __m256i LoadFirstLineWindowPixelLast(uint64_t* __restrict pSrc, uint64_t*
 	return elem[1];
 }
 
-inline __m256i LoadLastLineWindowPixelLast(uint64_t* __restrict pPrev, uint64_t* pSrc, __m256i elem[4]) noexcept
+inline __m256i LoadLastLineWindowPixelLast(uint32_t* __restrict pPrev, uint32_t* pSrc, __m256i elem[4]) noexcept
 {
-	LoadLinePixelLast (pPrev, elem);      //   0  0 |
-	LoadLinePixelLast (pSrc,  elem + 2);  //   0  X |
+	LoadLinePixelLast(pPrev, elem);      //   0  0 |
+	LoadLinePixelLast(pSrc,  elem + 2);  //   0  X |
 	return elem[1];                      //  ------+
 }
 
 
-inline __m256i LoadFirstLineWindowPixel (uint64_t* __restrict pSrc, uint64_t* __restrict pNext, __m256i  elem[6]) noexcept
+inline __m256i LoadFirstLineWindowPixel (uint32_t* __restrict pSrc, uint32_t* __restrict pNext, __m256i  elem[6]) noexcept
 {
 	                                  // -------
 	LoadLinePixel (pSrc, elem);       // 0  X  0
@@ -133,15 +133,15 @@ inline __m256i LoadFirstLineWindowPixel (uint64_t* __restrict pSrc, uint64_t* __
 	return elem[1];
 }
 
-inline __m256i LoadLastLineWindowPixel (uint64_t* __restrict pPrev, uint64_t* __restrict pSrc, __m256i  elem[6]) noexcept
+inline __m256i LoadLastLineWindowPixel (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc, __m256i  elem[6]) noexcept
 {
 	// -------
-	LoadLinePixel (pPrev, elem);      // 0  0  0
-	LoadLinePixel (pSrc,  elem + 3);  // 0  X  0
+	LoadLinePixel(pPrev, elem);      // 0  0  0
+	LoadLinePixel(pSrc,  elem + 3);  // 0  X  0
 	return elem[4];                  // -------
 }
 
-inline __m256i LoadWindowPixel0 (uint64_t* __restrict pPrev, uint64_t* __restrict pSrc, uint64_t* __restrict pNext, __m256i elem[6]) noexcept
+inline __m256i LoadWindowPixel0(uint32_t* __restrict pPrev, uint32_t* __restrict pSrc, uint32_t* __restrict pNext, __m256i elem[6]) noexcept
 {
 	LoadLinePixel0 (pPrev, elem);          //  | 0  0
 	LoadLinePixel0 (pSrc,  elem + 2);      //  | X  0
@@ -149,7 +149,7 @@ inline __m256i LoadWindowPixel0 (uint64_t* __restrict pPrev, uint64_t* __restric
 	return elem[2];
 }
 
-inline __m256i LoadWindowPixelLast (uint64_t* __restrict pPrev, uint64_t* __restrict pSrc, uint64_t* __restrict pNext, __m256i elem[6]) noexcept
+inline __m256i LoadWindowPixelLast (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc, uint32_t* __restrict pNext, __m256i elem[6]) noexcept
 {
 	LoadLinePixelLast (pPrev, elem);          //  0  0 | 
 	LoadLinePixelLast (pSrc,  elem + 2);      //  0  X |
@@ -157,7 +157,7 @@ inline __m256i LoadWindowPixelLast (uint64_t* __restrict pPrev, uint64_t* __rest
 	return elem[3];
 }
 
-inline __m256i LoadWindow (uint64_t* __restrict pPrev, uint64_t* __restrict pSrc, uint64_t* __restrict pNext, __m256i elem[9]) noexcept
+inline __m256i LoadWindow (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc, uint32_t* __restrict pNext, __m256i elem[9]) noexcept
 {
 	LoadLinePixel (pPrev, elem);          //  0  0  0
 	LoadLinePixel (pSrc,  elem + 3);      //  0  X  0
@@ -178,23 +178,22 @@ inline __m256i LoadWindow (uint64_t* __restrict pPrev, uint64_t* __restrict pSrc
 	+-------------------------------+
 
 */
-bool AVX2::Median::median_filter_3x3_RGB_4444_16u
+bool AVX2::Median::median_filter_3x3_ARGB_4444_8u
 (
-	uint64_t* __restrict pInImage,
-	uint64_t* __restrict pOutImage,
+	uint32_t* __restrict pInImage,
+	uint32_t* __restrict pOutImage,
 	A_long sizeY,
 	A_long sizeX,
 	A_long srcLinePitch,
 	A_long dstLinePitch,
-	const A_long& chanelMaskL,
-	const A_long& chanelMaskH
-	) noexcept
+	const A_long& chanelMask /* 0x00FFFFFF <- BGRa */
+) noexcept
 {
 //	if (sizeY < 3 || sizeX < 40)
 //		return Scalar::scalar_median_filter_3x3_BGRA_4444_8u(pInImage, pOutImage, sizeY, sizeX, linePitch);
 
 //	CACHE_ALIGN PF_Pi xel_BGRA_8u  ScalarElem[9];
-	constexpr A_long pixelsInVector{ static_cast<A_long>(sizeof(__m256i) / sizeof(uint64_t)) };
+	constexpr A_long pixelsInVector{ static_cast<A_long>(sizeof(__m256i) / sizeof(uint32_t)) };
 
 	A_long i, j;
 	const A_long vectorLoadsInLine = sizeX / pixelsInVector;
@@ -207,14 +206,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_16u
 
 	const __m256i rgbMaskVector = _mm256_setr_epi32
 	(
-		chanelMaskL, /* mask A component for low part  of pixel 1 */
-		chanelMaskH, /* mask A component for high part of pixel 1 */
-		chanelMaskL, /* mask A component for low part  of pixel 2 */
-		chanelMaskH, /* mask A component for high part of pixel 2 */
-		chanelMaskL, /* mask A component for low part  of pixel 3 */
-		chanelMaskH, /* mask A component for high part of pixel 3 */
-		chanelMaskL, /* mask A component for low part  of pixel 4 */
-		chanelMaskH  /* mask A component for high part of pixel 4 */
+		chanelMask, /* mask A component for 1 pixel */
+		chanelMask, /* mask A component for 2 pixel */
+		chanelMask, /* mask A component for 3 pixel */
+		chanelMask, /* mask A component for 4 pixel */
+		chanelMask, /* mask A component for 5 pixel */
+		chanelMask, /* mask A component for 6 pixel */
+		chanelMask, /* mask A component for 7 pixel */
+		chanelMask  /* mask A component for 8 pixel */
 	);
 
 #ifdef _DEBUG
@@ -225,14 +224,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_16u
 
 	/* PROCESS FIRST LINE IN FRAME */
 	{
-		uint64_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint64_t* __restrict>(pInImage);
-		uint64_t* __restrict pSrcVecNextLine = reinterpret_cast<uint64_t* __restrict>(pInImage + srcLinePitch);
+		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage);
+		uint32_t* __restrict pSrcVecNextLine = reinterpret_cast<uint32_t* __restrict>(pInImage + srcLinePitch);
 		__m256i*  __restrict pSrcVecDstLine  = reinterpret_cast<__m256i*  __restrict>(pOutImage);
 
 		/* process left frame edge in first line */
 		const __m256i srcFirstPixel = LoadFirstLineWindowPixel0 (pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask16u (pSrcVecDstLine, srcFirstPixel, vecData[1], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[1], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process first line */
@@ -240,14 +239,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_16u
 		{
 			const __m256i srcOrig = LoadFirstLineWindowPixel (pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
 			PartialVectorSort_6elem (vecData);
-			StoreByMask16u (pSrcVecDstLine, srcOrig, vecData[2], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[2], rgbMaskVector);
 			pSrcVecDstLine++;
 		}
 
 		/* last pixel in first line */
 		const __m256i srcOrigRight = LoadFirstLineWindowPixelLast (pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask16u (pSrcVecDstLine, srcFirstPixel, vecData[1], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcFirstPixel, vecData[1], rgbMaskVector);
 #if 0
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		if (0 != lastPixelsInLine)
@@ -273,16 +272,16 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_16u
 	/* PROCESS LINES IN FRAME FROM 1 to SIZEY-1 */
 	for (j = 1; j < shortSizeY; j++)
 	{
-		uint64_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint64_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
-		uint64_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint64_t* __restrict>(pInImage  + j       * srcLinePitch);
-		uint64_t* __restrict pSrcVecNextLine = reinterpret_cast<uint64_t* __restrict>(pInImage  + (j + 1) * srcLinePitch);
+		uint32_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
+		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + j       * srcLinePitch);
+		uint32_t* __restrict pSrcVecNextLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j + 1) * srcLinePitch);
 		__m256i*  __restrict pSrcVecDstLine  = reinterpret_cast<__m256i*  __restrict>(pOutImage + j       * dstLinePitch);
 
 		/* load first vectors from previous, current and next line */
 		/* process left frame edge in first line */
 		const __m256i srcOrigLeft = LoadWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		PartialVectorSort_6elem (vecData);
-		StoreByMask16u (pSrcVecDstLine, srcOrigLeft, vecData[2], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[2], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process line */
@@ -290,14 +289,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_16u
 		{
 			const __m256i srcOrig = LoadWindow (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
 			PartialVectorSort_9elem (vecData);
-			StoreByMask16u (pSrcVecDstLine, srcOrig, vecData[4], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[4], rgbMaskVector);
 			pSrcVecDstLine++;
 		}
 
 		/* process rigth frame edge in last line */
 		const __m256i srcOrigRight = LoadWindowPixelLast (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		PartialVectorSort_6elem (vecData);
-		StoreByMask16u (pSrcVecDstLine, srcOrigRight, vecData[2], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[2], rgbMaskVector);
 #if 0
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		if (0 != lastPixelsInLine)
@@ -323,14 +322,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_16u
 
 	/* PROCESS LAST FRAME LINE */
 	{
-		uint64_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint64_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
-		uint64_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint64_t* __restrict>(pInImage  + j       * srcLinePitch);
+		uint32_t* __restrict pSrcVecPrevLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + (j - 1) * srcLinePitch);
+		uint32_t* __restrict pSrcVecCurrLine = reinterpret_cast<uint32_t* __restrict>(pInImage  + j       * srcLinePitch);
 		 __m256i* __restrict pSrcVecDstLine  = reinterpret_cast <__m256i* __restrict>(pOutImage + j       * dstLinePitch);
 
 		/* process left frame edge in last line */
 		const __m256i srcOrigLeft = LoadLastLineWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask16u (pSrcVecDstLine, srcOrigLeft, vecData[1], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcOrigLeft, vecData[1], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process first line */
@@ -338,14 +337,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_16u
 		{
 			const __m256i srcOrig = LoadLastLineWindowPixel (pSrcVecPrevLine + i, pSrcVecCurrLine + i, vecData);
 			PartialVectorSort_6elem (vecData);
-			StoreByMask16u (pSrcVecDstLine, srcOrig, vecData[2], rgbMaskVector);
+			StoreByMask8u (pSrcVecDstLine, srcOrig, vecData[2], rgbMaskVector);
 			pSrcVecDstLine++;
 		}
 
 		/* process rigth frame edge in last line */
 		const __m256i srcOrigRight = LoadLastLineWindowPixelLast (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask16u (pSrcVecDstLine, srcOrigRight, vecData[1], rgbMaskVector);
+		StoreByMask8u (pSrcVecDstLine, srcOrigRight, vecData[1], rgbMaskVector);
 #if 0
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		if (0 != lastPixelsInLine)

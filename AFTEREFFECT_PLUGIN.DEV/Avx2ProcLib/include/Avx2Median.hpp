@@ -12,7 +12,7 @@ namespace AVX2
 	namespace Median
 	{
 
-		bool median_filter_3x3_BGRA_4444_8u
+		bool median_filter_3x3_RGB_4444_8u
 		(
 			uint32_t* __restrict pInImage,
 			uint32_t* __restrict pOutImage,
@@ -23,7 +23,7 @@ namespace AVX2
 			const A_long& chanelMask = 0x00FFFFFF
 		) noexcept;
 
-		bool median_filter_3x3_BGRA_4444_16u
+		bool median_filter_3x3_RGB_4444_16u
 		(
 			uint64_t* __restrict pInImage,
 			uint64_t* __restrict pOutImage,
@@ -35,7 +35,7 @@ namespace AVX2
 			const A_long& chanelMaskH = 0x0000FFFF
 		) noexcept;
 
-		bool median_filter_5x5_BGRA_4444_8u
+		bool median_filter_5x5_RGB_4444_8u
 		(
 			uint32_t* __restrict pInImage,
 			uint32_t* __restrict pOutImage,
@@ -46,7 +46,7 @@ namespace AVX2
 			const A_long& chanelMask = 0x00FFFFFF
 		) noexcept;
 
-		bool median_filter_5x5_BGRA_4444_16u
+		bool median_filter_5x5_RGB_4444_16u
 		(
 			uint64_t* __restrict pInImage,
 			uint64_t* __restrict pOutImage,
@@ -58,7 +58,7 @@ namespace AVX2
 			const A_long& chanelMaskH = 0x0000FFFF
 		) noexcept;
 
-		bool median_filter_7x7_BGRA_4444_8u
+		bool median_filter_7x7_RGB_4444_8u
 		(
 			uint32_t* __restrict pInImage,
 			uint32_t* __restrict pOutImage,
@@ -69,7 +69,7 @@ namespace AVX2
 			const A_long& chanelMask = 0x00FFFFFF
 		) noexcept;
 
-		bool median_filter_7x7_BGRA_4444_16u
+		bool median_filter_7x7_RGB_4444_16u
 		(
 			uint64_t* __restrict pInImage,
 			uint64_t* __restrict pOutImage,

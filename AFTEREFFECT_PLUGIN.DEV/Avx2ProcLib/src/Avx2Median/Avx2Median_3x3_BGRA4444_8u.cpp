@@ -178,7 +178,7 @@ inline __m256i LoadWindow (uint32_t* __restrict pPrev, uint32_t* __restrict pSrc
 	+-------------------------------+
 
 */
-bool AVX2::Median::median_filter_3x3_BGRA_4444_8u
+bool AVX2::Median::median_filter_3x3_RGB_4444_8u
 (
 	uint32_t* __restrict pInImage,
 	uint32_t* __restrict pOutImage,

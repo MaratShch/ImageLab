@@ -33,17 +33,17 @@ PF_Err MedianFilter_BGRA_4444_8u
 
 		case 3:
 			/* manually optimized variant 3x3 */
-			medianResult = AVX2::Median::median_filter_3x3_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
+			medianResult = AVX2::Median::median_filter_3x3_RGB_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		case 5:
 			/* manually optimized variant 5x5 */
-			medianResult = AVX2::Median::median_filter_5x5_BGRA_4444_8u(localSrc, localDst, height, width, line_pitch, line_pitch);
+			medianResult = AVX2::Median::median_filter_5x5_RGB_4444_8u(localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		case 7:
 			/* manually optimized variant 7x7 */
-			medianResult = AVX2::Median::median_filter_7x7_BGRA_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
+			medianResult = AVX2::Median::median_filter_7x7_RGB_4444_8u (localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		default:
@@ -85,17 +85,17 @@ PF_Err MedianFilter_BGRA_4444_16u
 	
 	    case 3:
 			/* manually optimized variant 3x3 */
-			medianResult = AVX2::Median::median_filter_3x3_BGRA_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch);
+			medianResult = AVX2::Median::median_filter_3x3_RGB_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		case 5:
 		/* manually optimized variant 5x5 */
-			medianResult = AVX2::Median::median_filter_5x5_BGRA_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch);
+			medianResult = AVX2::Median::median_filter_5x5_RGB_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		case 7:
 		/* manually optimized variant 7x7 */
-			medianResult = AVX2::Median::median_filter_7x7_BGRA_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch);
+			medianResult = AVX2::Median::median_filter_7x7_RGB_4444_16u (localSrc, localDst, height, width, line_pitch, line_pitch);
 		break;
 
 		default:

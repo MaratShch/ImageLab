@@ -1660,7 +1660,7 @@ inline void PartialSort_49_elem_8u (__m256i a[49]) noexcept
 
 */
 #pragma comment(linker, "/STACK:4194304")
-bool AVX2::Median::median_filter_7x7_BGRA_4444_16u
+bool AVX2::Median::median_filter_7x7_RGB_4444_16u
 (
 	uint64_t* __restrict pInImage,
 	uint64_t* __restrict pOutImage,
