@@ -117,8 +117,8 @@ PF_Err MedianFilter_BGRA_4444_32f
 ) noexcept
 {
 	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[MEDIAN_FILTER_INPUT]->u.ld);
-	const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
-	      PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
+	      PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+	      PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
 
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
@@ -137,6 +137,15 @@ PF_Err MedianFilter_BGRA_4444_32f
 		
 		case 3:
 		/* manually optimized variant 3x3 */
+			medianResult = AVX2::Median::median_filter_3x3_RGB_4444_32f
+			(
+				reinterpret_cast<__m128*>(localSrc),
+				reinterpret_cast<__m128*>(localDst),
+				height,
+				width,
+				line_pitch,
+				line_pitch
+			);
 		break;
 
 		case 5:
