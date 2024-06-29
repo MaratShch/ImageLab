@@ -11,9 +11,9 @@ inline void StoreByMask16u (__m256i* __restrict pDst, const __m256i& valueOrig, 
 	StoreByMask8u (pDst, valueOrig, valueMedian, storeMask); /* let's reuse 8u store function just with change the mask for correct store 16u data */
 }
 
-inline void StoreByMask32f (__m256* __restrict pDst, const __m256& valueOrig, const __m256& valueMedian, const __m256& storeMask) noexcept
+inline void StoreByMask32f (__m256* __restrict pDst, const __m256& valueOrig, const __m256& valueMedian, const int& storeMask) noexcept
 {
-	_mm256_storeu_ps (reinterpret_cast<float*>(pDst), _mm256_blendv_ps(valueOrig, valueMedian, storeMask));
+	_mm256_storeu_ps (reinterpret_cast<float*>(pDst), _mm256_blend_ps (valueOrig, valueMedian, storeMask));
 }
 
 

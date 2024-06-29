@@ -204,11 +204,7 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 	const A_long shortSizeX{ sizeX - pixelsInVector };
 
 	constexpr float fMaskEnable = static_cast<float>(0xFFFFFFFFu);
-	const __m256 rgbMaskVector = _mm256_set_m128
-	(
-		_mm_set_ps (0.f, fMaskEnable, fMaskEnable, fMaskEnable),
-		_mm_set_ps (0.f, fMaskEnable, fMaskEnable, fMaskEnable),
-	);
+	constexpr int blendMask = 0x77;
 
 #ifdef _DEBUG
 	__m256 vecData[9]{};
@@ -225,7 +221,7 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 		/* process left frame edge in first line */
 		const __m256 srcFirstPixel = LoadFirstLineWindowPixel0 (pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask32f (pSrcVecDstLine, srcFirstPixel, vecData[1], rgbMaskVector);
+		StoreByMask32f (pSrcVecDstLine, srcFirstPixel, vecData[1], blendMask);
 		pSrcVecDstLine++;
 
 		/* process first line */
@@ -233,14 +229,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 		{
 			const __m256 srcOrig = LoadFirstLineWindowPixel (pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
 			PartialVectorSort_6elem (vecData);
-			StoreByMask32f (pSrcVecDstLine, srcOrig, vecData[2], rgbMaskVector);
+			StoreByMask32f (pSrcVecDstLine, srcOrig, vecData[2], blendMask);
 			pSrcVecDstLine++;
 		}
 
 		/* last pixel in first line */
 		const __m256 srcOrigRight = LoadFirstLineWindowPixelLast (pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask32f (pSrcVecDstLine, srcFirstPixel, vecData[1], rgbMaskVector);
+		StoreByMask32f (pSrcVecDstLine, srcFirstPixel, vecData[1], blendMask);
 #if 0
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		if (0 != lastPixelsInLine)
@@ -275,7 +271,7 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 		/* process left frame edge in first line */
 		const __m256 srcOrigLeft = LoadWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine, vecData);
 		PartialVectorSort_6elem (vecData);
-		StoreByMask32f (pSrcVecDstLine, srcOrigLeft, vecData[2], rgbMaskVector);
+		StoreByMask32f (pSrcVecDstLine, srcOrigLeft, vecData[2], blendMask);
 		pSrcVecDstLine++;
 
 		/* process line */
@@ -283,14 +279,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 		{
 			const __m256 srcOrig = LoadWindow (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
 			PartialVectorSort_9elem (vecData);
-			StoreByMask32f (pSrcVecDstLine, srcOrig, vecData[4], rgbMaskVector);
+			StoreByMask32f (pSrcVecDstLine, srcOrig, vecData[4], blendMask);
 			pSrcVecDstLine++;
 		}
 
 		/* process rigth frame edge in last line */
 		const __m256 srcOrigRight = LoadWindowPixelLast (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, pSrcVecNextLine + shortSizeX, vecData);
 		PartialVectorSort_6elem (vecData);
-		StoreByMask32f (pSrcVecDstLine, srcOrigRight, vecData[2], rgbMaskVector);
+		StoreByMask32f (pSrcVecDstLine, srcOrigRight, vecData[2], blendMask);
 #if 0
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		if (0 != lastPixelsInLine)
@@ -323,7 +319,7 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 		/* process left frame edge in last line */
 		const __m256 srcOrigLeft = LoadLastLineWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask32f (pSrcVecDstLine, srcOrigLeft, vecData[1], rgbMaskVector);
+		StoreByMask32f (pSrcVecDstLine, srcOrigLeft, vecData[1], blendMask);
 		pSrcVecDstLine++;
 
 		/* process first line */
@@ -331,14 +327,14 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 		{
 			const __m256 srcOrig = LoadLastLineWindowPixel (pSrcVecPrevLine + i, pSrcVecCurrLine + i, vecData);
 			PartialVectorSort_6elem (vecData);
-			StoreByMask32f (pSrcVecDstLine, srcOrig, vecData[2], rgbMaskVector);
+			StoreByMask32f (pSrcVecDstLine, srcOrig, vecData[2], blendMask);
 			pSrcVecDstLine++;
 		}
 
 		/* process rigth frame edge in last line */
 		const __m256 srcOrigRight = LoadLastLineWindowPixelLast (pSrcVecPrevLine + shortSizeX, pSrcVecCurrLine + shortSizeX, vecData);
 		PartialVectorSort_4elem (vecData);
-		StoreByMask32f (pSrcVecDstLine, srcOrigRight, vecData[1], rgbMaskVector);
+		StoreByMask32f (pSrcVecDstLine, srcOrigRight, vecData[1], blendMask);
 #if 0
 		/* process rest of pixels (non vectorized) if the sizeX isn't aligned to AVX2 vector size */
 		if (0 != lastPixelsInLine)
