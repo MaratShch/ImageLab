@@ -68,6 +68,16 @@ namespace AVX2
 			const A_long& chanelMaskH = 0x0000FFFF
 		) noexcept;
 
+		bool median_filter_5x5_RGB_4444_32f
+		(
+			__m128* __restrict pInImage,
+			__m128* __restrict pOutImage,
+			A_long sizeX,
+			A_long sizeY,
+			A_long srcLinePitch,
+			A_long dstLinePitch
+		) noexcept;
+
 		bool median_filter_7x7_RGB_4444_8u
 		(
 			uint32_t* __restrict pInImage,
@@ -89,6 +99,16 @@ namespace AVX2
 			A_long dstLinePitch,
 			const A_long& chanelMaskL = 0xFFFFFFFF,
 			const A_long& chanelMaskH = 0x0000FFFF
+		) noexcept;
+
+		bool median_filter_7x7_RGB_4444_32f
+		(
+			__m128* __restrict pInImage,
+			__m128* __restrict pOutImage,
+			A_long sizeX,
+			A_long sizeY,
+			A_long srcLinePitch,
+			A_long dstLinePitch
 		) noexcept;
 
 	} /* namespace Median */

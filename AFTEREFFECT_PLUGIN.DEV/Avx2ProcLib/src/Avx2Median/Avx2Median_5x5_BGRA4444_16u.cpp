@@ -275,7 +275,7 @@ inline __m256i LoadWindowLastLineLastPixel (uint64_t* __restrict pPrev2, uint64_
 }
 
 
-inline void PartialSort_9_elem_8u (__m256i a[9]) noexcept
+inline void PartialSort_9_elem_16u (__m256i a[9]) noexcept
 {
 	/*
 		median element in [4] index
@@ -285,291 +285,291 @@ inline void PartialSort_9_elem_8u (__m256i a[9]) noexcept
 		0  0  0
 
 	*/
-	VectorSort8uPacked (a[1], a[2]);
-	VectorSort8uPacked (a[4], a[5]);
-	VectorSort8uPacked (a[7], a[8]);
-	VectorSort8uPacked (a[0], a[1]);
-	VectorSort8uPacked (a[3], a[4]);
-	VectorSort8uPacked (a[6], a[7]);
-	VectorSort8uPacked (a[1], a[2]);
-	VectorSort8uPacked (a[4], a[5]);
-	VectorSort8uPacked (a[7], a[8]);
-	VectorSort8uPacked (a[0], a[3]);
-	VectorSort8uPacked (a[5], a[8]);
-	VectorSort8uPacked (a[4], a[7]);
-	VectorSort8uPacked (a[3], a[6]);
-	VectorSort8uPacked (a[1], a[4]);
-	VectorSort8uPacked (a[2], a[5]);
-	VectorSort8uPacked (a[4], a[7]);
-	VectorSort8uPacked (a[4], a[2]);
-	VectorSort8uPacked (a[6], a[4]);
-	VectorSort8uPacked (a[4], a[2]);
+	VectorSort16uPacked (a[1], a[2]);
+	VectorSort16uPacked (a[4], a[5]);
+	VectorSort16uPacked (a[7], a[8]);
+	VectorSort16uPacked (a[0], a[1]);
+	VectorSort16uPacked (a[3], a[4]);
+	VectorSort16uPacked (a[6], a[7]);
+	VectorSort16uPacked (a[1], a[2]);
+	VectorSort16uPacked (a[4], a[5]);
+	VectorSort16uPacked (a[7], a[8]);
+	VectorSort16uPacked (a[0], a[3]);
+	VectorSort16uPacked (a[5], a[8]);
+	VectorSort16uPacked (a[4], a[7]);
+	VectorSort16uPacked (a[3], a[6]);
+	VectorSort16uPacked (a[1], a[4]);
+	VectorSort16uPacked (a[2], a[5]);
+	VectorSort16uPacked (a[4], a[7]);
+	VectorSort16uPacked (a[4], a[2]);
+	VectorSort16uPacked (a[6], a[4]);
+	VectorSort16uPacked (a[4], a[2]);
 }
 
-inline void PartialSort_12_elem_8u (__m256i a[12]) noexcept
+inline void PartialSort_12_elem_16u (__m256i a[12]) noexcept
 {
 	/* median elemnet in index 5 */
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[3],  a[2]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[7],  a[6]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[1],  a[3]);
-	VectorSort8uPacked (a[6],  a[4]);
-	VectorSort8uPacked (a[7],  a[5]);
-	VectorSort8uPacked (a[8],  a[10]);
-	VectorSort8uPacked (a[9],  a[11]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[10], a[8]);
-	VectorSort8uPacked (a[11], a[9]);
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[6],  a[7]);
-	VectorSort8uPacked (a[9],  a[8]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[0],  a[8]);
-	VectorSort8uPacked (a[1],  a[9]);
-	VectorSort8uPacked (a[2],  a[10]);
-	VectorSort8uPacked (a[3],  a[11]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[3],  a[2]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[7],  a[6]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[1],  a[3]);
+	VectorSort16uPacked (a[6],  a[4]);
+	VectorSort16uPacked (a[7],  a[5]);
+	VectorSort16uPacked (a[8],  a[10]);
+	VectorSort16uPacked (a[9],  a[11]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[10], a[8]);
+	VectorSort16uPacked (a[11], a[9]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[9],  a[8]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[0],  a[8]);
+	VectorSort16uPacked (a[1],  a[9]);
+	VectorSort16uPacked (a[2],  a[10]);
+	VectorSort16uPacked (a[3],  a[11]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[5],  a[7]);
 }
 
 
-inline void PartialSort_15_elem_8u (__m256i a[15]) noexcept
+inline void PartialSort_15_elem_16u (__m256i a[15]) noexcept
 {
 	/* median elemnet in index 7 */
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[3],  a[2]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[7],  a[6]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[12], a[13]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[6],  a[4]);
-	VectorSort8uPacked (a[8],  a[10]);
-	VectorSort8uPacked (a[14], a[12]);
-	VectorSort8uPacked (a[1],  a[3]);
-	VectorSort8uPacked (a[7],  a[5]);
-	VectorSort8uPacked (a[9],  a[11]);
-	VectorSort8uPacked (a[15], a[13]);
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[5],  a[4]);
-	VectorSort8uPacked (a[7],  a[6]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[10], a[11]);
-	VectorSort8uPacked (a[13], a[12]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[12], a[8]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[13], a[9]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[14], a[10]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[15], a[11]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[10], a[8]);
-	VectorSort8uPacked (a[14], a[12]);
-	VectorSort8uPacked (a[1],  a[3]);
-	VectorSort8uPacked (a[5],  a[7]);
-	VectorSort8uPacked (a[11], a[9]);
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[6],  a[7]);
-	VectorSort8uPacked (a[9],  a[8]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[13], a[12]);
-	VectorSort8uPacked (a[0],  a[8]);
-	VectorSort8uPacked (a[1],  a[9]);
-	VectorSort8uPacked (a[2],  a[10]);
-	VectorSort8uPacked (a[3],  a[11]);
-	VectorSort8uPacked (a[4],  a[12]);
-	VectorSort8uPacked (a[5],  a[13]);
-	VectorSort8uPacked (a[6],  a[14]);
-	VectorSort8uPacked (a[7],  a[15]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[5],  a[7]);
-	VectorSort8uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[3],  a[2]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[7],  a[6]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[12], a[13]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[6],  a[4]);
+	VectorSort16uPacked (a[8],  a[10]);
+	VectorSort16uPacked (a[14], a[12]);
+	VectorSort16uPacked (a[1],  a[3]);
+	VectorSort16uPacked (a[7],  a[5]);
+	VectorSort16uPacked (a[9],  a[11]);
+	VectorSort16uPacked (a[15], a[13]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[5],  a[4]);
+	VectorSort16uPacked (a[7],  a[6]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[10], a[11]);
+	VectorSort16uPacked (a[13], a[12]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[12], a[8]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[13], a[9]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[14], a[10]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[15], a[11]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[10], a[8]);
+	VectorSort16uPacked (a[14], a[12]);
+	VectorSort16uPacked (a[1],  a[3]);
+	VectorSort16uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[11], a[9]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[9],  a[8]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[13], a[12]);
+	VectorSort16uPacked (a[0],  a[8]);
+	VectorSort16uPacked (a[1],  a[9]);
+	VectorSort16uPacked (a[2],  a[10]);
+	VectorSort16uPacked (a[3],  a[11]);
+	VectorSort16uPacked (a[4],  a[12]);
+	VectorSort16uPacked (a[5],  a[13]);
+	VectorSort16uPacked (a[6],  a[14]);
+	VectorSort16uPacked (a[7],  a[15]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[6],  a[7]);
 }
 
-inline void PartialSort_16_elem_8u (__m256i a[16]) noexcept
+inline void PartialSort_16_elem_16u (__m256i a[16]) noexcept
 {
 	/* median elemnet in index 7 */
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[3],  a[2]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[7],  a[6]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[12], a[13]);
-	VectorSort8uPacked (a[15], a[14]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[6],  a[4]);
-	VectorSort8uPacked (a[8],  a[10]);
-	VectorSort8uPacked (a[14], a[12]);
-	VectorSort8uPacked (a[1],  a[3]);
-	VectorSort8uPacked (a[7],  a[5]);
-	VectorSort8uPacked (a[9],  a[11]);
-	VectorSort8uPacked (a[15], a[13]);
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[5],  a[4]);
-	VectorSort8uPacked (a[7],  a[6]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[10], a[11]);
-	VectorSort8uPacked (a[13], a[12]);
-	VectorSort8uPacked (a[15], a[14]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[12], a[8]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[13], a[9]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[14], a[10]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[15], a[11]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[10], a[8]);
-	VectorSort8uPacked (a[14], a[12]);
-	VectorSort8uPacked (a[1],  a[3]);
-	VectorSort8uPacked (a[5],  a[7]);
-	VectorSort8uPacked (a[11], a[9]);
-	VectorSort8uPacked (a[15], a[13]);
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[6],  a[7]);
-	VectorSort8uPacked (a[9],  a[8]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[13], a[12]);
-	VectorSort8uPacked (a[15], a[14]);
-	VectorSort8uPacked (a[0],  a[8]);
-	VectorSort8uPacked (a[1],  a[9]);
-	VectorSort8uPacked (a[2],  a[10]);
-	VectorSort8uPacked (a[3],  a[11]);
-	VectorSort8uPacked (a[4],  a[12]);
-	VectorSort8uPacked (a[5],  a[13]);
-	VectorSort8uPacked (a[6],  a[14]);
-	VectorSort8uPacked (a[7],  a[15]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[5],  a[7]);
-	VectorSort8uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[3],  a[2]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[7],  a[6]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[12], a[13]);
+	VectorSort16uPacked (a[15], a[14]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[6],  a[4]);
+	VectorSort16uPacked (a[8],  a[10]);
+	VectorSort16uPacked (a[14], a[12]);
+	VectorSort16uPacked (a[1],  a[3]);
+	VectorSort16uPacked (a[7],  a[5]);
+	VectorSort16uPacked (a[9],  a[11]);
+	VectorSort16uPacked (a[15], a[13]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[5],  a[4]);
+	VectorSort16uPacked (a[7],  a[6]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[10], a[11]);
+	VectorSort16uPacked (a[13], a[12]);
+	VectorSort16uPacked (a[15], a[14]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[12], a[8]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[13], a[9]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[14], a[10]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[15], a[11]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[10], a[8]);
+	VectorSort16uPacked (a[14], a[12]);
+	VectorSort16uPacked (a[1],  a[3]);
+	VectorSort16uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[11], a[9]);
+	VectorSort16uPacked (a[15], a[13]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[9],  a[8]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[13], a[12]);
+	VectorSort16uPacked (a[15], a[14]);
+	VectorSort16uPacked (a[0],  a[8]);
+	VectorSort16uPacked (a[1],  a[9]);
+	VectorSort16uPacked (a[2],  a[10]);
+	VectorSort16uPacked (a[3],  a[11]);
+	VectorSort16uPacked (a[4],  a[12]);
+	VectorSort16uPacked (a[5],  a[13]);
+	VectorSort16uPacked (a[6],  a[14]);
+	VectorSort16uPacked (a[7],  a[15]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[6],  a[7]);
 }
 
-inline void PartialSort_20_elem_8u (__m256i a[20]) noexcept
+inline void PartialSort_20_elem_16u (__m256i a[20]) noexcept
 {
 	/* median element in index 9 */
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[3],  a[2]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[7],  a[6]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[12], a[13]);
-	VectorSort8uPacked (a[15], a[14]);
-	VectorSort8uPacked (a[16], a[17]);
-	VectorSort8uPacked (a[19], a[18]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[1],  a[3]);
-	VectorSort8uPacked (a[6],  a[4]);
-	VectorSort8uPacked (a[7],  a[5]);
-	VectorSort8uPacked (a[8],  a[10]);
-	VectorSort8uPacked (a[9],  a[11]);
-	VectorSort8uPacked (a[14], a[12]);
-	VectorSort8uPacked (a[15], a[13]);
-	VectorSort8uPacked (a[16], a[18]);
-	VectorSort8uPacked (a[17], a[19]);
-    VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[5],  a[4]);
-	VectorSort8uPacked (a[7],  a[6]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[10], a[11]);
-	VectorSort8uPacked (a[13], a[12]);
-	VectorSort8uPacked (a[15], a[14]);
-	VectorSort8uPacked (a[16], a[17]);
-	VectorSort8uPacked (a[18], a[19]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[14], a[10]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[15], a[11]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[16], a[12]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[17], a[13]);
-	VectorSort8uPacked (a[4],  a[8]);
-	VectorSort8uPacked (a[18], a[14]);
-	VectorSort8uPacked (a[5],  a[9]);
-	VectorSort8uPacked (a[19], a[15]);
-	VectorSort8uPacked (a[0],  a[2]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[13], a[11]);
-	VectorSort8uPacked (a[17], a[15]);
-	VectorSort8uPacked (a[1],  a[3]);
-	VectorSort8uPacked (a[5],  a[7]);
-	VectorSort8uPacked (a[14], a[12]);
-	VectorSort8uPacked (a[18], a[16]);
-	VectorSort8uPacked (a[2],  a[4]);
-	VectorSort8uPacked (a[6],  a[8]);
-	VectorSort8uPacked (a[15], a[13]);
-	VectorSort8uPacked (a[19], a[17]);
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[4],  a[5]);
-	VectorSort8uPacked (a[6],  a[7]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[11], a[10]);
-	VectorSort8uPacked (a[13], a[12]);
-	VectorSort8uPacked (a[15], a[14]);
-	VectorSort8uPacked (a[17], a[16]);
-	VectorSort8uPacked (a[19], a[18]);
-	VectorSort8uPacked (a[0],  a[9]);
-	VectorSort8uPacked (a[1],  a[10]);
-	VectorSort8uPacked (a[2],  a[11]);
-	VectorSort8uPacked (a[3],  a[12]);
-	VectorSort8uPacked (a[4],  a[13]);
-	VectorSort8uPacked (a[5],  a[14]);
-	VectorSort8uPacked (a[6],  a[15]);
-	VectorSort8uPacked (a[7],  a[16]);
-	VectorSort8uPacked (a[8],  a[17]);
-	VectorSort8uPacked (a[9],  a[18]);
-	VectorSort8uPacked (a[10], a[19]);
-	VectorSort8uPacked (a[0],  a[4]);
-	VectorSort8uPacked (a[1],  a[5]);
-	VectorSort8uPacked (a[2],  a[6]);
-	VectorSort8uPacked (a[3],  a[7]);
-	VectorSort8uPacked (a[4],  a[8]);
-	VectorSort8uPacked (a[5],  a[9]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[5],  a[7]);
-	VectorSort8uPacked (a[6],  a[8]);
-	VectorSort8uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[3],  a[2]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[7],  a[6]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[12], a[13]);
+	VectorSort16uPacked (a[15], a[14]);
+	VectorSort16uPacked (a[16], a[17]);
+	VectorSort16uPacked (a[19], a[18]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[1],  a[3]);
+	VectorSort16uPacked (a[6],  a[4]);
+	VectorSort16uPacked (a[7],  a[5]);
+	VectorSort16uPacked (a[8],  a[10]);
+	VectorSort16uPacked (a[9],  a[11]);
+	VectorSort16uPacked (a[14], a[12]);
+	VectorSort16uPacked (a[15], a[13]);
+	VectorSort16uPacked (a[16], a[18]);
+	VectorSort16uPacked (a[17], a[19]);
+    VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[5],  a[4]);
+	VectorSort16uPacked (a[7],  a[6]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[10], a[11]);
+	VectorSort16uPacked (a[13], a[12]);
+	VectorSort16uPacked (a[15], a[14]);
+	VectorSort16uPacked (a[16], a[17]);
+	VectorSort16uPacked (a[18], a[19]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[14], a[10]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[15], a[11]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[16], a[12]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[17], a[13]);
+	VectorSort16uPacked (a[4],  a[8]);
+	VectorSort16uPacked (a[18], a[14]);
+	VectorSort16uPacked (a[5],  a[9]);
+	VectorSort16uPacked (a[19], a[15]);
+	VectorSort16uPacked (a[0],  a[2]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[13], a[11]);
+	VectorSort16uPacked (a[17], a[15]);
+	VectorSort16uPacked (a[1],  a[3]);
+	VectorSort16uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[14], a[12]);
+	VectorSort16uPacked (a[18], a[16]);
+	VectorSort16uPacked (a[2],  a[4]);
+	VectorSort16uPacked (a[6],  a[8]);
+	VectorSort16uPacked (a[15], a[13]);
+	VectorSort16uPacked (a[19], a[17]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[4],  a[5]);
+	VectorSort16uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[11], a[10]);
+	VectorSort16uPacked (a[13], a[12]);
+	VectorSort16uPacked (a[15], a[14]);
+	VectorSort16uPacked (a[17], a[16]);
+	VectorSort16uPacked (a[19], a[18]);
+	VectorSort16uPacked (a[0],  a[9]);
+	VectorSort16uPacked (a[1],  a[10]);
+	VectorSort16uPacked (a[2],  a[11]);
+	VectorSort16uPacked (a[3],  a[12]);
+	VectorSort16uPacked (a[4],  a[13]);
+	VectorSort16uPacked (a[5],  a[14]);
+	VectorSort16uPacked (a[6],  a[15]);
+	VectorSort16uPacked (a[7],  a[16]);
+	VectorSort16uPacked (a[8],  a[17]);
+	VectorSort16uPacked (a[9],  a[18]);
+	VectorSort16uPacked (a[10], a[19]);
+	VectorSort16uPacked (a[0],  a[4]);
+	VectorSort16uPacked (a[1],  a[5]);
+	VectorSort16uPacked (a[2],  a[6]);
+	VectorSort16uPacked (a[3],  a[7]);
+	VectorSort16uPacked (a[4],  a[8]);
+	VectorSort16uPacked (a[5],  a[9]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[6],  a[8]);
+	VectorSort16uPacked (a[8],  a[9]);
 }
 
-inline void PartialSort_25_elem_8u (__m256i a[25]) noexcept
+inline void PartialSort_25_elem_16u (__m256i a[25]) noexcept
 {
 	/*
 
@@ -582,105 +582,105 @@ inline void PartialSort_25_elem_8u (__m256i a[25]) noexcept
 	0  0  0  0  0
 
 	*/
-	VectorSort8uPacked (a[0],  a[1]);
-	VectorSort8uPacked (a[3],  a[4]);
-	VectorSort8uPacked (a[2],  a[4]);
-	VectorSort8uPacked (a[2],  a[3]);
-	VectorSort8uPacked (a[6],  a[7]);
-	VectorSort8uPacked (a[5],  a[7]);
-	VectorSort8uPacked (a[5],  a[6]);
-	VectorSort8uPacked (a[9],  a[10]);
-	VectorSort8uPacked (a[8],  a[10]);
-	VectorSort8uPacked (a[8],  a[9]);
-	VectorSort8uPacked (a[12], a[13]);
-	VectorSort8uPacked (a[11], a[13]);
-	VectorSort8uPacked (a[11], a[12]);
-	VectorSort8uPacked (a[15], a[16]);
-	VectorSort8uPacked (a[14], a[16]);
-	VectorSort8uPacked (a[14], a[15]);
-	VectorSort8uPacked (a[18], a[19]);
-	VectorSort8uPacked (a[17], a[19]);
-	VectorSort8uPacked (a[17], a[18]);
-	VectorSort8uPacked (a[21], a[22]);
-	VectorSort8uPacked (a[20], a[22]);
-	VectorSort8uPacked (a[20], a[21]);
-	VectorSort8uPacked (a[23], a[24]);
-	VectorSort8uPacked (a[2],  a[5]);
-	VectorSort8uPacked (a[3],  a[6]);
-	VectorSort8uPacked (a[0],  a[6]);
-	VectorSort8uPacked (a[0],  a[3]);
-	VectorSort8uPacked (a[4],  a[7]);
-	VectorSort8uPacked (a[1],  a[7]);
-	VectorSort8uPacked (a[1],  a[4]);
-	VectorSort8uPacked (a[11], a[14]);
-	VectorSort8uPacked (a[8],  a[14]);
-	VectorSort8uPacked (a[8],  a[11]);
-	VectorSort8uPacked (a[12], a[15]);
-	VectorSort8uPacked (a[9],  a[15]);
-	VectorSort8uPacked (a[9],  a[12]);
-	VectorSort8uPacked (a[13], a[16]);
-	VectorSort8uPacked (a[10], a[16]);
-	VectorSort8uPacked (a[10], a[13]);
-	VectorSort8uPacked (a[20], a[23]);
-	VectorSort8uPacked (a[17], a[23]);
-	VectorSort8uPacked (a[17], a[20]);
-	VectorSort8uPacked (a[21], a[24]);
-	VectorSort8uPacked (a[18], a[24]);
-	VectorSort8uPacked (a[18], a[21]);
-	VectorSort8uPacked (a[19], a[22]);
-	VectorSort8uPacked (a[9],  a[18]);
-	VectorSort8uPacked (a[0],  a[18]);
-	VectorSort8uPacked (a[8],  a[17]);
-	VectorSort8uPacked (a[0],  a[9]);
-	VectorSort8uPacked (a[10], a[19]);
-	VectorSort8uPacked (a[1],  a[19]);
-	VectorSort8uPacked (a[1],  a[10]);
-	VectorSort8uPacked (a[11], a[20]);
-	VectorSort8uPacked (a[2],  a[20]);
-	VectorSort8uPacked (a[12], a[21]);
-	VectorSort8uPacked (a[2],  a[11]);
-	VectorSort8uPacked (a[3],  a[21]);
-	VectorSort8uPacked (a[3],  a[12]);
-	VectorSort8uPacked (a[13], a[22]);
-	VectorSort8uPacked (a[4],  a[22]);
-	VectorSort8uPacked (a[4],  a[13]);
-	VectorSort8uPacked (a[14], a[23]);
-	VectorSort8uPacked (a[5],  a[23]);
-	VectorSort8uPacked (a[5],  a[14]);
-	VectorSort8uPacked (a[15], a[24]);
-	VectorSort8uPacked (a[6],  a[24]);
-	VectorSort8uPacked (a[6],  a[15]);
-	VectorSort8uPacked (a[7],  a[16]);
-	VectorSort8uPacked (a[7],  a[19]);
-	VectorSort8uPacked (a[13], a[21]);
-	VectorSort8uPacked (a[15], a[23]);
-	VectorSort8uPacked (a[7],  a[13]);
-	VectorSort8uPacked (a[7],  a[15]);
-	VectorSort8uPacked (a[1],  a[9]);
-	VectorSort8uPacked (a[3],  a[11]);
-	VectorSort8uPacked (a[5],  a[17]);
-	VectorSort8uPacked (a[11], a[17]);
-	VectorSort8uPacked (a[9],  a[17]);
-	VectorSort8uPacked (a[4],  a[10]);
-	VectorSort8uPacked (a[6],  a[12]);
-	VectorSort8uPacked (a[7],  a[14]);
-	VectorSort8uPacked (a[4],  a[6]);
-	VectorSort8uPacked (a[4],  a[7]);
-	VectorSort8uPacked (a[12], a[14]);
-	VectorSort8uPacked (a[10], a[14]);
-	VectorSort8uPacked (a[6],  a[7]);
-	VectorSort8uPacked (a[10], a[12]);
-	VectorSort8uPacked (a[6],  a[10]);
-	VectorSort8uPacked (a[6],  a[17]);
-	VectorSort8uPacked (a[12], a[17]);
-	VectorSort8uPacked (a[7],  a[17]);
-	VectorSort8uPacked (a[7],  a[10]);
-	VectorSort8uPacked (a[12], a[18]);
-	VectorSort8uPacked (a[7],  a[12]);
-	VectorSort8uPacked (a[10], a[18]);
-	VectorSort8uPacked (a[12], a[20]);
-	VectorSort8uPacked (a[10], a[20]);
-	VectorSort8uPacked (a[10], a[12]);
+	VectorSort16uPacked (a[0],  a[1]);
+	VectorSort16uPacked (a[3],  a[4]);
+	VectorSort16uPacked (a[2],  a[4]);
+	VectorSort16uPacked (a[2],  a[3]);
+	VectorSort16uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[5],  a[7]);
+	VectorSort16uPacked (a[5],  a[6]);
+	VectorSort16uPacked (a[9],  a[10]);
+	VectorSort16uPacked (a[8],  a[10]);
+	VectorSort16uPacked (a[8],  a[9]);
+	VectorSort16uPacked (a[12], a[13]);
+	VectorSort16uPacked (a[11], a[13]);
+	VectorSort16uPacked (a[11], a[12]);
+	VectorSort16uPacked (a[15], a[16]);
+	VectorSort16uPacked (a[14], a[16]);
+	VectorSort16uPacked (a[14], a[15]);
+	VectorSort16uPacked (a[18], a[19]);
+	VectorSort16uPacked (a[17], a[19]);
+	VectorSort16uPacked (a[17], a[18]);
+	VectorSort16uPacked (a[21], a[22]);
+	VectorSort16uPacked (a[20], a[22]);
+	VectorSort16uPacked (a[20], a[21]);
+	VectorSort16uPacked (a[23], a[24]);
+	VectorSort16uPacked (a[2],  a[5]);
+	VectorSort16uPacked (a[3],  a[6]);
+	VectorSort16uPacked (a[0],  a[6]);
+	VectorSort16uPacked (a[0],  a[3]);
+	VectorSort16uPacked (a[4],  a[7]);
+	VectorSort16uPacked (a[1],  a[7]);
+	VectorSort16uPacked (a[1],  a[4]);
+	VectorSort16uPacked (a[11], a[14]);
+	VectorSort16uPacked (a[8],  a[14]);
+	VectorSort16uPacked (a[8],  a[11]);
+	VectorSort16uPacked (a[12], a[15]);
+	VectorSort16uPacked (a[9],  a[15]);
+	VectorSort16uPacked (a[9],  a[12]);
+	VectorSort16uPacked (a[13], a[16]);
+	VectorSort16uPacked (a[10], a[16]);
+	VectorSort16uPacked (a[10], a[13]);
+	VectorSort16uPacked (a[20], a[23]);
+	VectorSort16uPacked (a[17], a[23]);
+	VectorSort16uPacked (a[17], a[20]);
+	VectorSort16uPacked (a[21], a[24]);
+	VectorSort16uPacked (a[18], a[24]);
+	VectorSort16uPacked (a[18], a[21]);
+	VectorSort16uPacked (a[19], a[22]);
+	VectorSort16uPacked (a[9],  a[18]);
+	VectorSort16uPacked (a[0],  a[18]);
+	VectorSort16uPacked (a[8],  a[17]);
+	VectorSort16uPacked (a[0],  a[9]);
+	VectorSort16uPacked (a[10], a[19]);
+	VectorSort16uPacked (a[1],  a[19]);
+	VectorSort16uPacked (a[1],  a[10]);
+	VectorSort16uPacked (a[11], a[20]);
+	VectorSort16uPacked (a[2],  a[20]);
+	VectorSort16uPacked (a[12], a[21]);
+	VectorSort16uPacked (a[2],  a[11]);
+	VectorSort16uPacked (a[3],  a[21]);
+	VectorSort16uPacked (a[3],  a[12]);
+	VectorSort16uPacked (a[13], a[22]);
+	VectorSort16uPacked (a[4],  a[22]);
+	VectorSort16uPacked (a[4],  a[13]);
+	VectorSort16uPacked (a[14], a[23]);
+	VectorSort16uPacked (a[5],  a[23]);
+	VectorSort16uPacked (a[5],  a[14]);
+	VectorSort16uPacked (a[15], a[24]);
+	VectorSort16uPacked (a[6],  a[24]);
+	VectorSort16uPacked (a[6],  a[15]);
+	VectorSort16uPacked (a[7],  a[16]);
+	VectorSort16uPacked (a[7],  a[19]);
+	VectorSort16uPacked (a[13], a[21]);
+	VectorSort16uPacked (a[15], a[23]);
+	VectorSort16uPacked (a[7],  a[13]);
+	VectorSort16uPacked (a[7],  a[15]);
+	VectorSort16uPacked (a[1],  a[9]);
+	VectorSort16uPacked (a[3],  a[11]);
+	VectorSort16uPacked (a[5],  a[17]);
+	VectorSort16uPacked (a[11], a[17]);
+	VectorSort16uPacked (a[9],  a[17]);
+	VectorSort16uPacked (a[4],  a[10]);
+	VectorSort16uPacked (a[6],  a[12]);
+	VectorSort16uPacked (a[7],  a[14]);
+	VectorSort16uPacked (a[4],  a[6]);
+	VectorSort16uPacked (a[4],  a[7]);
+	VectorSort16uPacked (a[12], a[14]);
+	VectorSort16uPacked (a[10], a[14]);
+	VectorSort16uPacked (a[6],  a[7]);
+	VectorSort16uPacked (a[10], a[12]);
+	VectorSort16uPacked (a[6],  a[10]);
+	VectorSort16uPacked (a[6],  a[17]);
+	VectorSort16uPacked (a[12], a[17]);
+	VectorSort16uPacked (a[7],  a[17]);
+	VectorSort16uPacked (a[7],  a[10]);
+	VectorSort16uPacked (a[12], a[18]);
+	VectorSort16uPacked (a[7],  a[12]);
+	VectorSort16uPacked (a[10], a[18]);
+	VectorSort16uPacked (a[12], a[20]);
+	VectorSort16uPacked (a[10], a[20]);
+	VectorSort16uPacked (a[10], a[12]);
 }
 
 /*
@@ -749,13 +749,13 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 
 		/* process first pixel */
 		const __m256i srcFirstPixel = LoadFirstLineWindowPixel0 (pSrcVecCurrLine, pSrcVecNextLine1, pSrcVecNextLine2, vecData);
-		PartialSort_9_elem_8u (vecData);
+		PartialSort_9_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcFirstPixel, vecData[4], rgbMaskVector);
 		pSrcVecDstLine++;
 
 		/* process second pixel */
 		const __m256i srcSecondPixel = LoadFirstLineWindowPixel1 (pSrcVecCurrLine + pixelsInVector, pSrcVecNextLine1 + pixelsInVector, pSrcVecNextLine2 + pixelsInVector, vecData);
-		PartialSort_12_elem_8u (vecData);
+		PartialSort_12_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcSecondPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
@@ -763,7 +763,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 		for (i = startPosition; i < shortSizeX; i += pixelsInVector)
 		{
 			const __m256i srcOrig = LoadFirstLineWindowPixel (pSrcVecCurrLine + i, pSrcVecNextLine1 + i, pSrcVecNextLine2 + i, vecData);
-			PartialSort_15_elem_8u (vecData);
+			PartialSort_15_elem_16u (vecData);
 			StoreByMask16u (pSrcVecDstLine, srcOrig, vecData[7], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
@@ -773,7 +773,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                                   pSrcVecNextLine1 + i,
 			                                                                   pSrcVecNextLine2 + i,
 			                                                                   vecData);
-		PartialSort_12_elem_8u (vecData);
+		PartialSort_12_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcPixelBeforeLast, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 		i += pixelsInVector;
@@ -783,7 +783,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                       pSrcVecNextLine1 + i,
 			                                                       pSrcVecNextLine2 + i,
 			                                                       vecData);
-		PartialSort_9_elem_8u (vecData);
+		PartialSort_9_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcPixelLast, vecData[4], rgbMaskVector);
 	}
 
@@ -797,7 +797,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 
 		/* process first pixel */
 		const __m256i srcFirstPixel = LoadSecondLineWindowPixel0 (pSrcVecPrevLine, pSrcVecCurrLine, pSrcVecNextLine1, pSrcVecNextLine2, vecData);
-		PartialSort_12_elem_8u (vecData);
+		PartialSort_12_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcFirstPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
@@ -807,7 +807,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                       pSrcVecNextLine1 + pixelsInVector,
 			                                                       pSrcVecNextLine2 + pixelsInVector,
 			                                                       vecData);
-		PartialSort_16_elem_8u(vecData);
+		PartialSort_16_elem_16u(vecData);
 		StoreByMask16u (pSrcVecDstLine, srcSecondPixel, vecData[7], rgbMaskVector);
 		pSrcVecDstLine++;
 
@@ -815,7 +815,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 		for (i = startPosition; i < shortSizeX; i += pixelsInVector)
 		{
 			const __m256i srcOrig = LoadSecondLineWindowPixel (pSrcVecPrevLine + i, pSrcVecCurrLine + i, pSrcVecNextLine1 + i, pSrcVecNextLine2 + i, vecData);
-			PartialSort_20_elem_8u(vecData);
+			PartialSort_20_elem_16u(vecData);
 			StoreByMask16u (pSrcVecDstLine, srcOrig, vecData[9], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
@@ -826,7 +826,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                                    pSrcVecNextLine1 + i,
 			                                                                    pSrcVecNextLine2 + i,
 			                                                                    vecData);
-		PartialSort_16_elem_8u (vecData);
+		PartialSort_16_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcPixelBeforeLast, vecData[7], rgbMaskVector);
 		pSrcVecDstLine++;
 		i += pixelsInVector;
@@ -837,7 +837,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                        pSrcVecNextLine1 + i,
 			                                                        pSrcVecNextLine2 + i,
 			                                                        vecData);
-		PartialSort_12_elem_8u(vecData);
+		PartialSort_12_elem_16u(vecData);
 		StoreByMask16u (pSrcVecDstLine, srcPixelLast, vecData[5], rgbMaskVector);
 	}
 
@@ -854,7 +854,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast<__m256i*  __restrict>(pOutImage + j * dstLinePitch);
 
 			const __m256i srcFirstPixel = LoadWindowPixel0 (pSrcVecPrevLine2, pSrcVecPrevLine1, pSrcVecCurrLine, pSrcVecNextLine1, pSrcVecNextLine2, vecData);
-			PartialSort_15_elem_8u (vecData);
+			PartialSort_15_elem_16u (vecData);
 			StoreByMask16u (pSrcVecDstLine, srcFirstPixel, vecData[7], rgbMaskVector);
 			pSrcVecDstLine++;
 
@@ -864,7 +864,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 				                                             pSrcVecNextLine1 + pixelsInVector,
 				                                             pSrcVecNextLine2 + pixelsInVector,
 				                                             vecData);
-			PartialSort_20_elem_8u (vecData);
+			PartialSort_20_elem_16u (vecData);
 			StoreByMask16u (pSrcVecDstLine, srcSecondPixel, vecData[9], rgbMaskVector);
 			pSrcVecDstLine++;
 
@@ -872,7 +872,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			for (i = startPosition; i < shortSizeX; i += pixelsInVector)
 			{
 				const __m256i srcPixel = LoadWindowPixel(pSrcVecPrevLine2 + i, pSrcVecPrevLine1 + i, pSrcVecCurrLine + i, pSrcVecNextLine1 + i, pSrcVecNextLine2 + i, vecData);
-				PartialSort_25_elem_8u (vecData);
+				PartialSort_25_elem_16u (vecData);
 				StoreByMask16u (pSrcVecDstLine, srcPixel, vecData[12], rgbMaskVector);
 				pSrcVecDstLine++;
 			} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
@@ -884,7 +884,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 				                                                     pSrcVecNextLine1 + i,
 																	 pSrcVecNextLine2 + i,
 				                                                     vecData);
-			PartialSort_20_elem_8u (vecData);
+			PartialSort_20_elem_16u (vecData);
 			StoreByMask16u (pSrcVecDstLine, srcOrigRight2, vecData[9], rgbMaskVector);
 			pSrcVecDstLine++;
 			i += pixelsInVector;
@@ -895,7 +895,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
                                                                pSrcVecNextLine1 + i,
                                                                pSrcVecNextLine2 + i,
 				                                               vecData);
-			PartialSort_15_elem_8u (vecData);
+			PartialSort_15_elem_16u (vecData);
 			StoreByMask16u (pSrcVecDstLine, srcOrigRight1, vecData[7], rgbMaskVector);
 		} /* for (j = 2; j < shortSizeY; j++) */  
 	}
@@ -909,7 +909,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast <__m256i* __restrict>(pOutImage +  j      * dstLinePitch);
 
 		const __m256i srcFirstPixel = LoadWindowBeforeLastLineFirstPixel (pSrcVecPrev2Line, pSrcVecPrev1Line, pSrcVecCurrLine, pSrcVecNextLine, vecData);
-		PartialSort_12_elem_8u(vecData);
+		PartialSort_12_elem_16u(vecData);
 		StoreByMask16u (pSrcVecDstLine, srcFirstPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
@@ -918,7 +918,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                                pSrcVecCurrLine  + pixelsInVector,
 			                                                                pSrcVecNextLine  + pixelsInVector,
 			                                                                vecData);
-		PartialSort_16_elem_8u (vecData);
+		PartialSort_16_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcSecondPixel, vecData[7], rgbMaskVector);
 		pSrcVecDstLine++;
 
@@ -926,7 +926,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 		for (i = startPosition; i < shortSizeX; i += pixelsInVector)
 		{
 			const __m256i srcPixel = LoadWindowBeforeLastLine (pSrcVecPrev2Line + i, pSrcVecPrev1Line + i, pSrcVecCurrLine + i, pSrcVecNextLine + i, vecData);
-			PartialSort_20_elem_8u (vecData);
+			PartialSort_20_elem_16u (vecData);
 			StoreByMask16u (pSrcVecDstLine, srcPixel, vecData[9], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
@@ -936,7 +936,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                                        pSrcVecCurrLine  + i,
 			                                                                        pSrcVecNextLine  + i,
 			                                                                        vecData);
-		PartialSort_16_elem_8u (vecData);
+		PartialSort_16_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcBeforeLastPixel, vecData[7], rgbMaskVector);
 		pSrcVecDstLine++;
 		i += pixelsInVector;
@@ -945,7 +945,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                            pSrcVecCurrLine  + i,
 			                                                            pSrcVecNextLine  + i,
 			                                                            vecData);
-		PartialSort_12_elem_8u (vecData);
+		PartialSort_12_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcLastPixel, vecData[5], rgbMaskVector);
 	}
 
@@ -958,7 +958,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 		__m256i*  __restrict pSrcVecDstLine   = reinterpret_cast <__m256i* __restrict>(pOutImage +  j      * dstLinePitch);
 
 		const __m256i srcFirstPixel = LoadWindowLastLineFirstPixel (pSrcVecPrev2Line, pSrcVecPrev1Line, pSrcVecCurrLine, vecData);
-		PartialSort_9_elem_8u (vecData);
+		PartialSort_9_elem_16u (vecData);
 		StoreByMask16u(pSrcVecDstLine, srcFirstPixel, vecData[4], rgbMaskVector);
 		pSrcVecDstLine++;
 
@@ -966,7 +966,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                          pSrcVecPrev1Line + pixelsInVector,
 			                                                          pSrcVecCurrLine  + pixelsInVector,
 			                                                          vecData);
-		PartialSort_12_elem_8u (vecData);
+		PartialSort_12_elem_16u (vecData);
 		StoreByMask16u(pSrcVecDstLine, srcSecondPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 
@@ -974,7 +974,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 		for (i = startPosition; i < shortSizeX; i += pixelsInVector)
 		{
 			const __m256i srcPixel = LoadWindowLastLine (pSrcVecPrev2Line + i, pSrcVecPrev1Line + i, pSrcVecCurrLine + i, vecData);
-			PartialSort_15_elem_8u (vecData);
+			PartialSort_15_elem_16u (vecData);
 			StoreByMask16u (pSrcVecDstLine, srcPixel, vecData[7], rgbMaskVector);
 			pSrcVecDstLine++;
 		} /* for (i = pixelsInVector * 2; i < shortSizeX; i += pixelsInVector) */
@@ -983,7 +983,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                                  pSrcVecPrev1Line + i,
 			                                                                  pSrcVecCurrLine  + i,
 			                                                                  vecData);
-		PartialSort_12_elem_8u (vecData);
+		PartialSort_12_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcBeforeLastPixel, vecData[5], rgbMaskVector);
 		pSrcVecDstLine++;
 		i += pixelsInVector;
@@ -992,7 +992,7 @@ bool AVX2::Median::median_filter_5x5_RGB_4444_16u
 			                                                      pSrcVecPrev1Line + i,
 			                                                      pSrcVecCurrLine  + i,
 			                                                      vecData);
-		PartialSort_9_elem_8u (vecData);
+		PartialSort_9_elem_16u (vecData);
 		StoreByMask16u (pSrcVecDstLine, srcLastPixel, vecData[4], rgbMaskVector);
 	}
 

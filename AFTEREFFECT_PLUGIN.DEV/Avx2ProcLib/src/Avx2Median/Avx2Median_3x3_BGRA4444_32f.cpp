@@ -216,7 +216,7 @@ bool AVX2::Median::median_filter_3x3_RGB_4444_32f
 	{
 		__m128* __restrict pSrcVecCurrLine = reinterpret_cast<__m128* __restrict>(pInImage);
 		__m128* __restrict pSrcVecNextLine = reinterpret_cast<__m128* __restrict>(pInImage + srcLinePitch);
-		__m256*  __restrict pSrcVecDstLine  = reinterpret_cast<__m256*  __restrict>(pOutImage);
+		__m256* __restrict pSrcVecDstLine  = reinterpret_cast<__m256*  __restrict>(pOutImage);
 
 		/* process left frame edge in first line */
 		const __m256 srcFirstPixel = LoadFirstLineWindowPixel0 (pSrcVecCurrLine, pSrcVecNextLine, vecData);

@@ -150,10 +150,28 @@ PF_Err MedianFilter_BGRA_4444_32f
 
 		case 5:
 		/* manually optimized variant 5x5 */
+			medianResult = AVX2::Median::median_filter_5x5_RGB_4444_32f
+			(
+				reinterpret_cast<__m128*>(localSrc),
+				reinterpret_cast<__m128*>(localDst),
+				height,
+				width,
+				line_pitch,
+				line_pitch
+			);
 		break;
 
 		case 7:
 		/* manually optimized variant 7x7 */
+			medianResult = AVX2::Median::median_filter_7x7_RGB_4444_32f
+			(
+				reinterpret_cast<__m128*>(localSrc),
+				reinterpret_cast<__m128*>(localDst),
+				height,
+				width,
+				line_pitch,
+				line_pitch
+			);
 		break;
 
 		default:

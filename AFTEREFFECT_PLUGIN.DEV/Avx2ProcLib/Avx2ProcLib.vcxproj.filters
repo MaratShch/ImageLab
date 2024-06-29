@@ -149,5 +149,11 @@
     <ClCompile Include="src\Avx2Median\Avx2Median_3x3_BGRA4444_32f.cpp">
       <Filter>src\Avx2Median</Filter>
     </ClCompile>
+    <ClCompile Include="src\Avx2Median\Avx2Median_5x5_BGRA4444_32f.cpp">
+      <Filter>src\Avx2Median</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2Median\Avx2Median_7x7_BGRA4444_32f.cpp">
+      <Filter>src\Avx2Median</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
