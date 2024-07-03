@@ -39,7 +39,7 @@ inline void initHistogram
 		for (A_long i = pixLeft; i <= pixRight; i++)
 		{
 			const A_long idxPix = FastCompute::Min((sizeX - 1), FastCompute::Max(0, i));
-			const T& pixel = pLine[idxPix];
+			const T pixel = pLine[idxPix];
 
 			hR[pixel.R]++;
 			hG[pixel.G]++;
@@ -79,13 +79,13 @@ inline void updateHistogram
 		const A_long lineIdx = FastCompute::Min((sizeY - 1), FastCompute::Max(0, j));
 		const T* __restrict pLine = pSrc + lineIdx * linePitch;
 
-		const T& pixelPrev = pLine[idxPixPrev];
+		const T pixelPrev = pLine[idxPixPrev];
 		/* remove previous row */
 		hR[pixelPrev.R]--;
 		hG[pixelPrev.G]--;
 		hB[pixelPrev.B]--;
 
-		const T& pixelLast = pLine[idxPixNext];
+		const T pixelLast = pLine[idxPixNext];
 		/* add new row */
 		hR[pixelLast.R]++;
 		hG[pixelLast.G]++;
@@ -245,8 +245,8 @@ inline void updateHistogram
 		const A_long lineIdx = FastCompute::Min((sizeY - 1), FastCompute::Max(0, j));
 		const T* __restrict pLine = pSrc + lineIdx * linePitch;
 
-		const T& pixelPrev = pLine[idxPixPrev];
-		const T& pixelLast = pLine[idxPixNext];
+		const T pixelPrev = pLine[idxPixPrev];
+		const T pixelLast = pLine[idxPixNext];
 
 		/* remove previous row */
 		hLuma[pixelPrev.Y]--;
@@ -352,7 +352,7 @@ inline void initHistogram
 		for (A_long i = pixLeft; i <= pixRight; i++)
 		{
 			const A_long idxPix = FastCompute::Min((sizeX - 1), FastCompute::Max(0, i));
-			const PF_Pixel_VUYA_32f& pixel = pLine[idxPix];
+			const PF_Pixel_VUYA_32f pixel = pLine[idxPix];
 
 			hLuma[static_cast<int32_t>(pixel.Y * fFloatScaler)]++;
 		} /* for (A_long i = pixLeft; i < pixRight; i++) */
@@ -414,8 +414,8 @@ inline void updateHistogram
 		const A_long lineIdx = FastCompute::Min((sizeY - 1), FastCompute::Max(0, j));
 		const PF_Pixel_VUYA_32f* __restrict pLine = pSrc + lineIdx * linePitch;
 
-		const PF_Pixel_VUYA_32f& pixelPrev = pLine[idxPixPrev];
-		const PF_Pixel_VUYA_32f& pixelLast = pLine[idxPixNext];
+		const PF_Pixel_VUYA_32f pixelPrev = pLine[idxPixPrev];
+		const PF_Pixel_VUYA_32f pixelLast = pLine[idxPixNext];
 
 		const A_long prevLumaIdx = static_cast<A_long>(pixelPrev.Y * fFloatScaler);
 		const A_long nextLumaIdx = static_cast<A_long>(pixelLast.Y * fFloatScaler);
@@ -495,7 +495,7 @@ inline void initHistogram
 		for (A_long i = pixLeft; i <= pixRight; i++)
 		{
 			const A_long idxPix = FastCompute::Min((sizeX - 1), FastCompute::Max(0, i));
-			const PF_Pixel_BGRA_32f& pixel = pLine[idxPix];
+			const PF_Pixel_BGRA_32f pixel = pLine[idxPix];
 
 			const A_long rIdx = static_cast<A_long>(pixel.R * fFloatScaler);
 			const A_long gIdx = static_cast<A_long>(pixel.G * fFloatScaler);
@@ -581,7 +581,7 @@ inline void updateHistogram
 		const A_long lineIdx = FastCompute::Min((sizeY - 1), FastCompute::Max(0, j));
 		const PF_Pixel_BGRA_32f* __restrict pLine = pSrc + lineIdx * linePitch;
 
-		const PF_Pixel_BGRA_32f& pixelPrev = pLine[idxPixPrev];
+		const PF_Pixel_BGRA_32f pixelPrev = pLine[idxPixPrev];
 		const A_long rPrevIdx = static_cast<A_long>(pixelPrev.R * fFloatScaler);
 		const A_long gPrevIdx = static_cast<A_long>(pixelPrev.G * fFloatScaler);
 		const A_long bPrevIdx = static_cast<A_long>(pixelPrev.B * fFloatScaler);
@@ -590,7 +590,7 @@ inline void updateHistogram
 		hG[gPrevIdx]--;
 		hB[bPrevIdx]--;
 
-		const PF_Pixel_BGRA_32f& pixelLast = pLine[idxPixNext];
+		const PF_Pixel_BGRA_32f pixelLast = pLine[idxPixNext];
 		const A_long rNextIdx = static_cast<A_long>(pixelLast.R * fFloatScaler);
 		const A_long gNextIdx = static_cast<A_long>(pixelLast.G * fFloatScaler);
 		const A_long bNextIdx = static_cast<A_long>(pixelLast.B * fFloatScaler);
