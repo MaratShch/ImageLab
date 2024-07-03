@@ -13,7 +13,15 @@ inline void StoreByMask16u (__m256i* __restrict pDst, const __m256i& valueOrig, 
 
 inline void StoreByMask32f (__m256* __restrict pDst, const __m256& valueOrig, const __m256& valueMedian, const int& storeMask) noexcept
 {
-	_mm256_storeu_ps (reinterpret_cast<float*>(pDst), _mm256_blend_ps (valueOrig, valueMedian, storeMask));
+#ifdef _DEBUG 
+	/*
+	  Seems bug in intel compiler https://stackoverflow.com/questions/38365778/why-do-some-of-intels-intrinsics-take-const-immediates-while-others-are-non-co
+	*/
+	constexpr int __mask = 0x77;
+	_mm256_storeu_ps(reinterpret_cast<float*>(pDst), _mm256_blend_ps(valueOrig, valueMedian, __mask));// storeMask));
+#else
+	_mm256_storeu_ps(reinterpret_cast<float*>(pDst), _mm256_blend_ps(valueOrig, valueMedian, storeMask));
+#endif
 }
 
 

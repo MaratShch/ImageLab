@@ -53,7 +53,7 @@ bool median_filter_constant_time_ARGB_4444_8u
 	return true;
 }
 
-//#pragma comment(linker, "/STACK:4194304")
+#pragma comment(linker, "/STACK:4194304")
 bool median_filter_constant_time_BGRA_4444_16u
 (
 	const uint64_t* __restrict pSrcBuffer,
@@ -80,7 +80,7 @@ bool median_filter_constant_time_BGRA_4444_16u
 }
 
 
-//#pragma comment(linker, "/STACK:4194304")
+#pragma comment(linker, "/STACK:4194304")
 bool median_filter_constant_time_ARGB_4444_16u
 (
 	const uint64_t* __restrict pSrcBuffer,
@@ -106,7 +106,6 @@ bool median_filter_constant_time_ARGB_4444_16u
 	return true;
 }
 
-
 bool median_filter_constant_time_BGRA_4444_32f
 (
 	const PF_Pixel_BGRA_32f* __restrict pSrcBuffer,
@@ -118,7 +117,7 @@ bool median_filter_constant_time_BGRA_4444_32f
 	A_long kernelSize
 ) noexcept
 {
-	constexpr size_t histSize{ UCHAR_MAX + 1 };
+	constexpr size_t histSize{ static_cast<int32_t>(fFloatScaler) + 1 };
 	CACHE_ALIGN HistElem pChannelHistR[histSize];
 	CACHE_ALIGN HistElem pChannelHistG[histSize];
 	CACHE_ALIGN HistElem pChannelHistB[histSize];
@@ -164,7 +163,7 @@ bool median_filter_constant_time_VUYA_4444_32f
 	A_long kernelSize
 ) noexcept
 {
-	constexpr size_t histSize{ UCHAR_MAX + 1 }; /* internally convert pixel color from f32 to u8 */
+	constexpr size_t histSize{ static_cast<int32_t>(fFloatScaler) + 1 };
 	CACHE_ALIGN HistElem pChannelHistY[histSize];
 
 	median_filter_constant_time_YUV_32f (pSrcBuffer, pDstBuffer, pChannelHistY, histSize, sizeY, sizeX, srcLinePitch, dstLinePitch, kernelSize);

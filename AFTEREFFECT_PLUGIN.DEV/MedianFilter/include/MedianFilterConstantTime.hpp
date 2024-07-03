@@ -7,7 +7,7 @@
 using HistElem   = uint16_t;
 using HistHolder = std::array<HistElem*, 3>;
 
-constexpr float fFloatScaler = 255.f;
+constexpr float fFloatScaler = 1023.f;
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 //  Templated version for RGB (BGRA or ARGB) pixel format                                  //
@@ -520,34 +520,35 @@ inline PF_Pixel_BGRA_32f medianPixel
 	A_long               medianSample
 ) noexcept
 {
-	A_long idxR, idxG, idxB;
+	A_long idxR = 0, idxG = 0, idxB = 0;
+	A_long samplesR = 0, samplesG = 0, samplesB = 0;
 
-	for (A_long samplesR = idxR = 0; idxR < histSize; ++idxR)
+	for (samplesR = idxR = 0; idxR < histSize; idxR++)
 	{
 		samplesR += static_cast<A_long>(hR[idxR]);
 		if (samplesR >= medianSample)
 			break;
 	}
-	for (A_long samplesG = idxG = 0; idxG < histSize; ++idxG)
+	for (samplesG = idxG = 0; idxG < histSize; idxG++)
 	{
 		samplesG += static_cast<A_long>(hG[idxG]);
 		if (samplesG >= medianSample)
 			break;
 	}
-	for (A_long samplesB = idxB = 0; idxB < histSize; ++idxB)
+	for (samplesB = idxB = 0; idxB < histSize; idxB++)
 	{
 		samplesB += static_cast<A_long>(hB[idxB]);
 		if (samplesB >= medianSample)
 			break;
 	}
 
-	constexpr float fRecip255 = 1.f / fFloatScaler;
+	constexpr float fRecip = 1.f / fFloatScaler;
 
 	PF_Pixel_BGRA_32f outPix;
 	outPix.A = pSrc.A;
-	outPix.R = static_cast<float>(idxR) * fRecip255;
-	outPix.G = static_cast<float>(idxG) * fRecip255;
-	outPix.B = static_cast<float>(idxB) * fRecip255;
+	outPix.R = static_cast<float>(idxR) * fRecip;
+	outPix.G = static_cast<float>(idxG) * fRecip;
+	outPix.B = static_cast<float>(idxB) * fRecip;
 
 	return outPix;
 }

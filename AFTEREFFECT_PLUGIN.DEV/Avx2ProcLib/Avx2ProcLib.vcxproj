@@ -132,8 +132,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <ExceptionHandling>false</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <FloatingPointModel>
-      </FloatingPointModel>
+      <FloatingPointModel>Fast</FloatingPointModel>
       <FloatingPointExceptions>false</FloatingPointExceptions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>

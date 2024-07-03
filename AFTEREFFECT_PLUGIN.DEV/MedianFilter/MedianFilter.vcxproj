@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{2746D009-7346-48FD-9616-2B01CCDFC7C8}</ProjectGuid>
     <RootNamespace>MedianFilter</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -99,7 +99,14 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
+    <Link>
+      <StackReserveSize>4194304</StackReserveSize>
+    </Link>
+    <Link>
+      <StackCommitSize>4194304</StackCommitSize>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -128,10 +135,13 @@
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <StackReserveSize>4194304</StackReserveSize>
+      <StackCommitSize>4194304</StackCommitSize>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
