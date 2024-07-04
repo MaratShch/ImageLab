@@ -23,14 +23,18 @@ namespace AVX2
 
 		inline void clean_hist_buffer(void* __restrict pBuffer, const size_t bytesSize) noexcept
 		{
-			const __m256d  zVal{ 0 };
-			__m256d* p = reinterpret_cast<__m256d*>(pBuffer);
-			const size_t loopCnt = bytesSize / Avx2BytesSize;
-
+			const size_t loopCnt  = bytesSize / Avx2BytesSize;
+			const size_t fraction = bytesSize % Avx2BytesSize;
+			const __m256i zVal = _mm256_setzero_si256();
+			__m256i* p = reinterpret_cast<__m256i*>(pBuffer);
 			for (size_t i = 0; i < loopCnt; i++)
 			{
-				*p++ = zVal;
+				_mm256_storeu_si256(p, zVal);
+				p++;
 			}
+
+			if (fraction)
+				memset(reinterpret_cast<void*>(p), 0, fraction);
 
 			return;
 		}
