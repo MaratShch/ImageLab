@@ -58,8 +58,7 @@ GlobalSetup(
 	/* For Premiere - declare supported pixel formats */
 	if (PremierId == in_data->appl_id)
 	{
-		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-			AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data);
+		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite { AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);

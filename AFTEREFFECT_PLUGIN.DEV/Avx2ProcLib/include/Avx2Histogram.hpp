@@ -21,7 +21,7 @@ namespace AVX2
 
 		constexpr float HistFloatPointNorm = static_cast<float>(u16_value_white);
 
-		inline void clean_hist_buffer(void* __restrict pBuffer, const size_t bytesSize) noexcept
+		inline void clean_hist_buffer(void* __restrict pBuffer, const size_t& bytesSize) noexcept
 		{
 			const size_t loopCnt  = bytesSize / Avx2BytesSize;
 			const size_t fraction = bytesSize % Avx2BytesSize;
