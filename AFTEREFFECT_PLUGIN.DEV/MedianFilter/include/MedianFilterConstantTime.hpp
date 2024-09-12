@@ -4,7 +4,7 @@
 #include "FastAriphmetics.hpp"
 #include <array>
 
-using HistElem   = uint16_t;
+using HistElem   = uint32_t;
 using HistHolder = std::array<HistElem*, 3>;
 
 constexpr float fFloatScaler = 1023.f;
