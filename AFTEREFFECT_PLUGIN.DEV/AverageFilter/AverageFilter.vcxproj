@@ -135,6 +135,7 @@
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
     <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
     <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
     <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
@@ -145,6 +146,8 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AverageFilter.hpp" />
+    <ClInclude Include="include\AverageFilterAlgo.hpp" />
+    <ClInclude Include="include\AverageFilterEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AverageFilter.cpp" />

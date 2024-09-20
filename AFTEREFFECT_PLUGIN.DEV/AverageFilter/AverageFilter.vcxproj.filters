@@ -69,6 +69,15 @@
     <ClInclude Include="include\AverageFilter.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AverageFilterAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AverageFilterEnum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AverageFilter.cpp">

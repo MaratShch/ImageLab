@@ -1,0 +1,11 @@
+#ifndef __IMAGE_LAB_AVERAGE_FILTER_ENUMERATORS__
+#define __IMAGE_LAB_AVERAGE_FILTER_ENUMERATORS__
+
+typedef enum {
+	eAEVRAGE_FILTER_INPUT,
+	eAEVRAGE_FILTER_LARGE_WINDOW
+}eAVERAGE_FILTER;
+
+constexpr char wLargeCheckBoxStr[] = "Large Window";
+
+#endif

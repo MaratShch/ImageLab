@@ -1,6 +1,6 @@
 #include "AverageFilter.hpp"
+#include "AverageFilterEnum.hpp"
 #include "PrSDKAESupport.h"
-
 
 
 static PF_Err
@@ -32,15 +32,15 @@ GlobalSetup(
 	PF_Err	err = PF_Err_NONE;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
+		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
@@ -97,6 +97,12 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+	PF_ParamDef	def;
+	constexpr PF_ParamFlags flags{ PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP };
+	constexpr PF_ParamUIFlags ui_flags{ PF_PUI_NONE };
+
+	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags); (def);
+	PF_ADD_CHECKBOXX (wLargeCheckBoxStr, FALSE, 0, eAEVRAGE_FILTER_LARGE_WINDOW);
 
 	return PF_Err_NONE;
 }
