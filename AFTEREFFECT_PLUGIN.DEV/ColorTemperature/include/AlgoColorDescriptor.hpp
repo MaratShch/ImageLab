@@ -88,7 +88,6 @@ private:
 		return;
 	}
 
-
 	const std::vector<T> init_illuminant_D65_Cloudy (void) noexcept
 	{
 		const auto vectorSize = m_Illuminant[COLOR_TEMPERATURE_ILLUMINANT_D65].size();

@@ -7,6 +7,7 @@
 constexpr int32_t CURVES_X = 0;
 constexpr int32_t CURVES_Y = 1;
 constexpr int32_t CURVES_Z = 2;
+constexpr int32_t CURVES_ALL = 3;
 
 /* ========= COMPUTATION FOR 2 DEGREES 1931 OBSERVER ================== */
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
@@ -56,11 +57,10 @@ inline T z_sample_1931 (const T& waveLength) noexcept
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline std::vector<std::vector<T>> generate_color_curves_1931_observer (const T& minWlength, const T& maxWlength, const T& step) noexcept
 {
-	std::vector<std::vector<T>> vectorCurves;
-	const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1;
+	std::vector<std::vector<T>> vectorCurves(CURVES_ALL);
+	const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1u;
 
-	/* resize outpuit vectors for hold curve points */
-	vectorCurves.resize(3);
+	/* resize output vectors for hold curve points */
 	vectorCurves[CURVES_X].resize(vectorSize);
 	vectorCurves[CURVES_Y].resize(vectorSize);
 	vectorCurves[CURVES_Z].resize(vectorSize);
@@ -108,11 +108,10 @@ inline T z_sample_1964(const T& waveLength) noexcept
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline std::vector<std::vector<T>> generate_color_curves_1964_observer (const T& minWlength, const T& maxWlength, const T& step) noexcept
 {
-	std::vector<std::vector<T>> vectorCurves;
+	std::vector<std::vector<T>> vectorCurves(CURVES_ALL);
 	const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1;
 
 	/* resize outpuit vectors for hold curve points */
-	vectorCurves.resize(3);
 	vectorCurves[CURVES_X].resize(vectorSize);
 	vectorCurves[CURVES_Y].resize(vectorSize);
 	vectorCurves[CURVES_Z].resize(vectorSize);
