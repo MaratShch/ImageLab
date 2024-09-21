@@ -136,6 +136,15 @@ namespace FastCompute
 		return std::sqrt(x);
 	}
 
+	template <typename T>
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sqrt(const T& n, const T& eps /* accuracy */) noexcept
+    {
+		//  Newton-Raphson iterative method
+		T x { 1 };
+		while (std::abs(x * x - n) > eps)
+			x = (x + n / x) / static_cast<T>(2);
+		return x;
+	}
 
 	inline float InvSqrt(const float& x) noexcept
 	{
