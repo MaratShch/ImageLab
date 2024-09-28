@@ -1,10 +1,11 @@
-#ifndef __IMAGE_LAB_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__
-#define __IMAGE_LAB_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__
+#ifndef __IMAGE_LAB_ARIPHMETIC_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__
+#define __IMAGE_LAB_ARIPHMETIC_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__
 
 #include "CommonPixFormat.hpp"
 #include "CommonPixFormatSFINAE.hpp"
 
-using TAverSum = float;
+// ariphmetic average type
+using TAAverSum = float;
 
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
@@ -21,7 +22,7 @@ void AverageFilterAlgo
 {
 	const A_long filterRadius = windowWidth >> 1;
 	const A_long filterWindow = windowWidth * windowWidth;
-	const TAverSum reciproc = static_cast<TAverSum>(1) / static_cast<TAverSum>(windowWidth);
+	const TAAverSum reciproc = static_cast<TAAverSum>(1) / static_cast<TAAverSum>(windowWidth);
 	
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -33,7 +34,7 @@ void AverageFilterAlgo
 			const A_long iMin = i - filterRadius;
 			const A_long iMax = i + filterRadius;
 
-			TAverSum aSumR = 0, asumG = 0, asumB = 0;
+			TAAverSum aSumR = 0, asumG = 0, asumB = 0;
 		} /* for (i = 0; i < sizeX; i++) */
 
 	} /* for (j = 0; j < sizeY; j++) */
@@ -56,7 +57,7 @@ void AverageFilterAlgo
 {
 	const A_long filterRadius = windowWidth >> 1;
 	const A_long filterWindow = windowWidth * windowWidth;
-	const TAverSum reciproc = static_cast<TAverSum>(1) / static_cast<TAverSum>(windowWidth);
+	const TAAverSum reciproc = static_cast<TAAverSum>(1) / static_cast<TAAverSum>(windowWidth);
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -68,7 +69,7 @@ void AverageFilterAlgo
 			const A_long iMin = i - filterRadius;
 			const A_long iMax = i + filterRadius;
 
-			TAverSum aSumR = 0, asumG = 0, asumB = 0;
+			TAAverSum aSumR = 0, asumG = 0, asumB = 0;
 		} /* for (i = 0; i < sizeX; i++) */
 
 	} /* for (j = 0; j < sizeY; j++) */
@@ -91,7 +92,7 @@ void AverageFilterAlgo
 {
 	const A_long filterRadius = windowWidth >> 1;
 	const A_long filterWindow = windowWidth * windowWidth;
-	const TAverSum reciproc = static_cast<TAverSum>(1) / static_cast<TAverSum>(windowWidth);
+	const TAAverSum reciproc = static_cast<TAAverSum>(1) / static_cast<TAAverSum>(windowWidth);
 
 	for (A_long j = 0; j < sizeY; j++)
 	{
@@ -103,7 +104,7 @@ void AverageFilterAlgo
 			const A_long iMin = i - filterRadius;
 			const A_long iMax = i + filterRadius;
 
-			TAverSum aSumR = 0, asumG = 0, asumB = 0;
+			TAAverSum aSumR = 0, asumG = 0, asumB = 0;
 		} /* for (i = 0; i < sizeX; i++) */
 
 	} /* for (j = 0; j < sizeY; j++) */
@@ -112,4 +113,4 @@ void AverageFilterAlgo
 }
 
 
-#endif /* __IMAGE_LAB_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__ */
+#endif /* __IMAGE_LAB_ARIPHMETIC_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__ */

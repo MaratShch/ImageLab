@@ -1,5 +1,6 @@
 #include "AverageFilter.hpp"
-#include "AverageFilterAlgo.hpp"
+#include "AverageAFilterAlgo.hpp"
+#include "AverageGFilterAlgo.hpp"
 #include "AverageFilterEnum.hpp"
 
 
@@ -16,7 +17,7 @@ PF_Err AverageFilter_InAE_8bits
 	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
 	/* check "Large Window Size" from checkbox */
-	const A_long windowSize = ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
+		  const A_long windowSize = 3;// ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
@@ -42,7 +43,7 @@ PF_Err AverageFilter_InAE_16bits
 	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
 	/* check "Large Window Size" from checkbox */
-	const A_long windowSize = ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
+		  const A_long windowSize = 3;// ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);

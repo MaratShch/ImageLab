@@ -1,5 +1,6 @@
 #include "AverageFilter.hpp"
-#include "AverageFilterAlgo.hpp"
+#include "AverageAFilterAlgo.hpp"
+#include "AverageGFilterAlgo.hpp"
 #include "AverageFilterEnum.hpp"
 #include "PrSDKAESupport.h"
 
@@ -19,7 +20,7 @@ PF_Err ProcessImgInPR
 	A_long sizeY = 0, sizeX = 0, linePitch = 0;
 	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eAEVRAGE_FILTER_INPUT]->u.ld);
 	/* check "Large Window Size" from checkbox */
-	const A_long windowSize = ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
+	const A_long windowSize = 3;// ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
 
 	/* This plugin called frop PR - check video fomat */
 	auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };

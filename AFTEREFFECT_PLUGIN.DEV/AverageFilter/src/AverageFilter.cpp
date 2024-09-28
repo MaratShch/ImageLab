@@ -101,8 +101,18 @@ ParamsSetup(
 	constexpr PF_ParamFlags flags{ PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP };
 	constexpr PF_ParamUIFlags ui_flags{ PF_PUI_NONE };
 
-	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags); (def);
-	PF_ADD_CHECKBOXX (wLargeCheckBoxStr, FALSE, 0, eAEVRAGE_FILTER_LARGE_WINDOW);
+	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+	PF_ADD_POPUP(
+		FilterWindowSizeStr,	      // pop-up name
+		eAVERAGE_WINDOW_TOTAL,	      // number of variants
+		eAVERAGE_WINDOW_3x3,		  // default variant
+		FilterWindowSizesStr,         // string for pop-up
+		eAEVRAGE_FILTER_WINDOW_SIZE); // control ID
+
+	AEFX_INIT_PARAM_STRUCTURE (def, flags, ui_flags);
+	PF_ADD_CHECKBOXX (GeomethricCheckBoxStr, FALSE, 0, eAVERAGE_FILTER_GEOMETRIC_AVERAGE);
+
+	out_data->num_params = static_cast<A_long>(eAVERAGE_FILTER_TOTAL_PARAMETERS);
 
 	return PF_Err_NONE;
 }

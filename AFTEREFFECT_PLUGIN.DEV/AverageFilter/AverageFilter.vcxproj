@@ -145,9 +145,10 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AverageAFilterAlgo.hpp" />
     <ClInclude Include="include\AverageFilter.hpp" />
-    <ClInclude Include="include\AverageFilterAlgo.hpp" />
     <ClInclude Include="include\AverageFilterEnum.hpp" />
+    <ClInclude Include="include\AverageGFilterAlgo.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AverageFilter.cpp" />
