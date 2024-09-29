@@ -16,8 +16,11 @@ PF_Err AverageFilter_InAE_8bits
 	const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
 	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-	/* check "Large Window Size" from checkbox */
-		  const A_long windowSize = 3;// ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
+    /* check "Window Size" from popup */
+    eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value - 1) };
+	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
+	if (windowSize <= 0) /* normally this comparison should be always false */
+		return PF_Err_INVALID_INDEX;
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
@@ -42,8 +45,11 @@ PF_Err AverageFilter_InAE_16bits
 	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
 	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-	/* check "Large Window Size" from checkbox */
-		  const A_long windowSize = 3;// ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
+    /* check "Window Size" from popup */
+    eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value - 1) };
+	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
+	if (windowSize <= 0) /* normally this comparison should be always false */
+		return PF_Err_INVALID_INDEX;
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);

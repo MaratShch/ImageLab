@@ -17,16 +17,20 @@ PF_Err ProcessImgInPR
 	PF_Err errFormat{ PF_Err_INVALID_INDEX };
 	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
-	A_long sizeY = 0, sizeX = 0, linePitch = 0;
-	const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eAEVRAGE_FILTER_INPUT]->u.ld);
-	/* check "Large Window Size" from checkbox */
-	const A_long windowSize = 3;// ((0u != params[eAEVRAGE_FILTER_LARGE_WINDOW]->u.bd.value) ? 5 : 3);
+	/* check "Window Size" from popup */
+	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum { static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value - 1) };
+	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
+	if (windowSize <= 0) /* normally this comparison should be always false */
+		return PF_Err_INVALID_INDEX;
 
 	/* This plugin called frop PR - check video fomat */
 	auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
 	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 	{
+		A_long sizeY = 0, sizeX = 0, linePitch = 0;
+		const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eAEVRAGE_FILTER_INPUT]->u.ld);
+
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
