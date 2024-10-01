@@ -18,7 +18,7 @@ PF_Err ProcessImgInPR
 	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
 	/* check "Window Size" from popup */
-	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum { static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value - 1) };
+	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum { static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value) };
 	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
 	if (windowSize <= 0) /* normally this comparison should be always false */
 		return PF_Err_INVALID_INDEX;

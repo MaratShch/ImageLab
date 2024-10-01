@@ -20,7 +20,7 @@ PF_Err AverageFilter_InAE_8bits
     const A_long isGeometric = params[eAVERAGE_FILTER_GEOMETRIC_AVERAGE]->u.bd.value;
 
 	/* check "Window Size" from popup */
-    eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value - 1) };
+    eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value) };
 	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
 	if (windowSize <= 0) /* normally this comparison should be always false */
 		return PF_Err_INVALID_INDEX;
@@ -53,7 +53,7 @@ PF_Err AverageFilter_InAE_16bits
     const A_long isGeometric = params[eAVERAGE_FILTER_GEOMETRIC_AVERAGE]->u.bd.value;
 
 	/* check "Window Size" from popup */
-	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value - 1) };
+	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value) };
 	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
 	if (windowSize <= 0) /* normally this comparison should be always false */
 	    return PF_Err_INVALID_INDEX;
