@@ -9,7 +9,7 @@ using TGAverSum = float;
 
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-void GeomethricAverageFilterAlgo
+A_long GeomethricAverageFilterAlgo
 (
 	const T* __restrict pSrcImg,
 	      T* __restrict pDstImg,
@@ -39,12 +39,12 @@ void GeomethricAverageFilterAlgo
 
 	} /* for (j = 0; j < sizeY; j++) */
 
-	return;
+	return PF_Err_NONE;
 }
 
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-void GeomethricAverageFilterAlgo
+A_long GeomethricAverageFilterAlgo
 (
 	const T* __restrict pSrcImg,
 	      T* __restrict pDstImg,
@@ -74,12 +74,12 @@ void GeomethricAverageFilterAlgo
 
 	} /* for (j = 0; j < sizeY; j++) */
 
-	return;
+	return PF_Err_NONE;
 }
 
 
 template <typename T, std::enable_if_t<is_no_alpha_channel<T>::value>* = nullptr>
-void GeomethricAverageFilterAlgo
+A_long GeomethricAverageFilterAlgo
 (
 	const T* __restrict pSrcImg,
 	      T* __restrict pDstImg,
@@ -109,7 +109,7 @@ void GeomethricAverageFilterAlgo
 
 	} /* for (j = 0; j < sizeY; j++) */
 
-	return;
+	return PF_Err_NONE;
 }
 
 

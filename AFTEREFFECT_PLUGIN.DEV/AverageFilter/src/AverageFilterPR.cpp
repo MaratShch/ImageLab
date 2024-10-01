@@ -30,6 +30,7 @@ PF_Err ProcessImgInPR
 	{
 		A_long sizeY = 0, sizeX = 0, linePitch = 0;
 		const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eAEVRAGE_FILTER_INPUT]->u.ld);
+		const A_long isGeometric = params[eAVERAGE_FILTER_GEOMETRIC_AVERAGE]->u.bd.value;
 
 		switch (destinationPixelFormat)
 		{
@@ -41,7 +42,9 @@ PF_Err ProcessImgInPR
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-				AverageFilterAlgo (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize);
+				err = ((0 == isGeometric) ?
+					AverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize) :
+					GeomethricAverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize));
 			}
 			break;
 
@@ -53,7 +56,9 @@ PF_Err ProcessImgInPR
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-				AverageFilterAlgo (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize);
+				err = ((0 == isGeometric) ?
+					AverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize) :
+					GeomethricAverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize));
 			}
 			break;
 
@@ -65,7 +70,9 @@ PF_Err ProcessImgInPR
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-				AverageFilterAlgo (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize);
+				err = ((0 == isGeometric) ?
+					AverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize) :
+					GeomethricAverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize));
 			}
 			break;
 
@@ -78,7 +85,9 @@ PF_Err ProcessImgInPR
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-				AverageFilterAlgo (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize);
+				err = ((0 == isGeometric) ?
+					AverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize) :
+					GeomethricAverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize));
 			}
 			break;
 
@@ -91,7 +100,9 @@ PF_Err ProcessImgInPR
 				sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-				AverageFilterAlgo (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize);
+				err = ((0 == isGeometric) ?
+					AverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize) :
+					GeomethricAverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize));
 			}
 			break;
 
@@ -103,7 +114,9 @@ PF_Err ProcessImgInPR
 				sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 				linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
-				AverageFilterAlgo (localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize);
+				err = ((0 == isGeometric) ?
+					AverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize) :
+					GeomethricAverageFilterAlgo(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, windowSize));
 			}
 			break;
 
