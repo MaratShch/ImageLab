@@ -1,6 +1,8 @@
 #ifndef __IMAGE_LAB_AVERAGE_FILTER_ENUMERATORS__
 #define __IMAGE_LAB_AVERAGE_FILTER_ENUMERATORS__
 
+#include "AE_Effect.h"
+
 typedef enum {
 	eAEVRAGE_FILTER_INPUT,
 	eAEVRAGE_FILTER_WINDOW_SIZE,
@@ -45,4 +47,4 @@ constexpr char FilterWindowSizesStr[]  = { "3 x 3|" "5 x 5|" "7 x 7" };
 constexpr char FilterWindowSizeStr[]   = "Window Size";
 constexpr char GeomethricCheckBoxStr[] = "Geometric Average";
 
-#endif
+#endif // __IMAGE_LAB_AVERAGE_FILTER_ENUMERATORS__

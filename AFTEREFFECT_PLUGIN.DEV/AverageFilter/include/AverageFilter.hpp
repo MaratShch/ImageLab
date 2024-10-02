@@ -5,7 +5,7 @@
 
 
 constexpr char strName[] = "Average Filter";
-constexpr char strCopyright[] = "\n2019-2023. ImageLab2 Copyright(c).\rAverage Filter plugin.";
+constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rAverage Filter plugin.";
 constexpr int AverageFilter_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int AverageFilter_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int AverageFilter_VersionSub = 0;

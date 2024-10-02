@@ -17,13 +17,13 @@ PF_Err ProcessImgInPR
 	PF_Err errFormat{ PF_Err_INVALID_INDEX };
 	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
-	/* check "Window Size" from popup */
-	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum { static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value) };
+	// check "Window Size" from popup
+	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum { static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_WINDOW_SIZE]->u.pd.value - 1) };
 	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
 	if (windowSize <= 0) /* normally this comparison should be always false */
 		return PF_Err_INVALID_INDEX;
 
-	/* This plugin called frop PR - check video fomat */
+	// This plugin called frop PR - check video fomat
 	auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
 	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
@@ -122,12 +122,12 @@ PF_Err ProcessImgInPR
 
 			default:
 			break;
-		} /* switch (destinationPixelFormat) */
+		} // switch (destinationPixelFormat)
 
-	} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
+	} // if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 	else
 	{
-		/* error in determine pixel format */
+		// error in determine pixel format
 		err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
 	}
 

@@ -35,9 +35,9 @@ A_long GeomethricAverageFilterAlgo
 			const A_long iMax = i + filterRadius;
 
 			TGAverSum aSumR = 0, asumG = 0, asumB = 0;
-		} /* for (i = 0; i < sizeX; i++) */
+		} // for (i = 0; i < sizeX; i++)
 
-	} /* for (j = 0; j < sizeY; j++) */
+	} // for (j = 0; j < sizeY; j++)
 
 	return PF_Err_NONE;
 }
@@ -70,9 +70,9 @@ A_long GeomethricAverageFilterAlgo
 			const A_long iMax = i + filterRadius;
 
 			TGAverSum aSumR = 0, asumG = 0, asumB = 0;
-		} /* for (i = 0; i < sizeX; i++) */
+		} // for (i = 0; i < sizeX; i++)/
 
-	} /* for (j = 0; j < sizeY; j++) */
+	} // for (j = 0; j < sizeY; j++)/
 
 	return PF_Err_NONE;
 }
@@ -105,12 +105,12 @@ A_long GeomethricAverageFilterAlgo
 			const A_long iMax = i + filterRadius;
 
 			TGAverSum aSumR = 0, asumG = 0, asumB = 0;
-		} /* for (i = 0; i < sizeX; i++) */
+		} // for (i = 0; i < sizeX; i++)/
 
-	} /* for (j = 0; j < sizeY; j++) */
+	} // for (j = 0; j < sizeY; j++)/
 
 	return PF_Err_NONE;
 }
 
 
-#endif /* __IMAGE_LAB_GEOMETRIC_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__ */
+#endif // __IMAGE_LAB_GEOMETRIC_AVERAGE_FILTER_ALGORITHM_IMPLEMENTATION__

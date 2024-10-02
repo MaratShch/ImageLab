@@ -16,13 +16,13 @@ PF_Err AverageFilter_InAE_8bits
 	const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
 	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-    /* check average type */
+    // check average typ//
     const A_long isGeometric = params[eAVERAGE_FILTER_GEOMETRIC_AVERAGE]->u.bd.value;
 
-	/* check "Window Size" from popup */
-    eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value) };
+	// check "Window Size" from popup
+    eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_WINDOW_SIZE]->u.pd.value - 1) };
 	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
-	if (windowSize <= 0) /* normally this comparison should be always false */
+	if (windowSize <= 0) // normally this comparison should be always false/
 		return PF_Err_INVALID_INDEX;
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
@@ -52,10 +52,10 @@ PF_Err AverageFilter_InAE_16bits
 
     const A_long isGeometric = params[eAVERAGE_FILTER_GEOMETRIC_AVERAGE]->u.bd.value;
 
-	/* check "Window Size" from popup */
-	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_INPUT]->u.pd.value) };
+	// check "Window Size" from popup
+	eAVERAGE_FILTER_WINDOW_SIZE const windowSizeEnum{ static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(params[eAEVRAGE_FILTER_WINDOW_SIZE]->u.pd.value - 1) };
 	const A_long windowSize = WindowSizeEnum2Value(windowSizeEnum);
-	if (windowSize <= 0) /* normally this comparison should be always false */
+	if (windowSize <= 0) // normally this comparison should be always false
 	    return PF_Err_INVALID_INDEX;
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
