@@ -249,6 +249,28 @@ namespace FastCompute
 		return std::log2(x);
 	}
 
+	// This is a fast approximation to log2()
+	inline float Log2f (const float& X) noexcept
+	{
+		int E;
+		const float F = frexpf(fabsf(X), &E);
+		float Y = 1.23149591368684f;
+		Y *= F;
+		Y += -4.11852516267426f;
+		Y *= F;
+		Y += 6.02197014179219f;
+		Y *= F;
+		Y += -3.13396450166353f;
+		Y += E;
+		return(Y);
+   }
+
+	inline float Log10f (const float& x) noexcept
+	{
+		return Log2f(x) * 0.3010299956639812f;
+    }
+
+
 #if !defined __INTEL_COMPILER
     #pragma warning( push )
     #pragma warning( disable : 4244 )
