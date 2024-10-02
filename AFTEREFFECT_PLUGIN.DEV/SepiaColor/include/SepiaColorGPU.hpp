@@ -20,7 +20,7 @@ typedef struct Pixel16
 	unsigned short x; /* BLUE	*/
 	unsigned short y; /* GREEN	*/
 	unsigned short z; /* RED	*/	
-	unsigned short w; /* ALLPHA	*/
+	unsigned short w; /* ALPHA	*/
 }Pixel16, *PPixel16;
 
 #ifndef CLAMP_VALUE
