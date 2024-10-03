@@ -74,6 +74,7 @@
     <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetExt>.aex</TargetExt>
     <ExtensionsToDeleteOnClean>*.aex;*.cdf;*.cache;*.obj;*.obj.enc;*.ilk;*.ipdb;*.iobj;*.resources;*.tlb;*.tli;*.tlh;*.tmp;*.rsp;*.pgc;*.pgd;*.meta;*.tlog;*.manifest;*.res;*.pch;*.exp;*.idb;*.rep;*.xdc;*.pdb;*_manifest.rc;*.bsc;*.sbr;*.xml;*.metagen;*.bi</ExtensionsToDeleteOnClean>
+    <LinkIncremental />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
@@ -100,10 +101,15 @@
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries />
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -139,7 +145,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries />
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

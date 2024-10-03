@@ -34,5 +34,7 @@ void AverageFilter_CUDA
 	int srcPitch,
 	int	is16f,
 	int width,
-	int height
+	int height,
+	int kernelSize,
+	int isGeometric
 );

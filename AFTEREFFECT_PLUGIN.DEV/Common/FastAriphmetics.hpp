@@ -249,6 +249,7 @@ namespace FastCompute
 		return std::log2(x);
 	}
 
+
 	// This is a fast approximation to log2()
 	inline float Log2f (const float& X) noexcept
 	{

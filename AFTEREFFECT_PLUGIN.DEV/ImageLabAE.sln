@@ -104,6 +104,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageFlipping", "ImageFlipping", "{E9BCFCD7-83DF-4A55-B590-ABADC692D78D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AverageFilter", "AverageFilter\AverageFilter.vcxproj", "{571938A4-5662-42AA-B8F0-76DB9C6F94EB}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A1118418-9F12-4661-8BF3-8E2DF484ED9E} = {A1118418-9F12-4661-8BF3-8E2DF484ED9E}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AverageFilter", "AverageFilter", "{028148B8-8404-404D-94FD-4821D0468DF5}"
 EndProject

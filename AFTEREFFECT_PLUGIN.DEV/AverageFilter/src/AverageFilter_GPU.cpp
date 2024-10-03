@@ -1,4 +1,5 @@
 #include "AverageFilterGPU.hpp"
+#include "AverageFilterEnum.hpp"
 #include "ImageLab2GpuObj.hpp"
 
 
@@ -37,7 +38,7 @@ public:
 		const PPixHand* inFrames,
 		csSDK_size_t inFrameCount,
 		PPixHand* outFrame
-	)
+	) noexcept
 	{
 		void* frameData = nullptr;
 		void* destFrameData = nullptr;
@@ -46,6 +47,12 @@ public:
 		float* outBuffer = nullptr;
 		csSDK_int32 destRowBytes = 0;
 		csSDK_int32 srcRowBytes = 0;
+
+		// read control setting
+		PrTime const clipTime = inRenderParams->inClipTime;
+
+		const PrParam windowSizeEnum      = GetParam(eAEVRAGE_FILTER_WINDOW_SIZE, clipTime);
+		const PrParam isGeometricCheckBox = GetParam(eAVERAGE_FILTER_GEOMETRIC_AVERAGE, clipTime);
 
 #ifdef _DEBUG
 		const csSDK_int32 instanceCnt = TotalInstances();
@@ -71,17 +78,22 @@ public:
 		mPPixSuite->GetRowBytes(*inFrames, &srcRowBytes);
 		const int srcPitch = srcRowBytes / gpuBytesPerPixel;
 
-		/* start CUDA */
+		// start CUDA
 		if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
 		{
-			/* CUDA device pointers */
+			// CUDA device pointers
 			inBuffer  = reinterpret_cast<float*>(srcFrameData);
 			outBuffer = reinterpret_cast<float*>(destFrameData);
 
-			/* Launch CUDA kernel */
-			AverageFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height);
+			// transalte controls to from enumeratorsa to numeric values
+			const int windowSize  = static_cast<const int>(windowSizeEnum.mInt32);
+			const int isGeometric = static_cast<const int>(isGeometricCheckBox.mBool);
 
-			if (cudaSuccess != cudaPeekAtLastError())
+			// Launch CUDA kernel
+			AverageFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, windowSize, isGeometric);
+
+			cudaError_t cudaErrCode = cudaErrorUnknown;
+			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
 			{
 				return suiteError_Fail;
 			}
