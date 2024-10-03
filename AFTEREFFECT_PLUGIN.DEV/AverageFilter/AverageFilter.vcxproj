@@ -101,6 +101,10 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -134,6 +138,8 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -157,12 +163,14 @@
     <ClInclude Include="include\AverageAFilterAlgo.hpp" />
     <ClInclude Include="include\AverageFilter.hpp" />
     <ClInclude Include="include\AverageFilterEnum.hpp" />
+    <ClInclude Include="include\AverageFilterGPU.hpp" />
     <ClInclude Include="include\AverageGFilterAlgo.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AverageFilter.cpp" />
     <ClCompile Include="src\AverageFilterAE.cpp" />
     <ClCompile Include="src\AverageFilterPR.cpp" />
+    <ClCompile Include="src\AverageFilter_GPU.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="AverageFilter.r">
@@ -187,6 +195,23 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AverageFilter.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="src\AverageFilterKernel.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)AverageFilterKernel.obj" "$(ProjectDir)src\AverageFilterKernel.cu"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MDd,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common --debug --device-debug -o "$(IntDir)AverageFilterKernel.obj" "$(ProjectDir)src\AverageFilterKernel.cu"</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building %(Filename).cu</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building %(Filename).cu</Message>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).cu</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).cu</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
