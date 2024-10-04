@@ -86,7 +86,7 @@ public:
 			outBuffer = reinterpret_cast<float*>(destFrameData);
 
 			// transalte controls to from enumeratorsa to numeric values
-			const int windowSize  = static_cast<const int>(windowSizeEnum.mInt32);
+			const int windowSize  = WindowSizeEnum2Value(static_cast<const eAVERAGE_FILTER_WINDOW_SIZE>(windowSizeEnum.mInt32));
 			const int isGeometric = static_cast<const int>(isGeometricCheckBox.mBool);
 
 			// Launch CUDA kernel
