@@ -108,10 +108,8 @@
     <CustomBuild Include="AverageFilter.r">
       <Filter>resource</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="src\AverageFilterKernel.cu">
+    <CustomBuild Include="src\AverageFilterKernel.cu">
       <Filter>src</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>
