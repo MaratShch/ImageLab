@@ -85,13 +85,13 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ImageSharpening.r">
-      <Filter>reource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="ImageSharpening.rc">
       <Filter>reource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ImageSharpening.r">
+      <Filter>reource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
