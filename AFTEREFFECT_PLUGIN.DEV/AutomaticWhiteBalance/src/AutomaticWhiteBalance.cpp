@@ -60,10 +60,13 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-	}
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+    }
 
 	return PF_Err_NONE;
 }
@@ -76,15 +79,13 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	CACHE_ALIGN PF_ParamDef	def;
+    PF_ParamDef	def{};
 	PF_Err		err = PF_Err_NONE;
 
 	constexpr PF_ParamFlags popup_flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags popup_ui_flags = PF_PUI_NONE;
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = popup_flags;
-	def.ui_flags = popup_ui_flags;
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
 	PF_ADD_POPUP(
 		ILLUMINATE_NAME,		/* pop-up name			*/
 		TOTAL_ILLUMINATES,		/* number of Illuminates*/
@@ -92,9 +93,7 @@ ParamsSetup(
 		STR_ILLUMINATE,			/* string for pop-up	*/
 		AWB_ILLUMINATE_POPUP);	/* control ID			*/
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = popup_flags;
-	def.ui_flags = popup_ui_flags;
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
 	PF_ADD_POPUP(
 		CHROMATIC_NAME,		    /* pop-up name			*/
 		TOTAL_CHROMATIC,		/* number of Adaptions  */
@@ -103,9 +102,7 @@ ParamsSetup(
 		AWB_CHROMATIC_POPUP);	/* control ID			*/
 
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = popup_flags;
-	def.ui_flags = popup_ui_flags;
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
 	PF_ADD_POPUP(
 		COLOR_SPACE_NAME_OPT,		/* pop-up name			*/
 		gTotalNumbersOfColorSpaces,	/* number of Illuminates*/
@@ -113,9 +110,7 @@ ParamsSetup(
 		STR_COLOR_SPACE,    		/* string for pop-up	*/
 		AWB_COLOR_SPACE_POPUP);		/* control ID			*/
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = popup_flags;
-	def.ui_flags = popup_ui_flags;
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
 	PF_ADD_SLIDER(
 		THRESHOLD_NAME,
 		gMinGrayThreshold,
@@ -125,10 +120,8 @@ ParamsSetup(
 		gDefGrayThreshold,
 		AWB_THRESHOLD_SLIDER);
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = popup_flags;
-	def.ui_flags = popup_ui_flags;
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
+ 	PF_ADD_SLIDER(
 		ITERATIONS_NAME,
 		iterMinCnt,
 		iterMaxCnt,

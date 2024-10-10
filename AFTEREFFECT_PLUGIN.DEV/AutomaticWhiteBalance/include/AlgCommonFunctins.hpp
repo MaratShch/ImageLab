@@ -55,7 +55,7 @@ inline void collect_rgb_statistics
 			U = pSrc[p_idx].R * colorMatrixIn[3] + pSrc[p_idx].G * colorMatrixIn[4] + pSrc[p_idx].B * colorMatrixIn[5];
 			V = pSrc[p_idx].R * colorMatrixIn[6] + pSrc[p_idx].G * colorMatrixIn[7] + pSrc[p_idx].B * colorMatrixIn[8];
 
-			F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / Y;
+			F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / FastCompute::Max(Y, FLT_EPSILON);
 			if (F < threshold)
 			{
 				totalGray++;
@@ -98,28 +98,28 @@ inline void collect_yuv_statistics
 	constexpr float subtractor = (4ull == sizeof(T) ? 128.f : 0.f);
 
 	__VECTOR_ALIGNED__
-		for (A_long j = 0; j < height; j++)
+	for (A_long j = 0; j < height; j++)
+	{
+		const A_long l_idx = j * linePitch; /* line IDX */
+		for (A_long i = 0; i < width; i++)
 		{
-			const A_long l_idx = j * linePitch; /* line IDX */
-			for (A_long i = 0; i < width; i++)
-			{
-				const A_long p_idx = l_idx + i; /* pixel IDX */
+			const A_long p_idx = l_idx + i; /* pixel IDX */
 												
-				Y = pSrc[p_idx].Y;
-				U = pSrc[p_idx].U - subtractor;
-				V = pSrc[p_idx].V - subtractor;
+			Y = pSrc[p_idx].Y;
+			U = pSrc[p_idx].U - subtractor;
+			V = pSrc[p_idx].V - subtractor;
 
-				F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / Y;
-				if (F < threshold)
-				{
-					totalGray++;
-					U_bar += U;
-					V_bar += V;
-				} /* if (F < T) */
+			F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / FastCompute::Max(Y, FLT_EPSILON);
+			if (F < threshold)
+			{
+				totalGray++;
+				U_bar += U;
+				V_bar += V;
+			} /* if (F < T) */
 
-			} /* for (i = 0; i < width; i++) */
+		} /* for (i = 0; i < width; i++) */
 
-		} /* for (j = 0; j < height; j++) */
+	} /* for (j = 0; j < height; j++) */
 
 	if (nullptr != u_Avg)
 		*u_Avg = U_bar / static_cast<float>(totalGray);
@@ -144,7 +144,11 @@ inline void image_rgb_correction
 {
 	float newR, newG, newB;
 
-	constexpr float whiteValue = (4ull == sizeof(T) ? 255.0f : (8 == sizeof(T)) ? 32767.0f : f32_value_white);
+    float whiteValue = static_cast<float>(u8_value_white);
+    if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
+        whiteValue = static_cast<float>(u16_value_white);
+    else if (std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
+        whiteValue = f32_value_white;
 
 	/* in second: perform balance based on computed coefficients */
 	for (A_long j = 0; j < height; j++)
@@ -163,9 +167,9 @@ inline void image_rgb_correction
 			newB = correctionMatrix[2] * pSrc[p_idx_src].B;
 
 			pDst[p_idx_dst].A = pSrc[p_idx_src].A; /* copy ALPHA channel from source */
-			pDst[p_idx_dst].R = (CLAMP_VALUE(newR, f32_value_black, whiteValue));
-			pDst[p_idx_dst].G = (CLAMP_VALUE(newG, f32_value_black, whiteValue));
-			pDst[p_idx_dst].B = (CLAMP_VALUE(newB, f32_value_black, whiteValue));
+			pDst[p_idx_dst].R = static_cast<decltype(pDst[p_idx_dst].R)>(CLAMP_VALUE(newR, f32_value_black, whiteValue));
+			pDst[p_idx_dst].G = static_cast<decltype(pDst[p_idx_dst].G)>(CLAMP_VALUE(newG, f32_value_black, whiteValue));
+			pDst[p_idx_dst].B = static_cast<decltype(pDst[p_idx_dst].B)>(CLAMP_VALUE(newB, f32_value_black, whiteValue));
 
 		} /* for (i = 0; i < width; i++) */
 
@@ -223,9 +227,9 @@ inline void image_yuv_correction
 			newV = newR * rgb2yuv[6] + newG * rgb2yuv[7] + newB * rgb2yuv[8];
 
 			pDst[p_idx_dst].A = pSrc[p_idx_src].A; /* copy ALPHA channel from source */
-			pDst[p_idx_dst].Y = newY;
-			pDst[p_idx_dst].U = (newU + subtractor);
-			pDst[p_idx_dst].V = (newV + subtractor);
+			pDst[p_idx_dst].Y = static_cast<decltype(pDst[p_idx_dst].Y)>(newY);
+			pDst[p_idx_dst].U = static_cast<decltype(pDst[p_idx_dst].U)>(newU + subtractor);
+			pDst[p_idx_dst].V = static_cast<decltype(pDst[p_idx_dst].V)>(newV + subtractor);
 
 		} /* for (i = 0; i < width; i++) */
 
