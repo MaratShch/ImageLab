@@ -312,7 +312,7 @@ static bool ProcessPrImage_BGRA_4444_16u
     if (blocksNumber > 0)
     {
         const size_t  frameSize = width * height;
-        const size_t  requiredMemSize = blocksNumber * frameSize * PF_Pixel_BGRA_8u_size;
+        const size_t  requiredMemSize = blocksNumber * frameSize * PF_Pixel_BGRA_32f_size;
         memBlockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
         pMem[0] = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pMemoryBlock);
         pMem[1] = (2 == blocksNumber) ? pMem[0] + frameSize : nullptr;
@@ -350,7 +350,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 
         uAvg = vAvg = 0.f;
         /* collect statistics about image and compute averages values for U and for V components */
-        collect_rgb_statistics(srcInput, width, height, srcPitch, T, colorSpace, &uAvg, &vAvg);
+        collect_rgb_statistics_f32 (srcInput, width, height, srcPitch, T, colorSpace, &uAvg, &vAvg);
         U_avg[k] = uAvg;
         V_avg[k] = vAvg;
 
@@ -387,7 +387,6 @@ static bool ProcessPrImage_BGRA_4444_16u
     if (-1 != memBlockId)
         ::FreeMemoryBlock(memBlockId);
     memBlockId = -1;
-
 
     return true;
 }
@@ -534,7 +533,6 @@ static bool ProcessPrImage_VUYA_4444_32f
     const bool isBT709
 ) noexcept
 {
-#if 0
     CACHE_ALIGN float U_avg[gMaxCnt]{};
     CACHE_ALIGN float V_avg[gMaxCnt]{};
     PF_Pixel_VUYA_32f* __restrict pMem[2]{};
@@ -577,7 +575,7 @@ static bool ProcessPrImage_VUYA_4444_32f
     if (blocksNumber > 0)
     {
         const size_t  frameSize = width * height;
-        const size_t  requiredMemSize = blocksNumber * frameSize * PF_Pixel_VUYA_8u_size;
+        const size_t  requiredMemSize = blocksNumber * frameSize * PF_Pixel_VUYA_32f_size;
         memBlockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
         pMem[0] = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(pMemoryBlock);
         pMem[1] = (2 == blocksNumber) ? pMem[0] + frameSize : nullptr;
@@ -615,7 +613,7 @@ static bool ProcessPrImage_VUYA_4444_32f
 
         uAvg = vAvg = 0.f;
         /* collect statistics about image and compute averages values for U and for V components */
-        collect_yuv_statistics(srcInput, width, height, srcPitch, T, (isBT709 ? BT709 : BT601), &uAvg, &vAvg);
+        collect_yuv_statistics_32f (srcInput, width, height, srcPitch, T, (isBT709 ? BT709 : BT601), &uAvg, &vAvg);
         U_avg[k] = uAvg;
         V_avg[k] = vAvg;
 
@@ -653,7 +651,6 @@ static bool ProcessPrImage_VUYA_4444_32f
     if (-1 != memBlockId)
         ::FreeMemoryBlock(memBlockId);
     memBlockId = -1;
-#endif
 
     return true;
 }

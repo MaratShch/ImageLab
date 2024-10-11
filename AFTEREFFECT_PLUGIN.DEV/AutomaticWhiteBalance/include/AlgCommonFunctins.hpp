@@ -95,7 +95,10 @@ inline void collect_yuv_statistics
 	float Y, U, V;
 	int32_t totalGray = 0;
 
-	constexpr float subtractor = (4ull == sizeof(T) ? 128.f : 0.f);
+    float subtractor = 128.0f;
+    if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value ||
+        std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
+        subtractor = 0.0f;
 
 	__VECTOR_ALIGNED__
 	for (A_long j = 0; j < height; j++)
@@ -196,8 +199,15 @@ inline void image_yuv_correction
 	float newR, newG, newB;
 	float newY, newU, newV;
 
-	constexpr float whiteValue = (4ull == sizeof(T) ? 255.0f : f32_value_white);
-	constexpr float subtractor = (4ull == sizeof(T) ? 128.f  : 0.f);
+    float subtractor = 0.0f;
+    if (std::is_same<T, PF_Pixel_BGRA_8u>::value || std::is_same<T, PF_Pixel_ARGB_8u>::value)
+        subtractor = 128.0f;
+
+    float whiteValue = static_cast<float>(u8_value_white);
+    if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
+        whiteValue = static_cast<float>(u16_value_white), subtractor = 0.0f;
+    else if (std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
+        whiteValue = f32_value_white, subtractor = 0.0f;
 
 	const float* __restrict yuv2rgb = ((true == isBT709) ? YUV2RGB[BT709] : YUV2RGB[BT601]);
 	const float* __restrict rgb2yuv = ((true == isBT709) ? RGB2YUV[BT709] : RGB2YUV[BT601]);
@@ -214,9 +224,14 @@ inline void image_yuv_correction
 			const A_long p_idx_src = l_idx_src + i;
 			const A_long p_idx_dst = l_idx_dst + i;
 
-			R = pSrc[p_idx_src].Y * yuv2rgb[0] + (pSrc[p_idx_src].U - subtractor) * yuv2rgb[1] + (pSrc[p_idx_src].V - subtractor) * yuv2rgb[2];
-			G = pSrc[p_idx_src].Y * yuv2rgb[3] + (pSrc[p_idx_src].U - subtractor) * yuv2rgb[4] + (pSrc[p_idx_src].V - subtractor) * yuv2rgb[5];
-			B = pSrc[p_idx_src].Y * yuv2rgb[6] + (pSrc[p_idx_src].U - subtractor) * yuv2rgb[7] + (pSrc[p_idx_src].V - subtractor) * yuv2rgb[8];
+            const T& inPixel = pSrc[p_idx_src];
+            const float Y = static_cast<float>(pSrc[p_idx_src].Y);
+            const float U = static_cast<float>(pSrc[p_idx_src].U) - subtractor;
+            const float V = static_cast<float>(pSrc[p_idx_src].V) - subtractor;
+
+			R = Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2];
+			G = Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5];
+			B = Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8];
 
 			newR = CLAMP_VALUE(correctionMatrix[0] * R, 0.f, whiteValue);
 			newG = CLAMP_VALUE(correctionMatrix[1] * G, 0.f, whiteValue);
@@ -238,3 +253,107 @@ inline void image_yuv_correction
 	return;
 }
 
+
+inline void collect_rgb_statistics_f32
+(
+    const PF_Pixel_BGRA_32f* __restrict pSrc,
+    const A_long width,
+    const A_long height,
+    const A_long linePitch,
+    const float threshold,
+    const eCOLOR_SPACE colorSpace,
+    float* u_Avg,
+    float* v_Avg
+) noexcept
+{
+    float U_bar = 0.f, V_bar = 0.f, F = 0.f;
+    float Y, U, V;
+    int32_t totalGray = 0;
+
+    const float* __restrict colorMatrixIn = RGB2YUV[colorSpace];
+
+    __VECTOR_ALIGNED__
+    for (A_long j = 0; j < height; j++)
+    {
+        const A_long l_idx = j * linePitch; /* line IDX */
+        for (A_long i = 0; i < width; i++)
+        {
+            const A_long p_idx = l_idx + i; /* pixel IDX */
+                                            /* convert RGB to YUV color space */
+            const PF_Pixel_BGRA_32f& inPixel = pSrc[p_idx];
+            const float R = inPixel.R * 255.0f;
+            const float G = inPixel.G * 255.0f;
+            const float B = inPixel.B * 255.0f;
+
+            Y = R * colorMatrixIn[0] + G * colorMatrixIn[1] + B * colorMatrixIn[2];
+            U = R * colorMatrixIn[3] + G * colorMatrixIn[4] + B * colorMatrixIn[5];
+            V = R * colorMatrixIn[6] + G * colorMatrixIn[7] + B * colorMatrixIn[8];
+
+            F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / FastCompute::Max(Y, FLT_EPSILON);
+            if (F < threshold)
+            {
+                totalGray++;
+                U_bar += U;
+                V_bar += V;
+            } /* if (F < T) */
+
+        } /* for (i = 0; i < width; i++) */
+
+    } /* for (j = 0; j < height; j++) */
+
+    if (nullptr != u_Avg)
+        *u_Avg = U_bar / static_cast<float>(totalGray);
+    if (nullptr != v_Avg)
+        *v_Avg = V_bar / static_cast<float>(totalGray);
+
+    return;
+}
+
+
+inline void collect_yuv_statistics_32f
+(
+    const PF_Pixel_VUYA_32f* __restrict pSrc,
+    const A_long width,
+    const A_long height,
+    const A_long linePitch,
+    const float threshold,
+    const eCOLOR_SPACE colorSpace,
+    float* u_Avg,
+    float* v_Avg
+) noexcept
+{
+    float U_bar = 0.f, V_bar = 0.f, F = 0.f;
+    float Y, U, V;
+    int32_t totalGray = 0;
+
+    __VECTOR_ALIGNED__
+    for (A_long j = 0; j < height; j++)
+    {
+        const A_long l_idx = j * linePitch; /* line IDX */
+        for (A_long i = 0; i < width; i++)
+        {
+            const A_long p_idx = l_idx + i; /* pixel IDX */
+
+            Y = pSrc[p_idx].Y * 255.0f;
+            U = pSrc[p_idx].U * 255.0f;
+            V = pSrc[p_idx].V * 255.0f;
+
+            F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / FastCompute::Max(Y, FLT_EPSILON);
+            if (F < threshold)
+            {
+                totalGray++;
+                U_bar += U;
+                V_bar += V;
+            } /* if (F < T) */
+
+        } /* for (i = 0; i < width; i++) */
+
+    } /* for (j = 0; j < height; j++) */
+
+    if (nullptr != u_Avg)
+        *u_Avg = U_bar / static_cast<float>(totalGray);
+    if (nullptr != v_Avg)
+        *v_Avg = V_bar / static_cast<float>(totalGray);
+
+    return;
+}
