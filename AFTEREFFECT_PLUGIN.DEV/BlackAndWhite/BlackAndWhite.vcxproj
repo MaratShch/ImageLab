@@ -36,6 +36,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\BlackAndWhite.hpp" />
+    <ClInclude Include="include\BlackAndWhiteGPU.hpp" />
     <ClInclude Include="include\BlackAndWhiteProc.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -63,9 +64,27 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\BlackAndWhite.cpp" />
     <ClCompile Include="src\BlackAndWhiteInAE.cpp" />
     <ClCompile Include="src\BlackAndWhiteInPR.cpp" />
+    <ClCompile Include="src\BlackAndWhite_GPU.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="BlackAndWhite.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="src\BlackAndWhiteKernel.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <FileType>Document</FileType>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building %(Filename).cu</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building %(Filename).cu</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).cu</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).cu</AdditionalInputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math --expt-relaxed-constexpr -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)BlackAndWhiteKernel.obj" "$(ProjectDir)src\BlackAndWhiteKernel.cu"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math --expt-relaxed-constexpr -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MDd,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common --debug --device-debug -o "$(IntDir)BlackAndWhiteKernel.obj" "$(ProjectDir)src\BlackAndWhiteKernel.cu"</Command>
+    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9BC5BD35-FAF5-4FBD-9AF9-50B935DD56F2}</ProjectGuid>
@@ -151,6 +170,11 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
       </FlushDenormalResultsToZero>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries />
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -185,6 +209,9 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries />
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

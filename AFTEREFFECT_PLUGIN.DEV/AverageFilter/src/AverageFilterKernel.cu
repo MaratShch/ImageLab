@@ -1,6 +1,6 @@
 #include "ImageLabCUDA.hpp"
 #include "AverageFilterGPU.hpp"
-#include <math_functions.h>
+#include <cuda_runtime.h>
 
 using GPUAverageT = float;
 
@@ -78,9 +78,9 @@ __device__ float4 kAverageFilterGeometricCUDA
 	constexpr GPUAverageT Ten{ 10 };
 
 	outPix.w = inImg[y * pitch + x].w;
-	outPix.x = static_cast<decltype(outPix.x)>(pow(Ten, bSum * reciproc) - logCompensation);
-	outPix.y = static_cast<decltype(outPix.y)>(pow(Ten, gSum * reciproc) - logCompensation);
-	outPix.z = static_cast<decltype(outPix.z)>(pow(Ten, rSum * reciproc) - logCompensation);
+    outPix.x = static_cast<decltype(outPix.x)>(pow(Ten, bSum * reciproc) - logCompensation);
+    outPix.y = static_cast<decltype(outPix.y)>(pow(Ten, gSum * reciproc) - logCompensation);
+    outPix.z = static_cast<decltype(outPix.z)>(pow(Ten, rSum * reciproc) - logCompensation);
 
 	return outPix;
 }

@@ -141,8 +141,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\AutomaticWhiteBalance.cpp" />
-    <ClCompile Include="src\AutomaticWhiteBalanceAE.cpp" />
-    <ClCompile Include="src\AutomaticWhiteBalancePR.cpp" />
+    <ClCompile Include="src\AutomaticWhiteBalanceAE.cpp">
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+    </ClCompile>
+    <ClCompile Include="src\AutomaticWhiteBalancePR.cpp">
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
+    </ClCompile>
     <ClCompile Include="src\CorrectionMatrix.cpp" />
     <ClCompile Include="src\DllMain.cpp" />
   </ItemGroup>

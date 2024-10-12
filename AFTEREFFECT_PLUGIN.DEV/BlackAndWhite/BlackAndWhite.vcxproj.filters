@@ -69,6 +69,9 @@
     <ClInclude Include="include\BlackAndWhiteProc.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\BlackAndWhiteGPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\BlackAndWhite.cpp">
@@ -78,6 +81,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\BlackAndWhiteInPR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BlackAndWhite_GPU.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -90,5 +96,10 @@
     <CustomBuild Include="BlackAndWhite.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\BlackAndWhiteKernel.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>
