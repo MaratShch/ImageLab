@@ -83,13 +83,13 @@ GlobalSetup (
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
 	}
 
 	return err;
@@ -120,20 +120,16 @@ ParamsSetup (
 	constexpr PF_ParamUIFlags ui_flags{ PF_PUI_NONE };
 	constexpr PF_ParamUIFlags ui_flags_sliders{ ui_flags | PF_PUI_DISABLED };
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags;
-	PF_ADD_POPUP(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
 		STR_EQ_ALGO_POPUP,          /* pop-up name          */
 		IMAGE_EQ_ALGO_TOTALS,       /* number of operations */
 		IMAGE_EQ_NONE,				/* default operation    */
 		STR_EQ_ALGO_TYPE,           /* string for pop-up    */
 		IMAGE_EQUALIZATION_POPUP_PRESET); /* control ID           */
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags_sliders;
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_sliders);
+    PF_ADD_SLIDER(
 		STR_EQ_BLACKS_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
@@ -142,10 +138,8 @@ ParamsSetup (
 		channelSLiderDef,
 		IMAGE_EQUALIZATION_BLACKS_SLIDER);
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags_sliders;
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_sliders);
+    PF_ADD_SLIDER(
 		STR_EQ_SHADOWS_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
@@ -154,10 +148,8 @@ ParamsSetup (
 		channelSLiderDef,
 		IMAGE_EQUALIZATION_SHADOWS_SLIDER);
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags_sliders;
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_sliders);
+    PF_ADD_SLIDER(
 		STR_EQ_MIDTONES_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
@@ -166,10 +158,8 @@ ParamsSetup (
 		channelSLiderDef,
 		IMAGE_EQUALIZATION_MIDTONES_SLIDER);
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags_sliders;
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_sliders);
+    PF_ADD_SLIDER(
 		STR_EQ_WHITES_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
@@ -178,10 +168,8 @@ ParamsSetup (
 		channelSLiderDef,
 		IMAGE_EQUALIZATION_WHITES_SLIDER);
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags_sliders;
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_sliders);
+    PF_ADD_SLIDER(
 		STR_EQ_HIGHLIGHTS_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
@@ -190,10 +178,8 @@ ParamsSetup (
 		channelSLiderDef,
 		IMAGE_EQUALIZATION_HIGHLIGHTS_SLIDER);
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags_sliders;
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_sliders);
+    PF_ADD_SLIDER(
 		STR_EQ_PEDESTAL_SLIDER,
 		channelSliderMin,
 		channelSliderMax,
@@ -202,10 +188,8 @@ ParamsSetup (
 		channelSLiderDef,
 		IMAGE_EQUALIZATION_DARK_PEDESTAL_SLIDER);
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags;
-	PF_ADD_CHECKBOXX(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_CHECKBOXX(
 		STR_EQ_CHECKBOX_FLICK,
 		FALSE,
 		0,

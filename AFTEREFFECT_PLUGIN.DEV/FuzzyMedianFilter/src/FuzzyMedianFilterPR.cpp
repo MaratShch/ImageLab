@@ -10,11 +10,11 @@ PF_Err ProcessImgInPR
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	PF_Err err{ PF_Err_NONE };
-	PF_Err errFormat{ PF_Err_INVALID_INDEX };
-	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
+	PF_Err err = PF_Err_NONE;
+	PF_Err errFormat = PF_Err_INVALID_INDEX;
+	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 
-	/* This plugin called frop PR - check video fomat */
+	/* This plugin called from PR - check video fomat */
 	auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
 	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
