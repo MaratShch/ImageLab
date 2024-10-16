@@ -101,6 +101,7 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -132,6 +133,7 @@
       <FlushDenormalResultsToZero>
       </FlushDenormalResultsToZero>
       <ExceptionHandling>Sync</ExceptionHandling>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
