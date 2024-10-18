@@ -17,4 +17,30 @@
       <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\LrPreset.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\LrPreset.AE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LrPreset.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LrPreset.PR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="LrPreset.r">
+      <Filter>resource</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="LrPreset.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
 </Project>
