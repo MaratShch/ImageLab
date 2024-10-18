@@ -69,5 +69,29 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\Dehaze.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Dehaze.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DehazeAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DehazePR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Dehaze.r">
+      <Filter>resource</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Dehaze.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
