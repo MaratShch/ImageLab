@@ -99,7 +99,8 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
-      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <FlushDenormalResultsToZero>
+      </FlushDenormalResultsToZero>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -132,7 +133,8 @@
       <FloatingPointModel>
       </FloatingPointModel>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
-      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
+      <FlushDenormalResultsToZero>
+      </FlushDenormalResultsToZero>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

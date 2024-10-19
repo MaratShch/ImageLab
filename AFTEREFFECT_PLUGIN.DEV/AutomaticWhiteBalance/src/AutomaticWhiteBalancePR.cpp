@@ -392,6 +392,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 }
 
 
+
 static bool ProcessPrImage_VUYA_4444_8u
 (
 	PF_InData*   __restrict in_data,
@@ -681,7 +682,7 @@ PF_Err ProcessImgInPR
 		break;
 
         case PrPixelFormat_BGRA_4444_32f:
-            bValue = ProcessPrImage_BGRA_4444_32f (in_data, out_data, params, output);
+           bValue = ProcessPrImage_BGRA_4444_32f (in_data, out_data, params, output);
         break;
 
         case PrPixelFormat_VUYA_4444_8u:
@@ -698,7 +699,6 @@ PF_Err ProcessImgInPR
 			bValue = false;
 		break;
 	}
-
 
 	return (true == bValue ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 }
