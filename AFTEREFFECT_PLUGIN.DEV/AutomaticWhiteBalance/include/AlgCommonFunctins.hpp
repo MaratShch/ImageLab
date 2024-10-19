@@ -170,9 +170,9 @@ inline void image_rgb_correction
                 newB = correctionMatrix[2] * pSrc[p_idx_src].B;
 
                 pDst[p_idx_dst].A = pSrc[p_idx_src].A; /* copy ALPHA channel from source */
-                pDst[p_idx_dst].R = (CLAMP_VALUE(newR, f32_value_black, whiteValue));
-                pDst[p_idx_dst].G = (CLAMP_VALUE(newG, f32_value_black, whiteValue));
-                pDst[p_idx_dst].B = (CLAMP_VALUE(newB, f32_value_black, whiteValue));
+                pDst[p_idx_dst].R = static_cast<decltype(pDst[p_idx_dst].R)>(CLAMP_VALUE(newR, f32_value_black, whiteValue));
+                pDst[p_idx_dst].G = static_cast<decltype(pDst[p_idx_dst].G)>(CLAMP_VALUE(newG, f32_value_black, whiteValue));
+                pDst[p_idx_dst].B = static_cast<decltype(pDst[p_idx_dst].B)>(CLAMP_VALUE(newB, f32_value_black, whiteValue));
 
             } /* for (i = 0; i < width; i++) */
 
@@ -232,9 +232,9 @@ inline void image_yuv_correction
                 newV = newR * rgb2yuv[6] + newG * rgb2yuv[7] + newB * rgb2yuv[8];
 
                 pDst[p_idx_dst].A = pSrc[p_idx_src].A; /* copy ALPHA channel from source */
-                pDst[p_idx_dst].Y = newY;
-                pDst[p_idx_dst].U = (newU + subtractor);
-                pDst[p_idx_dst].V = (newV + subtractor);
+                pDst[p_idx_dst].Y = static_cast<decltype(pDst[p_idx_dst].Y)>(newY);
+                pDst[p_idx_dst].U = static_cast<decltype(pDst[p_idx_dst].U)>(newU + subtractor);
+                pDst[p_idx_dst].V = static_cast<decltype(pDst[p_idx_dst].V)>(newV + subtractor);
 
             } /* for (i = 0; i < width; i++) */
 
