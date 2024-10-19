@@ -25,7 +25,7 @@ inline void simple_image_copy
 
 
 
-template <typename T>
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void collect_rgb_statistics
 (
     const T* __restrict pSrc,
@@ -77,9 +77,7 @@ inline void collect_rgb_statistics
 }
 
 
-
-
-template <typename T>
+template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 inline void collect_yuv_statistics
 (
     const T* __restrict pSrc,
@@ -97,7 +95,10 @@ inline void collect_yuv_statistics
     int32_t totalGray = 0;
 
     const float* __restrict colorMatrixIn = RGB2YUV[colorSpace];
-    constexpr float subtractor = (4ull == sizeof(T) ? 128.f : 0.f);
+
+    float subtractor = 0.0f;
+    if (std::is_same<T, PF_Pixel_VUYA_8u>::value)
+        subtractor = 128.0f;
 
     __VECTOR_ALIGNED__
         for (A_long j = 0; j < height; j++)
@@ -132,7 +133,7 @@ inline void collect_yuv_statistics
 }
 
 
-template <typename T>
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void image_rgb_correction
 (
     const T* __restrict pSrc,		/* input data  */
@@ -146,7 +147,11 @@ inline void image_rgb_correction
 {
     float newR, newG, newB;
 
-    constexpr float whiteValue = (4ull == sizeof(T) ? 255.0f : (8 == sizeof(T)) ? 32767.0f : f32_value_white);
+    float whiteValue = static_cast<float>(u8_value_white);
+    if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
+        whiteValue = static_cast<float>(u16_value_white);
+    else if (std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
+        whiteValue = f32_value_white;
 
     /* in second: perform balance based on computed coefficients */
     for (A_long j = 0; j < height; j++)
@@ -177,7 +182,7 @@ inline void image_rgb_correction
 }
 
 
-template <typename T>
+template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
 inline void image_yuv_correction
 (
     const T* __restrict pSrc,		/* input data  */
@@ -194,8 +199,10 @@ inline void image_yuv_correction
     float newR, newG, newB;
     float newY, newU, newV;
 
-    constexpr float whiteValue = (4ull == sizeof(T) ? 255.0f : f32_value_white);
-    constexpr float subtractor = (4ull == sizeof(T) ? 128.f : 0.f);
+    float whiteValue = static_cast<float>(f32_value_white);
+    float subtractor = 0.0f;
+    if (std::is_same<T, PF_Pixel_VUYA_8u>::value)
+        whiteValue = static_cast<float>(u8_value_white), subtractor = 128.0f;
 
     const float* __restrict yuv2rgb = ((true == isBT709) ? YUV2RGB[BT709] : YUV2RGB[BT601]);
     const float* __restrict rgb2yuv = ((true == isBT709) ? RGB2YUV[BT709] : RGB2YUV[BT601]);
