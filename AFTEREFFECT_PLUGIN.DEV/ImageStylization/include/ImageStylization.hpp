@@ -6,7 +6,7 @@
 #include "FastAriphmetics.hpp"
 
 constexpr char strName[] = "Image Stylization";
-constexpr char strCopyright[] = "\n2019-2022. ImageLab2 Copyright(c).\rImage Stylization plugin.";
+constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rImage Stylization plugin.";
 constexpr int ImageStyle_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ImageStyle_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int ImageStyle_VersionSub = 0;
@@ -65,31 +65,6 @@ void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize) noex
 const float* __restrict get_random_buffer(uint32_t& size) noexcept;
 const float* __restrict get_random_buffer(void) noexcept;
 void utils_create_random_buffer(void) noexcept;
-
-
-inline float* allocTmpBuffer(const A_long& height, const A_long& pitch, const A_long bands = 1, float** procBuf = nullptr) noexcept
-{
-	const A_long line_pitch = FastCompute::Abs(pitch);
-	const size_t elemNumber = height * line_pitch * bands;
-	float* rawPtr = new float[elemNumber];
-#ifdef _DEBUG
-	memset(rawPtr, 0, elemNumber * sizeof(float));
-#endif
-	if (nullptr != procBuf)
-		*procBuf = rawPtr + ((pitch < 0) ? elemNumber - line_pitch : 0);
-
-	return rawPtr;
-}
-
-inline void freeTmpBuffer(float* ptr) noexcept
-{
-	if (nullptr != ptr)
-	{
-		delete[] ptr;
-		ptr = nullptr;
-	}
-	return;
-}
 
 
 template <class T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>

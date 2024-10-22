@@ -5,6 +5,7 @@
 #include "FastAriphmetics.hpp"
 #include "ImageAuxPixFormat.hpp"
 #include "ImagePaintUtils.hpp"
+#include "ImageLabMemInterface.hpp"
 
 
 static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
@@ -36,15 +37,19 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 	constexpr float sigma = 5.0f;
 
 	/* allocate memory for store temporary results */
-	float* pPtr1 = allocTmpBuffer (height, width);
-	float* pPtr2 = allocTmpBuffer (height, width);
-	float* pPtr3 = allocTmpBuffer (height, width);
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
 	bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
-	{
-		auto const& tmpBufPitch = width;
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+		auto const tmpBufPitch = width;
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
 
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
@@ -78,15 +83,13 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		}
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
-	}
+
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
 	else
 		errCode = PF_Err_OUT_OF_MEMORY;
-
-	/* free temporary memory */
-	freeTmpBuffer (pPtr1);
-	freeTmpBuffer (pPtr2);
-	freeTmpBuffer (pPtr3);
-	pPtr1 = pPtr2 = pPtr3 = nullptr;
 
 	return errCode;
 }
@@ -120,16 +123,20 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 	const float coCone = std::cos(coConeParam);
 	constexpr float sigma = 5.0f;
 
-	/* allocate memory for store temporary results */
-	float* pPtr1 = allocTmpBuffer(height, width);
-	float* pPtr2 = allocTmpBuffer(height, width);
-	float* pPtr3 = allocTmpBuffer(height, width);
+    /* allocate memory for store temporary results */
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bool cocircularityRes = false;
+    bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
-	{
-		auto const& tmpBufPitch = width;
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+        auto const tmpBufPitch = width;
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
 
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
@@ -164,15 +171,13 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 		}
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
-	}
-	else
-		errCode = PF_Err_OUT_OF_MEMORY;
 
-	/* free temporary memory */
-	freeTmpBuffer(pPtr1);
-	freeTmpBuffer(pPtr2);
-	freeTmpBuffer(pPtr3);
-	pPtr1 = pPtr2 = pPtr3 = nullptr;
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
 	return errCode;
 }
@@ -206,16 +211,20 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 	const float coCone = std::cos(coConeParam);
 	constexpr float sigma = 5.0f;
 
-	/* allocate memory for store temporary results */
-	float* pPtr1 = allocTmpBuffer(height, width);
-	float* pPtr2 = allocTmpBuffer(height, width);
-	float* pPtr3 = allocTmpBuffer(height, width);
+    /* allocate memory for store temporary results */
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bool cocircularityRes = false;
+    bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
-	{
-		auto const& tmpBufPitch = width;
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+        auto const tmpBufPitch = width;
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
 
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
@@ -250,15 +259,13 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 		}
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
-	}
-	else
-		errCode = PF_Err_OUT_OF_MEMORY;
 
-	/* free temporary memory */
-	freeTmpBuffer(pPtr1);
-	freeTmpBuffer(pPtr2);
-	freeTmpBuffer(pPtr3);
-	pPtr1 = pPtr2 = pPtr3 = nullptr;
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
 	return errCode;
 }
@@ -293,16 +300,20 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_8u
 	const float coCone = std::cos(coConeParam);
 	constexpr float sigma = 5.0f;
 
-	/* allocate memory for store temporary results */
-	float* pPtr1 = allocTmpBuffer(height, width);
-	float* pPtr2 = allocTmpBuffer(height, width);
-	float* pPtr3 = allocTmpBuffer(height, width);
+    /* allocate memory for store temporary results */
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bool cocircularityRes = false;
+    bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
-	{
-		auto const& tmpBufPitch = width;
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+        auto const tmpBufPitch = width;
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
 
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
@@ -336,15 +347,13 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_8u
 		}
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
-	}
-	else
-		errCode = PF_Err_OUT_OF_MEMORY;
 
-	/* free temporary memory */
-	freeTmpBuffer(pPtr1);
-	freeTmpBuffer(pPtr2);
-	freeTmpBuffer(pPtr3);
-	pPtr1 = pPtr2 = pPtr3 = nullptr;
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
 	return errCode;
 }
@@ -378,16 +387,20 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_32f
 	const float coCone = std::cos(coConeParam);
 	constexpr float sigma = 5.0f;
 
-	/* allocate memory for store temporary results */
-	float* pPtr1 = allocTmpBuffer(height, width);
-	float* pPtr2 = allocTmpBuffer(height, width);
-	float* pPtr3 = allocTmpBuffer(height, width);
+    /* allocate memory for store temporary results */
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bool cocircularityRes = false;
+    bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
-	{
-		auto const& tmpBufPitch = width;
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+        auto const tmpBufPitch = width;
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
 
 		/* convert RGB to BW */
 		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
@@ -422,15 +435,13 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_32f
 		}
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
-	}
-	else
-		errCode = PF_Err_OUT_OF_MEMORY;
 
-	/* free temporary memory */
-	freeTmpBuffer(pPtr1);
-	freeTmpBuffer(pPtr2);
-	freeTmpBuffer(pPtr3);
-	pPtr1 = pPtr2 = pPtr3 = nullptr;
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
 	return errCode;
 }
@@ -528,16 +539,21 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 	const float coCone = std::cos(coConeParam);
 	constexpr float sigma = 5.0f;
 
-	/* allocate memory for store temporary results */
-	float* pPtr1 = allocTmpBuffer(height, width);
-	float* pPtr2 = allocTmpBuffer(height, width);
-	float* pPtr3 = allocTmpBuffer(height, width);
+    /* allocate memory for store temporary results */
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bool cocircularityRes = false;
+    bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
-	{
-		auto const& tmpBufPitch = width;
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+        auto const tmpBufPitch = width;
+
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
 
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
 
@@ -570,15 +586,13 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 		}
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
-	}
-	else
-		errCode = PF_Err_OUT_OF_MEMORY;
 
-	/* free temporary memory */
-	freeTmpBuffer(pPtr1);
-	freeTmpBuffer(pPtr2);
-	freeTmpBuffer(pPtr3);
-	pPtr1 = pPtr2 = pPtr3 = nullptr;
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
 	return PF_Err_NONE;
 }
@@ -613,16 +627,20 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 	const float coCone = std::cos(coConeParam);
 	constexpr float sigma = 5.0f;
 
-	/* allocate memory for store temporary results */
-	float* pPtr1 = allocTmpBuffer(height, width);
-	float* pPtr2 = allocTmpBuffer(height, width);
-	float* pPtr3 = allocTmpBuffer(height, width);
+    /* allocate memory for store temporary results */
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bool cocircularityRes = false;
+    bool cocircularityRes = false;
 
-	if (nullptr != pPtr1 && nullptr != pPtr2 && nullptr != pPtr3)
-	{
-		auto const& tmpBufPitch = width;
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+        auto const tmpBufPitch = width;
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
 
 		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
 
@@ -655,15 +673,13 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 		}
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
-	}
-	else
-		errCode = PF_Err_OUT_OF_MEMORY;
 
-	/* free temporary memory */
-	freeTmpBuffer(pPtr1);
-	freeTmpBuffer(pPtr2);
-	freeTmpBuffer(pPtr3);
-	pPtr1 = pPtr2 = pPtr3 = nullptr;
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
 	return PF_Err_NONE;
 }
