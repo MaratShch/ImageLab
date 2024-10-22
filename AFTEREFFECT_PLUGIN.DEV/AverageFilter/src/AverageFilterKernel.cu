@@ -36,11 +36,6 @@ __device__ float4 kAverageFilterGeometricCUDA
 	int count = 0;
  	const int filterRadius = kernelSize >> 1;
 
-	const int yMin = y - filterRadius;
-	const int yMax = y + filterRadius;
-	const int xMin = x - filterRadius;
-	const int xMax = x + filterRadius;
-
 	// This compensation is needed to avoid computing the logarithm of a zero value.
 	constexpr GPUAverageT logCompensation{0.1};
 
@@ -104,11 +99,6 @@ __device__ float4 kAverageFilterAriphmeticCUDA
 	GPUAverageT rSum{ 0 }, gSum{ 0 }, bSum{ 0 };
 	int count = 0;
 	const int filterRadius = kernelSize >> 1;
-
-	const int yMin = y - filterRadius;
-	const int yMax = y + filterRadius;
-	const int xMin = x - filterRadius;
-	const int xMax = x + filterRadius;
 
 	// Loop through the window
 	for (int wy = -filterRadius; wy <= filterRadius; ++wy)

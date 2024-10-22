@@ -72,6 +72,9 @@
     <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorCorrectionCieLAB_GPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorCorrectionCieLAB.cpp">
@@ -81,6 +84,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ColorCorrectionCieLABInPr.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorCorrectionCieLAB_GPU.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -93,5 +99,10 @@
     <CustomBuild Include="ColorCorrectionCieLAB.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\ColorCorrectionCieLABKernel.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>

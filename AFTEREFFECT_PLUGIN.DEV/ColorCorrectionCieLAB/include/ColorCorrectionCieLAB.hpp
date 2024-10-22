@@ -35,14 +35,3 @@ ProcessImgInPR
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output
 ) noexcept;
-
-PF_Err CIELabCorrect_BGRA_4444_8u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output,
-	const float   L_level,
-	const float   A_level,
-	const float   B_level
-) noexcept;

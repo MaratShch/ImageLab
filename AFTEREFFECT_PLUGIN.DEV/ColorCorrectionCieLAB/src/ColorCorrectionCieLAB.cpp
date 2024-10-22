@@ -222,9 +222,27 @@ UserChangedParam(
 )
 {
 	PF_Err err = PF_Err_NONE;
+    AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+
+    switch (which_hitP->param_index)
+    {
+        case eCIELAB_POPUP_OBSERVER:
+            params[eCIELAB_POPUP_OBSERVER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+            err = paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, eCIELAB_POPUP_OBSERVER, params[eCIELAB_POPUP_OBSERVER]);
+        break;
+
+        case eCIELAB_POPUP_ILLUMINANT:
+            params[eCIELAB_POPUP_ILLUMINANT]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+            err = paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, eCIELAB_POPUP_ILLUMINANT, params[eCIELAB_POPUP_ILLUMINANT]);
+        break;
+
+        default:
+            // nothing TODO
+        break;
+    }
+
 	return err;
 }
-
 
 
 static PF_Err
@@ -235,8 +253,8 @@ UpdateParameterUI(
 	PF_LayerDef			*outputP
 )
 {
-	PF_Err err = PF_Err_NONE;
-	return err;
+    out_data->out_flags |= (PF_OutFlag_REFRESH_UI | PF_OutFlag_FORCE_RERENDER);
+	return PF_Err_NONE;
 }
 
 

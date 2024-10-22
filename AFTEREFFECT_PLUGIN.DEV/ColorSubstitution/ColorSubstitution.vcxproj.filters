@@ -82,8 +82,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ColorSubstitution.r">
+    <CustomBuild Include="ColorSubstitution.r">
       <Filter>resource</Filter>
-    </None>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ColorSubstitution.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
