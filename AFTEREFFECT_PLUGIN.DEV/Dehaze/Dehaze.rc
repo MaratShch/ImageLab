@@ -16,8 +16,8 @@ BEGIN
 	"MIB8",
 	"eman",
 	0, 0x0,
-	20, 0x0,
-	"\x13Fuzzy Median Filter", 
+	16, 0x0,
+	"\x0CImage Dehaze\0\0\0", 
 
 	"MIB8",
 	"gtac", 
@@ -70,8 +70,8 @@ BEGIN
 	"MIB8",
 	"ANMe",
 	0, 0x0,
-	32, 0x0,
-	"\x1DImageLab2 Fuzzy Median Filter\0\0", 
+	24, 0x0,
+	"\x16ImageLab2 Image Dehaze\0", 
 
 	"MIB8",
 	0x6165464CL, 

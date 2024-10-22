@@ -4,8 +4,8 @@
 #include "CommonAdobeAE.hpp"
 
 
-constexpr char strName[] = "Dehaze";
-constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rDehaze Filter plugin.";
+constexpr char strName[] = "Image Dehaze";
+constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rImage Dehaze Filter plugin.";
 constexpr int LensDistrortion_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int LensDistrortion_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int LensDistrortion_VersionSub = 0;

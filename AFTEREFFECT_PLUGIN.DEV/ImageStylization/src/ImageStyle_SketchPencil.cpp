@@ -5,6 +5,8 @@
 #include "FastAriphmetics.hpp"
 #include "ImageAuxPixFormat.hpp"
 #include "StylizationImageGradient.hpp"
+#include "ImageLabUtils.hpp"
+#include "ImageLabMemInterface.hpp"
 #include <mutex>
 
 
@@ -16,7 +18,6 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
 	float*				    __restrict pTmpStorage1 = nullptr;
 	float*				    __restrict pTmpStorage2 = nullptr;
 	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
@@ -35,46 +36,40 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 	auto const requiredMemSize   = singleBufMemSize * 2;
 
 	int j, i;
-	bool bMemSizeTest = false;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
 
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+        /* compute gradinets of RGB image */
+        ImageRGB_ComputeGradient(localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
 
-		/* compute gradinets of RGB image */
-		ImageRGB_ComputeGradient (localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
+        for (j = 0; j < height; j++)
+        {
+            const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
+            const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
+            const PF_Pixel_BGRA_8u* __restrict pSrcLine = localSrc + j * line_pitch;
+            PF_Pixel_BGRA_8u*       __restrict pDstLine = localDst + j * line_pitch;
 
-		for (j = 0; j < height; j++)
-		{
-			const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
-			const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
-			const PF_Pixel_BGRA_8u* __restrict pSrcLine = localSrc + j * line_pitch;
-			PF_Pixel_BGRA_8u*       __restrict pDstLine = localDst + j * line_pitch;
+            __VECTOR_ALIGNED__
+            for (i = 0; i < width; i++)
+            {
+                const int32_t sqrtVal = FastCompute::Min(255, static_cast<int32_t>(FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i])));
+                const int32_t negVal = 255 - sqrtVal;
+                pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = static_cast<A_u_char>(negVal);
+                pDstLine[i].A = pSrcLine[i].A;
+            } /* for (i = 0; i < width; i++) */
 
-			__VECTOR_ALIGNED__
-			for (i = 0; i < width; i++)
-			{
-				const int32_t sqrtVal = FastCompute::Min(255, static_cast<int32_t>(FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i])));
-				const int32_t negVal = 255 - sqrtVal;
-				pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = static_cast<A_u_char>(negVal);
-				pDstLine[i].A = pSrcLine[i].A;
-			} /* for (i = 0; i < width; i++) */
+        } /* for (j = 0; j < height; j++) */
 
-		} /* for (j = 0; j < height; j++) */
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
-	} /* if (true == bMemSizeTest) */
-
-	return PF_Err_NONE;
+    return PF_Err_NONE;
 }
 
 
@@ -86,7 +81,6 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
 	float*				    __restrict pTmpStorage1 = nullptr;
 	float*				    __restrict pTmpStorage2 = nullptr;
 	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
@@ -102,22 +96,14 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
 	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
 	auto const requiredMemSize = singleBufMemSize * 2;
 
-	int j, i;
-	bool bMemSizeTest = false;
+    int j, i;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
-
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
 
 		/* compute gradinets of RGB image */
 		ImageYUV_ComputeGradient(localSrc, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
@@ -139,9 +125,12 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
 
-		} /* for (j = 0; j < height; j++) */
 
-	} /* if (true == bMemSizeTest) */
+        } /* for (j = 0; j < height; j++) */
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
 	return PF_Err_NONE;
 }
@@ -155,7 +144,6 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
 	float*				     __restrict pTmpStorage1 = nullptr;
 	float*				     __restrict pTmpStorage2 = nullptr;
 	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
@@ -171,22 +159,14 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
 	auto const requiredMemSize = singleBufMemSize * 2;
 
-	int j, i;
-	bool bMemSizeTest = false;
+    int j, i;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
-
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
 
 		/* compute gradinets of RGB image */
 		ImageYUV_ComputeGradient(localSrc, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
@@ -208,9 +188,11 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
 
-		} /* for (j = 0; j < height; j++) */
+        } /* for (j = 0; j < height; j++) */
 
-	} /* if (true == bMemSizeTest) */
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
 	return PF_Err_NONE;
 }
@@ -224,7 +206,6 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
 	float*				     __restrict pTmpStorage1 = nullptr;
 	float*				     __restrict pTmpStorage2 = nullptr;
 	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
@@ -242,22 +223,14 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
 	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
 	auto const requiredMemSize = singleBufMemSize * 2;
 
-	int j, i;
-	bool bMemSizeTest = false;
+    int j, i;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
-
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
 
 		/* compute gradinets of RGB image */
 		ImageRGB_ComputeGradient(localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
@@ -278,9 +251,11 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
 
-		} /* for (j = 0; j < height; j++) */
+        } /* for (j = 0; j < height; j++) */
 
-	} /* if (true == bMemSizeTest) */
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
 	return PF_Err_NONE;
 }
@@ -294,7 +269,6 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
 	float*				     __restrict pTmpStorage1 = nullptr;
 	float*				     __restrict pTmpStorage2 = nullptr;
 	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
@@ -312,22 +286,14 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
 	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
 	auto const requiredMemSize = singleBufMemSize * 2;
 
-	int j, i;
-	bool bMemSizeTest = false;
+    int j, i;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
-
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
 
 		/* compute gradinets of RGB image */
 		ImageRGB_ComputeGradient(localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, line_pitch);
@@ -348,9 +314,11 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
 
-		} /* for (j = 0; j < height; j++) */
+        } /* for (j = 0; j < height; j++) */
 
-	} /* if (true == bMemSizeTest) */
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
 	return PF_Err_NONE;
 }
@@ -425,7 +393,6 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage* __restrict pTmpStorageHdnl = nullptr;
 	float*				  __restrict pTmpStorage1 = nullptr;
 	float*				  __restrict pTmpStorage2 = nullptr;
 	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
@@ -444,22 +411,14 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_8u
 	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
 	auto const requiredMemSize = singleBufMemSize * 2;
 
-	int j, i;
-	bool bMemSizeTest = false;
+    int j, i;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
-
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
 
 		/* compute gradinets of RGB image */
 		ImageRGB_ComputeGradient(localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, src_line_pitch);
@@ -480,9 +439,11 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_8u
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
 
-		} /* for (j = 0; j < height; j++) */
+        } /* for (j = 0; j < height; j++) */
 
-	} /* if (true == bMemSizeTest) */
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
 	return PF_Err_NONE;
 }
@@ -496,7 +457,6 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage* __restrict pTmpStorageHdnl = nullptr;
 	float*				  __restrict pTmpStorage1 = nullptr;
 	float*				  __restrict pTmpStorage2 = nullptr;
 	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
@@ -515,22 +475,14 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
 	auto const requiredMemSize = singleBufMemSize * 2;
 
-	int j, i;
-	bool bMemSizeTest = false;
+    int j, i;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
-
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
 
 		/* compute gradinets of RGB image */
 		ImageRGB_ComputeGradient(localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, src_line_pitch);
@@ -551,9 +503,11 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 				pDstLine[i].A = pSrcLine[i].A;
 			} /* for (i = 0; i < width; i++) */
 
-		} /* for (j = 0; j < height; j++) */
+        } /* for (j = 0; j < height; j++) */
 
-	} /* if (true == bMemSizeTest) */
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
-	return PF_Err_NONE;
+    return PF_Err_NONE;
 }

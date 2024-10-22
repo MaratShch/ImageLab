@@ -1,4 +1,5 @@
 #include "ImageStylization.hpp"
+#include "ImageLabMemInterface.hpp"
 #include "StylizationStructs.hpp"
 #include "PrSDKAESupport.h"
 
@@ -51,6 +52,8 @@ GlobalSetup(
 {
 	PF_Err	err = PF_Err_NONE;
 	PF_Handle pGlobalStorage = nullptr;
+
+    LoadMemoryInterfaceProvider(in_data->appl_id, in_data->version.major, in_data->version.minor);
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
