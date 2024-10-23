@@ -278,7 +278,7 @@ void ColorCorrectionCieLAB_CUDA
     const float f2 = cMatrix[1];
     const float f3 = cMatrix[2];
 
-    kColorCorrectionCieLAB_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, srcPitch, destPitch, is16f, width, height, L, A, B, f1, f2, f3);
+    kColorCorrectionCieLAB_CUDA <<< gridDim, blockDim, 0 >>> ((const float4*)inBuf, (float4*)outBuf, srcPitch, destPitch, is16f, width, height, L, A, B, f1, f2, f3);
 
 	cudaDeviceSynchronize();
 
