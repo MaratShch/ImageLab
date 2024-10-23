@@ -1,6 +1,7 @@
 #include "ImageLabCUDA.hpp"
 #include "AverageFilterGPU.hpp"
 #include <cuda_runtime.h>
+#include <math.h>
 
 using GPUAverageT = float;
 

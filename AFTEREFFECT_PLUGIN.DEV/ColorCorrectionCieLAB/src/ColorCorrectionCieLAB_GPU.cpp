@@ -93,7 +93,7 @@ public:
 
 			// transalte controls to from enumeratorsa to numeric values
             const float L = MakeParamValue (param_L_coarse, param_L_fine);
-            const float A = MakeParamValue (param_A_coarse, param_B_fine);
+            const float A = MakeParamValue (param_A_coarse, param_A_fine);
             const float B = MakeParamValue (param_B_coarse, param_B_fine);
 
             const eCOLOR_OBSERVER   iObserver   = static_cast<const eCOLOR_OBSERVER>  (param_Observer.mInt32);
