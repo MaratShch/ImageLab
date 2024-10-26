@@ -1,10 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="include">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
     <Filter Include="src">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
@@ -13,8 +9,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
     <Filter Include="include_common">
-      <UniqueIdentifier>{9c31f69f-70b9-4c77-92ea-95c78232ba32}</UniqueIdentifier>
+      <UniqueIdentifier>{193bddc3-e364-46c4-97f5-95169dc8e1fa}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -33,7 +33,13 @@
     <ClInclude Include="..\Common\CommonAdobeAE.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
     <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\CommonDebugUtils.hpp">
@@ -63,44 +69,29 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorCorrectionCieLAB.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorCorrectionCieLABEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorCorrectionCieLAB_GPU.hpp">
+    <ClInclude Include="include\BilateralFilter.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ColorCorrectionCieLAB.cpp">
+    <ClCompile Include="src\BilateralFilter.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorCorrectionCieLABInAe.cpp">
+    <ClCompile Include="src\BilateralFilterAE.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorCorrectionCieLABInPr.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ColorCorrectionCieLAB_GPU.cpp">
+    <ClCompile Include="src\BilateralFilterPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ColorCorrectionCieLAB.rc">
+    <None Include="BilateralFilter.r">
+      <Filter>resource</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="BilateralFilter.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="ColorCorrectionCieLAB.r">
-      <Filter>resource</Filter>
-    </CustomBuild>
-    <CustomBuild Include="src\ColorCorrectionCieLABKernel.cu">
-      <Filter>src</Filter>
-    </CustomBuild>
   </ItemGroup>
 </Project>
