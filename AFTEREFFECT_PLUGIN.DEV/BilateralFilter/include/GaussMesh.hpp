@@ -1,0 +1,62 @@
+#ifndef __IMAGE_LAB_BILATERAL_FILTER_GAUSS_MESH__
+#define __IMAGE_LAB_BILATERAL_FILTER_GAUSS_MESH__
+
+#include <atomic>
+#include <mutex>
+#include <array>
+#include "Common.hpp"
+#include "ClassRestrictions.hpp"
+#include "BilateralFilterEnum.hpp"
+
+class GaussMesh;
+
+GaussMesh* getMeshHandler(void) noexcept;
+GaussMesh* CreateGaussMeshHandler(void);
+void  ReleaseGaussMeshHandler(void* p);
+
+using MeshT = float;
+
+class GaussMesh final
+{
+public:
+    static GaussMesh* getGaussMeshInstance(void)
+    {
+        GaussMesh* iGaussMesh = s_instance.load(std::memory_order_acquire);
+        if (nullptr == iGaussMesh)
+        {
+            std::lock_guard<std::mutex> myLock(s_protectMutex);
+            iGaussMesh = s_instance.load(std::memory_order_relaxed);
+            if (nullptr == iGaussMesh)
+            {
+                iGaussMesh = new GaussMesh();
+                iGaussMesh->InitMesh();
+                s_instance.store(iGaussMesh, std::memory_order_release);
+            }
+        }
+        return iGaussMesh;
+    } /* static iGaussMesh* getInstance() */
+
+    const MeshT* geCenterMesh(void) const
+    {
+        constexpr size_t meshCenter = maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1;
+        return &m_Mesh[meshCenter];
+    }
+
+private:
+    GaussMesh() {};
+    ~GaussMesh(){};
+
+    CLASS_NON_COPYABLE(GaussMesh);
+    CLASS_NON_MOVABLE (GaussMesh);
+
+    void InitMesh(void) noexcept;
+
+    static std::atomic<GaussMesh*> s_instance;
+    static std::mutex s_protectMutex;
+
+    CACHE_ALIGN std::array<MeshT, maxMeshSize>m_Mesh;
+
+}; // class GaussMesh
+
+
+#endif // __IMAGE_LAB_BILATERAL_FILTER_GAUSS_MESH__

@@ -72,6 +72,15 @@
     <ClInclude Include="include\BilateralFilter.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\BilateralFilterAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\BilateralFilterEnum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\GaussMesh.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\BilateralFilter.cpp">
@@ -83,15 +92,18 @@
     <ClCompile Include="src\BilateralFilterPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="BilateralFilter.r">
-      <Filter>resource</Filter>
-    </None>
+    <ClCompile Include="src\GaussMesh.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="BilateralFilter.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="BilateralFilter.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

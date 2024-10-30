@@ -97,6 +97,7 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
@@ -129,6 +130,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -156,11 +158,15 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\BilateralFilter.hpp" />
+    <ClInclude Include="include\BilateralFilterAlgo.hpp" />
+    <ClInclude Include="include\BilateralFilterEnum.hpp" />
+    <ClInclude Include="include\GaussMesh.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\BilateralFilter.cpp" />
     <ClCompile Include="src\BilateralFilterAE.cpp" />
     <ClCompile Include="src\BilateralFilterPR.cpp" />
+    <ClCompile Include="src\GaussMesh.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="BilateralFilter.r">

@@ -1,5 +1,10 @@
 #include "BilateralFilter.hpp"
+#include "BilateralFilterEnum.hpp"
+#include "GaussMesh.hpp"
 #include "PrSDKAESupport.h"
+
+static GaussMesh* gGaussMeshInstance = nullptr;
+GaussMesh* getMeshHandler(void) noexcept { return gGaussMeshInstance; }
 
 
 static PF_Err
@@ -28,18 +33,16 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
-
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
+		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
@@ -62,17 +65,18 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
+        /* Bilateral Filter as standalone PlugIn will support BGRA/ARGB formats only */
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
 	}
 
-	return err;
+    gGaussMeshInstance = CreateGaussMeshHandler();
+
+	return PF_Err_NONE;
 }
 
 
@@ -83,7 +87,9 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
+    ReleaseGaussMeshHandler(nullptr);
+    gGaussMeshInstance = nullptr;
+
 	return PF_Err_NONE;
 }
 
@@ -96,6 +102,21 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    PF_ParamDef	def;
+    constexpr PF_ParamFlags flags{ PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP };
+    constexpr PF_ParamUIFlags ui_flags{ PF_PUI_NONE };
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_SLIDER(
+        FilterWindowSizeStr,
+        bilateralMinRadius,
+        bilateralMaxRadius,
+        bilateralMinRadius,
+        bilateralMaxRadius,
+        bilateralDefRadius,
+        eBILATERAL_FILTER_RADIUS);
+
+    out_data->num_params = eBILATERAL_TOTAL_CONTROLS;
 
 	return PF_Err_NONE;
 }
