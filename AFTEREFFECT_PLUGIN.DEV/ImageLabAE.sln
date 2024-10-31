@@ -168,6 +168,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FuzzyMedianFilter", "FuzzyMedianFilter", "{6435E073-B5F4-4C5C-B0C7-A22D33357F50}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BilateralFilter", "BilateralFilter\BilateralFilter.vcxproj", "{77D869FE-4F49-4590-90EC-B7916152B0DD}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D266F837-A6FD-48CD-820D-578816B7AC3D} = {D266F837-A6FD-48CD-820D-578816B7AC3D}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BilateralFilter", "BilateralFilter", "{8A9ED5F3-0199-4FBC-B684-F3C11D3B5DF8}"
 EndProject

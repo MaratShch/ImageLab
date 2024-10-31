@@ -4,6 +4,7 @@
 #include "CommonPixFormat.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "ColorTransformMatrix.hpp"
+#include "CompileTimeUtils.hpp"
 #include "FastAriphmetics.hpp"
 
 /* 

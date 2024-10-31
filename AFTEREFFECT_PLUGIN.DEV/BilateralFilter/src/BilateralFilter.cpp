@@ -2,9 +2,10 @@
 #include "BilateralFilterEnum.hpp"
 #include "GaussMesh.hpp"
 #include "PrSDKAESupport.h"
+#include "ImageLabMemInterface.hpp"
 
 static GaussMesh* gGaussMeshInstance = nullptr;
-GaussMesh* getMeshHandler(void) noexcept { return gGaussMeshInstance; }
+GaussMesh* getMeshHandler(void) { return gGaussMeshInstance; }
 
 
 static PF_Err
@@ -25,7 +26,6 @@ About(
 	return PF_Err_NONE;
 }
 
-
 static PF_Err
 GlobalSetup(
 	PF_InData		*in_data,
@@ -33,6 +33,9 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_OUT_OF_MEMORY;
+
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
@@ -67,11 +70,11 @@ GlobalSetup(
 
         /* Bilateral Filter as standalone PlugIn will support BGRA/ARGB formats only */
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//      (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+//      (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+//      (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
 	}
 
     gGaussMeshInstance = CreateGaussMeshHandler();

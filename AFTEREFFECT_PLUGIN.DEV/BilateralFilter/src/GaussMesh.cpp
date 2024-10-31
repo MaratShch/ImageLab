@@ -8,7 +8,7 @@ GaussMesh* CreateGaussMeshHandler (void)
     return GaussMesh::getGaussMeshInstance();
 }
 
-void  ReleaseGaussMeshHandler (void* p) noexcept
+void  ReleaseGaussMeshHandler (void* p)
 {
     /* nothing to do */
     (void)p;

@@ -10,7 +10,7 @@
 
 class GaussMesh;
 
-GaussMesh* getMeshHandler(void) noexcept;
+GaussMesh* getMeshHandler(void);
 GaussMesh* CreateGaussMeshHandler(void);
 void  ReleaseGaussMeshHandler(void* p);
 
@@ -38,7 +38,7 @@ public:
 
     const MeshT* geCenterMesh(void) const
     {
-        constexpr size_t meshCenter = maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1;
+        constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1);
         return &m_Mesh[meshCenter];
     }
 
@@ -49,12 +49,12 @@ private:
     CLASS_NON_COPYABLE(GaussMesh);
     CLASS_NON_MOVABLE (GaussMesh);
 
-    void InitMesh(void) noexcept;
+    void InitMesh(void);
 
     static std::atomic<GaussMesh*> s_instance;
     static std::mutex s_protectMutex;
 
-    CACHE_ALIGN std::array<MeshT, maxMeshSize>m_Mesh;
+    std::array<MeshT, maxMeshSize>m_Mesh;
 
 }; // class GaussMesh
 
