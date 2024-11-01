@@ -214,23 +214,27 @@ inline void CIELab2Rgb
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 void BilateralFilterAlgorithm
 (
-    const fCIELabPix* __restrict pSrc,
+    const fCIELabPix* __restrict pCieLab,
+    const T* __restrict pSrc, // used only for get Alpha channel values
           T* __restrict pDst,
     A_long sizeX,
     A_long sizeY,
     A_long srcPitch,
     A_long dstPitch,
     A_long fRadius,
-    const T& blackPix,
-    const T& whitePix
+    const T& blackPix, // black (minimal) color pixel value - used for clamping
+    const T& whitePix  // white (maximal) color pixel value - used for clamping
 ) noexcept
 {
     A_long i, j;
-    const GaussMesh* pMeshObj = getMeshHandler();
-    const MeshT* __restrict pMesh = pMeshObj->geCenterMesh();
+    const MeshT* __restrict pMesh = getMeshHandler()->geCenterMesh();
 
     for (j = 0; j < sizeY; j++)
     {
+        const fCIELabPix* __restrict pLabLine = pCieLab + j * sizeX;
+        const T*          __restrict pSrcLine = pSrc    + j * srcPitch;
+              T*          __restrict pDstLine = pDst    + j * dstPitch;
+
         for (i = 0; i < sizeX; i++)
         {
 
