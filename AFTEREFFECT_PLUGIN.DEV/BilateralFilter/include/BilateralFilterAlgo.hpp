@@ -1,6 +1,8 @@
 #ifndef __IMAGE_LAB_BILATERAL_FILTER_STANDALONE_ALGO__
 #define __IMAGE_LAB_BILATERAL_FILTER_STANDALONE_ALGO__
 
+#define FAST_COMPUTE_EXTRA_PRECISION
+
 #include "Common.hpp"
 #include "Param_Utils.h"
 #include "CompileTimeUtils.hpp"
@@ -226,20 +228,57 @@ void BilateralFilterAlgorithm
     const T& whitePix  // white (maximal) color pixel value - used for clamping
 ) noexcept
 {
-    A_long i, j;
+    constexpr size_t maxSize = maxWindowSize * maxWindowSize;
+    constexpr float sigma = 10.f;
+    constexpr float divider = 2.0f * sigma * sigma;
+
+    CACHE_ALIGN float pH[maxSize]{};
+    CACHE_ALIGN float pF[maxSize]{};
+    A_long iMin = 0, iMax = 0, jMin = 0, jMax = 0, m = 0;
+    const A_long labLinePitch = sizeX;
+
     const MeshT* __restrict pMesh = getMeshHandler()->geCenterMesh();
 
-    for (j = 0; j < sizeY; j++)
+    for (A_long j = 0; j < sizeY; j++)
     {
-        const fCIELabPix* __restrict pLabLine = pCieLab + j * sizeX;
-        const T*          __restrict pSrcLine = pSrc    + j * srcPitch;
-              T*          __restrict pDstLine = pDst    + j * dstPitch;
+        const T*          __restrict pSrcLine = pSrc + j * srcPitch;
+              T*          __restrict pDstLine = pDst + j * dstPitch;
 
-        for (i = 0; i < sizeX; i++)
+        jMin = FastCompute::Max(0, j - fRadius);
+        jMax = FastCompute::Min(j + fRadius, sizeY - 1);
+
+        for (A_long i = 0; i < sizeX; i++)
         {
+            iMin = FastCompute::Max(0, i - fRadius);
+            iMax = FastCompute::Min(i + fRadius, sizeX - 1);
 
-        }
-    }
+            // compute Gaussian range weights
+            m = 0;
+            const fCIELabPix& pixLab = pCieLab[j * labLinePitch + i];
+
+            for (A_long k = jMin; k <= jMax; k++)
+            {
+                for (A_long l = iMin; l <= iMax; l++)
+                {
+                    const fCIELabPix& pixWindow = pCieLab[k * labLinePitch + l];
+                    const float dL = pixWindow.L - pixLab.L;
+                    const float da = pixWindow.a - pixLab.a;
+                    const float db = pixWindow.b - pixLab.b;
+
+                    const float dotComp = dL * dL + da * da + db * db;
+                    constexpr float reciproc = 1.f / divider;
+                    pH[m] = FastCompute::Exp(-dotComp * reciproc);
+                    m++;
+
+                }// for (A_long l = iMin; l <= iMax; l++)
+            }// for (A_long k = jMin; k <= jMax; k++)
+
+            // Calculate bilateral filter responce
+
+        }// for (A_long i = 0; i < sizeX; i++)
+
+    }// for (A_long j = 0; j < sizeY; j++)
+
     return;
 }
 
