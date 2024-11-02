@@ -34,7 +34,10 @@ GlobalSetup(
 	PF_LayerDef		*output)
 {
     if (false == LoadMemoryInterfaceProvider(in_data))
-        return PF_Err_OUT_OF_MEMORY;
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    if (nullptr == (gGaussMeshInstance = CreateGaussMeshHandler()))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -70,14 +73,13 @@ GlobalSetup(
 
         /* Bilateral Filter as standalone PlugIn will support BGRA/ARGB formats only */
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-//      (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
-//      (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
-//      (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
 	}
 
-    gGaussMeshInstance = CreateGaussMeshHandler();
 
 	return PF_Err_NONE;
 }

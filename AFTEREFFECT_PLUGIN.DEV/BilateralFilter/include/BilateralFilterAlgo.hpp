@@ -269,11 +269,11 @@ void BilateralFilterAlgorithm
                     constexpr float reciproc = 1.f / divider;
                     pH[m] = FastCompute::Exp(-dotComp * reciproc);
                     m++;
-
                 }// for (A_long l = iMin; l <= iMax; l++)
             }// for (A_long k = jMin; k <= jMax; k++)
 
             // Calculate bilateral filter responce
+            float fNorm = 0.f;
 
         }// for (A_long i = 0; i < sizeX; i++)
 

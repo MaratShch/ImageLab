@@ -36,15 +36,15 @@ public:
         return iGaussMesh;
     } /* static iGaussMesh* getInstance() */
 
-    const MeshT* geCenterMesh(void) const
+    const MeshT* geCenterMesh(void) const noexcept
     {
         constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1);
         return &m_Mesh[meshCenter];
     }
 
 private:
-    GaussMesh() {};
-    ~GaussMesh(){};
+    GaussMesh(void) {};
+    ~GaussMesh(void){};
 
     CLASS_NON_COPYABLE(GaussMesh);
     CLASS_NON_MOVABLE (GaussMesh);
