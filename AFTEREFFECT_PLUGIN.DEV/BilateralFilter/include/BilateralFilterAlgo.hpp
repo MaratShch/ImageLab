@@ -241,8 +241,8 @@ void BilateralFilterAlgorithm
 
     for (A_long j = 0; j < sizeY; j++)
     {
-        const T*          __restrict pSrcLine = pSrc + j * srcPitch;
-              T*          __restrict pDstLine = pDst + j * dstPitch;
+        const T* __restrict pSrcLine = pSrc + j * srcPitch;
+              T* __restrict pDstLine = pDst + j * dstPitch;
 
         jMin = FastCompute::Max(0, j - fRadius);
         jMax = FastCompute::Min(j + fRadius, sizeY - 1);
@@ -255,6 +255,7 @@ void BilateralFilterAlgorithm
             // compute Gaussian range weights
             m = 0;
             const fCIELabPix& pixLab = pCieLab[j * labLinePitch + i];
+            float fNorm = 0.f;
 
             for (A_long k = jMin; k <= jMax; k++)
             {
@@ -273,7 +274,7 @@ void BilateralFilterAlgorithm
             }// for (A_long k = jMin; k <= jMax; k++)
 
             // Calculate bilateral filter responce
-            float fNorm = 0.f;
+
 
         }// for (A_long i = 0; i < sizeX; i++)
 
