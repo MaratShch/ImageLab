@@ -15,7 +15,7 @@ PF_Err ProcessImgInPR
 {
     // Get Bilateral Filter Radius value from slider
     const A_long sliderFilterRadius = params[eBILATERAL_FILTER_RADIUS]->u.sd.value;
-    if (0 == sliderFilterRadius) // Filter Radius equal to zero, so algorithm disabled  - let's make simple copy
+    if (0 == sliderFilterRadius || bilateralMaxRadius < sliderFilterRadius) // Filter Radius equal to zero or oversized, so algorithm disabled  - let's make simple copy
        return PF_COPY(&params[eBILATERAL_FILTER_INPUT]->u.ld, output, NULL, NULL);
 
     PF_Err err = PF_Err_NONE;

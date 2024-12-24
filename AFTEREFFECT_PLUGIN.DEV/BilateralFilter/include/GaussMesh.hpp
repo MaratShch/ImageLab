@@ -42,6 +42,18 @@ public:
         return &m_Mesh[meshCenter];
     }
 
+    const MeshT* getMesh (const A_long& radius, A_long& meshPitch) const noexcept
+    {
+        constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1);
+        const size_t meshStart = meshCenter - radius - (maxWindowSize * radius) - 1;
+        meshPitch = maxWindowSize;
+        return &m_Mesh[meshStart];
+     }
+
+    const A_long getMeshPitch(void) const noexcept {return maxWindowSize;}
+
+    
+
 private:
     GaussMesh(void) {};
     ~GaussMesh(void){};
