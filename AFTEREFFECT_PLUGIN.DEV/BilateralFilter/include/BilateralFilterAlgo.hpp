@@ -232,53 +232,81 @@ void BilateralFilterAlgorithm
     constexpr float sigma = 10.f;
     constexpr float divider = 2.0f * sigma * sigma;
 
-    CACHE_ALIGN float pH[maxSize]{};
     CACHE_ALIGN float pF[maxSize]{};
-    A_long iMin = 0, iMax = 0, jMin = 0, jMax = 0, m = 0;
-    const A_long labLinePitch = sizeX;
+    const A_long labLinePitch{ sizeX };
+    A_long iMin, iMax, jMin, jMax, m, n;
 
-    const MeshT* __restrict pMesh = getMeshHandler()->geCenterMesh();
+    A_long meshPitch = -1;
+    const MeshT* __restrict pMesh = getMeshHandler()->getCenterMesh(meshPitch);
 
-    for (A_long j = 0; j < sizeY; j++)
+    if (nullptr != pMesh && meshPitch > 0)
     {
-        const T* __restrict pSrcLine = pSrc + j * srcPitch;
-              T* __restrict pDstLine = pDst + j * dstPitch;
+        A_long meshUp, meshDown;
+        A_long meshLeft, meshRight;
 
-        jMin = FastCompute::Max(0, j - fRadius);
-        jMax = FastCompute::Min(j + fRadius, sizeY - 1);
-
-        for (A_long i = 0; i < sizeX; i++)
+        meshUp = 0;
+        for (A_long j = 0; j < sizeY; j++)
         {
-            iMin = FastCompute::Max(0, i - fRadius);
-            iMax = FastCompute::Min(i + fRadius, sizeX - 1);
+            const T* __restrict pSrcLine = pSrc + j * srcPitch;
+                  T* __restrict pDstLine = pDst + j * dstPitch;
 
-            // compute Gaussian range weights
-            m = 0;
-            const fCIELabPix& pixLab = pCieLab[j * labLinePitch + i];
-            float fNorm = 0.f;
+            // number of lines with coeficcients on top of filtered pixel
+            meshUp   = FastCompute::Min(meshUp, fRadius);
+            // number of lines with coefficients to down of filtered pixel
+            meshDown = FastCompute::Min((sizeY - 1) - j, fRadius);
 
-            for (A_long k = jMin; k <= jMax; k++)
+            jMin = FastCompute::Max(0, j - fRadius);
+            jMax = FastCompute::Min(j + fRadius, sizeY - 1);
+
+            meshLeft = 0;
+            for (A_long i = 0; i < sizeX; i++)
             {
-                for (A_long l = iMin; l <= iMax; l++)
+                iMin = FastCompute::Max(0, i - fRadius);
+                iMax = FastCompute::Min(i + fRadius, sizeX - 1);
+
+                // number of coefficients from left side of filtered pixel
+                meshLeft = FastCompute::Min(meshLeft, fRadius);
+                // number of coefficients from right side of filtered pixel
+                meshRight = FastCompute::Min((sizeX - 1), fRadius);
+
+                const MeshT* pMeshStartline = pMesh - (meshUp * meshPitch) - meshLeft;
+
+                // compute Gaussian range weights
+                const fCIELabPix& pixLab = pCieLab[j * labLinePitch + i];
+                float fNorm = 0.f;
+                m = 0;
+
+                for (A_long k = jMin; k <= jMax; k++)
                 {
-                    const fCIELabPix& pixWindow = pCieLab[k * labLinePitch + l];
-                    const float dL = pixWindow.L - pixLab.L;
-                    const float da = pixWindow.a - pixLab.a;
-                    const float db = pixWindow.b - pixLab.b;
+                    const MeshT* __restrict pMeshLine = pMeshStartline + k * meshPitch;
 
-                    const float dotComp = dL * dL + da * da + db * db;
-                    constexpr float reciproc = 1.f / divider;
-                    pH[m] = FastCompute::Exp(-dotComp * reciproc);
-                    m++;
-                }// for (A_long l = iMin; l <= iMax; l++)
-            }// for (A_long k = jMin; k <= jMax; k++)
+                    for (A_long l = iMin, n = 0; l <= iMax; l++, n++)
+                    {
+                        const fCIELabPix& pixWindow = pCieLab[k * labLinePitch + l];
+                        const float dL = pixWindow.L - pixLab.L;
+                        const float da = pixWindow.a - pixLab.a;
+                        const float db = pixWindow.b - pixLab.b;
 
-            // Calculate bilateral filter responce
+                        const float dotComp = dL * dL + da * da + db * db;
+                        constexpr float reciproc = 1.f / divider;
 
+                        const float pH = FastCompute::Exp(-dotComp * reciproc);
+                        pF[m] = pH * pMeshLine[n];
+                        fNorm += pF[m];
+                        m++;
+                    }// for (A_long l = iMin; l <= iMax; l++)
+                }// for (A_long k = jMin; k <= jMax; k++)
 
-        }// for (A_long i = 0; i < sizeX; i++)
+                // Calculate bilateral filter responce
+                float bSum1 = 0.f, bSum2 = 0.f, bSum3 = 0.f;
 
-    }// for (A_long j = 0; j < sizeY; j++)
+                meshLeft++;
+            }// for (A_long i = 0; i < sizeX; i++)
+
+            meshUp++;
+        }// for (A_long j = 0; j < sizeY; j++)
+
+    }// if (nullptr != pMesh && meshPitch > 0)
 
     return;
 }

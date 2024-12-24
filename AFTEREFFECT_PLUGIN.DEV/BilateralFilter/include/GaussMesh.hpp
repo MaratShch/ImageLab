@@ -36,9 +36,10 @@ public:
         return iGaussMesh;
     } /* static iGaussMesh* getInstance() */
 
-    const MeshT* geCenterMesh(void) const noexcept
+    const MeshT* getCenterMesh (A_long& meshPitch) const noexcept
     {
         constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1);
+        meshPitch = maxWindowSize;
         return &m_Mesh[meshCenter];
     }
 
