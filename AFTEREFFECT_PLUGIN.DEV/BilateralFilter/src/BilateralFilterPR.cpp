@@ -18,6 +18,11 @@ PF_Err ProcessImgInPR
     if (0 == sliderFilterRadius || bilateralMaxRadius < sliderFilterRadius) // Filter Radius equal to zero or oversized, so algorithm disabled  - let's make simple copy
        return PF_COPY(&params[eBILATERAL_FILTER_INPUT]->u.ld, output, NULL, NULL);
 
+#if !defined __INTEL_COMPILER 
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
     PF_Err err = PF_Err_NONE;
     A_long srcPitch = 0, dstPitch = 0;
 

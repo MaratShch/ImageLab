@@ -234,7 +234,7 @@ void BilateralFilterAlgorithm
 
     CACHE_ALIGN float pF[maxSize]{};
     const A_long labLinePitch{ sizeX };
-    A_long iMin, iMax, jMin, jMax, m, n;
+    A_long iMin, iMax, jMin, jMax, m, n, s;
 
     A_long meshPitch = -1;
     const MeshT* __restrict pMesh = getMeshHandler()->getCenterMesh(meshPitch);
@@ -258,8 +258,7 @@ void BilateralFilterAlgorithm
             jMin = FastCompute::Max(0, j - fRadius);
             jMax = FastCompute::Min(j + fRadius, sizeY - 1);
 
-            meshLeft = 0;
-            for (A_long i = 0; i < sizeX; i++)
+            for (A_long i = 0, meshLeft = 0; i < sizeX; meshLeft++, i++)
             {
                 iMin = FastCompute::Max(0, i - fRadius);
                 iMax = FastCompute::Min(i + fRadius, sizeX - 1);
@@ -274,11 +273,11 @@ void BilateralFilterAlgorithm
                 // compute Gaussian range weights
                 const fCIELabPix& pixLab = pCieLab[j * labLinePitch + i];
                 float fNorm = 0.f;
-                m = 0;
+                m = s = 0;
 
-                for (A_long k = jMin; k <= jMax; k++)
+                for (A_long k = jMin; k <= jMax; k++, s++)
                 {
-                    const MeshT* __restrict pMeshLine = pMeshStartline + k * meshPitch;
+                    const MeshT* __restrict pMeshLine = pMeshStartline + s * meshPitch;
 
                     for (A_long l = iMin, n = 0; l <= iMax; l++, n++)
                     {
@@ -299,8 +298,7 @@ void BilateralFilterAlgorithm
 
                 // Calculate bilateral filter responce
                 float bSum1 = 0.f, bSum2 = 0.f, bSum3 = 0.f;
-                m = 0;
-                for (A_long k = jMin; k <= jMax; k++)
+                for (A_long k = jMin, m = 0; k <= jMax; k++)
                 {
                     for (A_long l = iMin; l <= iMax; l++)
                     {
@@ -321,10 +319,9 @@ void BilateralFilterAlgorithm
 
                 pDstLine[i].A = pSrcLine[i].A; // copy Alpha-channel from sources buffer 'as-is'
                 pDstLine[i].R = static_cast<decltype(pDstLine[i].R)>(CLAMP_VALUE(outPix.R * whitePix.R, static_cast<float>(blackPix.R), static_cast<float>(whitePix.R)));
-                pDstLine[i].G = static_cast<decltype(pDstLine[i].R)>(CLAMP_VALUE(outPix.G * whitePix.G, static_cast<float>(blackPix.G), static_cast<float>(whitePix.G)));
-                pDstLine[i].B = static_cast<decltype(pDstLine[i].R)>(CLAMP_VALUE(outPix.B * whitePix.B, static_cast<float>(blackPix.B), static_cast<float>(whitePix.B)));
+                pDstLine[i].G = static_cast<decltype(pDstLine[i].G)>(CLAMP_VALUE(outPix.G * whitePix.G, static_cast<float>(blackPix.G), static_cast<float>(whitePix.G)));
+                pDstLine[i].B = static_cast<decltype(pDstLine[i].B)>(CLAMP_VALUE(outPix.B * whitePix.B, static_cast<float>(blackPix.B), static_cast<float>(whitePix.B)));
 
-                meshLeft++;
             }// for (A_long i = 0; i < sizeX; i++)
 
             meshUp++;

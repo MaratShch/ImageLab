@@ -38,14 +38,14 @@ public:
 
     const MeshT* getCenterMesh (A_long& meshPitch) const noexcept
     {
-        constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1);
+        constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius);
         meshPitch = maxWindowSize;
         return &m_Mesh[meshCenter];
     }
 
     const MeshT* getMesh (const A_long& radius, A_long& meshPitch) const noexcept
     {
-        constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius + 1);
+        constexpr size_t meshCenter = static_cast<size_t>(maxWindowSize * bilateralMaxRadius + bilateralMaxRadius);
         const size_t meshStart = meshCenter - radius - (maxWindowSize * radius) - 1;
         meshPitch = maxWindowSize;
         return &m_Mesh[meshStart];
