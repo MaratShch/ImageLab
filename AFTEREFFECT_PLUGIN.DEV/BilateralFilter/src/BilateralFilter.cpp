@@ -80,7 +80,6 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
 	}
 
-
 	return PF_Err_NONE;
 }
 
