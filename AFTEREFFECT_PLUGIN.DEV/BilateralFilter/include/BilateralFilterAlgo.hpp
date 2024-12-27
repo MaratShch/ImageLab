@@ -168,50 +168,6 @@ void Rgb2CIELab
     return;
 }
 
-#if 0
-template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-inline void CIELab2Rgb
-(
-    const fCIELabPix* __restrict pLab,
-    T*                __restrict pRGB,
-    const A_long&                sizeX,
-    const A_long&                sizeY,
-    const A_long&                labPitch,
-    const A_long&                rgbPitch
-) noexcept
-{
-    constexpr float fReferences[3] = {
-        cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][0],
-        cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][1],
-        cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
-    };
-
-    float sRgbCoeff = static_cast<float>(u8_value_white);
-    if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
-        sRgbCoeff = static_cast<float>(u16_value_white);
-    else if (std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
-        sRgbCoeff = 1.0f;
-
-    for (A_long j = 0; j < sizeY; j++)
-    {
-        const fCIELabPix* __restrict pLabLine = pLab + j * labPitch;
-        T*                __restrict pRgbLine = pRGB + j * rgbPitch;
-
-        for (A_long i = 0; i < sizeX; i++)
-        {
-
-            fRGB outPix = Xyz2Rgb (CieLab2Xyz(pLabLine[i]));
-            
-            pRgbLine[i].R = static_cast<decltype(pRgbLine[i].R)>(outPix.R * sRgbCoeff);
-            pRgbLine[i].G = static_cast<decltype(pRgbLine[i].G)>(outPix.G * sRgbCoeff);
-            pRgbLine[i].B = static_cast<decltype(pRgbLine[i].B)>(outPix.B * sRgbCoeff);
-            pRgbLine[i].A = static_cast<decltype(pRgbLine[i].A)>(255);
-        }
-    }
-
-    return;
-}
-#endif
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 void BilateralFilterAlgorithm
