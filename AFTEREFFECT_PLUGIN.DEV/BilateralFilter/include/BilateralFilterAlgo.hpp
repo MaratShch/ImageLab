@@ -269,12 +269,12 @@ void BilateralFilterAlgorithm
                 meshRight = FastCompute::Min((sizeX - 1), fRadius);
 
                 const MeshT* pMeshStartline = pMesh - (meshUp * meshPitch) - meshLeft;
-
-                // compute Gaussian range weights
                 const fCIELabPix& pixLab = pCieLab[j * labLinePitch + i];
                 float fNorm = 0.f;
                 m = s = 0;
 
+                // Compute Gaussian range weights and calculate bilateral filter responce
+                float bSum1 = 0.f, bSum2 = 0.f, bSum3 = 0.f;
                 for (A_long k = jMin; k <= jMax; k++, s++)
                 {
                     const MeshT* __restrict pMeshLine = pMeshStartline + s * meshPitch;
@@ -289,26 +289,16 @@ void BilateralFilterAlgorithm
                         const float dotComp = dL * dL + da * da + db * db;
                         constexpr float reciproc = 1.f / divider;
 
-                        const float pH = FastCompute::Exp(-dotComp * reciproc);
-                        pF[m] = pH * pMeshLine[n];
+                        pF[m] = FastCompute::Exp(-dotComp * reciproc) * pMeshLine[n];
                         fNorm += pF[m];
-                        m++;
-                    }// for (A_long l = iMin; l <= iMax; l++)
-                }// for (A_long k = jMin; k <= jMax; k++)
 
-                // Calculate bilateral filter responce
-                float bSum1 = 0.f, bSum2 = 0.f, bSum3 = 0.f;
-                for (A_long k = jMin, m = 0; k <= jMax; k++)
-                {
-                    for (A_long l = iMin; l <= iMax; l++)
-                    {
-                        const fCIELabPix& pixWindow = pCieLab[k * labLinePitch + l];
                         bSum1 += (pF[m] * pixWindow.L);
                         bSum2 += (pF[m] * pixWindow.a);
                         bSum3 += (pF[m] * pixWindow.b);
+
                         m++;
-                    }
-                }
+                    }// for (A_long l = iMin; l <= iMax; l++)
+                }// for (A_long k = jMin; k <= jMax; k++)
 
                 fCIELabPix filteredPix;
                 filteredPix.L = bSum1 / fNorm;
