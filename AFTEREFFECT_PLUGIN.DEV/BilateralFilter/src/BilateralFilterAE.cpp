@@ -43,10 +43,8 @@ PF_Err BilateralFilter_InAE_8bits
 #endif
         fCIELabPix* __restrict pCIELab = reinterpret_cast<fCIELabPix* __restrict>(pMemoryBlock);
  
-        auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
-        PF_Pixel_ARGB_8u white{}, black{};
-        pixelFormatSuite->GetBlackForPixelFormat(PrPixelFormat_ARGB_4444_8u, &black);
-        pixelFormatSuite->GetWhiteForPixelFormat(PrPixelFormat_ARGB_4444_8u, &white);
+        constexpr PF_Pixel_ARGB_8u white{ u8_value_white , u8_value_white , u8_value_white , u8_value_white };
+        constexpr PF_Pixel_ARGB_8u black{ u8_value_black , u8_value_black , u8_value_black , u8_value_black };
 
         // Convert from RGB to CIE-Lab color space
         Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, src_pitch, sizeX);
@@ -99,10 +97,8 @@ PF_Err BilateralFilter_InAE_16bits
 #endif
         fCIELabPix* __restrict pCIELab = reinterpret_cast<fCIELabPix* __restrict>(pMemoryBlock);
 
-        auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
-        PF_Pixel_ARGB_16u white{}, black{};
-        pixelFormatSuite->GetBlackForPixelFormat(PrPixelFormat_ARGB_4444_16u, &black);
-        pixelFormatSuite->GetWhiteForPixelFormat(PrPixelFormat_ARGB_4444_16u, &white);
+        constexpr PF_Pixel_ARGB_16u white{ u16_value_white , u16_value_white , u16_value_white , u16_value_white };
+        constexpr PF_Pixel_ARGB_16u black{ u16_value_black , u16_value_black , u16_value_black , u16_value_black };
 
         // Convert from RGB to CIE-Lab color space
         Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, src_pitch, sizeX);
