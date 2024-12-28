@@ -38,8 +38,8 @@ bool LoadGpuMesh_CUDA (const float* hostMesh)
 CUDA_KERNEL_CALL
 void BilateralFilter_CUDA
 (
-    float* inBuf,
-    float* outBuf,
+    float* RESTRICT inBuf,
+    float* RESTRICT outBuf,
     int destPitch,
     int srcPitch,
     int	is16f,
