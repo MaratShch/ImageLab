@@ -51,6 +51,9 @@ void BilateralFilter_CUDA
     // allocate memory for CIE-Lab intermediate buffer
     if (cudaSuccess == cudaMalloc((void**)&gpuLabImage, width * height * sizeof(fCIELabPix)))
     {
+        dim3 blockDim(32, 32, 1);
+        dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+
         // convert image from  RGB color space to CIE-Lab color space
 
         // perform Bilateral Filter with specific radius

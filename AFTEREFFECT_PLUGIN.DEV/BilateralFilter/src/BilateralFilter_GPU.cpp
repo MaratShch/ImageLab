@@ -102,10 +102,10 @@ public:
 			BilateralFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, filterRadius);
 
 			cudaError_t cudaErrCode = cudaErrorUnknown;
-//			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
-//			{
-//				return suiteError_Fail;
-//			}
+			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
+			{
+				return suiteError_Fail;
+			}
 		}
 
 		return suiteError_NoError;
