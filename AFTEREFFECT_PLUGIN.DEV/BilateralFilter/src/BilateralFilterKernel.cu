@@ -1,5 +1,6 @@
 #include "ImageLabCUDA.hpp"
 #include "BilateralFilterGPU.hpp"
+#include "CommonAuxPixFormat.hpp"
 #include <cuda_runtime.h>
 
 // Intermediate CIE-Lab image (float32, L,a,b - channels)
@@ -48,7 +49,7 @@ void BilateralFilter_CUDA
 )
 {
     // allocate memory for CIE-Lab intermediate buffer
-    if (cudaSuccess == cudaMalloc((void**)&gpuLabImage, width * height * 3 * sizeof(float)))
+    if (cudaSuccess == cudaMalloc((void**)&gpuLabImage, width * height * sizeof(fCIELabPix)))
     {
         // convert image from  RGB color space to CIE-Lab color space
 
