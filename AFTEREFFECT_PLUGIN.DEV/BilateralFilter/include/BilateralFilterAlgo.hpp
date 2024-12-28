@@ -154,6 +154,7 @@ void Rgb2CIELab
         const T*    __restrict pRgbLine = pRGB + j * rgbPitch;
         fCIELabPix* __restrict pLabLine = pLab + j * labPitch;
 
+        __VECTOR_ALIGNED__
         for (A_long i = 0; i < sizeX; i++)
         {
             fRGB inPix;
@@ -231,6 +232,7 @@ void BilateralFilterAlgorithm
 
                 // Compute Gaussian range weights and calculate bilateral filter responce
                 float bSum1 = 0.f, bSum2 = 0.f, bSum3 = 0.f;
+                __VECTORIZATION__
                 for (A_long k = jMin; k <= jMax; k++, s++)
                 {
                     const MeshT* __restrict pMeshLine = pMeshStartline + s * meshPitch;

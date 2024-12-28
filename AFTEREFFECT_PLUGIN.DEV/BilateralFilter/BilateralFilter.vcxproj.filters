@@ -84,6 +84,9 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\BilateralFilterGPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\BilateralFilter.cpp">
@@ -101,6 +104,9 @@
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\BilateralFilter_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="BilateralFilter.rc">
@@ -111,5 +117,10 @@
     <CustomBuild Include="BilateralFilter.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\BilateralFilterKernel.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>
