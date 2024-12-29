@@ -157,15 +157,26 @@ void RGBToCIELabKernel
     int width,                     // width of the RGB image buffer in pixels
     int height,                    // height of the RGB image buffer in pixels
     int srcPitch,                  // line pitch of the input RGB buffer
-    int dstPitch                   // line pitch of the output CIE-Lab buffer
+    int dstPitch,                  // line pitch of the output CIE-Lab buffer
+    int in16f
 )
 {
+    float4 inPix;
+
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (x >= width || y >= height) return;
 
-    const float4 inPix = inBuf[y * srcPitch + x];
+    if (in16f)
+    {
+        Pixel16*  in16 = (Pixel16*)inBuf;
+        inPix = HalfToFloat4(in16[y * srcPitch + x]);
+    }
+    else {
+        inPix = inBuf[y * srcPitch + x];
+    }
+
     outBuf[y * dstPitch + x] = Xyz2CieLab (Rgb2Xyz(inPix));
 
     return;
@@ -193,7 +204,10 @@ void BilateralFilter_CUDA
 
         // Launch first kernel for convert image from RGB color space to CIE-Lab color space
         const int labPitch = width;
-        RGBToCIELabKernel <<<gridDim, blockDim >>>(reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(gpuLabImage), width, height, srcPitch, labPitch);
+        RGBToCIELabKernel <<<gridDim, blockDim >>>(reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(gpuLabImage), width, height, srcPitch, labPitch, is16f);
+
+        // Synchronize to ensure the first kernel has completed
+        cudaDeviceSynchronize();
 
         // perform Bilateral Filter with specific radius and convert back image from CIE-Lab color space to RGB space
 
