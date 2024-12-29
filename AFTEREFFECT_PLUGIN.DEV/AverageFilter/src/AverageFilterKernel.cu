@@ -155,7 +155,6 @@ __global__ void kAverageFilterCUDA
 	const int isGeometric
 )
 {
-	float4 inPix;
 	float4 outPix;
 
 	const int x = blockIdx.x * blockDim.x + threadIdx.x;
