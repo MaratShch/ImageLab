@@ -117,10 +117,8 @@
     <CustomBuild Include="BilateralFilter.r">
       <Filter>resource</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="src\BilateralFilterKernel.cu">
+    <CustomBuild Include="src\BilateralFilterKernel.cu">
       <Filter>src</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>
