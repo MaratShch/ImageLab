@@ -44,5 +44,7 @@ bool LoadGpuMesh_CUDA
     const float* hostMesh
 );
 
-
-constexpr size_t gpuMaxMeshSize = 21 * 21; /* filter window size with maximal radius equal to 10 */
+constexpr int gpuMaxFilterRadius = 10;
+constexpr int gpuMaxWindowSize = 2 * gpuMaxFilterRadius + 1;
+constexpr int meshCenter = gpuMaxWindowSize * gpuMaxFilterRadius + gpuMaxFilterRadius;
+constexpr int gpuMaxMeshSize = gpuMaxWindowSize * gpuMaxWindowSize; /* filter window size with maximal radius equal to 10 */

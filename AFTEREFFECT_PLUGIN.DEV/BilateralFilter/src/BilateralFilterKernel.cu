@@ -24,6 +24,8 @@ inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
     return v;
 }
 
+inline __device__ const float* RESTRICT getCenterMesh(void) noexcept { return &cGpuMesh[meshCenter]; }
+
 inline __device__ float CLAMP
 (
     const float& in,
@@ -158,7 +160,7 @@ void RGBToCIELabKernel
     int height,                    // height of the RGB image buffer in pixels
     int srcPitch,                  // line pitch of the input RGB buffer
     int dstPitch,                  // line pitch of the output CIE-Lab buffer
-    int in16f
+    int is16f
 )
 {
     float4 inPix;
@@ -168,7 +170,7 @@ void RGBToCIELabKernel
 
     if (x >= width || y >= height) return;
 
-    if (in16f)
+    if (is16f)
     {
         Pixel16*  in16 = (Pixel16*)inBuf;
         inPix = HalfToFloat4(in16[y * srcPitch + x]);
@@ -191,8 +193,8 @@ void BilateralFilterKernel
     int height,                    // height of the RGB image buffer in pixels
     int srcPitch,                  // line pitch of the input RGB buffer
     int dstPitch,                  // line pitch of the output CIE-Lab buffer
-    int fRadisu,                   // filter radius (define processing window)
-    int in16f
+    int fRadius,                   // filter radius (define processing window)
+    int is16f
 )
 {
     float4 inPix;
@@ -203,10 +205,17 @@ void BilateralFilterKernel
 
     if (x >= width || y >= height) return;
 
+    constexpr float sigma = 10.f;
+    constexpr float divider = 2.0f * sigma * sigma;
+    constexpr int maxSize{ gpuMaxMeshSize };
+    float pF[maxSize]{};
+
+    const float* RESTRICT gpuMeshCenter = getCenterMesh();
+
     inPix  = LabBuf[y * srcPitch + x];
     outPix = Xyz2Rgb(CieLab2Xyz(inPix));
 
-    if (in16f)
+    if (is16f)
     {
         Pixel16*  out16 = (Pixel16*)outBuf;
         out16[y * dstPitch + x] = FloatToHalf4(outPix);
@@ -218,6 +227,27 @@ void BilateralFilterKernel
 
     return;
 }
+
+
+__global__
+void BilateralBypassKernel
+(
+    const float4* RESTRICT srcBuf, // RGB source buffer
+          float4* RESTRICT dstBuf, // RGB destination buffer
+    int width,                     // width of the RGB image buffer in pixels
+    int height,                    // height of the RGB image buffer in pixels
+    int srcPitch,                  // line pitch of the input RGB buffer
+    int dstPitch                   // line pitch of the output RGB buffer
+)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    dstBuf[y * dstPitch + x] = srcBuf[y * srcPitch + x];
+}
+
 
 
 CUDA_KERNEL_CALL
@@ -233,25 +263,30 @@ void BilateralFilter_CUDA
     int fRadius
 )
 {
-    // allocate memory for CIE-Lab intermediate buffer
-    if (cudaSuccess == cudaMalloc(reinterpret_cast<void**>(&gpuLabImage), width * height * sizeof(float4)))
+    dim3 blockDim(32, 32, 1);
+    dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+
+    if (0 == fRadius)
+        BilateralBypassKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch);
+    else
     {
-        dim3 blockDim(32, 32, 1);
-        dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+        // allocate memory for CIE-Lab intermediate buffer
+        if (cudaSuccess == cudaMalloc(reinterpret_cast<void**>(&gpuLabImage), width * height * sizeof(float4)))
+        {
+            // Launch first kernel for convert image from RGB color space to CIE-Lab color space
+            const int labPitch = width;
+            RGBToCIELabKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(gpuLabImage), width, height, srcPitch, labPitch, is16f);
 
-        // Launch first kernel for convert image from RGB color space to CIE-Lab color space
-        const int labPitch = width;
-        RGBToCIELabKernel <<<gridDim, blockDim >>>(reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(gpuLabImage), width, height, srcPitch, labPitch, is16f);
+            // Synchronize to ensure the first kernel has completed
+            cudaDeviceSynchronize();
 
-        // Synchronize to ensure the first kernel has completed
-        cudaDeviceSynchronize();
+            // perform Bilateral Filter with specific radius and convert back image from CIE-Lab color space to RGB space
+            BilateralFilterKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch, fRadius, is16f);
 
-        // perform Bilateral Filter with specific radius and convert back image from CIE-Lab color space to RGB space
-        BilateralFilterKernel <<<gridDim, blockDim >>>(reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch, fRadius, is16f);
-
-        // free all temporary allocated resources
-        cudaFree(gpuLabImage);
-        gpuLabImage = nullptr;
+            // free all temporary allocated resources
+            cudaFree(gpuLabImage);
+            gpuLabImage = nullptr;
+        }
     }
 
     return;

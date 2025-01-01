@@ -5,7 +5,7 @@
 #include "ImageLab2GpuObj.hpp"
 #include "FastAriphmetics.hpp"
 #include "Common.hpp"
-
+#include "CommonAdobeAE.hpp"
 
 #ifdef _DEBUG
 #pragma comment(lib, "..\\BUILD.OUT\\LIB\\Debug\\CommonGPULib.lib")
@@ -97,9 +97,8 @@ public:
 			outBuffer = reinterpret_cast<float*>(destFrameData);
 
             auto const filterRadius = ClampFilterRadius(paramFilterRadius.mInt32);
-
-			// Launch CUDA kernel
-			BilateralFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, filterRadius);
+		    // Launch CUDA kernel
+		    BilateralFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, filterRadius);
 
 			cudaError_t cudaErrCode = cudaErrorUnknown;
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
