@@ -189,7 +189,6 @@ void BilateralFilterAlgorithm
     constexpr float sigma = 10.f;
     constexpr float divider = 2.0f * sigma * sigma;
 
-    CACHE_ALIGN float pF[maxSize]{};
     const A_long labLinePitch{ sizeX };
     A_long iMin, iMax, jMin, jMax, m, n, s;
 
@@ -247,12 +246,12 @@ void BilateralFilterAlgorithm
                         const float dotComp = dL * dL + da * da + db * db;
                         constexpr float reciproc = 1.f / divider;
 
-                        pF[m] = FastCompute::Exp(-dotComp * reciproc) * pMeshLine[n];
-                        fNorm += pF[m];
+                        const float pF = FastCompute::Exp(-dotComp * reciproc) * pMeshLine[n];
+                        fNorm += pF;
 
-                        bSum1 += (pF[m] * pixWindow.L);
-                        bSum2 += (pF[m] * pixWindow.a);
-                        bSum3 += (pF[m] * pixWindow.b);
+                        bSum1 += (pF * pixWindow.L);
+                        bSum2 += (pF * pixWindow.a);
+                        bSum3 += (pF * pixWindow.b);
 
                         m++;
                     }// for (A_long l = iMin; l <= iMax; l++)

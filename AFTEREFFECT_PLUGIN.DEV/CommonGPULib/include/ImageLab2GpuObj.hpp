@@ -144,7 +144,7 @@ template<class GPUFilter>
 		PrGPUFilterInstance* ioInstanceData)
 	{
 		GPUFilter* gpuFilter = new GPUFilter();
-		prSuiteError result = gpuFilter->Initialize(ioInstanceData);
+		const prSuiteError result = gpuFilter->Initialize(ioInstanceData);
 		if (PrSuiteErrorSucceeded(result))
 		{
 			ioInstanceData->ioPrivatePluginData = gpuFilter;
@@ -152,6 +152,7 @@ template<class GPUFilter>
 		else
 		{
 			delete gpuFilter;
+            gpuFilter = nullptr;
 		}
 		return result;
 	}
@@ -159,8 +160,8 @@ template<class GPUFilter>
 	static prSuiteError DisposeInstance(
 		PrGPUFilterInstance* ioInstanceData)
 	{
-		delete (GPUFilter*)ioInstanceData->ioPrivatePluginData;
-		ioInstanceData->ioPrivatePluginData = 0;
+		delete reinterpret_cast<GPUFilter*>(ioInstanceData->ioPrivatePluginData);
+		ioInstanceData->ioPrivatePluginData = nullptr;
 		return suiteError_NoError;
 	}
 

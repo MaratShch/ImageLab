@@ -138,6 +138,22 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
+    <ClInclude Include="..\Common\ColorTransform.hpp" />
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
+    <ClInclude Include="..\Common\Common.hpp" />
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
+    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
+    <ClInclude Include="..\Common\LibExport.hpp" />
+    <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageLab2GpuObj.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

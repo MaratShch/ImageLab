@@ -10,14 +10,14 @@
 #endif
 
 
-class AverageFilterGPU : public CImageLab2GpuObj
+class AverageFilterGPU final : public CImageLab2GpuObj
 {
 public:
 	CLASS_NON_COPYABLE(AverageFilterGPU);
 	CLASS_NON_MOVABLE(AverageFilterGPU);
 
 	AverageFilterGPU() = default;
-	virtual ~AverageFilterGPU() = default;
+	~AverageFilterGPU() = default;
 
 	prSuiteError InitializeCUDA(void)
 	{

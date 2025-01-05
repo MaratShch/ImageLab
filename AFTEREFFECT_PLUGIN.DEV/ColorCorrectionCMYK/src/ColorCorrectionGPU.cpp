@@ -11,14 +11,14 @@
 
 
 
-class ColorCMYKCorrectionGPU : public CImageLab2GpuObj
+class ColorCMYKCorrectionGPU final : public CImageLab2GpuObj
 {
 public:
 	CLASS_NON_COPYABLE(ColorCMYKCorrectionGPU);
 	CLASS_NON_MOVABLE (ColorCMYKCorrectionGPU);
 
 	ColorCMYKCorrectionGPU() = default;
-	virtual ~ColorCMYKCorrectionGPU() = default;
+	~ColorCMYKCorrectionGPU() = default;
 
 	prSuiteError InitializeCUDA(void) noexcept
 	{

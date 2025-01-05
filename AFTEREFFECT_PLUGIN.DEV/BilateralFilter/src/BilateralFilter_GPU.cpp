@@ -15,14 +15,14 @@
 
 
 
-class BilateralFilterGPU : public CImageLab2GpuObj
+class BilateralFilterGPU final : public CImageLab2GpuObj
 {
 public:
 	CLASS_NON_COPYABLE(BilateralFilterGPU);
 	CLASS_NON_MOVABLE(BilateralFilterGPU);
 
 	BilateralFilterGPU() = default;
-	virtual ~BilateralFilterGPU() = default;
+	~BilateralFilterGPU() = default;
 
 	prSuiteError InitializeCUDA(void)
 	{

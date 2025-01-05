@@ -9,14 +9,14 @@
 #endif
 
 
-class SepiAColorGPU : public CImageLab2GpuObj
+class SepiAColorGPU final : public CImageLab2GpuObj
 {
 public:
 	CLASS_NON_COPYABLE(SepiAColorGPU);
 	CLASS_NON_MOVABLE(SepiAColorGPU);
 
 	SepiAColorGPU() = default;
-	virtual ~SepiAColorGPU() = default;
+	~SepiAColorGPU() = default;
 
 	prSuiteError InitializeCUDA(void)
 	{

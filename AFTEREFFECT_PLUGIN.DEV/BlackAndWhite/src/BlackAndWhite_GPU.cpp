@@ -10,14 +10,14 @@
 #endif
 
 
-class BlackAndWhiteFilterGPU : public CImageLab2GpuObj
+class BlackAndWhiteFilterGPU final : public CImageLab2GpuObj
 {
 public:
 	CLASS_NON_COPYABLE(BlackAndWhiteFilterGPU);
 	CLASS_NON_MOVABLE (BlackAndWhiteFilterGPU);
 
     BlackAndWhiteFilterGPU() = default;
-	virtual ~BlackAndWhiteFilterGPU() = default;
+	~BlackAndWhiteFilterGPU() = default;
 
 	prSuiteError InitializeCUDA(void)
 	{

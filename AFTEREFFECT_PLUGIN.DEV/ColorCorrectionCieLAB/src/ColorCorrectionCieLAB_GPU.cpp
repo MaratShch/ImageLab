@@ -11,14 +11,14 @@
 #endif
 
 
-class ColorCorrectionCieLAB_GPU : public CImageLab2GpuObj
+class ColorCorrectionCieLAB_GPU final : public CImageLab2GpuObj
 {
 public:
 	CLASS_NON_COPYABLE(ColorCorrectionCieLAB_GPU);
 	CLASS_NON_MOVABLE(ColorCorrectionCieLAB_GPU);
 
     ColorCorrectionCieLAB_GPU() = default;
-	virtual ~ColorCorrectionCieLAB_GPU() = default;
+	~ColorCorrectionCieLAB_GPU() = default;
 
 	prSuiteError InitializeCUDA(void)
 	{
