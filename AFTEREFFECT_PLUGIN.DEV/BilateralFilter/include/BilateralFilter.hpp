@@ -5,7 +5,7 @@
 
 
 constexpr char strName[] = "Bilateral Filter";
-constexpr char strCopyright[] = "\n2019-2023. ImageLab2 Copyright(c).\rBilateral Filter plugin.";
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rBilateral Filter plugin.";
 constexpr int BilateralFilter_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int  BilateralFilter_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int BilateralFilter_VersionSub = 0;
