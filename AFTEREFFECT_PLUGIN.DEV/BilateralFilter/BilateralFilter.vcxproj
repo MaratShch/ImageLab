@@ -168,12 +168,14 @@
     <ClInclude Include="include\BilateralFilterAlgo.hpp" />
     <ClInclude Include="include\BilateralFilterEnum.hpp" />
     <ClInclude Include="include\BilateralFilterGPU.hpp" />
+    <ClInclude Include="include\BilateralFilterStructs.hpp" />
     <ClInclude Include="include\GaussMesh.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\BilateralFilter.cpp" />
     <ClCompile Include="src\BilateralFilterAE.cpp" />
+    <ClCompile Include="src\BilateralFilterAE_SmartRender.cpp" />
     <ClCompile Include="src\BilateralFilterPR.cpp" />
     <ClCompile Include="src\BilateralFilter_GPU.cpp" />
     <ClCompile Include="src\GaussMesh.cpp" />

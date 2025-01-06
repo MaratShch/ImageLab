@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __IMAGE_LAB_BILATERAL_FILTER_GPU_HANDLERS__
+#define __IMAGE_LAB_BILATERAL_FILTER_GPU_HANDLERS__
 
 #include <cuda_runtime.h>
 
@@ -52,3 +53,5 @@ constexpr int gpuMaxMeshSize = gpuMaxWindowSize * gpuMaxWindowSize; /* filter wi
 
 constexpr float fSigmaMin = 5.f;
 constexpr float fSigmaMax = 20.f;
+
+#endif // __IMAGE_LAB_BILATERAL_FILTER_GPU_HANDLERS__

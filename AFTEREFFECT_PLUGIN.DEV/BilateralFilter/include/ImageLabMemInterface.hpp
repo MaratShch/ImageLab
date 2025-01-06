@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
+#define __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
 
 #include <windows.h>
 #include "AE_Effect.h"
@@ -23,3 +24,4 @@ typedef struct MemoryManagerInterface
 	DWORD             _dbgLastError;
 } MemoryManagerInterface;
 
+#endif // __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
