@@ -144,7 +144,7 @@ inline __device__ float4 Xyz2Rgb
 CUDA_KERNEL_CALL
 bool LoadGpuMesh_CUDA (const float* hostMesh)
 {
-    /* SepiaMatrix array is defined in "SepiaMatrix.hpp" include file */
+    /* Mesh array with algorithm for compute coefficients defined into "BilateralFilter_GPU.cpp" as private class' method */
     constexpr size_t loadSize = sizeof(cGpuMesh);
     const cudaError_t err = cudaMemcpyToSymbol (cGpuMesh, hostMesh, loadSize);
     return (cudaSuccess == err) ? true : false;
