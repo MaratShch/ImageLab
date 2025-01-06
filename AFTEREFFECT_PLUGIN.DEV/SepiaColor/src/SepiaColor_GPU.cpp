@@ -20,7 +20,10 @@ public:
 
 	prSuiteError InitializeCUDA(void)
 	{
-		return ((true == SepiaColorLoadMatrix_CUDA()) ? suiteError_NoError : suiteError_Fail);
+        bool filterInit = true;
+        if (false == isConstantMemoryInitialized.exchange(true))
+            filterInit = SepiaColorLoadMatrix_CUDA(); // copy coefficients matrix to constant memory
+		return ((true == filterInit) ? suiteError_NoError : suiteError_Fail);
 	}
 
 	virtual prSuiteError Initialize (PrGPUFilterInstance* ioInstanceData)
@@ -90,6 +93,10 @@ public:
 		return suiteError_NoError;
 	}
 
+private:
+    static std::atomic<bool> isConstantMemoryInitialized;
 };
+
+std::atomic<bool> SepiAColorGPU::isConstantMemoryInitialized{ false };
 
 DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<SepiAColorGPU>);

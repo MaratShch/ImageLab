@@ -22,6 +22,8 @@ PF_Err BilateralFilter_InAE_8bits
         auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
         return worldTransformSuite->copy (in_data->effect_ref, input, output, NULL, NULL);
     }
+    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_RADIUS]->u.fs_d.value;
+    const float fSigmaValue = CLAMP_VALUE(static_cast<float>(sliderSigmaValue), fSigmaValMin, fSigmaValMax);
 
     const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
           PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
@@ -48,7 +50,7 @@ PF_Err BilateralFilter_InAE_8bits
 
         // Convert from RGB to CIE-Lab color space
         Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, src_pitch, sizeX);
-        BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, sliderFilterRadius, black, white);
+        BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, sliderFilterRadius, fSigmaValue, black, white);
 
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -76,6 +78,8 @@ PF_Err BilateralFilter_InAE_16bits
         auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
         return worldTransformSuite->copy_hq (in_data->effect_ref, input, output, NULL, NULL);
     }
+    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_RADIUS]->u.fs_d.value;
+    const float fSigmaValue = CLAMP_VALUE(static_cast<float>(sliderSigmaValue), fSigmaValMin, fSigmaValMax);
 
     const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
           PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
@@ -102,7 +106,7 @@ PF_Err BilateralFilter_InAE_16bits
 
         // Convert from RGB to CIE-Lab color space
         Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, src_pitch, sizeX);
-        BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, sliderFilterRadius, black, white);
+        BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, sliderFilterRadius, fSigmaValue, black, white);
 
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -122,6 +126,11 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept
 {
+#if !defined __INTEL_COMPILER 
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
 	return (PF_WORLD_IS_DEEP(output) ?
 		BilateralFilter_InAE_16bits(in_data, out_data, params, output) :
 		BilateralFilter_InAE_8bits (in_data, out_data, params, output));

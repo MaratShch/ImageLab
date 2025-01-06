@@ -193,7 +193,8 @@ void BilateralFilterKernel
     int srcPitch,                  // line pitch of the input RGB buffer
     int dstPitch,                  // line pitch of the output CIE-Lab buffer
     int fRadius,                   // filter radius (define processing window)
-    int is16f
+    int is16f,
+    float fSigma
 )
 {
     float4 inPix;
@@ -204,8 +205,7 @@ void BilateralFilterKernel
 
     if (x >= width || y >= height) return;
 
-    constexpr float sigma = 10.f;
-    constexpr float divider = 2.0f * sigma * sigma;
+    const float divider = 2.0f * fSigma * fSigma;
 
     int meshPitch = -1;
     const float* gpuMeshCenter = getCenterMesh (meshPitch);
@@ -300,7 +300,8 @@ void BilateralFilter_CUDA
     int	is16f,
     int width,
     int height,
-    int fRadius
+    int fRadius,
+    float fSigma
 )
 {
     dim3 blockDim(32, 32, 1);
@@ -321,7 +322,7 @@ void BilateralFilter_CUDA
             cudaDeviceSynchronize();
 
             // perform Bilateral Filter with specific radius and convert back image from CIE-Lab color space to RGB space
-            BilateralFilterKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch, fRadius, is16f);
+            BilateralFilterKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch, fRadius, is16f, fSigma);
 
             // free all temporary allocated resources
             cudaFree (gpuLabImage);

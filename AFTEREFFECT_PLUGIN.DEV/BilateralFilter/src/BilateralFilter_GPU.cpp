@@ -64,6 +64,7 @@ public:
 		// read control setting
         PrTime const clipTime{ inRenderParams->inClipTime };
         auto const& paramFilterRadius = GetParam(eBILATERAL_FILTER_RADIUS, clipTime);
+        auto const& paramFilterSigma  = GetParam(eBILATERAL_FILTER_SIGMA,  clipTime);
 
 #ifdef _DEBUG
 		const csSDK_int32 instanceCnt = TotalInstances();
@@ -97,8 +98,10 @@ public:
 			outBuffer = reinterpret_cast<float*>(destFrameData);
 
             auto const filterRadius = ClampFilterRadius(paramFilterRadius.mInt32);
-		    // Launch CUDA kernel
-		    BilateralFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, filterRadius);
+            auto const filterSigma  = ClampFilterSigma (paramFilterSigma.mFloat64);
+            
+            // Launch CUDA kernel
+		    BilateralFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, filterRadius, filterSigma);
 
 			cudaError_t cudaErrCode = cudaErrorUnknown;
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
@@ -116,8 +119,17 @@ private:
         return (fRadius < bilateralMinRadius ? bilateralMinRadius : (fRadius > bilateralMaxRadius ? bilateralMaxRadius : fRadius));
     }
 
+    const float ClampFilterSigma (double fSigma) noexcept
+    {
+        return (fSigma < fSigmaValMin ? fSigmaValMin : (fSigma > fSigmaValMax ? fSigmaValMax : fSigma));
+    }
+
     bool init_gauss_mesh (float* hostMesh)
     {
+#if !defined __INTEL_COMPILER 
+        _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+        _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
         constexpr float sigma{ 3 };
         constexpr float divider = sigma * sigma * 2.0f;
         A_long k = 0;

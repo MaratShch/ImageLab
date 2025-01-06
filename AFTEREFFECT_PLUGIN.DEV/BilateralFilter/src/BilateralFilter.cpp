@@ -109,6 +109,7 @@ ParamsSetup(
     PF_ParamDef	def;
     constexpr PF_ParamFlags flags{ PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP };
     constexpr PF_ParamUIFlags ui_flags{ PF_PUI_NONE };
+    constexpr PF_ParamUIFlags ui_flags_control_disabled{ ui_flags | PF_PUI_DISABLED };
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_SLIDER(
@@ -119,6 +120,19 @@ ParamsSetup(
         bilateralMaxRadius,
         bilateralDefRadius,
         eBILATERAL_FILTER_RADIUS);
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags_control_disabled);
+    PF_ADD_FLOAT_SLIDERX(
+        FilterSigmaStr,
+        fSigmaValMin,
+        fSigmaValMax,
+        fSigmaValMin,
+        fSigmaValMax,
+        fSigmaValDefault,
+        PF_Precision_TENTHS,
+        0,
+        0,
+        eBILATERAL_FILTER_SIGMA);
 
     out_data->num_params = eBILATERAL_TOTAL_CONTROLS;
 
@@ -150,6 +164,62 @@ SmartRender(
 }
 
 
+static PF_Err
+UserChangedParam(
+    PF_InData						*in_data,
+    PF_OutData						*out_data,
+    PF_ParamDef						*params[],
+    PF_LayerDef						*outputP,
+    const PF_UserChangedParamExtra	*which_hitP
+)
+{
+    PF_Err err = PF_Err_NONE;
+
+    switch (which_hitP->param_index)
+    {
+        case eBILATERAL_FILTER_RADIUS:
+        {
+            const auto& sliderValue = params[eBILATERAL_FILTER_RADIUS]->u.sd.value;
+            if (sliderValue > 0)
+            {
+                if (true == IsDisabledUI(params[eBILATERAL_FILTER_SIGMA]->ui_flags))
+                {
+                    params[eBILATERAL_FILTER_SIGMA]->ui_flags &= ~PF_PUI_DISABLED;
+                    err = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)->
+                        PF_UpdateParamUI(in_data->effect_ref, eBILATERAL_FILTER_SIGMA, params[eBILATERAL_FILTER_SIGMA]);
+                }
+            }
+            else
+            {
+                if (false == IsDisabledUI(params[eBILATERAL_FILTER_SIGMA]->ui_flags))
+                {
+                    params[eBILATERAL_FILTER_SIGMA]->ui_flags |= PF_PUI_DISABLED;
+                    err = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data)->
+                        PF_UpdateParamUI(in_data->effect_ref, eBILATERAL_FILTER_SIGMA, params[eBILATERAL_FILTER_SIGMA]);
+                }
+            }
+        }
+        break;
+
+        default: // nothing todo
+        break;
+    }
+
+    return err;
+}
+
+
+static PF_Err
+UpdateParameterUI(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*output
+)
+{
+    return PF_Err_NONE;
+}
+
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
@@ -160,7 +230,7 @@ EffectMain(
 	PF_LayerDef		*output,
 	void			*extra)
 {
-	PF_Err		err{ PF_Err_NONE };
+	PF_Err err{ PF_Err_NONE };
 
 	try {
 		switch (cmd)
@@ -185,11 +255,21 @@ EffectMain(
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-			default:
+            case PF_Cmd_USER_CHANGED_PARAM:
+                ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+            break;
+            
+            // Handling this selector will ensure that the UI will be properly initialized,
+            // even before the user starts changing parameters to trigger PF_Cmd_USER_CHANGED_PARAM
+            case PF_Cmd_UPDATE_PARAMS_UI:
+                ERR(UpdateParameterUI(in_data, out_data, params, output));
+            break;
+
+            default:
 			break;
 		}
 	}
-	catch (PF_Err &thrown_err)
+	catch (PF_Err& thrown_err)
 	{
 		err = thrown_err;
 	}

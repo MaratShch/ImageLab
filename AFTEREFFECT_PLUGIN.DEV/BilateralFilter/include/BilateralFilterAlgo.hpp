@@ -181,14 +181,12 @@ void BilateralFilterAlgorithm
     A_long srcPitch,
     A_long dstPitch,
     A_long fRadius,
+    float fSigma,
     const T& blackPix, // black (minimal) color pixel value - used for clamping
     const T& whitePix  // white (maximal) color pixel value - used for clamping
 ) noexcept
 {
-    constexpr size_t maxSize = maxWindowSize * maxWindowSize;
-    constexpr float sigma = 10.f;
-    constexpr float divider = 2.0f * sigma * sigma;
-
+    const float divider = 2.0f * fSigma * fSigma;
     const A_long labLinePitch{ sizeX };
     A_long iMin, iMax, jMin, jMax, m, n, s;
 
@@ -244,9 +242,7 @@ void BilateralFilterAlgorithm
                         const float db = pixWindow.b - pixLab.b;
 
                         const float dotComp = dL * dL + da * da + db * db;
-                        constexpr float reciproc = 1.f / divider;
-
-                        const float pF = FastCompute::Exp(-dotComp * reciproc) * pMeshLine[n];
+                        const float pF = FastCompute::Exp(-dotComp / divider) * pMeshLine[n];
                         fNorm += pF;
 
                         bSum1 += (pF * pixWindow.L);

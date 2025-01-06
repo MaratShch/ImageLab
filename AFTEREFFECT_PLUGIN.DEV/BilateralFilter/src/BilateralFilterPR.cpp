@@ -18,6 +18,10 @@ PF_Err ProcessImgInPR
     if (0 == sliderFilterRadius || bilateralMaxRadius < sliderFilterRadius) // Filter Radius equal to zero or oversized, so algorithm disabled  - let's make simple copy
        return PF_COPY(&params[eBILATERAL_FILTER_INPUT]->u.ld, output, NULL, NULL);
 
+    // Get Bilateral Filter Sigma value
+    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_RADIUS]->u.fs_d.value;
+    const float fSigmaValue = CLAMP_VALUE(static_cast<float>(sliderSigmaValue), fSigmaValMin, fSigmaValMax);
+
 #if !defined __INTEL_COMPILER 
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
@@ -61,7 +65,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, black, white);
+                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, fSigmaValue, black, white);
                 }
                 break;
 
@@ -77,7 +81,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, black, white);
+                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, fSigmaValue, black, white);
                 }
                 break;
 
@@ -93,7 +97,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, black, white);
+                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, fSigmaValue, black, white);
                 }
                 break;
 
@@ -109,7 +113,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, black, white);
+                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, fSigmaValue, black, white);
                 }
                 break;
 
@@ -125,7 +129,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, black, white);
+                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, fSigmaValue, black, white);
                 }
                 break;
 
@@ -141,7 +145,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, black, white);
+                    BilateralFilterAlgorithm (pCIELab, localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, sliderFilterRadius, fSigmaValue, black, white);
                 }
                 break;
 
