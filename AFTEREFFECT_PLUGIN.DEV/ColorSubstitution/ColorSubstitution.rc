@@ -17,7 +17,7 @@ BEGIN
 	"eman",
 	0, 0x0,
 	20, 0x0,
-	"\x11Color Temperature\0\0", 
+	"\x12Color Substitution\0", 
 
 	"MIB8",
 	"gtac", 
@@ -70,8 +70,8 @@ BEGIN
 	"MIB8",
 	"ANMe",
 	0, 0x0,
-	28, 0x0,
-	"\x1BImageLab2 Color Temperature", 
+	32, 0x0,
+	"\x1CImageLab2 Color Substitution\0\0\0", 
 
 	"MIB8",
 	0x6165464CL, 

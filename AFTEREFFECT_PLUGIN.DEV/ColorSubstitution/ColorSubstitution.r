@@ -13,7 +13,7 @@ resource 'PiPL' (16000) {
 		},
 		/* [2] */
 		Name {
-			"Color Temperature"
+			"Color Substitution"
 		},
 		/* [3] */
 		Category {
@@ -60,7 +60,7 @@ resource 'PiPL' (16000) {
 		},
 		/* [11] */
 		AE_Effect_Match_Name {
-			"ImageLab2 Color Temperature"
+			"ImageLab2 Color Substitution"
 		},
 		/* [12] */
 		AE_Reserved_Info {
