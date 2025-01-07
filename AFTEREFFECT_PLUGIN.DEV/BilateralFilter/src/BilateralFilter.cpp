@@ -340,6 +340,9 @@ SmartRender(
 
                 if (nullptr != pMemoryBlock && blockId >= 0)
                 {
+#ifdef _DEBUG
+                    memset(pMemoryBlock, 0, totalProcMem); // cleanup memory block for DBG purposes
+#endif
                     PF_PixelFormat format = PF_PixelFormat_INVALID;
                     if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
                     {
