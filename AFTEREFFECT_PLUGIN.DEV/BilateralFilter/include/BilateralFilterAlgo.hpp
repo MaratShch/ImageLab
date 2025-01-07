@@ -154,7 +154,7 @@ void Rgb2CIELab
         const T*    __restrict pRgbLine = pRGB + j * rgbPitch;
         fCIELabPix* __restrict pLabLine = pLab + j * labPitch;
 
-        __VECTOR_ALIGNED__
+        __VECTORIZATION__
         for (A_long i = 0; i < sizeX; i++)
         {
             fRGB inPix;

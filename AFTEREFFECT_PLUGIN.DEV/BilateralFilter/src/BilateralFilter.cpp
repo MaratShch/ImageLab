@@ -264,8 +264,8 @@ PreRender(
 
             if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             {
-                paramsStrP->fRadius = filterRadius.u.sd.value;
-                paramsStrP->fSigma  = filterRadius.u.fs_d.value + 5.f;
+                paramsStrP->fRadius = CLAMP_VALUE(filterRadius.u.sd.value, bilateralMinRadius, bilateralMaxRadius);
+                paramsStrP->fSigma  = CLAMP_VALUE(static_cast<float>(filterRadius.u.fs_d.value + 5.0), fSigmaValMin, fSigmaValMax);
             } // if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             else
             {
@@ -279,8 +279,8 @@ PreRender(
             ERR(extra->cb->checkout_layer
             (in_data->effect_ref, eBILATERAL_FILTER_INPUT, eBILATERAL_FILTER_INPUT, &req, in_data->current_time, in_data->time_step, in_data->time_scale, &in_result));
 
-            UnionLRect(&in_result.result_rect, &extra->output->result_rect);
-            UnionLRect(&in_result.max_result_rect, &extra->output->max_result_rect);
+            UnionLRect (&in_result.result_rect, &extra->output->result_rect);
+            UnionLRect (&in_result.max_result_rect, &extra->output->max_result_rect);
             handleSuite->host_unlock_handle(paramsHandler);
 
         } // if (nullptr != paramsStrP)
@@ -305,26 +305,28 @@ SmartRender(
     PF_EffectWorld* output_worldP = nullptr;
     PF_Err	err = PF_Err_NONE;
 
-    ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT, &input_worldP)));
-    ERR(extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
-
-    const A_long sizeX = input_worldP->width;
-    const A_long sizeY = input_worldP->height;
-    const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
-    const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
-
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
     BFilterParamsStr* pFilterStrParams = reinterpret_cast<BFilterParamsStr*>(handleSuite->host_lock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data)));
 
     if (nullptr != pFilterStrParams)
     {
+        ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT, &input_worldP)));
+        ERR(extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
+
+        const A_long sizeX = input_worldP->width;
+        const A_long sizeY = input_worldP->height;
+        const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
+        const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
+
         AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
 
         const A_long filterRadius = pFilterStrParams->fRadius;
-        const float  filterSigma = pFilterStrParams->fSigma;
+        const float  filterSigma  = pFilterStrParams->fSigma;
 
         if (0 == filterRadius)
+        {
             err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
+        }
         else
         {
             const A_long frameSize = sizeX * sizeY;
@@ -349,8 +351,8 @@ SmartRender(
                             {
                                 constexpr PF_Pixel_ARGB_32f white{ f32_value_white , f32_value_white , f32_value_white , f32_value_white };
                                 constexpr PF_Pixel_ARGB_32f black{ f32_value_black , f32_value_black , f32_value_black , f32_value_black };
-                                const A_long srcPitch = srcRowBytes / PF_Pixel_ARGB_32f_size;
-                                const A_long dstPitch = dstRowBytes / PF_Pixel_ARGB_32f_size;
+                                const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                                const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
                                 const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
                                       PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
@@ -366,8 +368,8 @@ SmartRender(
                             {
                                 constexpr PF_Pixel_ARGB_16u white{ u16_value_white , u16_value_white , u16_value_white , u16_value_white };
                                 constexpr PF_Pixel_ARGB_16u black{ u16_value_black , u16_value_black , u16_value_black , u16_value_black };
-                                const A_long srcPitch = srcRowBytes / PF_Pixel_ARGB_16u_size;
-                                const A_long dstPitch = dstRowBytes / PF_Pixel_ARGB_16u_size;
+                                const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                                const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
                                 const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
                                       PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
@@ -383,8 +385,8 @@ SmartRender(
                             {
                                 constexpr PF_Pixel_ARGB_8u white{ u8_value_white , u8_value_white , u8_value_white , u8_value_white };
                                 constexpr PF_Pixel_ARGB_8u black{ u8_value_black , u8_value_black , u8_value_black , u8_value_black };
-                                const A_long srcPitch = srcRowBytes / PF_Pixel_ARGB_8u_size;
-                                const A_long dstPitch = dstRowBytes / PF_Pixel_ARGB_8u_size;
+                                const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                                const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
                                 const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
                                       PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
@@ -414,8 +416,12 @@ SmartRender(
                 err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
 
             ERR(extraP->cb->checkin_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT));
+
         } // if/else (0 == filterRadius)
-    }
+
+        handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
+
+    } // if (nullptr != pFilterStrParams)
     else
         err = PF_Err_OUT_OF_MEMORY;
 
