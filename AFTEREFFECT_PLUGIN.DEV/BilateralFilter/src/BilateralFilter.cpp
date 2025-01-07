@@ -265,7 +265,7 @@ PreRender(
             if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             {
                 paramsStrP->fRadius = filterRadius.u.sd.value;
-                paramsStrP->fSigma  = filterRadius.u.fs_d.value;
+                paramsStrP->fSigma  = filterRadius.u.fs_d.value + 5.f;
             } // if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             else
             {
