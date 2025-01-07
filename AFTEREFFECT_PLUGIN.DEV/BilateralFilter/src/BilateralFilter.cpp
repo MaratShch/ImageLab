@@ -2,7 +2,7 @@
 #include "BilateralFilterEnum.hpp"
 #include "BilateralFilterStructs.hpp"
 #include "GaussMesh.hpp"
-#include "FastAriphmetics.hpp"
+#include "BilateralFilterAlgo.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
@@ -256,10 +256,8 @@ PreRender(
         {
             extra->output->pre_render_data = paramsHandler;
 
-            PF_ParamDef	filterRadius;
-            PF_ParamDef	filterSigma;
-            AEFX_CLR_STRUCT_EX(filterRadius);
-            AEFX_CLR_STRUCT_EX(filterSigma);
+            PF_ParamDef	filterRadius{};
+            PF_ParamDef	filterSigma{};
 
             const PF_Err errParam1 = PF_CHECKOUT_PARAM(in_data, eBILATERAL_FILTER_RADIUS, in_data->current_time, in_data->time_step, in_data->time_scale, &filterRadius);
             const PF_Err errParam2 = PF_CHECKOUT_PARAM(in_data, eBILATERAL_FILTER_SIGMA,  in_data->current_time, in_data->time_step, in_data->time_scale, &filterSigma);
@@ -267,7 +265,7 @@ PreRender(
             if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             {
                 paramsStrP->fRadius = filterRadius.u.sd.value;
-                paramsStrP->fSigma = filterRadius.u.fs_d.value;
+                paramsStrP->fSigma  = filterRadius.u.fs_d.value;
             } // if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             else
             {
@@ -312,7 +310,8 @@ SmartRender(
 
     const A_long sizeX = input_worldP->width;
     const A_long sizeY = input_worldP->height;
-    const A_long rowbytes = input_worldP->rowbytes; // Get input buffer pitch in bytes
+    const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
+    const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
     BFilterParamsStr* pFilterStrParams = reinterpret_cast<BFilterParamsStr*>(handleSuite->host_lock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data)));
@@ -337,20 +336,64 @@ SmartRender(
 
                 A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
-                if (nullptr != pMemoryBlock && 0 >= blockId)
+                if (nullptr != pMemoryBlock && blockId >= 0)
                 {
                     PF_PixelFormat format = PF_PixelFormat_INVALID;
                     if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
                     {
+                        fCIELabPix* __restrict pCIELab = reinterpret_cast<fCIELabPix* __restrict>(pMemoryBlock);
+
                         switch (format)
                         {
                             case PF_PixelFormat_ARGB128:
+                            {
+                                constexpr PF_Pixel_ARGB_32f white{ f32_value_white , f32_value_white , f32_value_white , f32_value_white };
+                                constexpr PF_Pixel_ARGB_32f black{ f32_value_black , f32_value_black , f32_value_black , f32_value_black };
+                                const A_long srcPitch = srcRowBytes / PF_Pixel_ARGB_32f_size;
+                                const A_long dstPitch = dstRowBytes / PF_Pixel_ARGB_32f_size;
+
+                                const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                                      PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+
+                                // Convert from RGB to CIE-Lab color space
+                                Rgb2CIELab (input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                                // Perform Bilateral Filter
+                                BilateralFilterAlgorithm (pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
+                            }
                             break;
 
                             case PF_PixelFormat_ARGB64:
+                            {
+                                constexpr PF_Pixel_ARGB_16u white{ u16_value_white , u16_value_white , u16_value_white , u16_value_white };
+                                constexpr PF_Pixel_ARGB_16u black{ u16_value_black , u16_value_black , u16_value_black , u16_value_black };
+                                const A_long srcPitch = srcRowBytes / PF_Pixel_ARGB_16u_size;
+                                const A_long dstPitch = dstRowBytes / PF_Pixel_ARGB_16u_size;
+
+                                const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
+                                      PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
+
+                                // Convert from RGB to CIE-Lab color space
+                                Rgb2CIELab (input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                                // Perform Bilateral Filter
+                                BilateralFilterAlgorithm (pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
+                            }
                             break;
 
                             case PF_PixelFormat_ARGB32:
+                            {
+                                constexpr PF_Pixel_ARGB_8u white{ u8_value_white , u8_value_white , u8_value_white , u8_value_white };
+                                constexpr PF_Pixel_ARGB_8u black{ u8_value_black , u8_value_black , u8_value_black , u8_value_black };
+                                const A_long srcPitch = srcRowBytes / PF_Pixel_ARGB_8u_size;
+                                const A_long dstPitch = dstRowBytes / PF_Pixel_ARGB_8u_size;
+
+                                const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
+                                      PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
+
+                                // Convert from RGB to CIE-Lab color space
+                                Rgb2CIELab (input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                                // Perform Bilateral Filter
+                                BilateralFilterAlgorithm (pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
+                            }
                             break;
 
                             default:
@@ -369,6 +412,8 @@ SmartRender(
             }// if (sizeX > 16 && sizeY > 16)
             else
                 err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
+
+            ERR(extraP->cb->checkin_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT));
         } // if/else (0 == filterRadius)
     }
     else
@@ -392,45 +437,45 @@ EffectMain(
     try {
         switch (cmd)
         {
-        case PF_Cmd_ABOUT:
-            ERR(About(in_data, out_data, params, output));
+            case PF_Cmd_ABOUT:
+                ERR(About(in_data, out_data, params, output));
             break;
 
-        case PF_Cmd_GLOBAL_SETUP:
-            ERR(GlobalSetup(in_data, out_data, params, output));
+            case PF_Cmd_GLOBAL_SETUP:
+                ERR(GlobalSetup(in_data, out_data, params, output));
             break;
 
-        case PF_Cmd_GLOBAL_SETDOWN:
-            ERR(GlobalSetdown(in_data, out_data, params, output));
+            case PF_Cmd_GLOBAL_SETDOWN:
+                ERR(GlobalSetdown(in_data, out_data, params, output));
             break;
 
-        case PF_Cmd_PARAMS_SETUP:
-            ERR(ParamsSetup(in_data, out_data, params, output));
+            case PF_Cmd_PARAMS_SETUP:
+                ERR(ParamsSetup(in_data, out_data, params, output));
             break;
 
-        case PF_Cmd_RENDER:
-            ERR(Render(in_data, out_data, params, output));
+            case PF_Cmd_RENDER:
+                ERR(Render(in_data, out_data, params, output));
             break;
 
-        case PF_Cmd_USER_CHANGED_PARAM:
-            ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+            case PF_Cmd_USER_CHANGED_PARAM:
+                ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
             break;
 
             // Handling this selector will ensure that the UI will be properly initialized,
             // even before the user starts changing parameters to trigger PF_Cmd_USER_CHANGED_PARAM
-        case PF_Cmd_UPDATE_PARAMS_UI:
-            ERR(UpdateParameterUI(in_data, out_data, params, output));
+            case PF_Cmd_UPDATE_PARAMS_UI:
+                ERR(UpdateParameterUI(in_data, out_data, params, output));
             break;
 
-        case PF_Cmd_SMART_PRE_RENDER:
-            ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
             break;
 
-        case PF_Cmd_SMART_RENDER:
-            ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
             break;
 
-        default:
+            default:
             break;
         }
     }

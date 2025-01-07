@@ -110,9 +110,6 @@
     <ClCompile Include="src\BilateralFilter_GPU.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\BilateralFilterAE_SmartRender.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="BilateralFilter.rc">
