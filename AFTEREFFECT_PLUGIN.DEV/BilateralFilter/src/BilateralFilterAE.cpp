@@ -181,14 +181,18 @@ inline PF_Err BilateralFilter_InAE_DeepWorld
     PF_LayerDef* output
 ) noexcept
 {
+    PF_Err	err = PF_Err_NONE;
     PF_PixelFormat format = PF_PixelFormat_INVALID;
     AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
     if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[eBILATERAL_FILTER_INPUT]->u.ld), &format))
     {
-        return (format == PF_PixelFormat_ARGB128 ?
+        err = (format == PF_PixelFormat_ARGB128 ?
             BilateralFilter_InAE_32bits (in_data, out_data, params, output) : BilateralFilter_InAE_16bits (in_data, out_data, params, output));
     }
-    return PF_Err_UNRECOGNIZED_PARAM_TYPE;
+    else
+        err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+
+    return err;
 }
 
 
