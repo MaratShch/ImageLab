@@ -729,7 +729,7 @@ SmartRender(
 		switch (format)
 		{
 			case PF_PixelFormat_ARGB128:
-				iterateFloatSuite->iterate(in_data,
+				err = iterateFloatSuite->iterate(in_data,
 					0,
 					output_worldP->height,
 					input_worldP,
@@ -740,7 +740,7 @@ SmartRender(
 			break;
 
 			case PF_PixelFormat_ARGB64:
-				iterate16Suite->iterate(in_data,
+				err = iterate16Suite->iterate(in_data,
 					0,
 					output_worldP->height,
 					input_worldP,
@@ -751,7 +751,7 @@ SmartRender(
 			break;
 
 			case PF_PixelFormat_ARGB32:
-				iterate8Suite->iterate(in_data,
+				err = iterate8Suite->iterate(in_data,
 					0,
 					output_worldP->height,
 					input_worldP,
