@@ -12,13 +12,13 @@ static GaussMesh* gGaussMeshInstance = nullptr;
 GaussMesh* getMeshHandler(void) { return gGaussMeshInstance; }
 
 
-inline PF_Boolean IsEmptyRect (const PF_LRect* r) 
-{ 
-    return (r->left >= r->right) || (r->top >= r->bottom); 
+inline PF_Boolean IsEmptyRect(const PF_LRect* r)
+{
+    return (r->left >= r->right) || (r->top >= r->bottom);
 }
 
 
-inline void UnionLRect (const PF_LRect* src, PF_LRect* dst) 
+inline void UnionLRect(const PF_LRect* src, PF_LRect* dst)
 {
     if (IsEmptyRect(dst))
     {
@@ -26,9 +26,9 @@ inline void UnionLRect (const PF_LRect* src, PF_LRect* dst)
     }
     else if (!IsEmptyRect(src))
     {
-        dst->left   = FastCompute::Min(dst->left,   src->left);
-        dst->top    = FastCompute::Min(dst->top,    src->top);
-        dst->right  = FastCompute::Min(dst->right,  src->right);
+        dst->left = FastCompute::Min(dst->left, src->left);
+        dst->top = FastCompute::Min(dst->top, src->top);
+        dst->right = FastCompute::Min(dst->right, src->right);
         dst->bottom = FastCompute::Min(dst->bottom, src->bottom);
     }
     return;
@@ -37,28 +37,28 @@ inline void UnionLRect (const PF_LRect* src, PF_LRect* dst)
 
 static PF_Err
 About(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
 {
-	PF_SPRINTF(
-		out_data->return_msg,
-		"%s, v%d.%d\r%s",
-		strName,
-		BilateralFilter_VersionMajor,
-		BilateralFilter_VersionMinor,
-		strCopyright);
+    PF_SPRINTF(
+        out_data->return_msg,
+        "%s, v%d.%d\r%s",
+        strName,
+        BilateralFilter_VersionMajor,
+        BilateralFilter_VersionMinor,
+        strCopyright);
 
-	return PF_Err_NONE;
+    return PF_Err_NONE;
 }
 
 static PF_Err
 GlobalSetup(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
 {
     if (false == LoadMemoryInterfaceProvider(in_data))
         return PF_Err_INTERNAL_STRUCT_DAMAGED;
@@ -66,72 +66,72 @@ GlobalSetup(
     if (nullptr == (gGaussMeshInstance = CreateGaussMeshHandler()))
         return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
-	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT       |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT     |
-		PF_OutFlag_DEEP_COLOR_AWARE      |
-		PF_OutFlag_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags1 =
+        PF_OutFlag_PIX_INDEPENDENT |
+        PF_OutFlag_SEND_UPDATE_PARAMS_UI |
+        PF_OutFlag_USE_OUTPUT_EXTENT |
+        PF_OutFlag_DEEP_COLOR_AWARE |
+        PF_OutFlag_WIDE_TIME_INPUT;
 
-	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+    constexpr PF_OutFlags out_flags2 =
+        PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT |
         PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
-	out_data->my_version =
-		PF_VERSION(
-			BilateralFilter_VersionMajor,
-			BilateralFilter_VersionMinor,
-			BilateralFilter_VersionSub,
-			BilateralFilter_VersionStage,
-			BilateralFilter_VersionBuild
-		);
+    out_data->my_version =
+        PF_VERSION(
+            BilateralFilter_VersionMajor,
+            BilateralFilter_VersionMinor,
+            BilateralFilter_VersionSub,
+            BilateralFilter_VersionStage,
+            BilateralFilter_VersionBuild
+        );
 
-	out_data->out_flags  = out_flags1;
-	out_data->out_flags2 = out_flags2;
+    out_data->out_flags = out_flags1;
+    out_data->out_flags2 = out_flags2;
 
-	/* For Premiere - declare supported pixel formats */
-	if (PremierId == in_data->appl_id)
-	{
-		auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
+    /* For Premiere - declare supported pixel formats */
+    if (PremierId == in_data->appl_id)
+    {
+        auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
-		/*	Add the pixel formats we support in order of preference. */
-		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
+        /*	Add the pixel formats we support in order of preference. */
+        (*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
         /* Bilateral Filter as standalone PlugIn will support BGRA/ARGB formats only */
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
-	}
+    }
 
-	return PF_Err_NONE;
+    return PF_Err_NONE;
 }
 
 
 static PF_Err
 GlobalSetdown(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
 {
     ReleaseGaussMeshHandler(nullptr);
     gGaussMeshInstance = nullptr;
 
-	return PF_Err_NONE;
+    return PF_Err_NONE;
 }
 
 
 static PF_Err
 ParamsSetup(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
 {
     PF_ParamDef	def;
     constexpr PF_ParamFlags flags{ PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP };
@@ -163,18 +163,18 @@ ParamsSetup(
 
     out_data->num_params = eBILATERAL_TOTAL_CONTROLS;
 
-	return PF_Err_NONE;
+    return PF_Err_NONE;
 }
 
 
 static PF_Err
 Render(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
 {
-	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
+    return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
 
@@ -231,6 +231,7 @@ UpdateParameterUI(
     PF_LayerDef			*output
 )
 {
+    // nothing TODO
     return PF_Err_NONE;
 }
 
@@ -240,11 +241,10 @@ static PF_Err
 PreRender(
     PF_InData			*in_data,
     PF_OutData			*out_data,
-    PF_PreRenderExtra	*extra)
+    PF_PreRenderExtra	*extra
+)
 {
-    BFilterParamsStr filterStrParams;
-    AEFX_CLR_STRUCT_EX(filterStrParams);
-
+    BFilterParamsStr filterStrParams{};
     PF_Err err = PF_Err_NONE;
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
@@ -267,17 +267,22 @@ PreRender(
             if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             {
                 paramsStrP->fRadius = filterRadius.u.sd.value;
-                paramsStrP->fSigma  = filterRadius.u.fs_d.value;
+                paramsStrP->fSigma = filterRadius.u.fs_d.value;
             } // if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
+            else
+            {
+                paramsStrP->fRadius = bilateralDefRadius;
+                paramsStrP->fSigma = fSigmaValDefault;
+            }
 
             PF_RenderRequest req = extra->input->output_request;
             PF_CheckoutResult in_result{};
 
             ERR(extra->cb->checkout_layer
-                (in_data->effect_ref, eBILATERAL_FILTER_INPUT, eBILATERAL_FILTER_INPUT, &req, in_data->current_time, in_data->time_step, in_data->time_scale, &in_result));
+            (in_data->effect_ref, eBILATERAL_FILTER_INPUT, eBILATERAL_FILTER_INPUT, &req, in_data->current_time, in_data->time_step, in_data->time_scale, &in_result));
 
-            UnionLRect (&in_result.result_rect, &extra->output->result_rect);
-            UnionLRect (&in_result.max_result_rect, &extra->output->max_result_rect);
+            UnionLRect(&in_result.result_rect, &extra->output->result_rect);
+            UnionLRect(&in_result.max_result_rect, &extra->output->max_result_rect);
             handleSuite->host_unlock_handle(paramsHandler);
 
         } // if (nullptr != paramsStrP)
@@ -298,12 +303,12 @@ SmartRender(
     PF_SmartRenderExtra		*extraP
 )
 {
-    PF_EffectWorld* input_worldP  = nullptr;
+    PF_EffectWorld* input_worldP = nullptr;
     PF_EffectWorld* output_worldP = nullptr;
     PF_Err	err = PF_Err_NONE;
 
     ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT, &input_worldP)));
-    ERR (extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
+    ERR(extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
 
     const A_long sizeX = input_worldP->width;
     const A_long sizeY = input_worldP->height;
@@ -314,41 +319,57 @@ SmartRender(
 
     if (nullptr != pFilterStrParams)
     {
-       AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
+        AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
 
-       const A_long filterRadius = pFilterStrParams->fRadius;
-       const float  filterSigma  = pFilterStrParams->fSigma;
+        const A_long filterRadius = pFilterStrParams->fRadius;
+        const float  filterSigma = pFilterStrParams->fSigma;
 
-       if (0 == filterRadius)
-           err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
-       else
-       {
-           const A_long frameSize = sizeX * sizeY;
-           if (sizeX > 16 && sizeY > 16) // limit minimal fame size for processing by 256 pixels
-           {   
-               void* pMemoryBlock = nullptr;
-               const A_long memoryBufSize = frameSize * static_cast<A_long>(fCIELabPix_size);
-               const A_long totalProcMem = CreateAlignment(memoryBufSize, CACHE_LINE);
+        if (0 == filterRadius)
+            err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
+        else
+        {
+            const A_long frameSize = sizeX * sizeY;
+            if (sizeX > 16 && sizeY > 16) // limit minimal fame size in Smart Render for processing by 256 pixels: 16 x 16
+            {
+                void* pMemoryBlock = nullptr;
+                const A_long memoryBufSize = frameSize * static_cast<A_long>(fCIELabPix_size);
+                const A_long totalProcMem = CreateAlignment(memoryBufSize, CACHE_LINE);
 
-               A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+                A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
-               if (nullptr != pMemoryBlock && 0 >= blockId)
-               {
-                   PF_PixelFormat format = PF_PixelFormat_INVALID;
-                   if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
-                   {
-                   } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+                if (nullptr != pMemoryBlock && 0 >= blockId)
+                {
+                    PF_PixelFormat format = PF_PixelFormat_INVALID;
+                    if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+                    {
+                        switch (format)
+                        {
+                            case PF_PixelFormat_ARGB128:
+                            break;
 
-                   ::FreeMemoryBlock(blockId);
-                   blockId = -1;
-                   pMemoryBlock = nullptr;
+                            case PF_PixelFormat_ARGB64:
+                            break;
 
-               } // if (nullptr != pMemoryBlock && 0 >= blockId)
+                            case PF_PixelFormat_ARGB32:
+                            break;
 
-           }// if (sizeX > 16 && sizeY > 16)
-           else
-               err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
-       } // if/else (0 == filterRadius)
+                            default:
+                                err = PF_Err_BAD_CALLBACK_PARAM;
+                            break;
+                        } // switch (format)
+
+                    } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+
+                    ::FreeMemoryBlock(blockId);
+                    blockId = -1;
+                    pMemoryBlock = nullptr;
+
+                } // if (nullptr != pMemoryBlock && 0 >= blockId)
+
+            }// if (sizeX > 16 && sizeY > 16)
+            else
+                err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
+        } // if/else (0 == filterRadius)
     }
     else
         err = PF_Err_OUT_OF_MEMORY;
@@ -359,64 +380,64 @@ SmartRender(
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
-	PF_Cmd			cmd,
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output,
-	void			*extra)
+    PF_Cmd			cmd,
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    void			*extra)
 {
-	PF_Err err{ PF_Err_NONE };
+    PF_Err err{ PF_Err_NONE };
 
-	try {
-		switch (cmd)
-		{
-			case PF_Cmd_ABOUT:
-				ERR(About(in_data, out_data, params, output));
-			break;
-
-			case PF_Cmd_GLOBAL_SETUP:
-				ERR(GlobalSetup(in_data, out_data, params, output));
-			break;
-
-			case PF_Cmd_GLOBAL_SETDOWN:
-				ERR(GlobalSetdown(in_data, out_data, params, output));
-			break;
-
-			case PF_Cmd_PARAMS_SETUP:
-				ERR(ParamsSetup(in_data, out_data, params, output));
-			break;
-
-			case PF_Cmd_RENDER:
-				ERR(Render(in_data, out_data, params, output));
-			break;
-
-            case PF_Cmd_USER_CHANGED_PARAM:
-                ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+    try {
+        switch (cmd)
+        {
+        case PF_Cmd_ABOUT:
+            ERR(About(in_data, out_data, params, output));
             break;
-            
+
+        case PF_Cmd_GLOBAL_SETUP:
+            ERR(GlobalSetup(in_data, out_data, params, output));
+            break;
+
+        case PF_Cmd_GLOBAL_SETDOWN:
+            ERR(GlobalSetdown(in_data, out_data, params, output));
+            break;
+
+        case PF_Cmd_PARAMS_SETUP:
+            ERR(ParamsSetup(in_data, out_data, params, output));
+            break;
+
+        case PF_Cmd_RENDER:
+            ERR(Render(in_data, out_data, params, output));
+            break;
+
+        case PF_Cmd_USER_CHANGED_PARAM:
+            ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+            break;
+
             // Handling this selector will ensure that the UI will be properly initialized,
             // even before the user starts changing parameters to trigger PF_Cmd_USER_CHANGED_PARAM
-            case PF_Cmd_UPDATE_PARAMS_UI:
-                ERR(UpdateParameterUI(in_data, out_data, params, output));
+        case PF_Cmd_UPDATE_PARAMS_UI:
+            ERR(UpdateParameterUI(in_data, out_data, params, output));
             break;
 
-            case PF_Cmd_SMART_PRE_RENDER:
-                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+        case PF_Cmd_SMART_PRE_RENDER:
+            ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
             break;
 
-            case PF_Cmd_SMART_RENDER:
-                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+        case PF_Cmd_SMART_RENDER:
+            ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
             break;
 
-            default:
-			break;
-		}
-	}
-	catch (PF_Err& thrown_err)
-	{
-		err = thrown_err;
-	}
+        default:
+            break;
+        }
+    }
+    catch (PF_Err& thrown_err)
+    {
+        err = thrown_err;
+    }
 
-	return err;
+    return err;
 }
