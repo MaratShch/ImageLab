@@ -698,8 +698,8 @@ SmartRender(
 	PF_Err	err = PF_Err_NONE;
 	PF_PixelFormat	format = PF_PixelFormat_INVALID;
 
-	AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = 
-		AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
+    ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, SEPIA_COLOR_INPUT, &input_worldP)));
+    ERR (extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
 
 	AEFX_SuiteScoper<PF_WorldSuite2> wsP = 
 		AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
@@ -767,6 +767,8 @@ SmartRender(
 		}
 	}
 
+    ERR(extraP->cb->checkin_layer_pixels(in_data->effect_ref, SEPIA_COLOR_INPUT));
+
 	return err;
 }
 
@@ -805,7 +807,11 @@ EffectMain (
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-			default:
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
+            
+            default:
 			break;
 		}
 	}

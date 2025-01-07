@@ -17,3 +17,5 @@ constexpr int SepiaColor_VersionBuild = 1;
 
 constexpr float value_black = 0.f;
 constexpr float value_white = 1.0f - FLT_EPSILON;
+
+constexpr int SEPIA_COLOR_INPUT = 0;
