@@ -424,9 +424,9 @@ SmartRender(
 
             } // if/else (0 == filterRadius)
 
-            handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
-
         } // if (nullptr != input_worldP && nullptr != output_worldP)
+
+        handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
 
     } // if (nullptr != pFilterStrParams)
     else
