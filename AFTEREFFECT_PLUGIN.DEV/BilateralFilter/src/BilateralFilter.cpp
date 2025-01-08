@@ -313,43 +313,45 @@ SmartRender(
         ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT, &input_worldP)));
         ERR(extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
 
-        const A_long sizeX = input_worldP->width;
-        const A_long sizeY = input_worldP->height;
-        const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
-        const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
-
-        AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
-
-        const A_long filterRadius = pFilterStrParams->fRadius;
-        const float  filterSigma  = pFilterStrParams->fSigma;
-
-        if (0 == filterRadius)
+        if (nullptr != input_worldP && nullptr != output_worldP)
         {
-            err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
-        }
-        else
-        {
-            const A_long frameSize = sizeX * sizeY;
-            if (sizeX > 16 && sizeY > 16) // limit minimal fame size in Smart Render for processing by 256 pixels: 16 x 16
+            const A_long sizeX = input_worldP->width;
+            const A_long sizeY = input_worldP->height;
+            const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
+            const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
+
+            AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
+
+            const A_long filterRadius = pFilterStrParams->fRadius;
+            const float  filterSigma = pFilterStrParams->fSigma;
+
+            if (0 == filterRadius)
             {
-                void* pMemoryBlock = nullptr;
-                const A_long memoryBufSize = frameSize * static_cast<A_long>(fCIELabPix_size);
-                const A_long totalProcMem = CreateAlignment(memoryBufSize, CACHE_LINE);
-
-                A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-
-                if (nullptr != pMemoryBlock && blockId >= 0)
+                err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
+            }
+            else
+            {
+                const A_long frameSize = sizeX * sizeY;
+                if (sizeX > 16 && sizeY > 16) // limit minimal fame size in Smart Render for processing by 256 pixels: 16 x 16
                 {
-#ifdef _DEBUG
-                    memset(pMemoryBlock, 0, totalProcMem); // cleanup memory block for DBG purposes
-#endif
-                    PF_PixelFormat format = PF_PixelFormat_INVALID;
-                    if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
-                    {
-                        fCIELabPix* __restrict pCIELab = reinterpret_cast<fCIELabPix* __restrict>(pMemoryBlock);
+                    void* pMemoryBlock = nullptr;
+                    const A_long memoryBufSize = frameSize * static_cast<A_long>(fCIELabPix_size);
+                    const A_long totalProcMem = CreateAlignment(memoryBufSize, CACHE_LINE);
 
-                        switch (format)
+                    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+                    if (nullptr != pMemoryBlock && blockId >= 0)
+                    {
+#ifdef _DEBUG
+                        memset(pMemoryBlock, 0, totalProcMem); // cleanup memory block for DBG purposes
+#endif
+                        PF_PixelFormat format = PF_PixelFormat_INVALID;
+                        if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
                         {
+                            fCIELabPix* __restrict pCIELab = reinterpret_cast<fCIELabPix* __restrict>(pMemoryBlock);
+
+                            switch (format)
+                            {
                             case PF_PixelFormat_ARGB128:
                             {
                                 constexpr PF_Pixel_ARGB_32f white{ f32_value_white , f32_value_white , f32_value_white , f32_value_white };
@@ -357,13 +359,13 @@ SmartRender(
                                 const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
                                 const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                                const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
-                                      PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+                                const PF_Pixel_ARGB_32f* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                                PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
                                 // Convert from RGB to CIE-Lab color space
-                                Rgb2CIELab (input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                                Rgb2CIELab(input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
                                 // Perform Bilateral Filter
-                                BilateralFilterAlgorithm (pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
+                                BilateralFilterAlgorithm(pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
                             }
                             break;
 
@@ -374,13 +376,13 @@ SmartRender(
                                 const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
                                 const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-                                const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
-                                      PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
+                                const PF_Pixel_ARGB_16u* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
+                                PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
                                 // Convert from RGB to CIE-Lab color space
-                                Rgb2CIELab (input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                                Rgb2CIELab(input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
                                 // Perform Bilateral Filter
-                                BilateralFilterAlgorithm (pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
+                                BilateralFilterAlgorithm(pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
                             }
                             break;
 
@@ -391,38 +393,40 @@ SmartRender(
                                 const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
                                 const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-                                const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
-                                      PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
+                                const PF_Pixel_ARGB_8u* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
+                                PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
 
                                 // Convert from RGB to CIE-Lab color space
-                                Rgb2CIELab (input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                                Rgb2CIELab(input_pixels, pCIELab, sizeX, sizeY, srcPitch, sizeX);
                                 // Perform Bilateral Filter
-                                BilateralFilterAlgorithm (pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
+                                BilateralFilterAlgorithm(pCIELab, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, filterRadius, filterSigma, black, white);
                             }
                             break;
 
                             default:
                                 err = PF_Err_BAD_CALLBACK_PARAM;
-                            break;
-                        } // switch (format)
+                                break;
+                            } // switch (format)
 
-                    } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+                        } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
 
-                    ::FreeMemoryBlock(blockId);
-                    blockId = -1;
-                    pMemoryBlock = nullptr;
+                        ::FreeMemoryBlock(blockId);
+                        blockId = -1;
+                        pMemoryBlock = nullptr;
 
-                } // if (nullptr != pMemoryBlock && 0 >= blockId)
+                    } // if (nullptr != pMemoryBlock && 0 >= blockId)
 
-            }// if (sizeX > 16 && sizeY > 16)
-            else
-                err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
+                }// if (sizeX > 16 && sizeY > 16)
+                else
+                    err = PF_COPY(input_worldP, output_worldP, NULL, NULL);
 
-            ERR(extraP->cb->checkin_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT));
+                ERR(extraP->cb->checkin_layer_pixels(in_data->effect_ref, eBILATERAL_FILTER_INPUT));
 
-        } // if/else (0 == filterRadius)
+            } // if/else (0 == filterRadius)
 
-        handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
+            handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
+
+        } // if (nullptr != input_worldP && nullptr != output_worldP)
 
     } // if (nullptr != pFilterStrParams)
     else
