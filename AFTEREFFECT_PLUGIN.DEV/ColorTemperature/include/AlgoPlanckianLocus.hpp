@@ -14,11 +14,12 @@ namespace PlanckianLocus
 		constexpr T	h{ 6.62607015e-34 };	/* Planck's constant in m^2 kg/s		*/
 		constexpr T	k{ 1.380649e-23 };		/* Boltzmann's constant in m^2 kg/s^2 K	*/
 		constexpr T pi{ 3.14159265358979323846 };
+        constexpr T div{ 1e9 };
 
 		constexpr T first_radiaton_constant{ static_cast<T>(2.0) * pi * h * c * c }; /* 2 * pi * h * c ^ 2 */
 		constexpr T second_radiation_constant{ (h * c) / k };
 
-		const T lambda = wave_length / static_cast<T>(1e9);	/* Convert wave length from nano-meters to meters */
+		const T lambda = wave_length / div;	/* Convert wave length from nano-meters to meters */
 		return (first_radiaton_constant / (std::pow(lambda, static_cast<T>(5.0)) * (std::exp(second_radiation_constant / (lambda * white_point)) - static_cast<T>(1.0))));
 	}
 

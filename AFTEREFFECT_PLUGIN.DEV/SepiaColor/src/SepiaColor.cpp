@@ -701,72 +701,75 @@ SmartRender(
     ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, SEPIA_COLOR_INPUT, &input_worldP)));
     ERR (extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
 
-	AEFX_SuiteScoper<PF_WorldSuite2> wsP = 
-		AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
-	
-	ERR(wsP->PF_GetPixelFormat(input_worldP, &format));
+    if (nullptr != input_worldP && nullptr != output_worldP)
+    {
+        AEFX_SuiteScoper<PF_WorldSuite2> wsP =
+            AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
 
-	if (!err) {
+        ERR(wsP->PF_GetPixelFormat(input_worldP, &format));
 
-		AEFX_SuiteScoper<PF_iterateFloatSuite1> iterateFloatSuite =
-			AEFX_SuiteScoper<PF_iterateFloatSuite1>(in_data,
-				kPFIterateFloatSuite,
-				kPFIterateFloatSuiteVersion1,
-				out_data);
+        if (!err) {
 
-		AEFX_SuiteScoper<PF_iterate16Suite1> iterate16Suite =
-			AEFX_SuiteScoper<PF_iterate16Suite1>(in_data,
-				kPFIterate16Suite,
-				kPFIterate16SuiteVersion1,
-				out_data);
+            AEFX_SuiteScoper<PF_iterateFloatSuite1> iterateFloatSuite =
+                AEFX_SuiteScoper<PF_iterateFloatSuite1>(in_data,
+                    kPFIterateFloatSuite,
+                    kPFIterateFloatSuiteVersion1,
+                    out_data);
 
-		AEFX_SuiteScoper<PF_Iterate8Suite1> iterate8Suite =
-			AEFX_SuiteScoper<PF_Iterate8Suite1>(in_data,
-				kPFIterate8Suite,
-				kPFIterate8SuiteVersion1,
-				out_data);
-		
-		switch (format)
-		{
-			case PF_PixelFormat_ARGB128:
-				err = iterateFloatSuite->iterate(in_data,
-					0,
-					output_worldP->height,
-					input_worldP,
-					NULL,
-					nullptr,
-					FilterImage32,
-					output_worldP);
-			break;
+            AEFX_SuiteScoper<PF_iterate16Suite1> iterate16Suite =
+                AEFX_SuiteScoper<PF_iterate16Suite1>(in_data,
+                    kPFIterate16Suite,
+                    kPFIterate16SuiteVersion1,
+                    out_data);
 
-			case PF_PixelFormat_ARGB64:
-				err = iterate16Suite->iterate(in_data,
-					0,
-					output_worldP->height,
-					input_worldP,
-					NULL,
-					nullptr,
-					FilterImage16,
-					output_worldP);
-			break;
+            AEFX_SuiteScoper<PF_Iterate8Suite1> iterate8Suite =
+                AEFX_SuiteScoper<PF_Iterate8Suite1>(in_data,
+                    kPFIterate8Suite,
+                    kPFIterate8SuiteVersion1,
+                    out_data);
 
-			case PF_PixelFormat_ARGB32:
-				err = iterate8Suite->iterate(in_data,
-					0,
-					output_worldP->height,
-					input_worldP,
-					NULL,
-					nullptr,
-					FilterImage8,
-					output_worldP);
-			break;
+            switch (format)
+            {
+            case PF_PixelFormat_ARGB128:
+                err = iterateFloatSuite->iterate(in_data,
+                    0,
+                    output_worldP->height,
+                    input_worldP,
+                    NULL,
+                    nullptr,
+                    FilterImage32,
+                    output_worldP);
+                break;
 
-			default:
-				err = PF_Err_BAD_CALLBACK_PARAM;
-			break;
-		}
-	}
+            case PF_PixelFormat_ARGB64:
+                err = iterate16Suite->iterate(in_data,
+                    0,
+                    output_worldP->height,
+                    input_worldP,
+                    NULL,
+                    nullptr,
+                    FilterImage16,
+                    output_worldP);
+                break;
 
+            case PF_PixelFormat_ARGB32:
+                err = iterate8Suite->iterate(in_data,
+                    0,
+                    output_worldP->height,
+                    input_worldP,
+                    NULL,
+                    nullptr,
+                    FilterImage8,
+                    output_worldP);
+                break;
+
+            default:
+                err = PF_Err_BAD_CALLBACK_PARAM;
+                break;
+            }
+        }
+    }
+    
     ERR(extraP->cb->checkin_layer_pixels(in_data->effect_ref, SEPIA_COLOR_INPUT));
 
 	return err;
