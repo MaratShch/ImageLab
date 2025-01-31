@@ -1,12 +1,14 @@
 #ifndef __FUZZY_ALGO_LOGIC_KERNEL_5x5__
 #define __FUZZY_ALGO_LOGIC_KERNEL_5x5__
 
+#include "FuzzyRules.hpp"
+
 /*
-NWW NNW NN NNE NEE
-WNW NW  N   NE ENE
-WW  W   C   E  EE
-WSW SW  S   SE ESE
-SWW SSW SS SSE SEE
+    NWW NNW NN NNE NEE
+    WNW NW  N   NE ENE
+    WW  W   C   E  EE
+    WSW SW  S   SE ESE
+    SWW SSW SS SSE SEE
 */
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
