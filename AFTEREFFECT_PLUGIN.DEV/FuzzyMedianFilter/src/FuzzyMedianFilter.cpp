@@ -1,6 +1,6 @@
 #include "FuzzyMedianFilter.hpp"
 #include "PrSDKAESupport.h"
-
+#include "ImageLabMemInterface.hpp"
 
 
 static PF_Err
@@ -30,6 +30,9 @@ GlobalSetup(
 	PF_LayerDef		*output)
 {
 	PF_Err	err = PF_Err_NONE;
+
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT |
@@ -109,6 +112,11 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+#if !defined __INTEL_COMPILER 
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
 	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 

@@ -72,6 +72,21 @@
     <ClInclude Include="include\FuzzyMedianFilter.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\FuzzyMedianAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\FuzzyMedianFilterEnum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Fuzzy_Logic_3x3.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Fuzzy_Logic_5x5.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FuzzyMedianFilter.cpp">
@@ -81,6 +96,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\FuzzyMedianFilterPR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

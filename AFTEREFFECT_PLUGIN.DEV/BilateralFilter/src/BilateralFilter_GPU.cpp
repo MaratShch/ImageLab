@@ -22,7 +22,7 @@ public:
 	CLASS_NON_MOVABLE(BilateralFilterGPU);
 
 	BilateralFilterGPU() = default;
-	~BilateralFilterGPU() = default;
+	virtual ~BilateralFilterGPU() = default;
 
 	prSuiteError InitializeCUDA(void)
 	{
