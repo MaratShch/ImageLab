@@ -10,10 +10,10 @@
  (
     const float& d,
     const float& m,
-    const float& sqStd
+    const float& sqSigma
  ) noexcept
  {
-    return exp(-((d - m) * (d - m)) / (2.f * sqStd));
+    return exp(-((d - m) * (d - m)) / (2.f * sqSigma));
  }
 
 
@@ -25,13 +25,13 @@
 
  inline float gaussian_sim 
  (
-    const float& d,     // Correlation with Pixels
-    const float& m,     // Mean
-    const float& sqStd  // Square of Standard Deviation
+    const float& d,         // Correlation with Pixels
+    const float& m,         // Mean
+    const float& sqSigma    // Square of Sigma
  ) noexcept
  {
     const float diff = d - m;
-    return FastCompute::Exp(-(diff * diff) / (2.f * sqStd));
+    return FastCompute::Exp(-(diff * diff) / (2.f * sqSigma));
  }
 
 #endif // #ifdef __NVCC__

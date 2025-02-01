@@ -19,13 +19,18 @@ inline void FuzzyLogic_3x3
     const A_long&          sizeY,
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
-    const A_long&          imgOutPitch
+    const A_long&          imgOutPitch,
+    const float&           fSigma = 2.f 
 )
 {
     A_long i, j;
     const A_long lastPix  = sizeX - 1;
     const A_long lastLine = sizeY - 1;
+    float iNW, iN, iNE, iW, iE, iSW, iS, iSE;
     float dNW, dN, dNE, dW, dE, dSW, dS, dSE;
+    float fNW, fN, fNE, fW, fE, fSW, fS, fSE;
+
+    const float sqSigma = fSigma * fSigma;
 
     for (j = 0; j < sizeY; j++)
     {
@@ -42,29 +47,46 @@ inline void FuzzyLogic_3x3
 
             // NORTH pixels
             if (0 == j)
-                dNW = dN = dNE = 0.f;
+                iNW = iN = iNE = C;
             else
             {
-                dNW = (0 != i ? FastCompute::Abs(C - labLinePrv[i - 1].L) : 0.f);
-                dN  = FastCompute::Abs(C - labLinePrv[i].L);
-                dNE = (lastPix < i ?  FastCompute::Abs(C - labLinePrv[i + 1].L) : 0.f);
+                iNW = (0 != i ? labLinePrv[i - 1].L : C);
+                iN  = labLinePrv[i].L;
+                iNE = (lastPix < i ? labLinePrv[i + 1].L : C);
             }
 
             // CENTRAL pixels
-            dW = (0 != i ? FastCompute::Abs(C - labLineCur[i - 1].L) : 0.f);
-            dE = (lastPix < i ? FastCompute::Abs(C - labLineCur[i + 1].L) : 0.f);
+            iW = (0 != i ? labLineCur[i - 1].L : C);
+            iE = (lastPix < i ? labLineCur[i + 1].L : C);
 
             // SOUTH pixels
             if (lastLine == j)
-                dSW = dS = dSE = 0.f;
+                iSW = iS = iSE = C;
             else
             {
-                dSW = (0 != i ? FastCompute::Abs(C - labLineNxt[i - 1].L) : 0.f);
-                dS  = FastCompute::Abs(C - labLineNxt[i].L);
-                dSE = (lastPix < i ? FastCompute::Abs(C - labLineNxt[i + 1].L) : 0.f);
+                iSW = (0 != i ? labLineNxt[i - 1].L : C);
+                iS  = labLineNxt[i].L;
+                iSE = (lastPix < i ? labLineNxt[i + 1].L : C);
             }
 
-            // PROCESS FUZZY RULES
+            // PROCESS FUZZY RULES - compute absolute differences
+            dNW = FastCompute::Abs(C - iNW);
+            dN  = FastCompute::Abs(C - iN);
+            dNE = FastCompute::Abs(C - iNE);
+            dW  = FastCompute::Abs(C - iW);
+            dE  = FastCompute::Abs(C - iE);
+            dSW = FastCompute::Abs(C - iSW);
+            dS  = FastCompute::Abs(C - iS);
+            dSE = FastCompute::Abs(C - iSE);
+
+            fNW = gaussian_sim(dNW, sqSigma);
+            fN  = gaussian_sim(dN,  sqSigma);
+            fNW = gaussian_sim(dNE, sqSigma);
+            fW  = gaussian_sim(dW,  sqSigma);
+            fE  = gaussian_sim(dE,  sqSigma);
+            fSW = gaussian_sim(dSW, sqSigma);
+            fS  = gaussian_sim(dS,  sqSigma);
+            fSE = gaussian_sim(dSE, sqSigma);
 
         } // for (i = 0; i < sizeX; i++)
 
@@ -84,7 +106,8 @@ inline void FuzzyLogic_3x3
     const A_long&          sizeY,
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
-    const A_long&          imgOutPitch
+    const A_long&          imgOutPitch,
+    const float            fSigma = 2.f
 )
 {
     return;
@@ -100,7 +123,8 @@ inline void FuzzyLogic_3x3
     const A_long&          sizeY,
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
-    const A_long&          imgOutPitch
+    const A_long&          imgOutPitch,
+    const float            fSigma = 2.f
 )
 {
 }
