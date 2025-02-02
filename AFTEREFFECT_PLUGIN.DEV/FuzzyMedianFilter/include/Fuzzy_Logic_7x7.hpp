@@ -1,18 +1,20 @@
-#ifndef __FUZZY_ALGO_LOGIC_KERNEL_5x5__
-#define __FUZZY_ALGO_LOGIC_KERNEL_5x5__
+#ifndef __FUZZY_ALGO_LOGIC_KERNEL_7x7__
+#define __FUZZY_ALGO_LOGIC_KERNEL_7x7__
 
 #include "FuzzyRules.hpp"
 
 /*
-    NWW NNW NN NNE NEE
-    WNW NW  N   NE ENE
-    WW  W   C   E  EE
-    WSW SW  S   SE ESE
-    SWW SSW SS SSE SEE
+    NWNWNW  NNWNW  NNNW   NNN    NNNE   NNENE  NENENE
+    WNWNW   NWNW   NNW    NN     N      NNE    NENE
+    WNW     NW     NWN    N      N      NEN    NEE
+    WWW     WNW    W      C      E      ENE    EEE
+    SWWW    SWW    SW     S      SE     SEE    SEEE
+    SWSWW   SWSE   SSW    SS     SSE    SSEE   SESE
+    SWSWSW  SWESE  SSSW   SSS    SSE    SSESE  SESESE
 */
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-inline void FuzzyLogic_5x5
+inline void FuzzyLogic_7x7
 (
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
@@ -32,7 +34,7 @@ inline void FuzzyLogic_5x5
 
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline void FuzzyLogic_5x5
+inline void FuzzyLogic_7x7
 (
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
@@ -51,7 +53,7 @@ inline void FuzzyLogic_5x5
 }
 
 
-inline void FuzzyLogic_5x5
+inline void FuzzyLogic_7x7
 (
     const fCIELabPix* __restrict pLabIn,
     const PF_Pixel_RGB_10u* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
@@ -71,4 +73,4 @@ inline void FuzzyLogic_5x5
 
 
 
-#endif // __FUZZY_ALGO_LOGIC_KERNEL_5x5__
+#endif // __FUZZY_ALGO_LOGIC_KERNEL_7x7__

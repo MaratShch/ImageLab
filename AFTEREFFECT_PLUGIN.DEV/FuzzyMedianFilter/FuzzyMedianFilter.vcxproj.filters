@@ -90,6 +90,9 @@
     <ClInclude Include="include\FuzzyRules.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\Fuzzy_Logic_7x7.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FuzzyMedianFilter.cpp">

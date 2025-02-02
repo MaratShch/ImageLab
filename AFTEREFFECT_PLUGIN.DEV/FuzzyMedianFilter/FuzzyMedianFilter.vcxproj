@@ -156,6 +156,7 @@
     <ClInclude Include="include\FuzzyRules.hpp" />
     <ClInclude Include="include\Fuzzy_Logic_3x3.hpp" />
     <ClInclude Include="include\Fuzzy_Logic_5x5.hpp" />
+    <ClInclude Include="include\Fuzzy_Logic_7x7.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>

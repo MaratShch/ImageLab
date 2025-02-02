@@ -205,10 +205,7 @@ ParamsSetup(
 	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags;
-
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_POPUP(
 		strStylePopup,			/* pop-up name			*/
 		eSTYLE_TOTAL_EFFECTS,	/* number of variants	*/
@@ -216,11 +213,8 @@ ParamsSetup(
 		strStyleEffect,			/* string for pop-up	*/
 		IMAGE_STYLE_POPUP);		/* control ID			*/
 
-	AEFX_CLR_STRUCT_EX(def);
-	def.flags = flags;
-	def.ui_flags = ui_flags | PF_PUI_DISABLED;
-
-	PF_ADD_SLIDER(
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_SLIDER(
 		StyleSlider1[0],
 		glassyMin,
 		glassyMax,

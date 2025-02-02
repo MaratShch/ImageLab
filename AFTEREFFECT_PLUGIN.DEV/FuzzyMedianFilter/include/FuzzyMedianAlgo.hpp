@@ -10,6 +10,7 @@
 #include "ColorTransform.hpp"
 #include "Fuzzy_Logic_3x3.hpp"
 #include "Fuzzy_Logic_5x5.hpp"
+#include "Fuzzy_Logic_7x7.hpp"
 
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>

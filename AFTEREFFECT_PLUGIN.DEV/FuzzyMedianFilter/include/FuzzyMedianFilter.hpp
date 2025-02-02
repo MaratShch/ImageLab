@@ -6,15 +6,15 @@
 
 constexpr char strName[] = "Fuzzy Median Filter";
 constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rFuzzy Median Filter plugin.";
-constexpr int LensDistrortion_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
-constexpr int LensDistrortion_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
-constexpr int LensDistrortion_VersionSub = 0;
+constexpr int FuzzyMedian_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
+constexpr int FuzzyMedian_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
+constexpr int FuzzyMedian_VersionSub = 0;
 #ifdef _DEBUG
-constexpr int LensDistrortion_VersionStage = PF_Stage_DEVELOP;
+constexpr int FuzzyMedian_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int LensDistrortion_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int FuzzyMedian_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
-constexpr int LensDistrortion_VersionBuild = 1;
+constexpr int FuzzyMedian_VersionBuild = 1;
 
 
 PF_Err ProcessImgInPR
