@@ -20,6 +20,8 @@ inline void FuzzyLogic_3x3
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
+    const T&               blackPix, // black (minimal) color pixel value - used for clamping
+    const T&               whitePix,  // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f 
 )
 {
@@ -29,6 +31,7 @@ inline void FuzzyLogic_3x3
     float iNW, iN, iNE, iW, iE, iSW, iS, iSE;
     float dNW, dN, dNE, dW, dE, dSW, dS, dSE;
     float fNW, fN, fNE, fW, fE, fSW, fS, fSE;
+    float val1, val2, val3;
 
     const float sqSigma = fSigma * fSigma;
 
@@ -79,14 +82,34 @@ inline void FuzzyLogic_3x3
             dS  = FastCompute::Abs(C - iS);
             dSE = FastCompute::Abs(C - iSE);
 
-            fNW = gaussian_sim(dNW, sqSigma);
-            fN  = gaussian_sim(dN,  sqSigma);
-            fNW = gaussian_sim(dNE, sqSigma);
-            fW  = gaussian_sim(dW,  sqSigma);
-            fE  = gaussian_sim(dE,  sqSigma);
-            fSW = gaussian_sim(dSW, sqSigma);
-            fS  = gaussian_sim(dS,  sqSigma);
-            fSE = gaussian_sim(dSE, sqSigma);
+            fNW = gaussian_sim(dNW, 0.f, sqSigma);
+            fN  = gaussian_sim(dN,  0.f, sqSigma);
+            fNE = gaussian_sim(dNE, 0.f, sqSigma);
+            fW  = gaussian_sim(dW,  0.f, sqSigma);
+            fE  = gaussian_sim(dE,  0.f, sqSigma);
+            fSW = gaussian_sim(dSW, 0.f, sqSigma);
+            fS  = gaussian_sim(dS,  0.f, sqSigma);
+            fSE = gaussian_sim(dSE, 0.f, sqSigma);
+
+            // weighted average
+            val1 = fNW + fN + fNE + fW + fE + fSW + fS + fSE;
+             
+            val2 = fNW * iNW + fN  * iN  + fNE * iNE + fW  * iW +
+                   fE  * iE  + fSW * iSW + fS  * iS  + fSE * iSE;
+
+            val3 = val2 / val1;
+
+            fCIELabPix filteredPix;
+            filteredPix.L = val3;
+            filteredPix.a = labLineCur[i].a;
+            filteredPix.b = labLineCur[i].b;
+
+            const fRGB outPix = Xyz2Rgb(CieLab2Xyz(filteredPix));
+
+            outLine[i].A = inOrgLine[i].A; // copy Alpha-channel from sources buffer 'as-is'
+            outLine[i].R = static_cast<decltype(outLine[i].R)>(CLAMP_VALUE(outPix.R * whitePix.R, static_cast<float>(blackPix.R), static_cast<float>(whitePix.R)));
+            outLine[i].G = static_cast<decltype(outLine[i].G)>(CLAMP_VALUE(outPix.G * whitePix.G, static_cast<float>(blackPix.G), static_cast<float>(whitePix.G)));
+            outLine[i].B = static_cast<decltype(outLine[i].B)>(CLAMP_VALUE(outPix.B * whitePix.B, static_cast<float>(blackPix.B), static_cast<float>(whitePix.B)));
 
         } // for (i = 0; i < sizeX; i++)
 
@@ -107,6 +130,8 @@ inline void FuzzyLogic_3x3
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
+    const T&               blackPix, // black (minimal) color pixel value - used for clamping
+    const T&               whitePix,  // white (maximal) color pixel value - used for clamping
     const float            fSigma = 2.f
 )
 {
@@ -124,6 +149,8 @@ inline void FuzzyLogic_3x3
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
+    const PF_Pixel_RGB_10u&  blackPix, // black (minimal) color pixel value - used for clamping
+    const PF_Pixel_RGB_10u&  whitePix, // white (maximal) color pixel value - used for clamping
     const float            fSigma = 2.f
 )
 {

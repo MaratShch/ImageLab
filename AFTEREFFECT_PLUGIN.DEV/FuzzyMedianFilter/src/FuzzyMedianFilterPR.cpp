@@ -25,6 +25,8 @@ PF_Err ProcessImgInPR
     void* pMemoryBlock = nullptr;
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
+    const float sigma = 2.f;
+
     if (nullptr != pMemoryBlock && blockId >= 0)
     {
 #ifdef _DEBUG
@@ -55,6 +57,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    FuzzyLogic_3x3 (pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma * sigma);
                 }
                 break;
 
