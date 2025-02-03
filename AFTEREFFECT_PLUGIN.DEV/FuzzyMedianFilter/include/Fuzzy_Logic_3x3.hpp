@@ -31,7 +31,7 @@ inline void FuzzyLogic_3x3
     float iNW, iN, iNE, iW, iE, iSW, iS, iSE;
     float dNW, dN, dNE, dW, dE, dSW, dS, dSE;
     float fNW, fN, fNE, fW, fE, fSW, fS, fSE;
-    float val1, val2, val3;
+    float val1, val2;
 
     const float sqSigma = fSigma * fSigma;
 
@@ -97,10 +97,8 @@ inline void FuzzyLogic_3x3
             val2 = fNW * iNW + fN  * iN  + fNE * iNE + fW  * iW +
                    fE  * iE  + fSW * iSW + fS  * iS  + fSE * iSE;
 
-            val3 = val2 / val1;
-
             fCIELabPix filteredPix;
-            filteredPix.L = val3;
+            filteredPix.L = val2 / val1;
             filteredPix.a = labLineCur[i].a;
             filteredPix.b = labLineCur[i].b;
 

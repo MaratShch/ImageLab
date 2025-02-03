@@ -23,7 +23,7 @@ inline void FuzzyLogic_5x5
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
     const T&               blackPix, // black (minimal) color pixel value - used for clamping
-    const T&               whitePix,  // white (maximal) color pixel value - used for clamping
+    const T&               whitePix, // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f
 )
 {
@@ -43,7 +43,7 @@ inline void FuzzyLogic_5x5
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
     const T&               blackPix, // black (minimal) color pixel value - used for clamping
-    const T&               whitePix,  // white (maximal) color pixel value - used for clamping
+    const T&               whitePix, // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f
 )
 {
@@ -62,7 +62,7 @@ inline void FuzzyLogic_5x5
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
     const PF_Pixel_RGB_10u& blackPix, // black (minimal) color pixel value - used for clamping
-    const PF_Pixel_RGB_10u& whitePix,  // white (maximal) color pixel value - used for clamping
+    const PF_Pixel_RGB_10u& whitePix, // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f
 )
 {
