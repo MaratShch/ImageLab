@@ -31,8 +31,8 @@ constexpr char strWindowSizes[] =
 };
 
 
-constexpr float fSliderValMin = 2.0f;
-constexpr float fSliderValMax = 12.0f;
-constexpr float fSliderValDefault = fSliderValMin;
+constexpr float fSliderValMin = 0.5f;
+constexpr float fSliderValMax = 7.5f;
+constexpr float fSliderValDefault = (fSliderValMax + fSliderValMin) / 2.f;
 
 #endif // __IMAGE_LAB_FUZZYL_MEDIAN_FILTER_ENUMERATORS__

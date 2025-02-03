@@ -1,3 +1,4 @@
+#include "CompileTimeUtils.hpp"
 #include "FuzzyMedianFilter.hpp"
 #include "FuzzyMedianAlgo.hpp"
 #include "FuzzyMedianFilterEnum.hpp"
@@ -25,13 +26,14 @@ PF_Err ProcessImgInPR
     void* pMemoryBlock = nullptr;
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
-    const float sigma = 2.f;
-
     if (nullptr != pMemoryBlock && blockId >= 0)
     {
 #ifdef _DEBUG
         memset(pMemoryBlock, 0, totalProcMem); // cleanup memory block for DBG purposes
 #endif
+        // get SIGMA value from slider
+        const float sigma = CLAMP_VALUE(static_cast<float>(params[eFUZZY_MEDIAN_FILTER_SIGMA_VALUE]->u.fs_d.value), fSliderValMin, fSliderValMax);
+
         PF_Err errFormat = PF_Err_INVALID_INDEX;
         PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 
