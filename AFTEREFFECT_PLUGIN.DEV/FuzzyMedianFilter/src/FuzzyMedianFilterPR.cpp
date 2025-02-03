@@ -57,7 +57,7 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    FuzzyLogic_3x3 (pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma * sigma);
+                    FuzzyLogic_3x3 (pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
                 }
                 break;
 
@@ -181,7 +181,7 @@ PF_Err ProcessImgInPR
                     pixelFormatSuite->GetWhiteForPixelFormat (PrPixelFormat_RGB_444_10u, &white);
 
                     // Convert from RGB to CIE-Lab color space
-                    //Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
                 }
                 break;
 

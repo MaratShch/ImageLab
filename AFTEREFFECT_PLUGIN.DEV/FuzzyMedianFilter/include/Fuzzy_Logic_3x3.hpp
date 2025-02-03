@@ -122,7 +122,7 @@ inline void FuzzyLogic_3x3
 (
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
-    const T* __restrict pOut,
+          T* __restrict pOut,
     const A_long&          sizeX,
     const A_long&          sizeY,
     const A_long&          labInPitch,
@@ -141,7 +141,7 @@ inline void FuzzyLogic_3x3
 (
     const fCIELabPix* __restrict pLabIn,
     const PF_Pixel_RGB_10u* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
-    const PF_Pixel_RGB_10u* __restrict pOut,
+          PF_Pixel_RGB_10u* __restrict pOut,
     const A_long&          sizeX,
     const A_long&          sizeY,
     const A_long&          labInPitch,
@@ -152,6 +152,94 @@ inline void FuzzyLogic_3x3
     const float            fSigma = 2.f
 )
 {
+    A_long i, j;
+    const A_long lastPix  = sizeX - 1;
+    const A_long lastLine = sizeY - 1;
+    float iNW, iN, iNE, iW, iE, iSW, iS, iSE;
+    float dNW, dN, dNE, dW, dE, dSW, dS, dSE;
+    float fNW, fN, fNE, fW, fE, fSW, fS, fSE;
+    float val1, val2;
+
+    const float sqSigma = fSigma * fSigma;
+
+    for (j = 0; j < sizeY; j++)
+    {
+        const fCIELabPix* __restrict labLinePrv = pLabIn + (j - 1) * labInPitch; // line -1
+        const fCIELabPix* __restrict labLineCur = pLabIn + j * labInPitch;      // cureent line
+        const fCIELabPix* __restrict labLineNxt = pLabIn + (j + 1) * labInPitch; // line +1
+        const PF_Pixel_RGB_10u* __restrict inOrgLine = pIn  + j * imgInPitch;
+              PF_Pixel_RGB_10u* __restrict outLine   = pOut + j * imgOutPitch;
+
+        for (i = 0; i < sizeX; i++)
+        {
+            // CURRENT pixel
+            const float C = labLineCur[i].L;
+
+            // NORTH pixels
+            if (0 == j)
+                iNW = iN = iNE = C;
+            else
+            {
+                iNW = (0 != i ? labLinePrv[i - 1].L : C);
+                iN = labLinePrv[i].L;
+                iNE = (lastPix < i ? labLinePrv[i + 1].L : C);
+            }
+
+            // CENTRAL pixels
+            iW = (0 != i ? labLineCur[i - 1].L : C);
+            iE = (lastPix < i ? labLineCur[i + 1].L : C);
+
+            // SOUTH pixels
+            if (lastLine == j)
+                iSW = iS = iSE = C;
+            else
+            {
+                iSW = (0 != i ? labLineNxt[i - 1].L : C);
+                iS = labLineNxt[i].L;
+                iSE = (lastPix < i ? labLineNxt[i + 1].L : C);
+            }
+
+            // PROCESS FUZZY RULES - compute absolute differences
+            dNW = FastCompute::Abs(C - iNW);
+            dN  = FastCompute::Abs(C - iN);
+            dNE = FastCompute::Abs(C - iNE);
+            dW  = FastCompute::Abs(C - iW);
+            dE  = FastCompute::Abs(C - iE);
+            dSW = FastCompute::Abs(C - iSW);
+            dS  = FastCompute::Abs(C - iS);
+            dSE = FastCompute::Abs(C - iSE);
+
+            fNW = gaussian_sim(dNW, 0.f, sqSigma);
+            fN  = gaussian_sim(dN,  0.f, sqSigma);
+            fNE = gaussian_sim(dNE, 0.f, sqSigma);
+            fW  = gaussian_sim(dW,  0.f, sqSigma);
+            fE  = gaussian_sim(dE,  0.f, sqSigma);
+            fSW = gaussian_sim(dSW, 0.f, sqSigma);
+            fS  = gaussian_sim(dS,  0.f, sqSigma);
+            fSE = gaussian_sim(dSE, 0.f, sqSigma);
+
+            // weighted average
+            val1 = fNW + fN + fNE + fW + fE + fSW + fS + fSE;
+
+            val2 = fNW * iNW + fN  * iN  + fNE * iNE + fW  * iW +
+                   fE  * iE  + fSW * iSW + fS  * iS  + fSE * iSE;
+
+            fCIELabPix filteredPix;
+            filteredPix.L = val2 / val1;
+            filteredPix.a = labLineCur[i].a;
+            filteredPix.b = labLineCur[i].b;
+
+            const fRGB outPix = Xyz2Rgb(CieLab2Xyz(filteredPix));
+
+            outLine[i].R = static_cast<decltype(outLine[i].R)>(CLAMP_VALUE(outPix.R * whitePix.R, static_cast<float>(blackPix.R), static_cast<float>(whitePix.R)));
+            outLine[i].G = static_cast<decltype(outLine[i].G)>(CLAMP_VALUE(outPix.G * whitePix.G, static_cast<float>(blackPix.G), static_cast<float>(whitePix.G)));
+            outLine[i].B = static_cast<decltype(outLine[i].B)>(CLAMP_VALUE(outPix.B * whitePix.B, static_cast<float>(blackPix.B), static_cast<float>(whitePix.B)));
+
+        } // for (i = 0; i < sizeX; i++)
+
+    } // for (j = 0; j < sizeY; j++)
+
+    return;
 }
 
 

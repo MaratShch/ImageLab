@@ -16,7 +16,7 @@ inline void FuzzyLogic_5x5
 (
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
-    const T* __restrict pOut,
+          T* __restrict pOut,
     const A_long&          sizeX,
     const A_long&          sizeY,
     const A_long&          labInPitch,
@@ -36,7 +36,7 @@ inline void FuzzyLogic_5x5
 (
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
-    const T* __restrict pOut,
+          T* __restrict pOut,
     const A_long&          sizeX,
     const A_long&          sizeY,
     const A_long&          labInPitch,
@@ -55,7 +55,7 @@ inline void FuzzyLogic_5x5
 (
     const fCIELabPix* __restrict pLabIn,
     const PF_Pixel_RGB_10u* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
-    const PF_Pixel_RGB_10u* __restrict pOut,
+          PF_Pixel_RGB_10u* __restrict pOut,
     const A_long&          sizeX,
     const A_long&          sizeY,
     const A_long&          labInPitch,
