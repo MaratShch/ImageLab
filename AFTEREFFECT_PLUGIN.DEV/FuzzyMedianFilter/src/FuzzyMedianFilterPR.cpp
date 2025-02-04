@@ -15,15 +15,21 @@ PF_Err ProcessImgInPR
 ) noexcept
 {
 	PF_Err err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
-	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
+
+    // get SIGMA value from slider
+    const float sigma = CLAMP_VALUE(static_cast<float>(params[eFUZZY_MEDIAN_FILTER_SIGMA_VALUE]->u.fs_d.value), fSliderValMin, fSliderValMax);
+    // get FILTER WINDOW SIZE
+    eFUZZY_FILTER_WINDOW_SIZE const winSize{ static_cast<eFUZZY_FILTER_WINDOW_SIZE>(params[eFUZZY_MEDIAN_FILTER_KERNEL_SIZE]->u.pd.value - 1) };
+    if (eFUZZY_FILTER_BYPASSED == winSize) // Filter by-passed, just copy from input to output
+        return PF_COPY(&params[eFUZZY_MEDIAN_FILTER_INPUT]->u.ld, output, NULL, NULL);
 
     const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[eFUZZY_MEDIAN_FILTER_INPUT]->u.ld);
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-    const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fCIELabPix_size), CACHE_LINE);
+    const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 
+    // Allocate memory block for intermediate results
     void* pMemoryBlock = nullptr;
+    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fCIELabPix_size), CACHE_LINE);
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
     if (nullptr != pMemoryBlock && blockId >= 0)
@@ -31,14 +37,11 @@ PF_Err ProcessImgInPR
 #ifdef _DEBUG
         memset(pMemoryBlock, 0, totalProcMem); // cleanup memory block for DBG purposes
 #endif
-        // get SIGMA value from slider
-        const float sigma = CLAMP_VALUE(static_cast<float>(params[eFUZZY_MEDIAN_FILTER_SIGMA_VALUE]->u.fs_d.value), fSliderValMin, fSliderValMax);
+        // This plugin called from Pr - check video format
+        auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
         PF_Err errFormat = PF_Err_INVALID_INDEX;
         PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-
-        // This plugin called from Pr - check video format
-        auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
@@ -59,7 +62,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
-                    FuzzyLogic_3x3 (pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -75,6 +92,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -90,6 +122,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -105,6 +152,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -119,7 +181,22 @@ PF_Err ProcessImgInPR
                     pixelFormatSuite->GetWhiteForPixelFormat (PrPixelFormat_ARGB_4444_16u, &white);
 
                     // Convert from RGB to CIE-Lab color space
-                    Rgb2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    Rgb2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);                    
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -135,6 +212,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -152,6 +244,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from YUV to CIE-Lab color space
                     Yuv2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX, colorSpace);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -169,6 +276,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from YUV to CIE-Lab color space
                     Yuv2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX, colorSpace);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 
@@ -184,6 +306,21 @@ PF_Err ProcessImgInPR
 
                     // Convert from RGB to CIE-Lab color space
                     Rgb2CIELab (localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX);
+                    switch (winSize)
+                    {
+                        case eFUZZY_FILTER_WINDOW_3x3:
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_5x5:
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        case eFUZZY_FILTER_WINDOW_7x7:
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                        break;
+                        default:
+                            err = PF_Err_INVALID_INDEX;
+                        break;
+                    }
                 }
                 break;
 

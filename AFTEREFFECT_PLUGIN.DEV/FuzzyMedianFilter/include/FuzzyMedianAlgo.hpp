@@ -60,6 +60,12 @@ inline void Yuv2CIELab
     const eCOLOR_SPACE&    colorSpace
 ) noexcept
 {
+    float sRgbCoeff = 1.0f / static_cast<float>(u8_value_white);
+    if (std::is_same<T, PF_Pixel_VUYA_16u>::value)
+        sRgbCoeff = 1.0f / static_cast<float>(u16_value_white);
+    else if (std::is_same<T, PF_Pixel_VUYA_32f>::value)
+        sRgbCoeff = 1.0f;
+
     return;
 }
 

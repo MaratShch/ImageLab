@@ -20,7 +20,7 @@ inline void FuzzyLogic_3x3
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
-    const T&               blackPix, // black (minimal) color pixel value - used for clamping
+    const T&               blackPix,  // black (minimal) color pixel value - used for clamping
     const T&               whitePix,  // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f 
 )
@@ -38,7 +38,7 @@ inline void FuzzyLogic_3x3
     for (j = 0; j < sizeY; j++)
     {
         const fCIELabPix* __restrict labLinePrv = pLabIn + (j - 1) * labInPitch; // line -1
-        const fCIELabPix* __restrict labLineCur = pLabIn +  j * labInPitch;      // cureent line
+        const fCIELabPix* __restrict labLineCur = pLabIn +  j * labInPitch;      // current line
         const fCIELabPix* __restrict labLineNxt = pLabIn + (j + 1) * labInPitch; // line +1
         const T* __restrict inOrgLine = pIn  + j * imgInPitch;
               T* __restrict outLine   = pOut + j * imgOutPitch;
@@ -128,7 +128,7 @@ inline void FuzzyLogic_3x3
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
-    const T&               blackPix, // black (minimal) color pixel value - used for clamping
+    const T&               blackPix, // black (minimal) color pixel value  - used for clamping
     const T&               whitePix,  // white (maximal) color pixel value - used for clamping
     const float            fSigma = 2.f
 )
@@ -165,7 +165,7 @@ inline void FuzzyLogic_3x3
     for (j = 0; j < sizeY; j++)
     {
         const fCIELabPix* __restrict labLinePrv = pLabIn + (j - 1) * labInPitch; // line -1
-        const fCIELabPix* __restrict labLineCur = pLabIn + j * labInPitch;      // cureent line
+        const fCIELabPix* __restrict labLineCur = pLabIn + j * labInPitch;       // current line
         const fCIELabPix* __restrict labLineNxt = pLabIn + (j + 1) * labInPitch; // line +1
         const PF_Pixel_RGB_10u* __restrict inOrgLine = pIn  + j * imgInPitch;
               PF_Pixel_RGB_10u* __restrict outLine   = pOut + j * imgOutPitch;
@@ -241,7 +241,6 @@ inline void FuzzyLogic_3x3
 
     return;
 }
-
 
 
 #endif // __FUZZY_ALGO_LOGIC_KERNEL_3x3__

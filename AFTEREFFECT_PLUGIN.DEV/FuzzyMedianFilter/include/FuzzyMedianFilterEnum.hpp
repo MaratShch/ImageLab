@@ -8,7 +8,7 @@ typedef enum {
     eFUZZY_MEDIAN_FILTER_KERNEL_SIZE,
     eFUZZY_MEDIAN_FILTER_SIGMA_VALUE,
     eFUZZY_MEDIAN_TOTAL_CONTROLS
-}eAVERAGE_FILTER_ITEMS;
+}eFUZZY_FILTER_ITEMS;
 
 
 constexpr char strPopupName [] = "Filter Window";
@@ -20,7 +20,7 @@ typedef enum {
     eFUZZY_FILTER_WINDOW_5x5,
     eFUZZY_FILTER_WINDOW_7x7,
     eFUZZY_FILTER_TOTAL_VARIANTS
-};
+}eFUZZY_FILTER_WINDOW_SIZE;
 
 constexpr char strWindowSizes[] =
 {
