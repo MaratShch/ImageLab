@@ -22,7 +22,7 @@ PF_Err BilateralFilter_InAE_8bits
         auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
         return worldTransformSuite->copy (in_data->effect_ref, input, output, NULL, NULL);
     }
-    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_RADIUS]->u.fs_d.value;
+    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_SIGMA]->u.fs_d.value;
     const float fSigmaValue = CLAMP_VALUE(static_cast<float>(sliderSigmaValue), fSigmaValMin, fSigmaValMax);
 
     const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
@@ -78,7 +78,7 @@ PF_Err BilateralFilter_InAE_16bits
         auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
         return worldTransformSuite->copy_hq (in_data->effect_ref, input, output, NULL, NULL);
     }
-    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_RADIUS]->u.fs_d.value;
+    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_SIGMA]->u.fs_d.value;
     const float fSigmaValue = CLAMP_VALUE(static_cast<float>(sliderSigmaValue), fSigmaValMin, fSigmaValMax);
 
     const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
@@ -134,7 +134,7 @@ PF_Err BilateralFilter_InAE_32bits
         auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
         return worldTransformSuite->copy_hq(in_data->effect_ref, input, output, NULL, NULL);
     }
-    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_RADIUS]->u.fs_d.value;
+    const A_FpLong sliderSigmaValue = params[eBILATERAL_FILTER_SIGMA]->u.fs_d.value;
     const float fSigmaValue = CLAMP_VALUE(static_cast<float>(sliderSigmaValue), fSigmaValMin, fSigmaValMax);
 
     const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);

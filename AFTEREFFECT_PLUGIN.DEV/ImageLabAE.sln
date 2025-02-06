@@ -160,6 +160,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Dehaze", "Dehaze", "{59B7B8DB-CC45-489A-BD1F-F7367A3A4076}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FuzzyMedianFilter", "FuzzyMedianFilter\FuzzyMedianFilter.vcxproj", "{80C52677-CC7C-4C38-A396-FBF6AF3DCEDF}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D266F837-A6FD-48CD-820D-578816B7AC3D} = {D266F837-A6FD-48CD-820D-578816B7AC3D}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FuzzyMedianFilter", "FuzzyMedianFilter", "{6435E073-B5F4-4C5C-B0C7-A22D33357F50}"
 EndProject
