@@ -62,10 +62,17 @@ inline void FuzzyLogic_7x7
             // CURRENT pixel
             const float C = labLineCur[i].L;
 
+            // NEIBORHOOD PIXELS IN WINDOW 7x7 [left and top marked as 0, right and bottom marked as 47, central pixel marked as C in above code line]
+//            if (0 == j)
+//            else if (1 == j)
+//            else if (2 == j)
+//            else
+
+
             __VECTOR_ALIGNED__
             for (int k = 0; k < 48; k += 8)
-            {
-                dVal[k + 0] = FastCompute::Abs(C - iVal[k + 0]);
+            { 
+                dVal[k + 0] = FastCompute::Abs(C - iVal[k + 0]); 
                 dVal[k + 1] = FastCompute::Abs(C - iVal[k + 1]);
                 dVal[k + 2] = FastCompute::Abs(C - iVal[k + 2]);
                 dVal[k + 3] = FastCompute::Abs(C - iVal[k + 3]);
