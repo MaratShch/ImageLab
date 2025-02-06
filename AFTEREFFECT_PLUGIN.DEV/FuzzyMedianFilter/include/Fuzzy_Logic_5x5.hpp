@@ -30,8 +30,8 @@ inline void FuzzyLogic_5x5
     A_long i, j;
     const A_long lastPix  = sizeX - 1;
     const A_long lastLine = sizeY - 1;
-    const A_long preLastPix  = lastPix  - 1;
-    const A_long preLastLine = lastLine - 1;
+    const A_long preLastPix  = sizeX - 2;
+    const A_long preLastLine = sizeY - 2;
 
     float iNWW, iNNW, iNN, iNNE, iNEE,
           iWNW, iNW,  iN,  iNE,  iENE,
@@ -59,7 +59,7 @@ inline void FuzzyLogic_5x5
     {
         const fCIELabPix* labLinePrv2 = pLabIn + (j - 2) * labInPitch; // line - 2
         const fCIELabPix* labLinePrv1 = pLabIn + (j - 1) * labInPitch; // line - 1
-        const fCIELabPix* labLineCur  = pLabIn + j * labInPitch;       // current line
+        const fCIELabPix* labLineCur  = pLabIn +  j      * labInPitch; // current line
         const fCIELabPix* labLineNxt1 = pLabIn + (j + 1) * labInPitch; // line + 1
         const fCIELabPix* labLineNxt2 = pLabIn + (j + 2) * labInPitch; // line + 2
         const T* __restrict inOrgLine = pIn  + j * imgInPitch;
@@ -80,40 +80,54 @@ inline void FuzzyLogic_5x5
                 iWNW = (i > 1 ? labLinePrv1[i - 2].L : C);
                 iNW  = (i > 0 ? labLinePrv1[i - 1].L : C);
                 iN   = labLinePrv1[i].L;
-                iNE  = (i < lastPix ? labLinePrv1[i - 2].L : C);
-                iENE = (i < preLastPix ? labLinePrv1[i - 2].L : C);
+                iNE  = (i < lastPix    ? labLinePrv1[i + 1].L : C);
+                iENE = (i < preLastPix ? labLinePrv1[i + 2].L : C);
             }
             else
             {
                 iNWW = (i > 1 ? labLinePrv2[i - 2].L : C);
                 iNNW = (i > 0 ? labLinePrv2[i - 1].L : C);
                 iNN = labLinePrv2[i].L;
-                iNNE = (i < lastPix ? labLinePrv2[i - 2].L : C);
-                iNEE = (i < preLastPix ? labLinePrv2[i - 2].L : C);
+                iNNE = (i < lastPix    ? labLinePrv2[i + 1].L : C);
+                iNEE = (i < preLastPix ? labLinePrv2[i + 2].L : C);
 
                 iWNW = (i > 1 ? labLinePrv1[i - 2].L : C);
                 iNW  = (i > 0 ? labLinePrv1[i - 1].L : C);
                 iN   = labLinePrv1[i].L;
-                iNE  = (i < lastPix ? labLinePrv1[i - 2].L : C);
-                iENE = (i < preLastPix ? labLinePrv1[i - 2].L : C);
+                iNE  = (i < lastPix    ? labLinePrv1[i + 1].L : C);
+                iENE = (i < preLastPix ? labLinePrv1[i + 2].L : C);
             }
 
             // CENTRAL PIXELS
             iWW = (i > 1 ? labLineCur[i - 2].L : C);
             iW  = (i > 0 ? labLineCur[i - 1].L : C);
-            iE  = (i < lastPix    ? labLineCur[i - 2].L : C);
-            iEE = (i < preLastPix ? labLineCur[i - 2].L : C);
+            iE  = (i < lastPix    ? labLineCur[i + 1].L : C);
+            iEE = (i < preLastPix ? labLineCur[i + 2].L : C);
 
             // SOUTH PIXELS
             if (j == lastLine)
                 iWSW = iSW = iS = iSE = iESE = iSWW = iSSW = iSS = iSSE = iSEE = C;
             else if (j == preLastLine)
             {
-
+                iSWW = iSSW = iSS = iSSE = iSEE = C;
+                iWSW = (i > 1 ? labLineNxt1[i - 2].L : C);
+                iSW  = (i > 0 ? labLineNxt1[i - 1].L : C);
+                iS   = labLineNxt1[i].L;
+                iSE  = (i < lastPix    ? labLineNxt1[i + 1].L : C);
+                iESE = (i < preLastPix ? labLineNxt1[i + 2].L : C);
             }
             else
             {
-
+                iWSW = (i > 1 ? labLineNxt1[i - 2].L : C);
+                iSW  = (i > 0 ? labLineNxt1[i - 1].L : C);
+                iS   = labLineNxt1[i].L;
+                iSE  = (i < lastPix    ? labLineNxt1[i + 1].L : C);
+                iESE = (i < preLastPix ? labLineNxt1[i + 2].L : C);
+                iSWW = (i > 1 ? labLineNxt2[i - 2].L : C); 
+                iSSW = (i > 0 ? labLineNxt2[i - 1].L : C); 
+                iSS  = labLineNxt2[i].L;
+                iSSE = (i < lastPix    ? labLineNxt2[i + 1].L : C); 
+                iSEE = (i < preLastPix ? labLineNxt2[i + 2].L : C);
             }
 
             // PROCESS FUZZY RULES - compute absolute differences
