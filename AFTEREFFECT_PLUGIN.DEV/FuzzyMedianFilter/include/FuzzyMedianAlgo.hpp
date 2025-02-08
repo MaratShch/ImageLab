@@ -60,12 +60,12 @@ inline void Yuv2CIELab
     const eCOLOR_SPACE&    colorSpace
 ) noexcept
 {
-    float sRgbCoeff = 1.0f / static_cast<float>(u8_value_white);
+    float sYuvCoeff = 1.0f / static_cast<float>(u8_value_white);
     float fUVSub = 128.f;
     if (std::is_same<T, PF_Pixel_VUYA_16u>::value)
-        sRgbCoeff = 1.0f / static_cast<float>(u16_value_white), fUVSub = 0.f;
+        sYuvCoeff = 1.0f / static_cast<float>(u16_value_white), fUVSub = 0.f;
     else if (std::is_same<T, PF_Pixel_VUYA_32f>::value)
-        sRgbCoeff = 1.0f, fUVSub = 0.f;
+        sYuvCoeff = 1.0f, fUVSub = 0.f;
 
     // color space transfer matrix
     const float* __restrict cstm = YUV2RGB[colorSpace];
@@ -79,9 +79,9 @@ inline void Yuv2CIELab
         for (A_long i = 0; i < sizeX; i++)
         {
             fYUV inYuvPix;
-            inYuvPix.Y =  static_cast<float>(pYUVLine[i].Y) * sRgbCoeff;
-            inYuvPix.U = (static_cast<float>(pYUVLine[i].U) - fUVSub) * sRgbCoeff;
-            inYuvPix.V = (static_cast<float>(pYUVLine[i].V) - fUVSub) * sRgbCoeff;
+            inYuvPix.Y =  static_cast<float>(pYUVLine[i].Y) * sYuvCoeff;
+            inYuvPix.U = (static_cast<float>(pYUVLine[i].U) - fUVSub) * sYuvCoeff;
+            inYuvPix.V = (static_cast<float>(pYUVLine[i].V) - fUVSub) * sYuvCoeff;
 
             fRGB inPix;
             inPix.R = inYuvPix.Y * cstm[0] + inYuvPix.U * cstm[1] + inYuvPix.V * cstm[2];

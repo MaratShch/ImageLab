@@ -23,7 +23,7 @@ inline void FuzzyLogic_3x3
     const T&               blackPix,  // black (minimal) color pixel value - used for clamping
     const T&               whitePix,  // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f 
-)
+) noexcept
 {
     A_long i, j;
     const A_long lastPix  = sizeX - 1;
@@ -128,11 +128,11 @@ inline void FuzzyLogic_3x3
     const A_long&          labInPitch,
     const A_long&          imgInPitch,
     const A_long&          imgOutPitch,
-    const T&               blackPix, // black (minimal) color pixel value  - used for clamping
+    const T&               blackPix,  // black (minimal) color pixel value  - used for clamping
     const T&               whitePix,  // white (maximal) color pixel value - used for clamping
     const float            fSigma = 2.f,
     const eCOLOR_SPACE&    colorSpace = BT709
-)
+) noexcept
 {
     A_long i, j;
     const A_long lastPix = sizeX - 1;
@@ -244,7 +244,7 @@ inline void FuzzyLogic_3x3
     const PF_Pixel_RGB_10u&  blackPix, // black (minimal) color pixel value - used for clamping
     const PF_Pixel_RGB_10u&  whitePix, // white (maximal) color pixel value - used for clamping
     const float            fSigma = 2.f
-)
+) noexcept
 {
     A_long i, j;
     const A_long lastPix  = sizeX - 1;

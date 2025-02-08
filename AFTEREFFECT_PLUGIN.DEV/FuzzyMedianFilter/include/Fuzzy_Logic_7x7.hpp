@@ -27,7 +27,7 @@ inline void FuzzyLogic_7x7
     const T&               blackPix, // black (minimal) color pixel value - used for clamping
     const T&               whitePix, // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f
-)
+) noexcept
 {
     // Don't mark this pixels as Nort, South, etc... just assign numbers from left to rigth and from top to down
     CACHE_ALIGN float iVal[48];
@@ -251,7 +251,7 @@ inline void FuzzyLogic_7x7
     const T&               whitePix, // white (maximal) color pixel value - used for clamping
     const float            fSigma = 2.f,
     const eCOLOR_SPACE&    colorSpace = BT709
-)
+) noexcept
 {
     // Don't mark this pixels as Nort, South, etc... just assign numbers from left to rigth and from top to down
     CACHE_ALIGN float iVal[48];
@@ -276,7 +276,7 @@ inline void FuzzyLogic_7x7
     const PF_Pixel_RGB_10u& blackPix, // black (minimal) color pixel value - used for clamping
     const PF_Pixel_RGB_10u& whitePix, // white (maximal) color pixel value - used for clamping
     const float&           fSigma = 2.f
-)
+) noexcept
 {
     // Don't mark this pixels as Nort, South, etc... just assign numbers from left to rigth and from top to down
     CACHE_ALIGN float iVal[48];
@@ -284,11 +284,11 @@ inline void FuzzyLogic_7x7
     CACHE_ALIGN float fVal[48];
 
     A_long i, j, k;
-    const A_long lastPix = sizeX - 1;
-    const A_long lastLine = sizeY - 1;
-    const A_long preLastPix = sizeX - 2;
-    const A_long preLastLine = sizeY - 2;
-    const A_long prepreLastPix = sizeX - 3;
+    const A_long lastPix        = sizeX - 1;
+    const A_long lastLine       = sizeY - 1;
+    const A_long preLastPix     = sizeX - 2;
+    const A_long preLastLine    = sizeY - 2;
+    const A_long prepreLastPix  = sizeX - 3;
     const A_long prepreLastLine = sizeY - 3;
 
     float val1, val2;
