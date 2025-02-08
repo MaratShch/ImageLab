@@ -5,7 +5,7 @@
 
 
 constexpr char strName[] = "Fuzzy Median Filter";
-constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rFuzzy Median Filter plugin.";
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rFuzzy Median Filter plugin.";
 constexpr int FuzzyMedian_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int FuzzyMedian_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int FuzzyMedian_VersionSub = 0;
