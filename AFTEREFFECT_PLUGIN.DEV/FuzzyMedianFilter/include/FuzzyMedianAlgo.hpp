@@ -83,9 +83,9 @@ inline void Yuv2CIELab
             const float V = static_cast<float>(pYUVLine[i].V) - fUVSub;
 
             fRGB inPix;
-            inPix.R = Y * cstm[0] + U * cstm[1] + V * cstm[2];
-            inPix.G = Y * cstm[3] + U * cstm[4] + V * cstm[5];
-            inPix.B = Y * cstm[6] + U * cstm[7] + V * cstm[8];
+            inPix.R = (Y * cstm[0] + U * cstm[1] + V * cstm[2]) * sRgbCoeff;
+            inPix.G = (Y * cstm[3] + U * cstm[4] + V * cstm[5]) * sRgbCoeff;
+            inPix.B = (Y * cstm[6] + U * cstm[7] + V * cstm[8]) * sRgbCoeff;
 
             pLabLine[i] = Xyz2CieLab(Rgb2Xyz(inPix));
         }
