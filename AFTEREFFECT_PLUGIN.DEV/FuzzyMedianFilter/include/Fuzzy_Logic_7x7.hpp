@@ -249,7 +249,8 @@ inline void FuzzyLogic_7x7
     const A_long&          imgOutPitch,
     const T&               blackPix, // black (minimal) color pixel value - used for clamping
     const T&               whitePix, // white (maximal) color pixel value - used for clamping
-    const float&           fSigma = 2.f
+    const float            fSigma = 2.f,
+    const eCOLOR_SPACE&    colorSpace = BT709
 )
 {
     // Don't mark this pixels as Nort, South, etc... just assign numbers from left to rigth and from top to down

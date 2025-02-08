@@ -61,10 +61,35 @@ inline void Yuv2CIELab
 ) noexcept
 {
     float sRgbCoeff = 1.0f / static_cast<float>(u8_value_white);
+    float fUVSub = 128.f;
     if (std::is_same<T, PF_Pixel_VUYA_16u>::value)
-        sRgbCoeff = 1.0f / static_cast<float>(u16_value_white);
+        sRgbCoeff = 1.0f / static_cast<float>(u16_value_white), fUVSub = 0.f;
     else if (std::is_same<T, PF_Pixel_VUYA_32f>::value)
-        sRgbCoeff = 1.0f;
+        sRgbCoeff = 1.0f, fUVSub = 0.f;
+
+    // color space transfer matrix
+    const float* __restrict cstm = YUV2RGB[colorSpace];
+
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const T*    __restrict pYUVLine = pYUV + j * rgbPitch;
+        fCIELabPix* __restrict pLabLine = pLab + j * labPitch;
+
+        __VECTORIZATION__
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            const float Y = static_cast<float>(pYUVLine[i].Y);
+            const float U = static_cast<float>(pYUVLine[i].U) - fUVSub;
+            const float V = static_cast<float>(pYUVLine[i].V) - fUVSub;
+
+            fRGB inPix;
+            inPix.R = Y * cstm[0] + U * cstm[1] + V * cstm[2];
+            inPix.G = Y * cstm[3] + U * cstm[4] + V * cstm[5];
+            inPix.B = Y * cstm[6] + U * cstm[7] + V * cstm[8];
+
+            pLabLine[i] = Xyz2CieLab(Rgb2Xyz(inPix));
+        }
+    }
 
     return;
 }

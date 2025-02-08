@@ -238,22 +238,20 @@ PF_Err ProcessImgInPR
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     dstPitch = srcPitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-                    PF_Pixel_VUYA_8u white{}, black{};
-                    pixelFormatSuite->GetBlackForPixelFormat (PrPixelFormat_VUYA_4444_8u, &black);
-                    pixelFormatSuite->GetWhiteForPixelFormat (PrPixelFormat_VUYA_4444_8u, &white);
+                    constexpr PF_Pixel_VUYA_8u white{255u, 255u, 255u, 255u}, black{0u, 0u, 0u, 0u};
 
                     // Convert from YUV to CIE-Lab color space
                     Yuv2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX, colorSpace);
                     switch (winSize)
                     {
                         case eFUZZY_FILTER_WINDOW_3x3:
-                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma, colorSpace);
                         break;
                         case eFUZZY_FILTER_WINDOW_5x5:
-                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma, colorSpace);
                         break;
                         case eFUZZY_FILTER_WINDOW_7x7:
-                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma, colorSpace);
                         break;
                         default:
                             err = PF_Err_INVALID_INDEX;
@@ -270,22 +268,20 @@ PF_Err ProcessImgInPR
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     dstPitch = srcPitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
-                    PF_Pixel_VUYA_32f white{}, black{};
-                    pixelFormatSuite->GetBlackForPixelFormat (PrPixelFormat_VUYA_4444_32f, &black);
-                    pixelFormatSuite->GetWhiteForPixelFormat (PrPixelFormat_VUYA_4444_32f, &white);
+                    constexpr PF_Pixel_VUYA_32f white{1.f, 1.f, 1.f, 1.f}, black{0.f, 0.f, 0.f, 0.f};
 
                     // Convert from YUV to CIE-Lab color space
                     Yuv2CIELab(localSrc, pCIELab, sizeX, sizeY, srcPitch, sizeX, colorSpace);
                     switch (winSize)
                     {
                         case eFUZZY_FILTER_WINDOW_3x3:
-                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                            FuzzyLogic_3x3(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma, colorSpace);
                         break;
                         case eFUZZY_FILTER_WINDOW_5x5:
-                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                            FuzzyLogic_5x5(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma, colorSpace);
                         break;
                         case eFUZZY_FILTER_WINDOW_7x7:
-                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma);
+                            FuzzyLogic_7x7(pCIELab, localSrc, localDst, sizeX, sizeY, sizeX, srcPitch, dstPitch, black, white, sigma, colorSpace);
                         break;
                         default:
                             err = PF_Err_INVALID_INDEX;
