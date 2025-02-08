@@ -121,7 +121,7 @@ inline fRGB Xyz2Rgb
     return out;
 }
 
-inline fYUV fRGB2Yuv
+inline fYUV fRgb2Yuv
 (
     const fRGB& in,
     const eCOLOR_SPACE& cSpace
@@ -135,5 +135,22 @@ inline fYUV fRGB2Yuv
 
     return out;
 }
+
+
+inline fRGB fYuv2Rgb
+(
+    const fYUV& in,
+    const eCOLOR_SPACE& cSpace
+) noexcept
+{
+    fRGB out;
+    const float* __restrict cstm = YUV2RGB[cSpace];
+    out.R = in.Y * cstm[0] + in.U * cstm[1] + in.V * cstm[2];
+    out.G = in.Y * cstm[3] + in.U * cstm[4] + in.V * cstm[5];
+    out.B = in.Y * cstm[6] + in.U * cstm[7] + in.V * cstm[8];
+
+    return out;
+}
+
 
 #endif // __FUZZY_MEDIAN_LOGIC_UTILS__

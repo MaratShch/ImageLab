@@ -217,7 +217,7 @@ inline void FuzzyLogic_3x3
             filteredPix.a = labLineCur[i].a;
             filteredPix.b = labLineCur[i].b;
 
-            const fYUV outPix = fRGB2Yuv(Xyz2Rgb(CieLab2Xyz(filteredPix)), colorSpace);
+            const fYUV outPix = fRgb2Yuv(Xyz2Rgb(CieLab2Xyz(filteredPix)), colorSpace);
 
             outLine[i].A = inOrgLine[i].A; // copy Alpha-channel from sources buffer 'as-is'
             outLine[i].Y = static_cast<decltype(outLine[i].Y)>(CLAMP_VALUE(outPix.Y * whitePix.Y,          static_cast<float>(blackPix.Y), static_cast<float>(whitePix.Y)));

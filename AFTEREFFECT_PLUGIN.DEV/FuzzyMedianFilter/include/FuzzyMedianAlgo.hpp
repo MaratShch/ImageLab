@@ -78,14 +78,15 @@ inline void Yuv2CIELab
         __VECTORIZATION__
         for (A_long i = 0; i < sizeX; i++)
         {
-            const float Y = static_cast<float>(pYUVLine[i].Y);
-            const float U = static_cast<float>(pYUVLine[i].U) - fUVSub;
-            const float V = static_cast<float>(pYUVLine[i].V) - fUVSub;
+            fYUV inYuvPix;
+            inYuvPix.Y =  static_cast<float>(pYUVLine[i].Y) * sRgbCoeff;
+            inYuvPix.U = (static_cast<float>(pYUVLine[i].U) - fUVSub) * sRgbCoeff;
+            inYuvPix.V = (static_cast<float>(pYUVLine[i].V) - fUVSub) * sRgbCoeff;
 
             fRGB inPix;
-            inPix.R = (Y * cstm[0] + U * cstm[1] + V * cstm[2]) * sRgbCoeff;
-            inPix.G = (Y * cstm[3] + U * cstm[4] + V * cstm[5]) * sRgbCoeff;
-            inPix.B = (Y * cstm[6] + U * cstm[7] + V * cstm[8]) * sRgbCoeff;
+            inPix.R = inYuvPix.Y * cstm[0] + inYuvPix.U * cstm[1] + inYuvPix.V * cstm[2];
+            inPix.G = inYuvPix.Y * cstm[3] + inYuvPix.U * cstm[4] + inYuvPix.V * cstm[5];
+            inPix.B = inYuvPix.Y * cstm[6] + inYuvPix.U * cstm[7] + inYuvPix.V * cstm[8];
 
             pLabLine[i] = Xyz2CieLab(Rgb2Xyz(inPix));
         }

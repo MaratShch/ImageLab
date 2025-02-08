@@ -238,6 +238,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     dstPitch = srcPitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
+                    // for VUYA pixels these are not actual black and white values, like for RGB - these are values for scale and clamp final filtered pixel
                     constexpr PF_Pixel_VUYA_8u white{255u, 255u, 255u, 255u}, black{0u, 0u, 0u, 0u};
 
                     // Convert from YUV to CIE-Lab color space
@@ -268,6 +269,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     dstPitch = srcPitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
+                    // for VUYA pixels these are not actual black and white values, like for RGB - these are values for scale and clamp final filtered pixel
                     constexpr PF_Pixel_VUYA_32f white{1.f, 1.f, 1.f, 1.f}, black{0.f, 0.f, 0.f, 0.f};
 
                     // Convert from YUV to CIE-Lab color space
