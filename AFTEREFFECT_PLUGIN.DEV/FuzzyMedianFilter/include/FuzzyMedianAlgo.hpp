@@ -89,7 +89,7 @@ inline void Yuv2CIELab
             inPix.B = inYuvPix.Y * cstm[6] + inYuvPix.U * cstm[7] + inYuvPix.V * cstm[8];
 
             pLabLine[i] = Xyz2CieLab(Rgb2Xyz(inPix));
-        }
+        } // for (A_long i = 0; i < sizeX; i++)
     }
 
     return;
@@ -127,8 +127,6 @@ inline void Rgb2CIELab
 
     return;
 }
-
-
 
 
 #endif // __IMAGE_LAB_FUZZY_MEDIAN_FILTER_ALGORITHM__

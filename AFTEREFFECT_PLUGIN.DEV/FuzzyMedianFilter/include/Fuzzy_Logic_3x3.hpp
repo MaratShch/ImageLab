@@ -222,12 +222,13 @@ inline void FuzzyLogic_3x3
             outLine[i].A = inOrgLine[i].A; // copy Alpha-channel from sources buffer 'as-is'
             outLine[i].Y = static_cast<decltype(outLine[i].Y)>(CLAMP_VALUE(outPix.Y * whitePix.Y,          static_cast<float>(blackPix.Y), static_cast<float>(whitePix.Y)));
             outLine[i].U = static_cast<decltype(outLine[i].U)>(CLAMP_VALUE(outPix.U * whitePix.U + fUVAdd, static_cast<float>(blackPix.U), static_cast<float>(whitePix.U)));
-            outLine[i].V = static_cast<decltype(outLine[i].V)>(CLAMP_VALUE(outPix.Y * whitePix.V + fUVAdd, static_cast<float>(blackPix.V), static_cast<float>(whitePix.V)));
+            outLine[i].V = static_cast<decltype(outLine[i].V)>(CLAMP_VALUE(outPix.V * whitePix.V + fUVAdd, static_cast<float>(blackPix.V), static_cast<float>(whitePix.V)));
 
         } // for (i = 0; i < sizeX; i++)
 
     } // for (j = 0; j < sizeY; j++)
 
+    return;
 }
 
 
