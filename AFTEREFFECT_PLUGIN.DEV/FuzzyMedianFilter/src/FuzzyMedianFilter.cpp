@@ -1,5 +1,6 @@
 #include "FuzzyMedianFilter.hpp"
 #include "FuzzyMedianFilterEnum.hpp"
+#include "FuzzyMedianFilterSmartRender.hpp"
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
 
@@ -186,8 +187,7 @@ PreRender(
     PF_PreRenderExtra	*extra
 )
 {
-    PF_Err err = PF_Err_NONE;
-    return err;
+    return FuzzyMedian_PreRender (in_data, out_data, extra);
 }
 
 
@@ -198,8 +198,7 @@ SmartRender(
 	PF_SmartRenderExtra		*extraP
 )
 {
-	PF_Err	err = PF_Err_NONE;
-	return err;
+    return FuzzyMedian_SmartRender(in_data, out_data, extraP);
 }
 
 

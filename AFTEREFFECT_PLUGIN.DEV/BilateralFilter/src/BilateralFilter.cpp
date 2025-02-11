@@ -12,13 +12,13 @@ static GaussMesh* gGaussMeshInstance = nullptr;
 GaussMesh* getMeshHandler(void) { return gGaussMeshInstance; }
 
 
-inline PF_Boolean IsEmptyRect(const PF_LRect* r)
+inline PF_Boolean IsEmptyRect(const PF_LRect* r) noexcept
 {
     return (r->left >= r->right) || (r->top >= r->bottom);
 }
 
 
-inline void UnionLRect(const PF_LRect* src, PF_LRect* dst)
+inline void UnionLRect(const PF_LRect* src, PF_LRect* dst) noexcept
 {
     if (IsEmptyRect(dst))
     {
