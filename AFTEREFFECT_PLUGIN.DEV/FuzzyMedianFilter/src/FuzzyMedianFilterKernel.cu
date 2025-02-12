@@ -1,11 +1,9 @@
 #include "ImageLabCUDA.hpp"
-#include "BilateralFilterGPU.hpp"
+#include "FuzzyMedianFilterGPU.hpp"
 #include "ColorTransformMatrix.hpp"
 #include <cuda_runtime.h>
 #include <math.h>
 
-// Constant memory with gauss mesh values
-__constant__ float cGpuMesh[gpuMaxMeshSize];
 
 // Intermediate CIE-Lab image (float32, L,a,b,A - channels)
 float4* RESTRICT gpuLabImage{ nullptr };
@@ -23,8 +21,6 @@ inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
     v.x = __float2half_rn(in.x); v.y = __float2half_rn(in.y); v.z = __float2half_rn(in.z); v.w = __float2half_rn(in.w);
     return v;
 }
-
-inline __device__ const float* RESTRICT getCenterMesh (int& meshPitch) noexcept { meshPitch = gpuMaxWindowSize;  return &cGpuMesh[meshCenter]; }
 
 inline __device__ float CLAMP
 (
@@ -137,18 +133,7 @@ inline __device__ float4 Xyz2Rgb
 
     return out;
 }
-/////////////////////////////////////////////////////////////////////////////////////
 
-
-
-CUDA_KERNEL_CALL
-bool LoadGpuMesh_CUDA (const float* hostMesh)
-{
-    /* Mesh array with algorithm for compute coefficients defined into "BilateralFilter_GPU.cpp" as private class' method */
-    constexpr size_t loadSize = sizeof(cGpuMesh);
-    const cudaError_t err = cudaMemcpyToSymbol (cGpuMesh, hostMesh, loadSize);
-    return (cudaSuccess == err) ? true : false;
-}
 
 
 __global__
@@ -184,7 +169,7 @@ void RGBToCIELabKernel
 
 
 __global__
-void BilateralFilterKernel
+void FuzzyMedianFilterKernel
 (
     const float4* RESTRICT LabBuf, // CIE-Lab source buffer (allocated on device)
           float4* RESTRICT outBuf, // Processed IMage in RGBA format (output buffer)
@@ -205,71 +190,15 @@ void BilateralFilterKernel
 
     if (x >= width || y >= height) return;
 
-    const float divider = 2.0f * fSigma * fSigma;
+    const float fSigmaSq = fSigma * fSigma;
 
-    int meshPitch = -1;
-    const float* gpuMeshCenter = getCenterMesh (meshPitch);
-
-    float fNorm = 0.f;
-    float bSum1 = 0.f, bSum2 = 0.f, bSum3 = 0.f;
- 
-    // get processed pixel 
-    inPix = LabBuf[y * srcPitch + x];
-
-    // Loop through the window
-    for (int wy = -fRadius; wy <= fRadius; ++wy)
-    {
-        for (int wx = -fRadius; wx <= fRadius; ++wx)
-        {
-            // Calculate the neighboring pixel coordinates
-            const int nx = x + wx;
-            const int ny = y + wy;
-
-            // Ensure the neighbor is within the image boundaries
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height)
-            {
-                const float meshValue = *(gpuMeshCenter + wy * meshPitch + wx);
-                const float4 pixWindow = LabBuf[ny * srcPitch + nx];
-
-                const float dL = pixWindow.x - inPix.x; // L - differences
-                const float da = pixWindow.y - inPix.y; // a - differences
-                const float db = pixWindow.z - inPix.z; // b - differences
-
-                const float dotComp = dL * dL + da * da + db * db;
-                const float pF = expf(-dotComp / divider) * meshValue;
-                fNorm += pF;
-
-                bSum1 += (pF * pixWindow.x);
-                bSum2 += (pF * pixWindow.y);
-                bSum3 += (pF * pixWindow.z);
-            } // if (nx >= 0 && nx < width && ny >= 0 && ny < height)
-
-        } // for (int wx = -fRadius; wx <= fRadius; ++wx)
-    } // for (int wy = -fRadius; wy <= fRadius; ++wy)
-
-    float4 filteredLabPix;
-    filteredLabPix.w = inPix.w;        // copy alpha channel from input pixel
-    filteredLabPix.x = bSum1 / fNorm;  // filtered L channel
-    filteredLabPix.y = bSum2 / fNorm;  // filtered a channel
-    filteredLabPix.z = bSum3 / fNorm;  // filtered b channel
-
-    // convert back to RGB color space
-    outPix = Xyz2Rgb(CieLab2Xyz(filteredLabPix));
-
-    if (is16f)
-    {
-        Pixel16*  out16 = (Pixel16*)outBuf;
-        out16[y * dstPitch + x] = FloatToHalf4(outPix);
-    }
-    else
-        outBuf[y * dstPitch + x] = outPix;
 
     return;
 }
 
 
 __global__
-void BilateralBypassKernel
+void FuzzyMedianBypassKernel
 (
     const float4* RESTRICT srcBuf, // RGB source buffer
           float4* RESTRICT dstBuf, // RGB destination buffer
@@ -291,7 +220,7 @@ void BilateralBypassKernel
 
 
 CUDA_KERNEL_CALL
-void BilateralFilter_CUDA
+void FuzzyMedianFilter_CUDA
 (
     float* RESTRICT inBuf,
     float* RESTRICT outBuf,
@@ -300,15 +229,15 @@ void BilateralFilter_CUDA
     int	is16f,
     int width,
     int height,
-    int fRadius,
+    int fWindowSize,
     float fSigma
 )
 {
     dim3 blockDim(32, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-    if (0 == fRadius)
-        BilateralBypassKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch);
+    if (0 == fWindowSize)
+        FuzzyMedianBypassKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch);
     else
     {
         // allocate memory for CIE-Lab intermediate buffer
@@ -322,7 +251,7 @@ void BilateralFilter_CUDA
             cudaDeviceSynchronize();
 
             // perform Bilateral Filter with specific radius and convert back image from CIE-Lab color space to RGB space
-            BilateralFilterKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch, fRadius, is16f, fSigma);
+            FuzzyMedianFilterKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch, fWindowSize, is16f, fSigma);
 
             // free all temporary allocated resources
             cudaFree (gpuLabImage);

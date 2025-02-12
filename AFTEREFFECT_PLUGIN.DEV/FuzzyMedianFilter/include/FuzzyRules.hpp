@@ -6,7 +6,11 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
- inline __device__ float gaussian_sim
+ #ifndef INLINE_ALGO_CALL 
+  #define INLINE_ALGO_CALL  inline __device__
+ #endif
+
+ INLINE_ALGO_CALL float gaussian_sim
  (
     const float& d,
     const float& m,
@@ -18,6 +22,10 @@
 
 
 #else // #ifdef __NVCC__
+
+ #ifndef INLINE_ALGO_CALL 
+  #define INLINE_ALGO_CALL  inline
+ #endif
 
  #define FAST_COMPUTE_EXTRA_PRECISION
  #include "FastAriphmetics.hpp"

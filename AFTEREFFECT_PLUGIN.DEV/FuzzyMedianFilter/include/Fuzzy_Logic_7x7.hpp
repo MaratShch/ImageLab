@@ -14,7 +14,7 @@
 */
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
-inline void FuzzyLogic_7x7
+INLINE_ALGO_CALL void FuzzyLogic_7x7
 (
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
@@ -237,7 +237,7 @@ inline void FuzzyLogic_7x7
 
 
 template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
-inline void FuzzyLogic_7x7
+INLINE_ALGO_CALL void FuzzyLogic_7x7
 (
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
@@ -467,7 +467,7 @@ inline void FuzzyLogic_7x7
 }
 
 
-inline void FuzzyLogic_7x7
+INLINE_ALGO_CALL void FuzzyLogic_7x7
 (
     const fCIELabPix* __restrict pLabIn,
     const PF_Pixel_RGB_10u* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/

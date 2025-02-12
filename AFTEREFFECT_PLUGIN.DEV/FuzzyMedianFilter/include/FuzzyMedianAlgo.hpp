@@ -1,6 +1,7 @@
 #ifndef __IMAGE_LAB_FUZZY_MEDIAN_FILTER_ALGORITHM__
 #define __IMAGE_LAB_FUZZY_MEDIAN_FILTER_ALGORITHM__
 
+#include "A.h"
 #include "Common.hpp"
 #include "Param_Utils.h"
 #include "Fuzzy_LogicUtils.hpp"

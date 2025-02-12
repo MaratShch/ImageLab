@@ -99,6 +99,9 @@
     <ClInclude Include="include\FuzzyMedianFilterSmartRender.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\FuzzyMedianFilterGPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FuzzyMedianFilter.cpp">
@@ -116,6 +119,9 @@
     <ClCompile Include="src\FuzzyMedianFilterSmartRender.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\FuzzyMedianFilter_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FuzzyMedianFilter.rc">
@@ -126,5 +132,10 @@
     <CustomBuild Include="FuzzyMedianFilter.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\FuzzyMedianFilterKernel.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>

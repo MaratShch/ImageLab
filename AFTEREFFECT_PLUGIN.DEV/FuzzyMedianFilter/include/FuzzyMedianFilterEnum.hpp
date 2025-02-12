@@ -1,7 +1,9 @@
 #ifndef __IMAGE_LAB_FUZZYL_MEDIAN_FILTER_ENUMERATORS__
 #define __IMAGE_LAB_FUZZYL_MEDIAN_FILTER_ENUMERATORS__
 
+#ifndef __NVCC__
 #include "AE_Effect.h"
+#endif
 
 typedef enum {
     eFUZZY_MEDIAN_FILTER_INPUT,
