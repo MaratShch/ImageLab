@@ -3,7 +3,6 @@
 
 #include <cuda_runtime.h>
 #include "FuzzyMedianFilterEnum.hpp"
-#include "FuzzyRules.hpp"
 
 
 #ifdef __NVCC__

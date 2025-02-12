@@ -1,10 +1,11 @@
 #ifndef __FUZZY_MEDIAN_FILTER_RULES___
 #define __FUZZY_MEDIAN_FILTER_RULES___
 
-#ifdef __NVCC__
 // CUDA GPU compiler
 #include <cuda_runtime.h>
 #include <math.h>
+
+#ifdef __NVCC__
 
  #ifndef INLINE_ALGO_CALL 
   #define INLINE_ALGO_CALL  inline __device__
@@ -17,7 +18,8 @@
     const float& sqSigma
  ) noexcept
  {
-    return expf(-((d - m) * (d - m)) / (2.f * sqSigma));
+     const float diff = d - m;
+     return exp(-(diff * diff) / (2.f * sqSigma));
  }
 
 

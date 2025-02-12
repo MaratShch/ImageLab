@@ -32,6 +32,16 @@ inline __device__ float CLAMP
     return (in < minVal ? minVal : (in > maxVal ? maxVal : in));
 }
 
+inline __device__ float gaussian_sim
+(
+    const float& d,
+    const float& m,
+    const float& sqSigma
+) noexcept
+{
+    const float diff = d - m;
+    return expf(-(diff * diff) / (2.0f * sqSigma));
+}
 
 inline __device__ float4 Rgb2Xyz
 (
@@ -206,7 +216,7 @@ void FuzzyMedianFilterKernel
             const int nx = x + wx;
             const int ny = y + wy;
 
-            const float4 neighborPix = (nx >= 0 && nx < width && ny >= 0 && ny < height ? LabBuf[ny * srcPitch + nx] : inPix);
+            const float4 neighborPix = ((nx >= 0 && nx < width && ny >= 0 && ny < height) ? LabBuf[ny * srcPitch + nx] : inPix);
 
             // get absolute difference between Luma component in current pixel and neighbor pixes
             const float absDiff   = abs(inPix.z - neighborPix.z);
