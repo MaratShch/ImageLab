@@ -3,6 +3,8 @@
 
 #include <cuda_runtime.h>
 #include "FuzzyMedianFilterEnum.hpp"
+#include "FuzzyRules.hpp"
+
 
 #ifdef __NVCC__
  /* Put here device specific includes files */

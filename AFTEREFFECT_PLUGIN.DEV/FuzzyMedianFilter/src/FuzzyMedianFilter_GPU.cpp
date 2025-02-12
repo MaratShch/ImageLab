@@ -90,11 +90,11 @@ public:
 			inBuffer  = reinterpret_cast<float*>(srcFrameData);
 			outBuffer = reinterpret_cast<float*>(destFrameData);
 
-            auto const windowSize  = static_cast<eFUZZY_FILTER_WINDOW_SIZE>(paramFilterRadius.mInt32);
-            auto const filterSigma = ClampSigmaValue(static_cast<float>(paramFilterSigma.mFloat64));
+            auto const filterRadius = GetFilterRadius(static_cast<eFUZZY_FILTER_WINDOW_SIZE>(paramFilterRadius.mInt32));
+            auto const filterSigma  = ClampSigmaValue(static_cast<float>(paramFilterSigma.mFloat64));
             
             // Launch CUDA kernel
-//		    BilateralFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, filterRadius, filterSigma);
+		    FuzzyMedianFilter_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, filterRadius, filterSigma);
 
 			cudaError_t cudaErrCode = cudaErrorUnknown;
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
@@ -112,6 +112,20 @@ private:
     {
         return (fSigma < fSliderValMin ? fSliderValMin : (fSigma > fSliderValMax ? fSliderValMax : fSigma));
     }
+
+    const csSDK_int32 GetFilterRadius(const eFUZZY_FILTER_WINDOW_SIZE& fWindowSize) noexcept
+    {
+        csSDK_int32 fRadius;
+        switch (fWindowSize)
+        {
+            case eFUZZY_FILTER_WINDOW_3x3: fRadius = 1; break;
+            case eFUZZY_FILTER_WINDOW_5x5: fRadius = 2; break;
+            case eFUZZY_FILTER_WINDOW_7x7: fRadius = 3; break;
+            default: fRadius = 0; break;
+        }
+        return fRadius;
+    }
+
 };
 
 

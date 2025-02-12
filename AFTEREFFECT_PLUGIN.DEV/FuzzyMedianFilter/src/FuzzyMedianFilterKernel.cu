@@ -176,13 +176,13 @@ void FuzzyMedianFilterKernel
     int width,                     // width of the RGB image buffer in pixels
     int height,                    // height of the RGB image buffer in pixels
     int srcPitch,                  // line pitch of the input RGB buffer
-    int dstPitch,                  // line pitch of the output CIE-Lab buffer
+    int dstPitch,                  // line pitch of the output RGBA buffer
     int fRadius,                   // filter radius (define processing window)
     int is16f,
     float fSigma
 )
 {
-    float4 inPix;
+    float4 filteredLabPix;
     float4 outPix;
 
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -191,7 +191,48 @@ void FuzzyMedianFilterKernel
     if (x >= width || y >= height) return;
 
     const float fSigmaSq = fSigma * fSigma;
+    float val1 = 0.f;
+    float val2 = 0.f;
 
+    // get processed pixel from Lab buffer
+    const float4 inPix = LabBuf[y * srcPitch + x];
+
+    // Loop through the window
+    for (int wy = -fRadius; wy <= fRadius; ++wy)
+    {
+        for (int wx = -fRadius; wx <= fRadius; ++wx)
+        {
+            // Calculate the neighboring pixel coordinates
+            const int nx = x + wx;
+            const int ny = y + wy;
+
+            const float4 neighborPix = (nx >= 0 && nx < width && ny >= 0 && ny < height ? LabBuf[ny * srcPitch + nx] : inPix);
+
+            // get absolute difference between Luma component in current pixel and neighbor pixes
+            const float absDiff   = abs(inPix.z - neighborPix.z);
+            const float fGaussian = gaussian_sim(absDiff, 0.f, fSigmaSq);
+
+            val1 += fGaussian;
+            val2 += (fGaussian * neighborPix.z);
+        }
+    }
+    
+    // filtered pixel in CIE-Lab color space
+    filteredLabPix.w = inPix.w;
+    filteredLabPix.x = inPix.x;
+    filteredLabPix.y = inPix.y;
+    filteredLabPix.z = val2 / val1;
+
+    // convert back to RGB color space
+    outPix = Xyz2Rgb(CieLab2Xyz(filteredLabPix));
+
+    if (is16f)
+    {
+        Pixel16*  out16 = (Pixel16*)outBuf;
+        out16[y * dstPitch + x] = FloatToHalf4(outPix);
+    }
+    else
+        outBuf[y * dstPitch + x] = outPix;
 
     return;
 }
@@ -229,14 +270,14 @@ void FuzzyMedianFilter_CUDA
     int	is16f,
     int width,
     int height,
-    int fWindowSize,
+    int fRadius,
     float fSigma
 )
 {
     dim3 blockDim(32, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-    if (0 == fWindowSize)
+    if (0 == fRadius)
         FuzzyMedianBypassKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(inBuf), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch);
     else
     {
@@ -251,7 +292,8 @@ void FuzzyMedianFilter_CUDA
             cudaDeviceSynchronize();
 
             // perform Bilateral Filter with specific radius and convert back image from CIE-Lab color space to RGB space
-            FuzzyMedianFilterKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), width, height, srcPitch, dstPitch, fWindowSize, is16f, fSigma);
+            FuzzyMedianFilterKernel <<< gridDim, blockDim >>> (reinterpret_cast<const float4* RESTRICT>(gpuLabImage), reinterpret_cast<float4* RESTRICT>(outBuf), 
+                                                               width, height, labPitch, dstPitch, fRadius, is16f, fSigma);
 
             // free all temporary allocated resources
             cudaFree (gpuLabImage);

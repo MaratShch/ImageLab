@@ -17,7 +17,7 @@
     const float& sqSigma
  ) noexcept
  {
-    return exp(-((d - m) * (d - m)) / (2.f * sqSigma));
+    return expf(-((d - m) * (d - m)) / (2.f * sqSigma));
  }
 
 

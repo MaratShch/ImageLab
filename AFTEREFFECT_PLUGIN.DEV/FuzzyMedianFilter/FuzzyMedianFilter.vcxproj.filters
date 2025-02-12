@@ -132,10 +132,8 @@
     <CustomBuild Include="FuzzyMedianFilter.r">
       <Filter>resource</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="src\FuzzyMedianFilterKernel.cu">
+    <CustomBuild Include="src\FuzzyMedianFilterKernel.cu">
       <Filter>src</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>
