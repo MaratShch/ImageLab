@@ -219,19 +219,19 @@ void FuzzyMedianFilterKernel
             const float4 neighborPix = ((nx >= 0 && nx < width && ny >= 0 && ny < height) ? LabBuf[ny * srcPitch + nx] : inPix);
 
             // get absolute difference between Luma component in current pixel and neighbor pixes
-            const float absDiff   = abs(inPix.z - neighborPix.z);
+            const float absDiff   = abs(inPix.x - neighborPix.x);
             const float fGaussian = gaussian_sim(absDiff, 0.f, fSigmaSq);
 
             val1 += fGaussian;
-            val2 += (fGaussian * neighborPix.z);
+            val2 += (fGaussian * neighborPix.x);
         }
     }
     
     // filtered pixel in CIE-Lab color space
-    filteredLabPix.w = inPix.w;
-    filteredLabPix.x = inPix.x;
-    filteredLabPix.y = inPix.y;
-    filteredLabPix.z = val2 / val1;
+    filteredLabPix.w = inPix.w;     // Alpha-channel
+    filteredLabPix.x = val2 / val1; // L
+    filteredLabPix.y = inPix.y;     // a
+    filteredLabPix.z = inPix.z;     // b
 
     // convert back to RGB color space
     outPix = Xyz2Rgb(CieLab2Xyz(filteredLabPix));
