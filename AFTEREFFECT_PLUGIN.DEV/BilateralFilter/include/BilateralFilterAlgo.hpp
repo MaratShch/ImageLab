@@ -45,9 +45,9 @@ inline fXYZPix Rgb2Xyz
     const float var_B = varValue(in.B) * 100.f;
 
     fXYZPix out;
-    out.X = var_R * 0.4124f + var_G * 0.3576f + var_B * 0.1805f;
-    out.Y = var_R * 0.2126f + var_G * 0.7152f + var_B * 0.0722f;
-    out.Z = var_R * 0.0193f + var_G * 0.1192f + var_B * 0.9505f;
+    out.X = var_R * 0.4124564f + var_G * 0.3575761f + var_B * 0.1804375f;
+    out.Y = var_R * 0.2126729f + var_G * 0.7151522f + var_B * 0.0721750f;
+    out.Z = var_R * 0.0193339f + var_G * 0.1191920f + var_B * 0.9503041f;
 
     return out;
 }

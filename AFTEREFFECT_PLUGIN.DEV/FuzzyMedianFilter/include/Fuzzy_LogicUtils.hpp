@@ -36,9 +36,9 @@ inline fXYZPix Rgb2Xyz
     const float var_B = varValue(in.B) * 100.f;
 
     fXYZPix out;
-    out.X = var_R * 0.4124f + var_G * 0.3576f + var_B * 0.1805f;
-    out.Y = var_R * 0.2126f + var_G * 0.7152f + var_B * 0.0722f;
-    out.Z = var_R * 0.0193f + var_G * 0.1192f + var_B * 0.9505f;
+    out.X = var_R * 0.4124564f + var_G * 0.3575761f + var_B * 0.1804375f;
+    out.Y = var_R * 0.2126729f + var_G * 0.7151522f + var_B * 0.0721750f;
+    out.Z = var_R * 0.0193339f + var_G * 0.1191920f + var_B * 0.9503041f;
 
     return out;
 }
@@ -106,9 +106,9 @@ inline fRGB Xyz2Rgb
     const float var_Y = in.Y / 100.f;
     const float var_Z = in.Z / 100.f;
 
-    const float r1 = var_X *  3.2406f + var_Y * -1.5372f + var_Z * -0.4986f;
-    const float g1 = var_X * -0.9689f + var_Y *  1.8758f + var_Z *  0.0415f;
-    const float b1 = var_X *  0.0557f + var_Y * -0.2040f + var_Z *  1.0570f;
+    const float r1 = var_X *  3.2404562f + var_Y * -1.5371385f + var_Z * -0.4985314f;
+    const float g1 = var_X * -0.9692660f + var_Y *  1.8760108f + var_Z *  0.0415560f;
+    const float b1 = var_X *  0.0556434f + var_Y * -0.2040259f + var_Z *  1.0572252f;
 
     auto varValue = [&](const float in) { return ((in > 0.0031308f) ? (1.055f * FastCompute::Pow(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f)); };
 
