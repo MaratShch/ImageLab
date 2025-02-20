@@ -192,7 +192,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\EqualizationInAe.cpp" />
     <ClCompile Include="src\EqualizationInPr.cpp" />
     <ClCompile Include="src\Equalization_Advanced.cpp" />
@@ -205,6 +204,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\Equalization_Sigmoid.cpp" />
     <ClCompile Include="src\ImageEqualization.cpp" />
     <ClCompile Include="src\ImageEqualization_LibLink.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageEqualization.rc" />

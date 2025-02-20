@@ -1,5 +1,6 @@
 #include "ImageEqualization.hpp"
 #include "PrSDKAESupport.h"
+#include "ImageLabMemInterface.hpp"
 
 #ifdef _DEBUG
 #include <atomic>
@@ -46,11 +47,12 @@ GlobalSetup (
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
+    
+    PF_Err	err = PF_Err_NONE;
 
-	LoadMemoryInterfaceProvider (in_data->appl_id, in_data->version.major, in_data->version.minor);
-
-	constexpr PF_OutFlags out_flags1 =
+    constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
 		PF_OutFlag_USE_OUTPUT_EXTENT     |
