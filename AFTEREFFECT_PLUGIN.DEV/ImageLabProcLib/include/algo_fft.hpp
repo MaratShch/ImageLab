@@ -10,7 +10,7 @@ void winograd_1d_fft_avx2 (const double* __restrict input, size_t input_size, do
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline void winograd_1d_fft (const T* __restrict input, size_t elem_numbers, T* __restrict output_real, T* __restrict output_imag) noexcept
 {
-	constexpr T PIx2{ static_cast<T>(2.0 * 3.14159265358979323846) };
+	constexpr T PIx2{ static_cast<const T>(2.0 * 3.14159265358979323846) };
 	const T PIx2DivSize = PIx2 / static_cast<T>(elem_numbers);
 
 	for (size_t k = 0; k < elem_numbers; k++)

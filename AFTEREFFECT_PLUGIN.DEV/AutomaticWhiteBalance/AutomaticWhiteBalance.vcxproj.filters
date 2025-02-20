@@ -27,10 +27,10 @@
     <ClCompile Include="src\AutomaticWhiteBalancePR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\DllMain.cpp">
+    <ClCompile Include="src\CorrectionMatrix.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\CorrectionMatrix.cpp">
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

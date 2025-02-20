@@ -158,7 +158,7 @@
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
     </ClCompile>
     <ClCompile Include="src\CorrectionMatrix.cpp" />
-    <ClCompile Include="src\DllMain.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />

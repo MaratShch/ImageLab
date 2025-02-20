@@ -1,6 +1,14 @@
-#pragma once
+#ifndef __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
+#define __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
 
 #include <windows.h>
+#include "AE_Effect.h"
+
+bool LoadMemoryInterfaceProvider (PF_InData* in_data);
+int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
+void FreeMemoryBlock (int32_t id) noexcept;
+int32_t memGetLastError (void) noexcept;
+
 
 typedef void*  (WINAPI *OpenMemInterface) (void);
 typedef void   (WINAPI *CloseMemInterface)(void* p);
@@ -14,5 +22,6 @@ typedef struct MemoryManagerInterface
 	AllocMemBlock     MemoryInterfaceAllocBlock;
 	FreeMemBlock      MemoryInterfaceReleaseBlock;
 	DWORD             _dbgLastError;
-};
+} MemoryManagerInterface;
 
+#endif // __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
