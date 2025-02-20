@@ -159,7 +159,7 @@
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
     </ClCompile>
-    <ClCompile Include="src\DllMain.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\NoiseClean.cpp" />
     <ClCompile Include="src\NoiseCleanGUI.cpp">
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>

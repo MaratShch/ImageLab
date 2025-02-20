@@ -1,6 +1,7 @@
 #include "NoiseClean.hpp"
 #include "NoiseCleanGUI.hpp"
 #include "PrSDKAESupport.h"
+#include "ImageLabMemInterface.hpp"
 
 static PF_Err
 About(
@@ -27,7 +28,8 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	LoadMemoryInterfaceProvider(in_data->appl_id, in_data->version.major, in_data->version.minor);
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT |

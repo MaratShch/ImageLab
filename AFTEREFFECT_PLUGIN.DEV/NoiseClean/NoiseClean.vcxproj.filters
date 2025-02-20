@@ -42,9 +42,6 @@
     <ClCompile Include="src\Algo_GaussianWeights.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\DllMain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\NoiseCleanGUI.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -55,6 +52,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Algo_NonLocalBayesProc.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
