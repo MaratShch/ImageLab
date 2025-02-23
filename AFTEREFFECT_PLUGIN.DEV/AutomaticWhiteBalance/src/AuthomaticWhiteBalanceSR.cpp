@@ -99,6 +99,7 @@ AuthomaticWhiteBalance_PreRender
     return err;
 }
 
+
 template <typename T>
 PF_Err
 AuthomaticWhiteBalance_SmartRenderAlgo
@@ -177,7 +178,7 @@ AuthomaticWhiteBalance_SmartRenderAlgo
         }
 
         uAvg = vAvg = 0.f;
-        /* collect statistics about image and compute averages values for U and for V components */
+        // collect statistics about image and compute averages values for U and for V components
         collect_rgb_statistics (srcInput, sizeX, sizeY, inPitch, fGrayThreahold, eColorSpace, &uAvg, &vAvg);
 
         U_avg[k] = uAvg;
@@ -195,7 +196,7 @@ AuthomaticWhiteBalance_SmartRenderAlgo
                 // U and V no longer improving, so just copy source to destination and break the loop
                 simple_image_copy (srcInput, pDstImage, sizeX, sizeY, srcPitch, outPitch);
 
-                /* release temporary memory buffers on exit from function */
+                // release temporary memory buffers on exit from function
                 if (-1 != memBlockId)
                 {
                     ::FreeMemoryBlock(memBlockId);
@@ -203,18 +204,18 @@ AuthomaticWhiteBalance_SmartRenderAlgo
                 }
                 return true; // U and V no longer improving
             }
-        } /* if (k > 0) */
+        } // if (k > 0) 
 
-          /* compute correction matrix */
+          // compute correction matrix
         float correctionMatrix[3]{};
         compute_correction_matrix (uAvg, vAvg, eColorSpace, eIlluminant, eChromaAdapt, correctionMatrix);
 
-        /* in second: perform image color correction */
+        // in second: perform image color correction
         image_rgb_correction (srcInput, dstOutput, sizeX, sizeY, inPitch, outPitch, correctionMatrix);
 
     } // for (A_long k = 0; k < iterCnt; k++)
 
-      /* release temporary memory buffers on exit from function */
+      // release temporary memory buffers on exit from function
     if (-1 != memBlockId)
     {
         ::FreeMemoryBlock(memBlockId);

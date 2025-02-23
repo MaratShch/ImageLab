@@ -6,7 +6,8 @@ About(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
 	PF_SPRINTF(out_data->return_msg,
 		"%s, v%d.%d\r%s",
@@ -24,21 +25,22 @@ GlobalSetup(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
     if (false == LoadMemoryInterfaceProvider(in_data))
         return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
+		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version = 
@@ -78,7 +80,8 @@ ParamsSetup(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
     PF_ParamDef	def{};
 	PF_Err		err = PF_Err_NONE;
@@ -142,7 +145,8 @@ Render (
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
 	PF_Err	err = PF_Err_NONE;
 	PF_Err errFormat = PF_Err_INVALID_INDEX;
@@ -252,7 +256,6 @@ UpdateParameterUI(
 	for (int32_t i = 0; i < AWB_TOTAL_CONTROLS; i++)
 		param_copy[i] = *(params[i]);
 
-
 	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSuite =
 		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(
 			in_data,
@@ -322,7 +325,8 @@ EffectMain (
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output,
-	void			*extra)
+	void			*extra
+)
 {
 #if !defined __INTEL_COMPILER 
 	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
@@ -369,11 +373,13 @@ EffectMain (
             break;
 
 			default:
+                // nothing TODO
 			break;
 		}
 
 	} catch (PF_Err& thrown_err) {
 		err = (PF_Err_NONE != thrown_err ? thrown_err : PF_Err_INTERNAL_STRUCT_DAMAGED);
 	}
+
 	return err;
 }

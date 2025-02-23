@@ -103,7 +103,7 @@ constexpr int32_t  gMaxGrayThreshold = 90;
 constexpr int32_t  gDefGrayThreshold = 30;
 
 constexpr int32_t  gTotalNumbersOfColorSpaces = (static_cast<int32_t>(SMPTE240M) + 1);
-constexpr int32_t  gDefNumberOfColorSpace = static_cast<int32_t>(BT601);
+constexpr int32_t  gDefNumberOfColorSpace = static_cast<int32_t>(BT709);
 
 PF_Err ProcessImgInAE
 (
