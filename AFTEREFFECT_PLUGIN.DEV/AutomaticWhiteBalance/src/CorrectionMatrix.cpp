@@ -1,4 +1,4 @@
-#include "AutomaticWhiteBalance.hpp"
+#include "AuthomaticWhiteBalance.hpp"
 
 
 inline const float* __restrict const GetIlluminate(const eILLUMINATE illuminateIdx) noexcept

@@ -1,13 +1,13 @@
-#include "AutomaticWhiteBalance.hpp"
-#include "AlgCommonFunctins.hpp"
+#include "AuthomaticWhiteBalance.hpp"
+#include "AlgCommonFunctions.hpp"
 
 
 static bool ProcessPrImage_BGRA_4444_8u
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
 ) noexcept
 {
 	CACHE_ALIGN float U_avg[gMaxCnt]{};
@@ -133,10 +133,10 @@ static bool ProcessPrImage_BGRA_4444_8u
 
 static bool ProcessPrImage_BGRA_4444_16u
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
 ) noexcept
 {
 	CACHE_ALIGN float U_avg[gMaxCnt]{};
@@ -264,10 +264,10 @@ static bool ProcessPrImage_BGRA_4444_16u
 
  bool ProcessPrImage_BGRA_4444_32f
 (
-    PF_InData*   __restrict in_data,
-    PF_OutData*  __restrict out_data,
-    PF_ParamDef* __restrict params[],
-    PF_LayerDef* __restrict output
+    PF_InData*    in_data,
+    PF_OutData*   out_data,
+    PF_ParamDef*  params[],
+    PF_LayerDef*  output
 ) noexcept
 {
     CACHE_ALIGN float U_avg[gMaxCnt]{};
@@ -350,7 +350,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 
         uAvg = vAvg = 0.f;
         /* collect statistics about image and compute averages values for U and for V components */
-        collect_rgb_statistics_f32 (srcInput, width, height, srcPitch, T, colorSpace, &uAvg, &vAvg);
+        collect_rgb_statistics (srcInput, width, height, srcPitch, T, colorSpace, &uAvg, &vAvg);
         U_avg[k] = uAvg;
         V_avg[k] = vAvg;
 
@@ -395,10 +395,10 @@ static bool ProcessPrImage_BGRA_4444_16u
 
 static bool ProcessPrImage_VUYA_4444_8u
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output,
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output,
 	const bool isBT709
 ) noexcept
 {
@@ -527,10 +527,10 @@ static bool ProcessPrImage_VUYA_4444_8u
 
 static bool ProcessPrImage_VUYA_4444_32f
 (
-    PF_InData*   __restrict in_data,
-    PF_OutData*  __restrict out_data,
-    PF_ParamDef* __restrict params[],
-    PF_LayerDef* __restrict output,
+    PF_InData*    in_data,
+    PF_OutData*   out_data,
+    PF_ParamDef*  params[],
+    PF_LayerDef*  output,
     const bool isBT709
 ) noexcept
 {
@@ -614,7 +614,7 @@ static bool ProcessPrImage_VUYA_4444_32f
 
         uAvg = vAvg = 0.f;
         /* collect statistics about image and compute averages values for U and for V components */
-        collect_yuv_statistics_32f (srcInput, width, height, srcPitch, T, (isBT709 ? BT709 : BT601), &uAvg, &vAvg);
+        collect_yuv_statistics (srcInput, width, height, srcPitch, T, (isBT709 ? BT709 : BT601), &uAvg, &vAvg);
         U_avg[k] = uAvg;
         V_avg[k] = vAvg;
 
@@ -660,10 +660,10 @@ static bool ProcessPrImage_VUYA_4444_32f
 
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output,
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output,
 	const PrPixelFormat&    pixelFormat
 ) noexcept
 {

@@ -244,7 +244,7 @@ inline void image_yuv_correction
 }
 
 
-inline void collect_rgb_statistics_f32
+inline void collect_rgb_statistics
 (
     const PF_Pixel_BGRA_32f* __restrict pSrc,
     const A_long width,
@@ -300,7 +300,7 @@ inline void collect_rgb_statistics_f32
 }
 
 
-inline void collect_yuv_statistics_32f
+inline void collect_yuv_statistics
 (
     const PF_Pixel_VUYA_32f* __restrict pSrc,
     const A_long width,

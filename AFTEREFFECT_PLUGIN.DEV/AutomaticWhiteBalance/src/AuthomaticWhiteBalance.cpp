@@ -1,4 +1,4 @@
-#include "AutomaticWhiteBalance.hpp"
+#include "AuthomaticWhiteBalance.hpp"
 #include "ImageLabMemInterface.hpp"
 
 static PF_Err
@@ -105,11 +105,11 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
 	PF_ADD_POPUP(
-		COLOR_SPACE_NAME_OPT,		/* pop-up name			*/
-		gTotalNumbersOfColorSpaces,	/* number of Illuminates*/
-		gDefNumberOfColorSpace,		/* default color space	*/
-		STR_COLOR_SPACE,    		/* string for pop-up	*/
-		AWB_COLOR_SPACE_POPUP);		/* control ID			*/
+		COLOR_SPACE_NAME_OPT,		/* pop-up name			 */
+		gTotalNumbersOfColorSpaces,	/* number of Color Spaces*/
+		gDefNumberOfColorSpace,		/* default color space	 */
+		STR_COLOR_SPACE,    		/* string for pop-up   	 */
+		AWB_COLOR_SPACE_POPUP);		/* control ID		 	 */
 
     AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
 	PF_ADD_SLIDER(
@@ -293,6 +293,27 @@ UpdateParameterUI(
 }
 
 
+static PF_Err
+PreRender(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+)
+{ 
+    return AuthomaticWhiteBalance_PreRender (in_data, out_data, extra);
+}
+
+
+static PF_Err
+SmartRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+)
+{
+    return AuthomaticWhiteBalance_SmartRender (in_data, out_data, extraP);
+}
+
 
 PLUGIN_ENTRY_POINT_CALL  PF_Err
 EffectMain (
@@ -338,6 +359,14 @@ EffectMain (
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
+
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+            break;
+
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
 
 			default:
 			break;

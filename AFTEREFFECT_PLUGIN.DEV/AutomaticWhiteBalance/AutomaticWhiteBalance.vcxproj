@@ -148,12 +148,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\AutomaticWhiteBalance.cpp" />
-    <ClCompile Include="src\AutomaticWhiteBalanceAE.cpp">
+    <ClCompile Include="src\AuthomaticWhiteBalanceSR.cpp" />
+    <ClCompile Include="src\AuthomaticWhiteBalance.cpp" />
+    <ClCompile Include="src\AuthomaticWhiteBalanceAE.cpp">
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
     </ClCompile>
-    <ClCompile Include="src\AutomaticWhiteBalancePR.cpp">
+    <ClCompile Include="src\AuthomaticWhiteBalancePR.cpp">
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
     </ClCompile>
@@ -177,8 +178,8 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\AlgCommonFunctins.hpp" />
-    <ClInclude Include="include\AutomaticWhiteBalance.hpp" />
+    <ClInclude Include="include\AlgCommonFunctions.hpp" />
+    <ClInclude Include="include\AuthomaticWhiteBalance.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>

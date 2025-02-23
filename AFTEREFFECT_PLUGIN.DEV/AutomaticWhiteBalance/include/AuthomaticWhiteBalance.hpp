@@ -107,18 +107,18 @@ constexpr int32_t  gDefNumberOfColorSpace = static_cast<int32_t>(BT601);
 
 PF_Err ProcessImgInAE
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
 ) noexcept;
 
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output,
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output,
 	const PrPixelFormat& pixelFormat
 ) noexcept;
 
@@ -132,3 +132,32 @@ void compute_correction_matrix
 	const eChromaticAdaptation chromatic,
 	float* __restrict outMatrix /* pointer for hold correction matrix (3 values as minimal) */
 ) noexcept;
+
+
+PF_Err
+AuthomaticWhiteBalance_PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+) noexcept;
+
+PF_Err
+AuthomaticWhiteBalance_SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+) noexcept;
+
+// structure for SmartRender parameters
+typedef struct
+{
+    eILLUMINATE          srParam_Illuminant;
+    eChromaticAdaptation srParam_ChromaticAdapt;
+    eCOLOR_SPACE         srParam_ColorSpace;
+    float                srParam_GrayThreshold;
+    int32_t              srParam_ItrerationsNumber;
+} AWB_SmartRenderParams, *PAWB_SmartRenderParams;
+
+constexpr size_t AWB_SmartRenderParamsSize = sizeof(AWB_SmartRenderParams);
