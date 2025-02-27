@@ -102,6 +102,9 @@
     <ClInclude Include="include\AlgoColorDescriptor.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorTemperatureChromaticityValues.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp">

@@ -57,22 +57,17 @@ inline T z_sample_1931 (const T& waveLength) noexcept
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline std::vector<std::vector<T>> generate_color_curves_1931_observer (const T& minWlength, const T& maxWlength, const T& step) noexcept
 {
-	std::vector<std::vector<T>> vectorCurves(CURVES_ALL);
-	const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1u;
+    const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1u;
+    std::vector<std::vector<T>> vectorCurves(vectorSize, std::vector<T>(CURVES_ALL));
 
-	/* resize output vectors for hold curve points */
-	vectorCurves[CURVES_X].resize(vectorSize);
-	vectorCurves[CURVES_Y].resize(vectorSize);
-	vectorCurves[CURVES_Z].resize(vectorSize);
-
-	/* generate X, Y, Z color curve */
-	T WaveLength{ minWlength };
+    /* generate X, Y, Z color curves for CIE-1931 2 degrees observer */
+    T WaveLength{ minWlength };
 	for (size_t i = 0; i < vectorSize; i++)
 	{
 		/* this computation happened on initialization stage, so we may use std::exp() functions for compute point curves value */
-		vectorCurves[CURVES_X][i] = x_sample_1931(WaveLength);
-		vectorCurves[CURVES_Y][i] = y_sample_1931(WaveLength);
-		vectorCurves[CURVES_Z][i] = z_sample_1931(WaveLength);
+		vectorCurves[i][CURVES_X] = x_sample_1931(WaveLength);
+		vectorCurves[i][CURVES_Y] = y_sample_1931(WaveLength);
+		vectorCurves[i][CURVES_Z] = z_sample_1931(WaveLength);
 		WaveLength += step;
 	}
 	
@@ -108,22 +103,17 @@ inline T z_sample_1964(const T& waveLength) noexcept
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline std::vector<std::vector<T>> generate_color_curves_1964_observer (const T& minWlength, const T& maxWlength, const T& step) noexcept
 {
-	std::vector<std::vector<T>> vectorCurves(CURVES_ALL);
-	const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1;
+    const size_t vectorSize = static_cast<size_t>((maxWlength - minWlength) / step) + 1u;
+    std::vector<std::vector<T>> vectorCurves(vectorSize, std::vector<T>(CURVES_ALL));
 
-	/* resize outpuit vectors for hold curve points */
-	vectorCurves[CURVES_X].resize(vectorSize);
-	vectorCurves[CURVES_Y].resize(vectorSize);
-	vectorCurves[CURVES_Z].resize(vectorSize);
-
-	/* generate X, Y, Z color curve */
+    /* generate X, Y, Z color curve for CIE-1964 10 degrees observer */
 	T WaveLength{ minWlength };
 	for (size_t i = 0; i < vectorSize; i++)
 	{
 		/* this computation happened on initialization stage, so we may use std::exp() functions for compute point curves value */
-		vectorCurves[CURVES_X][i] = x_sample_1964(WaveLength);
-		vectorCurves[CURVES_Y][i] = y_sample_1964(WaveLength);
-		vectorCurves[CURVES_Z][i] = z_sample_1964(WaveLength);
+		vectorCurves[i][CURVES_X] = x_sample_1964(WaveLength);
+		vectorCurves[i][CURVES_Y] = y_sample_1964(WaveLength);
+		vectorCurves[i][CURVES_Z] = z_sample_1964(WaveLength);
 		WaveLength += step;
 	}
 
