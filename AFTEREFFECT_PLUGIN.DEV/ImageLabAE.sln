@@ -20,6 +20,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SepiaColor", "SepiaColor", 
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AutomaticWhiteBalance", "AutomaticWhiteBalance\AutomaticWhiteBalance.vcxproj", "{959C8E49-51FB-440C-B8B8-49AF813C0A1E}"
 	ProjectSection(ProjectDependencies) = postProject
+		{A1118418-9F12-4661-8BF3-8E2DF484ED9E} = {A1118418-9F12-4661-8BF3-8E2DF484ED9E}
 		{D266F837-A6FD-48CD-820D-578816B7AC3D} = {D266F837-A6FD-48CD-820D-578816B7AC3D}
 	EndProjectSection
 EndProject

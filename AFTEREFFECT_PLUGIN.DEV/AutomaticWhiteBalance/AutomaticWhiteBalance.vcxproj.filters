@@ -36,6 +36,9 @@
     <ClCompile Include="src\AuthomaticWhiteBalancePR.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AuthomaticWhiteBalance_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
@@ -98,6 +101,9 @@
     <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\AuthomaticWhiteBalanceGPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AutomaticWhiteBalance.rc">
@@ -108,5 +114,10 @@
     <CustomBuild Include="AutomaticWhiteBalance.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\AuthomaticWhiteBalanceKernel.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>

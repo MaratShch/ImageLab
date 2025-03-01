@@ -31,7 +31,8 @@ inline std::tuple<const T, const T, const T> compute_XYZ(const std::vector<std::
 
     if (observer.size() == illuminant.size())
     {
-        for (size_t i = 0; i < xy.size(); i++)
+        const auto size = illuminant.size();
+        for (size_t i = 0; i < size; i++)
         {
             scalarX += (observer[i][0] * illuminant[i] * waveStep);
             scalarY += (observer[i][1] * illuminant[i] * waveStep);
