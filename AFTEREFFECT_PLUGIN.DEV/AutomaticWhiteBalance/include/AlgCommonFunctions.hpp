@@ -1,3 +1,6 @@
+#ifndef __IMAGE_LAB_AUTHOMATIC_WB_ALGO_COOMON_FUNCTIONS__
+#define __IMAGE_LAB_AUTHOMATIC_WB_ALGO_COOMON_FUNCTIONS__
+
 #include "ColorTransformMatrix.hpp"
 #include "FastAriphmetics.hpp"
 
@@ -347,3 +350,5 @@ inline void collect_yuv_statistics
 
     return;
 }
+
+#endif // __IMAGE_LAB_AUTHOMATIC_WB_ALGO_COOMON_FUNCTIONS__

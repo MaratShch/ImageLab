@@ -3,6 +3,7 @@
 #include "ImageLabMemInterface.hpp"
 #include "CompileTimeUtils.hpp"
 #include "AlgCommonFunctions.hpp"
+#include "AlgCorrectionMatrix.hpp"
 #include "AE_Effect.h"
 
 

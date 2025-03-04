@@ -2,6 +2,7 @@
 #include "AuthomaticWhiteBalanceGPU.hpp"
 #include "ColorTransformMatrix.hpp"
 #include "FastAriphmetics.hpp"
+#include "AlgCorrectionMatrix.hpp"
 #include <cuda_runtime.h>
 #include <math.h>
 

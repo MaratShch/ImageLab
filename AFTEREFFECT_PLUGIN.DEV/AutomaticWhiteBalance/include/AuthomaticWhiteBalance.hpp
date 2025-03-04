@@ -4,6 +4,7 @@
 #include "PrSDKAESupport.h"
 #include "Param_Utils.h"
 #include "ColorTransformMatrix.hpp"
+#include "AlgCommonEnums.hpp"
 
 constexpr int AWB_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int AWB_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
@@ -16,7 +17,7 @@ constexpr int AWB_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 constexpr int AWB_VersionBuild = 1;
 
 constexpr char strName[] = "Automatic White Balance";
-constexpr char strCopyright[] = "\n2019-2020. ImageLab2 Copyright(c).\rAutomatic White Balance based on gray-point algorithm.";
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rAutomatic White Balance based on gray-point algorithm.";
 
 bool LoadMemoryInterfaceProvider (int32_t appId, int32_t major, int32_t minor = 0) noexcept;
 int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
@@ -47,22 +48,6 @@ constexpr char STR_ILLUMINATE[] = "Daylight (D65)|"
                                   "Daylight Fluorescent F5|"
                                   "Cool White Fluorescent";
 
-typedef enum
-{
-	DAYLIGHT = 0,
-	OLD_DAYLIGHT,
-	OLD_DIRECT_SUNLIGHT_AT_NOON,
-	MID_MORNING_DAYLIGHT,
-	NORTH_SKY_DAYLIGHT,
-	DAYLIGHT_FLUORESCENT_F1,
-	COOL_FLUERESCENT,
-	WHITE_FLUORESCENT,
-	WARM_WHITE_FLUORESCENT,
-	DAYLIGHT_FLUORESCENT_F5,
-	COOL_WHITE_FLUORESCENT,
-	TOTAL_ILLUMINATES
-}eILLUMINATE;
-
 
 constexpr char CHROMATIC_NAME[] = "Chromatic Adaptation";
 constexpr char STR_CHROMATIC[] = "CAT02|"
@@ -71,15 +56,6 @@ constexpr char STR_CHROMATIC[] = "CAT02|"
                                  "Sharp|"
                                  "Cmccat2000";
              
-typedef enum
-{
-	CHROMATIC_CAT02 = 0,
-	CHROMATIC_VON_KRIES,
-	CHROMATIC_BRADFORD,
-	CHROMATIC_SHARP,
-	CHROMATIC_CMCCAT2000,
-	TOTAL_CHROMATIC
-}eChromaticAdaptation;
 
 constexpr char COLOR_SPACE_NAME_OPT[] = "Color Space";
 constexpr char STR_COLOR_SPACE[] = "BT.601|"
@@ -120,17 +96,6 @@ PF_Err ProcessImgInPR
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output,
 	const PrPixelFormat& pixelFormat
-) noexcept;
-
-
-void compute_correction_matrix
-(
-	const float uAvg,
-	const float vAvg,
-	const eCOLOR_SPACE colorSpace,
-	const eILLUMINATE  illuminate,
-	const eChromaticAdaptation chromatic,
-	float* __restrict outMatrix /* pointer for hold correction matrix (3 values as minimal) */
 ) noexcept;
 
 

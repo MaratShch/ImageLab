@@ -1,5 +1,6 @@
 #include <string>
 #include <memory>
+#include <atomic>
 #include "ImageLabMemInterface.hpp"
 #include "CommonAdobeAE.hpp"
 
@@ -64,4 +65,18 @@ void FreeMemoryBlock (int32_t id) noexcept
 A_long memGetLastError (void) noexcept
 {
     return static_cast<A_long>(memInterface._dbgLastError);
+}
+
+
+void UnloadMemoryInterfaceProvider(void)
+{
+    if (nullptr != hLib)
+    {
+        ::FreeLibrary(hLib);
+        hLib = nullptr;
+
+        MemoryInterfaceHndl = nullptr;
+        memset(&memInterface, 0, sizeof(memInterface));
+    }
+    return;
 }

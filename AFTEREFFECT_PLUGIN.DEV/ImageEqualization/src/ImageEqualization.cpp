@@ -99,12 +99,10 @@ GlobalSetup (
 
 
 static PF_Err
-GlobalSetDown (
-	PF_InData		*in_data,
-	PF_OutData		*out_data)
+GlobalSetDown (void)
 {
-	PF_Err	err = PF_Err_NONE;
-	return err;
+    UnloadMemoryInterfaceProvider();
+	return PF_Err_NONE;
 }
 
 
@@ -423,7 +421,7 @@ EffectMain (
 			break;
 
 			case PF_Cmd_GLOBAL_SETDOWN:
-				ERR(GlobalSetDown(in_data, out_data));
+				ERR(GlobalSetDown());
 			break;
 
 			case PF_Cmd_PARAMS_SETUP:

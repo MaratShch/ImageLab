@@ -1,5 +1,5 @@
-#ifndef __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
-#define __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
+#ifndef __IMAGE_LAB_FUZZY_MEDIAN_EXT_MEM_INTERFACE__
+#define __IMAGE_LAB_FUZZY_MEDIAN_EXT_MEM_INTERFACE__
 
 #include <windows.h>
 #include "AE_Effect.h"
@@ -8,7 +8,7 @@ bool LoadMemoryInterfaceProvider (PF_InData* in_data);
 int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
 void FreeMemoryBlock (int32_t id) noexcept;
 int32_t memGetLastError (void) noexcept;
-
+void UnloadMemoryInterfaceProvider(void);
 
 typedef void*  (WINAPI *OpenMemInterface) (void);
 typedef void   (WINAPI *CloseMemInterface)(void* p);
@@ -24,4 +24,4 @@ typedef struct MemoryManagerInterface
 	DWORD             _dbgLastError;
 } MemoryManagerInterface;
 
-#endif // __IMAGE_LAB_BILATERAL_FILTER_EXT_MEM_INTERFACE__
+#endif // __IMAGE_LAB_FUZZY_MEDIAN_EXT_MEM_INTERFACE__

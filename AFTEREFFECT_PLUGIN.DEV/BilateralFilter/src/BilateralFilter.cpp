@@ -113,14 +113,11 @@ GlobalSetup(
 
 
 static PF_Err
-GlobalSetdown(
-    PF_InData		*in_data,
-    PF_OutData		*out_data,
-    PF_ParamDef		*params[],
-    PF_LayerDef		*output)
+GlobalSetdown (void)
 {
     ReleaseGaussMeshHandler(nullptr);
     gGaussMeshInstance = nullptr;
+    UnloadMemoryInterfaceProvider();
 
     return PF_Err_NONE;
 }
@@ -459,7 +456,7 @@ EffectMain(
             break;
 
             case PF_Cmd_GLOBAL_SETDOWN:
-                ERR(GlobalSetdown(in_data, out_data, params, output));
+                ERR(GlobalSetdown());
             break;
 
             case PF_Cmd_PARAMS_SETUP:

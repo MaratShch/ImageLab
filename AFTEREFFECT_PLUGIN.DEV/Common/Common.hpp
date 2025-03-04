@@ -42,6 +42,6 @@ inline void AEFX_CLR_STRUCT_EX(T& str) noexcept
 
 inline void* ComputeAddress (const void* pAddr, const size_t& bytes_offset) noexcept
 {
-	const size_t ptr = reinterpret_cast<size_t>(pAddr);
+	const size_t ptr = reinterpret_cast<const size_t>(pAddr);
 	return reinterpret_cast<void*>(ptr + bytes_offset);
 }

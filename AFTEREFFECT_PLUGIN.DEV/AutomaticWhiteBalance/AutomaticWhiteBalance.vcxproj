@@ -159,7 +159,6 @@
       <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExceptionHandling>
     </ClCompile>
     <ClCompile Include="src\AuthomaticWhiteBalance_GPU.cpp" />
-    <ClCompile Include="src\CorrectionMatrix.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -180,7 +179,9 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgCommonEnums.hpp" />
     <ClInclude Include="include\AlgCommonFunctions.hpp" />
+    <ClInclude Include="include\AlgCorrectionMatrix.hpp" />
     <ClInclude Include="include\AuthomaticWhiteBalance.hpp" />
     <ClInclude Include="include\AuthomaticWhiteBalanceGPU.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />

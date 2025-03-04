@@ -6,35 +6,35 @@
 template <typename T>
 inline T 
 #ifdef __NVCC__
-inline __device__
+__device__
 #endif
 MIN_VALUE (const T& a, const T& b) noexcept { return ((a < b) ? a : b); }
 
 template <typename T>
 inline T 
 #ifdef __NVCC__
-inline __device__
+__device__
 #endif
 MAX_VALUE (const T& a, const T& b) noexcept  { return ((a > b) ? a : b); }
 
 template <typename T>
 inline T 
 #ifdef __NVCC__
-inline __device__
+__device__
 #endif
 MIN3_VALUE(const T& a, const T& b, const T& c) noexcept  { return (a < b) ? MIN_VALUE(a, c) : MIN_VALUE(b, c); }
 
 template <typename T>
 inline T 
 #ifdef __NVCC__
-inline __device__
+__device__
 #endif
 MAX3_VALUE(const T& a, const T& b, const T& c) noexcept  { return (a > b) ? MAX_VALUE(a, c) : MAX_VALUE(b, c); }
 
 template <typename T>
 inline T 
 #ifdef __NVCC__
-inline __device__
+__device__
 #endif
 CLAMP_VALUE(const T& val, const T& min, const T& max) noexcept
 {

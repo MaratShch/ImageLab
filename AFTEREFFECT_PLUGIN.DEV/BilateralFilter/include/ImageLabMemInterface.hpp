@@ -8,6 +8,7 @@ bool LoadMemoryInterfaceProvider (PF_InData* in_data);
 int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
 void FreeMemoryBlock (int32_t id) noexcept;
 int32_t memGetLastError (void) noexcept;
+void UnloadMemoryInterfaceProvider(void);
 
 
 typedef void*  (WINAPI *OpenMemInterface) (void);

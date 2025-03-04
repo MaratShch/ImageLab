@@ -1,6 +1,6 @@
 #include "AuthomaticWhiteBalance.hpp"
 #include "AlgCommonFunctions.hpp"
-
+#include "AlgCorrectionMatrix.hpp"
 
 bool ProcessImgInAE_8bits
 (

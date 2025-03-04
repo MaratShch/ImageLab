@@ -74,6 +74,14 @@ GlobalSetup(
 	return PF_Err_NONE;
 }
 
+static PF_Err
+GlobalSetDown (void)
+{
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
+}
+
+
 
 static PF_Err
 ParamsSetup(
@@ -268,7 +276,11 @@ EffectMain (
 				ERR(GlobalSetup(in_data, out_data, params, output));
 			break;
 
-			case PF_Cmd_PARAMS_SETUP:
+            case PF_Cmd_GLOBAL_SETDOWN:
+                ERR(GlobalSetDown());
+            break;
+
+            case PF_Cmd_PARAMS_SETUP:
 				ERR(ParamsSetup(in_data, out_data, params, output));
 			break;
 

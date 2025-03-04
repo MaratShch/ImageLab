@@ -1,6 +1,6 @@
 #include "AuthomaticWhiteBalance.hpp"
 #include "AlgCommonFunctions.hpp"
-
+#include "AlgCorrectionMatrix.hpp"
 
 static bool ProcessPrImage_BGRA_4444_8u
 (
