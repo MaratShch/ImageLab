@@ -23,16 +23,6 @@ bool LoadMemoryInterfaceProvider (int32_t appId, int32_t major, int32_t minor = 
 int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
 void FreeMemoryBlock (int32_t id) noexcept;
 
-typedef enum
-{
-	AWB_INPUT,
-	AWB_ILLUMINATE_POPUP,
-	AWB_CHROMATIC_POPUP,
-	AWB_COLOR_SPACE_POPUP,
-	AWB_THRESHOLD_SLIDER,
-	AWB_ITERATIONS_SLIDER,
-	AWB_TOTAL_CONTROLS
-}eImageLab2AWB_Controls;
 
 constexpr char ILLUMINATE_NAME[] = "Illuminate";
 

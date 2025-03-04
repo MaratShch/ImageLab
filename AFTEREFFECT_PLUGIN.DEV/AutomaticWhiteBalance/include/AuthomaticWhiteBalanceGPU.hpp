@@ -2,6 +2,8 @@
 #define __IMAGE_LAB_AUTHOMATIC_WHITE_BALANCE_GPU_HANDLERS__
 
 #include <cuda_runtime.h>
+#include "AlgCommonEnums.hpp"
+#include "ColorTransformMatrix.hpp"
 
 #ifdef __NVCC__
  /* Put here device specific includes files */
@@ -36,12 +38,12 @@ void AuthomaticWhiteBalance_CUDA
     int	is16f,
     int width,
     int height,
-    unsigned int gray_threshold,
-    unsigned int observer_idx,
-    unsigned int illuminant_idx,
+    const eILLUMINATE illuminant,
+    const eChromaticAdaptation chroma,
+    const eCOLOR_SPACE color_space,
+    const float gray_threshold,
     unsigned int iter_cnt
 );
-
 
 
 #endif // __IMAGE_LAB_AUTHOMATIC_WHITE_BALANCE_GPU_HANDLERS__

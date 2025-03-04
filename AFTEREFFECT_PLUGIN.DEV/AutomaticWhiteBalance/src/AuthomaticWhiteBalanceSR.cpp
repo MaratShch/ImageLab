@@ -64,8 +64,8 @@ AuthomaticWhiteBalance_PreRender
 
             if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2 && PF_Err_NONE == errParam3 && PF_Err_NONE == errParam4 && PF_Err_NONE == errParam5)
             {
-                paramsStrP->srParam_Illuminant        =  CLAMP_VALUE(static_cast<eILLUMINATE>(param_Illuminant.u.pd.value), DAYLIGHT, TOTAL_ILLUMINATES);
-                paramsStrP->srParam_ChromaticAdapt    =  CLAMP_VALUE(static_cast<eChromaticAdaptation>(param_Chromatic.u.pd.value), CHROMATIC_CAT02, TOTAL_CHROMATIC);
+                paramsStrP->srParam_Illuminant        =  CLAMP_VALUE(static_cast<eILLUMINATE>(param_Illuminant.u.pd.value), DAYLIGHT, COOL_WHITE_FLUORESCENT);
+                paramsStrP->srParam_ChromaticAdapt    =  CLAMP_VALUE(static_cast<eChromaticAdaptation>(param_Chromatic.u.pd.value), CHROMATIC_CAT02, CHROMATIC_CMCCAT2000);
                 paramsStrP->srParam_ColorSpace        =  CLAMP_VALUE(static_cast<eCOLOR_SPACE>(param_ColorSpace.u.pd.value), BT601, SMPTE240M);
                 paramsStrP->srParam_GrayThreshold     = static_cast<float>(CLAMP_VALUE(static_cast<int32_t>(param_GrayThreshold.u.sd.value), gMinGrayThreshold, gMaxGrayThreshold)) / 100.f;
                 paramsStrP->srParam_ItrerationsNumber =  CLAMP_VALUE(static_cast<int32_t>(param_IterationsNumber.u.sd.value), iterMinCnt, iterMaxCnt);

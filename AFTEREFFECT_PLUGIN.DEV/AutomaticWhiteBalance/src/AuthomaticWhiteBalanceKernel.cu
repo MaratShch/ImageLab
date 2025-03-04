@@ -33,13 +33,17 @@ void AuthomaticWhiteBalance_CUDA
     int	is16f,
     int width,
     int height,
-    unsigned int gray_threshold,
-    unsigned int observer_idx,
-    unsigned int illuminant_idx,
+    const eILLUMINATE illuminant,
+    const eChromaticAdaptation chroma,
+    const eCOLOR_SPACE color_space,
+    const float gray_threshold,
     unsigned int iter_cnt
 )
 {
     float4* gpuTmpImage = nullptr;
+    int srcIdx = 0, dstIdx = 1;
+    int inPitch = 0, outPitch = 0;
+
     // allocate memory for intermediate processing results
     const unsigned int blocksNumber = FastCompute::Min(2u, (iter_cnt - 1u));
     if (blocksNumber > 0)
