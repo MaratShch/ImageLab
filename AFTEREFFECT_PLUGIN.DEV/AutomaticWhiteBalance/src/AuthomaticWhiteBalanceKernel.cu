@@ -41,8 +41,13 @@ void AuthomaticWhiteBalance_CUDA
 )
 {
     float4* gpuTmpImage = nullptr;
+    float4* src = nullptr;
+    float4* dst = nullptr;
     int srcIdx = 0, dstIdx = 1;
     int inPitch = 0, outPitch = 0;
+
+    dim3 blockDim(32, 32, 1);
+    dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
     // allocate memory for intermediate processing results
     const unsigned int blocksNumber = FastCompute::Min(2u, (iter_cnt - 1u));
@@ -54,7 +59,7 @@ void AuthomaticWhiteBalance_CUDA
             gpuImage[0] = reinterpret_cast<float4* RESTRICT>(gpuTmpImage);
             gpuImage[1] = (2u == blocksNumber ? gpuImage[0] + frameSize : nullptr);
         }
-    }
+    } // if (blocksNumber > 0)
     
     // MAIN PROC LOOP
     for (unsigned int i = 0u; i < iter_cnt; i++)
