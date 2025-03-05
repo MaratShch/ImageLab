@@ -71,8 +71,7 @@ static bool ProcessPrImage_BGRA_4444_8u
 			dstPitch  = (1 == iterCnt) ? line_pitch : width;
 		} else if ((iterCnt-1) == k)
 		{
-			srcIdx = dstIdx;
-			srcInput  = pMem[srcIdx];
+			srcInput  = pMem[dstIdx];
 			dstOutput = localDst;
 			srcPitch  = width;
 			dstPitch  = line_pitch;
@@ -201,8 +200,7 @@ static bool ProcessPrImage_BGRA_4444_16u
 		}
 		else if ((iterCnt - 1) == k)
 		{
-			srcIdx    = dstIdx;
-			srcInput  = pMem[srcIdx];
+			srcInput  = pMem[dstIdx];
 			dstOutput = localDst;
 			srcPitch  = width;
 			dstPitch  = line_pitch;
@@ -332,8 +330,7 @@ static bool ProcessPrImage_BGRA_4444_16u
         }
         else if ((iterCnt - 1) == k)
         {
-            srcIdx = dstIdx;
-            srcInput = pMem[srcIdx];
+            srcInput = pMem[dstIdx];
             dstOutput = localDst;
             srcPitch = width;
             dstPitch = line_pitch;
@@ -464,8 +461,7 @@ static bool ProcessPrImage_VUYA_4444_8u
 		}
 		else if ((iterCnt - 1) == k)
 		{
-			srcIdx = dstIdx;
-			srcInput = pMem[srcIdx];
+			srcInput = pMem[dstIdx];
 			dstOutput = localDst;
 			srcPitch = width;
 			dstPitch = line_pitch;
@@ -596,8 +592,7 @@ static bool ProcessPrImage_VUYA_4444_32f
         }
         else if ((iterCnt - 1) == k)
         {
-            srcIdx = dstIdx;
-            srcInput = pMem[srcIdx];
+            srcInput = pMem[dstIdx];
             dstOutput = localDst;
             srcPitch = width;
             dstPitch = line_pitch;

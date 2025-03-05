@@ -74,8 +74,7 @@ bool ProcessImgInAE_8bits
 		}
 		else if ((iterCnt - 1) == k)
 		{
-			srcIdx = dstIdx;
-			srcInput = pMem[srcIdx];
+			srcInput = pMem[dstIdx];
 			dstOutput = localDst;
 			srcPitch = width;
 			dstPitch = dst_line_pitch;
@@ -208,8 +207,7 @@ bool ProcessImgInAE_16bits
 		}
 		else if ((iterCnt - 1) == k)
 		{
-			srcIdx = dstIdx;
-			srcInput = pMem[srcIdx];
+			srcInput = pMem[dstIdx];
 			dstOutput = localDst;
 			srcPitch = width;
 			dstPitch = dst_line_pitch;
@@ -342,8 +340,7 @@ bool ProcessImgInAE_32bits
         }
         else if ((iterCnt - 1) == k)
         {
-            srcIdx = dstIdx;
-            srcInput = pMem[srcIdx];
+            srcInput = pMem[dstIdx];
             dstOutput = localDst;
             srcPitch = width;
             dstPitch = dst_line_pitch;

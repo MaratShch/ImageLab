@@ -162,8 +162,7 @@ AuthomaticWhiteBalance_SmartRenderAlgo
         }
         else if ((iterCnt - 1) == k)
         {   // Last iteration 
-            srcIdx    = dstIdx;
-            srcInput  = pMem[srcIdx];
+            srcInput  = pMem[dstIdx];
             dstOutput = pDstImage;
             inPitch   = sizeX;
             outPitch  = dstPitch;
