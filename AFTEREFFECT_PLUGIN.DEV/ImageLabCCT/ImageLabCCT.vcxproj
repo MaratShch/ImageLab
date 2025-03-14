@@ -145,7 +145,12 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoPlanckianLocus.hpp" />
+    <ClInclude Include="include\CctLimits.hpp" />
     <ClInclude Include="include\cct_interface.hpp" />
+    <ClInclude Include="include\ColorCurves.hpp" />
+    <ClInclude Include="include\ColorIlluminant.hpp" />
+    <ClInclude Include="include\ColorTemperatureChromaticityValues.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

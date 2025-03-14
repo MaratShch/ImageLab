@@ -77,5 +77,20 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoPlanckianLocus.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CctLimits.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorCurves.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorIlluminant.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperatureChromaticityValues.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

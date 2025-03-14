@@ -22,8 +22,10 @@ inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
 }
 
 
-inline __device__ const float* get_rgb2yuv_matrix(const eCOLOR_SPACE& color_space) noexcept
+inline __device__ const float4 rgb2yuv (const float4& rgb, const eCOLOR_SPACE& color_space) noexcept
 {
+    float4 out;
+
     float constexpr dev_RGB2YUV[][9] =
     {
         // BT.601
@@ -53,8 +55,9 @@ inline __device__ const float* get_rgb2yuv_matrix(const eCOLOR_SPACE& color_spac
             -0.116200f,  -0.383800f,  0.500000f,
              0.500000f,  -0.445100f, -0.054900f
         }
-    };    
-    return dev_RGB2YUV[color_space];
+    };
+
+    return out;
 }
 
 
@@ -72,14 +75,16 @@ void CollectRgbStatistics_CUDA
 )
 {
     float4 inPix;
-    float4 outPix;
+    float4 yuvPix;
+
+    // Shared memory for partial results
+    __shared__ float uPartialSum;
+    __shared__ float vPartialSum;
 
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (x >= sizeX || y >= sizeY) return;
-
-    const float* RESTRICT colorConvertMatrix = get_rgb2yuv_matrix (color_space);
 
     if (is16f)
     {
@@ -91,6 +96,7 @@ void CollectRgbStatistics_CUDA
         inPix = srcBuf[y * srcPitch + x];
     }
 
+    float4 yuvPix = rgb2yuv (inPix, color_space);
 
     return;
 }
