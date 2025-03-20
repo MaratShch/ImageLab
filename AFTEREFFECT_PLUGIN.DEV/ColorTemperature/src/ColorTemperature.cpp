@@ -5,7 +5,15 @@
 #include "AEGP_SuiteHandler.h"
 #include "cct_interface.hpp"
 
-/* vector contains preset settings */
+
+typedef struct pHandle
+{
+    AEGP_PluginID id;
+    AlgoCCT::CctHandleF32* hndl;
+}pHandle;
+
+
+// vector contains preset settings
 std::vector<IPreset*> vPresets{};
 
 
@@ -35,7 +43,8 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+    PF_Handle pGlobalStorage = nullptr;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_WIDE_TIME_INPUT                |
@@ -81,8 +90,35 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-	/* Initialize PreSets */
-	setPresetsVector (vPresets);
+    // Initialize CCT LUT
+    AlgoCCT::CctHandleF32* globalCctHandler32 = new (std::nothrow) AlgoCCT::CctHandleF32;
+    if (nullptr != globalCctHandler32 && true == globalCctHandler32->Initialize())
+    {
+        // Add CctHandler to global data
+        AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
+        if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(pHandle))))
+        {
+            pHandle* pHndl = static_cast<pHandle*>(handleSuite->host_lock_handle(pGlobalStorage));
+            pHndl->hndl = globalCctHandler32;
+
+            if (PremierId != in_data->appl_id)
+            {
+                AEFX_SuiteScoper<AEGP_UtilitySuite3> u_suite(in_data, kAEGPUtilitySuite, kAEGPUtilitySuiteVersion3);
+                u_suite->AEGP_RegisterWithAEGP(nullptr, strName, &pHndl->id);
+            }
+            out_data->global_data = pGlobalStorage;
+            handleSuite->host_unlock_handle(pGlobalStorage);
+
+            // Initialize PreSets
+            setPresetsVector(vPresets);
+            err = PF_Err_NONE;
+        } // if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(globalCctHandler32))))
+    }
+    else
+    {
+        delete globalCctHandler32;
+        globalCctHandler32 = nullptr;
+    }
 
 	return err;
 }
@@ -95,8 +131,25 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+
+    if (nullptr != in_data->global_data)
+    {
+        pHandle* pGlobal = static_cast<pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
+
+        if (nullptr != pGlobal && nullptr != pGlobal->hndl)
+        {
+            AlgoCCT::CctHandleF32* globalCctHandler32 = pGlobal->hndl;
+            globalCctHandler32->Deinitialize();
+
+            delete globalCctHandler32;
+            globalCctHandler32 = nullptr;
+            pGlobal = nullptr;
+        }
+
+        AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data)->host_dispose_handle(in_data->global_data);
+    }
+
+    return PF_Err_NONE;
 }
 
 

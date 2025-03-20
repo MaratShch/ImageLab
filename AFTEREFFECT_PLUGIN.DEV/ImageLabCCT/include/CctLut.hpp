@@ -99,12 +99,12 @@ std::vector<CCT_LUT_Entry<T>> initLut(T waveMin, T waveMax, T waveStep, T cctMin
 
 // Function to calculate CCT (now templated)
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-std::pair<T, CCT_LUT_Entry<T>> calculateCCT_NearestNeighbor noexcept
+std::pair<T, CCT_LUT_Entry<T>> calculateCCT_NearestNeighbor
 (
     const T& u_input, 
     const T& v_input,
     const std::vector<CCT_LUT_Entry<T>>& lut
-)
+) noexcept
 {
     T min_distance = std::numeric_limits<T>::max();
     size_t closest_index = 0;
