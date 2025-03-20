@@ -6,7 +6,7 @@
 
 constexpr double  algoColorTempScale  = 1000.0;
 constexpr int32_t algoColorTempMin    = 1000;
-constexpr int32_t algoColorTempMax    = 13000;
+constexpr int32_t algoColorTempMax    = 25000;
 constexpr int32_t algoColorWhitePoint = 6500;
 
 using WaveLengthT = double;
@@ -24,7 +24,7 @@ constexpr double algoColorTintFineMax = 2.0;
 constexpr double algoColorTintFineDefault = 0.0;
 
 constexpr WaveLengthT waveLengthStart      = 380.0;
-constexpr WaveLengthT waveLengthStop       = 740.0;
+constexpr WaveLengthT waveLengthStop       = 750.0;
 constexpr WaveLengthT wavelengthStepWorst  = 5.00;
 constexpr WaveLengthT wavelengthStepDecent = 2.00;
 constexpr WaveLengthT wavelengthStepFine   = 1.00;

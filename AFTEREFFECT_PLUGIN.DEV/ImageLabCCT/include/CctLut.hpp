@@ -7,7 +7,6 @@
 #include "CctLut.hpp"
 
 
-
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 struct CCT_LUT_Entry
 {
@@ -18,13 +17,13 @@ struct CCT_LUT_Entry
 };
 
 
-
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline void xy_to_uv (const T& x, const T& y, T& u_prime, T& v_prime) noexcept
 {
     const T denom = static_cast<T>(-2.0) * x + static_cast<T>(12.0) * y + static_cast<T>(3.0);
     u_prime = (static_cast<T>(4.0) * x) / denom;
     v_prime = (static_cast<T>(6.0) * y) / denom;
+    return;
 }
 
 
@@ -43,8 +42,8 @@ inline const T polinomial_compute_duv (const T& u_prime, const T& v_prime) noexc
     constexpr T k2{ static_cast<T>(-2.4243787) };
     constexpr T k1{ static_cast<T>( 1.925865)  };
     constexpr T k0{ static_cast<T>(-0.471106)  };
-
-    const T a2 = a * a;
+ 
+    const T a2 = a  * a;
     const T a3 = a2 * a;
     const T a4 = a2 * a2;
     const T a5 = a2 * a3;
@@ -100,7 +99,7 @@ std::vector<CCT_LUT_Entry<T>> initLut(T waveMin, T waveMax, T waveStep, T cctMin
 
 // Function to calculate CCT (now templated)
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-std::pair<T, CCT_LUT_Entry<T>> calculateCCT_NearestNeighbor
+std::pair<T, CCT_LUT_Entry<T>> calculateCCT_NearestNeighbor noexcept
 (
     const T& u_input, 
     const T& v_input,

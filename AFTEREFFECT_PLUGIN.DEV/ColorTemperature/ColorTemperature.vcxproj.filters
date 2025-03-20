@@ -69,9 +69,6 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorTemperatureProc.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
@@ -81,28 +78,10 @@
     <ClInclude Include="include\ColorTemperatureGUI.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorTemperatureSeqData.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorCurves.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ColorTemperatureControls.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorIlluminant.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoPlanckianLocus.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoColorDescriptor.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureChromaticityValues.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -116,16 +95,10 @@
     <ClCompile Include="src\ColorTemperaturePR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorTemperatureProc.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ColorTemperatureGUI.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ColorTemperatureControlsPresets.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoColorDescriptor.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

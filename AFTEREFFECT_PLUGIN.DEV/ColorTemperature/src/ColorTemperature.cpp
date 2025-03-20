@@ -1,16 +1,9 @@
-#include "AlgoColorDescriptor.hpp"
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureGUI.hpp"
-#include "ColorTemperatureSeqData.hpp"
 #include "ColorTemperatureControlsPresets.hpp"
-#include "ColorIlluminant.hpp"
-#include "ColorCurves.hpp"
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
-
-
-/* ColorDescriptor object */
-CAlgoColorDescriptor<ColorDescriptorT>* gColorDescriptor {nullptr};
+#include "cct_interface.hpp"
 
 /* vector contains preset settings */
 std::vector<IPreset*> vPresets{};
@@ -90,10 +83,6 @@ GlobalSetup(
 
 	/* Initialize PreSets */
 	setPresetsVector (vPresets);
-
-	/* Initialize CAlgoColorDescriptor object single-tone */
-	gColorDescriptor = CAlgoColorDescriptor<ColorDescriptorT>::getInstance();
-	err = ((nullptr != gColorDescriptor && true == gColorDescriptor->Initialize()) ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
 	return err;
 }
@@ -266,7 +255,8 @@ SequenceSetup(
 )
 {
 	PF_Err err = PF_Err_NONE;
-	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
+#if 0
+    auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
 	if (nullptr != seqDataHndl)
 	{
@@ -287,7 +277,7 @@ SequenceSetup(
 	} /* if (nullptr != seqDataHndl) */
 	else
 		err = PF_Err_OUT_OF_MEMORY;
-
+#endif
 	return err;
 }
 
@@ -299,6 +289,7 @@ SequenceReSetup(
 )
 {
 	PF_Err err = PF_Err_NONE;
+#if 0
 	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
 
@@ -353,7 +344,7 @@ SequenceReSetup(
 		/* no sequence data exists ? Let's create one! */
 		err = SequenceSetup (in_data, out_data);
 	}
-
+#endif
 	return err;
 }
 
@@ -365,6 +356,7 @@ SequenceFlatten(
 )
 {
 	PF_Err err = PF_Err_NONE;
+#if 0
 	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	if (nullptr != in_data->sequence_data)
 	{
@@ -409,7 +401,7 @@ SequenceFlatten(
 	} /* if (nullptr != in_data->sequence_data) */
 	else
 		err = PF_Err_INTERNAL_STRUCT_DAMAGED;
-
+#endif
 	return err;
 }
 
@@ -423,13 +415,6 @@ SequenceSetdown(
 	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
 	if (nullptr != in_data->sequence_data)
 	{
-#ifdef _DEBUG
-		unflatSequenceData* unflatSequenceDataH = reinterpret_cast<unflatSequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data));
-		/* ! cleanup released handle for DBG purposes only ! */
-		unflatSequenceDataH->magic = 0x0;
-		unflatSequenceDataH->colorCoeff.cct = unflatSequenceDataH->colorCoeff.tint = unflatSequenceDataH->colorCoeff.r = unflatSequenceDataH->colorCoeff.g = unflatSequenceDataH->colorCoeff.b = 0.f;
-		unflatSequenceDataH->isFlat = false;
-#endif
 		handleSuite->host_dispose_handle(in_data->sequence_data);
 	}
 
@@ -586,13 +571,6 @@ UpdateParameterUI(
 }
 
 
-#ifdef _DEBUG
- #include <atomic>
- constexpr uint32_t dbgArraySize = 2048u;
- CACHE_ALIGN static uint32_t dbgArray[dbgArraySize]{};
- std::atomic<uint32_t> dbgCnt = 0u;
-#endif
-
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
@@ -606,13 +584,6 @@ EffectMain(
 	PF_Err err = PF_Err_NONE;
 
 	try {
-#ifdef _DEBUG
-		if (dbgCnt < dbgArraySize)
-		{
-			dbgArray[dbgCnt] = cmd;
-			dbgCnt++;
-		}
-#endif
 		switch (cmd)
 		{
 			case PF_Cmd_ABOUT:

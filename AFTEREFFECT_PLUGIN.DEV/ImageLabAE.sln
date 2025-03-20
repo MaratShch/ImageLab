@@ -137,6 +137,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LrPreset", "LrPreset", "{1228F7B8-9B28-407F-807E-2103B5868B93}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorTemperature", "ColorTemperature\ColorTemperature.vcxproj", "{D140923A-8B27-4C2D-8D02-1D3C0525D728}"
+	ProjectSection(ProjectDependencies) = postProject
+		{1A740F20-311F-4CE3-A9B1-9D2265C53CEC} = {1A740F20-311F-4CE3-A9B1-9D2265C53CEC}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ColorTemperature", "ColorTemperature", "{02FE9AA3-260E-4D6A-A228-9CD7A888DF3E}"
 EndProject
@@ -155,6 +158,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PerceptualColorCorrection", "PerceptualColorCorrection", "{9576A1A0-B41F-4FAE-919F-FCE99C28B1F2}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PerceptualColorCorrection", "PerceptualColorCorrection\PerceptualColorCorrection.vcxproj", "{6ABD8AA0-8C2B-4365-BCBC-8AC3DEFAD5C9}"
+	ProjectSection(ProjectDependencies) = postProject
+		{1A740F20-311F-4CE3-A9B1-9D2265C53CEC} = {1A740F20-311F-4CE3-A9B1-9D2265C53CEC}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Dehaze", "Dehaze\Dehaze.vcxproj", "{DA087A55-8128-4D08-A236-672A994069C3}"
 EndProject
