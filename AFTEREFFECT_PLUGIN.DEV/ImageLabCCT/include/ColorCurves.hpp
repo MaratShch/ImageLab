@@ -128,9 +128,9 @@ inline std::tuple<const T, const T, const T> compute_scalar_XYZ(const std::vecto
     T scalarY{ static_cast<T>(0) };
     T scalarZ{ static_cast<T>(0) };
 
-    if (observer.size() == illuminant.size())
+    const auto size = illuminant.size();
+    if (observer.size() == size)
     {
-        const auto size = illuminant.size();
         for (size_t i = 0; i < size; i++)
         {
             scalarX += (observer[i][CURVES_X] * illuminant[i]);

@@ -2,5 +2,4 @@
 #define __IMAGELAB2_CCT_LIBRARY_MODULE__
 
 
-
 #endif // __IMAGELAB2_CCT_LIBRARY_MODULE__

@@ -92,5 +92,8 @@
     <ClInclude Include="include\ColorTemperatureChromaticityValues.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\CctLut.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

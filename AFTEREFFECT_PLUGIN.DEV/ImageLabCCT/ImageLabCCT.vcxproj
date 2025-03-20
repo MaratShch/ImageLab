@@ -147,6 +147,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgoPlanckianLocus.hpp" />
     <ClInclude Include="include\CctLimits.hpp" />
+    <ClInclude Include="include\CctLut.hpp" />
     <ClInclude Include="include\cct_interface.hpp" />
     <ClInclude Include="include\ColorCurves.hpp" />
     <ClInclude Include="include\ColorIlluminant.hpp" />
