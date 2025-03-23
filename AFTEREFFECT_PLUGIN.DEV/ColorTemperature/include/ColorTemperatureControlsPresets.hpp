@@ -202,6 +202,6 @@ private:
 
 
 bool setPresetsVector(std::vector<IPreset*>& v_presets) noexcept;
-
+void resetPresets(std::vector<IPreset*>& v_presets) noexcept;
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_CONTROLS_PRESET_CLASS__ */

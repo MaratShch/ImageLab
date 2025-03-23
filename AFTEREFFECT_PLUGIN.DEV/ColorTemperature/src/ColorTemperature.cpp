@@ -5,12 +5,14 @@
 #include "AEGP_SuiteHandler.h"
 #include "cct_interface.hpp"
 
-
+#pragma pack(push)
+#pragma pack(1)
 typedef struct pHandle
 {
     AEGP_PluginID id;
     AlgoCCT::CctHandleF32* hndl;
 }pHandle;
+#pragma pack(pop)
 
 
 // vector contains preset settings
@@ -148,6 +150,8 @@ GlobalSetdown(
 
         AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data)->host_dispose_handle(in_data->global_data);
     }
+
+    resetPresets (vPresets);
 
     return PF_Err_NONE;
 }

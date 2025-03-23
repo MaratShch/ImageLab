@@ -18,3 +18,19 @@ bool setPresetsVector(std::vector<IPreset*>& v_presets) noexcept
 	return true;
 }
 
+
+void resetPresets(std::vector<IPreset*>& v_presets) noexcept
+{
+    delete reinterpret_cast<PresetLandscape*>(v_presets[0]);
+    delete reinterpret_cast<PresetNature*   >(v_presets[1]);
+    delete reinterpret_cast<PresetMacro*    >(v_presets[2]);
+    delete reinterpret_cast<PresetStreet*   >(v_presets[3]);
+    delete reinterpret_cast<PresetPortraits*>(v_presets[4]);
+    delete reinterpret_cast<PresetNudeBody* >(v_presets[5]);
+    delete reinterpret_cast<PresetFood*     >(v_presets[6]);
+    delete reinterpret_cast<PresetPainting* >(v_presets[7]);
+    delete reinterpret_cast<PresetNightAndAstro*>(v_presets[8]);
+    v_presets.clear();
+
+    return;
+}

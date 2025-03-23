@@ -5,7 +5,7 @@
 #include "ColorIlluminant.hpp"
 #include "ColorTemperatureChromaticityValues.hpp"
 #include "CctLut.hpp"
-
+#include "ColorTransformMatrix.hpp"
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 struct CCT_LUT_Entry
@@ -57,12 +57,14 @@ inline const T polinomial_compute_duv (const T& u_prime, const T& v_prime) noexc
 
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-std::vector<CCT_LUT_Entry<T>> initLut(T waveMin, T waveMax, T waveStep, T cctMin, T cctMax, T cctStep) noexcept
+std::vector<CCT_LUT_Entry<T>> initLut(T waveMin, T waveMax, T waveStep, T cctMin, T cctMax, T cctStep, const eCOLOR_OBSERVER observer) noexcept
 {
     std::vector<CCT_LUT_Entry<T>> cctLut{};
 
     // initialize Color Observer
-    auto const& colorObserver = generate_color_curves_1931_observer(waveMin, waveMax, waveStep);
+    auto const& colorObserver = (observer_CIE_1931 == observer ?
+        generate_color_curves_1931_observer(waveMin, waveMax, waveStep) : generate_color_curves_1964_observer(waveMin, waveMax, waveStep));
+
     for (T cctVal = cctMin; cctVal <= cctMax; cctVal += cctStep)
     {
         auto const& colorIllumnant = init_illuminant(waveMin, waveMax, waveStep, cctVal);

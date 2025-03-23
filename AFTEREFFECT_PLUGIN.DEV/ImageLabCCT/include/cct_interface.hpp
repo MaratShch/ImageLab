@@ -20,7 +20,8 @@ namespace AlgoCCT
             void Deinitialize(void);
 
         private:
-            std::vector<CCT_LUT_Entry<float>> m_Lut;
+            std::vector<CCT_LUT_Entry<float>> m_Lut1;
+            std::vector<CCT_LUT_Entry<float>> m_Lut2;
 
     };
 
