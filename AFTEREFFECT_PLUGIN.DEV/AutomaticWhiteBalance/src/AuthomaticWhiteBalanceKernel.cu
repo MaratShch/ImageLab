@@ -96,7 +96,7 @@ void CollectRgbStatistics_CUDA
         inPix = srcBuf[y * srcPitch + x];
     }
 
-    float4 yuvPix = rgb2yuv (inPix, color_space);
+    yuvPix = rgb2yuv (inPix, color_space);
 
     return;
 }
@@ -126,7 +126,7 @@ void AuthomaticWhiteBalance_CUDA
     int inPitch, outPitch;
     float uAvg, vAvg;
 
-    dim3 blockDim(32, 32, 1);
+    dim3 blockDim(16, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
     // allocate memory for intermediate processing results

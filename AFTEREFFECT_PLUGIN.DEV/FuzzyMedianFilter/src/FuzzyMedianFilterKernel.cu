@@ -284,7 +284,7 @@ void FuzzyMedianFilter_CUDA
     float fSigma
 )
 {
-    dim3 blockDim(32, 32, 1);
+    dim3 blockDim(16, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
     if (0 == fRadius)

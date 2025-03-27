@@ -139,7 +139,7 @@ void BlackAndWhiteFilter_CUDA
     int height
 )
 {
-    dim3 blockDim(32, 32, 1);
+    dim3 blockDim(16, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
     kBlackAndWhiteCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);
@@ -161,7 +161,7 @@ void BlackAndWhiteFilterAdvanced_CUDA
     int height
 )
 {
-    dim3 blockDim(32, 32, 1);
+    dim3 blockDim(16, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
     kBlackAndWhiteAdvancedCUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height);

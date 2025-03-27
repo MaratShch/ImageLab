@@ -199,7 +199,7 @@ void ColorCorrection_RGB_CUDA
 	float B
 ) noexcept
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
 	kColorCorrection_RGB_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, R, G, B);

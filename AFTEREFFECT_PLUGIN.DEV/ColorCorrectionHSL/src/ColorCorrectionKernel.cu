@@ -595,7 +595,7 @@ void ColorCorrection_HSL_CUDA
 	float lum
 ) 
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
 	kColorCorrection_HSL_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, lum);
@@ -620,7 +620,7 @@ void ColorCorrection_HSV_CUDA
 	float val
 )
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
 	kColorCorrection_HSV_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, val);
@@ -645,7 +645,7 @@ void ColorCorrection_HSI_CUDA
 	float intens
 )
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
 	kColorCorrection_HSI_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, intens);
@@ -671,7 +671,7 @@ void ColorCorrection_HSP_CUDA
 	float per
 )
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
 	kColorCorrection_HSP_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, per);
@@ -697,7 +697,7 @@ void ColorCorrection_HSLuv_CUDA
 	float vol
 )
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
 	kColorCorrection_HSLuv_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, vol);
@@ -723,7 +723,7 @@ void ColorCorrection_HPLuv_CUDA
 	float vol
 )
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
 	kColorCorrection_HPLuv_CUDA <<< gridDim, blockDim, 0 >>> ((float4*)inBuf, (float4*)outBuf, destPitch, srcPitch, is16f, width, height, hue, sat, vol);

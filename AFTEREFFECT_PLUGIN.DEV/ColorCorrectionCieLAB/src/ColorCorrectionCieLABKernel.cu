@@ -271,7 +271,7 @@ void ColorCorrectionCieLAB_CUDA
     const float* cMatrix
 )
 {
-	dim3 blockDim(32, 32, 1);
+	dim3 blockDim(16, 32, 1);
 	dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
     const float f1 = cMatrix[0];
