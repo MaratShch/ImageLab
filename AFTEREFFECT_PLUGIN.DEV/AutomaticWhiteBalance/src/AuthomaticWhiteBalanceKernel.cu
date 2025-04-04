@@ -145,11 +145,14 @@ void AuthomaticWhiteBalance_CUDA
     if (blocksNumber > 0)
     {
         const unsigned int frameSize = static_cast<unsigned int>(width) * static_cast<unsigned int>(height);
-        if (cudaSuccess == cudaMalloc(reinterpret_cast<void**>(&gpuTmpImage), blocksNumber * frameSize * sizeof(float4)))
+        const cudaError_t mallocResult = cudaMalloc(reinterpret_cast<void**>(&gpuTmpImage), blocksNumber * frameSize * sizeof(float4));
+        if (cudaSuccess == mallocResult && nullptr != gpuTmpImage)
         {
             gpuImage[0] = reinterpret_cast<float4* RESTRICT>(gpuTmpImage);
             gpuImage[1] = (2u == blocksNumber ? gpuImage[0] + frameSize : nullptr);
         }
+        else
+            return;
     } // if (blocksNumber > 0)
     
     // MAIN PROC LOOP
