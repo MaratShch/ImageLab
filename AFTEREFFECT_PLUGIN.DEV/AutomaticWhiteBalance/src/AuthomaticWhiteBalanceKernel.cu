@@ -90,9 +90,24 @@ void CollectRgbStatistics_CUDA
 )
 {
     float4 inPix;
+    // Shared memory to store U_avg and V_avg sums and totalGray for the block
+    __shared__ float sharedSum[3]; // [0]: U_avg, [1]: V_avg, [2]: totalGray
 
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    const int tx = threadIdx.x;   // Thread index within the block (x axis)
+    const int ty = threadIdx.y;   // Thread index within the block (y axis)
+    const int blockId = blockIdx.x + blockIdx.y * gridDim.x;
+
+    // Initialize shared memory (each block's thread initializes a new set of sums)
+    if (tx == 0 && ty == 0) {
+        sharedSum[0] = 0.0f;
+        sharedSum[1] = 0.0f;
+        sharedSum[2] = 0.0f;
+    }
+    __syncthreads();
+
+    // Calculate the pixel index
+    const int x = blockId % (sizeX / blockDim.x) * blockDim.x + tx;
+    const int y = blockId / (sizeX / blockDim.x) * blockDim.y + ty;
 
     if (x >= sizeX || y >= sizeY) return;
 
@@ -108,6 +123,14 @@ void CollectRgbStatistics_CUDA
 
     const float4 yuvPix = rgb2yuv (inPix, color_space);
     const float F = (std::abs(yuvPix.y) + std::abs(yuvPix.z)) / std::max(yuvPix.x, FLT_EPSILON);
+    if (F < gray_threshold)
+    {
+        atomicAdd(&sharedSum[0], yuvPix.y); // increment U
+        atomicAdd(&sharedSum[1], yuvPix.z); // increment V
+        atomicAdd(&sharedSum[2], 1.0f); // increment totalGray
+    } // if (F < gray_threshold)
+
+    __syncthreads();
 
     return;
 }
