@@ -7,6 +7,7 @@
 #include <math.h>
 
 float4* RESTRICT gpuImage[2]{ nullptr };
+float3* RESTRICT gpuTmpResults{ nullptr }; // x -> U_avg, y -> V_avg, z -> grayCount
 
 //////////////////////// PURE DEVICE CODE ///////////////////////////////////////////
 inline __device__ float4 HalfToFloat4(Pixel16 in) noexcept
@@ -76,66 +77,76 @@ inline __device__ const float4 rgb2yuv
 
 
 __global__
-void CollectRgbStatistics_CUDA
-(
-    const float4* RESTRICT srcBuf,
-          float4* RESTRICT dstBuf,
-    int   sizeX,
-    int   sizeY,
-    int   srcPitch,
-    int   dstPitch,
-    int   is16f,
+void CollectRgbStatistics_CUDA(
+    const float4* __restrict__ srcBuf,
+    float3* __restrict__ blockResults,
+    int sizeX,
+    int sizeY,
+    int srcPitch,
+    int is16f,
     const eCOLOR_SPACE color_space,
-    const float gray_threshold
-)
+    float gray_threshold)
 {
+    // Shared memory to accumulate per-block statistics
+    __shared__ float3 sharedSum; // x: U, y: V, z: totalGray
+
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    const int blockIdx_x = blockIdx.x;
+    const int blockIdx_y = blockIdx.y;
+
+    // Linear block ID for writing to blockResults
+    const int blockId = blockIdx_y * gridDim.x + blockIdx_x;
+
+    const int x = blockIdx_x * blockDim.x + tx;
+    const int y = blockIdx_y * blockDim.y + ty;
+
+    // Only thread (0,0) initializes shared memory
+    if (tx == 0 && ty == 0)
+    {
+        sharedSum.x = sharedSum.y = sharedSum.z = 0.0f;
+    }
+
+    __syncthreads();
+
     float4 inPix;
-    // Shared memory to store U_avg and V_avg sums and totalGray for the block
-    __shared__ float sharedSum[3]; // [0]: U_avg, [1]: V_avg, [2]: totalGray
 
-    const int tx = threadIdx.x;   // Thread index within the block (x axis)
-    const int ty = threadIdx.y;   // Thread index within the block (y axis)
-    const int blockId = blockIdx.x + blockIdx.y * gridDim.x;
+    // Skip if outside bounds
+    if (x < sizeX && y < sizeY)
+    {
+        if (is16f)
+        {
+            const Pixel16* in16 = reinterpret_cast<const Pixel16*>(srcBuf);
+            inPix = HalfToFloat4(in16[y * srcPitch + x]);
+        }
+        else
+        {
+            inPix = __ldg(&srcBuf[y * srcPitch + x]);
+        }
 
-    // Initialize shared memory (each block's thread initializes a new set of sums)
-    if (tx == 0 && ty == 0) {
-        sharedSum[0] = 0.0f;
-        sharedSum[1] = 0.0f;
-        sharedSum[2] = 0.0f;
+        const float4 yuvPix = rgb2yuv(inPix, color_space);
+
+        const float F = (fabsf(yuvPix.y) + fabsf(yuvPix.z)) / fmaxf(yuvPix.x, FLT_EPSILON);
+
+        if (F < gray_threshold)
+        {
+            atomicAdd(&sharedSum.x, yuvPix.y); // U
+            atomicAdd(&sharedSum.y, yuvPix.z); // V
+            atomicAdd(&sharedSum.z, 1.0f);     // Count
+        }
     }
+
     __syncthreads();
 
-    // Calculate the pixel index
-    const int x = blockId % (sizeX / blockDim.x) * blockDim.x + tx;
-    const int y = blockId / (sizeX / blockDim.x) * blockDim.y + ty;
-
-    if (x >= sizeX || y >= sizeY) return;
-
-    if (is16f)
-    {
-        const Pixel16* in16 = reinterpret_cast<const Pixel16*>(srcBuf);
-        inPix = HalfToFloat4(in16[y * srcPitch + x]);
-    }
-    else
-    {
-        inPix = srcBuf[y * srcPitch + x];
-    }
-
-    const float4 yuvPix = rgb2yuv (inPix, color_space);
-    const float F = (std::abs(yuvPix.y) + std::abs(yuvPix.z)) / std::max(yuvPix.x, FLT_EPSILON);
-    if (F < gray_threshold)
-    {
-        atomicAdd(&sharedSum[0], yuvPix.y); // increment U
-        atomicAdd(&sharedSum[1], yuvPix.z); // increment V
-        atomicAdd(&sharedSum[2], 1.0f); // increment totalGray
-    } // if (F < gray_threshold)
-
-    __syncthreads();
+    // After reduction, store result to global memory from thread (0,0)
+    if (tx == 0 && ty == 0)
+        blockResults[blockId] = sharedSum;
 
     return;
 }
 
-
+ 
 CUDA_KERNEL_CALL
 void AuthomaticWhiteBalance_CUDA
 (
@@ -158,67 +169,85 @@ void AuthomaticWhiteBalance_CUDA
     float4* RESTRICT dst = nullptr;
     int srcIdx = 0, dstIdx = 1;
     int inPitch, outPitch;
-    float uAvg, vAvg;
 
-    dim3 blockDim(16, 32, 1);
-    dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+    const dim3 blockDim(16, 32, 1);
+    const dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
+    const size_t numMemProcBlocks = std::max(32ull, static_cast<size_t>(gridDim.x * gridDim.y)) * sizeof(float3);
 
-    // allocate memory for intermediate processing results
-    const unsigned int blocksNumber = std::min(2u, (iter_cnt - 1u));
-    if (blocksNumber > 0)
+    // allocate memory for temporary blocks coefficicens
+    const cudaError_t mallocResult0 = cudaMalloc(reinterpret_cast<void**>(&gpuTmpResults), numMemProcBlocks);
+    if (cudaSuccess == mallocResult0 && nullptr != gpuTmpResults)
     {
-        const unsigned int frameSize = static_cast<unsigned int>(width) * static_cast<unsigned int>(height);
-        const cudaError_t mallocResult = cudaMalloc(reinterpret_cast<void**>(&gpuTmpImage), blocksNumber * frameSize * sizeof(float4));
-        if (cudaSuccess == mallocResult && nullptr != gpuTmpImage)
+        // allocate memory for intermediate processing results
+        const unsigned int blocksNumber = std::min(2u, (iter_cnt - 1u));
+        if (blocksNumber > 0)
         {
-            gpuImage[0] = reinterpret_cast<float4* RESTRICT>(gpuTmpImage);
-            gpuImage[1] = (2u == blocksNumber ? gpuImage[0] + frameSize : nullptr);
-        }
-        else
-            return;
-    } // if (blocksNumber > 0)
-    
-    // MAIN PROC LOOP
-    for (unsigned int i = 0u; i < iter_cnt; i++)
-    {
-        uAvg = vAvg = 0.f;
+            const unsigned int frameSize = static_cast<unsigned int>(width) * static_cast<unsigned int>(height);
+            const cudaError_t mallocResult1 = cudaMalloc(reinterpret_cast<void**>(&gpuTmpImage), blocksNumber * frameSize * sizeof(float4));
+            if (cudaSuccess == mallocResult1 && nullptr != gpuTmpImage)
+            {
+                gpuImage[0] = reinterpret_cast<float4* RESTRICT>(gpuTmpImage);
+                gpuImage[1] = (2u == blocksNumber ? gpuImage[0] + frameSize : nullptr);
+            }
+            else
+            {
+                cudaFree(gpuTmpResults);
+                gpuTmpResults = nullptr;
+                return;
+            }
+        } // if (blocksNumber > 0)
 
-        if (0u == i)
-        {   // First iteration case
-            dstIdx++;
-            dstIdx &= 0x01;
-            src = reinterpret_cast<float4* RESTRICT>(inBuf);
-            dst = (1u == iter_cnt) ? reinterpret_cast<float4* RESTRICT>(outBuf) : gpuImage[dstIdx];
-            inPitch = srcPitch;
-            outPitch = (1u == iter_cnt) ? destPitch : width;
-        }
-        else if ((iter_cnt - 1u) == i)
-        {   // Last iteration case
-            src = gpuImage[dstIdx];
-            dst = reinterpret_cast<float4* RESTRICT>(outBuf);
-            inPitch = width;
-            outPitch = destPitch;
-        } /* if (k > 0) */
-        else
+        // MAIN PROC LOOP
+        for (unsigned int i = 0u; i < iter_cnt; i++)
         {
-            srcIdx = dstIdx;
-            dstIdx++;
-            dstIdx &= 0x1;
-            src = gpuImage[srcIdx];
-            dst = gpuImage[dstIdx];
-            inPitch = outPitch = width;
+            if (0u == i)
+            {   // First iteration case
+                dstIdx++;
+                dstIdx &= 0x01;
+                src = reinterpret_cast<float4* RESTRICT>(inBuf);
+                dst = (1u == iter_cnt) ? reinterpret_cast<float4* RESTRICT>(outBuf) : gpuImage[dstIdx];
+                inPitch = srcPitch;
+                outPitch = (1u == iter_cnt) ? destPitch : width;
+            }
+            else if ((iter_cnt - 1u) == i)
+            {   // Last iteration case
+                src = gpuImage[dstIdx];
+                dst = reinterpret_cast<float4* RESTRICT>(outBuf);
+                inPitch = width;
+                outPitch = destPitch;
+            } /* if (k > 0) */
+            else
+            {
+                srcIdx = dstIdx;
+                dstIdx++;
+                dstIdx &= 0x1;
+                src = gpuImage[srcIdx];
+                dst = gpuImage[dstIdx];
+                inPitch = outPitch = width;
+            }
+
+            // cleanup memory for temporary results before start processing kernels
+            cudaMemset (gpuTmpResults, 0, numMemProcBlocks);
+
+            // collect RGB statistics
+            CollectRgbStatistics_CUDA <<< gridDim, blockDim >>> (src, gpuTmpResults, width, height, inPitch, is16f, color_space, gray_threshold);
+
+        } // for (unsigned int i = 0u; i < iter_cnt; i++)
+
+        // Free/Cleanup resources before exit
+        if (nullptr != gpuTmpImage)
+        {
+            cudaFree(gpuTmpImage);
+            gpuTmpImage = gpuImage[0] = gpuImage[1] = nullptr;
         }
 
-        CollectRgbStatistics_CUDA <<< gridDim, blockDim >>> (src, dst, width, height, inPitch, outPitch, is16f, color_space, gray_threshold);
+        if (nullptr != gpuTmpResults)
+        {
+            cudaFree(gpuTmpResults);
+            gpuTmpResults = nullptr;
+        }
 
-    } // for (unsigned int i = 0u; i < iter_cnt; i++)
-
-    // Free/Cleanup resources before exit
-    if (nullptr != gpuTmpImage)
-    {
-        cudaFree(gpuTmpImage);
-        gpuTmpImage = gpuImage[0] = gpuImage[1] = nullptr;
-    }
+    } //  if (cudaSuccess == mallocResult0 && nullptr != gpuTmpResults)
 
    return;
 }

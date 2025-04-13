@@ -48,28 +48,28 @@ inline void collect_rgb_statistics
     const float* __restrict colorMatrixIn = RGB2YUV[colorSpace];
 
     __VECTOR_ALIGNED__
-        for (A_long j = 0; j < height; j++)
+    for (A_long j = 0; j < height; j++)
+    {
+        const A_long l_idx = j * linePitch; /* line IDX */
+        for (A_long i = 0; i < width; i++)
         {
-            const A_long l_idx = j * linePitch; /* line IDX */
-            for (A_long i = 0; i < width; i++)
+            const A_long p_idx = l_idx + i; /* pixel IDX */
+                                            /* convert RGB to YUV color space */
+            Y = pSrc[p_idx].R * colorMatrixIn[0] + pSrc[p_idx].G * colorMatrixIn[1] + pSrc[p_idx].B * colorMatrixIn[2];
+            U = pSrc[p_idx].R * colorMatrixIn[3] + pSrc[p_idx].G * colorMatrixIn[4] + pSrc[p_idx].B * colorMatrixIn[5];
+            V = pSrc[p_idx].R * colorMatrixIn[6] + pSrc[p_idx].G * colorMatrixIn[7] + pSrc[p_idx].B * colorMatrixIn[8];
+
+            F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / FastCompute::Max(Y, FLT_EPSILON);
+            if (F < threshold)
             {
-                const A_long p_idx = l_idx + i; /* pixel IDX */
-                                                /* convert RGB to YUV color space */
-                Y = pSrc[p_idx].R * colorMatrixIn[0] + pSrc[p_idx].G * colorMatrixIn[1] + pSrc[p_idx].B * colorMatrixIn[2];
-                U = pSrc[p_idx].R * colorMatrixIn[3] + pSrc[p_idx].G * colorMatrixIn[4] + pSrc[p_idx].B * colorMatrixIn[5];
-                V = pSrc[p_idx].R * colorMatrixIn[6] + pSrc[p_idx].G * colorMatrixIn[7] + pSrc[p_idx].B * colorMatrixIn[8];
+                totalGray++;
+                U_bar += U;
+                V_bar += V;
+            } /* if (F < T) */
 
-                F = (FastCompute::Abs(U) + FastCompute::Abs(V)) / FastCompute::Max(Y, FLT_EPSILON);
-                if (F < threshold)
-                {
-                    totalGray++;
-                    U_bar += U;
-                    V_bar += V;
-                } /* if (F < T) */
+        } /* for (i = 0; i < width; i++) */
 
-            } /* for (i = 0; i < width; i++) */
-
-        } /* for (j = 0; j < height; j++) */
+    } /* for (j = 0; j < height; j++) */
 
     if (nullptr != u_Avg)
         *u_Avg = U_bar / static_cast<float>(totalGray);
