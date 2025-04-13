@@ -77,7 +77,8 @@ inline __device__ const float4 rgb2yuv
 
 
 __global__
-void CollectRgbStatistics_CUDA(
+void CollectRgbStatistics_CUDA
+(
     const float4* __restrict__ srcBuf,
     float3* __restrict__ blockResults,
     int sizeX,
@@ -85,7 +86,8 @@ void CollectRgbStatistics_CUDA(
     int srcPitch,
     int is16f,
     const eCOLOR_SPACE color_space,
-    float gray_threshold)
+    float gray_threshold
+)
 {
     // Shared memory to accumulate per-block statistics
     __shared__ float3 sharedSum; // x: U, y: V, z: totalGray
@@ -127,9 +129,9 @@ void CollectRgbStatistics_CUDA(
 
         const float4 yuvPix = rgb2yuv(inPix, color_space);
 
-        const float F = (fabsf(yuvPix.y) + fabsf(yuvPix.z)) / fmaxf(yuvPix.x, FLT_EPSILON);
+        const float fVal = (fabsf(yuvPix.y) + fabsf(yuvPix.z)) / fmaxf(yuvPix.x, FLT_EPSILON);
 
-        if (F < gray_threshold)
+        if (fVal < gray_threshold)
         {
             atomicAdd(&sharedSum.x, yuvPix.y); // U
             atomicAdd(&sharedSum.y, yuvPix.z); // V
@@ -146,7 +148,48 @@ void CollectRgbStatistics_CUDA(
     return;
 }
 
- 
+
+__global__
+void ReduceBlockResults_CUDA
+(
+    const float3* __restrict__ blockResults,
+    float3* __restrict__ totalSum,
+    int numBlocks
+)
+{
+    extern __shared__ float3 shared[]; // This syntax is specifically used to declare a shared memory array whose size is not known at compile time.
+
+    const int tid = threadIdx.x;
+    const int globalId = blockIdx.x * blockDim.x + tid;
+
+    // Load data into shared memory
+    float3 val = { 0.0f, 0.0f, 0.0f };
+    if (globalId < numBlocks)
+        val = blockResults[globalId];
+
+    shared[tid] = val;
+    __syncthreads();
+
+    // In-place reduction in shared memory (parallel sum reduction)
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1)
+    {
+        if (tid < stride)
+        {
+            shared[tid].x += shared[tid + stride].x;
+            shared[tid].y += shared[tid + stride].y;
+            shared[tid].z += shared[tid + stride].z;
+        }
+        __syncthreads();
+    }
+
+    // Only thread 0 writes result
+    if (tid == 0)
+        totalSum[0] = shared[0];
+
+    return;
+}
+
+
 CUDA_KERNEL_CALL
 void AuthomaticWhiteBalance_CUDA
 (
@@ -231,6 +274,23 @@ void AuthomaticWhiteBalance_CUDA
 
             // collect RGB statistics
             CollectRgbStatistics_CUDA <<< gridDim, blockDim >>> (src, gpuTmpResults, width, height, inPitch, is16f, color_space, gray_threshold);
+
+            // reduce RGB statistics results (accumulate to single values)
+            const int threadsPerBlock = 256;
+            const int sharedMemBytes = threadsPerBlock * sizeof(float3);  // Dynamic shared memory size
+
+            float3 h_result{};
+            float3* RESTRICT d_finalResult = nullptr;
+            cudaMalloc (reinterpret_cast<void**>(&d_finalResult), sizeof(float3));  // Allocates GPU memory
+            
+            ReduceBlockResults_CUDA <<<1, threadsPerBlock, sharedMemBytes >>> (gpuTmpResults, d_finalResult, numMemProcBlocks);
+            cudaMemcpy (&h_result, d_finalResult, sizeof(float3), cudaMemcpyDeviceToHost);
+
+            const float U_avg = h_result.x / h_result.z;
+            const float V_avg = h_result.y / h_result.z;
+
+            cudaFree(d_finalResult);
+            d_finalResult = nullptr;
 
         } // for (unsigned int i = 0u; i < iter_cnt; i++)
 
