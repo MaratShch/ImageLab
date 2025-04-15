@@ -47,7 +47,7 @@ constexpr eCOLOR_OBSERVER   CieLabDefaultObserver  { observer_CIE_1931 };
 constexpr eCOLOR_ILLUMINANT CieLabDefaultIlluminant{ color_ILLUMINANT_D65 };
 
 // define color space conversion matrix's
-static CACHE_ALIGN float constexpr RGB2YUV[][9] =
+CACHE_ALIGN float constexpr RGB2YUV[][9] =
 {
 	// BT.601
 	{
@@ -78,7 +78,7 @@ static CACHE_ALIGN float constexpr RGB2YUV[][9] =
 	}
 };
 
-static CACHE_ALIGN float constexpr YUV2RGB[][9] =
+CACHE_ALIGN float constexpr YUV2RGB[][9] =
 {
 	// BT.601
 	{

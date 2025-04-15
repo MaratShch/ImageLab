@@ -10,12 +10,12 @@ float4* RESTRICT gpuImage[2]{ nullptr };
 float3* RESTRICT gpuTmpResults{ nullptr }; // x -> U_avg, y -> V_avg, z -> grayCount
 
 //////////////////////// PURE DEVICE CODE ///////////////////////////////////////////
-inline __device__ float4 HalfToFloat4(Pixel16 in) noexcept
+DEVICE_INLINE_CALL float4 HalfToFloat4(Pixel16 in) noexcept
 {
     return make_float4(__half2float(in.x), __half2float(in.y), __half2float(in.z), __half2float(in.w));
 }
 
-inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
+DEVICE_INLINE_CALL Pixel16 FloatToHalf4(float4 in) noexcept
 {
     Pixel16 v;
     v.x = __float2half_rn(in.x); v.y = __float2half_rn(in.y); v.z = __float2half_rn(in.z); v.w = __float2half_rn(in.w);
@@ -23,7 +23,7 @@ inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
 }
 
 
-inline __device__ const float4 rgb2yuv
+DEVICE_INLINE_CALL const float4 rgb2yuv
 (
     const float4& rgb,  /* z = R, y = G, x = B, w = A */
     const eCOLOR_SPACE& color_space
@@ -154,7 +154,7 @@ void ReduceBlockResults_CUDA
 (
     const float3* __restrict__ blockResults,
     float3* __restrict__ totalSum,
-    int numBlocks
+    size_t numBlocks
 )
 {
     extern __shared__ float3 shared[]; // This syntax is specifically used to declare a shared memory array whose size is not known at compile time.
@@ -201,7 +201,7 @@ void AuthomaticWhiteBalance_CUDA
     int width,
     int height,
     const eILLUMINATE illuminant,
-    const eChromaticAdaptation chroma,
+    const eChromaticAdaptation chromaticAdapt,
     const eCOLOR_SPACE color_space,
     const float gray_threshold,
     unsigned int iter_cnt
@@ -212,6 +212,9 @@ void AuthomaticWhiteBalance_CUDA
     float4* RESTRICT dst = nullptr;
     int srcIdx = 0, dstIdx = 1;
     int inPitch, outPitch;
+    float U_avg = 0.f, U_avg_prev = 0.f;
+    float V_avg = 0.f, V_avg_prev = 0.f;
+    constexpr float algAWBepsilon = 1e-05f;
 
     const dim3 blockDim(16, 32, 1);
     const dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
@@ -241,7 +244,7 @@ void AuthomaticWhiteBalance_CUDA
         } // if (blocksNumber > 0)
 
         // MAIN PROC LOOP
-        for (unsigned int i = 0u; i < iter_cnt; i++)
+        for (unsigned int i = 0u; i < iter_cnt; /* value will be incremented in end of loop */)
         {
             if (0u == i)
             {   // First iteration case
@@ -276,8 +279,8 @@ void AuthomaticWhiteBalance_CUDA
             CollectRgbStatistics_CUDA <<< gridDim, blockDim >>> (src, gpuTmpResults, width, height, inPitch, is16f, color_space, gray_threshold);
 
             // reduce RGB statistics results (accumulate to single values)
-            const int threadsPerBlock = 256;
-            const int sharedMemBytes = threadsPerBlock * sizeof(float3);  // Dynamic shared memory size
+            const int threadsPerBlock = 512;
+            const size_t sharedMemBytes = threadsPerBlock * sizeof(float3);  // Dynamic shared memory size
 
             float3 h_result{};
             float3* RESTRICT d_finalResult = nullptr;
@@ -286,13 +289,28 @@ void AuthomaticWhiteBalance_CUDA
             ReduceBlockResults_CUDA <<<1, threadsPerBlock, sharedMemBytes >>> (gpuTmpResults, d_finalResult, numMemProcBlocks);
             cudaMemcpy (&h_result, d_finalResult, sizeof(float3), cudaMemcpyDeviceToHost);
 
-            const float U_avg = h_result.x / h_result.z;
-            const float V_avg = h_result.y / h_result.z;
+            U_avg = h_result.x / h_result.z;
+            V_avg = h_result.y / h_result.z;
+
+            // host API inline call
+            float correctionMatrix[3]{};
+            compute_correction_matrix(U_avg, V_avg, color_space, illuminant, chromaticAdapt, correctionMatrix);
+
+            // apply Color Correctin Matrix on the image 
+
+            const float U_avg_diff = U_avg - U_avg_prev;
+            const float V_avg_diff = V_avg - V_avg_prev;
+
+            const float normVal = FastCompute::Sqrt(U_avg_diff * U_avg_diff + V_avg_diff * V_avg_diff);
 
             cudaFree(d_finalResult);
             d_finalResult = nullptr;
 
-        } // for (unsigned int i = 0u; i < iter_cnt; i++)
+            U_avg_prev = U_avg;
+            V_avg_prev = V_avg;
+
+            i = (normVal < algAWBepsilon) ? iter_cnt - 1 : i + 1;
+        } // for (unsigned int i = 0u; i < iter_cnt; )
 
         // Free/Cleanup resources before exit
         if (nullptr != gpuTmpImage)

@@ -28,6 +28,7 @@ typedef struct Pixel16
 
 constexpr size_t Pixel16Size = sizeof(Pixel16);
 
+constexpr float algAWBepsilon = 0.00001f;
 
 CUDA_KERNEL_CALL
 void AuthomaticWhiteBalance_CUDA
