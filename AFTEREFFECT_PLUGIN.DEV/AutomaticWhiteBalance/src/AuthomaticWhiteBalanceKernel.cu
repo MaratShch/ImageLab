@@ -23,6 +23,17 @@ DEVICE_INLINE_CALL Pixel16 FloatToHalf4(float4 in) noexcept
 }
 
 
+DEVICE_INLINE_CALL float CLAMP
+(
+    const float& in,
+    const float& minVal,
+    const float& maxVal
+) noexcept
+{
+    return (in < minVal ? minVal : (in > maxVal ? maxVal : in));
+}
+
+
 DEVICE_INLINE_CALL const float4 rgb2yuv
 (
     const float4& rgb,  /* z = R, y = G, x = B, w = A */
@@ -79,8 +90,8 @@ DEVICE_INLINE_CALL const float4 rgb2yuv
 __global__
 void CollectRgbStatistics_CUDA
 (
-    const float4* __restrict__ srcBuf,
-    float3* __restrict__ blockResults,
+    const float4* RESTRICT srcBuf,
+    float3* RESTRICT blockResults,
     int sizeX,
     int sizeY,
     int srcPitch,
@@ -124,7 +135,7 @@ void CollectRgbStatistics_CUDA
         }
         else
         {
-            inPix = __ldg(&srcBuf[y * srcPitch + x]);
+            inPix = srcBuf[y * srcPitch + x];
         }
 
         const float4 yuvPix = rgb2yuv(inPix, color_space);
@@ -188,6 +199,62 @@ void ReduceBlockResults_CUDA
 
     return;
 }
+
+
+__global__ 
+void ImageRGBCorrection_CUDA
+(
+    const float4* RESTRICT srcBuf,
+          float4* RESTRICT dstBuf,
+    int width,
+    int height,
+    int srcPitch,
+    int dstPitch,
+    int is16f,
+    float correctionR,
+    float correctionG,
+    float correctionB
+)
+{
+    float4 inPix;
+    float4 outPix;
+
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    if (is16f)
+    {
+        Pixel16*  in16 = (Pixel16*)srcBuf;
+        inPix = HalfToFloat4(in16[y * srcPitch + x]);
+    }
+    else
+    {
+        inPix = srcBuf[y * srcPitch + x];
+    }
+
+    constexpr float black{ 0.f };
+    constexpr float white{ 1.f - FLT_EPSILON };
+
+    outPix.w = inPix.w;                                            // ALPHA channel
+    outPix.x = CLAMP(inPix.x * correctionB, black, white);  // B
+    outPix.y = CLAMP(inPix.y * correctionG, black, white);  // G
+    outPix.z = CLAMP(inPix.z * correctionR, black, white);  // R
+
+    if (is16f)
+    {
+        Pixel16*  out16 = (Pixel16*)dstBuf;
+        out16[y * dstPitch + x] = FloatToHalf4(outPix);
+    }
+    else
+    {
+        dstBuf[y * dstPitch + x] = outPix;
+    }
+
+    return;
+}
+
 
 
 CUDA_KERNEL_CALL
@@ -278,6 +345,9 @@ void AuthomaticWhiteBalance_CUDA
             // collect RGB statistics
             CollectRgbStatistics_CUDA <<< gridDim, blockDim >>> (src, gpuTmpResults, width, height, inPitch, is16f, color_space, gray_threshold);
 
+            // Synchronize to ensure the first kernel has completed
+            cudaDeviceSynchronize();
+
             // reduce RGB statistics results (accumulate to single values)
             const int threadsPerBlock = 512;
             const size_t sharedMemBytes = threadsPerBlock * sizeof(float3);  // Dynamic shared memory size
@@ -287,6 +357,10 @@ void AuthomaticWhiteBalance_CUDA
             cudaMalloc (reinterpret_cast<void**>(&d_finalResult), sizeof(float3));  // Allocates GPU memory
             
             ReduceBlockResults_CUDA <<<1, threadsPerBlock, sharedMemBytes >>> (gpuTmpResults, d_finalResult, numMemProcBlocks);
+
+            // Synchronize to ensure the second kernel has completed
+            cudaDeviceSynchronize();
+
             cudaMemcpy (&h_result, d_finalResult, sizeof(float3), cudaMemcpyDeviceToHost);
 
             U_avg = h_result.x / h_result.z;
@@ -297,11 +371,15 @@ void AuthomaticWhiteBalance_CUDA
             compute_correction_matrix(U_avg, V_avg, color_space, illuminant, chromaticAdapt, correctionMatrix);
 
             // apply Color Correctin Matrix on the image 
+            ImageRGBCorrection_CUDA <<< gridDim, blockDim >>> (src, dst, width, height, inPitch, outPitch, is16f, correctionMatrix[0], correctionMatrix[1], correctionMatrix[2]);
+
+            // Synchronize to ensure the last kernel has completed
+            cudaDeviceSynchronize();
 
             const float U_avg_diff = U_avg - U_avg_prev;
             const float V_avg_diff = V_avg - V_avg_prev;
 
-            const float normVal = FastCompute::Sqrt(U_avg_diff * U_avg_diff + V_avg_diff * V_avg_diff);
+            const float normVal = std::sqrt(U_avg_diff * U_avg_diff + V_avg_diff * V_avg_diff);
 
             cudaFree(d_finalResult);
             d_finalResult = nullptr;
@@ -326,6 +404,9 @@ void AuthomaticWhiteBalance_CUDA
         }
 
     } //  if (cudaSuccess == mallocResult0 && nullptr != gpuTmpResults)
+
+    // Synchronize to ensure the last kernel has completed
+    cudaDeviceSynchronize();
 
    return;
 }

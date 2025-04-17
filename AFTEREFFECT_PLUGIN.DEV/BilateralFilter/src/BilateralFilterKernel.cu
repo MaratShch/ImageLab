@@ -330,5 +330,7 @@ void BilateralFilter_CUDA
         } // if (cudaSuccess == cudaMalloc ...
     }
 
+    cudaDeviceSynchronize();
+
     return;
 }
