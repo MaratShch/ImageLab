@@ -129,7 +129,7 @@ Render(
 }
 
 
-static PF_Err
+inline PF_Err
 PreRender(
     PF_InData			*in_data,
     PF_OutData			*out_data,
@@ -140,7 +140,7 @@ PreRender(
 }
 
 
-static PF_Err
+inline PF_Err
 SmartRender(
     PF_InData				*in_data,
     PF_OutData				*out_data,
