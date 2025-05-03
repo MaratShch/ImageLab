@@ -84,6 +84,9 @@
     <ClInclude Include="include\AverageFilterGPU.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AverageFilterStructs.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AverageFilter.cpp">
@@ -96,6 +99,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AverageFilter_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AverageFilterSmartRender.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

@@ -7,7 +7,7 @@
 #include "ColorCurves.hpp"
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-inline std::vector<std::pair<T, T>> compute_chromaticity_values (const std::vector<std::vector<T>>& observer) noexcept
+inline std::vector<std::pair<T, T>> compute_chromaticity_values (const std::vector<std::vector<T>>& observer)
 {
     std::vector<std::pair<T, T>> chromaticity_vector{};
     for (const auto& XYZ : observer)
