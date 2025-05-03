@@ -171,12 +171,14 @@
     <ClInclude Include="include\AverageFilter.hpp" />
     <ClInclude Include="include\AverageFilterEnum.hpp" />
     <ClInclude Include="include\AverageFilterGPU.hpp" />
+    <ClInclude Include="include\AverageFilterStructs.hpp" />
     <ClInclude Include="include\AverageGFilterAlgo.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AverageFilter.cpp" />
     <ClCompile Include="src\AverageFilterAE.cpp" />
     <ClCompile Include="src\AverageFilterPR.cpp" />
+    <ClCompile Include="src\AverageFilterSmartRender.cpp" />
     <ClCompile Include="src\AverageFilter_GPU.cpp" />
   </ItemGroup>
   <ItemGroup>

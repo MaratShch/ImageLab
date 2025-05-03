@@ -34,5 +34,19 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept;
 
+PF_Err AverageFilter_PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+)noexcept;
+
+PF_Err AverageFilter_SmartRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_SmartRenderExtra	*extraP
+) noexcept;
+
 
 #endif /* __IMAGE_LAB_AVERAGE_FILTER__ */
