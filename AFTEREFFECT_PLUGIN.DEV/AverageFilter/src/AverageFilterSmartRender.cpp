@@ -2,6 +2,8 @@
 #include "FastAriphmetics.hpp"
 #include "CompileTimeUtils.hpp"
 #include "AverageFilterStructs.hpp"
+#include "AverageAFilterAlgo.hpp"
+#include "AverageGFilterAlgo.hpp"
 #include "AE_Effect.h"
 
 
@@ -113,8 +115,8 @@ PF_Err AverageFilter_SmartRender
 
             AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
 
-            const eAVERAGE_FILTER_WINDOW_SIZE winSize = static_cast<eAVERAGE_FILTER_WINDOW_SIZE>(pFilterStrParams->eSize);
-            const A_long isGeomteric = pFilterStrParams->isGeometric;
+            const A_long windowSize = WindowSizeEnum2Value(pFilterStrParams->eSize);
+            const A_long isGeometric = pFilterStrParams->isGeometric;
 
             PF_PixelFormat format = PF_PixelFormat_INVALID;
             if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
@@ -128,9 +130,12 @@ PF_Err AverageFilter_SmartRender
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                        const PF_Pixel_ARGB_32f* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
-                        PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
-                        // Proc here..    
+                        const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                              PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+                        
+                        err = ((0 == isGeometric) ?
+                                  AverageFilterAlgo(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, windowSize) :
+                                  GeomethricAverageFilterAlgo(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, windowSize));
                     }
                     break;
 
@@ -141,9 +146,12 @@ PF_Err AverageFilter_SmartRender
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-                        const PF_Pixel_ARGB_16u* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
-                        PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
-                        // Proc here..    
+                        const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
+                              PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
+
+                        err = ((0 == isGeometric) ?
+                                  AverageFilterAlgo(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, windowSize) :
+                                  GeomethricAverageFilterAlgo(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, windowSize));
                     }
                     break;
 
@@ -154,9 +162,12 @@ PF_Err AverageFilter_SmartRender
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-                        const PF_Pixel_ARGB_8u* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
-                        PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
-                        // Proc here..    
+                        const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
+                              PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
+
+                        err = ((0 == isGeometric) ?
+                                  AverageFilterAlgo(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, windowSize) :
+                                  GeomethricAverageFilterAlgo(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, windowSize));
                     }
                     break;
 
