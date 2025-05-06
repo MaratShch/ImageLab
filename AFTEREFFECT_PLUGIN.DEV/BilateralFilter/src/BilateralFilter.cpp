@@ -4,6 +4,7 @@
 #include "GaussMesh.hpp"
 #include "BilateralFilterAlgo.hpp"
 #include "CommonAuxPixFormat.hpp"
+#include "CommonSmartRender.hpp"
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
 
@@ -11,28 +12,6 @@
 static GaussMesh* gGaussMeshInstance = nullptr;
 GaussMesh* getMeshHandler(void) { return gGaussMeshInstance; }
 
-
-inline PF_Boolean IsEmptyRect(const PF_LRect* r) noexcept
-{
-    return (r->left >= r->right) || (r->top >= r->bottom);
-}
-
-
-inline void UnionLRect(const PF_LRect* src, PF_LRect* dst) noexcept
-{
-    if (IsEmptyRect(dst))
-    {
-        *dst = *src;
-    }
-    else if (!IsEmptyRect(src))
-    {
-        dst->left = FastCompute::Min(dst->left, src->left);
-        dst->top = FastCompute::Min(dst->top, src->top);
-        dst->right = FastCompute::Min(dst->right, src->right);
-        dst->bottom = FastCompute::Min(dst->bottom, src->bottom);
-    }
-    return;
-}
 
 
 static PF_Err

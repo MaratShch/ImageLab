@@ -4,30 +4,8 @@
 #include "CompileTimeUtils.hpp"
 #include "AlgCommonFunctions.hpp"
 #include "AlgCorrectionMatrix.hpp"
+#include "CommonSmartRender.hpp"
 #include "AE_Effect.h"
-
-
-inline PF_Boolean IsEmptyRect(const PF_LRect* r) noexcept
-{
-    return (r->left >= r->right) || (r->top >= r->bottom);
-}
-
-
-inline void UnionLRect(const PF_LRect* src, PF_LRect* dst) noexcept
-{
-    if (IsEmptyRect(dst))
-    {
-        *dst = *src;
-    }
-    else if (!IsEmptyRect(src))
-    {
-        dst->left   = FastCompute::Min(dst->left, src->left);
-        dst->top    = FastCompute::Min(dst->top, src->top);
-        dst->right  = FastCompute::Min(dst->right, src->right);
-        dst->bottom = FastCompute::Min(dst->bottom, src->bottom);
-    }
-    return;
-}
 
 
 PF_Err
