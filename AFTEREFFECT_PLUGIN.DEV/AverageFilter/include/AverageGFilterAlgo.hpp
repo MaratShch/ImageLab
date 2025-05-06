@@ -36,7 +36,7 @@ A_long GeomethricAverageFilterAlgo
 		{
 			const A_long iMin = i - filterRadius;
 			const A_long iMax = i + filterRadius;
-			TAAverSum aSumR = 0, aSumG = 0, aSumB = 0;
+            TGAverSum aSumR{ 0 }, aSumG{ 0 }, aSumB{ 0 };
 
 			for (A_long k = jMin; k <= jMax; k++)
 			{
@@ -99,7 +99,7 @@ A_long GeomethricAverageFilterAlgo
 		{
 			const A_long iMin = i - filterRadius;
 			const A_long iMax = i + filterRadius;
-			TAAverSum aSumY = 0;
+            TGAverSum aSumY{ 0 };
 
 			for (A_long k = jMin; k <= jMax; k++)
 			{
@@ -160,7 +160,7 @@ A_long GeomethricAverageFilterAlgo
 		{
 			const A_long iMin = i - filterRadius;
 			const A_long iMax = i + filterRadius;
-			TAAverSum aSumR = 0, aSumG = 0, aSumB = 0;
+            TGAverSum aSumR{ 0 }, aSumG{ 0 }, aSumB{ 0 };
 
 			for (A_long k = jMin; k <= jMax; k++)
 			{

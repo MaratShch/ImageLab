@@ -136,6 +136,11 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept
 {
+#if !defined __INTEL_COMPILER 
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+
 	return (PF_WORLD_IS_DEEP(output) ?
         AverageFilter_InAE_DeepWorld(in_data, out_data, params, output) :
 		AverageFilter_InAE_8bits (in_data, out_data, params, output));
