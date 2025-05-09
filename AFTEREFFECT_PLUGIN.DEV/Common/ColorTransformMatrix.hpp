@@ -2,23 +2,23 @@
 
 #include "Common.hpp"
 
-typedef enum eCOLOR_SPACE
+typedef enum 
 {
 	BT601 = 0,
 	BT709,
 	BT2020,
 	SMPTE240M
-};
+}eCOLOR_SPACE;
 
-typedef enum eCOLOR_OBSERVER
+typedef enum 
 {
 	observer_CIE_1931 = 0, /*  2° (CIE 1931) */
 	observer_CIE_1964,     /* 10° (CIE 1964) */
 	observer_TOTAL_OBSERVERS
-};
+}eCOLOR_OBSERVER;
 
 
-typedef enum eCOLOR_ILLUMINANT
+typedef enum 
 {
 	color_ILLUMINANT_A = 0,
 	color_ILLUMINANT_B,
@@ -41,7 +41,7 @@ typedef enum eCOLOR_ILLUMINANT
 	color_ILLUMINANT_F11,
 	color_ILLUMINANT_F12,
 	color_TOTAL_ILLUMINANTS
-};
+}eCOLOR_ILLUMINANT;
 
 constexpr eCOLOR_OBSERVER   CieLabDefaultObserver  { observer_CIE_1931 };
 constexpr eCOLOR_ILLUMINANT CieLabDefaultIlluminant{ color_ILLUMINANT_D65 };
