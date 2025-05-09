@@ -1,9 +1,9 @@
 #ifndef __IMAGE_LAB_AUTHOMATIC_WB_ALGO_CORRECTION_MATRIX__
 #define __IMAGE_LAB_AUTHOMATIC_WB_ALGO_CORRECTION_MATRIX__
 
+#include "ImageLabCUDA.hpp"
 #include "ColorTransformMatrix.hpp"
 #include "AlgCommonEnums.hpp"
-#include "ImageLabCUDA.hpp"
 
 INLINE_CALL const float* RESTRICT GetIlluminate(const eILLUMINATE illuminateIdx) noexcept
 {
