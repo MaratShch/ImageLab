@@ -84,6 +84,9 @@
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorTemperatureAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp">

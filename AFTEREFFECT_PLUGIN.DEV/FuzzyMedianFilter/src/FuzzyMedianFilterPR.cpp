@@ -38,7 +38,7 @@ PF_Err ProcessImgInPR
         memset(pMemoryBlock, 0, totalProcMem); // cleanup memory block for DBG purposes
 #endif
         // This plugin called from Pr - check video format
-        auto const& pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
+        auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
         PF_Err errFormat = PF_Err_INVALID_INDEX;
         PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;

@@ -150,6 +150,10 @@ Render(
     PF_ParamDef		*params[],
     PF_LayerDef		*output)
 {
+#if !defined __INTEL_COMPILER 
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
     return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
