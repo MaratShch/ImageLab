@@ -691,6 +691,9 @@ EffectMain(
 				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
 			break;
 
+            case PF_Cmd_QUERY_DYNAMIC_FLAGS:
+            break;
+
 			case PF_Cmd_SMART_PRE_RENDER:
 				ERR(SmartPreRender(in_data, out_data, params, output));
 			break;
