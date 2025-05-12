@@ -1,6 +1,9 @@
 #ifndef __IMAGE_LAB_IMAGE_COLOR_TEMPERATURES_ALGO_LUT__
 #define __IMAGE_LAB_IMAGE_COLOR_TEMPERATURES_ALGO_LUT__
 
+
+#include <limits>
+#include <type_traits>
 #include "ColorCurves.hpp"
 #include "ColorIlluminant.hpp"
 #include "ColorTemperatureChromaticityValues.hpp"
@@ -108,7 +111,7 @@ std::pair<T, CCT_LUT_Entry<T>> calculateCCT_NearestNeighbor
     const std::vector<CCT_LUT_Entry<T>>& lut
 ) noexcept
 {
-    T min_distance = std::numeric_limits<T>::max();
+    T min_distance{ (std::numeric_limits<T>::max)() };
     size_t closest_index = 0;
    
     // Iterate through the LUT to find the nearest neighbor

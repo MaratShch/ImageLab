@@ -1,6 +1,7 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureGUI.hpp"
 #include "ColorTemperatureControlsPresets.hpp"
+#include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
 #include "cct_interface.hpp"
@@ -45,6 +46,8 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    LoadMemoryInterfaceProvider(in_data);
+
 	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
     PF_Handle pGlobalStorage = nullptr;
 
@@ -152,6 +155,8 @@ GlobalSetdown(
     }
 
     resetPresets (vPresets);
+    
+    UnloadMemoryInterfaceProvider();
 
     return PF_Err_NONE;
 }
@@ -687,7 +692,7 @@ EffectMain(
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
 
-			case PF_Cmd_EVENT:
+	        case PF_Cmd_EVENT:
 				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
 			break;
 
