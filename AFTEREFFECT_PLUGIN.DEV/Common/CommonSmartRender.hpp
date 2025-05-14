@@ -5,13 +5,13 @@
 #include "FastAriphmetics.hpp"
 
 
-inline PF_Boolean IsEmptyRect(const PF_LRect* r) noexcept
+inline PF_Boolean IsEmptyRect (const PF_LRect* r) noexcept
 {
     return (r->left >= r->right) || (r->top >= r->bottom);
 }
 
 
-inline void UnionLRect(const PF_LRect* src, PF_LRect* dst) noexcept
+inline void UnionLRect (const PF_LRect* src, PF_LRect* dst) noexcept
 {
     if (IsEmptyRect(dst))
     {
@@ -19,9 +19,9 @@ inline void UnionLRect(const PF_LRect* src, PF_LRect* dst) noexcept
     }
     else if (!IsEmptyRect(src))
     {
-        dst->left = FastCompute::Min(dst->left, src->left);
-        dst->top = FastCompute::Min(dst->top, src->top);
-        dst->right = FastCompute::Min(dst->right, src->right);
+        dst->left   = FastCompute::Min(dst->left,   src->left);
+        dst->top    = FastCompute::Min(dst->top,    src->top);
+        dst->right  = FastCompute::Min(dst->right,  src->right);
         dst->bottom = FastCompute::Min(dst->bottom, src->bottom);
     }
     return;

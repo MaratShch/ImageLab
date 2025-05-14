@@ -76,6 +76,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+                    constexpr float coeff = 1.f / static_cast<float>(u8_value_white);
+                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff, destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709);
                 }
                 break;
 
@@ -85,6 +87,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+                    constexpr float coeff = 1.f;
+                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff, destinationPixelFormat == PrPixelFormat_VUYA_4444_32f_709);
                 }
                 break;
 
@@ -93,6 +97,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
                           PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+                    constexpr float coeff = 1.f / static_cast<float>(u10_value_white);
+                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 

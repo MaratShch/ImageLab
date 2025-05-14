@@ -1,5 +1,9 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
+#include "ColorTemperatureAlgo.hpp"
+#include "CompileTimeUtils.hpp"
+#include "CommonAuxPixFormat.hpp"
+#include "ImageLabMemInterface.hpp"
 
 
 PF_Err ColorTemperature_InAE_8bits
@@ -10,7 +14,30 @@ PF_Err ColorTemperature_InAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
-	return PF_Err_NONE;
+    const PF_EffectWorld*   __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+    const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+          PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    void* pMemoryBlock = nullptr;
+    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fRGB_size), CACHE_LINE);
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+    fRGB* __restrict pTmpBuffer = static_cast<fRGB* __restrict>(pMemoryBlock);
+
+    constexpr float coeff = 1.f / static_cast<float>(u8_value_white);
+    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+
+    ::FreeMemoryBlock(blockId);
+    blockId = -1;
+    pMemoryBlock = nullptr;
+
+    return PF_Err_NONE;
+
+    return PF_Err_NONE;
 }
 
 
@@ -22,7 +49,30 @@ PF_Err ColorTemperature_InAE_16bits
 	PF_LayerDef* output
 ) noexcept
 {
-	return PF_Err_NONE;
+    const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+    const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+          PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    void* pMemoryBlock = nullptr;
+    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fRGB_size), CACHE_LINE);
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+    fRGB* __restrict pTmpBuffer = static_cast<fRGB* __restrict>(pMemoryBlock);
+
+    constexpr float coeff = 1.f / static_cast<float>(u16_value_white);
+    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+
+    ::FreeMemoryBlock(blockId);
+    blockId = -1;
+    pMemoryBlock = nullptr;
+
+    return PF_Err_NONE;
+
+    return PF_Err_NONE;
 }
 
 
@@ -34,11 +84,32 @@ PF_Err ColorTemperature_InAE_32bits
     PF_LayerDef* output
 ) noexcept
 {
+    const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+    const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
+          PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    void* pMemoryBlock = nullptr;
+    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fRGB_size), CACHE_LINE);
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+    fRGB* __restrict pTmpBuffer = static_cast<fRGB* __restrict>(pMemoryBlock);
+
+    constexpr float coeff = 1.f;
+    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+
+    ::FreeMemoryBlock(blockId);
+    blockId = -1;
+    pMemoryBlock = nullptr;
+
     return PF_Err_NONE;
 }
 
 
-inline PF_Err ColorTemperature_InAE_DeepWord
+PF_Err ColorTemperature_InAE_DeepWord
 (
     PF_InData*   in_data,
     PF_OutData*  out_data,
@@ -58,13 +129,14 @@ inline PF_Err ColorTemperature_InAE_DeepWord
     return err;
 }
 
+
 PF_Err
 ProcessImgInAE
 (
-	PF_InData*		in_data,
-	PF_OutData*		out_data,
-	PF_ParamDef*	params[],
-	PF_LayerDef*	output
+	PF_InData*   in_data,
+	PF_OutData*	 out_data,
+	PF_ParamDef* params[],
+	PF_LayerDef* output
 ) 
 {
 	return (PF_WORLD_IS_DEEP(output) ?
