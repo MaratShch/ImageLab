@@ -24,12 +24,12 @@ PF_Err ColorTemperature_InAE_8bits
     const A_long sizeX = output->width;
 
     void* pMemoryBlock = nullptr;
-    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fRGB_size), CACHE_LINE);
+    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    fRGB* __restrict pTmpBuffer = static_cast<fRGB* __restrict>(pMemoryBlock);
+    PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
 
     constexpr float coeff = 1.f / static_cast<float>(u8_value_white);
-    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+//    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;
@@ -59,12 +59,12 @@ PF_Err ColorTemperature_InAE_16bits
     const A_long sizeX = output->width;
 
     void* pMemoryBlock = nullptr;
-    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fRGB_size), CACHE_LINE);
+    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    fRGB* __restrict pTmpBuffer = static_cast<fRGB* __restrict>(pMemoryBlock);
+    PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
 
     constexpr float coeff = 1.f / static_cast<float>(u16_value_white);
-    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+//    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;
@@ -94,12 +94,12 @@ PF_Err ColorTemperature_InAE_32bits
     const A_long sizeX = output->width;
 
     void* pMemoryBlock = nullptr;
-    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(fRGB_size), CACHE_LINE);
+    const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    fRGB* __restrict pTmpBuffer = static_cast<fRGB* __restrict>(pMemoryBlock);
+    PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
 
     constexpr float coeff = 1.f;
-    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+//    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;
