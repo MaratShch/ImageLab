@@ -7,7 +7,6 @@
 #include "ColorCurves.hpp"
 #include "ColorIlluminant.hpp"
 #include "ColorTemperatureChromaticityValues.hpp"
-#include "CctLut.hpp"
 #include "ColorTransformMatrix.hpp"
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>

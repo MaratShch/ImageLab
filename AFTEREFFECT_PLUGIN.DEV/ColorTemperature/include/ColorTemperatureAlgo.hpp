@@ -6,6 +6,8 @@
 #include "CommonAuxPixFormat.hpp"
 #include "CommonPixFormatSFINAE.hpp"
 #include "AlgoProcStructures.hpp"
+#include "CctLut.hpp"
+
 
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline _tRGB<U> sRGB2LinearRGB (const T& in, const U coeff) noexcept
@@ -58,11 +60,33 @@ inline _tRGB<T> sRGB2LinearRGB (const PF_Pixel_RGB_10u& in, const T coeff) noexc
     return out;
 }
 
+
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline _tXYZPix<T> sRgb2XYZ
+(
+    const _tRGB<T>& in
+) noexcept
+{
+    auto varValue = [&](const T inVal) { return ((inVal > static_cast<T>(0.04045)) ? std::pow((inVal + static_cast<T>(0.055)) / static_cast<T>(1.055), static_cast<T>(2.40)) : (inVal / static_cast<T>(12.92))); };
+
+    const T var_R = varValue(in.R) * static_cast<T>(100);
+    const T var_G = varValue(in.G) * static_cast<T>(100);
+    const T var_B = varValue(in.B) * static_cast<T>(100);
+
+    _tXYZPix<T> out;
+    out.X = var_R * static_cast<T>(0.4124564) + var_G * static_cast<T>(0.3575761) + var_B * static_cast<T>(0.1804375);
+    out.Y = var_R * static_cast<T>(0.2126729) + var_G * static_cast<T>(0.7151522) + var_B * static_cast<T>(0.0721750);
+    out.Z = var_R * static_cast<T>(0.0193339) + var_G * static_cast<T>(0.1191920) + var_B * static_cast<T>(0.9503041);
+
+    return out;
+}
+
+
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
-inline void Convert2Linear_sRGB
+inline void Convert2PixComponents
 (
     const T*  __restrict pSrc,
-    _tRGB<U>* __restrict pDst,
+    PixComponentsStr<U>* __restrict pDst,
     A_long sizeX,
     A_long sizeY,
     A_long srcPitch,
@@ -73,20 +97,35 @@ inline void Convert2Linear_sRGB
     for (A_long j = 0; j < sizeY; j++)
     {
         const T*  __restrict pSrcLine = pSrc + j * srcPitch;
-        _tRGB<U>* __restrict pDstLine = pDst + j * dstPitch;
+        PixComponentsStr<U>* __restrict pDstLine = pDst + j * dstPitch;
 
         for (A_long i = 0; i < sizeX; i++)
-            pDstLine[i] = sRGB2LinearRGB(pSrcLine[i], coeff);
-    }
+        {
+            _tXYZPix<U> xyz = sRgb2XYZ(sRGB2LinearRGB(pSrcLine[i], coeff));
+            
+            const U XYZ_sum = xyz.X + xyz.Y + xyz.Z;
+            const U x = xyz.X / XYZ_sum;
+            const U y = xyz.Y / XYZ_sum;
+
+            U u, v;
+            xy_to_uv (x, y, u, v);
+            
+            pDst[i].Y = xyz.Y;
+            pDst[i].u = u;
+            pDst[i].v = v;
+        } // for (A_long i = 0; i < sizeX; i++)
+
+    } // for (A_long j = 0; j < sizeY; j++)
+
     return;
 }
 
 
 template<typename T, typename U, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
-inline void Convert2Linear_sRGB
+inline void Convert2PixComponents
 (
     const T*  __restrict pSrc,
-    _tRGB<U>* __restrict pDst,
+    PixComponentsStr<U>* __restrict pDst,
     A_long sizeX,
     A_long sizeY,
     A_long srcPitch,
@@ -98,20 +137,34 @@ inline void Convert2Linear_sRGB
     for (A_long j = 0; j < sizeY; j++)
     {
         const T*  __restrict pSrcLine = pSrc + j * srcPitch;
-        _tRGB<U>* __restrict pDstLine = pDst + j * dstPitch;
+        PixComponentsStr<U>* __restrict pDstLine = pDst + j * dstPitch;
 
-//        for (A_long i = 0; i < sizeX; i++)
-//            pDstLine[i] = sRGB2LinearRGB(pSrcLine[i], coeff);
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            _tXYZPix<U> xyz = sRgb2XYZ(sRGB2LinearRGB(pSrcLine[i], coeff));
+
+            const U XYZ_sum = xyz.X + xyz.Y + xyz.Z;
+            const U x = xyz.X / XYZ_sum;
+            const U y = xyz.Y / XYZ_sum;
+
+            U u, v;
+            xy_to_uv (x, y, u, v);
+
+            pDst[i].Y = xyz.Y;
+            pDst[i].u = u;
+            pDst[i].v = v;
+        }
+
     }
     return;
 }
 
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-inline void Convert2Linear_sRGB
+inline void Convert2PixComponents
 (
     const PF_Pixel_RGB_10u*  __restrict pSrc,
-    _tRGB<T>* __restrict pDst,
+    PixComponentsStr<T>* __restrict pDst,
     A_long sizeX,
     A_long sizeY,
     A_long srcPitch,
@@ -122,10 +175,24 @@ inline void Convert2Linear_sRGB
     for (A_long j = 0; j < sizeY; j++)
     {
         const PF_Pixel_RGB_10u* __restrict pSrcLine = pSrc + j * srcPitch;
-                      _tRGB<T>* __restrict pDstLine = pDst + j * dstPitch;
+        PixComponentsStr<T>* __restrict pDstLine = pDst + j * dstPitch;
 
         for (A_long i = 0; i < sizeX; i++)
-            pDstLine[i] = sRGB2LinearRGB (pSrcLine[i], coeff);
+        {
+            _tXYZPix<T> xyz = sRgb2XYZ(sRGB2LinearRGB(pSrcLine[i], coeff));
+
+            const T XYZ_sum = xyz.X + xyz.Y + xyz.Z;
+            const T x = xyz.X / XYZ_sum;
+            const T y = xyz.Y / XYZ_sum;
+
+            T u, v;
+            xy_to_uv (x, y, u, v);
+
+            pDst[i].Y = xyz.Y;
+            pDst[i].u = u;
+            pDst[i].v = v;
+        }
+
     }
     return;
 }

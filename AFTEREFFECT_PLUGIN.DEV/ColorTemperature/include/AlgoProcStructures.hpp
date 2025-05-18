@@ -3,7 +3,7 @@
 
 #include <type_traits>
 
-template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+template<typename T>
 struct PixComponentsStr
 {
     T   Y; // luma value from XYZ color space, represent Luma component

@@ -5,7 +5,7 @@ template <typename T>
 class is_RGB_proc
 {
 	/**
-	* YUV proc variation
+	* RGB proc variation
 	*/
 	template <typename TT,
 		typename std::enable_if<

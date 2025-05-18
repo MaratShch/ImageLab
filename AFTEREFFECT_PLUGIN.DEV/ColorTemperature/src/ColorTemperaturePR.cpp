@@ -1,3 +1,4 @@
+#include "AlgoRules.hpp"
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureAlgo.hpp"
@@ -29,14 +30,14 @@ PF_Err ProcessImgInPR
         const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
         const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 
-        const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
+        const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr<AlgoProcT>)), CACHE_LINE);
 
         void* pMemoryBlock = nullptr;
         A_long blockId = ::GetMemoryBlock (totalProcMem, 0, &pMemoryBlock);
 
         if (nullptr != pMemoryBlock && blockId >= 0)
         {
-            PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
+            PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT> *__restrict > (pMemoryBlock);
 
             switch (destinationPixelFormat)
             {
@@ -45,8 +46,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-                    constexpr float coeff = 1.f / static_cast<float>(u8_value_white);
-//                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
+                    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -55,8 +56,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
-                    constexpr float coeff = 1.f / static_cast<float>(u16_value_white);
-//                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
+                    //                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -65,8 +66,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
-                    constexpr float coeff = 1.f;
-//                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
+                    //                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -76,8 +77,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                    constexpr float coeff = 1.f / static_cast<float>(u8_value_white);
-//                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff, destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709);
+                    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
+                    //                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff, destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709);
                 }
                 break;
 
@@ -87,8 +88,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
-                    constexpr float coeff = 1.f;
-//                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff, destinationPixelFormat == PrPixelFormat_VUYA_4444_32f_709);
+                    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
+                    //                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff, destinationPixelFormat == PrPixelFormat_VUYA_4444_32f_709);
                 }
                 break;
 
@@ -97,8 +98,8 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
                           PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
-                    constexpr float coeff = 1.f / static_cast<float>(u10_value_white);
-//                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u10_value_white);
+                    //                    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
