@@ -505,25 +505,25 @@ Render(
 
 
 static PF_Err
-SmartPreRender(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+PreRender(
+	PF_InData		   *in_data,
+	PF_OutData		   *out_data,
+    PF_PreRenderExtra  *extra
+)
 {
-	return PF_Err_NONE;
+	return ColorTemperarture_PreRender (in_data, out_data, extra);
 }
 
 
 
 static PF_Err
-SmartRender(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+SmartRender (
+	PF_InData		     *in_data,
+	PF_OutData		     *out_data,
+    PF_SmartRenderExtra  *extra
+)
 {
-	return PF_Err_NONE;
+	return ColorTemperature_SmartRender (in_data, out_data, extra);
 }
 
 
@@ -699,13 +699,13 @@ EffectMain(
             case PF_Cmd_QUERY_DYNAMIC_FLAGS:
             break;
 
-			case PF_Cmd_SMART_PRE_RENDER:
-				ERR(SmartPreRender(in_data, out_data, params, output));
-			break;
-			
-			case PF_Cmd_SMART_RENDER:
-				ERR(SmartRender(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+           break;
+
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
 
 //			case PF_Cmd_GET_FLATTENED_SEQUENCE_DATA:
 //				ERR(GetFlattenedSequenceData(in_data, out_data, params, output));
@@ -715,7 +715,7 @@ EffectMain(
 			break;
 		}
 	}
-	catch (PF_Err & thrown_err)
+	catch (PF_Err& thrown_err)
 	{
 		err = thrown_err;
 	}

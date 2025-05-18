@@ -1,3 +1,4 @@
+#include "AlgoRules.hpp"
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureAlgo.hpp"
@@ -26,9 +27,9 @@ PF_Err ColorTemperature_InAE_8bits
     void* pMemoryBlock = nullptr;
     const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
+    PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
 
-    constexpr float coeff = 1.f / static_cast<float>(u8_value_white);
+    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
     Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
@@ -61,9 +62,9 @@ PF_Err ColorTemperature_InAE_16bits
     void* pMemoryBlock = nullptr;
     const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
+    PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
 
-    constexpr float coeff = 1.f / static_cast<float>(u16_value_white);
+    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
     Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
@@ -96,10 +97,10 @@ PF_Err ColorTemperature_InAE_32bits
     void* pMemoryBlock = nullptr;
     const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
+    PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
 
-    constexpr float coeff = 1.f;
-//    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+    constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
+    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;
