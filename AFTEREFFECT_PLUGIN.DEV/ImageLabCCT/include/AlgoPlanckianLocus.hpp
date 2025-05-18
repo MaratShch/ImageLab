@@ -42,7 +42,7 @@ namespace PlanckianLocus
        // Precompute constants with care
        // C1 = 2 * pi * h * c^2  (Units: J·s * m^2/s^2 = J·m^2/s)
         constexpr T c_sq = c * c;
-        constexpr T C1 = static_cast<T>(2.0) * pi * h * c_sq;
+        constexpr T C1 = (static_cast<T>(2.0) * pi) * h * c_sq;
 
         // C2 = h * c / k         (Units: J·s * m/s / (J/K) = m·K)
         constexpr T hc = h * c;
