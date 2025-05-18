@@ -29,7 +29,7 @@ PF_Err ColorTemperature_InAE_8bits
     PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
 
     constexpr float coeff = 1.f / static_cast<float>(u8_value_white);
-//    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;
@@ -64,7 +64,7 @@ PF_Err ColorTemperature_InAE_16bits
     PixComponentsStr32* __restrict pTmpBuffer = static_cast<PixComponentsStr32* __restrict>(pMemoryBlock);
 
     constexpr float coeff = 1.f / static_cast<float>(u16_value_white);
-//    Convert2Linear_sRGB (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;

@@ -134,6 +134,7 @@ inline void Convert2PixComponents
     bool isBT709 = true
 ) noexcept
 {
+#if 0
     for (A_long j = 0; j < sizeY; j++)
     {
         const T*  __restrict pSrcLine = pSrc + j * srcPitch;
@@ -153,9 +154,10 @@ inline void Convert2PixComponents
             pDst[i].Y = xyz.Y;
             pDst[i].u = u;
             pDst[i].v = v;
-        }
-
-    }
+        } // for (A_long i = 0; i < sizeX; i++)
+    
+    } // for (A_long j = 0; j < sizeY; j++)
+#endif
     return;
 }
 
@@ -191,9 +193,10 @@ inline void Convert2PixComponents
             pDst[i].Y = xyz.Y;
             pDst[i].u = u;
             pDst[i].v = v;
-        }
+        } // for (A_long i = 0; i < sizeX; i++)
 
-    }
+    } // for (A_long j = 0; j < sizeY; j++)
+
     return;
 }
 
