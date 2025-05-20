@@ -5,8 +5,10 @@
 #include "FastAriphmetics.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "CommonPixFormatSFINAE.hpp"
+#include "ColorTransformMatrix.hpp"
 #include "AlgoProcStructures.hpp"
 #include "CctLut.hpp"
+#include <utility>
 
 
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
@@ -83,7 +85,7 @@ inline _tXYZPix<T> sRgb2XYZ
 
 
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
-inline void Convert2PixComponents
+inline std::pair<U, U> Convert2PixComponents
 (
     const T*  __restrict pSrc,
     PixComponentsStr<U>* __restrict pDst,
@@ -94,6 +96,9 @@ inline void Convert2PixComponents
     const U& coeff
 ) noexcept
 {
+    U accumYu, accumYv, accumY;
+    accumYu = accumYv = accumY = { static_cast<U>(0) };
+
     for (A_long j = 0; j < sizeY; j++)
     {
         const T*  __restrict pSrcLine = pSrc + j * srcPitch;
@@ -113,16 +118,24 @@ inline void Convert2PixComponents
             pDst[i].Y = xyz.Y;
             pDst[i].u = u;
             pDst[i].v = v;
+
+            accumY  += xyz.Y;
+            accumYu += (xyz.Y * u);
+            accumYv += (xyz.Y * v);
         } // for (A_long i = 0; i < sizeX; i++)
 
     } // for (A_long j = 0; j < sizeY; j++)
 
-    return;
+    // compute weighted chromaticity values
+    const U weighted_u = accumYu / accumY;
+    const U weighted_v = accumYv / accumY;
+
+    return std::make_pair(weighted_u, weighted_v);
 }
 
 
 template<typename T, typename U, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
-inline void Convert2PixComponents
+inline std::pair<U, U> Convert2PixComponents
 (
     const T*  __restrict pSrc,
     PixComponentsStr<U>* __restrict pDst,
@@ -134,6 +147,11 @@ inline void Convert2PixComponents
     bool isBT709 = true
 ) noexcept
 {
+    U accumYu, accumYv, accumY;
+    accumYu = accumYv = accumY = { static_cast<U>(0) };
+
+    const float* __restrict ctm = (true == isBT709 ? YUV2RGB[1] : YUV2RGB[0]);
+
 #if 0
     for (A_long j = 0; j < sizeY; j++)
     {
@@ -158,12 +176,15 @@ inline void Convert2PixComponents
     
     } // for (A_long j = 0; j < sizeY; j++)
 #endif
-    return;
+    const U weighted_u = 0;// accumYu / accumY;
+    const U weighted_v = 0;// accumYv / accumY;
+
+    return std::make_pair(weighted_u, weighted_v);
 }
 
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-inline void Convert2PixComponents
+inline std::pair<T, T> Convert2PixComponents
 (
     const PF_Pixel_RGB_10u*  __restrict pSrc,
     PixComponentsStr<T>* __restrict pDst,
@@ -174,6 +195,9 @@ inline void Convert2PixComponents
     const T& coeff
 ) noexcept
 {
+    T accumYu, accumYv, accumY;
+    accumYu = accumYv = accumY = { static_cast<T>(0) };
+
     for (A_long j = 0; j < sizeY; j++)
     {
         const PF_Pixel_RGB_10u* __restrict pSrcLine = pSrc + j * srcPitch;
@@ -193,13 +217,21 @@ inline void Convert2PixComponents
             pDst[i].Y = xyz.Y;
             pDst[i].u = u;
             pDst[i].v = v;
+ 
+            accumY += xyz.Y;
+            accumYu += (xyz.Y * u);
+            accumYv += (xyz.Y * v);
+       
         } // for (A_long i = 0; i < sizeX; i++)
 
     } // for (A_long j = 0; j < sizeY; j++)
 
-    return;
-}
+      // compute weighted chromaticity values
+    const T weighted_u = accumYu / accumY;
+    const T weighted_v = accumYv / accumY;
 
+    return std::make_pair(weighted_u, weighted_v);
+}
 
 
 

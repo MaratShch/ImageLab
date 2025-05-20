@@ -46,7 +46,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
                     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
-                    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -56,7 +56,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
                     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
-                    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -66,7 +66,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
                     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
-                    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -77,7 +77,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
                     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
-                    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -88,7 +88,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
                     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
-                    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 
@@ -98,7 +98,7 @@ PF_Err ProcessImgInPR
                           PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
                     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u10_value_white);
-                    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
+                    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                 }
                 break;
 

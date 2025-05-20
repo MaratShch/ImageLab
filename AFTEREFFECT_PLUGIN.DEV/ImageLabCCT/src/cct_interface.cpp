@@ -29,3 +29,12 @@ void CctHandleF32::Deinitialize(void)
     m_Lut2.clear();
     return;
 }
+
+
+std::pair<float /* CCT */, float /* Duv */> ComputeCct(std::pair<float, float>& uv, int32_t observer)
+{
+    const float u = uv.first;
+    const float v = uv.second;
+
+    return std::make_pair (0.f, 0.f);
+}

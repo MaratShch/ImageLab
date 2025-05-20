@@ -30,7 +30,7 @@ PF_Err ColorTemperature_InAE_8bits
     PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
 
     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
-    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;
@@ -65,7 +65,7 @@ PF_Err ColorTemperature_InAE_16bits
     PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
 
     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
-    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;
@@ -100,7 +100,7 @@ PF_Err ColorTemperature_InAE_32bits
     PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
 
     constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
-    Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
+    std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents (localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
 
     ::FreeMemoryBlock(blockId);
     blockId = -1;

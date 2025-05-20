@@ -3,6 +3,7 @@
 
 #include "ClassRestrictions.hpp"
 #include "CctLut.hpp"
+#include <utility>
 
 namespace AlgoCCT
 {
@@ -19,8 +20,13 @@ namespace AlgoCCT
             bool Initialize(void);
             void Deinitialize(void);
 
+            std::pair<float /* CCT */, float /* Duv */> ComputeCct (std::pair<float, float>& uv, int32_t observer);
+
         private:
+            // CCT Lut for CIE_1931 2 degrees observer
             std::vector<CCT_LUT_Entry<float>> m_Lut1;
+
+            // CCT Lut for CIE_1964 10 degrees observer
             std::vector<CCT_LUT_Entry<float>> m_Lut2;
 
     };

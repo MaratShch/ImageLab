@@ -95,5 +95,8 @@
     <ClInclude Include="include\CctLut.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonSmartRender.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
