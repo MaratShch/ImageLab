@@ -44,9 +44,20 @@ void CctHandleF32::Deinitialize(void)
 
 std::pair<float, float> CctHandleF32::ComputeCct (const std::pair<float, float>& uv, eCOLOR_OBSERVER observer) const
 {
+    float Cct = 0.f;
+    float Duv = 0.f;
+
     const float u = uv.first;
     const float v = uv.second;
 
-
-    return std::make_pair (0.f, 0.f);
+    if (observer_CIE_1931 == observer)
+    {
+        // we working with LUT1
+    }
+    else if (observer_CIE_1964 == observer)
+    {
+        // we working with LUT2
+    }
+        // invalid or non-supported observer
+    return std::make_pair (Cct, Duv);
 }
