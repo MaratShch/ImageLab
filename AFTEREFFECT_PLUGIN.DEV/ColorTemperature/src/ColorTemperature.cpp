@@ -2,19 +2,14 @@
 #include "ColorTemperatureGUI.hpp"
 #include "ColorTemperatureControlsPresets.hpp"
 #include "ImageLabMemInterface.hpp"
+#include "AlgoProcStructures.hpp"
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
-#include "cct_interface.hpp"
 
-#pragma pack(push)
-#pragma pack(1)
-typedef struct pHandle
-{
-    AEGP_PluginID id;
-    AlgoCCT::CctHandleF32* hndl;
-}pHandle;
-#pragma pack(pop)
-
+#ifdef _DEBUG
+volatile AlgoCCT::CctHandleF32* pGCctHandler32{ nullptr };
+volatile pHandle* pGHandle{ nullptr };
+#endif
 
 // vector contains preset settings
 std::vector<IPreset*> vPresets{};
@@ -95,28 +90,37 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-    // Initialize CCT LUT
-    AlgoCCT::CctHandleF32* globalCctHandler32 = new (std::nothrow) AlgoCCT::CctHandleF32;
-    if (nullptr != globalCctHandler32 && true == globalCctHandler32->Initialize())
+    // Initialize CCT LUTs
+    AlgoCCT::CctHandleF32* globalCctHandler32 = new AlgoCCT::CctHandleF32;
+
+    if (nullptr != globalCctHandler32)
     {
         // Add CctHandler to global data
         AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
         if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(pHandle))))
         {
             pHandle* pHndl = static_cast<pHandle*>(handleSuite->host_lock_handle(pGlobalStorage));
-            pHndl->hndl = globalCctHandler32;
-
             if (PremierId != in_data->appl_id)
             {
                 AEFX_SuiteScoper<AEGP_UtilitySuite3> u_suite(in_data, kAEGPUtilitySuite, kAEGPUtilitySuiteVersion3);
                 u_suite->AEGP_RegisterWithAEGP(nullptr, strName, &pHndl->id);
             }
+
+            globalCctHandler32->Initialize();
+            pHndl->hndl = globalCctHandler32;
+            pHndl->valid = static_cast<A_long>(0xDEADBEEF);
+
             out_data->global_data = pGlobalStorage;
             handleSuite->host_unlock_handle(pGlobalStorage);
+
+#ifdef _DEBUG
+            pGHandle = pHndl;
+#endif
 
             // Initialize PreSets
             setPresetsVector(vPresets);
             err = PF_Err_NONE;
+
         } // if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(globalCctHandler32))))
     }
     else
@@ -124,6 +128,10 @@ GlobalSetup(
         delete globalCctHandler32;
         globalCctHandler32 = nullptr;
     }
+
+#ifdef _DEBUG
+    pGCctHandler32 = globalCctHandler32;
+#endif
 
 	return err;
 }
@@ -144,12 +152,13 @@ GlobalSetdown(
         if (nullptr != pGlobal && nullptr != pGlobal->hndl)
         {
             AlgoCCT::CctHandleF32* globalCctHandler32 = pGlobal->hndl;
+            
             globalCctHandler32->Deinitialize();
-
             delete globalCctHandler32;
             globalCctHandler32 = nullptr;
+            
             pGlobal = nullptr;
-        }
+        } // if (nullptr != pGlobal && nullptr != pGlobal->hndl)
 
         AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data)->host_dispose_handle(in_data->global_data);
     }
@@ -200,28 +209,10 @@ ParamsSetup(
 		controlItemObserver,					/* string for pop-up	*/
 		COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP);	/* control ID			*/
 
-	/* Setup 'Illuminant' popup - default value "D65" */
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_POPUP(
-		controlItemName[3],							/* pop-up name			*/
-		COLOR_TEMPERATURE_TOTAL_ILLUMINANTS,		/* number of variants	*/
-		COLOR_TEMPERATURE_ILLUMINANT_D65,			/* default variant		*/
-		controlItemIlluminant,						/* string for pop-up	*/
-		COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP);	/* control ID			*/
-
-	/* Setup 'Wavelength step' popup - default value 2 nani meters */
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_POPUP(
-		controlItemName[4],							/* pop-up name			*/
-		COLOR_TEMPERATURE_WAVELENGTH_TOTAL_STEPS,	/* number of variants	*/
-		COLOR_TEMPERATURE_WAVELENGTH_STEP_DECENT,	/* default variant		*/
-		controlItemWavelengthStep,					/* string for pop-up	*/
-		COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP);	/* control ID			*/
-	
 	/* Setup 'Color Temperature' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[5],
+		controlItemName[3],
 		colorTemperature2Slider(algoColorTempMin),
 		colorTemperature2Slider(algoColorTempMax),
 		colorTemperature2Slider(algoColorTempMin),
@@ -235,7 +226,7 @@ ParamsSetup(
 	/* Setup 'Color Temperature Offset' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[6],
+		controlItemName[4],
 		algoColorTempFineMin,
 		algoColorTempFineMax,
 		algoColorTempFineMin,
@@ -249,7 +240,7 @@ ParamsSetup(
 	/* Setup 'Tint coarse' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[7],
+		controlItemName[5],
 		algoColorTintMin,
 		algoColorTintMax,
 		algoColorTintMin,
@@ -263,7 +254,7 @@ ParamsSetup(
 	/* Setup 'Tint fine' slider */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[8],
+		controlItemName[6],
 		algoColorTintFineMin,
 		algoColorTintFineMax,
 		algoColorTintFineMin,
@@ -277,7 +268,7 @@ ParamsSetup(
 	/* Setup 'Camera SPD' button - initially disabled */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
 	PF_ADD_BUTTON(
-		controlItemName[9],
+		controlItemName[7],
 		controlItemCameraSPD,
 		0,
 		PF_ParamFlag_SUPERVISE,
@@ -287,7 +278,7 @@ ParamsSetup(
 	/* Setup 'Load Preset' button */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_BUTTON(
-		controlItemName[10],
+		controlItemName[8],
 		controlItemLoadPreset,
 		0,
 		PF_ParamFlag_SUPERVISE,
@@ -297,7 +288,7 @@ ParamsSetup(
 	/* Setup 'Save Preset' button */
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_BUTTON(
-		controlItemName[11],
+		controlItemName[9],
 		controlItemSavePreset,
 		0,
 		PF_ParamFlag_SUPERVISE,
@@ -593,16 +584,6 @@ UserChangedParam(
 		break;
 
 		case COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP:
-		{
-		}
-		break;
-
-		case COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP:
-		{
-		}
-		break;
-
-		case COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP:
 		{
 		}
 		break;

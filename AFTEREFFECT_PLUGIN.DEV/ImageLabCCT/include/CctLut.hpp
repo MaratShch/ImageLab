@@ -59,13 +59,16 @@ inline const T polinomial_compute_duv (const T& u_prime, const T& v_prime) noexc
 
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-std::vector<CCT_LUT_Entry<T>> initLut(T waveMin, T waveMax, T waveStep, T cctMin, T cctMax, T cctStep, const eCOLOR_OBSERVER observer) noexcept
+std::vector<CCT_LUT_Entry<T>> initLut (T waveMin, T waveMax, T waveStep, T cctMin, T cctMax, T cctStep, const eCOLOR_OBSERVER observer) noexcept
 {
-    std::vector<CCT_LUT_Entry<T>> cctLut{};
+    const std::size_t lutSize = static_cast<std::size_t>((cctMax - cctMin) / cctStep) + 1ull;
+    std::vector<CCT_LUT_Entry<T>> cctLut(lutSize);
 
     // initialize Color Observer
     auto const& colorObserver = (observer_CIE_1931 == observer ?
         generate_color_curves_1931_observer(waveMin, waveMax, waveStep) : generate_color_curves_1964_observer(waveMin, waveMax, waveStep));
+
+    int32_t idx = 0;
 
     for (T cctVal = cctMin; cctVal <= cctMax; cctVal += cctStep)
     {
@@ -85,7 +88,7 @@ std::vector<CCT_LUT_Entry<T>> initLut(T waveMin, T waveMax, T waveStep, T cctMin
 
         const T Duv = polinomial_compute_duv(u_prime, v_prime);
 
-        const CCT_LUT_Entry<T> lutEntry
+        const CCT_LUT_Entry<T> lutElement
         {
             cctVal,
             u_prime,
@@ -93,8 +96,8 @@ std::vector<CCT_LUT_Entry<T>> initLut(T waveMin, T waveMax, T waveStep, T cctMin
             Duv
         };
 
-        cctLut.push_back(lutEntry);
-
+        cctLut[idx] = lutElement;
+        idx++;
     } // for (T cctVal = cctMin; cctVal <= cctMax; cctVal += cctStep)
 
     return cctLut;

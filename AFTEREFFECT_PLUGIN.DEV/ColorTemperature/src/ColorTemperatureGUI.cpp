@@ -28,18 +28,6 @@ PF_Err PresetsActivation
 		updateUI = true;
 	}
 
-	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags))
-	{
-		DisableUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
-	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags))
-	{
-		DisableUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
 	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags))
 	{
 		DisableUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags);
@@ -57,8 +45,6 @@ PF_Err PresetsActivation
 	{
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_PRESET_TYPE_POPUP,     params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]);
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP,   params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP, params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP, params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]);
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_LOAD_PRESET_BUTTON,    params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]);
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_SAVE_PRESET_BUTTON,    params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]);
 	}
@@ -91,18 +77,6 @@ PF_Err PresetsDeactivation
 		updateUI = true;
 	}
 
-	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags))
-	{
-		EnableUI(params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
-	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags))
-	{
-		EnableUI(params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
 	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags))
 	{
 		EnableUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags);
@@ -120,8 +94,6 @@ PF_Err PresetsDeactivation
 	{
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_PRESET_TYPE_POPUP,     params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]);
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP,   params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP, params[COLOR_TEMPERATURE_ILLUMINANT_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP, params[COLOR_TEMPERATURE_WAVELENGTH_STEP_POPUP]);
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_LOAD_PRESET_BUTTON,    params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]);
 		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_SAVE_PRESET_BUTTON,    params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]);
 	}

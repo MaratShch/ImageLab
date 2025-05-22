@@ -9,7 +9,7 @@ namespace CCT_Limits
 
     constexpr float cctMin  = 1000.f;    // K  
     constexpr float cctMax  = 25000.f;   // K
-    constexpr float cctStep = 1.0f;      // K 
+    constexpr float cctStep = 10.0f;     // K 
 } // namespace CCT_Limits
 
 #endif // __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_VALUES_LIMITS__
