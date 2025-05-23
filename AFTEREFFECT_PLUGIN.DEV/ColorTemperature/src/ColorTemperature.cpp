@@ -106,7 +106,6 @@ GlobalSetup(
                 u_suite->AEGP_RegisterWithAEGP(nullptr, strName, &pHndl->id);
             }
 
-            globalCctHandler32->Initialize();
             pHndl->hndl = globalCctHandler32;
             pHndl->valid = static_cast<A_long>(0xDEADBEEF);
 

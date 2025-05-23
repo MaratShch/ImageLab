@@ -5,6 +5,7 @@
 #include "CompileTimeUtils.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "ImageLabMemInterface.hpp"
+#include "cct_interface.hpp"
 
 
 PF_Err ColorTemperature_InAE_8bits
@@ -82,7 +83,7 @@ PF_Err ColorTemperature_InAE_16bits
     const pHandle* pStr = static_cast<const pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
     if (nullptr != pStr)
     {
-        const AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
+        AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
         if (nullptr != cctHandle)
         {
             void* pMemoryBlock = nullptr;
@@ -134,7 +135,7 @@ PF_Err ColorTemperature_InAE_32bits
     const pHandle* pStr = static_cast<const pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
     if (nullptr != pStr)
     {
-        const AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
+        AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
         if (nullptr != cctHandle)
         {
             void* pMemoryBlock = nullptr;

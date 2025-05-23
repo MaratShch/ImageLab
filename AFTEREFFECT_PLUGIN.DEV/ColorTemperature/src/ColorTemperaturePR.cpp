@@ -41,7 +41,7 @@ PF_Err ProcessImgInPR
             const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr<AlgoProcT>)), CACHE_LINE);
 
             void* pMemoryBlock = nullptr;
-            A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+            A_long blockId = ::GetMemoryBlock (totalProcMem, 0, &pMemoryBlock);
 
             if (nullptr != pMemoryBlock && blockId >= 0)
             {
@@ -129,6 +129,9 @@ PF_Err ProcessImgInPR
                 err = PF_Err_NONE;
 
             } // if (nullptr != pMemoryBlock && blockId >= 0)
+
+            // Draw CCT/Duv values on Effect Panel
+            // ...
 
         } // if (nullptr != cctHandle)
 
