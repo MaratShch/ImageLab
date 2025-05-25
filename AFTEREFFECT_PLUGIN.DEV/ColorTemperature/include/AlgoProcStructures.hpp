@@ -23,7 +23,7 @@ typedef struct pHandle
     A_long valid;
     AlgoCCT::CctHandleF32* hndl;
 
-    pHandle::pHandle()
+    pHandle::pHandle() noexcept
     {
         id = valid = 0;
         hndl = nullptr;

@@ -104,5 +104,20 @@ constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Ler
 	return v0 + (v1 - v0) * t;
 }
 
+template <typename T>
+struct Point
+{
+    T x;
+    T y;
+    constexpr Point (const T& x_val, const T& y_val) noexcept : x(x_val), y(y_val) {}
+};
+
+template <typename T>
+constexpr bool OnSameLine (const Point<T>& p0, const Point<T>& p1, const Point<T>& p2) noexcept
+{
+    return (static_cast<T>(0) == (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x));
+}
+
+
 
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */
