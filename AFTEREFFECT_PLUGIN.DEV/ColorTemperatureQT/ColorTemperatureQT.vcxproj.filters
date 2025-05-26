@@ -1,76 +1,57 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{71ED8ED8-ACB9-4CE9-BBE1-E00B30144E11}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;moc;h;def;odl;idl;res;</Extensions>
+    </Filter>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{71ED8ED8-ACB9-4CE9-BBE1-E00B30144E11}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;moc;h;def;odl;idl;res;</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
     <Filter Include="src">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="resource">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+      <Extensions>cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="include">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
-    <Filter Include="include_common">
-      <UniqueIdentifier>{47ee93ca-e3bd-464e-9a25-ba6c4e2c1a62}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Common\ClassRestrictions.hpp">
-      <Filter>include_common</Filter>
+    <ClInclude Include="include\abstractcolorbargenerator.h">
+      <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\Common\ColorTransform.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\Common.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonDebugUtils.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonPixFormat.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonSmartRender.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\FastAriphmetics.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\ImageLabCUDA.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\LibExport.hpp">
-      <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Common\Param_Utils.h">
-      <Filter>include_common</Filter>
-    </ClInclude>
+    <CustomBuild Include="include\customcolorbarwidget.h">
+      <Filter>include</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_customcolorbarwidget.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_customcolorbarwidget.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_predefs.h.cbt">
+      <Filter>Generated Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h.cbt">
+      <Filter>Generated Files</Filter>
+    </CustomBuild>
+    <ClCompile Include="src\customcolorbarwidget.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ColorTemperatureQT.pro" />
   </ItemGroup>
 </Project>
