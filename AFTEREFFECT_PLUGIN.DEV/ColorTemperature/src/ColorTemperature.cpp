@@ -150,6 +150,8 @@ GlobalSetdown(
 
         if (nullptr != pGlobal && nullptr != pGlobal->hndl)
         {
+            pGlobal->valid = 0x0;
+
             AlgoCCT::CctHandleF32* globalCctHandler32 = pGlobal->hndl;
             
             globalCctHandler32->Deinitialize();

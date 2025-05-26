@@ -70,7 +70,7 @@ bool CctHandleF32::cct_compute(const float& u, const float& v, float& cct, float
     {
         int32_t mid_idx = low + (high - low) / 2;
 
-        float dist = euclideanDistance(u, v, lut[mid_idx].u, lut[mid_idx].v);
+        const float dist = euclideanDistance(u, v, lut[mid_idx].u, lut[mid_idx].v);
         float prevDist = std::numeric_limits<float>::infinity();
         float nextDist = std::numeric_limits<float>::infinity();
 
@@ -99,11 +99,13 @@ bool CctHandleF32::cct_compute(const float& u, const float& v, float& cct, float
 
         // Ensure idx1 is valid if high became -1
         if (idx1 < 0) idx1 = 0;
-        if (idx1 >= static_cast<int32_t>(lut.size())) idx1 = static_cast<int32_t>(lut.size()) - 1;
+        if (idx1 >= static_cast<int32_t>(lut.size())) 
+            idx1 = static_cast<int32_t>(lut.size()) - 1;
 
         // Ensure idx2 is valid
         if (idx2 < 0) idx2 = 0;
-        if (idx2 >= static_cast<int32_t>(lut.size())) idx2 = static_cast<int32_t>(lut.size()) - 1;
+        if (idx2 >= static_cast<int32_t>(lut.size())) 
+            idx2 = static_cast<int32_t>(lut.size()) - 1;
 
         float d1 = euclideanDistance(u, v, lut[idx1].u, lut[idx1].v);
         float d2 = std::numeric_limits<float>::infinity();

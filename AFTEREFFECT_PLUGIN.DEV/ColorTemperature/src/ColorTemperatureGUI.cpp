@@ -132,7 +132,7 @@ PF_Err DrawEvent
 			if (PF_EA_CONTROL == event_extra->effect_win.area)
 			{
 				DRAWBOT_PathRef	path_ref = nullptr;
-				auto const& drawbotSupplier{ AEFX_SuiteScoper<DRAWBOT_SupplierSuite1>(in_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, out_data) };
+				auto const drawbotSupplier{ AEFX_SuiteScoper<DRAWBOT_SupplierSuite1>(in_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, out_data) };
 				drawbotSupplier->NewPath (supplier_ref, &path_ref);
 				if (nullptr != path_ref)
 				{
