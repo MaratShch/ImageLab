@@ -15,10 +15,9 @@ namespace PlanckianLocus
         constexpr T c{ static_cast<T>(299792458.0) };       /* Speed of light in m / s              */
         constexpr T h{ static_cast<T>(6.62607015e-34) };    /* Planck's constant in m^2 kg/s        */
 		constexpr T k{ static_cast<T>(1.380649e-23) };      /* Boltzmann's constant in m^2 kg/s^2 K */
-	    constexpr T pi{ static_cast<T>(3.14159265358979323846) };
         constexpr T div{ static_cast<T>(1e9) };
 
-        constexpr T first_radiaton_constant{ static_cast<T>(2.0) * pi * h * c * c }; /* 2 * pi * h * c ^ 2 */
+        constexpr T first_radiaton_constant{ static_cast<T>(2.0) * h * c * c }; /* 2 * pi * h * c ^ 2 */
         constexpr T second_radiation_constant{ (h * c) / k };
 
 		const T lambda = wave_length / div;	/* Convert wave length from nano-meters to meters */
@@ -42,7 +41,7 @@ namespace PlanckianLocus
        // Precompute constants with care
        // C1 = 2 * pi * h * c^2  (Units: J·s * m^2/s^2 = J·m^2/s)
         constexpr T c_sq = c * c;
-        constexpr T C1 = (static_cast<T>(2.0) * pi) * h * c_sq;
+        constexpr T C1 = static_cast<T>(2.0) * h * c_sq;
 
         // C2 = h * c / k         (Units: J·s * m/s / (J/K) = m·K)
         constexpr T hc = h * c;
