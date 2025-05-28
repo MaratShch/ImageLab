@@ -573,6 +573,12 @@ namespace FastCompute
         return a * d - b * c;
     }
 
+    template <typename T>
+    inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type VectorNorm (const T& x, const T& y) noexcept
+    {
+        return Sqrt (x * x + y * y);
+    }
+
 
 #ifndef __NVCC__
 	namespace AVX2
