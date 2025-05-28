@@ -159,6 +159,6 @@ namespace PlanckianLocus
     }
 
 
-}
+} // namespace PlanckianLocus
 
 #endif /* __IMAGE_LAB_PLANCKIAN_LOCUS_ALGORITHM__ */

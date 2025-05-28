@@ -555,6 +555,25 @@ namespace FastCompute
 	}
 
 
+    template<typename T>
+    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Sign(const T& val) noexcept
+    {
+        return (static_cast<T>(0) < val) - (val < static_cast<T>(0));
+    }
+
+    template<typename T> // Computes the dot product of two 2D vectors
+    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Dot(const T& x1, const T& x2, const T& y1, const T& y2) noexcept
+    {
+        return x1 * x2 + y1 * y2;
+    }
+
+    template<typename T> // Computes the determinant of a 2x2 matrix [[a, b], [c, d]]
+    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Determinant2x2 (const T& a, const T& b, const T& c, const T& d) noexcept
+    {
+        return a * d - b * c;
+    }
+
+
 #ifndef __NVCC__
 	namespace AVX2
 	{
