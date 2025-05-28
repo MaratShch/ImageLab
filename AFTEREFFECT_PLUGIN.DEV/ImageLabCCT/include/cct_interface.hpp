@@ -6,10 +6,19 @@
 #include <utility>
 #include <atomic>
 #include <vector>
-
+#include <functional>
 
 namespace AlgoCCT
 {
+
+    // Placeholder structure for spline coefficients.
+    struct SplineCoeffs
+    {
+        std::vector<float> x_knots;
+        std::vector<float> y_values;
+        bool empty = true;
+    };
+
 
     class CctHandleF32 final
     {
@@ -34,6 +43,7 @@ namespace AlgoCCT
 
         private:
 
+
             bool InitializeLut1(void);
             bool InitializeLut2(void);
 
@@ -41,7 +51,26 @@ namespace AlgoCCT
             bool refine (const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut);
 
             // Helper functions for refine computations
+            SplineCoeffs spline_impl(const std::vector<float>& x_in, const std::vector<float>& y_in);
+            float ppval_impl (const SplineCoeffs& fit_coeffs, float t_eval);
+            float fminbnd_impl (const std::function<float(float)>& objective_func, float lower_bound, float upper_bound, float tolerance);
             float Distance (const float& v1, const float& v2) noexcept { return v1 * v1 + v2 * v2; }
+
+            std::vector<float> linspace (float start, float end, int32_t num_points)
+            {
+                std::vector<float> vec;
+                if (num_points <= 0)
+                    return vec;
+                if (num_points == 1)
+                {
+                    vec.push_back(start);
+                    return vec;
+                }
+                const float step = (end - start) / static_cast<float>(num_points - 1);
+                for (int32_t i = 0; i < num_points; ++i)
+                    vec.push_back(start + static_cast<float>(i) * step);
+                return vec;
+            }
 
             static std::atomic<bool> g_flagL1;
             static std::atomic<bool> g_flagL2;
