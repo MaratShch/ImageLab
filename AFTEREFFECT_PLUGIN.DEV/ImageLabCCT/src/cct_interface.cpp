@@ -122,14 +122,6 @@ bool CctHandleF32::cct_compute(const float& u, const float& v, float& cct, float
 }
 
 
-bool CctHandleF32::refine(const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut)
-{
-    // not implemented yet ...
-    return true;
-}
-
-
-
 std::pair<float, float> CctHandleF32::ComputeCct (const std::pair<float, float>& uv, eCOLOR_OBSERVER observer)
 {
     bool bReady = true;
