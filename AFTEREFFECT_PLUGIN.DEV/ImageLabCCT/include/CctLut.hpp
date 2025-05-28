@@ -22,12 +22,33 @@ struct CCT_LUT_Entry
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline void xy_to_uv (const T& x, const T& y, T& u_prime, T& v_prime) noexcept
 {
-    const T denom = static_cast<T>(-2.0) * x + static_cast<T>(12.0) * y + static_cast<T>(3.0);
-    u_prime = (static_cast<T>(4.0) * x) / denom;
-    v_prime = (static_cast<T>(6.0) * y) / denom;
+    const T denom = static_cast<T>(-2) * x + static_cast<T>(12) * y + static_cast<T>(3);
+    u_prime = (static_cast<T>(4) * x) / denom;
+    v_prime = (static_cast<T>(6) * y) / denom;
     return;
 }
 
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline void XYZ_to_uv_1960 (const T& X, const T& Y, const T& Z, T& u_prime, T& v_prime) noexcept
+{
+    // u = (4*X) / (X + 15*Y + 3*Z)
+    // v = (6*Y) / (X + 15*Y + 3*Z)
+    const T denom = X + static_cast<T>(15) * Y + static_cast<T>(3) * Z;
+    u_prime = static_cast<T>(0) != denom ? (static_cast<T>(4) * X) / denom : static_cast<T>(0);
+    v_prime = static_cast<T>(0) != denom ? (static_cast<T>(6) * Y) / denom : static_cast<T>(0);
+    return;
+}
+
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline void XYZ_to_uv_1976 (const T& X, const T& Y, const T& Z, T& u_prime, T& v_prime) noexcept
+{
+    // u = (4*X) / (X + 15*Y + 3*Z)
+    // v = (9*Y) / (X + 15*Y + 3*Z)
+    const T denom = X + static_cast<T>(15) * Y + static_cast<T>(3) * Z;
+    u_prime = static_cast<T>(0) != denom ? (static_cast<T>(4) * X) / denom : static_cast<T>(0);
+    v_prime = static_cast<T>(0) != denom ? (static_cast<T>(9) * Y) / denom : static_cast<T>(0);
+    return;
+}
 
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline const T polinomial_compute_duv (const T& u_prime, const T& v_prime) noexcept
@@ -79,12 +100,8 @@ std::vector<CCT_LUT_Entry<T>> initLut (T waveMin, T waveMax, T waveStep, T cctMi
         const T Y = std::get<1>(scalar_XYZ);
         const T Z = std::get<2>(scalar_XYZ);
 
-        const T XYZ_Sum = X + Y + Z;
-        const T chromaticity_x = X / XYZ_Sum;
-        const T chromaticity_y = Y / XYZ_Sum;
-
         T u_prime, v_prime;
-        xy_to_uv(chromaticity_x, chromaticity_y, u_prime, v_prime);
+        XYZ_to_uv_1960 (X, Y, Z, u_prime, v_prime);
 
         const T Duv = polinomial_compute_duv(u_prime, v_prime);
 
@@ -133,7 +150,6 @@ std::pair<T, CCT_LUT_Entry<T>> calculateCCT_NearestNeighbor
     // Return the CCT and the closest LUT entry
     return {lut[closest_index].cct, lut[closest_index]};
 }
-
 
 
 #endif // __IMAGE_LAB_IMAGE_COLOR_TEMPERATURES_ALGO_LUT__

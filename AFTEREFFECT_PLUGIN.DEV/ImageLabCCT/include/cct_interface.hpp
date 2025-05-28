@@ -40,6 +40,9 @@ namespace AlgoCCT
             bool cct_compute (const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut);
             bool refine (const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut);
 
+            // Helper functions for refine computations
+            float Distance (const float& v1, const float& v2) noexcept { return v1 * v1 + v2 * v2; }
+
             static std::atomic<bool> g_flagL1;
             static std::atomic<bool> g_flagL2;
 

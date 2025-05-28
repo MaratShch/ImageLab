@@ -156,6 +156,5 @@ std::pair<float, float> CctHandleF32::ComputeCct (const std::pair<float, float>&
         cct_compute(u, v, Cct, Duv, m_Lut2);
     }
 
-        // invalid or non-supported observer
     return std::make_pair (Cct, Duv);
 }
