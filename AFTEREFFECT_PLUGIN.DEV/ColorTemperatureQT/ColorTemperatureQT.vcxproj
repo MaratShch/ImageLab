@@ -18,7 +18,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <OutputDirectory>..\BUILD.OUT\LIB\Debug\</OutputDirectory>
     <ATLMinimizesCRunTimeLibraryUsage>false</ATLMinimizesCRunTimeLibraryUsage>
     <CharacterSet>NotSet</CharacterSet>
@@ -27,7 +27,7 @@
     <PrimaryOutput>ColorTemperatureQT</PrimaryOutput>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <OutputDirectory>..\BUILD.OUT\LIB\Release\</OutputDirectory>
     <ATLMinimizesCRunTimeLibraryUsage>false</ATLMinimizesCRunTimeLibraryUsage>
     <CharacterSet>NotSet</CharacterSet>
@@ -45,23 +45,23 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\BUILD.OUT\LIB\Debug\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\obj\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ColorTemperatureQT</TargetName>
     <IgnoreImportLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</IgnoreImportLibrary>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\BUILD.OUT\LIB\Release\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\obj\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ColorTemperatureQT</TargetName>
     <IgnoreImportLibrary Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</IgnoreImportLibrary>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;include;C:\Qt\Qt-5.15.16\include;C:\Qt\Qt-5.15.16\include\QtWidgets;C:\Qt\Qt-5.15.16\include\QtGui;C:\Qt\Qt-5.15.16\include\QtANGLE;C:\Qt\Qt-5.15.16\include\QtCore;..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;include;$(QT)\include;$(QT)\include\QtWidgets;$(QT)\include\QtGui;$(QT)\include\QtANGLE;$(QT)\include\QtCore;..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zc:rvalueCast -Zc:inline -Zc:strictStrings -Zc:throwingNew -w34100 -w34189 -w44996 -w44456 -w44457 -w44458 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\obj\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <DisableSpecificWarnings>4577;4467;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <DisableSpecificWarnings>1292;4577;4467;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\obj\</ObjectFileName>
       <Optimization>Disabled</Optimization>
@@ -72,6 +72,7 @@
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
       <WarningLevel>Level3</WarningLevel>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Lib>
       <OutputFile>$(OutDir)\ColorTemperatureQT.lib</OutputFile>
@@ -88,12 +89,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;include;C:\Qt\Qt-5.15.16\include;C:\Qt\Qt-5.15.16\include\QtWidgets;C:\Qt\Qt-5.15.16\include\QtGui;C:\Qt\Qt-5.15.16\include\QtANGLE;C:\Qt\Qt-5.15.16\include\QtCore;..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;include;$(QT)\include;$(QT)\include\QtWidgets;$(QT)\include\QtGui;$(QT)\include\QtANGLE;$(QT)\include\QtCore;..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zc:rvalueCast -Zc:inline -Zc:strictStrings -Zc:throwingNew -w34100 -w34189 -w44996 -w44456 -w44457 -w44458 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\obj\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
       <DebugInformationFormat>None</DebugInformationFormat>
-      <DisableSpecificWarnings>4577;4467;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <DisableSpecificWarnings>1292;4577;4467;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\obj\</ObjectFileName>
       <Optimization>MaxSpeed</Optimization>
@@ -106,6 +107,7 @@
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
       <WarningLevel>Level3</WarningLevel>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Lib>
       <OutputFile>$(OutDir)\ColorTemperatureQT.lib</OutputFile>
@@ -120,6 +122,9 @@
       <PreprocessorDefinitions>_WINDOWS;UNICODE;_UNICODE;WIN32;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;NDEBUG;QT_NO_DEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\customcolorbarwidget.cpp" />
+  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\abstractcolorbargenerator.h" />
     <CustomBuild Include="include\customcolorbarwidget.h">
@@ -140,7 +145,6 @@
     <ClCompile Include="..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_customcolorbarwidget.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="src\customcolorbarwidget.cpp" />
     <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_predefs.h.cbt">
       <FileType>Document</FileType>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Qt\Qt-5.15.16\mkspecs\features\data\dummy.cpp;%(AdditionalInputs)</AdditionalInputs>
@@ -157,9 +161,6 @@
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generate moc_predefs.h</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h;%(Outputs)</Outputs>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ColorTemperatureQT.pro" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
