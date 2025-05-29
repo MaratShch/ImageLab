@@ -39,7 +39,7 @@ namespace PlanckianLocus
         constexpr T pi = static_cast<T>(3.1415926535897932384626433832795); // More digits for pi
 
        // Precompute constants with care
-       // C1 = 2 * pi * h * c^2  (Units: J·s * m^2/s^2 = J·m^2/s)
+       // C1 = 2 * h * c^2  (Units: J·s * m^2/s^2 = J·m^2/s)
         constexpr T c_sq = c * c;
         constexpr T C1 = static_cast<T>(2.0) * h * c_sq;
 

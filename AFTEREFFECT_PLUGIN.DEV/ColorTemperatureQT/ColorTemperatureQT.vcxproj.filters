@@ -27,6 +27,11 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\customcolorbarwidget.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="include\abstractcolorbargenerator.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -47,11 +52,5 @@
     <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h.cbt">
       <Filter>Generated Files</Filter>
     </CustomBuild>
-    <ClCompile Include="src\customcolorbarwidget.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ColorTemperatureQT.pro" />
   </ItemGroup>
 </Project>
