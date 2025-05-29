@@ -4,7 +4,6 @@
 
 using namespace AlgoCCT;
 
-
 SplineCoeffs CctHandleF32::spline_impl(const std::vector<float>& x_in, const std::vector<float>& y_in)
 {
     SplineCoeffs coeffs;
@@ -182,7 +181,8 @@ bool CctHandleF32::refine (const float& u0, const float& v0, float& cct, float& 
             u_tangent /= norm_t;
             v_tangent /= norm_t;
         }
-        else {
+        else
+        {
             u_tangent = 1.0f;
             v_tangent = 0.0f;
         }

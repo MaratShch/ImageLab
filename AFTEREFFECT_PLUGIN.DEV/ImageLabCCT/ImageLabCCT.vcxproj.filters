@@ -16,12 +16,18 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{250c5b00-f4e3-4cb5-a83c-58e34d64aa4b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="internal">
+      <UniqueIdentifier>{daa5806e-28c7-4920-9224-8459d1907584}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\cct_interface.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\cct_refine.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\cct2rgb.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -101,5 +107,21 @@
     <ClInclude Include="..\Common\CommonSmartRender.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\Cct2rgb.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="internal\Blackbody_color_datafile.pdf">
+      <Filter>internal</Filter>
+    </None>
+    <None Include="internal\pdf_extract.py">
+      <Filter>internal</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="internal\CCT_RGB_1931_1000K_25000K_step100K.txt">
+      <Filter>internal</Filter>
+    </Text>
   </ItemGroup>
 </Project>
