@@ -19,13 +19,13 @@ INCLUDEPATH += $$PWD/include
 # 6. --- Header Files ---
 HEADERS += \
     include/abstractcolorbargenerator.h \
-    include/customcolorbarwidget.h \
-    include/mycctcolorgenerator.h
+    include/customcolorbarwidget.h
+
 
 # 7. --- Source Files ---
 SOURCES += \
-    src/customcolorbarwidget.cpp \
-    src/mycctcolorgenerator.cpp
+    src/customcolorbarwidget.cpp
+
 
 # -----------------------------------------------------------------------------
 # 8. --- Output Directory Configuration ---
