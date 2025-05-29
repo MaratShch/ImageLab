@@ -1,6 +1,8 @@
 # Re-import required modules after code execution state reset
+# pip install PyPDF2
+#
 from pathlib import Path
-import fitz  # 
+import fitz
 import re
 
 # Reload the file
