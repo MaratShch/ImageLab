@@ -162,6 +162,9 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h;%(Outputs)</Outputs>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="ColorTemperatureQT.pro" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>
