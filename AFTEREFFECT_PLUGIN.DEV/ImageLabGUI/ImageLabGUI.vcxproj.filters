@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{71ED8ED8-ACB9-4CE9-BBE1-E00B30144E11}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;moc;h;def;odl;idl;res;</Extensions>
+    </Filter>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{71ED8ED8-ACB9-4CE9-BBE1-E00B30144E11}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;moc;h;def;odl;idl;res;</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="include_common">
+      <UniqueIdentifier>{e0bd2ae7-f7d5-48aa-9bb8-79ce203f182d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include_private">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{278d1615-93cc-4a0a-bdda-13147987a78e}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\ApplicationHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DllMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\ApplicationHandler.hpp">
+      <Filter>include_private</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ClassRestrictions.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Common.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonSmartRender.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmetics.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\LibExport.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabQTBinding.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Debug\moc\moc_predefs.h.cbt">
+      <Filter>Generated Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Release\moc\moc_predefs.h.cbt">
+      <Filter>Generated Files</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>

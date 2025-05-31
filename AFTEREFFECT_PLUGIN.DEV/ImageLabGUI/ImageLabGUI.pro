@@ -1,8 +1,9 @@
-# --- YourProjectName.pro --- (e.g., ColorTemperatureQT.pro)
+# Run qmake -tp vc ImageLabGUI.pro
+#
 
-# 1. Specify the output type as a static library
+# 1. Specify the output type as a dynamic library
 TEMPLATE = lib
-CONFIG += staticlib
+CONFIG += lib
 
 # 2. Specify Qt modules needed by THIS library
 QT += core gui widgets
@@ -11,21 +12,19 @@ QT += core gui widgets
 CONFIG += c++14
 
 # 4. Define the target name for the output .lib file
-TARGET = ColorTemperatureQT # Or CCTColorBarLib, match your .pro filename
+TARGET = ImageLabGUI # Or CCTColorBarLib, match your .pro filename
 
 # 5. Define the directory for public headers
 INCLUDEPATH += $$PWD/include
 
 # 6. --- Header Files ---
 HEADERS += \
-    include/abstractcolorbargenerator.h \
-    include/customcolorbarwidget.h
+    include/ApplicationHandler.hpp
 
 
 # 7. --- Source Files ---
 SOURCES += \
-    src/customcolorbarwidget.cpp
-    src/DllMain.cpp
+    src/ApplicationHandler.cpp
 
 
 # -----------------------------------------------------------------------------
