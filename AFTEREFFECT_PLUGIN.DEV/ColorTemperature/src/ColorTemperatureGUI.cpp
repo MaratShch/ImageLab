@@ -122,7 +122,7 @@ PF_Err DrawEvent
 		DRAWBOT_SurfaceRef	surface_ref  = nullptr;
 
 		/* acquire DrawBot Suite	*/
-		auto const& drawbotSuite{ AEFX_SuiteScoper<DRAWBOT_DrawbotSuite1>(in_data, kDRAWBOT_DrawSuite, kDRAWBOT_DrawSuite_VersionCurrent, out_data) };
+		auto const drawbotSuite = AEFX_SuiteScoper<DRAWBOT_DrawbotSuite1>(in_data, kDRAWBOT_DrawSuite, kDRAWBOT_DrawSuite_VersionCurrent, out_data);
 
 		/* acquire DrawBot Supplier and Surface; it shouldn't be released like pen or brush */
 		auto const err1 = drawbotSuite->GetSupplier(drawing_ref, &supplier_ref);
@@ -132,7 +132,7 @@ PF_Err DrawEvent
 			if (PF_EA_CONTROL == event_extra->effect_win.area)
 			{
 				DRAWBOT_PathRef	path_ref = nullptr;
-				auto const drawbotSupplier{ AEFX_SuiteScoper<DRAWBOT_SupplierSuite1>(in_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, out_data) };
+				auto const drawbotSupplier = AEFX_SuiteScoper<DRAWBOT_SupplierSuite1>(in_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, out_data);
 				drawbotSupplier->NewPath (supplier_ref, &path_ref);
 				if (nullptr != path_ref)
 				{

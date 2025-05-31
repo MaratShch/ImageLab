@@ -11,8 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{B223EA62-D349-3F25-96CE-A0D38CB185D9}</ProjectGuid>
-    <RootNamespace>ColorTemperatureQT</RootNamespace>
+    <ProjectGuid>{C406AAF3-309F-4587-8562-E2F198E4F0E2}</ProjectGuid>
+    <RootNamespace>ImageLabGUI</RootNamespace>
     <Keyword>Qt4VSv1.0</Keyword>
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -22,18 +22,18 @@
     <OutputDirectory>..\BUILD.OUT\LIB\Debug\</OutputDirectory>
     <ATLMinimizesCRunTimeLibraryUsage>false</ATLMinimizesCRunTimeLibraryUsage>
     <CharacterSet>NotSet</CharacterSet>
-    <ConfigurationType>StaticLibrary</ConfigurationType>
-    <IntermediateDirectory>..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\obj\</IntermediateDirectory>
-    <PrimaryOutput>ColorTemperatureQT</PrimaryOutput>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <IntermediateDirectory>..\BUILD.OUT\TEMP\ImageLabGUI\Debug\obj\</IntermediateDirectory>
+    <PrimaryOutput>ImageLabGUI</PrimaryOutput>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <OutputDirectory>..\BUILD.OUT\LIB\Release\</OutputDirectory>
     <ATLMinimizesCRunTimeLibraryUsage>false</ATLMinimizesCRunTimeLibraryUsage>
     <CharacterSet>NotSet</CharacterSet>
-    <ConfigurationType>StaticLibrary</ConfigurationType>
-    <IntermediateDirectory>..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\obj\</IntermediateDirectory>
-    <PrimaryOutput>ColorTemperatureQT</PrimaryOutput>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <IntermediateDirectory>..\BUILD.OUT\TEMP\ImageLabGUI\Release\obj\</IntermediateDirectory>
+    <PrimaryOutput>ImageLabGUI</PrimaryOutput>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
@@ -45,25 +45,26 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ColorTemperatureQT</TargetName>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\BUILD.OUT\LIB\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\BUILD.OUT\TEMP\ImageLabGUI\Debug\obj\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ImageLabGUI</TargetName>
     <IgnoreImportLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</IgnoreImportLibrary>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ColorTemperatureQT</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ImageLabGUI</TargetName>
     <IgnoreImportLibrary Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</IgnoreImportLibrary>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;include;$(QT)\include;$(QT)\include\QtWidgets;$(QT)\include\QtGui;$(QT)\include\QtANGLE;$(QT)\include\QtCore;..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;include;..\Common;$(QT)\include;$(QT)\include\QtWidgets;$(QT)\include\QtGui;$(QT)\include\QtANGLE;$(QT)\include\QtCore;..\BUILD.OUT\TEMP\ImageLabGUI\Debug\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zc:rvalueCast -Zc:inline -Zc:strictStrings -Zc:throwingNew -w34100 -w34189 -w44996 -w44456 -w44457 -w44458 %(AdditionalOptions)</AdditionalOptions>
-      <AssemblerListingLocation>..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\obj\</AssemblerListingLocation>
+      <AssemblerListingLocation>..\BUILD.OUT\TEMP\ImageLabGUI\Debug\obj\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <DisableSpecificWarnings>1292;4577;4467;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <ObjectFileName>..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\obj\</ObjectFileName>
+      <ObjectFileName>..\BUILD.OUT\TEMP\ImageLabGUI\Debug\obj\</ObjectFileName>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_WINDOWS;UNICODE;_UNICODE;WIN32;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
@@ -75,10 +76,17 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
-    <Lib>
-      <OutputFile>$(OutDir)\ColorTemperatureQT.lib</OutputFile>
+    <Link>
+      <AdditionalDependencies>C:\Qt\Qt-5.15.16\lib\Qt5Widgetsd.lib;C:\Qt\Qt-5.15.16\lib\Qt5Guid.lib;C:\Qt\Qt-5.15.16\lib\Qt5Cored.lib;C:\Qt\Qt-5.15.16\lib\libEGLd.lib;C:\Qt\Qt-5.15.16\lib\libGLESv2d.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreImportLibrary>true</IgnoreImportLibrary>
+      <LinkDLL>true</LinkDLL>
+      <OutputFile>$(OutDir)\ImageLabGUI.dll</OutputFile>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+      <SubSystem>Windows</SubSystem>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-    </Lib>
+    </Link>
     <Midl>
       <DefaultCharType>Unsigned</DefaultCharType>
       <EnableErrorChecks>None</EnableErrorChecks>
@@ -90,14 +98,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;include;$(QT)\include;$(QT)\include\QtWidgets;$(QT)\include\QtGui;$(QT)\include\QtANGLE;$(QT)\include\QtCore;..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;include;include_private;..\Common;$(QT)\include;$(QT)\include\QtWidgets;$(QT)\include\QtGui;$(QT)\include\QtANGLE;$(QT)\include\QtCore;..\BUILD.OUT\TEMP\ImageLabGUI\Release\moc;C:\VulkanSDK\1.2.170.0\include;C:\Qt\Qt-5.15.16\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zc:rvalueCast -Zc:inline -Zc:strictStrings -Zc:throwingNew -w34100 -w34189 -w44996 -w44456 -w44457 -w44458 %(AdditionalOptions)</AdditionalOptions>
-      <AssemblerListingLocation>..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\obj\</AssemblerListingLocation>
+      <AssemblerListingLocation>..\BUILD.OUT\TEMP\ImageLabGUI\Release\obj\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
       <DebugInformationFormat>None</DebugInformationFormat>
       <DisableSpecificWarnings>1292;4577;4467;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <ObjectFileName>..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\obj\</ObjectFileName>
+      <ObjectFileName>..\BUILD.OUT\TEMP\ImageLabGUI\Release\obj\</ObjectFileName>
       <Optimization>MaxSpeed</Optimization>
       <PreprocessorDefinitions>_WINDOWS;UNICODE;_UNICODE;WIN32;_ENABLE_EXTENDED_ALIGNED_STORAGE;WIN64;NDEBUG;QT_NO_DEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
@@ -109,12 +117,22 @@
       <UseFullPaths>false</UseFullPaths>
       <WarningLevel>Level3</WarningLevel>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
-    <Lib>
-      <OutputFile>$(OutDir)\ColorTemperatureQT.lib</OutputFile>
+    <Link>
+      <AdditionalDependencies>C:\Qt\Qt-5.15.16\lib\Qt5Widgets.lib;C:\Qt\Qt-5.15.16\lib\Qt5Gui.lib;C:\Qt\Qt-5.15.16\lib\Qt5Core.lib;C:\Qt\Qt-5.15.16\lib\libEGL.lib;C:\Qt\Qt-5.15.16\lib\libGLESv2.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreImportLibrary>true</IgnoreImportLibrary>
+      <LinkDLL>true</LinkDLL>
+      <LinkIncremental>false</LinkIncremental>
+      <OptimizeReferences>true</OptimizeReferences>
+      <OutputFile>$(OutDir)\ImageLabGUI.dll</OutputFile>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+      <SubSystem>Windows</SubSystem>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-    </Lib>
+    </Link>
     <Midl>
       <DefaultCharType>Unsigned</DefaultCharType>
       <EnableErrorChecks>None</EnableErrorChecks>
@@ -125,36 +143,48 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\customcolorbarwidget.cpp" />
+    <ClCompile Include="src\ApplicationHandler.cpp" />
+    <ClCompile Include="src\DllMain.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\abstractcolorbargenerator.h" />
-    <CustomBuild Include="include\customcolorbarwidget.h">
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">include\customcolorbarwidget.h;E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_predefs.h;C:\Qt\Qt-5.15.16\bin\moc.exe;%(AdditionalInputs)</AdditionalInputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Qt\Qt-5.15.16\bin\moc.exe  -DUNICODE -D_UNICODE -DWIN32 -D_ENABLE_EXTENDED_ALIGNED_STORAGE -DWIN64 -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_CORE_LIB --compiler-flavor=msvc --include E:/WORK/MARAT/ADOBE/AFTEREFFECT_PLUGIN.DEV/BUILD.OUT/TEMP/ColorTemperatureQT/Debug/moc/moc_predefs.h -IC:/Qt/Qt-5.15.16/mkspecs/win32-msvc -IE:/WORK/MARAT/ADOBE/AFTEREFFECT_PLUGIN.DEV/ColorTemperatureQT -IE:/WORK/MARAT/ADOBE/AFTEREFFECT_PLUGIN.DEV/ColorTemperatureQT/include -IC:/Qt/Qt-5.15.16/include -IC:/Qt/Qt-5.15.16/include/QtWidgets -IC:/Qt/Qt-5.15.16/include/QtGui -IC:/Qt/Qt-5.15.16/include/QtANGLE -IC:/Qt/Qt-5.15.16/include/QtCore include\customcolorbarwidget.h -o E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_customcolorbarwidget.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MOC include/customcolorbarwidget.h</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_customcolorbarwidget.cpp;%(Outputs)</Outputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">include\customcolorbarwidget.h;E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h;C:\Qt\Qt-5.15.16\bin\moc.exe;%(AdditionalInputs)</AdditionalInputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Qt\Qt-5.15.16\bin\moc.exe  -DUNICODE -D_UNICODE -DWIN32 -D_ENABLE_EXTENDED_ALIGNED_STORAGE -DWIN64 -DNDEBUG -DQT_NO_DEBUG -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_CORE_LIB --compiler-flavor=msvc --include E:/WORK/MARAT/ADOBE/AFTEREFFECT_PLUGIN.DEV/BUILD.OUT/TEMP/ColorTemperatureQT/Release/moc/moc_predefs.h -IC:/Qt/Qt-5.15.16/mkspecs/win32-msvc -IE:/WORK/MARAT/ADOBE/AFTEREFFECT_PLUGIN.DEV/ColorTemperatureQT -IE:/WORK/MARAT/ADOBE/AFTEREFFECT_PLUGIN.DEV/ColorTemperatureQT/include -IC:/Qt/Qt-5.15.16/include -IC:/Qt/Qt-5.15.16/include/QtWidgets -IC:/Qt/Qt-5.15.16/include/QtGui -IC:/Qt/Qt-5.15.16/include/QtANGLE -IC:/Qt/Qt-5.15.16/include/QtCore include\customcolorbarwidget.h -o E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_customcolorbarwidget.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">MOC include/customcolorbarwidget.h</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_customcolorbarwidget.cpp;%(Outputs)</Outputs>
+    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
+    <ClInclude Include="..\Common\ColorTransform.hpp" />
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
+    <ClInclude Include="..\Common\Common.hpp" />
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
+    <ClInclude Include="..\Common\CommonSmartRender.hpp" />
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
+    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
+    <ClInclude Include="..\Common\LibExport.hpp" />
+    <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ApplicationHandler.hpp" />
+    <ClInclude Include="include\ImageLabQTBinding.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Debug\moc\moc_predefs.h.cbt">
+      <FileType>Document</FileType>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Qt\Qt-5.15.16\mkspecs\features\data\dummy.cpp;%(AdditionalInputs)</AdditionalInputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">cl -BxC:\Qt\Qt-5.15.16\bin\qmake.exe -nologo -Zc:wchar_t -FS -Zc:rvalueCast -Zc:inline -Zc:strictStrings -Zc:throwingNew -Zi -MDd -W3 -w34100 -w34189 -w44996 -w44456 -w44457 -w44458 -wd4577 -wd4467 -E C:\Qt\Qt-5.15.16\mkspecs\features\data\dummy.cpp 2&gt;NUL &gt;E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Debug\moc\moc_predefs.h</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generate moc_predefs.h</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Debug\moc\moc_predefs.h;%(Outputs)</Outputs>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_customcolorbarwidget.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </ClCompile>
-    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h.cbt">
+    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Release\moc\moc_predefs.h.cbt">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Qt\Qt-5.15.16\mkspecs\features\data\dummy.cpp;%(AdditionalInputs)</AdditionalInputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">cl -BxC:\Qt\Qt-5.15.16\bin\qmake.exe -nologo -Zc:wchar_t -FS -Zc:rvalueCast -Zc:inline -Zc:strictStrings -Zc:throwingNew -O2 -MD -W3 -w34100 -w34189 -w44996 -w44456 -w44457 -w44458 -wd4577 -wd4467 -E C:\Qt\Qt-5.15.16\mkspecs\features\data\dummy.cpp 2&gt;NUL &gt;E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">cl -BxC:\Qt\Qt-5.15.16\bin\qmake.exe -nologo -Zc:wchar_t -FS -Zc:rvalueCast -Zc:inline -Zc:strictStrings -Zc:throwingNew -O2 -MD -W3 -w34100 -w34189 -w44996 -w44456 -w44457 -w44458 -wd4577 -wd4467 -E C:\Qt\Qt-5.15.16\mkspecs\features\data\dummy.cpp 2&gt;NUL &gt;E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Release\moc\moc_predefs.h</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generate moc_predefs.h</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h;%(Outputs)</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ImageLabGUI\Release\moc\moc_predefs.h;%(Outputs)</Outputs>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ColorTemperatureQT.pro" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

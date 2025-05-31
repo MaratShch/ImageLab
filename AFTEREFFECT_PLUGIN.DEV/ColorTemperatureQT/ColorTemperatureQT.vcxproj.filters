@@ -36,15 +36,9 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_customcolorbarwidget.cpp">
-      <Filter>Generated Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_customcolorbarwidget.cpp">
       <Filter>Generated Files</Filter>
     </ClCompile>
-    <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Debug\moc\moc_predefs.h.cbt">
-      <Filter>Generated Files</Filter>
-    </CustomBuild>
     <CustomBuild Include="E:\WORK\MARAT\ADOBE\AFTEREFFECT_PLUGIN.DEV\BUILD.OUT\TEMP\ColorTemperatureQT\Release\moc\moc_predefs.h.cbt">
       <Filter>Generated Files</Filter>
     </CustomBuild>
