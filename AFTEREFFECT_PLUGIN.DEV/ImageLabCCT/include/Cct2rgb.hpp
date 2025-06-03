@@ -11,6 +11,8 @@ constexpr size_t CctBarSize = static_cast<size_t>(1) + (CctLimitMax - CctLimitMi
 using ColorTriplet = std::array<unsigned char, 3>;
 
 const std::array<ColorTriplet, CctBarSize>& get_cct_map_for_gui (void) noexcept;
+const std::array<ColorTriplet, CctBarSize>& get_cct_map_for_gui(size_t& size) noexcept;
+const ColorTriplet get_rgb_by_cct(const uint32_t cct) noexcept;
 
 
 #endif // __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_RGB_MATCH__
