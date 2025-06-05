@@ -11,6 +11,7 @@ constexpr char controlItemName[][32] = {
 	"Temperature Offset",			// slider
 	"Tint coarse",					// slider
 	"Tint fine",					// slider
+    "CCT Bar",                      // UI color bar
 	"Camera SPD",					// button
 	"Load Preset",					// button
 	"Save Preset"					// button

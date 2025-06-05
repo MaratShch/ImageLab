@@ -171,6 +171,27 @@ GlobalSetdown(
     return PF_Err_NONE;
 }
 
+static PF_Err
+RegisterUIRegion (PF_InData *in_data)
+{
+    PF_CustomUIInfo	ui;
+
+    AEFX_CLR_STRUCT_EX(ui);
+
+    ui.events = PF_CustomEFlag_EFFECT;
+    ui.comp_ui_width      = 0;
+    ui.comp_ui_height     = 0;
+    ui.comp_ui_alignment  = PF_UIAlignment_NONE;
+    ui.layer_ui_width     = 0;
+    ui.layer_ui_height    = 0;
+    ui.layer_ui_alignment = PF_UIAlignment_NONE;
+    ui.preview_ui_width   = 0;
+    ui.preview_ui_height  = 0;
+    ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
+    return (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
+}
+
 
 static PF_Err
 ParamsSetup(
@@ -180,11 +201,13 @@ ParamsSetup(
 	PF_LayerDef		*output)
 {
 	PF_ParamDef	def;
+    PF_Err err = PF_Err_NONE;
+
 	constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 	constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
-	/* SetUp 'Using Preset' checkbox. Default state - non selected */
+	// SetUp 'Using Preset' checkbox. Default state - non selected/
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_CHECKBOXX(
 		controlItemName[0],
@@ -192,7 +215,7 @@ ParamsSetup(
 		flags,
 		COLOR_TEMPERATURE_PRESET_CHECKBOX);
 
-	/* Setup 'Preset' popup - initially disable */
+	// Setup 'Preset' popup - initially disable
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
 	PF_ADD_POPUP(
 		controlItemName[1],						/* pop-up name			*/
@@ -201,7 +224,7 @@ ParamsSetup(
 		controlItemPresetType,					/* string for pop-up	*/
 		COLOR_TEMPERATURE_PRESET_TYPE_POPUP);	/* control ID			*/
 
-	/* Setup 'Observer' popup - default value "2 degrees 1931" */
+	// Setup 'Observer' popup - default value "2 degrees 1931"
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_POPUP(
 		controlItemName[2],						/* pop-up name			*/
@@ -210,7 +233,7 @@ ParamsSetup(
 		controlItemObserver,					/* string for pop-up	*/
 		COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP);	/* control ID			*/
 
-	/* Setup 'Color Temperature' slider */
+	// Setup 'Color Temperature' slider
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
 		controlItemName[3],
@@ -224,7 +247,7 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_COARSE_VALUE_SLIDER);
 
-	/* Setup 'Color Temperature Offset' slider */
+	// Setup 'Color Temperature Offset' slider
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
 		controlItemName[4],
@@ -238,7 +261,7 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_FINE_VALUE_SLIDER);
 
-	/* Setup 'Tint coarse' slider */
+	// Setup 'Tint coarse' slider
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
 		controlItemName[5],
@@ -252,7 +275,7 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_TINT_SLIDER);
 
-	/* Setup 'Tint fine' slider */
+	// Setup 'Tint fine' slider
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_FLOAT_SLIDERX(
 		controlItemName[6],
@@ -266,30 +289,55 @@ ParamsSetup(
 		0,
 		COLOR_TEMPERATURE_TINT_FINE_SLIDER);
 
-	/* Setup 'Camera SPD' button - initially disabled */
+    // add Color CCT bar (GUI)
+    AEFX_CLR_STRUCT_EX(def);
+    def.flags     = PF_ParamFlag_SUPERVISE;
+    def.ui_flags  = PF_PUI_CONTROL;
+    def.ui_width  = gGuiBarWidth;
+    def.ui_height = gGuiBarHeight;
+    if (PremierId == in_data->appl_id)
+    {
+        PF_ADD_ARBITRARY2(
+            controlItemName[7],
+            gGuiBarWidth,
+            gGuiBarHeight,
+            0,
+            PF_PUI_CONTROL,
+            0,
+            1,
+            0);
+    }
+    else
+    {
+    }
+
+    if (PF_Err_NONE != (err = RegisterUIRegion (in_data)))
+        return err;
+
+    // Setup 'Camera SPD' button - initially disabled
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
 	PF_ADD_BUTTON(
-		controlItemName[7],
+		controlItemName[8],
 		controlItemCameraSPD,
 		0,
 		PF_ParamFlag_SUPERVISE,
 		COLOR_TEMPERATURE_CAMERA_SPD_BUTTON
 	);
 
-	/* Setup 'Load Preset' button */
+	// Setup 'Load Preset' button/
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_BUTTON(
-		controlItemName[8],
+		controlItemName[9],
 		controlItemLoadPreset,
 		0,
 		PF_ParamFlag_SUPERVISE,
 		COLOR_TEMPERATURE_LOAD_PRESET_BUTTON
 	);
 
-	/* Setup 'Save Preset' button */
+	// Setup 'Save Preset' button
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_BUTTON(
-		controlItemName[9],
+		controlItemName[10],
 		controlItemSavePreset,
 		0,
 		PF_ParamFlag_SUPERVISE,
