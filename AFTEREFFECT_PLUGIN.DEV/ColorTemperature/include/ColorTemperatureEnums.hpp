@@ -100,6 +100,6 @@ typedef enum {
 }eWaveLenghthStep;
 
 constexpr int32_t gGuiBarWidth  = 240;
-constexpr int32_t gGuiBarHeight = 40;
+constexpr int32_t gGuiBarHeight = 140;
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ENUMS_AND_DEFINES__ */

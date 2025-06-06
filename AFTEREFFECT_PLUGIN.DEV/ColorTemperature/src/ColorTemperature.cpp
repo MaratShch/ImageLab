@@ -41,18 +41,25 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    LoadMemoryInterfaceProvider(in_data);
+//    LoadMemoryInterfaceProvider(in_data);
 
 	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
     PF_Handle pGlobalStorage = nullptr;
 
-	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_WIDE_TIME_INPUT                |
-		PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
-		PF_OutFlag_USE_OUTPUT_EXTENT              |
-		PF_OutFlag_PIX_INDEPENDENT                |
-		PF_OutFlag_DEEP_COLOR_AWARE               |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI;
+//	constexpr PF_OutFlags out_flags1 =
+//		PF_OutFlag_WIDE_TIME_INPUT                |
+//		PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
+//		PF_OutFlag_USE_OUTPUT_EXTENT              |
+//		PF_OutFlag_PIX_INDEPENDENT                |
+//		PF_OutFlag_DEEP_COLOR_AWARE               |
+ //       PF_OutFlag_CUSTOM_UI                      | 
+//		PF_OutFlag_SEND_UPDATE_PARAMS_UI;
+
+    constexpr PF_OutFlags out_flags1 = 
+        PF_OutFlag_CUSTOM_UI |
+        PF_OutFlag_PIX_INDEPENDENT |
+        PF_OutFlag_USE_OUTPUT_EXTENT |
+        PF_OutFlag_DEEP_COLOR_AWARE;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG    |
@@ -70,7 +77,7 @@ GlobalSetup(
 		);
 
 	out_data->out_flags  = out_flags1;
-	out_data->out_flags2 = out_flags2;
+//	out_data->out_flags2 = out_flags2;
 
 	/* For Premiere - declare supported pixel formats */
 	if (PremierId == in_data->appl_id)
@@ -89,7 +96,7 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
-
+#if 0
     // Initialize CCT LUTs
     AlgoCCT::CctHandleF32* globalCctHandler32 = new AlgoCCT::CctHandleF32;
 
@@ -124,15 +131,19 @@ GlobalSetup(
     }
     else
     {
+        // abnormal exit - free all allocated resources before
         delete globalCctHandler32;
         globalCctHandler32 = nullptr;
+//        UnloadMemoryInterfaceProvider();
     }
+
+#endif
 
 #ifdef _DEBUG
     pGCctHandler32 = globalCctHandler32;
 #endif
 
-	return err;
+    return PF_Err_NONE;// err;
 }
 
 
@@ -166,7 +177,7 @@ GlobalSetdown(
 
     resetPresets (vPresets);
     
-    UnloadMemoryInterfaceProvider();
+//    UnloadMemoryInterfaceProvider();
 
     return PF_Err_NONE;
 }
@@ -179,12 +190,15 @@ RegisterUIRegion (PF_InData *in_data)
     AEFX_CLR_STRUCT_EX(ui);
 
     ui.events = PF_CustomEFlag_EFFECT;
+
     ui.comp_ui_width      = 0;
     ui.comp_ui_height     = 0;
     ui.comp_ui_alignment  = PF_UIAlignment_NONE;
+
     ui.layer_ui_width     = 0;
     ui.layer_ui_height    = 0;
     ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
     ui.preview_ui_width   = 0;
     ui.preview_ui_height  = 0;
     ui.layer_ui_alignment = PF_UIAlignment_NONE;
@@ -192,7 +206,7 @@ RegisterUIRegion (PF_InData *in_data)
     return (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
 }
 
-
+#if 0
 static PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
@@ -203,7 +217,7 @@ ParamsSetup(
 	PF_ParamDef	def;
     PF_Err err = PF_Err_NONE;
 
-	constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 	constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
@@ -295,7 +309,16 @@ ParamsSetup(
     def.ui_flags  = PF_PUI_CONTROL;
     def.ui_width  = gGuiBarWidth;
     def.ui_height = gGuiBarHeight;
-    if (PremierId == in_data->appl_id)
+    if (PremierId != in_data->appl_id)
+    {
+        PF_ADD_COLOR(
+            controlItemName[7],
+            0,
+            0,
+            0,
+            COLOR_TEMPERATURE_COLOR_BAR_GUI);
+    }
+    else
     {
         PF_ADD_ARBITRARY2(
             controlItemName[7],
@@ -304,15 +327,11 @@ ParamsSetup(
             0,
             PF_PUI_CONTROL,
             0,
-            1,
+            COLOR_TEMPERATURE_COLOR_BAR_GUI,
             0);
     }
-    else
-    {
-    }
-
-    if (PF_Err_NONE != (err = RegisterUIRegion (in_data)))
-        return err;
+    if (PF_Err_NONE != err)
+        err = RegisterUIRegion(in_data);
 
     // Setup 'Camera SPD' button - initially disabled
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
@@ -344,10 +363,80 @@ ParamsSetup(
 		COLOR_TEMPERATURE_SAVE_PRESET_BUTTON
 	);
 
-	out_data->num_params = COLOR_TEMPERATURE_TOTAL_CONTROLS;
+    out_data->num_params = COLOR_TEMPERATURE_TOTAL_CONTROLS;
 
 	return PF_Err_NONE;
 }
+#else
+
+static PF_Err
+ParamsSetup(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
+{
+    PF_Err 			err = PF_Err_NONE;
+    PF_ParamDef		def;
+
+    AEFX_CLR_STRUCT(def);
+
+    def.flags = PF_ParamFlag_SUPERVISE;
+    def.ui_flags = PF_PUI_CONTROL;
+    def.ui_width = gGuiBarWidth;
+    def.ui_height = gGuiBarHeight;
+
+    // Premiere Pro/Elements does not support a standard parameter type
+    // with custom UI (bug #1235407).  Use an arbitrary or null parameter instead.
+    if (in_data->appl_id != 'PrMr')
+    {
+        PF_ADD_COLOR(controlItemName[7],
+            0,
+            0,
+            0,
+            1);
+    }
+    else
+    {
+        PF_ADD_ARBITRARY2(controlItemName[7],
+            gGuiBarWidth,
+            gGuiBarHeight,
+            0,
+            PF_PUI_CONTROL,
+            0,
+            1,
+            0);
+        // [TODO] Implement arbitrary data selectors 
+        // for a color data type
+    }
+
+    if (!err) {
+        PF_CustomUIInfo			ci;
+
+        AEFX_CLR_STRUCT(ci);
+
+        ci.events = PF_CustomEFlag_EFFECT;
+
+        ci.comp_ui_width = 0;
+        ci.comp_ui_height = 0;
+        ci.comp_ui_alignment = PF_UIAlignment_NONE;
+
+        ci.layer_ui_width = 0;
+        ci.layer_ui_height = 0;
+        ci.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        ci.preview_ui_width = 0;
+        ci.preview_ui_height = 0;
+        ci.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ci);
+    }
+
+    out_data->num_params = 2;
+
+    return err;
+}
+#endif
 
 
 static PF_Err
@@ -575,6 +664,299 @@ GetFlattenedSequenceData(
 }
 
 
+PF_Err AEFX_AcquireSuite(PF_InData		*in_data,			/* >> */
+    PF_OutData		*out_data,			/* >> */
+    const char		*name,				/* >> */
+    int32_t			version,			/* >> */
+    const char		*error_stringPC0,	/* >> */
+    void			**suite)			/* << */
+{
+    PF_Err			err = PF_Err_NONE;
+    SPBasicSuite	*bsuite;
+
+    bsuite = in_data->pica_basicP;
+
+    if (bsuite) {
+        (*bsuite->AcquireSuite)((char*)name, version, (const void**)suite);
+
+        if (!*suite) {
+            err = PF_Err_BAD_CALLBACK_PARAM;
+        }
+    }
+    else {
+        err = PF_Err_BAD_CALLBACK_PARAM;
+    }
+
+    if (err) {
+        const char	*error_stringPC = error_stringPC0 ? error_stringPC0 : "Not able to acquire AEFX Suite.";
+
+        out_data->out_flags |= PF_OutFlag_DISPLAY_ERROR_MESSAGE;
+
+        PF_SPRINTF(out_data->return_msg, error_stringPC);
+    }
+
+    return err;
+}
+
+
+
+PF_Err AEFX_ReleaseSuite(PF_InData		*in_data,			/* >> */
+    PF_OutData		*out_data,			/* >> */
+    const char		*name,				/* >> */
+    int32_t			version,			/* >> */
+    const char		*error_stringPC0)	/* >> */
+{
+    PF_Err			err = PF_Err_NONE;
+    SPBasicSuite	*bsuite;
+
+    bsuite = in_data->pica_basicP;
+
+    if (bsuite) {
+        (*bsuite->ReleaseSuite)((char*)name, version);
+    }
+    else {
+        err = PF_Err_BAD_CALLBACK_PARAM;
+    }
+
+    if (err) {
+        const char	*error_stringPC = error_stringPC0 ? error_stringPC0 : "Not able to release AEFX Suite.";
+
+        out_data->out_flags |= PF_OutFlag_DISPLAY_ERROR_MESSAGE;
+
+        PF_SPRINTF(out_data->return_msg, error_stringPC);
+    }
+
+    return err;
+}
+
+
+PF_Err AEFX_AcquireDrawbotSuites(PF_InData				*in_data,			/* >> */
+    PF_OutData				*out_data,			/* >> */
+    DRAWBOT_Suites			*suitesP)			/* << */
+{
+    PF_Err			err = PF_Err_NONE;
+
+    if (suitesP == NULL) {
+        out_data->out_flags |= PF_OutFlag_DISPLAY_ERROR_MESSAGE;
+
+        PF_SPRINTF(out_data->return_msg, "NULL suite pointer passed to AEFX_AcquireDrawbotSuites");
+
+        err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+    }
+
+    if (!err) {
+        err = AEFX_AcquireSuite(in_data, out_data, kDRAWBOT_DrawSuite, kDRAWBOT_DrawSuite_VersionCurrent, NULL, (void **)&suitesP->drawbot_suiteP);
+    }
+    if (!err) {
+        err = AEFX_AcquireSuite(in_data, out_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, NULL, (void **)&suitesP->supplier_suiteP);
+    }
+    if (!err) {
+        err = AEFX_AcquireSuite(in_data, out_data, kDRAWBOT_SurfaceSuite, kDRAWBOT_SurfaceSuite_VersionCurrent, NULL, (void **)&suitesP->surface_suiteP);
+    }
+    if (!err) {
+        err = AEFX_AcquireSuite(in_data, out_data, kDRAWBOT_PathSuite, kDRAWBOT_PathSuite_VersionCurrent, NULL, (void **)&suitesP->path_suiteP);
+    }
+
+    return err;
+}
+
+
+PF_Err AEFX_ReleaseDrawbotSuites(PF_InData		*in_data,			/* >> */
+    PF_OutData		*out_data)			/* >> */
+{
+    PF_Err			err = PF_Err_NONE;
+
+    AEFX_ReleaseSuite(in_data, out_data, kDRAWBOT_DrawSuite, kDRAWBOT_DrawSuite_VersionCurrent, NULL);
+    AEFX_ReleaseSuite(in_data, out_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, NULL);
+    AEFX_ReleaseSuite(in_data, out_data, kDRAWBOT_SurfaceSuite, kDRAWBOT_SurfaceSuite_VersionCurrent, NULL);
+    AEFX_ReleaseSuite(in_data, out_data, kDRAWBOT_PathSuite, kDRAWBOT_PathSuite_VersionCurrent, NULL);
+
+    return err;
+}
+
+
+static void
+copyConvertStringLiteralIntoUTF16(
+    const wchar_t* inputString,
+    A_UTF16Char* destination)
+{
+#ifdef AE_OS_MAC
+    int length = wcslen(inputString);
+    CFRange	range = { 0, 256 };
+    range.length = length;
+    CFStringRef inputStringCFSR = CFStringCreateWithBytes(kCFAllocatorDefault,
+        reinterpret_cast<const UInt8 *>(inputString),
+        length * sizeof(wchar_t),
+        kCFStringEncodingUTF32LE,
+        false);
+    CFStringGetBytes(inputStringCFSR,
+        range,
+        kCFStringEncodingUTF16,
+        0,
+        false,
+        reinterpret_cast<UInt8 *>(destination),
+        length * (sizeof(A_UTF16Char)),
+        NULL);
+    destination[length] = 0; // Set NULL-terminator, since CFString calls don't set it
+    CFRelease(inputStringCFSR);
+#elif defined AE_OS_WIN
+    size_t length = wcslen(inputString);
+    wcscpy_s(reinterpret_cast<wchar_t*>(destination), length + 1, inputString);
+#endif
+}
+
+
+static PF_Err
+DrawEvent(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    PF_EventExtra	*event_extra)
+{
+    PF_Err					err = PF_Err_NONE, err2 = PF_Err_NONE;
+
+    DRAWBOT_DrawRef			drawing_ref = NULL;
+    DRAWBOT_SurfaceRef		surface_ref = NULL;
+    DRAWBOT_SupplierRef		supplier_ref = NULL;
+    DRAWBOT_BrushRef		brush_ref = NULL;
+    DRAWBOT_BrushRef		string_brush_ref = NULL;
+    DRAWBOT_PathRef			path_ref = NULL;
+    DRAWBOT_FontRef			font_ref = NULL;
+
+    DRAWBOT_Suites			drawbotSuites;
+    DRAWBOT_ColorRGBA		drawbot_color;
+    DRAWBOT_RectF32			rectR;
+    float					default_font_sizeF = 0.0;
+
+    // Acquire all the Drawbot suites in one go; it should be matched with release routine.
+    // You can also use C++ style AEFX_DrawbotSuitesScoper which doesn't need release routine.
+    ERR(AEFX_AcquireDrawbotSuites(in_data, out_data, &drawbotSuites));
+
+    PF_EffectCustomUISuite1	*effectCustomUISuiteP;
+
+    ERR(AEFX_AcquireSuite(in_data,
+        out_data,
+        kPFEffectCustomUISuite,
+        kPFEffectCustomUISuiteVersion1,
+        NULL,
+        (void**)&effectCustomUISuiteP));
+
+    if (!err && effectCustomUISuiteP) {
+        // Get the drawing reference by passing context to this new api
+        ERR((*effectCustomUISuiteP->PF_GetDrawingReference)(event_extra->contextH, &drawing_ref));
+
+        AEFX_ReleaseSuite(in_data, out_data, kPFEffectCustomUISuite, kPFEffectCustomUISuiteVersion1, NULL);
+    }
+
+    // Get the Drawbot supplier from drawing reference; it shouldn't be released like pen or brush (see below)
+    ERR(drawbotSuites.drawbot_suiteP->GetSupplier(drawing_ref, &supplier_ref));
+
+    // Get the Drawbot surface from drawing reference; it shouldn't be released like pen or brush (see below)
+    ERR(drawbotSuites.drawbot_suiteP->GetSurface(drawing_ref, &surface_ref));
+
+    // Premiere Pro/Elements does not support a standard parameter type
+    // with custom UI (bug #1235407), so we can't use the color values.
+    // Use an static grey value instead.
+    if (in_data->appl_id != 'PrMr')
+    {
+        drawbot_color.red = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.red) / PF_MAX_CHAN8;
+        drawbot_color.green = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.green) / PF_MAX_CHAN8;
+        drawbot_color.blue = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.blue) / PF_MAX_CHAN8;
+    }
+    else
+    {
+        static float gray = 0;
+        drawbot_color.red = fmod(gray, 1);
+        drawbot_color.green = fmod(gray, 1);
+        drawbot_color.blue = fmod(gray, 1);
+        gray += 0.01f;
+    }
+    drawbot_color.alpha = 1.0;
+
+    if (PF_EA_CONTROL == event_extra->effect_win.area) {
+
+        // Create a new path. It should be matched with release routine.
+        // You can also use C++ style DRAWBOT_PathP that releases automatically at the end of scope.
+        ERR(drawbotSuites.supplier_suiteP->NewPath(supplier_ref, &path_ref));
+
+        // Create a new brush taking color as input; it should be matched with release routine.
+        // You can also use C++ style DRAWBOT_BrushP which doesn't require release routine.
+        ERR(drawbotSuites.supplier_suiteP->NewBrush(supplier_ref, &drawbot_color, &brush_ref));
+
+        rectR.left = event_extra->effect_win.current_frame.left + 0.5;	// Center of the pixel in new drawing model is (0.5, 0.5)
+        rectR.top = event_extra->effect_win.current_frame.top + 0.5;
+        rectR.width = static_cast<float>(event_extra->effect_win.current_frame.right -
+            event_extra->effect_win.current_frame.left);
+        rectR.height = static_cast<float>(event_extra->effect_win.current_frame.bottom -
+            event_extra->effect_win.current_frame.top);
+
+        // Add the rectangle to path
+        ERR(drawbotSuites.path_suiteP->AddRect(path_ref, &rectR));
+
+        // Fill the path with the brush created
+        ERR(drawbotSuites.surface_suiteP->FillPath(surface_ref, brush_ref, path_ref, kDRAWBOT_FillType_Default));
+
+        // Get the default font size.
+        ERR(drawbotSuites.supplier_suiteP->GetDefaultFontSize(supplier_ref, &default_font_sizeF));
+
+        // Create default font with default size.  Note that you can provide a different font size.
+        ERR(drawbotSuites.supplier_suiteP->NewDefaultFont(supplier_ref, default_font_sizeF, &font_ref));
+
+        DRAWBOT_UTF16Char	unicode_string[256];
+        auto constexpr CUSTOM_UI_STRING = L"A Custom UI!!!\n";
+
+        copyConvertStringLiteralIntoUTF16(CUSTOM_UI_STRING, unicode_string);
+
+        // Draw string with white color
+        drawbot_color.red = drawbot_color.green = drawbot_color.blue = drawbot_color.alpha = 1.0;
+
+        ERR(drawbotSuites.supplier_suiteP->NewBrush(supplier_ref, &drawbot_color, &string_brush_ref));
+
+        DRAWBOT_PointF32			text_origin;
+
+        text_origin.x = event_extra->effect_win.current_frame.left + 5.0;
+        text_origin.y = event_extra->effect_win.current_frame.top + 50.0;
+
+        ERR(drawbotSuites.surface_suiteP->DrawString(surface_ref,
+            string_brush_ref,
+            font_ref,
+            &unicode_string[0],
+            &text_origin,
+            kDRAWBOT_TextAlignment_Default,
+            kDRAWBOT_TextTruncation_None,
+            0.0f));
+
+        if (string_brush_ref) {
+            ERR2(drawbotSuites.supplier_suiteP->ReleaseObject(reinterpret_cast<DRAWBOT_ObjectRef>(string_brush_ref)));
+        }
+
+        if (font_ref) {
+            ERR2(drawbotSuites.supplier_suiteP->ReleaseObject(reinterpret_cast<DRAWBOT_ObjectRef>(font_ref)));
+        }
+
+        // Release/destroy the brush. Otherwise, it will lead to memory leak.
+        if (brush_ref) {
+            ERR2(drawbotSuites.supplier_suiteP->ReleaseObject(reinterpret_cast<DRAWBOT_ObjectRef>(brush_ref)));
+        }
+
+        // Release/destroy the path. Otherwise, it will lead to memory leak.
+        if (path_ref) {
+            ERR2(drawbotSuites.supplier_suiteP->ReleaseObject(reinterpret_cast<DRAWBOT_ObjectRef>(path_ref)));
+        }
+    }
+
+    // Release the earlier acquired Drawbot suites
+    ERR2(AEFX_ReleaseDrawbotSuites(in_data, out_data));
+
+    if (!err) {
+        event_extra->evt_out_flags = PF_EO_HANDLED_EVENT;
+    }
+
+    return err;
+}
+
+
 static PF_Err
 HandleEvent(
 	PF_InData		*in_data,
@@ -587,18 +969,12 @@ HandleEvent(
 	
 	switch (extra->e_type)
 	{
-		case PF_Event_DO_CLICK:
-		break;
-
-		case PF_Event_DRAG:
-		break;
-
 		case PF_Event_DRAW:
 			err = DrawEvent (in_data, out_data, params, output,	extra);
 		break;
 
-		case PF_Event_ADJUST_CURSOR:
-		break;
+//		case PF_Event_ADJUST_CURSOR:
+//		break;
 	
 		default:
 		break;
@@ -695,48 +1071,48 @@ EffectMain(
 				ERR(SequenceSetup(in_data, out_data));
 			break;
 
-			case PF_Cmd_SEQUENCE_RESETUP:
-				ERR(SequenceReSetup(in_data, out_data));
-			break;
+//			case PF_Cmd_SEQUENCE_RESETUP:
+//				ERR(SequenceReSetup(in_data, out_data));
+//			break;
 
-			case PF_Cmd_SEQUENCE_FLATTEN:
-				ERR(SequenceFlatten(in_data, out_data));
-			break;
+//			case PF_Cmd_SEQUENCE_FLATTEN:
+//				ERR(SequenceFlatten(in_data, out_data));
+//			break;
 
-			case PF_Cmd_SEQUENCE_SETDOWN:
-				ERR(SequenceSetdown(in_data, out_data));
-			break;
+//			case PF_Cmd_SEQUENCE_SETDOWN:
+//				ERR(SequenceSetdown(in_data, out_data));
+//			break;
 
 			case PF_Cmd_RENDER:
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-			case PF_Cmd_USER_CHANGED_PARAM:
-				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
-			break;
+//			case PF_Cmd_USER_CHANGED_PARAM:
+//				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+//			break;
 
-			case PF_Cmd_UPDATE_PARAMS_UI:
-				ERR(UpdateParameterUI(in_data, out_data, params, output));
-			break;
+//			case PF_Cmd_UPDATE_PARAMS_UI:
+//				ERR(UpdateParameterUI(in_data, out_data, params, output));
+//			break;
 
 	        case PF_Cmd_EVENT:
 				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
 			break;
 
-            case PF_Cmd_QUERY_DYNAMIC_FLAGS:
-            break;
+//            case PF_Cmd_QUERY_DYNAMIC_FLAGS:
+//            break;
 
-            case PF_Cmd_SMART_PRE_RENDER:
-                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
-           break;
+//            case PF_Cmd_SMART_PRE_RENDER:
+//               ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+//            break;
 
-            case PF_Cmd_SMART_RENDER:
-                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
-            break;
+//            case PF_Cmd_SMART_RENDER:
+//                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+//            break;
 
-//			case PF_Cmd_GET_FLATTENED_SEQUENCE_DATA:
-//				ERR(GetFlattenedSequenceData(in_data, out_data, params, output));
-//			break;
+//			 case PF_Cmd_GET_FLATTENED_SEQUENCE_DATA:
+//			  	 ERR(GetFlattenedSequenceData(in_data, out_data, params, output));
+//			 break;
 
 			default:
 			break;
