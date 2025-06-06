@@ -265,35 +265,6 @@ PF_Err AEFX_ReleaseDrawbotSuites(PF_InData		*in_data,			/* >> */
 }
 
 
-static void
-copyConvertStringLiteralIntoUTF16(
-    const wchar_t* inputString,
-    A_UTF16Char* destination)
-{
-#ifdef AE_OS_MAC
-    int length = wcslen(inputString);
-    CFRange	range = { 0, 256 };
-    range.length = length;
-    CFStringRef inputStringCFSR = CFStringCreateWithBytes(kCFAllocatorDefault,
-        reinterpret_cast<const UInt8 *>(inputString),
-        length * sizeof(wchar_t),
-        kCFStringEncodingUTF32LE,
-        false);
-    CFStringGetBytes(inputStringCFSR,
-        range,
-        kCFStringEncodingUTF16,
-        0,
-        false,
-        reinterpret_cast<UInt8 *>(destination),
-        length * (sizeof(A_UTF16Char)),
-        NULL);
-    destination[length] = 0; // Set NULL-terminator, since CFString calls don't set it
-    CFRelease(inputStringCFSR);
-#elif defined AE_OS_WIN
-    size_t length = wcslen(inputString);
-    wcscpy_s(reinterpret_cast<wchar_t*>(destination), length + 1, inputString);
-#endif
-}
 
 
 PF_Err
@@ -396,7 +367,7 @@ DrawEvent(
         DRAWBOT_UTF16Char	unicode_string[256];
         auto constexpr CUSTOM_UI_STRING = L"A Custom UI!!!\n";
 
-        copyConvertStringLiteralIntoUTF16(CUSTOM_UI_STRING, unicode_string);
+//        copyConvertStringLiteralIntoUTF16(CUSTOM_UI_STRING, unicode_string);
 
         // Draw string with white color
         drawbot_color.red = drawbot_color.green = drawbot_color.blue = drawbot_color.alpha = 1.0;
