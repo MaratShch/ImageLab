@@ -16,8 +16,6 @@ PF_Err ProcessImgInPR
 	PF_LayerDef* __restrict output
 ) 
 {
-    return PF_Err_NONE;
-
 	PF_Err err{ PF_Err_OUT_OF_MEMORY };
     PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
