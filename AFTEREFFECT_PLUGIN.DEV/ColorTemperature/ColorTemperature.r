@@ -52,13 +52,12 @@ resource 'PiPL' (16000) {
 		},
 		/* [10] */
 		AE_Effect_Global_OutFlags {
-			33588288 /* 100697170 */
+			33588288
 		},
-
-/*		AE_Effect_Global_OutFlags_2 {
+	    AE_Effect_Global_OutFlags_2 {
 			8519752
 		},
-*/		/* [11] */
+		/* [11] */
 		AE_Effect_Match_Name {
 			"ImageLab2 Color Temperature"
 		},

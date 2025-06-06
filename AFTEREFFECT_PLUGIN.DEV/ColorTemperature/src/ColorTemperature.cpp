@@ -41,7 +41,7 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-//    LoadMemoryInterfaceProvider(in_data);
+    LoadMemoryInterfaceProvider(in_data);
 
 	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
     PF_Handle pGlobalStorage = nullptr;
@@ -52,7 +52,7 @@ GlobalSetup(
 //		PF_OutFlag_USE_OUTPUT_EXTENT              |
 //		PF_OutFlag_PIX_INDEPENDENT                |
 //		PF_OutFlag_DEEP_COLOR_AWARE               |
- //       PF_OutFlag_CUSTOM_UI                      | 
+//       PF_OutFlag_CUSTOM_UI                      | 
 //		PF_OutFlag_SEND_UPDATE_PARAMS_UI;
 
     constexpr PF_OutFlags out_flags1 = 
@@ -77,7 +77,7 @@ GlobalSetup(
 		);
 
 	out_data->out_flags  = out_flags1;
-//	out_data->out_flags2 = out_flags2;
+	out_data->out_flags2 = out_flags2;
 
 	/* For Premiere - declare supported pixel formats */
 	if (PremierId == in_data->appl_id)
@@ -96,9 +96,9 @@ GlobalSetup(
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
-#if 0
+
     // Initialize CCT LUTs
-    AlgoCCT::CctHandleF32* globalCctHandler32 = new AlgoCCT::CctHandleF32;
+    AlgoCCT::CctHandleF32* globalCctHandler32 = new AlgoCCT::CctHandleF32();
 
     if (nullptr != globalCctHandler32)
     {
@@ -134,16 +134,14 @@ GlobalSetup(
         // abnormal exit - free all allocated resources before
         delete globalCctHandler32;
         globalCctHandler32 = nullptr;
-//        UnloadMemoryInterfaceProvider();
+        UnloadMemoryInterfaceProvider();
     }
-
-#endif
 
 #ifdef _DEBUG
     pGCctHandler32 = globalCctHandler32;
 #endif
 
-    return PF_Err_NONE;// err;
+    return err;
 }
 
 
@@ -177,34 +175,11 @@ GlobalSetdown(
 
     resetPresets (vPresets);
     
-//    UnloadMemoryInterfaceProvider();
+    UnloadMemoryInterfaceProvider();
 
     return PF_Err_NONE;
 }
 
-static PF_Err
-RegisterUIRegion (PF_InData *in_data)
-{
-    PF_CustomUIInfo	ui;
-
-    AEFX_CLR_STRUCT_EX(ui);
-
-    ui.events = PF_CustomEFlag_EFFECT;
-
-    ui.comp_ui_width      = 0;
-    ui.comp_ui_height     = 0;
-    ui.comp_ui_alignment  = PF_UIAlignment_NONE;
-
-    ui.layer_ui_width     = 0;
-    ui.layer_ui_height    = 0;
-    ui.layer_ui_alignment = PF_UIAlignment_NONE;
-
-    ui.preview_ui_width   = 0;
-    ui.preview_ui_height  = 0;
-    ui.layer_ui_alignment = PF_UIAlignment_NONE;
-
-    return (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
-}
 
 #if 1
 static PF_Err
@@ -217,7 +192,7 @@ ParamsSetup(
 	PF_ParamDef	def;
     PF_Err err = PF_Err_NONE;
 
-    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE;// | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 	constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
