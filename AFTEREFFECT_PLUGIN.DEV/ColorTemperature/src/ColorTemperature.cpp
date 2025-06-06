@@ -146,7 +146,6 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-
     if (nullptr != in_data->global_data)
     {
         pHandle* pGlobal = static_cast<pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));

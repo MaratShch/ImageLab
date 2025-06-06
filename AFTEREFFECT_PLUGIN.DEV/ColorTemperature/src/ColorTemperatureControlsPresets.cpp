@@ -5,7 +5,7 @@ constexpr size_t mumberOfPresets{ 9ull };
 
 bool setPresetsVector(std::vector<IPreset*>& v_presets) noexcept
 {
-	v_presets.resize(mumberOfPresets);
+	v_presets.reserve(mumberOfPresets);
 
 	v_presets[0] = reinterpret_cast<IPreset*>(new (std::nothrow) PresetLandscape);
 	v_presets[1] = reinterpret_cast<IPreset*>(new (std::nothrow) PresetNature);
