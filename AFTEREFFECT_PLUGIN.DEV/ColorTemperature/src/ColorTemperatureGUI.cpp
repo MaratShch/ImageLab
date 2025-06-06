@@ -403,19 +403,19 @@ DrawEvent(
 
         ERR(drawbotSuites.supplier_suiteP->NewBrush(supplier_ref, &drawbot_color, &string_brush_ref));
 
-        DRAWBOT_PointF32			text_origin;
-
-        text_origin.x = event_extra->effect_win.current_frame.left + 5.0;
-        text_origin.y = event_extra->effect_win.current_frame.top + 50.0;
-
-        ERR(drawbotSuites.surface_suiteP->DrawString(surface_ref,
-            string_brush_ref,
-            font_ref,
-            &unicode_string[0],
-            &text_origin,
-            kDRAWBOT_TextAlignment_Default,
-            kDRAWBOT_TextTruncation_None,
-            0.0f));
+//        DRAWBOT_PointF32			text_origin;
+//
+//        text_origin.x = event_extra->effect_win.current_frame.left + 5.0;
+//        text_origin.y = event_extra->effect_win.current_frame.top + 50.0;
+//
+//        ERR(drawbotSuites.surface_suiteP->DrawString(surface_ref,
+//            string_brush_ref,
+//            font_ref,
+//            &unicode_string[0],
+//            &text_origin,
+//            kDRAWBOT_TextAlignment_Default,
+//            kDRAWBOT_TextTruncation_None,
+//            0.0f));
 
         if (string_brush_ref) {
             ERR2(drawbotSuites.supplier_suiteP->ReleaseObject(reinterpret_cast<DRAWBOT_ObjectRef>(string_brush_ref)));
