@@ -195,7 +195,8 @@ ProcessImgInAE
 	PF_LayerDef* output
 ) 
 {
-	return (PF_WORLD_IS_DEEP(output) ?
-        ColorTemperature_InAE_DeepWord(in_data, out_data, params, output) :
-		ColorTemperature_InAE_8bits (in_data, out_data, params, output));
+    return PF_Err_NONE;
+//	return (PF_WORLD_IS_DEEP(output) ?
+//      ColorTemperature_InAE_DeepWord(in_data, out_data, params, output) :
+//		ColorTemperature_InAE_8bits (in_data, out_data, params, output));
 }
