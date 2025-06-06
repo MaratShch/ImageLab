@@ -119,9 +119,6 @@
     <ClCompile Include="src\ColorTemperatureSR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\DllMain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorTemperature.rc">
