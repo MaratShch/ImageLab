@@ -46,20 +46,14 @@ GlobalSetup(
 	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
     PF_Handle pGlobalStorage = nullptr;
 
-//	constexpr PF_OutFlags out_flags1 =
-//		PF_OutFlag_WIDE_TIME_INPUT                |
-//		PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
-//		PF_OutFlag_USE_OUTPUT_EXTENT              |
-//		PF_OutFlag_PIX_INDEPENDENT                |
-//		PF_OutFlag_DEEP_COLOR_AWARE               |
-//       PF_OutFlag_CUSTOM_UI                      | 
-//		PF_OutFlag_SEND_UPDATE_PARAMS_UI;
-
-    constexpr PF_OutFlags out_flags1 = 
-        PF_OutFlag_CUSTOM_UI |
-        PF_OutFlag_PIX_INDEPENDENT |
-        PF_OutFlag_USE_OUTPUT_EXTENT |
-        PF_OutFlag_DEEP_COLOR_AWARE;
+	constexpr PF_OutFlags out_flags1 =
+		PF_OutFlag_WIDE_TIME_INPUT                |
+		PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
+		PF_OutFlag_USE_OUTPUT_EXTENT              |
+		PF_OutFlag_PIX_INDEPENDENT                |
+		PF_OutFlag_DEEP_COLOR_AWARE               |
+        PF_OutFlag_CUSTOM_UI                      | 
+		PF_OutFlag_SEND_UPDATE_PARAMS_UI;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG    |
@@ -181,7 +175,6 @@ GlobalSetdown(
 }
 
 
-#if 1
 static PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
@@ -361,76 +354,6 @@ ParamsSetup(
 
 	return PF_Err_NONE;
 }
-#else
-
-static PF_Err
-ParamsSetup(
-    PF_InData		*in_data,
-    PF_OutData		*out_data,
-    PF_ParamDef		*params[],
-    PF_LayerDef		*output)
-{
-    PF_Err 			err = PF_Err_NONE;
-    PF_ParamDef		def;
-
-    AEFX_CLR_STRUCT(def);
-
-    def.flags = PF_ParamFlag_SUPERVISE;
-    def.ui_flags = PF_PUI_CONTROL;
-    def.ui_width = gGuiBarWidth;
-    def.ui_height = gGuiBarHeight;
-
-    // Premiere Pro/Elements does not support a standard parameter type
-    // with custom UI (bug #1235407).  Use an arbitrary or null parameter instead.
-    if (in_data->appl_id != 'PrMr')
-    {
-        PF_ADD_COLOR(controlItemName[7],
-            0,
-            0,
-            0,
-            1);
-    }
-    else
-    {
-        PF_ADD_ARBITRARY2(controlItemName[7],
-            gGuiBarWidth,
-            gGuiBarHeight,
-            0,
-            PF_PUI_CONTROL,
-            0,
-            1,
-            0);
-        // [TODO] Implement arbitrary data selectors 
-        // for a color data type
-    }
-
-    if (!err) {
-        PF_CustomUIInfo			ci;
-
-        AEFX_CLR_STRUCT(ci);
-
-        ci.events = PF_CustomEFlag_EFFECT;
-
-        ci.comp_ui_width = 0;
-        ci.comp_ui_height = 0;
-        ci.comp_ui_alignment = PF_UIAlignment_NONE;
-
-        ci.layer_ui_width = 0;
-        ci.layer_ui_height = 0;
-        ci.layer_ui_alignment = PF_UIAlignment_NONE;
-
-        ci.preview_ui_width = 0;
-        ci.preview_ui_height = 0;
-        ci.layer_ui_alignment = PF_UIAlignment_NONE;
-
-        err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ci);
-    }
-
-    out_data->num_params = 2;
-
-    return err;
-}
-#endif
 
 
 static PF_Err
