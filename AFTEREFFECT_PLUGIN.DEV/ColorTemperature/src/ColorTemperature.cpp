@@ -197,20 +197,20 @@ ParamsSetup(
 	// Setup 'Preset' popup - initially disable
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
 	PF_ADD_POPUP(
-		controlItemName[1],						/* pop-up name			*/
-		COLOR_TEMPERARTURE_TOTAL_PRESETS,		/* number of variants	*/
-		COLOR_TEMPERARTURE_PRESET_LANDSCAPE,	/* default variant		*/
-		controlItemPresetType,					/* string for pop-up	*/
-		COLOR_TEMPERATURE_PRESET_TYPE_POPUP);	/* control ID			*/
+		controlItemName[1],                     // pop-up name
+		COLOR_TEMPERARTURE_TOTAL_PRESETS,       // number of variants
+		COLOR_TEMPERARTURE_PRESET_LANDSCAPE,    // default variant
+		controlItemPresetType,                  // string for pop-up
+		COLOR_TEMPERATURE_PRESET_TYPE_POPUP);   // control ID
 
 	// Setup 'Observer' popup - default value "2 degrees 1931"
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
 	PF_ADD_POPUP(
-		controlItemName[2],						/* pop-up name			*/
-		COLOR_TEMPERATURE_TOTAL_OBSERVERS,		/* number of variants	*/
-		COLOR_TEMPERATURE_OBSERVER_1931_2,		/* default variant		*/
-		controlItemObserver,					/* string for pop-up	*/
-		COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP);	/* control ID			*/
+		controlItemName[2],                     // pop-up name
+		COLOR_TEMPERATURE_TOTAL_OBSERVERS,      // number of variants
+		COLOR_TEMPERATURE_OBSERVER_1931_2,      // default variant
+		controlItemObserver,                    // string for pop-up
+		COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP); // control ID
 
 	// Setup 'Color Temperature' slider
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
