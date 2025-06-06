@@ -206,7 +206,7 @@ RegisterUIRegion (PF_InData *in_data)
     return (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
 }
 
-#if 0
+#if 1
 static PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
@@ -217,7 +217,7 @@ ParamsSetup(
 	PF_ParamDef	def;
     PF_Err err = PF_Err_NONE;
 
-    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE;// | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 	constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
@@ -305,7 +305,7 @@ ParamsSetup(
 
     // add Color CCT bar (GUI)
     AEFX_CLR_STRUCT_EX(def);
-    def.flags     = PF_ParamFlag_SUPERVISE;
+    def.flags     = flags;
     def.ui_flags  = PF_PUI_CONTROL;
     def.ui_width  = gGuiBarWidth;
     def.ui_height = gGuiBarHeight;
@@ -330,8 +330,27 @@ ParamsSetup(
             COLOR_TEMPERATURE_COLOR_BAR_GUI,
             0);
     }
-    if (PF_Err_NONE != err)
-        err = RegisterUIRegion(in_data);
+    if (!err)
+    {
+        PF_CustomUIInfo	ui;
+        AEFX_CLR_STRUCT_EX(ui);
+
+        ui.events = PF_CustomEFlag_EFFECT;
+
+        ui.comp_ui_width = 0;
+        ui.comp_ui_height = 0;
+        ui.comp_ui_alignment = PF_UIAlignment_NONE;
+
+        ui.layer_ui_width = 0;
+        ui.layer_ui_height = 0;
+        ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        ui.preview_ui_width = 0;
+        ui.preview_ui_height = 0;
+        ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
+    }
 
     // Setup 'Camera SPD' button - initially disabled
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
