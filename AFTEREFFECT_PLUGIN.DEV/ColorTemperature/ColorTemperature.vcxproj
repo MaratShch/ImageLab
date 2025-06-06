@@ -199,7 +199,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\ColorTemperatureGUI.cpp" />
     <ClCompile Include="src\ColorTemperaturePR.cpp" />
     <ClCompile Include="src\ColorTemperatureSR.cpp" />
-    <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
