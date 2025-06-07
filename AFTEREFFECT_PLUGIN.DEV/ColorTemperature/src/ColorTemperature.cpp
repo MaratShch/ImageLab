@@ -295,7 +295,7 @@ ParamsSetup(
             COLOR_TEMPERATURE_COLOR_BAR_GUI,
             0);
     }
-    if (!err)
+    if (PF_Err_NONE == err)
     {
         PF_CustomUIInfo	ui;
         AEFX_CLR_STRUCT_EX(ui);
@@ -315,7 +315,7 @@ ParamsSetup(
         ui.layer_ui_alignment = PF_UIAlignment_NONE;
 
         err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
-    }
+    } // if (PF_Err_NONE == err)
 
     // Setup 'Camera SPD' button - initially disabled
 	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
