@@ -726,7 +726,7 @@ EffectMain(
             break;
 
             case PF_Cmd_SMART_PRE_RENDER:
-               ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
             break;
 
             case PF_Cmd_SMART_RENDER:
@@ -734,7 +734,7 @@ EffectMain(
             break;
 
 			 case PF_Cmd_GET_FLATTENED_SEQUENCE_DATA:
-			  	 ERR(GetFlattenedSequenceData(in_data, out_data, params, output));
+			    ERR(GetFlattenedSequenceData(in_data, out_data, params, output));
 			 break;
 
 			default:

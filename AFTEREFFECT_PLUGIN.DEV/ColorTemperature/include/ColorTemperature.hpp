@@ -41,7 +41,7 @@ ColorTemperarture_PreRender
     PF_InData			*in_data,
     PF_OutData			*out_data,
     PF_PreRenderExtra	*extra
-) noexcept;
+)
 
 PF_Err
 ColorTemperature_SmartRender
@@ -49,7 +49,7 @@ ColorTemperature_SmartRender
     PF_InData				*in_data,
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extraP
-) noexcept;
+)
 
 
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_FILTER__ */
