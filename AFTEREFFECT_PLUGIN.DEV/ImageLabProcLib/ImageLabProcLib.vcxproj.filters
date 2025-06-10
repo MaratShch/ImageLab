@@ -72,6 +72,18 @@
     <ClInclude Include="include\algo_fft.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\algo_fft_winograd.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\algo_fft_czt.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\algo_fft_utils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\algo_fft_cooley_tukey.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">

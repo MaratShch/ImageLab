@@ -2,6 +2,30 @@
 #include "ImageStylization.hpp"
 #include "PrSDKAESupport.h"
 #include "ColorTransformMatrix.hpp"
+#include "ImageLabMemInterface.hpp"
+#include "algo_fft.hpp"
+
+
+// Helper function for compute Y (Luma) component from RGB
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
+          typename U, std::enable_if<std::is_floating_point<U>::value>* = nullptr>
+static void Rgb2Luma
+(
+    const T* __restrict pSrcImg,
+          U* __restrict lumaBuffer,
+    eCOLOR_SPACE transformSpace,
+    A_long sizeX,
+    A_long sizeY,
+    A_long srcPitch,
+    A_long dstPitch,
+    A_long subtractor
+)
+{
+    const float* __restrict ctm = RGB2YUV[transformSpace];
+
+    return;
+}
+
 
 PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
 (
@@ -11,44 +35,40 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
-	float*				    __restrict pTmpStorage1 = nullptr;
-	float*				    __restrict pTmpStorage2 = nullptr;
-	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+	const PF_LayerDef*      __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
+    void* pMemPtr = nullptr;
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+    const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+    const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-	const float* __restrict rgb2yuv = (width > 720) ? RGB2YUV[BT709] : RGB2YUV[BT601];
+    A_long padded_sizeX = 0, padded_sizeY = 0;
+    // compute padde image size as power of 2
+    get_padded_image_size (sizeX, sizeY, padded_sizeX, padded_sizeY);
 
-	constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
-	auto const singleBufElemSize = width * height;
-	auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
-	auto const requiredMemSize = singleBufMemSize * 2;
+    // Allocate memory buffer (double buffer) for padded size.
+    // We proceed only with LUMA components.
+    const A_long tmpMemSize = padded_sizeX * padded_sizeY * sizeof(float);
+    const A_long requiredMemSize = tmpMemSize * 2;
+    int32_t blockId = ::GetMemoryBlock (requiredMemSize, 0, &pMemPtr);
+    
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        float* __restrict pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
 
-	int j, i;
-	bool bMemSizeTest = false;
+        // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer
+        Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX, 128);
 
-	bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-	if (nullptr != pGlobal)
-	{
-		pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-		bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-	}
+        // discard memory 
+        pTmpStorage1 = pTmpStorage2 = nullptr;
+        pMemPtr = nullptr;
+        ::FreeMemoryBlock (blockId);
+        blockId = -1;
 
-	if (true == bMemSizeTest)
-	{
-		/* allow mutual access to temporary memory storage */
-		const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-		pTmpStorage1 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1);
-		pTmpStorage2 = reinterpret_cast<float* __restrict>(pTmpStorageHdnl->pStorage1) + singleBufElemSize;
-
-
-	}
-
+    } // if (blockId >= 0 && nullptr != pMemPtr)
 
 	return PF_Err_NONE;
 }

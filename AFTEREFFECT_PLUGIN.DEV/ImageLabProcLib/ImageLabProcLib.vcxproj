@@ -153,6 +153,10 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\algo_fft.hpp" />
+    <ClInclude Include="include\algo_fft_cooley_tukey.hpp" />
+    <ClInclude Include="include\algo_fft_czt.hpp" />
+    <ClInclude Include="include\algo_fft_utils.hpp" />
+    <ClInclude Include="include\algo_fft_winograd.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\algo_fft_cpu.cpp" />
