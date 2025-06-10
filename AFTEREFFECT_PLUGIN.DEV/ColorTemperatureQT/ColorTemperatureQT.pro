@@ -1,5 +1,6 @@
-# --- YourProjectName.pro --- (e.g., ColorTemperatureQT.pro)
-
+#
+# qmake -tp vc ColorTemperatureQT.pro
+#
 # 1. Specify the output type as a static library
 TEMPLATE = lib
 CONFIG += staticlib
