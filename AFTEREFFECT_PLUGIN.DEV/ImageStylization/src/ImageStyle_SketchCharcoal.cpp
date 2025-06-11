@@ -6,22 +6,29 @@
 #include "algo_fft.hpp"
 
 
-// Helper function for compute Y (Luma) component from RGB
+// Function for compute Y (Luma) component from RGB
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
           typename U, std::enable_if<std::is_floating_point<U>::value>* = nullptr>
 static void Rgb2Luma
 (
     const T* __restrict pSrcImg,
-          U* __restrict lumaBuffer,
-    eCOLOR_SPACE transformSpace,
+          U* __restrict pLumaBuffer,
+    const eCOLOR_SPACE& transformSpace,
     A_long sizeX,
     A_long sizeY,
     A_long srcPitch,
-    A_long dstPitch,
-    A_long subtractor
-)
+    A_long dstPitch
+) noexcept
 {
-    const float* __restrict ctm = RGB2YUV[transformSpace];
+    const float ctm[3]{ RGB2YUV[transformSpace][0], RGB2YUV[transformSpace][1], RGB2YUV[transformSpace][2] };
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const T* __restrict pSrcLine = pSrcImg + j * srcPitch;
+              U* __restrict pDstLine = pLumaBuffer + j * dstPitch;
+
+        for (A_long i = 0; i < sizeX; i++)
+            pDstLine[i] = static_cast<U>(pSrcLine[i].R) * ctm[0] + static_cast<U>(pSrcLine[i].G) * ctm[1] + static_cast<U>(pSrcLine[i].B) * ctm[2];
+    }
 
     return;
 }
@@ -60,7 +67,7 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
         float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer
-        Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX, 128);
+        Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX);
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = nullptr;
@@ -204,5 +211,17 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_16u
 ) noexcept
 {
 	return PF_Err_NONE;
+}
+
+
+PF_Err AE_ImageStyle_SketchCharcoal_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept
+{
+    return PF_Err_NONE;
 }
 
