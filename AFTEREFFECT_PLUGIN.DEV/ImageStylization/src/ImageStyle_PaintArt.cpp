@@ -683,3 +683,15 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 
 	return PF_Err_NONE;
 }
+
+
+PF_Err AE_ImageStyle_PaintArt_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept
+{
+    return PF_Err_NONE; // non implemented yet
+}

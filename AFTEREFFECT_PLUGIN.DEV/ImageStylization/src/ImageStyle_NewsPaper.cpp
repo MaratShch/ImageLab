@@ -982,3 +982,13 @@ PF_Err AE_ImageStyle_NewsPaper_ARGB_16u
 }
 
 
+PF_Err AE_ImageStyle_NewsPaper_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept
+{
+    return PF_Err_NONE; // non implemented yet
+}

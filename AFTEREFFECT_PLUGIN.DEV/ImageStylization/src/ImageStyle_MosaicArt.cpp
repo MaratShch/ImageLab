@@ -274,3 +274,15 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_16u
 
 	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
+
+
+PF_Err AE_ImageStyle_MosaicArt_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept
+{
+    return PF_Err_NONE;
+}

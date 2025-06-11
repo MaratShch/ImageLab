@@ -141,6 +141,14 @@ PF_Err AE_ImageStyle_NewsPaper_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_NewsPaper_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept;
+
 PF_Err PR_ImageStyle_ColorNewsPaper
 (
 	PF_InData*   __restrict in_data,
@@ -163,6 +171,14 @@ PF_Err AE_ImageStyle_ColorNewsPaper_ARGB_16u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_ColorNewsPaper_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
 ) noexcept;
 
 PF_Err PR_ImageStyle_GlassyEffect
@@ -189,6 +205,13 @@ PF_Err AE_ImageStyle_GlassyEffect_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_GlassyEffect_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept;
 
 PF_Err PR_ImageStyle_CartoonEffect
 (
@@ -212,6 +235,14 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_16u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_CartoonEffect_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
 ) noexcept;
 
 PF_Err PR_ImageStyle_SketchPencil
@@ -239,6 +270,13 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_SketchPencil_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept;
 
 PF_Err PR_ImageStyle_PointillismArt
 (
@@ -265,6 +303,14 @@ PF_Err AE_ImageStyle_PointillismArt_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_PointillismArt_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept;
+
 PF_Err PR_ImageStyle_CubismArt
 (
 	PF_InData*   __restrict in_data,
@@ -288,6 +334,14 @@ PF_Err AE_ImageStyle_CubismArt_ARGB_16u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_CubismArt_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
 ) noexcept;
 
 PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
@@ -354,6 +408,14 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_SketchCharcoal_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept;
+
 
 PF_Err PR_ImageStyle_MosaicArt
 (
@@ -377,6 +439,14 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_16u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_MosaicArt_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
 ) noexcept;
 
 PF_Err PR_ImageStyle_OilPaint
@@ -403,6 +473,14 @@ PF_Err AE_ImageStyle_OilPaint_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_OilPaint_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept;
+
 PF_Err PR_ImageStyle_ImpressionismArt
 (
 	PF_InData*   __restrict in_data,
@@ -427,6 +505,14 @@ PF_Err AE_ImageStyle_ImpressionismArt_ARGB_16u
 	PF_LayerDef* __restrict output
 ) noexcept;
 
+PF_Err AE_ImageStyle_ImpressionismArt_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+) noexcept;
+
 PF_Err PR_ImageStyle_PaintArt
 (
 	PF_InData*   __restrict in_data,
@@ -449,4 +535,12 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
+) noexcept;
+
+PF_Err AE_ImageStyle_PaintArt_ARGB_32f
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
 ) noexcept;
