@@ -66,7 +66,7 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
         float* __restrict pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
         float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
 
-        // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer
+        // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
         Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX);
 
         // discard memory 
