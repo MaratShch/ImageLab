@@ -238,6 +238,19 @@ void store_segmented_image
 
 void store_segmented_image
 (
+    const PF_Pixel_ARGB_32f* __restrict srcBgra,
+    PF_Pixel_ARGB_32f* __restrict dstBgra,
+    const float* __restrict fR,
+    const float* __restrict fG,
+    const float* __restrict fB,
+    A_long w,
+    A_long h,
+    A_long srcPitch,
+    A_long dstPitch
+) noexcept;
+
+void store_segmented_image
+(
 	const PF_Pixel_VUYA_8u* __restrict srcBgra,
 	PF_Pixel_VUYA_8u* __restrict dstBgra,
 	const float* __restrict fR,

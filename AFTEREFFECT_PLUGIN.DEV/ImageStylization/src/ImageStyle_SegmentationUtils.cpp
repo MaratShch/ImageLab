@@ -1148,6 +1148,40 @@ void store_segmented_image
 
 void store_segmented_image
 (
+    const PF_Pixel_ARGB_32f* __restrict srcBgra,
+          PF_Pixel_ARGB_32f* __restrict dstBgra,
+    const float* __restrict fR,
+    const float* __restrict fG,
+    const float* __restrict fB,
+    A_long w,
+    A_long h,
+    A_long srcPitch,
+    A_long dstPitch
+) noexcept
+{
+    constexpr float mult = 1.0f / 256.0f;
+    /* store assembled segmented image */
+    for (A_long j = 0; j < h; j++)
+    {
+        const PF_Pixel_ARGB_32f* pSrcLine = srcBgra + j * srcPitch;
+             PF_Pixel_ARGB_32f* pDstLine = dstBgra + j * dstPitch;
+        const A_long fTmpStorageIdx = j * w;
+
+        __VECTOR_ALIGNED__
+        for (A_long i = 0; i < w; i++)
+        {
+            pDstLine[i].A = pSrcLine[i].A;
+            pDstLine[i].R = CLAMP_VALUE(fR[fTmpStorageIdx + i] * mult, f32_value_black, f32_value_white);
+            pDstLine[i].G = CLAMP_VALUE(fG[fTmpStorageIdx + i] * mult, f32_value_black, f32_value_white);
+            pDstLine[i].B = CLAMP_VALUE(fB[fTmpStorageIdx + i] * mult, f32_value_black, f32_value_white);
+        }
+    }
+    return;
+}
+
+
+void store_segmented_image
+(
 	const PF_Pixel_VUYA_8u* __restrict srcBgra,
 	PF_Pixel_VUYA_8u* __restrict dstBgra,
 	const float* __restrict fR,
