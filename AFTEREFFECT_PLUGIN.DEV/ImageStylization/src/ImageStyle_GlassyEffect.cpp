@@ -7,11 +7,11 @@ inline PF_Err ImageStyle_GlassyEffect
 (
 	const T* __restrict srcBuffer,
 	      T* __restrict dstBuffer,
-	const A_long&       height,
-	const A_long&       width,
-	const A_long&       src_line_pitch,
-	const A_long&       dst_line_pitch,
-	const A_long&       dispersionSliderValue
+	const A_long       height,
+	const A_long       width,
+	const A_long       src_line_pitch,
+	const A_long       dst_line_pitch,
+	const A_long       dispersionSliderValue
 ) noexcept
 {
 	uint32_t randomBufSize = 0u;
@@ -19,8 +19,8 @@ inline PF_Err ImageStyle_GlassyEffect
 	const uint32_t randomBufMask = randomBufSize - 1u;
 	float const& imgDispersion = static_cast<float const>(dispersionSliderValue);
 
-	const A_long& short_height = height - dispersionSliderValue;
-	const A_long& short_width  = width - dispersionSliderValue;
+	const A_long short_height = height - dispersionSliderValue;
+	const A_long short_width  = width - dispersionSliderValue;
 
 	int32_t i, j, idx;
 
@@ -265,10 +265,10 @@ PF_Err AE_ImageStyle_GlassyEffect_ARGB_8u
 	PF_Pixel_ARGB_8u*     __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input->data);
 	PF_Pixel_ARGB_8u*     __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-	const A_long& height = output->height;
-	const A_long& width = output->width;
-	const A_long& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-	const A_long& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	const A_long height = output->height;
+	const A_long width = output->width;
+	const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
 	auto const& dispersionSliderValue = getDispersionSliderValue(params[IMAGE_STYLE_SLIDER1]->u.sd.value);
 
@@ -293,10 +293,10 @@ PF_Err AE_ImageStyle_GlassyEffect_ARGB_16u
 	PF_Pixel_ARGB_16u*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input->data);
 	PF_Pixel_ARGB_16u*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-	const A_long& height = output->height;
-	const A_long& width = output->width;
-	const A_long& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-	const A_long& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	const A_long height = output->height;
+	const A_long width = output->width;
+	const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
 	auto const& dispersionSliderValue = getDispersionSliderValue(params[IMAGE_STYLE_SLIDER1]->u.sd.value);
 
@@ -317,5 +317,21 @@ PF_Err AE_ImageStyle_GlassyEffect_ARGB_32f
     PF_LayerDef* __restrict output
 ) noexcept
 {
+    const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    PF_Pixel_ARGB_32f*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input->data);
+    PF_Pixel_ARGB_32f*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    const A_long height = output->height;
+    const A_long width = output->width;
+    const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+
+    auto const& dispersionSliderValue = getDispersionSliderValue(params[IMAGE_STYLE_SLIDER1]->u.sd.value);
+
+    if (dispersionSliderValue < height && dispersionSliderValue < width)
+        ImageStyle_GlassyEffect(localSrc, localDst, height, width, src_line_pitch, dst_line_pitch, dispersionSliderValue);
+    else /* ROI buffer to small - make simple copy */
+        Image_SimpleCopy(localSrc, localDst, height, width, src_line_pitch, dst_line_pitch);
+
     return PF_Err_NONE;
 }

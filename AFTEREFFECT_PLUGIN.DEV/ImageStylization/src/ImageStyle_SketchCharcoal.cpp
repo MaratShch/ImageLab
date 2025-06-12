@@ -63,11 +63,18 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
     
     if (blockId >= 0 && nullptr != pMemPtr)
     {
+#ifdef _DEBUG
+        // cleanup memory buffer
+        memset(pMemPtr, 0, static_cast<std::size_t>(requiredMemSize));
+#endif
+
         float* __restrict pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
         float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
         Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX);
+
+        // HP filter
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = nullptr;

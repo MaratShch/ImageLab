@@ -65,6 +65,7 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_8u
 
         } /* for (j = 0; j < height; j++) */
 
+        pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
     } // if (blockId >= 0 && nullptr != pMemPtr)
@@ -128,6 +129,7 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_8u
 
         } /* for (j = 0; j < height; j++) */
 
+        pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
     } // if (blockId >= 0 && nullptr != pMemPtr)
@@ -190,6 +192,7 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 
         } /* for (j = 0; j < height; j++) */
 
+        pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
     } // if (blockId >= 0 && nullptr != pMemPtr)
@@ -253,6 +256,7 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_16u
 
         } /* for (j = 0; j < height; j++) */
 
+        pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
     } // if (blockId >= 0 && nullptr != pMemPtr)
@@ -316,6 +320,7 @@ PF_Err PR_ImageStyle_SketchPencil_BGRA_32f
 
         } /* for (j = 0; j < height; j++) */
 
+        pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
     } // if (blockId >= 0 && nullptr != pMemPtr)
@@ -441,6 +446,7 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_8u
 
         } /* for (j = 0; j < height; j++) */
 
+        pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
     } // if (blockId >= 0 && nullptr != pMemPtr)
@@ -465,8 +471,8 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 
 	const A_long& height = output->height;
 	const A_long& width  = output->width;
-	const A_long& src_line_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-	const A_long& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+	const A_long& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	const A_long& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
 	const float* __restrict rgb2yuv = (width > 720) ? RGB2YUV[BT709] : RGB2YUV[BT601];
 
@@ -505,6 +511,7 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_16u
 
         } /* for (j = 0; j < height; j++) */
 
+        pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
     } // if (blockId >= 0 && nullptr != pMemPtr)
@@ -521,5 +528,58 @@ PF_Err AE_ImageStyle_SketchPencil_ARGB_32f
     PF_LayerDef* __restrict output
 ) noexcept
 {
+    float*				  __restrict pTmpStorage1 = nullptr;
+    float*				  __restrict pTmpStorage2 = nullptr;
+    const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    PF_Pixel_ARGB_32f*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input->data);
+    PF_Pixel_ARGB_32f*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    const A_long& height = output->height;
+    const A_long& width = output->width;
+    const A_long& src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long& dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+
+    const float* __restrict rgb2yuv = (width > 720) ? RGB2YUV[BT709] : RGB2YUV[BT601];
+
+    constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
+    auto const singleBufElemSize = width * height;
+    auto const singleBufMemSize = CreateAlignment(singleBufElemSize * sizeof(float), cpuPageSize);
+    auto const requiredMemSize = singleBufMemSize * 2;
+
+    int j, i;
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
+
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+        pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        pTmpStorage2 = pTmpStorage1 + singleBufElemSize;
+
+        /* compute gradinets of RGB image */
+        ImageRGB_ComputeGradient (localSrc, rgb2yuv, pTmpStorage1, pTmpStorage2, height, width, src_line_pitch);
+
+        for (j = 0; j < height; j++)
+        {
+            const float* __restrict pSrc1Line = pTmpStorage1 + j * width;
+            const float* __restrict pSrc2Line = pTmpStorage2 + j * width;
+            const PF_Pixel_ARGB_32f* __restrict pSrcLine = localSrc + j * src_line_pitch;
+            PF_Pixel_ARGB_32f*       __restrict pDstLine = localDst + j * dst_line_pitch;
+
+            __VECTOR_ALIGNED__
+            for (i = 0; i < width; i++)
+            {
+                const float sqrtVal = FastCompute::Min(f32_value_white, FastCompute::Sqrt(pSrc1Line[i] * pSrc1Line[i] + pSrc2Line[i] * pSrc2Line[i]));
+                const float negVal = f32_value_white - sqrtVal;
+                pDstLine[i].B = pDstLine[i].G = pDstLine[i].R = negVal;
+                pDstLine[i].A = pSrcLine[i].A;
+            } /* for (i = 0; i < width; i++) */
+
+        } /* for (j = 0; j < height; j++) */
+
+        pMemPtr = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    } // if (blockId >= 0 && nullptr != pMemPtr)
+
     return PF_Err_NONE;
 }

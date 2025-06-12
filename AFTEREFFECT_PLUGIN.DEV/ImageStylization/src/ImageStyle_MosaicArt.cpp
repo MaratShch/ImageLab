@@ -284,5 +284,23 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_32f
     PF_LayerDef* __restrict output
 ) noexcept
 {
-    return PF_Err_NONE;
+    const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    PF_Pixel_ARGB_32f*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input->data);
+    PF_Pixel_ARGB_32f*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    const A_long height = output->height;
+    const A_long width = output->width;
+    const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+
+    /* parameters */
+    const float m = 40.f;
+    A_long k = 1000, g = 0;
+    constexpr float maxNorm = f32_value_white;
+    const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
+    const ArtMosaic::Color GrayColor(maxNorm / 2.f, maxNorm / 2.f, maxNorm / 2.f);
+
+    const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, src_line_pitch, dst_line_pitch);
+
+    return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
 }
