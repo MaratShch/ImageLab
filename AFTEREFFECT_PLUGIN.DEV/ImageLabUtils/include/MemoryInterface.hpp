@@ -11,7 +11,7 @@
 
 namespace ImageLabMemoryUtils
 {
-	class CMemoryInterface
+	class CMemoryInterface final
 	{
 		public:
 		static CMemoryInterface* getInstance()
