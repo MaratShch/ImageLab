@@ -84,6 +84,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
 
+        pMemPtr = nullptr;
         pPtr1 = pPtr2 = pPtr3 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -172,6 +173,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
 
+        pMemPtr = nullptr;
         pPtr1 = pPtr2 = pPtr3 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -260,6 +262,7 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
 
+        pMemPtr = nullptr;
         pPtr1 = pPtr2 = pPtr3 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -348,6 +351,7 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_8u
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
 
+        pMemPtr = nullptr;
         pPtr1 = pPtr2 = pPtr3 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -436,6 +440,7 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_32f
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
 
+        pMemPtr = nullptr;
         pPtr1 = pPtr2 = pPtr3 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -523,8 +528,8 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 	PF_Pixel_ARGB_8u*     __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
 	PF_Err errCode{ PF_Err_NONE };
 
-	const A_long& height = output->height;
-	const A_long& width  = output->width;
+	const A_long height = output->height;
+	const A_long width  = output->width;
 	const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
@@ -587,6 +592,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
 
+        pMemPtr = nullptr;
         pPtr1 = pPtr2 = pPtr3 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -611,8 +617,8 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 	PF_Pixel_ARGB_16u*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
 	PF_Err errCode{ PF_Err_NONE };
 
-	const A_long& height = output->height;
-	const A_long& width = output->width;
+	const A_long height = output->height;
+	const A_long width = output->width;
 	const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 	const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
@@ -674,6 +680,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 		else
 			errCode = PF_Err_OUT_OF_MEMORY;
 
+        pMemPtr = nullptr;
         pPtr1 = pPtr2 = pPtr3 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
@@ -693,5 +700,83 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_32f
     PF_LayerDef* __restrict output
 ) noexcept
 {
-    return PF_Err_NONE; // non implemented yet
+    const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    PF_Pixel_ARGB_32f*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input->data);
+    PF_Pixel_ARGB_32f*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
+    PF_Err errCode{ PF_Err_NONE };
+
+    const A_long height = output->height;
+    const A_long width = output->width;
+    const A_long src_line_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+
+    constexpr float normalizer = 255.f;
+    constexpr float reciproc180 = 1.0f / 180.0f;
+    constexpr float angular = 9.f;	/* read value from sliders	*/
+    constexpr float angle = 30.f;	/* read value from sliders	*/
+    constexpr A_long iter = 5;		/* read value from sliders	*/
+    constexpr float coCircParam = FastCompute::PI * angular * reciproc180;
+    constexpr float coConeParam = FastCompute::PI * angle   * reciproc180;
+    const float coCirc = std::cos(coCircParam);
+    const float coCone = std::cos(coConeParam);
+    constexpr float sigma = 5.0f;
+
+    /* allocate memory for store temporary results */
+    const size_t frameSize = static_cast<size_t>(height * width);
+    const size_t requiredMemSize = CreateAlignment(frameSize * sizeof(float) * 3u, static_cast<size_t>(CACHE_LINE));
+    void* pMemPtr = nullptr;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
+
+    bool cocircularityRes = false;
+
+    if (nullptr != pMemPtr && blockId >= 0)
+    {
+        auto const tmpBufPitch = width;
+        float* pPtr1 = reinterpret_cast<float*>(pMemPtr);
+        float* pPtr2 = pPtr1 + frameSize;
+        float* pPtr3 = pPtr2 + frameSize;
+
+        /* convert RGB to BW */
+        Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
+
+        const A_long frameSize = width * height;
+        auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
+
+        if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
+        {
+            const A_long nonZeros = count_sparse_matrix_non_zeros(sparseMatrix, frameSize);
+
+            auto I = std::make_unique<A_long[]>(nonZeros);
+            auto J = std::make_unique<A_long[]>(nonZeros);
+            auto Weights = std::make_unique<float[]>(nonZeros);
+            auto ImRes = std::make_unique<float[]>(frameSize);
+
+            if (I && J && Weights && ImRes)
+            {
+                sparse_matrix_to_arrays(sparseMatrix, I, J, Weights, frameSize);
+                auto imResPtr = ImRes.get();
+#ifdef _DEBUG
+                const A_long morphoRes =
+#endif
+                morpho_open(pPtr1, imResPtr, Weights, I, J, iter, nonZeros, width, height, normalizer);
+
+                /* fill output buffer */
+                constexpr float clamp_val{ f32_value_white };
+                Write2Destination(localSrc, localDst, imResPtr /* Y */, pPtr2 /* U */, pPtr3 /* V */, width, height, src_line_pitch, dst_line_pitch, tmpBufPitch, clamp_val);
+            }
+            else
+                errCode = PF_Err_OUT_OF_MEMORY;
+        }
+        else
+            errCode = PF_Err_OUT_OF_MEMORY;
+
+        pMemPtr = nullptr;
+        pPtr1 = pPtr2 = pPtr3 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+    }
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
+
+    return errCode;
 }

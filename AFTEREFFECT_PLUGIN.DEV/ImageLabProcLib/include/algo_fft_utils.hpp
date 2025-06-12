@@ -4,6 +4,8 @@
 #include <cstdint>
 #include "FastAriphmetics.hpp"
 
+constexpr int32_t maxPaddingSize = 8192;
+
 inline uint32_t get_next_power_of_2 (uint32_t n) noexcept
 {
     if (n == 0)
@@ -31,16 +33,16 @@ inline int32_t get_next_power_of_2 (int32_t n) noexcept
 
 inline void get_padded_image_size (const uint32_t& sizeX, const uint32_t& sizeY, uint32_t& paddedX, uint32_t& paddedY) noexcept
 {
-    paddedX = FastCompute::Min(static_cast<uint32_t>(8192), get_next_power_of_2(sizeX));
-    paddedY = FastCompute::Min(static_cast<uint32_t>(8192), get_next_power_of_2(sizeY));
+    paddedX = FastCompute::Min(static_cast<uint32_t>(maxPaddingSize), get_next_power_of_2(sizeX));
+    paddedY = FastCompute::Min(static_cast<uint32_t>(maxPaddingSize), get_next_power_of_2(sizeY));
     return;
 }
 
 
 inline void get_padded_image_size(const int32_t& sizeX, const int32_t& sizeY, int32_t& paddedX, int32_t& paddedY) noexcept
 {
-    paddedX = FastCompute::Min(static_cast<int32_t>(8192), get_next_power_of_2(sizeX));
-    paddedY = FastCompute::Min(static_cast<int32_t>(8192), get_next_power_of_2(sizeY));
+    paddedX = FastCompute::Min(maxPaddingSize, get_next_power_of_2(sizeX));
+    paddedY = FastCompute::Min(maxPaddingSize, get_next_power_of_2(sizeY));
     return;
 }
 

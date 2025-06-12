@@ -961,7 +961,6 @@ static PF_Err PR_ImageStyle_ColorNewsPaper_BGRA_32f
 	Make_Color_pixel(localDst[last_line + width_without_last], d[R] * reciproc255, d[G] * reciproc255, d[B] * reciproc255, localSrc[last_line + width_without_last].A);
 
 	return err;
-
 }
 
 
@@ -1212,8 +1211,8 @@ PF_Err AE_ImageStyle_ColorNewsPaper_ARGB_16u
 
 	const A_long& height = output->height;
 	const A_long& width = output->width;
-	const A_long& src_line_pitch = input->rowbytes / sizeof(PF_Pixel8);
-	const A_long& dst_line_pitch = output->rowbytes / sizeof(PF_Pixel8);
+	const A_long& src_line_pitch = input->rowbytes  / sizeof(PF_Pixel16);
+	const A_long& dst_line_pitch = output->rowbytes / sizeof(PF_Pixel16);
 
 	PF_Err err = PF_Err_NONE;
 
@@ -1232,9 +1231,9 @@ PF_Err AE_ImageStyle_ColorNewsPaper_ARGB_16u
 	__VECTOR_ALIGNED__
 	for (y = 0; y < height_without_last; y++)
 	{
-		A_long const& src_idx = y * src_line_pitch;				/* current frame line	*/
-		A_long const& src_next_idx = (y + 1) * src_line_pitch;	/* next frame line		*/
-		A_long const& dst_idx = y * dst_line_pitch;				/* current frame line	*/
+		A_long const src_idx = y * src_line_pitch;				/* current frame line	*/
+		A_long const src_next_idx = (y + 1) * src_line_pitch;	/* next frame line		*/
+		A_long const dst_idx = y * dst_line_pitch;				/* current frame line	*/
 
 		/* process first pixel in first line */
 		inPix00 = localSrc[src_idx];			/* pixel in position 0 and line 0 */
@@ -1372,5 +1371,161 @@ PF_Err AE_ImageStyle_ColorNewsPaper_ARGB_32f
     PF_LayerDef* __restrict output
 ) noexcept
 {
-    return PF_Err_NONE; // non implementyed yet
+    CACHE_ALIGN float imgWindow[3][6]{};
+
+    const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    PF_Pixel_ARGB_32f*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input->data);
+    PF_Pixel_ARGB_32f*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    const A_long height = output->height;
+    const A_long width  = output->width;
+    const A_long src_line_pitch = input->rowbytes  / sizeof(PF_Pixel32);
+    const A_long dst_line_pitch = output->rowbytes / sizeof(PF_Pixel32);
+
+    PF_Err err = PF_Err_NONE;
+
+    auto const& height_without_last = height - 1;
+    auto const& width_without_last = width - 1;
+
+    PF_Pixel_ARGB_32f inPix00, /* curent pixel									*/
+                      inPix01, /* pixel in same line and in raw position plus 1	*/
+                      inPix10, /* pixel on next line in same raw postion		*/
+                      inPix11; /* pixel on next line in raw position plus 1		*/
+
+    A_long x, y;
+    int p00[3]{}; int p01[3]{}; int p10[3]{}; int p11[3]{};
+    float d[3]{}; float eP[3]{};
+
+    constexpr float reciproc255 = 1.f / 255.f;
+
+    __VECTOR_ALIGNED__
+    for (y = 0; y < height_without_last; y++)
+    {
+        A_long const src_idx = y * src_line_pitch;				/* current frame line	*/
+        A_long const src_next_idx = (y + 1) * src_line_pitch;	/* next frame line		*/
+        A_long const dst_idx = y * dst_line_pitch;				/* current frame line	*/
+
+        /* process first pixel in first line */
+        inPix00 = localSrc[src_idx];			/* pixel in position 0 and line 0 */
+        inPix01 = localSrc[src_idx + 1];		/* pixel in position 1 and line 0 */
+        inPix10 = localSrc[src_next_idx];		/* pixel in position 0 and line 1 */
+        inPix11 = localSrc[src_next_idx + 1];	/* pixel in position 0 and line 1 */
+
+        p00[R] = static_cast<int>(inPix00.R * 255.f); p00[G] = static_cast<int>(inPix00.G * 255.f); p00[B] = static_cast<int>(inPix00.B * 255.f);
+        p01[R] = static_cast<int>(inPix01.R * 255.f); p01[G] = static_cast<int>(inPix01.G * 255.f); p00[B] = static_cast<int>(inPix01.B * 255.f);
+        p10[R] = static_cast<int>(inPix10.R * 255.f); p10[G] = static_cast<int>(inPix10.G * 255.f); p10[B] = static_cast<int>(inPix10.B * 255.f);
+        p11[R] = static_cast<int>(inPix11.R * 255.f); p11[G] = static_cast<int>(inPix11.G * 255.f); p11[B] = static_cast<int>(inPix11.B * 255.f);
+
+        /* pick nearest intensity scale two options 0 or 255 */
+        d[B] = (p00[R] >= 128) ? 255.f : 0.f;
+        d[G] = (p00[G] >= 128) ? 255.f : 0.f;
+        d[R] = (p00[B] >= 128) ? 255.f : 0.f;
+
+        /* difference before and aftre selection */
+        eP[B] = static_cast<float>(p00[B]) - d[B];
+        eP[G] = static_cast<float>(p00[G]) - d[G];
+        eP[R] = static_cast<float>(p00[R]) - d[R];
+
+        /* save neighborhoods for temporal storage */
+        imgWindow[B][1] = d[B];	imgWindow[B][2] = static_cast<float>(p01[B]) + eP[B] * gfSevenDiv13;
+        imgWindow[B][3] = 0.f; 	imgWindow[B][4] = static_cast<float>(p10[B]) + eP[B] * gfFiveDiv13;
+        imgWindow[B][5] = static_cast<float>(p11[B]) + eP[B] * gfOneDiv13;
+
+        imgWindow[G][1] = d[G];	imgWindow[G][2] = static_cast<float>(p01[G]) + eP[G] * gfSevenDiv13;
+        imgWindow[G][3] = 0.f; 	imgWindow[G][4] = static_cast<float>(p10[G]) + eP[G] * gfFiveDiv13;
+        imgWindow[G][5] = static_cast<float>(p11[G]) + eP[G] * gfOneDiv13;
+
+        imgWindow[R][1] = d[R];	imgWindow[R][2] = static_cast<float>(p01[R]) + eP[R] * gfSevenDiv13;
+        imgWindow[R][3] = 0.f; 	imgWindow[R][4] = static_cast<float>(p10[R]) + eP[R] * gfFiveDiv13;
+        imgWindow[R][5] = static_cast<float>(p11[R]) + eP[R] * gfOneDiv13;
+
+        /* save destination pixel */
+        Make_Color_pixel(localDst[dst_idx], d[R] * reciproc255, d[G] * reciproc255, d[B] * reciproc255, localSrc[src_idx].A);
+
+        for (x = 1; x < width_without_last; x++)
+        {
+            inPix01 = localSrc[src_idx + x + 1];	    /* pixel in position 1 and line 0 */
+            inPix10 = localSrc[src_next_idx + x + 1];	/* pixel in position 0 and line 1 */
+
+            p01[R] = static_cast<int>(inPix01.R * 255.f); p01[G] = static_cast<int>(inPix01.G * 255.f); p01[B] = static_cast<int>(inPix01.B * 255.f);
+            p11[R] = static_cast<int>(inPix11.R * 255.f); p11[G] = static_cast<int>(inPix11.G * 255.f); p11[B] = static_cast<int>(inPix11.B * 255.f);
+
+            d[B] = (imgWindow[B][1] >= 128.f) ? 255.f : 0.f;
+            d[G] = (imgWindow[G][1] >= 128.f) ? 255.f : 0.f;
+            d[R] = (imgWindow[R][1] >= 128.f) ? 255.f : 0.f;
+
+            eP[B] = imgWindow[B][1] - d[B];
+            eP[G] = imgWindow[G][1] - d[G];
+            eP[R] = imgWindow[R][1] - d[R];
+
+            imgWindow[B][1] = static_cast<float>(p01[B]) + eP[B] * gfSevenDiv16;
+            imgWindow[B][3] = imgWindow[B][4] + eP[B] * gfThreeDiv16;
+            imgWindow[B][4] = static_cast<float>(p11[B]) + eP[B] * gfFiveDiv16;
+            imgWindow[B][5] = static_cast<float>(p11[B]) + eP[B] * gfOneDiv16;
+
+            imgWindow[G][1] = static_cast<float>(p01[G]) + eP[G] * gfSevenDiv16;
+            imgWindow[G][3] = imgWindow[G][4] + eP[G] * gfThreeDiv16;
+            imgWindow[G][4] = static_cast<float>(p11[G]) + eP[G] * gfFiveDiv16;
+            imgWindow[G][5] = static_cast<float>(p11[G]) + eP[G] * gfOneDiv16;
+
+            imgWindow[R][1] = static_cast<float>(p01[R]) + eP[R] * gfSevenDiv16;
+            imgWindow[R][3] = imgWindow[R][4] + eP[R] * gfThreeDiv16;
+            imgWindow[R][4] = static_cast<float>(p11[R]) + eP[R] * gfFiveDiv16;
+            imgWindow[R][5] = static_cast<float>(p11[R]) + eP[R] * gfOneDiv16;
+
+            Make_Color_pixel(localDst[dst_idx + x], d[R] * reciproc255, d[G] * reciproc255, d[B] * reciproc255, localSrc[src_idx + x].A);
+        } /* for (x = 1; x < width_without_last; x++) */
+
+    } /* for (y = 0; y < height_without_last; y++) */
+
+    /* process last line */
+    A_long const& last_line = height_without_last * src_line_pitch;
+    inPix00 = localSrc[last_line];		/* pixel in position 0 and line 0 */
+    inPix01 = localSrc[last_line + 1];	/* pixel in position 0 and line 0 */
+
+    p00[R] = static_cast<int>(inPix00.R * 255.f); p00[G] = static_cast<int>(inPix00.G * 255.f); p00[B] = static_cast<int>(inPix00.B * 255.f);
+    p01[R] = static_cast<int>(inPix00.R * 255.f); p00[G] = static_cast<int>(inPix00.G * 255.f); p00[B] = static_cast<int>(inPix00.B * 255.f);
+
+    d[R] = (p00[R] >= 128) ? 255.f : 0.f;
+    d[G] = (p00[G] >= 128) ? 255.f : 0.f;
+    d[B] = (p00[B] >= 128) ? 255.f : 0.f;
+
+    eP[R] = static_cast<float>(p00[R]) - d[R];
+    eP[G] = static_cast<float>(p00[G]) - d[G];
+    eP[B] = static_cast<float>(p00[B]) - d[B];
+
+    imgWindow[R][1] = static_cast<float>(p01[R]) * eP[R];
+    imgWindow[G][1] = static_cast<float>(p01[G]) * eP[G];
+    imgWindow[B][1] = static_cast<float>(p01[B]) * eP[B];
+
+    Make_Color_pixel (localDst[last_line], d[R] * reciproc255, d[G] * reciproc255, d[B] * reciproc255, localSrc[last_line].A);
+
+    for (x = 1; x < width_without_last; x++)
+    {
+        d[R] = (imgWindow[R][1] >= 128) ? 255.f : 0.f;
+        d[G] = (imgWindow[G][1] >= 128) ? 255.f : 0.f;
+        d[B] = (imgWindow[B][1] >= 128) ? 255.f : 0.f;
+
+        Make_Color_pixel (localDst[last_line + x], d[R] * reciproc255, d[G] * reciproc255, d[B] * reciproc255, localSrc[last_line + x].A);
+
+        inPix01 = localSrc[last_line + x + 1];	/* pixel in next position	*/
+        p01[R] = static_cast<int>(inPix01.R * 255.f); p01[G] = static_cast<int>(inPix01.G * 255.f); p01[B] = static_cast<int>(inPix01.B * 255.f);
+
+        /* difference before and after selection */
+        eP[R] = static_cast<float>(p01[R]) - d[R];
+        eP[G] = static_cast<float>(p01[G]) - d[G];
+        eP[B] = static_cast<float>(p01[B]) - d[B];
+
+        imgWindow[R][1] = static_cast<float>(p01[R]) + eP[R];
+        imgWindow[G][1] = static_cast<float>(p01[G]) + eP[G];
+        imgWindow[B][1] = static_cast<float>(p01[B]) + eP[B];
+    }
+
+    d[R] = (imgWindow[R][1] >= 128) ? 255.f : 0.f;
+    d[G] = (imgWindow[G][1] >= 128) ? 255.f : 0.f;
+    d[B] = (imgWindow[B][1] >= 128) ? 255.f : 0.f;
+
+    Make_Color_pixel(localDst[last_line + width_without_last], d[R] * reciproc255, d[G] * reciproc255, d[B] * reciproc255, localSrc[last_line + width_without_last].A);
+
+    return err;
 }
