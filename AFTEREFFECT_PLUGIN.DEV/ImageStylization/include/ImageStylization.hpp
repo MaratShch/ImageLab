@@ -54,11 +54,17 @@ constexpr uint32_t RandomBufSize = 4096u;
 
 typedef struct bufHandle
 {
-	uint32_t bValid;
-	AEGP_PluginID id;
+    AEGP_PluginID id;
+    uint32_t bValid;
 	uint32_t bufHdlType;
 	void*    pBufHndl;
 }bufHandle;
+
+typedef struct seqHandle
+{
+    uint32_t seqID;
+}seqHandle;
+
 
 uint32_t utils_get_random_value (void) noexcept;
 void utils_generate_random_values (float* pBuffer, const uint32_t& bufSize) noexcept;

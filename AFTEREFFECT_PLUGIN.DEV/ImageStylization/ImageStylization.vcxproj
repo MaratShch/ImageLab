@@ -49,6 +49,7 @@
     <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>NotSet</CharacterSet>
+    <UseIntelMKL>No</UseIntelMKL>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -170,6 +171,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\GaussianHpFilter.hpp" />
     <ClInclude Include="include\ImageAuxPixFormat.hpp" />
     <ClInclude Include="include\ImageFFT.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />

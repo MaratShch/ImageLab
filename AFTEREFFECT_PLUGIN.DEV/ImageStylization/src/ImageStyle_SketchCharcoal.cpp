@@ -3,6 +3,7 @@
 #include "PrSDKAESupport.h"
 #include "ColorTransformMatrix.hpp"
 #include "ImageLabMemInterface.hpp"
+#include "GaussianHpFilter.hpp"
 #include "algo_fft.hpp"
 
 
@@ -44,7 +45,7 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
 {
 	const PF_LayerDef*      __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
-	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
+	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
     void* pMemPtr = nullptr;
 
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
@@ -205,7 +206,49 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-	return PF_Err_NONE;
+    const PF_LayerDef*      __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(pfLayer->data);
+    PF_Pixel_ARGB_8u*       __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+    void* pMemPtr = nullptr;
+
+    const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+    const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+    const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+    A_long padded_sizeX = 0, padded_sizeY = 0;
+    // compute padde image size as power of 2
+    get_padded_image_size(sizeX, sizeY, padded_sizeX, padded_sizeY);
+
+    // Allocate memory buffer (double buffer) for padded size.
+    // We proceed only with LUMA components.
+    const A_long tmpMemSize = padded_sizeX * padded_sizeY * sizeof(float);
+    const A_long requiredMemSize = tmpMemSize * 2;
+    int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
+
+    if (blockId >= 0 && nullptr != pMemPtr)
+    {
+#ifdef _DEBUG
+        // cleanup memory buffer
+        memset(pMemPtr, 0, static_cast<std::size_t>(requiredMemSize));
+#endif
+
+        float* __restrict pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
+        float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
+
+        // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
+        Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX);
+
+        // HP filter
+
+        // discard memory 
+        pTmpStorage1 = pTmpStorage2 = nullptr;
+        pMemPtr = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+
+    } // if (blockId >= 0 && nullptr != pMemPtr)
+
+    return PF_Err_NONE;
 }
 
 
