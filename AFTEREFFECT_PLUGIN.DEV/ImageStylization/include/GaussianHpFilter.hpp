@@ -38,7 +38,7 @@ public:
     GaussianT* getFilter (uint32_t tId, std::size_t sizeM, GaussianT cutFreq)
     {
         const std::lock_guard<std::mutex> lock(protect);
-        if (tId != tableId)
+        if (tId != tableId || nullptr == m_pFilter)
         {
             // validate parameters
             if (m_sideSize != sizeM || cutF != cutFreq)
@@ -47,7 +47,8 @@ public:
             }
             // update table ID
             uint32_t prev = tableId.exchange(tId);
-        } // if (tId != tableId)
+
+        } // if (tId != tableId || nullptr == m_pFilter)
 
         return m_pCenter;
     }
@@ -62,16 +63,28 @@ private:
     std::atomic<uint32_t> tableId;
     std::mutex protect;
 
-    bool AllocMemory(void)
+    bool AllocMemory (std::size_t sizeM)
     {
-        std::size_t totalSize = m_sideSize * m_sideSize * sizeof(GaussianT);
+        const std::size_t oddSize = sizeM | 0x1ull;
+        const SIZE_T totalSize = static_cast<SIZE_T>(oddSize * oddSize * sizeof(GaussianT));
+        constexpr DWORD allocType = MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN;
+         
+        LPVOID p = VirtualAlloc (NULL, totalSize, allocType, PAGE_READWRITE);
+        if (NULL != p)
+        {
+            m_pFilter = reinterpret_cast<GaussianT*>(p);
+            m_pCenter = m_pFilter + (sizeM * (sizeM / 2) + (sizeM / 2));
+            m_sideSize = sizeM;
+        }
     }
 
     void FreeMemory (void)
     {
         if (nullptr != m_pFilter)
         {
-
+            VirtualFree (reinterpret_cast<LPVOID>(m_pFilter), 0, MEM_RELEASE);
+            m_pFilter = m_pCenter = nullptr;
+            m_sideSize = 0ull;
         }
     }
 
