@@ -53,7 +53,7 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
     A_long padded_sizeX = 0, padded_sizeY = 0;
-    // compute padde image size as power of 2
+    // compute padded image size as power of 2
     get_padded_image_size (sizeX, sizeY, padded_sizeX, padded_sizeY);
 
     // Allocate memory buffer (double buffer) for padded size.
@@ -76,6 +76,10 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
         Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX);
 
         // HP filter
+        const GaussianT cutFreq = static_cast<GaussianT>(0.01) * padded_sizeY;
+        GaussianT* HpFilter = getHpFilter (in_data, padded_sizeY, padded_sizeX, cutFreq);
+
+        // 
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = nullptr;
