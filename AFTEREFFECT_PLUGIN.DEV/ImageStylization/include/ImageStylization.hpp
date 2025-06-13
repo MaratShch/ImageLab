@@ -17,6 +17,7 @@ constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;
 #endif
 constexpr int ImageStyle_VersionBuild = 1;
 
+
 template <typename T, typename U>
 inline void Make_BW_pixel (U& strPix, T const& bwVal, T const& alpha) noexcept
 {
@@ -72,6 +73,7 @@ const float* __restrict get_random_buffer(uint32_t& size) noexcept;
 const float* __restrict get_random_buffer(void) noexcept;
 void utils_create_random_buffer(void) noexcept;
 
+GaussianT* getHpFilter (PF_InData* in_data, std::size_t sizeM, std::size_t sizeN, GaussianT cutFreq) noexcept;
 
 template <class T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 void CopnvertImgToF32Rgb

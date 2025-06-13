@@ -2,6 +2,9 @@
 #include <cstdint>
 #include "AE_Effect.h"
 
+using SequenceIdT = uint32_t;
+using GaussianT   = float;
+
 typedef enum
 {
 	eSTYLE_NONE = 0,
