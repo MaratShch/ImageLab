@@ -142,5 +142,4 @@ private:
         return;
     }
 
-
 }; // class GaussianHpFilter

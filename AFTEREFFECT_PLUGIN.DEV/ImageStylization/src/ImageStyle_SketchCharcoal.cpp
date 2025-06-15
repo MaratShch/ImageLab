@@ -54,7 +54,7 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
 
     A_long padded_sizeX = 0, padded_sizeY = 0;
     // compute padded image size as power of 2
-    get_padded_image_size (sizeX, sizeY, padded_sizeX, padded_sizeY);
+    get_padded_image_size_x2 (sizeX, sizeY, padded_sizeX, padded_sizeY);
 
     // Allocate memory buffer (double buffer) for padded size.
     // We proceed only with LUMA components.
@@ -221,7 +221,7 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
 
     A_long padded_sizeX = 0, padded_sizeY = 0;
     // compute padde image size as power of 2
-    get_padded_image_size(sizeX, sizeY, padded_sizeX, padded_sizeY);
+    get_padded_image_size_x2 (sizeX, sizeY, padded_sizeX, padded_sizeY);
 
     // Allocate memory buffer (double buffer) for padded size.
     // We proceed only with LUMA components.
