@@ -47,4 +47,20 @@ inline void get_padded_image_size(const int32_t& sizeX, const int32_t& sizeY, in
 }
 
 
+inline void get_padded_image_size_x2 (const uint32_t& sizeX, const uint32_t& sizeY, uint32_t& paddedX, uint32_t& paddedY) noexcept
+{
+    paddedX = sizeX * 2u;
+    paddedY = sizeY * 2u;
+    return;
+}
+
+
+inline void get_padded_image_size_x2 (const int32_t& sizeX, const int32_t& sizeY, int32_t& paddedX, int32_t& paddedY) noexcept
+{
+    paddedX = sizeX * 2;
+    paddedY = sizeY * 2;
+    return;
+}
+
+
 #endif // __IMAGE_LAB_ALGORITHM_UTILS_FOR_FFT__
