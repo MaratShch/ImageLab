@@ -279,3 +279,19 @@ inline void ImageYUV_ComputeGradient
 	ImageYUV_GradientHorizontal(pSrcBuffer, pTmpBuffer2, height, width, src_line_pitch);
 	return;
 }
+
+
+inline void ImageBW_ComputeGradient
+(
+    float*  __restrict pSrcBuffer,
+    float*  __restrict pDstBuffer,
+    const A_long       height,
+    const A_long       width
+) noexcept
+{
+ //   ImageBW_GradientVertical(pSrcBuffer, pColorTransform, pTmpBuffer1, height, width, src_line_pitch);
+ //   ImageBW_GradientHorizontal(pSrcBuffer, pColorTransform, pTmpBuffer2, height, width, src_line_pitch);
+    return;
+}
+
+

@@ -1,21 +1,8 @@
 #include "ImageStylization.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "StylizationStructs.hpp"
-#include "GaussianHpFilter.hpp"
 #include "PrSDKAESupport.h"
 
-
-// unique Sequence IDentifier - global value, incremented continuously with new sequence
-std::atomic<SequenceIdT> seqId{ 0x0 };
-
-// Gaussian HP filter handle - global object
-static GaussianHpFilter hpFilter;
-
-GaussianT* getHpFilter (PF_InData* in_data, std::size_t sizeM, std::size_t sizeN, GaussianT cutFreq) noexcept
-{
-    const seqHandle* seqData = (reinterpret_cast<seqHandle*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)));
-    return (nullptr != seqData ? hpFilter.getFilter (seqData->seqID, sizeM, sizeN, cutFreq) : nullptr);
-}
 
 
 inline void setGlassySlider(PF_InData *in_data, PF_OutData *out_data, PF_ParamDef *params[], const bool& bEnable)
@@ -194,34 +181,6 @@ SequenceSetup
 )
 {
     PF_Err	err = PF_Err_NONE;
-    SequenceIdT id = static_cast<SequenceIdT>(0);
-
-    auto const handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
-    PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(seqHandle));
-    if (nullptr != seqDataHndl)
-    {
-        seqHandle* seqData = reinterpret_cast<seqHandle*>(handleSuite->host_lock_handle(seqDataHndl));
-        if (nullptr != seqData)
-        {
-            // produce new and unique sequence ID associated with current sequence
-            seqData->seqID = id = seqId.fetch_add(1u);
-
-            // notify AE that this is our sequence data handle
-            out_data->sequence_data = seqDataHndl;
-
-            // unlock handle
-            handleSuite->host_unlock_handle(seqDataHndl);
-        } // if (nullptr != seqP)
-        else
-        {
-            handleSuite->host_dispose_handle(seqDataHndl); // avoid leak
-            out_data->sequence_data = nullptr;
-            err = PF_Err_OUT_OF_MEMORY;
-        }
-    } // if (nullptr != seqDataHndl)
-    else
-        err = PF_Err_OUT_OF_MEMORY;
-
 	return err;
 }
 
@@ -234,33 +193,6 @@ SequenceReSetup
 )
 {
     PF_Err err = PF_Err_NONE;
-
-    if (nullptr != in_data->sequence_data)
-    {
-        auto const handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
-
-        PF_Handle seqDataHndl = in_data->sequence_data;
-        seqHandle* seqData = reinterpret_cast<seqHandle*>(handleSuite->host_lock_handle(seqDataHndl));
-
-        if (seqData != nullptr)
-        {
-            // Recompute or update sequence data here
-            seqData->seqID = seqId.fetch_add(1u);
-
-            handleSuite->host_unlock_handle(seqDataHndl);
-
-            // Tell AE we are keeping the same sequence data handle
-            out_data->sequence_data = seqDataHndl;
-        }
-        else
-            err = PF_Err_OUT_OF_MEMORY; // or suitable error if lock failed
-    } // if (nullptr != in_data->sequence_data)
-    else
-    {
-        // No existing sequence data handle; treat as new sequence setup maybe
-        err = PF_Err_INVALID_CALLBACK;
-    }
-
     return err;
 }
 
@@ -272,12 +204,6 @@ SequenceSetdown
 	PF_OutData		*out_data
 )
 {
-    if (nullptr != in_data->sequence_data)
-        AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data)->host_dispose_handle(in_data->sequence_data);
-
-    // Invalidate the sequence_data pointers in both AE's input and output data fields (to signal that we have properly disposed of the data).
-    out_data->sequence_data = in_data->sequence_data = nullptr;
-
     return PF_Err_NONE;
 }
 
