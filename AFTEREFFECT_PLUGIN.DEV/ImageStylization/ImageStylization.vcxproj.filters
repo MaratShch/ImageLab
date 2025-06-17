@@ -69,9 +69,6 @@
     <ClInclude Include="include\StylizationImageGradient.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageFFT.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
@@ -101,9 +98,6 @@
     </ClInclude>
     <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="include\GaussianHpFilter.hpp">
-      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

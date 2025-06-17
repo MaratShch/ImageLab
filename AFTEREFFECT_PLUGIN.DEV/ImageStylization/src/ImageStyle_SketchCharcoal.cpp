@@ -1,16 +1,14 @@
-#include "ImageFFT.hpp"
 #include "ImageStylization.hpp"
 #include "PrSDKAESupport.h"
 #include "ColorTransformMatrix.hpp"
 #include "ImageLabMemInterface.hpp"
-#include "GaussianHpFilter.hpp"
-#include "algo_fft.hpp"
+#include "StylizationImageGradient.hpp"
 
 
 // Function for compute Y (Luma) component from RGB
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
           typename U, std::enable_if<std::is_floating_point<U>::value>* = nullptr>
-static void Rgb2Luma
+static void Rgb2Luma_Negate
 (
     const T* __restrict pSrcImg,
           U* __restrict pLumaBuffer,
@@ -18,7 +16,8 @@ static void Rgb2Luma
     A_long sizeX,
     A_long sizeY,
     A_long srcPitch,
-    A_long dstPitch
+    A_long dstPitch,
+    const U val
 ) noexcept
 {
     const float ctm[3]{ RGB2YUV[transformSpace][0], RGB2YUV[transformSpace][1], RGB2YUV[transformSpace][2] };
@@ -28,7 +27,7 @@ static void Rgb2Luma
               U* __restrict pDstLine = pLumaBuffer + j * dstPitch;
 
         for (A_long i = 0; i < sizeX; i++)
-            pDstLine[i] = static_cast<U>(pSrcLine[i].R) * ctm[0] + static_cast<U>(pSrcLine[i].G) * ctm[1] + static_cast<U>(pSrcLine[i].B) * ctm[2];
+            pDstLine[i] = val - (static_cast<U>(pSrcLine[i].R) * ctm[0] + static_cast<U>(pSrcLine[i].G) * ctm[1] + static_cast<U>(pSrcLine[i].B) * ctm[2]);
     }
 
     return;
@@ -52,13 +51,9 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-    A_long padded_sizeX = 0, padded_sizeY = 0;
-    // compute padded image size as power of 2
-    get_padded_image_size_x2 (sizeX, sizeY, padded_sizeX, padded_sizeY);
-
-    // Allocate memory buffer (double buffer) for padded size.
+    // Allocate memory buffer (double buffer).
     // We proceed only with LUMA components.
-    const A_long tmpMemSize = padded_sizeX * padded_sizeY * sizeof(float);
+    const A_long tmpMemSize = sizeX * sizeY * sizeof(float);
     const A_long requiredMemSize = tmpMemSize * 2;
     int32_t blockId = ::GetMemoryBlock (requiredMemSize, 0, &pMemPtr);
     
@@ -73,13 +68,10 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
         float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
-        Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX);
+        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, 255.f);
 
-        // HP filter
-        const GaussianT cutFreq = static_cast<GaussianT>(0.01) * padded_sizeY;
-        GaussianT* HpFilter = getHpFilter (in_data, padded_sizeY, padded_sizeX, cutFreq);
-
-        // 
+        // Compute LUMA - gradient
+        ImageBW_ComputeGradient (pTmpStorage1, pTmpStorage2, sizeX, sizeY);
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = nullptr;
@@ -219,13 +211,9 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-    A_long padded_sizeX = 0, padded_sizeY = 0;
-    // compute padde image size as power of 2
-    get_padded_image_size_x2 (sizeX, sizeY, padded_sizeX, padded_sizeY);
-
     // Allocate memory buffer (double buffer) for padded size.
     // We proceed only with LUMA components.
-    const A_long tmpMemSize = padded_sizeX * padded_sizeY * sizeof(float);
+    const A_long tmpMemSize = sizeX * sizeY * sizeof(float);
     const A_long requiredMemSize = tmpMemSize * 2;
     int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
@@ -240,7 +228,7 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
         float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
-        Rgb2Luma (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, padded_sizeX);
+        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, 255.f);
 
         // HP filter
 

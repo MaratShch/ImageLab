@@ -171,9 +171,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\GaussianHpFilter.hpp" />
     <ClInclude Include="include\ImageAuxPixFormat.hpp" />
-    <ClInclude Include="include\ImageFFT.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
     <ClInclude Include="include\ImageMosaicUtils.hpp" />
     <ClInclude Include="include\ImagePaintUtils.hpp" />
