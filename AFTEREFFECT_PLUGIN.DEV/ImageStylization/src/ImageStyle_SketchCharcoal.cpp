@@ -5,6 +5,14 @@
 #include "StylizationImageGradient.hpp"
 
 
+constexpr float GaussMatrix[9] =
+{
+    0.07511361f, 0.12384140f, 0.07511361f,
+    0.12384141f, 0.20417996f, 0.12384140f,
+    0.07511361f, 0.12384140f, 0.07511361f
+};
+
+
 // Function for compute Y (Luma) component from RGB
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
           typename U, std::enable_if<std::is_floating_point<U>::value>* = nullptr>
@@ -47,14 +55,17 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
     void* pMemPtr = nullptr;
 
+    PF_Err err = PF_Err_NONE;
+
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-    // Allocate memory buffer (double buffer).
+    // Allocate memory buffer (triple buffer).
     // We proceed only with LUMA components.
-    const A_long tmpMemSize = sizeX * sizeY * sizeof(float);
-    const A_long requiredMemSize = tmpMemSize * 2;
+    const A_long frameSize  = sizeX * sizeY;
+    const A_long tmpMemSize = frameSize * sizeof(float);
+    const A_long requiredMemSize = tmpMemSize * 3;
     int32_t blockId = ::GetMemoryBlock (requiredMemSize, 0, &pMemPtr);
     
     if (blockId >= 0 && nullptr != pMemPtr)
@@ -64,24 +75,27 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
         memset(pMemPtr, 0, static_cast<std::size_t>(requiredMemSize));
 #endif
 
-        float* __restrict pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
-        float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
+        float* pTmpStorage1 = static_cast<float*>(pMemPtr);
+        float* pTmpStorage2 = pTmpStorage1 + frameSize;
+        float* pTmpStorage3 = pTmpStorage2 + frameSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
-        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, 255.f);
+        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, static_cast<float>(u8_value_white));
 
-        // Compute LUMA - gradient
-        ImageBW_ComputeGradient (pTmpStorage1, pTmpStorage2, sizeX, sizeY);
+        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite previous contants)
+        ImageBW_ComputeGradientBin (pTmpStorage1, pTmpStorage2, pTmpStorage3, sizeX, sizeY);
 
         // discard memory 
-        pTmpStorage1 = pTmpStorage2 = nullptr;
+        pTmpStorage1 = pTmpStorage2 = pTmpStorage3 = nullptr;
         pMemPtr = nullptr;
         ::FreeMemoryBlock (blockId);
         blockId = -1;
 
     } // if (blockId >= 0 && nullptr != pMemPtr)
+    else
+        err = PF_Err_OUT_OF_MEMORY;
 
-	return PF_Err_NONE;
+	return err;
 }
 
 
@@ -202,19 +216,23 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
 	PF_LayerDef* __restrict output
 ) noexcept
 {
-    const PF_LayerDef*      __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-    const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(pfLayer->data);
-    PF_Pixel_ARGB_8u*       __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+    const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    PF_Pixel_ARGB_8u*     __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input->data);
+    PF_Pixel_ARGB_8u*     __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
     void* pMemPtr = nullptr;
 
-    const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-    const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-    const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    PF_Err err = PF_Err_NONE;
 
-    // Allocate memory buffer (double buffer) for padded size.
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+    const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+    // Allocate memory buffer (triple buffer) for padded size.
     // We proceed only with LUMA components.
-    const A_long tmpMemSize = sizeX * sizeY * sizeof(float);
-    const A_long requiredMemSize = tmpMemSize * 2;
+    const A_long frameSize  = sizeX * sizeY;
+    const A_long tmpMemSize = frameSize * sizeof(float);
+    const A_long requiredMemSize = tmpMemSize * 3;
     int32_t blockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemPtr);
 
     if (blockId >= 0 && nullptr != pMemPtr)
@@ -225,22 +243,26 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
 #endif
 
         float* __restrict pTmpStorage1 = reinterpret_cast<float* __restrict>(pMemPtr);
-        float* __restrict pTmpStorage2 = pTmpStorage1 + tmpMemSize;
+        float* __restrict pTmpStorage2 = pTmpStorage1 + frameSize;
+        float* __restrict pTmpStorage3 = pTmpStorage2 + frameSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
-        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, 255.f);
+        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, src_line_pitch, sizeX, static_cast<float>(u8_value_white));
 
-        // HP filter
+        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite previous contants)
+        ImageBW_ComputeGradientBin (pTmpStorage1, pTmpStorage2, pTmpStorage3, sizeX, sizeY);
 
         // discard memory 
-        pTmpStorage1 = pTmpStorage2 = nullptr;
+        pTmpStorage1 = pTmpStorage2 = pTmpStorage3 = nullptr;
         pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
 
-    } // if (blockId >= 0 && nullptr != pMemPtr)
+} // if (blockId >= 0 && nullptr != pMemPtr)
+    else
+        err = PF_Err_OUT_OF_MEMORY;
 
-    return PF_Err_NONE;
+    return err;
 }
 
 

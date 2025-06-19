@@ -2,7 +2,6 @@
 #include "StylizationStructs.hpp"
 #include "PrSDKAESupport.h"
 #include "ColorTransformMatrix.hpp"
-#include "FastAriphmetics.hpp"
 #include "ImageAuxPixFormat.hpp"
 #include "StylizationImageGradient.hpp"
 #include "ImageLabUtils.hpp"

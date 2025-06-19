@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FastAriphmetics.hpp"
+
 template <typename T>
 inline void ImageRGB_GradientVertical
 (
@@ -281,16 +283,105 @@ inline void ImageYUV_ComputeGradient
 }
 
 
-inline void ImageBW_ComputeGradient
+inline void ImageBW_GradientHorizontal
 (
-    float*  __restrict pSrcBuffer,
-    float*  __restrict pDstBuffer,
-    const A_long       height,
-    const A_long       width
+    const float*  __restrict pSrcBuffer,
+          float*  __restrict pDstBuffer,
+    const A_long       width,
+    const A_long       height
 ) noexcept
 {
- //   ImageBW_GradientVertical(pSrcBuffer, pColorTransform, pTmpBuffer1, height, width, src_line_pitch);
- //   ImageBW_GradientHorizontal(pSrcBuffer, pColorTransform, pTmpBuffer2, height, width, src_line_pitch);
+    const A_long lastPixel = width - 1;
+
+    __VECTOR_ALIGNED__
+    for (A_long j = 0; j < height; j++)
+    {
+        const float* __restrict pSrcLine = pSrcBuffer + j * width;
+              float* __restrict pDstLine = pDstBuffer + j * width;
+
+        pDstLine[0] = pSrcLine[1] - pSrcLine[0];
+        
+        for (A_long i = 1; i < lastPixel; i++)
+            pDstLine[i] = pSrcLine[i + 1] - pSrcLine[i - 1];
+
+        pDstLine[lastPixel] = pSrcLine[lastPixel] - pSrcLine[lastPixel - 1];
+
+    } // for (A_long j = 0; j < height; j++)
+
+    return;
+}
+
+
+inline void ImageBW_GradientVertical
+(
+    const float*  __restrict pSrcBuffer,
+          float*  __restrict pDstBuffer,
+    const A_long       width,
+    const A_long       height
+)
+{
+    A_long j, i;
+    const A_long lastLine = height - 1;
+
+    // process first line in frame
+    for (i = 0; i < width; i++)
+        pDstBuffer[i] = pSrcBuffer[i] - pSrcBuffer[i + width];
+
+    // process rest lines of frame except last
+    for (j = 1; j < lastLine; j++)
+    {
+        const float* __restrict pCurrLine = pSrcBuffer + (j - 1) * width;
+        const float* __restrict pNextLine = pSrcBuffer + (j + 1) * width;
+              float* __restrict pDestLine = pDstBuffer + j * width;
+
+        for (i = 0; i < width; i++)
+            pDestLine[i] = pNextLine[i] - pCurrLine[i];
+
+    } // for (j = 0; j < lastLine; j++)
+
+    // process last line in frame
+    const float* __restrict pCurrLine = pSrcBuffer + lastLine * width;
+    const float* __restrict pNextLine = pSrcBuffer + (lastLine - 1) * width;
+          float* __restrict pDestLine = pDstBuffer + lastLine * width;
+    for (i = 0; i < width; i++)
+        pDestLine[i] = pNextLine[i] - pCurrLine[i];
+
+    return;
+}
+
+constexpr float GradientThreshold = 7.0f;
+
+inline void ImageBW_GradientMerge
+(
+    const float*  __restrict pBuffer1, // buffer with vertical gradient
+    const float*  __restrict pBuffer2, // buffer with horizontal gradient
+          float*  __restrict pBuffer3, // buffer with final gradient
+    const A_long       width,
+    const A_long       height,
+    const float        threshold = GradientThreshold
+)
+{
+    const A_long totalPix = height * width;
+    __VECTOR_ALIGNED__
+    for (A_long i = 0; i < totalPix; i++)
+        pBuffer3[i] = (threshold >= FastCompute::Sqrt(pBuffer1[i] * pBuffer1[i] + pBuffer2[i] * pBuffer2[i]) ? 1.f : 0.f);
+
+    return;
+}
+
+
+inline void ImageBW_ComputeGradientBin
+(
+    float*  __restrict pBuffer1, // in/out buffer
+    float*  __restrict pBuffer2, // temporary result with vertical gradient
+    float*  __restrict pBuffer3, // temporary result with horizontal gradient
+    const A_long       width,
+    const A_long       height
+)
+{
+    ImageBW_GradientVertical  (pBuffer1, pBuffer2, width, height);
+    ImageBW_GradientHorizontal(pBuffer1, pBuffer3, width, height);
+    ImageBW_GradientMerge (pBuffer2, pBuffer3, pBuffer1, width, height);
     return;
 }
 
