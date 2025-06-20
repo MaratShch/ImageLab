@@ -1,4 +1,5 @@
 #include <thread>
+#include <new>
 #include "Common.hpp"
 #include "FastAriphmetics.hpp"
 #include "MemoryHolder.hpp"
@@ -15,7 +16,7 @@ CMemoryHolder::CMemoryHolder () :
 
 	for (int32_t i = 0; i < static_cast<int32_t>(m_HolderCapacity); i++)
 	{
-		m_Holder[i] = new CMemoryBlock;
+		m_Holder[i] = new (std::nothrow) CMemoryBlock;
 		m_FreeBlocks.push_front(i);
 	}
 
