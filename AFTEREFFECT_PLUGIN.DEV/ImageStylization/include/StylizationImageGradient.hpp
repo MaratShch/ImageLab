@@ -318,7 +318,7 @@ inline void ImageBW_GradientVertical
           float*  __restrict pDstBuffer,
     const A_long       width,
     const A_long       height
-)
+) noexcept
 {
     A_long j, i;
     const A_long lastLine = height - 1;
@@ -353,19 +353,21 @@ constexpr float GradientThreshold = 7.0f;
 
 inline void ImageBW_GradientMerge
 (
-    const float*  __restrict pBuffer1, // buffer with vertical gradient
-    const float*  __restrict pBuffer2, // buffer with horizontal gradient
-          float*  __restrict pBuffer3, // buffer with final gradient
+    float*  __restrict pBuffer1, // gray-level image
+    float*  __restrict pBuffer2, // buffer with vertical gradient
+    float*  __restrict pBuffer3, // buffer with horizontal gradient
     const A_long       width,
     const A_long       height,
     const float        threshold = GradientThreshold
-)
+) noexcept
 {
     const A_long totalPix = height * width;
     __VECTOR_ALIGNED__
     for (A_long i = 0; i < totalPix; i++)
-        pBuffer3[i] = (threshold >= FastCompute::Sqrt(pBuffer1[i] * pBuffer1[i] + pBuffer2[i] * pBuffer2[i]) ? 1.f : 0.f);
-
+    {
+        const bool bMask = (threshold >= FastCompute::Sqrt(pBuffer2[i] * pBuffer2[i] + pBuffer3[i] * pBuffer3[i]) ? true : false);
+        pBuffer1[i] = (true == bMask ? 0.f : pBuffer1[i]); // P5
+    }
     return;
 }
 
@@ -377,11 +379,11 @@ inline void ImageBW_ComputeGradientBin
     float*  __restrict pBuffer3, // temporary result with horizontal gradient
     const A_long       width,
     const A_long       height
-)
+) noexcept
 {
     ImageBW_GradientVertical  (pBuffer1, pBuffer2, width, height);
     ImageBW_GradientHorizontal(pBuffer1, pBuffer3, width, height);
-    ImageBW_GradientMerge (pBuffer2, pBuffer3, pBuffer1, width, height);
+    ImageBW_GradientMerge (pBuffer1, pBuffer2, pBuffer3, width, height);
     return;
 }
 

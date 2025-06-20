@@ -4,6 +4,7 @@
 #include "ImageLabMemInterface.hpp"
 #include "StylizationImageGradient.hpp"
 
+#define __DBG_SHOW_PROC_BUFFER
 
 constexpr float GaussMatrix[9] =
 {
@@ -40,6 +41,33 @@ static void Rgb2Luma_Negate
 
     return;
 }
+
+#ifdef __DBG_SHOW_PROC_BUFFER
+void dbgBufferDisplay
+(
+    const PF_Pixel_BGRA_8u* pSrc,
+    PF_Pixel_BGRA_8u* pDst,
+    float* tmpResult,
+    A_long sizeX,
+    A_long sizeY,
+    A_long srcPitch,
+    A_long dstPitch
+) noexcept
+{
+    A_long i, j;
+    for (j = 0; j < sizeY; j++)
+    {
+        const PF_Pixel_BGRA_8u* pLineSrc = pSrc + j * srcPitch;
+              PF_Pixel_BGRA_8u* pLineDst = pDst + j * srcPitch;
+        const float* pTmpResult = tmpResult + j * sizeX;
+        for (i = 0; i < sizeX; i++)
+        {
+            pLineDst[i].A = pLineSrc[i].A;
+            pLineDst[i].B = pLineDst[i].G = pLineDst[i].R = static_cast<A_u_char>(pTmpResult[i]);
+        }
+    }
+}
+#endif // __DBG_SHOW_PROC_BUFFER
 
 
 PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
@@ -82,8 +110,12 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
         Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, static_cast<float>(u8_value_white));
 
-        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite previous contants)
+        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite previous contant)
         ImageBW_ComputeGradientBin (pTmpStorage1, pTmpStorage2, pTmpStorage3, sizeX, sizeY);
+
+#ifdef __DBG_SHOW_PROC_BUFFER
+        dbgBufferDisplay(localSrc, localDst, pTmpStorage1, sizeX, sizeY, line_pitch, line_pitch);
+#endif
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = pTmpStorage3 = nullptr;
