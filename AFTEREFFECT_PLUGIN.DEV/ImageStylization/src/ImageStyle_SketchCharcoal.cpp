@@ -6,13 +6,6 @@
 
 #define __DBG_SHOW_PROC_BUFFER
 
-constexpr float GaussMatrix[9] =
-{
-    0.07511361f, 0.12384140f, 0.07511361f,
-    0.12384141f, 0.20417996f, 0.12384140f,
-    0.07511361f, 0.12384140f, 0.07511361f
-};
-
 
 // Function for compute Y (Luma) component from RGB
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
@@ -26,7 +19,8 @@ static void Rgb2Luma_Negate
     A_long sizeY,
     A_long srcPitch,
     A_long dstPitch,
-    const U val
+    const U val,
+    const U scaler
 ) noexcept
 {
     const float ctm[3]{ RGB2YUV[transformSpace][0], RGB2YUV[transformSpace][1], RGB2YUV[transformSpace][2] };
@@ -36,11 +30,41 @@ static void Rgb2Luma_Negate
               U* __restrict pDstLine = pLumaBuffer + j * dstPitch;
 
         for (A_long i = 0; i < sizeX; i++)
-            pDstLine[i] = val - (static_cast<U>(pSrcLine[i].R) * ctm[0] + static_cast<U>(pSrcLine[i].G) * ctm[1] + static_cast<U>(pSrcLine[i].B) * ctm[2]);
+            pDstLine[i] = val - scaler * (static_cast<U>(pSrcLine[i].R) * ctm[0] + static_cast<U>(pSrcLine[i].G) * ctm[1] + static_cast<U>(pSrcLine[i].B) * ctm[2]);
     }
 
     return;
 }
+
+
+// Function for compute Y (Luma) component from RGB
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr,
+          typename U, std::enable_if<std::is_floating_point<U>::value>* = nullptr>
+static void ImgConvolution
+(
+    const U* __restrict pSketchImg, // sketch binary image in floating point
+    const T* __restrict pSrcImg,    // original source imgae (required for acquire alpha value for every pixel)
+          T* __restrict pDstImg,    // destination image
+    A_long sizeX,                   // frame width in pixels 
+    A_long sizeY,                   // frame height in pixels
+    A_long srcPitch,                // source buffer line pitch in pixels
+    A_long sketchPitch,             // sketch buffer line pitch in pixels
+    A_long dstPitch,                // destination buffer line pitch in pixels
+    const U val,                    // whitre point for clamping
+    const U scaler                  // scaler for match computed result to destination buffer type 
+)  noexcept
+{
+    CACHE_ALIGN constexpr float GaussMatrix[9] =
+    {
+        0.07511361f, 0.12384140f, 0.07511361f,
+        0.12384141f, 0.20417996f, 0.12384140f,
+        0.07511361f, 0.12384140f, 0.07511361f
+    };
+
+
+    return;
+}
+
 
 #ifdef __DBG_SHOW_PROC_BUFFER
 void dbgBufferDisplay
@@ -108,14 +132,16 @@ PF_Err PR_ImageStyle_SketchCharcoal_BGRA_8u
         float* pTmpStorage3 = pTmpStorage2 + frameSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
-        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, static_cast<float>(u8_value_white));
+        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, line_pitch, sizeX, static_cast<float>(u8_value_white), 1.f);
 
-        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite previous contant)
+        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite input contant)
         ImageBW_ComputeGradientBin (pTmpStorage1, pTmpStorage2, pTmpStorage3, sizeX, sizeY);
 
-#ifdef __DBG_SHOW_PROC_BUFFER
-        dbgBufferDisplay(localSrc, localDst, pTmpStorage1, sizeX, sizeY, line_pitch, line_pitch);
-#endif
+        // Authomatic thresholding (use Otsu's method)
+        ImageBW_AutomaticThreshold (pTmpStorage1, pTmpStorage2, sizeX, sizeY);
+
+        // Final convolution
+        ImgConvolution (pTmpStorage2, localSrc, localDst, sizeX, sizeY, line_pitch, sizeX, line_pitch, static_cast<float>(u8_value_white), 1.f);
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = pTmpStorage3 = nullptr;
@@ -279,10 +305,13 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
         float* __restrict pTmpStorage3 = pTmpStorage2 + frameSize;
 
         // convert RGB to YUV and store only Y (Luma) component into temporary memory buffer with sizes equal tio power of 2
-        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, src_line_pitch, sizeX, static_cast<float>(u8_value_white));
+        Rgb2Luma_Negate (localSrc, pTmpStorage1, BT709, sizeX, sizeY, src_line_pitch, sizeX, static_cast<float>(u8_value_white), 1.f);
 
-        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite previous contants)
-        ImageBW_ComputeGradientBin (pTmpStorage1, pTmpStorage2, pTmpStorage3, sizeX, sizeY);
+        // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite input contant)
+        ImageBW_ComputeGradientBin(pTmpStorage1, pTmpStorage2, pTmpStorage3, sizeX, sizeY);
+
+        // Authomatic thresholding (use Otsu's method)
+        ImageBW_AutomaticThreshold(pTmpStorage1, pTmpStorage2, sizeX, sizeY);
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = pTmpStorage3 = nullptr;

@@ -367,7 +367,7 @@ inline void ImageBW_GradientMerge
     {
         const float fVal = pBuffer1[i];
         const bool bMask = (threshold >= FastCompute::Sqrt(pBuffer2[i] * pBuffer2[i] + pBuffer3[i] * pBuffer3[i]) ? true : false);
-        pBuffer1[i] = (true == bMask ? fVal : 0.f); // P5
+        pBuffer1[i] = (true == bMask ? fVal : 0.f);
     }
     return;
 }
@@ -389,3 +389,64 @@ inline void ImageBW_ComputeGradientBin
 }
 
 
+inline void ImageBW_AutomaticThreshold
+(
+    const float* __restrict pInBuffer,
+    float* __restrict pOutBuffer,
+    const A_long width,
+    const A_long height
+) noexcept
+{
+    // Calculate Otsu threshold ...
+    CACHE_ALIGN uint32_t histBuf[256]{};
+    const A_long imgSize = width * height;
+    A_long i = 0;
+
+    for (i = 0; i < imgSize; i++)
+        histBuf[static_cast<uint8_t>(pInBuffer[i])]++;
+
+    uint64_t totalIntencitySum = 0u;
+    __VECTOR_ALIGNED__
+    for (i = 0; i < 256; i++)
+        totalIntencitySum += (static_cast<uint64_t>(histBuf[i]) * i);
+
+    uint32_t sum_background = 0u;      // Cumulative sum of intensities for background
+    uint32_t weight_background = 0u;   // Cumulative sum of pixel counts for background
+    uint32_t weight_foreground = 0u;   // Cumulative sum of pixel counts for foreground
+    const uint32_t numPixels = static_cast<uint32_t>(imgSize);
+
+    float max_variance = 0.f, optimal_threshold = 0.f;
+
+    for (i = 0; i < 256; i++)
+    {
+        weight_background += histBuf[i];
+        if (0u == weight_background)
+            continue;
+
+        weight_foreground = numPixels - weight_background;
+        if (0u == weight_foreground)
+            break; // Remaining pixels are all background, no more separation possible
+
+        sum_background += static_cast<uint32_t>(i) * histBuf[i];
+        const float mean_background = static_cast<float>(sum_background) / static_cast<float>(weight_background);
+
+        const uint64_t sum_foreground_direct = totalIntencitySum - static_cast<uint64_t>(sum_background);
+        const float mean_foreground = static_cast<float>(sum_foreground_direct) / static_cast<float>(weight_foreground);
+
+        const float between_class_variance = static_cast<float>(weight_background) * static_cast<float>(weight_foreground) * 
+            (mean_background - mean_foreground) * (mean_background - mean_foreground);
+
+        if (between_class_variance > max_variance)
+        {
+            max_variance = between_class_variance;
+            optimal_threshold = static_cast<float>(i);
+        }
+    } // for (i = 0; i < 256; i++)
+
+    // Apply calculated threshold for separate background from foreground
+    const float otsu_threshold_val{ optimal_threshold };
+    for (i = 0; i < imgSize; i++)
+        pOutBuffer[i] = (pInBuffer[i] > otsu_threshold_val ? 255.f : 0.f);
+
+    return;
+}
