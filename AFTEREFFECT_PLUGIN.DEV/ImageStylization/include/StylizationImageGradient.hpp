@@ -365,8 +365,9 @@ inline void ImageBW_GradientMerge
     __VECTOR_ALIGNED__
     for (A_long i = 0; i < totalPix; i++)
     {
+        const float fVal = pBuffer1[i];
         const bool bMask = (threshold >= FastCompute::Sqrt(pBuffer2[i] * pBuffer2[i] + pBuffer3[i] * pBuffer3[i]) ? true : false);
-        pBuffer1[i] = (true == bMask ? 0.f : pBuffer1[i]); // P5
+        pBuffer1[i] = (true == bMask ? fVal : 0.f); // P5
     }
     return;
 }
