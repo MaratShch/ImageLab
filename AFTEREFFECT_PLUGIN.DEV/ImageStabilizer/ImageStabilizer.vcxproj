@@ -152,6 +152,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageStabilizer.hpp" />
+    <ClInclude Include="include\ImageStabilizerEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStabilizer.cpp" />
