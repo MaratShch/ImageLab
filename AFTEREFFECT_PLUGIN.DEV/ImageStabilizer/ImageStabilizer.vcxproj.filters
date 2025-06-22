@@ -69,6 +69,9 @@
     <ClInclude Include="include\ImageStabilizer.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ImageStabilizerEnum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStabilizer.cpp">
