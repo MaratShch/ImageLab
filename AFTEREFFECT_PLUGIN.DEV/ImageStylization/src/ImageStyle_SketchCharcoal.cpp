@@ -50,17 +50,53 @@ static void ImgConvolution
     A_long srcPitch,                // source buffer line pitch in pixels
     A_long sketchPitch,             // sketch buffer line pitch in pixels
     A_long dstPitch,                // destination buffer line pitch in pixels
-    const U val,                    // whitre point for clamping
+    const U white,                  // white point for clamping
     const U scaler                  // scaler for match computed result to destination buffer type 
 )  noexcept
 {
-    CACHE_ALIGN constexpr float GaussMatrix[9] =
+    constexpr A_long kernelSize{ 3 };
+    constexpr A_long kernelArraySize = kernelSize * kernelSize;
+    CACHE_ALIGN constexpr float GaussMatrix[kernelArraySize] =
     {
-        0.07511361f, 0.12384140f, 0.07511361f,
-        0.12384141f, 0.20417996f, 0.12384140f,
-        0.07511361f, 0.12384140f, 0.07511361f
+        0.07511361f, 0.12384141f, 0.07511361f,
+        0.12384141f, 0.20417996f, 0.12384141f,
+        0.07511361f, 0.12384141f, 0.07511361f
     };
 
+    constexpr float kernelSum = 
+        GaussMatrix[0] + GaussMatrix[1] + GaussMatrix[2] +
+        GaussMatrix[3] + GaussMatrix[4] + GaussMatrix[5] +
+        GaussMatrix[6] + GaussMatrix[7] + GaussMatrix[8];
+
+    const A_long lastPixIdx = sizeX - 1;
+
+    A_long j, i, idx;
+
+    for (j = 0; j < sizeY; j++)
+    {
+        const T* __restrict pSrcLine = pSrcImg + j * srcPitch;
+        const U* __restrict pSketchLinePrev = pSketchImg + FastCompute::Max(0, j - 1) * sketchPitch;
+        const U* __restrict pSketchLine = pSketchImg + j * sketchPitch;
+        const U* __restrict pSketchLineNext = pSketchImg + FastCompute::Min(sizeY - 1, j + 1) * sketchPitch;
+              T* __restrict pDstLine = pDstImg + j * dstPitch;
+
+        __VECTOR_ALIGNED__
+        for (i = 0; i < sizeX; i++)
+        {
+            const A_long prevPixIdx = FastCompute::Max(0, i - 1);
+            const A_long nextPixIdx = FastCompute::Min(lastPixIdx, i + 1);
+
+            // Because the kernel fully symmetric - we don't need rotate it on 90 degrees clokwise. 
+            const U procPix = // Because sum of all kernel elements equal to 1 we don't need normalize output result.
+                pSketchLinePrev[prevPixIdx] * GaussMatrix[0] + pSketchLinePrev[i] * GaussMatrix[1] + pSketchLinePrev[nextPixIdx] * GaussMatrix[2] +
+                pSketchLine[prevPixIdx]     * GaussMatrix[3] + pSketchLine[i]     * GaussMatrix[4] + pSketchLine[nextPixIdx]     * GaussMatrix[5] +
+                pSketchLineNext[prevPixIdx] * GaussMatrix[6] + pSketchLineNext[i] * GaussMatrix[7] + pSketchLineNext[nextPixIdx] * GaussMatrix[8];
+
+            pDstLine[i].A = pSrcLine[i].A;
+            pDstLine[i].R = pDstLine[i].G = pDstLine[i].B = static_cast<decltype(pDstLine[i].R)>(CLAMP_VALUE(procPix * scaler, static_cast<U>(0), white));
+        } // for (i = 0; i < sizeX; i++)
+
+    } // for (j = 0; j < sizeY; j++)
 
     return;
 }
@@ -313,13 +349,16 @@ PF_Err AE_ImageStyle_SketchCharcoal_ARGB_8u
         // Authomatic thresholding (use Otsu's method)
         ImageBW_AutomaticThreshold(pTmpStorage1, pTmpStorage2, sizeX, sizeY);
 
+        // Final convolution
+        ImgConvolution (pTmpStorage2, localSrc, localDst, sizeX, sizeY, src_line_pitch, sizeX, dst_line_pitch, static_cast<float>(u8_value_white), 1.f);
+
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = pTmpStorage3 = nullptr;
         pMemPtr = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
 
-} // if (blockId >= 0 && nullptr != pMemPtr)
+    } // if (blockId >= 0 && nullptr != pMemPtr)
     else
         err = PF_Err_OUT_OF_MEMORY;
 
