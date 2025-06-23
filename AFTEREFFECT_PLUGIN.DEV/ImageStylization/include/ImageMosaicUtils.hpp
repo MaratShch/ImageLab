@@ -46,6 +46,13 @@ namespace ArtMosaic
 			b = b0;
 		}
 
+        Color(float&& r0, float&& g0, float&& b0) noexcept
+        {
+            std::swap(r, r0);
+            std::swap(g, g0);
+            std::swap(b, b0);
+        }
+
 		~Color() = default;
 	};
 
@@ -76,12 +83,12 @@ namespace ArtMosaic
 			pix = nullptr;
 		}
 
-		explicit Superpixel (const A_long& x0, const A_long y0, const Color&& c) noexcept
+		explicit Superpixel (const A_long& x0, const A_long y0, Color&& c) noexcept
 		{
 			x = static_cast<float>(x0);
 			y = static_cast<float>(y0);
 			size = 0;
-			col = c;
+			std::swap(col, c);
 			pix = nullptr;
 		}
 
