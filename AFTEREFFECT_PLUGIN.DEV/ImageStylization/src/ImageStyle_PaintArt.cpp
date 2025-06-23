@@ -54,7 +54,6 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_8u
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
 
-		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
@@ -142,7 +141,6 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_16u
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
 
-		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
@@ -231,7 +229,6 @@ static PF_Err PR_ImageStyle_PaintArt_BGRA_32f
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
 
-		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
@@ -321,7 +318,6 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_8u
 		/* convert RGB to BW */
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
 
-		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph (pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
@@ -409,7 +405,6 @@ static PF_Err PR_ImageStyle_PaintArt_VUYA_32f
 		/* convert RGB to BW */
 		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, line_pitch, tmpBufPitch);
 
-		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
@@ -562,7 +557,6 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
 
 		Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
 
-		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
@@ -650,7 +644,6 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
 
 		Color2YUV(localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
 
-		const A_long frameSize = width * height;
 		auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
 		if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
@@ -739,7 +732,6 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_32f
         /* convert RGB to BW */
         Color2YUV (localSrc, pPtr1, pPtr2, pPtr3, width, height, src_line_pitch, tmpBufPitch);
 
-        const A_long frameSize = width * height;
         auto sparseMatrix = std::make_unique<SparseMatrix<float>>(frameSize);
 
         if (sparseMatrix && true == (cocircularityRes = bw_image2cocircularity_graph(pPtr1, sparseMatrix, width, height, tmpBufPitch, sigma, coCirc, coCone, 7)))
