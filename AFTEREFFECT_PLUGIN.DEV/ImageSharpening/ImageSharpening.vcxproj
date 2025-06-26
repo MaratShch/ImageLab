@@ -158,6 +158,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageSharpening.hpp" />
+    <ClInclude Include="include\ImageSharpeningEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ImageSharpening.r">

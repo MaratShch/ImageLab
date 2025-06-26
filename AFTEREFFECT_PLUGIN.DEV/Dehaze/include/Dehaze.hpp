@@ -1,11 +1,11 @@
-#ifndef __IMAGE_LAB_LENS_DISTORTION_FILTER__
-#define __IMAGE_LAB_LENS_DISTORTION_FILTER__
+#ifndef __IMAGE_LAB_IMAGE_DEHAZE_FILTER__
+#define __IMAGE_LAB_IMAGE_DEHAZE_FILTER__
 
 #include "CommonAdobeAE.hpp"
 
 
 constexpr char strName[] = "Image Dehaze";
-constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rImage Dehaze Filter plugin.";
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rImage Dehaze Filter plugin.";
 constexpr int LensDistrortion_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int LensDistrortion_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int LensDistrortion_VersionSub = 0;
@@ -35,4 +35,4 @@ ProcessImgInAE
 ) noexcept;
 
 
-#endif /* __IMAGE_LAB_LENS_DISTORTION_FILTER__ */
+#endif // __IMAGE_LAB_IMAGE_DEHAZE_FILTER__

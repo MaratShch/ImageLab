@@ -307,6 +307,73 @@ PF_Err prProcessImage_BGRA_4444_32f_HPLuv
 ) noexcept;
 
 
+PF_Err prProcessImage_ARGB_4444_32f_HSL
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_hue,
+    float           add_sat,
+    float           add_lum
+) noexcept;
+
+PF_Err prProcessImage_ARGB_4444_32f_HSV
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_hue,
+    float           add_sat,
+    float           add_lum
+) noexcept;
+
+PF_Err prProcessImage_ARGB_4444_32f_HSI
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_hue,
+    float           add_sat,
+    float           add_int
+) noexcept;
+
+PF_Err prProcessImage_ARGB_4444_32f_HSP
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_hue,
+    float           add_sat,
+    float           add_per
+) noexcept;
+
+PF_Err prProcessImage_ARGB_4444_32f_HSLuv
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_hue,
+    float           add_sat,
+    float           add_luv
+) noexcept;
+
+PF_Err prProcessImage_ARGB_4444_32f_HPLuv
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_hue,
+    float           add_p,
+    float           add_luv
+) noexcept;
+
+
 PF_Err prProcessImage_RGB_444_10u_HSL
 (
 	PF_InData*		in_data,

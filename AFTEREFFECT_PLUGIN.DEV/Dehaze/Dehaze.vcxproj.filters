@@ -72,6 +72,9 @@
     <ClInclude Include="include\Dehaze.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\DehazeEnum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Dehaze.cpp">

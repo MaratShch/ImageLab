@@ -180,6 +180,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\ColorCorrectionHSL.cpp" />
     <ClCompile Include="src\ColorCorrectionPR.cpp" />
     <ClCompile Include="src\ColorProcARGB_16u.cpp" />
+    <ClCompile Include="src\ColorProcARGB_32f.cpp" />
     <ClCompile Include="src\ColorProcARGB_8u.cpp" />
     <ClCompile Include="src\ColorProcBGRA_16u.cpp" />
     <ClCompile Include="src\ColorProcBGRA_32f.cpp" />

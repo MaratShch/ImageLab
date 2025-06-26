@@ -149,6 +149,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\Dehaze.hpp" />
+    <ClInclude Include="include\DehazeEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Dehaze.cpp" />
