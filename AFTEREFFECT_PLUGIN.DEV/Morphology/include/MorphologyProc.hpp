@@ -98,7 +98,7 @@ inline T ImgErodeOnEdge
 	const int32_t& sizeY
 ) noexcept
 {
-	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA init */
+	T outPix{ compareVal, compareVal, compareVal, compareVal }; /* RGBA or ARGB init */
 	const int32_t halfSe{ seSize >> 1 };
 	const int32_t lineTop    = numbLine - halfSe;
 	const int32_t lineBottom = numbLine + halfSe;
