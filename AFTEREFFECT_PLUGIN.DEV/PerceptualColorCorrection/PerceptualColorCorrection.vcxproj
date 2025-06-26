@@ -165,6 +165,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\PerceptualColorCorrection.hpp" />
     <ClInclude Include="include\PerceptualColorCorrectionAlgo.hpp" />
+    <ClInclude Include="include\PerceptualColorCorrectionEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\PerceptualColorCorrection.cpp" />

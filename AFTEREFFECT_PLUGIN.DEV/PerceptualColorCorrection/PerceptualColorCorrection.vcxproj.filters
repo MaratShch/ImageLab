@@ -75,6 +75,9 @@
     <ClInclude Include="include\PerceptualColorCorrectionAlgo.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\PerceptualColorCorrectionEnum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\PerceptualColorCorrection.cpp">
