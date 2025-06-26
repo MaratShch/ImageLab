@@ -6,9 +6,6 @@
 #include "SegmentationUtils.hpp"
 #include "ImageAuxPixFormat.hpp"
 
-#include <mutex>
-
-
 
 static PF_Err PR_ImageStyle_PointillismArt_BGRA_8u
 (
