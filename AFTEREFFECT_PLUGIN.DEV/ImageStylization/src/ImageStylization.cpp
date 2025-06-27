@@ -56,9 +56,8 @@ GlobalSetup
 )
 {
 	PF_Err	err = PF_Err_NONE;
-	PF_Handle pGlobalStorage = nullptr;
 
-    LoadMemoryInterfaceProvider(in_data->appl_id, in_data->version.major, in_data->version.minor);
+    LoadMemoryInterfaceProvider (in_data);
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -105,39 +104,6 @@ GlobalSetup
 	/* generate random values in buffer used in Glassy Effect */
 	utils_create_random_buffer();
 
-	/* allocate global buffer for Cartoon Effect */
-	constexpr size_t globalStorageMemSize = 1920 * 1080 * sizeof(float) * 3;
-	ImageStyleTmpStorage* pGlobal = alloc_temporary_buffers (globalStorageMemSize);
-	if (nullptr != pGlobal)
-	{
-		AEFX_SuiteScoper<PF_HandleSuite1> handleSuite =
-			AEFX_SuiteScoper<PF_HandleSuite1>(
-				in_data,
-				kPFHandleSuite,
-				kPFHandleSuiteVersion1,
-				out_data);
-
-		if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(bufHandle))))
-		{
-			bufHandle* pGlobalReg = static_cast<bufHandle*>(handleSuite->host_lock_handle(pGlobalStorage));
-
-			pGlobalReg->bValid = TRUE;
-			pGlobalReg->pBufHndl = static_cast<void*>(pGlobal);
-
-			if (PremierId != in_data->appl_id)
-			{
-				AEFX_SuiteScoper<AEGP_UtilitySuite3> u_suite(in_data, kAEGPUtilitySuite, kAEGPUtilitySuiteVersion3);
-				u_suite->AEGP_RegisterWithAEGP (nullptr, strName, &pGlobalReg->id);
-			}
-			out_data->global_data = pGlobalStorage;
-			handleSuite->host_unlock_handle(pGlobalStorage);
-		}
-	}
-	else
-	{
-		err = PF_Err_OUT_OF_MEMORY;
-	}
-
 	return err;
 }
 
@@ -148,28 +114,8 @@ GlobalSetDown
 	PF_InData		*in_data,
 	PF_OutData		*out_data)
 {
-	PF_Err	err = PF_Err_NONE;
-
-	if (nullptr != in_data->global_data)
-	{
-		AEFX_SuiteScoper<PF_HandleSuite1> handleSuite =
-			AEFX_SuiteScoper<PF_HandleSuite1>(
-				in_data,
-				kPFHandleSuite,
-				kPFHandleSuiteVersion1,
-				out_data);
-
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal && nullptr != pGlobal->pBufHndl && TRUE == pGlobal->bValid)
-		{
-			pGlobal->bValid = FALSE;
-			free_temporary_buffers(static_cast<ImageStyleTmpStorage*>(pGlobal->pBufHndl));
-			pGlobal = nullptr;
-		}
-		handleSuite->host_dispose_handle(in_data->global_data);
-	}
-
-	return err;
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
 }
 
 

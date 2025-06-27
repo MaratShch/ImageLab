@@ -5,7 +5,7 @@
 #include "FastAriphmetics.hpp"
 #include "SegmentationUtils.hpp"
 #include "ImageAuxPixFormat.hpp"
-
+#include "ImageLabMemInterface.hpp"
 #include <mutex>
 #include <math.h> 
 
@@ -120,8 +120,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	CACHE_ALIGN int32_t histH[hist_size_H];
 	CACHE_ALIGN int32_t histI[hist_size_I];
 
-	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
-	PF_Pixel_HSI_32f*       __restrict pTmpStorage = nullptr;
 	const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
@@ -131,9 +129,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	const A_long width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 	const A_long imgSize = height * width;
-
-	const size_t requiredMemSize = imgSize * sizeof(float) * 3;
-	int j = 0, i = 0;
 
 	int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
 	int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
@@ -146,69 +141,61 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_8u
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
 
-	auto tmpFloatData = std::make_unique<fDataRGB []>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-	if (tmpFloatData)
-	{
-		bool bMemSizeTest = false;
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal)
-		{
-			pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-			bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
-		}
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
-		if (true == bMemSizeTest)
-		{
-			const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage  = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
 
-			auto tmpFloatPtr = tmpFloatData.get();
-			utils_prepare_data (localSrc, tmpFloatPtr, width, height, line_pitch, -1.f);
+        utils_prepare_data (localSrc, tmpFloatPtr, width, height, line_pitch, -1.f);
 
-			/* first path - convert image to HSI and build H and I histogramm */
-			const A_long nhighsat = convert2HSI (tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+        // first path - convert image to HSI and build H and I histogramm
+        const A_long nhighsat = convert2HSI (tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
 
-			/* second path - segment histogram and build palette */
-			auto const isGray{ 0 == nhighsat };
-			constexpr float epsilon{ 1.0f };
+        // second path - segment histogram and build palette */
+        auto const isGray{ 0 == nhighsat };
+        constexpr float epsilon{ 1.0f };
 
-			std::vector<int32_t> ftcSegI;
-			std::vector<int32_t> ftcSegH;
-			std::vector<Hsegment>hSegments;
-			std::vector<Isegment>iSegments;
+        std::vector<int32_t> ftcSegI;
+        std::vector<int32_t> ftcSegH;
+        std::vector<Hsegment>hSegments;
+        std::vector<Isegment>iSegments;
 
-			if (true == isGray || true == bForceGray)
-			{
-				ftcSegI = ftc_utils_segmentation (histI, nBinsI, epsilon, isGray);
-				iSegments = compute_gray_palette (pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-			}
-			else
-			{
-				ftcSegH = ftc_utils_segmentation  (histH, nBinsH, epsilon, isGray);
-				hSegments = compute_color_palette (pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-			}
+        if (true == isGray || true == bForceGray)
+        {
+            ftcSegI = ftc_utils_segmentation (histI, nBinsI, epsilon, isGray);
+            iSegments = compute_gray_palette (pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
+        }
+        else
+        {
+            ftcSegH = ftc_utils_segmentation  (histH, nBinsH, epsilon, isGray);
+            hSegments = compute_color_palette (pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
+        }
 
-			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float* __restrict>(tmpFloatPtr);
-			float* __restrict fG = fR + imgSize;
-			float* __restrict fB = fG + imgSize;
-			assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
-			/* store segmented image */
-			store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
+        // create segmented image (lets re-use temporary buffer for assemble image)
+        float* __restrict fR = reinterpret_cast<float* __restrict>(tmpFloatPtr);
+        float* __restrict fG = fR + imgSize;
+        float* __restrict fB = fG + imgSize;
+        assemble_segmented_image (iSegments, hSegments, fR, fG, fB, width, height);
+        
+        // store segmented image
+        store_segmented_image (localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
 
-		} /* if (true == bMemSizeTest) */
-		else
-		{
-			errCode = PF_Err_OUT_OF_MEMORY;
-		}
-	}
-	else
-	{
-		errCode = PF_Err_OUT_OF_MEMORY;
-	}
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+    } // if (true == bMemSizeTest)
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
-	return errCode;
+    return errCode;
 }
 
 
@@ -236,9 +223,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_VUYA_8u
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 	const A_long imgSize = height * width;
 
-	const size_t requiredMemSize = imgSize * sizeof(float) * 3;
-	int j = 0, i = 0;
-
 	int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
 	int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
 	int nBinsI = static_cast<int>(static_cast<float>(hist_size_I) / qI);
@@ -250,67 +234,60 @@ static PF_Err PR_ImageStyle_CartoonEffect_VUYA_8u
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
 
-	auto tmpFloatData = std::make_unique<fDataRGB[]>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-	if (tmpFloatData)
-	{
-		bool bMemSizeTest = false;
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal)
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
+
+        utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, -1.f);
+
+		// first path - convert image to HSI and build H and I histogramm/
+		const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+
+		// second path - segment histogram and build palette
+		auto const isGray{ 0 == nhighsat };
+		constexpr float epsilon{ 1.0f };
+
+		std::vector<int32_t> ftcSegI;
+		std::vector<int32_t> ftcSegH;
+		std::vector<Hsegment>hSegments;
+		std::vector<Isegment>iSegments;
+
+		if (true == isGray || true == bForceGray)
 		{
-			pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-			bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+			ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
+			iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
 		}
-
-		if (true == bMemSizeTest)
-		{
-			const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
-
-			auto tmpFloatPtr = tmpFloatData.get();
-			utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, -1.f);
-
-			/* first path - convert image to HSI and build H and I histogramm */
-			const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
-
-			/* second path - segment histogram and build palette */
-			auto const isGray{ 0 == nhighsat };
-			constexpr float epsilon{ 1.0f };
-
-			std::vector<int32_t> ftcSegI;
-			std::vector<int32_t> ftcSegH;
-			std::vector<Hsegment>hSegments;
-			std::vector<Isegment>iSegments;
-
-			if (true == isGray || true == bForceGray)
-			{
-				ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
-				iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-			}
-			else
-			{
-				ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-				hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-			}
-
-			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
-			float* __restrict fG = fR + imgSize;
-			float* __restrict fB = fG + imgSize;
-			assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
-			/* store segmented image */
-			store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
-
-		} /* if (true == bMemSizeTest) */
 		else
 		{
-			errCode = PF_Err_OUT_OF_MEMORY;
+			ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
+			hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 		}
-	}
+
+		// create segmented image (lets re-use temporary buffer for assemble image) */
+		float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+		float* __restrict fG = fR + imgSize;
+		float* __restrict fB = fG + imgSize;
+		assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
+
+        // store segmented image */
+		store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+
+	} // if (nullptr != pMemoryBlock && blockId >= 0)
 	else
-	{
 		errCode = PF_Err_OUT_OF_MEMORY;
-	}
 
 	return errCode;
 }
@@ -339,9 +316,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_VUYA_32f
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 	const A_long imgSize = height * width;
 
-	const size_t requiredMemSize = imgSize * sizeof(float) * 3;
-	int j = 0, i = 0;
-
 	int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
 	int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
 	int nBinsI = static_cast<int>(static_cast<float>(hist_size_I) / qI);
@@ -353,67 +327,59 @@ static PF_Err PR_ImageStyle_CartoonEffect_VUYA_32f
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
 
-	auto tmpFloatData = std::make_unique<fDataRGB[]>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-	if (tmpFloatData)
-	{
-		bool bMemSizeTest = false;
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal)
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
+
+        utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, 255.f);
+
+		// first path - convert image to HSI and build H and I histogramm
+		const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+
+		// second path - segment histogram and build palette
+		auto const isGray{ 0 == nhighsat };
+		constexpr float epsilon{ 1.0f };
+
+		std::vector<int32_t> ftcSegI;
+		std::vector<int32_t> ftcSegH;
+		std::vector<Hsegment>hSegments;
+		std::vector<Isegment>iSegments;
+
+		if (true == isGray || true == bForceGray)
 		{
-			pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-			bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+			ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
+			iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
 		}
-
-		if (true == bMemSizeTest)
-		{
-			const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
-
-			auto tmpFloatPtr = tmpFloatData.get();
-			utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, 255.f);
-
-			/* first path - convert image to HSI and build H and I histogramm */
-			const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
-
-			/* second path - segment histogram and build palette */
-			auto const isGray{ 0 == nhighsat };
-			constexpr float epsilon{ 1.0f };
-
-			std::vector<int32_t> ftcSegI;
-			std::vector<int32_t> ftcSegH;
-			std::vector<Hsegment>hSegments;
-			std::vector<Isegment>iSegments;
-
-			if (true == isGray || true == bForceGray)
-			{
-				ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
-				iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-			}
-			else
-			{
-				ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-				hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-			}
-
-			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
-			float* __restrict fG = fR + imgSize;
-			float* __restrict fB = fG + imgSize;
-			assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
-			/* store segmented image */
-			store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
-
-		} /* if (true == bMemSizeTest) */
 		else
 		{
-			errCode = PF_Err_OUT_OF_MEMORY;
+			ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
+			hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 		}
-	}
+
+		// create segmented image (lets re-use temporary buffer for assemble image) */
+		float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+		float* __restrict fG = fR + imgSize;
+		float* __restrict fB = fG + imgSize;
+		assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
+		// store segmented image */
+		store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+
+    } // if (nullptr != pMemoryBlock && blockId >= 0)
 	else
-	{
 		errCode = PF_Err_OUT_OF_MEMORY;
-	}
 
 	return errCode;
 }
@@ -442,9 +408,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_16u
 	const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 	const A_long imgSize = height * width;
 
-	const size_t requiredMemSize = imgSize * sizeof(float) * 3;
-	int j = 0, i = 0;
-
 	int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
 	int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
 	int nBinsI = static_cast<int>(static_cast<float>(hist_size_I) / qI);
@@ -455,69 +418,61 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_16u
 
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
+    constexpr float reciprocVal = 256.f / 32768.f;
 
-	auto tmpFloatData = std::make_unique<fDataRGB[]>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-	if (tmpFloatData)
-	{
-		bool bMemSizeTest = false;
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal)
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
+
+        utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, reciprocVal);
+
+		// first path - convert image to HSI and build H and I histogramm
+		const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+
+		// second path - segment histogram and build palette
+		auto const isGray{ 0 == nhighsat };
+		constexpr float epsilon{ 1.0f };
+
+		std::vector<int32_t> ftcSegI;
+		std::vector<int32_t> ftcSegH;
+		std::vector<Hsegment>hSegments;
+		std::vector<Isegment>iSegments;
+
+		if (true == isGray || true == bForceGray)
 		{
-			pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-			bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+			ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
+			iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
 		}
-
-		if (true == bMemSizeTest)
-		{
-			const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
-
-			auto tmpFloatPtr = tmpFloatData.get();
-			constexpr float reciprocVal = 256.f / 32768.f;
-			utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, reciprocVal);
-
-			/* first path - convert image to HSI and build H and I histogramm */
-			const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
-
-			/* second path - segment histogram and build palette */
-			auto const isGray{ 0 == nhighsat };
-			constexpr float epsilon{ 1.0f };
-
-			std::vector<int32_t> ftcSegI;
-			std::vector<int32_t> ftcSegH;
-			std::vector<Hsegment>hSegments;
-			std::vector<Isegment>iSegments;
-
-			if (true == isGray || true == bForceGray)
-			{
-				ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
-				iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-			}
-			else
-			{
-				ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-				hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-			}
-
-			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
-			float* __restrict fG = fR + imgSize;
-			float* __restrict fB = fG + imgSize;
-			assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
-			/* store segmented image */
-			store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
-
-		} /* if (true == bMemSizeTest) */
 		else
 		{
-			errCode = PF_Err_OUT_OF_MEMORY;
+			ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
+			hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 		}
-	}
-	else
-	{
-		errCode = PF_Err_OUT_OF_MEMORY;
-	}
+
+		// create segmented image (lets re-use temporary buffer for assemble image)
+		float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+		float* __restrict fG = fR + imgSize;
+		float* __restrict fB = fG + imgSize;
+		assemble_segmented_image (iSegments, hSegments, fR, fG, fB, width, height);
+		// store segmented image
+		store_segmented_image (localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+
+    } // if (nullptr != pMemoryBlock && blockId >= 0)
+    else
+        errCode = PF_Err_OUT_OF_MEMORY;
 
 	return errCode;
 }
@@ -559,69 +514,62 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_32f
 
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
+    constexpr float mulVal = 255.f;
 
-	auto tmpFloatData = std::make_unique<fDataRGB[]>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-	if (tmpFloatData)
-	{
-		bool bMemSizeTest = false;
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal)
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
+
+        utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, mulVal);
+
+		// first path - convert image to HSI and build H and I histogramm 
+		const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+
+		// second path - segment histogram and build palette 
+		auto const isGray{ 0 == nhighsat };
+		constexpr float epsilon{ 1.0f };
+
+		std::vector<int32_t> ftcSegI;
+		std::vector<int32_t> ftcSegH;
+		std::vector<Hsegment>hSegments;
+		std::vector<Isegment>iSegments;
+
+		if (true == isGray || true == bForceGray)
 		{
-			pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-			bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+			ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
+			iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
 		}
-
-		if (true == bMemSizeTest)
-		{
-			const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
-
-			auto tmpFloatPtr = tmpFloatData.get();
-			constexpr float mulVal = 255.f;
-			utils_prepare_data(localSrc, tmpFloatPtr, width, height, line_pitch, mulVal);
-
-			/* first path - convert image to HSI and build H and I histogramm */
-			const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
-
-			/* second path - segment histogram and build palette */
-			auto const isGray{ 0 == nhighsat };
-			constexpr float epsilon{ 1.0f };
-
-			std::vector<int32_t> ftcSegI;
-			std::vector<int32_t> ftcSegH;
-			std::vector<Hsegment>hSegments;
-			std::vector<Isegment>iSegments;
-
-			if (true == isGray || true == bForceGray)
-			{
-				ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
-				iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-			}
-			else
-			{
-				ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-				hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-			}
-
-			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
-			float* __restrict fG = fR + imgSize;
-			float* __restrict fB = fG + imgSize;
-			assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
-			/* store segmented image */
-			store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
-
-		} /* if (true == bMemSizeTest) */
 		else
 		{
-			errCode = PF_Err_OUT_OF_MEMORY;
+			ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
+			hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 		}
-	}
+
+		// create segmented image (lets re-use temporary buffer for assemble image)
+		float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+		float* __restrict fG = fR + imgSize;
+		float* __restrict fB = fG + imgSize;
+		assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
+
+		// store segmented image
+		store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, line_pitch, line_pitch);
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+
+    } // if (nullptr != pMemoryBlock && blockId >= 0)
 	else
-	{
 		errCode = PF_Err_OUT_OF_MEMORY;
-	}
 
 	return errCode;
 }
@@ -716,9 +664,6 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_8u
 
 	const A_long imgSize = height * width;
 
-	const size_t requiredMemSize = imgSize * sizeof(float) * 3;
-	int j = 0, i = 0;
-
 	int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
 	int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
 	int nBinsI = static_cast<int>(static_cast<float>(hist_size_I) / qI);
@@ -730,67 +675,59 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_8u
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
 
-	auto tmpFloatData = std::make_unique<fDataRGB[]>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-	if (tmpFloatData)
-	{
-		bool bMemSizeTest = false;
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal)
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
+
+        utils_prepare_data (localSrc, tmpFloatPtr, width, height, src_line_pitch, -1.f);
+
+		// first path - convert image to HSI and build H and I histogramm
+		const A_long nhighsat = convert2HSI (tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+
+		// second path - segment histogram and build palette
+		auto const isGray{ 0 == nhighsat };
+		constexpr float epsilon{ 1.0f };
+
+		std::vector<int32_t> ftcSegI;
+		std::vector<int32_t> ftcSegH;
+		std::vector<Hsegment>hSegments;
+		std::vector<Isegment>iSegments;
+
+		if (true == isGray || true == bForceGray)
 		{
-			pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-			bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+			ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
+			iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
 		}
-
-		if (true == bMemSizeTest)
-		{
-			const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
-
-			auto tmpFloatPtr = tmpFloatData.get();
-			utils_prepare_data (localSrc, tmpFloatPtr, width, height, src_line_pitch, -1.f);
-
-			/* first path - convert image to HSI and build H and I histogramm */
-			const A_long nhighsat = convert2HSI (tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
-
-			/* second path - segment histogram and build palette */
-			auto const isGray{ 0 == nhighsat };
-			constexpr float epsilon{ 1.0f };
-
-			std::vector<int32_t> ftcSegI;
-			std::vector<int32_t> ftcSegH;
-			std::vector<Hsegment>hSegments;
-			std::vector<Isegment>iSegments;
-
-			if (true == isGray || true == bForceGray)
-			{
-				ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
-				iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-			}
-			else
-			{
-				ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-				hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-			}
-
-			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
-			float* __restrict fG = fR + imgSize;
-			float* __restrict fB = fG + imgSize;
-			assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
-			/* store segmented image */
-			store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, src_line_pitch, dst_line_pitch);
-
-		} /* if (true == bMemSizeTest) */
 		else
 		{
-			errCode = PF_Err_OUT_OF_MEMORY;
+			ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
+			hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 		}
-	}
-	else
-	{
+
+		// create segmented image (lets re-use temporary buffer for assemble image)
+		float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+		float* __restrict fG = fR + imgSize;
+		float* __restrict fB = fG + imgSize;
+		assemble_segmented_image(iSegments, hSegments, fR, fG, fB, width, height);
+
+		// store segmented image
+		store_segmented_image(localSrc, localDst, fR, fG, fB, width, height, src_line_pitch, dst_line_pitch);
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+
+    } // if (true == bMemSizeTest)
 		errCode = PF_Err_OUT_OF_MEMORY;
-	}
 
 	return errCode;
 }
@@ -823,9 +760,6 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_16u
 
 	const A_long imgSize = height * width;
 
-	const size_t requiredMemSize = imgSize * sizeof(float) * 3;
-	int j = 0, i = 0;
-
 	int nBinsH = static_cast<int>(static_cast<float>(hist_size_H) / qH);
 	int nBinsS = static_cast<int>(static_cast<float>(hist_size_S) / qS);
 	int nBinsI = static_cast<int>(static_cast<float>(hist_size_I) / qI);
@@ -836,69 +770,62 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_16u
 
 	const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
 	const bool  bForceGray = false; // reads this value from check box on control pannel
+    constexpr float reciprocVal = 256.0f / 32768.0f;
 
-	auto tmpFloatData = std::make_unique<fDataRGB[]>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-	if (tmpFloatData)
-	{
-		bool bMemSizeTest = false;
-		bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-		if (nullptr != pGlobal)
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
+
+        utils_prepare_data(localSrc, tmpFloatPtr, width, height, src_line_pitch, reciprocVal);
+
+		// first path - convert image to HSI and build H and I histogramm
+		const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+
+		// second path - segment histogram and build palette
+		auto const isGray{ 0 == nhighsat };
+		constexpr float epsilon{ 1.0f };
+
+		std::vector<int32_t> ftcSegI;
+		std::vector<int32_t> ftcSegH;
+		std::vector<Hsegment>hSegments;
+		std::vector<Isegment>iSegments;
+
+		if (true == isGray || true == bForceGray)
 		{
-			pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-			bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+			ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
+			iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
 		}
-
-		if (true == bMemSizeTest)
-		{
-			const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-			pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
-
-			auto tmpFloatPtr = tmpFloatData.get();
-			constexpr float reciprocVal = 256.0f / 32768.0f;
-			utils_prepare_data(localSrc, tmpFloatPtr, width, height, src_line_pitch, reciprocVal);
-
-			/* first path - convert image to HSI and build H and I histogramm */
-			const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
-
-			/* second path - segment histogram and build palette */
-			auto const isGray{ 0 == nhighsat };
-			constexpr float epsilon{ 1.0f };
-
-			std::vector<int32_t> ftcSegI;
-			std::vector<int32_t> ftcSegH;
-			std::vector<Hsegment>hSegments;
-			std::vector<Isegment>iSegments;
-
-			if (true == isGray || true == bForceGray)
-			{
-				ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
-				iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-			}
-			else
-			{
-				ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-				hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-			}
-
-			/* create segmented image (lets re-use temporary buffer for assemble image) */
-			float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
-			float* __restrict fG = fR + imgSize;
-			float* __restrict fB = fG + imgSize;
-			assemble_segmented_image (iSegments, hSegments, fR, fG, fB, width, height);
-			/* store segmented image */
-			store_segmented_image (localSrc, localDst, fR, fG, fB, width, height, src_line_pitch, dst_line_pitch);
-
-		} /* if (true == bMemSizeTest) */
 		else
 		{
-			errCode = PF_Err_OUT_OF_MEMORY;
+			ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
+			hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
 		}
-	}
+
+		// create segmented image (lets re-use temporary buffer for assemble image)
+		float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+		float* __restrict fG = fR + imgSize;
+		float* __restrict fB = fG + imgSize;
+		assemble_segmented_image (iSegments, hSegments, fR, fG, fB, width, height);
+
+		// store segmented image
+		store_segmented_image (localSrc, localDst, fR, fG, fB, width, height, src_line_pitch, dst_line_pitch);
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+
+    } // if (true == bMemSizeTest)
 	else
-	{
 		errCode = PF_Err_OUT_OF_MEMORY;
-	}
 
 	return errCode;
 }
@@ -944,71 +871,62 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_32f
 
     const float sMin = static_cast<float>(nBinsH) / FastCompute::PIx2; // compute minimum saturation value that prevents quantization problems 
     const bool  bForceGray = false; // reads this value from check box on control pannel
+    constexpr float mulVal = 255.f;
 
-    auto tmpFloatData = std::make_unique<fDataRGB[]>(imgSize);
+    constexpr A_long bufferElementsSize = static_cast<A_long>(sizeof(fDataRGB) + sizeof(PF_Pixel_HSI_32f));
+    const A_long totalProcMem = CreateAlignment(imgSize * bufferElementsSize, CACHE_LINE);
 
-    if (tmpFloatData)
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+
+    if (nullptr != pMemoryBlock && blockId >= 0)
     {
-        bool bMemSizeTest = false;
-        bufHandle* pGlobal = static_cast<bufHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-        if (nullptr != pGlobal)
+        fDataRGB* __restrict tmpFloatPtr = static_cast<fDataRGB* __restrict>(pMemoryBlock);
+        PF_Pixel_HSI_32f* __restrict pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(tmpFloatPtr + imgSize);
+
+        utils_prepare_data(localSrc, tmpFloatPtr, width, height, src_line_pitch, mulVal);
+
+        // first path - convert image to HSI and build H and I histogramm */
+        const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
+
+        // second path - segment histogram and build palette
+        auto const isGray{ 0 == nhighsat };
+        constexpr float epsilon{ 1.0f };
+
+        std::vector<int32_t> ftcSegI;
+        std::vector<int32_t> ftcSegH;
+        std::vector<Hsegment>hSegments;
+        std::vector<Isegment>iSegments;
+
+        if (true == isGray || true == bForceGray)
         {
-            pTmpStorageHdnl = static_cast<ImageStyleTmpStorage* __restrict>(pGlobal->pBufHndl);
-            bMemSizeTest = test_temporary_buffers(pTmpStorageHdnl, requiredMemSize);
+            ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
+            iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
         }
-
-        if (true == bMemSizeTest)
-        {
-            const std::lock_guard<std::mutex> lock(pTmpStorageHdnl->guard_buffer);
-            pTmpStorage = reinterpret_cast<PF_Pixel_HSI_32f* __restrict>(pTmpStorageHdnl->pStorage1);
-
-            auto tmpFloatPtr = tmpFloatData.get();
-            constexpr float mulVal = 255.f;
-            utils_prepare_data(localSrc, tmpFloatPtr, width, height, src_line_pitch, mulVal);
-
-            /* first path - convert image to HSI and build H and I histogramm */
-            const A_long nhighsat = convert2HSI(tmpFloatPtr, pTmpStorage, histH, histI, width, height, qH, qI, sMin);
-
-            /* second path - segment histogram and build palette */
-            auto const isGray{ 0 == nhighsat };
-            constexpr float epsilon{ 1.0f };
-
-            std::vector<int32_t> ftcSegI;
-            std::vector<int32_t> ftcSegH;
-            std::vector<Hsegment>hSegments;
-            std::vector<Isegment>iSegments;
-
-            if (true == isGray || true == bForceGray)
-            {
-                ftcSegI = ftc_utils_segmentation(histI, nBinsI, epsilon, isGray);
-                iSegments = compute_gray_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsI, qI, ftcSegI);
-            }
-            else
-            {
-                ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
-                hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
-            }
-
-            /* create segmented image (lets re-use temporary buffer for assemble image) */
-            float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
-            float* __restrict fG = fR + imgSize;
-            float* __restrict fB = fG + imgSize;
-
-            assemble_segmented_image (iSegments, hSegments, fR, fG, fB, width, height);
-
-            /* store segmented image */
-            store_segmented_image (localSrc, localDst, fR, fG, fB, width, height, src_line_pitch, dst_line_pitch);
-
-        } /* if (true == bMemSizeTest) */
         else
         {
-            errCode = PF_Err_OUT_OF_MEMORY;
+            ftcSegH = ftc_utils_segmentation(histH, nBinsH, epsilon, isGray);
+            hSegments = compute_color_palette(pTmpStorage, tmpFloatPtr, width, height, sMin, nBinsH, nBinsS, nBinsI, qH, qS, qI, ftcSegH, epsilon);
         }
-    }
+
+        // create segmented image (lets re-use temporary buffer for assemble image)
+        float* __restrict fR = reinterpret_cast<float*>(tmpFloatPtr);
+        float* __restrict fG = fR + imgSize;
+        float* __restrict fB = fG + imgSize;
+        assemble_segmented_image (iSegments, hSegments, fR, fG, fB, width, height);
+
+        // store segmented image
+        store_segmented_image (localSrc, localDst, fR, fG, fB, width, height, src_line_pitch, dst_line_pitch);
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+        tmpFloatPtr = nullptr;
+        pTmpStorage = nullptr;
+
+    } // if (true == bMemSizeTest)
     else
-    {
         errCode = PF_Err_OUT_OF_MEMORY;
-    }
 
     return errCode;
 }
