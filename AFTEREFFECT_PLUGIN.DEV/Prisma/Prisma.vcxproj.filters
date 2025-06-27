@@ -72,6 +72,9 @@
     <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\PrismaEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Prisma.cpp">
