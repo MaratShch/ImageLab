@@ -72,11 +72,14 @@ void UnloadMemoryInterfaceProvider(void)
 {
     if (nullptr != hLib)
     {
-        ::FreeLibrary(hLib);
-        hLib = nullptr;
+        if (nullptr != memInterface.MemoryInterfaceClose)
+            memInterface.MemoryInterfaceClose(MemoryInterfaceHndl);
 
         MemoryInterfaceHndl = nullptr;
         memset(&memInterface, 0, sizeof(memInterface));
+
+        ::FreeLibrary(hLib);
+        hLib = nullptr;
     }
     return;
 }
