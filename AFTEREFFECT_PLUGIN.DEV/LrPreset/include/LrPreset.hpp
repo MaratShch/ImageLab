@@ -1,5 +1,5 @@
-#ifndef __IMAGE_LAB_LENS_DISTORTION_FILTER__
-#define __IMAGE_LAB_LENS_DISTORTION_FILTER__
+#ifndef __IMAGE_LAB_LIGHTROOM_PRESETS_FILTER__
+#define __IMAGE_LAB_LIGHTROOM_PRESETS_FILTER__
 
 #include "CommonAdobeAE.hpp"
 
@@ -35,4 +35,4 @@ ProcessImgInAE
 ) noexcept;
 
 
-#endif /* __IMAGE_LAB_LENS_DISTORTION_FILTER__ */
+#endif // __IMAGE_LAB_LIGHTROOM_PRESETS_FILTER__
