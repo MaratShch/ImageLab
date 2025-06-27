@@ -1,6 +1,15 @@
-#pragma once
+#ifndef __IMAGE_LAB_AUTHOMATIC_WB_MEM_INTERFACE__
+#define __IMAGE_LAB_AUTHOMATIC_WB_MEM_INTERFACE__
 
 #include <windows.h>
+#include "AE_Effect.h"
+
+bool LoadMemoryInterfaceProvider (PF_InData* in_data);
+int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
+void FreeMemoryBlock (int32_t id) noexcept;
+int32_t memGetLastError (void) noexcept;
+void UnloadMemoryInterfaceProvider(void);
+
 
 typedef void*  (WINAPI *OpenMemInterface) (void);
 typedef void   (WINAPI *CloseMemInterface)(void* p);
@@ -14,8 +23,6 @@ typedef struct MemoryManagerInterface
 	AllocMemBlock     MemoryInterfaceAllocBlock;
 	FreeMemBlock      MemoryInterfaceReleaseBlock;
 	DWORD             _dbgLastError;
-};
+} MemoryManagerInterface;
 
-bool LoadMemoryInterfaceProvider(int32_t appId, int32_t major, int32_t minor = 0) noexcept;
-int32_t GetMemoryBlock(int32_t size, int32_t align, void** pMem) noexcept;
-void FreeMemoryBlock(int32_t id) noexcept;
+#endif // __IMAGE_LAB_AUTHOMATIC_WB_MEM_INTERFACE__
