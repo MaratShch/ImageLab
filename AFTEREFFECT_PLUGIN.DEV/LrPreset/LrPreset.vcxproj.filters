@@ -21,15 +21,18 @@
     <ClInclude Include="include\LrPreset.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\LrPresetEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\LrPreset.AE.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\LrPreset.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\LrPreset.PR.cpp">
+    <ClCompile Include="src\LrPresetInAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LrPresetInPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
