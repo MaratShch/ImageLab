@@ -211,8 +211,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_VUYA_8u
 	CACHE_ALIGN int32_t histH[hist_size_H];
 	CACHE_ALIGN int32_t histI[hist_size_I];
 
-	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
-	PF_Pixel_HSI_32f*        __restrict pTmpStorage = nullptr;
 	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
@@ -304,8 +302,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_VUYA_32f
 	CACHE_ALIGN int32_t histH[hist_size_H];
 	CACHE_ALIGN int32_t histI[hist_size_I];
 
-	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
-	PF_Pixel_HSI_32f*        __restrict pTmpStorage = nullptr;
 	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(output->data);
@@ -396,8 +392,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_16u
 	CACHE_ALIGN int32_t histH[hist_size_H];
 	CACHE_ALIGN int32_t histI[hist_size_I];
 
-	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
-	PF_Pixel_HSI_32f*        __restrict pTmpStorage = nullptr;
 	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_16u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
@@ -489,8 +483,6 @@ static PF_Err PR_ImageStyle_CartoonEffect_BGRA_32f
 	CACHE_ALIGN int32_t histH[hist_size_H];
 	CACHE_ALIGN int32_t histI[hist_size_I];
 
-	ImageStyleTmpStorage*    __restrict pTmpStorageHdnl = nullptr;
-	PF_Pixel_HSI_32f*        __restrict pTmpStorage = nullptr;
 	const PF_LayerDef*       __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
@@ -652,9 +644,6 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_8u
 	PF_Pixel_ARGB_8u*     __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input->data);
 	PF_Pixel_ARGB_8u*     __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
-	PF_Pixel_HSI_32f*       __restrict pTmpStorage = nullptr;
-
 	PF_Err errCode = PF_Err_NONE;
 
 	const A_long height = output->height;
@@ -747,9 +736,6 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_16u
 	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
 	PF_Pixel_ARGB_16u*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input->data);
 	PF_Pixel_ARGB_16u*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
-
-	ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
-	PF_Pixel_HSI_32f*       __restrict pTmpStorage = nullptr;
 
 	PF_Err errCode = PF_Err_NONE;
 
@@ -845,9 +831,6 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_32f
     const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
     PF_Pixel_ARGB_32f*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input->data);
     PF_Pixel_ARGB_32f*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
-
-    ImageStyleTmpStorage*   __restrict pTmpStorageHdnl = nullptr;
-    PF_Pixel_HSI_32f*       __restrict pTmpStorage = nullptr;
 
     PF_Err errCode = PF_Err_NONE;
 

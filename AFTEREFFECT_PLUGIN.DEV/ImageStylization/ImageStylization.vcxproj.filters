@@ -128,9 +128,6 @@
     <ClCompile Include="src\ImageStyle_Cartoon.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageStyle_BufferManagement.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp">
       <Filter>src</Filter>
     </ClCompile>
