@@ -117,13 +117,31 @@ static PF_Err ProcessImgInAE
 
 	if (PF_WORLD_IS_DEEP(output))
 	{
-		const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
-		      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+        PF_PixelFormat format = PF_PixelFormat_INVALID;
+        AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
+        if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[IMAGE_FLIP_FILTER_INPUT]->u.ld), &format))
+        {
+            if (format == PF_PixelFormat_ARGB128)
+            {
+                const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+                      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-		auto const src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-		auto const dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                auto const src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                auto const dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-		ImageProcess (localSrc, localDst, height, width, src_line_pitch, dst_line_pitch, flip);
+                ImageProcess (localSrc, localDst, height, width, src_line_pitch, dst_line_pitch, flip);
+            }
+            else
+            {
+                const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
+                      PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+                auto const src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                auto const dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+
+                ImageProcess (localSrc, localDst, height, width, src_line_pitch, dst_line_pitch, flip);
+            }
+        }
 	}
 	else
 	{
