@@ -147,6 +147,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ColorSubstitution.hpp" />
+    <ClInclude Include="include\ColorSubstitutionEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorSubstitution.cpp" />
