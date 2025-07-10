@@ -109,6 +109,7 @@ bool ProcessImgInAE_8bits
 
 				if (-1 != memBlockId)
 					::FreeMemoryBlock(memBlockId);
+                memBlockId = -1;
 
 				/* release temporary memory buffers on exit from function */
 				return true; // U and V no longer improving
@@ -242,6 +243,7 @@ bool ProcessImgInAE_16bits
 
 				if (-1 != memBlockId)
 					::FreeMemoryBlock(memBlockId);
+                memBlockId = -1;
 
 				/* release temporary memory buffers on exit from function */
 				return true; // U and V no longer improving
@@ -375,6 +377,7 @@ bool ProcessImgInAE_32bits
 
                 if (-1 != memBlockId)
                     ::FreeMemoryBlock(memBlockId);
+                memBlockId = -1;
 
                 /* release temporary memory buffers on exit from function */
                 return true; // U and V no longer improving
