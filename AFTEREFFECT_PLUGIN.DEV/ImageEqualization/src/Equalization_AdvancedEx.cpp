@@ -8,7 +8,7 @@ CACHE_ALIGN constexpr float cstar_gmax[] = {
 	#include "ImageCoefficients.txt"
 };
 constexpr size_t coeffArraySize = sizeof(cstar_gmax);
-
+//https://github.com/ta850-z/limited_hues_enhancement/blob/main/limited_hues_enhancement.m
  
 inline const void __xyz2rgb (const float& x, const float& y, const float& z, float& r, float& g, float& b) noexcept
 {
