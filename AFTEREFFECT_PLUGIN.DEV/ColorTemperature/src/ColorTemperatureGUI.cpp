@@ -117,7 +117,7 @@ PF_Err DrawEvent
     DRAWBOT_PathRef		path_ref = nullptr;
     DRAWBOT_BrushRef	brush_ref = nullptr;
 
-	PF_Err err = PF_Err_NONE;
+    PF_Err err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     // acquire DrawBot Suites
     auto const drawbotSuite { AEFX_SuiteScoper<DRAWBOT_DrawbotSuite1> (in_data, kDRAWBOT_DrawSuite,     kDRAWBOT_DrawSuite_VersionCurrent,     out_data) };
@@ -129,71 +129,75 @@ PF_Err DrawEvent
     auto const effectCustomUISuiteP{ AEFX_SuiteScoper<PF_EffectCustomUISuite1>(in_data, kPFEffectCustomUISuite, kPFEffectCustomUISuiteVersion1, out_data) };
 
     // Get the drawing reference by passing context to this new api
-    effectCustomUISuiteP->PF_GetDrawingReference (event_extra->contextH, &drawing_ref);
+    const PF_Err ErrDrawRef = effectCustomUISuiteP->PF_GetDrawingReference (event_extra->contextH, &drawing_ref);
 
     // Get the Drawbot supplier from drawing reference; it shouldn't be released like pen or brush (see below)
-    drawbotSuite->GetSupplier (drawing_ref, &supplier_ref);
+    const PF_Err ErrSupplRef = drawbotSuite->GetSupplier (drawing_ref, &supplier_ref);
 
     // Get the Drawbot surface from drawing reference; it shouldn't be released like pen or brush (see below)
-    drawbotSuite->GetSurface(drawing_ref, &surface_ref);
+    const PF_Err ErrSurfRef = drawbotSuite->GetSurface(drawing_ref, &surface_ref);
 
-    DRAWBOT_ColorRGBA drawbot_color{};
+    if (PF_Err_NONE == ErrDrawRef && kSPNoError == ErrSupplRef && kSPNoError == ErrSurfRef)
+    {
+        DRAWBOT_ColorRGBA drawbot_color{};
 
-    // Premiere Pro/Elements does not support a standard parameter type
-    // with custom UI (bug #1235407), so we can't use the color values.
-    // Use an static grey value instead.
-    if (PremierId != in_data->appl_id)
-    {
-        drawbot_color.red   = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.red)   / PF_MAX_CHAN8;
-        drawbot_color.green = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.green) / PF_MAX_CHAN8;
-        drawbot_color.blue  = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.blue)  / PF_MAX_CHAN8;
-    }
-    else
-    {
-        static float gray{ 0.f };
-        drawbot_color.red   = std::fmod(gray, 1);
-        drawbot_color.green = std::fmod(gray, 1);
-        drawbot_color.blue  = std::fmod(gray, 1);
-        gray += 0.01f;
-    }
-    drawbot_color.alpha = 1.0f;
-
-    if (PF_EA_CONTROL == event_extra->effect_win.area)
-    {
-        // Create a new path. It should be matched with release routine.
-        // You can also use C++ style DRAWBOT_PathP that releases automatically at the end of scope.
-        if (kSPNoError == supplierSuite->NewPath(supplier_ref, &path_ref))
+        // Premiere Pro/Elements does not support a standard parameter type
+        // with custom UI (bug #1235407), so we can't use the color values.
+        // Use an static grey value instead.
+        if (PremierId != in_data->appl_id)
         {
-            // Create a new brush taking color as input; it should be matched with release routine.
-            // You can also use C++ style DRAWBOT_BrushP which doesn't require release routine.
-            if (kSPNoError == supplierSuite->NewBrush(supplier_ref, &drawbot_color, &brush_ref))
+            drawbot_color.red = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.red) / PF_MAX_CHAN8;
+            drawbot_color.green = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.green) / PF_MAX_CHAN8;
+            drawbot_color.blue = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.blue) / PF_MAX_CHAN8;
+        }
+        else
+        {
+            static float gray{ 0.f };
+            drawbot_color.red = std::fmod(gray, 1);
+            drawbot_color.green = std::fmod(gray, 1);
+            drawbot_color.blue = std::fmod(gray, 1);
+            gray += 0.01f;
+        }
+        drawbot_color.alpha = 1.0f;
+
+        if (PF_EA_CONTROL == event_extra->effect_win.area)
+        {
+            // Create a new path. It should be matched with release routine.
+            // You can also use C++ style DRAWBOT_PathP that releases automatically at the end of scope.
+            if (kSPNoError == supplierSuite->NewPath(supplier_ref, &path_ref))
             {
-                DRAWBOT_RectF32	rectR{};
-
-                rectR.left   = static_cast<float>(event_extra->effect_win.current_frame.left) + 0.5f;
-                rectR.top    = static_cast<float>(event_extra->effect_win.current_frame.top)  + 0.5f;
-                rectR.width  = static_cast<float>(event_extra->effect_win.current_frame.right  - event_extra->effect_win.current_frame.left);
-                rectR.height = static_cast<float>(event_extra->effect_win.current_frame.bottom - event_extra->effect_win.current_frame.top);
-
-                // Add the rectangle to path
-                if (kSPNoError == pathSuite->AddRect(path_ref, &rectR))
+                // Create a new brush taking color as input; it should be matched with release routine.
+                // You can also use C++ style DRAWBOT_BrushP which doesn't require release routine.
+                if (kSPNoError == supplierSuite->NewBrush(supplier_ref, &drawbot_color, &brush_ref))
                 {
-                    // Fill the path with the brush created
-                    if (kSPNoError == surfaceSuite->FillPath(surface_ref, brush_ref, path_ref, kDRAWBOT_FillType_Default))
+                    DRAWBOT_RectF32	rectR{};
+
+                    rectR.left = static_cast<float>(event_extra->effect_win.current_frame.left) + 0.5f;
+                    rectR.top = static_cast<float>(event_extra->effect_win.current_frame.top) + 0.5f;
+                    rectR.width = static_cast<float>(event_extra->effect_win.current_frame.right - event_extra->effect_win.current_frame.left);
+                    rectR.height = static_cast<float>(event_extra->effect_win.current_frame.bottom - event_extra->effect_win.current_frame.top);
+
+                    // Add the rectangle to path
+                    if (kSPNoError == pathSuite->AddRect(path_ref, &rectR))
                     {
+                        // Fill the path with the brush created
+                        if (kSPNoError == surfaceSuite->FillPath(surface_ref, brush_ref, path_ref, kDRAWBOT_FillType_Default))
+                        {
 
-                        // event successfully processed and released
-                        event_extra->evt_out_flags = PF_EO_HANDLED_EVENT;
+                            // event successfully processed and released
+                            event_extra->evt_out_flags = PF_EO_HANDLED_EVENT;
 
-                    } // if (kSPNoError == surfaceSuite->FillPath(surface_ref, brush_ref, path_ref, kDRAWBOT_FillType_Default))
+                            err = PF_Err_NONE;
+                        } // if (kSPNoError == surfaceSuite->FillPath(surface_ref, brush_ref, path_ref, kDRAWBOT_FillType_Default))
 
-                } // if (kSPNoError == pathSuite->AddRect(path_ref, &rectR))
+                    } // if (kSPNoError == pathSuite->AddRect(path_ref, &rectR))
 
-            } // if (kSPNoError == supplierSuite->NewBrush(supplier_ref, &drawbot_color, &brush_ref))
+                } // if (kSPNoError == supplierSuite->NewBrush(supplier_ref, &drawbot_color, &brush_ref))
 
-        } // if (kSPNoError == supplierSuite->NewPath(supplier_ref, &path_ref))
+            } // if (kSPNoError == supplierSuite->NewPath(supplier_ref, &path_ref))
 
-    } // if (PF_EA_CONTROL == event_extra->effect_win.area)
+        } // if (PF_EA_CONTROL == event_extra->effect_win.area)
+    } // if (PF_Err_NONE == ErrDrawRef && kSPNoError == ErrSupplRef && kSPNoError == ErrSurfRef)
 
 	return err;
 }
