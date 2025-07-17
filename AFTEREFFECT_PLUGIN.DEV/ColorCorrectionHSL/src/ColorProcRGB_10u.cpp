@@ -17,9 +17,9 @@ PF_Err prProcessImage_RGB_444_10u_HSL
 	const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
 	PF_Pixel_RGB_10u*       __restrict localDst = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
 	constexpr float reciproc1023 = 1.0f / 1023.f;
 	constexpr float reciproc360 = 1.0f / 360.f;
@@ -29,15 +29,15 @@ PF_Err prProcessImage_RGB_444_10u_HSL
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_RGB_10u const& srcPixel = localSrc[line_idx + i];
-			float const& R = static_cast<float const>(srcPixel.R) * reciproc1023;
-			float const& G = static_cast<float const>(srcPixel.G) * reciproc1023;
-			float const& B = static_cast<float const>(srcPixel.B) * reciproc1023;
+			float const R = static_cast<float const>(srcPixel.R) * reciproc1023;
+			float const G = static_cast<float const>(srcPixel.G) * reciproc1023;
+			float const B = static_cast<float const>(srcPixel.B) * reciproc1023;
 
 			/* start convert RGB to HSL color space */
 			float hue, saturation, luminance;
@@ -50,9 +50,9 @@ PF_Err prProcessImage_RGB_444_10u_HSL
 			saturation += add_sat;
 			luminance += add_lum;
 
-			auto const& newHue = CLAMP_H(hue) * reciproc360;
-			auto const& newSat = CLAMP_LS(saturation) * 0.01f;
-			auto const& newLum = CLAMP_LS(luminance)  * 0.01f;
+			auto const newHue = CLAMP_H(hue) * reciproc360;
+			auto const newSat = CLAMP_LS(saturation) * 0.01f;
+			auto const newLum = CLAMP_LS(luminance)  * 0.01f;
 
 			/* back convert to sRGB space */
 			hsl2sRgb(newHue, newSat, newLum, newR, newG, newB);
@@ -87,9 +87,9 @@ PF_Err prProcessImage_RGB_444_10u_HSV
 	const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
 	PF_Pixel_RGB_10u*       __restrict localDst = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
 	constexpr float reciproc1023 = 1.0f / 1023.0f;
 
@@ -98,22 +98,22 @@ PF_Err prProcessImage_RGB_444_10u_HSV
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_RGB_10u const& srcPixel = localSrc[line_idx + i];
-			float const& R = static_cast<float const>(srcPixel.R) * reciproc1023;
-			float const& G = static_cast<float const>(srcPixel.G) * reciproc1023;
-			float const& B = static_cast<float const>(srcPixel.B) * reciproc1023;
+			float const R = static_cast<float const>(srcPixel.R) * reciproc1023;
+			float const G = static_cast<float const>(srcPixel.G) * reciproc1023;
+			float const B = static_cast<float const>(srcPixel.B) * reciproc1023;
 
 			sRgb2hsv(R, G, B, hue, saturation, value);
 
 			/* correct HSV */
-			auto newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat * 0.01f, 0.0f, 1.0f);
-			auto const& newVal = CLAMP_VALUE(value + add_val * 0.01f, 0.0f, 1.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
+			auto const newSat = CLAMP_VALUE(saturation + add_sat * 0.01f, 0.0f, 1.0f);
+			auto const newVal = CLAMP_VALUE(value + add_val * 0.01f, 0.0f, 1.0f);
 
 			/* back convert to RGB */
 			hsv2sRgb(newHue, newSat, newVal, fR, fG, fB);
@@ -148,9 +148,9 @@ PF_Err prProcessImage_RGB_444_10u_HSI
 	const PF_Pixel_RGB_10u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
 	PF_Pixel_RGB_10u*        __restrict localDst = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
 	constexpr float reciproc1024 = 1.0f / 1024.0f;
 	constexpr float reciproc100 = 1.0f / 100.0f;
@@ -160,15 +160,15 @@ PF_Err prProcessImage_RGB_444_10u_HSI
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_RGB_10u const& srcPixel = localSrc[line_idx + i];
-			float const& R = static_cast<float const>(srcPixel.R) * reciproc1024;
-			float const& G = static_cast<float const>(srcPixel.G) * reciproc1024;
-			float const& B = static_cast<float const>(srcPixel.B) * reciproc1024;
+			float const R = static_cast<float const>(srcPixel.R) * reciproc1024;
+			float const G = static_cast<float const>(srcPixel.G) * reciproc1024;
+			float const B = static_cast<float const>(srcPixel.B) * reciproc1024;
 
 			float hue, saturation, intencity;
 
@@ -176,9 +176,9 @@ PF_Err prProcessImage_RGB_444_10u_HSI
 			sRgb2hsi(R, G, B, hue, saturation, intencity);
 
 			/* add values to HSL */
-			auto const& newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat * reciproc100, 0.f, 1.0f);
-			auto const& newInt = CLAMP_VALUE(intencity + add_int * reciproc100, 0.f, 1.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
+			auto const newSat = CLAMP_VALUE(saturation + add_sat * reciproc100, 0.f, 1.0f);
+			auto const newInt = CLAMP_VALUE(intencity + add_int * reciproc100, 0.f, 1.0f);
 
 			/* back convert to sRGB space */
 			hsi2sRgb(newHue, newSat, newInt, newR, newG, newB);
@@ -213,9 +213,9 @@ PF_Err prProcessImage_RGB_444_10u_HSP
 	const PF_Pixel_RGB_10u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
 	PF_Pixel_RGB_10u*        __restrict localDst = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
 	constexpr float reciproc1024 = 1.0f / 1024.0f;
 	constexpr float reciproc360 = 1.0f / 360.0f;
@@ -226,15 +226,15 @@ PF_Err prProcessImage_RGB_444_10u_HSP
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 			for (auto i = 0; i < width; i++)
 			{
 				PF_Pixel_RGB_10u const& srcPixel = localSrc[line_idx + i];
-				float const& R = static_cast<float const>(srcPixel.R) * reciproc1024;
-				float const& G = static_cast<float const>(srcPixel.G) * reciproc1024;
-				float const& B = static_cast<float const>(srcPixel.B) * reciproc1024;
+				float const R = static_cast<float const>(srcPixel.R) * reciproc1024;
+				float const G = static_cast<float const>(srcPixel.G) * reciproc1024;
+				float const B = static_cast<float const>(srcPixel.B) * reciproc1024;
 
 				float hue, saturation, percistant_brignthness;
 
@@ -242,9 +242,9 @@ PF_Err prProcessImage_RGB_444_10u_HSP
 				sRgb2hsp(R, G, B, hue, saturation, percistant_brignthness);
 
 				/* add values to HSL */
-				auto const& newHue = CLAMP_VALUE(hue + add_hue * reciproc360, 0.f, 1.0f);
-				auto const& newSat = CLAMP_VALUE(saturation + add_sat * reciproc100, 0.f, 1.0f);
-				auto const& newPer = CLAMP_VALUE(percistant_brignthness + add_per * reciproc100, 0.f, 1.0f);
+				auto const newHue = CLAMP_VALUE(hue + add_hue * reciproc360, 0.f, 1.0f);
+				auto const newSat = CLAMP_VALUE(saturation + add_sat * reciproc100, 0.f, 1.0f);
+				auto const newPer = CLAMP_VALUE(percistant_brignthness + add_per * reciproc100, 0.f, 1.0f);
 
 				/* back convert to sRGB space */
 				hsp2sRgb(newHue, newSat, newPer, newR, newG, newB);
@@ -279,9 +279,9 @@ PF_Err prProcessImage_RGB_444_10u_HSLuv
 	const PF_Pixel_RGB_10u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
 	PF_Pixel_RGB_10u*        __restrict localDst = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
 	constexpr float reciproc1024 = 1.0f / 1024.0f;
 
@@ -290,15 +290,15 @@ PF_Err prProcessImage_RGB_444_10u_HSLuv
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_RGB_10u const& srcPixel = localSrc[line_idx + i];
-			float const& R = static_cast<float const>(srcPixel.R) * reciproc1024;
-			float const& G = static_cast<float const>(srcPixel.G) * reciproc1024;
-			float const& B = static_cast<float const>(srcPixel.B) * reciproc1024;
+			float const R = static_cast<float const>(srcPixel.R) * reciproc1024;
+			float const G = static_cast<float const>(srcPixel.G) * reciproc1024;
+			float const B = static_cast<float const>(srcPixel.B) * reciproc1024;
 
 			float hue, saturation, luv;
 
@@ -306,9 +306,9 @@ PF_Err prProcessImage_RGB_444_10u_HSLuv
 			sRgb2hsLuv(R, G, B, hue, saturation, luv);
 
 			/* add values to HSLuv */
-			auto const& newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat, 0.f, 100.0f);
-			auto const& newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
+			auto const newSat = CLAMP_VALUE(saturation + add_sat, 0.f, 100.0f);
+			auto const newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
 
 			/* back convert to sRGB space */
 			hsLuv2sRgb(newHue, newSat, newLuv, newR, newG, newB);
@@ -343,9 +343,9 @@ PF_Err prProcessImage_RGB_444_10u_HPLuv
 	const PF_Pixel_RGB_10u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
 	PF_Pixel_RGB_10u*        __restrict localDst = reinterpret_cast<PF_Pixel_RGB_10u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
 	constexpr float reciproc1024 = 1.0f / 1024.0f;
 
@@ -354,15 +354,15 @@ PF_Err prProcessImage_RGB_444_10u_HPLuv
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_RGB_10u const& srcPixel = localSrc[line_idx + i];
-			float const& R = static_cast<float const>(srcPixel.R) * reciproc1024;
-			float const& G = static_cast<float const>(srcPixel.G) * reciproc1024;
-			float const& B = static_cast<float const>(srcPixel.B) * reciproc1024;
+			float const R = static_cast<float const>(srcPixel.R) * reciproc1024;
+			float const G = static_cast<float const>(srcPixel.G) * reciproc1024;
+			float const B = static_cast<float const>(srcPixel.B) * reciproc1024;
 
 			float hue, per, luv;
 
@@ -370,9 +370,9 @@ PF_Err prProcessImage_RGB_444_10u_HPLuv
 			sRgb2hsLuv(R, G, B, hue, per, luv);
 
 			/* add values to HSLuv */
-			auto const& newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
-			auto const& newPer = CLAMP_VALUE(per + add_p, 0.f, 100.0f);
-			auto const& newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
+			auto const newPer = CLAMP_VALUE(per + add_p, 0.f, 100.0f);
+			auto const newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
 
 			/* back convert to sRGB space */
 			hsLuv2sRgb(newHue, newPer, newLuv, newR, newG, newB);

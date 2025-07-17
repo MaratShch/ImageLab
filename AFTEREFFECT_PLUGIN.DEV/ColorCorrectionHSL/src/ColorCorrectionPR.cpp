@@ -15,17 +15,17 @@ ProcessImgInPR
 	PF_Err errFormat = PF_Err_INVALID_INDEX;
 
 	/* scan control setting */
-	auto const& lwbType   = params[COLOR_CORRECT_SPACE_POPUP]->u.pd.value;
-	auto const& hueCoarse = params[COLOR_CORRECT_HUE_COARSE_LEVEL]->u.ad.value;
-	auto const& hueFine   = params[COLOR_HUE_FINE_LEVEL_SLIDER]->u.fs_d.value;
-	auto const& satCoarse = params[COLOR_SATURATION_COARSE_LEVEL_SLIDER]->u.sd.value;
-	auto const& satFine   = params[COLOR_SATURATION_FINE_LEVEL_SLIDER]->u.fs_d.value;
-	auto const& lwbCoarse = params[COLOR_LWIP_COARSE_LEVEL_SLIDER]->u.sd.value;
-	auto const& lwbFine   = params[COLOR_LWIP_FINE_LEVEL_SLIDER]->u.fs_d.value;
+	auto const lwbType   = params[COLOR_CORRECT_SPACE_POPUP]->u.pd.value;
+	auto const hueCoarse = params[COLOR_CORRECT_HUE_COARSE_LEVEL]->u.ad.value;
+	auto const hueFine   = params[COLOR_HUE_FINE_LEVEL_SLIDER]->u.fs_d.value;
+	auto const satCoarse = params[COLOR_SATURATION_COARSE_LEVEL_SLIDER]->u.sd.value;
+	auto const satFine   = params[COLOR_SATURATION_FINE_LEVEL_SLIDER]->u.fs_d.value;
+	auto const lwbCoarse = params[COLOR_LWIP_COARSE_LEVEL_SLIDER]->u.sd.value;
+	auto const lwbFine   = params[COLOR_LWIP_FINE_LEVEL_SLIDER]->u.fs_d.value;
 
-	float const& totalHue = normalize_hue_wheel(static_cast<float>(hueCoarse) / 65536.f + static_cast<float>(hueFine));
-	float const& totalSat = static_cast<float>(satCoarse) + static_cast<float>(satFine);
-	float const& totalLwb = static_cast<float>(lwbCoarse) + static_cast<float>(lwbFine);
+	float const totalHue = normalize_hue_wheel(static_cast<float>(hueCoarse) / 65536.f + static_cast<float>(hueFine));
+	float const totalSat = static_cast<float>(satCoarse) + static_cast<float>(satFine);
+	float const totalLwb = static_cast<float>(lwbCoarse) + static_cast<float>(lwbFine);
 
 	eCOLOR_SPACE_TYPE const& colorSpaceType = static_cast<eCOLOR_SPACE_TYPE const>(lwbType - 1);
 

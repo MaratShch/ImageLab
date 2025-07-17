@@ -22,9 +22,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSL
 	const float* __restrict yuv2rgb = YUV2RGB[isBT709];
 	const float* __restrict rgb2yuv = RGB2YUV[isBT709];
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
 	PF_Pixel_VUYA_32f finalPixel{};
 	float newR, newG, newB;
@@ -32,7 +32,7 @@ PF_Err prProcessImage_VUYA_4444_32f_HSL
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
@@ -44,9 +44,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSL
 			float const& V = srcPixel.V;
 			auto  const& A = srcPixel.A;
 
-			auto const& R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
-			auto const& G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
-			auto const& B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
+			auto const R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
+			auto const G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
+			auto const B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
 
 			/* start convert RGB to HSL color space */
 			float hue, saturation, luminance;
@@ -59,9 +59,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSL
 			saturation += add_sat;
 			luminance += add_lum;
 
-			auto const& newHue = CLAMP_H(hue) * reciproc360;
-			auto const& newSat = CLAMP_LS(saturation) * 0.01f;
-			auto const& newLum = CLAMP_LS(luminance)  * 0.01f;
+			auto const newHue = CLAMP_H(hue) * reciproc360;
+			auto const newSat = CLAMP_LS(saturation) * 0.01f;
+			auto const newLum = CLAMP_LS(luminance)  * 0.01f;
 
 			/* back convert to sRGB space */
 			hsl2sRgb(newHue, newSat, newLum, newR, newG, newB);
@@ -105,30 +105,30 @@ PF_Err prProcessImage_VUYA_4444_32f_HSV
 	const float* __restrict yuv2rgb = YUV2RGB[isBT709];
 	const float* __restrict rgb2yuv = RGB2YUV[isBT709];
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
 	PF_Pixel_VUYA_32f finalPixel{};
 	float newR, newG, newB;
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_VUYA_32f const& srcPixel = localSrc[line_idx + i];
 
-			float const& Y = srcPixel.Y;
-			float const& U = srcPixel.U;
-			float const& V = srcPixel.V;
-			auto  const& A = srcPixel.A;
+			float const Y = srcPixel.Y;
+			float const U = srcPixel.U;
+			float const V = srcPixel.V;
+			auto  const A = srcPixel.A;
 
-			auto const& R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
-			auto const& G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
-			auto const& B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
+			auto const R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
+			auto const G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
+			auto const B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
 
 			/* start convert RGB to HSL color space */
 			float hue, saturation, value;
@@ -137,9 +137,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSV
 			sRgb2hsv(R, G, B, hue, saturation, value);
 
 			/* add values to HSV */
-			auto newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat * 0.01f, 0.0f, 1.0f);
-			auto const& newVal = CLAMP_VALUE(value + add_val * 0.01f, 0.0f, 1.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
+			auto const newSat = CLAMP_VALUE(saturation + add_sat * 0.01f, 0.0f, 1.0f);
+			auto const newVal = CLAMP_VALUE(value + add_val * 0.01f, 0.0f, 1.0f);
 
 			/* back convert to sRGB space */
 			hsv2sRgb(newHue, newSat, newVal, newR, newG, newB);
@@ -183,30 +183,30 @@ PF_Err prProcessImage_VUYA_4444_32f_HSI
 	const float* __restrict yuv2rgb = YUV2RGB[isBT709];
 	const float* __restrict rgb2yuv = RGB2YUV[isBT709];
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
 	PF_Pixel_VUYA_32f finalPixel{};
 	float newR, newG, newB;
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_VUYA_32f const& srcPixel = localSrc[line_idx + i];
 
-			float const& Y = srcPixel.Y;
-			float const& U = srcPixel.U;
-			float const& V = srcPixel.V;
-			auto  const& A = srcPixel.A;
+			float const Y = srcPixel.Y;
+			float const U = srcPixel.U;
+			float const V = srcPixel.V;
+			auto  const A = srcPixel.A;
 
-			auto const& R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
-			auto const& G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
-			auto const& B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
+			auto const R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
+			auto const G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
+			auto const B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
 
 			/* start convert RGB to HSL color space */
 			float hue, saturation, value;
@@ -215,9 +215,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSI
 			sRgb2hsi(R, G, B, hue, saturation, value);
 
 			/* add values to HSV */
-			auto newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat * 0.01f, 0.0f, 1.0f);
-			auto const& newVal = CLAMP_VALUE(value + add_val * 0.01f, 0.0f, 1.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.f);
+			auto const newSat = CLAMP_VALUE(saturation + add_sat * 0.01f, 0.0f, 1.0f);
+			auto const newVal = CLAMP_VALUE(value + add_val * 0.01f, 0.0f, 1.0f);
 
 			/* back convert to sRGB space */
 			hsi2sRgb(newHue, newSat, newVal, newR, newG, newB);
@@ -261,9 +261,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSP
 	const float* __restrict yuv2rgb = YUV2RGB[isBT709];
 	const float* __restrict rgb2yuv = RGB2YUV[isBT709];
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
 	constexpr float reciproc360 = 1.0f / 360.0f;
 	constexpr float reciproc100 = 1.0f / 100.0f;
@@ -273,21 +273,21 @@ PF_Err prProcessImage_VUYA_4444_32f_HSP
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_VUYA_32f const& srcPixel = localSrc[line_idx + i];
 
-			float const& Y = srcPixel.Y;
-			float const& U = srcPixel.U;
-			float const& V = srcPixel.V;
-			auto  const& A = srcPixel.A;
+			float const Y = srcPixel.Y;
+			float const U = srcPixel.U;
+			float const V = srcPixel.V;
+			auto  const A = srcPixel.A;
 
-			auto const& R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
-			auto const& G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
-			auto const& B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
+			auto const R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
+			auto const G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
+			auto const B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
 
 			float hue, saturation, percistant_brignthness;
 
@@ -295,9 +295,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSP
 			sRgb2hsp(R, G, B, hue, saturation, percistant_brignthness);
 
 			/* add values to HSL */
-			auto const& newHue = CLAMP_VALUE(hue + add_hue * reciproc360, 0.f, 1.0f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat * reciproc100, 0.f, 1.0f);
-			auto const& newPer = CLAMP_VALUE(percistant_brignthness + add_per * reciproc100, 0.f, 1.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue * reciproc360, 0.f, 1.0f);
+			auto const newSat = CLAMP_VALUE(saturation + add_sat * reciproc100, 0.f, 1.0f);
+			auto const newPer = CLAMP_VALUE(percistant_brignthness + add_per * reciproc100, 0.f, 1.0f);
 
 			/* back convert to sRGB space */
 			hsp2sRgb(newHue, newSat, newPer, newR, newG, newB);
@@ -341,9 +341,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSLuv
 	const float* __restrict yuv2rgb = YUV2RGB[isBT709];
 	const float* __restrict rgb2yuv = RGB2YUV[isBT709];
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
 	PF_Pixel_VUYA_32f finalPixel{};
 	float newR = 0.f, newG = 0.f, newB = 0.f;
@@ -357,14 +357,14 @@ PF_Err prProcessImage_VUYA_4444_32f_HSLuv
 		{
 			PF_Pixel_VUYA_32f const& srcPixel = localSrc[line_idx + i];
 
-			float const& Y = srcPixel.Y;
-			float const& U = srcPixel.U;
-			float const& V = srcPixel.V;
-			auto  const& A = srcPixel.A;
+			float const Y = srcPixel.Y;
+			float const U = srcPixel.U;
+			float const V = srcPixel.V;
+			auto  const A = srcPixel.A;
 
-			auto const& R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
-			auto const& G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
-			auto const& B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
+			auto const R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
+			auto const G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
+			auto const B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
 
 			float hue, saturation, luv;
 
@@ -372,9 +372,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HSLuv
 			sRgb2hsLuv(R, G, B, hue, saturation, luv);
 
 			/* add values to HSLuv */
-			auto const& newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
-			auto const& newSat = CLAMP_VALUE(saturation + add_sat, 0.f, 100.0f);
-			auto const& newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
+			auto const newSat = CLAMP_VALUE(saturation + add_sat, 0.f, 100.0f);
+			auto const newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
 
 			/* back convert to sRGB space */
 			hsLuv2sRgb(newHue, newSat, newLuv, newR, newG, newB);
@@ -418,30 +418,30 @@ PF_Err prProcessImage_VUYA_4444_32f_HPLuv
 	const float* __restrict yuv2rgb = YUV2RGB[isBT709];
 	const float* __restrict rgb2yuv = RGB2YUV[isBT709];
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
 	PF_Pixel_VUYA_32f finalPixel{};
 	float newR = 0.f, newG = 0.f, newB = 0.f;
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_VUYA_32f const& srcPixel = localSrc[line_idx + i];
 
-			float const& Y = srcPixel.Y;
-			float const& U = srcPixel.U;
-			float const& V = srcPixel.V;
-			auto  const& A = srcPixel.A;
+			float const Y = srcPixel.Y;
+			float const U = srcPixel.U;
+			float const V = srcPixel.V;
+			auto  const A = srcPixel.A;
 
-			auto const& R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
-			auto const& G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
-			auto const& B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
+			auto const R = (Y * yuv2rgb[0] + U * yuv2rgb[1] + V * yuv2rgb[2]);
+			auto const G = (Y * yuv2rgb[3] + U * yuv2rgb[4] + V * yuv2rgb[5]);
+			auto const B = (Y * yuv2rgb[6] + U * yuv2rgb[7] + V * yuv2rgb[8]);
 
 			float hue, per, luv;
 
@@ -449,9 +449,9 @@ PF_Err prProcessImage_VUYA_4444_32f_HPLuv
 			sRgb2hsLuv(R, G, B, hue, per, luv);
 
 			/* add values to HSLuv */
-			auto const& newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
-			auto const& newPer = CLAMP_VALUE(per + add_p, 0.f, 100.0f);
-			auto const& newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
+			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);
+			auto const newPer = CLAMP_VALUE(per + add_p, 0.f, 100.0f);
+			auto const newLuv = CLAMP_VALUE(luv + add_luv, 0.f, 100.0f);
 
 			/* back convert to sRGB space */
 			hsLuv2sRgb(newHue, newPer, newLuv, newR, newG, newB);
