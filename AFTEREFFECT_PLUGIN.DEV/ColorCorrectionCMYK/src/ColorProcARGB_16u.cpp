@@ -18,11 +18,11 @@ PF_Err aeProcessImage_ARGB_4444_16u_CMYK
 	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
 	PF_Pixel_ARGB_16u*        __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-	auto const& src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-	auto const& dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-	auto const& height = output->height;
-	auto const& width = output->width;
+	auto const height = output->height;
+	auto const width = output->width;
 
 	float C, M, Y, K;
 	float newC, newM, newY, newK;
@@ -39,18 +39,18 @@ PF_Err aeProcessImage_ARGB_4444_16u_CMYK
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& src_line_idx = j * src_pitch;
-		auto const& dst_line_idx = j * dst_pitch;
+		auto const src_line_idx = j * src_pitch;
+		auto const dst_line_idx = j * dst_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_ARGB_16u const& srcPixel = localSrc[src_line_idx + i];
 
-			float const& B = static_cast<float>(srcPixel.B) * reciproc32768;
-			float const& G = static_cast<float>(srcPixel.G) * reciproc32768;
-			float const& R = static_cast<float>(srcPixel.R) * reciproc32768;
-			auto const& A = srcPixel.A;
+			float const B = static_cast<float>(srcPixel.B) * reciproc32768;
+			float const G = static_cast<float>(srcPixel.G) * reciproc32768;
+			float const R = static_cast<float>(srcPixel.R) * reciproc32768;
+			auto const  A = srcPixel.A;
 
 			rgb_to_cmyk(R, G, B, C, M, Y, K);
 
@@ -90,11 +90,11 @@ PF_Err aeProcessImage_ARGB_4444_16u_RGB
 	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
 	PF_Pixel_ARGB_16u*       __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-	auto const& src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-	auto const& dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-	auto const& height = output->height;
-	auto const& width = output->width;
+	auto const height = output->height;
+	auto const width = output->width;
 
 	int newR, newG, newB;
 
@@ -104,8 +104,8 @@ PF_Err aeProcessImage_ARGB_4444_16u_RGB
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& src_line_idx = j * src_pitch;
-		auto const& dst_line_idx = j * dst_pitch;
+		auto const src_line_idx = j * src_pitch;
+		auto const dst_line_idx = j * dst_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)

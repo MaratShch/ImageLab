@@ -16,21 +16,21 @@ ProcessImgInPR
 	PF_Err errFormat = PF_Err_INVALID_INDEX;
 
 	/* scan control setting */
-	auto const& cType   = params[COLOR_CORRECT_SPACE_POPUP]->u.pd.value;
-	auto const& Coarse1 = params[COLOR_CORRECT_SLIDER1]->u.sd.value;
-	auto const& Fine1   = params[COLOR_CORRECT_SLIDER2]->u.fs_d.value;
-	auto const& Coarse2 = params[COLOR_CORRECT_SLIDER3]->u.sd.value;
-	auto const& Fine2   = params[COLOR_CORRECT_SLIDER4]->u.fs_d.value;
-	auto const& Coarse3 = params[COLOR_CORRECT_SLIDER5]->u.sd.value;
-	auto const& Fine3   = params[COLOR_CORRECT_SLIDER6]->u.fs_d.value;
-	auto const& Coarse4 = params[COLOR_CORRECT_SLIDER7]->u.sd.value;
-	auto const& Fine4   = params[COLOR_CORRECT_SLIDER8]->u.fs_d.value;
+	auto const cType   = params[COLOR_CORRECT_SPACE_POPUP]->u.pd.value;
+	auto const Coarse1 = params[COLOR_CORRECT_SLIDER1]->u.sd.value;
+	auto const Fine1   = params[COLOR_CORRECT_SLIDER2]->u.fs_d.value;
+	auto const Coarse2 = params[COLOR_CORRECT_SLIDER3]->u.sd.value;
+	auto const Fine2   = params[COLOR_CORRECT_SLIDER4]->u.fs_d.value;
+	auto const Coarse3 = params[COLOR_CORRECT_SLIDER5]->u.sd.value;
+	auto const Fine3   = params[COLOR_CORRECT_SLIDER6]->u.fs_d.value;
+	auto const Coarse4 = params[COLOR_CORRECT_SLIDER7]->u.sd.value;
+	auto const Fine4   = params[COLOR_CORRECT_SLIDER8]->u.fs_d.value;
 
 	eCOLOR_SPACE_TYPE const& colorSpaceType = static_cast<eCOLOR_SPACE_TYPE const>(cType - 1);
-	float const& cVal = static_cast<float>(static_cast<double>(Coarse1) + Fine1);
-	float const& mVal = static_cast<float>(static_cast<double>(Coarse2) + Fine2);
-	float const& yVal = static_cast<float>(static_cast<double>(Coarse3) + Fine3);
-	float const& kVal = static_cast<float>(static_cast<double>(Coarse4) + Fine4);
+	float const cVal = static_cast<float>(static_cast<double>(Coarse1) + Fine1);
+	float const mVal = static_cast<float>(static_cast<double>(Coarse2) + Fine2);
+	float const yVal = static_cast<float>(static_cast<double>(Coarse3) + Fine3);
+	float const kVal = static_cast<float>(static_cast<double>(Coarse4) + Fine4);
 
 	/* This plugin called frop PR - check video fomat */
 	AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
@@ -99,7 +99,7 @@ ProcessImgInPR
 			case PrPixelFormat_VUYA_4444_8u_709:
 			case PrPixelFormat_VUYA_4444_8u:
 			{
-				auto const& isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+				auto const isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_CMYK:
@@ -118,7 +118,7 @@ ProcessImgInPR
 			case PrPixelFormat_VUYA_4444_32f_709:
 			case PrPixelFormat_VUYA_4444_32f:
 			{
-				auto const& isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
+				auto const isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_CMYK:

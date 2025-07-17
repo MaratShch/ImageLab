@@ -51,6 +51,9 @@
     <ClCompile Include="src\ColorCorrectionGPU.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ColorProcARGB_32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ColorCorrectionCMYK.hpp">

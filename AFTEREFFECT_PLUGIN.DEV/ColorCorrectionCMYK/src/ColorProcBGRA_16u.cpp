@@ -18,9 +18,9 @@ PF_Err prProcessImage_BGRA_4444_16u_CMYK
 	const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_16u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
 	float C, M, Y, K;
 	float newC, newM, newY, newK;
@@ -44,10 +44,10 @@ PF_Err prProcessImage_BGRA_4444_16u_CMYK
 		{
 			PF_Pixel_BGRA_16u const& srcPixel = localSrc[line_idx + i];
 
-			float const& B = static_cast<float>(srcPixel.B) * reciproc32768;
-			float const& G = static_cast<float>(srcPixel.G) * reciproc32768;
-			float const& R = static_cast<float>(srcPixel.R) * reciproc32768;
-			auto const& A = srcPixel.A;
+			float const B = static_cast<float>(srcPixel.B) * reciproc32768;
+			float const G = static_cast<float>(srcPixel.G) * reciproc32768;
+			float const R = static_cast<float>(srcPixel.R) * reciproc32768;
+			auto const  A = srcPixel.A;
 
 			rgb_to_cmyk(R, G, B, C, M, Y, K);
 
@@ -87,9 +87,9 @@ PF_Err prProcessImage_BGRA_4444_16u_RGB
 	const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_16u*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
 	int newR, newG, newB;
 

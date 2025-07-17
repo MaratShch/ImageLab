@@ -272,3 +272,26 @@ PF_Err aeProcessImage_ARGB_4444_16u_RGB
 	float           add_g,
 	float           add_b
 ) noexcept;
+
+PF_Err aeProcessImage_ARGB_4444_32f_CMYK
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_c,
+    float           add_m,
+    float           add_y,
+    float           add_k
+) noexcept;
+
+PF_Err aeProcessImage_ARGB_4444_32f_RGB
+(
+    PF_InData*		in_data,
+    PF_OutData*		out_data,
+    PF_ParamDef*	params[],
+    PF_LayerDef*	output,
+    float           add_r,
+    float           add_g,
+    float           add_b
+) noexcept;

@@ -21,9 +21,9 @@ PF_Err prProcessImage_VUYA_4444_8u_CMYK
 	const PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
 	const float* __restrict yuv2rgb = (true == isBT709 ? YUV2RGB[BT709] : YUV2RGB[BT601]);
 	const float* __restrict rgb2yuv = (true == isBT709 ? RGB2YUV[BT709] : RGB2YUV[BT601]);
@@ -45,21 +45,21 @@ PF_Err prProcessImage_VUYA_4444_8u_CMYK
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_VUYA_8u const& srcPixel = localSrc[line_idx + i];
 
-			float const& y = static_cast<float>(srcPixel.Y);
-			float const& u = static_cast<float>(srcPixel.U) - 128.f;
-			float const& v = static_cast<float>(srcPixel.V) - 128.f;
-			int const& A = srcPixel.A;
+			float const y = static_cast<float>(srcPixel.Y);
+			float const u = static_cast<float>(srcPixel.U) - 128.f;
+			float const v = static_cast<float>(srcPixel.V) - 128.f;
+			int const   A = srcPixel.A;
 
-			float const& R = (y * yuv2rgb[0] + u * yuv2rgb[1] + v * yuv2rgb[2]) * reciproc255;
-			float const& G = (y * yuv2rgb[3] + u * yuv2rgb[4] + v * yuv2rgb[5]) * reciproc255;
-			float const& B = (y * yuv2rgb[6] + u * yuv2rgb[7] + v * yuv2rgb[8]) * reciproc255;
+			float const R = (y * yuv2rgb[0] + u * yuv2rgb[1] + v * yuv2rgb[2]) * reciproc255;
+			float const G = (y * yuv2rgb[3] + u * yuv2rgb[4] + v * yuv2rgb[5]) * reciproc255;
+			float const B = (y * yuv2rgb[6] + u * yuv2rgb[7] + v * yuv2rgb[8]) * reciproc255;
 
 			rgb_to_cmyk(R, G, B, C, M, Y, K);
 
@@ -100,9 +100,9 @@ PF_Err prProcessImage_VUYA_4444_8u_RGB
 	const PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
 	const float* __restrict yuv2rgb = (true == isBT709 ? YUV2RGB[BT709] : YUV2RGB[BT601]);
 	const float* __restrict rgb2yuv = (true == isBT709 ? RGB2YUV[BT709] : RGB2YUV[BT601]);
@@ -117,21 +117,21 @@ PF_Err prProcessImage_VUYA_4444_8u_RGB
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_VUYA_8u const& srcPixel = localSrc[line_idx + i];
 
-			float const& y = static_cast<float>(srcPixel.Y);
-			float const& u = static_cast<float>(srcPixel.U) - 128.f;
-			float const& v = static_cast<float>(srcPixel.V) - 128.f;
-			int const& A = srcPixel.A;
+			float const y = static_cast<float>(srcPixel.Y);
+			float const u = static_cast<float>(srcPixel.U) - 128.f;
+			float const v = static_cast<float>(srcPixel.V) - 128.f;
+			int const  A = srcPixel.A;
 
-			float const& R = y * yuv2rgb[0] + u * yuv2rgb[1] + v * yuv2rgb[2];
-			float const& G = y * yuv2rgb[3] + u * yuv2rgb[4] + v * yuv2rgb[5];
-			float const& B = y * yuv2rgb[6] + u * yuv2rgb[7] + v * yuv2rgb[8];
+			float const R = y * yuv2rgb[0] + u * yuv2rgb[1] + v * yuv2rgb[2];
+			float const G = y * yuv2rgb[3] + u * yuv2rgb[4] + v * yuv2rgb[5];
+			float const B = y * yuv2rgb[6] + u * yuv2rgb[7] + v * yuv2rgb[8];
 
 			newR = CLAMP_VALUE(R + add_r, 0.f, 255.f);
 			newG = CLAMP_VALUE(G + add_g, 0.f, 255.f);

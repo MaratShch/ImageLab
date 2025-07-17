@@ -18,9 +18,9 @@ PF_Err prProcessImage_BGRA_4444_32f_CMYK
 	const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
 	float C, M, Y, K;
 	float newC, newM, newY, newK;
@@ -36,7 +36,7 @@ PF_Err prProcessImage_BGRA_4444_32f_CMYK
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
@@ -86,23 +86,23 @@ PF_Err prProcessImage_BGRA_4444_32f_RGB
 	const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
 	constexpr float reciproc = 1.0f / static_cast<float>(coarse_max_level);
-	float const& addR = add_r * reciproc;
-	float const& addG = add_g * reciproc;
-	float const& addB = add_b * reciproc;
+	float const addR = add_r * reciproc;
+	float const addG = add_g * reciproc;
+	float const addB = add_b * reciproc;
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
-			auto const& pix_idx = line_idx + i;
+			auto const pix_idx = line_idx + i;
 
 			/* put to output buffer updated value */
 			localDst[pix_idx].B = CLAMP_VALUE(localSrc[pix_idx].B + addB, f32_value_black, f32_value_white);

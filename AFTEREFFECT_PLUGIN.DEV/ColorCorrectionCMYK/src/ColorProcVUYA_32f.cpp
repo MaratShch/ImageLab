@@ -21,9 +21,9 @@ PF_Err prProcessImage_VUYA_4444_32f_CMYK
 	const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
 	PF_Pixel_VUYA_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width  = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
 	const float* __restrict yuv2rgb = (true == isBT709 ? YUV2RGB[BT709] : YUV2RGB[BT601]);
 	const float* __restrict rgb2yuv = (true == isBT709 ? RGB2YUV[BT709] : RGB2YUV[BT601]);
@@ -56,9 +56,9 @@ PF_Err prProcessImage_VUYA_4444_32f_CMYK
 			float const& v = srcPixel.V;
 			float const& A = srcPixel.A;
 
-			float const& R = (y * yuv2rgb[0] + u * yuv2rgb[1] + v * yuv2rgb[2]);
-			float const& G = (y * yuv2rgb[3] + u * yuv2rgb[4] + v * yuv2rgb[5]);
-			float const& B = (y * yuv2rgb[6] + u * yuv2rgb[7] + v * yuv2rgb[8]);
+			float const R = (y * yuv2rgb[0] + u * yuv2rgb[1] + v * yuv2rgb[2]);
+			float const G = (y * yuv2rgb[3] + u * yuv2rgb[4] + v * yuv2rgb[5]);
+			float const B = (y * yuv2rgb[6] + u * yuv2rgb[7] + v * yuv2rgb[8]);
 
 			rgb_to_cmyk(R, G, B, C, M, Y, K);
 

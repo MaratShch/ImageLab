@@ -145,6 +145,7 @@
     <ClCompile Include="src\ColorCorrectionGPU.cpp" />
     <ClCompile Include="src\ColorCorrectionPR.cpp" />
     <ClCompile Include="src\ColorProcARGB_16u.cpp" />
+    <ClCompile Include="src\ColorProcARGB_32f.cpp" />
     <ClCompile Include="src\ColorProcARGB_8u.cpp" />
     <ClCompile Include="src\ColorProcBGRA_16u.cpp" />
     <ClCompile Include="src\ColorProcBGRA_32f.cpp" />

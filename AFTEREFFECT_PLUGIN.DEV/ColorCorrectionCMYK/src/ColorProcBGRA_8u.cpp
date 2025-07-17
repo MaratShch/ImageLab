@@ -37,17 +37,17 @@ PF_Err prProcessImage_BGRA_4444_8u_CMYK
 
 	for (auto j = 0; j < height; j++)
 	{
-		auto const& line_idx = j * line_pitch;
+		auto const line_idx = j * line_pitch;
 
 		__VECTOR_ALIGNED__
 		for (auto i = 0; i < width; i++)
 		{
 			PF_Pixel_BGRA_8u const& srcPixel = localSrc[line_idx + i];
 
-			float const& B = static_cast<float>(srcPixel.B) * reciproc255;
-			float const& G = static_cast<float>(srcPixel.G) * reciproc255;
-			float const& R = static_cast<float>(srcPixel.R) * reciproc255;
-			auto const& A = srcPixel.A;
+			float const B = static_cast<float>(srcPixel.B) * reciproc255;
+			float const G = static_cast<float>(srcPixel.G) * reciproc255;
+			float const R = static_cast<float>(srcPixel.R) * reciproc255;
+			auto const  A = srcPixel.A;
 
 			rgb_to_cmyk(R, G, B, C, M, Y, K);
 
@@ -87,9 +87,9 @@ PF_Err prProcessImage_BGRA_4444_8u_RGB
 	const PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 	PF_Pixel_BGRA_8u*        __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u* __restrict>(output->data);
 
-	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
 	int newR, newG, newB;
 

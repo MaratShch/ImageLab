@@ -414,44 +414,6 @@ UpdateParameterUI(
 }
 
 
-static PF_Err
-HandleEvent(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output,
-	PF_EventExtra	*extra
-)
-{
-	PF_Err		err = PF_Err_NONE;
-
-	switch (extra->e_type)
-	{
-		case PF_Event_NEW_CONTEXT:
-		break;
-		
-		case PF_Event_ACTIVATE:
-		break;
-
-		case PF_Event_DO_CLICK:
-		break;
-
-		case PF_Event_DRAG:
-		break;
-
-		case PF_Event_DRAW:
-		break;
-
-		case PF_Event_ADJUST_CURSOR:
-		break;
-		
-		default:
-		break;
-	}
-	return err;
-}
-
-
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
 	PF_Cmd			cmd,
@@ -493,10 +455,6 @@ EffectMain(
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
-
-//			case PF_Cmd_EVENT:
-//				err = HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra));
-	//		break;
 
 			default:
 			break;
