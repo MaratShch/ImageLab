@@ -659,6 +659,18 @@ UpdateParameterUI(
 }
 
 
+static PF_Err
+HandleArbitrary(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    PF_ArbParamsExtra	*extra)
+{
+    PF_Err		err = PF_Err_NONE;
+    return err;
+}
+
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
@@ -723,6 +735,10 @@ EffectMain(
 			break;
 
             case PF_Cmd_QUERY_DYNAMIC_FLAGS:
+            break;
+
+            case PF_Cmd_ARBITRARY_CALLBACK:
+                err = HandleArbitrary(in_data, out_data, params, output, reinterpret_cast<PF_ArbParamsExtra*>(extra));
             break;
 
             case PF_Cmd_SMART_PRE_RENDER:
