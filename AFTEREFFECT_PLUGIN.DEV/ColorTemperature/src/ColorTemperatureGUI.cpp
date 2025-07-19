@@ -146,16 +146,17 @@ PF_Err DrawEvent
         // Use an static grey value instead.
         if (PremierId != in_data->appl_id)
         {
-            drawbot_color.red = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.red) / PF_MAX_CHAN8;
-            drawbot_color.green = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.green) / PF_MAX_CHAN8;
-            drawbot_color.blue = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.blue) / PF_MAX_CHAN8;
+            constexpr float PfMaxChan8 = { static_cast<float>(u8_value_white) };
+            drawbot_color.red   = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.red)   / PfMaxChan8;
+            drawbot_color.green = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.green) / PfMaxChan8;
+            drawbot_color.blue  = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.blue)  / PfMaxChan8;
         }
         else
         {
             static float gray{ 0.f };
-            drawbot_color.red = std::fmod(gray, 1);
+            drawbot_color.red   = std::fmod(gray, 1);
             drawbot_color.green = std::fmod(gray, 1);
-            drawbot_color.blue = std::fmod(gray, 1);
+            drawbot_color.blue  = std::fmod(gray, 1);
             gray += 0.01f;
         }
         drawbot_color.alpha = 1.0f;
@@ -172,9 +173,9 @@ PF_Err DrawEvent
                 {
                     DRAWBOT_RectF32	rectR{};
 
-                    rectR.left = static_cast<float>(event_extra->effect_win.current_frame.left) + 0.5f;
-                    rectR.top = static_cast<float>(event_extra->effect_win.current_frame.top) + 0.5f;
-                    rectR.width = static_cast<float>(event_extra->effect_win.current_frame.right - event_extra->effect_win.current_frame.left);
+                    rectR.left   = static_cast<float>(event_extra->effect_win.current_frame.left) + 0.5f;
+                    rectR.top    = static_cast<float>(event_extra->effect_win.current_frame.top)  + 0.5f;
+                    rectR.width  = static_cast<float>(event_extra->effect_win.current_frame.right  - event_extra->effect_win.current_frame.left);
                     rectR.height = static_cast<float>(event_extra->effect_win.current_frame.bottom - event_extra->effect_win.current_frame.top);
 
                     // Add the rectangle to path
@@ -186,7 +187,6 @@ PF_Err DrawEvent
 
                             // event successfully processed and released
                             event_extra->evt_out_flags = PF_EO_HANDLED_EVENT;
-
                             err = PF_Err_NONE;
                         } // if (kSPNoError == surfaceSuite->FillPath(surface_ref, brush_ref, path_ref, kDRAWBOT_FillType_Default))
 
