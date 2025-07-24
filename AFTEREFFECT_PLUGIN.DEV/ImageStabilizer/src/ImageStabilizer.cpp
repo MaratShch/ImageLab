@@ -102,8 +102,7 @@ ParamsSetup(
 }
 
 
-static PF_Err
-Render(
+static PF_Err Render(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
@@ -113,9 +112,20 @@ Render(
 }
 
 
-
 static PF_Err
-SmartRender(
+UpdateParameterUI(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*output
+)
+{
+    PF_Err	err = PF_Err_NONE;
+    return err;
+}
+
+
+static PF_Err SmartRender(
 	PF_InData				*in_data,
 	PF_OutData				*out_data,
 	PF_SmartRenderExtra		*extraP
@@ -124,6 +134,19 @@ SmartRender(
 	PF_Err	err = PF_Err_NONE;
 	return err;
 }
+
+
+static PF_Err
+PreRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_PreRenderExtra		*extraP
+)
+{
+    PF_Err	err = PF_Err_NONE;
+    return err;
+}
+
 
 
 
@@ -161,7 +184,21 @@ EffectMain(
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-			default:
+            // Handling this selector will ensure that the UI will be properly initialized,
+            // even before the user starts changing parameters to trigger PF_Cmd_USER_CHANGED_PARAM
+            case PF_Cmd_UPDATE_PARAMS_UI:
+                ERR(UpdateParameterUI(in_data, out_data, params, output));
+            break;
+
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+            break;
+
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
+
+            default:
 			break;
 		}
 	}
