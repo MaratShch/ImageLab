@@ -5,14 +5,27 @@
 #include "AlgoProcStructures.hpp"
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
+#include <atomic>
+#include <thread>
+
+
+
 
 #ifdef _DEBUG
 volatile AlgoCCT::CctHandleF32* pGCctHandler32{ nullptr };
 volatile pHandle* pGHandle{ nullptr };
 #endif
 
+
 // vector contains preset settings
 std::vector<IPreset*> vPresets{};
+
+
+void threadGuiCallback (void)
+{
+    return;
+}
+
 
 
 static PF_Err
@@ -135,6 +148,8 @@ GlobalSetup(
     pGCctHandler32 = globalCctHandler32;
 #endif
 
+    StartGuiThread();
+
     return err;
 }
 
@@ -146,6 +161,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    StopGuiThread();
+
     if (nullptr != in_data->global_data)
     {
         pHandle* pGlobal = static_cast<pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));

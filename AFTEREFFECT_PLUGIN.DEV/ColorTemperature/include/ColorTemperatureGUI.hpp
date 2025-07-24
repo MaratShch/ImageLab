@@ -26,5 +26,7 @@ PF_Err DrawEvent
 	PF_EventExtra	*event_extra
 );
 
+void StartGuiThread(void);
+void StopGuiThread (void);
 
 #endif  /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_GUI__ */

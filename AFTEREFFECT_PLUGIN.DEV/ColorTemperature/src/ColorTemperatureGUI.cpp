@@ -3,10 +3,11 @@
 #include "ColorTemperatureGUI.hpp"
 #include "AEFX_SuiteHelper.h"
 #include <cmath>
+
+#ifdef _DEBUG
 #include <string>
 #include <sstream> // for std::ostringstream
 
-#ifdef _DEBUG
 static DRAWBOT_Boolean supportsBGRA = false; /* true */
 static DRAWBOT_Boolean prefersBGRA  = false;
 static DRAWBOT_Boolean supportsARGB = false; /* false */
