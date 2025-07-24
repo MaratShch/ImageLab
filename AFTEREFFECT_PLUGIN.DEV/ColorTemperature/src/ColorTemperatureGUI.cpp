@@ -3,6 +3,17 @@
 #include "ColorTemperatureGUI.hpp"
 #include "AEFX_SuiteHelper.h"
 #include <cmath>
+#include <string>
+#include <sstream> // for std::ostringstream
+
+#ifdef _DEBUG
+static DRAWBOT_Boolean supportsBGRA = false; /* true */
+static DRAWBOT_Boolean prefersBGRA  = false;
+static DRAWBOT_Boolean supportsARGB = false; /* false */
+static DRAWBOT_Boolean prefersARGB  = false;
+static bool preferredFormatDecided  = false;
+#endif
+
 
 PF_Err PresetsActivation
 (
@@ -136,6 +147,26 @@ PF_Err DrawEvent
 
     // Get the Drawbot surface from drawing reference; it shouldn't be released like pen or brush (see below)
     const PF_Err ErrSurfRef = drawbotSuite->GetSurface(drawing_ref, &surface_ref);
+
+#ifdef _DEBUG
+    if (false == preferredFormatDecided)
+    {
+        preferredFormatDecided = true;
+        supplierSuite->SupportsPixelLayoutBGRA (supplier_ref, &supportsBGRA);
+        supplierSuite->PrefersPixelLayoutBGRA  (supplier_ref, &prefersBGRA );
+        supplierSuite->SupportsPixelLayoutARGB (supplier_ref, &supportsARGB);
+        supplierSuite->PrefersPixelLayoutARGB  (supplier_ref, &prefersARGB );
+
+        if (PremierId == in_data->appl_id)
+        {
+            // In Premiere Pro, this message will appear in the Events panel
+            std::ostringstream dbgStr;
+            dbgStr << "supportsBGRA = " << (true == supportsBGRA ? "1" : "0") << " supportsARGB = " << (true == supportsARGB ? "1" : "0");
+            std::string finalStr = dbgStr.str();
+            PF_STRCPY(out_data->return_msg, finalStr.data());
+        }
+    } // if (false == preferredFormatDecided)
+#endif
 
     if (PF_Err_NONE == ErrDrawRef && kSPNoError == ErrSupplRef && kSPNoError == ErrSurfRef)
     {

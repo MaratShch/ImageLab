@@ -7,13 +7,12 @@
 CustomColorBarWidget::CustomColorBarWidget(const AbstractColorBarGenerator* generator, QWidget *parent)
     : QWidget(parent), m_colorGenerator(generator)
 {
-    if (!m_colorGenerator) {
+    if (!m_colorGenerator)
+    {
         qWarning("CustomColorBarWidget: Color generator is null!");
         // In a real app, you might throw or set an error state
     }
-    setMinimumSize(300, 30);
-    // Example: Fixed size if you always want it this way
-    // setFixedSize(500, 40);
+    setFixedSize(240, 40);
 }
 
 CustomColorBarWidget::~CustomColorBarWidget()
