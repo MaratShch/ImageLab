@@ -1,5 +1,6 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureGUI.hpp"
+#include "ColorTemperatureDraw.hpp"
 #include "ColorTemperatureControlsPresets.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "AlgoProcStructures.hpp"

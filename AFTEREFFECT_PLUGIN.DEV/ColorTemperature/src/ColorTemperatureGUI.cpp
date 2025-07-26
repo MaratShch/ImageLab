@@ -1,6 +1,7 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureGUI.hpp"
+#include "ColorTemperatureDraw.hpp"
 #include "AEFX_SuiteHelper.h"
 #include <cmath>
 
@@ -129,7 +130,13 @@ PF_Err DrawEvent
     DRAWBOT_PathRef		path_ref = nullptr;
     DRAWBOT_BrushRef	brush_ref = nullptr;
 
+    if (false == isRedraw())
+        return PF_Err_NONE;
+
     PF_Err err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    // Let's notify that flag for redraw received successfully.
+    ProcRedrawComplete();
 
     // acquire DrawBot Suites
     auto const drawbotSuite { AEFX_SuiteScoper<DRAWBOT_DrawbotSuite1> (in_data, kDRAWBOT_DrawSuite,     kDRAWBOT_DrawSuite_VersionCurrent,     out_data) };

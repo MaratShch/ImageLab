@@ -96,6 +96,9 @@
     <ClInclude Include="include\AlgoRules.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorTemperatureDraw.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp">

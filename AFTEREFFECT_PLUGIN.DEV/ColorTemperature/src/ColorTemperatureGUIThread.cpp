@@ -1,13 +1,44 @@
 #include <atomic>
 #include <windows.h>
+#include "ColorTemperatureDraw.hpp"
 
-std::atomic<bool> guiThreadAlive{ true };
+static std::atomic<bool> needsRedraw{ true };
+static std::atomic<bool> guiThreadAlive{ true };
+static std::atomic<AlgoProcT> gui_CCT{ 6500.f };
+static std::atomic<AlgoProcT> gui_Duv{ 0.f };
+
 static HANDLE h{};
 static HANDLE hExit{};
 
 #ifdef _DEBUG
 std::size_t drawEvents = 0u;
 #endif
+
+
+void SetGUI_CCT (const std::pair<AlgoProcT, AlgoProcT>& cct_duv) noexcept
+{
+    gui_CCT.exchange (cct_duv.first);
+    gui_Duv.exchange (cct_duv.second);
+    return;
+}
+
+void ForceRedraw (void) noexcept
+{
+    needsRedraw.store(true);
+    return;
+}
+
+bool isRedraw (void) noexcept
+{
+    const bool redrawFlag = needsRedraw.load();
+    return redrawFlag;
+}
+
+bool ProcRedrawComplete (void) noexcept
+{
+    const bool redrawFlag = needsRedraw.exchange(false);
+    return redrawFlag;
+}
 
 DWORD WINAPI guiDrawHandle (LPVOID lpParam)
 {
@@ -26,7 +57,7 @@ DWORD WINAPI guiDrawHandle (LPVOID lpParam)
 #endif
 
             /* force redraw CCT */
-
+            ForceRedraw();
         }
         forceDrawEvent--;
     }

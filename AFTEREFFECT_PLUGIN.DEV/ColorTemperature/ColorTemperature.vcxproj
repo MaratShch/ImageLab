@@ -189,6 +189,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\ColorTemperatureAlgo.hpp" />
     <ClInclude Include="include\ColorTemperatureControls.hpp" />
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp" />
+    <ClInclude Include="include\ColorTemperatureDraw.hpp" />
     <ClInclude Include="include\ColorTemperatureEnums.hpp" />
     <ClInclude Include="include\ColorTemperatureGUI.hpp" />
   </ItemGroup>

@@ -2,6 +2,7 @@
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureAlgo.hpp"
+#include "ColorTemperatureDraw.hpp"
 #include "CompileTimeUtils.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "ImageLabMemInterface.hpp"
@@ -57,6 +58,9 @@ PF_Err ProcessImgInPR
                         constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+
+                        // Draw CCT/Duv values on Effect Panel
+                        SetGUI_CCT(cct_duv);
                     }
                     break;
 
@@ -68,6 +72,9 @@ PF_Err ProcessImgInPR
                         constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+  
+                        // Draw CCT/Duv values on Effect Panel
+                        SetGUI_CCT(cct_duv);
                     }
                     break;
 
@@ -79,6 +86,9 @@ PF_Err ProcessImgInPR
                         constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+
+                        // Draw CCT/Duv values on Effect Panel
+                        SetGUI_CCT(cct_duv);
                     }
                     break;
 
@@ -91,6 +101,9 @@ PF_Err ProcessImgInPR
                         constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+
+                        // Draw CCT/Duv values on Effect Panel
+                        SetGUI_CCT(cct_duv);
                     }
                     break;
 
@@ -103,6 +116,9 @@ PF_Err ProcessImgInPR
                         constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+
+                        // Draw CCT/Duv values on Effect Panel
+                        SetGUI_CCT(cct_duv);
                     }
                     break;
 
@@ -114,6 +130,9 @@ PF_Err ProcessImgInPR
                         constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u10_value_white);
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+
+                        // Draw CCT/Duv values on Effect Panel
+                        SetGUI_CCT(cct_duv);
                     }
                     break;
 
@@ -130,8 +149,6 @@ PF_Err ProcessImgInPR
 
             } // if (nullptr != pMemoryBlock && blockId >= 0)
 
-            // Draw CCT/Duv values on Effect Panel
-            // ...
 
         } // if (nullptr != cctHandle)
 
