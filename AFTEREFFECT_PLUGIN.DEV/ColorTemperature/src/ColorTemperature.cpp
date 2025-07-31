@@ -10,8 +10,6 @@
 #include <thread>
 
 
-
-
 #ifdef _DEBUG
 volatile AlgoCCT::CctHandleF32* pGCctHandler32{ nullptr };
 volatile pHandle* pGHandle{ nullptr };
@@ -20,6 +18,9 @@ volatile pHandle* pGHandle{ nullptr };
 
 // vector contains preset settings
 std::vector<IPreset*> vPresets{};
+
+const std::vector<IPreset*>& getPresets(void) noexcept { return vPresets; }
+
 
 
 void threadGuiCallback (void)
@@ -282,7 +283,7 @@ ParamsSetup(
 		algoColorTintFineMin,
 		algoColorTintFineMax,
 		algoColorTintFineDefault,
-		PF_Precision_HUNDREDTHS,
+        PF_Precision_THOUSANDTHS,
 		0,
 		0,
 		COLOR_TEMPERATURE_TINT_FINE_SLIDER);

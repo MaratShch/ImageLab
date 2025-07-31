@@ -15,12 +15,12 @@ constexpr double algoColorTempFineMin = -50.0;
 constexpr double algoColorTempFineMax = 50.0;
 constexpr double algoColorTempFineDef = 0.0;
 
-constexpr double algoColorTintMin     = -50.0;
-constexpr double algoColorTintMax     =  50.0;
+constexpr double algoColorTintMin     = -0.5;
+constexpr double algoColorTintMax     =  0.5;
 constexpr double algoColorTintDefault =  0.0;
 
-constexpr double algoColorTintFineMin = -2.0;
-constexpr double algoColorTintFineMax = 2.0;
+constexpr double algoColorTintFineMin = -0.01;
+constexpr double algoColorTintFineMax =  0.01;
 constexpr double algoColorTintFineDefault = 0.0;
 
 constexpr WaveLengthT waveLengthStart      = 380.0;
