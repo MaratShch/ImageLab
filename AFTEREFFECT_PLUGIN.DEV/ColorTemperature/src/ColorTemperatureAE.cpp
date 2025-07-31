@@ -17,11 +17,18 @@ PF_Err ColorTemperature_InAE_8bits
 ) noexcept
 {
     PF_Err err = PF_Err_OUT_OF_MEMORY;
-    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->u.pd.value - 1);
 
     const PF_EffectWorld*   __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
     const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
           PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+    // --- Acquire controls values --- //
+    const strControlSet cctSetup = GetCctSetup(params);
+    const AlgoProcT targetCct    = cctSetup.Cct;
+    const AlgoProcT targetDuv    = cctSetup.Duv;
+    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
+
+    AlgoProcT diffCct{}, diffDuv{};
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
@@ -44,6 +51,9 @@ PF_Err ColorTemperature_InAE_8bits
                 constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+
+                diffCct = targetCct - cct_duv.first;
+                diffDuv = targetDuv - cct_duv.second;
 
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
@@ -69,11 +79,18 @@ PF_Err ColorTemperature_InAE_16bits
 ) noexcept
 {
     PF_Err err = PF_Err_OUT_OF_MEMORY;
-    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->u.pd.value - 1);
 
     const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
     const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
           PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+    // --- Acquire controls values --- //
+    const strControlSet cctSetup = GetCctSetup(params);
+    const AlgoProcT targetCct    = cctSetup.Cct;
+    const AlgoProcT targetDuv    = cctSetup.Duv;
+    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
+
+    AlgoProcT diffCct{}, diffDuv{};
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
@@ -98,6 +115,9 @@ PF_Err ColorTemperature_InAE_16bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
+                diffCct = targetCct - cct_duv.first;
+                diffDuv = targetDuv - cct_duv.second;
+
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
                 pMemoryBlock = nullptr;
@@ -121,11 +141,18 @@ PF_Err ColorTemperature_InAE_32bits
 ) noexcept
 {
     PF_Err err = PF_Err_OUT_OF_MEMORY;
-    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->u.pd.value - 1);
 
     const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
     const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
           PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    // --- Acquire controls values --- //
+    const strControlSet cctSetup = GetCctSetup(params);
+    const AlgoProcT targetCct    = cctSetup.Cct;
+    const AlgoProcT targetDuv    = cctSetup.Duv;
+    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
+
+    AlgoProcT diffCct{}, diffDuv{};
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
@@ -149,6 +176,9 @@ PF_Err ColorTemperature_InAE_32bits
                 constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+
+                diffCct = targetCct - cct_duv.first;
+                diffDuv = targetDuv - cct_duv.second;
 
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
