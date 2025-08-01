@@ -49,6 +49,8 @@ namespace AlgoCCT
 
             bool cct_compute (const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut);
             bool refine (const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut);
+            
+            const std::pair<float, float> getPlanckianUV (float CCT, eCOLOR_OBSERVER observer);
 
             // Helper functions for refine computations
             SplineCoeffs spline_impl(const std::vector<float>& x_in, const std::vector<float>& y_in);

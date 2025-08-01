@@ -27,8 +27,6 @@ PF_Err ProcessImgInPR
     const AlgoProcT targetDuv = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
 
-    AlgoProcT diffCct{}, diffDuv{};
-
     // This plugin called frop PR - check video fomat
     auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
@@ -64,8 +62,6 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        diffCct = targetCct - cct_duv.first;
-                        diffDuv = targetDuv - cct_duv.second;
 
                         // Draw CCT/Duv values on Effect Panel
                         SetGUI_CCT(cct_duv);
@@ -81,8 +77,6 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
   
-                        diffCct = targetCct - cct_duv.first;
-                        diffDuv = targetDuv - cct_duv.second;
 
                         // Draw CCT/Duv values on Effect Panel
                         SetGUI_CCT(cct_duv);
@@ -98,8 +92,6 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        diffCct = targetCct - cct_duv.first;
-                        diffDuv = targetDuv - cct_duv.second;
 
                         // Draw CCT/Duv values on Effect Panel
                         SetGUI_CCT(cct_duv);
@@ -116,8 +108,6 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        diffCct = targetCct - cct_duv.first;
-                        diffDuv = targetDuv - cct_duv.second;
 
                         // Draw CCT/Duv values on Effect Panel
                         SetGUI_CCT(cct_duv);
@@ -134,8 +124,6 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        diffCct = targetCct - cct_duv.first;
-                        diffDuv = targetDuv - cct_duv.second;
 
                         // Draw CCT/Duv values on Effect Panel
                         SetGUI_CCT(cct_duv);
@@ -151,8 +139,6 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        diffCct = targetCct - cct_duv.first;
-                        diffDuv = targetDuv - cct_duv.second;
                         
                         // Draw CCT/Duv values on Effect Panel
                         SetGUI_CCT(cct_duv);

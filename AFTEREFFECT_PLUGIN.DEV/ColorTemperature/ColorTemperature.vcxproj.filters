@@ -131,6 +131,9 @@
     <ClCompile Include="src\ColorTemperatureControl.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ColorTemperatureAlgo.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorTemperature.rc">

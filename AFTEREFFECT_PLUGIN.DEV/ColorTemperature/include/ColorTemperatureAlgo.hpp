@@ -234,6 +234,32 @@ inline std::pair<T, T> Convert2PixComponents
 }
 
 
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline void uvToXy (const T u, const T v, T& x, T& y) noexcept
+{
+    constexpr T epsilon{ 1e-6 }; // Small threshold to avoid division instability
+    const T denom = (static_cast<T>(2) * u - static_cast<T>(8) * v + static_cast<T>(4));
+
+    if (std::abs(denom) < epsilon)
+    {
+        // Degenerate case: set to D65 or another safe default white point
+        x = static_cast<T>(0.3127);
+        y = static_cast<T>(0.3290);
+    }
+    else
+    {
+        x = (static_cast<T>(3) * u) / denom;
+        y = (static_cast<T>(2) * v) / denom;
+    }
+    return;
+}
+
+
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline void getPlanckianUV (const T CCT, T& u, T& v) noexcept
+{
+    return;
+}
 
 
 #endif // __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ALGORTIHM_IMPLEMENTATIONS__

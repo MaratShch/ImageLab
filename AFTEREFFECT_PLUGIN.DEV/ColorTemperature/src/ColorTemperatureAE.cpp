@@ -28,8 +28,6 @@ PF_Err ColorTemperature_InAE_8bits
     const AlgoProcT targetDuv    = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
 
-    AlgoProcT diffCct{}, diffDuv{};
-
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long sizeY = output->height;
@@ -52,8 +50,6 @@ PF_Err ColorTemperature_InAE_8bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                diffCct = targetCct - cct_duv.first;
-                diffDuv = targetDuv - cct_duv.second;
 
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
@@ -90,8 +86,6 @@ PF_Err ColorTemperature_InAE_16bits
     const AlgoProcT targetDuv    = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
 
-    AlgoProcT diffCct{}, diffDuv{};
-
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long sizeY = output->height;
@@ -114,9 +108,6 @@ PF_Err ColorTemperature_InAE_16bits
                 constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
-
-                diffCct = targetCct - cct_duv.first;
-                diffDuv = targetDuv - cct_duv.second;
 
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
@@ -152,8 +143,6 @@ PF_Err ColorTemperature_InAE_32bits
     const AlgoProcT targetDuv    = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
 
-    AlgoProcT diffCct{}, diffDuv{};
-
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long sizeY = output->height;
@@ -176,9 +165,6 @@ PF_Err ColorTemperature_InAE_32bits
                 constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
-
-                diffCct = targetCct - cct_duv.first;
-                diffDuv = targetDuv - cct_duv.second;
 
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;

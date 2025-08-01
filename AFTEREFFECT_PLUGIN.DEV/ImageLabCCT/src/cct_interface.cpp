@@ -150,3 +150,47 @@ std::pair<float, float> CctHandleF32::ComputeCct (const std::pair<float, float>&
 
     return std::make_pair (Cct, Duv);
 }
+
+
+const std::pair<float, float> CctHandleF32::getPlanckianUV (float cct, eCOLOR_OBSERVER observer)
+{
+    std::vector<CCT_LUT_Entry<float>>& lut = (observer_CIE_1931 == observer ? m_Lut1 : m_Lut2);
+    const std::size_t lutSize = lut.size();
+
+    std::pair<float, float> out{};
+    float u, v;
+
+    // Clamp to min/max of LUT range
+    if (cct <= lut[0].cct)
+    {
+        u = lut[0].u;
+        v = lut[0].v;
+        out = std::make_pair(u, v) ;
+    }
+    else if (cct >= lut[lutSize - 1].cct)
+    {
+        u = lut[lutSize - 1].u;
+        v = lut[lutSize - 1].v;
+        out = std::make_pair(u, v);
+    }
+    else
+    {
+        // Search for bracketing interval
+        for (size_t i = 0u; i < lutSize - 1; ++i)
+        {
+            const CCT_LUT_Entry<float>& p0 = lut[i];
+            const CCT_LUT_Entry<float>& p1 = lut[i + 1];
+
+            if (cct >= p0.cct && cct <= p1.cct)
+            {
+                const float t = (cct - p0.cct) / (p1.cct - p0.cct);
+                u = p0.u + t * (p1.u - p0.u);
+                v = p0.v + t * (p1.v - p0.v);
+                out = std::make_pair(u, v);
+                break;
+            }
+        }
+    }
+
+    return out;
+}
