@@ -10,6 +10,7 @@
 #include "CctLut.hpp"
 #include <utility>
 
+std::array<AlgoProcT, 9> computeAdaptationMatrix (AlgoCCT::CctHandleF32* cctHandle, const std::pair<AlgoProcT, AlgoProcT>& cct_duv_src, const std::pair<AlgoProcT, AlgoProcT>& cct_duv_dst);
 
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline _tRGB<U> sRGB2LinearRGB (const T& in, const U coeff) noexcept
@@ -251,13 +252,6 @@ inline void uvToXy (const T u, const T v, T& x, T& y) noexcept
         x = (static_cast<T>(3) * u) / denom;
         y = (static_cast<T>(2) * v) / denom;
     }
-    return;
-}
-
-
-template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-inline void getPlanckianUV (const T CCT, T& u, T& v) noexcept
-{
     return;
 }
 

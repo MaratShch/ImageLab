@@ -5,28 +5,17 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="resource">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
     <Filter Include="include">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
     <Filter Include="include_common">
-      <UniqueIdentifier>{f854c670-0bbb-43d3-b215-08a3371ef0d7}</UniqueIdentifier>
+      <UniqueIdentifier>{08d4419f-298a-4dbb-a2d1-9ca02222b829}</UniqueIdentifier>
     </Filter>
-    <Filter Include="resource">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\ImageSharpening.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageSharpeningAE.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageSharpeningPR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
@@ -62,6 +51,9 @@
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\CommonSmartRender.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
     <ClInclude Include="..\Common\CommonTypeTraits.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
@@ -80,21 +72,10 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageSharpening.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ImageSharpeningEnum.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ImageSharpening.rc">
-      <Filter>resource</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="ImageSharpening.r">
-      <Filter>resource</Filter>
-    </CustomBuild>
+    <ClCompile Include="src\DllMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

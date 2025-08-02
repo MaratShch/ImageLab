@@ -6,6 +6,7 @@
 #include <utility>
 #include <atomic>
 #include <vector>
+#include <tuple>
 #include <functional>
 
 namespace AlgoCCT
