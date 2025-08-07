@@ -1,12 +1,13 @@
 #include "cct_interface.hpp"
 #include "CctLimits.hpp"
 #include <cmath>
+#include <mutex>
 
 using namespace AlgoCCT;
 
 std::atomic<bool> CctHandleF32::g_flagL1 = false;
 std::atomic<bool> CctHandleF32::g_flagL2 = false;
-
+std::mutex lutInitProtect;
 
 CctHandleF32::CctHandleF32()
 {
@@ -134,16 +135,24 @@ std::pair<float, float> CctHandleF32::ComputeCct (const std::pair<float, float>&
     if (observer_CIE_1931 == observer)
     {
         if (false == g_flagL1)
-            bReady = InitializeLut1();
-
+        {
+            std::unique_lock<std::mutex> lock(lutInitProtect);
+            if (false == g_flagL1)
+                bReady = InitializeLut1();
+            g_flagL1 = true;
+        }
         // we working with LUT1
         cct_compute(u, v, Cct, Duv, m_Lut1);
     }
     else if (observer_CIE_1964 == observer)
     {
         if (false == g_flagL2)
-            bReady = InitializeLut2();
-
+        {
+            std::unique_lock<std::mutex> lock(lutInitProtect);
+            if (false == g_flagL2)
+                bReady = InitializeLut2();
+            g_flagL2 = true;
+        }
         // we working with LUT2
         cct_compute(u, v, Cct, Duv, m_Lut2);
     }
