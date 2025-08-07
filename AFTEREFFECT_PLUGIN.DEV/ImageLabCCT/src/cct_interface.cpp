@@ -152,45 +152,56 @@ std::pair<float, float> CctHandleF32::ComputeCct (const std::pair<float, float>&
 }
 
 
-const std::pair<float, float> CctHandleF32::getPlanckianUV (float cct, eCOLOR_OBSERVER observer)
+std::pair<float, float> CctHandleF32::getPlanckianUV (float cct, float Duv, eCOLOR_OBSERVER observer)
 {
     std::vector<CCT_LUT_Entry<float>>& lut = (observer_CIE_1931 == observer ? m_Lut1 : m_Lut2);
     const std::size_t lutSize = lut.size();
 
-    std::pair<float, float> out{};
-    float u, v;
+    const float cctMin = getCctMin(); // e.g., 1000.0f
+    const float cctMax = getCctMax(); // e.g., 25000.0f
 
-    // Clamp to min/max of LUT range
-    if (cct <= lut[0].cct)
-    {
-        u = lut[0].u;
-        v = lut[0].v;
-        out = std::make_pair(u, v) ;
-    }
-    else if (cct >= lut[lutSize - 1].cct)
-    {
-        u = lut[lutSize - 1].u;
-        v = lut[lutSize - 1].v;
-        out = std::make_pair(u, v);
-    }
-    else
-    {
-        // Search for bracketing interval
-        for (size_t i = 0u; i < lutSize - 1; ++i)
-        {
-            const CCT_LUT_Entry<float>& p0 = lut[i];
-            const CCT_LUT_Entry<float>& p1 = lut[i + 1];
+    if (cct <= cctMin) return std::make_pair (lut.front().u, lut.front().v);
+    if (cct >= cctMax) return std::make_pair (lut.back().u,  lut.back().v );
 
-            if (cct >= p0.cct && cct <= p1.cct)
-            {
-                const float t = (cct - p0.cct) / (p1.cct - p0.cct);
-                u = p0.u + t * (p1.u - p0.u);
-                v = p0.v + t * (p1.v - p0.v);
-                out = std::make_pair(u, v);
-                break;
-            }
-        }
+    const int index = static_cast<int>(cct - cctMin); // 1K step assumed
+    const auto& lower = lut[index];
+    const auto& upper = lut[std::min(index + 1, static_cast<int>(lutSize - 1))];
+
+    const float t = cct - lower.cct;
+
+    // Interpolate Planckian point
+    const float u0 = lower.u + t * (upper.u - lower.u);
+    const float v0 = lower.v + t * (upper.v - lower.v);
+
+    // Approximate derivative (tangent) for perpendicular direction
+    const std::size_t idx_minus = (index > 0) ? index - 1 : index;
+    const std::size_t idx_plus = std::min(index + 2, static_cast<int>(lutSize - 1));
+
+    const auto& minus = lut[idx_minus];
+    const auto& plus  = lut[idx_plus ];
+
+    float du = plus.u - minus.u;
+    float dv = plus.v - minus.v;
+
+    const float len = std::sqrt(du * du + dv * dv);
+    if (len > 0.f) {
+        du /= len;
+        dv /= len;
     }
 
-    return out;
+    // Compute perpendicular direction: rotate tangent 90 degrees
+    const float perp_u = -dv;
+    const float perp_v = du;
+
+    // Offset (u0, v0) by Duv in the perpendicular direction
+    const float u = u0 + Duv * perp_u;
+    const float v = v0 + Duv * perp_v;
+
+    return std::make_pair(u, v);
+}
+
+
+std::pair<float, float> CctHandleF32::getPlanckianUV (const std::pair<float, float>& cct_Duv, eCOLOR_OBSERVER observer)
+{
+    return getPlanckianUV (cct_Duv.first, cct_Duv.second, observer);
 }

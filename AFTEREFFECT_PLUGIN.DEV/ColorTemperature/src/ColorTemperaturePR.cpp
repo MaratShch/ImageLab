@@ -62,6 +62,7 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
+                        AdaptationMatrixT matrix = computeAdaptationMatrix (cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
 
                         // Draw CCT/Duv values on Effect Panel
                         SetGUI_CCT(cct_duv);

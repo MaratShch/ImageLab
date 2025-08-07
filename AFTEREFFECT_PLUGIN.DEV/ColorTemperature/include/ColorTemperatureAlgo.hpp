@@ -6,11 +6,22 @@
 #include "CommonAuxPixFormat.hpp"
 #include "CommonPixFormatSFINAE.hpp"
 #include "ColorTransformMatrix.hpp"
+#include "AlgoRules.hpp"
 #include "AlgoProcStructures.hpp"
+#include "cct_interface.hpp"
 #include "CctLut.hpp"
 #include <utility>
+#include <array>
 
-std::array<AlgoProcT, 9> computeAdaptationMatrix (AlgoCCT::CctHandleF32* cctHandle, const std::pair<AlgoProcT, AlgoProcT>& cct_duv_src, const std::pair<AlgoProcT, AlgoProcT>& cct_duv_dst);
+
+using AdaptationMatrixT = std::array<AlgoProcT, 9>;
+AdaptationMatrixT computeAdaptationMatrix
+(
+    AlgoCCT::CctHandleF32* cctHandle,
+    eCOLOR_OBSERVER observer,
+    const std::pair<AlgoProcT, AlgoProcT>& cct_duv_src,
+    const std::pair<AlgoProcT, AlgoProcT>& cct_duv_dst
+);
 
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline _tRGB<U> sRGB2LinearRGB (const T& in, const U coeff) noexcept
@@ -254,6 +265,8 @@ inline void uvToXy (const T u, const T v, T& x, T& y) noexcept
     }
     return;
 }
+
+
 
 
 #endif // __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ALGORTIHM_IMPLEMENTATIONS__

@@ -17,7 +17,7 @@ volatile pHandle* pGHandle{ nullptr };
 
 
 // vector contains preset settings
-std::vector<IPreset*> vPresets{};
+std::vector<IPreset*> vPresets (mumberOfPresets);
 
 const std::vector<IPreset*>& getPresets(void) noexcept { return vPresets; }
 
@@ -150,7 +150,8 @@ GlobalSetup(
     pGCctHandler32 = globalCctHandler32;
 #endif
 
-    StartGuiThread();
+//    StartGuiThread();
+
 
     return err;
 }

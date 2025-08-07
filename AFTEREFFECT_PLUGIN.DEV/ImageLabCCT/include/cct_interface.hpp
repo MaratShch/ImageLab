@@ -3,6 +3,7 @@
 
 #include "ClassRestrictions.hpp"
 #include "CctLut.hpp"
+#include "CctLimits.hpp"
 #include <utility>
 #include <atomic>
 #include <vector>
@@ -34,6 +35,9 @@ namespace AlgoCCT
 
             std::pair<float /* CCT */, float /* Duv */> ComputeCct (const std::pair<float, float>& uv, eCOLOR_OBSERVER observer);
 
+            std::pair<float /* CCT */, float /* Duv */> getPlanckianUV (float cct, float Duv, eCOLOR_OBSERVER observer);
+            std::pair<float /* CCT */, float /* Duv */> getPlanckianUV (const std::pair<float, float>& cct_Duv, eCOLOR_OBSERVER observer);
+
 #ifdef _DEBUG
             std::vector<CCT_LUT_Entry<float>>& getLut_CIE_1931(void) { return m_Lut1; }
             std::vector<CCT_LUT_Entry<float>>& getLut_CIE_1964(void) { return m_Lut2; }
@@ -41,6 +45,9 @@ namespace AlgoCCT
             std::vector<CCT_LUT_Entry<float>> getLut_CIE_1931(void) { return{}; }
             std::vector<CCT_LUT_Entry<float>> getLut_CIE_1964(void) { return{}; }
 #endif
+
+            float getCctMin (void) const noexcept { return CCT_Limits::cctMin; }
+            float getCctMax (void) const noexcept { return CCT_Limits::cctMax; }
 
         private:
 
@@ -51,8 +58,6 @@ namespace AlgoCCT
             bool cct_compute (const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut);
             bool refine (const float& u, const float& v, float& cct, float& duv, const std::vector<CCT_LUT_Entry<float>>& lut);
             
-            const std::pair<float, float> getPlanckianUV (float CCT, eCOLOR_OBSERVER observer);
-
             // Helper functions for refine computations
             SplineCoeffs spline_impl(const std::vector<float>& x_in, const std::vector<float>& y_in);
             float ppval_impl (const SplineCoeffs& fit_coeffs, float t_eval);

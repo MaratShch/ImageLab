@@ -5,6 +5,7 @@
 #include "ColorTemperatureEnums.hpp"
 #include <vector>
 
+constexpr size_t mumberOfPresets{ 9ull };
 
 typedef struct {
 	double Tx;
