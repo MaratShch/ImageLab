@@ -16,10 +16,10 @@ const strControlSet GetCctSetup (PF_ParamDef *params[])
     {
         // Preset check box disabled
         cctSetup.Cct = static_cast<float>(
-            slider2ColorTemperature(params[COLOR_TEMPERATURE_COARSE_VALUE_SLIDER]->u.ad.value) +
-            params[COLOR_TEMPERATURE_FINE_VALUE_SLIDER]->u.ad.value);
+            slider2ColorTemperature(params[COLOR_TEMPERATURE_COARSE_VALUE_SLIDER]->u.fs_d.value) +
+            params[COLOR_TEMPERATURE_FINE_VALUE_SLIDER]->u.fs_d.value);
 
-        cctSetup.Duv = static_cast<float>(params[COLOR_TEMPERATURE_TINT_SLIDER]->u.ad.value + params[COLOR_TEMPERATURE_TINT_FINE_SLIDER]->u.ad.value);
+        cctSetup.Duv = static_cast<float>(params[COLOR_TEMPERATURE_TINT_SLIDER]->u.fs_d.value + params[COLOR_TEMPERATURE_TINT_FINE_SLIDER]->u.fs_d.value);
 
         cctSetup.observer = static_cast<eObservers>(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->u.pd.value - 1);
     }

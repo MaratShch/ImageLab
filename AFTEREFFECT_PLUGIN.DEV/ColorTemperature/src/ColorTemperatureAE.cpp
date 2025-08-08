@@ -181,7 +181,7 @@ PF_Err ColorTemperature_InAE_32bits
 }
 
 
-PF_Err ColorTemperature_InAE_DeepWord
+inline PF_Err ColorTemperature_InAE_DeepWord
 (
     PF_InData*   in_data,
     PF_OutData*  out_data,
