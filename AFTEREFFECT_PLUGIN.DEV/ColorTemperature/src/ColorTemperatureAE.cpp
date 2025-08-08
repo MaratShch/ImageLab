@@ -50,6 +50,7 @@ PF_Err ColorTemperature_InAE_8bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
+                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
 
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
@@ -109,6 +110,8 @@ PF_Err ColorTemperature_InAE_16bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
+                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
                 pMemoryBlock = nullptr;
@@ -166,6 +169,8 @@ PF_Err ColorTemperature_InAE_32bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
+                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
                 pMemoryBlock = nullptr;

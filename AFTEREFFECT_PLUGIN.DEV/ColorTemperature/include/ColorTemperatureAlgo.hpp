@@ -249,7 +249,7 @@ inline std::pair<T, T> Convert2PixComponents
 template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
 inline void uvToXy (const T u, const T v, T& x, T& y) noexcept
 {
-    constexpr T epsilon{ 1e-6 }; // Small threshold to avoid division instability
+    constexpr T epsilon{ 1e-5 }; // Small threshold to avoid division instability
     const T denom = (static_cast<T>(2) * u - static_cast<T>(8) * v + static_cast<T>(4));
 
     if (std::abs(denom) < epsilon)
@@ -267,6 +267,46 @@ inline void uvToXy (const T u, const T v, T& x, T& y) noexcept
 }
 
 
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline void uvToXYZ (T u, T v, T& X, T& Y, T& Z) noexcept
+{
+    constexpr T epsilon{ 1e-5 }; // Small threshold to avoid division instability
+    const T denom = (static_cast<T>(2) * u - static_cast<T>(8) * v + static_cast<T>(4));
+
+    if (std::abs(denom) < epsilon)
+    {
+        // Degenerate case: set to D65 safe default white point
+        u = static_cast<T>(0.1978);
+        v = static_cast<T>(0.4684);
+    }
+
+    const T x = (static_cast<T>(3) * u) / denom;
+    const T y = (static_cast<T>(2) * v) / denom;
+    const T z = static_cast<T>(1) - x - y;
+
+    if (std::abs(y) < epsilon)
+    {
+        // Degenerate chromaticity: fallback to D65 XYZ
+        X = static_cast<T>(0.95047);
+        Y = static_cast<T>(1.00000);
+        Z = static_cast<T>(1.08883);
+    }
+    else
+    {
+        X = x / y;
+        Y = static_cast<T>(1);
+        Z = z / y;
+    }
+
+    return;
+}
+
+
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline void uvToXYZ (std::pair<T, T> uv, T& X, T& Y, T& Z) noexcept
+{
+    return uvToXYZ (uv.first, uv.second, X, Y, Z);
+}
 
 
 #endif // __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ALGORTIHM_IMPLEMENTATIONS__
