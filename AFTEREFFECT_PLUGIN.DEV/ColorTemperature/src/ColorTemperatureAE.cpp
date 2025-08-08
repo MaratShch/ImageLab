@@ -52,6 +52,8 @@ PF_Err ColorTemperature_InAE_8bits
 
                 AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
 
+                AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(u8_value_white));
+
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
                 pMemoryBlock = nullptr;
@@ -112,6 +114,8 @@ PF_Err ColorTemperature_InAE_16bits
 
                 AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
                 
+                AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(u16_value_white));
+
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
                 pMemoryBlock = nullptr;
@@ -171,6 +175,8 @@ PF_Err ColorTemperature_InAE_32bits
 
                 AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
                 
+                AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(1));
+
                 ::FreeMemoryBlock(blockId);
                 blockId = -1;
                 pMemoryBlock = nullptr;

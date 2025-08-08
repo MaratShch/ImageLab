@@ -42,7 +42,7 @@ AdaptationMatrixT computeAdaptationMatrix
         static_cast<AlgoProcT>(0.0556434),  static_cast<AlgoProcT>(0.2040259),  static_cast<AlgoProcT>(1.0572252)
     };
 
-    const auto matrixMpl = [&](const AdaptationMatrixT A, const AdaptationMatrixT B)->AdaptationMatrixT
+    const auto matrixMpl = [&](const AdaptationMatrixT A, const AdaptationMatrixT B) noexcept -> AdaptationMatrixT
     {
         AdaptationMatrixT result{};
         for (int32_t row = 0; row < 3; ++row)

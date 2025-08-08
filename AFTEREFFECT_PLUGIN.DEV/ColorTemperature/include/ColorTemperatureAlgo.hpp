@@ -97,6 +97,57 @@ inline _tXYZPix<T> sRgb2XYZ
 
 
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+inline void AdjustCct
+(
+    const T*  __restrict pSrc,
+          T*  __restrict pDst,
+    const AdaptationMatrixT& matrix,
+    A_long sizeX, 
+    A_long sizeY,
+    A_long srcPitch, 
+    A_long dstPitch, 
+    U white
+)
+{
+
+    return;
+}
+
+template<typename T, typename U, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+inline void AdjustCct
+(
+    const T*  __restrict pSrc,
+          T*  __restrict pDst,
+    const AdaptationMatrixT& matrix,
+    A_long sizeX,
+    A_long sizeY,
+    A_long srcPitch,
+    A_long dstPitch,
+    U white,
+    bool isBT709 = true
+)
+{
+    return;
+}
+
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline void AdjustCct
+(
+    const PF_Pixel_RGB_10u*  __restrict pSrc,
+          PF_Pixel_RGB_10u*  __restrict pDst,
+    const AdaptationMatrixT& matrix,
+    A_long sizeX,
+    A_long sizeY,
+    A_long srcPitch,
+    A_long dstPitch,
+    T white
+)
+{
+    return;
+}
+
+
+template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline std::pair<U, U> Convert2PixComponents
 (
     const T*  __restrict pSrc,
