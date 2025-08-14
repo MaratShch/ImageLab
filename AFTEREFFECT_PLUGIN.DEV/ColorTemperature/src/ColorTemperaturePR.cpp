@@ -28,6 +28,9 @@ PF_Err ProcessImgInPR
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
     const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
 
+    if (0.f == targetCct && 0.f == targetDuv)
+        return PF_COPY(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld, output, NULL, NULL);
+
     // This plugin called frop PR - check video fomat
     auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 

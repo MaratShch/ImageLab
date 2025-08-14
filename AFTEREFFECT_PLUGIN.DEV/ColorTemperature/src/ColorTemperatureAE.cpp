@@ -29,6 +29,12 @@ PF_Err ColorTemperature_InAE_8bits
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
     const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
 
+    if (0.f == targetCct && 0.f == targetDuv)
+    {
+        auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
+        return worldTransformSuite->copy(in_data->effect_ref, const_cast<PF_EffectWorld*>(input), output, NULL, NULL);
+    }
+
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long sizeY = output->height;
@@ -91,6 +97,12 @@ PF_Err ColorTemperature_InAE_16bits
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
     const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
 
+    if (0.f == targetCct && 0.f == targetDuv)
+    {
+        auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
+        return worldTransformSuite->copy_hq(in_data->effect_ref, const_cast<PF_EffectWorld*>(input), output, NULL, NULL);
+    }
+
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long sizeY = output->height;
@@ -152,6 +164,12 @@ PF_Err ColorTemperature_InAE_32bits
     const AlgoProcT targetDuv    = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
     const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
+
+    if (0.f == targetCct && 0.f == targetDuv)
+    {
+        auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
+        return worldTransformSuite->copy_hq(in_data->effect_ref, const_cast<PF_EffectWorld*>(input), output, NULL, NULL);
+    }
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
