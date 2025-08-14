@@ -61,6 +61,7 @@ typedef struct strControlSet
     AlgoProcT Duv;
     sTemperaturePoint cctPoint;
     eObservers observer;
+    eCctType   cctType;
 }strControlSet;
 
 constexpr size_t strControlSetSize = sizeof(strControlSet);

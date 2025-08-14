@@ -19,6 +19,7 @@ AdaptationMatrixT computeAdaptationMatrix
 (
     AlgoCCT::CctHandleF32* cctHandle,
     eCOLOR_OBSERVER observer,
+    eCctType cctValueType,
     const std::pair<AlgoProcT, AlgoProcT>& cct_duv_src,
     const std::pair<AlgoProcT, AlgoProcT>& cct_duv_dst
 );
@@ -109,9 +110,24 @@ inline void AdjustCct
     U white
 )
 {
+    A_long i, j;
 
+    for (j = 0; j < sizeY; j++)
+    {
+        const T* __restrict pSrcLine = pSrc + j * srcPitch;
+              T* __restrict pDstLine = pDst + j * dstPitch;
+
+        for (i = 0; i < sizeX; i++)
+        {
+            pDstLine[i].A = pSrcLine[i].A;
+            pDstLine[i].R = CLAMP_VALUE(pSrcLine[i].R * matrix[0] + pSrcLine[i].G * matrix[1] + pSrcLine[i].B * matrix[2], static_cast<U>(0), white);
+            pDstLine[i].G = CLAMP_VALUE(pSrcLine[i].R * matrix[3] + pSrcLine[i].G * matrix[4] + pSrcLine[i].B * matrix[5], static_cast<U>(0), white);
+            pDstLine[i].B = CLAMP_VALUE(pSrcLine[i].R * matrix[6] + pSrcLine[i].G * matrix[7] + pSrcLine[i].B * matrix[8], static_cast<U>(0), white);
+        }
+    }
     return;
 }
+
 
 template<typename T, typename U, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline void AdjustCct

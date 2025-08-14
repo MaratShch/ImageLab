@@ -10,7 +10,7 @@ const strControlSet GetCctSetup (PF_ParamDef *params[])
     if (0 != params[COLOR_TEMPERATURE_PRESET_CHECKBOX]->u.bd.value)
     {
         // Preset check box activated
-
+        cctSetup.cctType = CCT_PRESET;
     }
     else
     {
@@ -22,6 +22,7 @@ const strControlSet GetCctSetup (PF_ParamDef *params[])
         cctSetup.Duv = static_cast<float>(params[COLOR_TEMPERATURE_TINT_SLIDER]->u.fs_d.value + params[COLOR_TEMPERATURE_TINT_FINE_SLIDER]->u.fs_d.value);
 
         cctSetup.observer = static_cast<eObservers>(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->u.pd.value - 1);
+        cctSetup.cctType = CCT_OFFSET;
     }
 
     return cctSetup;

@@ -1,4 +1,5 @@
 #include "AlgoRules.hpp"
+#include "ColorTemperatureEnums.hpp"
 #include "ColorTemperatureAlgo.hpp"
 #include <array>
 #include <utility>
@@ -7,6 +8,7 @@ AdaptationMatrixT computeAdaptationMatrix
 (
     AlgoCCT::CctHandleF32* cctHandle,
     eCOLOR_OBSERVER observer,
+    eCctType cctValueType,
     const std::pair<AlgoProcT, AlgoProcT>& cct_duv_src,
     const std::pair<AlgoProcT, AlgoProcT>& cct_duv_dst
 )
@@ -14,8 +16,13 @@ AdaptationMatrixT computeAdaptationMatrix
     AlgoProcT sX, sY, sZ; // original XYZ
     AlgoProcT dX, dY, dZ; // destination XYZ
 
-    const std::pair<AlgoProcT, AlgoProcT> uv_src = cctHandle->getPlanckianUV(cct_duv_src, observer);
-    const std::pair<AlgoProcT, AlgoProcT> uv_dst = cctHandle->getPlanckianUV(cct_duv_dst, observer);
+    const AlgoProcT targetCct = (CCT_OFFSET == cctValueType ? 
+        std::max(absColorTemperatureMin, std::min(absColorTemperatureMax, cct_duv_src.first + cct_duv_dst.first)) : cct_duv_dst.first);
+    const AlgoProcT targetDuv = (CCT_OFFSET == cctValueType ? 
+        std::max(static_cast<AlgoProcT>(algoColorTintMin), std::min(static_cast<AlgoProcT>(algoColorTintMax),cct_duv_src.second + cct_duv_dst.second)) : cct_duv_dst.second);
+
+    const std::pair<AlgoProcT, AlgoProcT> uv_src = cctHandle->getPlanckianUV(cct_duv_src,    observer);
+    const std::pair<AlgoProcT, AlgoProcT> uv_dst = cctHandle->getPlanckianUV(std::make_pair(targetCct, targetDuv), observer);
 
     uvToXYZ (uv_src, sX, sY, sZ);
     uvToXYZ (uv_dst, dX, dY, dZ);

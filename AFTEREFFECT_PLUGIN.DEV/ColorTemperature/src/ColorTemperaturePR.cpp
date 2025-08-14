@@ -26,6 +26,7 @@ PF_Err ProcessImgInPR
     const AlgoProcT targetCct = cctSetup.Cct;
     const AlgoProcT targetDuv = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
+    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
 
     // This plugin called frop PR - check video fomat
     auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
@@ -62,7 +63,7 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        const AdaptationMatrixT matrix = computeAdaptationMatrix (cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                        const AdaptationMatrixT matrix = computeAdaptationMatrix (cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
 
                         AdjustCct (localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u8_value_white));
 
@@ -80,7 +81,7 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
   
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
 
                         AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u16_value_white));
 
@@ -98,7 +99,7 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
 
                         AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(1));
                         
@@ -117,7 +118,7 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
 
                         AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u8_value_white));
                         
@@ -136,7 +137,7 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
 
                         AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(1));
 
@@ -154,7 +155,7 @@ PF_Err ProcessImgInPR
                         const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
                         const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
 
                         AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u10_value_white));
                         

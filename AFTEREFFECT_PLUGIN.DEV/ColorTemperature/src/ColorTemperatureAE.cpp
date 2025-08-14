@@ -27,6 +27,7 @@ PF_Err ColorTemperature_InAE_8bits
     const AlgoProcT targetCct    = cctSetup.Cct;
     const AlgoProcT targetDuv    = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
+    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
@@ -50,7 +51,7 @@ PF_Err ColorTemperature_InAE_8bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
 
                 AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(u8_value_white));
 
@@ -88,6 +89,7 @@ PF_Err ColorTemperature_InAE_16bits
     const AlgoProcT targetCct    = cctSetup.Cct;
     const AlgoProcT targetDuv    = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
+    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
@@ -112,7 +114,7 @@ PF_Err ColorTemperature_InAE_16bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
                 
                 AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(u16_value_white));
 
@@ -149,6 +151,7 @@ PF_Err ColorTemperature_InAE_32bits
     const AlgoProcT targetCct    = cctSetup.Cct;
     const AlgoProcT targetDuv    = cctSetup.Duv;
     const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
+    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
@@ -173,7 +176,7 @@ PF_Err ColorTemperature_InAE_32bits
                 const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
                 const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
 
-                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cct_duv, std::make_pair(targetCct, targetDuv));
+                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
                 
                 AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(1));
 

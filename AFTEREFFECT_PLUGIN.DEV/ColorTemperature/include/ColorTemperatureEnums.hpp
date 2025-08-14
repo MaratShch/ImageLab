@@ -5,14 +5,17 @@
 #include "ColorTemperatureControls.hpp"
 
 constexpr double  algoColorTempScale  = 1000.0;
-constexpr int32_t algoColorTempMin    = 1000;
-constexpr int32_t algoColorTempMax    = 25000;
-constexpr int32_t algoColorWhitePoint = 6500;
+constexpr int32_t algoColorTempMin    = -4000;
+constexpr int32_t algoColorTempMax    = 8000;
+constexpr int32_t algoColorWhitePoint = 0;
+
+constexpr float absColorTemperatureMin = 2000.f;
+constexpr float absColorTemperatureMax = 12000.f;
 
 using WaveLengthT = double;
 
-constexpr double algoColorTempFineMin = -50.0;
-constexpr double algoColorTempFineMax = 50.0;
+constexpr double algoColorTempFineMin = -100.0;
+constexpr double algoColorTempFineMax = 100.0;
 constexpr double algoColorTempFineDef = 0.0;
 
 constexpr double algoColorTintMin     = -0.5;
@@ -98,6 +101,11 @@ typedef enum {
 	COLOR_TEMPERATURE_WAVELENGTH_STEP_FINEST,
 	COLOR_TEMPERATURE_WAVELENGTH_TOTAL_STEPS
 }eWaveLenghthStep;
+
+typedef enum {
+    CCT_OFFSET = 10,
+    CCT_PRESET
+}eCctType;
 
 constexpr int32_t gGuiBarWidth  = 240;
 constexpr int32_t gGuiBarHeight = 40;
