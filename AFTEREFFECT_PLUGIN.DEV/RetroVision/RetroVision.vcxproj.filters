@@ -16,6 +16,9 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{b5a47847-5365-4068-9aa4-4973507aed88}</UniqueIdentifier>
     </Filter>
+    <Filter Include="resource_win">
+      <UniqueIdentifier>{b6fa95dc-23af-4f57-906c-8a14c58cc65e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\RetroVision.hpp">
@@ -78,6 +81,9 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="resource_win\resource.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\RetroVision.cpp">
@@ -99,8 +105,22 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="resource_win\RetroVisionResource.rc">
+      <Filter>resource_win</Filter>
+    </ResourceCompile>
     <ResourceCompile Include="RetroVision.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resource_win\cga.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\vga.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
   </ItemGroup>
 </Project>
