@@ -3,11 +3,13 @@
 
 
 static PF_Err
-About(
+About
+(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
 	PF_SPRINTF(
 		out_data->return_msg,
@@ -22,11 +24,13 @@ About(
 
 
 static PF_Err
-GlobalSetup(
+GlobalSetup
+(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
 	PF_Err	err = PF_Err_NONE;
 
@@ -77,11 +81,13 @@ GlobalSetup(
 
 
 static PF_Err
-GlobalSetdown(
+GlobalSetdown
+(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
 	/* nothing to do */
 	return PF_Err_NONE;
@@ -90,11 +96,13 @@ GlobalSetdown(
 
 
 static PF_Err
-ParamsSetup(
+ParamsSetup
+(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
 
 	return PF_Err_NONE;
@@ -102,40 +110,55 @@ ParamsSetup(
 
 
 static PF_Err
-Render(
+Render
+(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_LayerDef		*output
+)
 {
 	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
 
-
 static PF_Err
-SmartRender(
-	PF_InData				*in_data,
-	PF_OutData				*out_data,
-	PF_SmartRenderExtra		*extraP
+PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
 )
 {
-	PF_Err	err = PF_Err_NONE;
-	return err;
+    return RetroVision_PreRender(in_data, out_data, extra);
+}
+
+
+static PF_Err
+SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+)
+{
+    return RetroVision_SmartRender(in_data, out_data, extraP);
 }
 
 
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
-EffectMain(
+EffectMain
+(
 	PF_Cmd			cmd,
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output,
-	void			*extra)
+	void			*extra
+)
 {
-	PF_Err		err{ PF_Err_NONE };
+	PF_Err err{ PF_Err_NONE };
 
 	try {
 		switch (cmd)
@@ -160,7 +183,15 @@ EffectMain(
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-			default:
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+            break;
+
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
+            
+            default:
 			break;
 		}
 	}

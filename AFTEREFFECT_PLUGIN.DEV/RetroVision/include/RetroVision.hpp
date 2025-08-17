@@ -34,5 +34,23 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept;
 
+PF_Err
+RetroVision_PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+);
+
+PF_Err
+RetroVision_SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+);
+
+
+
 
 #endif /* __IMAGE_LAB_RETRO_VISION_FILTER__ */

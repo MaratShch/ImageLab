@@ -152,6 +152,7 @@
     <ClCompile Include="src\RetroVision.cpp" />
     <ClCompile Include="src\RetroVisionAE.cpp" />
     <ClCompile Include="src\RetroVisionPR.cpp" />
+    <ClCompile Include="src\RetroVisionSR.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="RetroVision.r">
