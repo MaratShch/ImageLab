@@ -23,7 +23,7 @@ PF_Err ProcessImgInPR
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept;
+) ;
 
 PF_Err
 ProcessImgInAE
@@ -32,7 +32,7 @@ ProcessImgInAE
 	PF_OutData*		out_data,
 	PF_ParamDef*	params[],
 	PF_LayerDef*	output
-) noexcept;
+) ;
 
 PF_Err
 RetroVision_PreRender
