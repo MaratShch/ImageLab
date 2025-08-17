@@ -82,7 +82,7 @@
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="resource_win\resource.h">
-      <Filter>include</Filter>
+      <Filter>resource_win</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -96,6 +96,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\RetroVisionSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RetroVisionBitmap.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
