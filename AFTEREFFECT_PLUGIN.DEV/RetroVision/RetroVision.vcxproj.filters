@@ -82,9 +82,9 @@
       <Filter>include_common</Filter>
     </ClInclude>
     <ClInclude Include="resource_win\resource.h">
-      <Filter>resource_win</Filter>
+      <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h">
+    <ClInclude Include="include\RetroVisionGui.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

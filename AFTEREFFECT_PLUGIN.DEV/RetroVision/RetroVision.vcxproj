@@ -147,7 +147,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\RetroVision.hpp" />
     <ClInclude Include="include\RetroVisionEnum.hpp" />
-    <ClInclude Include="resource.h" />
+    <ClInclude Include="include\RetroVisionGui.hpp" />
     <ClInclude Include="resource_win\resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -182,6 +182,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="resource_win\RetroVisionResource.rc">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\resource_win;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\resource_win;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ResourceCompile>
     <ResourceCompile Include="RetroVision.rc" />
   </ItemGroup>

@@ -50,7 +50,4 @@ RetroVision_SmartRender
     PF_SmartRenderExtra		*extraP
 );
 
-
-
-
 #endif /* __IMAGE_LAB_RETRO_VISION_FILTER__ */

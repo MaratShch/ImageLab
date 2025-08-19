@@ -3,6 +3,14 @@
 
 #include <type_traits>
 
+
+template <typename T>
+constexpr auto underlying(const T& e) noexcept
+{
+    return static_cast<std::underlying_type_t<T>>(e);
+}
+
+
 template <typename T>
 inline T 
 #ifdef __NVCC__
