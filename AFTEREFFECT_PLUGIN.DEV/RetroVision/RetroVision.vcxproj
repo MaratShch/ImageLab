@@ -147,6 +147,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\RetroVision.hpp" />
     <ClInclude Include="include\RetroVisionEnum.hpp" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="resource_win\resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -185,6 +186,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="RetroVision.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="hercules.bmp" />
     <Image Include="resource_win\vga.bmp" />
     <Image Include="resource_win\ega.bmp" />
     <Image Include="resource_win\cga.bmp" />

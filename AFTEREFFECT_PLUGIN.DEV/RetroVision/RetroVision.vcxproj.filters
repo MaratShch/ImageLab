@@ -84,6 +84,9 @@
     <ClInclude Include="resource_win\resource.h">
       <Filter>resource_win</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\RetroVision.cpp">
@@ -123,6 +126,9 @@
       <Filter>resource_win</Filter>
     </Image>
     <Image Include="resource_win\vga.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="hercules.bmp">
       <Filter>resource_win</Filter>
     </Image>
   </ItemGroup>
