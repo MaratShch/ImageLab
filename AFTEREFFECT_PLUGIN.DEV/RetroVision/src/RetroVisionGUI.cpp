@@ -3,6 +3,19 @@
 #include "RetroVisionEnum.hpp"
 #include "AEFX_SuiteHelper.h"
 #include <cmath>
+#include <atomic>
+
+#ifdef _DEBUG
+#include <string>
+#include <sstream>
+
+static DRAWBOT_Boolean supportsBGRA = false; /* true */
+static DRAWBOT_Boolean prefersBGRA = false;
+static DRAWBOT_Boolean supportsARGB = false; /* false */
+static DRAWBOT_Boolean prefersARGB = false;
+static std::atomic<bool>preferredFormatDecided{ false };
+#endif
+
 
 PF_Err DrawEvent
 (
@@ -50,9 +63,9 @@ PF_Err DrawEvent
     {
         preferredFormatDecided = true;
         supplierSuite->SupportsPixelLayoutBGRA(supplier_ref, &supportsBGRA);
-        supplierSuite->PrefersPixelLayoutBGRA(supplier_ref, &prefersBGRA);
+        supplierSuite->PrefersPixelLayoutBGRA (supplier_ref, &prefersBGRA);
         supplierSuite->SupportsPixelLayoutARGB(supplier_ref, &supportsARGB);
-        supplierSuite->PrefersPixelLayoutARGB(supplier_ref, &prefersARGB);
+        supplierSuite->PrefersPixelLayoutARGB (supplier_ref, &prefersARGB);
 
         if (PremierId == in_data->appl_id)
         {

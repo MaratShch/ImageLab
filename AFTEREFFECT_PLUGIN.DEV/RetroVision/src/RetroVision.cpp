@@ -127,7 +127,7 @@ ParamsSetup
     // add Display Type Logo (GUI)
     AEFX_CLR_STRUCT_EX(def);
     def.flags = flags;
-    def.ui_flags = PF_PUI_CONTROL;
+    def.ui_flags = ui_disabled_flags;
     def.ui_width  = guiBarWidth;
     def.ui_height = guiBarHeight;
     if (PremierId != in_data->appl_id)
@@ -174,7 +174,7 @@ ParamsSetup
     } // if (PF_Err_NONE == err)
 
     // Setup 'RetroDisplay' popup - default value "CGA palette-1"
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
         controlItemName[2],                                 // pop-up name
         UnderlyingType(RetroBitmap::eRETRO_BITMAP_TOTALS),  // number of variants
@@ -258,6 +258,19 @@ HandleEvent
     PF_EventExtra	*extra)
 {
     PF_Err		err = PF_Err_NONE;
+
+    switch (extra->e_type)
+    {
+        case PF_Event_DRAW:
+            err = DrawEvent(in_data, out_data, params, output, extra);
+        break;
+
+        //		case PF_Event_ADJUST_CURSOR:
+        //		break;
+
+        default:
+        break;
+    }
     return err;
 }
 
