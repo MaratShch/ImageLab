@@ -5,7 +5,7 @@
 
 
 template <typename T>
-constexpr auto underlying(const T& e) noexcept
+constexpr auto UnderlyingType(const T& e) noexcept
 {
     return static_cast<std::underlying_type_t<T>>(e);
 }

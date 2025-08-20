@@ -95,6 +95,7 @@
       <AdditionalIncludeDirectories>include;resource_win;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -120,6 +121,7 @@
       <AdditionalIncludeDirectories>include;resource_win;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -154,6 +156,7 @@
     <ClCompile Include="src\RetroVision.cpp" />
     <ClCompile Include="src\RetroVisionAE.cpp" />
     <ClCompile Include="src\RetroVisionBitmap.cpp" />
+    <ClCompile Include="src\RetroVisionGUI.cpp" />
     <ClCompile Include="src\RetroVisionPR.cpp" />
     <ClCompile Include="src\RetroVisionSR.cpp" />
   </ItemGroup>
@@ -188,7 +191,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="RetroVision.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="hercules.bmp" />
+    <Image Include="resource_win\hercules.bmp" />
     <Image Include="resource_win\vga.bmp" />
     <Image Include="resource_win\ega.bmp" />
     <Image Include="resource_win\cga.bmp" />

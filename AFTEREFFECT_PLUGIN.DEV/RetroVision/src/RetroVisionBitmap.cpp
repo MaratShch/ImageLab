@@ -3,13 +3,15 @@
 #include "resource.h"
 
 
-static const std::array<LPSTR, 4> bitmapId =
+static const std::array<LPSTR, 6> bitmapId =
 {
-    MAKEINTRESOURCE(IDB_BITMAP_CGA),
-    MAKEINTRESOURCE(IDB_BITMAP_EGA),
-    MAKEINTRESOURCE(IDB_BITMAP_VGA),
-    MAKEINTRESOURCE(IDB_BITMAP_HER)
-};
+    MAKEINTRESOURCE(IDB_BITMAP_CGA), // CGA logo - CGA1
+    MAKEINTRESOURCE(IDB_BITMAP_CGA), // CGA logo - CGA2
+    MAKEINTRESOURCE(IDB_BITMAP_EGA), // EGA logo - EGA
+    MAKEINTRESOURCE(IDB_BITMAP_VGA), // VGA logo - VGA16
+    MAKEINTRESOURCE(IDB_BITMAP_VGA), // VGA logo - VGA256
+    MAKEINTRESOURCE(IDB_BITMAP_HER)  // HERCULES logo
+}; 
 
 
 BITMAP LoadBitmap (const RetroBitmap& bitmap, HBITMAP& hndl)
@@ -18,7 +20,7 @@ BITMAP LoadBitmap (const RetroBitmap& bitmap, HBITMAP& hndl)
 
     // Load bitmap from resource
     hndl = static_cast<HBITMAP>(
-            LoadImage(GetModuleHandle(NULL), bitmapId[underlying(bitmap) - underlying(RetroBitmap::eRETRO_BITMAP_CGA)], IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION)
+            LoadImage(GetModuleHandle(NULL), bitmapId[UnderlyingType(bitmap)], IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION)
         );
 
     if (hndl)

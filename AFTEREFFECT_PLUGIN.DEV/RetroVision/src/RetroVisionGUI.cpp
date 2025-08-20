@@ -1,142 +1,31 @@
-#include "ColorTemperature.hpp"
-#include "ColorTemperatureEnums.hpp"
-#include "ColorTemperatureGUI.hpp"
-#include "ColorTemperatureDraw.hpp"
+#include "CompileTimeUtils.hpp"
+#include "RetroVision.hpp"
+#include "RetroVisionEnum.hpp"
 #include "AEFX_SuiteHelper.h"
 #include <cmath>
 
-#ifdef _DEBUG
-#include <string>
-#include <sstream> // for std::ostringstream
-
-static DRAWBOT_Boolean supportsBGRA = false; /* true */
-static DRAWBOT_Boolean prefersBGRA  = false;
-static DRAWBOT_Boolean supportsARGB = false; /* false */
-static DRAWBOT_Boolean prefersARGB  = false;
-static bool preferredFormatDecided  = false;
-#endif
-
-
-PF_Err PresetsActivation
-(
-	PF_InData	*in_data,
-	PF_OutData	*out_data,
-	PF_ParamDef	*params[]
-) 
-{
-	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 =
-		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
-
-	bool updateUI = false;
-
-	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags))
-	{
-		EnableUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
-	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags))
-	{
-		DisableUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
-	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags))
-	{
-		DisableUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags);
-		updateUI = true;
-	}
-
-	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags))
-	{
-		DisableUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags);
-		updateUI = true;
-	}
-
-	/* update UI */
-	if (true == updateUI)
-	{
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_PRESET_TYPE_POPUP,     params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP,   params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_LOAD_PRESET_BUTTON,    params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_SAVE_PRESET_BUTTON,    params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]);
-	}
-
-	return PF_Err_NONE;
-}
-
-
-PF_Err PresetsDeactivation
-(
-	PF_InData	*in_data,
-	PF_OutData	*out_data,
-	PF_ParamDef	*params[]
-)
-{
-	AEFX_SuiteScoper<PF_ParamUtilsSuite3> paramUtilsSite3 =
-		AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
-
-	bool updateUI = false;
-
-	if (false == IsDisabledUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags))
-	{
-		DisableUI(params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
-	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags))
-	{
-		EnableUI(params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]->ui_flags);
-		updateUI = true;
-	}
-
-	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags))
-	{
-		EnableUI(params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]->ui_flags);
-		updateUI = true;
-	}
-
-	if (true == IsDisabledUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags))
-	{
-		EnableUI(params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]->ui_flags);
-		updateUI = true;
-	}
-
-	/* update UI */
-	if (true == updateUI)
-	{
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_PRESET_TYPE_POPUP,     params[COLOR_TEMPERATURE_PRESET_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP,   params[COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_LOAD_PRESET_BUTTON,    params[COLOR_TEMPERATURE_LOAD_PRESET_BUTTON]);
-		paramUtilsSite3->PF_UpdateParamUI(in_data->effect_ref, COLOR_TEMPERATURE_SAVE_PRESET_BUTTON,    params[COLOR_TEMPERATURE_SAVE_PRESET_BUTTON]);
-	}
-
-	return PF_Err_NONE;
-}
-
-
 PF_Err DrawEvent
 (
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output,
-	PF_EventExtra	*event_extra
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    PF_EventExtra	*event_extra
 )
 {
-	DRAWBOT_DrawRef drawing_ref = nullptr;
+    DRAWBOT_DrawRef drawing_ref = nullptr;
     DRAWBOT_SupplierRef	supplier_ref = nullptr;
     DRAWBOT_SurfaceRef	surface_ref = nullptr;
     DRAWBOT_PathRef		path_ref = nullptr;
     DRAWBOT_BrushRef	brush_ref = nullptr;
 
-    if (false == isRedraw())
-        return PF_Err_NONE;
+//    if (false == isRedraw())
+//        return PF_Err_NONE;
 
     PF_Err err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     // Let's notify that flag for redraw received successfully.
-    ProcRedrawComplete();
+//    ProcRedrawComplete();
 
     // acquire DrawBot Suites
     auto const drawbotSuite { AEFX_SuiteScoper<DRAWBOT_DrawbotSuite1> (in_data, kDRAWBOT_DrawSuite,     kDRAWBOT_DrawSuite_VersionCurrent,     out_data) };
@@ -148,10 +37,10 @@ PF_Err DrawEvent
     auto const effectCustomUISuiteP{ AEFX_SuiteScoper<PF_EffectCustomUISuite1>(in_data, kPFEffectCustomUISuite, kPFEffectCustomUISuiteVersion1, out_data) };
 
     // Get the drawing reference by passing context to this new api
-    const PF_Err ErrDrawRef = effectCustomUISuiteP->PF_GetDrawingReference (event_extra->contextH, &drawing_ref);
+    const PF_Err ErrDrawRef = effectCustomUISuiteP->PF_GetDrawingReference(event_extra->contextH, &drawing_ref);
 
     // Get the Drawbot supplier from drawing reference; it shouldn't be released like pen or brush (see below)
-    const PF_Err ErrSupplRef = drawbotSuite->GetSupplier (drawing_ref, &supplier_ref);
+    const PF_Err ErrSupplRef = drawbotSuite->GetSupplier(drawing_ref, &supplier_ref);
 
     // Get the Drawbot surface from drawing reference; it shouldn't be released like pen or brush (see below)
     const PF_Err ErrSurfRef = drawbotSuite->GetSurface(drawing_ref, &surface_ref);
@@ -160,10 +49,10 @@ PF_Err DrawEvent
     if (false == preferredFormatDecided)
     {
         preferredFormatDecided = true;
-        supplierSuite->SupportsPixelLayoutBGRA (supplier_ref, &supportsBGRA);
-        supplierSuite->PrefersPixelLayoutBGRA  (supplier_ref, &prefersBGRA );
-        supplierSuite->SupportsPixelLayoutARGB (supplier_ref, &supportsARGB);
-        supplierSuite->PrefersPixelLayoutARGB  (supplier_ref, &prefersARGB );
+        supplierSuite->SupportsPixelLayoutBGRA(supplier_ref, &supportsBGRA);
+        supplierSuite->PrefersPixelLayoutBGRA(supplier_ref, &prefersBGRA);
+        supplierSuite->SupportsPixelLayoutARGB(supplier_ref, &supportsARGB);
+        supplierSuite->PrefersPixelLayoutARGB(supplier_ref, &prefersARGB);
 
         if (PremierId == in_data->appl_id)
         {
@@ -186,9 +75,10 @@ PF_Err DrawEvent
         if (PremierId != in_data->appl_id)
         {
             constexpr float PfMaxChan8 = { static_cast<float>(u8_value_white) };
-            drawbot_color.red   = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.red)   / PfMaxChan8;
-            drawbot_color.green = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.green) / PfMaxChan8;
-            drawbot_color.blue  = static_cast<float>(params[COLOR_TEMPERATURE_COLOR_BAR_GUI]->u.cd.value.blue)  / PfMaxChan8;
+            constexpr auto GuiControl = UnderlyingType(RetroVision::eRETRO_VISION_GUI);
+            drawbot_color.red = static_cast<float>  (params[GuiControl]->u.cd.value.red)   / PfMaxChan8;
+            drawbot_color.green = static_cast<float>(params[GuiControl]->u.cd.value.green) / PfMaxChan8;
+            drawbot_color.blue = static_cast<float> (params[GuiControl]->u.cd.value.blue)   / PfMaxChan8;
         }
         else
         {
@@ -213,7 +103,7 @@ PF_Err DrawEvent
                     DRAWBOT_RectF32	rectR{};
 
                     rectR.left   = static_cast<float>(event_extra->effect_win.current_frame.left) + 0.5f;
-                    rectR.top    = static_cast<float>(event_extra->effect_win.current_frame.top)  + 0.5f;
+                    rectR.top    = static_cast<float>(event_extra->effect_win.current_frame.top ) + 0.5f;
                     rectR.width  = static_cast<float>(event_extra->effect_win.current_frame.right  - event_extra->effect_win.current_frame.left);
                     rectR.height = static_cast<float>(event_extra->effect_win.current_frame.bottom - event_extra->effect_win.current_frame.top);
 
@@ -238,5 +128,5 @@ PF_Err DrawEvent
         } // if (PF_EA_CONTROL == event_extra->effect_win.area)
     } // if (PF_Err_NONE == ErrDrawRef && kSPNoError == ErrSupplRef && kSPNoError == ErrSurfRef)
 
-	return err;
+    return err;
 }

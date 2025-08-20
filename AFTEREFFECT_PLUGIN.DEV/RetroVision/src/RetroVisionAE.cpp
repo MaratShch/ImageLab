@@ -47,7 +47,7 @@ inline PF_Err RetroVision_InAE_DeepWorld
     PF_Err	err = PF_Err_NONE;
     PF_PixelFormat format = PF_PixelFormat_INVALID;
     AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
-    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[underlying(RetroVision::eRETRO_VISION_INPUT)]->u.ld), &format))
+    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(RetroVision::eRETRO_VISION_INPUT)]->u.ld), &format))
     {
         err = (format == PF_PixelFormat_ARGB128 ?
             RetroVision_InAE_32bits(in_data, out_data, params, output) : RetroVision_InAE_16bits(in_data, out_data, params, output));

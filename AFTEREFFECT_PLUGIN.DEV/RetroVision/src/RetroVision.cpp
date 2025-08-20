@@ -1,4 +1,6 @@
 #include "RetroVision.hpp"
+#include "RetroVisionEnum.hpp"
+#include "Param_Utils.h"
 #include "PrSDKAESupport.h"
 
 
@@ -34,17 +36,20 @@ GlobalSetup
 {
 	PF_Err	err = PF_Err_NONE;
 
-	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
-		PF_OutFlag_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags1 =
+        PF_OutFlag_WIDE_TIME_INPUT                |
+        PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
+        PF_OutFlag_USE_OUTPUT_EXTENT              |
+        PF_OutFlag_PIX_INDEPENDENT                |
+        PF_OutFlag_DEEP_COLOR_AWARE               |
+        PF_OutFlag_CUSTOM_UI                      |
+        PF_OutFlag_SEND_UPDATE_PARAMS_UI;
 
-	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags2 =
+        PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+        PF_OutFlag2_SUPPORTS_GET_FLATTENED_SEQUENCE_DATA;
 
 	out_data->my_version =
 		PF_VERSION(
@@ -104,6 +109,88 @@ ParamsSetup
 	PF_LayerDef		*output
 )
 {
+    PF_ParamDef	def{};
+    PF_Err		err = PF_Err_NONE;
+
+    constexpr PF_ParamFlags   flags    = PF_ParamFlag_SUPERVISE;
+    constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+    constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
+
+    // SetUp 'Enable' checkbox. Default state - non selected
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_CHECKBOXX(
+        controlItemName[0],
+        FALSE,
+        flags,
+        UnderlyingType(RetroVision::eRETRO_VISION_ENABLE));
+
+    // add Display Type Logo (GUI)
+    AEFX_CLR_STRUCT_EX(def);
+    def.flags = flags;
+    def.ui_flags = PF_PUI_CONTROL;
+    def.ui_width  = guiBarWidth;
+    def.ui_height = guiBarHeight;
+    if (PremierId != in_data->appl_id)
+    {
+        PF_ADD_COLOR(
+            controlItemName[1],
+            0,
+            0,
+            0,
+            UnderlyingType(RetroVision::eRETRO_VISION_GUI));
+    }
+    else
+    {
+        PF_ADD_ARBITRARY2(
+            controlItemName[1],
+            guiBarWidth,
+            guiBarHeight,
+            0,
+            PF_PUI_CONTROL,
+            0,
+            UnderlyingType(RetroVision::eRETRO_VISION_GUI),
+            0);
+    }
+    if (PF_Err_NONE == err)
+    {
+        PF_CustomUIInfo	ui;
+        AEFX_CLR_STRUCT_EX(ui);
+
+        ui.events = PF_CustomEFlag_EFFECT;
+
+        ui.comp_ui_width = 0;
+        ui.comp_ui_height = 0;
+        ui.comp_ui_alignment = PF_UIAlignment_NONE;
+
+        ui.layer_ui_width = 0;
+        ui.layer_ui_height = 0;
+        ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        ui.preview_ui_width = 0;
+        ui.preview_ui_height = 0;
+        ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
+    } // if (PF_Err_NONE == err)
+
+    // Setup 'RetroDisplay' popup - default value "CGA palette-1"
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        controlItemName[2],                                 // pop-up name
+        UnderlyingType(RetroBitmap::eRETRO_BITMAP_TOTALS),  // number of variants
+        UnderlyingType(RetroBitmap::eRETRO_BITMAP_CGA1),    // default variant
+        retroDisplayName,                                   // string for pop-up
+        UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY));// control ID
+
+    // SetUp 'Dithering' checkbox. Default state - non selected and disables
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_CHECKBOXX(
+        controlItemName[3],
+        FALSE,
+        flags,
+        UnderlyingType(RetroVision::eRETRO_VISION_DITHERING));
+
+    out_data->num_params = UnderlyingType(RetroVision::eRETRO_VISION_TOTAL_CONTROLS);
 
 	return PF_Err_NONE;
 }
@@ -146,6 +233,49 @@ SmartRender
 }
 
 
+static PF_Err
+UserChangedParam
+(
+    PF_InData						*in_data,
+    PF_OutData						*out_data,
+    PF_ParamDef						*params[],
+    PF_LayerDef						*outputP,
+    const PF_UserChangedParamExtra	*which_hitP
+)
+{
+    PF_Err errControl = PF_Err_NONE;
+    return errControl;
+}
+
+
+static PF_Err
+HandleEvent
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    PF_EventExtra	*extra)
+{
+    PF_Err		err = PF_Err_NONE;
+    return err;
+}
+
+
+static PF_Err
+UpdateParameterUI
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*outputP
+) noexcept
+{
+    PF_Err err = PF_Err_NONE;
+    return err;
+}
+
+
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain
@@ -182,6 +312,18 @@ EffectMain
 			case PF_Cmd_RENDER:
 				ERR(Render(in_data, out_data, params, output));
 			break;
+
+            case PF_Cmd_USER_CHANGED_PARAM:
+                ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+            break;
+
+            case PF_Cmd_UPDATE_PARAMS_UI:
+                ERR(UpdateParameterUI(in_data, out_data, params, output));
+            break;
+
+            case PF_Cmd_EVENT:
+                ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
+            break;
 
             case PF_Cmd_SMART_PRE_RENDER:
                 ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));

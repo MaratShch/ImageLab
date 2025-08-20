@@ -104,11 +104,9 @@
     <ClCompile Include="src\RetroVisionBitmap.cpp">
       <Filter>src</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="RetroVision.r">
-      <Filter>resource</Filter>
-    </None>
+    <ClCompile Include="src\RetroVisionGUI.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource_win\RetroVisionResource.rc">
@@ -128,8 +126,13 @@
     <Image Include="resource_win\vga.bmp">
       <Filter>resource_win</Filter>
     </Image>
-    <Image Include="hercules.bmp">
+    <Image Include="resource_win\hercules.bmp">
       <Filter>resource_win</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="RetroVision.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
