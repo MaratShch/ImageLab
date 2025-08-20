@@ -1,6 +1,7 @@
 #ifndef __IMAGE_LAB_RETRO_VISION_FILTER_ENUMERATORS__
 #define __IMAGE_LAB_RETRO_VISION_FILTER_ENUMERATORS__
 
+#include <cstdint>
 #include "AE_Effect.h"
 #include "CompileTimeUtils.hpp"
 
