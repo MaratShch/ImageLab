@@ -91,7 +91,7 @@ PF_Err DrawEvent
             constexpr auto GuiControl = UnderlyingType(RetroVision::eRETRO_VISION_GUI);
             drawbot_color.red = static_cast<float>  (params[GuiControl]->u.cd.value.red)   / PfMaxChan8;
             drawbot_color.green = static_cast<float>(params[GuiControl]->u.cd.value.green) / PfMaxChan8;
-            drawbot_color.blue = static_cast<float> (params[GuiControl]->u.cd.value.blue)   / PfMaxChan8;
+            drawbot_color.blue = static_cast<float> (params[GuiControl]->u.cd.value.blue)  / PfMaxChan8;
         }
         else
         {

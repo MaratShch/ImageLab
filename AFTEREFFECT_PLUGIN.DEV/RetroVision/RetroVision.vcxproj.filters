@@ -117,16 +117,46 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="resource_win\cga.bmp">
+    <Image Include="resource_win\hercules.bmp">
       <Filter>resource_win</Filter>
     </Image>
-    <Image Include="resource_win\ega.bmp">
+    <Image Include="resource_win\cga1.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\cga1i.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\cga2.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\cga2i.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_standard.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_kq3.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_kyrandia.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_thexder.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_dune.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_doom.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_metal.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
+    <Image Include="resource_win\ega_wolfenstein.bmp">
       <Filter>resource_win</Filter>
     </Image>
     <Image Include="resource_win\vga.bmp">
-      <Filter>resource_win</Filter>
-    </Image>
-    <Image Include="resource_win\hercules.bmp">
       <Filter>resource_win</Filter>
     </Image>
   </ItemGroup>

@@ -97,6 +97,9 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -127,6 +130,9 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
@@ -191,10 +197,20 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="RetroVision.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="resource_win\cga2i.bmp" />
+    <Image Include="resource_win\ega_doom.bmp" />
+    <Image Include="resource_win\ega_dune.bmp" />
+    <Image Include="resource_win\ega_kq3.bmp" />
+    <Image Include="resource_win\ega_kyrandia.bmp" />
+    <Image Include="resource_win\ega_metal.bmp" />
+    <Image Include="resource_win\ega_standard.bmp" />
+    <Image Include="resource_win\ega_thexder.bmp" />
+    <Image Include="resource_win\ega_wolfenstein.bmp" />
     <Image Include="resource_win\hercules.bmp" />
+    <Image Include="resource_win\cga2.bmp" />
+    <Image Include="resource_win\cga1i.bmp" />
+    <Image Include="resource_win\cga1.bmp" />
     <Image Include="resource_win\vga.bmp" />
-    <Image Include="resource_win\ega.bmp" />
-    <Image Include="resource_win\cga.bmp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
