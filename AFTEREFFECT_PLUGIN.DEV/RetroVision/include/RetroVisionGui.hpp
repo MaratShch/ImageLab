@@ -4,6 +4,7 @@
 #include <windows.h>
 #include "RetroVisionEnum.hpp"
 
+bool LoadBitmaps (void);
 
 //BITMAP LoadBitmap(const RetroBitmap& bitmap, HBITMAP& hndl);
 //void CloseBitmap(HBITMAP hndl);

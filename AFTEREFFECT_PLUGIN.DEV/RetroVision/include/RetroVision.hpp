@@ -59,4 +59,6 @@ PF_Err DrawEvent
     PF_EventExtra	*event_extra
 );
 
+void dummy(void);
+
 #endif /* __IMAGE_LAB_RETRO_VISION_FILTER__ */

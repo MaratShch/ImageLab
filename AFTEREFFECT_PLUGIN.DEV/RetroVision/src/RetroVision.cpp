@@ -1,5 +1,6 @@
 #include "RetroVision.hpp"
 #include "RetroVisionEnum.hpp"
+#include "RetroVisionGui.hpp"
 #include "Param_Utils.h"
 #include "PrSDKAESupport.h"
 
@@ -34,7 +35,7 @@ GlobalSetup
 	PF_LayerDef		*output
 )
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;// ;
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_WIDE_TIME_INPUT                |
@@ -80,6 +81,8 @@ GlobalSetup
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
+
+        err = PF_Err_NONE;
 
 	return err;
 }

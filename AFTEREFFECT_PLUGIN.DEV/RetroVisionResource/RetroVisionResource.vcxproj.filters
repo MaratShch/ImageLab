@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="resource">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{14d3cc24-109e-4d8e-86cc-ad174bb8e502}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resource\Atari.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\cga1.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\cga1i.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\cga2.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\cga2i.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_doom.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_dune.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_kq3.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_kyrandia.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_metal.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_standard.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_thexder.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\ega_wolfenstein.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\hercules.bmp">
+      <Filter>resource</Filter>
+    </Image>
+    <Image Include="resource\vga.bmp">
+      <Filter>resource</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource\RetroVisionResource.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\resource.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RetroVisionResource.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\RetroVisionBitmap.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
