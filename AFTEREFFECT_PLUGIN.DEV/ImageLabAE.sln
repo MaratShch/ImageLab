@@ -203,6 +203,9 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabVulkan", "ImageLabVulkan\ImageLabVulkan.vcxproj", "{AC6BC024-920B-4B4B-8F49-1B2E3CDD0B7B}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RetroVision", "RetroVision\RetroVision.vcxproj", "{5D87FD20-E417-4A41-B3FF-B0DF2B3C34B6}"
+	ProjectSection(ProjectDependencies) = postProject
+		{BF2C96C0-8543-498E-855B-7E815EE91E81} = {BF2C96C0-8543-498E-855B-7E815EE91E81}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RetroVision", "RetroVision", "{8DDCAF1B-143A-4ACC-8727-F725B0AB7A87}"
 EndProject
