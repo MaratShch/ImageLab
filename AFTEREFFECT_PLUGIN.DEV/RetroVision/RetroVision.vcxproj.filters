@@ -162,6 +162,9 @@
     <Image Include="resource_win\vga.bmp">
       <Filter>resource_win</Filter>
     </Image>
+    <Image Include="resource_win\Atari.bmp">
+      <Filter>resource_win</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="RetroVision.r">

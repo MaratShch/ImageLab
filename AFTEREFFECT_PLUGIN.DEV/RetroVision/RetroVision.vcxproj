@@ -197,6 +197,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="RetroVision.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="resource_win\Atari.bmp" />
     <Image Include="resource_win\cga2i.bmp" />
     <Image Include="resource_win\ega_doom.bmp" />
     <Image Include="resource_win\ega_dune.bmp" />

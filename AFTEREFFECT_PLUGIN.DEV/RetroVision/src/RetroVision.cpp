@@ -123,7 +123,7 @@ ParamsSetup
         FALSE,
         flags,
         UnderlyingType(RetroVision::eRETRO_VISION_ENABLE));
-
+#if 0
     // add Display Type Logo (GUI)
     AEFX_CLR_STRUCT_EX(def);
     def.flags = flags;
@@ -191,6 +191,7 @@ ParamsSetup
         UnderlyingType(RetroVision::eRETRO_VISION_DITHERING));
 
     out_data->num_params = UnderlyingType(RetroVision::eRETRO_VISION_TOTAL_CONTROLS);
+#endif
 
 	return PF_Err_NONE;
 }

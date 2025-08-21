@@ -2,6 +2,9 @@
 #include "RetroVisionGui.hpp"
 #include "resource.h"
 
+constexpr size_t BitmapSize    = guiBarWidth * guiBarHeight;
+constexpr size_t BitmapMemSize = BitmapSize * 4;
+using Logo = std::array<uint8_t, BitmapMemSize>;
 
 static const std::array<LPSTR, 6> bitmapId =
 {
@@ -14,19 +17,8 @@ static const std::array<LPSTR, 6> bitmapId =
 }; 
 
 
-BITMAP LoadBitmap (const RetroBitmap& bitmap, HBITMAP& hndl)
+bool LoadBitmaps (void)
 {
-    BITMAP bmp{};
-
-    // Load bitmap from resource
-    hndl = static_cast<HBITMAP>(
-            LoadImage(GetModuleHandle(NULL), bitmapId[UnderlyingType(bitmap)], IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION)
-        );
-
-    if (hndl)
-        GetObject (hndl, sizeof(BITMAP), &bmp);
-
-    return bmp;
 }
 
 
