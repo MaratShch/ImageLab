@@ -19,6 +19,9 @@
     <Filter Include="resource_win">
       <UniqueIdentifier>{b6fa95dc-23af-4f57-906c-8a14c58cc65e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="python">
+      <UniqueIdentifier>{176c2fd5-e1b5-463d-ad1b-101dd9261796}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\RetroVision.hpp">
@@ -164,5 +167,25 @@
     <CustomBuild Include="RetroVision.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\logo.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\logo1.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\logo2.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\logo3.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\logo4.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\logo5.py">
+      <Filter>python</Filter>
+    </None>
   </ItemGroup>
 </Project>

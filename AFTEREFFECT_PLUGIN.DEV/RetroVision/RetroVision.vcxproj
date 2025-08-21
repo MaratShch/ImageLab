@@ -212,6 +212,14 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <Image Include="resource_win\cga1.bmp" />
     <Image Include="resource_win\vga.bmp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="python\logo.py" />
+    <None Include="python\logo1.py" />
+    <None Include="python\logo2.py" />
+    <None Include="python\logo3.py" />
+    <None Include="python\logo4.py" />
+    <None Include="python\logo5.py" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
