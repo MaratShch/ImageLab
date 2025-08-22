@@ -209,9 +209,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RetroVision", "RetroVision\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RetroVision", "RetroVision", "{8DDCAF1B-143A-4ACC-8727-F725B0AB7A87}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RetroVisionResource", "RetroVisionResource\RetroVisionResource.vcxproj", "{BF2C96C0-8543-498E-855B-7E815EE91E81}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ImageLabResource", "ImageLabResource", "{B2F8AD42-1EC6-45F5-8BFD-8BA2AEC2E89B}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RetroVisionResource", "RetroVisionResource", "{B2F8AD42-1EC6-45F5-8BFD-8BA2AEC2E89B}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageLabResource", "ImageLabResource\ImageLabResource.vcxproj", "{BF2C96C0-8543-498E-855B-7E815EE91E81}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

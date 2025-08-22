@@ -4,7 +4,7 @@ static HMODULE hLib = nullptr;
 
 void LoadResourceDll(void)
 {
-    hLib = ::LoadLibraryEx(__TEXT("RetroVisionResource.dll"), NULL, LOAD_LIBRARY_SAFE_CURRENT_DIRS);
+    hLib = ::LoadLibraryEx(__TEXT("ImageLabResource.dll"), NULL, LOAD_LIBRARY_SAFE_CURRENT_DIRS);
 }
 
 void FreeResourceDll(void)
@@ -12,6 +12,7 @@ void FreeResourceDll(void)
     ::FreeLibrary(hLib);
     hLib = nullptr;
 }
+
 
 
 BOOL WINAPI DllMain

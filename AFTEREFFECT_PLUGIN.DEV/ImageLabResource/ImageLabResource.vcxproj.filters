@@ -10,7 +10,7 @@
       <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
     <Filter Include="src">
-      <UniqueIdentifier>{14d3cc24-109e-4d8e-86cc-ad174bb8e502}</UniqueIdentifier>
+      <UniqueIdentifier>{95c069ba-7fb0-4398-b32d-bec8322f0347}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -61,15 +61,10 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="resource\RetroVisionResource.rc">
-      <Filter>resource</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="include\resource.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\RetroVisionResource.hpp">
+    <ClInclude Include="include\ImageLabResource.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -77,5 +72,10 @@
     <ClCompile Include="src\RetroVisionBitmap.cpp">
       <Filter>src</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource\ImageLabResource.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

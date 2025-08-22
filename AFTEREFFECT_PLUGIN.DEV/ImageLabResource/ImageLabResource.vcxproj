@@ -20,8 +20,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{BF2C96C0-8543-498E-855B-7E815EE91E81}</ProjectGuid>
-    <RootNamespace>RetroVisionResource</RootNamespace>
+    <RootNamespace>ImageLabResource</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <ProjectName>ImageLabResource</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -142,19 +143,19 @@
     <Image Include="resource\vga.bmp" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="resource\RetroVisionResource.rc">
+    <ClInclude Include="include\resource.h" />
+    <ClInclude Include="include\ImageLabResource.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\RetroVisionBitmap.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resource\ImageLabResource.rc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">include</AdditionalIncludeDirectories>
     </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="include\resource.h" />
-    <ClInclude Include="include\RetroVisionResource.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\RetroVisionBitmap.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
