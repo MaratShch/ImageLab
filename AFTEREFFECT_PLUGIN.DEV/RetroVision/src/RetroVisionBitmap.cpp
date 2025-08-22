@@ -1,4 +1,6 @@
+#include <array>
 #include "RetroVisionResource.hpp"
+#include "RetroVisionGui.hpp"
 
 // BGRA order:
 // index 0: Blue
@@ -32,10 +34,6 @@ static const std::array<int32_t, totalBitmaps> bitmapId =
     IDB_BITMAP_HERCULES            // HERCULES logo
 }; 
 
-void dummy(void)
-{
-    return;
-}
 
 bool LoadBitmaps (void)
 {
@@ -43,11 +41,13 @@ bool LoadBitmaps (void)
     const int32_t bitmapsSize = static_cast<int32_t>(bitmapId.size());
     size_t cnt = 0;
 
+    HMODULE resourceDll = GetResourceLibHandler();
+
     for (int32_t i = 0; i < bitmapsSize; i++)
     {
         // Load bitmap from resource
-        HBITMAP hBmp = static_cast<HBITMAP>(LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(bitmapId[i]), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION));
-        if (!hBmp)
+        HBITMAP hBmp = static_cast<HBITMAP>(LoadImage(resourceDll, MAKEINTRESOURCE(bitmapId[i]), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION));
+        if (nullptr == hBmp)
             break;
 
         BITMAP bmp{};
@@ -55,29 +55,12 @@ bool LoadBitmaps (void)
 
         if (bmp.bmBits)
         {
-            // Prepare BITMAPINFO
-            BITMAPINFO bmi{};
-            bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-            bmi.bmiHeader.biWidth  = guiBarWidth;
-            bmi.bmiHeader.biHeight = -guiBarHeight; // Negative for top-down
-            bmi.bmiHeader.biPlanes = 1;
-            bmi.bmiHeader.biBitCount = 32;
-            bmi.bmiHeader.biCompression = BI_RGB;
-
-            HDC hdc = GetDC (nullptr);
-
-            if (hdc)
-            {
-                if (!GetDIBits(hdc, hBmp, 0, guiBarHeight, bitmapsData[i].data(), &bmi, DIB_RGB_COLORS))
-                {
-                    ReleaseDC (nullptr, hdc);
-                    continue;
-                }
-
-                ReleaseDC (nullptr, hdc);
-                cnt++;
-            } // if (hdc)
+            std::memcpy(bitmapsData[i].data(), bmp.bmBits, bitmapsData[i].size());
         } // if (bmp.bmBits)
+
+        DeleteObject(hBmp);
+        hBmp = nullptr;
+        cnt++;
     } // for (int32_t i = 0; i < bitmapsSize; i++)
 
     if (cnt == totalBitmaps)

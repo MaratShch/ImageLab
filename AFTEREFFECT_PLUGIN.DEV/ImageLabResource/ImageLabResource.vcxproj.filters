@@ -64,18 +64,18 @@
     <ClInclude Include="include\resource.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageLabResource.hpp">
+    <ClInclude Include="include\RetroVisionResource.hpp">
       <Filter>include</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\RetroVisionBitmap.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource\ImageLabResource.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\DllMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

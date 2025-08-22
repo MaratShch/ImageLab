@@ -35,7 +35,7 @@ GlobalSetup
 	PF_LayerDef		*output
 )
 {
-    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;// ;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_WIDE_TIME_INPUT                |
@@ -82,7 +82,8 @@ GlobalSetup
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-        err = PF_Err_NONE;
+    const bool bLoadResult = LoadBitmaps();
+    err = (true == bLoadResult ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
 	return err;
 }

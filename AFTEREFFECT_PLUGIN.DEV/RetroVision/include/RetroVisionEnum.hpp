@@ -72,10 +72,6 @@ constexpr char egaPaletteName[] =
     "Wolfenstein 3D"
 };
 
-
-constexpr int32_t guiBarWidth  = 48;
-constexpr int32_t guiBarHeight = 48;
-
 constexpr char controlItemName[][16] =
 {
     "Enable",				// check box

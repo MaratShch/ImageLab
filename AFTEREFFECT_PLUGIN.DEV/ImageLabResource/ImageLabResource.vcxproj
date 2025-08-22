@@ -144,10 +144,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\resource.h" />
-    <ClInclude Include="include\ImageLabResource.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\RetroVisionBitmap.cpp" />
+    <ClInclude Include="include\RetroVisionResource.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource\ImageLabResource.rc">
@@ -156,6 +153,9 @@
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">include</AdditionalIncludeDirectories>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\DllMain.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,4 +1,4 @@
-#include <array>
+#include <cstdint>
 #include <windows.h>
 #include "resource.h"
 
