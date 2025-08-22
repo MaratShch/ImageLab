@@ -15,7 +15,7 @@ using Logo = std::array<uint8_t, BitmapMemSize>;
 
 static std::array<Logo, totalBitmaps> bitmapsData{};
 
-static const std::array<int32_t, totalBitmaps> bitmapId =
+static constexpr std::array<int32_t, totalBitmaps> bitmapId =
 {
     IDB_BITMAP_ATARI,              // MAIN logo 
     IDB_BITMAP_CGA1,               // CGA1 no intencity 
