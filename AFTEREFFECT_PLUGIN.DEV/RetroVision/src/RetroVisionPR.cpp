@@ -1,4 +1,5 @@
 #include "RetroVision.hpp"
+#include "RetroVisionEnum.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -10,11 +11,16 @@ PF_Err ProcessImgInPR
 	PF_LayerDef* __restrict output
 ) 
 {
-	PF_Err err{ PF_Err_NONE };
-	PF_Err errFormat{ PF_Err_INVALID_INDEX };
-	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
+    // check if effect is enabled by CheckBox
+    const A_long isEnabled = params[UnderlyingType(RetroVision::eRETRO_VISION_ENABLE)]->u.bd.value;
+    if (0 == isEnabled)
+        return PF_COPY(&params[UnderlyingType(RetroVision::eRETRO_VISION_INPUT)]->u.ld, output, NULL, NULL);
 
-	/* This plugin called frop PR - check video fomat */
+    PF_Err err{ PF_Err_NONE };
+    PF_Err errFormat{ PF_Err_INVALID_INDEX };
+    PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
+
+	// This plugin called frop PR - check video fomat
 	auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
 	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))

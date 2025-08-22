@@ -17,6 +17,7 @@ static std::atomic<bool>preferredFormatDecided{ false };
 #endif
 
 
+
 PF_Err DrawEvent
 (
     PF_InData		*in_data,
@@ -41,23 +42,28 @@ PF_Err DrawEvent
 //    ProcRedrawComplete();
 
     // acquire DrawBot Suites
-    auto const drawbotSuite { AEFX_SuiteScoper<DRAWBOT_DrawbotSuite1> (in_data, kDRAWBOT_DrawSuite,     kDRAWBOT_DrawSuite_VersionCurrent,     out_data) };
-    auto const supplierSuite{ AEFX_SuiteScoper<DRAWBOT_SupplierSuite1>(in_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, out_data) };
-    auto const surfaceSuite { AEFX_SuiteScoper<DRAWBOT_SurfaceSuite1> (in_data, kDRAWBOT_SurfaceSuite,  kDRAWBOT_SurfaceSuite_VersionCurrent,  out_data) };
-    auto const pathSuite    { AEFX_SuiteScoper<DRAWBOT_PathSuite1>    (in_data, kDRAWBOT_PathSuite,     kDRAWBOT_PathSuite_VersionCurrent,     out_data) };
+    auto const drawbotSuite  = AEFX_SuiteScoper<DRAWBOT_DrawbotSuite1> (in_data, kDRAWBOT_DrawSuite,     kDRAWBOT_DrawSuite_VersionCurrent,     out_data);
+    auto const supplierSuite = AEFX_SuiteScoper<DRAWBOT_SupplierSuite1>(in_data, kDRAWBOT_SupplierSuite, kDRAWBOT_SupplierSuite_VersionCurrent, out_data);
+//    auto const surfaceSuite { AEFX_SuiteScoper<DRAWBOT_SurfaceSuite1> (in_data, kDRAWBOT_SurfaceSuite,  kDRAWBOT_SurfaceSuite_VersionCurrent,  out_data) };
+//    auto const pathSuite    { AEFX_SuiteScoper<DRAWBOT_PathSuite1>    (in_data, kDRAWBOT_PathSuite,     kDRAWBOT_PathSuite_VersionCurrent,     out_data) };
 
     // get the drawing reference
     auto const effectCustomUISuiteP{ AEFX_SuiteScoper<PF_EffectCustomUISuite1>(in_data, kPFEffectCustomUISuite, kPFEffectCustomUISuiteVersion1, out_data) };
 
     // Get the drawing reference by passing context to this new api
     const PF_Err ErrDrawRef = effectCustomUISuiteP->PF_GetDrawingReference(event_extra->contextH, &drawing_ref);
+  
+    // Get DarwBot Surface
+    const SPErr ErrSurface = drawbotSuite->GetSurface(drawing_ref, &surface_ref);
 
     // Get the Drawbot supplier from drawing reference; it shouldn't be released like pen or brush (see below)
-    const PF_Err ErrSupplRef = drawbotSuite->GetSupplier(drawing_ref, &supplier_ref);
+//    const PF_Err ErrSupplRef = drawbotSuite->GetSupplier(drawing_ref, &supplier_ref);
 
     // Get the Drawbot surface from drawing reference; it shouldn't be released like pen or brush (see below)
-    const PF_Err ErrSurfRef = drawbotSuite->GetSurface(drawing_ref, &surface_ref);
+//    const PF_Err ErrSurfRef = drawbotSuite->GetSurface(drawing_ref, &surface_ref);
 
+
+#if 0
 #ifdef _DEBUG
     if (false == preferredFormatDecided)
     {
@@ -140,6 +146,7 @@ PF_Err DrawEvent
 
         } // if (PF_EA_CONTROL == event_extra->effect_win.area)
     } // if (PF_Err_NONE == ErrDrawRef && kSPNoError == ErrSupplRef && kSPNoError == ErrSurfRef)
+#endif
 
     return err;
 }

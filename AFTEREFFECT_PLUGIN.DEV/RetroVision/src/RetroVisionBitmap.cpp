@@ -1,5 +1,4 @@
-#include <array>
-#include "RetroVisionResource.hpp"
+#include <atomic>
 #include "RetroVisionGui.hpp"
 
 // BGRA order:
@@ -8,10 +7,21 @@
 // index 2 : Red
 // index 3 : Alpha
 
-constexpr size_t BitmapSize    = guiBarWidth * guiBarHeight;
-constexpr size_t BitmapMemSize = BitmapSize * 4;
-constexpr size_t totalBitmaps = 15;
-using Logo = std::array<uint8_t, BitmapMemSize>;
+std::atomic<int32_t> bitmapIdx{ 0 };
+
+void SetBitmapIdx (int32_t idx)
+{
+    if (idx >= 0 && idx < 15)
+        bitmapIdx = idx;
+    return;
+}
+
+int32_t GetBitmapIdx (void)
+{
+    const int32_t idx = bitmapIdx;
+    return idx;
+}
+
 
 static std::array<Logo, totalBitmaps> bitmapsData{};
 
@@ -33,6 +43,11 @@ static constexpr std::array<int32_t, totalBitmaps> bitmapId =
     IDB_BITMAP_VGA,                // VGA
     IDB_BITMAP_HERCULES            // HERCULES logo
 }; 
+
+const Logo& getBitmap(void)
+{
+    return bitmapsData[bitmapIdx];
+}
 
 
 bool LoadBitmaps (void)

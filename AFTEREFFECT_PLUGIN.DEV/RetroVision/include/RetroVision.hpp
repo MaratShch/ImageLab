@@ -59,6 +59,14 @@ PF_Err DrawEvent
     PF_EventExtra	*event_extra
 );
 
-void dummy(void);
+PF_Err
+RetroVision_UserChangedParam
+(
+    PF_InData						*in_data,
+    PF_OutData						*out_data,
+    PF_ParamDef						*params[],
+    PF_LayerDef						*outputP,
+    const PF_UserChangedParamExtra	*which_hitP
+);
 
 #endif /* __IMAGE_LAB_RETRO_VISION_FILTER__ */

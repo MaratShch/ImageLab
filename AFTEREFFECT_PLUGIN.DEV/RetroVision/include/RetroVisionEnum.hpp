@@ -11,7 +11,10 @@ enum class RetroVision : int32_t
     eRETRO_VISION_ENABLE,
     eRETRO_VISION_GUI,
     eRETRO_VISION_DISPLAY,
-    eRETRO_VISION_DITHERING,
+    eRETRO_VISION_CGA_PALETTE,
+    eRETRO_VISION_CGA_INTTENCITY_BIT,
+    eRETRO_VISION_EGA_PALETTE,
+    eRETRO_VISION_VGA_PALETTE,
     eRETRO_VISION_TOTAL_CONTROLS
 };
 
@@ -72,11 +75,25 @@ constexpr char egaPaletteName[] =
     "Wolfenstein 3D"
 };
 
+
+enum class PaletteVGA : int32_t
+{
+    eRETRO_PALETTE_VGA_16_BITS,
+    eRETRO_PALETTE_VGA_256_BITS,
+    eRETRO_PALETTE_VGA_TOTAL
+};
+
+constexpr char vgaPaletteName[] =
+{
+    "16 bits |"
+    "256 bits "
+};
+
 constexpr char controlItemName[][16] =
 {
     "Enable",				// check box
     "Display",  			// UI color bar
-    "Display",				// popup
+    "Monitor",				// popup
     "CGA Palette",   		// popup
     "Intencity bit",   		// check box
     "EGA Palette",   		// popup

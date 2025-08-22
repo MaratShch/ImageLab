@@ -1,6 +1,7 @@
 #include "RetroVision.hpp"
 #include "RetroVisionEnum.hpp"
 #include "RetroVisionGui.hpp"
+#include "RetroVisionResource.hpp"
 #include "Param_Utils.h"
 #include "PrSDKAESupport.h"
 
@@ -127,7 +128,7 @@ ParamsSetup
         FALSE,
         flags,
         UnderlyingType(RetroVision::eRETRO_VISION_ENABLE));
-#if 0
+
     // add Display Type Logo (GUI)
     AEFX_CLR_STRUCT_EX(def);
     def.flags = flags;
@@ -177,25 +178,51 @@ ParamsSetup
         err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
     } // if (PF_Err_NONE == err)
 
-    // Setup 'RetroDisplay' popup - default value "CGA palette-1"
+    // Setup 'Retro Monitor' popup - default value "CGA"
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
         controlItemName[2],                                 // pop-up name
-        UnderlyingType(RetroBitmap::eRETRO_BITMAP_TOTALS),  // number of variants
-        UnderlyingType(RetroBitmap::eRETRO_BITMAP_CGA1),    // default variant
-        retroDisplayName,                                   // string for pop-up
+        UnderlyingType(RetroMonitor::eRETRO_BITMAP_TOTALS), // number of variants
+        UnderlyingType(RetroMonitor::eRETRO_BITMAP_CGA),    // default variant
+        retroMonitorName,                                   // string for pop-up
         UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY));// control ID
 
-    // SetUp 'Dithering' checkbox. Default state - non selected and disables
+    // Setup 'CGA Palette' popup - default value "CGA-1"
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_POPUP(
+        controlItemName[3],                                     // pop-up name
+        UnderlyingType(PaletteCGA::eRETRO_PALETTE_CGA_TOTAL),   // number of variants
+        UnderlyingType(PaletteCGA::eRETRO_PALETTE_CGA1),        // default variant
+        cgaPaletteName,                                         // string for pop-up
+        UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE));// control ID
+
+    // Setup 'CGA Intencity Bit' checkbox. Default state - non selected
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_CHECKBOXX(
-        controlItemName[3],
+        controlItemName[4],
         FALSE,
         flags,
-        UnderlyingType(RetroVision::eRETRO_VISION_DITHERING));
+        UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT));
+
+    // Setup 'EGA Palette' popup - default value "Standard"
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_POPUP(
+        controlItemName[5],                                     // pop-up name
+        UnderlyingType(PaletteEGA::eRETRO_PALETTE_EGA_TOTAL),   // number of variants
+        UnderlyingType(PaletteEGA::eRETRO_PALETTE_EGA_STANDARD),// default variant
+        egaPaletteName,                                         // string for pop-up
+        UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE));// control ID
+
+    // Setup 'VGA Palette' popup - default value "VGA 16 colors"
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_POPUP(
+        controlItemName[6],                                     // pop-up name
+        UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_TOTAL),   // number of variants
+        UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_16_BITS), // default variant
+        vgaPaletteName,                                         // string for pop-up
+        UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE));// control ID
 
     out_data->num_params = UnderlyingType(RetroVision::eRETRO_VISION_TOTAL_CONTROLS);
-#endif
 
 	return PF_Err_NONE;
 }
@@ -248,8 +275,7 @@ UserChangedParam
     const PF_UserChangedParamExtra	*which_hitP
 )
 {
-    PF_Err errControl = PF_Err_NONE;
-    return errControl;
+    return RetroVision_UserChangedParam (in_data, out_data, params, outputP, which_hitP);
 }
 
 

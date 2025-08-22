@@ -107,6 +107,9 @@
     <ClCompile Include="src\RetroVisionBitmap.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\RetroVisionUI.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RetroVision.rc">

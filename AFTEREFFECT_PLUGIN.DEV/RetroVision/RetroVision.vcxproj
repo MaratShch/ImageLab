@@ -170,6 +170,7 @@
     <ClCompile Include="src\RetroVisionGUI.cpp" />
     <ClCompile Include="src\RetroVisionPR.cpp" />
     <ClCompile Include="src\RetroVisionSR.cpp" />
+    <ClCompile Include="src\RetroVisionUI.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="RetroVision.r">
