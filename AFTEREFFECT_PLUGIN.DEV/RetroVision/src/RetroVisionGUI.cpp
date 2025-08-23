@@ -52,7 +52,7 @@ PF_Err DrawEvent
     err = supplierSuite->NewImageFromBuffer
     (
         supplier_ref,
-        48,48, 48,
+        48,48, 48*4,
         kDRAWBOT_PixelLayout_32ARGB_Straight,
         getBitmap().data(),
         &drawbotImage
