@@ -4,7 +4,7 @@ static HMODULE hLib = nullptr;
 
 void LoadResourceDll(void)
 {
-    hLib = ::LoadLibraryEx(__TEXT("ImageLabResource.dll"), NULL, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_SAFE_CURRENT_DIRS);
+    hLib = ::LoadLibraryEx(__TEXT("ImageLabResource.dll"), NULL, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 }
 
 void FreeResourceDll(void)

@@ -292,7 +292,7 @@ HandleEvent
     switch (extra->e_type)
     {
         case PF_Event_DRAW:
-            err = DrawEvent(in_data, out_data, params, output, extra);
+        //    err = DrawEvent(in_data, out_data, params, output, extra);
         break;
 
         //		case PF_Event_ADJUST_CURSOR:

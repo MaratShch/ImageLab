@@ -1,7 +1,9 @@
+#include "CompileTimeUtils.hpp"
 #include "RetroVision.hpp"
 #include "RetroVisionEnum.hpp"
 #include "PrSDKAESupport.h"
-
+#include "ImageLabMemInterface.hpp"
+#include "CommonAuxPixFormat.hpp"
 
 PF_Err ProcessImgInPR
 (
@@ -20,43 +22,63 @@ PF_Err ProcessImgInPR
     PF_Err errFormat{ PF_Err_INVALID_INDEX };
     PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
-	// This plugin called frop PR - check video fomat
-	auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
+    const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[UnderlyingType(RetroVision::eRETRO_VISION_INPUT)]->u.ld);
+    const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+    const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 
-	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
-	{
-		switch (destinationPixelFormat)
-		{
-			case PrPixelFormat_BGRA_4444_8u:
-			break;
+    // Allocate memory storage for store temporary results
+    constexpr A_long doubleBuf = 2 * static_cast<A_long>(sizeof(fRGB));
+    const A_long totalProcMem = CreateAlignment (sizeX * sizeY * doubleBuf, CACHE_LINE);
 
-			case PrPixelFormat_BGRA_4444_16u:
-			break;
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
-			case PrPixelFormat_BGRA_4444_32f:
-			break;
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        // This plugin called frop PR - check video fomat
+        auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
-			case PrPixelFormat_VUYA_4444_8u_709:
-			case PrPixelFormat_VUYA_4444_8u:
-			break;
+        if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+        {
+            switch (destinationPixelFormat)
+            {
+            case PrPixelFormat_BGRA_4444_8u:
+                break;
 
-			case PrPixelFormat_VUYA_4444_32f_709:
-			case PrPixelFormat_VUYA_4444_32f:
-			break;
+            case PrPixelFormat_BGRA_4444_16u:
+                break;
 
-			case PrPixelFormat_RGB_444_10u:
-			break;
+            case PrPixelFormat_BGRA_4444_32f:
+                break;
 
-			default:
-			break;
-		} /* switch (destinationPixelFormat) */
+            case PrPixelFormat_VUYA_4444_8u_709:
+            case PrPixelFormat_VUYA_4444_8u:
+                break;
 
-	} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-	else
-	{
-		/* error in determine pixel format */
-		err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
-	}
+            case PrPixelFormat_VUYA_4444_32f_709:
+            case PrPixelFormat_VUYA_4444_32f:
+                break;
+
+            case PrPixelFormat_RGB_444_10u:
+                break;
+
+            default:
+                break;
+            } /* switch (destinationPixelFormat) */
+
+        } /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
+        else
+        {
+            /* error in determine pixel format */
+            err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+        }
+
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+        pMemoryBlock = nullptr;
+    }
+    else
+        err = PF_Err_OUT_OF_MEMORY;
 
 	return err;
 }

@@ -158,12 +158,14 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
     <ClInclude Include="include\RetroVision.hpp" />
     <ClInclude Include="include\RetroVisionEnum.hpp" />
     <ClInclude Include="include\RetroVisionGui.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\RetroVision.cpp" />
     <ClCompile Include="src\RetroVisionAE.cpp" />
     <ClCompile Include="src\RetroVisionBitmap.cpp" />
