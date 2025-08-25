@@ -83,7 +83,7 @@ GlobalSetup
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-    err = (true == LoadBitmaps() ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
+    err = PF_Err_NONE;// (true == LoadBitmaps() ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
 	return err;
 }

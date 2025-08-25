@@ -27,14 +27,18 @@ PF_Err ProcessImgInPR
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 
     // Allocate memory storage for store temporary results
+    const A_long singleTmpFrameSize = sizeX * sizeY;
     constexpr A_long doubleBuf = 2 * static_cast<A_long>(sizeof(fRGB));
-    const A_long totalProcMem = CreateAlignment (sizeX * sizeY * doubleBuf, CACHE_LINE);
+    const A_long totalProcMem = CreateAlignment (singleTmpFrameSize * doubleBuf, CACHE_LINE);
 
     void* pMemoryBlock = nullptr;
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
 
     if (nullptr != pMemoryBlock && blockId >= 0)
     {
+        fRGB* __restrict pTmpBuf1 = static_cast<fRGB* __restrict>(pMemoryBlock);
+        fRGB* __restrict pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
+
         // This plugin called frop PR - check video fomat
         auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
@@ -42,27 +46,66 @@ PF_Err ProcessImgInPR
         {
             switch (destinationPixelFormat)
             {
-            case PrPixelFormat_BGRA_4444_8u:
+                case PrPixelFormat_BGRA_4444_8u:
+                {
+                    const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+
+                }
                 break;
 
-            case PrPixelFormat_BGRA_4444_16u:
+                case PrPixelFormat_BGRA_4444_16u:
+                {
+                    const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+
+                }
                 break;
 
-            case PrPixelFormat_BGRA_4444_32f:
+                case PrPixelFormat_BGRA_4444_32f:
+                {
+                    const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+
+                }
                 break;
 
-            case PrPixelFormat_VUYA_4444_8u_709:
-            case PrPixelFormat_VUYA_4444_8u:
+                case PrPixelFormat_VUYA_4444_8u_709:
+                case PrPixelFormat_VUYA_4444_8u:
+                {
+                    const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+
+                }
                 break;
 
-            case PrPixelFormat_VUYA_4444_32f_709:
-            case PrPixelFormat_VUYA_4444_32f:
+                case PrPixelFormat_VUYA_4444_32f_709:
+                case PrPixelFormat_VUYA_4444_32f:
+                {
+                    const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+                    const bool isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
+
+                }
                 break;
 
-            case PrPixelFormat_RGB_444_10u:
+                case PrPixelFormat_RGB_444_10u:
+                {
+                    const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
+                          PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+
+                }
                 break;
 
-            default:
+                default:
+                    err = PF_Err_INTERNAL_STRUCT_DAMAGED;
                 break;
             } /* switch (destinationPixelFormat) */
 
@@ -73,9 +116,10 @@ PF_Err ProcessImgInPR
             err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
         }
 
+        pMemoryBlock = nullptr;
+        pTmpBuf1 = pTmpBuf2 = nullptr;
         ::FreeMemoryBlock(blockId);
         blockId = -1;
-        pMemoryBlock = nullptr;
     }
     else
         err = PF_Err_OUT_OF_MEMORY;
