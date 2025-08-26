@@ -35,7 +35,7 @@ inline float ConvertToLabColorSpace
 		float*       __restrict pCsOutLine = csOut + j * sizeX;
 
 		/* lambda for convert from RGB to sRGB */
-		auto const convert2sRGB = [&](const T p, const float val) noexcept
+		auto const convert2sRGB = [&](const T& p, const float& val) noexcept
 		{
 			fRGB outPix;
 			outPix.R = p.R * val, outPix.G = p.G * val, outPix.B = p.B * val;
@@ -91,7 +91,7 @@ inline float ConvertToLabColorSpace
 		float*       __restrict pCsOutLine = csOut + j * sizeX;
 
 		/* lambda for convert YUV to sRGB */
-		auto const convert2sRGB = [&](const T p, const float* pYuv2Rgb, const float sub, const float val) noexcept
+		auto const convert2sRGB = [&](const T& p, const float* pYuv2Rgb, const float& sub, const float& val) noexcept
 		{
 			auto const& Y = p.Y;
 			auto const& U = p.U - sub;
@@ -133,7 +133,7 @@ inline void ImprovedImageRestore
 	const float&  scale
 ) noexcept
 {
-	auto const xyz2rgb = [&](const fXYZPix p) noexcept
+	auto const xyz2rgb = [&](const fXYZPix& p) noexcept -> fRGB
 	{
 		fRGB outPix;
 		constexpr float xyz_to_rgb[9] =
@@ -149,7 +149,7 @@ inline void ImprovedImageRestore
 		return outPix;
 	};
 
-	auto const gamma_srgb = [&](const fRGB rgb, const float scale) noexcept
+	auto const gamma_srgb = [&](const fRGB& rgb, const float& scale) noexcept -> fRGB
 	{
 		constexpr float fExp = 1.f / 2.4f;
 		const float R = rgb.R < 0.00304f ? 12.92f * rgb.R : FastCompute::Pow(rgb.R, fExp) - 0.055f;
@@ -207,7 +207,7 @@ inline void ImprovedImageRestore
 		RGB2YUV[BT709][6], RGB2YUV[BT709][7], RGB2YUV[BT709][8]
 	};
 
-	auto const xyz2rgb = [&](const fXYZPix p) noexcept
+	auto const xyz2rgb = [&](const fXYZPix& p) noexcept
 	{
 		fRGB outPix;
 		constexpr float xyz_to_rgb[9] =
@@ -223,7 +223,7 @@ inline void ImprovedImageRestore
 		return outPix;
 	};
 
-	auto const gamma_srgb = [&](const fRGB rgb, const float scale) noexcept
+	auto const gamma_srgb = [&](const fRGB& rgb, const float& scale) noexcept
 	{
 		constexpr float fExp = 1.f / 2.4f;
 		const float R = rgb.R < 0.00304f ? 12.92f * rgb.R : FastCompute::Pow(rgb.R, fExp) - 0.055f;

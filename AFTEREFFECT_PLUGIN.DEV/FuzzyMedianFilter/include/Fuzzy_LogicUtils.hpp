@@ -29,7 +29,7 @@ inline fXYZPix Rgb2Xyz
     const fRGB& in
 ) noexcept
 {
-    auto varValue = [&](const float in) { return ((in > 0.040450f) ? FastCompute::Pow((in + 0.0550f) / 1.0550f, 2.40f) : (in / 12.92f)); };
+    auto varValue = [&](const float& in) { return ((in > 0.040450f) ? FastCompute::Pow((in + 0.0550f) / 1.0550f, 2.40f) : (in / 12.92f)); };
 
     const float var_R = varValue(in.R) * 100.f;
     const float var_G = varValue(in.G) * 100.f;
@@ -55,7 +55,7 @@ inline fCIELabPix Xyz2CieLab
         cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
     };
 
-    auto varValue = [&](const float in) { return ((in > 0.008856f) ? FastCompute::Cbrt(in) : (in * 7.787f + 16.f / 116.f)); };
+    auto varValue = [&](const float& in) { return ((in > 0.008856f) ? FastCompute::Cbrt(in) : (in * 7.787f + 16.f / 116.f)); };
 
     const float var_X = varValue(in.X / fRef[0]);
     const float var_Y = varValue(in.Y / fRef[1]);
@@ -110,7 +110,7 @@ inline fRGB Xyz2Rgb
     const float g1 = var_X * -0.9692660f + var_Y *  1.8760108f + var_Z *  0.0415560f;
     const float b1 = var_X *  0.0556434f + var_Y * -0.2040259f + var_Z *  1.0572252f;
 
-    auto varValue = [&](const float in) { return ((in > 0.0031308f) ? (1.055f * FastCompute::Pow(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f)); };
+    auto varValue = [&](const float& in) { return ((in > 0.0031308f) ? (1.055f * FastCompute::Pow(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f)); };
 
     fRGB out;
     constexpr float white = 1.f - FLT_EPSILON;

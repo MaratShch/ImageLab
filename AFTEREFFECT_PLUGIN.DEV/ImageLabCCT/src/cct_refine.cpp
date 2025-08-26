@@ -123,7 +123,7 @@ bool CctHandleF32::refine (const float& u0, const float& v0, float& cct, float& 
         SplineCoeffs v_fit = spline_impl  (t_norm, v_seg);
         SplineCoeffs cct_fit = spline_impl(t_norm, cct_seg);
 
-        auto objective = [&](float tval) -> float
+        auto objective = [&](const float& tval) -> float
         {
             float u_t = ppval_impl(u_fit, tval);
             float v_t = ppval_impl(v_fit, tval);

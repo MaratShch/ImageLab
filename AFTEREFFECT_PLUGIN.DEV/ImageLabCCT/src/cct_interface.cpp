@@ -56,7 +56,7 @@ bool CctHandleF32::cct_compute(const float& u, const float& v, float& cct, float
     cct = 0.f;
     duv = 0.f;
 
-    auto euclideanDistance = [&](const float u1, const float v1, const float u2, const float v2) -> float
+    auto euclideanDistance = [&](const float& u1, const float& v1, const float& u2, const float& v2) -> float
     {
         const float du_val = u1 - u2;
         const float dv_val = v1 - v2;

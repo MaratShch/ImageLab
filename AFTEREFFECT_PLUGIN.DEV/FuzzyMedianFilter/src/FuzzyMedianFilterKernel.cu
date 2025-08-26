@@ -48,7 +48,7 @@ inline __device__ float4 Rgb2Xyz
     const float4& in
 ) noexcept
 {
-    auto varValue = [&](const float inVal) { return ((inVal > 0.040450f) ? powf((inVal + 0.0550f) / 1.0550f, 2.40f) : (inVal / 12.92f)); };
+    auto varValue = [&](const float& inVal) { return ((inVal > 0.040450f) ? powf((inVal + 0.0550f) / 1.0550f, 2.40f) : (inVal / 12.92f)); };
 
     const float var_B = varValue(in.x) * 100.f;
     const float var_G = varValue(in.y) * 100.f;
@@ -74,7 +74,7 @@ inline __device__ float4  Xyz2CieLab
         cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
     };
 
-    auto varValue = [&](const float inVal) { return ((inVal > 0.008856f) ? cbrtf(inVal) : (inVal * 7.787f + 16.f / 116.f)); };
+    auto varValue = [&](const float& inVal) { return ((inVal > 0.008856f) ? cbrtf(inVal) : (inVal * 7.787f + 16.f / 116.f)); };
 
     const float var_X = varValue(in.x / fRef[0]);
     const float var_Y = varValue(in.y / fRef[1]);
@@ -130,7 +130,7 @@ inline __device__ float4 Xyz2Rgb
     const float g1 = var_X * -0.9692660f + var_Y *  1.8760108f + var_Z *  0.0415560f;
     const float b1 = var_X *  0.0556434f + var_Y * -0.2040259f + var_Z *  1.0572252f;
 
-    auto varValue = [&](const float in) { return ((in > 0.0031308f) ? (1.055f * powf(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f)); };
+    auto varValue = [&](const float& in) { return ((in > 0.0031308f) ? (1.055f * powf(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f)); };
 
     float4 out;
     constexpr float FLT_EPSILON{ 1.192092896e-07F };

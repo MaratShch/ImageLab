@@ -82,7 +82,7 @@ inline _tXYZPix<T> sRgb2XYZ
     const _tRGB<T>& in
 ) noexcept
 {
-    auto varValue = [&](const T inVal) { return ((inVal > static_cast<T>(0.04045)) ? std::pow((inVal + static_cast<T>(0.055)) / static_cast<T>(1.055), static_cast<T>(2.40)) : (inVal / static_cast<T>(12.92))); };
+    auto varValue = [&](const T& inVal) { return ((inVal > static_cast<T>(0.04045)) ? std::pow((inVal + static_cast<T>(0.055)) / static_cast<T>(1.055), static_cast<T>(2.40)) : (inVal / static_cast<T>(12.92))); };
 
     const T var_R = varValue(in.R) * static_cast<T>(100);
     const T var_G = varValue(in.G) * static_cast<T>(100);

@@ -43,11 +43,11 @@ void fCIELabHueImprove
 	float  cs_out_max
 ) noexcept
 {
-	auto const sign = [&](const float f) noexcept {
+	auto const sign = [&](const float& f) noexcept {
 		return (f > 0.f ? 1.f : (f < 0.f) ? -1.f : 0.f);
 	};
 
-	auto const tone_map_inc = [&](const float w) noexcept {
+	auto const tone_map_inc = [&](const float& w) noexcept {
 		constexpr float toneMin = 0.2f;
 		constexpr float toneMax = 0.8f;
 		constexpr float toneDiff = toneMax - toneMin;
@@ -55,7 +55,7 @@ void fCIELabHueImprove
 		return ((w < toneMin) ? 0.f : (w > toneMax) ? 1.f : (w - toneMin) * toneDiffReciproc);
 	};
 
-	auto const gamut_descript = [&](const float r, const float g, const float b) noexcept {
+	auto const gamut_descript = [&](const float& r, const float& g, const float& b) noexcept {
 		const float gR = (r < -0.001f || r > 1.001f) ? 0 : 1;
 		const float gG = (g < -0.001f || g > 1.001f) ? 0 : 1;
 		const float gB = (b < -0.001f || b > 1.001f) ? 0 : 1;
