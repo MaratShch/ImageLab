@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <algorithm>
+#include <type_traits>
 
 #ifndef __NVCC__
 #include <immintrin.h>
@@ -111,6 +112,15 @@ namespace FastCompute
 		return std::abs(x);
 	}
 
+    inline long double Sqrt (const long double& x) noexcept
+    {
+        static_assert(8u == sizeof(long double), "Long double isn't 64 bits");
+        const long double xHalf{ 0.50l * x };
+        long long int  tmp = 0x5FE6EB50C7B537AAl - (*(long long int*)&x >> 1); //initial guess
+        long double    xRes = *(long double*)&tmp;
+        xRes *= (1.50l - (xHalf * xRes * xRes));
+        return xRes * x;
+    }
 
 	inline double Sqrt(const double& x) noexcept
 	{

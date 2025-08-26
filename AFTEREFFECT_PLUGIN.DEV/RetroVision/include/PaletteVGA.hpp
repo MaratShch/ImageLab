@@ -1,0 +1,8 @@
+#ifndef __IMAGE_LAB_RETRO_VISION_PALETTE_VGA_VALUES__
+#define __IMAGE_LAB_RETRO_VISION_PALETTE_VGA_VALUES__
+
+#include "PaletteEntry.hpp"
+#include <array>
+
+
+#endif // __IMAGE_LAB_RETRO_VISION_PALETTE_VGA_VALUES__

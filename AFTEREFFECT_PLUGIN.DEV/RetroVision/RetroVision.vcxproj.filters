@@ -87,6 +87,24 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\RetroVisionAlgorithm.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RetroVisionPalette.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaletteCGA.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaletteEntry.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaletteEGA.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaletteVGA.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\RetroVision.cpp">
@@ -114,6 +132,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RetroVisionAlgorithm.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

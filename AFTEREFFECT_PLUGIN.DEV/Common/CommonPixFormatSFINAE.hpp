@@ -81,3 +81,13 @@ class is_8bits_RGB_pixel
 public:
 	static constexpr const bool value = decltype(test<T>(0))::value;
 };
+
+// Helpers
+template<typename T>
+struct is_RGB_or_YUV : std::integral_constant<bool, is_RGB_proc<T>::value || is_YUV_proc<T>::value> {};
+
+template<typename T>
+struct is_RGB_Variants : std::integral_constant<bool, is_RGB_proc<T>::value || is_no_alpha_channel<T>::value> {};
+
+template<typename T>
+struct is_SupportedImageBuffer : std::integral_constant<bool, is_RGB_Variants<T>::value || is_YUV_proc<T>::value> {};

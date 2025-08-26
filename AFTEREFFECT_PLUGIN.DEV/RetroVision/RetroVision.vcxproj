@@ -159,15 +159,22 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\PaletteCGA.hpp" />
+    <ClInclude Include="include\PaletteEGA.hpp" />
+    <ClInclude Include="include\PaletteEntry.hpp" />
+    <ClInclude Include="include\PaletteVGA.hpp" />
     <ClInclude Include="include\RetroVision.hpp" />
+    <ClInclude Include="include\RetroVisionAlgorithm.hpp" />
     <ClInclude Include="include\RetroVisionEnum.hpp" />
     <ClInclude Include="include\RetroVisionGui.hpp" />
+    <ClInclude Include="include\RetroVisionPalette.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\RetroVision.cpp" />
     <ClCompile Include="src\RetroVisionAE.cpp" />
+    <ClCompile Include="src\RetroVisionAlgorithm.cpp" />
     <ClCompile Include="src\RetroVisionBitmap.cpp" />
     <ClCompile Include="src\RetroVisionGUI.cpp" />
     <ClCompile Include="src\RetroVisionPR.cpp" />
