@@ -17,7 +17,7 @@
       <UniqueIdentifier>{b5a47847-5365-4068-9aa4-4973507aed88}</UniqueIdentifier>
     </Filter>
     <Filter Include="python">
-      <UniqueIdentifier>{176c2fd5-e1b5-463d-ad1b-101dd9261796}</UniqueIdentifier>
+      <UniqueIdentifier>{dd410424-569d-4110-981a-ff7b0c2aee5a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -165,6 +165,9 @@
       <Filter>python</Filter>
     </None>
     <None Include="python\logo5.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\vga_palette.py">
       <Filter>python</Filter>
     </None>
   </ItemGroup>
