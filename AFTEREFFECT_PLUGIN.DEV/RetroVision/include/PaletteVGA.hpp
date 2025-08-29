@@ -31,7 +31,7 @@ constexpr std::array<PEntry<uint8_t>, 16> VGA_Standard16_u8 =
     { 255, 255, 255 }
 }};
 
-// VGA standard 256 colors palette (Mode 13)
+// VGA 256 colors palette (Mode 13)
 constexpr std::array<PEntry<uint8_t>, 256> VGA_Standard256_u8 =
 {{
     {   0,   0,   0 },
