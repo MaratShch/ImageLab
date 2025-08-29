@@ -10,8 +10,11 @@ constexpr int32_t VGA16_height = 480;
 constexpr int32_t VGA256_width  = 320;
 constexpr int32_t VGA256_height = 200;
 
+using VGA_Palette16  = std::array<PEntry<uint8_t>, 16 >;
+using VGA_Palette256 = std::array<PEntry<uint8_t>, 256>;
+
 // VGA standard 16 colors palette
-constexpr std::array<PEntry<uint8_t>, 16> VGA_Standard16_u8 =
+constexpr VGA_Palette16 VGA_Standard16_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0, 170 },
@@ -32,7 +35,7 @@ constexpr std::array<PEntry<uint8_t>, 16> VGA_Standard16_u8 =
 }};
 
 // VGA 256 colors palette (Mode 13)
-constexpr std::array<PEntry<uint8_t>, 256> VGA_Standard256_u8 =
+constexpr VGA_Palette256 VGA_Standard256_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0, 170 },

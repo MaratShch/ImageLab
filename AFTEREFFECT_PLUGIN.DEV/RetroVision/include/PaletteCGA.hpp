@@ -7,8 +7,12 @@
 constexpr int32_t CGA_width = 320;
 constexpr int32_t CGA_height = 240;
 
+constexpr int32_t CGA_PaletteSize = 4;
+
+using CGA_Palette = std::array<PEntry<uint8_t>, CGA_PaletteSize>;
+
 // CGA-0 palette with intencity bit disabled
-constexpr std::array<PEntry<uint8_t>, 4> CGA0_u8 =
+constexpr CGA_Palette CGA0_u8 =
 {{
     {   0,   0,   0 },
     {   0, 170, 170 },
@@ -17,7 +21,7 @@ constexpr std::array<PEntry<uint8_t>, 4> CGA0_u8 =
 }};
 
 // CGA-0 palette with intencity bit enabled
-constexpr std::array<PEntry<uint8_t>, 4> CGA0i_u8 =
+constexpr CGA_Palette CGA0i_u8 =
 {{
     {   0,   0,   0 },
     {  85, 255, 255 },
@@ -26,7 +30,7 @@ constexpr std::array<PEntry<uint8_t>, 4> CGA0i_u8 =
 }};
 
 // CGA-1 palette with intencity bit disabled
-constexpr std::array<PEntry<uint8_t>, 4> CGA1_u8 =
+constexpr CGA_Palette CGA1_u8 =
 {{
     {   0,   0,   0 },
     {   0, 170,   0 },
@@ -35,7 +39,7 @@ constexpr std::array<PEntry<uint8_t>, 4> CGA1_u8 =
 }};
 
 // CGA-1 palette with intencity bit enabled
-constexpr std::array<PEntry<uint8_t>, 4> CGA1i_u8 =
+constexpr CGA_Palette CGA1i_u8 =
 {{
     {   0,   0,   0 },
     {  85, 255,  85 },

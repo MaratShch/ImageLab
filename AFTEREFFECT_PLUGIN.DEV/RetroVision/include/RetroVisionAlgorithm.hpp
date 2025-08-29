@@ -92,7 +92,7 @@ inline void Convert2sRGB
 
 
 template <typename T>
-constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type euclidean_distance(const _tRGB<T>& color1, const _tRGB<T>& color2)
+inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type euclidean_distance(const _tRGB<T>& color1, const _tRGB<T>& color2) noexcept
 {
     const T rDiff = color1.R - color2.R;
     const T gDiff = color1.G - color2.G;
@@ -100,5 +100,22 @@ constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type euc
 
     return FastCompute::Sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff);
 }
+
+
+
+void CGA_Simulation (const fRGB* __restrict input, fRGB* __restrict output, A_long sizeX, A_long sizeY, const CGA_Palette& palette);
+void EGA_Simulation (const fRGB* __restrict input, fRGB* __restrict output, A_long sizeX, A_long sizeY, const EGA_Palette& palette);
+void VGA16_Simulation (const fRGB* __restrict input, fRGB* __restrict output, A_long sizeX, A_long sizeY, const VGA_Palette16& palette);
+void VGA256_Simulation(const fRGB* __restrict input, fRGB* __restrict output, A_long sizeX, A_long sizeY, const VGA_Palette256& palette);
+void Hercules_Simulation(const fRGB* __restrict input, fRGB* __restrict output, A_long sizeX, A_long sizeY, float threshold);
+
+void RetroResolution_Simulation
+(
+    const fRGB* __restrict input,
+          fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    PF_ParamDef* __restrict params[]
+);
 
 #endif // __IMAGE_LAB_RETRO_VISION_FILTER_ALGORITHM__

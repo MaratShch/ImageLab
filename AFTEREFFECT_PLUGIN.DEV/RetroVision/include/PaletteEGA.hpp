@@ -6,9 +6,12 @@
 
 constexpr int32_t EGA_width  = 640;
 constexpr int32_t EGA_height = 350;
+constexpr int32_t EGA_PaletteSize = 16;
+
+using EGA_Palette = std::array<PEntry<uint8_t>, EGA_PaletteSize>;
 
 // EGA standard palette
-constexpr std::array<PEntry<uint8_t>, 16> EGA_Standard_u8 =
+constexpr EGA_Palette EGA_Standard_u8 =
 { {
     {   0,   0,   0 },
     {   0,   0, 170 },
@@ -29,7 +32,7 @@ constexpr std::array<PEntry<uint8_t>, 16> EGA_Standard_u8 =
 }};
 
 // EGA King's Quest III Approximation
-constexpr std::array<PEntry<uint8_t>, 16> EGA_KQ3_u8 =
+constexpr EGA_Palette EGA_KQ3_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0, 128 },
@@ -50,7 +53,7 @@ constexpr std::array<PEntry<uint8_t>, 16> EGA_KQ3_u8 =
 }};
 
 // EGA Kyrandia-Inspired
-constexpr std::array<PEntry<uint8_t>, 16> EGA_Kyrandia_u8 =
+constexpr EGA_Palette EGA_Kyrandia_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0, 140 },
@@ -71,7 +74,7 @@ constexpr std::array<PEntry<uint8_t>, 16> EGA_Kyrandia_u8 =
 }};
 
 // EGA Thexder 
-constexpr std::array<PEntry<uint8_t>, 16> EGA_Thexder_u8 =
+constexpr EGA_Palette EGA_Thexder_u8 =
 {{
     {   0,   0,   0 },
     {  85,   0,  85 },
@@ -92,7 +95,7 @@ constexpr std::array<PEntry<uint8_t>, 16> EGA_Thexder_u8 =
 }};
 
 // EGA Dune
-constexpr std::array<PEntry<uint8_t>, 16> EGA_Dune_u8 =
+constexpr EGA_Palette EGA_Dune_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0,  80 },
@@ -113,7 +116,7 @@ constexpr std::array<PEntry<uint8_t>, 16> EGA_Dune_u8 =
 }};
 
 // EGA Doom
-constexpr std::array<PEntry<uint8_t>, 16> EGA_Doom_u8 =
+constexpr EGA_Palette EGA_Doom_u8 =
 {{
     {   0,   0,   0 },
     {  40,  40,  40 },
@@ -134,7 +137,7 @@ constexpr std::array<PEntry<uint8_t>, 16> EGA_Doom_u8 =
 }};
 
 // EGA Metal Mutant
-constexpr std::array<PEntry<uint8_t>, 16> EGA_MetalMutant_u8 =
+constexpr EGA_Palette EGA_MetalMutant_u8 =
 {{
     {   0,   0,   0 },
     {   0,  80,   0 },
@@ -155,7 +158,7 @@ constexpr std::array<PEntry<uint8_t>, 16> EGA_MetalMutant_u8 =
 }};
 
 // EGA Wolfenstein 3D
-constexpr std::array<PEntry<uint8_t>, 16> EGA_Wolfenstein_u8 =
+constexpr EGA_Palette EGA_Wolfenstein_u8 =
 {{
     {   0,   0,   0 },
     {  50,  50,  50 },

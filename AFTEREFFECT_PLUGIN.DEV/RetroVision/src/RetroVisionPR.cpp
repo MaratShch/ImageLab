@@ -5,6 +5,8 @@
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
 
+
+
 PF_Err ProcessImgInPR
 (
 	PF_InData*   __restrict in_data,
@@ -53,7 +55,8 @@ PF_Err ProcessImgInPR
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
                     constexpr float fCoeff{ static_cast<float>(u8_value_white) };
 
-                    Convert2sRGB(localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
+                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
                 }
                 break;
 
@@ -64,8 +67,8 @@ PF_Err ProcessImgInPR
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
                     constexpr float fCoeff{ static_cast<float>(u16_value_white) };
 
-                    Convert2sRGB(localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
-
+                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
                 }
                 break;
 
@@ -76,8 +79,8 @@ PF_Err ProcessImgInPR
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
                     constexpr float fCoeff{ static_cast<float>(1) };
 
-                    Convert2sRGB(localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
-
+                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
                 }
                 break;
 
@@ -90,7 +93,8 @@ PF_Err ProcessImgInPR
                     const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
                     constexpr float fCoeff{ static_cast<float>(u8_value_white) };
 
-                    Convert2sRGB(localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
+                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
                 }
                 break;
 
@@ -104,7 +108,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ static_cast<float>(1) };
 
                     Convert2sRGB(localSrc, pTmpBuf1, sizeX, sizeY, linePitch, linePitch, fCoeff);
-
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
                 }
                 break;
 
