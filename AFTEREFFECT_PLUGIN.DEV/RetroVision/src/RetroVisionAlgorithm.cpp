@@ -113,6 +113,8 @@ void VGA256_Simulation
         p[i].b = static_cast<float>(palette[i].b) / 255.f;
     }
 
+    const A_long hBlocks = (sizeX <= VGA256_width  ? 1 : sizeX / VGA256_width);
+    const A_long vBlocks = (sizeY <= VGA256_height ? 1 : sizeY / VGA256_height);
 
     return;
 }
