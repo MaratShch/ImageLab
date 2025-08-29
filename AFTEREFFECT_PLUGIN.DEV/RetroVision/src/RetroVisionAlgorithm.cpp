@@ -11,6 +11,16 @@ void CGA_Simulation
     const CGA_Palette& palette
 )
 {
+    CACHE_ALIGN const CGA_PaletteF32 p = {{
+        { static_cast<float>(palette[0].r) / 255.f, static_cast<float>(palette[0].g) / 255.f, static_cast<float>(palette[0].b) / 255.f },
+        { static_cast<float>(palette[1].r) / 255.f, static_cast<float>(palette[1].g) / 255.f, static_cast<float>(palette[1].b) / 255.f },
+        { static_cast<float>(palette[2].r) / 255.f, static_cast<float>(palette[2].g) / 255.f, static_cast<float>(palette[2].b) / 255.f },
+        { static_cast<float>(palette[3].r) / 255.f, static_cast<float>(palette[3].g) / 255.f, static_cast<float>(palette[3].b) / 255.f }
+    }};
+
+    const A_long hBlocks = (sizeX <= CGA_width  ? 1 : sizeX / CGA_width);
+    const A_long vBlocks = (sizeY <= CGA_height ? 1 : sizeY / CGA_height);
+
     return;
 }
 
@@ -24,6 +34,28 @@ void EGA_Simulation
     const EGA_Palette& palette
 )
 {
+    CACHE_ALIGN const EGA_PaletteF32 p = {{
+        { static_cast<float>(palette[0].r ) / 255.f, static_cast<float>(palette[0].g ) / 255.f, static_cast<float>(palette[0].b ) / 255.f },
+        { static_cast<float>(palette[1].r ) / 255.f, static_cast<float>(palette[1].g ) / 255.f, static_cast<float>(palette[1].b ) / 255.f },
+        { static_cast<float>(palette[2].r ) / 255.f, static_cast<float>(palette[2].g ) / 255.f, static_cast<float>(palette[2].b ) / 255.f },
+        { static_cast<float>(palette[3].r ) / 255.f, static_cast<float>(palette[3].g ) / 255.f, static_cast<float>(palette[3].b ) / 255.f },
+        { static_cast<float>(palette[4].r ) / 255.f, static_cast<float>(palette[4].g ) / 255.f, static_cast<float>(palette[4].b ) / 255.f },
+        { static_cast<float>(palette[5].r ) / 255.f, static_cast<float>(palette[5].g ) / 255.f, static_cast<float>(palette[5].b ) / 255.f },
+        { static_cast<float>(palette[6].r ) / 255.f, static_cast<float>(palette[6].g ) / 255.f, static_cast<float>(palette[6].b ) / 255.f },
+        { static_cast<float>(palette[7].r ) / 255.f, static_cast<float>(palette[7].g ) / 255.f, static_cast<float>(palette[7].b ) / 255.f },
+        { static_cast<float>(palette[8].r ) / 255.f, static_cast<float>(palette[8].g ) / 255.f, static_cast<float>(palette[8].b ) / 255.f },
+        { static_cast<float>(palette[9].r ) / 255.f, static_cast<float>(palette[9].g ) / 255.f, static_cast<float>(palette[9].b ) / 255.f },
+        { static_cast<float>(palette[10].r) / 255.f, static_cast<float>(palette[10].g) / 255.f, static_cast<float>(palette[10].b) / 255.f },
+        { static_cast<float>(palette[11].r) / 255.f, static_cast<float>(palette[11].g) / 255.f, static_cast<float>(palette[11].b) / 255.f },
+        { static_cast<float>(palette[12].r) / 255.f, static_cast<float>(palette[12].g) / 255.f, static_cast<float>(palette[12].b) / 255.f },
+        { static_cast<float>(palette[13].r) / 255.f, static_cast<float>(palette[13].g) / 255.f, static_cast<float>(palette[13].b) / 255.f },
+        { static_cast<float>(palette[14].r) / 255.f, static_cast<float>(palette[14].g) / 255.f, static_cast<float>(palette[14].b) / 255.f },
+        { static_cast<float>(palette[15].r) / 255.f, static_cast<float>(palette[15].g) / 255.f, static_cast<float>(palette[15].b) / 255.f }
+    }};
+
+    const A_long hBlocks = (sizeX <= EGA_width ? 1  : sizeX / EGA_width);
+    const A_long vBlocks = (sizeY <= EGA_height ? 1 : sizeY / EGA_height);
+
     return;
 }
 

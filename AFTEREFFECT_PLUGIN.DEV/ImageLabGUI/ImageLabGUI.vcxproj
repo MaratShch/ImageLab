@@ -119,6 +119,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
     <Link>
       <AdditionalDependencies>C:\Qt\Qt-5.15.16\lib\Qt5Widgets.lib;C:\Qt\Qt-5.15.16\lib\Qt5Gui.lib;C:\Qt\Qt-5.15.16\lib\Qt5Core.lib;C:\Qt\Qt-5.15.16\lib\libEGL.lib;C:\Qt\Qt-5.15.16\lib\libGLESv2.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>

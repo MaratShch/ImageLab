@@ -1,6 +1,7 @@
 #ifndef __IMAGE_LAB_RETRO_VISION_PALETTE_EGA_VALUES__
 #define __IMAGE_LAB_RETRO_VISION_PALETTE_EGA_VALUES__
 
+#include "Common.hpp"
 #include "PaletteEntry.hpp"
 #include <array>
 
@@ -8,11 +9,12 @@ constexpr int32_t EGA_width  = 640;
 constexpr int32_t EGA_height = 350;
 constexpr int32_t EGA_PaletteSize = 16;
 
-using EGA_Palette = std::array<PEntry<uint8_t>, EGA_PaletteSize>;
+using EGA_Palette    = std::array<PEntry<uint8_t>, EGA_PaletteSize>;
+using EGA_PaletteF32 = std::array<PEntry<float>, EGA_PaletteSize>;
 
 // EGA standard palette
-constexpr EGA_Palette EGA_Standard_u8 =
-{ {
+CACHE_ALIGN constexpr EGA_Palette EGA_Standard_u8 =
+{{
     {   0,   0,   0 },
     {   0,   0, 170 },
     {   0, 170,   0 },
@@ -32,7 +34,7 @@ constexpr EGA_Palette EGA_Standard_u8 =
 }};
 
 // EGA King's Quest III Approximation
-constexpr EGA_Palette EGA_KQ3_u8 =
+CACHE_ALIGN constexpr EGA_Palette EGA_KQ3_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0, 128 },
@@ -53,7 +55,7 @@ constexpr EGA_Palette EGA_KQ3_u8 =
 }};
 
 // EGA Kyrandia-Inspired
-constexpr EGA_Palette EGA_Kyrandia_u8 =
+CACHE_ALIGN constexpr EGA_Palette EGA_Kyrandia_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0, 140 },
@@ -74,7 +76,7 @@ constexpr EGA_Palette EGA_Kyrandia_u8 =
 }};
 
 // EGA Thexder 
-constexpr EGA_Palette EGA_Thexder_u8 =
+CACHE_ALIGN constexpr EGA_Palette EGA_Thexder_u8 =
 {{
     {   0,   0,   0 },
     {  85,   0,  85 },
@@ -95,7 +97,7 @@ constexpr EGA_Palette EGA_Thexder_u8 =
 }};
 
 // EGA Dune
-constexpr EGA_Palette EGA_Dune_u8 =
+CACHE_ALIGN constexpr EGA_Palette EGA_Dune_u8 =
 {{
     {   0,   0,   0 },
     {   0,   0,  80 },
@@ -116,7 +118,7 @@ constexpr EGA_Palette EGA_Dune_u8 =
 }};
 
 // EGA Doom
-constexpr EGA_Palette EGA_Doom_u8 =
+CACHE_ALIGN constexpr EGA_Palette EGA_Doom_u8 =
 {{
     {   0,   0,   0 },
     {  40,  40,  40 },
@@ -137,7 +139,7 @@ constexpr EGA_Palette EGA_Doom_u8 =
 }};
 
 // EGA Metal Mutant
-constexpr EGA_Palette EGA_MetalMutant_u8 =
+CACHE_ALIGN constexpr EGA_Palette EGA_MetalMutant_u8 =
 {{
     {   0,   0,   0 },
     {   0,  80,   0 },
@@ -158,7 +160,7 @@ constexpr EGA_Palette EGA_MetalMutant_u8 =
 }};
 
 // EGA Wolfenstein 3D
-constexpr EGA_Palette EGA_Wolfenstein_u8 =
+CACHE_ALIGN constexpr EGA_Palette EGA_Wolfenstein_u8 =
 {{
     {   0,   0,   0 },
     {  50,  50,  50 },
