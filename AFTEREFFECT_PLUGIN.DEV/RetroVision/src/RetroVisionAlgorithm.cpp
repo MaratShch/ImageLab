@@ -18,8 +18,9 @@ void CGA_Simulation
         { static_cast<float>(palette[3].r) / 255.f, static_cast<float>(palette[3].g) / 255.f, static_cast<float>(palette[3].b) / 255.f }
     }};
 
-    const A_long hBlocks = (sizeX <= CGA_width  ? 1 : sizeX / CGA_width);
-    const A_long vBlocks = (sizeY <= CGA_height ? 1 : sizeY / CGA_height);
+    const A_long hBlockSizeize = (sizeX <= CGA_width  ? 1 : sizeX / CGA_width);
+    const A_long vBlockSizeize = (sizeY <= CGA_height ? 1 : sizeY / CGA_height);
+
 
     return;
 }
@@ -53,8 +54,8 @@ void EGA_Simulation
         { static_cast<float>(palette[15].r) / 255.f, static_cast<float>(palette[15].g) / 255.f, static_cast<float>(palette[15].b) / 255.f }
     }};
 
-    const A_long hBlocks = (sizeX <= EGA_width ? 1  : sizeX / EGA_width);
-    const A_long vBlocks = (sizeY <= EGA_height ? 1 : sizeY / EGA_height);
+    const A_long hBlockSize = (sizeX <= EGA_width  ? 1 : sizeX / EGA_width);
+    const A_long vBlockSize = (sizeY <= EGA_height ? 1 : sizeY / EGA_height);
 
     return;
 }
@@ -88,8 +89,8 @@ void VGA16_Simulation
         { static_cast<float>(palette[15].r) / 255.f, static_cast<float>(palette[15].g) / 255.f, static_cast<float>(palette[15].b) / 255.f }
     }};
 
-    const A_long hBlocks = (sizeX <= VGA16_width  ? 1 : sizeX / VGA16_width);
-    const A_long vBlocks = (sizeY <= VGA16_height ? 1 : sizeY / VGA16_height);
+    const A_long hBlockSize = (sizeX <= VGA16_width  ? 1 : sizeX / VGA16_width);
+    const A_long vBlockSize = (sizeY <= VGA16_height ? 1 : sizeY / VGA16_height);
 
     return;
 }
@@ -113,8 +114,8 @@ void VGA256_Simulation
         p[i].b = static_cast<float>(palette[i].b) / 255.f;
     }
 
-    const A_long hBlocks = (sizeX <= VGA256_width  ? 1 : sizeX / VGA256_width);
-    const A_long vBlocks = (sizeY <= VGA256_height ? 1 : sizeY / VGA256_height);
+    const A_long hBlockSize = (sizeX <= VGA256_width  ? 1 : sizeX / VGA256_width);
+    const A_long vBlockSize = (sizeY <= VGA256_height ? 1 : sizeY / VGA256_height);
 
     return;
 }
