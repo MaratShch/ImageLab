@@ -12,7 +12,6 @@ CMemoryHolder::CMemoryHolder () :
 	m_Semaphore(m_HolderCapacity)
 {
 	m_TotalAllocated = 0ull;
-//	m_Holder.reserve(m_HolderCapacity);
 
 	for (int32_t i = 0; i < static_cast<int32_t>(m_HolderCapacity); i++)
 	{

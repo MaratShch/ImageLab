@@ -4,6 +4,7 @@
 #include "RetroVisionResource.hpp"
 #include "Param_Utils.h"
 #include "PrSDKAESupport.h"
+#include "ImageLabMemInterface.hpp"
 
 
 static PF_Err
@@ -37,6 +38,9 @@ GlobalSetup
 )
 {
     PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return err;
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_WIDE_TIME_INPUT                |
