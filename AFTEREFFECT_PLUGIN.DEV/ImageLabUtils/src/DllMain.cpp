@@ -12,7 +12,7 @@ BOOL APIENTRY DllMain (HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /
 
 		case DLL_PROCESS_ATTACH:
 			/* singletone memory interface object */
-			(void)CreateMemoryHandler();
+			CreateMemoryHandler();
 		break;
 
 		case DLL_THREAD_ATTACH:

@@ -18,8 +18,29 @@ void CGA_Simulation
         { static_cast<float>(palette[3].r) / 255.f, static_cast<float>(palette[3].g) / 255.f, static_cast<float>(palette[3].b) / 255.f }
     }};
 
-    const A_long hBlockSizeize = (sizeX <= CGA_width  ? 1 : sizeX / CGA_width);
-    const A_long vBlockSizeize = (sizeY <= CGA_height ? 1 : sizeY / CGA_height);
+    const float fSizeY = static_cast<float>(sizeY);
+    const float fSizeX = static_cast<float>(sizeX);
+
+    const float vPixelsInBlock = (sizeY <= CGA_height) ? 1.f : fSizeY / static_cast<float>(CGA_height);
+    const float hPixelsInBlock = (sizeX <= CGA_width ) ? 1.f : fSizeX / static_cast<float>(CGA_width );
+    float xAccum, yAccum;
+
+    for (yAccum = 0.f; yAccum < fSizeY; yAccum += vPixelsInBlock)
+    {
+        // Set vertical ROI limits
+        const A_long yStart = static_cast<A_long>(yAccum);
+        const A_long yStop  = FastCompute::Min(sizeY, static_cast<A_long>(yAccum + vPixelsInBlock));
+
+        for (xAccum = 0.f; xAccum < fSizeX; xAccum += hPixelsInBlock)
+        {
+            // Set horizontal ROI limits 
+            const A_long xStart = static_cast<A_long>(xAccum);
+            const A_long xStop  = FastCompute::Min(sizeX, static_cast<A_long>(xAccum + hPixelsInBlock));
+
+            // Iterate through the actual pixels in the HD image that fall into this block
+
+        }
+    }
 
 
     return;

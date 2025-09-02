@@ -12,11 +12,11 @@ CMemoryHolder::CMemoryHolder () :
 	m_Semaphore(m_HolderCapacity)
 {
 	m_TotalAllocated = 0ull;
-	m_Holder.reserve(m_HolderCapacity);
+//	m_Holder.reserve(m_HolderCapacity);
 
 	for (int32_t i = 0; i < static_cast<int32_t>(m_HolderCapacity); i++)
 	{
-		m_Holder[i] = new (std::nothrow) CMemoryBlock;
+		m_Holder.push_back(new CMemoryBlock);
 		m_FreeBlocks.push_front(i);
 	}
 
@@ -69,7 +69,7 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 		m_FreeBlocks.pop_front(); /* remove this element from empty queue */
 
 		/* re-allocate requred memory */
-		m_TotalAllocated -= m_Holder[idx]->getMemSize();
+		m_TotalAllocated -= (m_Holder[idx]->getMemSize());
 		m_Holder[idx]->memBlockFree();
 		if (true == m_Holder[idx]->memBlockAlloc(reqSize, CACHE_LINE))
 		{

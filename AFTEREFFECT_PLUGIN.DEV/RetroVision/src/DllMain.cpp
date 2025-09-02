@@ -31,8 +31,8 @@ BOOL WINAPI DllMain
     switch (fdwReason)
     {
         case DLL_PROCESS_ATTACH:
-            LoadResourceDll();
-            DisableThreadLibraryCalls(hinstDLL);
+//            LoadResourceDll();
+//            DisableThreadLibraryCalls(hinstDLL);
         break;
 
         case DLL_THREAD_ATTACH:
@@ -42,7 +42,7 @@ BOOL WINAPI DllMain
         break;
 
         case DLL_PROCESS_DETACH:
-            FreeResourceDll();
+//            FreeResourceDll();
         break;
     } // switch (fdwReason)
 

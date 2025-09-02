@@ -95,6 +95,10 @@
       <AdditionalIncludeDirectories>include;..\Common;</AdditionalIncludeDirectories>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
