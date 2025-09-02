@@ -1,5 +1,17 @@
+#include <vector>
 #include "RetroVisionAlgorithm.hpp"
 #include "RetroVisionEnum.hpp"
+
+using CoordinatesVector = std::vector<A_long>;
+
+inline CoordinatesVector ComputeBloksCoordinates(A_long origSize, A_long targetSize)
+{
+    CoordinatesVector out (targetSize);
+    const float scaleFactor = static_cast<float>(origSize) / static_cast<float>(targetSize);
+    // compute block coordinates based on the scale factor
+    // ..
+    return out;
+}
 
 
 void CGA_Simulation
@@ -18,6 +30,11 @@ void CGA_Simulation
         { static_cast<float>(palette[3].r) / 255.f, static_cast<float>(palette[3].g) / 255.f, static_cast<float>(palette[3].b) / 255.f }
     }};
 
+    const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, CGA_width);
+    const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, CGA_height);
+
+
+#if 0
     const float fSizeY = static_cast<float>(sizeY);
     const float fSizeX = static_cast<float>(sizeX);
 
@@ -41,7 +58,7 @@ void CGA_Simulation
 
         }
     }
-
+#endif
 
     return;
 }
