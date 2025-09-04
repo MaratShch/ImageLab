@@ -1,15 +1,36 @@
 #include <vector>
+#include <cmath>
 #include "RetroVisionAlgorithm.hpp"
 #include "RetroVisionEnum.hpp"
 
 using CoordinatesVector = std::vector<A_long>;
 
-inline CoordinatesVector ComputeBloksCoordinates(A_long origSize, A_long targetSize)
+inline CoordinatesVector ComputeBloksCoordinates (const A_long& origSize, const A_long& targetSize)
 {
-    CoordinatesVector out (targetSize);
-    const float scaleFactor = static_cast<float>(origSize) / static_cast<float>(targetSize);
-    // compute block coordinates based on the scale factor
-    // ..
+    const A_long vectorSize = FastCompute::Min(origSize, targetSize);
+    CoordinatesVector out (vectorSize + 1);
+
+    if (origSize < targetSize)
+    {
+        for (A_long i = 0; i <= vectorSize; i++)
+            out[i] = FastCompute::Min(i, origSize - 1);;
+    }
+    else
+    {
+        const A_long scaleFactor = origSize / targetSize;
+        const A_long fraction = origSize % targetSize;
+        A_long compensationPool = fraction, idx;
+
+        for (A_long i = idx = 0; i <= vectorSize; i++)
+        {
+            out[i] = FastCompute::Min(idx, origSize - 1);
+            idx += scaleFactor;
+            if (0 < compensationPool)
+            {
+                idx++, compensationPool--;
+            }
+        }
+    }
     return out;
 }
 
