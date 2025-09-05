@@ -1,5 +1,6 @@
 #include <vector>
 #include <cmath>
+#include "RetroVisionPalette.hpp"
 #include "RetroVisionAlgorithm.hpp"
 #include "RetroVisionEnum.hpp"
 
@@ -86,7 +87,8 @@ inline SuperPixels ComputeSuperpixels
     return superPixel;
 }
 
-template <typename T>
+
+template <typename T, std::enable_if_t<is_RETRO_PALETTE<T>::value>* = nullptr>
 SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
 {
     const A_long spSize = static_cast<A_long>(superPixels.size());  // size of elements in Super Pixels vector
@@ -94,6 +96,7 @@ SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
 
     SuperPixels colorMap(spSize); // output colormap
 
+    // lambda expression to find closet value of target palette
     auto findClosestColorIndex = [&](const T& palette, const fRGB& rgb) -> A_long
     {
         A_long bestIndex = 0;
@@ -151,8 +154,10 @@ void CGA_Simulation
     const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, CGA_width);
     const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, CGA_height);
 
-    SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
+    // compute Super Pixel for every image block
+    const SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
 
+    // Convert super Pixels to selected CGA palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
 
@@ -188,8 +193,15 @@ void EGA_Simulation
         { static_cast<float>(palette[15].r) / 255.f, static_cast<float>(palette[15].g) / 255.f, static_cast<float>(palette[15].b) / 255.f }
     }};
 
-    const A_long hBlockSize = (sizeX <= EGA_width  ? 1 : sizeX / EGA_width);
-    const A_long vBlockSize = (sizeY <= EGA_height ? 1 : sizeY / EGA_height);
+    // Split original resolution on blocks and compute X an Y coordinates for every block
+    const CoordinatesVector xCor = ComputeBloksCoordinates(sizeX, EGA_width);
+    const CoordinatesVector yCor = ComputeBloksCoordinates(sizeY, EGA_height);
+
+    // compute Super Pixel for every image block
+    const SuperPixels superPixels = ComputeSuperpixels(input, xCor, yCor, sizeX);
+
+    // Convert super Pixels to selected CGA palette pixels
+    SuperPixels colorMap = ConvertToPalette(superPixels, p);
 
     return;
 }

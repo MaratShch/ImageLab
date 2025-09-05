@@ -9,7 +9,7 @@ constexpr int32_t EGA_width  = 640;
 constexpr int32_t EGA_height = 350;
 constexpr int32_t EGA_PaletteSize = 16;
 
-using EGA_Palette    = std::array<PEntry<uint8_t>, EGA_PaletteSize>;
+using EGA_Palette = std::array<PEntry<uint8_t>, EGA_PaletteSize>;
 using EGA_PaletteF32 = std::array<PEntry<float>, EGA_PaletteSize>;
 
 // EGA standard palette
