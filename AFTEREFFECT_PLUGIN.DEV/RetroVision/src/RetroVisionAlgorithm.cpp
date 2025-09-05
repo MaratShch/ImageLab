@@ -4,6 +4,7 @@
 #include "RetroVisionEnum.hpp"
 
 using CoordinatesVector = std::vector<A_long>;
+using SuperPixels = std::vector<fRGB>;
 
 inline CoordinatesVector ComputeBloksCoordinates (const A_long& origSize, const A_long& targetSize)
 {
@@ -13,7 +14,7 @@ inline CoordinatesVector ComputeBloksCoordinates (const A_long& origSize, const 
     if (origSize < targetSize)
     {
         for (A_long i = 0; i <= vectorSize; i++)
-            out[i] = FastCompute::Min(i, origSize - 1);;
+            out[i] = FastCompute::Min(i, origSize);
     }
     else
     {
@@ -23,7 +24,7 @@ inline CoordinatesVector ComputeBloksCoordinates (const A_long& origSize, const 
 
         for (A_long i = idx = 0; i <= vectorSize; i++)
         {
-            out[i] = FastCompute::Min(idx, origSize - 1);
+            out[i] = FastCompute::Min(idx, origSize);
             idx += scaleFactor;
             if (0 < compensationPool)
             {
@@ -33,6 +34,101 @@ inline CoordinatesVector ComputeBloksCoordinates (const A_long& origSize, const 
     }
     return out;
 }
+
+
+inline SuperPixels ComputeSuperpixels
+(
+    const fRGB* __restrict input,
+    const CoordinatesVector& X,
+    const CoordinatesVector& Y,
+    const A_long linePitch
+)
+{
+    // size of coordinates vectors
+    const A_long sizeX = static_cast<A_long>(X.size());
+    const A_long sizeY = static_cast<A_long>(Y.size());
+   
+    SuperPixels superPixel(sizeX * sizeY);
+    A_long vecIdx = 0;
+
+    for (auto itY = Y.begin() + 1; itY != Y.end(); ++itY)
+    {
+        const A_long yPrev = *(itY - 1);
+        const A_long yCurr = *itY;
+
+        for (auto itX = X.begin() + 1; itX != X.end(); ++itX)
+        {
+            const A_long xPrev = *(itX - 1);
+            const A_long xCurr = *itX;
+
+            A_long j, i, num = 0;
+            fRGB superPix{};
+
+            for (j = yPrev; j < yCurr; j++)
+                for (i = xPrev; i < xCurr; i++)
+                {
+                    superPix.R += input[j * linePitch + i].R;
+                    superPix.G += input[j * linePitch + i].G;
+                    superPix.B += input[j * linePitch + i].B;
+                    num++;
+                }
+
+            const float fNum = static_cast<float>(num);
+            // normalize Superpixel value
+            superPix.R /= fNum;
+            superPix.G /= fNum;
+            superPix.B /= fNum;
+
+            superPixel[vecIdx] = superPix;
+            vecIdx++;
+        }
+    }
+    return superPixel;
+}
+
+template <typename T>
+SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
+{
+    const A_long spSize = static_cast<A_long>(superPixels.size());  // size of elements in Super Pixels vector
+    const A_long paletteSize = static_cast<A_long>(palette.size()); // size of element in palette
+
+    SuperPixels colorMap(spSize); // output colormap
+
+    auto findClosestColorIndex = [&](const T& palette, const fRGB& rgb) -> A_long
+    {
+        A_long bestIndex = 0;
+        float bestDist = std::numeric_limits<float>::max();
+
+        for (A_long i = 0; i < static_cast<int>(palette.size()); ++i)
+        {
+            float dr = rgb.R - palette[i].r;
+            float dg = rgb.G - palette[i].g;
+            float db = rgb.B - palette[i].b;
+
+            float dist = dr * dr + dg * dg + db * db;
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIndex = i;
+            }
+        }
+        return bestIndex;
+    };
+
+    for (A_long idx = 0; idx < spSize; idx++)
+    {
+        const A_long paletteIdx = findClosestColorIndex(palette, superPixels[idx]);
+        const fRGB outColor = {
+            palette[paletteIdx].r,
+            palette[paletteIdx].g,
+            palette[paletteIdx].b
+        };
+        colorMap[idx] = outColor;
+    }
+
+    return colorMap;
+}
+
 
 
 void CGA_Simulation
@@ -51,35 +147,14 @@ void CGA_Simulation
         { static_cast<float>(palette[3].r) / 255.f, static_cast<float>(palette[3].g) / 255.f, static_cast<float>(palette[3].b) / 255.f }
     }};
 
+    // Split original resolution on blocks and compute X an Y coordinates for every block
     const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, CGA_width);
     const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, CGA_height);
 
+    SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
 
-#if 0
-    const float fSizeY = static_cast<float>(sizeY);
-    const float fSizeX = static_cast<float>(sizeX);
+    SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
-    const float vPixelsInBlock = (sizeY <= CGA_height) ? 1.f : fSizeY / static_cast<float>(CGA_height);
-    const float hPixelsInBlock = (sizeX <= CGA_width ) ? 1.f : fSizeX / static_cast<float>(CGA_width );
-    float xAccum, yAccum;
-
-    for (yAccum = 0.f; yAccum < fSizeY; yAccum += vPixelsInBlock)
-    {
-        // Set vertical ROI limits
-        const A_long yStart = static_cast<A_long>(yAccum);
-        const A_long yStop  = FastCompute::Min(sizeY, static_cast<A_long>(yAccum + vPixelsInBlock));
-
-        for (xAccum = 0.f; xAccum < fSizeX; xAccum += hPixelsInBlock)
-        {
-            // Set horizontal ROI limits 
-            const A_long xStart = static_cast<A_long>(xAccum);
-            const A_long xStop  = FastCompute::Min(sizeX, static_cast<A_long>(xAccum + hPixelsInBlock));
-
-            // Iterate through the actual pixels in the HD image that fall into this block
-
-        }
-    }
-#endif
 
     return;
 }
