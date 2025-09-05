@@ -89,14 +89,14 @@ inline SuperPixels ComputeSuperpixels
 
 
 template <typename T, std::enable_if_t<is_RETRO_PALETTE<T>::value>* = nullptr>
-SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
+inline SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
 {
     const A_long spSize = static_cast<A_long>(superPixels.size());  // size of elements in Super Pixels vector
     const A_long paletteSize = static_cast<A_long>(palette.size()); // size of element in palette
 
     SuperPixels colorMap(spSize); // output colormap
 
-    // lambda expression to find closet value of target palette
+    // lambda expression to find closest value of target palette
     auto findClosestColorIndex = [&](const T& palette, const fRGB& rgb) -> A_long
     {
         A_long bestIndex = 0;
@@ -120,7 +120,7 @@ SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
 
     for (A_long idx = 0; idx < spSize; idx++)
     {
-        const A_long paletteIdx = findClosestColorIndex(palette, superPixels[idx]);
+        const A_long paletteIdx = findClosestColorIndex (palette, superPixels[idx]);
         const fRGB outColor = {
             palette[paletteIdx].r,
             palette[paletteIdx].g,
@@ -194,14 +194,14 @@ void EGA_Simulation
     }};
 
     // Split original resolution on blocks and compute X an Y coordinates for every block
-    const CoordinatesVector xCor = ComputeBloksCoordinates(sizeX, EGA_width);
-    const CoordinatesVector yCor = ComputeBloksCoordinates(sizeY, EGA_height);
+    const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, EGA_width);
+    const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, EGA_height);
 
     // compute Super Pixel for every image block
-    const SuperPixels superPixels = ComputeSuperpixels(input, xCor, yCor, sizeX);
+    const SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
 
-    // Convert super Pixels to selected CGA palette pixels
-    SuperPixels colorMap = ConvertToPalette(superPixels, p);
+    // Convert super Pixels to selected EGA palette pixels
+    SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
     return;
 }
@@ -235,8 +235,16 @@ void VGA16_Simulation
         { static_cast<float>(palette[15].r) / 255.f, static_cast<float>(palette[15].g) / 255.f, static_cast<float>(palette[15].b) / 255.f }
     }};
 
-    const A_long hBlockSize = (sizeX <= VGA16_width  ? 1 : sizeX / VGA16_width);
-    const A_long vBlockSize = (sizeY <= VGA16_height ? 1 : sizeY / VGA16_height);
+    // Split original resolution on blocks and compute X an Y coordinates for every block
+    const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, VGA16_width);
+    const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, VGA16_height);
+
+    // compute Super Pixel for every image block
+    const SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
+
+    // Convert super Pixels to selected VGA-16 palette pixels
+    SuperPixels colorMap = ConvertToPalette (superPixels, p);
+
 
     return;
 }
@@ -260,8 +268,15 @@ void VGA256_Simulation
         p[i].b = static_cast<float>(palette[i].b) / 255.f;
     }
 
-    const A_long hBlockSize = (sizeX <= VGA256_width  ? 1 : sizeX / VGA256_width);
-    const A_long vBlockSize = (sizeY <= VGA256_height ? 1 : sizeY / VGA256_height);
+    // Split original resolution on blocks and compute X an Y coordinates for every block
+    const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, VGA256_width);
+    const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, VGA256_height);
+
+    // compute Super Pixel for every image block
+    const SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
+
+    // Convert super Pixels to selected VGA-256 palette pixels
+    SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
     return;
 }
