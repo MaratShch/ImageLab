@@ -10,7 +10,7 @@ template <typename T>
 class is_RETRO_PALETTE
 {
     /**
-    * RGB proc variation
+    * PALETTE type
     */
     template <typename TT,
         typename std::enable_if<
