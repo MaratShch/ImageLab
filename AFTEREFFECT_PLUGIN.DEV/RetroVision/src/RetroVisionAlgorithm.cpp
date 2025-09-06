@@ -1,8 +1,10 @@
 #include <vector>
 #include <cmath>
+#include "CommonDebugUtils.hpp"
 #include "RetroVisionPalette.hpp"
 #include "RetroVisionAlgorithm.hpp"
 #include "RetroVisionEnum.hpp"
+
 
 using CoordinatesVector = std::vector<A_long>;
 using SuperPixels = std::vector<fRGB>;
@@ -160,6 +162,9 @@ void CGA_Simulation
     // Convert super Pixels to selected CGA palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
+#ifdef _DEBUG
+   const bool bSaveResult = dbgFileSave("D://colorMap.raw", colorMap.data(), CGA_width, CGA_height);
+#endif
 
     return;
 }
