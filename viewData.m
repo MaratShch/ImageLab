@@ -1,7 +1,7 @@
 width = 320;
 height = 240;
 
-fileName = 'D://colorMap.raw';
+fileName = 'D://output_cga.raw';
 
 fid = fopen(fileName, 'rb');
 rawData = fread(fid, width * height * 3, 'float32');

@@ -135,6 +135,33 @@ inline SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& pal
 }
 
 
+inline void RestoreTargetView
+(
+    fRGB* __restrict output,
+    const CoordinatesVector& X,
+    const CoordinatesVector& Y,
+    const SuperPixels& colorMap,
+    const A_long linePitch
+)
+{
+    const A_long yBlocks = static_cast<A_long>(Y.size()) - 1;
+    const A_long xBlocks = static_cast<A_long>(X.size()) - 1;
+    A_long colorMapIdx = 0;
+
+    for (A_long j = 0; j < yBlocks; j++)
+    {
+        for (A_long i = 0; i < xBlocks; i++)
+        {
+            for (A_long yb = Y[j]; yb < Y[j + 1]; yb++)
+                for (A_long xb = X[i]; xb < X[i + 1]; xb++)
+                    output[yb * linePitch + xb] = colorMap[colorMapIdx];
+
+            colorMapIdx++;
+        }
+    }
+    return;
+}
+
 
 void CGA_Simulation
 (
@@ -162,8 +189,11 @@ void CGA_Simulation
     // Convert super Pixels to selected CGA palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
+    // Restore Target Image (convert original image to CGA palette and simulate CGA resolution)
+    RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
+
 #ifdef _DEBUG
-   const bool bSaveResult = dbgFileSave("D://colorMap.raw", colorMap.data(), CGA_width, CGA_height);
+    const bool bSaveResult = dbgFileSave("D://output_cga.raw", output, CGA_width, CGA_height);
 #endif
 
     return;
@@ -208,6 +238,9 @@ void EGA_Simulation
     // Convert super Pixels to selected EGA palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
+    // Restore Target Image (convert original image to EGA palette and simulate CGA resolution)
+    RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
+
     return;
 }
 
@@ -250,6 +283,8 @@ void VGA16_Simulation
     // Convert super Pixels to selected VGA-16 palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
+    // Restore Target Image (convert original image to VGA-16 palette and simulate CGA resolution)
+    RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
     return;
 }
@@ -282,6 +317,9 @@ void VGA256_Simulation
 
     // Convert super Pixels to selected VGA-256 palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
+
+    // Restore Target Image (convert original image to VGA-256 palette and simulate CGA resolution)
+    RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
     return;
 }

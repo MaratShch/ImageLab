@@ -38,12 +38,11 @@ inline bool dbgFileSave
         if (!file)
             throw std::runtime_error("Failed to open file");
          for (j = 0; j < sizeY; j++)
-            for (i = 0; i < sizeX; i++)
-            {
-                 file.write(reinterpret_cast<const char*>(pData + j * lPitch), lineBytesSize);
-                if (!file.good())
-                    return false;
-            }
+         {
+            file.write(reinterpret_cast<const char*>(pData + j * lPitch), lineBytesSize);
+            if (!file.good())
+               return false;
+         }
     }
     return true;
 }
