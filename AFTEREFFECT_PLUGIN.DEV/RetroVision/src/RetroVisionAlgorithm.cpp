@@ -5,6 +5,7 @@
 #include "RetroVisionAlgorithm.hpp"
 #include "RetroVisionEnum.hpp"
 
+#define _SAVE_TMP_RESULT_FOR_DEBUG
 
 using CoordinatesVector = std::vector<A_long>;
 using SuperPixels = std::vector<fRGB>;
@@ -150,9 +151,13 @@ inline void RestoreTargetView
 
     for (A_long j = 0; j < yBlocks; j++)
     {
+        const A_long startLine = Y[j];
+        const A_long stopLine = Y[j + 1];
+
         for (A_long i = 0; i < xBlocks; i++)
         {
-            for (A_long yb = Y[j]; yb < Y[j + 1]; yb++)
+            // Process one CGA block
+            for (A_long yb = startLine; yb < stopLine; yb++)
                 for (A_long xb = X[i]; xb < X[i + 1]; xb++)
                     output[yb * linePitch + xb] = colorMap[colorMapIdx];
 
@@ -192,7 +197,7 @@ void CGA_Simulation
     // Restore Target Image (convert original image to CGA palette and simulate CGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
-#ifdef _DEBUG
+#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
     const bool bSaveResult = dbgFileSave("D://output_cga.raw", output, CGA_width, CGA_height);
 #endif
 
@@ -238,8 +243,12 @@ void EGA_Simulation
     // Convert super Pixels to selected EGA palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
-    // Restore Target Image (convert original image to EGA palette and simulate CGA resolution)
+    // Restore Target Image (convert original image to EGA palette and simulate EGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
+
+#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
+    const bool bSaveResult = dbgFileSave("D://output_ega.raw", output, EGA_width, EGA_height);
+#endif
 
     return;
 }
@@ -283,8 +292,12 @@ void VGA16_Simulation
     // Convert super Pixels to selected VGA-16 palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
-    // Restore Target Image (convert original image to VGA-16 palette and simulate CGA resolution)
+    // Restore Target Image (convert original image to VGA-16 palette and simulate VGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
+
+#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
+    const bool bSaveResult = dbgFileSave("D://output_vga16.raw", output, VGA16_width, VGA16_height);
+#endif
 
     return;
 }
@@ -318,8 +331,12 @@ void VGA256_Simulation
     // Convert super Pixels to selected VGA-256 palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
-    // Restore Target Image (convert original image to VGA-256 palette and simulate CGA resolution)
+    // Restore Target Image (convert original image to VGA-256 palette and simulate VGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
+
+#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
+    const bool bSaveResult = dbgFileSave("D://output_vga256.raw", output, VGA256_width, VGA256_height);
+#endif
 
     return;
 }
