@@ -55,12 +55,12 @@ inline SuperPixels ComputeSuperpixels
     SuperPixels superPixel(sizeX * sizeY);
     A_long vecIdx = 0;
 
-    for (auto itY = Y.begin() + 1; itY != Y.end(); ++itY)
+    for (auto& itY = Y.begin() + 1; itY != Y.end(); ++itY)
     {
         const A_long yPrev = *(itY - 1);
         const A_long yCurr = *itY;
 
-        for (auto itX = X.begin() + 1; itX != X.end(); ++itX)
+        for (auto& itX = X.begin() + 1; itX != X.end(); ++itX)
         {
             const A_long xPrev = *(itX - 1);
             const A_long xCurr = *itX;
@@ -111,7 +111,7 @@ inline SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& pal
             float dg = rgb.G - palette[i].g;
             float db = rgb.B - palette[i].b;
 
-            float dist = dr * dr + dg * dg + db * db;
+           float dist = FastCompute::Sqrt(dr * dr + dg * dg + db * db);
             if (dist < bestDist)
             {
                 bestDist = dist;
