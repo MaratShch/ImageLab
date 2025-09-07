@@ -74,6 +74,5 @@ inline bool dbgFileSave
 #else
 
   #define DBOUT( s , t )
-  #define dbgFileSave (s, p, x, y, l) 
 
 #endif // _DEBUG

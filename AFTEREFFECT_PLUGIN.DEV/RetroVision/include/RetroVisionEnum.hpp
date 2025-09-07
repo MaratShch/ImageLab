@@ -9,12 +9,17 @@ enum class RetroVision : int32_t
 {
     eRETRO_VISION_INPUT,
     eRETRO_VISION_ENABLE,
+    eRETRO_VISION_MONITOR_TYPE_START,
     eRETRO_VISION_GUI,
     eRETRO_VISION_DISPLAY,
     eRETRO_VISION_CGA_PALETTE,
     eRETRO_VISION_CGA_INTTENCITY_BIT,
     eRETRO_VISION_EGA_PALETTE,
     eRETRO_VISION_VGA_PALETTE,
+    eRETRO_VISION_MONITOR_TYPE_STOP,
+    eRETRO_VISION_CRT_ARTIFACTS_START,
+    eRETRO_VISION_CRT_ARTIFACTS_SCANLINES,
+    eRETRO_VISION_CRT_ARTIFACTS_STOP,
     eRETRO_VISION_TOTAL_CONTROLS
 };
 
@@ -92,12 +97,14 @@ constexpr char vgaPaletteName[] =
 constexpr char controlItemName[][16] =
 {
     "Enable",				// check box
-    "Display",  			// UI color bar
+    "Monitor/Palette",      // New Chapter 
+    "Palette",  			// UI color bar
     "Monitor",				// popup
     "CGA Palette",   		// popup
     "Intencity bit",   		// check box
     "EGA Palette",   		// popup
     "VGA Palette",          // popup
+    "CRT Artifacts",        // New Chapter
     "Scanlines",            // slider
     "Phosphor Glow",        // check box
     "Aperture Grill"       

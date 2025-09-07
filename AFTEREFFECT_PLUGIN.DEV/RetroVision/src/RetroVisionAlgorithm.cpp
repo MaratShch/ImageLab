@@ -197,7 +197,7 @@ void CGA_Simulation
     // Restore Target Image (convert original image to CGA palette and simulate CGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
-#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
+#if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
     const bool bSaveResult = dbgFileSave("D://output_cga.raw", output, CGA_width, CGA_height);
 #endif
 
@@ -246,7 +246,7 @@ void EGA_Simulation
     // Restore Target Image (convert original image to EGA palette and simulate EGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
-#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
+#if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
     const bool bSaveResult = dbgFileSave("D://output_ega.raw", output, EGA_width, EGA_height);
 #endif
 
@@ -295,7 +295,7 @@ void VGA16_Simulation
     // Restore Target Image (convert original image to VGA-16 palette and simulate VGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
-#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
+#if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
     const bool bSaveResult = dbgFileSave("D://output_vga16.raw", output, VGA16_width, VGA16_height);
 #endif
 
@@ -334,7 +334,7 @@ void VGA256_Simulation
     // Restore Target Image (convert original image to VGA-256 palette and simulate VGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
-#ifdef _SAVE_TMP_RESULT_FOR_DEBUG
+#if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
     const bool bSaveResult = dbgFileSave("D://output_vga256.raw", output, VGA256_width, VGA256_height);
 #endif
 

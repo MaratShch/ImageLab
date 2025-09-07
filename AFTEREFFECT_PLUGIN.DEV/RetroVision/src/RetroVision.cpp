@@ -132,6 +132,11 @@ ParamsSetup
         flags,
         UnderlyingType(RetroVision::eRETRO_VISION_ENABLE));
 
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC(
+        controlItemName[1], // visible header text
+        UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START));
+
     // add Display Type Logo (GUI)
     AEFX_CLR_STRUCT_EX(def);
     def.flags = flags;
@@ -141,7 +146,7 @@ ParamsSetup
     if (PremierId != in_data->appl_id)
     {
         PF_ADD_COLOR(
-            controlItemName[1],
+            controlItemName[2],
             0,
             0,
             0,
@@ -150,7 +155,7 @@ ParamsSetup
     else
     {
         PF_ADD_ARBITRARY2(
-            controlItemName[1],
+            controlItemName[2],
             guiBarWidth,
             guiBarHeight,
             0,
@@ -184,7 +189,7 @@ ParamsSetup
     // Setup 'Retro Monitor' popup - default value "CGA"
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
-        controlItemName[2],                                 // pop-up name
+        controlItemName[3],                                 // pop-up name
         UnderlyingType(RetroMonitor::eRETRO_BITMAP_TOTALS), // number of variants
         UnderlyingType(RetroMonitor::eRETRO_BITMAP_CGA),    // default variant
         retroMonitorName,                                   // string for pop-up
@@ -193,7 +198,7 @@ ParamsSetup
     // Setup 'CGA Palette' popup - default value "CGA-1"
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
-        controlItemName[3],                                     // pop-up name
+        controlItemName[4],                                     // pop-up name
         UnderlyingType(PaletteCGA::eRETRO_PALETTE_CGA_TOTAL),   // number of variants
         UnderlyingType(PaletteCGA::eRETRO_PALETTE_CGA1),        // default variant
         cgaPaletteName,                                         // string for pop-up
@@ -202,7 +207,7 @@ ParamsSetup
     // Setup 'CGA Intencity Bit' checkbox. Default state - non selected
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_CHECKBOXX(
-        controlItemName[4],
+        controlItemName[5],
         FALSE,
         flags,
         UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT));
@@ -210,7 +215,7 @@ ParamsSetup
     // Setup 'EGA Palette' popup - default value "Standard"
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
-        controlItemName[5],                                     // pop-up name
+        controlItemName[6],                                     // pop-up name
         UnderlyingType(PaletteEGA::eRETRO_PALETTE_EGA_TOTAL),   // number of variants
         UnderlyingType(PaletteEGA::eRETRO_PALETTE_EGA_STANDARD),// default variant
         egaPaletteName,                                         // string for pop-up
@@ -219,11 +224,29 @@ ParamsSetup
     // Setup 'VGA Palette' popup - default value "VGA 16 colors"
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
-        controlItemName[6],                                     // pop-up name
+        controlItemName[7],                                     // pop-up name
         UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_TOTAL),   // number of variants
         UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_16_BITS), // default variant
         vgaPaletteName,                                         // string for pop-up
         UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE));// control ID
+
+    AEFX_CLR_STRUCT_EX(def);
+    PF_END_TOPIC(UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_STOP));
+
+    AEFX_CLR_STRUCT_EX(def);
+    PF_ADD_TOPIC(
+        controlItemName[8], // visible header text
+        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_CHECKBOXX(
+        controlItemName[9],
+        FALSE,
+        flags,
+        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES));
+
+    AEFX_CLR_STRUCT_EX(def);
+    PF_END_TOPIC(UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_STOP));
 
     out_data->num_params = UnderlyingType(RetroVision::eRETRO_VISION_TOTAL_CONTROLS);
 
