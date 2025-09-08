@@ -178,6 +178,7 @@
     <ClCompile Include="src\RetroVisionAE.cpp" />
     <ClCompile Include="src\RetroVisionAlgorithm.cpp" />
     <ClCompile Include="src\RetroVisionBitmap.cpp" />
+    <ClCompile Include="src\RetroVisionControlPanel.cpp" />
     <ClCompile Include="src\RetroVisionGUI.cpp" />
     <ClCompile Include="src\RetroVisionPR.cpp" />
     <ClCompile Include="src\RetroVisionSR.cpp" />

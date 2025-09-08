@@ -16,6 +16,12 @@ constexpr int RetroVision_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
 constexpr int RetroVision_VersionBuild = 1;
 
+PF_Err
+SetupControlElement
+(
+    const PF_InData*  in_data,
+    PF_OutData* out_data
+);
 
 PF_Err ProcessImgInPR
 (

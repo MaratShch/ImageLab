@@ -137,6 +137,9 @@
     <ClCompile Include="src\RetroVisionAlgorithm.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\RetroVisionControlPanel.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RetroVision.rc">

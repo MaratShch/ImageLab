@@ -8,6 +8,7 @@
 enum class RetroVision : int32_t
 {
     eRETRO_VISION_INPUT,
+    eRETRO_VISION_GAMMA_ADJUST,
     eRETRO_VISION_ENABLE,
     eRETRO_VISION_MONITOR_TYPE_START,
     eRETRO_VISION_GUI,
@@ -19,9 +20,24 @@ enum class RetroVision : int32_t
     eRETRO_VISION_MONITOR_TYPE_STOP,
     eRETRO_VISION_CRT_ARTIFACTS_START,
     eRETRO_VISION_CRT_ARTIFACTS_SCANLINES,
+    eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES,
+    eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL,
+    eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS,
+    eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW,
+    eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT,
+    eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY,
+    eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL,
+    eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP,
+    eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL,
+    eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS,
+    eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR,
     eRETRO_VISION_CRT_ARTIFACTS_STOP,
     eRETRO_VISION_TOTAL_CONTROLS
 };
+
+constexpr double gammaSliderMin = 0.5;
+constexpr double gammaSliderMax = 2.5;
+constexpr double gammaSliderDef = 1.0;
 
 enum class RetroMonitor : int32_t
 {
@@ -94,8 +110,55 @@ constexpr char vgaPaletteName[] =
     "256 bits "
 };
 
-constexpr char controlItemName[][16] =
+constexpr int32_t scanLinesSliderMin = 1;
+constexpr int32_t scanLinesSliderMax = 6;
+constexpr int32_t scanLinesSliderDef = 2;
+constexpr int32_t scanLinesSliderHerculesDef = 3;
+
+constexpr double scanLinesDarknessMin = 0.0;
+constexpr double scanLinesDarknessMax = 1.0;
+constexpr double scanLinesDarknessDef = 0.2;
+
+constexpr double phosphorGlowStrengthMin = 0.0;
+constexpr double phosphorGlowStrengthMax = 3.0;
+constexpr double phosphorGlowStrengthDef = 2.0;
+
+constexpr double phosphorGlowOpacityMin = 0.0;
+constexpr double phosphorGlowOpacityMax = 1.0;
+constexpr double phosphorGlowOpacityDef = 0.3;
+
+enum class AppertureGtrill : int32_t
 {
+    eRETRO_APPERTURE_NONE,
+    eRETRO_APPERTURE_SHADOW_MASK,
+    eRETRO_APPERTURE_APPERTURE_GRILL,
+    eRETRO_APPERTURE_TOTALS
+};
+
+constexpr char appertureMaskType[] =
+{
+    "None|"
+    "ShadowMask|"
+    "Apperture Grill"
+};
+
+constexpr int32_t appertureMaskMin = 2;
+constexpr int32_t appertureMaskMax = 8;
+constexpr int32_t appertureMaskDef = 2;
+constexpr int32_t appertureMaskDefHercules = 3;
+
+constexpr double appertureMaskDarkMin = 0.0;
+constexpr double appertureMaskDarkMax = 1.0;
+constexpr double appertureMaskDarkDef = 0.25;
+
+constexpr int32_t appertureMaskColorMin = 0;
+constexpr int32_t appertureMaskColorMax = 64;
+constexpr int32_t appertureMaskColorDef = 20;
+
+
+constexpr char controlItemName[][24] =
+{
+    "Gamma Adjust",		    // float slider
     "Enable",				// check box
     "Monitor/Palette",      // New Chapter 
     "Palette",  			// UI color bar
@@ -105,9 +168,18 @@ constexpr char controlItemName[][16] =
     "EGA Palette",   		// popup
     "VGA Palette",          // popup
     "CRT Artifacts",        // New Chapter
-    "Scanlines",            // slider
+    "Scanlines",            // check box
+    "Smooth Scanlines",     // check box
+    "Scanlines Interval",   // int slider
+    "Scanlines Darkness",   // float slider
     "Phosphor Glow",        // check box
-    "Aperture Grill"       
+    "Glow Strength",        // slider
+    "Glow Opacity",         // slider
+    "Aperture Grill",       // check box
+    "Mask Type",            // popup
+    "Mask Interval",        // slider
+    "Mask Darkness",        // slider
+    "Mask Color",           // color
 };
 
 

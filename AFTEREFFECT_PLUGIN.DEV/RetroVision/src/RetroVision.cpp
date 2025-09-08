@@ -107,7 +107,6 @@ GlobalSetdown
 }
 
 
-
 static PF_Err
 ParamsSetup
 (
@@ -117,140 +116,7 @@ ParamsSetup
 	PF_LayerDef		*output
 )
 {
-    PF_ParamDef	def{};
-    PF_Err		err = PF_Err_NONE;
-
-    constexpr PF_ParamFlags   flags    = PF_ParamFlag_SUPERVISE;
-    constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
-    constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
-
-    // SetUp 'Enable' checkbox. Default state - non selected
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-    PF_ADD_CHECKBOXX(
-        controlItemName[0],
-        FALSE,
-        flags,
-        UnderlyingType(RetroVision::eRETRO_VISION_ENABLE));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC(
-        controlItemName[1], // visible header text
-        UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START));
-
-    // add Display Type Logo (GUI)
-    AEFX_CLR_STRUCT_EX(def);
-    def.flags = flags;
-    def.ui_flags = ui_disabled_flags;
-    def.ui_width  = guiBarWidth;
-    def.ui_height = guiBarHeight;
-    if (PremierId != in_data->appl_id)
-    {
-        PF_ADD_COLOR(
-            controlItemName[2],
-            0,
-            0,
-            0,
-            UnderlyingType(RetroVision::eRETRO_VISION_GUI));
-    }
-    else
-    {
-        PF_ADD_ARBITRARY2(
-            controlItemName[2],
-            guiBarWidth,
-            guiBarHeight,
-            0,
-            PF_PUI_CONTROL,
-            0,
-            UnderlyingType(RetroVision::eRETRO_VISION_GUI),
-            0);
-    }
-    if (PF_Err_NONE == err)
-    {
-        PF_CustomUIInfo	ui;
-        AEFX_CLR_STRUCT_EX(ui);
-
-        ui.events = PF_CustomEFlag_EFFECT;
-
-        ui.comp_ui_width = 0;
-        ui.comp_ui_height = 0;
-        ui.comp_ui_alignment = PF_UIAlignment_NONE;
-
-        ui.layer_ui_width = 0;
-        ui.layer_ui_height = 0;
-        ui.layer_ui_alignment = PF_UIAlignment_NONE;
-
-        ui.preview_ui_width = 0;
-        ui.preview_ui_height = 0;
-        ui.layer_ui_alignment = PF_UIAlignment_NONE;
-
-        err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
-    } // if (PF_Err_NONE == err)
-
-    // Setup 'Retro Monitor' popup - default value "CGA"
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_POPUP(
-        controlItemName[3],                                 // pop-up name
-        UnderlyingType(RetroMonitor::eRETRO_BITMAP_TOTALS), // number of variants
-        UnderlyingType(RetroMonitor::eRETRO_BITMAP_CGA),    // default variant
-        retroMonitorName,                                   // string for pop-up
-        UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY));// control ID
-
-    // Setup 'CGA Palette' popup - default value "CGA-1"
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_POPUP(
-        controlItemName[4],                                     // pop-up name
-        UnderlyingType(PaletteCGA::eRETRO_PALETTE_CGA_TOTAL),   // number of variants
-        UnderlyingType(PaletteCGA::eRETRO_PALETTE_CGA1),        // default variant
-        cgaPaletteName,                                         // string for pop-up
-        UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE));// control ID
-
-    // Setup 'CGA Intencity Bit' checkbox. Default state - non selected
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_CHECKBOXX(
-        controlItemName[5],
-        FALSE,
-        flags,
-        UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT));
-
-    // Setup 'EGA Palette' popup - default value "Standard"
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_POPUP(
-        controlItemName[6],                                     // pop-up name
-        UnderlyingType(PaletteEGA::eRETRO_PALETTE_EGA_TOTAL),   // number of variants
-        UnderlyingType(PaletteEGA::eRETRO_PALETTE_EGA_STANDARD),// default variant
-        egaPaletteName,                                         // string for pop-up
-        UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE));// control ID
-
-    // Setup 'VGA Palette' popup - default value "VGA 16 colors"
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_POPUP(
-        controlItemName[7],                                     // pop-up name
-        UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_TOTAL),   // number of variants
-        UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_16_BITS), // default variant
-        vgaPaletteName,                                         // string for pop-up
-        UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE));// control ID
-
-    AEFX_CLR_STRUCT_EX(def);
-    PF_END_TOPIC(UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_STOP));
-
-    AEFX_CLR_STRUCT_EX(def);
-    PF_ADD_TOPIC(
-        controlItemName[8], // visible header text
-        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START));
-
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_CHECKBOXX(
-        controlItemName[9],
-        FALSE,
-        flags,
-        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES));
-
-    AEFX_CLR_STRUCT_EX(def);
-    PF_END_TOPIC(UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_STOP));
-
-    out_data->num_params = UnderlyingType(RetroVision::eRETRO_VISION_TOTAL_CONTROLS);
-
-	return PF_Err_NONE;
+	return SetupControlElement (in_data, out_data);
 }
 
 
