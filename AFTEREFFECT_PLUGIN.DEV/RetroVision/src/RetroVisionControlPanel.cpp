@@ -4,7 +4,7 @@
 #include "Param_Utils.h"
 
 PF_Err
-SetupControlElement
+SetupControlElements
 (
     const PF_InData*  in_data,
           PF_OutData* out_data
@@ -26,7 +26,7 @@ SetupControlElement
         gammaSliderMin,
         gammaSliderMax,
         gammaSliderDef,
-        PF_Precision_TENTHS,
+        PF_Precision_HUNDREDTHS,
         0,
         0,
         UnderlyingType(RetroVision::eRETRO_VISION_GAMMA_ADJUST));

@@ -116,7 +116,7 @@ ParamsSetup
 	PF_LayerDef		*output
 )
 {
-	return SetupControlElement (in_data, out_data);
+	return SetupControlElements (in_data, out_data);
 }
 
 
