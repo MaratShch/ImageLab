@@ -31,6 +31,7 @@ enum class RetroVision : int32_t
     eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL,
     eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS,
     eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR,
+    eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR,
     eRETRO_VISION_CRT_ARTIFACTS_STOP,
     eRETRO_VISION_TOTAL_CONTROLS
 };
@@ -155,6 +156,20 @@ constexpr int32_t appertureMaskColorMin = 0;
 constexpr int32_t appertureMaskColorMax = 64;
 constexpr int32_t appertureMaskColorDef = 20;
 
+constexpr char herculesWhiteName[] =
+{
+    "Pure White|"
+    "Little Bluish|"
+    "Bluish"
+};
+
+enum class HerculesWhiteColor : int32_t
+{
+    eHERCULES_PURE_WHITE,
+    eHERCULES_LITTLE_BLUISH,
+    eHERCULES_BLUISH,
+    eHERCULES_WHITE_TOTALS
+};
 
 constexpr char controlItemName[][24] =
 {
@@ -180,6 +195,7 @@ constexpr char controlItemName[][24] =
     "Mask Interval",        // slider
     "Mask Darkness",        // slider
     "Mask Color",           // color
+    "White Color & Tint"    // white color on Hercules (popup)
 };
 
 

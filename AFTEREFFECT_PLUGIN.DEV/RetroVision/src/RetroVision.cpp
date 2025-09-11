@@ -107,7 +107,7 @@ GlobalSetdown
 }
 
 
-static PF_Err
+inline PF_Err
 ParamsSetup
 (
 	PF_InData		*in_data,
@@ -120,7 +120,7 @@ ParamsSetup
 }
 
 
-static PF_Err
+inline PF_Err
 Render
 (
 	PF_InData		*in_data,
@@ -133,7 +133,7 @@ Render
 }
 
 
-static PF_Err
+inline PF_Err
 PreRender
 (
     PF_InData			*in_data,
@@ -145,7 +145,7 @@ PreRender
 }
 
 
-static PF_Err
+inline PF_Err
 SmartRender
 (
     PF_InData				*in_data,
@@ -157,7 +157,7 @@ SmartRender
 }
 
 
-static PF_Err
+inline PF_Err
 UserChangedParam
 (
     PF_InData						*in_data,
@@ -171,7 +171,7 @@ UserChangedParam
 }
 
 
-static PF_Err
+inline PF_Err
 HandleEvent
 (
     PF_InData		*in_data,
@@ -198,17 +198,16 @@ HandleEvent
 }
 
 
-static PF_Err
+inline PF_Err
 UpdateParameterUI
 (
     PF_InData			*in_data,
     PF_OutData			*out_data,
     PF_ParamDef			*params[],
     PF_LayerDef			*outputP
-) noexcept
+)
 {
-    PF_Err err = PF_Err_NONE;
-    return err;
+    return RetroVision_UpdateParameterUI (in_data, out_data, params, outputP);
 }
 
 

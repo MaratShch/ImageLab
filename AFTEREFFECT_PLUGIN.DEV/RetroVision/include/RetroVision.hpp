@@ -75,4 +75,14 @@ RetroVision_UserChangedParam
     const PF_UserChangedParamExtra	*which_hitP
 );
 
+PF_Err
+RetroVision_UpdateParameterUI
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*outputP
+);
+
+
 #endif /* __IMAGE_LAB_RETRO_VISION_FILTER__ */

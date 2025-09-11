@@ -265,6 +265,14 @@ SetupControlElements
         appertureMaskColorDef,
         UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR));
 
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_POPUP(
+        controlItemName[22],
+        UnderlyingType(HerculesWhiteColor::eHERCULES_WHITE_TOTALS),
+        UnderlyingType(HerculesWhiteColor::eHERCULES_PURE_WHITE),
+        herculesWhiteName,
+        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR));
+
     AEFX_CLR_STRUCT_EX(def);
     PF_END_TOPIC(UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_STOP));
 
