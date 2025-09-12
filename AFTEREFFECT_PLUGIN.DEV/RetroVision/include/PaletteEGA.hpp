@@ -3,6 +3,7 @@
 
 #include "Common.hpp"
 #include "PaletteEntry.hpp"
+#include <cstdint>
 #include <array>
 
 constexpr int32_t EGA_width  = 640;

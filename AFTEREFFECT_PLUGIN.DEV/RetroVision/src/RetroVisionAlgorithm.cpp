@@ -444,8 +444,9 @@ void RetroResolution_Simulation
         case RetroMonitor::eRETRO_BITMAP_HERCULES:
         default:
         {
-            const float binThreshold = 0.5f;
-            Hercules_Simulation(input, output, sizeX, sizeY, binThreshold);
+            const int32_t bwThreshold = params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->u.sd.value;
+            const float binThreshold = bwThreshold / 255.f;
+            Hercules_Simulation (input, output, sizeX, sizeY, binThreshold);
         }
         break;
     }

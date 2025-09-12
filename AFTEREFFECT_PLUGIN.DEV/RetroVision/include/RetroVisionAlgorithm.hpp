@@ -8,6 +8,13 @@
 #include "FastAriphmetics.hpp"
 #include "ColorTransformMatrix.hpp"
 
+template<typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+inline constexpr bool FloatEqual(const T& val1, const T& val2) noexcept
+{
+    return (val1 >= (val2 - std::numeric_limits<T>::epsilon()) && val1 <= (val2 + std::numeric_limits<T>::epsilon()));
+}
+
+
 template<typename T, typename U, typename std::enable_if<is_RGB_Variants<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline _tRGB<U> ToLinearRGB (const T& in, const U coeff) noexcept
 {

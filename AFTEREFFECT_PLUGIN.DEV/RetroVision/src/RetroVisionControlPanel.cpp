@@ -136,34 +136,44 @@ SetupControlElements
         UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_TOTAL),   // number of variants
         UnderlyingType(PaletteVGA::eRETRO_PALETTE_VGA_16_BITS), // default variant
         vgaPaletteName,                                         // string for pop-up
-        UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE));// control ID
+        UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE));// control ID
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_SLIDER(
+        controlItemName[9],
+        herculesThresholdMin,
+        herculesThresholdMax,
+        herculesThresholdMin,
+        herculesThresholdMax,
+        herculesThresholdDef,
+        UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD));
 
     AEFX_CLR_STRUCT_EX(def);
     PF_END_TOPIC(UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_STOP));
 
     AEFX_CLR_STRUCT_EX(def);
     PF_ADD_TOPICX(
-        controlItemName[9],
+        controlItemName[10],
         ui_disabled_flags,
         UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START));
-
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_CHECKBOXX(
-        controlItemName[10],
-        FALSE,
-        flags,
-        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_CHECKBOXX(
         controlItemName[11],
         FALSE,
         flags,
+        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_CHECKBOXX(
+        controlItemName[12],
+        FALSE,
+        flags,
         UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_SLIDER(
-        controlItemName[12],
+        controlItemName[13],
         scanLinesSliderMin,
         scanLinesSliderMax,
         scanLinesSliderMin,
@@ -173,7 +183,7 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        controlItemName[13],
+        controlItemName[14],
         scanLinesDarknessMin,
         scanLinesDarknessMax,
         scanLinesDarknessMin,
@@ -186,14 +196,14 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_CHECKBOXX(
-        controlItemName[14],
+        controlItemName[15],
         FALSE,
         flags,
         UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        controlItemName[15],
+        controlItemName[16],
         phosphorGlowStrengthMin,
         phosphorGlowStrengthMax,
         phosphorGlowStrengthMin,
@@ -206,7 +216,7 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        controlItemName[16],
+        controlItemName[17],
         phosphorGlowOpacityMin,
         phosphorGlowOpacityMax,
         phosphorGlowOpacityMin,
@@ -219,14 +229,14 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_CHECKBOXX(
-        controlItemName[17],
+        controlItemName[18],
         FALSE,
         flags,
         UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
-        controlItemName[18],
+        controlItemName[19],
         UnderlyingType(AppertureGtrill::eRETRO_APPERTURE_TOTALS),
         UnderlyingType(AppertureGtrill::eRETRO_APPERTURE_NONE),
         appertureMaskType,
@@ -234,7 +244,7 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_SLIDER(
-        controlItemName[19],
+        controlItemName[20],
         appertureMaskMin,
         appertureMaskMax,
         appertureMaskMin,
@@ -244,7 +254,7 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        controlItemName[20],
+        controlItemName[21],
         appertureMaskDarkMin,
         appertureMaskDarkMax,
         appertureMaskDarkMin,
@@ -257,7 +267,7 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_SLIDER(
-        controlItemName[21],
+        controlItemName[22],
         appertureMaskColorMin,
         appertureMaskColorMax,
         appertureMaskColorMin,
@@ -267,7 +277,7 @@ SetupControlElements
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
-        controlItemName[22],
+        controlItemName[23],
         UnderlyingType(HerculesWhiteColor::eHERCULES_WHITE_TOTALS),
         UnderlyingType(HerculesWhiteColor::eHERCULES_PURE_WHITE),
         herculesWhiteName,

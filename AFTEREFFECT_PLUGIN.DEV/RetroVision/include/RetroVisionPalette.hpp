@@ -5,6 +5,7 @@
 #include "PaletteCGA.hpp"
 #include "PaletteEGA.hpp"
 #include "PaletteVGA.hpp"
+#include "PaletteHercules.hpp"
 
 template <typename T>
 class is_RETRO_PALETTE

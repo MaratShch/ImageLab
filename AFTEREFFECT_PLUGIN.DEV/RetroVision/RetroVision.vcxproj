@@ -98,6 +98,8 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <CCppSupport>
+      </CCppSupport>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
@@ -135,6 +137,8 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <CCppSupport>
+      </CCppSupport>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -170,6 +174,7 @@
     <ClInclude Include="include\PaletteEGA.hpp" />
     <ClInclude Include="include\PaletteEntry.hpp" />
     <ClInclude Include="include\PaletteVGA.hpp" />
+    <ClInclude Include="include\PaletteHercules.hpp" />
     <ClInclude Include="include\RetroVision.hpp" />
     <ClInclude Include="include\RetroVisionAlgorithm.hpp" />
     <ClInclude Include="include\RetroVisionEnum.hpp" />
@@ -184,6 +189,7 @@
     <ClCompile Include="src\RetroVisionAlgorithm.cpp" />
     <ClCompile Include="src\RetroVisionBitmap.cpp" />
     <ClCompile Include="src\RetroVisionControlPanel.cpp" />
+    <ClCompile Include="src\RetroVisionGammaAdjust.cpp" />
     <ClCompile Include="src\RetroVisionGUI.cpp" />
     <ClCompile Include="src\RetroVisionPR.cpp" />
     <ClCompile Include="src\RetroVisionSR.cpp" />

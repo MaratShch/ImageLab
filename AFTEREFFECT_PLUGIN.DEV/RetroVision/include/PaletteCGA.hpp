@@ -3,6 +3,7 @@
 
 #include "Common.hpp"
 #include "PaletteEntry.hpp"
+#include <cstdint>
 #include <array>
 
 constexpr int32_t CGA_width = 320;

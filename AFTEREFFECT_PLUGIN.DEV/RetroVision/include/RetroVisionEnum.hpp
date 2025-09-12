@@ -17,6 +17,7 @@ enum class RetroVision : int32_t
     eRETRO_VISION_CGA_INTTENCITY_BIT,
     eRETRO_VISION_EGA_PALETTE,
     eRETRO_VISION_VGA_PALETTE,
+    eRETRO_VISION_HERCULES_THRESHOLD,
     eRETRO_VISION_MONITOR_TYPE_STOP,
     eRETRO_VISION_CRT_ARTIFACTS_START,
     eRETRO_VISION_CRT_ARTIFACTS_SCANLINES,
@@ -111,6 +112,10 @@ constexpr char vgaPaletteName[] =
     "256 bits "
 };
 
+constexpr int32_t herculesThresholdMin = 64;
+constexpr int32_t herculesThresholdMax = 192;
+constexpr int32_t herculesThresholdDef = 128;
+
 constexpr int32_t scanLinesSliderMin = 1;
 constexpr int32_t scanLinesSliderMax = 6;
 constexpr int32_t scanLinesSliderDef = 2;
@@ -182,6 +187,7 @@ constexpr char controlItemName[][24] =
     "Intencity bit",   		// check box
     "EGA Palette",   		// popup
     "VGA Palette",          // popup
+    "Hercules Threshold",   // Hercules B/W threshold
     "CRT Artifacts",        // New Chapter
     "Scanlines",            // check box
     "Smooth Scanlines",     // check box

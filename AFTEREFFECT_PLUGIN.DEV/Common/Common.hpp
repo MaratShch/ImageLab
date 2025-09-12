@@ -45,3 +45,5 @@ inline void* ComputeAddress (const void* pAddr, const size_t& bytes_offset) noex
 	const size_t ptr = reinterpret_cast<const size_t>(pAddr);
 	return reinterpret_cast<void*>(ptr + bytes_offset);
 }
+
+

@@ -16,6 +16,15 @@ constexpr int RetroVision_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
 constexpr int RetroVision_VersionBuild = 1;
 
+PF_Err AdjustGammaValue
+(
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output,
+    const float fGamma
+);
+
 PF_Err
 SetupControlElements
 (

@@ -2,6 +2,7 @@
 #define __IMAGE_LAB_RETRO_VISION_PALETTE_VGA_VALUES__
 
 #include "PaletteEntry.hpp"
+#include <cstdint>
 #include <array>
 
 constexpr int32_t VGA16_width  = 640;

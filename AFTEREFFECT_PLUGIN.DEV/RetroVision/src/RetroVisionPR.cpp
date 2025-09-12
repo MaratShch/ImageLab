@@ -17,8 +17,13 @@ PF_Err ProcessImgInPR
 {
     // check if effect is enabled by CheckBox
     const A_long isEnabled = params[UnderlyingType(RetroVision::eRETRO_VISION_ENABLE)]->u.bd.value;
+    const float fGamma = static_cast<float>(params[UnderlyingType(RetroVision::eRETRO_VISION_GAMMA_ADJUST)]->u.fs_d.value);
     if (0 == isEnabled)
-        return PF_COPY(&params[UnderlyingType(RetroVision::eRETRO_VISION_INPUT)]->u.ld, output, NULL, NULL);
+    {
+        return (true == FloatEqual(fGamma, 1.0f)) ?
+            PF_COPY(&params[UnderlyingType(RetroVision::eRETRO_VISION_INPUT)]->u.ld, output, NULL, NULL) :
+            AdjustGammaValue (in_data, out_data, params, output, fGamma);
+    }
 
     PF_Err err{ PF_Err_NONE };
     PF_Err errFormat{ PF_Err_INVALID_INDEX };

@@ -105,6 +105,9 @@
     <ClInclude Include="include\PaletteVGA.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\PaletteHercules.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\RetroVision.cpp">
@@ -138,6 +141,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\RetroVisionControlPanel.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RetroVisionGammaAdjust.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
