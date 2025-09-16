@@ -1,7 +1,9 @@
 #include "RetroVision.hpp"
 #include "RetroVisionEnum.hpp"
+#include "CommonAuxPixFormat.hpp"
 #include "PrSDKAESupport.h"
 #include "FastAriphmetics.hpp"
+
 
 template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline T gamma_adjust
@@ -21,6 +23,7 @@ inline T gamma_adjust
     return out;
 }
 
+
 template<typename U, typename std::enable_if<std::is_floating_point<U>::value>::type* = nullptr>
 inline PF_Pixel_RGB_10u gamma_adjust
 (
@@ -31,12 +34,13 @@ inline PF_Pixel_RGB_10u gamma_adjust
 {
     PF_Pixel_RGB_10u out;
 
-    out.R = static_cast<decltype(out.R)>(FastCompute::Min(FastCompute::Pow(in.R, gamma), maxVal));
-    out.G = static_cast<decltype(out.G)>(FastCompute::Min(FastCompute::Pow(in.G, gamma), maxVal));
-    out.B = static_cast<decltype(out.B)>(FastCompute::Min(FastCompute::Pow(in.B, gamma), maxVal));
+    out.R = static_cast<decltype(out.R)>(FastCompute::Min(FastCompute::Pow(in.R / maxVal, gamma) * maxVal, maxVal));
+    out.G = static_cast<decltype(out.G)>(FastCompute::Min(FastCompute::Pow(in.G / maxVal, gamma) * maxVal, maxVal));
+    out.B = static_cast<decltype(out.B)>(FastCompute::Min(FastCompute::Pow(in.B / maxVal, gamma) * maxVal, maxVal));
 
     return out;
 }
+
 
 
 template<typename T, typename U, typename std::enable_if<is_RGB_Variants<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
@@ -57,6 +61,7 @@ PF_Err AdjustGammaValue
         const T* pSrcLine = srcBuf + j * srcPitch;
               T* pDstLine = dstBuf + j * dstPitch;
 
+        __VECTORIZATION__
         for (A_long i = 0; i < sizeX; i++)
             pDstLine[i] = gamma_adjust (pSrcLine[i], gamma, maxVal);
     }

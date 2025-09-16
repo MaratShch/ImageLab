@@ -58,10 +58,9 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-                    constexpr float fCoeff{ 1.f / static_cast<float>(u8_value_white) };
+                    constexpr float fCoeff { static_cast<float>(u8_value_white) };
 
-                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fCoeff);
-                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
+                    AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                 }
                 break;
 
@@ -70,10 +69,9 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
-                    constexpr float fCoeff{ 1.f / static_cast<float>(u16_value_white) };
+                    constexpr float fCoeff { static_cast<float>(u16_value_white) };
 
-                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fCoeff);
-                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
+                    AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                 }
                 break;
 
@@ -84,8 +82,7 @@ PF_Err ProcessImgInPR
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
                     constexpr float fCoeff{ static_cast<float>(1) };
 
-                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fCoeff);
-                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
+                    AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                 }
                 break;
 
@@ -95,11 +92,9 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
-                    constexpr float fCoeff{ 1.f / static_cast<float>(u8_value_white) };
+                    constexpr float fCoeff { static_cast<float>(u8_value_white) };
 
-                    Convert2sRGB (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fCoeff);
-                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
+                    AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                 }
                 break;
 
@@ -109,11 +104,9 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
-                    const bool isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
-                    constexpr float fCoeff{ static_cast<float>(1) };
+                    constexpr float fCoeff { static_cast<float>(1) };
 
-                    Convert2sRGB(localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fCoeff);
-                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, params);
+                    AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                 }
                 break;
 
@@ -122,9 +115,9 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
                           PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
-                    constexpr float fCoeff{ 1.f / static_cast<float>(u10_value_white) };
+                    constexpr float fCoeff { static_cast<float>(u10_value_white) };
 
-                    Convert2sRGB(localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fCoeff);
+                    AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                 }
                 break;
 
