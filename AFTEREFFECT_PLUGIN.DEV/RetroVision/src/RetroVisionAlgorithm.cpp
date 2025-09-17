@@ -4,8 +4,9 @@
 #include "RetroVisionPalette.hpp"
 #include "RetroVisionAlgorithm.hpp"
 #include "RetroVisionEnum.hpp"
+#include "RetroVisionControls.hpp"
 
-#define _SAVE_TMP_RESULT_FOR_DEBUG
+//#define _SAVE_TMP_RESULT_FOR_DEBUG
 
 using CoordinatesVector = std::vector<A_long>;
 using SuperPixels = std::vector<fRGB>;
@@ -174,16 +175,9 @@ void CGA_Simulation
           fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
-    const CGA_Palette& palette
+    const CGA_PaletteF32& p
 )
 {
-    CACHE_ALIGN const CGA_PaletteF32 p = {{
-        { static_cast<float>(palette[0].r) / 255.f, static_cast<float>(palette[0].g) / 255.f, static_cast<float>(palette[0].b) / 255.f },
-        { static_cast<float>(palette[1].r) / 255.f, static_cast<float>(palette[1].g) / 255.f, static_cast<float>(palette[1].b) / 255.f },
-        { static_cast<float>(palette[2].r) / 255.f, static_cast<float>(palette[2].g) / 255.f, static_cast<float>(palette[2].b) / 255.f },
-        { static_cast<float>(palette[3].r) / 255.f, static_cast<float>(palette[3].g) / 255.f, static_cast<float>(palette[3].b) / 255.f }
-    }};
-
     // Split original resolution on blocks and compute X an Y coordinates for every block
     const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, CGA_width);
     const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, CGA_height);
@@ -361,9 +355,32 @@ void RetroResolution_Simulation
           fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
-    PF_ParamDef* __restrict params[]
+    const RVControls& controlParams
 )
 {
+    // Simulate Retro-Monitor view
+    const RetroMonitor& monitor = controlParams.monitor;
+
+    switch (monitor)
+    {
+        case RetroMonitor::eRETRO_BITMAP_CGA:
+        break;
+
+        case RetroMonitor::eRETRO_BITMAP_EGA:
+        break;
+
+        case RetroMonitor::eRETRO_BITMAP_VGA:
+        break;
+
+        case RetroMonitor::eRETRO_BITMAP_HERCULES:
+        default:
+        break;
+    }
+
+    // Simulate CRT Artifacts
+
+
+#if 0
     // check moitor type
     const RetroMonitor monitor = static_cast<RetroMonitor>(params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)]->u.bd.value - 1);
     switch (monitor)
@@ -376,14 +393,14 @@ void RetroResolution_Simulation
             {
                 case PaletteCGA::eRETRO_PALETTE_CGA1:
                 {
-                    const CGA_Palette& CgaValues = (0 == intencity ? CGA0_u8 : CGA0i_u8);
-                    CGA_Simulation(input, output, sizeX, sizeY, CgaValues);
+                    const CGA_PaletteF32& paletteCGA1 = (0 == intencity ? CGA0_f32 : CGA0i_f32);
+                    CGA_Simulation (input, output, sizeX, sizeY, paletteCGA1);
                 }
                 break;
                 case PaletteCGA::eRETRO_PALETTE_CGA2:
                 {
-                    const CGA_Palette& CgaValues = (0 == intencity ? CGA1_u8 : CGA1i_u8);
-                    CGA_Simulation (input, output, sizeX, sizeY, CgaValues);
+                    const CGA_PaletteF32& paletteCGA2 = (0 == intencity ? CGA1_f32 : CGA1i_f32);
+                    CGA_Simulation (input, output, sizeX, sizeY, paletteCGA2);
                 }
                 break;
             }
@@ -450,5 +467,7 @@ void RetroResolution_Simulation
         }
         break;
     }
+#endif
+
     return;
 }

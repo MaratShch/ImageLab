@@ -103,7 +103,7 @@ SetupControlElements
         retroMonitorName,                                   // string for pop-up
         UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY));// control ID
 
-                                                            // Setup 'CGA Palette' popup - default value "CGA-1"
+     // Setup 'CGA Palette' popup - default value "CGA-1"
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
         controlItemName[5],                                     // pop-up name

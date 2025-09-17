@@ -7,6 +7,16 @@
 #include "RetroVisionPalette.hpp"
 #include "FastAriphmetics.hpp"
 #include "ColorTransformMatrix.hpp"
+#include "RetroVisionControls.hpp"
+
+void RetroResolution_Simulation
+(
+    const fRGB* __restrict input,
+          fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    const RVControls& controlParams
+);
 
 
 template <typename T>

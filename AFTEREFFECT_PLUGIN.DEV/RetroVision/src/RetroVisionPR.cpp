@@ -2,6 +2,7 @@
 #include "RetroVision.hpp"
 #include "RetroVisionEnum.hpp"
 #include "RetroVisionAlgorithm.hpp"
+#include "RetroVisionControls.hpp"
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
 
@@ -51,6 +52,9 @@ PF_Err ProcessImgInPR
 
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
+            // get rest of the control parameters
+            const RVControls controlParams = GetControlParametersStruct(params);
+
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:
@@ -61,6 +65,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff { static_cast<float>(u8_value_white) };
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
                 }
                 break;
 
@@ -72,6 +77,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff { static_cast<float>(u16_value_white) };
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
                 }
                 break;
 
@@ -83,6 +89,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ static_cast<float>(1) };
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
                 }
                 break;
 
@@ -95,6 +102,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff { static_cast<float>(u8_value_white) };
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
                 }
                 break;
 
@@ -107,6 +115,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff { static_cast<float>(1) };
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
                 }
                 break;
 
@@ -118,6 +127,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff { static_cast<float>(u10_value_white) };
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
+                    RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
                 }
                 break;
 

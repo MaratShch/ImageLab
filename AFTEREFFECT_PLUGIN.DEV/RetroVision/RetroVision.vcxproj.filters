@@ -108,6 +108,9 @@
     <ClInclude Include="include\PaletteHercules.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\RetroVisionControls.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\RetroVision.cpp">
@@ -144,6 +147,18 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\RetroVisionGammaAdjust.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RetroVisionAlgo_CGA.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RetroVisionAlgo_EGA.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RetroVisionAlgo_HER.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RetroVisionAlgo_VGA.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
