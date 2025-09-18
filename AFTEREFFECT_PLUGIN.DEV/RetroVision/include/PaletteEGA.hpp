@@ -34,6 +34,27 @@ CACHE_ALIGN constexpr EGA_Palette EGA_Standard_u8 =
     { 255, 255, 255 }
 }};
 
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_Standard_f32 =
+{{
+    { static_cast<float>(EGA_Standard_u8[0 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[0 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[0 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[1 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[1 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[1 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[2 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[2 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[2 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[3 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[3 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[3 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[4 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[4 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[4 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[5 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[5 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[5 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[6 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[6 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[6 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[7 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[7 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[7 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[8 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[8 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[8 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[9 ].r) / 255.f, static_cast<float>(EGA_Standard_u8[9 ].g) / 255.f, static_cast<float>(EGA_Standard_u8[9 ].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[10].r) / 255.f, static_cast<float>(EGA_Standard_u8[10].g) / 255.f, static_cast<float>(EGA_Standard_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[11].r) / 255.f, static_cast<float>(EGA_Standard_u8[11].g) / 255.f, static_cast<float>(EGA_Standard_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[12].r) / 255.f, static_cast<float>(EGA_Standard_u8[12].g) / 255.f, static_cast<float>(EGA_Standard_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[13].r) / 255.f, static_cast<float>(EGA_Standard_u8[13].g) / 255.f, static_cast<float>(EGA_Standard_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[14].r) / 255.f, static_cast<float>(EGA_Standard_u8[14].g) / 255.f, static_cast<float>(EGA_Standard_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_Standard_u8[15].r) / 255.f, static_cast<float>(EGA_Standard_u8[15].g) / 255.f, static_cast<float>(EGA_Standard_u8[15].b) / 255.f },
+}};
+
+
 // EGA King's Quest III Approximation
 CACHE_ALIGN constexpr EGA_Palette EGA_KQ3_u8 =
 {{
@@ -54,6 +75,27 @@ CACHE_ALIGN constexpr EGA_Palette EGA_KQ3_u8 =
     { 255, 255,  85 },
     { 255, 255, 255 }
 }};
+
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_KQ3_f32 =
+{{
+    { static_cast<float>(EGA_KQ3_u8[0 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[0 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[0 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[1 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[1 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[1 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[2 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[2 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[2 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[3 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[3 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[3 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[4 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[4 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[4 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[5 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[5 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[5 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[6 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[6 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[6 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[7 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[7 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[7 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[8 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[8 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[8 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[9 ].r) / 255.f, static_cast<float>(EGA_KQ3_u8[9 ].g) / 255.f, static_cast<float>(EGA_KQ3_u8[9 ].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[10].r) / 255.f, static_cast<float>(EGA_KQ3_u8[10].g) / 255.f, static_cast<float>(EGA_KQ3_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[11].r) / 255.f, static_cast<float>(EGA_KQ3_u8[11].g) / 255.f, static_cast<float>(EGA_KQ3_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[12].r) / 255.f, static_cast<float>(EGA_KQ3_u8[12].g) / 255.f, static_cast<float>(EGA_KQ3_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[13].r) / 255.f, static_cast<float>(EGA_KQ3_u8[13].g) / 255.f, static_cast<float>(EGA_KQ3_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[14].r) / 255.f, static_cast<float>(EGA_KQ3_u8[14].g) / 255.f, static_cast<float>(EGA_KQ3_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_KQ3_u8[15].r) / 255.f, static_cast<float>(EGA_KQ3_u8[15].g) / 255.f, static_cast<float>(EGA_KQ3_u8[15].b) / 255.f },
+}};
+
 
 // EGA Kyrandia-Inspired
 CACHE_ALIGN constexpr EGA_Palette EGA_Kyrandia_u8 =
@@ -76,6 +118,27 @@ CACHE_ALIGN constexpr EGA_Palette EGA_Kyrandia_u8 =
     { 255, 255, 255 }
 }};
 
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_Kyrandia_f32 =
+{{
+    { static_cast<float>(EGA_Kyrandia_u8[0 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[0 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[0 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[1 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[1 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[1 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[2 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[2 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[2 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[3 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[3 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[3 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[4 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[4 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[4 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[5 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[5 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[5 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[6 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[6 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[6 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[7 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[7 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[7 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[8 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[8 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[8 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[9 ].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[9 ].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[9 ].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[10].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[10].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[11].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[11].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[12].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[12].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[13].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[13].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[14].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[14].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_Kyrandia_u8[15].r) / 255.f, static_cast<float>(EGA_Kyrandia_u8[15].g) / 255.f, static_cast<float>(EGA_Kyrandia_u8[15].b) / 255.f },
+}};
+
+
 // EGA Thexder 
 CACHE_ALIGN constexpr EGA_Palette EGA_Thexder_u8 =
 {{
@@ -96,6 +159,27 @@ CACHE_ALIGN constexpr EGA_Palette EGA_Thexder_u8 =
     { 255, 255,  80 },
     { 255, 255, 255 }
 }};
+
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_Thexder_f32 =
+{{
+    { static_cast<float>(EGA_Thexder_u8[0].r) / 255.f, static_cast<float>(EGA_Thexder_u8[0].g) / 255.f, static_cast<float>(EGA_Thexder_u8[0].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[1].r) / 255.f, static_cast<float>(EGA_Thexder_u8[1].g) / 255.f, static_cast<float>(EGA_Thexder_u8[1].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[2].r) / 255.f, static_cast<float>(EGA_Thexder_u8[2].g) / 255.f, static_cast<float>(EGA_Thexder_u8[2].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[3].r) / 255.f, static_cast<float>(EGA_Thexder_u8[3].g) / 255.f, static_cast<float>(EGA_Thexder_u8[3].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[4].r) / 255.f, static_cast<float>(EGA_Thexder_u8[4].g) / 255.f, static_cast<float>(EGA_Thexder_u8[4].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[5].r) / 255.f, static_cast<float>(EGA_Thexder_u8[5].g) / 255.f, static_cast<float>(EGA_Thexder_u8[5].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[6].r) / 255.f, static_cast<float>(EGA_Thexder_u8[6].g) / 255.f, static_cast<float>(EGA_Thexder_u8[6].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[7].r) / 255.f, static_cast<float>(EGA_Thexder_u8[7].g) / 255.f, static_cast<float>(EGA_Thexder_u8[7].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[8].r) / 255.f, static_cast<float>(EGA_Thexder_u8[8].g) / 255.f, static_cast<float>(EGA_Thexder_u8[8].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[9].r) / 255.f, static_cast<float>(EGA_Thexder_u8[9].g) / 255.f, static_cast<float>(EGA_Thexder_u8[9].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[10].r) / 255.f, static_cast<float>(EGA_Thexder_u8[10].g) / 255.f, static_cast<float>(EGA_Thexder_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[11].r) / 255.f, static_cast<float>(EGA_Thexder_u8[11].g) / 255.f, static_cast<float>(EGA_Thexder_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[12].r) / 255.f, static_cast<float>(EGA_Thexder_u8[12].g) / 255.f, static_cast<float>(EGA_Thexder_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[13].r) / 255.f, static_cast<float>(EGA_Thexder_u8[13].g) / 255.f, static_cast<float>(EGA_Thexder_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[14].r) / 255.f, static_cast<float>(EGA_Thexder_u8[14].g) / 255.f, static_cast<float>(EGA_Thexder_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_Thexder_u8[15].r) / 255.f, static_cast<float>(EGA_Thexder_u8[15].g) / 255.f, static_cast<float>(EGA_Thexder_u8[15].b) / 255.f },
+}};
+
 
 // EGA Dune
 CACHE_ALIGN constexpr EGA_Palette EGA_Dune_u8 =
@@ -118,6 +202,27 @@ CACHE_ALIGN constexpr EGA_Palette EGA_Dune_u8 =
     { 220, 200, 160 }
 }};
 
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_Dune_f32 =
+{{
+    { static_cast<float>(EGA_Dune_u8[0 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[0 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[0 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[1 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[1 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[1 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[2 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[2 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[2 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[3 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[3 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[3 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[4 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[4 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[4 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[5 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[5 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[5 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[6 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[6 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[6 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[7 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[7 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[7 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[8 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[8 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[8 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[9 ].r) / 255.f, static_cast<float>(EGA_Dune_u8[9 ].g) / 255.f, static_cast<float>(EGA_Dune_u8[9 ].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[10].r) / 255.f, static_cast<float>(EGA_Dune_u8[10].g) / 255.f, static_cast<float>(EGA_Dune_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[11].r) / 255.f, static_cast<float>(EGA_Dune_u8[11].g) / 255.f, static_cast<float>(EGA_Dune_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[12].r) / 255.f, static_cast<float>(EGA_Dune_u8[12].g) / 255.f, static_cast<float>(EGA_Dune_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[13].r) / 255.f, static_cast<float>(EGA_Dune_u8[13].g) / 255.f, static_cast<float>(EGA_Dune_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[14].r) / 255.f, static_cast<float>(EGA_Dune_u8[14].g) / 255.f, static_cast<float>(EGA_Dune_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_Dune_u8[15].r) / 255.f, static_cast<float>(EGA_Dune_u8[15].g) / 255.f, static_cast<float>(EGA_Dune_u8[15].b) / 255.f },
+}};
+
+
 // EGA Doom
 CACHE_ALIGN constexpr EGA_Palette EGA_Doom_u8 =
 {{
@@ -138,6 +243,27 @@ CACHE_ALIGN constexpr EGA_Palette EGA_Doom_u8 =
     { 255, 255,   0 },
     { 255, 255, 255 }
 }};
+
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_Doom_f32 =
+{{
+    { static_cast<float>(EGA_Doom_u8[0 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[0 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[0 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[1 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[1 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[1 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[2 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[2 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[2 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[3 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[3 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[3 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[4 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[4 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[4 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[5 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[5 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[5 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[6 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[6 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[6 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[7 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[7 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[7 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[8 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[8 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[8 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[9 ].r) / 255.f, static_cast<float>(EGA_Doom_u8[9 ].g) / 255.f, static_cast<float>(EGA_Doom_u8[9 ].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[10].r) / 255.f, static_cast<float>(EGA_Doom_u8[10].g) / 255.f, static_cast<float>(EGA_Doom_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[11].r) / 255.f, static_cast<float>(EGA_Doom_u8[11].g) / 255.f, static_cast<float>(EGA_Doom_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[12].r) / 255.f, static_cast<float>(EGA_Doom_u8[12].g) / 255.f, static_cast<float>(EGA_Doom_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[13].r) / 255.f, static_cast<float>(EGA_Doom_u8[13].g) / 255.f, static_cast<float>(EGA_Doom_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[14].r) / 255.f, static_cast<float>(EGA_Doom_u8[14].g) / 255.f, static_cast<float>(EGA_Doom_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_Doom_u8[15].r) / 255.f, static_cast<float>(EGA_Doom_u8[15].g) / 255.f, static_cast<float>(EGA_Doom_u8[15].b) / 255.f },
+}};
+
 
 // EGA Metal Mutant
 CACHE_ALIGN constexpr EGA_Palette EGA_MetalMutant_u8 =
@@ -160,6 +286,27 @@ CACHE_ALIGN constexpr EGA_Palette EGA_MetalMutant_u8 =
     { 255, 255, 255 }
 }};
 
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_MetalMutant_f32 =
+{{
+    { static_cast<float>(EGA_MetalMutant_u8[0 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[0 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[0 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[1 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[1 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[1 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[2 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[2 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[2 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[3 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[3 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[3 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[4 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[4 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[4 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[5 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[5 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[5 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[6 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[6 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[6 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[7 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[7 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[7 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[8 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[8 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[8 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[9 ].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[9 ].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[9 ].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[10].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[10].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[11].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[11].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[12].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[12].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[13].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[13].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[14].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[14].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_MetalMutant_u8[15].r) / 255.f, static_cast<float>(EGA_MetalMutant_u8[15].g) / 255.f, static_cast<float>(EGA_MetalMutant_u8[15].b) / 255.f },
+}};
+
+
 // EGA Wolfenstein 3D
 CACHE_ALIGN constexpr EGA_Palette EGA_Wolfenstein_u8 =
 {{
@@ -180,5 +327,26 @@ CACHE_ALIGN constexpr EGA_Palette EGA_Wolfenstein_u8 =
     { 255, 255,  80 },
     { 255, 255, 255 }
 }};
+
+CACHE_ALIGN constexpr EGA_PaletteF32 EGA_Wolfenstein_f32 =
+{{
+    { static_cast<float>(EGA_Wolfenstein_u8[0 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[0 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[0 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[1 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[1 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[1 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[2 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[2 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[2 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[3 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[3 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[3 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[4 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[4 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[4 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[5 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[5 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[5 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[6 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[6 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[6 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[7 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[7 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[7 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[8 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[8 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[8 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[9 ].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[9 ].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[9 ].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[10].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[10].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[10].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[11].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[11].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[11].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[12].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[12].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[12].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[13].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[13].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[13].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[14].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[14].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[14].b) / 255.f },
+    { static_cast<float>(EGA_Wolfenstein_u8[15].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[15].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[15].b) / 255.f },
+}};
+
 
 #endif // __IMAGE_LAB_RETRO_VISION_PALETTE_EGA_VALUES__

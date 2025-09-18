@@ -359,21 +359,32 @@ void RetroResolution_Simulation
 )
 {
     // Simulate Retro-Monitor view
-    const RetroMonitor& monitor = controlParams.monitor;
-
-    switch (monitor)
+    switch (controlParams.monitor)
     {
         case RetroMonitor::eRETRO_BITMAP_CGA:
+        {
+            const CGA_PaletteF32& palette = (PaletteCGA::eRETRO_PALETTE_CGA1 == controlParams.cga_palette ?
+                (0 == controlParams.cga_intencity_bit ? CGA0_f32 : CGA0i_f32) :
+                    (0 == controlParams.cga_intencity_bit ? CGA1_f32 : CGA1i_f32));
+        }
         break;
 
         case RetroMonitor::eRETRO_BITMAP_EGA:
+        {
+            const PaletteEGA& palette = controlParams.ega_palette;
+        }
         break;
 
         case RetroMonitor::eRETRO_BITMAP_VGA:
+        {
+        }
         break;
 
         case RetroMonitor::eRETRO_BITMAP_HERCULES:
         default:
+        {
+
+        }
         break;
     }
 
