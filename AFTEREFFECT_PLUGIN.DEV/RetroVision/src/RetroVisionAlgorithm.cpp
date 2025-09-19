@@ -371,12 +371,13 @@ void RetroResolution_Simulation
 
         case RetroMonitor::eRETRO_BITMAP_EGA:
         {
-            const PaletteEGA& palette = controlParams.ega_palette;
+            const EGA_PaletteF32& palette = getEgaPalette(controlParams.ega_palette);
         }
         break;
 
         case RetroMonitor::eRETRO_BITMAP_VGA:
         {
+            
         }
         break;
 

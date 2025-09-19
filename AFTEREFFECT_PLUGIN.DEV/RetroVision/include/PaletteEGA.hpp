@@ -3,6 +3,7 @@
 
 #include "Common.hpp"
 #include "PaletteEntry.hpp"
+#include "RetroVisionEnum.hpp"
 #include <cstdint>
 #include <array>
 
@@ -347,6 +348,24 @@ CACHE_ALIGN constexpr EGA_PaletteF32 EGA_Wolfenstein_f32 =
     { static_cast<float>(EGA_Wolfenstein_u8[14].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[14].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[14].b) / 255.f },
     { static_cast<float>(EGA_Wolfenstein_u8[15].r) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[15].g) / 255.f, static_cast<float>(EGA_Wolfenstein_u8[15].b) / 255.f },
 }};
+
+
+inline EGA_PaletteF32 getEgaPalette(const PaletteEGA& paletteID) noexcept
+{
+    CACHE_ALIGN constexpr std::array<EGA_PaletteF32, 8> palette =
+    {
+        EGA_Standard_f32,
+        EGA_KQ3_f32,
+        EGA_Kyrandia_f32,
+        EGA_Thexder_f32,
+        EGA_Dune_f32,
+        EGA_Doom_f32,
+        EGA_MetalMutant_f32,
+        EGA_Wolfenstein_f32
+    };
+
+    return palette[UnderlyingType(paletteID)];
+}
 
 
 #endif // __IMAGE_LAB_RETRO_VISION_PALETTE_EGA_VALUES__
