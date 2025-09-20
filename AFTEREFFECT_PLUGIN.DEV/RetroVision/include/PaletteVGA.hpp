@@ -581,4 +581,28 @@ CACHE_ALIGN constexpr VGA_Palette256F32 VGA_Standard256_f32 =
     { static_cast<float>(VGA_Standard256_u8[255].r) / 255.f, static_cast<float>(VGA_Standard256_u8[255].g) / 255.f, static_cast<float>(VGA_Standard256_u8[255].b) / 255.f }
 }};
 
+
+
+template <typename T>
+class is_VGA_RETRO_PALETTE
+{
+    /**
+    * PALETTE type
+    */
+    template <typename TT,
+        typename std::enable_if<
+        std::is_same<TT, VGA_Palette16>::value ||
+        std::is_same<TT, VGA_Palette256>::value ||
+        std::is_same<TT, VGA_Palette16F32>::value ||
+        std::is_same<TT, VGA_Palette256F32>::value>::type* = nullptr>
+        static auto test(int)->std::true_type;
+
+    template<typename>
+    static auto test(...)->std::false_type;
+
+public:
+    static constexpr const bool value = decltype(test<T>(0))::value;
+};
+
+
 #endif // __IMAGE_LAB_RETRO_VISION_PALETTE_VGA_VALUES__

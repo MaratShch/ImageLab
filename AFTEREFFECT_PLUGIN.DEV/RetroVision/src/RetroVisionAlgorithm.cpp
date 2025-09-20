@@ -248,93 +248,6 @@ void EGA_Simulation
 }
 
 
-void VGA16_Simulation
-(
-    const fRGB* __restrict input,
-          fRGB* __restrict output,
-    A_long sizeX,
-    A_long sizeY,
-    const VGA_Palette16& palette
-)
-{
-    CACHE_ALIGN const VGA_Palette16F32 p = {{
-        { static_cast<float>(palette[0].r ) / 255.f, static_cast<float>(palette[0].g ) / 255.f, static_cast<float>(palette[0].b ) / 255.f },
-        { static_cast<float>(palette[1].r ) / 255.f, static_cast<float>(palette[1].g ) / 255.f, static_cast<float>(palette[1].b ) / 255.f },
-        { static_cast<float>(palette[2].r ) / 255.f, static_cast<float>(palette[2].g ) / 255.f, static_cast<float>(palette[2].b ) / 255.f },
-        { static_cast<float>(palette[3].r ) / 255.f, static_cast<float>(palette[3].g ) / 255.f, static_cast<float>(palette[3].b ) / 255.f },
-        { static_cast<float>(palette[4].r ) / 255.f, static_cast<float>(palette[4].g ) / 255.f, static_cast<float>(palette[4].b ) / 255.f },
-        { static_cast<float>(palette[5].r ) / 255.f, static_cast<float>(palette[5].g ) / 255.f, static_cast<float>(palette[5].b ) / 255.f },
-        { static_cast<float>(palette[6].r ) / 255.f, static_cast<float>(palette[6].g ) / 255.f, static_cast<float>(palette[6].b ) / 255.f },
-        { static_cast<float>(palette[7].r ) / 255.f, static_cast<float>(palette[7].g ) / 255.f, static_cast<float>(palette[7].b ) / 255.f },
-        { static_cast<float>(palette[8].r ) / 255.f, static_cast<float>(palette[8].g ) / 255.f, static_cast<float>(palette[8].b ) / 255.f },
-        { static_cast<float>(palette[9].r ) / 255.f, static_cast<float>(palette[9].g ) / 255.f, static_cast<float>(palette[9].b ) / 255.f },
-        { static_cast<float>(palette[10].r) / 255.f, static_cast<float>(palette[10].g) / 255.f, static_cast<float>(palette[10].b) / 255.f },
-        { static_cast<float>(palette[11].r) / 255.f, static_cast<float>(palette[11].g) / 255.f, static_cast<float>(palette[11].b) / 255.f },
-        { static_cast<float>(palette[12].r) / 255.f, static_cast<float>(palette[12].g) / 255.f, static_cast<float>(palette[12].b) / 255.f },
-        { static_cast<float>(palette[13].r) / 255.f, static_cast<float>(palette[13].g) / 255.f, static_cast<float>(palette[13].b) / 255.f },
-        { static_cast<float>(palette[14].r) / 255.f, static_cast<float>(palette[14].g) / 255.f, static_cast<float>(palette[14].b) / 255.f },
-        { static_cast<float>(palette[15].r) / 255.f, static_cast<float>(palette[15].g) / 255.f, static_cast<float>(palette[15].b) / 255.f }
-    }};
-
-    // Split original resolution on blocks and compute X an Y coordinates for every block
-    const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, VGA16_width);
-    const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, VGA16_height);
-
-    // compute Super Pixel for every image block
-    const SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
-
-    // Convert super Pixels to selected VGA-16 palette pixels
-    SuperPixels colorMap = ConvertToPalette (superPixels, p);
-
-    // Restore Target Image (convert original image to VGA-16 palette and simulate VGA resolution)
-    RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
-
-#if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
-    const bool bSaveResult = dbgFileSave("D://output_vga16.raw", output, VGA16_width, VGA16_height);
-#endif
-
-    return;
-}
-
-
-void VGA256_Simulation
-(
-    const fRGB* __restrict input,
-          fRGB* __restrict output,
-    A_long sizeX,
-    A_long sizeY,
-    const VGA_Palette256& palette
-)
-{
-    CACHE_ALIGN VGA_Palette256F32 p;
-    __VECTOR_ALIGNED__
-    for (A_long i = 0; i < palette.size(); i++)
-    {
-        p[i].r = static_cast<float>(palette[i].r) / 255.f;
-        p[i].g = static_cast<float>(palette[i].g) / 255.f;
-        p[i].b = static_cast<float>(palette[i].b) / 255.f;
-    }
-
-    // Split original resolution on blocks and compute X an Y coordinates for every block
-    const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, VGA256_width);
-    const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, VGA256_height);
-
-    // compute Super Pixel for every image block
-    const SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
-
-    // Convert super Pixels to selected VGA-256 palette pixels
-    SuperPixels colorMap = ConvertToPalette (superPixels, p);
-
-    // Restore Target Image (convert original image to VGA-256 palette and simulate VGA resolution)
-    RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
-
-#if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
-    const bool bSaveResult = dbgFileSave("D://output_vga256.raw", output, VGA256_width, VGA256_height);
-#endif
-
-    return;
-}
-
 
 void Hercules_Simulation
 (
@@ -347,6 +260,25 @@ void Hercules_Simulation
 {
     return;
 }
+
+
+template <typename T, std::enable_if_t<is_VGA_RETRO_PALETTE<T>::value>* = nullptr>
+void Vga_Simulation
+(
+    const fRGB* __restrict input,
+          fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    const T& palette
+)
+{
+    const size_t paletteSize = palette.size();
+    const int32_t targetSizeX = (16 == paletteSize ? VGA16_width  : VGA256_width );
+    const int32_t targetSizeY = (16 == paletteSize ? VGA16_height : VGA256_height);
+
+    return;
+}
+
 
 
 void RetroResolution_Simulation
@@ -366,6 +298,8 @@ void RetroResolution_Simulation
             const CGA_PaletteF32& palette = (PaletteCGA::eRETRO_PALETTE_CGA1 == controlParams.cga_palette ?
                 (0 == controlParams.cga_intencity_bit ? CGA0_f32 : CGA0i_f32) :
                     (0 == controlParams.cga_intencity_bit ? CGA1_f32 : CGA1i_f32));
+
+
         }
         break;
 
@@ -377,14 +311,17 @@ void RetroResolution_Simulation
 
         case RetroMonitor::eRETRO_BITMAP_VGA:
         {
-            
+            if (PaletteVGA::eRETRO_PALETTE_VGA_16_BITS == controlParams.vga_palette)
+                Vga_Simulation (input, output, sizeX, sizeY, VGA_Standard16_f32);
+            else
+                Vga_Simulation (input, output, sizeX, sizeY, VGA_Standard256_f32);
         }
         break;
 
         case RetroMonitor::eRETRO_BITMAP_HERCULES:
         default:
         {
-
+            const HERCULES_WhiteF32& whiteLevel = HERCULES_White_ColorF32;
         }
         break;
     }
