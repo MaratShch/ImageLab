@@ -18,6 +18,16 @@ void RetroResolution_Simulation
     const RVControls& controlParams
 );
 
+void Hercules_Simulation
+(
+    const fRGB* __restrict input,
+          fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    float threshold,
+    PEntry<float> whiteColor
+);
+
 
 template <typename T>
 inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type euclidean_distance(const _tRGB<T>& color1, const _tRGB<T>& color2) noexcept

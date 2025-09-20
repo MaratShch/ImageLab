@@ -205,45 +205,9 @@ void EGA_Simulation
           fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
-    const EGA_Palette& palette
+    const EGA_PaletteF32& palette
 )
 {
-    CACHE_ALIGN const EGA_PaletteF32 p = {{
-        { static_cast<float>(palette[0].r ) / 255.f, static_cast<float>(palette[0].g ) / 255.f, static_cast<float>(palette[0].b ) / 255.f },
-        { static_cast<float>(palette[1].r ) / 255.f, static_cast<float>(palette[1].g ) / 255.f, static_cast<float>(palette[1].b ) / 255.f },
-        { static_cast<float>(palette[2].r ) / 255.f, static_cast<float>(palette[2].g ) / 255.f, static_cast<float>(palette[2].b ) / 255.f },
-        { static_cast<float>(palette[3].r ) / 255.f, static_cast<float>(palette[3].g ) / 255.f, static_cast<float>(palette[3].b ) / 255.f },
-        { static_cast<float>(palette[4].r ) / 255.f, static_cast<float>(palette[4].g ) / 255.f, static_cast<float>(palette[4].b ) / 255.f },
-        { static_cast<float>(palette[5].r ) / 255.f, static_cast<float>(palette[5].g ) / 255.f, static_cast<float>(palette[5].b ) / 255.f },
-        { static_cast<float>(palette[6].r ) / 255.f, static_cast<float>(palette[6].g ) / 255.f, static_cast<float>(palette[6].b ) / 255.f },
-        { static_cast<float>(palette[7].r ) / 255.f, static_cast<float>(palette[7].g ) / 255.f, static_cast<float>(palette[7].b ) / 255.f },
-        { static_cast<float>(palette[8].r ) / 255.f, static_cast<float>(palette[8].g ) / 255.f, static_cast<float>(palette[8].b ) / 255.f },
-        { static_cast<float>(palette[9].r ) / 255.f, static_cast<float>(palette[9].g ) / 255.f, static_cast<float>(palette[9].b ) / 255.f },
-        { static_cast<float>(palette[10].r) / 255.f, static_cast<float>(palette[10].g) / 255.f, static_cast<float>(palette[10].b) / 255.f },
-        { static_cast<float>(palette[11].r) / 255.f, static_cast<float>(palette[11].g) / 255.f, static_cast<float>(palette[11].b) / 255.f },
-        { static_cast<float>(palette[12].r) / 255.f, static_cast<float>(palette[12].g) / 255.f, static_cast<float>(palette[12].b) / 255.f },
-        { static_cast<float>(palette[13].r) / 255.f, static_cast<float>(palette[13].g) / 255.f, static_cast<float>(palette[13].b) / 255.f },
-        { static_cast<float>(palette[14].r) / 255.f, static_cast<float>(palette[14].g) / 255.f, static_cast<float>(palette[14].b) / 255.f },
-        { static_cast<float>(palette[15].r) / 255.f, static_cast<float>(palette[15].g) / 255.f, static_cast<float>(palette[15].b) / 255.f }
-    }};
-
-    // Split original resolution on blocks and compute X an Y coordinates for every block
-    const CoordinatesVector xCor = ComputeBloksCoordinates (sizeX, EGA_width);
-    const CoordinatesVector yCor = ComputeBloksCoordinates (sizeY, EGA_height);
-
-    // compute Super Pixel for every image block
-    const SuperPixels superPixels = ComputeSuperpixels (input, xCor, yCor, sizeX);
-
-    // Convert super Pixels to selected EGA palette pixels
-    SuperPixels colorMap = ConvertToPalette (superPixels, p);
-
-    // Restore Target Image (convert original image to EGA palette and simulate EGA resolution)
-    RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
-
-#if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
-    const bool bSaveResult = dbgFileSave("D://output_ega.raw", output, EGA_width, EGA_height);
-#endif
-
     return;
 }
 
@@ -252,10 +216,11 @@ void EGA_Simulation
 void Hercules_Simulation
 (
     const fRGB* __restrict input,
-    fRGB* __restrict output,
+          fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
-    float threshold
+    float threshold,
+    PEntry<float> whiteColor
 )
 {
     return;
@@ -269,7 +234,7 @@ void Vga_Simulation
           fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
-    const T& palette
+    const T& palette /* 16 or 256 palette entrties */
 )
 {
     const size_t paletteSize = palette.size();
@@ -299,13 +264,14 @@ void RetroResolution_Simulation
                 (0 == controlParams.cga_intencity_bit ? CGA0_f32 : CGA0i_f32) :
                     (0 == controlParams.cga_intencity_bit ? CGA1_f32 : CGA1i_f32));
 
-
+            CGA_Simulation (input, output, sizeX, sizeY, palette);
         }
         break;
 
         case RetroMonitor::eRETRO_BITMAP_EGA:
         {
             const EGA_PaletteF32& palette = getEgaPalette(controlParams.ega_palette);
+            EGA_Simulation (input, output, sizeX, sizeY, palette);
         }
         break;
 
@@ -321,7 +287,8 @@ void RetroResolution_Simulation
         case RetroMonitor::eRETRO_BITMAP_HERCULES:
         default:
         {
-            const HERCULES_WhiteF32& whiteLevel = HERCULES_White_ColorF32;
+            const PEntry<float> whiteLevel = HERCULES_White_ColorF32[UnderlyingType(controlParams.white_color_hercules)];
+            Hercules_Simulation (input, output, sizeX, sizeY, controlParams.hercules_threshold, whiteLevel);
         }
         break;
     }
