@@ -223,6 +223,11 @@ void Hercules_Simulation
     PEntry<float> whiteColor
 )
 {
+    // Split original resolution on blocks and compute X an Y coordinates for every block
+    const CoordinatesVector xCor = ComputeBloksCoordinates(sizeX, Hercules_width);
+    const CoordinatesVector yCor = ComputeBloksCoordinates(sizeY, Hercules_height);
+
+
     return;
 }
 
@@ -295,6 +300,15 @@ void RetroResolution_Simulation
     }
 
     // Simulate CRT Artifacts
+    if (0 != controlParams.scan_lines_enable)
+    {
+        // Simulate Scan lines
+    }
+
+    if (0 != controlParams.phosphor_glow_enable)
+    {
+        // PhosphorGlow effect enable
+    }
 
     return;
 }

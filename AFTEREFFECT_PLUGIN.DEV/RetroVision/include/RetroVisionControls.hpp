@@ -59,7 +59,7 @@ inline RVControls GetControlParametersStruct
     rvControls.mask_darkness          = static_cast<float>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->u.fs_d.value);
     rvControls.mask_color             = params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR)]->u.sd.value;
 
-    rvControls.white_color_hercules = static_cast<HerculesWhiteColor>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR)]->u.pd.value - 1);
+    rvControls.white_color_hercules = static_cast<HerculesWhiteColor>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->u.pd.value - 1);
 
     return rvControls;
 }

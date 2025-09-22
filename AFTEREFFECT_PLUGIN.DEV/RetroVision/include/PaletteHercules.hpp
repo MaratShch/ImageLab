@@ -4,8 +4,8 @@
 #include "PaletteEntry.hpp"
 #include <cstdint>
 
-constexpr int32_t Hercules_width   = 720;
-constexpr int32_t Hercules_heightd = 348;
+constexpr int32_t Hercules_width  = 720;
+constexpr int32_t Hercules_height = 348;
 
 constexpr int32_t HERCULES_White_levels = 3;
 using HERCULES_White    = std::array<PEntry<uint8_t>, HERCULES_White_levels>;
