@@ -8,88 +8,7 @@
 
 //#define _SAVE_TMP_RESULT_FOR_DEBUG
 
-using CoordinatesVector = std::vector<A_long>;
-using SuperPixels = std::vector<fRGB>;
 
-inline CoordinatesVector ComputeBloksCoordinates (const A_long& origSize, const A_long& targetSize)
-{
-    const A_long vectorSize = FastCompute::Min(origSize, targetSize);
-    CoordinatesVector out (vectorSize + 1);
-
-    if (origSize < targetSize)
-    {
-        for (A_long i = 0; i <= vectorSize; i++)
-            out[i] = FastCompute::Min(i, origSize);
-    }
-    else
-    {
-        const A_long scaleFactor = origSize / targetSize;
-        const A_long fraction = origSize % targetSize;
-        A_long compensationPool = fraction, idx;
-
-        for (A_long i = idx = 0; i <= vectorSize; i++)
-        {
-            out[i] = FastCompute::Min(idx, origSize);
-            idx += scaleFactor;
-            if (0 < compensationPool)
-            {
-                idx++, compensationPool--;
-            }
-        }
-    }
-    return out;
-}
-
-
-inline SuperPixels ComputeSuperpixels
-(
-    const fRGB* __restrict input,
-    const CoordinatesVector& X,
-    const CoordinatesVector& Y,
-    const A_long linePitch
-)
-{
-    // size of coordinates vectors
-    const A_long sizeX = static_cast<A_long>(X.size());
-    const A_long sizeY = static_cast<A_long>(Y.size());
-   
-    SuperPixels superPixel(sizeX * sizeY);
-    A_long vecIdx = 0;
-
-    for (auto& itY = Y.begin() + 1; itY != Y.end(); ++itY)
-    {
-        const A_long yPrev = *(itY - 1);
-        const A_long yCurr = *itY;
-
-        for (auto& itX = X.begin() + 1; itX != X.end(); ++itX)
-        {
-            const A_long xPrev = *(itX - 1);
-            const A_long xCurr = *itX;
-
-            A_long j, i, num = 0;
-            fRGB superPix{};
-
-            for (j = yPrev; j < yCurr; j++)
-                for (i = xPrev; i < xCurr; i++)
-                {
-                    superPix.R += input[j * linePitch + i].R;
-                    superPix.G += input[j * linePitch + i].G;
-                    superPix.B += input[j * linePitch + i].B;
-                    num++;
-                }
-
-            const float fNum = static_cast<float>(num);
-            // normalize Superpixel value
-            superPix.R /= fNum;
-            superPix.G /= fNum;
-            superPix.B /= fNum;
-
-            superPixel[vecIdx] = superPix;
-            vecIdx++;
-        }
-    }
-    return superPixel;
-}
 
 
 template <typename T, std::enable_if_t<is_RETRO_PALETTE<T>::value>* = nullptr>
@@ -212,24 +131,6 @@ void EGA_Simulation
 }
 
 
-
-void Hercules_Simulation
-(
-    const fRGB* __restrict input,
-          fRGB* __restrict output,
-    A_long sizeX,
-    A_long sizeY,
-    float threshold,
-    PEntry<float> whiteColor
-)
-{
-    // Split original resolution on blocks and compute X an Y coordinates for every block
-    const CoordinatesVector xCor = ComputeBloksCoordinates(sizeX, Hercules_width);
-    const CoordinatesVector yCor = ComputeBloksCoordinates(sizeY, Hercules_height);
-
-
-    return;
-}
 
 
 template <typename T, std::enable_if_t<is_VGA_RETRO_PALETTE<T>::value>* = nullptr>
