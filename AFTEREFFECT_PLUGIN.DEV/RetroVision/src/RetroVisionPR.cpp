@@ -66,6 +66,7 @@ PF_Err ProcessImgInPR
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                     RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
+                    RestoreImage (localSrc, pTmpBuf2, localDst, sizeX, sizeY, linePitch, linePitch, fCoeff);
                 }
                 break;
 
@@ -78,6 +79,7 @@ PF_Err ProcessImgInPR
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                     RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
+                    RestoreImage (localSrc, pTmpBuf2, localDst, sizeX, sizeY, linePitch, linePitch, fCoeff);
                 }
                 break;
 
@@ -90,6 +92,7 @@ PF_Err ProcessImgInPR
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                     RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
+                    RestoreImage (localSrc, pTmpBuf2, localDst, sizeX, sizeY, linePitch, linePitch, fCoeff);
                 }
                 break;
 
@@ -103,6 +106,7 @@ PF_Err ProcessImgInPR
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                     RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
+                    RestoreImage (localSrc, pTmpBuf2, localDst, sizeX, sizeY, linePitch, linePitch, fCoeff);
                 }
                 break;
 
@@ -116,6 +120,7 @@ PF_Err ProcessImgInPR
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                     RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
+                    RestoreImage (localSrc, pTmpBuf2, localDst, sizeX, sizeY, linePitch, linePitch, fCoeff);
                 }
                 break;
 
@@ -128,6 +133,7 @@ PF_Err ProcessImgInPR
 
                     AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, linePitch, sizeX, fGamma, fCoeff);
                     RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, controlParams);
+                    RestoreImage (localSrc, pTmpBuf2, localDst, sizeX, sizeY, linePitch, linePitch, fCoeff);
                 }
                 break;
 

@@ -217,4 +217,82 @@ inline void AdjustGammaValueToProc
 }
 
 
+template<typename T, typename U, typename std::enable_if<is_no_alpha_channel<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+inline T RestoreImage
+(
+    const        T  src,
+    const _tRGB<U>  proc,
+    const U& normalize
+) noexcept
+{
+    T out{};
+
+    return out;
+}
+
+template<typename T, typename U, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+inline T RestoreImage
+(
+    const        T  src,
+    const _tRGB<U>  proc,
+    const U& normalize
+) noexcept
+{
+    T out{};
+
+    out.A = src.A;
+
+    return out;
+}
+
+
+template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+inline T RestoreImage
+(
+    const        T  src,
+    const _tRGB<U>  proc,
+    const U& normalize
+) noexcept
+{
+    T out{};
+
+    const U R = proc.R * normalize;
+    const U G = proc.G * normalize;
+    const U B = proc.B * normalize;
+
+    out.A = src.A;
+    out.R = static_cast<decltype(out.R)>(CLAMP_VALUE(R, static_cast<U>(0), normalize));
+    out.G = static_cast<decltype(out.R)>(CLAMP_VALUE(G, static_cast<U>(0), normalize));
+    out.B = static_cast<decltype(out.R)>(CLAMP_VALUE(B, static_cast<U>(0), normalize));
+
+    return out;
+}
+
+    
+template<typename T, typename U, typename std::enable_if<is_SupportedImageBuffer<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+inline void RestoreImage
+(
+    const        T* __restrict pSrc,
+    const _tRGB<U>* __restrict pProc,
+                 T* __restrict pDst,
+    A_long sizeX,
+    A_long sizeY,
+    A_long srcPitch,
+    A_long dstPitch,
+    const U& normalize
+) noexcept
+{
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const       T*  __restrict pSrcLine  = pSrc  + j * srcPitch;
+        const _tRGB<U>* __restrict pProcLine = pProc + j * sizeX;
+                    T*  __restrict pDstLine  = pDst  + j * dstPitch;
+
+        for (A_long i = 0; i < sizeX; i++)
+            pDstLine[i] = RestoreImage (pSrcLine[i], pProcLine[i], normalize);
+    }
+    return;
+}
+
+
 #endif // __IMAGE_LAB_RETRO_VISION_FILTER_ALGORITHM__
