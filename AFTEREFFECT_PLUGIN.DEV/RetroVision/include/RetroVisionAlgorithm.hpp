@@ -35,6 +35,92 @@ void Hercules_Simulation
     PEntry<float> whiteColor
 );
 
+void CGA_Simulation
+(
+    const fRGB* __restrict input,
+    fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    const CGA_PaletteF32& p
+);
+
+template <typename T, std::enable_if_t<is_RETRO_PALETTE<T>::value>* = nullptr>
+inline SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
+{
+    const A_long spSize = static_cast<A_long>(superPixels.size());  // size of elements in Super Pixels vector
+    const A_long paletteSize = static_cast<A_long>(palette.size()); // size of element in palette
+
+    SuperPixels colorMap(spSize); // output colormap
+
+                                  // lambda expression to find closest value of target palette
+    auto findClosestColorIndex = [&](const T& palette, const fRGB& rgb) -> A_long
+    {
+        A_long bestIndex = 0;
+        float bestDist = std::numeric_limits<float>::max();
+
+        for (A_long i = 0; i < static_cast<int>(palette.size()); ++i)
+        {
+            float dr = rgb.R - palette[i].r;
+            float dg = rgb.G - palette[i].g;
+            float db = rgb.B - palette[i].b;
+
+            float dist = FastCompute::Sqrt(dr * dr + dg * dg + db * db);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIndex = i;
+            }
+        }
+        return bestIndex;
+    };
+
+    for (A_long idx = 0; idx < spSize; idx++)
+    {
+        const A_long paletteIdx = findClosestColorIndex(palette, superPixels[idx]);
+        const fRGB outColor = {
+            palette[paletteIdx].r,
+            palette[paletteIdx].g,
+            palette[paletteIdx].b
+        };
+        colorMap[idx] = outColor;
+    }
+
+    return colorMap;
+}
+
+
+inline void RestoreTargetView
+(
+    fRGB* __restrict output,
+    const CoordinatesVector& X,
+    const CoordinatesVector& Y,
+    const SuperPixels& colorMap,
+    const A_long linePitch
+)
+{
+    const A_long yBlocks = static_cast<A_long>(Y.size()) - 1;
+    const A_long xBlocks = static_cast<A_long>(X.size()) - 1;
+    A_long colorMapIdx = 0;
+
+    for (A_long j = 0; j < yBlocks; j++)
+    {
+        const A_long startLine = Y[j];
+        const A_long stopLine = Y[j + 1];
+
+        for (A_long i = 0; i < xBlocks; i++)
+        {
+            // Process one CGA block
+            for (A_long yb = startLine; yb < stopLine; yb++)
+                for (A_long xb = X[i]; xb < X[i + 1]; xb++)
+                    output[yb * linePitch + xb] = colorMap[colorMapIdx];
+
+            colorMapIdx++;
+        }
+    }
+    return;
+}
+
+
 
 inline CoordinatesVector ComputeBloksCoordinates(const A_long& origSize, const A_long& targetSize)
 {
