@@ -53,24 +53,23 @@ void EGA_Simulation
     const EGA_PaletteF32& palette
 );
 
-
-template <typename T, std::enable_if_t<is_VGA_RETRO_PALETTE<T>::value>* = nullptr>
-inline void Vga_Simulation
+void Vga_Simulation16
 (
     const fRGB* __restrict input,
-          fRGB* __restrict output,
+    fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
-    const T& palette /* 16 or 256 palette entrties */
-) noexcept 
-{
-    const size_t paletteSize = palette.size();
-    const int32_t targetSizeX = (16 == paletteSize ? VGA16_width : VGA256_width);
-    const int32_t targetSizeY = (16 == paletteSize ? VGA16_height : VGA256_height);
+    const VGA_Palette16F32& palette /* 16 palette entrties */
+);
 
-    return;
-}
-
+void Vga_Simulation256
+(
+    const fRGB* __restrict input,
+    fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    const VGA_Palette256F32& palette /* 256 palette entrties */
+);
 
 
 template <typename T, std::enable_if_t<is_RETRO_PALETTE<T>::value>* = nullptr>

@@ -39,9 +39,9 @@ void RetroResolution_Simulation
         case RetroMonitor::eRETRO_BITMAP_VGA:
         {
             if (PaletteVGA::eRETRO_PALETTE_VGA_16_BITS == controlParams.vga_palette)
-                Vga_Simulation (input, output, sizeX, sizeY, VGA_Standard16_f32);
+                Vga_Simulation16 (input, output, sizeX, sizeY, VGA_Standard16_f32);
             else
-                Vga_Simulation (input, output, sizeX, sizeY, VGA_Standard256_f32);
+                Vga_Simulation256 (input, output, sizeX, sizeY, VGA_Standard256_f32);
         }
         break;
 

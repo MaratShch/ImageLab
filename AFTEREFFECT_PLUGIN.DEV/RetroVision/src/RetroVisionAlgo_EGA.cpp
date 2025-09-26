@@ -22,7 +22,7 @@ void EGA_Simulation
     // Convert super Pixels to selected EGA palette pixels
     SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
-    // Restore Target Image (convert original image to CGA palette and simulate EGA resolution)
+    // Restore Target Image (convert original image to EGA palette and simulate EGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);
 
 #if defined(_DEBUG) && defined(_SAVE_TMP_RESULT_FOR_DEBUG)
