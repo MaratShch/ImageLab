@@ -270,11 +270,11 @@ inline _tRGB<U> GammaAdjust (const T& in, const U gamma, const U normalize) noex
 {
     _tRGB<U> out;
 
-    constexpr float yuv2rgb[9] =
+    constexpr U yuv2rgb[9] =
     {
-        RGB2YUV[BT709][0], RGB2YUV[BT709][1], RGB2YUV[BT709][2],
-        RGB2YUV[BT709][3], RGB2YUV[BT709][4], RGB2YUV[BT709][5],
-        RGB2YUV[BT709][6], RGB2YUV[BT709][7], RGB2YUV[BT709][8]
+        YUV2RGB[BT709][0], YUV2RGB[BT709][1], YUV2RGB[BT709][2],
+        YUV2RGB[BT709][3], YUV2RGB[BT709][4], YUV2RGB[BT709][5],
+        YUV2RGB[BT709][6], YUV2RGB[BT709][7], YUV2RGB[BT709][8]
     };
 
     if (std::is_same<T, PF_Pixel_VUYA_8u>::value)
@@ -356,15 +356,39 @@ inline T RestoreImage
 }
 
 
-template<typename T, typename U, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+template<typename T, typename TT, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<TT>::value>::type* = nullptr>
 inline T RestoreImage
 (
     const        T  src,
-    const _tRGB<U>  proc,
-    const U& normalize
+    const _tRGB<TT> proc,
+    const TT& normalize
 ) noexcept
 {
-    T out{};
+    constexpr TT rgb2yuv[9] =
+    {
+        RGB2YUV[BT709][0], RGB2YUV[BT709][1], RGB2YUV[BT709][2],
+        RGB2YUV[BT709][3], RGB2YUV[BT709][4], RGB2YUV[BT709][5],
+        RGB2YUV[BT709][6], RGB2YUV[BT709][7], RGB2YUV[BT709][8]
+    };
+
+    const TT Y = normalize * (proc.R * rgb2yuv[0] + proc.G * rgb2yuv[1] + proc.B * rgb2yuv[2]);
+    const TT U = normalize * (proc.R * rgb2yuv[3] + proc.G * rgb2yuv[4] + proc.B * rgb2yuv[5]);
+    const TT V = normalize * (proc.R * rgb2yuv[6] + proc.G * rgb2yuv[7] + proc.B * rgb2yuv[8]);
+
+    T out;
+
+    if (std::is_same<T, PF_Pixel_VUYA_8u>::value)
+    {
+        out.Y = static_cast<decltype(out.Y)>(CLAMP_VALUE(Y, static_cast<TT>(0), normalize));
+        out.U = static_cast<decltype(out.U)>(CLAMP_VALUE(U + static_cast<TT>(128), static_cast<TT>(0), normalize));
+        out.V = static_cast<decltype(out.V)>(CLAMP_VALUE(V + static_cast<TT>(128), static_cast<TT>(0), normalize));
+    }
+    else
+    {
+        out.Y = static_cast<decltype(out.Y)>(CLAMP_VALUE(Y, static_cast<TT>(0), normalize));
+        out.U = static_cast<decltype(out.U)>(CLAMP_VALUE(U, static_cast<TT>(0), normalize));
+        out.V = static_cast<decltype(out.V)>(CLAMP_VALUE(V, static_cast<TT>(0), normalize));
+    }
 
     out.A = src.A;
 
