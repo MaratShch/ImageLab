@@ -40,8 +40,8 @@ inline RVControls GetControlParametersStruct
     rvControls.monitor           = static_cast<RetroMonitor>(params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)]->u.pd.value - 1);
     rvControls.cga_palette       = static_cast<PaletteCGA>(params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->u.pd.value - 1);
     rvControls.cga_intencity_bit = params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->u.bd.value;
-    rvControls.ega_palette       = static_cast<PaletteEGA>(params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->u.pd.value);
-    rvControls.vga_palette       = static_cast<PaletteVGA>(params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->u.pd.value);
+    rvControls.ega_palette       = static_cast<PaletteEGA>(params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->u.pd.value - 1);
+    rvControls.vga_palette       = static_cast<PaletteVGA>(params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->u.pd.value - 1);
     rvControls.hercules_threshold = params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->u.sd.value;
 
     rvControls.scan_lines_enable   = params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES)]->u.bd.value;

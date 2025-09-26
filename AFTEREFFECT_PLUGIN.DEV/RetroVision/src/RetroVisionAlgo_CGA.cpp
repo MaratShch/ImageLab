@@ -20,7 +20,7 @@ void CGA_Simulation
     const SuperPixels superPixels = ComputeSuperpixels(input, xCor, yCor, sizeX);
 
     // Convert super Pixels to selected CGA palette pixels
-    SuperPixels colorMap = ConvertToPalette(superPixels, p);
+    SuperPixels colorMap = ConvertToPalette (superPixels, p);
 
     // Restore Target Image (convert original image to CGA palette and simulate CGA resolution)
     RestoreTargetView (output, xCor, yCor, colorMap, sizeX);

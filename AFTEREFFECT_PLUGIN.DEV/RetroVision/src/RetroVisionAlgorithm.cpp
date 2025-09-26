@@ -6,46 +6,6 @@
 #include "RetroVisionEnum.hpp"
 #include "RetroVisionControls.hpp"
 
-//#define _SAVE_TMP_RESULT_FOR_DEBUG
-
-
-
-
-
-
-void EGA_Simulation
-(
-    const fRGB* __restrict input,
-          fRGB* __restrict output,
-    A_long sizeX,
-    A_long sizeY,
-    const EGA_PaletteF32& palette
-)
-{
-    return;
-}
-
-
-
-
-template <typename T, std::enable_if_t<is_VGA_RETRO_PALETTE<T>::value>* = nullptr>
-void Vga_Simulation
-(
-    const fRGB* __restrict input,
-          fRGB* __restrict output,
-    A_long sizeX,
-    A_long sizeY,
-    const T& palette /* 16 or 256 palette entrties */
-)
-{
-    const size_t paletteSize = palette.size();
-    const int32_t targetSizeX = (16 == paletteSize ? VGA16_width  : VGA256_width );
-    const int32_t targetSizeY = (16 == paletteSize ? VGA16_height : VGA256_height);
-
-    return;
-}
-
-
 
 void RetroResolution_Simulation
 (

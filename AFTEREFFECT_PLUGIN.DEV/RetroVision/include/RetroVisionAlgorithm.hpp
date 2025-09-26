@@ -38,11 +38,40 @@ void Hercules_Simulation
 void CGA_Simulation
 (
     const fRGB* __restrict input,
-    fRGB* __restrict output,
+          fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
     const CGA_PaletteF32& p
 );
+
+void EGA_Simulation
+(
+    const fRGB* __restrict input,
+          fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    const EGA_PaletteF32& palette
+);
+
+
+template <typename T, std::enable_if_t<is_VGA_RETRO_PALETTE<T>::value>* = nullptr>
+inline void Vga_Simulation
+(
+    const fRGB* __restrict input,
+          fRGB* __restrict output,
+    A_long sizeX,
+    A_long sizeY,
+    const T& palette /* 16 or 256 palette entrties */
+) noexcept 
+{
+    const size_t paletteSize = palette.size();
+    const int32_t targetSizeX = (16 == paletteSize ? VGA16_width : VGA256_width);
+    const int32_t targetSizeY = (16 == paletteSize ? VGA16_height : VGA256_height);
+
+    return;
+}
+
+
 
 template <typename T, std::enable_if_t<is_RETRO_PALETTE<T>::value>* = nullptr>
 inline SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& palette)
@@ -311,10 +340,21 @@ inline T RestoreImage
     const U& normalize
 ) noexcept
 {
-    T out{};
+    T out;
+    
+    (void)src;
+
+    const U R = proc.R * normalize;
+    const U G = proc.G * normalize;
+    const U B = proc.B * normalize;
+
+    out.R = static_cast<decltype(out.R)>(CLAMP_VALUE(R, static_cast<U>(0), normalize));
+    out.G = static_cast<decltype(out.R)>(CLAMP_VALUE(G, static_cast<U>(0), normalize));
+    out.B = static_cast<decltype(out.R)>(CLAMP_VALUE(B, static_cast<U>(0), normalize));
 
     return out;
 }
+
 
 template<typename T, typename U, typename std::enable_if<is_YUV_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
 inline T RestoreImage
@@ -340,7 +380,7 @@ inline T RestoreImage
     const U& normalize
 ) noexcept
 {
-    T out{};
+    T out;
 
     const U R = proc.R * normalize;
     const U G = proc.G * normalize;
