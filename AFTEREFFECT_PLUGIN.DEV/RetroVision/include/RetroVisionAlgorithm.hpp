@@ -80,19 +80,20 @@ inline SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& pal
 
     SuperPixels colorMap(spSize); // output colormap
 
-                                  // lambda expression to find closest value of target palette
+    // lambda expression to find closest value of target palette
     auto findClosestColorIndex = [&](const T& palette, const fRGB& rgb) -> A_long
     {
         A_long bestIndex = 0;
         float bestDist = std::numeric_limits<float>::max();
+        const A_long paletteSize = static_cast<A_long>(palette.size());
 
-        for (A_long i = 0; i < static_cast<int>(palette.size()); ++i)
+        for (A_long i = 0; i < paletteSize; ++i)
         {
-            float dr = rgb.R - palette[i].r;
-            float dg = rgb.G - palette[i].g;
-            float db = rgb.B - palette[i].b;
+            const float dr = rgb.R - palette[i].r;
+            const float dg = rgb.G - palette[i].g;
+            const float db = rgb.B - palette[i].b;
 
-            float dist = FastCompute::Sqrt(dr * dr + dg * dg + db * db);
+            const float dist = FastCompute::Sqrt(dr * dr + dg * dg + db * db);
             if (dist < bestDist)
             {
                 bestDist = dist;
