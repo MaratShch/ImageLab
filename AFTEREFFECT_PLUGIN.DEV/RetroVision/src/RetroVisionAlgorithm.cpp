@@ -7,6 +7,58 @@
 #include "RetroVisionControls.hpp"
 
 
+inline void ScanLines_SimulationHelper
+(
+    const fRGB* __restrict in,
+          fRGB* __restrict out,
+    const A_long& sizeX,
+    const A_long& sizeY,
+    const A_long& interval,
+    const A_long& smooth,
+    const float&  darkness
+) noexcept
+{
+    float darkenFactor = 0.f;
+
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const A_long nearest_center = std::round(j / interval) * interval;
+        const A_long distance = FastCompute::Abs(j - nearest_center);
+
+        const fRGB* __restrict srcLine = in  + j * sizeX;
+              fRGB* __restrict dstLine = out + j * sizeX;
+
+        if (0 == distance)
+        {
+            darkenFactor = 1.f - darkness;
+        }
+        else if (distance <= smooth)
+        {
+           const float weight = FastCompute::Max(0.f, 1.f - (static_cast<float>(distance) / static_cast<float>(smooth + 1)));
+           const float darken_center = 1.f - darkness;
+           darkenFactor = (1.f - weight) + weight * darken_center;
+        }
+        else
+        {
+           darkenFactor = 1.f;
+           std::memcpy (dstLine, srcLine, sizeX * sizeof(fRGB));
+           continue;
+        }
+
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            dstLine[i].R * srcLine[i].R * darkenFactor;
+            dstLine[i].G * srcLine[i].G * darkenFactor;
+            dstLine[i].B * srcLine[i].B * darkenFactor;
+        }
+
+    } // for (A_long j = 0; j < sizeY; j++)
+
+    return;
+}
+
+
+
 void ScanLines_Simulation
 (
     const fRGB** input,
@@ -21,7 +73,11 @@ void ScanLines_Simulation
         const fRGB* __restrict pInput  = *input;
               fRGB* __restrict pOutput = *output;
 
+        const A_long interval = static_cast<A_long>(controlParams.scan_lines_interval);
+        const A_long smooth   = static_cast<A_long>(controlParams.scan_lines_smooth);
+        const float  darkness = controlParams.scan_lines_darkness;
 
+        ScanLines_SimulationHelper (pInput, pOutput, sizeX, sizeY, interval, smooth, darkness);
     }
     else
         *output = const_cast<fRGB*>(*input); // nothing to do - pass by
@@ -112,7 +168,7 @@ void RetroResolution_Simulation
     ScanLines_Simulation (&input, &output, sizeX, sizeY, controlParams);
 
     // PhosphorGlow CRT Artifacts
-    PhosphorGlow_Simulation(&input, &output, sizeX, sizeY, controlParams);
+    PhosphorGlow_Simulation (&input, &output, sizeX, sizeY, controlParams);
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     #pragma warning(pop)
