@@ -59,6 +59,7 @@ void RetroResolution_Simulation
     if (0 != controlParams.scan_lines_enable)
     {
         // Simulate Scan lines
+
     }
 
     if (0 != controlParams.phosphor_glow_enable)

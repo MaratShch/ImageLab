@@ -93,7 +93,8 @@ inline SuperPixels ConvertToPalette(const SuperPixels& superPixels, const T& pal
             const float dg = rgb.G - palette[i].g;
             const float db = rgb.B - palette[i].b;
 
-            const float dist = FastCompute::Sqrt(dr * dr + dg * dg + db * db);
+            // Try to use perceptual color weighting
+            const float dist = 0.3f * dr * dr + 0.59f * dg * dg + 0.11f * db * db;
             if (dist < bestDist)
             {
                 bestDist = dist;
