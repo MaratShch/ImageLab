@@ -48,10 +48,10 @@ inline void Image_SimpleCopy
 (
 	const T* __restrict srcBuffer,
 	      T* __restrict dstBuffer,
-	const int32_t&      height,
-	const int32_t&      width,
-	const int32_t&      src_line_pitch,
-	const int32_t&      dst_line_pitch
+	const int32_t      height,
+	const int32_t      width,
+	const int32_t      src_line_pitch,
+	const int32_t      dst_line_pitch
 ) noexcept
 {
 	for (int32_t j = 0; j < height; j++)
@@ -67,7 +67,7 @@ inline void Image_SimpleCopy
 
 
 inline void
-MakeParamCopy (PF_ParamDef* __restrict actual[], PF_ParamDef copy[], const int32_t& size) noexcept
+MakeParamCopy (PF_ParamDef* __restrict actual[], PF_ParamDef copy[], const int32_t size) noexcept
 {
 	if (nullptr != actual && nullptr != copy && 0 < size)
 	{
@@ -78,18 +78,18 @@ MakeParamCopy (PF_ParamDef* __restrict actual[], PF_ParamDef copy[], const int32
 }
 
 inline constexpr bool
-IsDisabledUI (const PF_ParamUIFlags& uiFlag) noexcept
+IsDisabledUI (const PF_ParamUIFlags uiFlag) noexcept
 {
 	return ((uiFlag & PF_PUI_DISABLED) ? true : false);
 }
 
-inline void DisableUI (PF_ParamUIFlags& uiFlag) noexcept
+inline void DisableUI (PF_ParamUIFlags uiFlag) noexcept
 {
 	uiFlag |= PF_PUI_DISABLED;
 	return;
 }
 
-inline void EnableUI (PF_ParamUIFlags& uiFlag) noexcept
+inline void EnableUI (PF_ParamUIFlags uiFlag) noexcept
 {
 	uiFlag &= ~PF_PUI_DISABLED;
 	return;

@@ -115,7 +115,7 @@ RetroVision_UpdateMonitor_UI
     PF_InData	*in_data,
     PF_OutData	*out_data,
     PF_ParamDef	*params[],
-    const RetroMonitor& monitor,
+    const RetroMonitor monitor,
     const AEFX_SuiteScoper<PF_ParamUtilsSuite3>& paramUtilsSuite
 )
 {

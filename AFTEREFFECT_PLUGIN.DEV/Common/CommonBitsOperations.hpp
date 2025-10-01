@@ -13,19 +13,19 @@
 #include <cstdint>
 
 template <typename T>
-inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IMLAB_BIT_SET(const T& x, const uint32_t& pos) noexcept
+inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IMLAB_BIT_SET(const T x, const uint32_t pos) noexcept
 {
 	return x | static_cast<T>(1ull << pos);
 }
 
 template <typename T>
-inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IMLAB_BIT_CLEAR(const T& x, const uint32_t& pos) noexcept
+inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IMLAB_BIT_CLEAR(const T x, const uint32_t pos) noexcept
 {
 	return x & static_cast<T>(~(1ull << pos));
 }
 
 template <typename T>
-inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IMLAB_BIT_FLIP(const T& x, const uint32_t& pos) noexcept
+inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type IMLAB_BIT_FLIP(const T x, const uint32_t pos) noexcept
 {
 	return x ^ static_cast<T>(1ull << pos);
 }

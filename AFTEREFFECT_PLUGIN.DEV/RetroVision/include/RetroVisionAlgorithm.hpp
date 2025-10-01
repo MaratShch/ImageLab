@@ -43,6 +43,16 @@ void PhosphorGlow_Simulation
     const RVControls& controlParams
 );
 
+void AppertureGrill_Simulation
+(
+    const fRGB** input,
+          fRGB** output,
+    A_long sizeX,
+    A_long sizeY,
+    const RVControls& controlParams
+);
+
+
 void Hercules_Simulation
 (
     const fRGB* __restrict input,

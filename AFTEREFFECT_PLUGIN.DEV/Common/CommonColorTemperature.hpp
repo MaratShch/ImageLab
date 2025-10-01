@@ -4,7 +4,7 @@
 #include <type_traits>
 
 template <typename T>
-inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type __rgb2cct (const T& R, const T& G, const T& B) noexcept
+inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type __rgb2cct (const T R, const T G, const T B) noexcept
 {
 	/* 
 		Convert RGB to Correlated Color Temperature under Wide-Gamut/RGB observer and D65 illuminant.
@@ -22,7 +22,7 @@ inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type 
 
 
 template <typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-inline void  __cct2rgb (const T& temperature, T& R, T& G, T& B) noexcept
+inline void  __cct2rgb (const T temperature, T& R, T& G, T& B) noexcept
 {
 	/* TODO */
 }

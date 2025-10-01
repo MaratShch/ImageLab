@@ -25,9 +25,9 @@ DEVICE_INLINE_CALL Pixel16 FloatToHalf4(float4 in) noexcept
 
 DEVICE_INLINE_CALL float CLAMP
 (
-    const float& in,
-    const float& minVal,
-    const float& maxVal
+    const float in,
+    const float minVal,
+    const float maxVal
 ) noexcept
 {
     return (in < minVal ? minVal : (in > maxVal ? maxVal : in));

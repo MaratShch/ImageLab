@@ -11,11 +11,11 @@ inline void ScanLines_SimulationHelper
 (
     const fRGB* __restrict in,
           fRGB* __restrict out,
-    const A_long& sizeX,
-    const A_long& sizeY,
-    const A_long& interval,
-    const A_long& smooth,
-    const float&  darkness
+    const A_long sizeX,
+    const A_long sizeY,
+    const A_long interval,
+    const A_long smooth,
+    const float  darkness
 ) noexcept
 {
     float darkenFactor = 0.f;
@@ -58,6 +58,35 @@ inline void ScanLines_SimulationHelper
 }
 
 
+inline void PhosphorGlow_SimulationHelper
+(
+    const fRGB* __restrict in,
+          fRGB* __restrict out,
+    const A_long sizeX,
+    const A_long sizeY,
+    const float strength,
+    const float opacity
+) noexcept
+{
+    return;
+}
+
+
+inline void AppertureGrill_SimulationHelper
+(
+    const fRGB* __restrict in,
+          fRGB* __restrict out,
+    const A_long sizeX,
+    const A_long sizeY,
+    const AppertureGtrill type,
+    const int32_t interval,
+    const float darkness,
+    const int32_t color
+) noexcept
+{
+    return;
+}
+
 
 void ScanLines_Simulation
 (
@@ -95,12 +124,15 @@ void PhosphorGlow_Simulation
     const RVControls& controlParams
 )
 {
-    if (0 != controlParams.scan_lines_enable)
+    if (0 != controlParams.phosphor_glow_enable)
     {
         const fRGB* __restrict pInput = *input;
               fRGB* __restrict pOutput = *output;
 
+        const float strength = controlParams.phosphor_glow_strength;
+        const float opacity  = controlParams.phosphor_glow_opacity;
 
+        PhosphorGlow_SimulationHelper (pInput, pOutput, sizeX, sizeY, strength, opacity);
     }
     else
         *output = const_cast<fRGB*>(*input); // nothing to do - pass by
@@ -109,6 +141,34 @@ void PhosphorGlow_Simulation
 
 }
 
+
+void AppertureGrill_Simulation
+(
+    const fRGB** input,
+          fRGB** output,
+    A_long sizeX,
+    A_long sizeY,
+    const RVControls& controlParams
+)
+{
+    if (0 != controlParams.apperture_grill_enable)
+    {
+        const fRGB* __restrict pInput = *input;
+              fRGB* __restrict pOutput = *output;
+
+        const AppertureGtrill type = controlParams.mask_type;
+        const int32_t interval = controlParams.mask_interval;
+        const float   darkness = controlParams.mask_darkness;
+        const int32_t color = controlParams.mask_color;
+
+        AppertureGrill_SimulationHelper (pInput, pOutput, sizeX, sizeY, type, interval, darkness, color);
+    }
+    else
+        *output = const_cast<fRGB*>(*input); // nothing to do - pass by
+
+    return;
+
+}
 
 
 void RetroResolution_Simulation
@@ -164,11 +224,14 @@ void RetroResolution_Simulation
     #pragma warning(disable:2308)
 #endif
 
-    // Simulate CRT Artifacts
+    // Scan Lines CRT Artifacts
     ScanLines_Simulation (&input, &output, sizeX, sizeY, controlParams);
 
-    // PhosphorGlow CRT Artifacts
+    // PhosphorGlow (a.k.a. CRT Bloom) CRT Artifacts
     PhosphorGlow_Simulation (&input, &output, sizeX, sizeY, controlParams);
+
+    // Apperture Grill CRT Artifacts
+    AppertureGrill_Simulation (&input, &output, sizeX, sizeY, controlParams);
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     #pragma warning(pop)

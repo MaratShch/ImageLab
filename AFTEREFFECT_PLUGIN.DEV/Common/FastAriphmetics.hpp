@@ -19,50 +19,50 @@ namespace FastCompute
 
 	constexpr auto CHAR_BITS = 8;
 
-	inline constexpr int Min(const int& x, const int& y) noexcept
+	inline constexpr int Min(const int x, const int y) noexcept
 	{
 		return y + ((x - y) & ((x - y) >>
 			(sizeof(int) * CHAR_BITS - 1)));
 	}
 
-	inline constexpr int Max(const int& x, const int& y) noexcept
+	inline constexpr int Max(const int x, const int y) noexcept
 	{
 		return x - ((x - y) & ((x - y) >>
 			(sizeof(int) * CHAR_BITS - 1)));
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min(const T& x, const T& y) noexcept
+	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Min(const T x, const T y) noexcept
 	{	/* find minimal value between 2 fixed point values without branch */
 		return y ^ ((x ^ y) & - (x < y));
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Max(const T& x, const T& y) noexcept
+	inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type Max(const T x, const T y) noexcept
 	{   /* find maximal value between 2 fixed point values without branch */
 		return x ^ ((x ^ y) & - (x < y));
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Min(const T& x, const T& y) noexcept
+	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Min(const T x, const T y) noexcept
 	{	
 		return std::min(x, y);
 	}
 
 	template <typename T>
-	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Max(const T& x, const T& y) noexcept
+	inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type Max(const T x, const T y) noexcept
 	{   /* find maximal value between 2 fixed point values without branch */
 		return std::max(x, y);
 	}
 
 	template <typename T>
-	inline constexpr T Min3(const T& x, const T& y, const T& z) noexcept
+	inline constexpr T Min3(const T x, const T y, const T z) noexcept
 	{	/* find minimal value between 3 fixed point values without branch */
 		return Min(Min(x, y), z);
 	}
 
 	template <typename T>
-	inline constexpr T Max3(const T& x, const T& y, const T& z) noexcept
+	inline constexpr T Max3(const T x, const T y, const T z) noexcept
 	{   /* find maximal value between 3 fixed point values without branch */
 		return Max(Max(x, y), z);
 	}
@@ -75,7 +75,7 @@ namespace FastCompute
 		constexpr typename std::enable_if<std::is_integral<T>::value, T>::type BitReset{ static_cast<T>(0) };
 
 		template <typename T>
-		inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type BitOperation(const T& op, const T& mask, const T& val) noexcept
+		inline constexpr typename std::enable_if<std::is_integral<T>::value, T>::type BitOperation(const T op, const T mask, const T val) noexcept
 		{
 			/* if (op) val |= mask; else val &= ~mask  */
 			return ((val & ~mask) | (-op & mask));
@@ -83,23 +83,23 @@ namespace FastCompute
 	};
 
 	template<typename T>
-	inline constexpr auto Abs (const T& x) noexcept -> std::enable_if_t<std::is_unsigned<T>::value, T> 
+	inline constexpr auto Abs (const T x) noexcept -> std::enable_if_t<std::is_unsigned<T>::value, T> 
 	{
 		return x;
 	}
 
-	inline constexpr int Abs (const int& x) noexcept
+	inline constexpr int Abs (const int x) noexcept
 	{
 		return (x + (x >> sizeof(int) * CHAR_BIT - 1)) ^ (x >> sizeof(int) * CHAR_BIT - 1);
 	}
 
-	inline float Abs (const float& f) noexcept
+	inline float Abs (const float f) noexcept
 	{
 		int i = ((*(int*)&f) & 0x7fffffff);
 		return (*(float*)&i);
 	}
 
-	inline double Abs (const double& f) noexcept
+	inline double Abs (const double f) noexcept
 	{
 		long long i = ((*(long long*)&f) & 0x7fffffffffffffff);
 		return (*(double*)&i);
@@ -107,12 +107,12 @@ namespace FastCompute
 
 
 	template<typename T>
-	inline constexpr auto Abs(const T& x)-> std::enable_if_t<!std::is_unsigned<T>::value, T>
+	inline constexpr auto Abs(const T x)-> std::enable_if_t<!std::is_unsigned<T>::value, T>
 	{
 		return std::abs(x);
 	}
 
-    inline long double Sqrt (const long double& x) noexcept
+    inline long double Sqrt (const long double x) noexcept
     {
         static_assert(8u == sizeof(long double), "Long double isn't 64 bits");
         const long double xHalf{ 0.50l * x };
@@ -122,7 +122,7 @@ namespace FastCompute
         return xRes * x;
     }
 
-	inline double Sqrt(const double& x) noexcept
+	inline double Sqrt(const double x) noexcept
 	{
 		const double   xHalf{ 0.50 * x };
 		long long int  tmp = 0x5FE6EB50C7B537AAl - (*(long long int*)&x >> 1); //initial guess
@@ -131,7 +131,7 @@ namespace FastCompute
 		return xRes * x;
 	}
 
-	inline float Sqrt(const float& x) noexcept
+	inline float Sqrt(const float x) noexcept
 	{
 		const float xHalf{ 0.50f * x };
 		int   tmp = 0x5F3759DF - (*(int*)&x >> 1); //initial guess
@@ -141,13 +141,13 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Sqrt (const T& x) noexcept
+	inline constexpr T Sqrt (const T x) noexcept
 	{
 		return std::sqrt(x);
 	}
 
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sqrt(const T& n, const T& eps /* accuracy */) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sqrt(const T n, const T eps /* accuracy */) noexcept
     {
 		//  Newton-Raphson iterative method
 		T x { 1 };
@@ -156,7 +156,7 @@ namespace FastCompute
 		return x;
 	}
 
-	inline float InvSqrt(const float& x) noexcept
+	inline float InvSqrt(const float x) noexcept
 	{
 		union { float f; uint32_t u; } y;
 		y.f = x;
@@ -165,7 +165,7 @@ namespace FastCompute
 		return y.f;
 	}
 
-	inline double InvSqrt (const double& x) noexcept
+	inline double InvSqrt (const double x) noexcept
 	{
 		union { double d; unsigned long long ull; } y;
 		y.d   = x;
@@ -175,12 +175,12 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T InvSqrt(const T& x) noexcept
+	inline constexpr T InvSqrt(const T x) noexcept
 	{
 		return static_cast<T>(1) / std::sqrt(x);
 	}
 
-	inline float Pow (const float& a, const float& b) noexcept
+	inline float Pow (const float a, const float b) noexcept
 	{
 		union { float d; int x; } u = { a };
 		u.x = (int)(b * (u.x - 1064866805) + 1064866805);
@@ -188,13 +188,13 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Pow(const T& x) noexcept
+	inline constexpr T Pow(const T x) noexcept
 	{
 		return std::pow(x);
 	}
 
 	/* Qubic root for float */
-	inline float Cbrt (const float& x0) noexcept
+	inline float Cbrt (const float x0) noexcept
 	{
 		constexpr float reciproc3 = 1.0f / 3.0f;
 
@@ -214,12 +214,12 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Cbrt (const T& x) noexcept
+	inline constexpr T Cbrt (const T x) noexcept
 	{
 		return std::cbrt(x);
 	}
 
-	inline float InvCbrt (const float& x) noexcept
+	inline float InvCbrt (const float x) noexcept
 	{
 		constexpr float k1 = 1.7523196760f;
 		constexpr float k2 = 1.2509524245f;
@@ -237,12 +237,12 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T InvCbrt(const T& x) noexcept
+	inline constexpr T InvCbrt(const T x) noexcept
 	{
 		return static_cast<T>(1) / std::cbrt(x);
 	}
 
-	inline float Log2 (const float& val) noexcept
+	inline float Log2 (const float val) noexcept
 	{
 		int* const  exp_ptr = (int*)(&val);
 		int         x = *exp_ptr;
@@ -254,14 +254,14 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Log2(const T& x) noexcept
+	inline constexpr T Log2(const T x) noexcept
 	{
 		return std::log2(x);
 	}
 
 
 	// This is a fast approximation to log2()
-	inline float Log2f (const float& X) noexcept
+	inline float Log2f (const float X) noexcept
 	{
 		int E;
 		const float F = frexpf(fabsf(X), &E);
@@ -276,7 +276,7 @@ namespace FastCompute
 		return(Y);
    }
 
-	inline float Log10f (const float& x) noexcept
+	inline float Log10f (const float x) noexcept
 	{
 		return Log2f(x) * 0.3010299956639812f;
     }
@@ -286,21 +286,21 @@ namespace FastCompute
     #pragma warning( push )
     #pragma warning( disable : 4244 )
 #endif
-	inline int __float_as_int (const float& in) noexcept
+	inline int __float_as_int (const float in) noexcept
 	{
 		union fi { int i; float f; } conv;
 		conv.f = in;
 		return conv.i;
 	}
 
-	inline int __int_as_float(const int& in) noexcept
+	inline int __int_as_float(const int in) noexcept
 	{
 		union fi { int i; float f; } conv;
 		conv.i = in;
 		return conv.f;
 	}
 
-	inline float Log (const float& a) noexcept
+	inline float Log (const float a) noexcept
 	{
 		float m, r, s, t, i, f;
 		int e;
@@ -318,7 +318,7 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Log (const T& x) noexcept
+	inline constexpr T Log (const T x) noexcept
 	{
 		return std::log(x);
 	}
@@ -345,7 +345,7 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Acos(const T& x) noexcept
+	inline constexpr T Acos(const T x) noexcept
 	{
 		return std::acos(x);
 	}
@@ -365,14 +365,14 @@ namespace FastCompute
 		return ret - 2.f * negate * ret;
 	}
 
-	inline float Atan (const float& z) noexcept
+	inline float Atan (const float z) noexcept
 	{
 		constexpr float n1{ 0.97239411f };
 		constexpr float n2{ -0.19194795f };
 		return (n1 + n2 * z * z) * z;
 	}
 
-	inline float Atan2 (const float& y, const float& x) noexcept
+	inline float Atan2 (const float y, const float x) noexcept
 	{
 		constexpr float PI_2 = HalfPI;
 	
@@ -426,7 +426,7 @@ namespace FastCompute
 		return 0.0f; // x,y = 0. Could return NaN instead.
 	}
 
-	inline float Atan2d (const float& y, const float& x) noexcept
+	inline float Atan2d (const float y, const float x) noexcept
 	{
 		constexpr float coeff = 180.f / FastCompute::PI;
 		return (coeff * Atan2(y, x));
@@ -434,7 +434,7 @@ namespace FastCompute
 
 
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sin (const T& x) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sin (const T x) noexcept
 	{
 		constexpr T Pi{ 3.14159265358979323846 };
 		constexpr T PiSqr = Pi * Pi;
@@ -450,13 +450,13 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline const T Sin(const T& x) noexcept
+	inline const T Sin(const T x) noexcept
 	{
 		return std::sin(x);
 	}
 
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T& x) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T x) noexcept
 	{
 		constexpr T PIx2 = static_cast<T>(3.14159265358979323846) * static_cast<T>(2.0);
 		constexpr T One{ 1 };
@@ -471,13 +471,13 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline const T Cos (const T& x) noexcept
+	inline const T Cos (const T x) noexcept
 	{
 		return std::cos (x);
 	}
 
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Exp (const T& fVal) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Exp (const T fVal) noexcept
 	{
 		constexpr T one{ 1 };
 #ifdef FAST_COMPUTE_EXTRA_PRECISION
@@ -496,14 +496,14 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type	Sinh (const T& x) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type	Sinh (const T x) noexcept
 	{
 		constexpr T half{ 0.5 };
 		return half * (Exp(x) - Exp(-x));
 	}
 
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type	Cosh (const T& x) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type	Cosh (const T x) noexcept
 	{
 		constexpr T half{ 0.5 };
 		return half * (Exp(x) + Exp(-x));
@@ -514,7 +514,7 @@ namespace FastCompute
 	Fast computation of hyperbolic tangent. Rational approximation with clamping.
 	Maximum absolute errror = 2.77074604e-3 @ +/-3.29019976
 */
-	inline const float Tanh (const float& x) noexcept
+	inline const float Tanh (const float x) noexcept
 	{
 		constexpr float n0 = -8.73291016e-1f; // -0x1.bf2000p-1
 		constexpr float n1 = -2.76107788e-2f; // -0x1.c46000p-6
@@ -532,7 +532,7 @@ namespace FastCompute
 	of the argument. Maximum absolute error = 1.98537030e-5, maximum relative
 	error = 1.98540995e-5, maximum ulp error = 333.089863.
 */
-	inline const float Tanh (const float& x) // 10 operations
+	inline const float Tanh (const float x) // 10 operations
 	{
 		constexpr float cutoff = 5.76110792f; //  0x1.70b5fep+2
 		constexpr float n0 = -1.60153955e-4f; // -0x1.4fde00p-13
@@ -552,7 +552,7 @@ namespace FastCompute
 
 
 	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sigmoid (const T& fVal) noexcept
+	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sigmoid (const T fVal) noexcept
 	{
 		constexpr T one{ 1 };
 		return one / (one + Exp(-fVal));
@@ -566,25 +566,25 @@ namespace FastCompute
 
 
     template<typename T>
-    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Sign(const T& val) noexcept
+    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Sign(const T val) noexcept
     {
         return (static_cast<T>(0) < val) - (val < static_cast<T>(0));
     }
 
     template<typename T> // Computes the dot product of two 2D vectors
-    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Dot(const T& x1, const T& x2, const T& y1, const T& y2) noexcept
+    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Dot(const T x1, const T x2, const T y1, const T y2) noexcept
     {
         return x1 * x2 + y1 * y2;
     }
 
     template<typename T> // Computes the determinant of a 2x2 matrix [[a, b], [c, d]]
-    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Determinant2x2 (const T& a, const T& b, const T& c, const T& d) noexcept
+    inline constexpr typename std::enable_if<std::is_integral<T>::value || std::is_floating_point<T>::value, T>::type Determinant2x2 (const T a, const T b, const T c, const T d) noexcept
     {
         return a * d - b * c;
     }
 
     template <typename T>
-    inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type VectorNorm (const T& x, const T& y) noexcept
+    inline constexpr typename std::enable_if<std::is_floating_point<T>::value, T>::type VectorNorm (const T x, const T y) noexcept
     {
         return Sqrt (x * x + y * y);
     }
