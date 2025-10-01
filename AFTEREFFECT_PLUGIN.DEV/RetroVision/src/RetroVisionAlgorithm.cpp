@@ -1,4 +1,5 @@
 #include <vector>
+#include <array>
 #include <cmath>
 #include "CommonDebugUtils.hpp"
 #include "RetroVisionPalette.hpp"
@@ -68,6 +69,9 @@ inline void PhosphorGlow_SimulationHelper
     const float opacity
 ) noexcept
 {
+    CACHE_ALIGN constexpr std::array<float, 7> Kernel = { 0.00445f, 0.0540f, 0.2420f, 0.3990f, 0.2420f, 0.0540f, 0.00445f };
+//    constexpr float arraySum = Kernel[0] + Kernel[1] + Kernel[2] + Kernel[3] + Kernel[4] + Kernel[5] + Kernel[6];
+
     return;
 }
 
