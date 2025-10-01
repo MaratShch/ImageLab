@@ -7,6 +7,54 @@
 #include "RetroVisionControls.hpp"
 
 
+void ScanLines_Simulation
+(
+    const fRGB** input,
+          fRGB** output,
+    A_long sizeX,
+    A_long sizeY,
+    const RVControls& controlParams
+)
+{
+    if (0 != controlParams.scan_lines_enable)
+    {
+        const fRGB* __restrict pInput  = *input;
+              fRGB* __restrict pOutput = *output;
+
+
+    }
+    else
+        *output = const_cast<fRGB*>(*input); // nothing to do - pass by
+    
+    return;
+}
+
+
+void PhosphorGlow_Simulation
+(
+    const fRGB** input,
+          fRGB** output,
+    A_long sizeX,
+    A_long sizeY,
+    const RVControls& controlParams
+)
+{
+    if (0 != controlParams.scan_lines_enable)
+    {
+        const fRGB* __restrict pInput = *input;
+              fRGB* __restrict pOutput = *output;
+
+
+    }
+    else
+        *output = const_cast<fRGB*>(*input); // nothing to do - pass by
+
+    return;
+
+}
+
+
+
 void RetroResolution_Simulation
 (
     const fRGB* __restrict input,
@@ -55,17 +103,20 @@ void RetroResolution_Simulation
         break;
     }
 
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+    #pragma warning(push)
+    #pragma warning(disable:2308)
+#endif
+
     // Simulate CRT Artifacts
-    if (0 != controlParams.scan_lines_enable)
-    {
-        // Simulate Scan lines
+    ScanLines_Simulation (&input, &output, sizeX, sizeY, controlParams);
 
-    }
+    // PhosphorGlow CRT Artifacts
+    PhosphorGlow_Simulation(&input, &output, sizeX, sizeY, controlParams);
 
-    if (0 != controlParams.phosphor_glow_enable)
-    {
-        // PhosphorGlow effect enable
-    }
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+    #pragma warning(pop)
+#endif
 
     return;
 }

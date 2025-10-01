@@ -112,7 +112,7 @@ constexpr char vgaPaletteName[] =
     "256 bits "
 };
 
-constexpr int32_t herculesThresholdMin = 64;
+constexpr int32_t herculesThresholdMin = 32;
 constexpr int32_t herculesThresholdMax = 192;
 constexpr int32_t herculesThresholdDef = 128;
 

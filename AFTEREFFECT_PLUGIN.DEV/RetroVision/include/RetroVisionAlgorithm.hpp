@@ -25,6 +25,24 @@ void RetroResolution_Simulation
     const RVControls& controlParams
 );
 
+void ScanLines_Simulation
+(
+    const fRGB** input,
+          fRGB** output,
+    A_long sizeX,
+    A_long sizeY,
+    const RVControls& controlParams
+);
+
+void PhosphorGlow_Simulation
+(
+    const fRGB** input,
+          fRGB** output,
+    A_long sizeX,
+    A_long sizeY,
+    const RVControls& controlParams
+);
+
 void Hercules_Simulation
 (
     const fRGB* __restrict input,
@@ -287,10 +305,10 @@ inline _tRGB<U> GammaAdjust (const T& in, const U gamma, const U normalize) noex
         const U compV = static_cast<U>(in.V) - diff;
         const U compY = static_cast<U>(in.Y);
 
-        bgraPix.R = compY * yuv2rgb[0] + compU * yuv2rgb[1] + compV * yuv2rgb[2];
-        bgraPix.G = compY * yuv2rgb[3] + compU * yuv2rgb[4] + compV * yuv2rgb[5];
-        bgraPix.B = compY * yuv2rgb[6] + compU * yuv2rgb[7] + compV * yuv2rgb[8];
-        bgraPix.A = 0.f;
+        bgraPix.R = static_cast<decltype(bgraPix.R)>(compY * yuv2rgb[0] + compU * yuv2rgb[1] + compV * yuv2rgb[2]);
+        bgraPix.G = static_cast<decltype(bgraPix.G)>(compY * yuv2rgb[3] + compU * yuv2rgb[4] + compV * yuv2rgb[5]);
+        bgraPix.B = static_cast<decltype(bgraPix.B)>(compY * yuv2rgb[6] + compU * yuv2rgb[7] + compV * yuv2rgb[8]);
+        bgraPix.A = static_cast<decltype(bgraPix.A)>(0);
         out = GammaAdjust (bgraPix, gamma, normalize);
     }
     else
