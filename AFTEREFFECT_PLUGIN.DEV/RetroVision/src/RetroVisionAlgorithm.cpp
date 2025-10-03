@@ -17,7 +17,7 @@ inline float compute_gaussian (float sigma, float x) noexcept
 }
 
 
-inline std::vector<float> compute_kernel (float glow_strength, float sigma = 1.50f) noexcept
+inline std::vector<float> compute_kernel (float glow_strength, float sigma = 20.0f) noexcept
 {
     // Ensure odd size, larger for more glow
     const int32_t kernel_size = 0x1 | static_cast<int32_t>(std::floor(glow_strength * 2.f) * 2.f + 1.f);
