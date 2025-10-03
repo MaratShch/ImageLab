@@ -41,7 +41,7 @@ inline std::vector<float> compute_kernel (float glow_strength, float sigma = 1.5
     return kernel;
 }
 
-inline std::vector<uint32_t> ScanLines_SimulationHelper
+inline void ScanLines_SimulationHelper
 (
     const fRGB* __restrict in,
           fRGB* __restrict out,
@@ -53,7 +53,6 @@ inline std::vector<uint32_t> ScanLines_SimulationHelper
 ) noexcept
 {
     float darkenFactor = 0.f;
-    std::vector<uint32_t> scanLines{};
 
     for (A_long j = 0; j < sizeY; j++)
     {
@@ -77,7 +76,6 @@ inline std::vector<uint32_t> ScanLines_SimulationHelper
         {
            darkenFactor = 1.f; // no changes in this image line  - just copy from source to destination
            std::memcpy (dstLine, srcLine, sizeX * sizeof(fRGB));
-           scanLines.push_back(j);
            continue;
         }
 
@@ -90,7 +88,7 @@ inline std::vector<uint32_t> ScanLines_SimulationHelper
 
     } // for (A_long j = 0; j < sizeY; j++)
 
-    return scanLines;
+    return;
 }
 
 inline fRGB HorizontalGaussianBlur
@@ -202,7 +200,7 @@ inline void AppertureGrill_SimulationHelper
 }
 
 
-std::vector<uint32_t> ScanLines_Simulation
+void ScanLines_Simulation
 (
     fRGB* input,
     fRGB* output,
@@ -215,7 +213,8 @@ std::vector<uint32_t> ScanLines_Simulation
     const A_long smooth = static_cast<A_long>(controlParams.scan_lines_smooth);
     const float  darkness = controlParams.scan_lines_darkness;
 
-    return ScanLines_SimulationHelper (input, output, sizeX, sizeY, interval, smooth, darkness);
+    ScanLines_SimulationHelper (input, output, sizeX, sizeY, interval, smooth, darkness);
+    return;
 }
 
 
@@ -316,39 +315,31 @@ fRGB* RetroResolution_Simulation
     fRGB* scanLinesOut = nullptr;
 
     // Scan Lines CRT Artifacts
-    const auto linesIndicator = [&]() -> std::vector<uint32_t>
+    if (0 != controlParams.scan_lines_enable)
     {
-        if (0 != controlParams.scan_lines_enable)
-        {
-            scanLinesIn = output;
-            scanLinesOut = const_cast<fRGB*>(input);
-            return ScanLines_Simulation(scanLinesIn, scanLinesOut, sizeX, sizeY, controlParams);
-        }
-        else
-        {
-            scanLinesOut = output;
-            scanLinesIn = const_cast<fRGB*>(input);
-            return{}; // Return a default-constructed (empty) vector
-        }
-    }();
+        scanLinesIn = output;
+        scanLinesOut = const_cast<fRGB*>(input);
+        ScanLines_Simulation(scanLinesIn, scanLinesOut, sizeX, sizeY, controlParams);
+    }
+    else
+    {
+        scanLinesOut = output;
+        scanLinesIn = const_cast<fRGB*>(input);
+        return{}; // Return a default-constructed (empty) vector
+    }
 
-
-#if 0
     // PhosphorGlow (a.k.a. CRT Bloom) CRT Artifacts
     if (0 != controlParams.phosphor_glow_enable)
     {
-        phosphorGlowIn  = output;
-        phosphorGlowOut = const_cast<fRGB*>(input);
+        phosphorGlowIn  = scanLinesOut;
+        phosphorGlowOut = scanLinesIn;
         PhosphorGlow_Simulation (phosphorGlowIn, phosphorGlowOut, sizeX, sizeY, controlParams);
     }
     else
     {
-        phosphorGlowOut = output;
-        phosphorGlowIn  = const_cast<fRGB*>(input);
+        phosphorGlowOut = scanLinesOut;
+        phosphorGlowIn  = scanLinesIn;
     }
-
-#endif
-
 
     // Apperture Grill CRT Artifacts
 //    AppertureGrill_Simulation (output, const_cast<fRGB*>(input), sizeX, sizeY, controlParams);
@@ -357,5 +348,5 @@ fRGB* RetroResolution_Simulation
     #pragma warning(pop)
 #endif
 
-    return scanLinesOut;
+    return phosphorGlowOut;
 }

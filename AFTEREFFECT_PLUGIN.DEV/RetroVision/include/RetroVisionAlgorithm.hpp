@@ -25,7 +25,7 @@ fRGB* RetroResolution_Simulation
     const RVControls& controlParams
 );
 
-std::vector<uint32_t> ScanLines_Simulation
+void ScanLines_Simulation
 (
     fRGB* input,
     fRGB* output,
