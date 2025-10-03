@@ -325,7 +325,6 @@ fRGB* RetroResolution_Simulation
     {
         scanLinesOut = output;
         scanLinesIn = const_cast<fRGB*>(input);
-        return{}; // Return a default-constructed (empty) vector
     }
 
     // PhosphorGlow (a.k.a. CRT Bloom) CRT Artifacts
