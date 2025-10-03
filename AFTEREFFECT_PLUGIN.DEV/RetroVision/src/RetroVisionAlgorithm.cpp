@@ -309,10 +309,12 @@ fRGB* RetroResolution_Simulation
     #pragma warning(disable:2308)
 #endif
 
-    fRGB* phosphorGlowIn  = nullptr;
-    fRGB* phosphorGlowOut = nullptr;
     fRGB* scanLinesIn  = nullptr;
     fRGB* scanLinesOut = nullptr;
+    fRGB* phosphorGlowIn  = nullptr;
+    fRGB* phosphorGlowOut = nullptr;
+    fRGB* appertureLinesIn = nullptr;
+    fRGB* appertureLinesOut = nullptr;
 
     // Scan Lines CRT Artifacts
     if (0 != controlParams.scan_lines_enable)
@@ -341,11 +343,20 @@ fRGB* RetroResolution_Simulation
     }
 
     // Apperture Grill CRT Artifacts
-//    AppertureGrill_Simulation (output, const_cast<fRGB*>(input), sizeX, sizeY, controlParams);
+    if (0 != controlParams.apperture_grill_enable)
+    {
+        appertureLinesIn  = phosphorGlowOut;
+        appertureLinesOut = phosphorGlowIn;
+        AppertureGrill_Simulation (appertureLinesIn, appertureLinesOut, sizeX, sizeY, controlParams);
+    }
+    else
+    {
+        appertureLinesOut = phosphorGlowOut;
+    }
 
 #if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     #pragma warning(pop)
 #endif
 
-    return phosphorGlowOut;
+    return appertureLinesOut;
 }
