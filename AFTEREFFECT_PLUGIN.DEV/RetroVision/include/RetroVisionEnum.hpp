@@ -126,7 +126,7 @@ constexpr double scanLinesDarknessMax = 1.0;
 constexpr double scanLinesDarknessDef = 0.2;
 
 constexpr double phosphorGlowStrengthMin = 0.0;
-constexpr double phosphorGlowStrengthMax = 3.0;
+constexpr double phosphorGlowStrengthMax = 5.0;
 constexpr double phosphorGlowStrengthDef = 2.0;
 
 constexpr double phosphorGlowOpacityMin = 0.0;

@@ -16,7 +16,7 @@ using CoordinatesVector = std::vector<A_long>;
 using SuperPixels = std::vector<fRGB>;
 
 
-void RetroResolution_Simulation
+fRGB* RetroResolution_Simulation
 (
     const fRGB* __restrict input,
           fRGB* __restrict output,
@@ -25,10 +25,10 @@ void RetroResolution_Simulation
     const RVControls& controlParams
 );
 
-void ScanLines_Simulation
+std::vector<uint32_t> ScanLines_Simulation
 (
-    const fRGB** input,
-          fRGB** output,
+    fRGB* input,
+    fRGB* output,
     A_long sizeX,
     A_long sizeY,
     const RVControls& controlParams
@@ -36,12 +36,22 @@ void ScanLines_Simulation
 
 void PhosphorGlow_Simulation
 (
-    const fRGB** input,
-          fRGB** output,
+    fRGB* input,
+    fRGB* output,
     A_long sizeX,
     A_long sizeY,
     const RVControls& controlParams
 );
+
+void PhosphorGlow_SimulationHelper
+(
+    const fRGB* __restrict in,
+          fRGB* __restrict out,
+    const A_long sizeX,
+    const A_long sizeY,
+    const float strength,
+    const float opacity
+) noexcept;
 
 void AppertureGrill_Simulation
 (
