@@ -83,9 +83,9 @@ inline std::vector<uint32_t> ScanLines_SimulationHelper
 
         for (A_long i = 0; i < sizeX; i++)
         {
-            dstLine[i].R * srcLine[i].R * darkenFactor;
-            dstLine[i].G * srcLine[i].G * darkenFactor;
-            dstLine[i].B * srcLine[i].B * darkenFactor;
+            dstLine[i].R = srcLine[i].R * darkenFactor;
+            dstLine[i].G = srcLine[i].G * darkenFactor;
+            dstLine[i].B = srcLine[i].B * darkenFactor;
         }
 
     } // for (A_long j = 0; j < sizeY; j++)
@@ -316,21 +316,22 @@ fRGB* RetroResolution_Simulation
     fRGB* scanLinesOut = nullptr;
 
     // Scan Lines CRT Artifacts
-    const std::vector<uint32_t> linesIndicator = (0 != controlParams.scan_lines_enable)
-        ? ScanLines_Simulation (output, const_cast<fRGB*>(input), sizeX, sizeY, controlParams)
-        : std::vector<uint32_t>{}; // Create an empty vector if false
+    const auto linesIndicator = [&]() -> std::vector<uint32_t>
+    {
+        if (0 != controlParams.scan_lines_enable)
+        {
+            scanLinesIn = output;
+            scanLinesOut = const_cast<fRGB*>(input);
+            return ScanLines_Simulation(scanLinesIn, scanLinesOut, sizeX, sizeY, controlParams);
+        }
+        else
+        {
+            scanLinesOut = output;
+            scanLinesIn = const_cast<fRGB*>(input);
+            return{}; // Return a default-constructed (empty) vector
+        }
+    }();
 
-    // Handle the other variables separately in a standard if/else
-    if (0 != controlParams.scan_lines_enable)
-    {
-        scanLinesIn = output;
-        scanLinesOut = const_cast<fRGB*>(input);
-    }
-    else
-    {
-        scanLinesOut = output;
-        scanLinesIn = const_cast<fRGB*>(input);
-    }
 
 #if 0
     // PhosphorGlow (a.k.a. CRT Bloom) CRT Artifacts
