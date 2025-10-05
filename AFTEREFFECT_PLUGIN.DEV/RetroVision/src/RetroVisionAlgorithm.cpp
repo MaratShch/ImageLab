@@ -306,9 +306,9 @@ void AppertureGrill_Simulation
     const int32_t color = controlParams.mask_color;
 
     if (AppertureGtrill::eRETRO_APPERTURE_SHADOW_MASK == controlParams.mask_type)
-        AppertureGrill_SimulationApperture (input, output, sizeX, sizeY, interval, darkness, color);
+        AppertureGrill_SimulationShadowMask(input, output, sizeX, sizeY, interval, darkness, color);
     else
-        AppertureGrill_SimulationShadowMask (input, output, sizeX, sizeY, interval, darkness, color);
+        AppertureGrill_SimulationApperture(input, output, sizeX, sizeY, interval, darkness, color);
 
     return;
 }
