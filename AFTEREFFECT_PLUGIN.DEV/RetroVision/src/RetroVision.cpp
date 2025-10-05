@@ -27,7 +27,7 @@ static bool LoadResourceDll (PF_InData* in_data)
             err = true;
     }
 
-    return true;
+    return err;
 }
 
 static void FreeResourceDll(void)
