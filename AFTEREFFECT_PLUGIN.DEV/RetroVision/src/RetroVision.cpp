@@ -6,6 +6,46 @@
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
 
+static HMODULE hLib = nullptr;
+
+static bool LoadResourceDll (PF_InData* in_data)
+{
+    A_char pluginFullPath[AEFX_MAX_PATH]{};
+    PF_Err extErr = PF_GET_PLATFORM_DATA(PF_PlatData_EXE_FILE_PATH_DEPRECATED, &pluginFullPath);
+    bool err = false;
+
+    if (PF_Err_NONE == extErr && 0 != pluginFullPath[0])
+    {
+        const std::string dllName{ "\\ImageLabResource.dll" };
+        const std::string aexPath{ pluginFullPath };
+        const std::string::size_type pos = aexPath.rfind("\\", aexPath.length());
+        const std::string dllPath = aexPath.substr(0, pos) + dllName;
+
+        // Load Memory Management DLL
+        hLib = ::LoadLibraryEx(dllPath.c_str(), NULL, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        if (NULL != hLib)
+            err = true;
+    }
+
+    return true;
+}
+
+static void FreeResourceDll(void)
+{
+    if (nullptr != hLib)
+    {
+        ::FreeLibrary(hLib);
+        hLib = nullptr;
+    }
+    return;
+}
+
+HMODULE GetResourceLibHandler(void)
+{
+    return hLib;
+}
+
+
 
 static PF_Err
 About
@@ -40,6 +80,8 @@ GlobalSetup
     PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     if (false == LoadMemoryInterfaceProvider(in_data))
+        return err;
+    if (false == LoadResourceDll(in_data))
         return err;
 
     constexpr PF_OutFlags out_flags1 =
@@ -87,7 +129,7 @@ GlobalSetup
 //		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-    err = PF_Err_NONE;// (true == LoadBitmaps() ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
+    err = (true == LoadBitmaps() ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
 	return err;
 }
@@ -102,6 +144,7 @@ GlobalSetdown
 	PF_LayerDef		*output
 )
 {
+    FreeResourceDll();
     UnloadMemoryInterfaceProvider();
 	return PF_Err_NONE;
 }

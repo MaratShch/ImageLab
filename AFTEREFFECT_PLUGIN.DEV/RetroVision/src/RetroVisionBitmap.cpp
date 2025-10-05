@@ -56,7 +56,7 @@ bool LoadBitmaps (void)
     const int32_t bitmapsSize = static_cast<int32_t>(bitmapId.size());
     size_t cnt = 0;
 
-    HMODULE resourceDll = GetResourceLibHandler();
+    const HMODULE resourceDll = GetResourceLibHandler();
 
     for (int32_t i = 0; i < bitmapsSize; i++)
     {

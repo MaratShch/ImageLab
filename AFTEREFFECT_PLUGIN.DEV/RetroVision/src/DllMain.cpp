@@ -1,28 +1,5 @@
 #include <windows.h>
 
-static HMODULE hLib = nullptr;
-
-void LoadResourceDll(void)
-{
-    hLib = ::LoadLibraryEx(__TEXT("ImageLabResource.dll"), NULL, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
-}
-
-void FreeResourceDll(void)
-{
-    if (nullptr != hLib)
-    {
-        ::FreeLibrary(hLib);
-        hLib = nullptr;
-    }
-}
-
-HMODULE GetResourceLibHandler(void)
-{
-    return hLib;
-}
-
-
-
 BOOL WINAPI DllMain
 (
     HINSTANCE hinstDLL,  // handle to DLL module
@@ -34,8 +11,6 @@ BOOL WINAPI DllMain
     switch (fdwReason)
     {
         case DLL_PROCESS_ATTACH:
-            hLib = nullptr;
-            LoadResourceDll();
             DisableThreadLibraryCalls(hinstDLL);
         break;
 
@@ -46,7 +21,6 @@ BOOL WINAPI DllMain
         break;
 
         case DLL_PROCESS_DETACH:
-            FreeResourceDll();
         break;
     } // switch (fdwReason)
 
