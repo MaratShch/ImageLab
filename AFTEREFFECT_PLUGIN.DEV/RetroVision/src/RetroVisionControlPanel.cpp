@@ -238,7 +238,7 @@ SetupControlElements
     PF_ADD_POPUP(
         controlItemName[19],
         UnderlyingType(AppertureGtrill::eRETRO_APPERTURE_TOTALS),
-        UnderlyingType(AppertureGtrill::eRETRO_APPERTURE_NONE),
+        UnderlyingType(AppertureGtrill::eRETRO_APPERTURE_SHADOW_MASK),
         appertureMaskType,
         UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP));
 
@@ -266,18 +266,8 @@ SetupControlElements
         UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-    PF_ADD_SLIDER(
-        controlItemName[22],
-        appertureMaskColorMin,
-        appertureMaskColorMax,
-        appertureMaskColorMin,
-        appertureMaskColorMax,
-        appertureMaskColorDef,
-        UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR));
-
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_POPUP(
-        controlItemName[23],
+        controlItemName[22],
         UnderlyingType(HerculesWhiteColor::eHERCULES_WHITE_TOTALS),
         UnderlyingType(HerculesWhiteColor::eHERCULES_PURE_WHITE),
         herculesWhiteName,

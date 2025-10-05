@@ -33,7 +33,6 @@ RetroVision_UpdateControls_UI
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)   ]->ui_flags &= ~PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->ui_flags &= ~PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR)   ]->ui_flags &= ~PF_PUI_DISABLED;
 
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START), params[UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY), params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)]);
@@ -51,7 +50,6 @@ RetroVision_UpdateControls_UI
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]);
     }
     else
@@ -79,7 +77,6 @@ RetroVision_UpdateControls_UI
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)   ]->ui_flags |= PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->ui_flags |= PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]->ui_flags |= PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR)   ]->ui_flags |= PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)    ]->ui_flags |= PF_PUI_DISABLED;
 
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START), params[UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START)]);
@@ -101,7 +98,6 @@ RetroVision_UpdateControls_UI
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]);
     }
 

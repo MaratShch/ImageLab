@@ -12,12 +12,11 @@
 
 inline float compute_gaussian (float sigma, float x) noexcept
 {
-//    return (1.f / (FastCompute::Sqrt (FastCompute::PIx2) * sigma)) * FastCompute::Exp(-(x * x) / (2.f * sigma * sigma));
-    return (1.f / (std::sqrt (FastCompute::PIx2) * sigma)) * std::exp(-(x * x) / (2.f * sigma * sigma));
+    return (1.f / (FastCompute::Sqrt (FastCompute::PIx2) * sigma)) * FastCompute::Exp(-(x * x) / (2.f * sigma * sigma));
 }
 
 
-inline std::vector<float> compute_kernel (float glow_strength, float sigma = 20.0f) noexcept
+std::vector<float> compute_kernel (float glow_strength, float sigma = 20.0f)
 {
     // Ensure odd size, larger for more glow
     const int32_t kernel_size = 0x1 | static_cast<int32_t>(std::floor(glow_strength * 2.f) * 2.f + 1.f);
@@ -41,16 +40,16 @@ inline std::vector<float> compute_kernel (float glow_strength, float sigma = 20.
     return kernel;
 }
 
-inline void ScanLines_SimulationHelper
+void ScanLines_SimulationHelper
 (
-    const fRGB* __restrict in,
-          fRGB* __restrict out,
+    fRGB* __restrict in,
+    fRGB* __restrict out,
     const A_long sizeX,
     const A_long sizeY,
     const A_long interval,
     const A_long smooth,
     const float  darkness
-) noexcept
+)
 {
     float darkenFactor = 0.f;
 
@@ -97,7 +96,7 @@ inline fRGB HorizontalGaussianBlur
     A_long left,
     A_long right,
     std::vector<float> kernel
-) noexcept
+)
 {
     fRGB out{};
     for (A_long i = -left, idx = 0; i <= right; i++, idx++)
@@ -116,7 +115,7 @@ inline fRGB VerticalGaussianBlur
     A_long down,
     A_long pitch,
     std::vector<float> kernel
-) noexcept
+)
 {
     fRGB out{};
     for (A_long i = -top, idx = 0; i <= down; i++, idx++)
@@ -131,15 +130,15 @@ inline fRGB VerticalGaussianBlur
 
 void PhosphorGlow_SimulationHelper
 (
-    const fRGB* __restrict in,
-          fRGB* __restrict out,
+    fRGB* __restrict in,
+    fRGB* __restrict out,
     const A_long sizeX,
     const A_long sizeY,
     const float strength,
     const float opacity
-) noexcept
+)
 {
-    std::vector<float> kernel = compute_kernel (strength);
+    const std::vector<float> kernel = compute_kernel (strength);
     const A_long halfKernel = static_cast<A_long>(kernel.size()) >> 1;
 
     for (A_long j = 0; j < sizeY; j++)
@@ -184,22 +183,6 @@ void PhosphorGlow_SimulationHelper
 }
 
 
-inline void AppertureGrill_SimulationHelper
-(
-    const fRGB* __restrict in,
-          fRGB* __restrict out,
-    const A_long sizeX,
-    const A_long sizeY,
-    const AppertureGtrill type,
-    const int32_t interval,
-    const float darkness,
-    const int32_t color
-) noexcept
-{
-    return;
-}
-
-
 void ScanLines_Simulation
 (
     fRGB* input,
@@ -231,15 +214,87 @@ void PhosphorGlow_Simulation
     const float opacity = controlParams.phosphor_glow_opacity;
 
     PhosphorGlow_SimulationHelper (input, output, sizeX, sizeY, strength, opacity);
+    return;
+}
+
+
+void AppertureGrill_SimulationApperture
+(
+    fRGB* __restrict in,
+    fRGB* __restrict out,
+    const A_long sizeX,
+    const A_long sizeY,
+    const int32_t interval,
+    const float darkness,
+    const int32_t color
+)
+{
+    constexpr A_long phaseSize = 3;
+    const float wR[phaseSize] = { 1.f, 1.f - darkness, 1.f - darkness };
+    const float wG[phaseSize] = { 1.f - darkness, 1.f, 1.f - darkness };
+    const float wB[phaseSize] = { 1.f - darkness, 1.f - darkness, 1.f };
+
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const A_long lineIdx = j * sizeX;
+
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            const A_long idx = lineIdx + i;
+            const A_long phase = (i / interval) % phaseSize;
+
+            out[idx].R = in[idx].R * wR[phase];
+            out[idx].G = in[idx].G * wG[phase];
+            out[idx].B = in[idx].B * wB[phase];
+        }
+    }
 
     return;
 }
 
 
+void AppertureGrill_SimulationShadowMask
+(
+    fRGB* __restrict in,
+    fRGB* __restrict out,
+    const A_long sizeX,
+    const A_long sizeY,
+    const int32_t interval,
+    const float darkness,
+    const int32_t color
+)
+{
+    constexpr A_long phaseSize = 3;
+    const float overall = 1.0f - 0.5f * darkness;
+
+    const float wR[phaseSize] = { 1.0f * overall, 0.7f * overall, 0.7f * overall };
+    const float wG[phaseSize] = { 0.7f * overall, 1.0f * overall, 0.7f * overall };
+    const float wB[phaseSize] = { 0.7f * overall, 0.7f * overall, 1.0f * overall };
+
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const A_long lineIdx = j * sizeX;
+
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            const A_long idx = lineIdx + i;
+            const A_long phase = (i / interval) % phaseSize;
+
+            out[idx].R = in[idx].R * wR[phase];
+            out[idx].G = in[idx].G * wG[phase];
+            out[idx].B = in[idx].B * wB[phase];
+        }
+    }
+
+    return;
+}
+
+
+
 void AppertureGrill_Simulation
 (
-    fRGB* input,
-    fRGB* output,
+    fRGB* __restrict input,
+    fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
     const RVControls& controlParams
@@ -250,7 +305,10 @@ void AppertureGrill_Simulation
     const float   darkness = controlParams.mask_darkness;
     const int32_t color = controlParams.mask_color;
 
-    AppertureGrill_SimulationHelper (input, output, sizeX, sizeY, type, interval, darkness, color);
+    if (AppertureGtrill::eRETRO_APPERTURE_SHADOW_MASK == controlParams.mask_type)
+        AppertureGrill_SimulationApperture (input, output, sizeX, sizeY, interval, darkness, color);
+    else
+        AppertureGrill_SimulationShadowMask (input, output, sizeX, sizeY, interval, darkness, color);
 
     return;
 }

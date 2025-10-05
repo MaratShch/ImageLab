@@ -31,7 +31,6 @@ enum class RetroVision : int32_t
     eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP,
     eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL,
     eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS,
-    eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR,
     eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR,
     eRETRO_VISION_CRT_ARTIFACTS_STOP,
     eRETRO_VISION_TOTAL_CONTROLS
@@ -135,7 +134,6 @@ constexpr double phosphorGlowOpacityDef = 0.3;
 
 enum class AppertureGtrill : int32_t
 {
-    eRETRO_APPERTURE_NONE,
     eRETRO_APPERTURE_SHADOW_MASK,
     eRETRO_APPERTURE_APPERTURE_GRILL,
     eRETRO_APPERTURE_TOTALS
@@ -143,7 +141,6 @@ enum class AppertureGtrill : int32_t
 
 constexpr char appertureMaskType[] =
 {
-    "None|"
     "ShadowMask|"
     "Apperture Grill"
 };
@@ -156,10 +153,6 @@ constexpr int32_t appertureMaskDefHercules = 3;
 constexpr double appertureMaskDarkMin = 0.0;
 constexpr double appertureMaskDarkMax = 1.0;
 constexpr double appertureMaskDarkDef = 0.25;
-
-constexpr int32_t appertureMaskColorMin = 0;
-constexpr int32_t appertureMaskColorMax = 64;
-constexpr int32_t appertureMaskColorDef = 20;
 
 constexpr char herculesWhiteName[] =
 {
@@ -200,7 +193,6 @@ constexpr char controlItemName[][24] =
     "Mask Type",            // popup
     "Mask Interval",        // slider
     "Mask Darkness",        // slider
-    "Mask Color",           // color
     "White Color & Tint"    // white color on Hercules (popup)
 };
 

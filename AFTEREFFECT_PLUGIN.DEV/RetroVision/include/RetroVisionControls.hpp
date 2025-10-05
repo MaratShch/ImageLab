@@ -54,10 +54,9 @@ inline RVControls GetControlParametersStruct
     rvControls.phosphor_glow_opacity  = static_cast<float>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY)]->u.fs_d.value);
 
     rvControls.apperture_grill_enable = params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL)]->u.bd.value;
-    rvControls.mask_type              = static_cast<AppertureGtrill>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL)]->u.pd.value - 1);
+    rvControls.mask_type              = static_cast<AppertureGtrill>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)]->u.pd.value - 1);
     rvControls.mask_interval          = params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->u.sd.value;
-    rvControls.mask_darkness          = static_cast<float>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->u.fs_d.value);
-    rvControls.mask_color             = params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_COLOR)]->u.sd.value;
+    rvControls.mask_darkness          = static_cast<float>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]->u.fs_d.value);
 
     rvControls.white_color_hercules = static_cast<HerculesWhiteColor>(params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->u.pd.value - 1);
 

@@ -100,6 +100,7 @@
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
       <CCppSupport>
       </CCppSupport>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
     <ResourceCompile>
       <AdditionalIncludeDirectories>include</AdditionalIncludeDirectories>
@@ -133,7 +134,7 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>

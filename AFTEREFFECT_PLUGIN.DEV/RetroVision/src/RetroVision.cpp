@@ -102,7 +102,7 @@ GlobalSetdown
 	PF_LayerDef		*output
 )
 {
-	/* nothing to do */
+    UnloadMemoryInterfaceProvider();
 	return PF_Err_NONE;
 }
 

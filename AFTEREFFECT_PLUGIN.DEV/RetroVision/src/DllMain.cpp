@@ -9,8 +9,11 @@ void LoadResourceDll(void)
 
 void FreeResourceDll(void)
 {
-    ::FreeLibrary(hLib);
-    hLib = nullptr;
+    if (nullptr != hLib)
+    {
+        ::FreeLibrary(hLib);
+        hLib = nullptr;
+    }
 }
 
 HMODULE GetResourceLibHandler(void)
@@ -31,6 +34,7 @@ BOOL WINAPI DllMain
     switch (fdwReason)
     {
         case DLL_PROCESS_ATTACH:
+            hLib = nullptr;
             LoadResourceDll();
             DisableThreadLibraryCalls(hinstDLL);
         break;

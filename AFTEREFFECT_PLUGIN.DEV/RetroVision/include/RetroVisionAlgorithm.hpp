@@ -55,13 +55,34 @@ void PhosphorGlow_SimulationHelper
 
 void AppertureGrill_Simulation
 (
-    const fRGB** input,
-          fRGB** output,
+    fRGB* __restrict input,
+    fRGB* __restrict output,
     A_long sizeX,
     A_long sizeY,
     const RVControls& controlParams
 );
 
+void AppertureGrill_SimulationApperture
+(
+    fRGB* __restrict in,
+    fRGB* __restrict out,
+    const A_long sizeX,
+    const A_long sizeY,
+    const int32_t interval,
+    const float darkness,
+    const int32_t color
+);
+
+void AppertureGrill_SimulationShadowMask
+(
+    fRGB* __restrict in,
+    fRGB* __restrict out,
+    const A_long sizeX,
+    const A_long sizeY,
+    const int32_t interval,
+    const float darkness,
+    const int32_t color
+);
 
 void Hercules_Simulation
 (

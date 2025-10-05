@@ -16,7 +16,7 @@ CMemoryHolder::CMemoryHolder () :
 	for (int32_t i = 0; i < static_cast<int32_t>(m_HolderCapacity); i++)
 	{
 		m_Holder.push_back(new CMemoryBlock);
-		m_FreeBlocks.push_front(i);
+		m_FreeBlocks.push_back(i);
 	}
 
 	return;
@@ -24,7 +24,15 @@ CMemoryHolder::CMemoryHolder () :
 
 CMemoryHolder::~CMemoryHolder()
 {
+    for (auto memBlock : m_Holder)
+    {
+        delete memBlock;
+        memBlock = nullptr;
+    }
+    m_Holder.clear();
+    m_FreeBlocks.clear();
 
+    return;
 }
 
 

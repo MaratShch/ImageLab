@@ -125,8 +125,9 @@
       <DebugInformationFormat>None</DebugInformationFormat>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
