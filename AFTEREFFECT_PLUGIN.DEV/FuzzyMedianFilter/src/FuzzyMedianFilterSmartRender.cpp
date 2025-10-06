@@ -16,7 +16,6 @@ FuzzyMedian_PreRender
     PF_PreRenderExtra	*extra
 ) noexcept
 {
-    FuzzyFilterParamsStr renderParams{};
     PF_Err err = PF_Err_NONE;
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);

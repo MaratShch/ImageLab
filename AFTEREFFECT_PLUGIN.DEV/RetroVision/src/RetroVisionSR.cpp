@@ -1,5 +1,7 @@
 #include "RetroVision.hpp"
 #include "RetroVisionEnum.hpp"
+#include "RetroVisionAlgorithm.hpp"
+#include "CommonSmartRender.hpp"
 
 
 PF_Err
@@ -10,7 +12,190 @@ RetroVision_PreRender
     PF_PreRenderExtra	*extra
 ) 
 {
-    return PF_Err_NONE;
+    PF_Err err = PF_Err_NONE;
+    PF_Err errParam = PF_Err_NONE;
+
+    AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
+    PF_Handle paramsHandler = handleSuite->host_new_handle(RVControlsSize);
+    if (nullptr != paramsHandler)
+    {
+        RVControls* paramsStrP = reinterpret_cast<RVControls*>(handleSuite->host_lock_handle(paramsHandler));
+        if (nullptr != paramsStrP)
+        {
+            PF_ParamDef algoParam{};
+
+            extra->output->pre_render_data = paramsHandler;
+
+            // -------------- Start read Effect Parameters Set ---------------- //
+
+            // Read Algo Enable flag
+            errParam = PF_CHECKOUT_PARAM (in_data, UnderlyingType(RetroVision::eRETRO_VISION_ENABLE), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->enable = algoParam.u.bd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read Gamma value for adjust
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_GAMMA_ADJUST), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->gamma = algoParam.u.fs_d.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read Retro-monitor type for simulation
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->monitor = static_cast<RetroMonitor>(algoParam.u.pd.value);
+            else
+                errParam = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CGA Palette type for simulation
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->cga_palette = static_cast<PaletteCGA>(algoParam.u.pd.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CGA Intencity bit
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->cga_intencity_bit = algoParam.u.bd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read EGA Palette type for simulation
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->ega_palette = static_cast<PaletteEGA>(algoParam.u.pd.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read VGA Palette type for simulation
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->vga_palette = static_cast<PaletteVGA>(algoParam.u.pd.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read Hercules B/W Threshold for simulation
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->hercules_threshold = algoParam.u.sd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Scan Line enable alfgorithm enable
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->scan_lines_enable = algoParam.u.bd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Smooth Scan Line
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->scan_lines_smooth = algoParam.u.bd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Scan Lines interval
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->scan_lines_interval = algoParam.u.sd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Scan Lines darkness
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->scan_lines_darkness = static_cast<float>(algoParam.u.fs_d.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Phosphor Glow enable algo
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->phosphor_glow_enable = algoParam.u.bd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Phosphor Glow strength
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->phosphor_glow_strength = static_cast<float>(algoParam.u.fs_d.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Phosphor Glow opacity
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->phosphor_glow_opacity = static_cast<float>(algoParam.u.fs_d.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Aperture Grill algorithm enable
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->apperture_grill_enable = algoParam.u.bd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Aperture Grill / Mask type
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->mask_type = static_cast<AppertureGtrill>(algoParam.u.pd.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Aperture Grill / Mask type
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->mask_interval = algoParam.u.sd.value;
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Read CRT Artifacts - Aperture Grill / Mask darkness
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->mask_darkness = static_cast<float>(algoParam.u.fs_d.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            // Hercules white color tint
+            errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
+            if (PF_Err_NONE == errParam)
+                paramsStrP->white_color_hercules = static_cast<HerculesWhiteColor>(algoParam.u.pd.value);
+            else
+                errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+            PF_RenderRequest req = extra->input->output_request;
+            PF_CheckoutResult in_result{};
+
+            ERR(extra->cb->checkout_layer
+            (
+                in_data->effect_ref, 
+                UnderlyingType(RetroVision::eRETRO_VISION_INPUT), 
+                UnderlyingType(RetroVision::eRETRO_VISION_INPUT), 
+                &req, 
+                in_data->current_time, 
+                in_data->time_step, 
+                in_data->time_scale, 
+                &in_result
+            ));
+
+            UnionLRect(&in_result.result_rect, &extra->output->result_rect);
+            UnionLRect(&in_result.max_result_rect, &extra->output->max_result_rect);
+
+            handleSuite->host_unlock_handle(paramsHandler);
+
+        } //  if (nullptr != paramsStrP)
+        else
+            err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+    } // if (nullptr != paramsHandler)
+    else
+        err = PF_Err_OUT_OF_MEMORY;
+
+    return (PF_Err_NONE == errParam ? err : PF_Err_INTERNAL_STRUCT_DAMAGED);
 }
 
 

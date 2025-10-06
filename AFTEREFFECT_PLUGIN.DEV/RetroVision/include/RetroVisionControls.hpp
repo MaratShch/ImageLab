@@ -6,6 +6,8 @@
 
 struct RVControls
 {
+    int32_t      enable; // used by Smart Render only, regular render directly read this value
+    float        gamma;  // used by Smart Rended only, regular render directly read this value
     RetroMonitor monitor;
     PaletteCGA   cga_palette;
     int32_t      cga_intencity_bit;
