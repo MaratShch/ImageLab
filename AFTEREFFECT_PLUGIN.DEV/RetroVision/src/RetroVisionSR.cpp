@@ -207,5 +207,59 @@ RetroVision_SmartRender
     PF_SmartRenderExtra		*extraP
 )
 {
+    PF_EffectWorld* input_worldP = nullptr;
+    PF_EffectWorld* output_worldP = nullptr;
+    PF_Err	err = PF_Err_NONE;
+
+    AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
+    const RVControls* pFilterStrParams = reinterpret_cast<const RVControls*>(handleSuite->host_lock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data)));
+
+    if (nullptr != pFilterStrParams)
+    {
+        ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_INPUT), &input_worldP)));
+        ERR( extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
+
+        if (nullptr != input_worldP && nullptr != output_worldP)
+        {
+            const A_long sizeX = input_worldP->width;
+            const A_long sizeY = input_worldP->height;
+            const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
+            const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
+
+            PF_PixelFormat format = PF_PixelFormat_INVALID;
+            AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
+
+            if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+            {
+                switch (format)
+                {
+                    case PF_PixelFormat_ARGB128:
+                    {
+                    }
+                    break;
+
+                    case PF_PixelFormat_ARGB64:
+                    {
+                    }
+                    break;
+
+                    case PF_PixelFormat_ARGB32:
+                    {
+                    }
+                    break;
+
+                    default:
+                        err = PF_Err_BAD_CALLBACK_PARAM;
+                    break;
+                } // switch (format)
+
+            } //  if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+
+        } // if (nullptr != input_worldP && nullptr != output_worldP)
+
+        handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
+
+    } // if (nullptr != pFilterStrParams)
+
     return PF_Err_NONE;
 }
