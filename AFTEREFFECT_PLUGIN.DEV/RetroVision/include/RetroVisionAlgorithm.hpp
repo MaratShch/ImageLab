@@ -505,4 +505,6 @@ inline void RestoreImage
 }
 
 
+
+
 #endif // __IMAGE_LAB_RETRO_VISION_FILTER_ALGORITHM__
