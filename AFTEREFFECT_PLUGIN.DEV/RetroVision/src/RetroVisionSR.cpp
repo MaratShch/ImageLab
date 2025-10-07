@@ -2,6 +2,61 @@
 #include "RetroVisionEnum.hpp"
 #include "RetroVisionAlgorithm.hpp"
 #include "CommonSmartRender.hpp"
+#include "AdjustGamma.hpp"
+#include "ImageLabMemInterface.hpp"
+
+
+template<typename T, typename U, typename std::enable_if<is_RGB_proc<T>::value && std::is_floating_point<U>::value>::type* = nullptr>
+PF_Err RetroVision_SmartRenderAlgorithm
+(
+    const T* __restrict localSrc,
+          T* __restrict localDst,
+    A_long sizeX,
+    A_long sizeY,
+    A_long srcPitch,
+    A_long dstPitch,
+    const U whiteLevel,
+    const RVControls* __restrict controlParams
+)
+{
+    PF_Err err = PF_Err_NONE;
+    
+    // check if effect is enabled by CheckBox
+    const A_long isEnabled = controlParams->enable;
+    const float fGamma = controlParams->gamma;
+
+    if (0 == isEnabled)
+        return AdjustGammaValue (localSrc, localDst, sizeX, sizeY, srcPitch, dstPitch, fGamma, whiteLevel);
+
+    // Allocate memory storage for store temporary results
+    const A_long singleTmpFrameSize = sizeX * sizeY;
+    constexpr A_long doubleBuf = 2 * static_cast<A_long>(sizeof(fRGB));
+    const A_long totalProcMem = CreateAlignment(singleTmpFrameSize * doubleBuf, CACHE_LINE);
+
+    void* pMemoryBlock = nullptr;
+    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+    if (nullptr != pMemoryBlock && blockId >= 0)
+    {
+        fRGB* __restrict pTmpBuf1 = static_cast<fRGB* __restrict>(pMemoryBlock);
+        fRGB* __restrict pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
+
+        AdjustGammaValueToProc (localSrc, pTmpBuf1, sizeX, sizeY, srcPitch, sizeX, fGamma, whiteLevel);
+        const fRGB* outProc = RetroResolution_Simulation (pTmpBuf1, pTmpBuf2, sizeX, sizeY, *controlParams);
+        RestoreImage (localSrc, outProc, localDst, sizeX, sizeY, srcPitch, dstPitch, whiteLevel);
+
+        pMemoryBlock = nullptr;
+        pTmpBuf1 = pTmpBuf2 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
+
+        err = PF_Err_NONE;
+    }
+    else
+        err = PF_Err_OUT_OF_MEMORY;
+
+    return err;
+}
+
 
 
 PF_Err
@@ -207,7 +262,7 @@ RetroVision_SmartRender
     PF_SmartRenderExtra		*extraP
 )
 {
-    PF_EffectWorld* input_worldP = nullptr;
+    PF_EffectWorld* input_worldP  = nullptr;
     PF_EffectWorld* output_worldP = nullptr;
     PF_Err	err = PF_Err_NONE;
 
@@ -235,34 +290,70 @@ RetroVision_SmartRender
                 {
                     case PF_PixelFormat_ARGB128:
                     {
+                        constexpr float whiteLevel = f32_value_white;
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
                         const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
                               PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
+                        err = RetroVision_SmartRenderAlgorithm
+                        (
+                            input_pixels,
+                            output_pixels,
+                            sizeX,
+                            sizeY,
+                            srcRowBytes,
+                            dstRowBytes,
+                            whiteLevel,
+                            pFilterStrParams
+                        );
                     }
                     break;
 
                     case PF_PixelFormat_ARGB64:
                     {
+                        constexpr float whiteLevel = static_cast<float>(u16_value_white);
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
                         const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
                               PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
+                        err = RetroVision_SmartRenderAlgorithm
+                        (
+                            input_pixels,
+                            output_pixels,
+                            sizeX,
+                            sizeY,
+                            srcRowBytes,
+                            dstRowBytes,
+                            whiteLevel,
+                            pFilterStrParams
+                        );
                     }
                     break;
 
                     case PF_PixelFormat_ARGB32:
                     {
+                        constexpr float whiteLevel = static_cast<float>(u8_value_white);
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
                         const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
                               PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
 
+                        err = RetroVision_SmartRenderAlgorithm
+                        (
+                            input_pixels,
+                            output_pixels,
+                            sizeX,
+                            sizeY,
+                            srcRowBytes,
+                            dstRowBytes,
+                            whiteLevel,
+                            pFilterStrParams
+                        );
                     }
                     break;
 
