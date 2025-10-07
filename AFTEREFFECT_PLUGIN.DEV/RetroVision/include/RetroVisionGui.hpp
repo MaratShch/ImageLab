@@ -11,7 +11,7 @@ constexpr int32_t guiBarHeight = 48;
 
 constexpr size_t BitmapSize = guiBarWidth * guiBarHeight;
 constexpr size_t BitmapMemSize = BitmapSize * 4;
-constexpr size_t totalBitmaps = 15;
+constexpr size_t totalBitmaps = 16;
 using Logo = std::array<uint8_t, BitmapMemSize>;
 
 HMODULE GetResourceLibHandler(void);

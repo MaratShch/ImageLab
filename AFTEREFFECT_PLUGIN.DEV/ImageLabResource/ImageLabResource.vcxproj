@@ -130,6 +130,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Image Include="vga256.bmp" />
     <Image Include="resource\Atari.bmp" />
     <Image Include="resource\cga1.bmp" />
     <Image Include="resource\cga1i.bmp" />

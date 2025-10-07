@@ -197,5 +197,8 @@
     <None Include="python\vga_palette.py">
       <Filter>python</Filter>
     </None>
+    <None Include="python\logo6.py">
+      <Filter>python</Filter>
+    </None>
   </ItemGroup>
 </Project>

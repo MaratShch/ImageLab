@@ -59,6 +59,9 @@
     <Image Include="resource\vga.bmp">
       <Filter>resource</Filter>
     </Image>
+    <Image Include="vga256.bmp">
+      <Filter>resource</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\resource.h">

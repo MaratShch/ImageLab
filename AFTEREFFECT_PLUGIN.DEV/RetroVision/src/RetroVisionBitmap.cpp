@@ -1,4 +1,5 @@
 #include <atomic>
+#include "Common.hpp"
 #include "RetroVisionGui.hpp"
 
 // BGRA order:
@@ -11,7 +12,7 @@ std::atomic<int32_t> bitmapIdx{ 0 };
 
 void SetBitmapIdx (int32_t idx)
 {
-    if (idx >= 0 && idx < 15)
+    if (idx >= 0 && idx < static_cast<A_long>(totalBitmaps))
         bitmapIdx = idx;
     return;
 }
@@ -23,7 +24,7 @@ int32_t GetBitmapIdx (void)
 }
 
 
-static std::array<Logo, totalBitmaps> bitmapsData{};
+CACHE_ALIGN static std::array<Logo, totalBitmaps> bitmapsData{};
 
 static constexpr std::array<int32_t, totalBitmaps> bitmapId =
 {
@@ -41,6 +42,7 @@ static constexpr std::array<int32_t, totalBitmaps> bitmapId =
     IDB_BITMAP_EGA_METAL,          // EGA Metal Mutant
     IDB_BITMAP_EGA_WOLFENSTEIN,    // EGA Wolfenstein 3D
     IDB_BITMAP_VGA,                // VGA
+    IDB_BITMAP_VGA256,             // VGA-256
     IDB_BITMAP_HERCULES            // HERCULES logo
 }; 
 
@@ -53,7 +55,7 @@ const Logo& getBitmap(void)
 bool LoadBitmaps (void)
 {
     bool bRet = false;
-    const int32_t bitmapsSize = static_cast<int32_t>(bitmapId.size());
+    constexpr int32_t bitmapsSize = static_cast<int32_t>(bitmapId.size());
     size_t cnt = 0;
 
     const HMODULE resourceDll = GetResourceLibHandler();
