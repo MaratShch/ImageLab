@@ -133,8 +133,7 @@ static PF_Err SmartRender(
     PF_SmartRenderExtra		*extraP
 )
 {
-    PF_Err	err = PF_Err_NONE;
-    return err;
+    return Prisma_SmartRender (in_data, out_data, extraP);
 }
 
 
@@ -145,8 +144,7 @@ PreRender(
     PF_PreRenderExtra		*extraP
 )
 {
-    PF_Err	err = PF_Err_NONE;
-    return err;
+    return Prisma_PreRender(in_data, out_data, extraP);
 }
 
 

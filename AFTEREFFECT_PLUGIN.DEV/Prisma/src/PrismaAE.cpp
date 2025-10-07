@@ -65,7 +65,7 @@ ProcessImgInAE
 	PF_OutData*		out_data,
 	PF_ParamDef*	params[],
 	PF_LayerDef*	output
-) noexcept
+)
 {
 	return (PF_WORLD_IS_DEEP(output) ?
         PrismaVideo_InAE_DeepWorld (in_data, out_data, params, output) :
