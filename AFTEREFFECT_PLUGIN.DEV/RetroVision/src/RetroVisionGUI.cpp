@@ -53,7 +53,7 @@ PF_Err DrawEvent
     (
         supplier_ref,
         48,48, 48*4,
-        kDRAWBOT_PixelLayout_32ARGB_Straight,
+        kDRAWBOT_PixelLayout_32BGRA_Straight,
         getBitmap().data(),
         &drawbotImage
     );
