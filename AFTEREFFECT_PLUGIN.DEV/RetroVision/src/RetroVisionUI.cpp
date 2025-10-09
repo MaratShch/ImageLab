@@ -105,6 +105,94 @@ VgaPalette_SetBitmap
 
 
 static PF_Err
+RetroVision_UpdateScanLines_UI
+(
+    PF_InData	*in_data,
+    PF_OutData	*out_data,
+    PF_ParamDef	*params[],
+    const AEFX_SuiteScoper<PF_ParamUtilsSuite3>& paramUtilsSuite
+)
+{
+    if (0 == params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES)]->u.bd.value)
+    {
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)]->ui_flags |= PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL)]->ui_flags |= PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS)]->ui_flags |= PF_PUI_DISABLED;
+    }
+    else
+    {
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)]->ui_flags &= ~PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL)]->ui_flags &= ~PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS)]->ui_flags &= ~PF_PUI_DISABLED;
+    }
+
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)]);
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL)]);
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS)]);
+
+    return PF_Err_NONE;
+}
+
+
+static PF_Err
+RetroVision_UpdatePhosphorGlow_UI
+(
+    PF_InData	*in_data,
+    PF_OutData	*out_data,
+    PF_ParamDef	*params[],
+    const AEFX_SuiteScoper<PF_ParamUtilsSuite3>& paramUtilsSuite
+)
+{
+    if (0 == params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW)]->u.bd.value)
+    {
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT)]->ui_flags |= PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY)]->ui_flags  |= PF_PUI_DISABLED;
+    }
+    else
+    {
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT)]->ui_flags &= ~PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY)]->ui_flags  &= ~PF_PUI_DISABLED;
+    }
+
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT)]);
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY)]);
+
+    return PF_Err_NONE;
+}
+
+
+static PF_Err
+RetroVision_UpdateAppertureGrill_UI
+(
+    PF_InData	*in_data,
+    PF_OutData	*out_data,
+    PF_ParamDef	*params[],
+    const AEFX_SuiteScoper<PF_ParamUtilsSuite3>& paramUtilsSuite
+)
+{
+    if (0 == params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL)]->u.bd.value)
+    {
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)]->ui_flags |= PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->ui_flags |= PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]->ui_flags |= PF_PUI_DISABLED;
+    }
+    else
+    {
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)]->ui_flags &= ~PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->ui_flags &= ~PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]->ui_flags &= ~PF_PUI_DISABLED;
+    }
+
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)]);
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]);
+    paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]);
+
+    return PF_Err_NONE;
+}
+
+
+
+static PF_Err
 RetroVision_UpdateControls_UI
 (
     PF_InData	*in_data,
@@ -142,7 +230,7 @@ RetroVision_UpdateControls_UI
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags                 |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
-                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags                 |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
             break;
 
@@ -154,7 +242,7 @@ RetroVision_UpdateControls_UI
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags                 |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
-                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags                 |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
             break;
 
@@ -173,16 +261,13 @@ RetroVision_UpdateControls_UI
 
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START)                   ]->ui_flags &= ~PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES)               ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)        ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL)      ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS)      ]->ui_flags &= ~PF_PUI_DISABLED;
+        RetroVision_UpdateScanLines_UI (in_data, out_data, params, paramUtilsSuite);
+
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW)           ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT)  ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY)   ]->ui_flags &= ~PF_PUI_DISABLED;
+        RetroVision_UpdatePhosphorGlow_UI(in_data, out_data, params, paramUtilsSuite);
+
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL)         ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)   ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]->ui_flags &= ~PF_PUI_DISABLED;
+        RetroVision_UpdateAppertureGrill_UI (in_data, out_data, params, paramUtilsSuite);
 
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START), params[UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY), params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)]);
@@ -193,16 +278,8 @@ RetroVision_UpdateControls_UI
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD), params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_INTERVAL)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES_DARKNESS)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_STRENGHT)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW_OPACITY)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_INTERVAL)]);
-        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_DARKNESS)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]);
     }
     else
@@ -378,6 +455,18 @@ RetroVision_UserChangedParam
 
         case UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE):
             VgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]);
+        break;
+
+        case UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES):
+            RetroVision_UpdateScanLines_UI (in_data, out_data, params, paramUtilsSuite);
+        break;
+
+        case UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_PHOSPHOR_GLOW):
+            RetroVision_UpdatePhosphorGlow_UI (in_data, out_data, params, paramUtilsSuite);
+        break;
+
+        case UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL):
+            RetroVision_UpdateAppertureGrill_UI (in_data, out_data, params, paramUtilsSuite);
         break;
 
         default:
