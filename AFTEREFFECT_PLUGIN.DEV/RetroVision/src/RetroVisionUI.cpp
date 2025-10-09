@@ -3,6 +3,107 @@
 #include "RetroVisionEnum.hpp"
 #include "RetroVisionGui.hpp"
 
+
+void
+CgaPalette_SetBitmap
+(
+    const PF_ParamDef* cgaPalette,
+    const PF_ParamDef* intencity
+)
+{
+    const PaletteCGA palette = static_cast<PaletteCGA>(cgaPalette->u.pd.value - 1);
+    switch (palette)
+    {
+        case PaletteCGA::eRETRO_PALETTE_CGA1:
+            SetBitmapIdx(0 == intencity->u.bd.value ? 1 : 2);
+        break;
+
+        case PaletteCGA::eRETRO_PALETTE_CGA2:
+            SetBitmapIdx(0 == intencity->u.bd.value ? 3 : 4);
+        break;
+
+        default:
+        /* nothing */
+        break;
+    }
+    return;
+}
+
+
+void
+EgaPalette_SetBitmap
+(
+    const PF_ParamDef* egaPalette
+)
+{
+    const PaletteEGA palette = static_cast<PaletteEGA>(egaPalette->u.pd.value - 1);
+    switch (palette)
+    {
+        case PaletteEGA::eRETRO_PALETTE_EGA_STANDARD:
+            SetBitmapIdx(5);
+        break;
+
+        case PaletteEGA::eRETRO_PALETTE_EGA_KING_QUESTS:
+            SetBitmapIdx(6);
+        break;
+
+        case PaletteEGA::eRETRO_PALETTE_EGA_KYRANDIA:
+            SetBitmapIdx(7);
+        break;
+
+        case PaletteEGA::eRETRO_PALETTE_EGA_THEXDER:
+            SetBitmapIdx(8);
+        break;
+
+        case PaletteEGA::eRETRO_PALETTE_EGA_DUNE:
+            SetBitmapIdx(9);
+        break;
+
+        case PaletteEGA::eRETRO_PALETTE_EGA_DOOM:
+            SetBitmapIdx(10);
+        break;
+
+        case PaletteEGA::eRETRO_PALETTE_EGA_METAL_MUTANT:
+            SetBitmapIdx(11);
+        break;
+
+        case PaletteEGA::eRETRO_PALETTE_EGA_WOLFENSTEIN:
+            SetBitmapIdx(12);
+        break;
+
+        default:
+        /* nothing */
+        break;
+    }
+    return;
+}
+
+
+void
+VgaPalette_SetBitmap
+(
+    const PF_ParamDef* vgaPalette
+)
+{
+    const PaletteVGA palette = static_cast<PaletteVGA>(vgaPalette->u.pd.value - 1);
+    switch (palette)
+    {
+        case PaletteVGA::eRETRO_PALETTE_VGA_16_BITS:
+            SetBitmapIdx(13);
+        break;
+
+        case PaletteVGA::eRETRO_PALETTE_VGA_256_BITS:
+            SetBitmapIdx(14);
+        break;
+
+        default:
+        /* nothing */
+        break;
+    }
+    return;
+}
+
+
 static PF_Err
 RetroVision_UpdateControls_UI
 (
@@ -15,12 +116,57 @@ RetroVision_UpdateControls_UI
 {
     if (true == bAlgoActive)
     {
-        // Algorithm is activates
-        SetBitmapIdx(1);
-        params[UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START)                    ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)                               ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)                           ]->ui_flags &= ~PF_PUI_DISABLED;
-        params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)                    ]->ui_flags &= ~PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_MONITOR_TYPE_START)]->ui_flags &= ~PF_PUI_DISABLED;
+        params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)]->ui_flags            &= ~PF_PUI_DISABLED;
+
+        const RetroMonitor monitor = static_cast<RetroMonitor>(params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)]->u.pd.value - 1);
+        switch (monitor)
+        {
+            case RetroMonitor::eRETRO_BITMAP_CGA:
+                CgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)], params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]);
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags        &= ~PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags &= ~PF_PUI_DISABLED;
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
+                break;
+
+            case RetroMonitor::eRETRO_BITMAP_EGA:
+                EgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]);
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags &= ~PF_PUI_DISABLED;
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags                 |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
+            break;
+
+            case RetroMonitor::eRETRO_BITMAP_VGA:
+                VgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]);
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags &= ~PF_PUI_DISABLED;
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags                 |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
+            break;
+
+            case RetroMonitor::eRETRO_BITMAP_HERCULES:
+                SetBitmapIdx(15);
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags        |= PF_PUI_DISABLED;
+
+                params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags &= ~PF_PUI_DISABLED;
+            break;
+        }
+
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START)                   ]->ui_flags &= ~PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES)               ]->ui_flags &= ~PF_PUI_DISABLED;
         params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)        ]->ui_flags &= ~PF_PUI_DISABLED;
@@ -38,6 +184,8 @@ RetroVision_UpdateControls_UI
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY), params[UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE), params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT), params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]);
+        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE), params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]);
+        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE), params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)]);
@@ -105,6 +253,7 @@ RetroVision_UpdateControls_UI
 }
 
 
+
 static PF_Err
 RetroVision_UpdateMonitor_UI
 (
@@ -119,7 +268,7 @@ RetroVision_UpdateMonitor_UI
     {
         case RetroMonitor::eRETRO_BITMAP_CGA:
         {
-            SetBitmapIdx(1);
+            CgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)], params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]);
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)                       ]->ui_flags &= ~PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)                ]->ui_flags &= ~PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)                       ]->ui_flags |= PF_PUI_DISABLED;
@@ -131,6 +280,7 @@ RetroVision_UpdateMonitor_UI
 
         case RetroMonitor::eRETRO_BITMAP_EGA:
         {
+            EgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]);
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)                       ]->ui_flags |= PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)                ]->ui_flags |= PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)                       ]->ui_flags &= ~PF_PUI_DISABLED;
@@ -142,6 +292,7 @@ RetroVision_UpdateMonitor_UI
 
         case RetroMonitor::eRETRO_BITMAP_VGA:
         {
+            VgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]);
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)                       ]->ui_flags |= PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)                ]->ui_flags |= PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)                       ]->ui_flags |= PF_PUI_DISABLED;
@@ -153,6 +304,7 @@ RetroVision_UpdateMonitor_UI
 
         case RetroMonitor::eRETRO_BITMAP_HERCULES:
         {
+            SetBitmapIdx(15);
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)                       ]->ui_flags |= PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)                ]->ui_flags |= PF_PUI_DISABLED;
             params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)                       ]->ui_flags |= PF_PUI_DISABLED;
@@ -164,7 +316,6 @@ RetroVision_UpdateMonitor_UI
 
         default:
         break;
-
     }
 
     paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE), params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]);
@@ -209,15 +360,19 @@ RetroVision_UserChangedParam
         break;
 
         case UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE):
+            CgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)], params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]);
         break;
 
         case UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT):
+            CgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)], params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]);
         break;
 
         case UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE):
+            EgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]);
         break;
 
         case UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE):
+            VgaPalette_SetBitmap (params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]);
         break;
 
         default:
