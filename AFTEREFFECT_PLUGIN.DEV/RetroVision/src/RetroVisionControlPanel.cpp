@@ -51,27 +51,16 @@ SetupControlElements
     def.ui_flags = ui_disabled_flags;
     def.ui_width = guiBarWidth;
     def.ui_height = guiBarHeight;
-    if (PremierId != in_data->appl_id)
-    {
-        PF_ADD_COLOR(
-            controlItemName[3],
-            0,
-            0,
-            0,
-            UnderlyingType(RetroVision::eRETRO_VISION_GUI));
-    }
-    else
-    {
-        PF_ADD_ARBITRARY2(
-            controlItemName[3],
-            guiBarWidth,
-            guiBarHeight,
-            0,
-            PF_PUI_CONTROL,
-            0,
-            UnderlyingType(RetroVision::eRETRO_VISION_GUI),
-            0);
-    }
+    PF_ADD_ARBITRARY2(
+        controlItemName[3],
+        guiBarWidth,
+        guiBarHeight,
+        0,
+        PF_PUI_CONTROL,
+        0,
+        UnderlyingType(RetroVision::eRETRO_VISION_GUI),
+        0);
+ 
     if (PF_Err_NONE == err)
     {
         PF_CustomUIInfo	ui;
