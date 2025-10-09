@@ -130,6 +130,7 @@ RetroVision_UpdateControls_UI
 
                 params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags                 |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
                 break;
 
@@ -141,6 +142,7 @@ RetroVision_UpdateControls_UI
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags                 |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
             break;
 
@@ -152,6 +154,7 @@ RetroVision_UpdateControls_UI
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]->ui_flags                 |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags                        |= PF_PUI_DISABLED;
+                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags |= PF_PUI_DISABLED;
             break;
 
@@ -163,6 +166,7 @@ RetroVision_UpdateControls_UI
                 params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]->ui_flags        |= PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]->ui_flags        |= PF_PUI_DISABLED;
 
+                params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]->ui_flags                 &= ~PF_PUI_DISABLED;
                 params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR)]->ui_flags &= ~PF_PUI_DISABLED;
             break;
         }
@@ -186,6 +190,7 @@ RetroVision_UpdateControls_UI
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT), params[UnderlyingType(RetroVision::eRETRO_VISION_CGA_INTTENCITY_BIT)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE), params[UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE), params[UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE)]);
+        paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD), params[UnderlyingType(RetroVision::eRETRO_VISION_HERCULES_THRESHOLD)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_START)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SCANLINES)]);
         paramUtilsSuite->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES), params[UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_SMOOTH_SCANLINES)]);
