@@ -234,6 +234,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\logo4.py" />
     <None Include="python\logo5.py" />
     <None Include="python\logo6.py" />
+    <None Include="python\logo7.py" />
+    <None Include="python\logo8.py" />
     <None Include="python\vga_palette.py" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

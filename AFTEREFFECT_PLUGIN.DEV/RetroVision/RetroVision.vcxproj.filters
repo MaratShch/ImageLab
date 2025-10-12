@@ -200,5 +200,11 @@
     <None Include="python\logo6.py">
       <Filter>python</Filter>
     </None>
+    <None Include="python\logo7.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\logo8.py">
+      <Filter>python</Filter>
+    </None>
   </ItemGroup>
 </Project>
