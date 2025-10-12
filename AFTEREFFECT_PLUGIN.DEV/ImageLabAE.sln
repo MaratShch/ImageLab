@@ -132,6 +132,10 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageStabilizer", "ImageStabilizer\ImageStabilizer.vcxproj", "{6EBE22AD-D563-474F-B507-9EDD20F97668}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Prisma", "Prisma\Prisma.vcxproj", "{159CB660-4AAB-406C-89E1-987D38A54078}"
+	ProjectSection(ProjectDependencies) = postProject
+		{AC6BC024-920B-4B4B-8F49-1B2E3CDD0B7B} = {AC6BC024-920B-4B4B-8F49-1B2E3CDD0B7B}
+		{D266F837-A6FD-48CD-820D-578816B7AC3D} = {D266F837-A6FD-48CD-820D-578816B7AC3D}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LrPreset", "LrPreset\LrPreset.vcxproj", "{D93678BC-3016-412E-A7C3-B71A712FC8EF}"
 EndProject

@@ -5,7 +5,7 @@
 
 
 constexpr char strName[] = "Prisma";
-constexpr char strCopyright[] = "\n2019-2023. ImageLab2 Copyright(c).\rPrisma plugin.";
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rPrisma plugin.";
 constexpr int PrismaVideo_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int PrismaVideo_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int PrismaVideo_VersionSub = 0;

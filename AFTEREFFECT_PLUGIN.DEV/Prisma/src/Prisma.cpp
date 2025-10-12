@@ -1,7 +1,7 @@
 #include "Prisma.hpp"
 #include "PrSDKAESupport.h"
-
-
+#include "ImageLabMemInterface.hpp"
+#include "ImageLabVulkanLoader.hpp"
 
 static PF_Err
 About(
@@ -29,18 +29,29 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    // Load Vulkan algorithms library
+    if (false == LoadVulkanAlgoDll(in_data))
+        return err;
+
+    // Load memory interface for alloc temporary buffers
+    if (false == LoadMemoryInterfaceProvider(in_data))
+    {
+        UnloadVulkanAlgoDll ();
+        return err;
+    }
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
+		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
 	constexpr PF_OutFlags out_flags2 =
 		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
 		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
@@ -73,6 +84,8 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
+    err = PF_Err_NONE;
+
 	return err;
 }
 
@@ -84,8 +97,13 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+    // Unload memory interface
+    UnloadMemoryInterfaceProvider();
+
+    // Unload Vuokan algorithms library 
+    UnloadVulkanAlgoDll();
+
+    return PF_Err_NONE;
 }
 
 

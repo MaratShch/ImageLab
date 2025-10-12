@@ -146,6 +146,8 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\ImageLabVulkanLoader.hpp" />
     <ClInclude Include="include\Prisma.hpp" />
     <ClInclude Include="include\PrismaEnums.hpp" />
   </ItemGroup>
@@ -171,6 +173,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
+    <ClCompile Include="src\ImageLabVulkanLoader.cpp" />
     <ClCompile Include="src\Prisma.cpp" />
     <ClCompile Include="src\PrismaAE.cpp" />
     <ClCompile Include="src\PrismaPR.cpp" />
