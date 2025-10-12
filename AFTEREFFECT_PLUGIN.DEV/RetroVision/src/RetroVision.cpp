@@ -231,9 +231,6 @@ HandleEvent
             err = DrawEvent(in_data, out_data, params, output, extra);
         break;
 
-        //		case PF_Event_ADJUST_CURSOR:
-        //		break;
-
         default:
         break;
     }
