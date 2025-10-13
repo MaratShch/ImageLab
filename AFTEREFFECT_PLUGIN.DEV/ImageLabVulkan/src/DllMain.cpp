@@ -1,4 +1,5 @@
 #include <windows.h>
+#include "ImageLabVulkanHandler.hpp"
 
 
 BOOL WINAPI DllMain
@@ -8,11 +9,16 @@ BOOL WINAPI DllMain
     LPVOID lpvReserved   // reserved
 )
 {
+    BOOL loadResult = TRUE;
+    (void)lpvReserved;
+
     // Perform actions based on the reason for calling.
     switch (fdwReason)
     {
         case DLL_PROCESS_ATTACH:
-            DisableThreadLibraryCalls(hinstDLL);
+            ::DisableThreadLibraryCalls(hinstDLL);
+            if (false == InitVulkanFramework())
+                loadResult = FALSE;
         break;
 
         case DLL_THREAD_ATTACH:
@@ -22,8 +28,9 @@ BOOL WINAPI DllMain
         break;
 
         case DLL_PROCESS_DETACH:
+            CleanupVulkanFramework();
         break;
     } // switch (fdwReason)
 
-    return TRUE;
+    return loadResult;
 }

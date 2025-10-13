@@ -16,6 +16,9 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{08d4419f-298a-4dbb-a2d1-9ca02222b829}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include_internal">
+      <UniqueIdentifier>{1c4146ac-3f1b-446f-b768-82b620495fd6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
@@ -78,12 +81,18 @@
     <ClInclude Include="include\ImageLabVulkan.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include_internal\ImageLabVulkanHandler.hpp">
+      <Filter>include_internal</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\VulkanDevice.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\VulkanInstance.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

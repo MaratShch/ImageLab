@@ -15,7 +15,7 @@ bool LoadMemoryInterfaceProvider (PF_InData* in_data)
     PF_Err extErr = PF_GET_PLATFORM_DATA(PF_PlatData_EXE_FILE_PATH_DEPRECATED, &pluginFullPath);
     bool err = false;
 
-    if (PF_Err_NONE == extErr && 0 != pluginFullPath[0])
+    if (PF_Err_NONE == extErr && '\0' != pluginFullPath[0])
     {
         const std::string dllName{ "\\ImageLabUtils.dll" };
         const std::string aexPath{ pluginFullPath };
