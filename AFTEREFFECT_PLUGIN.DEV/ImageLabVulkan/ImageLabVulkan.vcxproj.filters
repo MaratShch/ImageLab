@@ -95,5 +95,8 @@
     <ClCompile Include="src\VulkanInstance.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabVulkan.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

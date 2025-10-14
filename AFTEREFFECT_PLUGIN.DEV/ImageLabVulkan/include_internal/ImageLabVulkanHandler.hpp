@@ -12,4 +12,19 @@ bool IsVulkanAvailable(void);
 
 void fillDeviceVector (const std::vector<VkPhysicalDevice>&);
 
+struct ILVulkanHandler
+{
+    size_t   strSizeof;
+    uint32_t hndlVersion;
+    uint32_t deviceNumbers;
+    void*    vkDeviceArray;
+    VkInstance vkInstance;
+    VkPhysicalDevice vkPhysicalDevice;
+    VkDevice vkDevice;
+    VkQueue  vkQueue;
+};
+
+constexpr size_t ILVulkanHandlerSize = sizeof(ILVulkanHandler);
+constexpr uint32_t ILVulkanHandlerVersion = 1u;
+
 #endif // __IMAGE_LAB2_VULKAN_INTERNAL_INTERFACE__
