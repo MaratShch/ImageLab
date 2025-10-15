@@ -6,9 +6,9 @@ DLL_API_EXPORT ILVulkanHndl AllocVulkanNode (uint32_t core, uint32_t memory, uin
     ILVulkanHandler* vkHndl = new ILVulkanHandler;
     if (nullptr != vkHndl)
     {
-        vkHndl->strSizeof = ILVulkanHandlerSize;
+        vkHndl->strSizeof   = ILVulkanHandlerSize;
         vkHndl->hndlVersion = ILVulkanHandlerVersion;
-        vkHndl->vkInstance = 
+        vkHndl->vkInstance  = GetVulkanInstance();
     }
 
     return vkHndl;
@@ -24,6 +24,9 @@ DLL_API_EXPORT void FreeVulkanNode (ILVulkanHndl vkHndl)
         {
 
         }
+
+        delete vkHndl;
+        vkHndl = nullptr;
     }
     return;
 }

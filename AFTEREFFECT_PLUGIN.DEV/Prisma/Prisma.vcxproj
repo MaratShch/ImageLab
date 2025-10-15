@@ -150,6 +150,7 @@
     <ClInclude Include="include\ImageLabVulkanLoader.hpp" />
     <ClInclude Include="include\Prisma.hpp" />
     <ClInclude Include="include\PrismaEnums.hpp" />
+    <ClInclude Include="include\PrismaVulkan.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Prisma.r">

@@ -2,9 +2,11 @@
 #include <memory>
 #include <atomic>
 #include "ImageLabVulkanLoader.hpp"
+#include "PrismaVulkan.hpp"
 #include "CommonAdobeAE.hpp"
 
 static HMODULE hLib = nullptr;
+static PrismaAlgoVulkanHandler PrismaAlgoHandler{};
 
 bool LoadVulkanAlgoDll (PF_InData* in_data)
 {
@@ -24,6 +26,9 @@ bool LoadVulkanAlgoDll (PF_InData* in_data)
         if (NULL != hLib)
         {
             ::DisableThreadLibraryCalls (hLib);
+
+            PrismaAlgoHandler.allocNode = reinterpret_cast<VulkanAllocNode1>(GetProcAddress(hLib, __TEXT("AllocVulkanNode")));
+            PrismaAlgoHandler.freeNode  = reinterpret_cast<VulkanFreeNode1> (GetProcAddress(hLib, __TEXT("FreeVulkanNode")));
             err = true;
         }
     }
@@ -37,7 +42,20 @@ void UnloadVulkanAlgoDll (void)
     if (nullptr != hLib)
     {
         ::FreeLibrary (hLib);
+        memset(&PrismaAlgoHandler, 0, sizeof(PrismaAlgoHandler));
         hLib = nullptr;
     }
+    return;
+}
+
+void* VulkanAllocNode (uint32_t proc, uint32_t mem, uint32_t reserved)
+{
+    return (nullptr != hLib && nullptr != PrismaAlgoHandler.allocNode) ? PrismaAlgoHandler.allocNode(proc, mem, reserved) : nullptr;
+}
+
+void VulkanFreeNode(void* pNodeHndl)
+{
+    if (nullptr != pNodeHndl && nullptr != hLib && nullptr != PrismaAlgoHandler.freeNode)
+        PrismaAlgoHandler.freeNode(pNodeHndl);
     return;
 }

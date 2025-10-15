@@ -7,7 +7,7 @@
 
 bool InitVulkanFramework (void);
 void CleanupVulkanFramework (void);
-VkInstance getVulkanInstance (void);
+VkInstance GetVulkanInstance (void);
 bool IsVulkanAvailable(void);
 
 void fillDeviceVector (const std::vector<VkPhysicalDevice>&);

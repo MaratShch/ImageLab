@@ -1,7 +1,10 @@
 #include "Prisma.hpp"
+#include "PrismaVulkan.hpp"
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
 #include "ImageLabVulkanLoader.hpp"
+
+static void* vkAlgoHandler{ nullptr };
 
 static PF_Err
 About(
@@ -38,6 +41,7 @@ GlobalSetup(
     // Load memory interface for alloc temporary buffers
     if (false == LoadMemoryInterfaceProvider(in_data))
     {
+        vkAlgoHandler = nullptr;
         UnloadVulkanAlgoDll ();
         return err;
     }
@@ -84,7 +88,8 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-    err = PF_Err_NONE;
+    vkAlgoHandler = VulkanAllocNode (0, 0, 0);
+    err = ((nullptr != vkAlgoHandler) ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
 	return err;
 }
@@ -97,6 +102,13 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    // Free Vulkan Algorithm Handler 
+    if (nullptr != vkAlgoHandler)
+    {
+        VulkanFreeNode(vkAlgoHandler);
+        vkAlgoHandler = nullptr;
+    }
+
     // Unload memory interface
     UnloadMemoryInterfaceProvider();
 

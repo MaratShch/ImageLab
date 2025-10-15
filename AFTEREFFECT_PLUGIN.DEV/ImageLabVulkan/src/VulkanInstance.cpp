@@ -1,12 +1,13 @@
+#include <atomic>
 #include "ImageLabVulkanHandler.hpp"
 
 constexpr uint32_t vulkanFrameworkVersion = VK_HEADER_VERSION_COMPLETE;
 
 static VkInstance gImageLabVkInstance    { VK_NULL_HANDLE };
-static bool g_VulkanAvailable = false;
+std::atomic<bool> g_VulkanAvailable      { false };
 
 
-VkInstance getVulkanInstance (void)
+VkInstance GetVulkanInstance (void)
 {
     return gImageLabVkInstance;
 }
