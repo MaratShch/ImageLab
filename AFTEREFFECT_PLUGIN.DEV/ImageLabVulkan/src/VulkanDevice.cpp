@@ -1,5 +1,6 @@
 #include <array>
 #include <atomic>
+#include <mutex>
 #include <vector>
 #include "ImageLabVulkanHandler.hpp"
 #include "VulkanDevice.hpp"
@@ -10,6 +11,7 @@ std::vector<VkPhysicalDevice> vulkanDevices;
 std::array<std::atomic<int32_t>, maxGpuSupported> g_DeviceRefCount{};
 std::array<std::vector<VkExtensionProperties>, maxGpuSupported> devExts{};
 std::array<VkPhysicalDeviceProperties, maxGpuSupported> devProps{};
+
 
 constexpr int32_t VulkanDevicesEnumSize = 7;
 constexpr VulkanDeviceEnumeration dev[VulkanDevicesEnumSize]
@@ -65,5 +67,30 @@ void fillDeviceVector(const std::vector<VkPhysicalDevice>& inDev)
     }
 
     return;
+}
+
+
+uint32_t setDeviceNodeIdx (uint32_t policyCore, uint32_t policyMem, uint32_t reserved)
+{
+    uint32_t devIdx;
+
+    if (1u == vulkanDevices.size()) // if only one GPU found - return this GPU index
+        devIdx = 0u;
+    else // search best GPU by policy (will be implemented later)
+        devIdx = 0u;
+
+    IncrementDevice (devIdx);
+    return devIdx;
+}
+
+void resetDeviceNodeIdx (uint32_t devIdx)
+{
+    DecrementDevice (devIdx);
+    return;
+}
+
+const std::vector<VkPhysicalDevice>& getDeviceArray(void)
+{
+    return vulkanDevices;
 }
 

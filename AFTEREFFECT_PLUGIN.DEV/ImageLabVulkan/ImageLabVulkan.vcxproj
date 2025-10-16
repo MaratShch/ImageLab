@@ -159,6 +159,7 @@
     <ClInclude Include="include\ImageLabVulkan.hpp" />
     <ClInclude Include="include\VulkanDevice.hpp" />
     <ClInclude Include="include_internal\ImageLabVulkanHandler.hpp" />
+    <ClInclude Include="include_internal\VulkanDevicePrivate.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />

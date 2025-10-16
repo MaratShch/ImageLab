@@ -88,7 +88,7 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-    vkAlgoHandler = VulkanAllocNode (0, 0, 0);
+    vkAlgoHandler = createVulkanContext (0, 0, 0);
     err = ((nullptr != vkAlgoHandler) ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
 
 	return err;
@@ -105,7 +105,7 @@ GlobalSetdown(
     // Free Vulkan Algorithm Handler 
     if (nullptr != vkAlgoHandler)
     {
-        VulkanFreeNode(vkAlgoHandler);
+        freeVulkanContext (vkAlgoHandler);
         vkAlgoHandler = nullptr;
     }
 
@@ -140,7 +140,7 @@ Render(
 	PF_LayerDef		*output)
 {
 #ifdef _DEBUG
-    const uint32_t version = GetVulkanVersionNumber();
+    const uint32_t version = getVulkanVersionNumber();
 #endif
 	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }

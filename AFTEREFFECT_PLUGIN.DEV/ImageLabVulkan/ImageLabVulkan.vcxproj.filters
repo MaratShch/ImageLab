@@ -84,6 +84,9 @@
     <ClInclude Include="include_internal\ImageLabVulkanHandler.hpp">
       <Filter>include_internal</Filter>
     </ClInclude>
+    <ClInclude Include="include_internal\VulkanDevicePrivate.hpp">
+      <Filter>include_internal</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">

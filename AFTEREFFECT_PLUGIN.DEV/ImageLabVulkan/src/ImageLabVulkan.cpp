@@ -1,20 +1,35 @@
 #include "ImageLabVulkan.hpp"
 #include "ImageLabVulkanHandler.hpp"
+#include "VulkanDevicePrivate.hpp"
 
-DLL_API_EXPORT ILVulkanHndl AllocVulkanNode (uint32_t core, uint32_t memory, uint32_t reserved)
+/* 
+core policy:
+    0 - any
+    1 - low performance allowed
+    2 - medium performance allowed
+    3 - high performance only
+
+memory policy:
+    0 - any
+    <N> - number of GB memory avaialble for GPU
+*/
+
+DLL_API_EXPORT ILVulkanHndl CreateVulkanContext (uint32_t core, uint32_t memory, uint32_t reserved)
 {
     ILVulkanHandler* vkHndl = new ILVulkanHandler;
     if (nullptr != vkHndl)
     {
-        vkHndl->strSizeof   = ILVulkanHandlerSize;
-        vkHndl->hndlVersion = ILVulkanHandlerVersion;
-        vkHndl->vkInstance  = GetVulkanInstance();
+        vkHndl->strSizeof    = ILVulkanHandlerSize;
+        vkHndl->hndlVersion  = ILVulkanHandlerVersion;
+        vkHndl->deviceNumber = setDeviceNodeIdx (core, memory, reserved);
+        vkHndl->vkInstance = GetVulkanInstance();
+        vkHndl->vkPhysicalDevice = getDeviceArray()[vkHndl->deviceNumber];
     }
 
     return vkHndl;
 }
 
-DLL_API_EXPORT void FreeVulkanNode (ILVulkanHndl vkHndl)
+DLL_API_EXPORT void FreeVulkanContext (ILVulkanHndl vkHndl)
 {
     if (nullptr != vkHndl)
     {
@@ -23,11 +38,11 @@ DLL_API_EXPORT void FreeVulkanNode (ILVulkanHndl vkHndl)
         if (sizeof(*hndlStrP) == hndlStrP->strSizeof && ILVulkanHandlerVersion == hndlStrP->hndlVersion)
         {
 
-            // cleanup before memory free
-            memset(hndlStrP, 0, sizeof(*hndlStrP));
+            resetDeviceNodeIdx(hndlStrP->deviceNumber);
         }
 
-        delete vkHndl;
+        delete hndlStrP;
+        hndlStrP = nullptr;
         vkHndl = nullptr;
     }
     return;
