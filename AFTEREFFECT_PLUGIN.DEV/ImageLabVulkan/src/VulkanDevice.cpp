@@ -1,14 +1,15 @@
+#include <array>
 #include <atomic>
 #include <vector>
 #include "ImageLabVulkanHandler.hpp"
 #include "VulkanDevice.hpp"
 
-std::atomic<uint32_t> vulkanRefCount{};
+constexpr size_t maxGpuSupported = 16u;
 std::vector<VkPhysicalDevice> vulkanDevices;
 
-static VkPhysicalDevice g_PhysicalDevice { VK_NULL_HANDLE };
-static VkDevice g_Device                 { VK_NULL_HANDLE };
-
+std::array<std::atomic<int32_t>, maxGpuSupported> g_DeviceRefCount{};
+std::array<std::vector<VkExtensionProperties>, maxGpuSupported> devExts{};
+std::array<VkPhysicalDeviceProperties, maxGpuSupported> devProps{};
 
 constexpr int32_t VulkanDevicesEnumSize = 7;
 constexpr VulkanDeviceEnumeration dev[VulkanDevicesEnumSize]
@@ -22,6 +23,22 @@ constexpr VulkanDeviceEnumeration dev[VulkanDevicesEnumSize]
     {0x15AD, "VMWare"}      // Virtual GPU support, often with Vulkan 1.1-1.3 passthrough.
 };
 
+void IncrementDevice (size_t idx)
+{
+    g_DeviceRefCount[idx].fetch_add(1, std::memory_order_relaxed);
+}
+
+void DecrementDevice (size_t idx)
+{
+    g_DeviceRefCount[idx].fetch_sub(1, std::memory_order_relaxed);
+}
+
+int32_t GetRefCount (size_t idx)
+{
+    return g_DeviceRefCount[idx].load(std::memory_order_relaxed);
+}
+
+
 uint32_t GetVulkanVersion(void)
 {
     uint32_t version = 0u;
@@ -29,9 +46,24 @@ uint32_t GetVulkanVersion(void)
     return version;
 }
 
-void fillDeviceVector(const std::vector<VkPhysicalDevice>& in)
+void fillDeviceVector(const std::vector<VkPhysicalDevice>& inDev)
 {
-    vulkanDevices.resize(in.size());
-    std::copy(in.begin(), in.end(), vulkanDevices.begin());
+    uint32_t idx = 0u;
+
+    for (auto& dev : inDev)
+    {
+        vulkanDevices.push_back(dev);
+        vkGetPhysicalDeviceProperties (dev, &devProps[idx]);
+
+        uint32_t propertiesCount = 0u;
+        vkEnumerateDeviceExtensionProperties (dev, nullptr, &propertiesCount, nullptr);
+        
+        devExts[idx].resize (propertiesCount);
+        vkEnumerateDeviceExtensionProperties (dev, nullptr, &propertiesCount, devExts[idx].data());
+
+        idx++;
+    }
+
     return;
 }
+

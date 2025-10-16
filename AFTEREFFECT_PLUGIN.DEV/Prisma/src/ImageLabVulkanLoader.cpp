@@ -27,6 +27,7 @@ bool LoadVulkanAlgoDll (PF_InData* in_data)
         {
             ::DisableThreadLibraryCalls (hLib);
 
+            PrismaAlgoHandler.getVulkanVersion = reinterpret_cast<GetVulkanVersion1>(GetProcAddress(hLib, __TEXT("GetVulkanVersion")));
             PrismaAlgoHandler.allocNode = reinterpret_cast<VulkanAllocNode1>(GetProcAddress(hLib, __TEXT("AllocVulkanNode")));
             PrismaAlgoHandler.freeNode  = reinterpret_cast<VulkanFreeNode1> (GetProcAddress(hLib, __TEXT("FreeVulkanNode")));
             err = true;
@@ -48,12 +49,18 @@ void UnloadVulkanAlgoDll (void)
     return;
 }
 
+uint32_t GetVulkanVersionNumber(void)
+{
+    return (nullptr != hLib && nullptr != PrismaAlgoHandler.allocNode) ? PrismaAlgoHandler.getVulkanVersion() : 0xFFFFFFFFu;
+}
+
+
 void* VulkanAllocNode (uint32_t proc, uint32_t mem, uint32_t reserved)
 {
     return (nullptr != hLib && nullptr != PrismaAlgoHandler.allocNode) ? PrismaAlgoHandler.allocNode(proc, mem, reserved) : nullptr;
 }
 
-void VulkanFreeNode(void* pNodeHndl)
+void VulkanFreeNode (void* pNodeHndl)
 {
     if (nullptr != pNodeHndl && nullptr != hLib && nullptr != PrismaAlgoHandler.freeNode)
         PrismaAlgoHandler.freeNode(pNodeHndl);

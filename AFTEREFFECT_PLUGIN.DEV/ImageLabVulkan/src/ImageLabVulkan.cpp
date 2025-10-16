@@ -23,6 +23,8 @@ DLL_API_EXPORT void FreeVulkanNode (ILVulkanHndl vkHndl)
         if (sizeof(*hndlStrP) == hndlStrP->strSizeof && ILVulkanHandlerVersion == hndlStrP->hndlVersion)
         {
 
+            // cleanup before memory free
+            memset(hndlStrP, 0, sizeof(*hndlStrP));
         }
 
         delete vkHndl;

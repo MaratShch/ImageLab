@@ -139,6 +139,9 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+#ifdef _DEBUG
+    const uint32_t version = GetVulkanVersionNumber();
+#endif
 	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
