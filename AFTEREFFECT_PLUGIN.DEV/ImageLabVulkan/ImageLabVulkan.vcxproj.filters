@@ -75,30 +75,9 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\VulkanDevice.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ImageLabVulkan.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include_internal\ImageLabVulkanHandler.hpp">
-      <Filter>include_internal</Filter>
-    </ClInclude>
-    <ClInclude Include="include_internal\VulkanDevicePrivate.hpp">
-      <Filter>include_internal</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\VulkanDevice.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\VulkanInstance.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabVulkan.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

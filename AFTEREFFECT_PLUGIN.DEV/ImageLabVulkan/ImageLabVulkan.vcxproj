@@ -156,16 +156,9 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\ImageLabVulkan.hpp" />
-    <ClInclude Include="include\VulkanDevice.hpp" />
-    <ClInclude Include="include_internal\ImageLabVulkanHandler.hpp" />
-    <ClInclude Include="include_internal\VulkanDevicePrivate.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
-    <ClCompile Include="src\ImageLabVulkan.cpp" />
-    <ClCompile Include="src\VulkanDevice.cpp" />
-    <ClCompile Include="src\VulkanInstance.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

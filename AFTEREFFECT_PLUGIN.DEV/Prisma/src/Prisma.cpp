@@ -88,8 +88,14 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
-    vkAlgoHandler = createVulkanContext (0, 0, 0);
-    err = ((nullptr != vkAlgoHandler) ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
+    if (nullptr == (vkAlgoHandler = createVulkanContext(0, 0, 0)))
+    {
+        UnloadVulkanAlgoDll();
+        UnloadMemoryInterfaceProvider();
+        err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+    }
+    else
+        err = PF_Err_NONE;
 
 	return err;
 }
@@ -112,7 +118,7 @@ GlobalSetdown(
     // Unload memory interface
     UnloadMemoryInterfaceProvider();
 
-    // Unload Vuokan algorithms library 
+    // Unload Vulkan Algorithms Library 
     UnloadVulkanAlgoDll();
 
     return PF_Err_NONE;
