@@ -27,9 +27,9 @@ bool LoadVulkanAlgoDll (PF_InData* in_data)
         {
             ::DisableThreadLibraryCalls (hLib);
 
-            PrismaAlgoHandler.getVulkanVersion      = reinterpret_cast<GetVulkanVersion1>(GetProcAddress(hLib, __TEXT("GetVulkanVersion")));
+            PrismaAlgoHandler.getVulkanVersion      = reinterpret_cast<GetVulkanVersion1>   (GetProcAddress(hLib, __TEXT("GetVulkanVersion")));
             PrismaAlgoHandler.createVulkanContext   = reinterpret_cast<CreateVulkanContext1>(GetProcAddress(hLib, __TEXT("CreateVulkanContext")));
-            PrismaAlgoHandler.freeVulkanContext     = reinterpret_cast<FreeVulkanContext1> (GetProcAddress(hLib, __TEXT("FreeVulkanContext")));
+            PrismaAlgoHandler.freeVulkanContext     = reinterpret_cast<FreeVulkanContext1>  (GetProcAddress(hLib, __TEXT("FreeVulkanContext")));
             err = true;
         }
     }

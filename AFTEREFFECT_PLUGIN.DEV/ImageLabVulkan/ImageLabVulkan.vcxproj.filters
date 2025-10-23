@@ -75,9 +75,15 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include_internal\VulkanBinding.hpp">
+      <Filter>include_internal</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\VulkanInstance.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

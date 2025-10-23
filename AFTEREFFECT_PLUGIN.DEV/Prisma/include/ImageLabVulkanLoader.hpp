@@ -9,8 +9,8 @@ void UnloadVulkanAlgoDll (void);
 uint32_t getVulkanVersionNumber (void);
 
 typedef void*    (WINAPI *CreateVulkanContext1)  (uint32_t, uint32_t, uint32_t);
-typedef void     (WINAPI *FreeVulkanContext1)   (void*);
-typedef uint32_t (WINAPI *GetVulkanVersion1) (void);
+typedef void     (WINAPI *FreeVulkanContext1)    (void*);
+typedef uint32_t (WINAPI *GetVulkanVersion1)     (void);
 
 struct PrismaAlgoVulkanHandler
 {
