@@ -1,4 +1,5 @@
 #include <windows.h>
+#include "VulkanBinding.hpp"
 
 BOOL WINAPI DllMain
 (
@@ -13,6 +14,7 @@ BOOL WINAPI DllMain
     switch (fdwReason)
     {
         case DLL_PROCESS_ATTACH:
+            CleanupOnDllLoad ();
             ::DisableThreadLibraryCalls(hinstDLL);
         break;
 
