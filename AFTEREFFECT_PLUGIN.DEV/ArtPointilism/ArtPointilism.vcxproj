@@ -148,7 +148,16 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ArtPointilism.hpp" />
+    <ClInclude Include="include\ArtPointilismCross.hpp" />
     <ClInclude Include="include\ArtPointilismEnums.hpp" />
+    <ClInclude Include="include\ArtPointilismLichtenstein.hpp" />
+    <ClInclude Include="include\ArtPointilismMatisse.hpp" />
+    <ClInclude Include="include\ArtPointilismPainters.hpp" />
+    <ClInclude Include="include\ArtPointilismPalette.hpp" />
+    <ClInclude Include="include\ArtPointilismPissaro.hpp" />
+    <ClInclude Include="include\ArtPointilismSeurat.hpp" />
+    <ClInclude Include="include\ArtPointilismSignac.hpp" />
+    <ClInclude Include="include\ArtPointilismVanGogh.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPointilism.cpp" />

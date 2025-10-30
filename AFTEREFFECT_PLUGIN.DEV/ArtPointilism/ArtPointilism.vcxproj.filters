@@ -78,6 +78,33 @@
     <ClInclude Include="include\ArtPointilismEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtPointilismPalette.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismSeurat.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismSignac.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismPainters.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismPissaro.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismVanGogh.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismCross.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismMatisse.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismLichtenstein.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPointilism.cpp">

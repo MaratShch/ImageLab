@@ -5,7 +5,7 @@
 
 
 constexpr char strName[] = "LrPreset";
-constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rArt Pointilism plugin.";
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rArt Pointilism plugin.";
 constexpr int ArtPointilism_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ArtPointilism_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int ArtPointilism_VersionSub = 0;
