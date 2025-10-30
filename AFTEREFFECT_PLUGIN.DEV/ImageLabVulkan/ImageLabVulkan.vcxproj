@@ -96,7 +96,7 @@
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <PreprocessorDefinitions>_WIN32;_WINDOWS;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN32;_WINDOWS;_WINDLL;-D_CRT_SECURE_NO_WARNINGS;-D_SCL_SECURE_NO_WARNINGS;-D_FILE_OFFSET_BITS=64;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -130,7 +130,7 @@
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
-      <PreprocessorDefinitions>_WIN32;_WINDOWS;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WIN32;_WINDOWS;_WINDLL;-D_CRT_SECURE_NO_WARNINGS;-D_SCL_SECURE_NO_WARNINGS;-D_FILE_OFFSET_BITS=64;VK_USE_PLATFORM_WIN32_KHR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
