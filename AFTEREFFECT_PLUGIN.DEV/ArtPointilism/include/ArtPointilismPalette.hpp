@@ -11,5 +11,8 @@ struct PEntry
     T b;
 };
 
+template<typename T, typename std::enable_if<std::is_arithmetic<T>::value>::type* = nullptr>
+inline constexpr float F32 (const T val) noexcept { return static_cast<float>(val) / 255.0f; }
+
 
 #endif // __IMAGE_LAB_ART_POINTILISM_PALETTE_DEFINITION__

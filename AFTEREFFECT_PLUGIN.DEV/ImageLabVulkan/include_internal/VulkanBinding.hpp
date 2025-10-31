@@ -18,9 +18,19 @@ namespace VulkanGPU
                 gpuId = idx; 
                 isInitialized = false;
                 m_PhysDevice = physDevice;
+                exts.clear();
             }
 
-            ~CVulkanGpuContext(void) { ; }
+            ~CVulkanGpuContext(void) { exts.clear(); }
+
+            const std::vector<VkExtensionProperties> get_extension_properties(void) { return exts; }
+            
+            void fill_extension_properties (const std::vector<VkExtensionProperties>& ext)
+            {
+                exts.resize(ext.size());
+                std::copy(ext.begin(), ext.end(), exts.begin());
+                return;
+            }
 
         private:
             uint32_t gpuId;
@@ -29,8 +39,10 @@ namespace VulkanGPU
             VkPhysicalDevice m_PhysDevice;
             VkDevice         m_Device;
             VkQueue          m_Queue;
+            std::vector<VkExtensionProperties> exts;
 
     };
+
 }
 
 void CleanupOnDllLoad (void);

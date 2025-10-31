@@ -55,6 +55,12 @@ DLL_API_EXPORT bool CreateVulkanInstance (void)
                         for (uint32_t i = 0u; i < deviceCount; i++)
                         {
                             gGpuGlobalMap[i] = new VulkanGPU::CVulkanGpuContext(i, physDevices[i]);
+                            
+                            uint32_t count = 0;
+                            vkEnumerateDeviceExtensionProperties (physDevices[i], nullptr, &count, nullptr);
+                            std::vector<VkExtensionProperties> exts(count);
+                            vkEnumerateDeviceExtensionProperties (physDevices[i], nullptr, &count, exts.data());
+                            gGpuGlobalMap[i]->fill_extension_properties (exts);
                         }
 
                         bRes = true;

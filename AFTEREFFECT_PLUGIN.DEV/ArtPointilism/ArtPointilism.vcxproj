@@ -150,7 +150,6 @@
     <ClInclude Include="include\ArtPointilism.hpp" />
     <ClInclude Include="include\ArtPointilismCross.hpp" />
     <ClInclude Include="include\ArtPointilismEnums.hpp" />
-    <ClInclude Include="include\ArtPointilismLichtenstein.hpp" />
     <ClInclude Include="include\ArtPointilismMatisse.hpp" />
     <ClInclude Include="include\ArtPointilismPainters.hpp" />
     <ClInclude Include="include\ArtPointilismPalette.hpp" />

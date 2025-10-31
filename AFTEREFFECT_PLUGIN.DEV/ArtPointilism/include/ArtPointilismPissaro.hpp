@@ -1,20 +1,44 @@
 #ifndef __IMAGE_LAB_ART_POINTILISM_PAINTER_PISSARO_TECHNICS__
 #define __IMAGE_LAB_ART_POINTILISM_PAINTER_PISSARO_TECHNICS__
 
-/*
-(~12 colours)
-1. (255, 255, 204) – light yellow
-2. (255, 204, 153) – pale orange
-3. (204, 153, 102) – warm earth
-4. (153, 102, 51) – brownish
-5. (51, 102, 0) – dark green
-6. (102, 153, 51) – mid green
-7. (0, 102, 153) – teal / blue - green
-8. (0, 51, 102) – deep blue
-9. (204, 204, 255) – pale blue
-10. (255, 255, 255) – white
-11. (0, 0, 0) – black
-12. (128, 128, 128) – grey
-*/
+#include <array>
+#include "ArtPointilismPalette.hpp"
+#include "Common.hpp"
+
+using Pissaro_Palette_u8  = std::array<PEntry<uint8_t>, 12>;
+using Pissaro_Palette_f32 = std::array<PEntry<float>, 12>;
+
+CACHE_ALIGN constexpr Pissaro_Palette_u8 Pissaro_u8 =
+{{
+    { 255, 255, 204 },
+    { 255, 204, 153 },
+    { 204, 153, 102 },
+    { 153, 102,  51 },
+    {  51, 102,   0 },
+    { 102, 153,  51 },
+    {   0, 102, 153 },
+    {   0,  51, 102 },
+    { 204, 204, 255 },
+    { 255, 255, 255 },
+    {   0,   0,   0 },
+    { 128, 128, 128 }
+}};
+
+
+CACHE_ALIGN constexpr Pissaro_Palette_f32 Pissaro_f32 =
+{{
+    { F32(Pissaro_u8[ 0].r), F32(Pissaro_u8[ 0].g), F32(Pissaro_u8[ 0].b) },
+    { F32(Pissaro_u8[ 1].r), F32(Pissaro_u8[ 1].g), F32(Pissaro_u8[ 1].b) },
+    { F32(Pissaro_u8[ 2].r), F32(Pissaro_u8[ 2].g), F32(Pissaro_u8[ 2].b) },
+    { F32(Pissaro_u8[ 3].r), F32(Pissaro_u8[ 3].g), F32(Pissaro_u8[ 3].b) },
+    { F32(Pissaro_u8[ 4].r), F32(Pissaro_u8[ 4].g), F32(Pissaro_u8[ 4].b) },
+    { F32(Pissaro_u8[ 5].r), F32(Pissaro_u8[ 5].g), F32(Pissaro_u8[ 5].b) },
+    { F32(Pissaro_u8[ 6].r), F32(Pissaro_u8[ 6].g), F32(Pissaro_u8[ 6].b) },
+    { F32(Pissaro_u8[ 7].r), F32(Pissaro_u8[ 7].g), F32(Pissaro_u8[ 7].b) },
+    { F32(Pissaro_u8[ 8].r), F32(Pissaro_u8[ 8].g), F32(Pissaro_u8[ 8].b) },
+    { F32(Pissaro_u8[ 9].r), F32(Pissaro_u8[ 9].g), F32(Pissaro_u8[ 9].b) },
+    { F32(Pissaro_u8[10].r), F32(Pissaro_u8[10].g), F32(Pissaro_u8[10].b) },
+    { F32(Pissaro_u8[11].r), F32(Pissaro_u8[11].g), F32(Pissaro_u8[11].b) }
+}};
 
 #endif // __IMAGE_LAB_ART_POINTILISM_PAINTER_PISSARO_TECHNICS__

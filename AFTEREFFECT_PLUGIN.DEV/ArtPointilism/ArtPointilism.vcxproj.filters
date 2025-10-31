@@ -102,9 +102,6 @@
     <ClInclude Include="include\ArtPointilismMatisse.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ArtPointilismLichtenstein.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPointilism.cpp">
