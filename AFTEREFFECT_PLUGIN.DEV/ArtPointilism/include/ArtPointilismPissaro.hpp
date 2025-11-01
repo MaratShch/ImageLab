@@ -24,7 +24,6 @@ CACHE_ALIGN constexpr Pissaro_Palette_u8 Pissaro_u8 =
     { 128, 128, 128 }
 }};
 
-
 CACHE_ALIGN constexpr Pissaro_Palette_f32 Pissaro_f32 =
 {{
     { F32(Pissaro_u8[ 0].r), F32(Pissaro_u8[ 0].g), F32(Pissaro_u8[ 0].b) },

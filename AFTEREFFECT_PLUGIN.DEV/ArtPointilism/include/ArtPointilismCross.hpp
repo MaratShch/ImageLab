@@ -26,7 +26,6 @@ CACHE_ALIGN constexpr Cross_Palette_u8 Cross_u8 =
     { 204, 102, 153 },
 }};
 
-
 CACHE_ALIGN constexpr Cross_Palette_f32 Cross_f32 =
 {{
     { F32(Cross_u8[ 0].r), F32(Cross_u8[ 0].g), F32(Cross_u8[ 0].b) },
