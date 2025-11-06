@@ -188,9 +188,9 @@ CACHE_ALIGN constexpr float cCOLOR_ILLUMINANT[observer_TOTAL_OBSERVERS][color_TO
 		/* D55 */
 		{ 95.799f,	100.000f, 90.926f },
 		/* D65 */
-		{ 94.811f,	100.000f, 107.304 },
+		{ 94.811f,	100.000f, 107.304f },
 		/* D75 */
-		{ 94.416f,	100.000f, 120.641 },
+		{ 94.416f,	100.000f, 120.641f },
 		/* E */
 		{ 100.000f,	100.000f, 100.000f },
 		/* F1 */

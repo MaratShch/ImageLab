@@ -148,6 +148,8 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ArtPointilism.hpp" />
+    <ClInclude Include="include\ArtPointilismAlgo.hpp" />
+    <ClInclude Include="include\ArtPointilismColorConvert.hpp" />
     <ClInclude Include="include\ArtPointilismCross.hpp" />
     <ClInclude Include="include\ArtPointilismEnums.hpp" />
     <ClInclude Include="include\ArtPointilismMatisse.hpp" />
@@ -157,11 +159,15 @@
     <ClInclude Include="include\ArtPointilismSeurat.hpp" />
     <ClInclude Include="include\ArtPointilismSignac.hpp" />
     <ClInclude Include="include\ArtPointilismVanGogh.hpp" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPointilism.cpp" />
     <ClCompile Include="src\ArtPointilismAE.cpp" />
+    <ClCompile Include="src\ArtPointilismAlgo.cpp" />
+    <ClCompile Include="src\ArtPointilismControls.cpp" />
     <ClCompile Include="src\ArtPointilismPR.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPointilism.r">

@@ -102,6 +102,15 @@
     <ClInclude Include="include\ArtPointilismMatisse.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtPointilismAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointilismColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPointilism.cpp">
@@ -111,6 +120,15 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ArtPointilismPR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointilismAlgo.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointilismControls.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
