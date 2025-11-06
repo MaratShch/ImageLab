@@ -11,7 +11,7 @@ PF_Err ProcessImgInPR
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+)
 {
 	PF_Err err = PF_Err_NONE;
 	PF_Err errFormat = PF_Err_INVALID_INDEX;

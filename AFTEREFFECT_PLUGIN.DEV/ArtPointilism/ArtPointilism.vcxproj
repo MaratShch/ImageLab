@@ -167,6 +167,7 @@
     <ClCompile Include="src\ArtPointilismAlgo.cpp" />
     <ClCompile Include="src\ArtPointilismControls.cpp" />
     <ClCompile Include="src\ArtPointilismPR.cpp" />
+    <ClCompile Include="src\ArtPointilismSR.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -131,6 +131,9 @@
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ArtPointilismSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtPointilism.rc">
