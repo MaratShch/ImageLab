@@ -181,7 +181,7 @@ inline void ConvertToCIELab
         sYuvCoeff = 1.0f, fUVSub = 0.f;
 
     // color space transfer matrix
-    constexpr float ctm[9] =
+    CACHE_ALIGN constexpr float ctm[9] =
     {
         YUV2RGB[BT709][0], YUV2RGB[BT709][1], YUV2RGB[BT709][2],
         YUV2RGB[BT709][3], YUV2RGB[BT709][4], YUV2RGB[BT709][5],
@@ -240,6 +240,130 @@ inline void ConvertToCIELab
             inPix.B = pRgbLine[i].B * sRgbCoeff;
 
             pLabLine[i] = Xyz2CieLab(Rgb2Xyz(inPix));
+        }
+    }
+
+    return;
+}
+
+
+template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
+inline void ConvertFromCIELab
+(
+    const T*          __restrict pSrc,  // Source (original) image for get Alpha-channel values
+    const fCIELabPix* __restrict pLab,  // Processed buffer in LAB format
+          T*          __restrict pDst,  // Destination buffer (rendering target)
+    const A_long          sizeX,        // Horizontal framne size
+    const A_long          sizeY,        // Verticalframe size
+    const A_long          srcPitch,     // Source buffer line pitch
+    const A_long          labPitch,     // LAB buffer linepitch
+    const A_long          dstPitch      // Destination buffer line pitch 
+    ) noexcept
+{
+    float sRgbCoeff = static_cast<float>(u8_value_white);
+    if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
+        sRgbCoeff = static_cast<float>(u16_value_white);
+    else if (std::is_same<T, PF_Pixel_BGRA_32f>::value || std::is_same<T, PF_Pixel_ARGB_32f>::value)
+        sRgbCoeff = 1.0f;
+
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const T*          __restrict pSrcLine = pSrc + j * srcPitch;
+        const fCIELabPix* __restrict pLabLine = pLab + j * labPitch;
+              T*          __restrict pDstLine = pDst + j * dstPitch;
+
+        __VECTORIZATION__
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            const fRGB rgbPix = Xyz2Rgb(CieLab2Xyz(pLabLine[i]));
+            pDstLine[i].A = pSrcLine[i].A;
+            pDstLine[i].R = static_cast<decltype(pDstLine[i].R)>(CLAMP_VALUE(rgbPix.R * sRgbCoeff, 0.f, static_cast<float>(sRgbCoeff)));
+            pDstLine[i].G = static_cast<decltype(pDstLine[i].G)>(CLAMP_VALUE(rgbPix.G * sRgbCoeff, 0.f, static_cast<float>(sRgbCoeff)));
+            pDstLine[i].B = static_cast<decltype(pDstLine[i].B)>(CLAMP_VALUE(rgbPix.B * sRgbCoeff, 0.f, static_cast<float>(sRgbCoeff)));
+        }
+    }
+
+    return;
+}
+
+
+template <typename T, std::enable_if_t<is_YUV_proc<T>::value>* = nullptr>
+inline void ConvertFromCIELab
+(
+    const T*          __restrict pSrc,  // Source (original) image for get Alpha-channel values
+    const fCIELabPix* __restrict pLab,  // Processed buffer in LAB format
+          T*          __restrict pDst,  // Destination buffer (rendering target)
+    const A_long          sizeX,        // Horizontal framne size
+    const A_long          sizeY,        // Verticalframe size
+    const A_long          srcPitch,     // Source buffer line pitch
+    const A_long          labPitch,     // LAB buffer linepitch
+    const A_long          dstPitch      // Destination buffer line pitch 
+) noexcept
+{
+    float sYuvCoeff = static_cast<float>(u8_value_white);
+    float fUVAdd = 128.f;
+    if (std::is_same<T, PF_Pixel_VUYA_16u>::value)
+        sYuvCoeff = static_cast<float>(u16_value_white), fUVAdd = 0.f;
+    else if (std::is_same<T, PF_Pixel_VUYA_32f>::value)
+        sYuvCoeff = 1.0f, fUVAdd = 0.f;
+
+    // color space transfer matrix
+    CACHE_ALIGN constexpr float ctm[9] =
+    {
+        RGB2YUV[BT709][0], RGB2YUV[BT709][1], RGB2YUV[BT709][2],
+        RGB2YUV[BT709][3], RGB2YUV[BT709][4], RGB2YUV[BT709][5],
+        RGB2YUV[BT709][6], RGB2YUV[BT709][7], RGB2YUV[BT709][8]
+    };
+
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const T*          __restrict pSrcLine = pSrc + j * srcPitch;
+        const fCIELabPix* __restrict pLabLine = pLab + j * labPitch;
+              T*          __restrict pDstLine = pDst + j * dstPitch;
+
+        __VECTORIZATION__
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            const fRGB rgbPix = Xyz2Rgb(CieLab2Xyz(pLabLine[i]));
+
+            const float Y = sYuvCoeff * (rgbPix.R * ctm[0] + rgbPix.G * ctm[1] + rgbPix.B * ctm[2]);
+            const float U = sYuvCoeff * (rgbPix.R * ctm[3] + rgbPix.G * ctm[4] + rgbPix.B * ctm[5]) + fUVAdd;
+            const float V = sYuvCoeff * (rgbPix.R * ctm[6] + rgbPix.G * ctm[7] + rgbPix.B * ctm[8]) + fUVAdd;
+
+            pDstLine[i].A = pSrcLine[i].A;
+            pDstLine[i].Y = static_cast<decltype(pDstLine[i].Y)>(CLAMP_VALUE(Y, 0.f, static_cast<float>(sYuvCoeff)));
+            pDstLine[i].U = static_cast<decltype(pDstLine[i].U)>(CLAMP_VALUE(U, 0.f, static_cast<float>(sYuvCoeff)));
+            pDstLine[i].V = static_cast<decltype(pDstLine[i].V)>(CLAMP_VALUE(V, 0.f, static_cast<float>(sYuvCoeff)));
+        }
+    }
+
+    return;
+}
+
+inline void ConvertFromCIELab
+(
+    fCIELabPix*       __restrict pLab,
+    PF_Pixel_RGB_10u* __restrict pDst,
+    const A_long          sizeX,
+    const A_long          sizeY,
+    const A_long          labPitch,
+    const A_long          dstPitch
+) noexcept
+{
+    constexpr float sRgbCoeff = static_cast<float>(u10_value_white);
+
+    for (A_long j = 0; j < sizeY; j++)
+    {
+        const fCIELabPix*       __restrict pLabLine = pLab + j * labPitch;
+              PF_Pixel_RGB_10u* __restrict pDstLine = pDst + j * dstPitch;
+
+        __VECTORIZATION__
+        for (A_long i = 0; i < sizeX; i++)
+        {
+            const fRGB rgbPix = Xyz2Rgb(CieLab2Xyz(pLabLine[i]));
+            pDstLine[i].R = static_cast<decltype(pDstLine[i].R)>(CLAMP_VALUE(rgbPix.R * sRgbCoeff, static_cast<float>(u10_value_black), static_cast<float>(u10_value_white)));
+            pDstLine[i].G = static_cast<decltype(pDstLine[i].G)>(CLAMP_VALUE(rgbPix.G * sRgbCoeff, static_cast<float>(u10_value_black), static_cast<float>(u10_value_white)));
+            pDstLine[i].B = static_cast<decltype(pDstLine[i].B)>(CLAMP_VALUE(rgbPix.B * sRgbCoeff, static_cast<float>(u10_value_black), static_cast<float>(u10_value_white)));
         }
     }
 

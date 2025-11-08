@@ -29,7 +29,20 @@ PF_Err ArtPointilism_InAE_8bits
     A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
     if (nullptr != pMemoryBlock && blockId >= 0)
     {
+        fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
+        fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
+        fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
 
+        // convert to CieLAB color space
+        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+
+        // back convert to native buffer format after processing complete
+        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
+
+        pMemoryBlock = nullptr;
+        pTmpBuf1 = pTmpBuf2 = nullptr;
+        ::FreeMemoryBlock(blockId);
+        blockId = -1;
     }
 
 	return PF_Err_NONE;
@@ -65,6 +78,12 @@ PF_Err ArtPointilism_InAE_16bits
         fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
         fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
         fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
+
+        // convert to CieLAB color space
+        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+
+        // back convert to native buffer format after processing complete
+        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
 
         pMemoryBlock = nullptr;
         pTmpBuf1 = pTmpBuf2 = nullptr;
@@ -106,6 +125,11 @@ PF_Err ArtPointilism_InAE_32bits
         fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
         fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
 
+        // convert to CieLAB color space
+        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+
+        // back convert to native buffer format after processing complete
+        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
 
         pMemoryBlock = nullptr;
         pTmpBuf1 = pTmpBuf2 = nullptr;

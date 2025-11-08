@@ -51,6 +51,9 @@ PF_Err ProcessImgInPR
 
                     // convert to CieLAB color space
                     ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+
+                    // back convert to native buffer format after processing complete
+                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -63,6 +66,9 @@ PF_Err ProcessImgInPR
 
                     // convert to CieLAB color space
                     ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+
+                    // back convert to native buffer format after processing complete
+                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -75,6 +81,9 @@ PF_Err ProcessImgInPR
 
                     // convert to CieLAB color space
                     ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+
+                    // back convert to native buffer format after processing complete
+                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -88,6 +97,9 @@ PF_Err ProcessImgInPR
 
                     // convert to CieLAB color space
                     ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+ 
+                    // back convert to native buffer format after processing complete
+                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -101,6 +113,9 @@ PF_Err ProcessImgInPR
 
                     // convert to CieLAB color space
                     ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+                    
+                    // back convert to native buffer format after processing complete
+                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -113,6 +128,9 @@ PF_Err ProcessImgInPR
 
                     // convert to CieLAB color space
                     ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+
+                    // back convert to native buffer format after processing complete
+                    ConvertFromCIELab (pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
                 }
                 break;
 
