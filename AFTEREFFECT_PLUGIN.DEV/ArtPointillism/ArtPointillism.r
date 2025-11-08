@@ -13,7 +13,7 @@ resource 'PiPL' (16000) {
 		},
 		/* [2] */
 		Name {
-			"Art::Pointilism"
+			"Art::Pointillism"
 		},
 		/* [3] */
 		Category {
@@ -60,7 +60,7 @@ resource 'PiPL' (16000) {
 		},
 		/* [11] */
 		AE_Effect_Match_Name {
-			"ImageLab2 Art::Pointilism"
+			"ImageLab2 Art::Pointillism"
 		},
 		/* [12] */
 		AE_Reserved_Info {

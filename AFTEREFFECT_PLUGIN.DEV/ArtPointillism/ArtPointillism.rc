@@ -16,8 +16,8 @@ BEGIN
 	"MIB8",
 	"eman",
 	0, 0x0,
-	16, 0x0,
-	"\x0FArt::Pointilism", 
+	20, 0x0,
+	"\x10Art::Pointillism\0\0\0", 
 
 	"MIB8",
 	"gtac", 
@@ -71,7 +71,7 @@ BEGIN
 	"ANMe",
 	0, 0x0,
 	28, 0x0,
-	"\x19ImageLab2 Art::Pointilism\0\0", 
+	"\x1AImageLab2 Art::Pointillism\0", 
 
 	"MIB8",
 	0x6165464CL, 
