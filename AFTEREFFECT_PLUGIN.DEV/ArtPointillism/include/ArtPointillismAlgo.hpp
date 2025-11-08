@@ -1,7 +1,7 @@
 #ifndef __IMAGE_LAB_ART_POINTILISM_ALGORITHM_DEFINITIONS__
 #define __IMAGE_LAB_ART_POINTILISM_ALGORITHM_DEFINITIONS__
 
-#include "ArtPointilismColorConvert.hpp"
+#include "ArtPointillismColorConvert.hpp"
 #include "FastAriphmetics.hpp"
 
 #endif // __IMAGE_LAB_ART_POINTILISM_ALGORITHM_DEFINITIONS__

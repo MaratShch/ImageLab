@@ -72,77 +72,80 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ArtPointilism.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismPalette.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismSeurat.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismSignac.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismPainters.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismPissaro.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismVanGogh.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismCross.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismMatisse.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismAlgo.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ArtPointilismColorConvert.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtPointillism.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismCross.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismMatisse.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismPainters.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismPalette.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismPissaro.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismSeurat.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismSignac.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismVanGogh.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ArtPointilism.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ArtPointilismAE.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ArtPointilismPR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ArtPointilismAlgo.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ArtPointilismControls.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ArtPointilismSR.cpp">
+    <ClCompile Include="src\ArtPointillism.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointillismAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointillismAlgo.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointillismControls.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointillismGUI.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointillismPR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointillismSR.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ArtPointilism.rc">
-      <Filter>resource</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="ArtPointilism.r">
+    <CustomBuild Include="ArtPointillism.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ArtPointillism.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

@@ -22,6 +22,7 @@
     <ProjectGuid>{7CEDCD2B-9E90-4B31-9B0C-BC9867A64B72}</ProjectGuid>
     <RootNamespace>ArtPointilism</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <ProjectName>ArtPointillism</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -147,31 +148,32 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\ArtPointilism.hpp" />
-    <ClInclude Include="include\ArtPointilismAlgo.hpp" />
-    <ClInclude Include="include\ArtPointilismColorConvert.hpp" />
-    <ClInclude Include="include\ArtPointilismCross.hpp" />
-    <ClInclude Include="include\ArtPointilismEnums.hpp" />
-    <ClInclude Include="include\ArtPointilismMatisse.hpp" />
-    <ClInclude Include="include\ArtPointilismPainters.hpp" />
-    <ClInclude Include="include\ArtPointilismPalette.hpp" />
-    <ClInclude Include="include\ArtPointilismPissaro.hpp" />
-    <ClInclude Include="include\ArtPointilismSeurat.hpp" />
-    <ClInclude Include="include\ArtPointilismSignac.hpp" />
-    <ClInclude Include="include\ArtPointilismVanGogh.hpp" />
+    <ClInclude Include="include\ArtPointillism.hpp" />
+    <ClInclude Include="include\ArtPointillismAlgo.hpp" />
+    <ClInclude Include="include\ArtPointillismColorConvert.hpp" />
+    <ClInclude Include="include\ArtPointillismCross.hpp" />
+    <ClInclude Include="include\ArtPointillismEnums.hpp" />
+    <ClInclude Include="include\ArtPointillismMatisse.hpp" />
+    <ClInclude Include="include\ArtPointillismPainters.hpp" />
+    <ClInclude Include="include\ArtPointillismPalette.hpp" />
+    <ClInclude Include="include\ArtPointillismPissaro.hpp" />
+    <ClInclude Include="include\ArtPointillismSeurat.hpp" />
+    <ClInclude Include="include\ArtPointillismSignac.hpp" />
+    <ClInclude Include="include\ArtPointillismVanGogh.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ArtPointilism.cpp" />
-    <ClCompile Include="src\ArtPointilismAE.cpp" />
-    <ClCompile Include="src\ArtPointilismAlgo.cpp" />
-    <ClCompile Include="src\ArtPointilismControls.cpp" />
-    <ClCompile Include="src\ArtPointilismPR.cpp" />
-    <ClCompile Include="src\ArtPointilismSR.cpp" />
+    <ClCompile Include="src\ArtPointillism.cpp" />
+    <ClCompile Include="src\ArtPointillismAE.cpp" />
+    <ClCompile Include="src\ArtPointillismAlgo.cpp" />
+    <ClCompile Include="src\ArtPointillismControls.cpp" />
+    <ClCompile Include="src\ArtPointillismGUI.cpp" />
+    <ClCompile Include="src\ArtPointillismPR.cpp" />
+    <ClCompile Include="src\ArtPointillismSR.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="ArtPointilism.r">
+    <CustomBuild Include="ArtPointillism.r">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
@@ -192,7 +194,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ArtPointilism.rc" />
+    <ResourceCompile Include="ArtPointillism.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

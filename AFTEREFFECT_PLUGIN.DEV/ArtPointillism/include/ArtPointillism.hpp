@@ -5,16 +5,16 @@
 
 
 constexpr char strName[] = "LrPreset";
-constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rArt Pointilism plugin.";
-constexpr int ArtPointilism_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
-constexpr int ArtPointilism_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
-constexpr int ArtPointilism_VersionSub = 0;
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rArt Pointillism plugin.";
+constexpr int ArtPointillism_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
+constexpr int ArtPointillism_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
+constexpr int ArtPointillism_VersionSub = 0;
 #ifdef _DEBUG
-constexpr int ArtPointilism_VersionStage = PF_Stage_DEVELOP;
+constexpr int ArtPointillism_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ArtPointilism_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ArtPointillism_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
-constexpr int ArtPointilism_VersionBuild = 1;
+constexpr int ArtPointillism_VersionBuild = 1;
 
 
 PF_Err ProcessImgInPR

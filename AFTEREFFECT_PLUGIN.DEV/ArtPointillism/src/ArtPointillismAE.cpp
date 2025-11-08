@@ -1,6 +1,6 @@
-#include "ArtPointilism.hpp"
-#include "ArtPointilismAlgo.hpp"
-#include "ArtPointilismEnums.hpp"
+#include "ArtPointillism.hpp"
+#include "ArtPointillismAlgo.hpp"
+#include "ArtPointillismEnums.hpp"
 #include "ImageLabMemInterface.hpp"
 
 PF_Err ArtPointilism_InAE_8bits
