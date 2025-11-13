@@ -11,7 +11,7 @@ PF_Err ArtPointilism_InAE_8bits
 	PF_LayerDef* output
 )
 {
-    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPointilism::ART_POINTILISM_INPUT)]->u.ld);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_INPUT)]->u.ld);
     const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
           PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
@@ -57,7 +57,7 @@ PF_Err ArtPointilism_InAE_16bits
 	PF_LayerDef* output
 )
 {
-    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPointilism::ART_POINTILISM_INPUT)]->u.ld);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_INPUT)]->u.ld);
     const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
           PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
@@ -103,7 +103,7 @@ PF_Err ArtPointilism_InAE_32bits
     PF_LayerDef* output
 )
 {
-    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPointilism::ART_POINTILISM_INPUT)]->u.ld);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_INPUT)]->u.ld);
     const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
           PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
 
@@ -152,7 +152,7 @@ inline PF_Err ArtPointilism_InAE_DeepWorld
     PF_Err	err = PF_Err_NONE;
     PF_PixelFormat format = PF_PixelFormat_INVALID;
     AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
-    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(ArtPointilism::ART_POINTILISM_INPUT)]->u.ld), &format))
+    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_INPUT)]->u.ld), &format))
     {
         err = (format == PF_PixelFormat_ARGB128 ?
             ArtPointilism_InAE_32bits(in_data, out_data, params, output) : ArtPointilism_InAE_16bits(in_data, out_data, params, output));

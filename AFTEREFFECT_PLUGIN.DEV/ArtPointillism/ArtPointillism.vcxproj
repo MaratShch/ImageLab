@@ -166,7 +166,7 @@
     <ClCompile Include="src\ArtPointillism.cpp" />
     <ClCompile Include="src\ArtPointillismAE.cpp" />
     <ClCompile Include="src\ArtPointillismAlgo.cpp" />
-    <ClCompile Include="src\ArtPointillismControls.cpp" />
+    <ClCompile Include="src\ArtPointillismControlPanel.cpp" />
     <ClCompile Include="src\ArtPointillismGUI.cpp" />
     <ClCompile Include="src\ArtPointillismPR.cpp" />
     <ClCompile Include="src\ArtPointillismSR.cpp" />

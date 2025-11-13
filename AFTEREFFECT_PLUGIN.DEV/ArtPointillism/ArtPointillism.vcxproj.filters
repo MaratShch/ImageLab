@@ -125,9 +125,6 @@
     <ClCompile Include="src\ArtPointillismAlgo.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ArtPointillismControls.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ArtPointillismGUI.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -135,6 +132,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ArtPointillismSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPointillismControlPanel.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

@@ -17,7 +17,7 @@ PF_Err ProcessImgInPR
 	PF_Err errFormat = PF_Err_INVALID_INDEX;
 	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
 
-    const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[UnderlyingType(ArtPointilism::ART_POINTILISM_INPUT)]->u.ld);
+    const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_INPUT)]->u.ld);
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 
