@@ -3,7 +3,7 @@
 
 
 #include <array>
-#include "ArtPointilismPalette.hpp"
+#include "ArtPointillismPalette.hpp"
 #include "Common.hpp"
 
 using VanGogh_Palette_u8  = std::array<PEntry<uint8_t>, 16>;
@@ -29,7 +29,7 @@ CACHE_ALIGN constexpr VanGogh_Palette_u8 VanGogh_u8 =
     {  51,   0, 201 }
 }};
 
-CACHE_ALIGN constexpr VanGogh_Palette_f32 VanGogh_u8 =
+CACHE_ALIGN constexpr VanGogh_Palette_f32 VanGogh_f32 =
 {{
     { F32(VanGogh_u8[ 0].r), F32(VanGogh_u8[ 0].g), F32(VanGogh_u8[ 0].b) },
     { F32(VanGogh_u8[ 1].r), F32(VanGogh_u8[ 1].g), F32(VanGogh_u8[ 1].b) },

@@ -1,5 +1,6 @@
 #include "ArtPointillism.hpp"
 #include "ArtPointillismAlgo.hpp"
+#include "ArtPointillismControl.hpp"
 #include "ArtPointillismEnums.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
@@ -40,6 +41,8 @@ PF_Err ProcessImgInPR
 
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
+            const PontillismControls algoControls = GetControlParametersStruct (params);
+
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:

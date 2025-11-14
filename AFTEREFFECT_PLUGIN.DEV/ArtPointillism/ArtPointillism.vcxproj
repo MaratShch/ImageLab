@@ -151,12 +151,15 @@
     <ClInclude Include="include\ArtPointillism.hpp" />
     <ClInclude Include="include\ArtPointillismAlgo.hpp" />
     <ClInclude Include="include\ArtPointillismColorConvert.hpp" />
+    <ClInclude Include="include\ArtPointillismControl.hpp" />
     <ClInclude Include="include\ArtPointillismCross.hpp" />
     <ClInclude Include="include\ArtPointillismEnums.hpp" />
+    <ClInclude Include="include\ArtPointillismLuce.hpp" />
     <ClInclude Include="include\ArtPointillismMatisse.hpp" />
     <ClInclude Include="include\ArtPointillismPainters.hpp" />
     <ClInclude Include="include\ArtPointillismPalette.hpp" />
     <ClInclude Include="include\ArtPointillismPissaro.hpp" />
+    <ClInclude Include="include\ArtPointillismRysselberghe.hpp" />
     <ClInclude Include="include\ArtPointillismSeurat.hpp" />
     <ClInclude Include="include\ArtPointillismSignac.hpp" />
     <ClInclude Include="include\ArtPointillismVanGogh.hpp" />

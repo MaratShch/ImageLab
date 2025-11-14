@@ -111,6 +111,15 @@
     <ClInclude Include="include\ArtPointillismEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtPointillismControl.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismLuce.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ArtPointillismRysselberghe.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">

@@ -28,17 +28,21 @@ enum class ArtPointilismPainter : int32_t
     ART_POINTILISM_PAINTER_PISSARO,
     ART_POINTILISM_PAINTER_VAN_GOGH,
     ART_POINTILISM_PAINTER_MATISSE,
+    ART_POINTILISM_PAINTER_RYSSELBERGHE,
+    ART_POINTILISM_PAINTER_LUCE,
     ART_POINTILISM_PAINTER_TOTAL_NUMBER
 };
 
 constexpr char PainterNameStr [] = 
 {
-    "Seurat|"
-    "Signac|"
-    "Cross|"
-    "Pissaro|"
-    "Van Gogh|"
-    "Matisse"
+    "Georges Seurat|"
+    "Paul Signac|"
+    "Henri-Edmond Cross|"
+    "Camille Pissarro|"
+    "Vincent van Gogh|"
+    "Henri Matisse|"
+    "Theo van Rysselberghe|"
+    "Maximilien Luce"
 };
 
 constexpr uint32_t dotSizeMin = 1u;

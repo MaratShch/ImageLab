@@ -2,7 +2,7 @@
 #define __IMAGE_LAB_ART_POINTILISM_PAINTER_SIGNAC_TECHNICS__
 
 #include <array>
-#include "ArtPointilismPalette.hpp"
+#include "ArtPointillismPalette.hpp"
 #include "Common.hpp"
 
 using Signac_Palette_u8  = std::array<PEntry<uint8_t>, 16>;

@@ -50,11 +50,5 @@ ArtPointilism_SmartRender
     PF_SmartRenderExtra		*extraP
 );
 
-PF_Err
-SetupControlElements
-(
-    const PF_InData*  in_data,
-    PF_OutData* out_data
-);
 
 #endif // __IMAGE_LAB_ART_POINTILISM_FILTER__

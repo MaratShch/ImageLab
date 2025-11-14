@@ -1,4 +1,5 @@
 #include "ArtPointillism.hpp"
+#include "ArtPointillismControl.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 
