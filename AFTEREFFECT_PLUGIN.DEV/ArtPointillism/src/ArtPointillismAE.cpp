@@ -1,5 +1,6 @@
 #include "ArtPointillism.hpp"
 #include "ArtPointillismAlgo.hpp"
+#include "ArtPointillismControl.hpp"
 #include "ArtPointillismEnums.hpp"
 #include "ImageLabMemInterface.hpp"
 
@@ -32,6 +33,8 @@ PF_Err ArtPointilism_InAE_8bits
         fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
         fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
         fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
+
+        const PontillismControls algoControls = GetControlParametersStruct (params);
 
         // convert to CieLAB color space
         ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
@@ -79,6 +82,8 @@ PF_Err ArtPointilism_InAE_16bits
         fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
         fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
 
+        const PontillismControls algoControls = GetControlParametersStruct (params);
+
         // convert to CieLAB color space
         ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
 
@@ -124,6 +129,8 @@ PF_Err ArtPointilism_InAE_32bits
         fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
         fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
         fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
+
+        const PontillismControls algoControls = GetControlParametersStruct (params);
 
         // convert to CieLAB color space
         ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);

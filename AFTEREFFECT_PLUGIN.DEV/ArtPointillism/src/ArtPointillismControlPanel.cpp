@@ -111,10 +111,10 @@ SetupControlElements
 
 PontillismControls GetControlParametersStruct
 (
-    PF_ParamDef* params[]
+    PF_ParamDef* __restrict params[]
 ) noexcept
 {
-    PontillismControls algoParams{};
+    CACHE_ALIGN PontillismControls algoParams{};
 
     algoParams.ctrlPainter          = static_cast<ArtPointilismPainter>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_LIST_PAINTERS)]->u.pd.value - 1);
     algoParams.ctrlDotSize          = static_cast<int32_t>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_SLIDER_DOT_SIZE)]->u.sd.value);

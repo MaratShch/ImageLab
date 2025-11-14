@@ -21,4 +21,6 @@ PF_Err DrawEvent
     DRAWBOT_SurfaceRef	surface_ref = nullptr;
 
     PF_Err err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    return PF_Err_NONE;
 }

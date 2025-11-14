@@ -34,7 +34,6 @@ CACHE_ALIGN constexpr Cross_Palette_f32 Cross_f32 =
     { F32(Cross_u8[ 3].r), F32(Cross_u8[ 3].g), F32(Cross_u8[ 3].b) },
     { F32(Cross_u8[ 4].r), F32(Cross_u8[ 4].g), F32(Cross_u8[ 4].b) },
     { F32(Cross_u8[ 5].r), F32(Cross_u8[ 5].g), F32(Cross_u8[ 5].b) },
-    { F32(Cross_u8[ 5].r), F32(Cross_u8[ 5].g), F32(Cross_u8[ 5].b) },
     { F32(Cross_u8[ 6].r), F32(Cross_u8[ 6].g), F32(Cross_u8[ 6].b) },
     { F32(Cross_u8[ 7].r), F32(Cross_u8[ 7].g), F32(Cross_u8[ 7].b) },
     { F32(Cross_u8[ 8].r), F32(Cross_u8[ 8].g), F32(Cross_u8[ 8].b) },

@@ -28,7 +28,7 @@ SetupControlElements
 
 PontillismControls GetControlParametersStruct
 (
-    PF_ParamDef* params[]
+    PF_ParamDef* __restrict params[]
 ) noexcept;
 
 
