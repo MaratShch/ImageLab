@@ -631,7 +631,7 @@ namespace FastCompute
 	}
 
 
-    inline void SinCos (double x, double &sin_out, double &cos_out) noexcept
+    inline void SinCos (double x, double& sin_out, double& cos_out) noexcept
     {
         constexpr double INV_PI_2 = 0.63661977236758134308;
         constexpr double PI_2 = 1.57079632679489661923;
@@ -674,7 +674,7 @@ namespace FastCompute
     }
 
 
-    inline void SinCos (float x, float &sin_out, float &cos_out) noexcept
+    inline void SinCos (float x, float& sin_out, float& cos_out) noexcept
     {
         constexpr float INV_PI_2 = 0.63661977236758134308f;
         constexpr float PI_2 = 1.57079632679489661923f;
