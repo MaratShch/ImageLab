@@ -110,6 +110,9 @@
     <ClInclude Include="include\Cct2rgb.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="internal\Blackbody_color_datafile.pdf">

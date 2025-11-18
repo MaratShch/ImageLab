@@ -120,6 +120,9 @@
     <ClInclude Include="include\ArtPointillismRysselberghe.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">

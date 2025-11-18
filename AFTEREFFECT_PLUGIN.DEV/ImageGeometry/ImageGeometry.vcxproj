@@ -138,12 +138,15 @@
     <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
     <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
     <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
     <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
+    <ClInclude Include="..\Common\CommonSmartRender.hpp" />
     <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp" />
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />

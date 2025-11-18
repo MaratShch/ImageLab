@@ -107,6 +107,9 @@
     <ClInclude Include="include\AlgCommonEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AutomaticWhiteBalance.rc">
