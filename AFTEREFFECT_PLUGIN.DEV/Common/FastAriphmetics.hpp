@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <cmath>
 #include <algorithm>
 #include <type_traits>
@@ -433,48 +433,293 @@ namespace FastCompute
 	}
 
 
-	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Sin (const T x) noexcept
-	{
-		constexpr T Pi{ 3.14159265358979323846 };
-		constexpr T PiSqr = Pi * Pi;
-		constexpr T B = static_cast<T>(4)  / Pi;
-		constexpr T C = static_cast<T>(-4) / PiSqr;
-		constexpr T y = B * x + C * x * Abs(x);
+    inline double Sin (double x) noexcept
+    {
+        // Constants
+        constexpr double INV_PI_2 = 0.63661977236758134308; // 2/pi
+        constexpr double PI_2 = 1.57079632679489661923; // pi/2
 
-#ifdef FAST_COMPUTE_EXTRA_PRECISION
-		constexpr T P{ 0.2250 };
-		y = P * (y * Abs(y) - y) + y;   // Q * y + P * y * abs(y)
-#endif
-		return y;
-	}
+        // Range reduction: k = round(x * 2/pi), xr = x - k*(pi/2)
+        double k_real = x * INV_PI_2;
+        long long k = llround(k_real);
+        double xr = x - (double)k * PI_2;
 
-	template <typename T>
+        // Reduced powers
+        double x2 = xr * xr;
+
+        // Sin minimax/polynomial coefficients (Remez-like)
+        constexpr double p1 = -0.16666667163372;
+        constexpr double p2 = 0.00833334773742;
+        constexpr double p3 = -0.00019840903752;
+
+        // Evaluate sin polynomial: sin(r) approx
+        double sin_poly = xr + x2 * xr * (p1 + x2 * (p2 + x2 * p3));
+
+        // Cos polynomial: cos(r) approx
+        constexpr double c1 = -0.49999999725103100312;
+        constexpr double c2 = 0.04166662332373906319;
+        constexpr double c3 = -0.00138867637746099295;
+        double cos_poly = 1.0 + x2 * (c1 + x2 * (c2 + x2 * c3));
+
+        // Quadrant 0..3
+        const int q = static_cast<int>(k & 3);
+
+        // Branchless sign/selection tables (corrected)
+        // S: multiplier to apply to sin_poly when forming the sin-based candidate
+        // C: multiplier to apply to cos_poly when forming the cos-based candidate
+        // use_cos: 1.0 when we should pick the cos-based candidate for sin(x), else 0.0
+        constexpr double S[4] = { +1.0, +1.0, -1.0, +1.0 };
+        constexpr double C[4] = { +1.0, +1.0, -1.0, -1.0 };
+        constexpr double use_cos[4] = { 0.0,  1.0,  0.0,  1.0 };
+
+        double sin_candidate = sin_poly * S[q];
+        double cos_candidate = cos_poly * C[q];
+
+        // Branchless blend: pick cos_candidate when use_cos==1, otherwise sin_candidate.
+        double result = sin_candidate + use_cos[q] * (cos_candidate - sin_candidate);
+        return result;
+    }
+
+    inline float Sin(float x) noexcept
+    {
+        // --------------------------------------------
+        // Constants for range reduction
+        // --------------------------------------------
+        constexpr float INV_PI_2 = 0.63661977236758134308f; // 2/pi
+        constexpr float PI_2 = 1.57079632679489661923f; // pi/2
+
+        // --------------------------------------------
+        // Step 1: Range reduction
+        // k = nearest integer to x * 2/pi
+        // xr = x - k*(pi/2)
+        // --------------------------------------------
+        float k_real = x * INV_PI_2;
+        int k = static_cast<int>(std::nearbyint(k_real)); // branchless-ish
+        float xr = x - static_cast<float>(k) * PI_2;
+
+        // --------------------------------------------
+        // Step 2: Reduced powers
+        // --------------------------------------------
+        float x2 = xr * xr;
+
+        // --------------------------------------------
+        // Step 3: Minimax polynomial for sin(x) on [-pi/4, +pi/4]
+        // sin(x) ≈ x + x^3*p1 + x^5*p2 + x^7*p3
+        // Coefficients optimized for float32
+        // --------------------------------------------
+        constexpr float p1 = -0.16666667163f;
+        constexpr float p2 = 0.00833334774f;
+        constexpr float p3 = -0.00019840903f;
+
+        float sin_poly = xr + x2 * xr * (p1 + x2 * (p2 + x2 * p3));
+
+        // --------------------------------------------
+        // Cosine polynomial for branchless quadrant use
+        // cos(x) ≈ 1 + x^2*c1 + x^4*c2 + x^6*c3
+        // --------------------------------------------
+        constexpr float c1 = -0.5f;
+        constexpr float c2 = 0.041666623f;
+        constexpr float c3 = -0.001388676f;
+
+        float cos_poly = 1.0f + x2 * (c1 + x2 * (c2 + x2 * c3));
+
+        // --------------------------------------------
+        // Step 4: Branchless quadrant logic
+        // --------------------------------------------
+        int q = k & 3;
+
+        // Corrected sign tables for float
+        constexpr float S[4] = { +1.0f, +1.0f, -1.0f, +1.0f };
+        constexpr float C[4] = { +1.0f, +1.0f, -1.0f, -1.0f };
+        constexpr float use_cos[4] = { 0.0f,  1.0f,  0.0f,  1.0f };
+
+        float sin_candidate = sin_poly * S[q];
+        float cos_candidate = cos_poly * C[q];
+
+        float result = sin_candidate + use_cos[q] * (cos_candidate - sin_candidate);
+
+        return result;
+    }
+
+
+    template <typename T>
 	inline const T Sin(const T x) noexcept
 	{
 		return std::sin(x);
 	}
 
-	template <typename T>
-	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Cos (const T x) noexcept
-	{
-		constexpr T PIx2 = static_cast<T>(3.14159265358979323846) * static_cast<T>(2.0);
-		constexpr T One{ 1 };
-		constexpr T tp = One / PIx2;
-		x *= tp;
-		x -= static_cast<T>(0.250) + std::floor(x + static_cast<T>(0.250));
-		x *= static_cast<T>(16.0) * (Abs(x) - static_cast<T>(0.5));
-#ifdef FAST_COMPUTE_EXTRA_PRECISION
-		x += static_cast<T>(0.225) * x * (Abs(x) - static_cast<T>(1.0));
-#endif
-		return x;
-	}
+    inline double Cos (double x) noexcept
+    {
+        // Constants
+        constexpr double INV_PI_2 = 0.63661977236758134308; // 2/pi
+        constexpr double PI_2 = 1.57079632679489661923; // pi/2
+
+                                                        // Range reduction: k = round(x * 2/pi), xr = x - k*(pi/2)
+        double k_real = x * INV_PI_2;
+        long long k = llround(k_real);
+        double xr = x - static_cast<double>(k) * PI_2;
+
+        double x2 = xr * xr;
+
+        // Sin polynomial
+        constexpr double s1 = -0.16666667163372;
+        constexpr double s2 = 0.00833334773742;
+        constexpr double s3 = -0.00019840903752;
+        double sin_poly = xr + x2 * xr * (s1 + x2 * (s2 + x2 * s3));
+
+        // Cos polynomial
+        constexpr double c1 = -0.49999999725103100312;
+        constexpr double c2 = 0.04166662332373906319;
+        constexpr double c3 = -0.00138867637746099295;
+        double cos_poly = 1.0 + x2 * (c1 + x2 * (c2 + x2 * c3));
+
+        int q = static_cast<int>(k & 3);
+
+        // Branchless tables for cos(x)
+        constexpr double S[4] = { +1.0, +1.0, -1.0, +1.0 }; // for sin_poly
+        constexpr double C[4] = { +1.0, +1.0, -1.0, -1.0 }; // for cos_poly
+        constexpr double use_cos[4] = { 1.0, 0.0, 1.0, 0.0 };     // pick cos_poly for cos(x)
+
+        double sin_candidate = sin_poly * S[q];
+        double cos_candidate = cos_poly * C[q];
+
+        double result = sin_candidate + use_cos[q] * (cos_candidate - sin_candidate);
+        return result;
+    }
+
+    inline float Cos (float x) noexcept
+    {
+        constexpr float INV_PI_2 = 0.63661977236758134308f;
+        constexpr float PI_2 = 1.57079632679489661923f;
+
+        float k_real = x * INV_PI_2;
+        int k = static_cast<int>(std::nearbyint(k_real));
+        float xr = x - static_cast<float>(k) * PI_2;
+
+        float x2 = xr * xr;
+
+        // Sin polynomial
+        constexpr float s1 = -0.16666667163f;
+        constexpr float s2 = 0.00833334774f;
+        constexpr float s3 = -0.00019840903f;
+        float sin_poly = xr + x2 * xr * (s1 + x2 * (s2 + x2 * s3));
+
+        // Cos polynomial
+        constexpr float c1 = -0.5f;
+        constexpr float c2 = 0.041666623f;
+        constexpr float c3 = -0.001388676f;
+        float cos_poly = 1.0f + x2 * (c1 + x2 * (c2 + x2 * c3));
+
+        int q = k & 3;
+
+        // Branchless tables for cos(x)
+        constexpr float S[4] = { +1.0f, +1.0f, -1.0f, +1.0f };
+        constexpr float C[4] = { +1.0f, +1.0f, -1.0f, -1.0f };
+        constexpr float use_cos[4] = { 1.0f, 0.0f, 1.0f, 0.0f };
+
+        float sin_candidate = sin_poly * S[q];
+        float cos_candidate = cos_poly * C[q];
+
+        float result = sin_candidate + use_cos[q] * (cos_candidate - sin_candidate);
+        return result;
+    }
 
 	template <typename T>
 	inline const T Cos (const T x) noexcept
 	{
 		return std::cos (x);
 	}
+
+
+    inline void SinCos (double x, double &sin_out, double &cos_out) noexcept
+    {
+        constexpr double INV_PI_2 = 0.63661977236758134308;
+        constexpr double PI_2 = 1.57079632679489661923;
+
+        double k_real = x * INV_PI_2;
+        long long k = llround(k_real);
+        double xr = x - static_cast<double>(k) * PI_2;
+        double x2 = xr * xr;
+
+        // Polynomials
+        constexpr double p1 = -0.16666667163372;
+        constexpr double p2 = 0.00833334773742;
+        constexpr double p3 = -0.00019840903752;
+        double sin_poly = xr + x2 * xr * (p1 + x2 * (p2 + x2 * p3));
+
+        constexpr double c1 = -0.49999999725103100312;
+        constexpr double c2 = 0.04166662332373906319;
+        constexpr double c3 = -0.00138867637746099295;
+        double cos_poly = 1.0 + x2 * (c1 + x2 * (c2 + x2 * c3));
+
+        int q = static_cast<int>(k & 3);
+
+        // Branchless tables
+        constexpr double sin_sign[4] = { +1.0, +1.0, -1.0, -1.0 };
+        constexpr double cos_sign[4] = { +1.0, -1.0, -1.0, +1.0 };
+        constexpr bool swap[4] = { false, true, false, true };
+
+        double s = sin_poly;
+        double c = cos_poly;
+
+        // Apply signs
+        s *= sin_sign[q];
+        c *= cos_sign[q];
+
+        // Branchless swap
+        sin_out = swap[q] ? c : s;
+        cos_out = swap[q] ? s : c;
+
+        return;
+    }
+
+
+    inline void SinCos (float x, float &sin_out, float &cos_out) noexcept
+    {
+        constexpr float INV_PI_2 = 0.63661977236758134308f;
+        constexpr float PI_2 = 1.57079632679489661923f;
+
+        float k_real = x * INV_PI_2;
+        int k = static_cast<int>(std::nearbyint(k_real));
+        float xr = x - static_cast<float>(k) * PI_2;
+        float x2 = xr * xr;
+
+        constexpr float p1 = -0.16666667163f;
+        constexpr float p2 = 0.00833334774f;
+        constexpr float p3 = -0.00019840903f;
+        float sin_poly = xr + x2 * xr * (p1 + x2 * (p2 + x2 * p3));
+
+        constexpr float c1 = -0.5f;
+        constexpr float c2 = 0.041666623f;
+        constexpr float c3 = -0.001388676f;
+        float cos_poly = 1.0f + x2 * (c1 + x2 * (c2 + x2 * c3));
+
+        int q = k & 3;
+
+        constexpr float sin_sign[4] = { +1.0f, +1.0f, -1.0f, -1.0f };
+        constexpr float cos_sign[4] = { +1.0f, -1.0f, -1.0f, +1.0f };
+        constexpr bool swap[4] = { false, true, false, true };
+
+        float s = sin_poly;
+        float c = cos_poly;
+
+        s *= sin_sign[q];
+        c *= cos_sign[q];
+
+        sin_out = swap[q] ? c : s;
+        cos_out = swap[q] ? s : c;
+
+        return;
+    }
+
+    template <typename T>
+    inline void SinCos (T x, T& sin_out, T& cos_out) noexcept
+    {
+        sin_out = std::sin(x);
+        cos_out = std::cos(x);
+        return;
+    }
+
 
 	template <typename T>
 	inline const typename std::enable_if<std::is_floating_point<T>::value, T>::type Exp (const T fVal) noexcept
