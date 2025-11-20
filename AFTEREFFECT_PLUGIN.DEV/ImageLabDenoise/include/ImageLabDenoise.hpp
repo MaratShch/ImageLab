@@ -6,15 +6,15 @@
 
 constexpr char strName[] = "Color Substitution";
 constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rImageLab Denoise plugin.";
-constexpr int LensDistrortion_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
-constexpr int LensDistrortion_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
-constexpr int LensDistrortion_VersionSub = 0;
+constexpr int ImageLabDenoise_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
+constexpr int ImageLabDenoise_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
+constexpr int ImageLabDenoise_VersionSub = 0;
 #ifdef _DEBUG
-constexpr int LensDistrortion_VersionStage = PF_Stage_DEVELOP;
+constexpr int ImageLabDenoise_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int LensDistrortion_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ImageLabDenoise_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
 #endif
-constexpr int LensDistrortion_VersionBuild = 1;
+constexpr int ImageLabDenoise_VersionBuild = 1;
 
 
 PF_Err ProcessImgInPR

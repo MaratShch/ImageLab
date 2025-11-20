@@ -14,8 +14,8 @@ About(
 		out_data->return_msg,
 		"%s, v%d.%d\r%s",
 		strName,
-		LensDistrortion_VersionMajor,
-		LensDistrortion_VersionMinor,
+		ColorSubstitution_VersionMajor,
+		ColorSubstitution_VersionMinor,
 		strCopyright);
 
 	return PF_Err_NONE;
@@ -45,11 +45,11 @@ GlobalSetup(
 
 	out_data->my_version =
 		PF_VERSION(
-			LensDistrortion_VersionMajor,
-			LensDistrortion_VersionMinor,
-			LensDistrortion_VersionSub,
-			LensDistrortion_VersionStage,
-			LensDistrortion_VersionBuild
+			ColorSubstitution_VersionMajor,
+			ColorSubstitution_VersionMinor,
+			ColorSubstitution_VersionSub,
+			ColorSubstitution_VersionStage,
+			ColorSubstitution_VersionBuild
 		);
 
 	out_data->out_flags  = out_flags1;
