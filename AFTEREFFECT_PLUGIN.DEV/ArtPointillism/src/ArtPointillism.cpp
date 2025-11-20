@@ -141,8 +141,7 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    PF_Err err = SetupControlElements (in_data, out_data);
-	return err;
+	return SetupControlElements (in_data, out_data);
 }
 
 
