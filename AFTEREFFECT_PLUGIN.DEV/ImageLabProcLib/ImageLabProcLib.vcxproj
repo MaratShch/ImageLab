@@ -154,15 +154,17 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\algo_fft.hpp" />
-    <ClInclude Include="include\algo_fft_cooley_tukey.hpp" />
-    <ClInclude Include="include\algo_fft_czt.hpp" />
-    <ClInclude Include="include\algo_fft_utils.hpp" />
-    <ClInclude Include="include\algo_fft_winograd.hpp" />
+    <ClInclude Include="include\dft.hpp" />
+    <ClInclude Include="include\fft.hpp" />
+    <ClInclude Include="include\fft_cooley_tukey.hpp" />
+    <ClInclude Include="include\fft_czt.hpp" />
+    <ClInclude Include="include\fft_prime.hpp" />
+    <ClInclude Include="include\fft_radix.hpp" />
+    <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\algo_fft_cpu.cpp" />
     <ClCompile Include="src\DllMain.cpp" />
+    <ClCompile Include="src\fft.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

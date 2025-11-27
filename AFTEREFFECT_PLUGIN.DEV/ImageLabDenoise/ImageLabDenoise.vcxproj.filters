@@ -75,9 +75,6 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageLabDenoise.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ImageLabDenoiseEnum.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -103,13 +100,16 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ImageLabDenoise.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="ImageLabDenoise.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="include\ImageLabDenoise.hpp">
+      <Filter>include</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ImageLabDenoise.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
