@@ -32,6 +32,8 @@ inline void apply_twiddle (T& r, T& i, int32_t k, int32_t N) noexcept
     
     constexpr T PI = static_cast<T>(3.14159265358979323846);
     T angle = static_cast<T>(-2 * k) * PI / static_cast<T>(N); // Positive angle
+//    T c, s;
+//    FastCompute::SinCos(angle, s, c);
     T c = static_cast<T>(FastCompute::Cos(angle));
     T s = static_cast<T>(FastCompute::Sin(angle));
     

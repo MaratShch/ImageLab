@@ -29,8 +29,8 @@ inline void dft_1D
             const T xi = in[2 * n + 1];
 
             const T angle = static_cast<T>(-2 * k * n) * PI / static_cast<T>(N);
-            T cr = FastCompute::Cos(angle);
-            T sr = FastCompute::Sin(angle);
+            const T cr = std::cos(angle);
+            const T sr = std::sin(angle);
 
             sumRe += xr * cr - xi * sr;
             sumIm += xr * sr + xi * cr;
