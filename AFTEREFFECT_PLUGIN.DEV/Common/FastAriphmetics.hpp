@@ -480,6 +480,8 @@ namespace FastCompute
         return result;
     }
 
+    inline long double Sin (long double x) noexcept { return Sin (static_cast<double>(x)); }
+
     inline float Sin (float x) noexcept
     {
         // --------------------------------------------
@@ -587,6 +589,8 @@ namespace FastCompute
         return result;
     }
 
+    inline long double Cos (long double x) noexcept { return Cos(static_cast<double>(x)); }
+
     inline float Cos (float x) noexcept
     {
         constexpr float INV_PI_2 = 0.63661977236758134308f;
@@ -673,6 +677,11 @@ namespace FastCompute
         return;
     }
 
+    inline void SinCos (long double x, long double& sin_out, long double& cos_out) noexcept
+    {
+        static_assert(sizeof(double) == sizeof(long double), "long double size is not equal to double size!");
+        SinCos (static_cast<double>(x), sin_out, cos_out);
+    }
 
     inline void SinCos (float x, float& sin_out, float& cos_out) noexcept
     {

@@ -2,9 +2,7 @@
 #include "fft.hpp"
 #include "dft.hpp"
 
-
-
-void FourierTransform::mixed_radix_fft_1D (const float* in, float* out, int32_t size)
+void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __restrict out, int32_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
 //	std::cout << "Prime factors for size = " << size << std::endl;
@@ -14,7 +12,7 @@ void FourierTransform::mixed_radix_fft_1D (const float* in, float* out, int32_t 
 
     // 1. Check if all factors are supported by your efficient kernels
     bool is_fast_path = true;
-    for (int32_t f : prime_vector)
+    for (const auto& f : prime_vector)
 	{
         if (f != 16 && f != 8 && f != 7 && f != 5 && f != 4 && f != 3 && f != 2)
 		{
@@ -47,7 +45,7 @@ void FourierTransform::mixed_radix_fft_1D (const float* in, float* out, int32_t 
 }	
 
 
-void FourierTransform::mixed_radix_fft_1D (const double* in, double* out, int32_t size)
+void FourierTransform::mixed_radix_fft_1D (const double* __restrict in, double* __restrict out, int32_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
 //	std::cout << "Prime factors for size = " << size << std::endl;
@@ -57,8 +55,8 @@ void FourierTransform::mixed_radix_fft_1D (const double* in, double* out, int32_
 
     // 1. Check if all factors are supported by your efficient kernels
     bool is_fast_path = true;
-    for (int32_t f : prime_vector)
-	{
+    for (const auto& f : prime_vector)
+    {
         if (f != 16 && f != 8 && f != 7 && f != 5 && f != 4 && f != 3 && f != 2)
 		{
             is_fast_path = false;
@@ -96,7 +94,7 @@ void FourierTransform::mixed_radix_fft_1D (const double* in, double* out, int32_
 // Computes IFFT using the Conjugate property: IFFT(x) = conj(FFT(conj(x))) / N
 // This reuses the highly optimized Forward engine without code duplication.
 // ----------------------------------------------------------------------------
-void FourierTransform::mixed_radix_ifft_1D (const float* __restrict in, float* __restrict out, int32_t size)
+void FourierTransform::mixed_radix_ifft_1D (const float* __restrict in, float* __restrict out, int32_t size) noexcept
 {
     // 1. Pre-Process: Copy Input to Output AND Conjugate
     // We perform the copy here manually to flip the sign of the imaginary part.
@@ -132,7 +130,7 @@ void FourierTransform::mixed_radix_ifft_1D (const float* __restrict in, float* _
 }
 
 
-void FourierTransform::mixed_radix_ifft_1D  (const double* __restrict in, double* __restrict out, int32_t size)
+void FourierTransform::mixed_radix_ifft_1D  (const double* __restrict in, double* __restrict out, int32_t size) noexcept
 {
     // 1. Pre-Process: Copy Input to Output AND Conjugate
     // We perform the copy here manually to flip the sign of the imaginary part.

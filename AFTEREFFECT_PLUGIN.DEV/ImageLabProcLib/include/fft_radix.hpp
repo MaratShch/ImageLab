@@ -22,7 +22,7 @@ inline void CMul (T& r, T& i, T c, T s) noexcept
 }
 
 template <typename T>
-inline void apply_twiddle (T& r, T& i, int32_t k, int32_t N)
+inline void apply_twiddle (T& r, T& i, int32_t k, int32_t N) noexcept
 {
     // W^k = cos(-2*pi*k/64) + j*sin(-2*pi*k/64)
     // W^k = C - jS
@@ -32,8 +32,8 @@ inline void apply_twiddle (T& r, T& i, int32_t k, int32_t N)
     
     constexpr T PI = static_cast<T>(3.14159265358979323846);
     T angle = static_cast<T>(-2 * k) * PI / static_cast<T>(N); // Positive angle
-    T c = static_cast<T>(std::cos(angle));
-    T s = static_cast<T>(std::sin(angle));
+    T c = static_cast<T>(FastCompute::Cos(angle));
+    T s = static_cast<T>(FastCompute::Sin(angle));
     
     CMul(r, i, c, s);
 }
@@ -521,7 +521,7 @@ inline void Radix16_Butterfly
     // Stride is 8 floats (4 complex).
     
     // We write to a temporary buffer 't2' to keep it contiguous for the final map.
-    T t2[32];
+    CACHE_ALIGN T t2[32];
 
     // Process Row 0 -> t2[0..7]
     Radix4_Butterfly(t + 0, t2 + 0, 8, 2);
@@ -577,7 +577,7 @@ inline void unshuffle_mixed_radix
     T* dst,
     int32_t N,
     const std::vector<int32_t>& factors
-)
+) noexcept
 {
     std::vector<T> temp(2 * N);
     
@@ -618,7 +618,8 @@ inline void unshuffle_mixed_radix
     
     std::vector<int32_t> target_weights;
     int32_t w = N;
-    for (int32_t radix : factors) {
+    for (auto const& radix : factors)
+    {
         w /= radix;
         target_weights.push_back(w);
     }
@@ -659,7 +660,8 @@ inline void unshuffle_mixed_radix
     std::reverse(factors_reversed.begin(), factors_reversed.end());
     
     int32_t running_product = 1;
-    for (int32_t r : factors_reversed) {
+    for (int32_t r : factors_reversed)
+    {
         // We want the weight to fill the REMAINING space.
         // For {2, 16}:
         // r=2. We want weight 16. 
@@ -671,12 +673,14 @@ inline void unshuffle_mixed_radix
     }
 
     // 2. Permutation Loop
-    for (int32_t i = 0; i < N; ++i) {
+    for (int32_t i = 0; i < N; ++i)
+    {
         int32_t input_idx = i;
         int32_t target_idx = 0;
         
         // Iterate Factors Reversed
-        for (size_t k = 0; k < factors_reversed.size(); ++k) {
+        for (size_t k = 0; k < factors_reversed.size(); ++k)
+        {
             int32_t R = factors_reversed[k];
             
             int32_t digit = input_idx % R;
@@ -702,7 +706,7 @@ inline void unshuffle_mixed_radix
 // 3. Unshuffle:   Permute 'dst'.
 // ----------------------------------------------------------------------------
 template <typename T>
-void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vector<int32_t>& factors) 
+void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vector<int32_t>& factors) noexcept
 {
     int32_t group_size = N;
     int32_t block_count = 1;
@@ -711,14 +715,14 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
     bool is_first_stage = true;
 
     // --- STAGE LOOP ---
-    for (int32_t R : factors)
+    for (auto const& R : factors)
 	{
-        int32_t stride = group_size / R;
+        const int32_t stride = group_size / R;
 
         // --- BLOCK LOOP ---
         for (int32_t b = 0; b < block_count; ++b)
 		{
-            int32_t base_offset = b * group_size;
+            const int32_t base_offset = b * group_size;
 
             // --- BUTTERFLY LOOP ---
             for (int32_t k = 0; k < stride; ++k)

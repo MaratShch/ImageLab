@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+#include "FastAriphmetics.hpp"
 
 namespace FourierTransform
 {
@@ -27,7 +28,7 @@ inline int32_t NextPowerOf2 (int32_t n) noexcept
 // This simplistic recursive implementation is here ONLY to make the CZT code 
 // below runnable in this snippet. Do not use this function in production.
 template <typename T>
-inline void FFT_Pow2_Helper (int32_t N, T* data, bool inverse)
+inline void FFT_Pow2_Helper (int32_t N, T* data, bool inverse) noexcept
 {
     if (N <= 1) return;
     
@@ -48,12 +49,12 @@ inline void FFT_Pow2_Helper (int32_t N, T* data, bool inverse)
     constexpr T PI {static_cast<T>(3.14159265358979323846)};
     const T angle_dir = inverse ? static_cast<T>(2.0) * PI : static_cast<T>(-2.0) * PI;
     
-    for (int k = 0; k < M; ++k)
+    for (int32_t k = 0; k < M; ++k)
 	{
         // W = exp(j * angle * k / N)
         const T theta = angle_dir * static_cast<T>(k) / static_cast<T>(N);
-        T wr = static_cast<T>(std::cos(theta));
-        T wi = static_cast<T>(std::sin(theta));
+        T wr = static_cast<T>(FastCompute::Cos(theta));
+        T wi = static_cast<T>(FastCompute::Sin(theta));
         
         // Complex Mult: Odd[k] * W
         T or_val = odd[2*k];
@@ -75,14 +76,14 @@ inline void FFT_Pow2_Helper (int32_t N, T* data, bool inverse)
 // POWER-OF-2 FFT INTERFACE (Use your engine here)
 // ----------------------------------------------------------------------------
 template <typename T>
-inline void Execute_FFT_Pow2 (int32_t M, T* data)
+inline void Execute_FFT_Pow2 (int32_t M, T* data) noexcept
 {
     // In your real code: Execute_FFT_Iterative(M, data, {16, 16, 4...});
     FFT_Pow2_Helper (M, data, false);
 }
 
 template <typename T>
-inline void Execute_IFFT_Pow2 (int32_t M, T* data)
+inline void Execute_IFFT_Pow2 (int32_t M, T* data) noexcept
 {
     // In your real code: Same engine, but conjugate inputs/outputs or use inverse flag
     FFT_Pow2_Helper(M, data, true);
@@ -97,7 +98,7 @@ inline void Execute_IFFT_Pow2 (int32_t M, T* data)
 // ============================================================================
 
 template <typename T>
-inline void fft_czt (const T* in, T* out, int32_t N)
+inline void fft_czt (const T* in, T* out, int32_t N) noexcept
 {
     constexpr T PI = static_cast<T>(3.14159265358979323846);
 
@@ -127,8 +128,8 @@ inline void fft_czt (const T* in, T* out, int32_t N)
         T k_sq = static_cast<T>(1 * k * k); // 1LL prevents overflow
         T angle = -PI * k_sq / static_cast<T>(N);
 
-        T c = static_cast<T>(std::cos(angle));
-        T s = static_cast<T>(std::sin(angle));
+        T c = static_cast<T>(FastCompute::Cos(angle));
+        T s = static_cast<T>(FastCompute::Sin(angle));
 
         // Store Chirp for Post-Modulation
         chirp[2*k]     = c;

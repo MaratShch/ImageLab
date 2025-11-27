@@ -1,15 +1,21 @@
 #include <windows.h>
 
 
-BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
+BOOL WINAPI DllMain
+(
+    HINSTANCE hinstDLL,  // handle to DLL module
+    DWORD fdwReason,     // reason for calling function
+    LPVOID lpvReserved   // reserved
+)
 {
-	switch (ul_reason_for_call)
+	switch (fdwReason)
 	{
 		case DLL_PROCESS_DETACH:
 		break;
 
 		case DLL_PROCESS_ATTACH:
-		break;
+            DisableThreadLibraryCalls(hinstDLL);
+        break;
 
 		case DLL_THREAD_ATTACH:
 		break;

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include <utility>
+#include "FastAriphmetics.hpp"
 
 namespace FourierTransform
 {
@@ -28,8 +29,8 @@ inline void dft_1D
             const T xi = in[2 * n + 1];
 
             const T angle = static_cast<T>(-2 * k * n) * PI / static_cast<T>(N);
-            T cr = std::cos(angle);
-            T sr = std::sin(angle);
+            T cr = FastCompute::Cos(angle);
+            T sr = FastCompute::Sin(angle);
 
             sumRe += xr * cr - xi * sr;
             sumIm += xr * sr + xi * cr;

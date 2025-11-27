@@ -6,7 +6,7 @@
 namespace FourierTransform
 {
 	
-inline std::vector<int32_t> prime (const int32_t N)
+inline std::vector<int32_t> prime (const int32_t N) noexcept
 {
 	std::vector<int32_t> factors{};
 	int32_t tmp_N = N;
