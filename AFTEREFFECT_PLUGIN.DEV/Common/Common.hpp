@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 #ifndef CPU_PAGE_SIZE
 #define CPU_PAGE_SIZE	4096
