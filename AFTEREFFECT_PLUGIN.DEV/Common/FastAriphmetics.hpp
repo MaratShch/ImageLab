@@ -635,58 +635,73 @@ namespace FastCompute
 	}
 
 
-    inline void SinCos (double x, double& sin_out, double& cos_out) noexcept
+    inline void SinCos(double x, double& sin_out, double& cos_out) noexcept
     {
+        // Constants
         constexpr double INV_PI_2 = 0.63661977236758134308;
-        constexpr double PI_2 = 1.57079632679489661923;
+        constexpr double PI_2_H = 1.5707963267948966; 
+        constexpr double PI_2_L = 6.123031769111886e-17;
 
         double k_real = x * INV_PI_2;
-        long long k = llround(k_real);
-        double xr = x - static_cast<double>(k) * PI_2;
+        long long k = llround(k_real);  // nearest integer
+        double xr = (x - static_cast<double>(k) * PI_2_H) - static_cast<double>(k) * PI_2_L;
+
         double x2 = xr * xr;
 
-        // Polynomials
+        // Sin polynomial (minimax, order 7)
         constexpr double p1 = -0.16666667163372;
         constexpr double p2 = 0.00833334773742;
         constexpr double p3 = -0.00019840903752;
+#if defined(__cpp_lib_math_fma) || (defined(__FMA__) || defined(__AVX__))
+        // use fma if available: (((p3*x2 + p2)*x2 + p1)*x2)*xr + xr  (but written carefully)
+        double t = std::fma(p3, x2, p2);
+        t = std::fma(t, x2, p1);
+        t = std::fma(t, x2, 1.0);
+        double sin_poly = std::fma(t, x2, xr); // close Horner with fma
+#else
         double sin_poly = xr + x2 * xr * (p1 + x2 * (p2 + x2 * p3));
+#endif
 
+        // Cos polynomial (order 6)
         constexpr double c1 = -0.49999999725103100312;
         constexpr double c2 = 0.04166662332373906319;
         constexpr double c3 = -0.00138867637746099295;
+#if defined(__cpp_lib_math_fma) || (defined(__FMA__) || defined(__AVX__))
+        double tc = std::fma(c3, x2, c2);
+        tc = std::fma(tc, x2, c1);
+        tc = std::fma(tc, x2, 1.0);
+        double cos_poly = tc;
+#else
         double cos_poly = 1.0 + x2 * (c1 + x2 * (c2 + x2 * c3));
+#endif
 
+        // Quadrant
         int q = static_cast<int>(k & 3);
 
-        // Branchless tables
-        constexpr double sin_sign[4] = { +1.0, +1.0, -1.0, -1.0 };
-        constexpr double cos_sign[4] = { +1.0, -1.0, -1.0, +1.0 };
-        constexpr bool swap[4] = { false, true, false, true };
-
-        double s = sin_poly;
-        double c = cos_poly;
+        // Corrected branchless tables (see explanation above)
+        constexpr double sin_sign[4] = { +1.0, -1.0, -1.0, +1.0 };
+        constexpr double cos_sign[4] = { +1.0, +1.0, -1.0, -1.0 };
+        constexpr bool   swap_tbl[4] = { false, true, false, true };
 
         // Apply signs
-        s *= sin_sign[q];
-        c *= cos_sign[q];
+        double s = sin_poly * sin_sign[q];
+        double c = cos_poly * cos_sign[q];
 
         // Branchless swap
-        sin_out = swap[q] ? c : s;
-        cos_out = swap[q] ? s : c;
-
-        return;
+        sin_out = swap_tbl[q] ? c : s;
+        cos_out = swap_tbl[q] ? s : c;
     }
 
-    inline void SinCos (long double x, long double& sin_out, long double& cos_out) noexcept
+    inline void SinCos(long double x, long double& sin_out, long double& cos_out) noexcept
     {
         static_assert(sizeof(double) == sizeof(long double), "long double size is not equal to double size!");
-        SinCos (static_cast<double>(x), sin_out, cos_out);
+        SinCos(static_cast<double>(x), sin_out, cos_out);
     }
 
-    inline void SinCos (float x, float& sin_out, float& cos_out) noexcept
+    inline void SinCos(float x, float& sin_out, float& cos_out) noexcept
     {
-        constexpr float INV_PI_2 = 0.63661977236758134308f;
-        constexpr float PI_2 = 1.57079632679489661923f;
+        constexpr float INV_PI_2 = 0.63661977236758134308f; // 2/pi
+        constexpr float PI_2 = 1.57079632679489661923f; // pi/2
 
         float k_real = x * INV_PI_2;
         int k = static_cast<int>(std::nearbyint(k_real));
@@ -705,24 +720,20 @@ namespace FastCompute
 
         int q = k & 3;
 
-        constexpr float sin_sign[4] = { +1.0f, +1.0f, -1.0f, -1.0f };
-        constexpr float cos_sign[4] = { +1.0f, -1.0f, -1.0f, +1.0f };
-        constexpr bool swap[4] = { false, true, false, true };
+        constexpr float sin_sign[4] = { +1.0f, -1.0f, -1.0f, +1.0f };
+        constexpr float cos_sign[4] = { +1.0f, +1.0f, -1.0f, -1.0f };
+        constexpr bool  swap_tbl[4] = { false, true, false, true };
 
-        float s = sin_poly;
-        float c = cos_poly;
+        float s = sin_poly * sin_sign[q];
+        float c = cos_poly * cos_sign[q];
 
-        s *= sin_sign[q];
-        c *= cos_sign[q];
-
-        sin_out = swap[q] ? c : s;
-        cos_out = swap[q] ? s : c;
-
+        sin_out = swap_tbl[q] ? c : s;
+        cos_out = swap_tbl[q] ? s : c;
         return;
     }
 
     template <typename T>
-    inline void SinCos (T x, T& sin_out, T& cos_out) noexcept
+    inline void SinCos(T x, T& sin_out, T& cos_out) noexcept
     {
         sin_out = std::sin(x);
         cos_out = std::cos(x);

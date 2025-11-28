@@ -55,8 +55,8 @@ inline void FFT_Pow2_Helper (int32_t N, T* data, bool inverse) noexcept
 	{
         // W = exp(j * angle * k / N)
         const T theta = angle_dir * static_cast<T>(k) / static_cast<T>(N);
-        T wr = static_cast<T>(FastCompute::Cos(theta));
-        T wi = static_cast<T>(FastCompute::Sin(theta));
+        T wr, wi;
+        FastCompute::SinCos (theta, wi, wr);
         
         // Complex Mult: Odd[k] * W
         T or_val = odd[2*k];
@@ -130,9 +130,9 @@ inline void fft_czt (const T* in, T* out, int32_t N) noexcept
         T k_sq = static_cast<T>(1 * k * k); // 1LL prevents overflow
         T angle = -PI * k_sq / static_cast<T>(N);
 
-        T c = static_cast<T>(FastCompute::Cos(angle));
-        T s = static_cast<T>(FastCompute::Sin(angle));
-
+        T c, s;
+        FastCompute::SinCos (angle, s, c);
+        
         // Store Chirp for Post-Modulation
         chirp[2*k]     = c;
         chirp[2*k + 1] = s;
