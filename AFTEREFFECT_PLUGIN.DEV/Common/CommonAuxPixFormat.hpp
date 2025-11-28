@@ -71,6 +71,51 @@ using dYUV = _tYUV<double>;
 constexpr size_t fYUV_size = sizeof(fYUV);
 constexpr size_t dYUV_size = sizeof(dYUV);
 
+template <typename T>
+struct _tFFT
+{
+    T re;
+    T im;
+};
+
+using fFFT = _tFFT<float>;
+using dFFT = _tFFT<double>;
+
+constexpr size_t fFFT_size = sizeof(fFFT);
+constexpr size_t dFFT_size = sizeof(dFFT);
+
+
+template <typename T>
+struct _tLumaFFT // FFT for Luma (brightness) component
+{
+    T re;
+    T im;
+};
+
+using fLumaFFT = _tLumaFFT<float>;
+using dLumaFFT = _tLumaFFT<double>;
+
+constexpr size_t fLumaFFT_size = sizeof(fLumaFFT);
+constexpr size_t dLumaFFT_size = sizeof(dLumaFFT);
+
+
+template <typename T>
+struct _tRgbFFT // FFT for color RGB chjannels
+{
+    T re_R;
+    T im_R;
+    T re_G;
+    T im_G;
+    T re_B;
+    T im_B;
+};
+
+using fRgbFFT = _tRgbFFT<float>;
+using dRgbFFT = _tRgbFFT<double>;
+
+constexpr size_t fRgbFFT_size = sizeof(fRgbFFT);
+constexpr size_t dRgbFFT_size = sizeof(dRgbFFT);
+
 
 #pragma pack(pop)
 
