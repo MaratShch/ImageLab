@@ -43,7 +43,7 @@ ImageLabDenoise_PreRender
 );
 
 PF_Err
-RetroVision_SmartRender
+ImageLabDenoise_SmartRender
 (
     PF_InData				*in_data,
     PF_OutData				*out_data,

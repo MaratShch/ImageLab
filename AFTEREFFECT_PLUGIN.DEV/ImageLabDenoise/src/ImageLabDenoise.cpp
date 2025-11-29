@@ -31,17 +31,20 @@ GlobalSetup(
 {
 	PF_Err	err = PF_Err_NONE;
 
-	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT       |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT     |
-		PF_OutFlag_DEEP_COLOR_AWARE      |
-		PF_OutFlag_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags1 =
+        PF_OutFlag_WIDE_TIME_INPUT                |
+        PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
+        PF_OutFlag_USE_OUTPUT_EXTENT              |
+        PF_OutFlag_PIX_INDEPENDENT                |
+        PF_OutFlag_DEEP_COLOR_AWARE               |
+        PF_OutFlag_SEND_UPDATE_PARAMS_UI;
 
-	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags2 =
+        PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+        PF_OutFlag2_SUPPORTS_GET_FLATTENED_SEQUENCE_DATA;
+
 
 	out_data->my_version =
 		PF_VERSION(
@@ -103,6 +106,51 @@ ParamsSetup(
 
 
 static PF_Err
+SequenceSetup (
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
+{
+    PF_Err err = PF_Err_NONE;
+    return err;
+}
+
+static PF_Err
+SequenceResetup (
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
+{
+    PF_Err err = PF_Err_NONE;
+    return err;
+}
+
+static PF_Err
+SequenceFlatten (
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
+{
+    PF_Err err = PF_Err_NONE;
+    return err;
+}
+
+static PF_Err
+SequenceSetdown (
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output)
+{
+    PF_Err err = PF_Err_NONE;
+    return err;
+}
+
+
+static PF_Err
 Render(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
@@ -112,18 +160,6 @@ Render(
 	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
-
-
-static PF_Err
-SmartRender(
-	PF_InData				*in_data,
-	PF_OutData				*out_data,
-	PF_SmartRenderExtra		*extraP
-)
-{
-	PF_Err	err = PF_Err_NONE;
-	return err;
-}
 
 
 static PF_Err
@@ -137,14 +173,14 @@ PreRender(
 }
 
 PF_Err
-RetroVision_SmartRender
+SmartRender
 (
     PF_InData				*in_data,
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extra
 )
 {
-    return RetroVision_SmartRender (in_data, out_data, extra);
+    return ImageLabDenoise_SmartRender(in_data, out_data, extra);
 }
 
 
@@ -177,6 +213,22 @@ EffectMain(
 			case PF_Cmd_PARAMS_SETUP:
 				ERR(ParamsSetup(in_data, out_data, params, output));
 			break;
+
+            case PF_Cmd_SEQUENCE_SETUP:
+                ERR(SequenceSetup(in_data, out_data, params, output));
+            break;
+
+            case PF_Cmd_SEQUENCE_RESETUP:
+                ERR(SequenceResetup(in_data, out_data, params, output));
+            break;
+
+            case PF_Cmd_SEQUENCE_FLATTEN:
+                ERR(SequenceFlatten(in_data, out_data, params, output));
+            break;
+
+            case PF_Cmd_SEQUENCE_SETDOWN:
+                ERR(SequenceSetdown(in_data, out_data, params, output));
+            break;
 
 			case PF_Cmd_RENDER:
 				ERR(Render(in_data, out_data, params, output));
