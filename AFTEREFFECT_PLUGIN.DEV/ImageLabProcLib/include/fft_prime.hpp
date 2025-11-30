@@ -11,7 +11,7 @@ inline std::vector<int32_t> prime (const int32_t N) noexcept
 	std::vector<int32_t> factors{};
 	int32_t tmp_N = N;
 
-// 1. Prioritize largest powers of 2 for which you have butterflies
+// 1. High-Speed Powers of 2 (Most Critical)
 	while (0 == tmp_N % 16)
 	{
 		factors.push_back(16);
@@ -30,17 +30,22 @@ inline std::vector<int32_t> prime (const int32_t N) noexcept
 		tmp_N /= 4; 
 	}		
 
-	while (0 == tmp_N % 2)
-	{
-		factors.push_back(2);
-		tmp_N /= 2; 
-	}		
+    while (0 == tmp_N % 9)
+	{ 
+		factors.push_back(9);
+		tmp_N /= 9;
+	}
 
-// 2. Small odd primes
-	while (0 == tmp_N % 7)
+    while (0 == tmp_N % 7)
 	{ 
 		factors.push_back(7);
 		tmp_N /= 7;
+	}
+
+	while (0 == tmp_N % 6)
+	{ 
+		factors.push_back(6);
+		tmp_N /= 6;
 	}
 	
 	while (0 == tmp_N % 5)
@@ -55,6 +60,12 @@ inline std::vector<int32_t> prime (const int32_t N) noexcept
 		tmp_N /= 3;
 	}
 	
+	while (0 == tmp_N % 2)
+	{
+		factors.push_back(2);
+		tmp_N /= 2; 
+	}		
+
 	// 3. Remainder (handled by CZT)
 	if (tmp_N > 1)
 	{

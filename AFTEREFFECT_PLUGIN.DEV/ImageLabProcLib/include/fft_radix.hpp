@@ -7,6 +7,9 @@
 #include <limits>
 #include <cstring>
 #include "Common.hpp"
+#include "FastAriphmetics.hpp"
+
+#include <iostream>
 
 namespace FourierTransform
 {
@@ -220,6 +223,129 @@ inline void Radix5_Butterfly
     out[4*stride_out+1] = m1_i + m3_r;
 }
 
+template <typename T>
+inline void Radix6_Butterfly
+(
+    const T* in,
+    T* out,
+    int32_t stride_in,
+    int32_t stride_out
+) noexcept
+{
+    // Constants for Radix-6
+    // Based on PI/3 = 60 degrees
+    // W6^1 = 0.5 - j*sqrt(3)/2
+    // W6^2 = -0.5 - j*sqrt(3)/2
+    // Radix-3 constants match these values.
+    
+    constexpr T HALF  = static_cast<T>(0.5);
+    constexpr T SIN60 = static_cast<T>(0.8660254037844386);
+
+    // ======================================================================
+    // LOAD INPUTS (Unrolled)
+    // ======================================================================
+    // Logic: 3 Columns of 2
+    // Col 0: 0, 3
+    // Col 1: 1, 4
+    // Col 2: 2, 5
+    
+    T r0 = in[0];             T i0 = in[1];
+    T r1 = in[stride_in];     T i1 = in[stride_in+1];
+    T r2 = in[2*stride_in];   T i2 = in[2*stride_in+1];
+    T r3 = in[3*stride_in];   T i3 = in[3*stride_in+1];
+    T r4 = in[4*stride_in];   T i4 = in[4*stride_in+1];
+    T r5 = in[5*stride_in];   T i5 = in[5*stride_in+1];
+
+    // ======================================================================
+    // STAGE 1: COLUMNS (3x Radix-2)
+    // ======================================================================
+    // Calculate Sums (Row 0) and Diffs (Row 1)
+    
+    // Col 0
+    T t0_r = r0 + r3; T t0_i = i0 + i3; // Row 0, Col 0
+    T t3_r = r0 - r3; T t3_i = i0 - i3; // Row 1, Col 0 (No Twiddle W^0)
+
+    // Col 1
+    T t1_r = r1 + r4; T t1_i = i1 + i4; // Row 0, Col 1
+    T d1_r = r1 - r4; T d1_i = i1 - i4; // Row 1, Col 1 (Needs W^1)
+
+    // Col 2
+    T t2_r = r2 + r5; T t2_i = i2 + i5; // Row 0, Col 2
+    T d2_r = r2 - r5; T d2_i = i2 - i5; // Row 1, Col 2 (Needs W^2)
+
+    // ======================================================================
+    // STAGE 2: TWIDDLES (W_6)
+    // ======================================================================
+    
+    // Apply W^1 to d1 (0.5 - j*SIN60)
+    // (r + ji)(0.5 - jS) = 0.5r - jSr + 0.5ji + S
+    // Re = 0.5r + S*i
+    // Im = 0.5i - S*r
+    T t4_r = d1_r * HALF + d1_i * SIN60;
+    T t4_i = d1_i * HALF - d1_r * SIN60;
+
+    // Apply W^2 to d2 (-0.5 - j*SIN60)
+    // (r + ji)(-0.5 - jS)
+    // Re = -0.5r + S*i
+    // Im = -0.5i - S*r
+    T t5_r = d2_r * -HALF + d2_i * SIN60;
+    T t5_i = d2_i * -HALF - d2_r * SIN60;
+
+    // ======================================================================
+    // STAGE 3: ROWS (2x Radix-3) & OUTPUT
+    // ======================================================================
+    // Row 0 Inputs: t0, t1, t2 -> Maps to Evens (Indices 0, 2, 4)
+    // Row 1 Inputs: t3, t4, t5 -> Maps to Odds  (Indices 1, 3, 5)
+
+    // --- ROW 0 (Radix-3) ---
+    {
+        T sum_r = t1_r + t2_r;
+        T sum_i = t1_i + t2_i;
+        
+        // Output 0 (DC)
+        out[0] = t0_r + sum_r;
+        out[1] = t0_i + sum_i;
+        
+        // Core Radix-3 math
+        T m1_r = t0_r - sum_r * HALF;
+        T m1_i = t0_i - sum_i * HALF;
+        T m2_r = (t1_r - t2_r) * SIN60;
+        T m2_i = (t1_i - t2_i) * SIN60;
+        
+        // Output 2
+        out[2*stride_out]   = m1_r + m2_i;
+        out[2*stride_out+1] = m1_i - m2_r;
+        
+        // Output 4
+        out[4*stride_out]   = m1_r - m2_i;
+        out[4*stride_out+1] = m1_i + m2_r;
+    }
+
+    // --- ROW 1 (Radix-3) ---
+    {
+        T sum_r = t4_r + t5_r;
+        T sum_i = t4_i + t5_i;
+        
+        // Output 1
+        out[1*stride_out]   = t3_r + sum_r;
+        out[1*stride_out+1] = t3_i + sum_i;
+        
+        T m1_r = t3_r - sum_r * HALF;
+        T m1_i = t3_i - sum_i * HALF;
+        T m2_r = (t4_r - t5_r) * SIN60;
+        T m2_i = (t4_i - t5_i) * SIN60;
+        
+        // Output 3
+        out[3*stride_out]   = m1_r + m2_i;
+        out[3*stride_out+1] = m1_i - m2_r;
+        
+        // Output 5
+        out[5*stride_out]   = m1_r - m2_i;
+        out[5*stride_out+1] = m1_i + m2_r;
+    }
+    
+    return;
+}
 
 template <typename T>
 inline void Radix7_Butterfly
@@ -441,6 +567,182 @@ inline void Radix8_Butterfly
     out[7*stride_out]    = o2_r - o4_r; out[7*stride_out+1]    = o2_i - o4_i;
     
     return;
+}
+
+template <typename T>
+inline void Radix9_Butterfly
+(
+    const T* in,
+    T* out,
+    int32_t stride_in,
+    int32_t stride_out
+) noexcept
+{
+    constexpr T C40 = static_cast<T>(0.7660444431189780); 
+    constexpr T S40 = static_cast<T>(0.6427876096865393); 
+    constexpr T C80 = static_cast<T>(0.1736481776669303); 
+    constexpr T S80 = static_cast<T>(0.9848077530122080); 
+    constexpr T C160 = static_cast<T>(-0.9396926207859084); 
+    constexpr T S160 = static_cast<T>(0.3420201433256687);  
+    constexpr T R3_C = static_cast<T>(-0.5);
+    constexpr T R3_S = static_cast<T>(0.8660254037844386);
+
+    // Intermediate Buffer (3 cols x 3 rows)
+    CACHE_ALIGN T t[18]; 
+
+    // ------------------------------------------------------------------
+    // STAGE 1: COLUMNS (3x Radix-3)
+    // ------------------------------------------------------------------
+    // Input Mapping:
+    // Col 0: in[0], in[3], in[6]
+    // Col 1: in[1], in[4], in[7]
+    // Col 2: in[2], in[5], in[8]
+    
+    // Process Col 0 -> t[0], t[1], t[2] (Complex indices)
+    {
+        T r0 = in[0];             T i0 = in[1];
+        T r1 = in[3*stride_in];   T i1 = in[3*stride_in+1];
+        T r2 = in[6*stride_in];   T i2 = in[6*stride_in+1];
+        
+        T t1 = r1 + r2; T t2 = i1 + i2;
+        t[0] = r0 + t1; t[1] = i0 + t2; // Out 0
+        
+        T m1 = r0 + t1 * R3_C; T m2 = i0 + t2 * R3_C;
+        T m3 = (r1 - r2) * R3_S; T m4 = (i1 - i2) * R3_S;
+        
+        t[2] = m1 + m4; t[3] = m2 - m3; // Out 1
+        t[4] = m1 - m4; t[5] = m2 + m3; // Out 2
+    }
+
+    // Process Col 1 -> t[3], t[4], t[5]
+    {
+        T r0 = in[1*stride_in];   T i0 = in[1*stride_in+1];
+        T r1 = in[4*stride_in];   T i1 = in[4*stride_in+1];
+        T r2 = in[7*stride_in];   T i2 = in[7*stride_in+1];
+        
+        T t1 = r1 + r2; T t2 = i1 + i2;
+        t[6] = r0 + t1; t[7] = i0 + t2;
+        
+        T m1 = r0 + t1 * R3_C; T m2 = i0 + t2 * R3_C;
+        T m3 = (r1 - r2) * R3_S; T m4 = (i1 - i2) * R3_S;
+        
+        t[8] = m1 + m4; t[9] = m2 - m3;
+        t[10] = m1 - m4; t[11] = m2 + m3;
+    }
+
+    // Process Col 2 -> t[6], t[7], t[8]
+    {
+        T r0 = in[2*stride_in];   T i0 = in[2*stride_in+1];
+        T r1 = in[5*stride_in];   T i1 = in[5*stride_in+1];
+        T r2 = in[8*stride_in];   T i2 = in[8*stride_in+1];
+        
+        T t1 = r1 + r2; T t2 = i1 + i2;
+        t[12] = r0 + t1; t[13] = i0 + t2;
+        
+        T m1 = r0 + t1 * R3_C; T m2 = i0 + t2 * R3_C;
+        T m3 = (r1 - r2) * R3_S; T m4 = (i1 - i2) * R3_S;
+        
+        t[14] = m1 + m4; t[15] = m2 - m3;
+        t[16] = m1 - m4; t[17] = m2 + m3;
+    }
+
+    // ------------------------------------------------------------------
+    // STAGE 2: TWIDDLES (In-Place on 't')
+    // ------------------------------------------------------------------
+    // t[0..5] is Col 0 Result (No Twiddle)
+    // t[6..11] is Col 1 Result
+    // t[12..17] is Col 2 Result
+    
+    // Apply W9 factors to the "Rows" of the intermediate matrix.
+    // Row 1 (Index 1 of each col result): t[2], t[8], t[14]
+    // Row 2 (Index 2 of each col result): t[4], t[10], t[16]
+    
+    // Col 1, Row 1 (t[8]) -> W^1
+    CMul(t[8], t[9], C40, -S40);
+    // Col 1, Row 2 (t[10]) -> W^2
+    CMul(t[10], t[11], C80, -S80);
+    
+    // Col 2, Row 1 (t[14]) -> W^2
+    CMul(t[14], t[15], C80, -S80);
+    // Col 2, Row 2 (t[16]) -> W^4
+    CMul(t[16], t[17], C160, -S160);
+
+    // ------------------------------------------------------------------
+    // STAGE 3: ROWS (3x Radix-3) & NATURAL OUTPUT
+    // ------------------------------------------------------------------
+    // We process Rows of 't'.
+    // Row 0 Inputs: t[0], t[6], t[12]  -> Maps to Output 0, 3, 6 (Stride 3)
+    // Row 1 Inputs: t[2], t[8], t[14]  -> Maps to Output 1, 4, 7
+    // Row 2 Inputs: t[4], t[10], t[16] -> Maps to Output 2, 5, 8
+    
+    // Row 0
+    {
+        T r0 = t[0]; T i0 = t[1];
+        T r1 = t[6]; T i1 = t[7];
+        T r2 = t[12]; T i2 = t[13];
+        
+        T t1 = r1 + r2; T t2 = i1 + i2;
+        // Output 0
+        out[0] = r0 + t1; 
+        out[1] = i0 + t2;
+        
+        T m1 = r0 + t1 * R3_C; T m2 = i0 + t2 * R3_C;
+        T m3 = (r1 - r2) * R3_S; T m4 = (i1 - i2) * R3_S;
+        
+        // Output 3
+        out[3*stride_out] = m1 + m4; 
+        out[3*stride_out+1] = m2 - m3;
+        
+        // Output 6
+        out[6*stride_out] = m1 - m4; 
+        out[6*stride_out+1] = m2 + m3;
+    }
+
+    // Row 1
+    {
+        T r0 = t[2]; T i0 = t[3];
+        T r1 = t[8]; T i1 = t[9];
+        T r2 = t[14]; T i2 = t[15];
+        
+        T t1 = r1 + r2; T t2 = i1 + i2;
+        // Output 1
+        out[1*stride_out] = r0 + t1; 
+        out[1*stride_out+1] = i0 + t2;
+        
+        T m1 = r0 + t1 * R3_C; T m2 = i0 + t2 * R3_C;
+        T m3 = (r1 - r2) * R3_S; T m4 = (i1 - i2) * R3_S;
+        
+        // Output 4
+        out[4*stride_out] = m1 + m4; 
+        out[4*stride_out+1] = m2 - m3;
+        
+        // Output 7
+        out[7*stride_out] = m1 - m4; 
+        out[7*stride_out+1] = m2 + m3;
+    }
+
+    // Row 2
+    {
+        T r0 = t[4]; T i0 = t[5];
+        T r1 = t[10]; T i1 = t[11];
+        T r2 = t[16]; T i2 = t[17];
+        
+        T t1 = r1 + r2; T t2 = i1 + i2;
+        // Output 2
+        out[2*stride_out] = r0 + t1; 
+        out[2*stride_out+1] = i0 + t2;
+        
+        T m1 = r0 + t1 * R3_C; T m2 = i0 + t2 * R3_C;
+        T m3 = (r1 - r2) * R3_S; T m4 = (i1 - i2) * R3_S;
+        
+        // Output 5
+        out[5*stride_out] = m1 + m4; 
+        out[5*stride_out+1] = m2 - m3;
+        
+        // Output 8
+        out[8*stride_out] = m1 - m4; 
+        out[8*stride_out+1] = m2 + m3;
+    }
 }
 
 
@@ -761,8 +1063,10 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
                 switch (R)
 				{
                     case 16: FourierTransform::Radix16_Butterfly(local_buf, local_buf, 2); break;
+                    case 9:  FourierTransform::Radix9_Butterfly(local_buf, local_buf, 2, 2); break;
                     case 8:  FourierTransform::Radix8_Butterfly(local_buf, local_buf, 2, 2); break;
                     case 7:  FourierTransform::Radix7_Butterfly(local_buf, local_buf, 2, 2); break;
+                    case 6:  FourierTransform::Radix6_Butterfly(local_buf, local_buf, 2, 2); break;
                     case 5:  FourierTransform::Radix5_Butterfly(local_buf, local_buf, 2, 2); break;
                     case 4:  FourierTransform::Radix4_Butterfly(local_buf, local_buf, 2, 2); break;
                     case 3:  FourierTransform::Radix3_Butterfly(local_buf, local_buf, 2, 2); break;

@@ -96,6 +96,9 @@
     <ClInclude Include="include\utils.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">
