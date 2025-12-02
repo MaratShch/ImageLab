@@ -5,16 +5,12 @@
 void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __restrict out, int32_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
-//	std::cout << "Prime factors for size = " << size << std::endl;
-//	for (const auto& elem : prime_vector)
-//		std::cout << elem << " ";
-//	std::cout << std::endl;
 
     // 1. Check if all factors are supported by your efficient kernels
     bool is_fast_path = true;
     for (const auto& f : prime_vector)
 	{
-        if (f != 16 && f != 8 && f != 7 && f != 5 && f != 4 && f != 3 && f != 2)
+        if (f != 16 && f != 9 && f != 8 && f != 7 && f != 6 && f != 5 && f != 4 && f != 3 && f != 2)
 		{
             is_fast_path = false;
             break;
@@ -48,16 +44,12 @@ void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __
 void FourierTransform::mixed_radix_fft_1D (const double* __restrict in, double* __restrict out, int32_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
-//	std::cout << "Prime factors for size = " << size << std::endl;
-//	for (const auto& elem : prime_vector)
-//		std::cout << elem << " ";
-//	std::cout << std::endl;
 
     // 1. Check if all factors are supported by your efficient kernels
     bool is_fast_path = true;
     for (const auto& f : prime_vector)
     {
-        if (f != 16 && f != 8 && f != 7 && f != 5 && f != 4 && f != 3 && f != 2)
+        if (f != 16 && f != 9 && f != 8 && f != 7 && f != 6 && f != 5 && f != 4 && f != 3 && f != 2)
 		{
             is_fast_path = false;
             break;

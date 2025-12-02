@@ -1,7 +1,8 @@
 #pragma once
 
 #include "fft_prime.hpp"
-#include "fft_radix.hpp"
+#include "fft_mixed_radix.hpp"
+#include "fft_split_radix.hpp"
 #include "fft_cooley_tukey.hpp"
 #include "fft_czt.hpp"
 

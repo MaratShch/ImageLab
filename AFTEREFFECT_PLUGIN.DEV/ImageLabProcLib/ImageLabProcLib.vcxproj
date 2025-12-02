@@ -160,8 +160,9 @@
     <ClInclude Include="include\fft.hpp" />
     <ClInclude Include="include\fft_cooley_tukey.hpp" />
     <ClInclude Include="include\fft_czt.hpp" />
+    <ClInclude Include="include\fft_mixed_radix.hpp" />
     <ClInclude Include="include\fft_prime.hpp" />
-    <ClInclude Include="include\fft_radix.hpp" />
+    <ClInclude Include="include\fft_split_radix.hpp" />
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <ItemGroup>
