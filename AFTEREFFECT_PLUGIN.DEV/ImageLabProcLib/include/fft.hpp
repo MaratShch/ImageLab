@@ -8,6 +8,7 @@
 
 namespace FourierTransform
 {
+
 void mixed_radix_fft_1D (const float* __restrict in, float* __restrict out, int32_t size) noexcept;
 void mixed_radix_fft_1D(const double* __restrict in, double* __restrict out, int32_t size) noexcept;
 
