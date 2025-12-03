@@ -10,7 +10,7 @@ void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __
     bool is_fast_path = true;
     for (const auto& f : prime_vector)
 	{
-        if (f != 16 && f != 9 && f != 8 && f != 7 && f != 6 && f != 5 && f != 4 && f != 3 && f != 2)
+        if (f > 9 && f != 16) // prime-function guarantee f >= 2
 		{
             is_fast_path = false;
             break;
@@ -49,8 +49,8 @@ void FourierTransform::mixed_radix_fft_1D (const double* __restrict in, double* 
     bool is_fast_path = true;
     for (const auto& f : prime_vector)
     {
-        if (f != 16 && f != 9 && f != 8 && f != 7 && f != 6 && f != 5 && f != 4 && f != 3 && f != 2)
-		{
+        if (f > 9 && f != 16) // prime-function guarantee f >= 2
+        {
             is_fast_path = false;
             break;
         }
