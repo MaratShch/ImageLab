@@ -8,8 +8,7 @@
 #include <cstring>
 #include "Common.hpp"
 #include "FastAriphmetics.hpp"
-
-#include <iostream>
+#include "utils.hpp"
 
 namespace FourierTransform
 {
@@ -1110,5 +1109,11 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
     FourierTransform::unshuffle_mixed_radix(dst, N, factors);
     return;
 }
-    
+
+// ============================================================================
+// 2D FORWARD FFT
+// ============================================================================
+void mixed_radix_ifft_2D (const float*  __restrict in, float*  __restrict scratch, float*  __restrict out, int32_t width, int32_t height) noexcept;
+void mixed_radix_ifft_2D (const double* __restrict in, double* __restrict scratch, double* __restrict out, int32_t width, int32_t height) noexcept;
+
 }

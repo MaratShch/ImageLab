@@ -102,12 +102,18 @@
     <ClInclude Include="include\fft_split_radix.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ProcLibExport.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\fft.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ProcLibExport.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

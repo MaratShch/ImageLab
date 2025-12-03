@@ -163,11 +163,13 @@
     <ClInclude Include="include\fft_mixed_radix.hpp" />
     <ClInclude Include="include\fft_prime.hpp" />
     <ClInclude Include="include\fft_split_radix.hpp" />
+    <ClInclude Include="include\ProcLibExport.hpp" />
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\fft.cpp" />
+    <ClCompile Include="src\ProcLibExport.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

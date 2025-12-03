@@ -1,6 +1,10 @@
 #include <vector>
 #include "fft.hpp"
 #include "dft.hpp"
+#include "utils.hpp"
+
+
+constexpr int32_t dft_algo_threshold = 128;
 
 void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __restrict out, int32_t size) noexcept
 {
@@ -26,7 +30,7 @@ void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __
     else
     {
         // Fallback for primes/unsupported sizes (e.g. 11, 13, 1009)
-        if (size < 128)
+        if (size < dft_algo_threshold)
         {
             // Assumes you kept the DFT_Canonical implementation
             FourierTransform::dft_1D(in, out, size);
@@ -65,7 +69,7 @@ void FourierTransform::mixed_radix_fft_1D (const double* __restrict in, double* 
     else
     {
         // Fallback for primes/unsupported sizes (e.g. 11, 13, 1009)
-        if (size < 128)
+        if (size < dft_algo_threshold)
         {
             // Assumes you kept the DFT_Canonical implementation
             FourierTransform::dft_1D(in, out, size);
@@ -156,14 +160,210 @@ void FourierTransform::mixed_radix_ifft_1D  (const double* __restrict in, double
     
     return;
 }
-// 
-//	Input buffer should be coming in interleaved format: RE, IM, RE, IM .../
-//	Same interleaved format produced for output buffer
-//
-//void FourierTransform::mixed_radix_fft_2D (const float* in, float* out, int32_t sizeX, int32_t sizeY)
-//{
-//	mixed_radix_fft_1D (in, out, sizeX);
-//	mixed_radix_fft_1D (in, out, sizeY);
-//	
-//	return;
-//}
+
+
+void FourierTransform::mixed_radix_fft_2D (const float* __restrict in, float* __restrict scratch, float* __restrict out, int32_t width, int32_t height) noexcept
+{
+    // Optimization: Read directly from 'in', write to 'out'.
+    // This eliminates the initial memcpy entirely.
+    // If (in == out), the 1D engine handles in-place safely.
+
+    const int32_t double_width = 2 * width;
+    for (int32_t row = 0; row < height; ++row)
+    {
+        // Offset in floats (2 per complex pixel)
+        const int32_t offset = row * double_width;
+
+        // Read from Input, Write to Output
+        FourierTransform::mixed_radix_fft_1D (in + offset, out + offset, width);
+    }
+
+    // Input: 'out' (Row-transformed data)
+    // Output: 'scratch' (Transposed data)
+    // Dimensions change: [W x H] -> [H x W]
+
+    utils_transpose_complex_2d(out, scratch, width, height);
+
+    // We now operate on 'scratch'.
+    // The "Rows" of scratch correspond to the "Columns" of the original image.
+    // Length of these rows is 'height'. There are 'width' such rows.
+
+    const int32_t double_height = 2 * height;
+    for (int32_t col = 0; col < width; ++col)
+    {
+        // Offset in floats
+        const int32_t offset = col * double_height;
+        float* row_ptr = scratch + offset;
+
+        // In-Place transform on the scratch buffer
+        FourierTransform::mixed_radix_fft_1D (row_ptr, row_ptr, height);
+    }
+
+    // Input: 'scratch' (Fully transformed, but transposed)
+    // Output: 'out' (Final Result)
+    // Dimensions restore: [H x W] -> [W x H]
+
+    utils_transpose_complex_2d(scratch, out, height, width);
+
+    return;
+}
+
+
+void FourierTransform::mixed_radix_fft_2D (const double* __restrict in, double* __restrict scratch, double* __restrict out, int32_t width, int32_t height) noexcept
+{
+    // Optimization: Read directly from 'in', write to 'out'.
+    // This eliminates the initial memcpy entirely.
+    // If (in == out), the 1D engine handles in-place safely.
+
+    const int32_t double_width = 2 * width;
+    for (int32_t row = 0; row < height; ++row)
+    {
+        // Offset in floats (2 per complex pixel)
+        const int32_t offset = row * double_width;
+
+        // Read from Input, Write to Output
+        FourierTransform::mixed_radix_fft_1D(in + offset, out + offset, width);
+    }
+
+    // Input: 'out' (Row-transformed data)
+    // Output: 'scratch' (Transposed data)
+    // Dimensions change: [W x H] -> [H x W]
+
+    utils_transpose_complex_2d(out, scratch, width, height);
+
+    // We now operate on 'scratch'.
+    // The "Rows" of scratch correspond to the "Columns" of the original image.
+    // Length of these rows is 'height'. There are 'width' such rows.
+
+    const int32_t double_height = 2 * height;
+    for (int32_t col = 0; col < width; ++col)
+    {
+        // Offset in floats
+        const int32_t offset = col * double_height;
+        double* row_ptr = scratch + offset;
+
+        // In-Place transform on the scratch buffer
+        FourierTransform::mixed_radix_fft_1D (row_ptr, row_ptr, height);
+    }
+
+    // Input: 'scratch' (Fully transformed, but transposed)
+    // Output: 'out' (Final Result)
+    // Dimensions restore: [H x W] -> [W x H]
+
+    utils_transpose_complex_2d(scratch, out, height, width);
+
+    return;
+}
+
+
+void FourierTransform::mixed_radix_ifft_2D (const float* __restrict in, float* __restrict scratch, float* __restrict out, int32_t width, int32_t height) noexcept
+{
+    // ========================================================================
+    // PASS 1: IFFT ROWS
+    // ========================================================================
+    // Optimization: Read directly from 'in', write to 'out'.
+    // The mixed_radix_ifft_1D function internally handles the "Copy + Conjugate"
+    // step, so we can pass different pointers for source and destination here.
+
+    const int32_t double_width = 2 * width;
+
+    for (int32_t row = 0; row < height; ++row)
+    {
+        const int32_t offset = row * double_width;
+
+        // Read from Input, Write to Output (Row by Row)
+        FourierTransform::mixed_radix_ifft_1D(in + offset, out + offset, width);
+    }
+
+    // ========================================================================
+    // PASS 2: TRANSPOSE (Rows -> Cols)
+    // ========================================================================
+    // Input: 'out' (Row-transformed data)
+    // Output: 'scratch' (Transposed data)
+    // Dimensions change: [W x H] -> [H x W]
+
+    utils_transpose_complex_2d(out, scratch, width, height);
+
+    // ========================================================================
+    // PASS 3: IFFT "COLUMNS" (Processed as Rows)
+    // ========================================================================
+    // We now operate on 'scratch'.
+    // The "Rows" of scratch correspond to the "Columns" of the original image.
+
+    const int32_t double_height = 2 * height;
+
+    for (int32_t col = 0; col < width; ++col)
+    {
+        const int32_t offset = col * double_height;
+        float* row_ptr = scratch + offset;
+
+        // In-Place transform on the scratch buffer
+        FourierTransform::mixed_radix_ifft_1D(row_ptr, row_ptr, height);
+    }
+
+    // ========================================================================
+    // PASS 4: TRANSPOSE BACK
+    // ========================================================================
+    // Input: 'scratch' (Fully transformed, but transposed)
+    // Output: 'out' (Final Result)
+    // Dimensions restore: [H x W] -> [W x H]
+
+    utils_transpose_complex_2d(scratch, out, height, width);
+    return;
+}
+
+void FourierTransform::mixed_radix_ifft_2D (const double* __restrict in, double* __restrict scratch, double* __restrict out, int32_t width, int32_t height) noexcept
+{
+    // ========================================================================
+    // PASS 1: IFFT ROWS
+    // ========================================================================
+    // Optimization: Read directly from 'in', write to 'out'.
+    // The mixed_radix_ifft_1D function internally handles the "Copy + Conjugate"
+    // step, so we can pass different pointers for source and destination here.
+
+    const int32_t double_width = 2 * width;
+
+    for (int32_t row = 0; row < height; ++row)
+    {
+        const int32_t offset = row * double_width;
+
+        // Read from Input, Write to Output (Row by Row)
+        FourierTransform::mixed_radix_ifft_1D(in + offset, out + offset, width);
+    }
+
+    // ========================================================================
+    // PASS 2: TRANSPOSE (Rows -> Cols)
+    // ========================================================================
+    // Input: 'out' (Row-transformed data)
+    // Output: 'scratch' (Transposed data)
+    // Dimensions change: [W x H] -> [H x W]
+
+    utils_transpose_complex_2d(out, scratch, width, height);
+
+    // ========================================================================
+    // PASS 3: IFFT "COLUMNS" (Processed as Rows)
+    // ========================================================================
+    // We now operate on 'scratch'.
+    // The "Rows" of scratch correspond to the "Columns" of the original image.
+
+    const int32_t double_height = 2 * height;
+
+    for (int32_t col = 0; col < width; ++col)
+    {
+        const int32_t offset = col * double_height;
+        double* row_ptr = scratch + offset;
+
+        // In-Place transform on the scratch buffer
+        FourierTransform::mixed_radix_ifft_1D(row_ptr, row_ptr, height);
+    }
+
+    // ========================================================================
+    // PASS 4: TRANSPOSE BACK
+    // ========================================================================
+    // Input: 'scratch' (Fully transformed, but transposed)
+    // Output: 'out' (Final Result)
+    // Dimensions restore: [H x W] -> [W x H]
+
+    utils_transpose_complex_2d(scratch, out, height, width);
+    return;
+}
