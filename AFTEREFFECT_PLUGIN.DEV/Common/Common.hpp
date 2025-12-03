@@ -2,6 +2,12 @@
 
 #include <cstdint>
 
+#if defined(__INTEL_COMPILER) || defined(_MSC_VER)
+ #define RESTRICT __restrict
+#else
+ #define RESTRICT __restrict__
+#endif
+
 #if defined(_MSC_VER)
  #define FORCE_INLINE __forceinline
 #else
