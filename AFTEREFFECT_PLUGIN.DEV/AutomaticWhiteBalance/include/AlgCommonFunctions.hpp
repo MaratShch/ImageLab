@@ -551,4 +551,105 @@ inline void collect_rgb_statistics
 }
 
 
+
+inline void image_rgb_correction_BGRA_8u
+(
+    const PF_Pixel_BGRA_8u* __restrict pSrc,
+    PF_Pixel_BGRA_8u*       __restrict pDst,
+    const A_long width,
+    const A_long height,
+    const A_long srcPitch,
+    const A_long dstPitch,
+    const float* __restrict correctionMatrix
+) noexcept
+{
+    // 1. Prepare AVX2 Constants
+    // -------------------------------------------------------------------------
+    const __m256 vScaleR = _mm256_set1_ps(correctionMatrix[0]);
+    const __m256 vScaleG = _mm256_set1_ps(correctionMatrix[1]);
+    const __m256 vScaleB = _mm256_set1_ps(correctionMatrix[2]);
+
+    const __m256 vZero = _mm256_setzero_ps();
+    const __m256 v255 = _mm256_set1_ps(255.0f);
+    const __m256i vAlphaMask = _mm256_set1_epi32(static_cast<int>(0xFF000000));
+
+    // Shuffle Masks (for de-interleaving BGRA -> Planar)
+    const __m256i mask_B = _mm256_setr_epi8(
+        0, -1, -1, -1, 4, -1, -1, -1, 8, -1, -1, -1, 12, -1, -1, -1,
+        0, -1, -1, -1, 4, -1, -1, -1, 8, -1, -1, -1, 12, -1, -1, -1);
+
+    const __m256i mask_G = _mm256_setr_epi8(
+        1, -1, -1, -1, 5, -1, -1, -1, 9, -1, -1, -1, 13, -1, -1, -1,
+        1, -1, -1, -1, 5, -1, -1, -1, 9, -1, -1, -1, 13, -1, -1, -1);
+
+    const __m256i mask_R = _mm256_setr_epi8(
+        2, -1, -1, -1, 6, -1, -1, -1, 10, -1, -1, -1, 14, -1, -1, -1,
+        2, -1, -1, -1, 6, -1, -1, -1, 10, -1, -1, -1, 14, -1, -1, -1);
+
+    // 2. Execution Loop
+    // -------------------------------------------------------------------------
+    for (A_long j = 0; j < height; ++j)
+    {
+        const uint8_t* __restrict pRowSrc = reinterpret_cast<const uint8_t*>(pSrc) + (j * srcPitch * 4);
+        uint8_t*       __restrict pRowDst = reinterpret_cast<uint8_t*>(pDst) + (j * dstPitch * 4);
+
+        A_long i = 0;
+        const A_long vecWidth = width - 7;
+
+        // [AVX2 Kernel] Processes 8 pixels at once
+        for (; i < vecWidth; i += 8)
+        {
+            // Load 32 bytes (8 pixels)
+            __m256i vPixels = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pRowSrc + i * 4));
+
+            // Convert to Planar Floats
+            __m256 vB_f = _mm256_cvtepi32_ps(_mm256_shuffle_epi8(vPixels, mask_B));
+            __m256 vG_f = _mm256_cvtepi32_ps(_mm256_shuffle_epi8(vPixels, mask_G));
+            __m256 vR_f = _mm256_cvtepi32_ps(_mm256_shuffle_epi8(vPixels, mask_R));
+
+            // Apply Correction
+            vB_f = _mm256_mul_ps(vB_f, vScaleB);
+            vG_f = _mm256_mul_ps(vG_f, vScaleG);
+            vR_f = _mm256_mul_ps(vR_f, vScaleR);
+
+            // Vector Clamp (Equivalent to CLAMP_VALUE but hardware accelerated)
+            vB_f = _mm256_min_ps(v255, _mm256_max_ps(vZero, vB_f));
+            vG_f = _mm256_min_ps(v255, _mm256_max_ps(vZero, vG_f));
+            vR_f = _mm256_min_ps(v255, _mm256_max_ps(vZero, vR_f));
+
+            // Pack back to BGRA Integers
+            __m256i vB_i = _mm256_cvtps_epi32(vB_f);
+            __m256i vG_i = _mm256_cvtps_epi32(vG_f);
+            __m256i vR_i = _mm256_cvtps_epi32(vR_f);
+
+            // Reconstruct: B | (G << 8) | (R << 16) | Original Alpha
+            __m256i vResult = vB_i;
+            vResult = _mm256_or_si256(vResult, _mm256_slli_epi32(vG_i, 8));
+            vResult = _mm256_or_si256(vResult, _mm256_slli_epi32(vR_i, 16));
+            vResult = _mm256_or_si256(vResult, _mm256_and_si256(vPixels, vAlphaMask));
+
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(pRowDst + i * 4), vResult);
+        }
+
+        // [Scalar Tail] Processes remaining pixels (0-7)
+        for (; i < width; ++i)
+        {
+            const PF_Pixel_BGRA_8u* pxSrc = reinterpret_cast<const PF_Pixel_BGRA_8u*>(pRowSrc + i * 4);
+            PF_Pixel_BGRA_8u*       pxDst = reinterpret_cast<PF_Pixel_BGRA_8u*>(pRowDst + i * 4);
+
+            float newR = correctionMatrix[0] * static_cast<float>(pxSrc->R);
+            float newG = correctionMatrix[1] * static_cast<float>(pxSrc->G);
+            float newB = correctionMatrix[2] * static_cast<float>(pxSrc->B);
+
+            // Using your CLAMP_VALUE function here
+            pxDst->R = static_cast<uint8_t>(CLAMP_VALUE(newR, 0.0f, 255.0f));
+            pxDst->G = static_cast<uint8_t>(CLAMP_VALUE(newG, 0.0f, 255.0f));
+            pxDst->B = static_cast<uint8_t>(CLAMP_VALUE(newB, 0.0f, 255.0f));
+            pxDst->A = pxSrc->A;
+        }
+    }
+
+    return;
+}
+
 #endif // __IMAGE_LAB_AUTHOMATIC_WB_ALGO_COOMON_FUNCTIONS__
