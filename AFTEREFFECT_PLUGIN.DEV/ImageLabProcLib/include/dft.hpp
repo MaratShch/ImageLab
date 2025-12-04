@@ -7,6 +7,8 @@
 
 namespace FourierTransform
 {
+
+constexpr int32_t dft_algo_threshold = 128;
 	
 template <typename T>
 inline void dft_1D

@@ -4,9 +4,7 @@
 #include "utils.hpp"
 
 
-constexpr int32_t dft_algo_threshold = 128;
-
-void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __restrict out, int32_t size) noexcept
+void FourierTransform::mixed_radix_fft_1D (const float* in, float* out, int32_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
 
@@ -45,7 +43,7 @@ void FourierTransform::mixed_radix_fft_1D (const float* __restrict in, float* __
 }	
 
 
-void FourierTransform::mixed_radix_fft_1D (const double* __restrict in, double* __restrict out, int32_t size) noexcept
+void FourierTransform::mixed_radix_fft_1D (const double* in, double* out, int32_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
 
@@ -90,7 +88,7 @@ void FourierTransform::mixed_radix_fft_1D (const double* __restrict in, double* 
 // Computes IFFT using the Conjugate property: IFFT(x) = conj(FFT(conj(x))) / N
 // This reuses the highly optimized Forward engine without code duplication.
 // ----------------------------------------------------------------------------
-void FourierTransform::mixed_radix_ifft_1D (const float* __restrict in, float* __restrict out, int32_t size) noexcept
+void FourierTransform::mixed_radix_ifft_1D (const float* RESTRICT in, float* RESTRICT out, int32_t size) noexcept
 {
     // 1. Pre-Process: Copy Input to Output AND Conjugate
     // We perform the copy here manually to flip the sign of the imaginary part.
@@ -126,7 +124,7 @@ void FourierTransform::mixed_radix_ifft_1D (const float* __restrict in, float* _
 }
 
 
-void FourierTransform::mixed_radix_ifft_1D  (const double* __restrict in, double* __restrict out, int32_t size) noexcept
+void FourierTransform::mixed_radix_ifft_1D  (const double* RESTRICT in, double* RESTRICT out, int32_t size) noexcept
 {
     // 1. Pre-Process: Copy Input to Output AND Conjugate
     // We perform the copy here manually to flip the sign of the imaginary part.
@@ -162,7 +160,7 @@ void FourierTransform::mixed_radix_ifft_1D  (const double* __restrict in, double
 }
 
 
-void FourierTransform::mixed_radix_fft_2D (const float* __restrict in, float* __restrict scratch, float* __restrict out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_fft_2D (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int32_t width, int32_t height) noexcept
 {
     // Optimization: Read directly from 'in', write to 'out'.
     // This eliminates the initial memcpy entirely.
@@ -209,7 +207,7 @@ void FourierTransform::mixed_radix_fft_2D (const float* __restrict in, float* __
 }
 
 
-void FourierTransform::mixed_radix_fft_2D (const double* __restrict in, double* __restrict scratch, double* __restrict out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_fft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept
 {
     // Optimization: Read directly from 'in', write to 'out'.
     // This eliminates the initial memcpy entirely.
@@ -256,7 +254,7 @@ void FourierTransform::mixed_radix_fft_2D (const double* __restrict in, double* 
 }
 
 
-void FourierTransform::mixed_radix_ifft_2D (const float* __restrict in, float* __restrict scratch, float* __restrict out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_ifft_2D (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int32_t width, int32_t height) noexcept
 {
     // ========================================================================
     // PASS 1: IFFT ROWS
@@ -312,7 +310,7 @@ void FourierTransform::mixed_radix_ifft_2D (const float* __restrict in, float* _
     return;
 }
 
-void FourierTransform::mixed_radix_ifft_2D (const double* __restrict in, double* __restrict scratch, double* __restrict out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_ifft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept
 {
     // ========================================================================
     // PASS 1: IFFT ROWS

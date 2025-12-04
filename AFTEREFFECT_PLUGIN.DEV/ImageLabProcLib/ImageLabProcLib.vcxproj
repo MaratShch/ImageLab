@@ -169,6 +169,7 @@
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\fft.cpp" />
+    <ClCompile Include="src\fft_ex.cpp" />
     <ClCompile Include="src\ProcLibExport.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

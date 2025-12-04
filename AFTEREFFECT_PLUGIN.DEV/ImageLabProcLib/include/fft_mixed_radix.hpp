@@ -1007,6 +1007,21 @@ inline void unshuffle_mixed_radix
 // 3. Unshuffle:   Permute 'dst'.
 // ----------------------------------------------------------------------------
 template <typename T>
+void FFT_MixedRadix_Iterative_Table
+(
+    const T* src,
+    T* dst, 
+    int32_t N, 
+    const std::vector<int32_t>& factors,
+    const T* RESTRICT twiddle_table // <--- NEW ARGUMENT
+) noexcept
+{
+    // TODO ...
+    return;
+}
+
+
+template <typename T>
 void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vector<int32_t>& factors) noexcept
 {
     int32_t group_size = N;
@@ -1076,7 +1091,7 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
                 // ALWAYS WRITE TO DESTINATION
                 
                 // Row 0 (W^0 = 1)
-                int32_t idx0 = 2 * (base_offset + k);
+                const int32_t idx0 = 2 * (base_offset + k);
                 dst[idx0]     = local_buf[0];
                 dst[idx0 + 1] = local_buf[1];
 
@@ -1089,7 +1104,7 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
                     // Twiddle
                     FourierTransform::apply_twiddle (r, i, j * k, group_size);
 
-                    int32_t idx = 2 * (base_offset + k + j * stride);
+                    const int32_t idx = 2 * (base_offset + k + j * stride);
                     dst[idx]     = r;
                     dst[idx + 1] = i;
                 }
@@ -1113,7 +1128,7 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
 // ============================================================================
 // 2D FORWARD FFT
 // ============================================================================
-void mixed_radix_ifft_2D (const float*  __restrict in, float*  __restrict scratch, float*  __restrict out, int32_t width, int32_t height) noexcept;
-void mixed_radix_ifft_2D (const double* __restrict in, double* __restrict scratch, double* __restrict out, int32_t width, int32_t height) noexcept;
+void mixed_radix_ifft_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, int32_t width, int32_t height) noexcept;
+void mixed_radix_ifft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept;
 
 }

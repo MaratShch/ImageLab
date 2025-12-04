@@ -116,5 +116,8 @@
     <ClCompile Include="src\ProcLibExport.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\fft_ex.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
