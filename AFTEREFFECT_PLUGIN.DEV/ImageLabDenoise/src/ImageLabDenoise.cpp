@@ -4,7 +4,6 @@
 #include "PrSDKAESupport.h"
 
 
-
 static PF_Err
 About(
 	PF_InData		*in_data,
@@ -99,12 +98,14 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    // Unload processing library
     UnloadProcLibDll ();
+
+    // Unload memory management library
     UnloadMemoryInterfaceProvider();
 
 	return PF_Err_NONE;
 }
-
 
 
 static PF_Err
@@ -129,6 +130,7 @@ SequenceSetup (
     return ImageLabDenoise_SequenceSetup (in_data, out_data, params, output);
 }
 
+
 static PF_Err
 SequenceResetup (
     PF_InData		*in_data,
@@ -148,6 +150,7 @@ SequenceFlatten (
 {
     return ImageLabDenoise_SequenceFlatten (in_data, out_data, params, output);
 }
+
 
 static PF_Err
 SequenceSetdown (
@@ -171,6 +174,32 @@ Render(
 }
 
 
+static PF_Err
+UserChangedParam(
+    PF_InData						*in_data,
+    PF_OutData						*out_data,
+    PF_ParamDef						*params[],
+    PF_LayerDef						*outputP,
+    const PF_UserChangedParamExtra	*which_hitP
+)
+{
+    PF_Err errControl = PF_Err_NONE;
+    return errControl;
+}
+
+
+static PF_Err
+UpdateParameterUI(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*outputP
+) noexcept
+{
+    PF_Err err = PF_Err_NONE;
+    return err;
+}
+
 
 static PF_Err
 PreRender(
@@ -181,6 +210,7 @@ PreRender(
 {
     return ImageLabDenoise_PreRender (in_data, out_data, extra);
 }
+
 
 PF_Err
 SmartRender
@@ -243,6 +273,14 @@ EffectMain(
 			case PF_Cmd_RENDER:
 				ERR(Render(in_data, out_data, params, output));
 			break;
+
+            case PF_Cmd_USER_CHANGED_PARAM:
+                ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+            break;
+
+            case PF_Cmd_UPDATE_PARAMS_UI:
+                ERR(UpdateParameterUI(in_data, out_data, params, output));
+            break;
 
             case PF_Cmd_SMART_PRE_RENDER:
                 ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
