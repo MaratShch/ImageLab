@@ -4,8 +4,8 @@
 #include "CommonAdobeAE.hpp"
 
 
-constexpr char strName[] = "Color Substitution";
-constexpr char strCopyright[] = "\n2019-2024. ImageLab2 Copyright(c).\rImageLab Denoise plugin.";
+constexpr char strName[] = "ImageLab Denoise";
+constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rImageLab Denoise plugin.";
 constexpr int ImageLabDenoise_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ImageLabDenoise_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int ImageLabDenoise_VersionSub = 0;
@@ -49,5 +49,42 @@ ImageLabDenoise_SmartRender
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extraP
 );
+
+PF_Err
+ImageLabDenoise_SequenceSetup
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output
+);
+
+PF_Err
+ImageLabDenoise_SequenceReSetup
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output
+);
+
+PF_Err
+ImageLabDenoise_SequenceFlatten
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output
+);
+
+PF_Err
+ImageLabDenoise_SequenceSetdown
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output
+);
+
 
 #endif /* __IMAGE_LAB_DENOISE_FILTER__ */

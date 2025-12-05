@@ -1,4 +1,6 @@
 #include "ImageLabDenoise.hpp"
+#include "ImageLabDenoiseUtils.hpp"
+#include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -29,7 +31,16 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    if (false == LoadMemoryInterfaceProvider (in_data))
+        return err;
+    if (false == LoadProcLibDLL (in_data))
+    {
+        // unload previously loaded library on proc DLL load fails
+        UnloadMemoryInterfaceProvider();
+        return err;
+    }
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_WIDE_TIME_INPUT                |
@@ -76,6 +87,7 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
+    err = PF_Err_NONE;
 	return err;
 }
 
@@ -87,7 +99,9 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
+    UnloadProcLibDll ();
+    UnloadMemoryInterfaceProvider();
+
 	return PF_Err_NONE;
 }
 
@@ -112,8 +126,7 @@ SequenceSetup (
     PF_ParamDef		*params[],
     PF_LayerDef		*output)
 {
-    PF_Err err = PF_Err_NONE;
-    return err;
+    return ImageLabDenoise_SequenceSetup (in_data, out_data, params, output);
 }
 
 static PF_Err
@@ -123,8 +136,7 @@ SequenceResetup (
     PF_ParamDef		*params[],
     PF_LayerDef		*output)
 {
-    PF_Err err = PF_Err_NONE;
-    return err;
+    return ImageLabDenoise_SequenceReSetup (in_data, out_data, params, output);
 }
 
 static PF_Err
@@ -134,8 +146,7 @@ SequenceFlatten (
     PF_ParamDef		*params[],
     PF_LayerDef		*output)
 {
-    PF_Err err = PF_Err_NONE;
-    return err;
+    return ImageLabDenoise_SequenceFlatten (in_data, out_data, params, output);
 }
 
 static PF_Err
@@ -145,8 +156,7 @@ SequenceSetdown (
     PF_ParamDef		*params[],
     PF_LayerDef		*output)
 {
-    PF_Err err = PF_Err_NONE;
-    return err;
+    return ImageLabDenoise_SequenceSetdown (in_data, out_data, params, output);
 }
 
 

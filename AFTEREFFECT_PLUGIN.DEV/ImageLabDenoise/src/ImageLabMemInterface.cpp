@@ -9,7 +9,7 @@ static void* MemoryInterfaceHndl = nullptr;
 static MemoryManagerInterface memInterface{};
 
 
-bool LoadMemoryInterfaceProvider(PF_InData* in_data)
+bool LoadMemoryInterfaceProvider (PF_InData* in_data)
 {
     A_char pluginFullPath[AEFX_MAX_PATH]{};
     PF_Err extErr = PF_GET_PLATFORM_DATA(PF_PlatData_EXE_FILE_PATH_DEPRECATED, &pluginFullPath);

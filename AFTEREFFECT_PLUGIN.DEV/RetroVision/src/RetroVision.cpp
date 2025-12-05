@@ -82,7 +82,11 @@ GlobalSetup
     if (false == LoadMemoryInterfaceProvider(in_data))
         return err;
     if (false == LoadResourceDll(in_data))
+    {
+        // unload previously loaded library on proc DLL load fails
+        UnloadMemoryInterfaceProvider();
         return err;
+    }
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_WIDE_TIME_INPUT                |

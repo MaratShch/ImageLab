@@ -1,5 +1,33 @@
 #include "ProcLibExport.hpp"
 #include "fft.hpp"
+#include <vector>
+
+int compute_prime (int imgSize, int arraySize, int* ptr)
+{
+    int bRet = 0;
+
+    if (nullptr != ptr && arraySize >= 24 && imgSize > 128)
+    {
+        const std::vector<int> prime = FourierTransform::prime (imgSize);
+        if (0 != prime.size() && arraySize >= prime.size())
+        {
+            for (const auto& f : prime)
+            {
+                if (f > 9 && f != 16)
+                    return 0;
+                bRet++;
+            }
+
+            if (arraySize > prime.size())
+                std::memcpy(ptr, prime.data(), prime.size() * sizeof(int));
+            else
+                bRet = 0;
+        }
+    }
+
+    return bRet;
+}
+
 
 void fft_f32 (const float* in, float* out, int size)
 {
