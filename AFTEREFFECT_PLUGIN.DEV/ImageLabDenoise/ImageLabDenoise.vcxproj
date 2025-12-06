@@ -155,6 +155,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ImageLabDenoiseAlgo.hpp" />
     <ClInclude Include="include\ImageLabDenoiseUtils.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
     <CustomBuild Include="include\ImageLabDenoise.hpp">
@@ -177,6 +178,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\ImageLabDenoise.cpp" />
     <ClCompile Include="src\ImageLabDenoiseAE.cpp" />
     <ClCompile Include="src\ImageLabDenoisePR.cpp" />
+    <ClCompile Include="src\ImageLabDenoisePreProc.cpp" />
     <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp" />
     <ClCompile Include="src\ImageLabDenoiseSR.cpp" />
     <ClCompile Include="src\ImageLabDenoiseUtils.cpp" />

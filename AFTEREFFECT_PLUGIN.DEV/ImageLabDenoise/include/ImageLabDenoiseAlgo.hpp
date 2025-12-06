@@ -1,0 +1,22 @@
+#ifndef __IMAGE_LAB_DENOISE_FILTER_ALGORITHM_DEFINITIONS__
+#define __IMAGE_LAB_DENOISE_FILTER_ALGORITHM_DEFINITIONS__
+
+#include <cstdint>
+#include <immintrin.h>
+#include "Common.hpp"
+#include "CommonPixFormat.hpp"
+#include "ColorTransformMatrix.hpp"
+
+
+void Rgb2YuvSemiplanar_BGRA_8u_AVX2
+(
+    const PF_Pixel_BGRA_8u* RESTRICT in,
+    float* RESTRICT dstY,
+    float* RESTRICT dstUV,
+    int32_t width,
+    int32_t height,
+    int32_t linePitch
+) noexcept;
+
+
+#endif // __IMAGE_LAB_DENOISE_FILTER_ALGORITHM_DEFINITIONS__
