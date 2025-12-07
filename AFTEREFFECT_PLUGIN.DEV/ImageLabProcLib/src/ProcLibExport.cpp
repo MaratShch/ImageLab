@@ -45,7 +45,7 @@ void fft_f64 (const double* in, double* out, int size)
     return;
 }
 
-void fft2d_f32 (const float* in, float* scratch, float* out, int sizeX, int sizeY)
+void fft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_fft_2D(in, scratch, out, sizeX, sizeY);
@@ -53,7 +53,7 @@ void fft2d_f32 (const float* in, float* scratch, float* out, int sizeX, int size
     return;
 }
 
-void fft2d_f64 (const double* in, double* scratch, double* out, int sizeX, int sizeY)
+void fft2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int sizeX, int sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_fft_2D(in, scratch, out, sizeX, sizeY);
@@ -79,7 +79,7 @@ void ifft_f64 (const double* in, double* out, int size)
 }
 
 
-void ifft2d_f32 (const float* in, float* scratch, float* out, int sizeX, int sizeY)
+void ifft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_ifft_2D(in, scratch, out, sizeX, sizeY);
@@ -87,7 +87,7 @@ void ifft2d_f32 (const float* in, float* scratch, float* out, int sizeX, int siz
     return;
 }
 
-void ifft2d_f64 (const double* in, double* scratch, double* out, int sizeX, int sizeY)
+void ifft2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int sizeX, int sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_ifft_2D(in, scratch, out, sizeX, sizeY);

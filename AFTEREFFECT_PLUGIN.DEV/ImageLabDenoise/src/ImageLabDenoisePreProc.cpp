@@ -17,7 +17,7 @@ void Rgb2YuvSemiplanar_BGRA_8u_AVX2
 
     // Load base matrix (assuming RGB2YUV is accessible global)
     // Note: User code used RGB2YUV[1]. Adjust index as needed.
-    const float* baseM = RGB2YUV[1];
+    const float* RESTRICT baseM = RGB2YUV[1];
 
     // Pre-scale coefficients
     const __m256 m0 = _mm256_set1_ps(baseM[0] * normScale);

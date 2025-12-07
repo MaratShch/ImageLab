@@ -6,9 +6,9 @@
 
 typedef int  (WINAPI *procLib_compute_prime) (int imgSize, int arraySize, int* ptr);
 typedef void (WINAPI *procLib_fft_f32)    (const float*  in, float*  out, int size);
-typedef void (WINAPI *procLib_fft2d_f32)  (const float*  in, float*  scratch, float*  out, int sizeX, int sizeY);
+typedef void (WINAPI *procLib_fft2d_f32)  (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY);
 typedef void (WINAPI *procLib_ifft_f32)   (const float*  in, float*  out, int size);
-typedef void (WINAPI* procLib_ifft2d_f32) (const float*  in, float*  scratch, float*  out, int sizeX, int sizeY);
+typedef void (WINAPI* procLib_ifft2d_f32) (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY);
 
 
 struct ProcLibHandle
@@ -85,14 +85,14 @@ void proc_ifft_f32 (const float* in, float* out, int size)
     return;
 }
 
-void proc_fft2d_f32 (const float* in, float* scratch, float* out, int sizeX, int sizeY)
+void proc_fft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
 {
     if (nullptr != hLib && nullptr != fftLibHndl.fft2d_f32)
         fftLibHndl.fft2d_f32 (in, scratch, out, sizeX, sizeY);
     return;
 }
 
-void proc_ifft2d_f32 (const float* in, float* scratch, float* out, int sizeX, int sizeY)
+void proc_ifft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
 {
     if (nullptr != hLib && nullptr != fftLibHndl.ifft2d_f32)
         fftLibHndl.ifft2d_f32 (in, scratch, out, sizeX, sizeY);
