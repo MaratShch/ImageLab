@@ -111,6 +111,9 @@
     <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\Avx2ColorConvert2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp">
@@ -157,6 +160,9 @@
     </ClCompile>
     <ClCompile Include="src\Avx2Median\Avx2Median_7x7_BGRA4444_32f.cpp">
       <Filter>src\Avx2Median</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert2.cpp">
+      <Filter>src\Avx2ColorConvert</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

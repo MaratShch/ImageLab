@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <immintrin.h>
+#include "CommonPixFormat.hpp"
 
 namespace AVX2
 {

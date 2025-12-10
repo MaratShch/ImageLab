@@ -164,6 +164,7 @@
     <ClInclude Include="include\Avx2Array.hpp" />
     <ClInclude Include="include\Avx2BitonicSort.hpp" />
     <ClInclude Include="include\Avx2ColorConvert.hpp" />
+    <ClInclude Include="include\Avx2ColorConvert2.hpp" />
     <ClInclude Include="include\Avx2MiscUtils.hpp" />
     <ClInclude Include="include\Avx2Morphology.hpp" />
     <ClInclude Include="include\Avx2Histogram.hpp" />
@@ -176,6 +177,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp" />
+    <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert2.cpp" />
     <ClCompile Include="src\Avx2Histogram\Avx2Histogram.cpp" />
     <ClCompile Include="src\Avx2Median\Avx2Median_3x3_BGRA4444_16u.cpp" />
     <ClCompile Include="src\Avx2Median\Avx2Median_3x3_BGRA4444_32f.cpp" />
