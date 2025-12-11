@@ -64,7 +64,7 @@ void AVX2::ColorConvert::BGRA8u_to_VUYA8u
 		{
 			/* non-aligned load 8 packet pixels at once */
 			const __m256i packetSrcPix = _mm256_loadu_si256 (pSrcBufVector++);
-			__m256i valYuv = Convert_bgra2vuya_8u (packetSrcPix, errCorr, coeffY, coeffU, coeffV);
+            __m256i valYuv = Convert_bgra2vuya_8u(packetSrcPix);// , errCorr, coeffY, coeffU, coeffV);
 			_mm256_storeu_si256(pDstBufVector++, valYuv);
 		} /* for (x = 0; x < loopCnt; x++) */
 

@@ -57,370 +57,162 @@ namespace AVX2
 
 		}; /* InternalColorConvert */
 
+        static constexpr int32_t Shift = 13;
+        const __m256i permute_idx_32 = _mm256_setr_epi32(1, 3, 5, 7, 0, 2, 4, 6);
+        const __m256i rounding_bias = _mm256_set1_epi32(1 << 12);
+        const __m256i uv_offset_128 = _mm256_set1_epi16(128);
+        const __m256i alpha_blend_mask = _mm256_set1_epi32(static_cast<int>(0xFF000000));
 
-		   /*
+        // VUYA Reconstruction: V=Byte0, U=Byte1, Y=Byte2
+        const __m256i mask_reconstruct_VUYA = _mm256_setr_epi8(
+            0, -1, -1, -1, 4, -1, -1, -1, 8, -1, -1, -1, 12, -1, -1, -1,
+            0, -1, -1, -1, 4, -1, -1, -1, 8, -1, -1, -1, 12, -1, -1, -1
+        );
 
-		   bgraX8 contains packet 8u BGRA pixels in folowing format:
+        // BGRA Reconstruction: B=Byte0, G=Byte1, R=Byte2 (Derived from Packus output)
+        const __m256i mask_reconstruct_BGRA = _mm256_setr_epi8(
+            0, 12, 8, 4, 1, 13, 9, 5, 2, 14, 10, 6, 3, 15, 11, 7,
+            0, 12, 8, 4, 1, 13, 9, 5, 2, 14, 10, 6, 3, 15, 11, 7
+        );
 
-		   +----+----+----+----+----+----+----+----+-----+----+----+----+----+
-		   | b0 | g0 | r0 | a0 | b1 | g1 | r1 | a1 | ... | b7 | g7 | r7 | a7 |
-		   +----+----+----+----+----+----+----+----+-----+----+----+----+----+
+        // BGRA Input -> Coefficients layout: [B, G, R, 0]
+        // Y: B*0.114, G*0.587, R*0.299
+        static const __m256i coeffY = _mm256_setr_epi16(934, 4809, 2449, 0, 934, 4809, 2449, 0, 934, 4809, 2449, 0, 934, 4809, 2449, 0);
 
-		   */
-		inline __m256i Convert_bgra2vuya_8u (const __m256i& bgraX8) noexcept
-		{
-			const __m256i& errCorr = _mm256_setr_epi32(
-				InternalColorConvert::Mult,
-				InternalColorConvert::Mult,
-				InternalColorConvert::Mult,
-				InternalColorConvert::Mult,
-				InternalColorConvert::Mult,
-				InternalColorConvert::Mult,
-				InternalColorConvert::Mult,
-				InternalColorConvert::Mult);
+        // U: B*0.500, G*-0.331, R*-0.169
+        static const __m256i coeffU = _mm256_setr_epi16(4096, -2714, -1382, 0, 4096, -2714, -1382, 0, 4096, -2714, -1382, 0, 4096, -2714, -1382, 0);
 
-			/* Coefficients for compute Y (mask ALPHA channel by zero) */
-			const __m256i& coeffY = _mm256_setr_epi16
-			(
-				InternalColorConvert::yB, InternalColorConvert::yG, InternalColorConvert::yR, 0,
-				InternalColorConvert::yB, InternalColorConvert::yG, InternalColorConvert::yR, 0,
-				InternalColorConvert::yB, InternalColorConvert::yG, InternalColorConvert::yR, 0,
-				InternalColorConvert::yB, InternalColorConvert::yG, InternalColorConvert::yR, 0
-			);
+        // V: B*-0.081, G*-0.419, R*0.500
+        static const __m256i coeffV = _mm256_setr_epi16(-666, -3430, 4096, 0, -666, -3430, 4096, 0, -666, -3430, 4096, 0, -666, -3430, 4096, 0);
 
-			/* Coefficients for compute U (mask ALPHA channel by zero) */
-			const __m256i& coeffU = _mm256_setr_epi16
-			(
-				InternalColorConvert::uB, InternalColorConvert::uG, InternalColorConvert::uR, 0,
-				InternalColorConvert::uB, InternalColorConvert::uG, InternalColorConvert::uR, 0,
-				InternalColorConvert::uB, InternalColorConvert::uG, InternalColorConvert::uR, 0,
-				InternalColorConvert::uB, InternalColorConvert::uG, InternalColorConvert::uR, 0
-			);
+        // VUYA Input -> Coefficients layout: [V, U, Y, 0]
+        // R: V*1.4075 + Y*1.0
+        static const __m256i coeffR = _mm256_setr_epi16(11530, 0, 8192, 0, 11530, 0, 8192, 0, 11530, 0, 8192, 0, 11530, 0, 8192, 0);
 
-			/* Coefficients for compute U (mask ALPHA channel by zero) */
-			const __m256i& coeffV = _mm256_setr_epi16
-			(
-				InternalColorConvert::vB, InternalColorConvert::vG, InternalColorConvert::vR, 0,
-				InternalColorConvert::vB, InternalColorConvert::vG, InternalColorConvert::vR, 0,
-				InternalColorConvert::vB, InternalColorConvert::vG, InternalColorConvert::vR, 0,
-				InternalColorConvert::vB, InternalColorConvert::vG, InternalColorConvert::vR, 0
-			);
+        // G: V*-0.7169 + U*-0.3455 + Y*1.0
+        static const __m256i coeffG = _mm256_setr_epi16(-5873, -2830, 8192, 0, -5873, -2830, 8192, 0, -5873, -2830, 8192, 0, -5873, -2830, 8192, 0);
 
-			/* extract 4 low pixels from uint8_t to int16_t */
-			__m256i bgra03 = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(bgraX8, 0));
-			/* extract 4 high pixels from uint8_t to int16_t */
-			__m256i bgra47 = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(bgraX8, 1));
+        // B: U*1.7790 + Y*1.0
+        static const __m256i coeffB = _mm256_setr_epi16(0, 14574, 8192, 0, 0, 14574, 8192, 0, 0, 14574, 8192, 0, 0, 14574, 8192, 0);
 
-			/* COMPUTE Y COMPONENT */
-			/* DOT operation for pixels 0 - 3:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotY1 = _mm256_madd_epi16(bgra03, coeffY);
-			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotY2 = _mm256_madd_epi16(bgra47, coeffY);
+/*
+        bgraX8 contains packet 8u BGRA pixels in folowing format :
 
-			/* SUM between DOT elements */
-			__m256i addDotsY1 = _mm256_add_epi32(dotY1, _mm256_slli_epi64(dotY1, 32));
-			__m256i addDotsY2 = _mm256_add_epi32(dotY2, _mm256_slli_epi64(dotY2, 32));
+            +---- + ---- + ---- + ---- + ---- + ---- + ---- + ---- + ---- - +---- + ---- + ---- + ---- +
+            | b0 | g0 | r0 | a0 | b1 | g1 | r1 | a1 | ... | b7 | g7 | r7 | a7 |
+            +---- + ---- + ---- + ---- + ---- + ---- + ---- + ---- + ---- - +---- + ---- + ---- + ---- +
+*/
+        inline __m256i Convert_bgra2vuya_8u(const __m256i& bgraX8) noexcept
+        {
+            // 1. Expand uint8 -> int16
+            __m256i bgra03 = _mm256_cvtepu8_epi16(_mm256_castsi256_si128(bgraX8));
+            __m256i bgra47 = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(bgraX8, 1));
 
-			/* final shift for get Y value: normalize ariphmetic result */
-			__m256i Y03 = _mm256_srai_epi32(addDotsY1, InternalColorConvert::Shift);
-			__m256i Y47 = _mm256_srai_epi32(addDotsY2, InternalColorConvert::Shift);
+            // 2. Dot Product
+            __m256i y1 = _mm256_madd_epi16(bgra03, coeffY);
+            __m256i y2 = _mm256_madd_epi16(bgra47, coeffY);
 
-			/* COMPUTE U COMPONENT */
-			/* DOT operation for pixels 0 - 3:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotU1 = _mm256_madd_epi16(bgra03, coeffU);
-			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotU2 = _mm256_madd_epi16(bgra47, coeffU);
+            __m256i u1 = _mm256_madd_epi16(bgra03, coeffU);
+            __m256i u2 = _mm256_madd_epi16(bgra47, coeffU);
 
-			/* SUM between DOT elements */
-			__m256i addDotsU1 = _mm256_add_epi32(dotU1, _mm256_slli_epi64(dotU1, 32));
-			__m256i addDotsU2 = _mm256_add_epi32(dotU2, _mm256_slli_epi64(dotU2, 32));
+            __m256i v1 = _mm256_madd_epi16(bgra03, coeffV);
+            __m256i v2 = _mm256_madd_epi16(bgra47, coeffV);
 
-			/* final shift for get Y value: normalize ariphmetic result */
-			__m256i U03 = _mm256_srai_epi32(addDotsU1, InternalColorConvert::Shift);
-			__m256i U47 = _mm256_srai_epi32(addDotsU2, InternalColorConvert::Shift);
+            // 3. Horizontal Sum + Rounding Bias
+            __m256i y1_sum = _mm256_add_epi32(_mm256_add_epi32(y1, _mm256_slli_epi64(y1, 32)), rounding_bias);
+            __m256i y2_sum = _mm256_add_epi32(_mm256_add_epi32(y2, _mm256_slli_epi64(y2, 32)), rounding_bias);
 
-			/* COMPUTE V COMPONENT */
-			__m256i dotV1 = _mm256_madd_epi16(bgra03, coeffV);
-			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotV2 = _mm256_madd_epi16(bgra47, coeffV);
+            __m256i u1_sum = _mm256_add_epi32(_mm256_add_epi32(u1, _mm256_slli_epi64(u1, 32)), rounding_bias);
+            __m256i u2_sum = _mm256_add_epi32(_mm256_add_epi32(u2, _mm256_slli_epi64(u2, 32)), rounding_bias);
 
-			/* SUM between DOT elements */
-			__m256i addDotsV1 = _mm256_add_epi32(dotV1, _mm256_slli_epi64(dotV1, 32));
-			__m256i addDotsV2 = _mm256_add_epi32(dotV2, _mm256_slli_epi64(dotV2, 32));
+            __m256i v1_sum = _mm256_add_epi32(_mm256_add_epi32(v1, _mm256_slli_epi64(v1, 32)), rounding_bias);
+            __m256i v2_sum = _mm256_add_epi32(_mm256_add_epi32(v2, _mm256_slli_epi64(v2, 32)), rounding_bias);
 
-			/* final shift for get Y value: normalize ariphmetic result */
-			__m256i V03 = _mm256_srai_epi32(addDotsV1, InternalColorConvert::Shift);
-			__m256i V47 = _mm256_srai_epi32(addDotsV2, InternalColorConvert::Shift);
+            // 4. Shift and Permute to Indexes
+            __m256i Y = _mm256_permute2x128_si256(
+                _mm256_permutevar8x32_epi32(_mm256_srai_epi32(y1_sum, Shift), permute_idx_32),
+                _mm256_permutevar8x32_epi32(_mm256_srai_epi32(y2_sum, Shift), permute_idx_32), 0x20);
 
-			/* final PACK to VUYA vector */
-			/* compine all Y values to single vector 32 bits */
-			const __m256i& permute_idx = _mm256_setr_epi32(1, 3, 5, 7, 0, 2, 4, 6);
-			const __m256i& addUV = _mm256_setr_epi32(128, 128, 128, 128, 128, 128, 128, 128);
-			__m256i Y = _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(Y03, permute_idx), _mm256_permutevar8x32_epi32(Y47, permute_idx), 0x20);
-			__m256i U = _mm256_add_epi32(addUV, _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(U03, permute_idx), _mm256_permutevar8x32_epi32(U47, permute_idx), 0x20));
-			__m256i V = _mm256_add_epi32(addUV, _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(V03, permute_idx), _mm256_permutevar8x32_epi32(V47, permute_idx), 0x20));
+            __m256i U = _mm256_permute2x128_si256(
+                _mm256_permutevar8x32_epi32(_mm256_srai_epi32(u1_sum, Shift), permute_idx_32),
+                _mm256_permutevar8x32_epi32(_mm256_srai_epi32(u2_sum, Shift), permute_idx_32), 0x20);
 
-			/* prepare Y [set Y value on cpecific byte positions] */
-			Y = _mm256_shuffle_epi8(Y,
-				_mm256_setr_epi8(
-					128, 128, 0, 128,
-					128, 128, 4, 128,
-					128, 128, 8, 128,
-					128, 128, 12, 128,
-					128, 128, 16, 128,
-					128, 128, 20, 128,
-					128, 128, 24, 128,
-					128, 126, 28, 128)
-			);
+            __m256i V = _mm256_permute2x128_si256(
+                _mm256_permutevar8x32_epi32(_mm256_srai_epi32(v1_sum, Shift), permute_idx_32),
+                _mm256_permutevar8x32_epi32(_mm256_srai_epi32(v2_sum, Shift), permute_idx_32), 0x20);
 
-			/* prepare U [set U value on cpecific byte positions] */
-			U = _mm256_shuffle_epi8(U,
-				_mm256_setr_epi8(
-					128, 0, 128, 128,
-					128, 4, 128, 128,
-					128, 8, 128, 128,
-					128, 12, 128, 128,
-					128, 16, 128, 128,
-					128, 20, 128, 128,
-					128, 24, 128, 128,
-					128, 28, 128, 128)
-			);
+            // 5. Add 128 to U/V
+            U = _mm256_add_epi32(U, _mm256_set1_epi32(128));
+            V = _mm256_add_epi32(V, _mm256_set1_epi32(128));
 
-			/* compbine V and U component */
-			__m256i VU = _mm256_or_si256(V, U);
+            // 6. Pack to Byte Slots
+            __m256i v_pos = _mm256_shuffle_epi8(V, mask_reconstruct_VUYA);
+            __m256i u_pos = _mm256_slli_epi32(_mm256_shuffle_epi8(U, mask_reconstruct_VUYA), 8);
+            __m256i y_pos = _mm256_slli_epi32(_mm256_shuffle_epi8(Y, mask_reconstruct_VUYA), 16);
 
-			/* combine VU and Y component */
-			__m256i VUY = _mm256_or_si256(VU, Y);
+            __m256i result = _mm256_or_si256(v_pos, _mm256_or_si256(u_pos, y_pos));
 
-			/* combine VUY with ALPHA channel from source pixel */
-			__m256i VUYA = _mm256_blendv_epi8(bgraX8, VUY,
-				_mm256_setr_epi32(0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF)
-			);
+            // 7. Blend Alpha
+            __m256i alpha = _mm256_and_si256(bgraX8, alpha_blend_mask);
+            result = _mm256_or_si256(result, alpha);
 
-			return VUYA;
-		} /* inline __m256i Convert_bgra2vuya_8u (const __m256i& bgraX8) noexcept */
+            return result;
+        }
 
+        // =========================================================================
+        // VUYA -> BGRA
+        // =========================================================================
+        inline __m256i Convert_vuya2bgra_8u(const __m256i& vuyaX8) noexcept
+        {
+            // 1. Expand and Subtract 128 from U/V (bytes 0 and 1)
+            __m256i vuya03 = _mm256_subs_epi16(_mm256_cvtepu8_epi16(_mm256_castsi256_si128(vuyaX8)), uv_offset_128);
+            __m256i vuya47 = _mm256_subs_epi16(_mm256_cvtepu8_epi16(_mm256_extracti128_si256(vuyaX8, 1)), uv_offset_128);
 
-		inline __m256i Convert_bgra2vuya_8u (const __m256i& bgraX8, const __m256i& errCorr, const __m256i& coeffY, const __m256i& coeffU, const __m256i& coeffV) noexcept
-		{
-			/* extract 4 low pixels from uint8_t to int16_t */
-			__m256i bgra03 = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(bgraX8, 0));
-			/* extract 4 high pixels from uint8_t to int16_t */
-			__m256i bgra47 = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(bgraX8, 1));
+            // 2. Dot Product
+            __m256i r03 = _mm256_madd_epi16(vuya03, coeffR);
+            __m256i g03 = _mm256_madd_epi16(vuya03, coeffG);
+            __m256i b03 = _mm256_madd_epi16(vuya03, coeffB);
 
-			/* COMPUTE Y COMPONENT */
-			/* DOT operation for pixels 0 - 3:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotY1 = _mm256_madd_epi16(bgra03, coeffY);
-			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotY2 = _mm256_madd_epi16(bgra47, coeffY);
+            __m256i r47 = _mm256_madd_epi16(vuya47, coeffR);
+            __m256i g47 = _mm256_madd_epi16(vuya47, coeffG);
+            __m256i b47 = _mm256_madd_epi16(vuya47, coeffB);
 
-			/* SUM between DOT elements */
-			__m256i addDotsY1 = _mm256_add_epi32(dotY1, _mm256_slli_epi64(dotY1, 32));
-			__m256i addDotsY2 = _mm256_add_epi32(dotY2, _mm256_slli_epi64(dotY2, 32));
+            // 3. Sum + Bias + Shift
+            __m256i r03_sum = _mm256_srai_epi32(_mm256_add_epi32(_mm256_add_epi32(r03, _mm256_slli_epi64(r03, 32)), rounding_bias), Shift);
+            __m256i g03_sum = _mm256_srai_epi32(_mm256_add_epi32(_mm256_add_epi32(g03, _mm256_slli_epi64(g03, 32)), rounding_bias), Shift);
+            __m256i b03_sum = _mm256_srai_epi32(_mm256_add_epi32(_mm256_add_epi32(b03, _mm256_slli_epi64(b03, 32)), rounding_bias), Shift);
 
-			/* final shift for get Y value: normalize ariphmetic result */
-			__m256i Y03 = _mm256_srai_epi32(addDotsY1, InternalColorConvert::Shift);
-			__m256i Y47 = _mm256_srai_epi32(addDotsY2, InternalColorConvert::Shift);
+            __m256i r47_sum = _mm256_srai_epi32(_mm256_add_epi32(_mm256_add_epi32(r47, _mm256_slli_epi64(r47, 32)), rounding_bias), Shift);
+            __m256i g47_sum = _mm256_srai_epi32(_mm256_add_epi32(_mm256_add_epi32(g47, _mm256_slli_epi64(g47, 32)), rounding_bias), Shift);
+            __m256i b47_sum = _mm256_srai_epi32(_mm256_add_epi32(_mm256_add_epi32(b47, _mm256_slli_epi64(b47, 32)), rounding_bias), Shift);
 
-			/* COMPUTE U COMPONENT */
-			/* DOT operation for pixels 0 - 3:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotU1 = _mm256_madd_epi16(bgra03, coeffU);
-			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotU2 = _mm256_madd_epi16(bgra47, coeffU);
+            // 4. Permute to Linear
+            __m256i R = _mm256_permute2x128_si256(
+                _mm256_permutevar8x32_epi32(r03_sum, permute_idx_32),
+                _mm256_permutevar8x32_epi32(r47_sum, permute_idx_32), 0x20);
 
-			/* SUM between DOT elements */
-			__m256i addDotsU1 = _mm256_add_epi32(dotU1, _mm256_slli_epi64(dotU1, 32));
-			__m256i addDotsU2 = _mm256_add_epi32(dotU2, _mm256_slli_epi64(dotU2, 32));
+            __m256i G = _mm256_permute2x128_si256(
+                _mm256_permutevar8x32_epi32(g03_sum, permute_idx_32),
+                _mm256_permutevar8x32_epi32(g47_sum, permute_idx_32), 0x20);
 
-			/* final shift for get Y value: normalize ariphmetic result */
-			__m256i U03 = _mm256_srai_epi32(addDotsU1, InternalColorConvert::Shift);
-			__m256i U47 = _mm256_srai_epi32(addDotsU2, InternalColorConvert::Shift);
+            __m256i B = _mm256_permute2x128_si256(
+                _mm256_permutevar8x32_epi32(b03_sum, permute_idx_32),
+                _mm256_permutevar8x32_epi32(b47_sum, permute_idx_32), 0x20);
 
-			/* COMPUTE V COMPONENT */
-			__m256i dotV1 = _mm256_madd_epi16(bgra03, coeffV);
-			/* DOT operation for pixels 4 - 7:  B * coeff[0] + G * coeff[1]; R * coeff[2] + A * coeff[3] */
-			__m256i dotV2 = _mm256_madd_epi16(bgra47, coeffV);
+            // 5. Pack (with Saturation)
+            __m256i R_G_16 = _mm256_packus_epi32(R, G);
 
-			/* SUM between DOT elements */
-			__m256i addDotsV1 = _mm256_add_epi32(dotV1, _mm256_slli_epi64(dotV1, 32));
-			__m256i addDotsV2 = _mm256_add_epi32(dotV2, _mm256_slli_epi64(dotV2, 32));
+            __m256i A = _mm256_and_si256(vuyaX8, alpha_blend_mask);
+            A = _mm256_srli_epi32(A, 24);
 
-			/* final shift for get Y value: normalize ariphmetic result */
-			__m256i V03 = _mm256_srai_epi32(addDotsV1, InternalColorConvert::Shift);
-			__m256i V47 = _mm256_srai_epi32(addDotsV2, InternalColorConvert::Shift);
+            __m256i B_A_16 = _mm256_packus_epi32(B, A);
 
-			/* final PACK to VUYA vector */
-			/* compine all Y values to single vector 32 bits */
-			const __m256i& permute_idx = _mm256_setr_epi32(1, 3, 5, 7, 0, 2, 4, 6);
-			const __m256i& addUV = _mm256_setr_epi32(128, 128, 128, 128, 128, 128, 128, 128);
-			__m256i Y = _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(Y03, permute_idx), _mm256_permutevar8x32_epi32(Y47, permute_idx), 0x20);
-			__m256i U = _mm256_add_epi32(addUV, _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(U03, permute_idx), _mm256_permutevar8x32_epi32(U47, permute_idx), 0x20));
-			__m256i V = _mm256_add_epi32(addUV, _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(V03, permute_idx), _mm256_permutevar8x32_epi32(V47, permute_idx), 0x20));
+            // 6. Final Pack to 8-bit [B0..B3 A0..A3 | R0..R3 G0..G3]
+            __m256i packed = _mm256_packus_epi16(B_A_16, R_G_16);
 
-			/* prepare Y [set Y value on cpecific byte positions] */
-			Y = _mm256_shuffle_epi8(Y,
-				_mm256_setr_epi8(
-					128, 128, 0, 128,
-					128, 128, 4, 128,
-					128, 128, 8, 128,
-					128, 128, 12, 128,
-					128, 128, 16, 128,
-					128, 128, 20, 128,
-					128, 128, 24, 128,
-					128, 126, 28, 128)
-			);
-
-			/* prepare U [set U value on cpecific byte positions] */
-			U = _mm256_shuffle_epi8(U,
-				_mm256_setr_epi8(
-					128, 0, 128, 128,
-					128, 4, 128, 128,
-					128, 8, 128, 128,
-					128, 12, 128, 128,
-					128, 16, 128, 128,
-					128, 20, 128, 128,
-					128, 24, 128, 128,
-					128, 28, 128, 128)
-			);
-
-			/* compbine V and U component */
-			__m256i VU = _mm256_or_si256(V, U);
-
-			/* combine VU and Y component */
-			__m256i VUY = _mm256_or_si256(VU, Y);
-
-			/* combine VUY with ALPHA channel from source pixel */
-			__m256i VUYA = _mm256_blendv_epi8(bgraX8, VUY,
-				_mm256_setr_epi32(0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF)
-			);
-
-			return VUYA;
-		}
-
-		inline __m256i Convert_vuya2bgra_8u (const __m256i& vuyaX8) noexcept
-		{
-			const __m256i& subVal = _mm256_setr_epi16(
-				128, 128, 0, 0,
-				128, 128, 0, 0,
-				128, 128, 0, 0,
-				128, 128, 0, 0
-			);
-
-			/* Coefficients for compute R (mask ALPHA channel by zero) */
-			const __m256i& coeffR = _mm256_setr_epi16
-			(
-				InternalColorConvert::rV, InternalColorConvert::rU, InternalColorConvert::rY, 0,
-				InternalColorConvert::rV, InternalColorConvert::rU, InternalColorConvert::rY, 0,
-				InternalColorConvert::rV, InternalColorConvert::rU, InternalColorConvert::rY, 0,
-				InternalColorConvert::rV, InternalColorConvert::rU, InternalColorConvert::rY, 0
-			);
-
-			/* Coefficients for compute G (mask ALPHA channel by zero) */
-			const __m256i& coeffG = _mm256_setr_epi16
-			(
-				InternalColorConvert::gV, InternalColorConvert::gU, InternalColorConvert::gY, 0,
-				InternalColorConvert::gV, InternalColorConvert::gU, InternalColorConvert::gY, 0,
-				InternalColorConvert::gV, InternalColorConvert::gU, InternalColorConvert::gY, 0,
-				InternalColorConvert::gV, InternalColorConvert::gU, InternalColorConvert::gY, 0
-			);
-
-			/* Coefficients for compute B (mask ALPHA channel by zero) */
-			const __m256i& coeffB = _mm256_setr_epi16
-			(
-				InternalColorConvert::bV, InternalColorConvert::bU, InternalColorConvert::bY, 0,
-				InternalColorConvert::bV, InternalColorConvert::bU, InternalColorConvert::bY, 0,
-				InternalColorConvert::bV, InternalColorConvert::bU, InternalColorConvert::bY, 0,
-				InternalColorConvert::bV, InternalColorConvert::bU, InternalColorConvert::bY, 0
-			);
-
-			const __m256i& maxVal = _mm256_setr_epi16(
-				0, 0, 0, 0,
-				0, 0, 0, 0,
-				0, 0, 0, 0,
-				0, 0, 0, 0
-			);
-
-			const __m256i& minVal = _mm256_setr_epi16(
-				255, 255, 255, 255,
-				255, 255, 255, 255,
-				255, 255, 255, 255,
-				255, 255, 255, 255
-			);
-
-			/* extract 4 low pixels from uint8_t to int16_t and subtract 128 from V and U channel  */
-			__m256i vuya03 = _mm256_subs_epi16(_mm256_cvtepu8_epi16(_mm256_extracti128_si256(vuyaX8, 0)), subVal);
-			/* extract 4 high pixels from uint8_t to int16_t and subtract 128 from V and U channel */
-			__m256i vuya47 = _mm256_subs_epi16(_mm256_cvtepu8_epi16(_mm256_extracti128_si256(vuyaX8, 1)), subVal);
-
-			/* DOT operation for pixels 0 - 3:  V * coeff[0] + U * coeff[1]; Y * coeff[2] + A * coeff[3] */
-			__m256i dotR03 = _mm256_madd_epi16(vuya03, coeffR);
-			__m256i dotG03 = _mm256_madd_epi16(vuya03, coeffG);
-			__m256i dotB03 = _mm256_madd_epi16(vuya03, coeffB);
-			__m256i dorR47 = _mm256_madd_epi16(vuya47, coeffR);
-			__m256i dorG47 = _mm256_madd_epi16(vuya47, coeffG);
-			__m256i dorB47 = _mm256_madd_epi16(vuya47, coeffB);
-
-			/* SUM between DOT elements */
-			__m256i addDotsR1 = _mm256_add_epi32(dotR03, _mm256_slli_epi64(dotR03, 32));
-			__m256i addDotsG1 = _mm256_add_epi32(dotG03, _mm256_slli_epi64(dotG03, 32));
-			__m256i addDotsB1 = _mm256_add_epi32(dotB03, _mm256_slli_epi64(dotB03, 32));
-			__m256i addDotsR2 = _mm256_add_epi32(dorR47, _mm256_slli_epi64(dorR47, 32));
-			__m256i addDotsG2 = _mm256_add_epi32(dorG47, _mm256_slli_epi64(dorG47, 32));
-			__m256i addDotsB2 = _mm256_add_epi32(dorB47, _mm256_slli_epi64(dorB47, 32));
-
-			/* final shift for get R,G,B values: normalize ariphmetic result */
-			__m256i R03 = _mm256_srai_epi32(addDotsR1, InternalColorConvert::Shift);
-			__m256i R47 = _mm256_srai_epi32(addDotsR2, InternalColorConvert::Shift);
-			__m256i G03 = _mm256_srai_epi32(addDotsG1, InternalColorConvert::Shift);
-			__m256i G47 = _mm256_srai_epi32(addDotsG2, InternalColorConvert::Shift);
-			__m256i B03 = _mm256_srai_epi32(addDotsB1, InternalColorConvert::Shift);
-			__m256i B47 = _mm256_srai_epi32(addDotsB2, InternalColorConvert::Shift);
-
-			R03 = _mm256_min_epi16(minVal, _mm256_max_epi16(R03, maxVal));
-			G03 = _mm256_min_epi16(minVal, _mm256_max_epi16(G03, maxVal));
-			B03 = _mm256_min_epi16(minVal, _mm256_max_epi16(B03, maxVal));
-			R47 = _mm256_min_epi16(minVal, _mm256_max_epi16(R47, maxVal));
-			G47 = _mm256_min_epi16(minVal, _mm256_max_epi16(G47, maxVal));
-			B47 = _mm256_min_epi16(minVal, _mm256_max_epi16(B47, maxVal));
-
-			const __m256i& permute_idx = _mm256_setr_epi32(1, 3, 5, 7, 0, 2, 4, 6);
-			__m256i B = _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(B03, permute_idx), _mm256_permutevar8x32_epi32(B47, permute_idx), 0x20);
-			__m256i G = _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(G03, permute_idx), _mm256_permutevar8x32_epi32(G47, permute_idx), 0x20);
-			__m256i R = _mm256_permute2x128_si256(_mm256_permutevar8x32_epi32(R03, permute_idx), _mm256_permutevar8x32_epi32(R47, permute_idx), 0x20);
-
-			R = _mm256_shuffle_epi8(R,
-				_mm256_setr_epi8(
-					128, 128, 0, 128,
-					128, 128, 4, 128,
-					128, 128, 8, 128,
-					128, 128, 12, 128,
-					128, 128, 16, 128,
-					128, 128, 20, 128,
-					128, 128, 24, 128,
-					128, 126, 28, 128)
-			);
-
-			G = _mm256_shuffle_epi8(G,
-				_mm256_setr_epi8(
-					128, 0, 128, 128,
-					128, 4, 128, 128,
-					128, 8, 128, 128,
-					128, 12, 128, 128,
-					128, 16, 128, 128,
-					128, 20, 128, 128,
-					128, 24, 128, 128,
-					128, 28, 128, 128)
-			);
-
-			__m256i BG = _mm256_or_si256(B, G);
-			__m256i BGR = _mm256_or_si256(BG, R);
-			__m256i BGRA = _mm256_blendv_epi8(vuyaX8, BGR,
-				_mm256_setr_epi32(0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF)
-			);
-
-			return BGRA;
-		} /* inline __m256i AVX2::ColorConvert::Convert_vuya2bgra_8u (const __m256i& vuyaX8) noexcept */
-
+            // 7. Shuffle to BGRA
+            return _mm256_shuffle_epi8(packed, mask_reconstruct_BGRA);
+        }
 
 	}; /* namespace ColorConvert */
 
