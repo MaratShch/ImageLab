@@ -73,8 +73,8 @@ PF_Err AdjustGammaValue
         T* pDstLine = dstBuf + j * dstPitch;
 
         __VECTORIZATION__
-            for (A_long i = 0; i < sizeX; i++)
-                pDstLine[i] = gamma_adjust(pSrcLine[i], gamma, maxVal);
+        for (A_long i = 0; i < sizeX; i++)
+            pDstLine[i] = gamma_adjust(pSrcLine[i], gamma, maxVal);
     }
     return PF_Err_NONE;
 }
