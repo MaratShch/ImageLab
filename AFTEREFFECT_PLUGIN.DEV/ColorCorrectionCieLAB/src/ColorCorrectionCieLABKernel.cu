@@ -10,12 +10,12 @@
 // XYZ: X = 49.889, Y = 37.075, Z = 9.378  
 // CIELab: L = 67.333,  a = 44.136,  b = 55.352
 
-inline __device__ float4 HalfToFloat4 (Pixel16 in) noexcept
+inline __device__ float4 HalfToFloat4 (const Pixel16& in) noexcept
 {
 	return make_float4 (__half2float(in.x), __half2float(in.y), __half2float(in.z), __half2float(in.w));
 }
 
-inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
+inline __device__ Pixel16 FloatToHalf4(const float4& in) noexcept
 {
 	Pixel16 v;
 	v.x = __float2half_rn(in.x); v.y = __float2half_rn(in.y); v.z = __float2half_rn(in.z); v.w = __float2half_rn(in.w);
@@ -23,7 +23,7 @@ inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
 }
 
 
-inline __device__ float compute_varRGB (const float& in) noexcept
+inline __device__ float compute_varRGB (const float in) noexcept
 {
     /*
         if ( var_R > 0.04045 ) 
@@ -34,7 +34,7 @@ inline __device__ float compute_varRGB (const float& in) noexcept
     return ((in > 0.040450f) ? pow((in + 0.0550f) / 1.0550f, 2.40f) : (in / 12.92f));
 }
 
-inline __device__ float compute_varXYZ (const float& in) noexcept
+inline __device__ float compute_varXYZ (const float in) noexcept
 {
     /*
         if (var_X > 0.008856) 
@@ -45,7 +45,7 @@ inline __device__ float compute_varXYZ (const float& in) noexcept
     return ((in > 0.008856f) ? powf(in, 1.0f / 3.0f) : (in * 7.787f + 16.f / 116.f));
 }
 
-inline __device__ float compute_varRGB2 (const float& in) noexcept
+inline __device__ float compute_varRGB2 (const float in) noexcept
 {
     /*
         if ( var_R > 0.0031308 ) 
@@ -56,7 +56,7 @@ inline __device__ float compute_varRGB2 (const float& in) noexcept
     return ((in > 0.0031308f) ? (1.055f * powf(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f));
 }
 
-inline __device__ float clamp_value (const float& in, const float& min, const float& max) noexcept
+inline __device__ float clamp_value (const float in, const float min, const float max) noexcept
 {
     return (in < min ? min : (in > max ? max : in));
 }
@@ -64,7 +64,7 @@ inline __device__ float clamp_value (const float& in, const float& min, const fl
 
 inline __device__ float4 kRGB2XYZ
 (
-    float4 inPixel
+    const float4& inPixel
 ) noexcept
 {
     float4 out;
@@ -83,7 +83,7 @@ inline __device__ float4 kRGB2XYZ
 
 inline __device__ float4 kXYZ2RGB
 (
-    float4 inPixel
+    const float4& inPixel
 ) noexcept
 {
     float4 out;
@@ -107,7 +107,7 @@ inline __device__ float4 kXYZ2RGB
 
 inline __device__ float4 kXYZ2CIELab
 (
-    float4 inPixel, // x = L, y = a, z = b, w = Alpha
+    const float4& inPixel, // x = L, y = a, z = b, w = Alpha
     const float  fRef[3]
 ) noexcept
 {
@@ -127,7 +127,7 @@ inline __device__ float4 kXYZ2CIELab
 
 inline __device__ float4 kCIELab2XYZ
 (
-    float4 inPixel, // x = L, y = a, z = b, w = Alpha
+    const float4& inPixel, // x = L, y = a, z = b, w = Alpha
     const float fRef[3]
 ) noexcept
 {
@@ -151,7 +151,7 @@ inline __device__ float4 kCIELab2XYZ
 
 __device__ float4 kAdjustValues
 (
-    float4 inPixel,
+    const float4& inPixel,
     float L,
     float A,
     float B
@@ -168,7 +168,7 @@ __device__ float4 kAdjustValues
 
 __device__ float4 kRGB2CIELab
 (
-    float4 rgbPixel,
+    const float4& rgbPixel,
     const float fRef[3]
 ) noexcept
 {
@@ -178,7 +178,7 @@ __device__ float4 kRGB2CIELab
 
 __device__ float4 kCIELab2RGB
 (
-    float4 pixelCIELab,
+    const float4& pixelCIELab,
     const float  fRef[3]
 ) noexcept
 {
