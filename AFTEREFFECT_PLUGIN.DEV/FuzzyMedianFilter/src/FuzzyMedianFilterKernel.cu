@@ -10,12 +10,12 @@ float4* RESTRICT gpuLabImage{ nullptr };
 
 
 //////////////////////// PURE DEVICE CODE ///////////////////////////////////////////
-inline __device__ float4 HalfToFloat4(Pixel16 in) noexcept
+inline __device__ float4 HalfToFloat4 (const Pixel16& in) noexcept
 {
     return make_float4(__half2float(in.x), __half2float(in.y), __half2float(in.z), __half2float(in.w));
 }
 
-inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
+inline __device__ Pixel16 FloatToHalf4 (const float4& in) noexcept
 {
     Pixel16 v;
     v.x = __float2half_rn(in.x); v.y = __float2half_rn(in.y); v.z = __float2half_rn(in.z); v.w = __float2half_rn(in.w);
@@ -24,9 +24,9 @@ inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
 
 inline __device__ float CLAMP
 (
-    const float& in,
-    const float& minVal,
-    const float& maxVal
+    const float in,
+    const float minVal,
+    const float maxVal
 ) noexcept
 {
     return (in < minVal ? minVal : (in > maxVal ? maxVal : in));
@@ -34,9 +34,9 @@ inline __device__ float CLAMP
 
 inline __device__ float gaussian_sim
 (
-    const float& d,
-    const float& m,
-    const float& sqSigma
+    const float d,
+    const float m,
+    const float sqSigma
 ) noexcept
 {
     const float diff = d - m;
@@ -48,7 +48,7 @@ inline __device__ float4 Rgb2Xyz
     const float4& in
 ) noexcept
 {
-    auto varValue = [&](const float& inVal) { return ((inVal > 0.040450f) ? powf((inVal + 0.0550f) / 1.0550f, 2.40f) : (inVal / 12.92f)); };
+    auto varValue = [&](const float inVal) { return ((inVal > 0.040450f) ? powf((inVal + 0.0550f) / 1.0550f, 2.40f) : (inVal / 12.92f)); };
 
     const float var_B = varValue(in.x) * 100.f;
     const float var_G = varValue(in.y) * 100.f;
@@ -74,7 +74,7 @@ inline __device__ float4  Xyz2CieLab
         cCOLOR_ILLUMINANT[CieLabDefaultObserver][CieLabDefaultIlluminant][2],
     };
 
-    auto varValue = [&](const float& inVal) { return ((inVal > 0.008856f) ? cbrtf(inVal) : (inVal * 7.787f + 16.f / 116.f)); };
+    auto varValue = [&](const float inVal) { return ((inVal > 0.008856f) ? cbrtf(inVal) : (inVal * 7.787f + 16.f / 116.f)); };
 
     const float var_X = varValue(in.x / fRef[0]);
     const float var_Y = varValue(in.y / fRef[1]);
@@ -130,7 +130,7 @@ inline __device__ float4 Xyz2Rgb
     const float g1 = var_X * -0.9692660f + var_Y *  1.8760108f + var_Z *  0.0415560f;
     const float b1 = var_X *  0.0556434f + var_Y * -0.2040259f + var_Z *  1.0572252f;
 
-    auto varValue = [&](const float& in) { return ((in > 0.0031308f) ? (1.055f * powf(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f)); };
+    auto varValue = [&](const float in) { return ((in > 0.0031308f) ? (1.055f * powf(in, 1.0f / 2.40f) - 0.055f) : (in * 12.92f)); };
 
     float4 out;
     constexpr float FLT_EPSILON{ 1.192092896e-07F };

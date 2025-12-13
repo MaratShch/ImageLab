@@ -10,12 +10,12 @@ float4* RESTRICT gpuImage[2]{ nullptr };
 float3* RESTRICT gpuTmpResults{ nullptr }; // x -> U_avg, y -> V_avg, z -> grayCount
 
                                            //////////////////////// PURE DEVICE CODE ///////////////////////////////////////////
-DEVICE_INLINE_CALL float4 HalfToFloat4(Pixel16 in) noexcept
+DEVICE_INLINE_CALL float4 HalfToFloat4 (const Pixel16& in) noexcept
 {
     return make_float4(__half2float(in.x), __half2float(in.y), __half2float(in.z), __half2float(in.w));
 }
 
-DEVICE_INLINE_CALL Pixel16 FloatToHalf4(float4 in) noexcept
+DEVICE_INLINE_CALL Pixel16 FloatToHalf4 (const float4& in) noexcept
 {
     Pixel16 v;
     v.x = __float2half_rn(in.x); v.y = __float2half_rn(in.y); v.z = __float2half_rn(in.z); v.w = __float2half_rn(in.w);

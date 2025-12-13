@@ -4,12 +4,12 @@
 #include <cuda_runtime.h>
 
 
-inline __device__ float4 HalfToFloat4(Pixel16 in) noexcept
+inline __device__ float4 HalfToFloat4 (const Pixel16& in) noexcept
 {
 	return make_float4(__half2float(in.x), __half2float(in.y), __half2float(in.z), __half2float(in.w));
 }
 
-inline __device__ Pixel16 FloatToHalf4(float4 in) noexcept
+inline __device__ Pixel16 FloatToHalf4 (const float4& in) noexcept
 {
 	Pixel16 v;
 	v.x = __float2half_rn(in.x); v.y = __float2half_rn(in.y); v.z = __float2half_rn(in.z); v.w = __float2half_rn(in.w);

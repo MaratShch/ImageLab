@@ -31,7 +31,7 @@ inline __device__ float compute_varRGB (const float in) noexcept
         else
             var_R = var_R / 12.92
     */
-    return ((in > 0.040450f) ? pow((in + 0.0550f) / 1.0550f, 2.40f) : (in / 12.92f));
+    return ((in > 0.040450f) ? powf((in + 0.0550f) / 1.0550f, 2.40f) : (in / 12.92f));
 }
 
 inline __device__ float compute_varXYZ (const float in) noexcept
