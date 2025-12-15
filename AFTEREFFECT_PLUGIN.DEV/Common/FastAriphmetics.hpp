@@ -94,7 +94,29 @@ namespace FastCompute
 		return (x + (x >> sizeof(int) * CHAR_BIT - 1)) ^ (x >> sizeof(int) * CHAR_BIT - 1);
 	}
 
-	inline float Abs (const float f) noexcept
+    inline float Floor (const float x) noexcept
+    {
+        constexpr float magic = 12582912.0f; // 2^23 * 1.5
+        float y = x + magic;
+        y -= magic;
+        return y - (y > x);
+    }
+
+    inline double Floor (const double x) noexcept
+    {
+        constexpr double magic = 6755399441055744.0; // 2^52 * 1.5
+        double y = x + magic;
+        y -= magic;
+        return y - (y > x);
+    }
+
+    template <typename T>
+    inline const typename std::enable_if<std::is_arithmetic<T>::value, T>::type Floor (const T x) noexcept
+    {
+        return std::floor(x);
+    }
+
+    inline float Abs (const float f) noexcept
 	{
 		int i = ((*(int*)&f) & 0x7fffffff);
 		return (*(float*)&i);

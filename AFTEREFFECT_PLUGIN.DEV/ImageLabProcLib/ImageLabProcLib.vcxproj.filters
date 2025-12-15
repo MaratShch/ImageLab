@@ -105,6 +105,9 @@
     <ClInclude Include="include\ProcLibExport.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\dct.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">
