@@ -168,6 +168,7 @@
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\dct.cpp" />
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\fft.cpp" />
     <ClCompile Include="src\fft_ex.cpp" />
