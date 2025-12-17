@@ -1,3 +1,4 @@
+#include <immintrin.h>
 #include "dct.hpp"
 
 CACHE_ALIGN constexpr float forward_DCT8_2D_f32[64] =
@@ -160,6 +161,27 @@ void FourierTransform::dct_2D
     return;
 }
 
+void FourierTransform::dct_generate_transform_matrix_f32
+(
+    const int N,
+    float* RESTRICT pMatrix
+)
+{
+    FourierTransform::GenerateDCTMatrix (N, pMatrix);
+    return;
+}
+
+void FourierTransform::dct_generate_transform_matrix_f64
+(
+    const int N,
+    double* RESTRICT pMatrix
+)
+{
+    FourierTransform::GenerateDCTMatrix (N, pMatrix);
+    return;
+}
+
+
 // Special case DCT 8x8 manually optimized
 void FourierTransform::dct_2D_8x8
 (
@@ -185,22 +207,3 @@ void FourierTransform::dct_2D_8x8
     return;
 }
 
-void FourierTransform::dct_generate_transform_matrix_f32
-(
-    const int N,
-    float* RESTRICT pMatrix
-)
-{
-    FourierTransform::GenerateDCTMatrix (N, pMatrix);
-    return;
-}
-
-void FourierTransform::dct_generate_transform_matrix_f64
-(
-    const int N,
-    double* RESTRICT pMatrix
-)
-{
-    FourierTransform::GenerateDCTMatrix (N, pMatrix);
-    return;
-}
