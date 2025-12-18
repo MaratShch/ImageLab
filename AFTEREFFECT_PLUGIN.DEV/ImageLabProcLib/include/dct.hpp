@@ -48,6 +48,50 @@ namespace FourierTransform
     }
 
     template <typename T>
+    inline void idct_1D
+    (
+        const T* RESTRICT in,  // Input: Array of N Real numbers (Coefficients)
+        T* RESTRICT out,       // Output: Array of N Real numbers (Pixels)
+        int32_t N
+    ) noexcept
+    {
+        constexpr T PI = static_cast<T>(3.14159265358979323846);
+
+        // Normalization factors (Identical to Forward)
+        const T alpha0 = static_cast<T>(std::sqrt(static_cast<T>(1.0) / N));
+        const T alphaK = static_cast<T>(std::sqrt(static_cast<T>(2.0) / N));
+
+        // Outer Loop: Iterate over Output Pixels (n)
+        for (int32_t n = 0; n < N; n++)
+        {
+            T sum{ 0 };
+
+            // Inner Loop: Sum up all Frequencies (k)
+            for (int32_t k = 0; k < N; k++)
+            {
+                // 1. Read Coefficient
+                const T Xk = in[k];
+
+                // 2. Determine Scale Factor (s)
+                // Note: In Inverse DCT, the scale factor is attached to the 
+                // coefficient (basis function), so it applies inside the loop.
+                const T s = (k == 0) ? alpha0 : alphaK;
+
+                // 3. The Angle Formula (Identical to Forward)
+                // We use the exact same angle because the Cosine matrix is symmetric
+                // regarding the position (n) and frequency (k) relationship.
+                const T angle = (PI / static_cast<T>(N)) * (static_cast<T>(n) + static_cast<T>(0.5)) * static_cast<T>(k);
+
+                // 4. Summation: Pixel = Sum( Coefficient * Scale * Cos(angle) )
+                sum += s * Xk * std::cos(angle);
+            }
+
+            // 5. Write Pixel Value
+            out[n] = sum;
+        }
+    }
+
+    template <typename T>
     inline void dct_transpose_block_2D
     (
         const T* RESTRICT src,
@@ -114,12 +158,18 @@ namespace FourierTransform
         return;
     }
 
-    void dct_2D(const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, int32_t width, int32_t height) noexcept;
-    void dct_2D(const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept;
-    
+    void dct_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, int32_t width, int32_t height) noexcept;
+    void dct_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept;
+     
+    void idct_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, int32_t width, int32_t height) noexcept;
+    void idct_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept;
+
     // special DCT cases 
     void dct_2D_8x8 (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out) noexcept;
     void dct_2D_8x8 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out) noexcept;
+
+    void idct_2D_8x8(const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out) noexcept;
+    void idct_2D_8x8(const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out) noexcept;
 
     void dct_generate_transform_matrix_f32 (const int N, float*  RESTRICT pMatrix);
     void dct_generate_transform_matrix_f64 (const int N, double* RESTRICT pMatrix);

@@ -161,6 +161,92 @@ void FourierTransform::dct_2D
     return;
 }
 
+
+void FourierTransform::idct_2D
+(
+    const float* RESTRICT in,
+    float* RESTRICT scratch,
+    float* RESTRICT out,
+    int32_t width,
+    int32_t height
+) noexcept
+{
+    // PIPELINE STRATEGY (Identical to Forward, but using IDCT kernel):
+    // 1. Horizontal IDCT: In (WxH)      -> Scratch (WxH)
+    // 2. Transpose:       Scratch (WxH) -> Out (HxW)
+    // 3. Vertical IDCT:   Out (HxW)     -> Scratch (HxW)
+    // 4. Transpose Back:  Scratch (HxW) -> Out (WxH)
+
+    // --- PASS 1: Horizontal Rows (Inverse) ---
+    for (int32_t y = 0; y < height; ++y)
+    {
+        const float* row_src = in + (y * width);
+        float*       row_dst = scratch + (y * width);
+
+        FourierTransform::idct_1D(row_src, row_dst, width);
+    }
+
+    // --- PASS 2: Transpose (Flip to Out) ---
+    FourierTransform::dct_transpose_block_2D(scratch, out, width, height);
+
+    // --- PASS 3: Vertical Columns (Inverse on Transposed Rows) ---
+    for (int32_t i = 0; i < width; ++i)
+    {
+        const float* row_src = out + (i * height);
+        float*       row_dst = scratch + (i * height);
+
+        FourierTransform::idct_1D(row_src, row_dst, height);
+    }
+
+    // --- PASS 4: Transpose Back (Flip to Out) ---
+    FourierTransform::dct_transpose_block_2D(scratch, out, height, width);
+
+    return;
+}
+
+void FourierTransform::idct_2D
+(
+    const double* RESTRICT in,
+    double* RESTRICT scratch,
+    double* RESTRICT out,
+    int32_t width,
+    int32_t height
+) noexcept
+{
+    // PIPELINE STRATEGY (Identical to Forward, but using IDCT kernel):
+    // 1. Horizontal IDCT: In (WxH)      -> Scratch (WxH)
+    // 2. Transpose:       Scratch (WxH) -> Out (HxW)
+    // 3. Vertical IDCT:   Out (HxW)     -> Scratch (HxW)
+    // 4. Transpose Back:  Scratch (HxW) -> Out (WxH)
+
+    // --- PASS 1: Horizontal Rows (Inverse) ---
+    for (int32_t y = 0; y < height; ++y)
+    {
+        const double* row_src = in + (y * width);
+        double*       row_dst = scratch + (y * width);
+
+        FourierTransform::idct_1D(row_src, row_dst, width);
+    }
+
+    // --- PASS 2: Transpose (Flip to Out) ---
+    FourierTransform::dct_transpose_block_2D(scratch, out, width, height);
+
+    // --- PASS 3: Vertical Columns (Inverse on Transposed Rows) ---
+    for (int32_t i = 0; i < width; ++i)
+    {
+        const double* row_src = out + (i * height);
+        double*       row_dst = scratch + (i * height);
+
+        FourierTransform::idct_1D(row_src, row_dst, height);
+    }
+
+    // --- PASS 4: Transpose Back (Flip to Out) ---
+    FourierTransform::dct_transpose_block_2D(scratch, out, height, width);
+
+    return;
+}
+
+
 void FourierTransform::dct_generate_transform_matrix_f32
 (
     const int N,
@@ -182,7 +268,7 @@ void FourierTransform::dct_generate_transform_matrix_f64
 }
 
 
-// Special case DCT 8x8 manually optimized
+// Special case DCT 8x8 manually AVX2 optimized
 void FourierTransform::dct_2D_8x8
 (
     const float* RESTRICT in,
@@ -195,8 +281,33 @@ void FourierTransform::dct_2D_8x8
 }
 
 
-// Special case DCT 8x8 manually optimized
+// Special case DCT 8x8 manually AVX optimized
 void FourierTransform::dct_2D_8x8
+(
+    const double* RESTRICT in,
+    double* RESTRICT scratch,
+    double* RESTRICT out
+) noexcept
+{
+    // TODO ...
+    return;
+}
+
+// Special case IDCT 8x8 manually AVX optimized
+void FourierTransform::idct_2D_8x8
+(
+    const float* RESTRICT in,
+    float* RESTRICT scratch,
+    float* RESTRICT out
+) noexcept
+{
+    // TODO ...
+    return;
+}
+
+
+// Special case DCT 8x8 manually AVX optimized
+void FourierTransform::idct_2D_8x8
 (
     const double* RESTRICT in,
     double* RESTRICT scratch,

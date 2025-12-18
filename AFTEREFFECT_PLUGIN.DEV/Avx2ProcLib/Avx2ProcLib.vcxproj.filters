@@ -114,6 +114,21 @@
     <ClInclude Include="include\Avx2ColorConvert2.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonSmartRender.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Avx2ColorConvert\Avx2ColorConvert.cpp">

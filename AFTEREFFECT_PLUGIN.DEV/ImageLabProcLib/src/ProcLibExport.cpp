@@ -104,3 +104,43 @@ DLL_API_EXPORT void dct2d_f64 (const double* RESTRICT in, double* RESTRICT scrat
     return;
 }
 
+
+DLL_API_EXPORT void idct2d_f32(const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
+{
+    if (nullptr != in && nullptr != out && nullptr != scratch)
+        FourierTransform::idct_2D (in, scratch, out, sizeX, sizeY);
+    return;
+}
+
+DLL_API_EXPORT void idct2d_f64(const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int sizeX, int sizeY)
+{
+    if (nullptr != in && nullptr != out && nullptr != scratch)
+        FourierTransform::idct_2D (in, scratch, out, sizeX, sizeY);
+    return;
+}
+
+
+DLL_API_EXPORT void dct2d_f32_8x8 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out)
+{
+    FourierTransform::dct_2D_8x8 (in, scratch, out);
+    return;
+}
+
+DLL_API_EXPORT void dct2d_f64_8x8 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out)
+{
+    FourierTransform::dct_2D_8x8 (in, scratch, out);
+    return;
+}
+
+
+DLL_API_EXPORT void idct2d_f32_8x8 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out)
+{
+    FourierTransform::idct_2D_8x8 (in, scratch, out);
+    return;
+}
+
+DLL_API_EXPORT void idct2d_f64_8x8 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out)
+{
+    FourierTransform::idct_2D_8x8 (in, scratch, out);
+    return;
+}
