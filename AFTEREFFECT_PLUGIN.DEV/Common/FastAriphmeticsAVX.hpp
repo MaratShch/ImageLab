@@ -14,7 +14,7 @@ namespace FastCompute
         }
 
         /* https://stackoverflow.com/questions/39821367/very-fast-approximate-logarithm-natural-log-function-in-c  */
-        inline __m256 Log(__m256 a) noexcept
+        inline __m256 Log (__m256 a) noexcept
         {
             __m256i aInt = *(__m256i*)(&a);
             __m256i e = _mm256_sub_epi32(aInt, _mm256_set1_epi32(0x3f2aaaab));
@@ -35,6 +35,26 @@ namespace FastCompute
             r = mm256_fmaf(r, s, f);
             r = mm256_fmaf(i, _mm256_set1_ps(0.693147182f), r);  // 0x1.62e430p-1 // log(2)
             return r;
+        }
+
+        // Fast Cube Root approximation using polynomial for range [0, 1]
+        // This replaces the expensive cbrtf() function.
+        // Accuracy is sufficient for 8-bit source images.
+        inline __m256 Cbrt (__m256 x) noexcept
+        {
+            // Polynomial coefficients for x^(1/3) approximation
+            const __m256 c0 = _mm256_set1_ps(0.089858711f);
+            const __m256 c1 = _mm256_set1_ps(1.82194686f);
+            const __m256 c2 = _mm256_set1_ps(-1.64446342f);
+            const __m256 c3 = _mm256_set1_ps(0.963471055f);
+            const __m256 c4 = _mm256_set1_ps(-0.230722129f);
+
+            // Horner's method: (((c4*x + c3)*x + c2)*x + c1)*x + c0
+            __m256 res = _mm256_fmadd_ps(c4, x, c3);
+            res = _mm256_fmadd_ps(res, x, c2);
+            res = _mm256_fmadd_ps(res, x, c1);
+            res = _mm256_fmadd_ps(res, x, c0);
+            return res;
         }
 
     } /* namespace AVX2 */

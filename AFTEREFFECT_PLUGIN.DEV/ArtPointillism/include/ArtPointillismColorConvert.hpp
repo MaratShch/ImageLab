@@ -375,25 +375,6 @@ inline void ConvertFromCIELab
 // SIMD HELPER FUNCTIONS
 // ============================================================================
 
-// Fast Cube Root approximation using polynomial for range [0, 1]
-// This replaces the expensive cbrtf() function.
-// Accuracy is sufficient for 8-bit source images.
-inline __m256 mm256_cbrt_ps_fast(__m256 x) noexcept
-{
-    // Polynomial coefficients for x^(1/3) approximation
-    const __m256 c0 = _mm256_set1_ps(0.089858711f);
-    const __m256 c1 = _mm256_set1_ps(1.82194686f);
-    const __m256 c2 = _mm256_set1_ps(-1.64446342f);
-    const __m256 c3 = _mm256_set1_ps(0.963471055f);
-    const __m256 c4 = _mm256_set1_ps(-0.230722129f);
-
-    // Horner's method: (((c4*x + c3)*x + c2)*x + c1)*x + c0
-    __m256 res = _mm256_fmadd_ps(c4, x, c3);
-    res = _mm256_fmadd_ps(res, x, c2);
-    res = _mm256_fmadd_ps(res, x, c1);
-    res = _mm256_fmadd_ps(res, x, c0);
-    return res;
-}
 
 // ============================================================================
 // MAIN CONVERSION KERNEL
