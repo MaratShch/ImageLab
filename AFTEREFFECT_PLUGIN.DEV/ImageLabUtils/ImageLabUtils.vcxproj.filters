@@ -110,5 +110,8 @@
     <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

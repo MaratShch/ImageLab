@@ -23,8 +23,8 @@ namespace ImageLabMemoryUtils
 				return true;
 			}
 
-			bool memBlockAlloc(uint32_t mSize, uint32_t mAlign = 0u) noexcept;
-			void memBlockFree(void) noexcept;
+			bool memBlockAlloc(uint32_t mSize, uint32_t mAlign = 0u);
+			void memBlockFree(void);
 
 			inline uint32_t getMemSize(void) const noexcept { return m_memorySize; }
 			inline void*    getMemPtr(void)  const noexcept { return m_memoryPtr; }

@@ -7,6 +7,7 @@ using namespace ImageLabMemoryUtils;
 bool CMemoryBlock::memBlockAlloc (uint32_t mSize, uint32_t mAlign)
 {
 	bool bRet = false;
+    (void)mAlign; // this parameter not used currently
 
 	if (mSize > 0u)
 	{
@@ -25,7 +26,7 @@ bool CMemoryBlock::memBlockAlloc (uint32_t mSize, uint32_t mAlign)
 	return bRet;
 }
 
-void CMemoryBlock::memBlockFree(void) 
+void CMemoryBlock::memBlockFree (void) 
 {
 	if (nullptr != m_memoryPtr && 0u != m_memorySize)
 	{

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
+#include <type_traits>
 
 #if defined(__INTEL_COMPILER) || defined(_MSC_VER)
  #define RESTRICT __restrict
@@ -45,9 +47,9 @@
                            __pragma(vector unaligned)  
  #define __LOOP_UNROLL(min) __pragma(loop_count(min))
 #else
- #define __VECTOR_ALIGNED__
- #define __VECTORIZATION__
- #define __LOOP_UNROLL(min)
+ #define __VECTOR_ALIGNED__ __pragma(loop(ivdep))
+ #define __VECTORIZATION__ __pragma(loop(ivdep))
+ #define __LOOP_UNROLL(min) __pragma(loop(unroll(min)))
 #endif
 
 
@@ -67,8 +69,15 @@ constexpr uint32_t PremierId = app_tag ('P', 'r', 'M', 'r');
 template <typename T>
 inline void AEFX_CLR_STRUCT_EX(T& str) noexcept
 {
-	memset (static_cast<void*>(&str), 0, sizeof(T));
+    // This prevents you from accidentally clearing a complex class 
+    // (which would corrupt memory/vtable).
+    static_assert(std::is_trivially_copyable<T>::value,
+        "CRITICAL ERROR: AEFX_CLR_STRUCT_EX called on a non-trivial type! "
+        "You cannot use memset on classes with constructors, destructors, or virtual functions.");
+
+    std::memset(static_cast<void*>(&str), 0, sizeof(T));
 }
+
 
 inline void* ComputeAddress (const void* pAddr, const size_t bytes_offset) noexcept
 {
