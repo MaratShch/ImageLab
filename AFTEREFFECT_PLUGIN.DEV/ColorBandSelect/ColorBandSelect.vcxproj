@@ -135,6 +135,7 @@
     <ClCompile Include="src\ColorBandSelectPr.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\ColorTransform.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
@@ -146,6 +147,7 @@
     <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
     <ClInclude Include="..\Common\CommonPixFormat.hpp" />
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
+    <ClInclude Include="..\Common\CommonSmartRender.hpp" />
     <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
     <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
     <ClInclude Include="..\Common\FastAriphmetics.hpp" />
