@@ -137,9 +137,7 @@ SequenceSetdown
 static PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
+	PF_OutData		*out_data)
 {
 	return SetupControlElements (in_data, out_data);
 }
@@ -254,7 +252,7 @@ EffectMain(
 			break;
 
             case PF_Cmd_PARAMS_SETUP:
-                ERR(ParamsSetup(in_data, out_data, params, output));
+                ERR(ParamsSetup(in_data, out_data));
             break;
 
             case PF_Cmd_SEQUENCE_SETUP:
@@ -283,9 +281,9 @@ EffectMain(
                 ERR(UpdateParameterUI(in_data, out_data, params, output));
             break;
 
-            case PF_Cmd_EVENT:
-                ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
-            break;
+//            case PF_Cmd_EVENT:
+//                ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
+//            break;
 
             case PF_Cmd_SMART_PRE_RENDER:
                 ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));

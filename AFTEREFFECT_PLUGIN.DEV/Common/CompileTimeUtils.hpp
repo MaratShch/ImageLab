@@ -126,6 +126,11 @@ constexpr bool OnSameLine (const Point<T>& p0, const Point<T>& p1, const Point<T
     return (static_cast<T>(0) == (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x));
 }
 
+template <typename T>
+constexpr typename std::enable_if<std::is_arithmetic<T>::value, T>::type AverageValue (const T x1, const T x2) noexcept
+{
+    return (x1 + x2) / static_cast<T>(2);
+}
 
 
 #endif /* __IMAGE_LAB_COMPILE_TIME_UTILS__ */

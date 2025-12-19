@@ -7,103 +7,102 @@
 PF_Err
 SetupControlElements
 (
-    const PF_InData*  in_data,
-    PF_OutData* out_data
+    const PF_InData* RESTRICT in_data,
+    PF_OutData* RESTRICT out_data
 )
 {
     CACHE_ALIGN PF_ParamDef	def{};
     PF_Err		err = PF_Err_NONE;
 
-    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE;
-    constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+    constexpr PF_ParamFlags     flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags   ui_flags = PF_PUI_NONE;
+    constexpr PF_ParamUIFlags   ui_disabled = ui_flags | PF_PUI_DISABLED;
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
         controlItemName[0],                                                         // pop-up name
-        UnderlyingType(ArtPointilismPainter::ART_POINTILISM_PAINTER_TOTAL_NUMBER),  // number of variants
-        UnderlyingType(ArtPointilismPainter::ART_POINTILISM_PAINTER_SEURAT),        // default variant
+        UnderlyingType(ArtPointillismPainter::ART_POINTILLISM_PAINTER_TOTAL_NUMBER),// number of variants
+        UnderlyingType(ArtPointillismPainter::ART_POINTILLISM_PAINTER_SEURAT),      // default variant
         PainterNameStr,                                                             // string for pop-up
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_LIST_PAINTERS));       // control ID
-                                                                                    // Setup 'Retro Monitor' popup - default value "CGA"
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_PAINTER_STYLE));     // control ID
+
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_SLIDER(
-        controlItemName[1],
-        dotSizeMin,
-        dotSizeMax,
-        dotSizeMin,
-        dotSizeMax,
-        dotSizeDef,
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_SLIDER_DOT_SIZE));
+        controlItemName[1], 
+        DotDencityMin,
+        DotDencityMax,
+        DotDencityMin,
+        DotDencityMax,
+        DotDencityDef,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_DENCITY));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-    PF_ADD_FLOAT_SLIDERX(
+    PF_ADD_SLIDER(
         controlItemName[2],
-        fDotDencityMin,
-        fDotDencityMax,
-        fDotDencityMin,
-        fDotDencityMax,
-        fDotDencityDef,
-        PF_Precision_HUNDREDTHS,
-        0,
-        0,
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_FSLIDER_DOT_DENCITY));
+        DotSizeMin,
+        DotSizeMax,
+        DotSizeMin,
+        DotSizeMax,
+        DotSizeDef,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_SIZE));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-    PF_ADD_FLOAT_SLIDERX(
+    PF_ADD_SLIDER(
         controlItemName[3],
-        fColorFidelityMin,
-        fColorFidelityMax,
-        fColorFidelityMin,
-        fColorFidelityMax,
-        fColorFidelityDef,
-        PF_Precision_HUNDREDTHS,
-        0,
-        0,
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_FSLIDER_COLOR_FIDELITY));
+        EdgeSensitivityMin,
+        EdgeSensitivityMax,
+        EdgeSensitivityMin,
+        EdgeSensitivityMax,
+        EdgeSensitivityDef,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_SLIDER(
+        controlItemName[4],
+        ColorVibrancyMin,
+        ColorVibrancyMax,
+        ColorVibrancyMin,
+        ColorVibrancyMax,
+        ColorVibrancyDef,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
-        controlItemName[4],                                                         // pop-up name
-        UnderlyingType(ArtPointilismBlending::ART_POINTILISM_BLEND_TOTAL_NUMBER),   // number of variants
-        UnderlyingType(ArtPointilismBlending::ART_POINTILISM_BLEND_NONE),           // default variant
-        PointillismBlendModeStr,                                                    // string for pop-up
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_BLENDING_MODE_LIST));  // control ID
+        controlItemName[5],
+        UnderlyingType(StrokeShape::ART_POINTILLISM_SHAPE_TOTALS),
+        UnderlyingType(StrokeShape::ART_POINTILLISM_SHAPE_CIRCLE),
+        StrokeShapeStr,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_STROKE_STROKE_SHAPE));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
-        controlItemName[5],                                                         // pop-up name
-        UnderlyingType(ArtPointilismStroke::ART_POINTILISM_STROKE_TOTAL_NUMBER),    // number of variants
-        UnderlyingType(ArtPointilismStroke::ART_POINTILISM_STROKE_CIRCLE),          // default variant
-        PointillismStrokeStr,                                                       // string for pop-up
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_STROKE_SHAPE_LIST));   // control ID
-
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-    PF_ADD_FLOAT_SLIDERX(
         controlItemName[6],
-        fEdgeSensitiveMin,
-        fEdgeSensitiveMax,
-        fEdgeSensitiveMin,
-        fEdgeSensitiveMax,
-        fEdgeSensitiveDef,
-        PF_Precision_HUNDREDTHS,
-        0,
-        0,
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_FSLIDER_EDGE_SENSITIVITY));
+        UnderlyingType(BackgroundArt::ART_POINTILLISM_BACKGROUND_TOTALS),
+        UnderlyingType(BackgroundArt::ART_POINTILLISM_BACKGROUND_CANVAS),
+        BackgroundStr,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled);
+    PF_ADD_SLIDER(
+        controlItemName[7],
+        OpacityMin,
+        OpacityMax,
+        OpacityMin,
+        OpacityMax,
+        OpacityDef,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY));
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-    PF_ADD_FLOAT_SLIDERX(
-        controlItemName[7],
-        fBackgroundColorMin,
-        fBackgroundColorMax,
-        fBackgroundColorMin,
-        fBackgroundColorMax,
-        fBackgroundColorDef,
-        PF_Precision_HUNDREDTHS,
-        0,
-        0,
-        UnderlyingType(ArtPointilismControls::ART_POINTILISM_SLIDER_BACKGROUND_COLOR));
+    PF_ADD_SLIDER(
+        controlItemName[8],
+        RandomSeedMin,
+        RandomSeedMax,
+        RandomSeedMin,
+        RandomSeedMax,
+        RandomSeedDef,
+        UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED));
 
-    out_data->num_params = UnderlyingType(ArtPointilismControls::ART_POINTILISM_TOTAL_PARAMS);
+    out_data->num_params = UnderlyingType(ArtPointillismControls::ART_POINTILLISM_TOTAL_PARAMS);
 
     return err;
 }
@@ -111,19 +110,20 @@ SetupControlElements
 
 PontillismControls GetControlParametersStruct
 (
-    PF_ParamDef* __restrict params[]
+    PF_ParamDef* RESTRICT params[]
 ) noexcept
 {
     CACHE_ALIGN PontillismControls algoParams{};
 
-    algoParams.ctrlPainter          = static_cast<ArtPointilismPainter>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_LIST_PAINTERS)]->u.pd.value - 1);
-    algoParams.ctrlDotSize          = static_cast<int32_t>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_SLIDER_DOT_SIZE)]->u.sd.value);
-    algoParams.ctrlDotDensity       = static_cast<float>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_FSLIDER_DOT_DENCITY)]->u.fs_d.value);
-    algoParams.ctrlColorFidelity    = static_cast<float>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_FSLIDER_COLOR_FIDELITY)]->u.fs_d.value);
-    algoParams.ctrlBlending         = static_cast<ArtPointilismBlending>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_BLENDING_MODE_LIST)]->u.pd.value - 1);;
-    algoParams.ctrlStroke           = static_cast<ArtPointilismStroke>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_STROKE_SHAPE_LIST)]->u.pd.value - 1);
-    algoParams.ctrlEdgeSensitivity  = static_cast<float>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_FSLIDER_EDGE_SENSITIVITY)]->u.fs_d.value);
-    algoParams.ctrlBackgroundColor  = static_cast<float>(params[UnderlyingType(ArtPointilismControls::ART_POINTILISM_SLIDER_BACKGROUND_COLOR)]->u.fs_d.value);;
+    algoParams.PainterStyle     = static_cast<ArtPointillismPainter>(params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_PAINTER_STYLE)]->u.pd.value - 1);
+    algoParams.DotDencity       = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_DENCITY)]->u.sd.value;
+    algoParams.DotSize          = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_SIZE)]->u.sd.value;
+    algoParams.EdgeSensitivity  = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY)]->u.sd.value;
+    algoParams.Vibrancy         = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE)]->u.sd.value;
+    algoParams.Shape            = static_cast<StrokeShape>(params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_STROKE_STROKE_SHAPE)]->u.pd.value - 1);
+    algoParams.Background       = static_cast<BackgroundArt>(params[UnderlyingType(BackgroundArt::ART_POINTILLISM_BACKGROUND_CANVAS)]->u.pd.value - 1);
+    algoParams.Opacity          = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY)]->u.sd.value;
+    algoParams.RandomSeed       = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED)]->u.sd.value;
 
     return algoParams;
 }

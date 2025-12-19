@@ -107,8 +107,8 @@ namespace FourierTransform
             for (int32_t x = 0; x < src_w; x += TILE_SIZE)
             {
                 // Handle boundaries
-                int32_t block_h = std::min(TILE_SIZE, src_h - y);
-                int32_t block_w = std::min(TILE_SIZE, src_w - x);
+                const int32_t block_h = std::min(TILE_SIZE, src_h - y);
+                const int32_t block_w = std::min(TILE_SIZE, src_w - x);
 
                 // Transpose the tile
                 for (int32_t by = 0; by < block_h; ++by)

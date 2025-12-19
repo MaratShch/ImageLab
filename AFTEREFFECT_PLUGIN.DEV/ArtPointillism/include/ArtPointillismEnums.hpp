@@ -5,32 +5,45 @@
 #include "AE_Effect.h"
 #include "CompileTimeUtils.hpp"
 
-enum class ArtPointilismControls : int32_t
+enum class ArtPointillismControls : int32_t
 {
-    ART_POINTILISM_INPUT,
-    ART_POINTILISM_LIST_PAINTERS,
-    ART_POINTILISM_SLIDER_DOT_SIZE,
-    ART_POINTILISM_FSLIDER_DOT_DENCITY,
-    ART_POINTILISM_FSLIDER_COLOR_FIDELITY,
-    ART_POINTILISM_BLENDING_MODE_LIST,
-    ART_POINTILISM_STROKE_SHAPE_LIST,
-    ART_POINTILISM_FSLIDER_EDGE_SENSITIVITY,
-    ART_POINTILISM_SLIDER_BACKGROUND_COLOR,
-    ART_POINTILISM_TOTAL_PARAMS
+    ART_POINTILLISM_INPUT,
+    ART_POINTILLISM_PAINTER_STYLE,
+    ART_POINTILLISM_SLIDER_DOT_DENCITY,
+    ART_POINTILLISM_SLIDER_DOT_SIZE,
+    ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY,
+    ART_POINTILLISM_SLIDER_COLOR_VIBRANCE,
+    ART_POINTILLISM_STROKE_STROKE_SHAPE,
+    ART_POINTILLISM_BACKGROUND_ART,
+    ART_POINTILLISM_OPACITY,
+    ART_POINTILLISM_RANDOM_SEED,
+    ART_POINTILLISM_TOTAL_PARAMS
 };
 
-
-enum class ArtPointilismPainter : int32_t
+constexpr char controlItemName[][24] =
 {
-    ART_POINTILISM_PAINTER_SEURAT,
-    ART_POINTILISM_PAINTER_SIGNAC,
-    ART_POINTILISM_PAINTER_CROSS,
-    ART_POINTILISM_PAINTER_PISSARO,
-    ART_POINTILISM_PAINTER_VAN_GOGH,
-    ART_POINTILISM_PAINTER_MATISSE,
-    ART_POINTILISM_PAINTER_RYSSELBERGHE,
-    ART_POINTILISM_PAINTER_LUCE,
-    ART_POINTILISM_PAINTER_TOTAL_NUMBER
+    "Painter Style",
+    "Dot Dencity",
+    "Dot Size",
+    "Edge Sensitivity",
+    "Vibrancy",
+    "Stroke Shape",
+    "Background",
+    "Background Opacity",
+    "Random Seed"
+};
+
+enum class ArtPointillismPainter : int32_t
+{
+    ART_POINTILLISM_PAINTER_SEURAT,
+    ART_POINTILLISM_PAINTER_SIGNAC,
+    ART_POINTILLISM_PAINTER_CROSS,
+    ART_POINTILLISM_PAINTER_PISSARO,
+    ART_POINTILLISM_PAINTER_VAN_GOGH,
+    ART_POINTILLISM_PAINTER_MATISSE,
+    ART_POINTILLISM_PAINTER_RYSSELBERGHE,
+    ART_POINTILLISM_PAINTER_LUCE,
+    ART_POINTILLISM_PAINTER_TOTAL_NUMBER
 };
 
 constexpr char PainterNameStr [] = 
@@ -45,66 +58,60 @@ constexpr char PainterNameStr [] =
     "Maximilien Luce"
 };
 
-constexpr uint32_t dotSizeMin = 1u;
-constexpr uint32_t dotSizeMax = 10u;
-constexpr uint32_t dotSizeDef = 3u;
+constexpr int32_t DotDencityMin = 0;
+constexpr int32_t DotDencityMax = 100;
+constexpr int32_t DotDencityDef = AverageValue(DotDencityMin, DotDencityMax);
 
-constexpr double fDotDencityMin = 0.0;
-constexpr double fDotDencityMax = 1.0;
-constexpr double fDotDencityDef = 0.6;
+constexpr int32_t DotSizeMin = 0;
+constexpr int32_t DotSizeMax = 100;
+constexpr int32_t DotSizeDef = AverageValue(DotSizeMin, DotSizeMax);
 
-constexpr double fColorFidelityMin = 0.0;
-constexpr double fColorFidelityMax = 1.0;
-constexpr double fColorFidelityDef = 0.8;
+constexpr int32_t EdgeSensitivityMin = 0;
+constexpr int32_t EdgeSensitivityMax = 100;
+constexpr int32_t EdgeSensitivityDef = 40;
 
-enum class ArtPointilismBlending : int32_t
+constexpr int32_t ColorVibrancyMin = -100;
+constexpr int32_t ColorVibrancyMax = 100;
+constexpr int32_t ColorVibrancyDef = AverageValue(ColorVibrancyMin, ColorVibrancyMax);
+
+
+enum class StrokeShape : int32_t
 {
-    ART_POINTILISM_BLEND_NONE,
-    ART_POINTILISM_BLEND_ALPHA,
-    ART_POINTILISM_BLEND_ADDITIVE,
-    ART_POINTILISM_BLEND_TOTAL_NUMBER
+    ART_POINTILLISM_SHAPE_CIRCLE,
+    ART_POINTILLISM_SHAPE_ELLIPSE,
+    ART_POINTILLISM_SHAPE_SQUARE,
+    ART_POINTILLISM_SHAPE_TOTALS
 };
 
-constexpr char PointillismBlendModeStr[] =
-{
-    "None|"
-    "Alpha|"
-    "Additive"
-};
-
-enum class ArtPointilismStroke : int32_t
-{
-    ART_POINTILISM_STROKE_CIRCLE,
-    ART_POINTILISM_STROKE_ELLIPSE,
-    ART_POINTILISM_STROKE_STROKE,
-    ART_POINTILISM_STROKE_TOTAL_NUMBER
-};
-
-constexpr char PointillismStrokeStr[] =
+constexpr char StrokeShapeStr [] =
 {
     "Circle|"
     "Ellipse|"
-    "Stroke"
+    "Square"
 };
 
-constexpr double fEdgeSensitiveMin = 0.0;
-constexpr double fEdgeSensitiveMax = 1.0;
-constexpr double fEdgeSensitiveDef = 0.5;
-
-constexpr double fBackgroundColorMin = -1.0;
-constexpr double fBackgroundColorMax = 1.0;
-constexpr double fBackgroundColorDef = 0.0;
-
-constexpr char controlItemName[][24] =
+enum class BackgroundArt : int32_t
 {
-    "Painter Name",
-    "Dot size",
-    "Dot Dencity",
-    "Color Fidelity",
-    "Blending Mode",
-    "Stroke Shape",
-    "Edge Sensitivity",
-    "Background Color"
+    ART_POINTILLISM_BACKGROUND_CANVAS,
+    ART_POINTILLISM_BACKGROUND_WHITE,
+    ART_POINTILLISM_BACKGROUND_SOURCE_IMAGE,
+    ART_POINTILLISM_BACKGROUND_TOTALS
 };
+
+constexpr char BackgroundStr [] =
+{
+    "Canvas|"
+    "White|"
+    "Source Image"
+};
+
+constexpr int32_t OpacityMin = 0;
+constexpr int32_t OpacityMax = 100;
+constexpr int32_t OpacityDef = OpacityMin;
+
+constexpr int32_t RandomSeedMin = 0;
+constexpr int32_t RandomSeedMax = 32767;
+constexpr int32_t RandomSeedDef = 0;
+
 
 #endif // __IMAGE_LAB_ART_POINTILISM_ENUMERATORS__
