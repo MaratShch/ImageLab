@@ -4,7 +4,7 @@
 #include "ImageLabMemInterface.hpp"
 #include "CommonAdobeAE.hpp"
 
-static HMODULE hLib = nullptr;
+static HMODULE hLib = NULL;
 static void* MemoryInterfaceHndl = nullptr;
 static MemoryManagerInterface memInterface{};
 
