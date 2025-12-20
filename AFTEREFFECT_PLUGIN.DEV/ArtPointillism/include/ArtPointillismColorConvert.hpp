@@ -123,7 +123,7 @@ inline fRGB Xyz2Rgb
     return out;
 }
 
-
+// Convert from RGB to CIELab interleaved
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void ConvertToCIELab
 (
@@ -258,7 +258,7 @@ inline void ConvertFromCIELab
     const A_long          srcPitch,     // Source buffer line pitch
     const A_long          labPitch,     // LAB buffer linepitch
     const A_long          dstPitch      // Destination buffer line pitch 
-    ) noexcept
+) noexcept
 {
     float sRgbCoeff = static_cast<float>(u8_value_white);
     if (std::is_same<T, PF_Pixel_BGRA_16u>::value || std::is_same<T, PF_Pixel_ARGB_16u>::value)
