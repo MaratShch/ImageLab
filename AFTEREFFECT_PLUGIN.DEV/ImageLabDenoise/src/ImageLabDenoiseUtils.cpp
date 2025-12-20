@@ -5,10 +5,10 @@
 #include "ImageLabDenoiseUtils.hpp"
 
 typedef int  (WINAPI *procLib_compute_prime) (int imgSize, int arraySize, int* ptr);
-typedef void (WINAPI *procLib_fft_f32)    (const float*  in, float*  out, int size);
-typedef void (WINAPI *procLib_fft2d_f32)  (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY);
-typedef void (WINAPI *procLib_ifft_f32)   (const float*  in, float*  out, int size);
-typedef void (WINAPI* procLib_ifft2d_f32) (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY);
+typedef void (WINAPI *procLib_fft_f32)    (const float*  in, float*  out, ptrdiff_t size);
+typedef void (WINAPI *procLib_fft2d_f32)  (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY);
+typedef void (WINAPI *procLib_ifft_f32)   (const float*  in, float*  out, ptrdiff_t size);
+typedef void (WINAPI* procLib_ifft2d_f32) (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY);
 
 
 struct ProcLibHandle

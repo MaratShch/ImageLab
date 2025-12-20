@@ -8,14 +8,14 @@
 namespace FourierTransform
 {
 
-constexpr int32_t dft_algo_threshold = 128;
+constexpr ptrdiff_t dft_algo_threshold = 128;
 	
 template <typename T>
 inline void dft_1D
 (
 	const T* in,
 	T* out,
-	int32_t N
+    ptrdiff_t N
 ) noexcept
 {
     constexpr T PI = static_cast<T>(3.14159265358979323846);

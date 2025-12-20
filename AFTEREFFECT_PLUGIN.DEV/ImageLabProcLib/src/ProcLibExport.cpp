@@ -30,28 +30,28 @@ DLL_API_EXPORT int compute_prime (int imgSize, int arraySize, int* ptr)
 }
 
 
-DLL_API_EXPORT void fft_f32 (const float* in, float* out, int size)
+DLL_API_EXPORT void fft_f32 (const float* in, float* out, ptrdiff_t size)
 {
     if (nullptr != in && nullptr != out && size >= 2 && in != out)
         FourierTransform::mixed_radix_fft_1D (in, out, size);
     return;
 }
 
-DLL_API_EXPORT void fft_f64 (const double* in, double* out, int size)
+DLL_API_EXPORT void fft_f64 (const double* in, double* out, ptrdiff_t size)
 {
     if (nullptr != in && nullptr != out && size >= 2 && in != out)
         FourierTransform::mixed_radix_fft_1D(in, out, size);
     return;
 }
 
-DLL_API_EXPORT void fft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void fft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_fft_2D(in, scratch, out, sizeX, sizeY);
     return;
 }
 
-DLL_API_EXPORT void fft2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void fft2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_fft_2D(in, scratch, out, sizeX, sizeY);
@@ -59,7 +59,7 @@ DLL_API_EXPORT void fft2d_f64 (const double* RESTRICT in, double* RESTRICT scrat
 }
 
 
-DLL_API_EXPORT void ifft_f32 (const float* in, float* out, int size)
+DLL_API_EXPORT void ifft_f32 (const float* in, float* out, ptrdiff_t size)
 {
     if (nullptr != in && nullptr != out && size >= 2 && in != out)
         FourierTransform::mixed_radix_ifft_1D(in, out, size);
@@ -67,7 +67,7 @@ DLL_API_EXPORT void ifft_f32 (const float* in, float* out, int size)
     return;
 }
 
-DLL_API_EXPORT void ifft_f64 (const double* in, double* out, int size)
+DLL_API_EXPORT void ifft_f64 (const double* in, double* out, ptrdiff_t size)
 {
     if (nullptr != in && nullptr != out && size >= 2 && in != out)
         FourierTransform::mixed_radix_ifft_1D(in, out, size);
@@ -75,14 +75,14 @@ DLL_API_EXPORT void ifft_f64 (const double* in, double* out, int size)
 }
 
 
-DLL_API_EXPORT void ifft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void ifft2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_ifft_2D(in, scratch, out, sizeX, sizeY);
     return;
 }
 
-DLL_API_EXPORT void ifft2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void ifft2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::mixed_radix_ifft_2D(in, scratch, out, sizeX, sizeY);
@@ -90,14 +90,14 @@ DLL_API_EXPORT void ifft2d_f64 (const double* RESTRICT in, double* RESTRICT scra
 }
 
 
-DLL_API_EXPORT void dct2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void dct2d_f32 (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::dct_2D (in, scratch, out, sizeX, sizeY);
     return;
 }
 
-DLL_API_EXPORT void dct2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void dct2d_f64 (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::dct_2D (in, scratch, out, sizeX, sizeY);
@@ -105,14 +105,14 @@ DLL_API_EXPORT void dct2d_f64 (const double* RESTRICT in, double* RESTRICT scrat
 }
 
 
-DLL_API_EXPORT void idct2d_f32(const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void idct2d_f32(const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::idct_2D (in, scratch, out, sizeX, sizeY);
     return;
 }
 
-DLL_API_EXPORT void idct2d_f64(const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int sizeX, int sizeY)
+DLL_API_EXPORT void idct2d_f64(const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t sizeX, ptrdiff_t sizeY)
 {
     if (nullptr != in && nullptr != out && nullptr != scratch)
         FourierTransform::idct_2D (in, scratch, out, sizeX, sizeY);

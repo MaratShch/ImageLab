@@ -43,7 +43,7 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 	m_Semaphore.Wait();
 
 	/* search already pre-allocated blocks */
-	for (uint32_t i = 0; i < m_HolderCapacity && -1 == blockId; i++)
+	for (int32_t i = 0; i < m_HolderCapacity && -1 == blockId; i++)
 	{
 		if (m_Holder[i]->getMemSize() >= reqSize)
 		{

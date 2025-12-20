@@ -4,7 +4,7 @@
 #include "utils.hpp"
 
 
-void FourierTransform::mixed_radix_fft_1D (const float* in, float* out, int32_t size) noexcept
+void FourierTransform::mixed_radix_fft_1D (const float* in, float* out, ptrdiff_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
 
@@ -43,7 +43,7 @@ void FourierTransform::mixed_radix_fft_1D (const float* in, float* out, int32_t 
 }	
 
 
-void FourierTransform::mixed_radix_fft_1D (const double* in, double* out, int32_t size) noexcept
+void FourierTransform::mixed_radix_fft_1D (const double* in, double* out, ptrdiff_t size) noexcept
 {
 	const std::vector<int32_t> prime_vector = FourierTransform::prime (size);
 
@@ -88,13 +88,13 @@ void FourierTransform::mixed_radix_fft_1D (const double* in, double* out, int32_
 // Computes IFFT using the Conjugate property: IFFT(x) = conj(FFT(conj(x))) / N
 // This reuses the highly optimized Forward engine without code duplication.
 // ----------------------------------------------------------------------------
-void FourierTransform::mixed_radix_ifft_1D (const float* RESTRICT in, float* RESTRICT out, int32_t size) noexcept
+void FourierTransform::mixed_radix_ifft_1D (const float* RESTRICT in, float* RESTRICT out, ptrdiff_t size) noexcept
 {
     // 1. Pre-Process: Copy Input to Output AND Conjugate
     // We perform the copy here manually to flip the sign of the imaginary part.
     // in[k] = a + jb  ->  out[k] = a - jb
     
-    for (int32_t i = 0; i < size; ++i)
+    for (ptrdiff_t i = 0; i < size; ++i)
     {
         out[2*i]     =  in[2*i];      // Real part (unchanged)
         out[2*i + 1] = -in[2*i + 1];  // Imag part (flipped)
@@ -110,7 +110,7 @@ void FourierTransform::mixed_radix_ifft_1D (const float* RESTRICT in, float* RES
     
     const float normalization_factor = 1.0f / static_cast<float>(size);
     
-    for (int32_t i = 0; i < size; ++i)
+    for (ptrdiff_t i = 0; i < size; ++i)
     {
         // Apply scaling
         out[2*i]     *= normalization_factor; 
@@ -124,13 +124,13 @@ void FourierTransform::mixed_radix_ifft_1D (const float* RESTRICT in, float* RES
 }
 
 
-void FourierTransform::mixed_radix_ifft_1D  (const double* RESTRICT in, double* RESTRICT out, int32_t size) noexcept
+void FourierTransform::mixed_radix_ifft_1D  (const double* RESTRICT in, double* RESTRICT out, ptrdiff_t size) noexcept
 {
     // 1. Pre-Process: Copy Input to Output AND Conjugate
     // We perform the copy here manually to flip the sign of the imaginary part.
     // in[k] = a + jb  ->  out[k] = a - jb
     
-    for (int32_t i = 0; i < size; ++i)
+    for (ptrdiff_t i = 0; i < size; ++i)
     {
         out[2*i]     =  in[2*i];      // Real part (unchanged)
         out[2*i + 1] = -in[2*i + 1];  // Imag part (flipped)
@@ -146,7 +146,7 @@ void FourierTransform::mixed_radix_ifft_1D  (const double* RESTRICT in, double* 
     
     const double normalization_factor = 1.0 / static_cast<double>(size);
     
-    for (int32_t i = 0; i < size; ++i)
+    for (ptrdiff_t i = 0; i < size; ++i)
     {
         // Apply scaling
         out[2*i]     *= normalization_factor; 
@@ -160,17 +160,17 @@ void FourierTransform::mixed_radix_ifft_1D  (const double* RESTRICT in, double* 
 }
 
 
-void FourierTransform::mixed_radix_fft_2D (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_fft_2D (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept
 {
     // Optimization: Read directly from 'in', write to 'out'.
     // This eliminates the initial memcpy entirely.
     // If (in == out), the 1D engine handles in-place safely.
 
-    const int32_t double_width = 2 * width;
-    for (int32_t row = 0; row < height; ++row)
+    const ptrdiff_t double_width = 2 * width;
+    for (ptrdiff_t row = 0; row < height; ++row)
     {
         // Offset in floats (2 per complex pixel)
-        const int32_t offset = row * double_width;
+        const ptrdiff_t offset = row * double_width;
 
         // Read from Input, Write to Output
         FourierTransform::mixed_radix_fft_1D (in + offset, out + offset, width);
@@ -186,11 +186,11 @@ void FourierTransform::mixed_radix_fft_2D (const float* RESTRICT in, float* REST
     // The "Rows" of scratch correspond to the "Columns" of the original image.
     // Length of these rows is 'height'. There are 'width' such rows.
 
-    const int32_t double_height = 2 * height;
-    for (int32_t col = 0; col < width; ++col)
+    const ptrdiff_t double_height = 2 * height;
+    for (ptrdiff_t col = 0; col < width; ++col)
     {
         // Offset in floats
-        const int32_t offset = col * double_height;
+        const ptrdiff_t offset = col * double_height;
         float* row_ptr = scratch + offset;
 
         // In-Place transform on the scratch buffer
@@ -207,17 +207,17 @@ void FourierTransform::mixed_radix_fft_2D (const float* RESTRICT in, float* REST
 }
 
 
-void FourierTransform::mixed_radix_fft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_fft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept
 {
     // Optimization: Read directly from 'in', write to 'out'.
     // This eliminates the initial memcpy entirely.
     // If (in == out), the 1D engine handles in-place safely.
 
-    const int32_t double_width = 2 * width;
-    for (int32_t row = 0; row < height; ++row)
+    const ptrdiff_t double_width = 2 * width;
+    for (ptrdiff_t row = 0; row < height; ++row)
     {
         // Offset in floats (2 per complex pixel)
-        const int32_t offset = row * double_width;
+        const ptrdiff_t offset = row * double_width;
 
         // Read from Input, Write to Output
         FourierTransform::mixed_radix_fft_1D(in + offset, out + offset, width);
@@ -233,11 +233,11 @@ void FourierTransform::mixed_radix_fft_2D (const double* RESTRICT in, double* RE
     // The "Rows" of scratch correspond to the "Columns" of the original image.
     // Length of these rows is 'height'. There are 'width' such rows.
 
-    const int32_t double_height = 2 * height;
-    for (int32_t col = 0; col < width; ++col)
+    const ptrdiff_t double_height = 2 * height;
+    for (ptrdiff_t col = 0; col < width; ++col)
     {
         // Offset in floats
-        const int32_t offset = col * double_height;
+        const ptrdiff_t offset = col * double_height;
         double* row_ptr = scratch + offset;
 
         // In-Place transform on the scratch buffer
@@ -254,7 +254,7 @@ void FourierTransform::mixed_radix_fft_2D (const double* RESTRICT in, double* RE
 }
 
 
-void FourierTransform::mixed_radix_ifft_2D (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_ifft_2D (const float* RESTRICT in, float* RESTRICT scratch, float* RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept
 {
     // ========================================================================
     // PASS 1: IFFT ROWS
@@ -263,11 +263,11 @@ void FourierTransform::mixed_radix_ifft_2D (const float* RESTRICT in, float* RES
     // The mixed_radix_ifft_1D function internally handles the "Copy + Conjugate"
     // step, so we can pass different pointers for source and destination here.
 
-    const int32_t double_width = 2 * width;
+    const ptrdiff_t double_width = 2 * width;
 
-    for (int32_t row = 0; row < height; ++row)
+    for (ptrdiff_t row = 0; row < height; ++row)
     {
-        const int32_t offset = row * double_width;
+        const ptrdiff_t offset = row * double_width;
 
         // Read from Input, Write to Output (Row by Row)
         FourierTransform::mixed_radix_ifft_1D(in + offset, out + offset, width);
@@ -288,11 +288,11 @@ void FourierTransform::mixed_radix_ifft_2D (const float* RESTRICT in, float* RES
     // We now operate on 'scratch'.
     // The "Rows" of scratch correspond to the "Columns" of the original image.
 
-    const int32_t double_height = 2 * height;
+    const ptrdiff_t double_height = 2 * height;
 
-    for (int32_t col = 0; col < width; ++col)
+    for (ptrdiff_t col = 0; col < width; ++col)
     {
-        const int32_t offset = col * double_height;
+        const ptrdiff_t offset = col * double_height;
         float* row_ptr = scratch + offset;
 
         // In-Place transform on the scratch buffer
@@ -310,7 +310,7 @@ void FourierTransform::mixed_radix_ifft_2D (const float* RESTRICT in, float* RES
     return;
 }
 
-void FourierTransform::mixed_radix_ifft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept
+void FourierTransform::mixed_radix_ifft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept
 {
     // ========================================================================
     // PASS 1: IFFT ROWS
@@ -319,11 +319,11 @@ void FourierTransform::mixed_radix_ifft_2D (const double* RESTRICT in, double* R
     // The mixed_radix_ifft_1D function internally handles the "Copy + Conjugate"
     // step, so we can pass different pointers for source and destination here.
 
-    const int32_t double_width = 2 * width;
+    const ptrdiff_t double_width = 2 * width;
 
-    for (int32_t row = 0; row < height; ++row)
+    for (ptrdiff_t row = 0; row < height; ++row)
     {
-        const int32_t offset = row * double_width;
+        const ptrdiff_t offset = row * double_width;
 
         // Read from Input, Write to Output (Row by Row)
         FourierTransform::mixed_radix_ifft_1D(in + offset, out + offset, width);
@@ -344,11 +344,11 @@ void FourierTransform::mixed_radix_ifft_2D (const double* RESTRICT in, double* R
     // We now operate on 'scratch'.
     // The "Rows" of scratch correspond to the "Columns" of the original image.
 
-    const int32_t double_height = 2 * height;
+    const ptrdiff_t double_height = 2 * height;
 
-    for (int32_t col = 0; col < width; ++col)
+    for (ptrdiff_t col = 0; col < width; ++col)
     {
-        const int32_t offset = col * double_height;
+        const ptrdiff_t offset = col * double_height;
         double* row_ptr = scratch + offset;
 
         // In-Place transform on the scratch buffer

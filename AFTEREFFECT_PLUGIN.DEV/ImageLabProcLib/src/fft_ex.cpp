@@ -3,12 +3,12 @@
 #include "dft.hpp"
 #include "utils.hpp"
 
-void FourierTransform::mixed_radix_fft_1D_ex (const float* in, float* out, const float* RESTRICT twiddle_table, int32_t size) noexcept
+void FourierTransform::mixed_radix_fft_1D_ex (const float* in, float* out, const float* RESTRICT twiddle_table, ptrdiff_t size) noexcept
 {
     return;
 }
 
-void FourierTransform::mixed_radix_fft_1D_ex (const double* in, double* out, const double* RESTRICT twiddle_table, int32_t size) noexcept
+void FourierTransform::mixed_radix_fft_1D_ex (const double* in, double* out, const double* RESTRICT twiddle_table, ptrdiff_t size) noexcept
 {
     return;
 }
@@ -21,8 +21,8 @@ void FourierTransform::mixed_radix_fft_2D_ex
     float*  RESTRICT out, 
     const float*  RESTRICT twiddleX, 
     const float*  RESTRICT twiddleY, 
-    int32_t width, 
-    int32_t height
+    ptrdiff_t width,
+    ptrdiff_t height
 ) noexcept
 {
     // TODO
@@ -36,8 +36,8 @@ void FourierTransform::mixed_radix_fft_2D_ex
     double* RESTRICT out, 
     const double* RESTRICT twiddleX, 
     const double* RESTRICT twiddleY, 
-    int32_t width, 
-    int32_t height
+    ptrdiff_t width,
+    ptrdiff_t height
 ) noexcept
 {
     // TODO

@@ -10,7 +10,7 @@ namespace FourierTransform
     (
         const T* RESTRICT in,  // Input: Array of N Real numbers (Pixels)
         T* RESTRICT out,       // Output: Array of N Real numbers (Coefficients)
-        int32_t N
+        ptrdiff_t N
     ) noexcept
     {
         constexpr T PI = static_cast<T>(3.14159265358979323846);
@@ -20,14 +20,14 @@ namespace FourierTransform
         const T alpha0 = static_cast<T>(std::sqrt(static_cast<T>(1.0) / N));
         const T alphaK = static_cast<T>(std::sqrt(static_cast<T>(2.0) / N));
 
-        for (int32_t k = 0; k < N; k++)
+        for (ptrdiff_t k = 0; k < N; k++)
         {
             T sum{0};
 
             // Determine the scaling factor for this frequency k
             const T s = (k == 0) ? alpha0 : alphaK;
 
-            for (int32_t n = 0; n < N; n++)
+            for (ptrdiff_t n = 0; n < N; n++)
             {
                 // 1. Read Real Input only
                 const T xr = in[n];
@@ -52,7 +52,7 @@ namespace FourierTransform
     (
         const T* RESTRICT in,  // Input: Array of N Real numbers (Coefficients)
         T* RESTRICT out,       // Output: Array of N Real numbers (Pixels)
-        int32_t N
+        ptrdiff_t N
     ) noexcept
     {
         constexpr T PI = static_cast<T>(3.14159265358979323846);
@@ -62,12 +62,12 @@ namespace FourierTransform
         const T alphaK = static_cast<T>(std::sqrt(static_cast<T>(2.0) / N));
 
         // Outer Loop: Iterate over Output Pixels (n)
-        for (int32_t n = 0; n < N; n++)
+        for (ptrdiff_t n = 0; n < N; n++)
         {
             T sum{ 0 };
 
             // Inner Loop: Sum up all Frequencies (k)
-            for (int32_t k = 0; k < N; k++)
+            for (ptrdiff_t k = 0; k < N; k++)
             {
                 // 1. Read Coefficient
                 const T Xk = in[k];
@@ -96,42 +96,38 @@ namespace FourierTransform
     (
         const T* RESTRICT src,
         T* RESTRICT dst,
-        int32_t src_w,
-        int32_t src_h
+        ptrdiff_t src_w,
+        ptrdiff_t src_h
     ) noexcept
     {
-        constexpr int32_t TILE_SIZE = 32;
+        constexpr ptrdiff_t TILE_SIZE = 32;
 
-        for (int32_t y = 0; y < src_h; y += TILE_SIZE)
+        for (ptrdiff_t y = 0; y < src_h; y += TILE_SIZE)
         {
-            for (int32_t x = 0; x < src_w; x += TILE_SIZE)
+            for (ptrdiff_t x = 0; x < src_w; x += TILE_SIZE)
             {
-                // Handle boundaries
-                const int32_t block_h = std::min(TILE_SIZE, src_h - y);
-                const int32_t block_w = std::min(TILE_SIZE, src_w - x);
+                const ptrdiff_t block_h = std::min(TILE_SIZE, src_h - y);
+                const ptrdiff_t block_w = std::min(TILE_SIZE, src_w - x);
 
-                // Transpose the tile
-                for (int32_t by = 0; by < block_h; ++by)
+                const T* p_src_row = src + y * src_w + x;
+                T*       p_dst_col = dst + x * src_h + y;
+
+                for (ptrdiff_t by = 0; by < block_h; ++by)
                 {
-                    for (int32_t bx = 0; bx < block_w; ++bx)
+                     for (ptrdiff_t bx = 0; bx < block_w; ++bx)
                     {
-                        // Input index: (y+by) is row, (x+bx) is col
-                        int32_t in_idx = (y + by) * src_w + (x + bx);
-
-                        // Output index: (x+bx) becomes row, (y+by) becomes col
-                        // Destination stride is 'src_h' (the new width)
-                        int32_t out_idx = (x + bx) * src_h + (y + by);
-
-                        dst[out_idx] = src[in_idx];
+                        p_dst_col[bx * src_h] = p_src_row[bx];
                     }
+
+                    p_src_row += src_w;
+                    p_dst_col += 1;
                 }
             }
         }
-        return;
     }
 
     template <typename T>
-    inline void GenerateDCTMatrix (const int32_t N, T* RESTRICT matrix /* array size should be equal or bigger N * N */)
+    inline void GenerateDCTMatrix (const ptrdiff_t N, T* RESTRICT matrix /* array size should be equal or bigger N * N */)
     {
         // Double precision for calculation, cast to float for storage
         constexpr T PI = static_cast<T>(3.14159265358979323846);
@@ -140,7 +136,7 @@ namespace FourierTransform
         const T sqrt2N   = std::sqrt(static_cast<T>(2.0) / N);      // Scale for Rows 1..N-1
         const T angleScale = PI / static_cast<T>(N);                // Optimization
 
-        for (int32_t k = 0; k < N; k++) // Rows (Frequency k)
+        for (int k = 0; k < N; k++) // Rows (Frequency k)
         {
             // 1. Determine Scale Factor C(k)
            const T scale = (0 == k) ? invSqrtN : sqrt2N;
@@ -158,11 +154,11 @@ namespace FourierTransform
         return;
     }
 
-    void dct_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, int32_t width, int32_t height) noexcept;
-    void dct_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept;
+    void dct_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept;
+    void dct_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept;
      
-    void idct_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, int32_t width, int32_t height) noexcept;
-    void idct_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept;
+    void idct_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept;
+    void idct_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept;
 
     // special DCT cases 
     void dct_2D_8x8 (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out) noexcept;

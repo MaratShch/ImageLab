@@ -38,7 +38,7 @@ namespace ImageLabMemoryUtils
 			int32_t searchMemoryBlock (uint32_t reqSize = 0);
 			void releaseMemoryBlock (int32_t blockIdx);
 
-			const uint32_t m_HolderCapacity;
+			const int32_t m_HolderCapacity;
 			std::atomic<uint64_t> m_TotalAllocated;
 			std::mutex m_QueueMutualAccess;
 			std::deque<int32_t> m_FreeBlocks;

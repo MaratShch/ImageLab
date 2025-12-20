@@ -28,33 +28,43 @@ inline uint64_t RDTSC() noexcept
 // Uses Tiling (Block Size 32) to maximize CPU Cache hits.
 // ----------------------------------------------------------------------------
 template <typename T>
-inline void utils_transpose_complex_2d (const T* __restrict src, T* __restrict dst, int32_t width, int32_t height) noexcept
+struct ComplexPair { T r; T i; };
+
+template <typename T>
+inline void utils_transpose_complex_2d
+(
+    const T* RESTRICT src_raw,
+    T* RESTRICT dst_raw,
+    ptrdiff_t width,
+    ptrdiff_t height
+) noexcept
 {
-    constexpr int32_t TILE = 32;
+    constexpr ptrdiff_t TILE = 32;
 
-    // Loop over blocks
-    for (int32_t y = 0; y < height; y += TILE)
+    const auto* src = reinterpret_cast<const ComplexPair<T>*>(src_raw);
+    auto*       dst = reinterpret_cast<ComplexPair<T>*>(dst_raw);
+
+    for (ptrdiff_t y = 0; y < height; y += TILE)
     {
-        for (int32_t x = 0; x < width; x += TILE)
+        for (ptrdiff_t x = 0; x < width; x += TILE)
         {
-            // Handle boundary clipping for non-multiple-of-32 sizes
-            const int32_t y_end = (y + TILE < height) ? (y + TILE) : height;
-            const int32_t x_end = (x + TILE < width)  ? (x + TILE) : width;
+            const ptrdiff_t block_h = std::min(TILE, height - y);
+            const ptrdiff_t block_w = std::min(TILE, width - x);
 
-            // Process the block
-            for (int32_t i = y; i < y_end; ++i)
+            const auto* src_block_base = src + y * width + x;
+            auto* dst_block_base = dst + x * height + y;
+
+            for (ptrdiff_t i = 0; i < block_h; ++i)
             {
-                __VECTORIZATION__
-                for (int32_t j = x; j < x_end; ++j)
-                {
-                    const int32_t src_idx = 2 * (i * width + j);
-                    const int32_t dst_idx = 2 * (j * height + i);
+                const auto* src_row = src_block_base + i * width;
 
-                    dst[dst_idx] = src[src_idx];     // Real
-                    dst[dst_idx + 1] = src[src_idx + 1]; // Imag
+                 auto* dst_col = dst_block_base + i;
+
+                for (ptrdiff_t j = 0; j < block_w; ++j)
+                {
+                    dst_col[j * height] = src_row[j];
                 }
             }
         }
     }
-    return;
 }

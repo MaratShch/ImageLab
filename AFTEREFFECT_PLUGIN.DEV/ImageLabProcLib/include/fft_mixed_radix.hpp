@@ -97,7 +97,7 @@ inline void Radix3_Butterfly
 
     // Out[1] = m1 - j*m2
     // Out[2] = m1 + j*m2
-    const int32_t s1 = stride_out;
+    const ptrdiff_t s1 = stride_out;
     
     out[s1]     = m1_r + m2_i;
     out[s1 + 1] = m1_i - m2_r;
@@ -114,7 +114,7 @@ inline void Radix4_Butterfly
 	const T r2, const T i2,
 	const T r3, const T i3,
 	T* out,
-	const int32_t stride_out = 2
+	const ptrdiff_t stride_out = 2
 ) noexcept
 {
     const T t1_r = r0 + r2; const T t1_i = i0 + i2;
@@ -135,7 +135,7 @@ inline void Radix4_Butterfly
 }
 	
 template <typename T>
-inline void Radix4_Butterfly (const T* in, T* out, int32_t stride_in = 2, int32_t stride_out = 2) noexcept
+inline void Radix4_Butterfly (const T* in, T* out, ptrdiff_t stride_in = 2, ptrdiff_t stride_out = 2) noexcept
 {
 	const T r0 = in[0 * stride_in + 0];
 	const T i0 = in[0 * stride_in + 1];
@@ -155,8 +155,8 @@ inline void Radix5_Butterfly
 (
 	const T* in,
 	T* out, 
-	int32_t stride_in, 
-	int32_t stride_out
+    ptrdiff_t stride_in,
+    ptrdiff_t stride_out
 ) noexcept
 {
     // Constants based on 2*pi/5 (72 degrees)
@@ -227,8 +227,8 @@ inline void Radix6_Butterfly
 (
     const T* in,
     T* out,
-    int32_t stride_in,
-    int32_t stride_out
+    ptrdiff_t stride_in,
+    ptrdiff_t stride_out
 ) noexcept
 {
     // Constants for Radix-6
@@ -351,8 +351,8 @@ inline void Radix7_Butterfly
 (
 	const T* in,
 	T* out,
-	int32_t stride_in,
-	int32_t stride_out
+    ptrdiff_t stride_in,
+    ptrdiff_t stride_out
 ) noexcept
 {
     // Constants (2*pi/7 based)
@@ -371,7 +371,7 @@ inline void Radix7_Butterfly
     CACHE_ALIGN T i[7];
     
     // Load inputs
-    for(int32_t k = 0; k < 7; ++k)
+    for(ptrdiff_t k = 0; k < 7; ++k)
     {
         r[k] = in[k*stride_in];
         i[k] = in[k*stride_in+1];
@@ -445,8 +445,8 @@ inline void Radix8_Butterfly
 (
     const T* in,
     T* out,
-    int32_t stride_in,
-    int32_t stride_out
+    ptrdiff_t stride_in,
+    ptrdiff_t stride_out
 ) noexcept
 {
     // Constants
@@ -573,8 +573,8 @@ inline void Radix9_Butterfly
 (
     const T* in,
     T* out,
-    int32_t stride_in,
-    int32_t stride_out
+    ptrdiff_t stride_in,
+    ptrdiff_t stride_out
 ) noexcept
 {
     constexpr T C40 = static_cast<T>(0.7660444431189780); 
@@ -750,7 +750,7 @@ inline void Radix16_Butterfly
 (
     const T* in,
     T* out,
-    int32_t stride
+    ptrdiff_t stride
 ) noexcept
 {
     // Constants
@@ -974,17 +974,17 @@ inline void unshuffle_mixed_radix
     }
 
     // 2. Permutation Loop
-    for (int32_t i = 0; i < N; ++i)
+    for (ptrdiff_t i = 0; i < N; ++i)
     {
-        int32_t input_idx = i;
-        int32_t target_idx = 0;
+        ptrdiff_t input_idx = i;
+        ptrdiff_t target_idx = 0;
         
         // Iterate Factors Reversed
-        for (size_t k = 0; k < factors_reversed.size(); ++k)
+        for (ptrdiff_t k = 0; k < factors_reversed.size(); ++k)
         {
-            int32_t R = factors_reversed[k];
+            ptrdiff_t R = factors_reversed[k];
             
-            int32_t digit = input_idx % R;
+            ptrdiff_t digit = input_idx % R;
             input_idx /= R;
             
             target_idx += digit * correct_weights[k];
@@ -1033,15 +1033,15 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
     // --- STAGE LOOP ---
     for (auto const& R : factors)
 	{
-        const int32_t stride = group_size / R;
+        const ptrdiff_t stride = group_size / R;
 
         // --- BLOCK LOOP ---
-        for (int32_t b = 0; b < block_count; ++b)
+        for (ptrdiff_t b = 0; b < block_count; ++b)
 		{
-            const int32_t base_offset = b * group_size;
+            const ptrdiff_t base_offset = b * group_size;
 
             // --- BUTTERFLY LOOP ---
-            for (int32_t k = 0; k < stride; ++k)
+            for (ptrdiff_t k = 0; k < stride; ++k)
 			{
                 
                 // 1. Gather inputs into local stack buffer
@@ -1055,18 +1055,18 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
                 if (is_first_stage)
 				{
                     // LOAD FROM SOURCE
-                    for (int32_t j = 0; j < R; ++j)
+                    for (ptrdiff_t j = 0; j < R; ++j)
 					{
-                        int32_t idx = 2 * (base_offset + k + j * stride);
+                        ptrdiff_t idx = 2 * (base_offset + k + j * stride);
                         local_buf[2 * j]     = src[idx];
                         local_buf[2 * j + 1] = src[idx + 1];
                     }
                 } else
 				{
                     // LOAD FROM DESTINATION (Intermediate result)
-                    for (int32_t j = 0; j < R; ++j)
+                    for (ptrdiff_t j = 0; j < R; ++j)
 					{
-                        int32_t idx = 2 * (base_offset + k + j * stride);
+                        ptrdiff_t idx = 2 * (base_offset + k + j * stride);
                         local_buf[2 * j]     = dst[idx];
                         local_buf[2 * j + 1] = dst[idx + 1];
                     }
@@ -1091,12 +1091,12 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
                 // ALWAYS WRITE TO DESTINATION
                 
                 // Row 0 (W^0 = 1)
-                const int32_t idx0 = 2 * (base_offset + k);
+                const ptrdiff_t idx0 = 2 * (base_offset + k);
                 dst[idx0]     = local_buf[0];
                 dst[idx0 + 1] = local_buf[1];
 
                 // Rows 1..R-1
-                for (int32_t j = 1; j < R; ++j)
+                for (ptrdiff_t j = 1; j < R; ++j)
 				{
                     T& r = local_buf[2 * j];
                     T& i = local_buf[2 * j + 1];
@@ -1104,7 +1104,7 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
                     // Twiddle
                     FourierTransform::apply_twiddle (r, i, j * k, group_size);
 
-                    const int32_t idx = 2 * (base_offset + k + j * stride);
+                    const ptrdiff_t idx = 2 * (base_offset + k + j * stride);
                     dst[idx]     = r;
                     dst[idx + 1] = i;
                 }
@@ -1128,7 +1128,7 @@ void FFT_MixedRadix_Iterative (const T* src, T* dst, int32_t N, const std::vecto
 // ============================================================================
 // 2D FORWARD FFT
 // ============================================================================
-void mixed_radix_ifft_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, int32_t width, int32_t height) noexcept;
-void mixed_radix_ifft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, int32_t width, int32_t height) noexcept;
+void mixed_radix_ifft_2D (const float*  RESTRICT in, float*  RESTRICT scratch, float*  RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept;
+void mixed_radix_ifft_2D (const double* RESTRICT in, double* RESTRICT scratch, double* RESTRICT out, ptrdiff_t width, ptrdiff_t height) noexcept;
 
 }
