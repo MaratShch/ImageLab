@@ -7,6 +7,7 @@
 #if defined(__INTEL_COMPILER) || defined(_MSC_VER)
  #define RESTRICT __restrict
 #else
+ #include "AefxDevPatch.hpp"
  #define RESTRICT __restrict__
 #endif
 
