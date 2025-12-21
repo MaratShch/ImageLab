@@ -93,7 +93,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9BC5BD35-FAF5-4FBD-9AF9-50B935DD56F2}</ProjectGuid>
     <RootNamespace>Black</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
     <ProjectName>BlackAndWhite</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
