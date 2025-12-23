@@ -57,7 +57,8 @@ FORCE_INLINE void StorePackedLAB_Fast (float* RESTRICT dst, __m256 L, __m256 a, 
 // -----------------------------------------------------------------------------------------
 // MAIN KERNEL: BGRA_8u -> CIELab (3 Channel)
 // -----------------------------------------------------------------------------------------
-inline void ConvertToCIELab_BGRA_8u(
+void ConvertToCIELab_BGRA_8u
+(
     const PF_Pixel_BGRA_8u* RESTRICT pRGB,
     fCIELabPix*             RESTRICT pLab,
     const int32_t           sizeX,
@@ -170,7 +171,8 @@ inline void ConvertToCIELab_BGRA_8u(
 // -----------------------------------------------------------------------------------------
 // MAIN KERNEL: ARGB_8u -> CIELab (3 Channel)
 // -----------------------------------------------------------------------------------------
-inline void ConvertToCIELab_ARGB_8u(
+void ConvertToCIELab_ARGB_8u
+(
     const PF_Pixel_BGRA_8u* RESTRICT pRGB,
     fCIELabPix*             RESTRICT pLab,
     const int32_t           sizeX,

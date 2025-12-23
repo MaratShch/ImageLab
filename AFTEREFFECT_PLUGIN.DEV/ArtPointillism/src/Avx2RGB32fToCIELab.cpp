@@ -70,6 +70,7 @@ void ConvertToCIELab_BGRA_32f
     const __m256 vXR = _mm256_set1_ps(K_XR), vXG = _mm256_set1_ps(K_XG), vXB = _mm256_set1_ps(K_XB);
     const __m256 vYR = _mm256_set1_ps(K_YR), vYG = _mm256_set1_ps(K_YG), vYB = _mm256_set1_ps(K_YB);
     const __m256 vZR = _mm256_set1_ps(K_ZR), vZG = _mm256_set1_ps(K_ZG), vZB = _mm256_set1_ps(K_ZB);
+
     const __m256 vLabEps  = _mm256_set1_ps(0.008856f);
     const __m256 vKappa   = _mm256_set1_ps(7.787037f); 
     const __m256 vLabAdd  = _mm256_set1_ps(16.0f / 116.0f);
@@ -198,9 +199,16 @@ void ConvertToCIELab_ARGB_32f
     const __m256 vXR = _mm256_set1_ps(K_XR), vXG = _mm256_set1_ps(K_XG), vXB = _mm256_set1_ps(K_XB);
     const __m256 vYR = _mm256_set1_ps(K_YR), vYG = _mm256_set1_ps(K_YG), vYB = _mm256_set1_ps(K_YB);
     const __m256 vZR = _mm256_set1_ps(K_ZR), vZG = _mm256_set1_ps(K_ZG), vZB = _mm256_set1_ps(K_ZB);
-    const __m256 vLabEps = _mm256_set1_ps(0.008856f); const __m256 vKappa = _mm256_set1_ps(7.787037f); const __m256 vLabAdd = _mm256_set1_ps(0.137931f);
-    const __m256 v116 = _mm256_set1_ps(116.0f); const __m256 vM16 = _mm256_set1_ps(-16.0f); const __m256 v500 = _mm256_set1_ps(500.0f); const __m256 v200 = _mm256_set1_ps(200.0f);
-    const __m256 vOne = _mm256_set1_ps(1.0f); const __m256 vZero = _mm256_setzero_ps();
+    
+    const __m256 vLabEps = _mm256_set1_ps(0.008856f); 
+    const __m256 vKappa = _mm256_set1_ps(7.787037f); 
+    const __m256 vLabAdd = _mm256_set1_ps(0.137931f);
+    const __m256 v116 = _mm256_set1_ps(116.0f); 
+    const __m256 vM16 = _mm256_set1_ps(-16.0f); 
+    const __m256 v500 = _mm256_set1_ps(500.0f); 
+    const __m256 v200 = _mm256_set1_ps(200.0f);
+    const __m256 vOne = _mm256_set1_ps(1.0f); 
+    const __m256 vZero = _mm256_setzero_ps();
 
     uint8_t* pRowSrc = (uint8_t*)pRGB;
     uint8_t* pRowDst = (uint8_t*)pLab;

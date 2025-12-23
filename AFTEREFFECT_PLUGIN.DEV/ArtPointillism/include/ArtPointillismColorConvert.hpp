@@ -10,6 +10,26 @@
 #include "FastAriphmetics.hpp"
 
 // AVX2 accelerated API's
+void ConvertToCIELab_BGRA_8u
+(
+    const PF_Pixel_BGRA_8u* RESTRICT pRGB,
+    fCIELabPix*             RESTRICT pLab,
+    const int32_t           sizeX,
+    const int32_t           sizeY,
+    const int32_t           rgbPitch,
+    const int32_t           labPitch
+) noexcept;
+
+void ConvertToCIELab_ARGB_8u
+(
+    const PF_Pixel_BGRA_8u* RESTRICT pRGB,
+    fCIELabPix*             RESTRICT pLab,
+    const int32_t           sizeX,
+    const int32_t           sizeY,
+    const int32_t           rgbPitch,
+    const int32_t           labPitch
+) noexcept;
+
 void ConvertToCIELab_BGRA_32f
 (
     const void*   RESTRICT pRGB,

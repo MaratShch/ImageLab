@@ -53,7 +53,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ static_cast<float>(u8_value_white) };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+                    ConvertToCIELab_BGRA_8u (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
 
                     // back convert to native buffer format after processing complete
                     ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
@@ -83,7 +83,7 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ 1.f };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+                    ConvertToCIELab_BGRA_32f (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
 
                     // back convert to native buffer format after processing complete
                     ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
