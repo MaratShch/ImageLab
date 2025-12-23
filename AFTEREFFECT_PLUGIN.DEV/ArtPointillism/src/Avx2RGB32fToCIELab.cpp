@@ -54,7 +54,7 @@ FORCE_INLINE void StoreLAB_Shuffle (float* RESTRICT dst, __m256 L, __m256 a, __m
 // MAIN KERNEL: BGRA -> CIELab (3 Channel, No Gamma, Fast Math)
 // -----------------------------------------------------------------------------------------
 // We use void* to avoid struct confusion and cast internally
-inline void ConvertToCIELab_BGRA_32f
+void ConvertToCIELab_BGRA_32f
 (
     const void*   RESTRICT pRGB,
     void*         RESTRICT pLab,
@@ -183,7 +183,15 @@ inline void ConvertToCIELab_BGRA_32f
 }
 
 // ARGB (Identical optimizations)
-inline void ConvertToCIELab_ARGB_32f (const void* RESTRICT pRGB, void* RESTRICT pLab, int32_t sizeX, int32_t sizeY, int32_t rgbPitch, int32_t labPitch) noexcept
+void ConvertToCIELab_ARGB_32f
+(
+    const void* RESTRICT pRGB, 
+    void* RESTRICT pLab, 
+    int32_t sizeX, 
+    int32_t sizeY, 
+    int32_t rgbPitch, 
+    int32_t labPitch
+) noexcept
 {
     const __m256 vXR = _mm256_set1_ps(K_XR), vXG = _mm256_set1_ps(K_XG), vXB = _mm256_set1_ps(K_XB);
     const __m256 vYR = _mm256_set1_ps(K_YR), vYG = _mm256_set1_ps(K_YG), vYB = _mm256_set1_ps(K_YB);

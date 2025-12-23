@@ -9,7 +9,27 @@
 #include "ColorTransform.hpp"
 #include "FastAriphmetics.hpp"
 
-#include "Avx2RGB32fToCIELab.hpp"
+// AVX2 accelerated API's
+void ConvertToCIELab_BGRA_32f
+(
+    const void*   RESTRICT pRGB,
+    void*         RESTRICT pLab,
+    const int32_t sizeX,
+    const int32_t sizeY,
+    const int32_t rgbPitch,
+    const int32_t labPitch
+) noexcept;
+
+void ConvertToCIELab_ARGB_32f
+(
+    const void* RESTRICT pRGB,
+    void* RESTRICT pLab,
+    int32_t sizeX,
+    int32_t sizeY,
+    int32_t rgbPitch,
+    int32_t labPitch
+) noexcept;
+
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline T ClampPixelValue
