@@ -9,6 +9,7 @@
 #include "ColorTransform.hpp"
 #include "FastAriphmetics.hpp"
 
+#include "Avx2RGB32fToCIELab.hpp"
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline T ClampPixelValue

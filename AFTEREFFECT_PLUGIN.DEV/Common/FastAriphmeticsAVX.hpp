@@ -14,7 +14,7 @@ namespace FastCompute
         }
 
         /* https://stackoverflow.com/questions/39821367/very-fast-approximate-logarithm-natural-log-function-in-c  */
-        inline __m256 Log (__m256 a) noexcept
+        inline __m256 Log(__m256 a) noexcept
         {
             __m256i aInt = *(__m256i*)(&a);
             __m256i e = _mm256_sub_epi32(aInt, _mm256_set1_epi32(0x3f2aaaab));
@@ -37,25 +37,48 @@ namespace FastCompute
             return r;
         }
 
-        // Fast Cube Root approximation using polynomial for range [0, 1]
-        // This replaces the expensive cbrtf() function.
-        // Accuracy is sufficient for 8-bit source images.
-        inline __m256 Cbrt (__m256 x) noexcept
+        inline __m256 Cbrt(__m256 x) noexcept
         {
-            // Polynomial coefficients for x^(1/3) approximation
-            const __m256 c0 = _mm256_set1_ps(0.089858711f);
-            const __m256 c1 = _mm256_set1_ps(1.82194686f);
-            const __m256 c2 = _mm256_set1_ps(-1.64446342f);
-            const __m256 c3 = _mm256_set1_ps(0.963471055f);
-            const __m256 c4 = _mm256_set1_ps(-0.230722129f);
+            __m256i i = _mm256_castps_si256(x);
+            // Bit Hack: i/3 approx
+            __m256i t = _mm256_add_epi32(_mm256_srli_epi32(i, 2), _mm256_srli_epi32(i, 4));
+            t = _mm256_add_epi32(t, _mm256_srli_epi32(t, 4));
+            t = _mm256_add_epi32(t, _mm256_srli_epi32(t, 8));
+            t = _mm256_add_epi32(t, _mm256_srli_epi32(t, 16));
+            t = _mm256_add_epi32(t, _mm256_set1_epi32(0x2a5137a0));
 
-            // Horner's method: (((c4*x + c3)*x + c2)*x + c1)*x + c0
-            __m256 res = _mm256_fmadd_ps(c4, x, c3);
-            res = _mm256_fmadd_ps(res, x, c2);
-            res = _mm256_fmadd_ps(res, x, c1);
-            res = _mm256_fmadd_ps(res, x, c0);
-            return res;
+            __m256 y = _mm256_castsi256_ps(t);
+            __m256 two = _mm256_set1_ps(2.0f);
+            __m256 third = _mm256_set1_ps(0.33333333f);
+
+            // Newton 1 with Reciprocal
+            __m256 ryy = _mm256_rcp_ps(_mm256_mul_ps(y, y));
+            y = _mm256_mul_ps(third, _mm256_fmadd_ps(two, y, _mm256_mul_ps(x, ryy)));
+            // Newton 2
+            ryy = _mm256_rcp_ps(_mm256_mul_ps(y, y));
+            y = _mm256_mul_ps(third, _mm256_fmadd_ps(two, y, _mm256_mul_ps(x, ryy)));
+            return y;
         }
+
+        inline __m256 Exp(__m256 x) noexcept
+        {
+            // Clamp to avoid overflow
+            x = _mm256_max_ps(x, _mm256_set1_ps(-87.0f));
+            x = _mm256_min_ps(x, _mm256_set1_ps(87.0f));
+
+            // Schraudolph approximation: exp(x) ~= (12102203 * x) + 1064986823 (integer reinterpretation)
+            // 12102203 ~ 2^23 / ln(2)
+            __m256 val = mm256_fmaf(x, _mm256_set1_ps(12102203.0f), _mm256_set1_ps(1064986823.0f));
+            return _mm256_castsi256_ps(_mm256_cvtps_epi32(val));
+        }
+
+        // Pow(x, y) = Exp(y * Log(x))
+        inline __m256 Pow(__m256 x, __m256 y) noexcept
+        {
+            x = _mm256_max_ps(x, _mm256_set1_ps(1.17549435e-38f));
+            return Exp(_mm256_mul_ps(y, Log(x)));
+        }
+
 
     } /* namespace AVX2 */
 }

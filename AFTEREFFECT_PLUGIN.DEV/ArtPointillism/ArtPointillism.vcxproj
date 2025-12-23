@@ -169,6 +169,7 @@
     <ClInclude Include="include\ArtPointillismSeurat.hpp" />
     <ClInclude Include="include\ArtPointillismSignac.hpp" />
     <ClInclude Include="include\ArtPointillismVanGogh.hpp" />
+    <ClInclude Include="include\Avx2RGB32fToCIELab.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>

@@ -126,6 +126,9 @@
     <ClInclude Include="..\Common\AlignedAllocator.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\Avx2RGB32fToCIELab.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
