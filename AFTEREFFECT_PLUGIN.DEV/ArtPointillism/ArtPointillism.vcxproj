@@ -180,6 +180,7 @@
     <ClCompile Include="src\ArtPointillismPR.cpp" />
     <ClCompile Include="src\ArtPointillismSR.cpp" />
     <ClCompile Include="src\Avx2RGB32fToCIELab.cpp" />
+    <ClCompile Include="src\Avx2RGB8uToCIELab.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>

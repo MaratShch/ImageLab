@@ -155,6 +155,9 @@
     <ClCompile Include="src\Avx2RGB32fToCIELab.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\Avx2RGB8uToCIELab.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPointillism.r">

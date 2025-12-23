@@ -4,6 +4,8 @@
 #include <algorithm>
 
 #include "Common.hpp"
+#include "CommonPixFormat.hpp"
+#include "CommonAuxPixFormat.hpp"
 #include "FastAriphmetics.hpp"
 
 // Constants
