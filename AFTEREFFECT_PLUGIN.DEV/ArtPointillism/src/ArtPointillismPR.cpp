@@ -57,6 +57,7 @@ PF_Err ProcessImgInPR
 
                     // back convert to native buffer format after processing complete
                     ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+ //                   ConvertFromCIELab_BGRA_8u(pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
                 }
                 break;
 

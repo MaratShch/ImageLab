@@ -1,3 +1,6 @@
+#ifndef __IMAGE_LAB2_POINTILLISM_EFFECT_COLOR_CONVERT_APIS__
+#define __IMAGE_LAB2_POINTILLISM_EFFECT_COLOR_CONVERT_APIS__
+
 #define FAST_COMPUTE_EXTRA_PRECISION
 
 #include "Common.hpp"
@@ -22,7 +25,7 @@ void ConvertToCIELab_BGRA_8u
 
 void ConvertToCIELab_ARGB_8u
 (
-    const PF_Pixel_BGRA_8u* RESTRICT pRGB,
+    const PF_Pixel_ARGB_8u* RESTRICT pRGB,
     fCIELabPix*             RESTRICT pLab,
     const int32_t           sizeX,
     const int32_t           sizeY,
@@ -32,8 +35,8 @@ void ConvertToCIELab_ARGB_8u
 
 void ConvertToCIELab_BGRA_32f
 (
-    const void*   RESTRICT pRGB,
-    void*         RESTRICT pLab,
+    const PF_Pixel_BGRA_32f* RESTRICT pRGB,
+    fCIELabPix*             RESTRICT pLab,
     const int32_t sizeX,
     const int32_t sizeY,
     const int32_t rgbPitch,
@@ -42,12 +45,22 @@ void ConvertToCIELab_BGRA_32f
 
 void ConvertToCIELab_ARGB_32f
 (
-    const void* RESTRICT pRGB,
-    void* RESTRICT pLab,
+    const PF_Pixel_ARGB_32f* RESTRICT pRGB,
+    fCIELabPix*             RESTRICT pLab,
     int32_t sizeX,
     int32_t sizeY,
     int32_t rgbPitch,
     int32_t labPitch
+) noexcept;
+
+void ConvertFromCIELab_BGRA_8u
+(
+    const fCIELabPix*       RESTRICT pLabSrc,
+    PF_Pixel_BGRA_8u*       RESTRICT pBGRADestination,
+    const int32_t           sizeX,
+    const int32_t           sizeY,
+    const int32_t           labPitch,
+    const int32_t           rgbPitch
 ) noexcept;
 
 
@@ -641,3 +654,5 @@ void Convert_BGRA_to_CIELab_AVX2 (const uint8_t* src, float* dst, int num_pixels
 }
 
 #endif
+
+#endif // __IMAGE_LAB2_POINTILLISM_EFFECT_COLOR_CONVERT_APIS__

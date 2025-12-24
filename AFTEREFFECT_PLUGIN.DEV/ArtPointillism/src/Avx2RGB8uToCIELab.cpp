@@ -163,8 +163,8 @@ void ConvertToCIELab_BGRA_8u
 
             pTail += 4;
         }
-        pRowSrc += rgbPitch;
-        pRowDst += labPitch;
+        pRowSrc += rgbPitch * sizeof(PF_Pixel_BGRA_8u);
+        pRowDst += labPitch * sizeof(fCIELabPix);
     }
 }
 
@@ -173,7 +173,7 @@ void ConvertToCIELab_BGRA_8u
 // -----------------------------------------------------------------------------------------
 void ConvertToCIELab_ARGB_8u
 (
-    const PF_Pixel_BGRA_8u* RESTRICT pRGB,
+    const PF_Pixel_ARGB_8u* RESTRICT pRGB,
     fCIELabPix*             RESTRICT pLab,
     const int32_t           sizeX,
     const int32_t           sizeY,
@@ -270,7 +270,7 @@ void ConvertToCIELab_ARGB_8u
 
             pTail += 4;
         }
-        pRowSrc += rgbPitch;
-        pRowDst += labPitch;
+        pRowSrc += rgbPitch * sizeof(PF_Pixel_ARGB_8u);
+        pRowDst += labPitch * sizeof(fCIELabPix);
     }
 }

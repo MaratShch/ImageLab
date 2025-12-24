@@ -55,11 +55,10 @@ FORCE_INLINE void StoreLAB_Shuffle (float* RESTRICT dst, __m256 L, __m256 a, __m
 // -----------------------------------------------------------------------------------------
 // MAIN KERNEL: BGRA -> CIELab (3 Channel, No Gamma, Fast Math)
 // -----------------------------------------------------------------------------------------
-// We use void* to avoid struct confusion and cast internally
 void ConvertToCIELab_BGRA_32f
 (
-    const void*   RESTRICT pRGB,
-    void*         RESTRICT pLab,
+    const PF_Pixel_BGRA_32f* RESTRICT pRGB,
+    fCIELabPix*         RESTRICT pLab,
     const int32_t sizeX,
     const int32_t sizeY,
     const int32_t rgbPitch,
@@ -180,16 +179,16 @@ void ConvertToCIELab_BGRA_32f
             src += 4;
         }
         
-        pRowSrc += rgbPitch;
-        pRowDst += labPitch;
+        pRowSrc += rgbPitch * sizeof(PF_Pixel_BGRA_32f);
+        pRowDst += labPitch * sizeof(fCIELabPix);
     }
 }
 
-// ARGB (Identical optimizations)
+
 void ConvertToCIELab_ARGB_32f
 (
-    const void* RESTRICT pRGB, 
-    void* RESTRICT pLab, 
+    const PF_Pixel_ARGB_32f* RESTRICT pRGB, 
+    fCIELabPix* RESTRICT pLab, 
     int32_t sizeX, 
     int32_t sizeY, 
     int32_t rgbPitch, 
@@ -281,7 +280,7 @@ void ConvertToCIELab_ARGB_32f
             dst[x*3 + 2] = 200.0f * (fy - fz);
             src += 4;
         }
-        pRowSrc += rgbPitch;
-        pRowDst += labPitch;
+        pRowSrc += rgbPitch * sizeof(PF_Pixel_ARGB_32f);
+        pRowDst += labPitch * sizeof(fCIELabPix);
     }
 }
