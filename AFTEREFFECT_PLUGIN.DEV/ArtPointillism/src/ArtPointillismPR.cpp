@@ -56,8 +56,7 @@ PF_Err ProcessImgInPR
                     ConvertToCIELab_BGRA_8u (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
 
                     // back convert to native buffer format after processing complete
-                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
- //                   ConvertFromCIELab_BGRA_8u(pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
+                    ConvertFromCIELab_BGRA_8u(pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
                 }
                 break;
 
@@ -84,8 +83,8 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ 1.f };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab_BGRA_32f (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
-
+                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+ 
                     // back convert to native buffer format after processing complete
                     ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }

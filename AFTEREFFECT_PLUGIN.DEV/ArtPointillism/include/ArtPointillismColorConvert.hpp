@@ -4,12 +4,11 @@
 #define FAST_COMPUTE_EXTRA_PRECISION
 
 #include "Common.hpp"
-#include "Param_Utils.h"
 #include "CompileTimeUtils.hpp"
 #include "CommonPixFormat.hpp"
+#include "CommonPixFormatSFINAE.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "ColorTransformMatrix.hpp"
-#include "ColorTransform.hpp"
 #include "FastAriphmetics.hpp"
 
 // AVX2 accelerated API's
@@ -25,7 +24,7 @@ void ConvertToCIELab_BGRA_8u
 
 void ConvertToCIELab_ARGB_8u
 (
-    const PF_Pixel_ARGB_8u* RESTRICT pRGB,
+    const PF_Pixel_BGRA_8u* RESTRICT pRGB,
     fCIELabPix*             RESTRICT pLab,
     const int32_t           sizeX,
     const int32_t           sizeY,
@@ -35,8 +34,8 @@ void ConvertToCIELab_ARGB_8u
 
 void ConvertToCIELab_BGRA_32f
 (
-    const PF_Pixel_BGRA_32f* RESTRICT pRGB,
-    fCIELabPix*             RESTRICT pLab,
+    const void*   RESTRICT pRGB,
+    void*         RESTRICT pLab,
     const int32_t sizeX,
     const int32_t sizeY,
     const int32_t rgbPitch,
@@ -45,8 +44,8 @@ void ConvertToCIELab_BGRA_32f
 
 void ConvertToCIELab_ARGB_32f
 (
-    const PF_Pixel_ARGB_32f* RESTRICT pRGB,
-    fCIELabPix*             RESTRICT pLab,
+    const void* RESTRICT pRGB,
+    void* RESTRICT pLab,
     int32_t sizeX,
     int32_t sizeY,
     int32_t rgbPitch,
@@ -62,6 +61,108 @@ void ConvertFromCIELab_BGRA_8u
     const int32_t           labPitch,
     const int32_t           rgbPitch
 ) noexcept;
+
+///////////// CONVERSION TO SEMI-PLANAR ==================
+void ConvertToCIELab_BGRA_8u
+(
+    const PF_Pixel_BGRA_8u* RESTRICT pRGB,
+    float*                  RESTRICT pL,  // Split pointer 1
+    float*                  RESTRICT pAB, // Split pointer 2
+    const int32_t           sizeX,
+    const int32_t           sizeY,
+    const int32_t           rgbPitch,
+    const int32_t           labPitch // Assumed to be pitch for L plane. AB pitch assumed labPitch*2
+) noexcept;
+
+void ConvertToCIELab_ARGB_8u
+(
+    const PF_Pixel_ARGB_8u* RESTRICT pRGB,
+    float*                  RESTRICT pL,
+    float*                  RESTRICT pAB,
+    const int32_t           sizeX,
+    const int32_t           sizeY,
+    const int32_t           rgbPitch,
+    const int32_t           labPitch
+) noexcept;
+
+void ConvertToCIELab_BGRA_32f(
+    const PF_Pixel_BGRA_32f*   RESTRICT pRGB,
+    float*              RESTRICT pL,
+    float*              RESTRICT pAB,
+    const int32_t sizeX,
+    const int32_t sizeY,
+    const int32_t rgbPitch,
+    const int32_t labPitch
+) noexcept;
+
+void ConvertToCIELab_ARGB_32f(
+    const PF_Pixel_ARGB_32f* RESTRICT pRGB,
+    float* RESTRICT pL,
+    float* RESTRICT pAB,
+    int32_t sizeX,
+    int32_t sizeY,
+    int32_t rgbPitch,
+    int32_t labPitch
+) noexcept;
+
+
+void ConvertToCIELab_BGRA_32f
+(
+    const PF_Pixel_BGRA_32f*   RESTRICT pRGB,
+    float*              RESTRICT pL,
+    float*              RESTRICT pAB,
+    const int32_t sizeX,
+    const int32_t sizeY,
+    const int32_t rgbPitch,
+    const int32_t labPitch
+) noexcept;
+
+void ConvertToCIELab_ARGB_32f(
+    const PF_Pixel_ARGB_32f* RESTRICT pRGB,
+    float* RESTRICT pL,
+    float* RESTRICT pAB,
+    int32_t sizeX,
+    int32_t sizeY,
+    int32_t rgbPitch,
+    int32_t labPitch
+) noexcept;
+
+void ConvertToCIELab_BGRA_8u
+(
+    const PF_Pixel_BGRA_8u* RESTRICT pRGB,
+    float*                  RESTRICT pL,  // Split pointer 1
+    float*                  RESTRICT pAB, // Split pointer 2
+    const int32_t           sizeX,
+    const int32_t           sizeY,
+    const int32_t           rgbPitch,
+    const int32_t           labPitch // Assumed to be pitch for L plane. AB pitch assumed labPitch*2
+) noexcept;
+
+void ConvertToCIELab_ARGB_8u
+(
+    const PF_Pixel_ARGB_8u* RESTRICT pRGB,
+    float*                  RESTRICT pL,
+    float*                  RESTRICT pAB,
+    const int32_t           sizeX,
+    const int32_t           sizeY,
+    const int32_t           rgbPitch,
+    const int32_t           labPitch
+) noexcept;
+
+
+//////////// CIELab convert form Semi-planar to interleaved //////////////////////
+void CIELabPlanar2Interleaved
+(
+    const float*      RESTRICT pSrcL,
+    const float*      RESTRICT pSrcAB,
+    fCIELabPix*       RESTRICT pDstLab,
+    const int32_t     sizeX,
+    const int32_t     sizeY,
+    const int32_t     lPitch,
+    const int32_t     abPitch,
+    const int32_t     dstPitch
+) noexcept;
+
 
 
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
@@ -180,7 +281,7 @@ inline fRGB Xyz2Rgb
 // Convert from RGB to CIELab interleaved
 template <typename T, std::enable_if_t<is_RGB_proc<T>::value>* = nullptr>
 inline void ConvertToCIELab
-(
+( 
     const T*    __restrict pRGB,
     fCIELabPix* __restrict pLab,
     const A_long          sizeX,
@@ -656,3 +757,4 @@ void Convert_BGRA_to_CIELab_AVX2 (const uint8_t* src, float* dst, int num_pixels
 #endif
 
 #endif // __IMAGE_LAB2_POINTILLISM_EFFECT_COLOR_CONVERT_APIS__
+

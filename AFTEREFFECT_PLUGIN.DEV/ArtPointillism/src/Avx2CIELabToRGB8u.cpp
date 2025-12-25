@@ -14,16 +14,17 @@
 // -----------------------------------------------------------------------------------------
 // Combined: InvMatrix * WhitePoint(D65) * 255.0
 // R
-// Inverse Matrix * 255 (D65)
-constexpr float K_IRX = 785.474f; 
-constexpr float K_IRY = -391.970f; 
-constexpr float K_IRZ = -138.423f;
-constexpr float K_IGX = -234.920f; 
-constexpr float K_IGY = 478.382f; 
-constexpr float K_IGZ = 11.539f;
-constexpr float K_IBX = 13.487f; 
-constexpr float K_IBY = -52.026f; 
-constexpr float K_IBZ = 293.539f;
+constexpr float K_IRX =  785.474f; //  3.2404542 * 0.95047 * 255
+constexpr float K_IRY = -391.970f; // -1.5371385 * 1.00000 * 255
+constexpr float K_IRZ = -138.423f; // -0.4985314 * 1.08883 * 255
+// G
+constexpr float K_IGX = -234.920f; // -0.9692660 * 0.95047 * 255
+constexpr float K_IGY =  478.382f; //  1.8760108 * 1.00000 * 255
+constexpr float K_IGZ =   11.539f; //  0.0415560 * 1.08883 * 255
+// B
+constexpr float K_IBX =   13.487f; //  0.0556434 * 0.95047 * 255
+constexpr float K_IBY =  -52.026f; // -0.2040259 * 1.00000 * 255
+constexpr float K_IBZ =  293.539f; //  1.0572252 * 1.08883 * 255
 
 // -----------------------------------------------------------------------------------------
 // HELPER: 3-PLANE UNPACK (Structure of Arrays -> Arrays of Structure)
@@ -163,6 +164,11 @@ void ConvertFromCIELab_BGRA_8u
     const __m256 vInv500 = _mm256_set1_ps(1.0f / 500.0f);
     const __m256 vInv200 = _mm256_set1_ps(1.0f / 200.0f);
 
+    // Inverse Linear Segment Constants
+    const __m256 vSigma = _mm256_set1_ps(6.0f / 29.0f); // 0.20689...
+    const __m256 vInvKappa = _mm256_set1_ps(1.0f / 7.787037f); // 1 / (903.3/116)
+    const __m256 vOffset = _mm256_set1_ps(16.0f / 116.0f); // 4/29
+
     uint8_t* pRowSrc = (uint8_t*)pLabSrc;
     uint8_t* pRowDst = (uint8_t*)pBGRADestination;
 
@@ -172,21 +178,23 @@ void ConvertFromCIELab_BGRA_8u
         PF_Pixel_BGRA_8u* dst = (PF_Pixel_BGRA_8u*)pRowDst;
         int x = 0;
 
-        // AVX2 Loop
         for (; x <= sizeX - 8; x += 8)
         {
-            // 1. Unpack 3-Channel Lab (Safe Stack Method)
+            // 1. Unpack 3-Channel Lab (Using the safe Stack Buffer method)
             __m256 L, a, b;
-            float tmp[24];
-            _mm256_storeu_ps(tmp, _mm256_loadu_ps(src));
-            _mm256_storeu_ps(tmp + 8, _mm256_loadu_ps(src + 8));
-            _mm256_storeu_ps(tmp + 16, _mm256_loadu_ps(src + 16));
 
+            // Safe Read (Unaligned)
+            CACHE_ALIGN float tmp[24];
+            _mm256_storeu_ps(tmp, _mm256_loadu_ps(src));     // 0-7
+            _mm256_storeu_ps(tmp + 8, _mm256_loadu_ps(src + 8)); // 8-15
+            _mm256_storeu_ps(tmp + 16, _mm256_loadu_ps(src + 16)); // 16-23
+
+            // Manual Gather to registers (Skylake efficient)
             L = _mm256_setr_ps(tmp[0], tmp[3], tmp[6], tmp[9], tmp[12], tmp[15], tmp[18], tmp[21]);
             a = _mm256_setr_ps(tmp[1], tmp[4], tmp[7], tmp[10], tmp[13], tmp[16], tmp[19], tmp[22]);
             b = _mm256_setr_ps(tmp[2], tmp[5], tmp[8], tmp[11], tmp[14], tmp[17], tmp[20], tmp[23]);
 
-            // 2. Inverse Lab -> XYZ
+            // 2. Inverse Lab
             // fy = (L + 16) / 116
             __m256 fy = _mm256_mul_ps(_mm256_add_ps(L, v16), vInv116);
             // fx = fy + a / 500
@@ -194,22 +202,34 @@ void ConvertFromCIELab_BGRA_8u
             // fz = fy - b / 200
             __m256 fz = _mm256_fnmadd_ps(b, vInv200, fy);
 
-            // 3. NUCLEAR SYMMETRY: Pure Cube (No Linear Check)
-            // This matches the "FastCbrt" from the Forward path perfectly.
-            __m256 X = _mm256_mul_ps(fx, _mm256_mul_ps(fx, fx));
-            __m256 Y = _mm256_mul_ps(fy, _mm256_mul_ps(fy, fy));
-            __m256 Z = _mm256_mul_ps(fz, _mm256_mul_ps(fz, fz));
+            // 3. Cube with Linear Check (Symmetry with Forward Path)
+            auto InverseF = [&](const __m256 t) noexcept -> __m256
+            {
+                // If t > sigma (0.20689), use t^3. Else use (t - 16/116) / 7.787
+                __m256 isCubic = _mm256_cmp_ps(t, vSigma, _CMP_GT_OQ);
 
-            // 4. Inverse Matrix (Scaled)
+                __m256 resCubic = _mm256_mul_ps(t, _mm256_mul_ps(t, t));
+                __m256 resLin = _mm256_mul_ps(_mm256_sub_ps(t, vOffset), vInvKappa);
+
+                return _mm256_blendv_ps(resLin, resCubic, isCubic);
+            };
+
+            __m256 X = InverseF(fx);
+            __m256 Y = InverseF(fy);
+            __m256 Z = InverseF(fz);
+
+            // 4. Inverse Matrix (Result 0..255)
             __m256 R = _mm256_fmadd_ps(X, vIRX, _mm256_fmadd_ps(Y, vIRY, _mm256_mul_ps(Z, vIRZ)));
             __m256 G = _mm256_fmadd_ps(X, vIGX, _mm256_fmadd_ps(Y, vIGY, _mm256_mul_ps(Z, vIGZ)));
             __m256 B = _mm256_fmadd_ps(X, vIBX, _mm256_fmadd_ps(Y, vIBY, _mm256_mul_ps(Z, vIBZ)));
 
+            // 5. Pack & Store (Saturation included)
             StoreBGRA_8u(dst + x, B, G, R);
+
             src += 24;
         }
 
-        // Tail (Scalar)
+        // Tail
         for (; x < sizeX; ++x)
         {
             float L = src[0], a = src[1], b = src[2];
@@ -218,20 +238,28 @@ void ConvertFromCIELab_BGRA_8u
             float fx = fy + (a * 0.002f);
             float fz = fy - (b * 0.005f);
 
-            // SYMMETRIC FIX: No Linear Check here either
-            float X = fx * fx * fx;
-            float Y = fy * fy * fy;
-            float Z = fz * fz * fz;
+            auto InvF = [](const float t) noexcept
+            {
+                // 6/29 = 0.20689655
+                return (t > 0.20689655f) ? (t * t * t) : ((t - 0.137931f) * 0.1284185f);
+            };
+
+            float X = InvF(fx);
+            float Y = InvF(fy);
+            float Z = InvF(fz);
 
             float R = X * K_IRX + Y * K_IRY + Z * K_IRZ;
             float G = X * K_IGX + Y * K_IGY + Z * K_IGZ;
             float B = X * K_IBX + Y * K_IBY + Z * K_IBZ;
 
-            auto Clamp = [](float v) {
-                return (uint8_t)(v < 0.0f ? 0 : (v > 255.0f ? 255 : (int)(v + 0.5f)));
+            auto Clamp = [](const float v) noexcept
+            {
+                return (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : (int)(v + 0.5f)));
             };
 
-            dst[x].B = Clamp(B); dst[x].G = Clamp(G); dst[x].R = Clamp(R); dst[x].A = 255;
+            dst[x].B = Clamp(B); dst[x].G = Clamp(G); dst[x].R = Clamp(R);
+            dst[x].A = 255;
+
             src += 3;
         }
 

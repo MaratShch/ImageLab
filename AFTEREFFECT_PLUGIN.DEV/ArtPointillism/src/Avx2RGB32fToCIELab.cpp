@@ -9,9 +9,15 @@
 #include "FastAriphmetics.hpp"
 
 // Constants
-static const float K_XR = 0.433953f; static const float K_XG = 0.376219f; static const float K_XB = 0.189828f;
-static const float K_YR = 0.212673f; static const float K_YG = 0.715152f; static const float K_YB = 0.072175f;
-static const float K_ZR = 0.017757f; static const float K_ZG = 0.109477f; static const float K_ZB = 0.872766f;
+constexpr float K_XR = 0.433953f; 
+constexpr float K_XG = 0.376219f; 
+constexpr float K_XB = 0.189828f;
+constexpr float K_YR = 0.212673f; 
+constexpr float K_YG = 0.715152f; 
+constexpr float K_YB = 0.072175f;
+constexpr float K_ZR = 0.017757f; 
+constexpr float K_ZG = 0.109477f; 
+constexpr float K_ZB = 0.872766f;
 
 // -----------------------------------------------------------------------------------------
 // PURE REGISTER STORE (Avoids Stack Stalls)

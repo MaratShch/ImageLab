@@ -161,6 +161,15 @@
     <ClCompile Include="src\Avx2CIELabToRGB8u.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\Avx2CIELabPlanarToInterleaved.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2RGB8uToCIELabPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2RGB32fToCIELabPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPointillism.r">
