@@ -20,6 +20,17 @@ inline void CIELab_LumaInvert (const fCIELabPix* RESTRICT pSrc, float* RESTRICT 
     return;
 }
 
+inline void CIELab_LumaInvert (const float* RESTRICT pSrc, float* RESTRICT pLumaDst, A_long sizeX, A_long sizeY) noexcept
+{
+    // Luma result: 1.0 (White) becomes 0.0 (No Dots)
+    //              0.0 (Black) becomes 1.0 (Max Dots)
+
+    const ptrdiff_t lumaSize = static_cast<ptrdiff_t>(sizeX * sizeY);
+    for (ptrdiff_t i = 0; i < lumaSize; i++)
+        pLumaDst[i] = 1.0f - pSrc[i] * 0.010f;
+    return;
+}
+
 
 inline void LumaEdgeDetection
 (

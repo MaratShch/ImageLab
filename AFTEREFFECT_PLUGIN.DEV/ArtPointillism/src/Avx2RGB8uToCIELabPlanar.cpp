@@ -12,9 +12,15 @@
 // CONSTANTS (D65 / sRGB)
 // -----------------------------------------------------------------------------------------
 // Constants for 8-bit Input (Scaled by 1/255 to skip normalization)
-static const float K8_XR = 0.00170177f; static const float K8_XG = 0.00147537f; static const float K8_XB = 0.00074442f; 
-static const float K8_YR = 0.00083401f; static const float K8_YG = 0.00280452f; static const float K8_YB = 0.00028304f; 
-static const float K8_ZR = 0.00006964f; static const float K8_ZG = 0.00042932f; static const float K8_ZB = 0.00342261f; 
+constexpr float K8_XR = 0.00170177f; 
+constexpr float K8_XG = 0.00147537f; 
+constexpr float K8_XB = 0.00074442f; 
+constexpr float K8_YR = 0.00083401f; 
+constexpr float K8_YG = 0.00280452f; 
+constexpr float K8_YB = 0.00028304f; 
+constexpr float K8_ZR = 0.00006964f; 
+constexpr float K8_ZG = 0.00042932f; 
+constexpr float K8_ZB = 0.00342261f; 
 
 // -----------------------------------------------------------------------------------------
 // FAST MATH KERNELS (Nuclear: No Gamma, Fast Cbrt)
