@@ -1,0 +1,12 @@
+#ifndef __IMAGE_LAB_ART_POINTILISM_DOT_DEFINITION__
+#define __IMAGE_LAB_ART_POINTILISM_DOT_DEFINITION__
+
+// --- OUTPUT STRUCTURE ---
+struct Point2D
+{
+    float x;
+    float y;
+};
+
+
+#endif // __IMAGE_LAB_ART_POINTILISM_DOT_DEFINITION__
