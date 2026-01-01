@@ -154,6 +154,11 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoArtisticsRendering.hpp" />
+    <ClInclude Include="include\AlgoDot2D.hpp" />
+    <ClInclude Include="include\AlgoDotEngine.hpp" />
+    <ClInclude Include="include\AlgoJFA.hpp" />
+    <ClInclude Include="include\AlgoLumaManipulation.hpp" />
     <ClInclude Include="include\ArtPointillism.hpp" />
     <ClInclude Include="include\ArtPointillismAlgo.hpp" />
     <ClInclude Include="include\ArtPointillismColorConvert.hpp" />
@@ -172,6 +177,10 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoArtisticsRendering.cpp" />
+    <ClCompile Include="src\AlgoDotEngine.cpp" />
+    <ClCompile Include="src\AlgoJFA.cpp" />
+    <ClCompile Include="src\AlgoLumaManipulation.cpp" />
     <ClCompile Include="src\ArtPointillism.cpp" />
     <ClCompile Include="src\ArtPointillismAE.cpp" />
     <ClCompile Include="src\ArtPointillismAlgo.cpp" />

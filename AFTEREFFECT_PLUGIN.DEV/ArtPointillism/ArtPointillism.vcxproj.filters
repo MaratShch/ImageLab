@@ -126,6 +126,21 @@
     <ClInclude Include="..\Common\AlignedAllocator.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoArtisticsRendering.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDot2D.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDotEngine.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoJFA.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoLumaManipulation.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
@@ -168,6 +183,18 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Avx2RGB32fToCIELabPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoArtisticsRendering.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoDotEngine.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoJFA.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoLumaManipulation.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

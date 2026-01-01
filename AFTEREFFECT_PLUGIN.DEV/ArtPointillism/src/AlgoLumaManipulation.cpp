@@ -1,16 +1,11 @@
-#ifndef __IMAGE_LAB_ART_POINTILISM_ALGORITHM_DEFINITIONS__
-#define __IMAGE_LAB_ART_POINTILISM_ALGORITHM_DEFINITIONS__
-
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <cmath>
-#include "Common.hpp"
-#include "CommonAuxPixFormat.hpp"
-#include "ArtPointillismColorConvert.hpp"
+#include "AlgoLumaManipulation.hpp"
 
+constexpr float UserParams_EdgeSensitivity = 50.f;
 
-inline void CIELab_LumaInvert (const fCIELabPix* RESTRICT pSrc, float* RESTRICT pLumaDst, A_long sizeX, A_long sizeY) noexcept
+void CIELab_LumaInvert (const fCIELabPix* RESTRICT pSrc, float* RESTRICT pLumaDst, A_long sizeX, A_long sizeY) noexcept
 {
     // Luma result: 1.0 (White) becomes 0.0 (No Dots)
     //              0.0 (Black) becomes 1.0 (Max Dots)
@@ -21,8 +16,18 @@ inline void CIELab_LumaInvert (const fCIELabPix* RESTRICT pSrc, float* RESTRICT 
     return;
 }
 
+void CIELab_LumaInvert (const float* RESTRICT pSrc, float* RESTRICT pLumaDst, A_long sizeX, A_long sizeY) noexcept
+{
+    // Luma result: 1.0 (White) becomes 0.0 (No Dots)
+    //              0.0 (Black) becomes 1.0 (Max Dots)
 
-inline void LumaEdgeDetection
+    const ptrdiff_t lumaSize = static_cast<ptrdiff_t>(sizeX * sizeY);
+    for (ptrdiff_t i = 0; i < lumaSize; i++)
+        pLumaDst[i] = 1.0f - pSrc[i] * 0.010f;
+    return;
+}
+
+void LumaEdgeDetection
 (
     const float* RESTRICT pSrc,
           float* RESTRICT pDst,
@@ -123,4 +128,67 @@ inline void LumaEdgeDetection
     return;
 }
 
-#endif // __IMAGE_LAB_ART_POINTILISM_ALGORITHM_DEFINITIONS__
+
+void MixAndNormalizeDensity
+(
+    const float* RESTRICT luma_src, 
+    const float* RESTRICT edge_src, 
+    float* RESTRICT target_dest, 
+    A_long sizeX,
+    A_long sizeY,
+    float sensitivity
+) noexcept
+{
+    const A_long pixel_count = sizeX * sizeY;
+    
+    // 1. Calculate Mixing Weights
+    // Clamp sensitivity to 0-100 just to be safe
+    if (sensitivity < 0.0f) sensitivity = 0.0f;
+    if (sensitivity > 100.0f) sensitivity = 100.0f;
+
+    float w_edge = sensitivity / 100.0f;
+    float w_luma = 1.0f - w_edge;
+
+    float max_density = 0.0f;
+
+    // 2. Mix Pass
+    // Read from separate inputs, write to separate output.
+    for (A_long i = 0; i < pixel_count; i++)
+    {
+        float val_l = luma_src[i];
+        float val_e = edge_src[i];
+
+        // Weighted Mix
+        float mixed_val = (val_l * w_luma) + (val_e * w_edge);
+
+        // Write to Target
+        target_dest[i] = mixed_val;
+
+        // Track peak value for the next step
+        if (mixed_val > max_density)
+        {
+            max_density = mixed_val;
+        }
+    }
+
+    // 3. Normalization Pass
+    // We must traverse the target buffer again to scale values to 0.0 - 1.0
+    // based on the max_density we just found.
+    if (max_density > 0.000001f)
+    {
+        float scale_factor = 1.0f / max_density;
+        
+        for (A_long i = 0; i < pixel_count; i++)
+        {
+            target_dest[i] *= scale_factor;
+        }
+    } 
+    else
+    {
+        // Fallback: If the result was perfectly 0.0, keep it 0.0 (or set to uniform small value)
+        for (A_long i = 0; i < pixel_count; i++)
+        {
+            target_dest[i] = 0.0f; 
+        }
+    }
+}
