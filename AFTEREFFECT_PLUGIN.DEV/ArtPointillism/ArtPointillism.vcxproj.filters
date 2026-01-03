@@ -16,7 +16,7 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{3c81d83e-af71-4802-a6c5-9d9653efde6a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="include\Painters">
+    <Filter Include="include\PainterPalette">
       <UniqueIdentifier>{f74369d6-60dc-4725-a8b9-4539156d3546}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -120,32 +120,32 @@
     <ClInclude Include="include\IPainter.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismCross.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismCross.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismLuce.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismLuce.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismMatisse.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismMatisse.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismPalette.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismPalette.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismPissaro.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismPissaro.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismRysselberghe.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismRysselberghe.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismSeurat.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismSeurat.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismSignac.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismSignac.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
-    <ClInclude Include="include\Painter\ArtPointillismVanGogh.hpp">
-      <Filter>include\Painters</Filter>
+    <ClInclude Include="include\PainterPalette\ArtPointillismVanGogh.hpp">
+      <Filter>include\PainterPalette</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
