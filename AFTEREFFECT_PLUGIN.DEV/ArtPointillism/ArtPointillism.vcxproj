@@ -163,18 +163,19 @@
     <ClInclude Include="include\ArtPointillismAlgo.hpp" />
     <ClInclude Include="include\ArtPointillismColorConvert.hpp" />
     <ClInclude Include="include\ArtPointillismControl.hpp" />
-    <ClInclude Include="include\ArtPointillismCross.hpp" />
     <ClInclude Include="include\ArtPointillismEnums.hpp" />
-    <ClInclude Include="include\ArtPointillismLuce.hpp" />
-    <ClInclude Include="include\ArtPointillismMatisse.hpp" />
     <ClInclude Include="include\ArtPointillismPainters.hpp" />
-    <ClInclude Include="include\ArtPointillismPalette.hpp" />
-    <ClInclude Include="include\ArtPointillismPissaro.hpp" />
-    <ClInclude Include="include\ArtPointillismRysselberghe.hpp" />
-    <ClInclude Include="include\ArtPointillismSeurat.hpp" />
-    <ClInclude Include="include\ArtPointillismSignac.hpp" />
-    <ClInclude Include="include\ArtPointillismVanGogh.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\IPainter.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismCross.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismLuce.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismMatisse.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismPalette.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismPissaro.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismRysselberghe.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismSeurat.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismSignac.hpp" />
+    <ClInclude Include="include\Painter\ArtPointillismVanGogh.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AlgoArtisticsRendering.cpp" />

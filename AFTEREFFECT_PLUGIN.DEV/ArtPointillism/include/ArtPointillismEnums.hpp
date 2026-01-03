@@ -114,4 +114,11 @@ constexpr int32_t RandomSeedMax = 32767;
 constexpr int32_t RandomSeedDef = 0;
 
 
+enum class ColorMode : int32_t
+{
+    Scientific,     // Strict Decomposition
+    Expressive      // Saturation Boost / Modulation
+};
+
+
 #endif // __IMAGE_LAB_ART_POINTILISM_ENUMERATORS__

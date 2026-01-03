@@ -3,7 +3,6 @@
 #include <cmath>
 #include "AlgoLumaManipulation.hpp"
 
-constexpr float UserParams_EdgeSensitivity = 50.f;
 
 void CIELab_LumaInvert (const fCIELabPix* RESTRICT pSrc, float* RESTRICT pLumaDst, A_long sizeX, A_long sizeY) noexcept
 {
