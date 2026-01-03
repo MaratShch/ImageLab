@@ -167,6 +167,7 @@
     <ClInclude Include="include\ArtPointillismPainters.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
     <ClInclude Include="include\IPainter.hpp" />
+    <ClInclude Include="include\PainterBase.hpp" />
     <ClInclude Include="include\PainterPalette\ArtPointillismCross.hpp" />
     <ClInclude Include="include\PainterPalette\ArtPointillismLuce.hpp" />
     <ClInclude Include="include\PainterPalette\ArtPointillismMatisse.hpp" />
@@ -176,6 +177,7 @@
     <ClInclude Include="include\PainterPalette\ArtPointillismSeurat.hpp" />
     <ClInclude Include="include\PainterPalette\ArtPointillismSignac.hpp" />
     <ClInclude Include="include\PainterPalette\ArtPointillismVanGogh.hpp" />
+    <ClInclude Include="include\PainterSeurat.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AlgoArtisticsRendering.cpp" />
@@ -196,6 +198,7 @@
     <ClCompile Include="src\Avx2RGB8uToCIELab.cpp" />
     <ClCompile Include="src\Avx2RGB8uToCIELabPlanar.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
+    <ClCompile Include="src\PainterEngine.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPointillism.r">

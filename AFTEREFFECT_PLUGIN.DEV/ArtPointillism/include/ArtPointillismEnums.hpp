@@ -2,7 +2,6 @@
 #define __IMAGE_LAB_ART_POINTILISM_ENUMERATORS__
 
 #include <cstdint>
-#include "AE_Effect.h"
 #include "CompileTimeUtils.hpp"
 
 enum class ArtPointillismControls : int32_t

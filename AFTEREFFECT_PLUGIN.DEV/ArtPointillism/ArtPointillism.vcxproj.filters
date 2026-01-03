@@ -147,6 +147,12 @@
     <ClInclude Include="include\PainterPalette\ArtPointillismVanGogh.hpp">
       <Filter>include\PainterPalette</Filter>
     </ClInclude>
+    <ClInclude Include="include\PainterBase.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PainterSeurat.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
@@ -201,6 +207,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoLumaManipulation.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PainterEngine.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
