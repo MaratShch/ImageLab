@@ -153,6 +153,27 @@
     <ClInclude Include="include\PainterSeurat.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\PainterCross.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PainterLuce.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PainterMatisse.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PainterPissaro.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PainterRysselberghe.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PainterSignac.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PainterVanGogh.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
@@ -209,7 +230,7 @@
     <ClCompile Include="src\AlgoLumaManipulation.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\PainterEngine.cpp">
+    <ClCompile Include="src\AlgoPainterEngine.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
