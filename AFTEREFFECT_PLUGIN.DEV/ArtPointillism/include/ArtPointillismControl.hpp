@@ -2,7 +2,6 @@
 #define __IMAGE_LAB_ART_POINTILISM_CONTROLS_PARAMETERS_DEFINITIONS__
 
 #include "Common.hpp"
-#include "CommonAdobeAE.hpp"
 #include "ArtPointillismEnums.hpp"
 
 struct PontillismControls
@@ -19,19 +18,6 @@ struct PontillismControls
 };
 
 constexpr size_t PontillismControlsSize = sizeof(PontillismControls);
-
-
-PF_Err
-SetupControlElements
-(
-    const PF_InData* RESTRICT in_data,
-    PF_OutData* RESTRICT out_data
-);
-
-PontillismControls GetControlParametersStruct
-(
-    PF_ParamDef* RESTRICT params[]
-) noexcept;
 
 
 #endif // __IMAGE_LAB_ART_POINTILISM_CONTROLS_PARAMETERS_DEFINITIONS__

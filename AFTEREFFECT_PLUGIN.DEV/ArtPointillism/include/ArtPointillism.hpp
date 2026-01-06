@@ -2,7 +2,7 @@
 #define __IMAGE_LAB_ART_POINTILISM_FILTER__
 
 #include "CommonAdobeAE.hpp"
-
+#include "ArtPointillismControl.hpp"
 
 constexpr char strName[] = "Art Pointillism";
 constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rArt Pointillism plugin.";
@@ -49,6 +49,18 @@ ArtPointilism_SmartRender
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extraP
 );
+
+PF_Err
+SetupControlElements
+(
+    const PF_InData* RESTRICT in_data,
+    PF_OutData* RESTRICT out_data
+);
+
+PontillismControls GetControlParametersStruct
+(
+    PF_ParamDef* RESTRICT params[]
+) noexcept;
 
 
 #endif // __IMAGE_LAB_ART_POINTILISM_FILTER__

@@ -3,7 +3,6 @@
 #include <cmath>
 #include "AlgoLumaManipulation.hpp"
 
-
 void CIELab_LumaInvert (const fCIELabPix* RESTRICT pSrc, float* RESTRICT pLumaDst, A_long sizeX, A_long sizeY) noexcept
 {
     // Luma result: 1.0 (White) becomes 0.0 (No Dots)

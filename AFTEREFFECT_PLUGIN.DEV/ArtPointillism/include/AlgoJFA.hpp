@@ -50,7 +50,7 @@ void Update_Points
 );
 
 
-void Dot_Refinement
+JFAPixel* Dot_Refinement
 (
     Point2D* RESTRICT points, 
     int32_t num_points,

@@ -236,7 +236,7 @@ void JFA_Update_Points
 }
 
 
-void Dot_Refinement
+JFAPixel* Dot_Refinement
 (
     Point2D* RESTRICT points, 
     int32_t num_points,
@@ -261,7 +261,8 @@ void Dot_Refinement
     }
 	
     start_step >>= 1; // Start at half the max dimension (e.g., 1024 for 1080p)
-
+    JFAPixel* final_voronoi_grid = nullptr;
+    
     // --- OUTER LOOP: LLOYD'S RELAXATION (e.g., 8 times) ---
     for (int32_t iter = 0; iter < relaxation_iterations; ++iter)
 	{
@@ -292,12 +293,12 @@ void Dot_Refinement
 
         // After the JFA loop finishes, 'src' holds the final valid Voronoi Map.
         // (Because we swapped at the end of the last loop iteration).
-        const JFAPixel* final_voronoi_grid = src;
+        final_voronoi_grid = src;
 
         // C. COMPUTE CENTROIDS & UPDATE POINTS
         // Calculate new positions based on the Voronoi map we just built
         JFA_Update_Points (final_voronoi_grid, density_map, width, height, points, num_points, acc_x, acc_y, acc_w);
     }
 	
-	return;
+	return final_voronoi_grid;
 }
