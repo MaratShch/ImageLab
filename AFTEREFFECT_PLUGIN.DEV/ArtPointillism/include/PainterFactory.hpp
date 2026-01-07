@@ -12,6 +12,9 @@
 #include "PainterSignac.hpp"
 #include "PainterVanGogh.hpp"
 
+bool CreatePaintersEngine(void);
+void DeletePaintersEngine(void);
+
 IPainter* GetPainterRegistry (ArtPointillismPainter);
 
 #endif // __IMAGE_LAB_ART_POINTILISM_PAINTER_FACTORY_CLASS__

@@ -617,7 +617,8 @@ void ArtisticRendering
     (
         voronoi_map, 
         source_lab, 
-        width, height, 
+        width,
+        height, 
         num_points, 
         scratch.acc_L, 
         scratch.acc_a, 
@@ -717,7 +718,6 @@ void ArtisticRendering
     // 1. Initialize RNG
     LCG_RNG rng(user_params.RandomSeed);
 
-
     // 2. Initialize Canvas
     // Pass split buffers
     Init_Canvas(canvas_lab, src_L, src_ab, width, height, user_params.Background);
@@ -727,8 +727,10 @@ void ArtisticRendering
     Integrate_Colors
     (
         voronoi_map, 
-        src_L, src_ab, 
-        width, height, 
+        src_L,
+        src_ab, 
+        width,
+        height, 
         num_points, 
         scratch.acc_L, 
         scratch.acc_a, 
@@ -736,12 +738,11 @@ void ArtisticRendering
         scratch.acc_count, 
         scratch.avg_colors 
     );
-#if 0
 
     // 4. Retrieve Painter Strategy
     IPainter* painter = GetPainterRegistry(user_params.PainterStyle);
     
-    RenderContext ctx;
+    RenderContext ctx{};
     painter->SetupContext(ctx);
 
     // Prepare Render Params
@@ -799,7 +800,6 @@ void ArtisticRendering
             break;
         }
     }
-#endif
 
     return;
 }

@@ -63,4 +63,5 @@ PontillismControls GetControlParametersStruct
 ) noexcept;
 
 
+
 #endif // __IMAGE_LAB_ART_POINTILISM_FILTER__

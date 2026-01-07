@@ -9,6 +9,7 @@
 #include "CommonAuxPixFormat.hpp"
 #include "IPainter.hpp"
 #include "AlgoJFA.hpp"
+#include "PainterFactory.hpp"
 
 // --- LOCAL RNG (For deterministic rendering per frame) ---
 struct LCG_RNG

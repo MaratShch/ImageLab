@@ -196,7 +196,6 @@
     <ClCompile Include="src\AlgoJFA.cpp" />
     <ClCompile Include="src\AlgoLumaManipulation.cpp" />
     <ClCompile Include="src\AlgoPainterEngine.cpp" />
-    <ClCompile Include="src\AlgoPainterFactory.cpp" />
     <ClCompile Include="src\ArtPointillism.cpp" />
     <ClCompile Include="src\ArtPointillismAE.cpp" />
     <ClCompile Include="src\ArtPointillismAlgo.cpp" />

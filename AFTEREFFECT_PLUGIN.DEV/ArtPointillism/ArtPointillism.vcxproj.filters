@@ -245,9 +245,6 @@
     <ClCompile Include="src\AlgoArtisticRendering.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgoPainterFactory.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPointillism.r">
