@@ -305,6 +305,65 @@ fCIELabPix Apply_Color_Mode
 
 
 /**
+ * Pre-process the target color based on Painter Mode.
+ * UPDATED: Adds aggressive Chroma Expansion for Expressive modes to prevent "Gray Soup".
+ */
+fCIELabPix Apply_Color_Mode_Boost
+(
+    fCIELabPix input, 
+    int color_mode,      // 0=Scientific, 1=Expressive
+    float user_vibrancy  // -100 to +100 (from User UI)
+)
+{
+    // 1. Calculate current Chroma (Saturation intensity)
+    float chroma = std::sqrt(input.a * input.a + input.b * input.b);
+    
+    // 2. Base Boost from User Slider
+    // Map -100..100 to factor 0.0..3.0
+    float boost = 1.0f + (user_vibrancy / 50.0f);
+    if (boost < 0.0f) boost = 0.0f;
+
+    // 3. EXPRESSIVE MODE LOGIC (The Van Gogh Fix)
+    if (color_mode == 1) // MODE_EXPRESSIVE
+    {
+        // A. Intrinsic Boost
+        // Van Gogh is naturally more vibrant.
+        boost *= 1.5f; 
+
+        // B. The "Gray Killer" (Chroma Floor)
+        // If a color is weak (grayish) but not pure black/white, 
+        // we artificially inflate its color purity so it snaps to a colorful palette entry 
+        // instead of a gray one.
+        
+        // Threshold: 5.0 is a subtle gray. 
+        if (chroma < 10.0f && chroma > 0.5f) 
+        {
+            // If it's a weak color, pretend it's a strong color.
+            // This forces the "Decompose" function to find a Blue/Yellow match 
+            // instead of a Gray match.
+            float fake_chroma = 20.0f + (user_vibrancy * 0.2f); 
+            float scale = fake_chroma / chroma;
+            
+            input.a *= scale;
+            input.b *= scale;
+            
+            // Recalculate chroma for the next step
+            chroma = fake_chroma; 
+        }
+    }
+
+    // 4. Apply Final Boost
+    if (chroma > 0.001f && boost != 1.0f)
+    {
+        input.a *= boost;
+        input.b *= boost;
+    }
+
+    return input;
+}
+
+
+/**
  * Find the 2 closest colors in the palette and their mixing ratio.
  */
 DecomposedColor Decompose
@@ -440,7 +499,7 @@ void RenderKernel_Mosaic
 {
     // 1. Color Logic (Signac is usually more solid/opaque)
     fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
-    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    processed_color = Apply_Color_Mode (processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
     DecomposedColor mix = Decompose(processed_color, ctx.palette_buffer, ctx.palette_size);
 
     // 2. Geometry Setup
@@ -496,7 +555,7 @@ void RenderKernel_Mosaic
     return;
 }
 
-// Van Gogh (The Flow)
+// Matisse (The Flow)
 // Technique: Draws oriented ellipses based on image gradients. Note: This requires the Density_Map to calculate the gradient on the fly.
 void RenderKernel_Flow
 (
@@ -507,12 +566,13 @@ void RenderKernel_Flow
     const float* RESTRICT density_map, // Needed for flow calculation
     float* RESTRICT canvas,
     int width, int height,
-    LCG_RNG& rng
+    LCG_RNG& rng,
+    bool bLongStroke = false
 )
 {
     // 1. Color Logic
     fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
-    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    processed_color = Apply_Color_Mode_Boost (processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
     DecomposedColor mix = Decompose(processed_color, ctx.palette_buffer, ctx.palette_size);
 
     // 2. Calculate Gradient Flow (Sobel on the fly at dot position)
@@ -526,11 +586,24 @@ void RenderKernel_Flow
     // Angle perpendicular to gradient (along the edge)
     float angle = std::atan2(g_y, g_x) + (3.14159f * 0.5f); 
     
+    float len_a, len_b;
+    
     // 3. Geometry Setup
-    float len_a = (float)params.DotSize * 0.2f; // Long axis
-    float len_b = len_a * 0.3f;                 // Short axis (Aspect ratio ~1:3)
-    if (len_a < 2.0f) len_a = 2.0f;
-    if (len_b < 1.0f) len_b = 1.0f;
+    if (true == bLongStroke)
+    {
+        len_a = (float)params.DotSize * 0.3f; // Long axis
+        len_b = len_a * 0.2f;                 // Short axis (Aspect ratio ~1:3)
+        if (len_a < 3.0f) len_a = 3.0f;
+        if (len_b < 0.75) len_b = 0.75f;
+    }
+    else
+    {
+        len_a = (float)params.DotSize * 0.2f; // Long axis
+        len_b = len_a * 0.3f;                 // Short axis (Aspect ratio ~1:3)
+        if (len_a < 2.0f) len_a = 2.0f;
+        if (len_b < 1.0f) len_b = 1.0f;
+    }
+    
 
     float opacity = 0.9f;
     float cos_a = std::cos(angle);
@@ -572,6 +645,7 @@ void RenderKernel_Flow
     
     return;
 }
+
 
 
 /**
@@ -688,7 +762,8 @@ void ArtisticRendering
                     pt, target_color, 
                     ctx, render_params, 
                     density_map, // <--- Passing the Map for Orientation Calculation
-                    canvas_lab, width, height, rng
+                    canvas_lab, width, height, rng,
+                    user_params.PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH
                 );
             break;
         }
@@ -721,6 +796,7 @@ void ArtisticRendering
     // 2. Initialize Canvas
     // Pass split buffers
     Init_Canvas(canvas_lab, src_L, src_ab, width, height, user_params.Background);
+
 
     // 3. Integrate Colors
     // Pass split buffers
@@ -795,7 +871,8 @@ void ArtisticRendering
                     pt, target_color, 
                     ctx, render_params, 
                     density_map, // <--- Passing the Map for Orientation Calculation
-                    canvas_lab, width, height, rng
+                    canvas_lab, width, height, rng,
+                    user_params.PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH
                 );
             break;
         }
@@ -811,7 +888,10 @@ RenderScratchMemory AllocScratchMemory
 )
 {
     // (Use the same max size logic from Phase 2)
-    const int32_t max_dots = (int32_t)(1.10f * (width * height / 10000.0f) * 300.0f);
+//    const int32_t max_dots = (int32_t)(1.10f * (width * height / 10000.0f) * 300.0f);
+    
+    constexpr float max_density_factor = (250.0f / 10000.0f) * 7.0f;
+    const int32_t max_dots = static_cast<int32_t>((width * height) * max_density_factor * 1.15f + 0.5f);
 
     return AllocScratchMemory(max_dots);
  }

@@ -137,6 +137,30 @@ void RenderKernel_Cluster
     LCG_RNG& rng
 );
 
+void RenderKernel_Mosaic
+(
+    const Point2D& pt,
+    const fCIELabPix& target_color,
+    const RenderContext& ctx,
+    const PointillismRenderParams& params,
+    float* RESTRICT canvas,
+    int width, int height,
+    LCG_RNG& rng
+);
+
+void RenderKernel_Flow
+(
+    const Point2D& pt,
+    const fCIELabPix& target_color,
+    const RenderContext& ctx,
+    const PointillismRenderParams& params,
+    const float* RESTRICT density_map, // Needed for flow calculation
+    float* RESTRICT canvas,
+    int width, int height,
+    LCG_RNG& rng
+);
+
+
 void ArtisticRendering
 (
     const Point2D* RESTRICT points, 

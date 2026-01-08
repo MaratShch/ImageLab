@@ -9,6 +9,19 @@
 #include "Common.hpp"
 #include "AlgoDot2D.hpp"
 
+// --- CONSTANTS ---
+// 250 dots per 100x100 block is our new High Detail baseline.
+constexpr float BASE_DOTS_PER_BLOCK = 250.0f; 
+
+// What is the MAX multiplier the slider can ever produce?
+// If slider goes to 125, logic might be: 1.0 + ((125-50)/50)*2.0 = 4.0x
+constexpr float MAX_SLIDER_MULTIPLIER = 4.0f;
+
+// Calculate factor: (250 dots / 10000 pixels) * MaxMultiplier(4.0)
+// Factor = 0.025 * 4.0 = 0.10 dots per pixel.
+constexpr float max_dots_per_pixel = (BASE_DOTS_PER_BLOCK / 10000.0f) * MAX_SLIDER_MULTIPLIER;
+
+
 // --- INTERNAL WORKING STRUCTURE ---
 // Represents a node in the Quadtree. 
 // passed in via an external "scratch" buffer (node_pool).
@@ -104,17 +117,17 @@ inline int32_t CalculateTargetDotHighCount (int32_t width, int32_t height, int32
     float multiplier = 1.0f;
     if (density_slider < 50)
     {
-        // Slider 0..50 -> 0.1x to 1.0x
-        multiplier = 0.1f + (static_cast<float>(density_slider) / 50.0f) * 0.9f;
+        // Slider 0..50 -> 0.2x to 1.0x
+        multiplier = 0.2f + (static_cast<float>(density_slider) / 50.0f) * 0.8f;
     }
     else
     {
         // Slider 50..100 -> 1.0x to 3.0x
         // At max slider, we get 250 * 3 = 750 dots per block. Ultra High Detail.
-        multiplier = 1.0f + ((static_cast<float>(density_slider) - 50.0f) / 50.0f) * 2.0f;
+        multiplier = 1.0f + ((static_cast<float>(density_slider) - 50.0f) / 50.0f) * 3.0f;
     }
 
-    return (int)(area_factor * base_dots_per_block * multiplier);
+    return static_cast<int>(area_factor * base_dots_per_block * multiplier + 0.5f);
 }
 
 

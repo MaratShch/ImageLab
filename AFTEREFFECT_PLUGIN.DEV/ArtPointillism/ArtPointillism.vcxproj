@@ -156,10 +156,12 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgoArtisticRendering.hpp" />
     <ClInclude Include="include\AlgoArtisticsRendering.hpp" />
+    <ClInclude Include="include\AlgoColorEngine.hpp" />
     <ClInclude Include="include\AlgoDot2D.hpp" />
     <ClInclude Include="include\AlgoDotEngine.hpp" />
     <ClInclude Include="include\AlgoJFA.hpp" />
     <ClInclude Include="include\AlgoLumaManipulation.hpp" />
+    <ClInclude Include="include\AlgoOutput.hpp" />
     <ClInclude Include="include\ArtPointillism.hpp" />
     <ClInclude Include="include\ArtPointillismAlgo.hpp" />
     <ClInclude Include="include\ArtPointillismColorConvert.hpp" />
@@ -195,6 +197,7 @@
     <ClCompile Include="src\AlgoDotEngine.cpp" />
     <ClCompile Include="src\AlgoJFA.cpp" />
     <ClCompile Include="src\AlgoLumaManipulation.cpp" />
+    <ClCompile Include="src\AlgoOutput.cpp" />
     <ClCompile Include="src\AlgoPainterEngine.cpp" />
     <ClCompile Include="src\ArtPointillism.cpp" />
     <ClCompile Include="src\ArtPointillismAE.cpp" />

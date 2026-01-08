@@ -111,7 +111,7 @@ SetupControlElements
 PontillismControls GetControlParametersStruct
 (
     PF_ParamDef* RESTRICT params[]
-) noexcept
+)
 {
     CACHE_ALIGN PontillismControls algoParams{};
 

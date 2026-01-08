@@ -58,12 +58,12 @@ constexpr char PainterNameStr [] =
 };
 
 constexpr int32_t DotDencityMin = 0;
-constexpr int32_t DotDencityMax = 100;
+constexpr int32_t DotDencityMax = 250;
 constexpr int32_t DotDencityDef = AverageValue(DotDencityMin, DotDencityMax);
 
 constexpr int32_t DotSizeMin = 0;
 constexpr int32_t DotSizeMax = 100;
-constexpr int32_t DotSizeDef = AverageValue(DotSizeMin, DotSizeMax);
+constexpr int32_t DotSizeDef = 15;
 
 constexpr int32_t EdgeSensitivityMin = 0;
 constexpr int32_t EdgeSensitivityMax = 100;

@@ -138,7 +138,8 @@ void MixAndNormalizeDensity
 ) noexcept
 {
     const A_long pixel_count = sizeX * sizeY;
-    
+    constexpr float min_density_floor = 0.05f; 
+
     // 1. Calculate Mixing Weights
     // Clamp sensitivity to 0-100 just to be safe
     if (sensitivity < 0.0f) sensitivity = 0.0f;
@@ -163,6 +164,11 @@ void MixAndNormalizeDensity
         target_dest[i] = mixed_val;
 
         // Track peak value for the next step
+        if (mixed_val < min_density_floor)
+        {
+            mixed_val = min_density_floor;
+        }
+        
         if (mixed_val > max_density)
         {
             max_density = mixed_val;
@@ -188,5 +194,54 @@ void MixAndNormalizeDensity
         {
             target_dest[i] = 0.0f; 
         }
+    }
+}
+
+
+void MixAndNormalizeDensity
+(
+    const float* RESTRICT luma_src, 
+    const float* RESTRICT edge_src, 
+    float* RESTRICT target_dest, 
+    int pixel_count, 
+    float sensitivity
+) noexcept
+{
+    // 1. Setup Weights
+    // ... (Same as before) ...
+    float w_edge = sensitivity / 100.0f;
+    float w_luma = 1.0f - w_edge;
+    float max_density = 0.0f;
+
+    // 2. Mix Pass
+    for (int i = 0; i < pixel_count; i++) {
+        float val_l = luma_src[i];
+        float val_e = edge_src[i];
+        float mixed_val = (val_l * w_luma) + (val_e * w_edge);
+        target_dest[i] = mixed_val;
+        if (mixed_val > max_density) max_density = mixed_val;
+    }
+
+    // 3. Normalize & Compress Range (THE FIX)
+    if (max_density > 0.000001f) {
+        float scale_factor = 1.0f / max_density;
+        
+        // --- TUNABLE PARAMETER: MINIMUM DENSITY ---
+        // 0.20 means: Brightest area gets 20% of the dots that the Darkest area gets.
+        // Try increasing this if the holes persist (e.g., to 0.30).
+        float min_floor = 0.20f; 
+        float range = 1.0f - min_floor;
+
+        for (int i = 0; i < pixel_count; i++) {
+            // First, normalize to 0..1
+            float norm = target_dest[i] * scale_factor;
+            
+            // Then, remap to [min_floor .. 1.0]
+            // This guarantees NO pixel is ever "empty" to the Quadtree.
+            target_dest[i] = min_floor + (norm * range);
+        }
+    } else {
+        // Fallback for empty image
+        for (int i = 0; i < pixel_count; i++) target_dest[i] = 0.1f; 
     }
 }

@@ -60,8 +60,7 @@ SetupControlElements
 PontillismControls GetControlParametersStruct
 (
     PF_ParamDef* RESTRICT params[]
-) noexcept;
-
+);
 
 
 #endif // __IMAGE_LAB_ART_POINTILISM_FILTER__

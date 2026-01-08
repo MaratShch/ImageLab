@@ -183,6 +183,12 @@
     <ClInclude Include="include\PainterPissarro.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoColorEngine.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoOutput.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
@@ -243,6 +249,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoArtisticRendering.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoOutput.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
