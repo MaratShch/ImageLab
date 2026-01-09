@@ -184,7 +184,6 @@
     <ClInclude Include="include\PainterPalette\ArtPointillismSeurat.hpp" />
     <ClInclude Include="include\PainterPalette\ArtPointillismSignac.hpp" />
     <ClInclude Include="include\PainterPalette\ArtPointillismVanGogh.hpp" />
-    <ClInclude Include="include\PainterPissaro.hpp" />
     <ClInclude Include="include\PainterPissarro.hpp" />
     <ClInclude Include="include\PainterRysselberghe.hpp" />
     <ClInclude Include="include\PainterSeurat.hpp" />

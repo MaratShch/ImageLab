@@ -162,9 +162,6 @@
     <ClInclude Include="include\PainterMatisse.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\PainterPissaro.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\PainterRysselberghe.hpp">
       <Filter>include</Filter>
     </ClInclude>
