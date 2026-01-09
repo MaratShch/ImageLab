@@ -263,7 +263,8 @@ void ConvertToCIELab_ARGB_8u
             float Y = K8_YR * rS + K8_YG * gS + K8_YB * bS;
             float Z = K8_ZR * rS + K8_ZG * gS + K8_ZB * bS;
 
-            auto ToLab = [](float t) {
+            auto ToLab = [](float t) noexcept
+            {
                 if (t > 0.008856f) return FastCompute::Cbrt(t);
                 return (7.787037f * t + 0.137931f);
             };
@@ -279,3 +280,4 @@ void ConvertToCIELab_ARGB_8u
         pRowAB  += labPitch * sizeof(float) * 2; // Assuming packed pitch logic
     }
 }
+

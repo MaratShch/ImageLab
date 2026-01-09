@@ -171,9 +171,6 @@
     <ClInclude Include="include\PainterVanGogh.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoArtisticRendering.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\PainterFactory.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -239,16 +236,19 @@
     <ClCompile Include="src\AlgoJFA.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgoLumaManipulation.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\AlgoPainterEngine.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgoArtisticRendering.cpp">
+    <ClCompile Include="src\AlgoOutput.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgoOutput.cpp">
+    <ClCompile Include="src\Avx2LumaEdgeDetection.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2LumaInvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2MixAndNormalizeDencity.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

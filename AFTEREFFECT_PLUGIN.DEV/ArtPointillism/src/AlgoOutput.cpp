@@ -291,3 +291,160 @@ void Convert_Result_to_BGRA_AVX2
     
     return;
 }
+
+
+void Convert_Result_to_ARGB_AVX2
+(
+    const PF_Pixel_ARGB_8u* RESTRICT src1,      // Original Source (for Alpha)
+    const float*            RESTRICT canvas_lab,// Rendered Lab (Interleaved)
+    const float*            RESTRICT src_L,     // Original Lab L (Planar)
+    const float*            RESTRICT src_ab,    // Original Lab AB (Interleaved)
+    PF_Pixel_ARGB_8u*       RESTRICT dst,       // Destination Buffer
+    int32_t sizeX, 
+    int32_t sizeY, 
+    int32_t srcPitchBytes, 
+    int32_t dstPitchBytes, 
+    const PontillismControls& params
+)
+{
+    // --- SETUP BLENDING ---
+    const bool do_blend = (params.Opacity > 0);
+    const float f_mix_src = (float)params.Opacity / 100.0f;
+    const float f_mix_eff = 1.0f - f_mix_src;
+
+    const __m256 mix_src    = _mm256_set1_ps(f_mix_src);
+    const __m256 mix_canvas = _mm256_set1_ps(f_mix_eff);
+
+    // --- SETUP PACKING ---
+    const __m256 scale_255 = _mm256_set1_ps(255.0f);
+    const __m256 half      = _mm256_set1_ps(0.5f);
+    
+    // Mask for Alpha in ARGB struct (A is at byte 0) -> 0x000000FF
+    const __m256i alpha_mask = _mm256_set1_epi32(0x000000FF);
+    
+    // Gather indices for RGB Stride (3 floats = 12 bytes)
+    const __m256i idx_base = _mm256_setr_epi32(0, 3, 6, 9, 12, 15, 18, 21);
+
+    // Cast pointers for byte-wise pitch arithmetic
+    const uint8_t* byte_src_ptr = (const uint8_t*)src1;
+    uint8_t*       byte_dst_ptr = (uint8_t*)dst;
+
+    for (int y = 0; y < sizeY; ++y)
+    {
+        
+        // Row Pointers
+        const PF_Pixel_ARGB_8u* row_src_alpha = (const PF_Pixel_ARGB_8u*)(byte_src_ptr + (y * srcPitchBytes));
+        PF_Pixel_ARGB_8u*       row_dst       = (PF_Pixel_ARGB_8u*)(byte_dst_ptr + (y * dstPitchBytes));
+        
+        const float* row_canvas = canvas_lab + (y * sizeX * 3);
+        const float* row_src_L  = src_L + (y * sizeX);
+        const float* row_src_ab = src_ab + (y * sizeX * 2);
+
+        int x = 0;
+        
+        // --- AVX2 LOOP (8 pixels) ---
+        for (; x <= sizeX - 8; x += 8)
+        {
+            
+            // 1. GATHER CANVAS LAB
+            __m256 L_c = _mm256_i32gather_ps(row_canvas + x*3 + 0, idx_base, 4);
+            __m256 a_c = _mm256_i32gather_ps(row_canvas + x*3 + 1, idx_base, 4);
+            __m256 b_c = _mm256_i32gather_ps(row_canvas + x*3 + 2, idx_base, 4);
+
+            // 2. BLEND (Optional)
+            if (do_blend)
+            {
+                __m256 L_s = _mm256_loadu_ps(row_src_L + x);
+                
+                __m256 ab0 = _mm256_loadu_ps(row_src_ab + x*2);
+                __m256 ab1 = _mm256_loadu_ps(row_src_ab + x*2 + 8);
+                
+                __m256 i_a0 = _mm256_permutevar8x32_ps(ab0, _mm256_setr_epi32(0,2,4,6, 1,3,5,7));
+                __m256 i_a1 = _mm256_permutevar8x32_ps(ab1, _mm256_setr_epi32(0,2,4,6, 1,3,5,7));
+                
+                __m256 a_s = _mm256_permute2f128_ps(i_a0, i_a1, 0x20);
+                __m256 b_s = _mm256_permute2f128_ps(i_a0, i_a1, 0x31);
+
+                L_c = _mm256_fmadd_ps(L_c, mix_canvas, _mm256_mul_ps(L_s, mix_src));
+                a_c = _mm256_fmadd_ps(a_c, mix_canvas, _mm256_mul_ps(a_s, mix_src));
+                b_c = _mm256_fmadd_ps(b_c, mix_canvas, _mm256_mul_ps(b_s, mix_src));
+            }
+
+            // 3. CONVERT LAB -> LINEAR RGB
+            __m256 R_lin, G_lin, B_lin;
+            AVX2_Lab_to_LinearRGB (L_c, a_c, b_c, R_lin, G_lin, B_lin);
+
+            // 4. SCALE & QUANTIZE
+            __m256i i_r = _mm256_cvttps_epi32(_mm256_fmadd_ps(R_lin, scale_255, half));
+            __m256i i_g = _mm256_cvttps_epi32(_mm256_fmadd_ps(G_lin, scale_255, half));
+            __m256i i_b = _mm256_cvttps_epi32(_mm256_fmadd_ps(B_lin, scale_255, half));
+
+            // 5. PACKING ARGB
+            // Source Load
+            __m256i src_argb = _mm256_loadu_si256((const __m256i*)(row_src_alpha + x));
+            // Keep Alpha (lowest 8 bits)
+            __m256i alpha = _mm256_and_si256(src_argb, alpha_mask);
+
+            // Construct 0xBBGGRRAA (Little Endian int32)
+            // A at 0 (No shift)
+            // R at 8 (Shift 8)
+            // G at 16 (Shift 16)
+            // B at 24 (Shift 24)
+            
+            __m256i out_px = alpha;
+            out_px = _mm256_or_si256(out_px, _mm256_slli_epi32(i_r, 8));
+            out_px = _mm256_or_si256(out_px, _mm256_slli_epi32(i_g, 16));
+            out_px = _mm256_or_si256(out_px, _mm256_slli_epi32(i_b, 24));
+
+            // 6. STORE
+            _mm256_storeu_si256((__m256i*)(row_dst + x), out_px);
+        }
+
+        // --- SCALAR FALLBACK ---
+        for (; x < sizeX; ++x)
+        {
+            float L = row_canvas[x*3+0];
+            float a = row_canvas[x*3+1];
+            float b = row_canvas[x*3+2];
+
+            if (do_blend)
+            {
+                float s_L = row_src_L[x];
+                float s_a = row_src_ab[x*2+0];
+                float s_b = row_src_ab[x*2+1];
+                L = L * f_mix_eff + s_L * f_mix_src;
+                a = a * f_mix_eff + s_a * f_mix_src;
+                b = b * f_mix_eff + s_b * f_mix_src;
+            }
+
+            // Scalar Lab->RGB logic (Standard copy)
+            float fy = (L + 16.0f) / 116.0f;
+            float fx = fy + a / 500.0f;
+            float fz = fy - b / 200.0f;
+            
+            float fx3 = fx*fx*fx; float fz3 = fz*fz*fz;
+            float xr = (fx3 > 0.008856f) ? fx3 : (fx - 16.0f/116.0f)/7.787f;
+            float yr = (L > 8.0f) ? ((L+16.0f)/116.0f)*((L+16.0f)/116.0f)*((L+16.0f)/116.0f) : L/903.3f;
+            float zr = (fz3 > 0.008856f) ? fz3 : (fz - 16.0f/116.0f)/7.787f;
+
+            float X = xr * 0.95047f; float Y = yr * 1.00000f; float Z = zr * 1.08883f;
+
+            float R =  3.2404542f*X - 1.5371385f*Y - 0.4985314f*Z;
+            float G = -0.9692660f*X + 1.8760108f*Y + 0.0415560f*Z;
+            float B =  0.0556434f*X - 0.2040259f*Y + 1.0572252f*Z;
+
+            uint8_t ur = (uint8_t)std::min(std::max(R * 255.0f + 0.5f, 0.0f), 255.0f);
+            uint8_t ug = (uint8_t)std::min(std::max(G * 255.0f + 0.5f, 0.0f), 255.0f);
+            uint8_t ub = (uint8_t)std::min(std::max(B * 255.0f + 0.5f, 0.0f), 255.0f);
+            
+            PF_Pixel_ARGB_8u out;
+            out.A = row_src_alpha[x].A;
+            out.R = ur; 
+            out.G = ug; 
+            out.B = ub;
+            row_dst[x] = out;
+        }
+    }
+    
+    return;
+}
