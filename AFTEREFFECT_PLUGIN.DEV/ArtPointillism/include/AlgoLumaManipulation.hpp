@@ -1,3 +1,6 @@
+#ifndef __IMAGE_LAB_ART_POINTILISM_LUMA_MANIPULATIONS__
+#define __IMAGE_LAB_ART_POINTILISM_LUMA_MANIPULATIONS__
+
 #include <algorithm>
 #include <cstdint>
 #include <immintrin.h>
@@ -40,3 +43,5 @@ void MixAndNormalizeDensity
     int pixel_count,
     float sensitivity
 ) noexcept;
+
+#endif // __IMAGE_LAB_ART_POINTILISM_LUMA_MANIPULATIONS__

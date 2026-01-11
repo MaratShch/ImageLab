@@ -64,9 +64,10 @@ struct PointillismRenderParams
 void Init_Canvas
 (
     float* RESTRICT canvas_lab,
-    const float* RESTRICT source_lab,
-    int width,
-    int height,
+    const float* RESTRICT src_L,
+    const float* RESTRICT src_ab,
+    int32_t width,
+	int32_t height, 
     const BackgroundArt bg_mode
 );
 
@@ -80,7 +81,7 @@ void Init_Canvas
     const BackgroundArt bg_mode
 );
 
-
+#if 0
 void Integrate_Colors
 (
     const int32_t* RESTRICT jfa_map_indices, // From Phase 3 (Seed ID per pixel)
@@ -111,6 +112,22 @@ void Integrate_Colors
     // Output
     fCIELabPix* RESTRICT out_dot_colors
 );
+#endif
+
+void Integrate_Colors
+(
+    const JFAPixel* RESTRICT jfa_map,
+    const float* RESTRICT src_L,
+    const float* RESTRICT src_ab,
+    int width, int height,
+    int num_dots,
+    float* RESTRICT acc_L,
+    float* RESTRICT acc_a,
+    float* RESTRICT acc_b,
+    int32_t* RESTRICT acc_count,
+    fCIELabPix* RESTRICT out_dot_colors
+);
+
 
 fCIELabPix Apply_Color_Mode
 (
@@ -160,19 +177,6 @@ void RenderKernel_Flow
     LCG_RNG& rng
 );
 
-
-void ArtisticRendering
-(
-    const Point2D* RESTRICT points, 
-    int num_points,
-    const int32_t* RESTRICT voronoi_map,
-    const float* RESTRICT source_lab,
-    const float* RESTRICT density_map, 
-    int width, int height,
-    const PontillismControls& user_params,
-    const RenderScratchMemory& scratch,
-    float* RESTRICT canvas_lab
-);
 
 void ArtisticRendering
 (

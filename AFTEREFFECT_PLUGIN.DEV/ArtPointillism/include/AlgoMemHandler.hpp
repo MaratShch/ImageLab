@@ -1,0 +1,34 @@
+#ifndef __IMAGE_LAB_ART_POINTILISM_MEMORY_BUFFERS_HANDLER__
+#define __IMAGE_LAB_ART_POINTILISM_MEMORY_BUFFERS_HANDLER__
+
+#include <cstdint>
+#include "CommonAuxPixFormat.hpp"
+#include "AlgoDotEngine.hpp"
+#include "AlgoJFA.hpp"
+#include "AlgoArtisticsRendering.hpp"
+
+struct MemHandler
+{
+	float* L;
+	float* ab;
+	float* Luma1;
+	float* Luma2;
+	float* DencityMap;
+	FlatQuadNode* NodePool;
+	Point2D* PointOut;
+	JFAPixel* JfaBufferPing;
+	JFAPixel* JfaBufferPong;
+	float* AccumX;
+	float* AccumY;
+	float* AccumW;
+	RenderScratchMemory Scratch;
+	float* CanvasLab;
+	int32_t NodeElemNumber;
+};
+
+
+MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, const bool dbgPrn = false);
+void free_memory_buffers (MemHandler& algoMemHandler);
+
+
+#endif // __IMAGE_LAB_ART_POINTILISM_MEMORY_BUFFERS_HANDLER__ 

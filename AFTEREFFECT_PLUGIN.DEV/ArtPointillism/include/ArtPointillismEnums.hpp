@@ -106,11 +106,11 @@ constexpr char BackgroundStr [] =
 
 constexpr int32_t OpacityMin = 0;
 constexpr int32_t OpacityMax = 100;
-constexpr int32_t OpacityDef = OpacityMin;
+constexpr int32_t OpacityDef = 25;
 
 constexpr int32_t RandomSeedMin = 0;
 constexpr int32_t RandomSeedMax = 32767;
-constexpr int32_t RandomSeedDef = 0;
+constexpr int32_t RandomSeedDef = 10;
 
 
 enum class ColorMode : int32_t

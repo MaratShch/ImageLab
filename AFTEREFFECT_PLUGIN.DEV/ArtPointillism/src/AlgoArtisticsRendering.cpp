@@ -1,4 +1,5 @@
 #include <iostream>
+#include "FastAriphmetics.hpp"
 #include "AlgoDot2D.hpp"
 #include "AlgoArtisticsRendering.hpp"
 #include "ArtPointillismEnums.hpp"
@@ -22,246 +23,6 @@ inline void Blend_Lab_Pixel
 }
 
 
-/**
- * Initialize the Canvas Buffer based on User Selection.
- * 
- * @param canvas_lab    [Output] Interleaved Float Buffer (H * W * 3).
- * @param source_lab    [Input]  Source Image Buffer (for Source Mode).
- * @param width, height [Input]  Dimensions.
- * @param bg_mode       [Input]  ART_POINTILLISM_BACKGROUND_... enum.
- */
-void Init_Canvas
-(
-    float* RESTRICT canvas_lab,
-    const float* RESTRICT source_lab,
-    int width, 
-    int height, 
-    const BackgroundArt bg_mode
-)
-{
-    const int num_pixels = width * height;
-
-    if (bg_mode == BackgroundArt::ART_POINTILLISM_BACKGROUND_SOURCE_IMAGE)
-	{
-        // Copy the source image exactly
-        // (Use memcpy for speed if available, loop for portability)
-        for (int i = 0; i < num_pixels * 3; ++i)
-		{
-            canvas_lab[i] = source_lab[i];
-        }
-    } 
-    else
-	{
-        // Define the solid color
-        float fill_L, fill_a, fill_b;
-
-        if (bg_mode == BackgroundArt::ART_POINTILLISM_BACKGROUND_WHITE)
-		{
-            // Pure Paper White (Brightest Lab)
-            fill_L = 100.0f; fill_a = 0.0f; fill_b = 0.0f;
-        } 
-        else
-		{ 
-            // BackgroundArt::ART_POINTILLISM_BACKGROUND_CANVAS (Default)
-            // A warm, creamy "Raw Canvas" color.
-            // Lab approx: L=96, a=2 (slight red), b=8 (yellow/warm)
-            fill_L = 96.0f; fill_a = 2.0f; fill_b = 8.0f;
-        }
-
-        // Fill buffer
-        for (int i = 0; i < num_pixels; ++i)
-		{
-            int idx = i * 3;
-            canvas_lab[idx + 0] = fill_L;
-            canvas_lab[idx + 1] = fill_a;
-            canvas_lab[idx + 2] = fill_b;
-        }
-    }
-}
-
-
-/**
- * Initialize the Canvas Buffer based on User Selection.
- * Adapted for Semi-Planar Source Input (L + ab).
- */
-void Init_Canvas
-(
-    float* RESTRICT canvas_lab,      // Output: Interleaved (L,a,b, L,a,b...)
-    const float* RESTRICT src_L,     // Input: Planar L (W*H)
-    const float* RESTRICT src_ab,    // Input: Interleaved ab (W*H*2) [a,b, a,b...]
-    int width, 
-    int height, 
-    const BackgroundArt bg_mode
-)
-{
-    const int num_pixels = width * height;
-
-    if (bg_mode == BackgroundArt::ART_POINTILLISM_BACKGROUND_SOURCE_IMAGE)
-    {
-        // Re-interleave Source -> Canvas
-        // L (Planar) + ab (Interleaved) -> Lab (Interleaved)
-        for (int i = 0; i < num_pixels; ++i)
-        {
-            canvas_lab[i * 3 + 0] = src_L[i];
-            canvas_lab[i * 3 + 1] = src_ab[i * 2 + 0];
-            canvas_lab[i * 3 + 2] = src_ab[i * 2 + 1];
-        }
-    } 
-    else
-    {
-        // Define the solid color
-        float fill_L, fill_a, fill_b;
-
-        if (bg_mode == BackgroundArt::ART_POINTILLISM_BACKGROUND_WHITE)
-        {
-            // Pure Paper White
-            fill_L = 100.0f; fill_a = 0.0f; fill_b = 0.0f;
-        } 
-        else
-        { 
-            // Default Canvas (Cream)
-            fill_L = 96.0f; fill_a = 2.0f; fill_b = 8.0f;
-        }
-
-        // Fill buffer Uniformly
-        for (int i = 0; i < num_pixels; ++i)
-        {
-            int idx = i * 3;
-            canvas_lab[idx + 0] = fill_L;
-            canvas_lab[idx + 1] = fill_a;
-            canvas_lab[idx + 2] = fill_b;
-        }
-    }
-}
-
-
-/**
- * Calculate the average color for every Voronoi Cell.
- */
-void Integrate_Colors
-(
-    const int32_t* RESTRICT jfa_map_indices, // From Phase 3 (Seed ID per pixel)
-    const float* RESTRICT source_lab,
-    int width, int height,
-    int num_dots,
-    // Scratch buffers (size = num_dots)
-    float* RESTRICT acc_L,
-    float* RESTRICT acc_a,
-    float* RESTRICT acc_b,
-    int32_t* RESTRICT acc_count,
-    // Output
-    fCIELabPix* RESTRICT out_dot_colors
-)
-{
-    // 1. Zero Accumulators
-    for (int i = 0; i < num_dots; ++i)
-    {
-        acc_L[i] = 0.0f; acc_a[i] = 0.0f; acc_b[i] = 0.0f;
-        acc_count[i] = 0;
-    }
-
-    // 2. Accumulate
-    const int num_pixels = width * height;
-    for (int i = 0; i < num_pixels; ++i)
-    {
-        const int dot_id = jfa_map_indices[i];
-        
-        // Safety check
-        if (dot_id >= 0 && dot_id < num_dots)
-        {
-            acc_L[dot_id] += source_lab[i * 3 + 0];
-            acc_a[dot_id] += source_lab[i * 3 + 1];
-            acc_b[dot_id] += source_lab[i * 3 + 2];
-            acc_count[dot_id]++;
-        }
-    }
-
-    // 3. Average
-    for (int i = 0; i < num_dots; ++i)
-    {
-        const int count = acc_count[i];
-        if (count > 0)
-        {
-            float inv = 1.0f / (float)count;
-            out_dot_colors[i].L = acc_L[i] * inv;
-            out_dot_colors[i].a = acc_a[i] * inv;
-            out_dot_colors[i].b = acc_b[i] * inv;
-        }
-        else
-        {
-            // Dead dot (rare), make it neutral gray
-            out_dot_colors[i] = {50.0f, 0.0f, 0.0f};
-        }
-    }
-    
-    return;
-}
-
-/**
-* Calculate the average color for every Voronoi Cell.
-* Adapted for Semi-Planar Source Input.
-*/
-void Integrate_Colors
-(
-    const JFAPixel* RESTRICT jfa_map, // Struct pointer
-    const float* RESTRICT src_L,      // Planar L
-    const float* RESTRICT src_ab,     // Interleaved ab
-    int width, int height,
-    int num_dots,
-    // Scratch buffers
-    float* RESTRICT acc_L,
-    float* RESTRICT acc_a,
-    float* RESTRICT acc_b,
-    int32_t* RESTRICT acc_count,
-    // Output
-    fCIELabPix* RESTRICT out_dot_colors
-)
-{
-    // 1. Zero Accumulators
-    // (Optimization: Use memset if float representations allow, typically loop is safer for float 0.0)
-    for (int i = 0; i < num_dots; ++i)
-    {
-        acc_L[i] = 0.0f; acc_a[i] = 0.0f; acc_b[i] = 0.0f;
-        acc_count[i] = 0;
-    }
-
-    // 2. Accumulate
-    const int num_pixels = width * height;
-
-    for (int i = 0; i < num_pixels; ++i)
-    {
-        const int dot_id = jfa_map[i].seed_index;
-
-        // Branchless check or standard check
-        if (dot_id >= 0 && dot_id < num_dots)
-        {
-            // Read from separate buffers
-            acc_L[dot_id] += src_L[i];
-            acc_a[dot_id] += src_ab[i * 2 + 0];
-            acc_b[dot_id] += src_ab[i * 2 + 1];
-
-            acc_count[dot_id]++;
-        }
-    }
-
-    // 3. Average (Normalization)
-    for (int i = 0; i < num_dots; ++i)
-    {
-        const int count = acc_count[i];
-        if (count > 0)
-        {
-            float inv = 1.0f / (float)count;
-            out_dot_colors[i].L = acc_L[i] * inv;
-            out_dot_colors[i].a = acc_a[i] * inv;
-            out_dot_colors[i].b = acc_b[i] * inv;
-        }
-        else
-        {
-            // Dead dot handling
-            out_dot_colors[i] = { 50.0f, 0.0f, 0.0f };
-        }
-    }
-}
 
 /**
  * Pre-process the target color based on Painter Mode.
@@ -275,7 +36,8 @@ fCIELabPix Apply_Color_Mode
 )
 {
     // 1. Calculate Chroma (Saturation in Lab)
-    float chroma = std::sqrt(input.a * input.a + input.b * input.b);
+//    float chroma = std::sqrt(input.a * input.a + input.b * input.b);
+    float chroma = FastCompute::Sqrt(input.a * input.a + input.b * input.b);
     
     // 2. Determine Saturation Boost Factor
     float boost = 1.0f;
@@ -310,13 +72,13 @@ fCIELabPix Apply_Color_Mode
  */
 fCIELabPix Apply_Color_Mode_Boost
 (
-    fCIELabPix input, 
+    fCIELabPix& input, 
     int color_mode,      // 0=Scientific, 1=Expressive
     float user_vibrancy  // -100 to +100 (from User UI)
 )
 {
     // 1. Calculate current Chroma (Saturation intensity)
-    float chroma = std::sqrt(input.a * input.a + input.b * input.b);
+    float chroma = FastCompute::Sqrt(input.a * input.a + input.b * input.b);
     
     // 2. Base Boost from User Slider
     // Map -100..100 to factor 0.0..3.0
@@ -397,8 +159,8 @@ DecomposedColor Decompose
     }
 
     // Calculate Ratio using Inverse Distance Weighting
-    float d1_sqrt = std::sqrt(dist1);
-    float d2_sqrt = std::sqrt(dist2);
+    float d1_sqrt = FastCompute::Sqrt(dist1);
+    float d2_sqrt = FastCompute::Sqrt(dist2);
     float sum = d1_sqrt + d2_sqrt;
 
     DecomposedColor result;
@@ -510,10 +272,12 @@ void RenderKernel_Mosaic
     float opacity = 0.95f; // Solid paint
 
     // Random Rotation (-15 to +15 degrees)
+    constexpr float pi2rad = FastCompute::PI / 180.0f;
     float angle_deg = rng.next_range(-15.0f, 15.0f);
-    float angle_rad = angle_deg * 3.14159f / 180.0f;
-    float cos_a = std::cos(angle_rad);
-    float sin_a = std::sin(angle_rad);
+    float angle_rad = angle_deg * pi2rad;
+    
+    float cos_a, sin_a;
+    FastCompute::SinCos (angle_rad, cos_a, sin_a);
 
     for (int k = 0; k < sub_dots; ++k)
     {
@@ -606,30 +370,30 @@ void RenderKernel_Flow
     
 
     float opacity = 0.9f;
-    float cos_a = std::cos(angle);
-    float sin_a = std::sin(angle);
+    float cos_a, sin_a;
+    FastCompute::SinCos (angle, cos_a, sin_a);
 
     // 4. Draw Oriented Ellipse
     int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
     fCIELabPix draw_color = ctx.palette_buffer[color_idx];
 
     float bb_radius = std::max(len_a, len_b);
-    int min_x = std::max(0, (int)(pt.x - bb_radius));
-    int max_x = std::min(width, (int)(pt.x + bb_radius) + 1);
-    int min_y = std::max(0, (int)(pt.y - bb_radius));
-    int max_y = std::min(height, (int)(pt.y + bb_radius) + 1);
+    int min_x = std::max(0, static_cast<int>(pt.x - bb_radius));
+    int max_x = std::min(width, static_cast<int>(pt.x + bb_radius) + 1);
+    int min_y = std::max(0, static_cast<int>(pt.y - bb_radius));
+    int max_y = std::min(height, static_cast<int>(pt.y + bb_radius) + 1);
 
     float a_sq = len_a * len_a;
     float b_sq = len_b * len_b;
 
     for (int y = min_y; y < max_y; ++y)
     {
-        float dy = (float)y - pt.y;
+        const float dy = static_cast<float>(y) - pt.y;
         int row_offset = y * width;
         
         for (int x = min_x; x < max_x; ++x)
         {
-            float dx = (float)x - pt.x;
+            const float dx = static_cast<float>(x) - pt.x;
 
             // Rotate into local space
             float u = dx * cos_a + dy * sin_a;
@@ -648,128 +412,6 @@ void RenderKernel_Flow
 
 
 
-/**
- * PHASE 4 ORCHESTRATOR: ARTISTIC RENDERING
- * 
- * "Paints" the final image using the optimized point list, applying 
- * specific artistic logic (Clusters, Mosaics, or Flowing Strokes).
- * 
- * @param points        [Input] Optimized point positions (Phase 3 output).
- * @param num_points    [Input] Actual number of points.
- * @param voronoi_map   [Input] JFA Seed Map (Phase 3 output).
- * @param source_lab    [Input] Original Image (Lab Interleaved).
- * @param density_map   [Input] Density Map (Luma+Edge). REQUIRED for Orientation/Flow.
- * @param width, height [Input] Dimensions.
- * @param user_params   [Input] UI settings (Painter, Size, Vibrancy, Seed, etc).
- * @param scratch       [Input] External scratch buffers.
- * @param canvas_lab    [Output] Final floating-point image buffer.
- */
-void ArtisticRendering
-(
-    const Point2D* RESTRICT points, 
-    int num_points,
-    const int32_t* RESTRICT voronoi_map,
-    const float* RESTRICT source_lab,
-    const float* RESTRICT density_map, 
-    int width, 
-    int height,
-    const PontillismControls& user_params,
-    const RenderScratchMemory& scratch,
-    float* RESTRICT canvas_lab
-)
-{
-    // 1. Initialize RNG (Deterministic per frame)
-    LCG_RNG rng(user_params.RandomSeed);
-
-    // 2. Initialize Canvas (Background Layer)
-    // Maps UI enum to internal logic (White, Cream, Source, Transparent)
-    Init_Canvas(canvas_lab, source_lab, width, height, user_params.Background);
-
-    // 3. Integrate Colors (Spatial Averaging)
-    // Calculates the "True Color" of every dot's territory.
-    Integrate_Colors
-    (
-        voronoi_map, 
-        source_lab, 
-        width,
-        height, 
-        num_points, 
-        scratch.acc_L, 
-        scratch.acc_a, 
-        scratch.acc_b, 
-        scratch.acc_count, // Scratch buffers
-        scratch.avg_colors // Output to this scratch buffer
-    );
-
-    // 4. Retrieve Painter Strategy (Zero Allocation)
-    // Gets the singleton instance containing the Palette and Rules.
-    IPainter* painter = GetPainterRegistry(user_params.PainterStyle);
-    
-    RenderContext ctx{};
-    painter->SetupContext(ctx);
-
-    // Prepare Render Parameters (Generic subset for kernels)
-    PointillismRenderParams render_params{};
-    render_params.DotSize = user_params.DotSize;
-    render_params.Vibrancy = user_params.Vibrancy;
-    render_params.RandomSeed = user_params.RandomSeed;
-    // (Background already handled in Step 2)
-
-    // 5. MAIN RENDERING LOOP
-    // Iterate through every dot and dispatch the correct drawing kernel.
-    
-    for (int i = 0; i < num_points; ++i)
-    {
-        const Point2D& pt = points[i];
-        const fCIELabPix& target_color = scratch.avg_colors[i];
-
-        // Dispatch based on Painter Style
-        // This ensures Van Gogh gets Orientation, while Seurat gets Clusters.
-        switch (user_params.PainterStyle)
-        {
-            // --- GROUP A: THE CLUSTER (Circles) ---
-            // Seurat, Pissarro: Tiny atomized dots.
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_SEURAT:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_PISSARRO:
-                RenderKernel_Cluster
-                (
-                    pt, target_color, 
-                    ctx, render_params, 
-                    canvas_lab, width, height, rng
-                );
-            break;
-
-            // --- GROUP B: THE MOSAIC (Squares) ---
-            // Signac, Cross, Luce: Distinct blocks/tesserae.
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_SIGNAC:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_CROSS:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_RYSSELBERGHE:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_LUCE:
-                RenderKernel_Mosaic
-                (
-                    pt, target_color, 
-                    ctx, render_params, 
-                    canvas_lab, width, height, rng
-                );
-            break;
-
-            // --- GROUP C: THE FLOW (Oriented Ellipses) ---
-            // Van Gogh, Matisse: Directional strokes following the Density Gradient.
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE:
-                RenderKernel_Flow
-                (
-                    pt, target_color, 
-                    ctx, render_params, 
-                    density_map, // <--- Passing the Map for Orientation Calculation
-                    canvas_lab, width, height, rng,
-                    user_params.PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH
-                );
-            break;
-        }
-    }
-}
-
 
 /**
  * PHASE 4 ORCHESTRATOR: ARTISTIC RENDERING
@@ -778,13 +420,13 @@ void ArtisticRendering
 void ArtisticRendering
 (
     const Point2D* RESTRICT points, 
-    int num_points,
+    int32_t num_points,
     const JFAPixel* RESTRICT voronoi_map,
     const float* RESTRICT src_L,
     const float* RESTRICT src_ab,
     const float* RESTRICT density_map, 
-    int width, 
-    int height,
+    int32_t width, 
+    int32_t height,
     const PontillismControls& user_params,
     const RenderScratchMemory& scratch,
     float* RESTRICT canvas_lab
@@ -796,7 +438,6 @@ void ArtisticRendering
     // 2. Initialize Canvas
     // Pass split buffers
     Init_Canvas(canvas_lab, src_L, src_ab, width, height, user_params.Background);
-
 
     // 3. Integrate Colors
     // Pass split buffers
@@ -826,121 +467,93 @@ void ArtisticRendering
     render_params.DotSize = user_params.DotSize;
     render_params.Vibrancy = user_params.Vibrancy;
     render_params.RandomSeed = user_params.RandomSeed;
+    
 
-    for (int i = 0; i < num_points; ++i)
+    // ---------------------------------------------------------
+    // OPTIMIZATION: SPATIAL SORT (INDIRECT)
+    // ---------------------------------------------------------
+    
+    // A. Prepare Index Buffer
+    // We reuse 'scratch.acc_count' (int32) because it is dead memory now.
+    int32_t* draw_order = scratch.acc_count;
+    
+    // Fill with 0, 1, 2, ... num_points - 1
+    for (int i = 0; i < num_points; ++i) draw_order[i] = i;
+
+    // B. Sort the Indices based on Y-Coordinate of points
+    std::sort(draw_order, draw_order + num_points, 
+        [&points](const int32_t a, const int32_t b) {
+            return points[a].y < points[b].y;
+        }
+    );
+
+    // ---------------------------------------------------------
+    // 3. MAIN RENDERING LOOP (Sorted)
+    // ---------------------------------------------------------    
+    
+    switch (user_params.PainterStyle)
     {
-        const Point2D& pt = points[i];
-        const fCIELabPix& target_color = scratch.avg_colors[i];
-
-        // Dispatch based on Painter Style
-        // This ensures Van Gogh gets Orientation, while Seurat gets Clusters.
-        switch (user_params.PainterStyle)
+        // --- GROUP A: THE CLUSTER (Circles) ---
+        // Seurat, Pissarro: Tiny atomized dots.
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_SEURAT:
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_PISSARRO:
         {
-            // --- GROUP A: THE CLUSTER (Circles) ---
-            // Seurat, Pissarro: Tiny atomized dots.
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_SEURAT:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_PISSARRO:
+            for (int32_t i = 0; i < num_points; ++i)
+            {
+                int32_t k = draw_order[i]; 
+
                 RenderKernel_Cluster
                 (
-                    pt, target_color, 
+                    points[k], scratch.avg_colors[k], 
                     ctx, render_params, 
                     canvas_lab, width, height, rng
                 );
-            break;
+            }
+        }
+        break;
 
-            // --- GROUP B: THE MOSAIC (Squares) ---
-            // Signac, Cross, Luce: Distinct blocks/tesserae.
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_SIGNAC:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_CROSS:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_RYSSELBERGHE:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_LUCE:
+        // --- GROUP B: THE MOSAIC (Squares) ---
+        // Signac, Cross, Luce: Distinct blocks/tesserae.
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_SIGNAC:
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_CROSS:
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_RYSSELBERGHE:
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_LUCE:
+        {
+            for (int32_t i = 0; i < num_points; ++i)
+            {
+                int32_t k = draw_order[i]; 
+
                 RenderKernel_Mosaic
                 (
-                    pt, target_color, 
+                    points[k], scratch.avg_colors[k], 
                     ctx, render_params, 
                     canvas_lab, width, height, rng
                 );
-            break;
+            }
+        }
+        break;
 
-            // --- GROUP C: THE FLOW (Oriented Ellipses) ---
-            // Van Gogh, Matisse: Directional strokes following the Density Gradient.
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH:
-            case ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE:
+        // --- GROUP C: THE FLOW (Oriented Ellipses) ---
+        // Van Gogh, Matisse: Directional strokes following the Density Gradient.
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH:
+        case ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE:
+        {
+            for (int32_t i = 0; i < num_points; ++i)
+            {
+                int32_t k = draw_order[i]; 
+
                 RenderKernel_Flow
                 (
-                    pt, target_color, 
+                    points[k], scratch.avg_colors[k], 
                     ctx, render_params, 
                     density_map, // <--- Passing the Map for Orientation Calculation
                     canvas_lab, width, height, rng,
                     user_params.PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH
                 );
-            break;
+            }
         }
+        break;
     }
-
-    return;
-}
-
-RenderScratchMemory AllocScratchMemory
-(
-    const int32_t width, 
-    const int32_t height
-)
-{
-    // (Use the same max size logic from Phase 2)
-//    const int32_t max_dots = (int32_t)(1.10f * (width * height / 10000.0f) * 300.0f);
-    
-    constexpr float max_density_factor = (250.0f / 10000.0f) * 7.0f;
-    const int32_t max_dots = static_cast<int32_t>((width * height) * max_density_factor * 1.15f + 0.5f);
-
-    return AllocScratchMemory(max_dots);
- }
-
-
-RenderScratchMemory AllocScratchMemory
-(
-    const int32_t max_dots 
-)
-{
-    RenderScratchMemory scratch{};
-
-    const size_t size_float = max_dots * sizeof(float);
-    const size_t size_int   = max_dots * sizeof(int32_t);
-    const size_t size_color = max_dots * sizeof(fCIELabPix);
-
-    const size_t total_bytes_needed = (size_float * 3) + size_int + size_color;
-
-    std::cout << "Scratch memory required size: " << total_bytes_needed << " bytes for " << max_dots << " MAX dots." << std::endl;
-    
-    // --- 2. Allocate Raw Memory (ONCE, reuse per frame) ---
-    // Use your preferred allocator (new, malloc, or custom aligned_alloc)
-    uint8_t* raw_buffer = new uint8_t[total_bytes_needed];
-
-    if (nullptr != raw_buffer)
-    {
-        // --- 3. Map the Struct (The "Binding" step) ---
-        // Pointer Arithmetic to slice the big block
-        scratch.acc_L     = (float*)(raw_buffer);
-        scratch.acc_a     = (float*)(raw_buffer + size_float);
-        scratch.acc_b     = (float*)(raw_buffer + size_float * 2);
-        scratch.acc_count = (int32_t*)(raw_buffer + size_float * 3);
-        scratch.avg_colors= (fCIELabPix*)(raw_buffer + size_float * 3 + size_int);
-    }
-    
-    std::cout << "Scratch memory ptr = " << reinterpret_cast<uint64_t>(raw_buffer) << std::endl;
-
-    return scratch;
-}
-
-
-void FreeScratchMemory (RenderScratchMemory& scratchHandler)
-{
-    if (nullptr != scratchHandler.acc_L)
-    {
-        uint8_t* ptr = reinterpret_cast<uint8_t*>(scratchHandler.acc_L);
-        delete [] ptr;
-        memset(&scratchHandler, 0, sizeof(scratchHandler));
-    }
-    
+        
     return;
 }

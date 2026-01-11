@@ -160,6 +160,7 @@
     <ClInclude Include="include\AlgoDotEngine.hpp" />
     <ClInclude Include="include\AlgoJFA.hpp" />
     <ClInclude Include="include\AlgoLumaManipulation.hpp" />
+    <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoOutput.hpp" />
     <ClInclude Include="include\ArtPointillism.hpp" />
     <ClInclude Include="include\ArtPointillismAlgo.hpp" />
@@ -192,7 +193,7 @@
   <ItemGroup>
     <ClCompile Include="src\AlgoArtisticsRendering.cpp" />
     <ClCompile Include="src\AlgoDotEngine.cpp" />
-    <ClCompile Include="src\AlgoJFA.cpp" />
+    <ClCompile Include="src\AlgoMemHandler.cpp" />
     <ClCompile Include="src\AlgoOutput.cpp" />
     <ClCompile Include="src\AlgoPainterEngine.cpp" />
     <ClCompile Include="src\ArtPointillism.cpp" />
@@ -204,6 +205,9 @@
     <ClCompile Include="src\ArtPointillismSR.cpp" />
     <ClCompile Include="src\Avx2CIELabPlanarToInterleaved.cpp" />
     <ClCompile Include="src\Avx2CIELabToRGB8u.cpp" />
+    <ClCompile Include="src\Avx2DotRefinement.cpp" />
+    <ClCompile Include="src\Avx2InitCanvas.cpp" />
+    <ClCompile Include="src\Avx2IntegrateColor.cpp" />
     <ClCompile Include="src\Avx2LumaEdgeDetection.cpp" />
     <ClCompile Include="src\Avx2LumaInvert.cpp" />
     <ClCompile Include="src\Avx2MixAndNormalizeDencity.cpp" />
