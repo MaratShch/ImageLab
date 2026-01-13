@@ -98,6 +98,7 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    DeletePaintersEngine();
     UnloadMemoryInterfaceProvider();
     return PF_Err_NONE;
 }

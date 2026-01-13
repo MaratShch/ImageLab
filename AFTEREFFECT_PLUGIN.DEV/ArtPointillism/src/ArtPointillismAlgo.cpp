@@ -42,7 +42,7 @@ void ArtPointillismAlgorithmExec
 	// ALGO STAGE 3: Geometric Refinement
 	///////////////////////////////////////////////////////////////////////////////////////
 	constexpr int32_t relaxation_iterations = 4;
-	JFAPixel* voronoi_map = // !!!! actually returned pointer to algoMemHandler.JfaBuffer- Ping/Pong
+	JFAPixel* voronoi_map = 
 		Dot_Refinement (algoMemHandler.PointOut, actualPoints, algoMemHandler.DencityMap, sizeX, sizeY, relaxation_iterations, 
 				    algoMemHandler.JfaBufferPing, algoMemHandler.JfaBufferPong, algoMemHandler.AccumX, algoMemHandler.AccumY, algoMemHandler.AccumW);
 
