@@ -11,6 +11,7 @@
 #include "ColorTransformMatrix.hpp"
 #include "FastAriphmetics.hpp"
 
+
 // AVX2 accelerated API's
 void ConvertToCIELab_BGRA_8u
 (

@@ -1,5 +1,6 @@
 #include "ArtPointillism.hpp"
 #include "ArtPointillismControl.hpp"
+#include "PainterFactory.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 
@@ -35,6 +36,13 @@ GlobalSetup(
 
     if (false == LoadMemoryInterfaceProvider(in_data))
         return err;
+
+    // Create Painters engine
+    if (false == CreatePaintersEngine())
+    {
+        UnloadMemoryInterfaceProvider();
+        return err;
+    }
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |

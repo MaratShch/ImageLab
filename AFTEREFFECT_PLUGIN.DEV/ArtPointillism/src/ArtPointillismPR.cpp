@@ -22,19 +22,11 @@ PF_Err ProcessImgInPR
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 
-    // Allocate memory storage for store temporary results
-    constexpr A_long doubleBuf = 2 * FastCompute::Max(static_cast<A_long>(sizeof(fRGB)), static_cast<A_long>(sizeof(fCIELabPix)));
-    const A_long singleTmpFrameSize = sizeX * sizeY;
-    const A_long totalProcMem  = CreateAlignment(singleTmpFrameSize * doubleBuf, CACHE_LINE);
-
-    void* pMemoryBlock = nullptr;
-    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-
-    if (nullptr != pMemoryBlock && blockId >= 0)
+    MemHandler algoMemHandler = alloc_memory_buffers (sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
-        fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
-        fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
+        float* pL  = algoMemHandler.L;
+        float* pAB = algoMemHandler.ab;
 
         // This plugin called frop PR - check video fomat
         auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
@@ -52,11 +44,17 @@ PF_Err ProcessImgInPR
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
                     constexpr float fCoeff{ static_cast<float>(u8_value_white) };
 
-                    // convert to CieLAB color space
-                    ConvertToCIELab_BGRA_8u (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+                    // convert to drmi-planat CieLAB color space
+                    ConvertToCIELab_BGRA_8u (localSrc, pL, pAB, sizeX, sizeY, linePitch, sizeX);
+
+                    // execute algorithm
+                    ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
+
+                    Convert_Result_to_BGRA_AVX2 (localSrc, algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, localDst,
+                        sizeX, sizeY, linePitch, linePitch, algoControls);
 
                     // back convert to native buffer format after processing complete
-                    ConvertFromCIELab_BGRA_8u(pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
+ //                   ConvertFromCIELab_BGRA_8u(pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
                 }
                 break;
 
@@ -68,10 +66,10 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ static_cast<float>(u16_value_white) };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+ //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
 
                     // back convert to native buffer format after processing complete
-                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+//                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -83,10 +81,10 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ 1.f };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+ //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
  
                     // back convert to native buffer format after processing complete
-                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+ //                   ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -99,10 +97,10 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ static_cast<float>(u8_value_white) };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+ //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
  
                     // back convert to native buffer format after processing complete
-                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+//                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -115,10 +113,10 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ static_cast<float>(1.f) };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+ //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
                     
                     // back convert to native buffer format after processing complete
-                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+ //                   ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
                 }
                 break;
 
@@ -130,10 +128,10 @@ PF_Err ProcessImgInPR
                     constexpr float fCoeff{ static_cast<float>(u10_value_white) };
 
                     // convert to CieLAB color space
-                    ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+ //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
 
                     // back convert to native buffer format after processing complete
-                    ConvertFromCIELab (pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
+ //                   ConvertFromCIELab (pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
                 }
                 break;
 
@@ -149,11 +147,9 @@ PF_Err ProcessImgInPR
             err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
         }
 
-        pMemoryBlock = nullptr;
-        pTmpBuf1 = pTmpBuf2 = nullptr;
-        ::FreeMemoryBlock(blockId);
-        blockId = -1;
-    } // if (nullptr != pMemoryBlock && blockId >= 0)
+        free_memory_buffers (algoMemHandler);
+
+    } // if (true == mem_handler_valid (algoMemHandler))
     else
         err = PF_Err_OUT_OF_MEMORY;
 
