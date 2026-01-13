@@ -6,14 +6,14 @@
 
 MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, const bool dbgPrn)
 {
-    MemHandler algoMemHandler{};
+    CACHE_ALIGN MemHandler algoMemHandler{};
     
     // ==================================================================================
     // 1. CALCULATE SIZES (BYTE ALIGNMENT MATH)
     // ==================================================================================
     
     const int32_t frameSize = sizeX * sizeY;
-    const int32_t cacheLine = static_cast<int32_t>(CACHE_LINE);
+    constexpr int32_t cacheLine = static_cast<int32_t>(CACHE_LINE);
 
     // --- Image Buffers ---
     // Float Plane (4 bytes/px)
@@ -102,7 +102,6 @@ MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, const bool dbgPrn
     // ==================================================================================
     
     // Allocate ONE block.
-    // Ensure AllocBufferEx respects alignment (standard malloc usually does 16 bytes, aligned_alloc is better).
     void* pMemoryBlock = nullptr;
     int32_t blockId = GetMemoryBlock(static_cast<int32_t>(totalBytes), 0, &pMemoryBlock);
 

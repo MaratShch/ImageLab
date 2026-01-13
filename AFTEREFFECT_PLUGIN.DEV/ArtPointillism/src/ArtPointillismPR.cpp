@@ -48,13 +48,11 @@ PF_Err ProcessImgInPR
                     ConvertToCIELab_BGRA_8u (localSrc, pL, pAB, sizeX, sizeY, linePitch, sizeX);
 
                     // execute algorithm
-                    ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
-
-                    Convert_Result_to_BGRA_AVX2 (localSrc, algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, localDst,
-                        sizeX, sizeY, linePitch, linePitch, algoControls);
+                    ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
 
                     // back convert to native buffer format after processing complete
- //                   ConvertFromCIELab_BGRA_8u(pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
+                    Convert_Result_to_BGRA_AVX2 (localSrc, algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, localDst,
+                        sizeX, sizeY, linePitch, linePitch, algoControls);
                 }
                 break;
 
