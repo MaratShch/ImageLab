@@ -463,8 +463,10 @@ void ArtisticRendering
     PointillismRenderParams render_params;
     render_params.DotSize = user_params.DotSize;
     render_params.Vibrancy = user_params.Vibrancy;
+    render_params.BackgroundMode = UnderlyingType(user_params.Background);
     render_params.RandomSeed = user_params.RandomSeed;
-    
+    render_params.Opacity = user_params.Opacity;
+
 
     // ---------------------------------------------------------
     // OPTIMIZATION: SPATIAL SORT (INDIRECT)

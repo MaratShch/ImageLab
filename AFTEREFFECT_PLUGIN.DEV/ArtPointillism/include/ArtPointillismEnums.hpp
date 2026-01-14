@@ -57,7 +57,7 @@ constexpr char PainterNameStr [] =
     "Maximilien Luce"
 };
 
-constexpr int32_t DotDencityMin = 0;
+constexpr int32_t DotDencityMin = 100;
 constexpr int32_t DotDencityMax = 250;
 constexpr int32_t DotDencityDef = AverageValue(DotDencityMin, DotDencityMax);
 
