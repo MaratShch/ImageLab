@@ -13,7 +13,7 @@ void ArtPointillismAlgorithmExec
 	///////////////////////////////////////////////////////////////////////////////////////
 	// ALGO STAGE 1: Luma channel manipulations
 	///////////////////////////////////////////////////////////////////////////////////////
-	
+
 	// 1.2 invert Luma channel
 	CIELab_LumaInvert (algoMemHandler.L, algoMemHandler.Luma1, sizeX, sizeY);
 		
@@ -49,8 +49,11 @@ void ArtPointillismAlgorithmExec
 	///////////////////////////////////////////////////////////////////////////////////////
 	// ALGO STAGE 4: Artistic Rendering
 	///////////////////////////////////////////////////////////////////////////////////////
+
     ArtisticRendering (algoMemHandler.PointOut, actualPoints, voronoi_map, algoMemHandler.L, algoMemHandler.ab, 
 	                   algoMemHandler.DencityMap, sizeX, sizeY, algoControls, algoMemHandler.Scratch, algoMemHandler.CanvasLab);
-						   
+
+//    Init_Canvas(algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, sizeX, sizeY, BackgroundArt::ART_POINTILLISM_BACKGROUND_SOURCE_IMAGE);
+
 	return;				   
 }
