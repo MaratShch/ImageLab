@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #if defined(__INTEL_COMPILER) || defined(_MSC_VER)
+ #include <intrin.h>
  #define RESTRICT __restrict
 #else
  #include "AefxDevPatch.hpp"

@@ -2,6 +2,7 @@
 #include "ArtPointillismAlgo.hpp"
 #include "ArtPointillismControl.hpp"
 #include "ArtPointillismEnums.hpp"
+#include "ArtPointillismColorConvert.hpp"
 #include "ImageLabMemInterface.hpp"
 
 PF_Err ArtPointilism_InAE_8bits
@@ -16,37 +17,37 @@ PF_Err ArtPointilism_InAE_8bits
     const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
           PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
+    PF_Err err = PF_Err_NONE;
+
     const A_long src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
 
-    // Allocate memory storage for store temporary results
-    constexpr A_long doubleBuf = 2 * FastCompute::Max(static_cast<A_long>(sizeof(fRGB)), static_cast<A_long>(sizeof(fCIELabPix)));
-    const A_long singleTmpFrameSize = sizeX * sizeY;
-    const A_long totalProcMem = CreateAlignment(singleTmpFrameSize * doubleBuf, CACHE_LINE);
-
-    void* pMemoryBlock = nullptr;
-    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    if (nullptr != pMemoryBlock && blockId >= 0)
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
-        fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
-        fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
+        float* pL = algoMemHandler.L;
+        float* pAB = algoMemHandler.ab;
 
-        const PontillismControls algoControls = GetControlParametersStruct (params);
+        const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        // convert to CieLAB color space
-        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+        // convert to drmi-planat CieLAB color space
+//        ConvertToCIELab_ARGB_8u (localSrc, pL, pAB, sizeX, sizeY, src_pitch, sizeX);
+
+        // execute algorithm
+        ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
 
         // back convert to native buffer format after processing complete
-        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
+//        Convert_Result_to_ARGB_AVX2 (localSrc, algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, localDst,
+//            sizeX, sizeY, src_pitch, dst_pitch, algoControls);
 
-        pMemoryBlock = nullptr;
-        pTmpBuf1 = pTmpBuf2 = nullptr;
-        ::FreeMemoryBlock(blockId);
-        blockId = -1;
-    }
+        free_memory_buffers(algoMemHandler);
+
+    } // if (true == mem_handler_valid (algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
+
 
 	return PF_Err_NONE;
 }

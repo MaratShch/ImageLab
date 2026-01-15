@@ -124,59 +124,84 @@ fCIELabPix Apply_Color_Mode_Boost
     return input;
 }
 
-
 /**
- * Find the 2 closest colors in the palette and their mixing ratio.
+ * AVX2 Optimized Color Decompose.
+ * Uses Unaligned Loads (_mm256_loadu_ps) to handle standard class memory layouts.
  */
 DecomposedColor Decompose
 (
-    const fCIELabPix& target,
-    const fCIELabPix* palette,
-    int palette_size
+    const fCIELabPix& target, // Passed by const ref for speed
+    const RenderContext& ctx
 )
 {
-    int p1 = 0; float dist1 = 1e9f;
-    int p2 = 0; float dist2 = 1e9f;
+    // 1. Broadcast Target to Registers
+    __m256 tL = _mm256_set1_ps(target.L);
+    __m256 ta = _mm256_set1_ps(target.a);
+    __m256 tb = _mm256_set1_ps(target.b);
 
-    // Linear Search (Palette is small, ~10 colors, so this is fast)
-    for (int i = 0; i < palette_size; ++i)
+    // Array to store calculated squared distances
+    // This local array IS aligned because it's on the stack and we can control it.
+    CACHE_ALIGN float dists[32]; 
+
+    int count = ctx.palette_size;
+    
+    // 2. Loop in steps of 8
+    // We assume internal buffers are padded to 32 floats, so reading past 'count' is safe
+    // up to the 32 boundary.
+    
+    // Force loop to go up to 32 to avoid scalar tail handling? 
+    // Since we padded with Infinity, handling 32 is always safe and branchless.
+    for (int i = 0; i < 32; i += 8)
     {
-        float dL = target.L - palette[i].L;
-        float da = target.a - palette[i].a;
-        float db = target.b - palette[i].b;
         
-        // Squared Euclidean Distance
-        float d2 = dL*dL + da*da + db*db;
+        // --- CHANGE: LOAD UNALIGNED ---
+        // Pointers from RenderContext might not be on 32-byte boundaries.
+        __m256 pL = _mm256_loadu_ps(ctx.pal_L + i);
+        __m256 pa = _mm256_loadu_ps(ctx.pal_a + i);
+        __m256 pb = _mm256_loadu_ps(ctx.pal_b + i);
 
-        if (d2 < dist1)
-        {
-            dist2 = dist1; p2 = p1;
-            dist1 = d2;    p1 = i;
-        } else if (d2 < dist2)
-        {
-            dist2 = d2;    p2 = i;
+        // Calc Diff
+        __m256 dL = _mm256_sub_ps(tL, pL);
+        __m256 da = _mm256_sub_ps(ta, pa);
+        __m256 db = _mm256_sub_ps(tb, pb);
+
+        // Calc DistSq: (dL*dL + da*da + db*db)
+        __m256 d2 = _mm256_mul_ps(dL, dL);
+        d2 = _mm256_fmadd_ps(da, da, d2);
+        d2 = _mm256_fmadd_ps(db, db, d2);
+
+        // Store to stack (Aligned store is fine here)
+        _mm256_store_ps(dists + i, d2);
+    }
+
+    // 3. Find Min1 and Min2 (Scalar scan of the 32 floats)
+    // Fast scalar iteration over L1-cached stack memory
+    int p1 = 0; float min1 = 1e9f;
+    int p2 = 0; float min2 = 1e9f;
+
+    // Iterate up to actual size (ignore padding)
+    for (int k = 0; k < count; ++k)
+    {
+        float d = dists[k];
+        if (d < min1) {
+            min2 = min1; p2 = p1;
+            min1 = d;    p1 = k;
+        } else if (d < min2) {
+            min2 = d;    p2 = k;
         }
     }
 
-    // Calculate Ratio using Inverse Distance Weighting
-    float d1_sqrt = FastCompute::Sqrt(dist1);
-    float d2_sqrt = FastCompute::Sqrt(dist2);
+    // 4. Ratio Calculation
+    float d1_sqrt = std::sqrt(min1);
+    float d2_sqrt = std::sqrt(min2);
     float sum = d1_sqrt + d2_sqrt;
 
     DecomposedColor result;
     result.idx_p1 = p1;
     result.idx_p2 = p2;
+    // Avoid div by zero
+    result.ratio = (sum < 0.001f) ? 1.0f : (d2_sqrt / sum);
     
-    if (sum < 0.001f)
-    {
-        result.ratio = 1.0f; // Exact match
-    } else
-    {
-        // Ratio is probability of Primary. 
-        // If dist1 is 0, ratio should be 1.0.
-        result.ratio = d2_sqrt / sum;
-    }
-
     return result;
 }
 
@@ -190,61 +215,59 @@ void RenderKernel_Cluster
     const RenderContext& ctx,
     const PointillismRenderParams& params,
     float* RESTRICT canvas,
-    int width, int height,
+    int32_t width,
+    int32_t height,
     LCG_RNG& rng
 )
 {
     // 1. Color Logic
-    fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color); // Cast for local mod
-    processed_color = Apply_Color_Mode (processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
+    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
     
-    DecomposedColor mix = Decompose(processed_color, ctx.palette_buffer, ctx.palette_size);
+    // FIX: Call the AVX2 function, passing the Context (which holds planar pointers)
+    DecomposedColor mix = Decompose(processed_color, ctx);
 
     // 2. Geometry Setup
-    // Seurat uses many small dots.
     int sub_dots = 5; 
-    float radius = (float)params.DotSize * 0.1f; // Scale slider to pixels (heuristic)
+    float radius = (float)params.DotSize * 0.1f; 
     if (radius < 1.0f) radius = 1.0f;
-    float opacity = 0.85f; // Slight transparency for layering
-
+    float opacity = 0.85f;
     float r_sq = radius * radius;
 
     // 3. Sub-Dot Loop
-    for (int k = 0; k < sub_dots; ++k)
-    {
-        // Pick Color (Probabilistic)
+    for (int k = 0; k < sub_dots; ++k) {
         int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
-        fCIELabPix draw_color = ctx.palette_buffer[color_idx];
+        
+        // FIX: Reconstruct color from Planar Arrays [L, a, b]
+        fCIELabPix draw_color;
+        draw_color.L = ctx.pal_L[color_idx];
+        draw_color.a = ctx.pal_a[color_idx];
+        draw_color.b = ctx.pal_b[color_idx];
 
-        // Jitter Position (Cluster effect)
+        // Jitter & Draw
         float scatter_range = radius * 1.5f;
         float cx = pt.x + rng.next_range(-scatter_range, scatter_range);
         float cy = pt.y + rng.next_range(-scatter_range, scatter_range);
 
-        // Bounding Box
+        // ... Bounding Box & Pixel Loop (Same as before) ...
         int min_x = std::max(0, (int)(cx - radius));
         int max_x = std::min(width, (int)(cx + radius) + 1);
         int min_y = std::max(0, (int)(cy - radius));
         int max_y = std::min(height, (int)(cy + radius) + 1);
 
-        // Rasterize Circle
-        for (int y = min_y; y < max_y; ++y)
-        {
+        for (int y = min_y; y < max_y; ++y) {
             float dy = (float)y - cy;
             int row_offset = y * width;
-            for (int x = min_x; x < max_x; ++x)
-            {
+            for (int x = min_x; x < max_x; ++x) {
                 float dx = (float)x - cx;
-                if ((dx*dx + dy*dy) <= r_sq)
-                {
+                if ((dx*dx + dy*dy) <= r_sq) {
                     Blend_Lab_Pixel(&canvas[(row_offset + x) * 3], draw_color, opacity);
                 }
             }
         }
     }
-    
-    return;
 }
+
 
 // Signac (The Mosaic)
 // Technique: Draws rotated squares/rectangles (Tesserae).
@@ -255,67 +278,57 @@ void RenderKernel_Mosaic
     const RenderContext& ctx,
     const PointillismRenderParams& params,
     float* RESTRICT canvas,
-    int width, int height,
+    int32_t width,
+    int32_t height,
     LCG_RNG& rng
 )
 {
-    // 1. Color Logic (Signac is usually more solid/opaque)
     fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
-    processed_color = Apply_Color_Mode (processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
-    DecomposedColor mix = Decompose(processed_color, ctx.palette_buffer, ctx.palette_size);
+    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    
+    // FIX: AVX2 Decompose
+    DecomposedColor mix = Decompose(processed_color, ctx);
 
-    // 2. Geometry Setup
-    // Signac uses fewer, larger, solid blocks.
     int sub_dots = 1; 
     float size = (float)params.DotSize * 0.15f; 
     if (size < 1.5f) size = 1.5f;
-    float opacity = 0.95f; // Solid paint
+    float opacity = 0.95f; 
 
-    // Random Rotation (-15 to +15 degrees)
     float angle_deg = rng.next_range(-15.0f, 15.0f);
     float angle_rad = angle_deg * 3.14159f / 180.0f;
-    
-    float cos_a, sin_a;
-    FastCompute::SinCos (angle_rad, cos_a, sin_a);
+    float cos_a = std::cos(angle_rad);
+    float sin_a = std::sin(angle_rad);
 
-    for (int k = 0; k < sub_dots; ++k)
-    {
+    for (int k = 0; k < sub_dots; ++k) {
         int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
-        fCIELabPix draw_color = ctx.palette_buffer[color_idx];
+        
+        // FIX: Planar Lookup
+        fCIELabPix draw_color;
+        draw_color.L = ctx.pal_L[color_idx];
+        draw_color.a = ctx.pal_a[color_idx];
+        draw_color.b = ctx.pal_b[color_idx];
 
-        // Scan bounding box based on rotation radius (sqrt(2) * half_size)
+        // ... Drawing Logic (Same as before) ...
         float half_size = size * 0.5f;
         float bb_radius = half_size * 1.414f; 
-
         int min_x = std::max(0, (int)(pt.x - bb_radius));
         int max_x = std::min(width, (int)(pt.x + bb_radius) + 1);
         int min_y = std::max(0, (int)(pt.y - bb_radius));
         int max_y = std::min(height, (int)(pt.y + bb_radius) + 1);
 
-        // Rasterize Rotated Rectangle
-        for (int y = min_y; y < max_y; ++y)
-        {
+        for (int y = min_y; y < max_y; ++y) {
             float dy = (float)y - pt.y;
             int row_offset = y * width;
-            
-            for (int x = min_x; x < max_x; ++x)
-            {
+            for (int x = min_x; x < max_x; ++x) {
                 float dx = (float)x - pt.x;
-
-                // Rotate point into local rectangle space
                 float local_x = dx * cos_a - dy * sin_a;
                 float local_y = dx * sin_a + dy * cos_a;
-
-                // Check Axis-Aligned Bounds in local space
-                if (std::abs(local_x) <= half_size && std::abs(local_y) <= half_size)
-                {
+                if (std::abs(local_x) <= half_size && std::abs(local_y) <= half_size) {
                     Blend_Lab_Pixel(&canvas[(row_offset + x) * 3], draw_color, opacity);
                 }
             }
         }
     }
-    
-    return;
 }
 
 // Matisse (The Flow)
@@ -326,27 +339,24 @@ void RenderKernel_Flow
     const fCIELabPix& target_color,
     const RenderContext& ctx,
     const PointillismRenderParams& params,
-    const float* RESTRICT density_map, // Needed for flow calculation
+    const float* RESTRICT density_map, 
     float* RESTRICT canvas,
     int width, int height,
     LCG_RNG& rng,
     bool bLongStroke = false
 )
 {
-    // 1. Color Logic
     fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
-    processed_color = Apply_Color_Mode_Boost (processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
-    DecomposedColor mix = Decompose(processed_color, ctx.palette_buffer, ctx.palette_size);
+    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    
+    // FIX: AVX2 Decompose
+    DecomposedColor mix = Decompose(processed_color, ctx);
 
-    // 2. Calculate Gradient Flow (Sobel on the fly at dot position)
+    // ... Gradient Calculation (Same) ...
     int px = std::min(std::max(1, (int)pt.x), width - 2);
     int py = std::min(std::max(1, (int)pt.y), height - 2);
-    
-    // Simple 3x3 Sobel approx
     float g_x = density_map[py * width + (px + 1)] - density_map[py * width + (px - 1)];
     float g_y = density_map[(py + 1) * width + px] - density_map[(py - 1) * width + px];
-    
-    // Angle perpendicular to gradient (along the edge)
     float angle = std::atan2(g_y, g_x) + (3.14159f * 0.5f); 
     
     float len_a, len_b;
@@ -367,48 +377,42 @@ void RenderKernel_Flow
         if (len_b < 1.0f) len_b = 1.0f;
     }
     
-
     const float opacity = (processed_color.L < 20.0f) ? 0.98f : 0.90f;
-    float cos_a, sin_a;
-    FastCompute::SinCos (angle, cos_a, sin_a);
+    float cos_a = std::cos(angle);
+    float sin_a = std::sin(angle);
 
-    // 4. Draw Oriented Ellipse
     int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
-    fCIELabPix draw_color = ctx.palette_buffer[color_idx];
+    
+    // FIX: Planar Lookup
+    fCIELabPix draw_color;
+    draw_color.L = ctx.pal_L[color_idx];
+    draw_color.a = ctx.pal_a[color_idx];
+    draw_color.b = ctx.pal_b[color_idx];
 
+    // ... Drawing Logic (Same) ...
     float bb_radius = std::max(len_a, len_b);
-    int min_x = std::max(0, static_cast<int>(pt.x - bb_radius));
-    int max_x = std::min(width, static_cast<int>(pt.x + bb_radius) + 1);
-    int min_y = std::max(0, static_cast<int>(pt.y - bb_radius));
-    int max_y = std::min(height, static_cast<int>(pt.y + bb_radius) + 1);
+    int min_x = std::max(0, (int)(pt.x - bb_radius));
+    int max_x = std::min(width, (int)(pt.x + bb_radius) + 1);
+    int min_y = std::max(0, (int)(pt.y - bb_radius));
+    int max_y = std::min(height, (int)(pt.y + bb_radius) + 1);
 
     float a_sq = len_a * len_a;
     float b_sq = len_b * len_b;
 
     for (int y = min_y; y < max_y; ++y)
     {
-        const float dy = static_cast<float>(y) - pt.y;
+        float dy = (float)y - pt.y;
         int row_offset = y * width;
-        
-        for (int x = min_x; x < max_x; ++x)
-        {
-            const float dx = static_cast<float>(x) - pt.x;
-
-            // Rotate into local space
+        for (int x = min_x; x < max_x; ++x) {
+            float dx = (float)x - pt.x;
             float u = dx * cos_a + dy * sin_a;
             float v = -dx * sin_a + dy * cos_a;
-
-            // Ellipse Equation: (u^2 / a^2) + (v^2 / b^2) <= 1
-            if (((u*u)/a_sq + (v*v)/b_sq) <= 1.0f)
-            {
+            if (((u*u)/a_sq + (v*v)/b_sq) <= 1.0f) {
                 Blend_Lab_Pixel(&canvas[(row_offset + x) * 3], draw_color, opacity);
             }
         }
     }
-    
-    return;
 }
-
 
 /**
  * PHASE 4 ORCHESTRATOR: ARTISTIC RENDERING

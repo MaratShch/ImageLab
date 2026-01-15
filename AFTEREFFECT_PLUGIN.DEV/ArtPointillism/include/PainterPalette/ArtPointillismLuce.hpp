@@ -5,27 +5,46 @@
 #include "ArtPointillismPalette.hpp"
 #include "Common.hpp"
 
-using Luce_Palette_u8 = std::array<PEntry<uint8_t>, 16>;
-using Luce_Palette_f32 = std::array<PEntry<float>, 16>;
+using Luce_Palette_u8 = std::array<PEntry<uint8_t>, 24>;
+using Luce_Palette_f32 = std::array<PEntry<float>, 24>;
 
 CACHE_ALIGN constexpr Luce_Palette_u8 Luce_u8 =
 {{
-    { 250, 250, 250 },  // white / lamp glare
-    { 240, 224, 150 },  // warm streetlight yellow
-    { 225, 176,  92 },  // golden - ochre light
-    { 208, 132,  64 },  // warm amber
-    { 182,  90,  60 },  // reddish light source
-    { 155,  42,  60 },  // crimson accent
-    { 128,  72, 140 },  // violet haze
-    {  96,  52, 112 },  // smoky indigo
-    {  80, 110, 185 },  // bright blue accent
-    {  58,  88, 165 },  // cobalt steel - blue
-    {  34,  62, 132 },  // ultramarine night blue
-    {  22,  48, 102 },  // deep navy
-    {  68, 120, 108 },  // industrial green - cyan
-    {  48,  88,  78 },  // muted teal
-    {  32,  60,  52 },  // dirty green shadow
-    {  15,  22,  28 }   // black - blue deep shadow
+    // --- 1. The Fire & Gaslight (Intense Warmth) ---
+    { 255, 250, 240 }, // Floral White (White hot center)
+    { 255, 215,   0 }, // Gold (Yellow flame)
+    { 255, 140,   0 }, // Dark Orange (Orange flame)
+    { 255,  69,   0 }, // Red Orange (Embers)
+
+    // --- 2. The Brick & Rust (Industrial) ---
+    { 205,  92,  92 }, // Indian Red (Brick walls)
+    { 178,  34,  34 }, // Firebrick (Dark brick)
+    { 160,  82,  45 }, // Sienna (Rust)
+    { 139,  69,  19 }, // Saddle Brown (Dark wood/Dirt)
+
+    // --- 3. The Pavement & Smoke (Chromatic Grays) ---
+    { 119, 136, 153 }, // Light Slate Gray (Concrete/Smoke)
+    { 112, 128, 144 }, // Slate Gray (Shadows on street)
+    { 188, 143, 143 }, // Rosy Brown (Warm smog)
+    { 105, 105, 105 }, // Dim Gray (Soot)
+
+    // --- 4. The Night Sky (Cool Blues) ---
+    { 100, 149, 237 }, // Cornflower Blue (Twilight)
+    {  70, 130, 180 }, // Steel Blue (Industrial sky)
+    {  25,  25, 112 }, // Midnight Blue (Deepest night)
+    {  10,  10,  30 }, // Obsidian (Warm black - very dark blue)
+
+    // --- 5. The Shadows (Purples/Teals) ---
+    {  72,  61, 139 }, // Dark Slate Blue
+    {  75,   0, 130 }, // Indigo
+    {  47,  79,  79 }, // Dark Slate Gray (Green-tinted shadow)
+    {   0, 100,   0 }, // Dark Green (Shadowed foliage)
+
+    // --- 6. The Accents (Reflections) ---
+    { 220,  20,  60 }, // Crimson (Traffic/Warning lights)
+    { 240, 230, 140 }, // Khaki (Reflected light on wet street)
+    {  95, 158, 160 }, // Cadet Blue (Oxidized copper)
+    { 128, 128, 128 }  // Gray (Neutral bridge)
 }};
 
 
@@ -46,7 +65,15 @@ CACHE_ALIGN constexpr Luce_Palette_f32 Luce_f32 =
     { F32(Luce_u8[12].r), F32(Luce_u8[12].g), F32(Luce_u8[12].b) },
     { F32(Luce_u8[13].r), F32(Luce_u8[13].g), F32(Luce_u8[13].b) },
     { F32(Luce_u8[14].r), F32(Luce_u8[14].g), F32(Luce_u8[14].b) },
-    { F32(Luce_u8[15].r), F32(Luce_u8[15].g), F32(Luce_u8[15].b) }
+    { F32(Luce_u8[15].r), F32(Luce_u8[15].g), F32(Luce_u8[15].b) },
+    { F32(Luce_u8[16].r), F32(Luce_u8[16].g), F32(Luce_u8[16].b) },
+    { F32(Luce_u8[17].r), F32(Luce_u8[17].g), F32(Luce_u8[17].b) },
+    { F32(Luce_u8[18].r), F32(Luce_u8[18].g), F32(Luce_u8[18].b) },
+    { F32(Luce_u8[19].r), F32(Luce_u8[19].g), F32(Luce_u8[19].b) },
+    { F32(Luce_u8[20].r), F32(Luce_u8[20].g), F32(Luce_u8[20].b) },
+    { F32(Luce_u8[21].r), F32(Luce_u8[21].g), F32(Luce_u8[21].b) },
+    { F32(Luce_u8[22].r), F32(Luce_u8[22].g), F32(Luce_u8[22].b) },
+    { F32(Luce_u8[23].r), F32(Luce_u8[23].g), F32(Luce_u8[23].b) }
 }};
 
 

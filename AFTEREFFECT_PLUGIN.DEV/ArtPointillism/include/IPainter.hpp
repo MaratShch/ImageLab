@@ -7,13 +7,19 @@
 #include "ArtPointillismEnums.hpp"
 
 
+// Updated RenderContext for AVX2 Planar Palettes
 struct RenderContext
 {
-    const fCIELabPix* palette_buffer;
-    int32_t         palette_size;
-    StrokeShape     shape;
-    ColorMode       color_mode;
-    bool            use_orientation;
+    // --- Planar Palette Data (32-byte aligned in source) ---
+    const float* pal_L;
+    const float* pal_a;
+    const float* pal_b;
+    int32_t      palette_size; // Max 24 or 32
+
+    // --- Configuration ---
+    StrokeShape shape;
+    ColorMode   color_mode;
+    bool        use_orientation;
 };
 
 constexpr size_t RenderContextSize = sizeof(RenderContext);

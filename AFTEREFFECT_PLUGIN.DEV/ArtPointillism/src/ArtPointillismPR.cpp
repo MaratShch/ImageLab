@@ -42,7 +42,6 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-                    constexpr float fCoeff{ static_cast<float>(u8_value_white) };
 
                     // convert to drmi-planat CieLAB color space
                     ConvertToCIELab_BGRA_8u (localSrc, pL, pAB, sizeX, sizeY, linePitch, sizeX);

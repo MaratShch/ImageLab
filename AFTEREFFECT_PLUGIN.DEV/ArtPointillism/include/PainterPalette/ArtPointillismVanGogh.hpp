@@ -6,41 +6,46 @@
 #include "ArtPointillismPalette.hpp"
 #include "Common.hpp"
 
-using VanGogh_Palette_u8  = std::array<PEntry<uint8_t>, 17>;
-using VanGogh_Palette_f32 = std::array<PEntry<float>, 17>;
+using VanGogh_Palette_u8  = std::array<PEntry<uint8_t>, 24>;
+using VanGogh_Palette_f32 = std::array<PEntry<float>, 24>;
 
 CACHE_ALIGN constexpr VanGogh_Palette_u8 VanGogh_u8 =
 {{
-    // --- The Yellows/Oranges (Sunflowers & Wheat) ---
-    { 245, 223,  77 }, // Chrome Yellow Lemon (Less digital yellow)
-    { 255, 172,   0 }, // Chrome Yellow Deep
-    { 227, 130,   0 }, // Cadmium Orange
-    { 218, 165,  32 }, // Goldenrod / Sunflower Yellow
+    // --- 1. The Sun & Stars (Luminous Yellows) ---
+    { 245, 223,  77 }, // Chrome Yellow Lemon (Stars/Light)
+    { 255, 215,   0 }, // Chrome Yellow Medium (Sunflowers)
+    { 255, 170,  50 }, // Chrome Yellow Deep / Orange
+    { 240, 230, 140 }, // Straw Yellow (High-key wheat bridge) - NEW
 
-    // --- The Earths (CRITICAL for "Glue") ---
-    { 204, 119,  34 }, // Yellow Ochre (Essential for skin/fur)
-    { 139,  69,  19 }, // Burnt Sienna (Warm brown shadows)
+    // --- 2. The Earths (The "Potato Eaters" Foundation) ---
+    // Essential for faces, wood, and ground. Prevents gray skin.
+    { 204, 119,  34 }, // Yellow Ochre (Van Gogh's staple)
+    { 210, 105,  30 }, // Raw Sienna
+    { 139,  69,  19 }, // Burnt Sienna (Reddish earth)
+    { 222, 184, 135 }, // Burlywood (Canvas/Beige bridge) - NEW
 
-    // --- The Reds ---
-    { 227,  66,  52 }, // Vermilion (Orangey-Red)
-    { 178,  34,  34 }, // Carmine / Madder Lake (Cool Red)
+    // --- 3. The Reds (Contrast) ---
+    { 227,  66,  52 }, // Vermilion (The Bedroom floor)
+    { 178,  34,  34 }, // Geranium Lake / Carmine (Cool Red)
+    { 165,  42,  42 }, // Red Ochre / Brick
 
-    // --- The Blues (Starry Night) ---
-    {  30,  55, 153 }, // Prussian Blue (Deep dark)
-    {  65, 105, 225 }, // Cobalt Blue (The signature blue)
-    { 135, 206, 235 }, // Cerulean Blue (Sky)
+    // --- 4. The Greens (Cypresses & Olives) ---
+    {  64, 130, 109 }, // Viridian (Deep cool green)
+    {  85, 107,  47 }, // Olive Green (Warm muddy green)
+    { 107, 142,  35 }, // Olive Drab (Light olive)
+    { 154, 205,  50 }, // Veronese Green (Vibrant highlights)
 
-    // --- The Greens (Cypresses & Olives) ---
-    {  64, 130, 109 }, // Viridian (Blue-Green, deep)
-    {  85, 107,  47 }, // Olive Green (Earthy green)
-    { 154, 205,  50 }, // Yellow Green (Light grass, less neon)
+    // --- 5. The Blues (Starry Night) ---
+    {  65, 105, 225 }, // Cobalt Blue (Signature sky color)
+    {  30,  55, 153 }, // Prussian Blue (Deepest darks)
+    { 100, 149, 237 }, // Cornflower Blue (Mid-tone sky)
+    {  70, 130, 180 }, // Steel Blue (Shadow bridge)
 
-    // --- The Violets (Irises) ---
-    { 102,  51, 153 }, // Cobalt Violet (Deep purple, NOT Magenta)
-    
-    // --- Neutrals ---
-    { 245, 245, 220 }, // Beige/Cream (Canvas color replacement for pure white)
-    {  47,  79,  79 }  // Dark Slate (Van Gogh rarely used pure black)
+    // --- 6. The Violets (Shadows) ---
+    { 102,  51, 153 }, // Cobalt Violet (Shadows on gold)
+    {  75,   0, 130 }, // Indigo (Dark outlines)
+    {  47,  79,  79 }, // Dark Slate Gray (Atmospheric Dark)
+    { 230, 230, 250 }  // Lavender (Lightest shadow tint) - NEW
 }};
 
 
@@ -61,7 +66,15 @@ CACHE_ALIGN constexpr VanGogh_Palette_f32 VanGogh_f32 =
     { F32(VanGogh_u8[12].r), F32(VanGogh_u8[12].g), F32(VanGogh_u8[12].b) },
     { F32(VanGogh_u8[13].r), F32(VanGogh_u8[13].g), F32(VanGogh_u8[13].b) },
     { F32(VanGogh_u8[14].r), F32(VanGogh_u8[14].g), F32(VanGogh_u8[14].b) },
-    { F32(VanGogh_u8[15].r), F32(VanGogh_u8[15].g), F32(VanGogh_u8[15].b) }
+    { F32(VanGogh_u8[15].r), F32(VanGogh_u8[15].g), F32(VanGogh_u8[15].b) },
+    { F32(VanGogh_u8[16].r), F32(VanGogh_u8[16].g), F32(VanGogh_u8[16].b) },
+    { F32(VanGogh_u8[17].r), F32(VanGogh_u8[17].g), F32(VanGogh_u8[17].b) },
+    { F32(VanGogh_u8[18].r), F32(VanGogh_u8[18].g), F32(VanGogh_u8[18].b) },
+    { F32(VanGogh_u8[19].r), F32(VanGogh_u8[19].g), F32(VanGogh_u8[19].b) },
+    { F32(VanGogh_u8[20].r), F32(VanGogh_u8[20].g), F32(VanGogh_u8[20].b) },
+    { F32(VanGogh_u8[21].r), F32(VanGogh_u8[21].g), F32(VanGogh_u8[21].b) },
+    { F32(VanGogh_u8[22].r), F32(VanGogh_u8[22].g), F32(VanGogh_u8[22].b) },
+    { F32(VanGogh_u8[23].r), F32(VanGogh_u8[23].g), F32(VanGogh_u8[23].b) }
 }};
 
 
