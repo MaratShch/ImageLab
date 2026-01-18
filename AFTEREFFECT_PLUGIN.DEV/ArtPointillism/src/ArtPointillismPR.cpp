@@ -3,6 +3,7 @@
 #include "ArtPointillismControl.hpp"
 #include "ArtPointillismEnums.hpp"
 #include "ImageLabMemInterface.hpp"
+#include "Avx2ColorConverts.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -44,14 +45,13 @@ PF_Err ProcessImgInPR
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
                     // convert to drmi-planat CieLAB color space
-                    ConvertToCIELab_BGRA_8u (localSrc, pL, pAB, sizeX, sizeY, linePitch, sizeX);
+                    AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, algoMemHandler.L, algoMemHandler.ab, sizeX, sizeY, linePitch, sizeX);
 
                     // execute algorithm
                     ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
 
                     // back convert to native buffer format after processing complete
-                    Convert_Result_to_BGRA_AVX2 (localSrc, algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, localDst,
-                        sizeX, sizeY, linePitch, linePitch, algoControls);
+                    AVX2_ConvertCIELab_SemiPlanar_ToRgb(localSrc, algoMemHandler.dst_L, algoMemHandler.dst_ab, localDst, sizeX, sizeY, linePitch, linePitch);
                 }
                 break;
 

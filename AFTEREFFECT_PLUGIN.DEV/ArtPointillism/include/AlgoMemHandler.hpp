@@ -25,6 +25,8 @@ struct MemHandler
 	float* AccumW;
 	RenderScratchMemory Scratch;
 	float* CanvasLab;
+	float* dst_L;
+	float* dst_ab;
 	int32_t NodeElemNumber;
 };
 

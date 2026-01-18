@@ -53,7 +53,8 @@ void ArtPointillismAlgorithmExec
     ArtisticRendering (algoMemHandler.PointOut, actualPoints, voronoi_map, algoMemHandler.L, algoMemHandler.ab, 
 	                   algoMemHandler.DencityMap, sizeX, sizeY, algoControls, algoMemHandler.Scratch, algoMemHandler.CanvasLab);
 
-//    Init_Canvas(algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, sizeX, sizeY, BackgroundArt::ART_POINTILLISM_BACKGROUND_SOURCE_IMAGE);
 
+	AssembleFinalImage (algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, algoMemHandler.dst_L, algoMemHandler.dst_ab,
+						sizeX, sizeY, algoControls);
 	return;				   
 }

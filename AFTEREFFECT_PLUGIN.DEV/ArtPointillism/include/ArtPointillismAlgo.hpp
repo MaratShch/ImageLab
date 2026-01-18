@@ -7,12 +7,12 @@
 #include <cmath>
 #include "AlgoMemHandler.hpp"
 #include "ArtPointillismEnums.hpp"
-#include "ArtPointillismColorConvert.hpp"
 #include "AlgoLumaManipulation.hpp"
 #include "AlgoDotEngine.hpp"
 #include "AlgoJFA.hpp"
 #include "AlgoArtisticsRendering.hpp"
-#include "AlgoOutput.hpp"
+//#include "AlgoOutput.hpp"
+#include "AssembleFinalImage.hpp"
 
 
 void ArtPointillismAlgorithmExec

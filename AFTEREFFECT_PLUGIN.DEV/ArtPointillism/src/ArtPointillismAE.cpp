@@ -2,8 +2,10 @@
 #include "ArtPointillismAlgo.hpp"
 #include "ArtPointillismControl.hpp"
 #include "ArtPointillismEnums.hpp"
-#include "ArtPointillismColorConvert.hpp"
+#include "Avx2ColorConverts.hpp"
 #include "ImageLabMemInterface.hpp"
+
+
 
 PF_Err ArtPointilism_InAE_8bits
 (
@@ -19,7 +21,7 @@ PF_Err ArtPointilism_InAE_8bits
 
     PF_Err err = PF_Err_NONE;
 
-    const A_long src_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
@@ -27,27 +29,21 @@ PF_Err ArtPointilism_InAE_8bits
     MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
     if (true == mem_handler_valid(algoMemHandler))
     {
-        float* pL = algoMemHandler.L;
-        float* pAB = algoMemHandler.ab;
-
         const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        // convert to drmi-planat CieLAB color space
-//        ConvertToCIELab_ARGB_8u (localSrc, pL, pAB, sizeX, sizeY, src_pitch, sizeX);
+        AVX2_ConvertRgbToCIELab_SemiPlanar(localSrc, algoMemHandler.L, algoMemHandler.ab, sizeX, sizeY, src_pitch, dst_pitch);
 
         // execute algorithm
         ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
 
         // back convert to native buffer format after processing complete
-//        Convert_Result_to_ARGB_AVX2 (localSrc, algoMemHandler.CanvasLab, algoMemHandler.L, algoMemHandler.ab, localDst,
-//            sizeX, sizeY, src_pitch, dst_pitch, algoControls);
+        AVX2_ConvertCIELab_SemiPlanar_ToRgb(localSrc, algoMemHandler.dst_L, algoMemHandler.dst_ab, localDst, sizeX, sizeY, src_pitch, dst_pitch);
 
         free_memory_buffers(algoMemHandler);
 
     } // if (true == mem_handler_valid (algoMemHandler))
     else
         err = PF_Err_OUT_OF_MEMORY;
-
 
 	return PF_Err_NONE;
 }
@@ -86,10 +82,10 @@ PF_Err ArtPointilism_InAE_16bits
         const PontillismControls algoControls = GetControlParametersStruct (params);
 
         // convert to CieLAB color space
-        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+//        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
 
         // back convert to native buffer format after processing complete
-        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
+//        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
 
         pMemoryBlock = nullptr;
         pTmpBuf1 = pTmpBuf2 = nullptr;
@@ -134,10 +130,10 @@ PF_Err ArtPointilism_InAE_32bits
         const PontillismControls algoControls = GetControlParametersStruct (params);
 
         // convert to CieLAB color space
-        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+//        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
 
         // back convert to native buffer format after processing complete
-        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
+//        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
 
         pMemoryBlock = nullptr;
         pTmpBuf1 = pTmpBuf2 = nullptr;

@@ -84,9 +84,6 @@
     <ClInclude Include="include\ArtPointillismAlgo.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ArtPointillismColorConvert.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ArtPointillismPainters.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -186,6 +183,15 @@
     <ClInclude Include="include\AlgoMemHandler.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoColorConversion.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AssembleFinalImage.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Avx2ColorConverts.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
@@ -212,22 +218,10 @@
     <ClCompile Include="src\ArtPointillismControlPanel.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\Avx2RGB32fToCIELab.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Avx2RGB8uToCIELab.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\Avx2CIELabToRGB8u.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Avx2CIELabPlanarToInterleaved.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Avx2RGB8uToCIELabPlanar.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Avx2RGB32fToCIELabPlanar.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoArtisticsRendering.cpp">
@@ -237,9 +231,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoPainterEngine.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoOutput.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Avx2LumaEdgeDetection.cpp">
@@ -261,6 +252,15 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoAssembleFinalImage.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2RGB8uToCIELabSemiPlanar.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
