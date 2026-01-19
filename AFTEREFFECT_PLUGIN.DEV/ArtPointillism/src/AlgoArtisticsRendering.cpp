@@ -192,8 +192,8 @@ DecomposedColor Decompose
     }
 
     // 4. Ratio Calculation
-    float d1_sqrt = std::sqrt(min1);
-    float d2_sqrt = std::sqrt(min2);
+    float d1_sqrt = FastCompute::Sqrt(min1);
+    float d2_sqrt = FastCompute::Sqrt(min2);
     float sum = d1_sqrt + d2_sqrt;
 
     DecomposedColor result;
@@ -296,8 +296,9 @@ void RenderKernel_Mosaic
 
     float angle_deg = rng.next_range(-15.0f, 15.0f);
     float angle_rad = angle_deg * 3.14159f / 180.0f;
-    float cos_a = std::cos(angle_rad);
-    float sin_a = std::sin(angle_rad);
+    float cos_a, sin_a;
+
+    FastCompute::SinCos(angle_rad, sin_a, cos_a);
 
     for (int k = 0; k < sub_dots; ++k) {
         int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
@@ -378,8 +379,9 @@ void RenderKernel_Flow
     }
     
     const float opacity = (processed_color.L < 20.0f) ? 0.98f : 0.90f;
-    float cos_a = std::cos(angle);
-    float sin_a = std::sin(angle);
+    float cos_a, sin_a;
+
+    FastCompute::SinCos(angle, sin_a, cos_a);
 
     int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
     

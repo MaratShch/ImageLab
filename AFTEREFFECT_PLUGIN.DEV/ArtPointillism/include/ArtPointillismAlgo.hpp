@@ -11,7 +11,6 @@
 #include "AlgoDotEngine.hpp"
 #include "AlgoJFA.hpp"
 #include "AlgoArtisticsRendering.hpp"
-//#include "AlgoOutput.hpp"
 #include "AssembleFinalImage.hpp"
 
 

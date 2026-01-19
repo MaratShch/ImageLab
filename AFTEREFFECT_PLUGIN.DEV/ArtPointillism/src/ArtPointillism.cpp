@@ -1,9 +1,11 @@
+#include <atomic>
 #include "ArtPointillism.hpp"
 #include "ArtPointillismControl.hpp"
 #include "PainterFactory.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 
+static std::atomic<bool>bPaintersEngine{ false };
 
 
 static PF_Err
@@ -38,7 +40,7 @@ GlobalSetup(
         return err;
 
     // Create Painters engine
-    if (false == CreatePaintersEngine())
+    if (false == (bPaintersEngine = CreatePaintersEngine()))
     {
         UnloadMemoryInterfaceProvider();
         return err;
@@ -77,16 +79,16 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+ //       (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
     }
 
     err = PF_Err_NONE;
@@ -103,44 +105,6 @@ GlobalSetdown(
 {
     DeletePaintersEngine();
     UnloadMemoryInterfaceProvider();
-    return PF_Err_NONE;
-}
-
-
-static PF_Err
-SequenceSetup
-(
-    PF_InData		*in_data,
-    PF_OutData		*out_data,
-    PF_ParamDef		*params[],
-    PF_LayerDef		*output)
-{
-    PF_Err	err = PF_Err_NONE;
-    return err;
-}
-
-
-static PF_Err
-SequenceReSetup
-(
-    PF_InData		*in_data,
-    PF_OutData		*out_data,
-    PF_ParamDef		*params[],
-    PF_LayerDef		*output)
-{
-    PF_Err err = PF_Err_NONE;
-    return err;
-}
-
-
-static PF_Err
-SequenceSetdown
-(
-    PF_InData		*in_data,
-    PF_OutData		*out_data,
-    PF_ParamDef		*params[],
-    PF_LayerDef		*output)
-{
     return PF_Err_NONE;
 }
 
@@ -265,18 +229,6 @@ EffectMain(
 
             case PF_Cmd_PARAMS_SETUP:
                 ERR(ParamsSetup(in_data, out_data));
-            break;
-
-            case PF_Cmd_SEQUENCE_SETUP:
-                ERR(SequenceSetup(in_data, out_data, params, output));
-            break;
-
-            case PF_Cmd_SEQUENCE_RESETUP:
-                ERR(SequenceReSetup(in_data, out_data, params, output));
-            break;
-
-            case PF_Cmd_SEQUENCE_SETDOWN:
-                ERR(SequenceSetdown(in_data, out_data, params, output));
             break;
 
 			case PF_Cmd_RENDER:

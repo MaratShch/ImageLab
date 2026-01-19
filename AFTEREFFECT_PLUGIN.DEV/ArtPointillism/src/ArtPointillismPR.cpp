@@ -7,6 +7,54 @@
 #include "PrSDKAESupport.h"
 
 
+void Output_AlphaDiagnostic
+(
+    const PF_Pixel_BGRA_8u* RESTRICT src,
+          PF_Pixel_BGRA_8u* RESTRICT dst,
+    int32_t width,
+    int32_t height,
+    int32_t srcPitch,
+    int32_t dstPitch
+)
+{
+    int32_t srcBytesPitch = srcPitch * sizeof(PF_Pixel_BGRA_8u);
+    int32_t dstBytesPitch = dstPitch * sizeof(PF_Pixel_BGRA_8u);
+
+    // Cast to byte pointers for pitch math
+    const uint8_t* pSrcRow = (const uint8_t*)src;
+    uint8_t*       pDstRow = (uint8_t*)dst;
+
+    for (int y = 0; y < height; ++y)
+    {
+        const PF_Pixel_BGRA_8u* s = (const PF_Pixel_BGRA_8u*)(pSrcRow + y * srcBytesPitch);
+        PF_Pixel_BGRA_8u*       d = (PF_Pixel_BGRA_8u*)(pDstRow + y * dstBytesPitch);
+
+        for (int x = 0; x < width; ++x)
+        {
+            uint8_t alpha = s[x].A;
+
+            // DIAGNOSTIC LOGIC:
+            if (alpha == 255)
+            {
+                // If Input Alpha is OPAQUE -> Output GREEN
+                d[x].R = 0; d[x].G = 255; d[x].B = 0; d[x].A = 255;
+            }
+            else if (alpha == 0)
+            {
+                // If Input Alpha is ZERO -> Output RED
+                d[x].R = 255; d[x].G = 0; d[x].B = 0; d[x].A = 255;
+            }
+            else
+            {
+                // If somewhere in between -> Output BLUE
+                d[x].R = 0; d[x].G = 0; d[x].B = 255; d[x].A = 255;
+            }
+        }
+    }
+    return;
+}
+
+
 PF_Err ProcessImgInPR
 (
 	PF_InData*   __restrict in_data,
