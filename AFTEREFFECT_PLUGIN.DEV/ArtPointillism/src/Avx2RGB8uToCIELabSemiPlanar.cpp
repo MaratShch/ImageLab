@@ -1,44 +1,8 @@
-#include "Common.hpp"
 #include "Avx2ColorConverts.hpp"
 #include "FastAriphmetics.hpp"
 
-constexpr float c_Xn_inv    = 1.0f / 0.95047f;
-constexpr float c_Zn_inv    = 1.0f / 1.08883f;
-constexpr float c_delta_sq3 = 0.0088564516f; 
-constexpr float c_lin_slope = 7.787037f;      
-constexpr float c_lin_const = 16.0f / 116.0f; 
+
 constexpr float c_inv255    = 1.0f / 255.0f;
-
-// --- Stable Vectorized CIELab math functions ---
-
-// Stable Cube Root for AVX2 (Householder's Method)
-// Sufficiently accurate for 8-bit imaging and extremely fast
-inline __m256 _mm256_safe_cbrt_ps(__m256 x) noexcept
-{
-    // We start with a safe linear seed for the range [0, 1]
-    // y = 0.75x + 0.25 is a decent starting point for x^(1/3)
-    __m256 y = _mm256_fmadd_ps(x, _mm256_set1_ps(0.75f), _mm256_set1_ps(0.25f));
-
-    // Householder's iteration (3rd order):
-    // y = y * (y^3 + 2x) / (2y^3 + x)
-    for(int i = 0; i < 2; ++i)
-    {
-        __m256 y3 = _mm256_mul_ps(y, _mm256_mul_ps(y, y));
-        __m256 num = _mm256_add_ps(y3, _mm256_add_ps(x, x));
-        __m256 den = _mm256_add_ps(_mm256_add_ps(y3, y3), x);
-        y = _mm256_mul_ps(y, _mm256_div_ps(num, den));
-    }
-    return y;
-}
-
-inline __m256 _mm256_lab_f_ps(__m256 t) noexcept
-{
-    // t is X/Xn, Y/Yn, or Z/Zn
-    __m256 mask = _mm256_cmp_ps(t, _mm256_set1_ps(c_delta_sq3), _CMP_GT_OQ);
-    __m256 cube_root = _mm256_safe_cbrt_ps(t);
-    __m256 linear = _mm256_fmadd_ps(t, _mm256_set1_ps(c_lin_slope), _mm256_set1_ps(c_lin_const));
-    return _mm256_blendv_ps(linear, cube_root, mask);
-}
 
 // --- BGRA_8u Implementation ---
 void AVX2_ConvertRgbToCIELab_SemiPlanar

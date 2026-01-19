@@ -263,6 +263,30 @@
     <ClCompile Include="src\Avx2RGB8uToCIELabSemiPlanar.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb10u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToYUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2RGB10uToCIELabSemiPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2RGB16uToCIELabSemiPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2RGB32fToCIELabSemiPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2YUVToCIELabSemiPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPointillism.r">

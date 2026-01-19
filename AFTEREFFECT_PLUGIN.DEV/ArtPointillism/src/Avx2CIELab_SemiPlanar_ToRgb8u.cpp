@@ -5,81 +5,6 @@
 #include "Common.hpp"
 #include "Avx2ColorConverts.hpp"
 
-// --- HELPER: Lab -> Linear RGB (AVX2) ---
-// Standard D65 conversion.
-// Inputs: Planar L, a, b registers.
-// Outputs: Planar R, G, B registers.
-inline void AVX2_Lab_to_RGB_Linear_Inline
-(
-    __m256 L, __m256 a, __m256 b,
-    __m256& R_out, __m256& G_out, __m256& B_out
-) noexcept
-{
-    // Constants
-    const __m256 c_16      = _mm256_set1_ps(16.0f);
-    const __m256 c_116_inv = _mm256_set1_ps(1.0f / 116.0f);
-    const __m256 c_500_inv = _mm256_set1_ps(1.0f / 500.0f);
-    const __m256 c_200_inv = _mm256_set1_ps(1.0f / 200.0f);
-    
-    // Lab thresholds
-    const __m256 c_epsilon   = _mm256_set1_ps(0.008856f); // (6/29)^3
-    const __m256 c_kappa_inv = _mm256_set1_ps(1.0f / 903.3f); 
-    const __m256 c_16_116    = _mm256_set1_ps(16.0f / 116.0f);
-    const __m256 c_7787_inv  = _mm256_set1_ps(1.0f / 7.787f);
-
-    // Reference White D65
-    const __m256 D65_Xn = _mm256_set1_ps(0.95047f);
-    const __m256 D65_Yn = _mm256_set1_ps(1.00000f);
-    const __m256 D65_Zn = _mm256_set1_ps(1.08883f);
-
-    // 1. Lab -> f(x,y,z)
-    // fy = (L + 16) / 116
-    __m256 fy = _mm256_mul_ps(_mm256_add_ps(L, c_16), c_116_inv);
-    // fx = fy + a / 500
-    __m256 fx = _mm256_add_ps(fy, _mm256_mul_ps(a, c_500_inv));
-    // fz = fy - b / 200
-    __m256 fz = _mm256_sub_ps(fy, _mm256_mul_ps(b, c_200_inv));
-
-    // Calculate cubes
-    __m256 fx3 = _mm256_mul_ps(fx, _mm256_mul_ps(fx, fx));
-    __m256 fz3 = _mm256_mul_ps(fz, _mm256_mul_ps(fz, fz));
-    
-    // 2. XYZ Calculation
-    // Y
-    __m256 l_mask = _mm256_cmp_ps(L, _mm256_set1_ps(8.0f), _CMP_GT_OQ);
-    __m256 fy3    = _mm256_mul_ps(fy, _mm256_mul_ps(fy, fy));
-    __m256 y_lin  = _mm256_mul_ps(L, c_kappa_inv);
-    __m256 Y      = _mm256_blendv_ps(y_lin, fy3, l_mask);
-
-    // X
-    __m256 x_mask = _mm256_cmp_ps(fx3, c_epsilon, _CMP_GT_OQ);
-    // Linear approx: (fx - 16/116) / 7.787
-    __m256 x_lin  = _mm256_mul_ps(_mm256_sub_ps(fx, c_16_116), c_7787_inv);
-    __m256 xr     = _mm256_blendv_ps(x_lin, fx3, x_mask);
-    __m256 X      = _mm256_mul_ps(xr, D65_Xn);
-
-    // Z
-    __m256 z_mask = _mm256_cmp_ps(fz3, c_epsilon, _CMP_GT_OQ);
-    __m256 z_lin  = _mm256_mul_ps(_mm256_sub_ps(fz, c_16_116), c_7787_inv);
-    __m256 zr     = _mm256_blendv_ps(z_lin, fz3, z_mask);
-    __m256 Z      = _mm256_mul_ps(zr, D65_Zn);
-
-    // 3. XYZ -> Linear RGB
-    // R =  3.2404542*X - 1.5371385*Y - 0.4985314*Z
-    R_out = _mm256_fmadd_ps(_mm256_set1_ps(3.2404542f), X,
-            _mm256_fmadd_ps(_mm256_set1_ps(-1.5371385f), Y,
-            _mm256_mul_ps(_mm256_set1_ps(-0.4985314f), Z)));
-
-    // G = -0.9692660*X + 1.8760108*Y + 0.0415560*Z
-    G_out = _mm256_fmadd_ps(_mm256_set1_ps(-0.9692660f), X,
-            _mm256_fmadd_ps(_mm256_set1_ps(1.8760108f), Y,
-            _mm256_mul_ps(_mm256_set1_ps(0.0415560f), Z)));
-
-    // B =  0.0556434*X - 0.2040259*Y + 1.0572252*Z
-    B_out = _mm256_fmadd_ps(_mm256_set1_ps(0.0556434f), X,
-            _mm256_fmadd_ps(_mm256_set1_ps(-0.2040259f), Y,
-            _mm256_mul_ps(_mm256_set1_ps(1.0572252f), Z)));
-}
 
 /**
  * AVX2 OUTPUT CONVERTER: Semi-Planar Lab -> BGRA_8u
@@ -104,8 +29,8 @@ void AVX2_ConvertCIELab_SemiPlanar_ToRgb
 ) noexcept
 {
     // Convert Pixel Pitch to Byte Stride for arithmetic
-    const intptr_t srcStrideBytes = static_cast<intptr_t>(srcPitch) * 4;
-    const intptr_t dstStrideBytes = static_cast<intptr_t>(dstPitch) * 4;
+    const intptr_t srcStrideBytes = static_cast<intptr_t>(srcPitch) * sizeof(PF_Pixel_BGRA_8u);
+    const intptr_t dstStrideBytes = static_cast<intptr_t>(dstPitch) * sizeof(PF_Pixel_BGRA_8u);
 
     // Constants for Quantization
     const __m256 v_scale = _mm256_set1_ps(255.0f);
@@ -216,9 +141,9 @@ void AVX2_ConvertCIELab_SemiPlanar_ToRgb
             float b_lin =  0.0556434f*X - 0.2040259f*Y + 1.0572252f*Z;
 
             // Clamp & Scale
-            uint8_t uR = (uint8_t)std::min(std::max(r_lin * 255.0f + 0.5f, 0.0f), 255.0f);
-            uint8_t uG = (uint8_t)std::min(std::max(g_lin * 255.0f + 0.5f, 0.0f), 255.0f);
-            uint8_t uB = (uint8_t)std::min(std::max(b_lin * 255.0f + 0.5f, 0.0f), 255.0f);
+            const uint8_t uR = (uint8_t)std::min(std::max(r_lin * 255.0f + 0.5f, 0.0f), 255.0f);
+            const uint8_t uG = (uint8_t)std::min(std::max(g_lin * 255.0f + 0.5f, 0.0f), 255.0f);
+            const uint8_t uB = (uint8_t)std::min(std::max(b_lin * 255.0f + 0.5f, 0.0f), 255.0f);
 
             // Pack
             rowDst[x].B = uB;
@@ -347,9 +272,9 @@ void AVX2_ConvertCIELab_SemiPlanar_ToRgb
             float b_lin =  0.0556434f*X - 0.2040259f*Y + 1.0572252f*Z;
 
             // Clamp
-            uint8_t uR = (uint8_t)std::min(std::max(r_lin * 255.0f + 0.5f, 0.0f), 255.0f);
-            uint8_t uG = (uint8_t)std::min(std::max(g_lin * 255.0f + 0.5f, 0.0f), 255.0f);
-            uint8_t uB = (uint8_t)std::min(std::max(b_lin * 255.0f + 0.5f, 0.0f), 255.0f);
+            const uint8_t uR = (uint8_t)std::min(std::max(r_lin * 255.0f + 0.5f, 0.0f), 255.0f);
+            const uint8_t uG = (uint8_t)std::min(std::max(g_lin * 255.0f + 0.5f, 0.0f), 255.0f);
+            const uint8_t uB = (uint8_t)std::min(std::max(b_lin * 255.0f + 0.5f, 0.0f), 255.0f);
 
             // Pack ARGB
             rowDst[x].A = rowSrc[x].A;

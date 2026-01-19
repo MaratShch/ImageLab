@@ -209,14 +209,22 @@
     <ClCompile Include="src\ArtPointillismSR.cpp" />
     <ClCompile Include="src\Avx2CIELabPlanarToInterleaved.cpp" />
     <ClCompile Include="src\Avx2CIELabToRGB8u.cpp" />
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb10u.cpp" />
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb16u.cpp" />
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb32f.cpp" />
     <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb8u.cpp" />
+    <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToYUV.cpp" />
     <ClCompile Include="src\Avx2DotRefinement.cpp" />
     <ClCompile Include="src\Avx2InitCanvas.cpp" />
     <ClCompile Include="src\Avx2IntegrateColor.cpp" />
     <ClCompile Include="src\Avx2LumaEdgeDetection.cpp" />
     <ClCompile Include="src\Avx2LumaInvert.cpp" />
     <ClCompile Include="src\Avx2MixAndNormalizeDencity.cpp" />
+    <ClCompile Include="src\Avx2RGB10uToCIELabSemiPlanar.cpp" />
+    <ClCompile Include="src\Avx2RGB16uToCIELabSemiPlanar.cpp" />
+    <ClCompile Include="src\Avx2RGB32fToCIELabSemiPlanar.cpp" />
     <ClCompile Include="src\Avx2RGB8uToCIELabSemiPlanar.cpp" />
+    <ClCompile Include="src\Avx2YUVToCIELabSemiPlanar.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>

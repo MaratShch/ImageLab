@@ -26,8 +26,10 @@ PF_Err ProcessImgInPR
     MemHandler algoMemHandler = alloc_memory_buffers (sizeX, sizeY);
     if (true == mem_handler_valid(algoMemHandler))
     {
-        float* pL  = algoMemHandler.L;
-        float* pAB = algoMemHandler.ab;
+        float* srcL  = algoMemHandler.L;
+        float* srcAB = algoMemHandler.ab;
+        float* dstL  = algoMemHandler.dst_L;
+        float* dstAB = algoMemHandler.dst_ab;
 
         // This plugin called frop PR - check video fomat
         auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
@@ -44,14 +46,14 @@ PF_Err ProcessImgInPR
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-                    // convert to drmi-planat CieLAB color space
-                    AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, algoMemHandler.L, algoMemHandler.ab, sizeX, sizeY, linePitch, sizeX);
+                    // convert to semi-planar CieLAB color space
+                    AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, linePitch, sizeX);
 
                     // execute algorithm
                     ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
 
                     // back convert to native buffer format after processing complete
-                    AVX2_ConvertCIELab_SemiPlanar_ToRgb(localSrc, algoMemHandler.dst_L, algoMemHandler.dst_ab, localDst, sizeX, sizeY, linePitch, linePitch);
+                    AVX2_ConvertCIELab_SemiPlanar_ToRgb (localSrc, dstL, dstAB, localDst, sizeX, sizeY, linePitch, linePitch);
                 }
                 break;
 
@@ -60,13 +62,15 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
-                    constexpr float fCoeff{ static_cast<float>(u16_value_white) };
 
-                    // convert to CieLAB color space
- //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+                    // convert to semi-planar CieLAB color space
+                    AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, linePitch, sizeX);
+
+                    // execute algorithm
+                    ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
 
                     // back convert to native buffer format after processing complete
-//                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+                    AVX2_ConvertCIELab_SemiPlanar_ToRgb (localSrc, dstL, dstAB, localDst, sizeX, sizeY, linePitch, linePitch);
                 }
                 break;
 
@@ -75,13 +79,15 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
-                    constexpr float fCoeff{ 1.f };
 
-                    // convert to CieLAB color space
- //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
- 
+                    // convert to semi-planar CieLAB color space
+                    AVX2_ConvertRgbToCIELab_SemiPlanar(localSrc, srcL, srcAB, sizeX, sizeY, linePitch, sizeX);
+
+                    // execute algorithm
+                    ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
+
                     // back convert to native buffer format after processing complete
- //                   ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+                    AVX2_ConvertCIELab_SemiPlanar_ToRgb(localSrc, dstL, dstAB, localDst, sizeX, sizeY, linePitch, linePitch);
                 }
                 break;
 
@@ -91,13 +97,16 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                    constexpr float fCoeff{ static_cast<float>(u8_value_white) };
+                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
 
-                    // convert to CieLAB color space
- //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
- 
+                    // convert to semi-planar CieLAB color space
+                    AVX2_ConvertVuyaToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, linePitch, sizeX, isBT709);
+
+                    // execute algorithm
+                    ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
+
                     // back convert to native buffer format after processing complete
-//                    ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+                    AVX2_ConvertCIELab_SemiPlanar_To_YUV (localSrc, dstL, dstAB, localDst, sizeX, sizeY, linePitch, linePitch, isBT709);
                 }
                 break;
 
@@ -107,13 +116,16 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
-                    constexpr float fCoeff{ static_cast<float>(1.f) };
+                    const bool isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
 
-                    // convert to CieLAB color space
- //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
-                    
+                    // convert to semi-planar CieLAB color space
+                    AVX2_ConvertVuyaToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, linePitch, sizeX, isBT709);
+
+                    // execute algorithm
+                    ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
+
                     // back convert to native buffer format after processing complete
- //                   ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, linePitch, sizeX, linePitch);
+                    AVX2_ConvertCIELab_SemiPlanar_To_YUV (localSrc, dstL, dstAB, localDst, sizeX, sizeY, linePitch, linePitch, isBT709);
                 }
                 break;
 
@@ -122,13 +134,15 @@ PF_Err ProcessImgInPR
                     const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
                           PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
-                    constexpr float fCoeff{ static_cast<float>(u10_value_white) };
 
-                    // convert to CieLAB color space
- //                   ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, linePitch, sizeX);
+                    // convert to drmi-planat CieLAB color space
+                    AVX2_ConvertRgbToCIELab_SemiPlanar(localSrc, srcL, srcAB, sizeX, sizeY, linePitch, sizeX);
+
+                    // execute algorithm
+                    ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
 
                     // back convert to native buffer format after processing complete
- //                   ConvertFromCIELab (pCieLabBuf, localDst, sizeX, sizeY, sizeX, linePitch);
+                    AVX2_ConvertCIELab_SemiPlanar_To_Rgb (dstL, dstAB, localDst, sizeX, sizeY, linePitch);
                 }
                 break;
 
