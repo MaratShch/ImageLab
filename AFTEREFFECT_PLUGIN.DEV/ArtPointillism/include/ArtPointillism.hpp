@@ -5,7 +5,7 @@
 #include "ArtPointillismControl.hpp"
 
 constexpr char strName[] = "Art Pointillism";
-constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rArt Pointillism plugin.";
+constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rArt Pointillism plugin.";
 constexpr int ArtPointillism_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ArtPointillism_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int ArtPointillism_VersionSub = 0;

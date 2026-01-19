@@ -18,37 +18,6 @@ struct JFAPixel
     float   seed_y;     // The Y coordinate of that closest dot
 };
 
-void JFA_Init_Buffer
-(
-   const Point2D* RESTRICT points_in,
-   int32_t num_points,
-   int32_t width,
-   int32_t height,
-   JFAPixel* RESTRICT grid_out
-) noexcept;
-
-void JFA_Step
-(
-    const JFAPixel* RESTRICT grid_src,
-    JFAPixel* RESTRICT grid_dst,
-    int32_t width,
-    int32_t height,
-    int32_t step_len
-);
-
-void Update_Points
-(
-    const JFAPixel* RESTRICT grid_in,
-    const float* RESTRICT density_map,
-    int32_t width,
-    int32_t height,
-    Point2D* RESTRICT points_in_out,
-    int32_t num_points,
-    float* RESTRICT accum_x,
-    float* RESTRICT accum_y,
-    float* RESTRICT accum_w
-);
-
 
 JFAPixel* Dot_Refinement
 (
