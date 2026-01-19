@@ -168,7 +168,7 @@ void AVX2_ConvertCIELab_SemiPlanar_ToRgb
 }
 
 
-void AVX2_ConvertCIELab_SemiPlanar_ToRgb_ARGB_32f
+void AVX2_ConvertCIELab_SemiPlanar_ToRgb
 (
     const PF_Pixel_ARGB_32f* RESTRICT pSrc, 
     const float*             RESTRICT pL,   

@@ -26,10 +26,10 @@ PF_Err ProcessImgInPR
     MemHandler algoMemHandler = alloc_memory_buffers (sizeX, sizeY);
     if (true == mem_handler_valid(algoMemHandler))
     {
-        float* srcL  = algoMemHandler.L;
-        float* srcAB = algoMemHandler.ab;
-        float* dstL  = algoMemHandler.dst_L;
-        float* dstAB = algoMemHandler.dst_ab;
+        float* __restrict srcL  = algoMemHandler.L;
+        float* __restrict srcAB = algoMemHandler.ab;
+        float* __restrict dstL  = algoMemHandler.dst_L;
+        float* __restrict dstAB = algoMemHandler.dst_ab;
 
         // This plugin called frop PR - check video fomat
         auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };

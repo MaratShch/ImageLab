@@ -29,18 +29,22 @@ PF_Err ArtPointilism_InAE_8bits
     MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
     if (true == mem_handler_valid(algoMemHandler))
     {
+        float* __restrict srcL  = algoMemHandler.L;
+        float* __restrict srcAB = algoMemHandler.ab;
+        float* __restrict dstL  = algoMemHandler.dst_L;
+        float* __restrict dstAB = algoMemHandler.dst_ab;
+
         const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        AVX2_ConvertRgbToCIELab_SemiPlanar(localSrc, algoMemHandler.L, algoMemHandler.ab, sizeX, sizeY, src_pitch, dst_pitch);
+        AVX2_ConvertRgbToCIELab_SemiPlanar(localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, dst_pitch);
 
         // execute algorithm
         ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
 
         // back convert to native buffer format after processing complete
-        AVX2_ConvertCIELab_SemiPlanar_ToRgb(localSrc, algoMemHandler.dst_L, algoMemHandler.dst_ab, localDst, sizeX, sizeY, src_pitch, dst_pitch);
+        AVX2_ConvertCIELab_SemiPlanar_ToRgb(localSrc, dstL, dstAB, localDst, sizeX, sizeY, src_pitch, dst_pitch);
 
         free_memory_buffers(algoMemHandler);
-
     } // if (true == mem_handler_valid (algoMemHandler))
     else
         err = PF_Err_OUT_OF_MEMORY;
@@ -61,37 +65,35 @@ PF_Err ArtPointilism_InAE_16bits
     const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
           PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
+    PF_Err err = PF_Err_NONE;
+
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
     
-    // Allocate memory storage for store temporary results
-    constexpr A_long doubleBuf = 2 * FastCompute::Max(static_cast<A_long>(sizeof(fRGB)), static_cast<A_long>(sizeof(fCIELabPix)));
-    const A_long singleTmpFrameSize = sizeX * sizeY;
-    const A_long totalProcMem = CreateAlignment(singleTmpFrameSize * doubleBuf, CACHE_LINE);
-
-    void* pMemoryBlock = nullptr;
-    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    if (nullptr != pMemoryBlock && blockId >= 0)
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
-        fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
-        fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
+        float* __restrict srcL  = algoMemHandler.L;
+        float* __restrict srcAB = algoMemHandler.ab;
+        float* __restrict dstL  = algoMemHandler.dst_L;
+        float* __restrict dstAB = algoMemHandler.dst_ab;
 
-        const PontillismControls algoControls = GetControlParametersStruct (params);
+        const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        // convert to CieLAB color space
-//        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+        AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, dst_pitch);
+
+        // execute algorithm
+        ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
 
         // back convert to native buffer format after processing complete
-//        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
+        AVX2_ConvertCIELab_SemiPlanar_ToRgb (localSrc, dstL, dstAB, localDst, sizeX, sizeY, src_pitch, dst_pitch);
 
-        pMemoryBlock = nullptr;
-        pTmpBuf1 = pTmpBuf2 = nullptr;
-        ::FreeMemoryBlock(blockId);
-        blockId = -1;
-    } // if (nullptr != pMemoryBlock && blockId >= 0)
+        free_memory_buffers(algoMemHandler);
+    } // if (true == mem_handler_valid (algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
 
     return PF_Err_NONE;
 }
@@ -114,32 +116,30 @@ PF_Err ArtPointilism_InAE_32bits
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
 
-    // Allocate memory storage for store temporary results
-    constexpr A_long doubleBuf = 2 * FastCompute::Max(static_cast<A_long>(sizeof(fRGB)), static_cast<A_long>(sizeof(fCIELabPix)));
-    const A_long singleTmpFrameSize = sizeX * sizeY;
-    const A_long totalProcMem = CreateAlignment(singleTmpFrameSize * doubleBuf, CACHE_LINE);
+    PF_Err err = PF_Err_NONE;
 
-    void* pMemoryBlock = nullptr;
-    A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
-    if (nullptr != pMemoryBlock && blockId >= 0)
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        fRGB* pTmpBuf1 = static_cast<fRGB*>(pMemoryBlock);
-        fRGB* pTmpBuf2 = pTmpBuf1 + singleTmpFrameSize;
-        fCIELabPix* pCieLabBuf = static_cast<fCIELabPix*>(pMemoryBlock); // Aliased pointer!!!
+        float* __restrict srcL  = algoMemHandler.L;
+        float* __restrict srcAB = algoMemHandler.ab;
+        float* __restrict dstL  = algoMemHandler.dst_L;
+        float* __restrict dstAB = algoMemHandler.dst_ab;
 
-        const PontillismControls algoControls = GetControlParametersStruct (params);
+        const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        // convert to CieLAB color space
-//        ConvertToCIELab (localSrc, pCieLabBuf, sizeX, sizeY, src_pitch, sizeX);
+        AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, dst_pitch);
+
+        // execute algorithm
+        ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
 
         // back convert to native buffer format after processing complete
-//        ConvertFromCIELab (localSrc, pCieLabBuf, localDst, sizeX, sizeY, src_pitch, sizeX, dst_pitch);
+        AVX2_ConvertCIELab_SemiPlanar_ToRgb (localSrc, dstL, dstAB, localDst, sizeX, sizeY, src_pitch, dst_pitch);
 
-        pMemoryBlock = nullptr;
-        pTmpBuf1 = pTmpBuf2 = nullptr;
-        ::FreeMemoryBlock(blockId);
-        blockId = -1;
-    } // if (nullptr != pMemoryBlock && blockId >= 0)
+        free_memory_buffers(algoMemHandler);
+    } // if (true == mem_handler_valid (algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
 
     return PF_Err_NONE;
 }
