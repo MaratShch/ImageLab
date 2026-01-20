@@ -21,9 +21,11 @@ void AVX2_ConvertCIELab_SemiPlanar_To_Rgb
     PF_Pixel_RGB_10u* RESTRICT pDst,      // destination buffer
     int32_t           sizeX,              // width
     int32_t           sizeY,              // height
-    int32_t           dstPitchBytes       // pitch of pDst in BYTES
+    int32_t           dstPitch            // pitch of pDst
 ) noexcept
 {
+    const int32_t dstPitchBytes = dstPitch * sizeof(PF_Pixel_RGB_10u);
+
     // Constants for 10-bit scaling
     const __m256 v_scale = _mm256_set1_ps(1023.0f);
     const __m256 v_half  = _mm256_set1_ps(0.5f);
