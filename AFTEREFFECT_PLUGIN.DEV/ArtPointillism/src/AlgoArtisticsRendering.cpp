@@ -222,7 +222,7 @@ void RenderKernel_Cluster
 {
     // 1. Color Logic
     fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
-    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    processed_color = Apply_Color_Mode_Boost(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
     
     // FIX: Call the AVX2 function, passing the Context (which holds planar pointers)
     DecomposedColor mix = Decompose(processed_color, ctx);
@@ -284,7 +284,7 @@ void RenderKernel_Mosaic
 )
 {
     fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
-    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    processed_color = Apply_Color_Mode_Boost(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
     
     // FIX: AVX2 Decompose
     DecomposedColor mix = Decompose(processed_color, ctx);
@@ -348,7 +348,7 @@ void RenderKernel_Flow
 )
 {
     fCIELabPix processed_color = const_cast<fCIELabPix&>(target_color);
-    processed_color = Apply_Color_Mode(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
+    processed_color = Apply_Color_Mode_Boost(processed_color, (int)ctx.color_mode, (float)params.Vibrancy);
     
     // FIX: AVX2 Decompose
     DecomposedColor mix = Decompose(processed_color, ctx);
