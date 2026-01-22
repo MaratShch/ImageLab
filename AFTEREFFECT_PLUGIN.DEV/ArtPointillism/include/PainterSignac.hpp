@@ -20,7 +20,9 @@ public:
 		);
     }
     
-	const char* GetShortName () const override { return "Signac"; }
+    virtual ~SignacPainter() = default;
+    
+    const char* GetShortName () const override { return "Signac"; }
     const char* GetName() const override { return "Paul Signac"; }
 };
 

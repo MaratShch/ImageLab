@@ -26,6 +26,8 @@ public:
 		);
     }
 
+    virtual ~LucePainter() = default;
+
     const char* GetShortName() const override { return "Luce"; }
     const char* GetName() const override { return "Maximilien Luce"; }
 };

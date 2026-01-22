@@ -20,7 +20,9 @@ public:
 		);
     }
     
-	const char* GetShortName () const override { return "Van Gogh"; }
+    virtual ~VanGoghPainter() = default;
+    
+    const char* GetShortName () const override { return "Van Gogh"; }
     const char* GetName() const override { return "Vincent van Gogh"; }
 };
 

@@ -19,6 +19,8 @@ public:
 			false
 		);
     }
+
+    virtual ~SeuratPainter() = default;
     
 	const char* GetShortName () const override { return "Seurat"; }
     const char* GetName() const override { return "Georges Seurat"; }

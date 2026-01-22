@@ -26,6 +26,8 @@ public:
 		);
     }
 
+    virtual ~PissarroPainter() = default;
+
 	const char* GetShortName () const override { return "Pissarro"; }
     const char* GetName() const override { return "Camille Pissarro"; }
 };

@@ -25,6 +25,8 @@ public:
 		);
     }
 
+    virtual ~RysselberghePainter() = default;
+
 	const char* GetShortName () const override { return "Rysselberghe"; }
     const char* GetName() const override { return "Theo van Rysselberghe"; }
 };

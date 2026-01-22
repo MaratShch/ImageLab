@@ -26,6 +26,8 @@ public:
 		);
     }
 
+    virtual ~CrossPainter() = default;
+
     const char* GetShortName() const override { return "Cross"; }
     const char* GetName() const override { return "Henri-Edmond Cross"; }
 };

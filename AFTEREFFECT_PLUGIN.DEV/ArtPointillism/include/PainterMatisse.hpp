@@ -25,6 +25,8 @@ public:
 		);
     }
 
+    virtual ~MatissePainter() = default;
+
 	const char* GetShortName () const override { return "Matisse"; }
     const char* GetName() const override { return "Henri Matisse"; }
 };

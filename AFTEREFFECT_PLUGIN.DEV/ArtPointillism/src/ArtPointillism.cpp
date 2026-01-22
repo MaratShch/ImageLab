@@ -126,9 +126,6 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    if (false == bPaintersEngine)
-        bPaintersEngine = CreatePaintersEngine();
-
 	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
