@@ -82,7 +82,7 @@ SetupControlElements
         BackgroundStr,
         UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART));
 
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled);
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_SLIDER(
         controlItemName[7],
         OpacityMin,
@@ -121,7 +121,7 @@ PontillismControls GetControlParametersStruct
     algoParams.EdgeSensitivity  = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY)]->u.sd.value;
     algoParams.Vibrancy         = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE)]->u.sd.value;
     algoParams.Shape            = static_cast<StrokeShape>(params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_STROKE_STROKE_SHAPE)]->u.pd.value - 1);
-    algoParams.Background       = static_cast<BackgroundArt>(params[UnderlyingType(BackgroundArt::ART_POINTILLISM_BACKGROUND_CANVAS)]->u.pd.value - 1);
+    algoParams.Background       = static_cast<BackgroundArt>(params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART)]->u.pd.value - 1);
     algoParams.Opacity          = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY)]->u.sd.value;
     algoParams.RandomSeed       = params[UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED)]->u.sd.value;
 
