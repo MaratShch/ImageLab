@@ -4,6 +4,7 @@
 
 constexpr float c_inv255    = 1.0f / 255.0f;
 
+
 // --- BGRA_8u Implementation ---
 void AVX2_ConvertRgbToCIELab_SemiPlanar
 (
@@ -88,6 +89,7 @@ void AVX2_ConvertRgbToCIELab_SemiPlanar
         }
     }
 }
+
 
 // --- ARGB_8u Implementation ---
 void AVX2_ConvertRgbToCIELab_SemiPlanar

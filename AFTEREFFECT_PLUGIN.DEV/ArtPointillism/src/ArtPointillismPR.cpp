@@ -5,6 +5,7 @@
 #include "ImageLabMemInterface.hpp"
 #include "Avx2ColorConverts.hpp"
 #include "PrSDKAESupport.h"
+#include "AlgoDbgTools.hpp"
 
 
 void Output_AlphaDiagnostic

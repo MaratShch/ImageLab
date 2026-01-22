@@ -438,11 +438,7 @@ void ArtisticRendering
     // 1. Initialize RNG
     LCG_RNG rng(user_params.RandomSeed);
 
-    // 2. Initialize Canvas
-    // Pass split buffers
-    Init_Canvas(canvas_lab, src_L, src_ab, width, height, user_params.Background);
-
-    // 3. Integrate Colors
+    // 2. Integrate Colors
     // Pass split buffers
     Integrate_Colors
     (
@@ -458,6 +454,10 @@ void ArtisticRendering
         scratch.acc_count, 
         scratch.avg_colors 
     );
+
+    // 3. Initialize Canvas
+    // Pass split buffers
+    Init_Canvas(canvas_lab, src_L, src_ab, width, height, user_params.Background);
 
     // 4. Retrieve Painter Strategy
     IPainter* painter = GetPainterRegistry(user_params.PainterStyle);

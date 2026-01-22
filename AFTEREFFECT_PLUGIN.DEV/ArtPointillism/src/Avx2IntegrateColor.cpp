@@ -7,6 +7,7 @@
 #include "ArtPointillismEnums.hpp"
 #include "AlgoArtisticsRendering.hpp"
 
+
 void Integrate_Colors
 (
     const JFAPixel* RESTRICT jfa_map,

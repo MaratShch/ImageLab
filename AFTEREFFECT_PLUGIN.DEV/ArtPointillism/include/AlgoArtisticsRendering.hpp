@@ -71,56 +71,15 @@ void Init_Canvas
     const BackgroundArt bg_mode
 );
 
-void Init_Canvas
-(
-    float* RESTRICT canvas_lab,      // Output: Interleaved (L,a,b, L,a,b...)
-    const float* RESTRICT src_L,     // Input: Planar L (W*H)
-    const float* RESTRICT src_ab,    // Input: Interleaved ab (W*H*2) [a,b, a,b...]
-    int width,
-    int height,
-    const BackgroundArt bg_mode
-);
-
-#if 0
-void Integrate_Colors
-(
-    const int32_t* RESTRICT jfa_map_indices, // From Phase 3 (Seed ID per pixel)
-    const float* RESTRICT source_lab,
-    int width, int height,
-    int num_dots,
-    // Scratch buffers (size = num_dots)
-    float* RESTRICT acc_L,
-    float* RESTRICT acc_a,
-    float* RESTRICT acc_b,
-    int32_t* RESTRICT acc_count,
-    // Output
-    fCIELabPix* RESTRICT out_dot_colors
-);
-
-void Integrate_Colors
-(
-    const JFAPixel* RESTRICT jfa_map, // Struct pointer
-    const float* RESTRICT src_L,      // Planar L
-    const float* RESTRICT src_ab,     // Interleaved ab
-    int width, int height,
-    int num_dots,
-    // Scratch buffers
-    float* RESTRICT acc_L,
-    float* RESTRICT acc_a,
-    float* RESTRICT acc_b,
-    int32_t* RESTRICT acc_count,
-    // Output
-    fCIELabPix* RESTRICT out_dot_colors
-);
-#endif
 
 void Integrate_Colors
 (
     const JFAPixel* RESTRICT jfa_map,
     const float* RESTRICT src_L,
     const float* RESTRICT src_ab,
-    int width, int height,
-    int num_dots,
+    int32_t width, 
+    int32_t height,
+    int32_t num_dots,
     float* RESTRICT acc_L,
     float* RESTRICT acc_a,
     float* RESTRICT acc_b,

@@ -5,14 +5,22 @@ static std::array<IPainter*, UnderlyingType(ArtPointillismPainter::ART_POINTILLI
 
 bool CreatePaintersEngine(void)
 {
-	painterInterface[0] = reinterpret_cast<IPainter*>(new SeuratPainter);
-	painterInterface[1] = reinterpret_cast<IPainter*>(new SignacPainter);
-	painterInterface[2] = reinterpret_cast<IPainter*>(new CrossPainter);
-	painterInterface[3] = reinterpret_cast<IPainter*>(new PissarroPainter);
-	painterInterface[4] = reinterpret_cast<IPainter*>(new VanGoghPainter);
-	painterInterface[5] = reinterpret_cast<IPainter*>(new MatissePainter);
-	painterInterface[6] = reinterpret_cast<IPainter*>(new RysselberghePainter);
-	painterInterface[7] = reinterpret_cast<IPainter*>(new LucePainter);
+    if (nullptr == painterInterface[0])
+	    painterInterface[0] = reinterpret_cast<IPainter*>(new SeuratPainter);
+    if (nullptr == painterInterface[1])
+        painterInterface[1] = reinterpret_cast<IPainter*>(new SignacPainter);
+    if (nullptr == painterInterface[2])
+        painterInterface[2] = reinterpret_cast<IPainter*>(new CrossPainter);
+    if (nullptr == painterInterface[3])
+        painterInterface[3] = reinterpret_cast<IPainter*>(new PissarroPainter);
+    if (nullptr == painterInterface[4])
+        painterInterface[4] = reinterpret_cast<IPainter*>(new VanGoghPainter);
+    if (nullptr == painterInterface[5])
+        painterInterface[5] = reinterpret_cast<IPainter*>(new MatissePainter);
+    if (nullptr == painterInterface[6])
+        painterInterface[6] = reinterpret_cast<IPainter*>(new RysselberghePainter);
+    if (nullptr == painterInterface[7])
+        painterInterface[7] = reinterpret_cast<IPainter*>(new LucePainter);
 	
 	return true;
 }
