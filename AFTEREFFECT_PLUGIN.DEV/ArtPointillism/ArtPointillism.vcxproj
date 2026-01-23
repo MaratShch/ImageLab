@@ -101,6 +101,11 @@
       <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries />
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -133,6 +138,9 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries />
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
