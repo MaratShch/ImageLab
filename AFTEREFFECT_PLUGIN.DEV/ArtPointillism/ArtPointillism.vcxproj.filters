@@ -192,6 +192,9 @@
     <ClInclude Include="include\Avx2ColorConverts.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtPointillism_GPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
@@ -287,6 +290,9 @@
     <ClCompile Include="src\Avx2YUVToCIELabSemiPlanar.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ArtPointillism_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPointillism.r">
@@ -297,5 +303,10 @@
     <ResourceCompile Include="ArtPointillism.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\ArtPointillism_Kernel.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>

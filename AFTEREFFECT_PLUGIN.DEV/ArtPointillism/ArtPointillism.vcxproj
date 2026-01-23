@@ -177,6 +177,7 @@
     <ClInclude Include="include\ArtPointillismAlgo.hpp" />
     <ClInclude Include="include\ArtPointillismControl.hpp" />
     <ClInclude Include="include\ArtPointillismEnums.hpp" />
+    <ClInclude Include="include\ArtPointillism_GPU.hpp" />
     <ClInclude Include="include\ArtPointillismPainters.hpp" />
     <ClInclude Include="include\AssembleFinalImage.hpp" />
     <ClInclude Include="include\Avx2ColorConverts.hpp" />
@@ -215,6 +216,7 @@
     <ClCompile Include="src\ArtPointillismGUI.cpp" />
     <ClCompile Include="src\ArtPointillismPR.cpp" />
     <ClCompile Include="src\ArtPointillismSR.cpp" />
+    <ClCompile Include="src\ArtPointillism_GPU.cpp" />
     <ClCompile Include="src\Avx2CIELabPlanarToInterleaved.cpp" />
     <ClCompile Include="src\Avx2CIELabToRGB8u.cpp" />
     <ClCompile Include="src\Avx2CIELab_SemiPlanar_ToRgb10u.cpp" />
@@ -258,6 +260,23 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtPointillism.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="src\ArtPointillism_Kernel.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math --expt-relaxed-constexpr -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MDd,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common --debug --device-debug -o "$(IntDir)%(FileName).obj" "$(ProjectDir)src\%(FileName).cu"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math --expt-relaxed-constexpr -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)%(Filename).obj" "$(ProjectDir)src\%(FileName).cu"</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building %(Filename).cu</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building %(Filename).cu</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).cu</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).cu</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
