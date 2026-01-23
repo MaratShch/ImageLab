@@ -81,7 +81,7 @@ public:
 
 		mGPUDeviceSuite->GetGPUPPixData(*outFrame, &destFrameData);
 		mPPixSuite->GetRowBytes(*outFrame, &destRowBytes);
-		const csSDK_int32 destPitch = destRowBytes / gpuBytesPerPixel;
+		const csSDK_int32 dstPitch = destRowBytes / gpuBytesPerPixel;
 
 		mGPUDeviceSuite->GetGPUPPixData(*inFrames, &srcFrameData);
 		mPPixSuite->GetRowBytes(*inFrames, &srcRowBytes);
@@ -106,7 +106,7 @@ public:
             algoGpuParams.RandomSeed        = algoParams[7].mInt32;
 
 			// Launch CUDA kernel
-			ArtPointillism_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, algoGpuParams);
+			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, is16f, width, height, algoGpuParams);
 
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
 			{

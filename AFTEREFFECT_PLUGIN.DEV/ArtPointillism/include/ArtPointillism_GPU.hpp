@@ -28,17 +28,16 @@ typedef struct Pixel16
 constexpr size_t Pixel16Size = sizeof(Pixel16);
 
 CUDA_KERNEL_CALL
-CUDA_KERNEL_CALL
 void ArtPointillism_CUDA
 (
-    float* inBuffer,
-    float* outBuffer,
-    int destPitch,
-    int srcPitch,
-    int is16f,
-    int width,
-    int height,
-    const PontillismControls& algoGpuParams
+    const float* RESTRICT inBuffer, // source (input) buffer
+    float* RESTRICT outBuffer,      // destination (output) buffer
+    int srcPitch,                   // source buffer pitch in pixels 
+    int dstPitch,                   // destination buffer pitch in pixels
+    int is16f,                      // is 16 or 32 float bit width
+    int width,                      // horizontal image size in pixels
+    int height,                     // vertical image size in lines
+    const PontillismControls& algoGpuParams // algorithm controls
 );
 
 
