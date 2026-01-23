@@ -1,7 +1,7 @@
 #include "ArtPointillism_GPU.hpp"
 #include "ArtPointillismControl.hpp"
 #include "ImageLab2GpuObj.hpp"
-
+#include "Common.hpp"
 
 #ifdef _DEBUG
 #pragma comment(lib, "..\\BUILD.OUT\\LIB\\Debug\\CommonGPULib.lib")
@@ -105,8 +105,13 @@ public:
             algoGpuParams.Opacity           = algoParams[6].mInt32;
             algoGpuParams.RandomSeed        = algoParams[7].mInt32;
 
+            // --- GET THE ADOBE STREAM ---
+            // The context pointer is the cudaStream_t
+            // Premiere has already set the active CUDA Context for this thread.
+            const cudaStream_t stream = 0;
+
 			// Launch CUDA kernel
-			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, is16f, width, height, algoGpuParams);
+			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, is16f, width, height, &algoGpuParams, stream);
 
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
 			{

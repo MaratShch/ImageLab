@@ -1,7 +1,7 @@
 #ifndef __IMAGE_LAB_ART_POINTILISM_CONTROLS_PARAMETERS_DEFINITIONS__
 #define __IMAGE_LAB_ART_POINTILISM_CONTROLS_PARAMETERS_DEFINITIONS__
 
-#include "Common.hpp"
+#include <cstdint>
 #include "ArtPointillismEnums.hpp"
 
 struct PontillismControls

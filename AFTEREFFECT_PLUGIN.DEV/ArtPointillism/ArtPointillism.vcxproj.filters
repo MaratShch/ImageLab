@@ -308,5 +308,8 @@
     <None Include="src\ArtPointillism_Kernel.cu">
       <Filter>src</Filter>
     </None>
+    <None Include="include\ArtPointillismKernel.cuh">
+      <Filter>include</Filter>
+    </None>
   </ItemGroup>
 </Project>

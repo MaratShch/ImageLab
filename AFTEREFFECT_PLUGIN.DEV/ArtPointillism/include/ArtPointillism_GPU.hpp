@@ -1,7 +1,8 @@
-#ifndef __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_DEFINITIONS_ALFO__
-#define __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_DEFINITIONS_ALFO__
+#ifndef __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_DEFINITIONS_ALGO__
+#define __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_DEFINITIONS_ALGO__
 
 #include <cuda_runtime.h>
+#include "ImageLabCUDA.hpp"
 #include "ArtPointillismControl.hpp"
 
 #ifdef __NVCC__
@@ -37,8 +38,9 @@ void ArtPointillism_CUDA
     int is16f,                      // is 16 or 32 float bit width
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
-    const PontillismControls& algoGpuParams // algorithm controls
+    const PontillismControls* algoGpuParams, // algorithm controls
+    cudaStream_t stream = 0
 );
 
 
-#endif // __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_DEFINITIONS_ALFO__
+#endif // __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_DEFINITIONS_ALGO__
