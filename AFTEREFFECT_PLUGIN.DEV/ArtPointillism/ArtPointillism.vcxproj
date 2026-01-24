@@ -103,7 +103,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
-      <IgnoreAllDefaultLibraries />
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -139,7 +139,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
-      <IgnoreAllDefaultLibraries />
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

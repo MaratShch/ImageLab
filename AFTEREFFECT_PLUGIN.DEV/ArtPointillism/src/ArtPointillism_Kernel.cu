@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
+
 // Static Context (Singleton style for simplicity)
 static GpuContext g_gpuCtx;
 
@@ -589,8 +590,10 @@ __global__ void k_Render_Final_Gather
     const float4*        RESTRICT palette,
     const float*         RESTRICT srcInputRaw, // For Blending
     float*               RESTRICT dstOutputRaw, // Adobe Output
-    int width, int height,
-    int srcPitchBytes, int dstPitchBytes,
+    int width,
+    int height,
+    int srcPitchBytes,
+    int dstPitchBytes,
     float dotSizeSlider, // 0..100
     int strokeShape,     // 0=Circle, 1=Square, 2=Ellipse
     int backgroundMode,
@@ -722,66 +725,135 @@ __global__ void k_Render_Final_Gather
 }
 
 
+__global__ void k_Debug_SolidRed
+(
+    float* RESTRICT dst,
+    int width,
+    int height,
+    int dstPitchBytes
+)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    // Calculate pointer to this pixel
+    float4* row = (float4*)((char*)dst + y * dstPitchBytes);
+
+    // Write Solid RED
+    // Adobe 32f is usually B, G, R, A
+    row[x] = make_float4(0.0f, 0.0f, 1.0f, 1.0f);
+    return;
+}
+
+
+__global__ void k_Debug_Grid
+(
+    float* __restrict__ dst,
+    int width, int height,
+    int dstPitchBytes
+)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    // Calculate pointer
+    float4* row = (float4*)((char*)dst + y * dstPitchBytes);
+
+    float r = 0.0f;
+    // Draw Grid every 50 pixels
+    if ((x % 50) == 0 || (y % 50) == 0)
+    {
+        r = 1.0f; // Red Lines
+    }
+
+    row[x] = make_float4(0.0f, 0.0f, r, 1.0f);
+}
+
+
+__global__ void k_Debug_Passthrough
+(
+    const float* __restrict__ src,
+    float*       __restrict__ dst,
+    int width, int height,
+    int srcPitchBytes, int dstPitchBytes
+)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= width || y >= height) return;
+
+    // Read Source using srcPitch
+    float4 px = *(const float4*)((const char*)src + y * srcPitchBytes + x * sizeof(float4));
+
+    // Write Dest using dstPitch
+    float4* out = (float4*)((char*)dst + y * dstPitchBytes + x * sizeof(float4));
+
+    *out = px;
+}
+
+
+
+
 CUDA_KERNEL_CALL
 void ArtPointillism_CUDA
 (
-    const float* RESTRICT inBuffer, // source (input) buffer
-    float* RESTRICT outBuffer,      // destination (output) buffer
-    int srcPitch,                   // source buffer pitch in pixels 
-    int dstPitch,                   // destination buffer pitch in pixels
-    int is16f,                      // is fp16 or fp32 format
-    int width,                      // horizontal image size in pixels
-    int height,                     // vertical image size in lines
-    const PontillismControls* algoGpuParams, // algorithm controls
+    const float* RESTRICT inBuffer,
+    float* RESTRICT outBuffer,
+    int srcPitch, // Input in PIXELS
+    int dstPitch, // Input in PIXELS
+    int is16f,
+    int width,
+    int height,
+    const PontillismControls* algoGpuParams,
     cudaStream_t stream
 )
 {
-    // 1. Manage VRAM
+    // 1. Calculate Bytes for Kernels
+    const int srcPitchBytes = srcPitch * sizeof(float4);
+    const int dstPitchBytes = dstPitch * sizeof(float4);
+
+    // Manage VRAM
     g_gpuCtx.CheckAndReallocate (width, height);
 
-    // 2. Clear Atomic Counters
-    // We need to reset the dot count to 0 for this frame
+    // Clear Counters
     cudaMemsetAsync (g_gpuCtx.d_counters, 0, sizeof(int), stream);
 
-    // --- 2. PALETTE UPLOAD ---
-    // Retrieve the CPU Painter Strategy to get the color data
-    IPainter* painter = GetPainterRegistry (algoGpuParams->PainterStyle);
-
-    // Extract the Planar Buffers (L, a, b arrays)
+    // --- PALETTE ---
+    IPainter* painter = GetPainterRegistry(algoGpuParams->PainterStyle);
     RenderContext cpu_ctx;
     painter->SetupContext(cpu_ctx);
 
-    // Upload to GPU (Only happens if style changed)
     g_gpuCtx.UpdatePaletteFromPlanar
     (
-        cpu_ctx.pal_L,
-        cpu_ctx.pal_a,
+        cpu_ctx.pal_L, 
+        cpu_ctx.pal_a, 
         cpu_ctx.pal_b,
         cpu_ctx.palette_size,
         static_cast<int>(algoGpuParams->PainterStyle),
         stream
     );
 
-    // Normalize slider
+    // --- PHASE 1: PREPROCESS ---
     const float edge_sens = static_cast<float>(algoGpuParams->EdgeSensitivity) / 100.0f;
-
     dim3 blockDim(16, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
-    // PHASE 1: Preprocess (RGB->Lab, Density)
     k_Preprocess_Fused <<< gridDim, blockDim, 0, stream >>>
     (
         inBuffer,
         g_gpuCtx.d_densityMap,
         width,
         height,
-        srcPitch,
+        srcPitchBytes,
         edge_sens
     );
 
+    // --- PHASE 2: SEEDING ---
     constexpr float base_prob = 0.025f;
-
-    // Map Slider (0..100)
     float multiplier = 1.0f;
     if (algoGpuParams->DotDencity < 50)
     {
@@ -791,19 +863,16 @@ void ArtPointillism_CUDA
     {
         multiplier = 1.0f + ((static_cast<float>(algoGpuParams->DotDencity) - 50.0f) / 50.0f) * 3.0f;
     }
-
     float final_prob_scale = base_prob * multiplier;
 
-    // Block dimensions tailored for occupancy on Pascal
-    dim3 blockP2(32, 16, 1); // 512 threads per block
+    dim3 blockP2(32, 16, 1);
     dim3 gridP2((width + blockP2.x - 1) / blockP2.x, (height + blockP2.y - 1) / blockP2.y, 1);
 
-    // PHASE 2: Seeding (Warp Aggregated)
     k_Seeding_WarpAggregated <<< gridP2, blockP2, 0, stream >>>
     (
         g_gpuCtx.d_densityMap,
         g_gpuCtx.d_dots,
-        g_gpuCtx.d_counters, // Counter at index 0 holds the total count
+        g_gpuCtx.d_counters,
         width,
         height,
         final_prob_scale,
@@ -811,49 +880,37 @@ void ArtPointillism_CUDA
         MAX_GPU_DOTS
     );
 
-    // --- PHASE 3: GEOMETRIC REFINEMENT (JFA) ---
-    // 1. Calculate max step
+    // --- PHASE 3: JFA ---
     int max_dim = (width > height) ? width : height;
     int step = 1;
     while (step < max_dim) step <<= 1;
     step >>= 1;
 
-    // 2. Grid for Full Screen Processing
-    dim3 block2D(32, 16, 1); // 512 threads
-    dim3 grid2D((width + block2D.x - 1) / block2D.x, (height + block2D.y - 1) / block2D.y, 1);
-
-    // 3. Grid for Dots (1D)
-    int max_dots = MAX_GPU_DOTS; // Or read back value if needed, but MAX is safe
+    int max_dots = MAX_GPU_DOTS;
     dim3 blockDot(256, 1, 1);
     dim3 gridDot((max_dots + 255) / 256, 1, 1);
 
-    // 4. Initialize Buffer A (Ping)
-    k_JFA_Clear <<< grid2D, block2D, 0, stream >>>
+    k_JFA_Clear <<< gridDim, blockDim, 0, stream >>>
     (
         g_gpuCtx.d_jfaPing, width * height
     );
 
-    // 5. Splat Seeds into Buffer A
     k_JFA_Splat <<< gridDot, blockDot, 0, stream >>>
     (
         g_gpuCtx.d_dots,
         g_gpuCtx.d_counters,
         g_gpuCtx.d_jfaPing,
-        width,
-        height
+        width, height
     );
 
-    // 6. The Loop
     JFACell* src = g_gpuCtx.d_jfaPing;
     JFACell* dst = g_gpuCtx.d_jfaPong;
 
     while (step >= 1)
     {
-        k_JFA_Step <<< grid2D, block2D, 0, stream >>>
+        k_JFA_Step <<< gridDim, blockDim, 0, stream >>>
         (
-            src, dst,
-            width, height,
-            step
+            src, dst, width, height, step
         );
 
         // Swap Pointers
@@ -861,40 +918,32 @@ void ArtPointillism_CUDA
         step >>= 1;
     }
 
-    // RESULT: 'src' now points to the final valid Voronoi Map.
+    // IMPORTANT: 'src' now points to the buffer containing the final valid map.
+    // It could be Ping or Pong depending on the loop count.
+    JFACell* final_voronoi_map = src;
 
-    // --- PHASE 4: ARTISTIC RENDERING ---
+    // --- PHASE 4: RENDERING ---
 
     // 1. Clear Color Accumulators
-    // We reuse the 'gridDot' dimension calculated earlier for Phase 3 Splat
-    // (max_dots / 256)
-    cudaMemsetAsync (g_gpuCtx.d_dotColors, 0, MAX_GPU_DOTS * sizeof(DotColorAccumulator), stream);
+    cudaMemsetAsync(g_gpuCtx.d_dotColors, 0, MAX_GPU_DOTS * sizeof(DotColorAccumulator), stream);
 
-    // 2. Kernel A: Integrate Colors (Pixel Scatter)
-    // Uses the 2D Grid (width/height)
-    k_Integrate_Colors_Atomic << <grid2D, block2D, 0, stream >> >(
-        g_gpuCtx.d_jfaPong,       // The Final Voronoi Map (result of Phase 3)
-        (const float4*)inBuffer,  // Original Source (Read RGB)
-        inBuffer,                 // Raw pointer for pitch math
-        srcPitch,                 // Bytes
-        g_gpuCtx.d_dotColors,     // Output Accumulator
-        width,
-        height
-        );
+    // 2. Integrate (Uses calculated Bytes Pitch and Correct Map)
+    k_Integrate_Colors_Atomic <<< gridDim, blockDim, 0, stream >>>
+    (
+        final_voronoi_map,
+        (const float4*)inBuffer,
+        inBuffer,
+        srcPitchBytes, 
+        g_gpuCtx.d_dotColors,
+        width, height
+    );
 
-    // 3. Kernel B: Decompose & Attributes (Dot Parallel)
-    // Uses the 1D Dot Grid
-
-    // Extract Shape/Mode for Kernel
-    // Map CPU Enum to Kernel Int
-    int shape_id = 0; // Circle
+    // 3. Decompose
+    int shape_id = 0;
     if (algoGpuParams->Shape == StrokeShape::ART_POINTILLISM_SHAPE_SQUARE) shape_id = 1;
     if (algoGpuParams->Shape == StrokeShape::ART_POINTILLISM_SHAPE_ELLIPSE) shape_id = 2;
-    // Or if PainterStyle overrides it... (Logic matches CPU)
-    // Let's assume 'Shape' in params is the final decided shape.
 
-    int mode_id = 0; // Scientific
-                     // Simple logic: Van Gogh / Matisse = Expressive (1)
+    int mode_id = 0;
     if (algoGpuParams->PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH ||
         algoGpuParams->PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE)
     {
@@ -906,42 +955,40 @@ void ArtPointillism_CUDA
         g_gpuCtx.d_dotColors,
         g_gpuCtx.d_dots,
         g_gpuCtx.d_densityMap,
-        g_gpuCtx.d_palette,    // The Palette we uploaded
-        g_gpuCtx.d_dotInfo,    // Destination for attributes
-        g_gpuCtx.d_counters,   // Dot Count
+        g_gpuCtx.d_palette,
+        g_gpuCtx.d_dotInfo,
+        g_gpuCtx.d_counters,
         width,
         height,
-        32,                    // Palette Size (Fixed max)
+        32,
         static_cast<float>(algoGpuParams->Vibrancy),
         mode_id,
         shape_id
     );
 
-    // 4. Kernel C: Final Gather (Pixel Parallel)
-    // Uses the 2D Grid
-
-    // Normalize Slider (0-100)
+    // 4. Final Gather (Uses calculated Bytes Pitch)
     const float dot_size_val = static_cast<float>(algoGpuParams->DotSize);
-    const float opacity_val  = static_cast<float>(algoGpuParams->Opacity);
+    const float opacity_val = static_cast<float>(algoGpuParams->Opacity);
 
-    k_Render_Final_Gather <<< grid2D, block2D, 0, stream >>>
+    k_Render_Final_Gather <<< gridDim, blockDim, 0, stream >>>
     (
-        g_gpuCtx.d_jfaPong,    // JFA Map
-        g_gpuCtx.d_dots,       // Dot Positions
-        g_gpuCtx.d_dotInfo,    // Dot Colors/Angles
-        g_gpuCtx.d_palette,    // Palette
-        inBuffer,              // Source (for blending)
-        outBuffer,             // Destination
-        width,
-        height,
-        srcPitch, dstPitch,
+        final_voronoi_map, // CORRECT: Use the result of JFA
+        g_gpuCtx.d_dots,
+        g_gpuCtx.d_dotInfo,
+        g_gpuCtx.d_palette,
+        inBuffer,
+        outBuffer,
+        width, height,
+        srcPitchBytes,
+        dstPitchBytes,
         dot_size_val,
         shape_id,
         static_cast<int>(algoGpuParams->Background),
         opacity_val
-    );
+     );
 
+    // Optional sync for debugging, remove for release
     cudaDeviceSynchronize();
-    
+
     return;
 }

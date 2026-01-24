@@ -76,8 +76,8 @@ public:
 
 		prRect bounds{};
 		mPPixSuite->GetBounds (*outFrame, &bounds);
-		const LONG width  = bounds.right  - bounds.left;
-		const LONG height = bounds.bottom - bounds.top;
+		const int width  = bounds.right  - bounds.left;
+		const int height = bounds.bottom - bounds.top;
 
 		mGPUDeviceSuite->GetGPUPPixData(*outFrame, &destFrameData);
 		mPPixSuite->GetRowBytes(*outFrame, &destRowBytes);
