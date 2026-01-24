@@ -2,6 +2,7 @@
 #include "CompileTimeUtils.hpp"
 #include "ImageLabCUDA.hpp"
 #include "ArtPointillismKernel.cuh"
+#include "PainterFactory.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -85,6 +86,49 @@ __device__ inline int unpack_id (int4 c) noexcept
 __device__ inline float2 unpack_pos(int4 c) noexcept
 {
     return make_float2(__int_as_float(c.y), __int_as_float(c.z));
+}
+
+
+__device__ float3 lab_to_rgb_linear (float3 lab) noexcept
+{
+    float L = lab.x;
+    float a = lab.y;
+    float b = lab.z;
+
+    // --- 1. Lab -> XYZ ---
+    // Constants
+    const float D65_Xn = 0.95047f;
+    const float D65_Yn = 1.00000f;
+    const float D65_Zn = 1.08883f;
+    const float delta = 6.0f / 29.0f;
+    const float epsilon = 0.008856f; // delta^3
+
+    float fy = (L + 16.0f) / 116.0f;
+    float fx = fy + (a / 500.0f);
+    float fz = fy - (b / 200.0f);
+
+    float fx3 = fx * fx * fx;
+    float fz3 = fz * fz * fz;
+
+    float X = (fx3 > epsilon) ? fx3 : ((fx - 16.0f / 116.0f) / 7.787f);
+    float Y = (L > 8.0f) ? (fy * fy * fy) : (L / 903.3f);
+    float Z = (fz3 > epsilon) ? fz3 : ((fz - 16.0f / 116.0f) / 7.787f);
+
+    X *= D65_Xn;
+    Y *= D65_Yn;
+    Z *= D65_Zn;
+
+    // --- 2. XYZ -> Linear RGB (sRGB Matrix) ---
+    float R = 3.2404542f * X - 1.5371385f * Y - 0.4985314f * Z;
+    float G = -0.9692660f * X + 1.8760108f * Y + 0.0415560f * Z;
+    float B = 0.0556434f * X - 0.2040259f * Y + 1.0572252f * Z;
+
+    // Saturate (Clamp to 0..1 to prevent weird highlights)
+    R = fminf(fmaxf(R, 0.0f), 1.0f);
+    G = fminf(fmaxf(G, 0.0f), 1.0f);
+    B = fminf(fmaxf(B, 0.0f), 1.0f);
+
+    return make_float3(R, G, B);
 }
 
 
@@ -386,6 +430,297 @@ __global__ void k_JFA_Step
 }
 
 
+__global__ void k_Integrate_Colors_Atomic
+(
+    const JFACell* __restrict__ jfaMap, // From Phase 3
+    const float4*  __restrict__ srcLab, // Input Image (Pre-converted to Lab in Phase 1? Or read RGB and convert?)
+                                        // Better: Read Original Input (float4 BGRA) and convert to Lab on fly to save VRAM.
+                                        // Let's assume we read the original Input Buffer passed to Render.
+    const float*   __restrict__ srcInputRaw, // Adobe Input Buffer
+    int            srcPitchBytes,
+    DotColorAccumulator* __restrict__ dotAccum, // Output: Sums
+    int width, int height
+)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    int idx = y * width + x;
+
+    // 1. Read JFA to find owner
+    int dot_id = unpack_id(jfaMap[idx]);
+
+    // Safety check
+    if (dot_id != -1) {
+        // 2. Read Source Pixel
+        const float4* row_ptr = (const float4*)((const char*)srcInputRaw + y * srcPitchBytes);
+        float4 px = row_ptr[x];
+
+        // Convert RGB -> Lab (Inline helper we defined in Phase 1)
+        float3 lab = rgb_to_lab(make_float3(px.z, px.y, px.x)); // BGRA -> RGB
+
+                                                                // 3. Atomic Accumulation
+                                                                // Note: CUDA doesn't have atomicAdd for float4 or float3 structs.
+                                                                // We must do component-wise atomics.
+        atomicAdd(&dotAccum[dot_id].x, lab.x);
+        atomicAdd(&dotAccum[dot_id].y, lab.y);
+        atomicAdd(&dotAccum[dot_id].z, lab.z);
+        atomicAdd(&dotAccum[dot_id].w, 1.0f); // Count
+    }
+    return;
+}
+
+
+__global__ void k_Decompose_Attributes
+(
+    const DotColorAccumulator* RESTRICT dotAccum,
+    const GPUDot*              RESTRICT dotPos,
+    const DensityInfo*         RESTRICT densityMap, // For Gradient/Orientation
+    const float4*              RESTRICT palette,    // Loaded in GpuContext
+    DotRenderInfo*             RESTRICT dotInfo,
+    int*                       RESTRICT counterPtr, // d_counters[0]
+    int width, int height,
+    int paletteSize,
+    float vibrancy,
+    int colorMode,  // 0=Scientific, 1=Expressive
+    int strokeShape // 2=Ellipse (Van Gogh)
+) {
+    const int id = blockIdx.x * blockDim.x + threadIdx.x;
+    const int count = counterPtr[0];
+
+    if (id >= count) return;
+
+    // 1. Get Average Color
+    float4 acc = dotAccum[id];
+    if (acc.w < 1.0f)
+    {
+        // Dead dot (no pixels). Set to dummy.
+        dotInfo[id] = { 0, 0, 0.0f, 0.0f };
+        return;
+    }
+
+    float inv_n = 1.0f / acc.w;
+    float3 target = make_float3(acc.x * inv_n, acc.y * inv_n, acc.z * inv_n);
+
+    // 2. Apply Color Mode (Vibrancy)
+    // (Ported from your C++ logic)
+    float chroma = sqrtf(target.y * target.y + target.z * target.z);
+    float boost = 1.0f + (vibrancy / 100.0f);
+
+    if (colorMode == 1)
+    { // Expressive
+        boost *= 1.5f;
+        // Gray Killer Logic
+        if (chroma < 10.0f && chroma > 0.5f)
+        {
+            float fake = 20.0f + (vibrancy * 0.2f);
+            float scale = fake / chroma;
+            target.y *= scale; target.z *= scale;
+        }
+    }
+    target.y *= boost; target.z *= boost;
+
+    // 3. Palette Matching (Brute Force 24-32 is instant on GPU)
+    int p1 = 0; float d1 = 1.0e20f;
+    int p2 = 0; float d2 = 1.0e20f;
+
+    for (int i = 0; i < paletteSize; ++i)
+    {
+        float4 pal = palette[i]; // .w is padding
+        float dL = target.x - pal.x;
+        float da = target.y - pal.y;
+        float db = target.z - pal.z;
+        float dist = dL*dL + da*da + db*db;
+
+        if (dist < d1)
+        {
+            d2 = d1; p2 = p1;
+            d1 = dist; p1 = i;
+        }
+        else if (dist < d2)
+        {
+            d2 = dist; p2 = i;
+        }
+    }
+
+    float rd1 = sqrtf(d1);
+    float rd2 = sqrtf(d2);
+    float ratio = (rd1 + rd2 < 0.001f) ? 1.0f : (rd2 / (rd1 + rd2));
+
+    // 4. Orientation (Van Gogh Flow)
+    float angle = 0.0f;
+    if (strokeShape == 2)
+    { // Oriented Ellipse
+        GPUDot d = dotPos[id];
+        int px = min(max((int)d.pos_x, 1), width - 2);
+        int py = min(max((int)d.pos_y, 1), height - 2);
+
+        // Read Gradient from Density Map
+        // (Assuming you stored Angle in .y of DensityInfo in Phase 1?
+        // If so, we just read it directly! No need to recalc Sobel.)
+        int mapIdx = py * width + px;
+        angle = densityMap[mapIdx].y; // Phase 1 stored this!
+    }
+    else if (strokeShape == 1)
+    {   // Mosaic
+        // Random jitter for squares (using hash)
+        angle = (random_float(id, 0, 1234) - 0.5f) * 0.5f; // +/- ~15 deg
+    }
+
+    // 5. Store
+    DotRenderInfo info;
+    info.colorIndex1 = p1;
+    info.colorIndex2 = p2;
+    info.ratio = ratio;
+    info.orientation = angle;
+    dotInfo[id] = info;
+
+    return;
+}
+
+
+__global__ void k_Render_Final_Gather
+(
+    const JFACell*       RESTRICT jfaMap,
+    const GPUDot*        RESTRICT dots,
+    const DotRenderInfo* RESTRICT dotInfo,
+    const float4*        RESTRICT palette,
+    const float*         RESTRICT srcInputRaw, // For Blending
+    float*               RESTRICT dstOutputRaw, // Adobe Output
+    int width, int height,
+    int srcPitchBytes, int dstPitchBytes,
+    float dotSizeSlider, // 0..100
+    int strokeShape,     // 0=Circle, 1=Square, 2=Ellipse
+    int backgroundMode,
+    float opacity        // 0..100
+)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= width || y >= height) return;
+
+    const int idx = y * width + x;
+
+    // 1. Get Owner
+    int dot_id = unpack_id(jfaMap[idx]);
+
+    float3 final_lab;
+    float alpha_out = 1.0f; // Default opaque
+
+    bool painted = false;
+
+    if (dot_id != -1)
+    {
+        // 2. Get Dot Geometry
+        GPUDot d = dots[dot_id];
+        DotRenderInfo info = dotInfo[dot_id];
+
+        float dx = (float)x - d.pos_x;
+        float dy = (float)y - d.pos_y;
+
+        // 3. Determine Radius/Size
+        // (Simplified logic: Base size 3.0 + slider)
+        // Ideally, pass pre-calculated "Base Radius" derived from dot count
+        float base_r = 3.0f + (dotSizeSlider / 20.0f); // Tuning needed here to match CPU
+
+        bool inside = false;
+
+        // 4. Shape Check
+        if (strokeShape == 0)
+        { // Circle
+            if ((dx*dx + dy*dy) <= (base_r * base_r)) inside = true;
+        }
+        else
+        {
+            // Rotate
+            float cos_a = cosf(info.orientation);
+            float sin_a = sinf(info.orientation);
+            float u = dx * cos_a + dy * sin_a;
+            float v = -dx * sin_a + dy * cos_a;
+
+            if (strokeShape == 1)
+            { // Square
+                inside = (fabsf(u) < base_r && fabsf(v) < base_r);
+            }
+            else if (strokeShape == 2)
+            { // Ellipse
+                float a_axis = base_r * 1.5f; // Long
+                float b_axis = base_r * 0.4f; // Short
+                if (((u*u) / (a_axis*a_axis) + (v*v) / (b_axis*b_axis)) <= 1.0f) inside = true;
+            }
+        }
+
+        // 5. Coloring
+        if (inside)
+        {
+            // Stochastic Mix (Deterministic per pixel based on ID/Pos)
+            float roll = random_float(x, y, dot_id);
+            int c_idx = (roll < info.ratio) ? info.colorIndex1 : info.colorIndex2;
+
+            float4 pal_col = palette[c_idx];
+            final_lab = make_float3(pal_col.x, pal_col.y, pal_col.z);
+            painted = true;
+        }
+    }
+
+    // 6. Background Handling
+    if (!painted)
+    {
+        if (backgroundMode == 1)
+        { // White
+            final_lab = make_float3(100.0f, 0.0f, 0.0f);
+        }
+        else if (backgroundMode == 2)
+        { // Source (Use input Lab)
+                                        // We need to read input again
+            const float4* row_in = (const float4*)((const char*)srcInputRaw + y * srcPitchBytes);
+            float4 px = row_in[x];
+            final_lab = rgb_to_lab(make_float3(px.z, px.y, px.x));
+        }
+        else if (backgroundMode == 3)
+        { // Transparent
+            final_lab = make_float3(0, 0, 0);
+            alpha_out = 0.0f;
+        }
+        else
+        { // Canvas (Cream)
+            final_lab = make_float3(96.0f, 2.0f, 8.0f);
+        }
+    }
+
+    // 7. Lab -> RGB Conversion
+    // (Standard D65 conversion logic here - reusing your known math)
+    float3 rgb_linear = lab_to_rgb_linear(final_lab); // Implement this device helper
+
+                                                      // 8. Output to Adobe Buffer
+                                                      // Adobe 32f is usually B, G, R, A (Linear or Gamma? Pr assumes Linear usually for 32f)
+                                                      // We assume Linear output.
+
+                                                      // Blending with Original (Opacity Slider)
+    if (opacity > 0.0f)
+    {
+        const float4* row_in = (const float4*)((const char*)srcInputRaw + y * srcPitchBytes);
+        float4 src_px = row_in[x];
+        float3 src_rgb = make_float3(src_px.z, src_px.y, src_px.x); // BGR->RGB
+
+        float factor = opacity / 100.0f;
+        rgb_linear.x = rgb_linear.x * (1.0f - factor) + src_rgb.x * factor;
+        rgb_linear.y = rgb_linear.y * (1.0f - factor) + src_rgb.y * factor;
+        rgb_linear.z = rgb_linear.z * (1.0f - factor) + src_rgb.z * factor;
+    }
+
+    float4 out_px;
+    out_px.x = rgb_linear.z; // B
+    out_px.y = rgb_linear.y; // G
+    out_px.z = rgb_linear.x; // R
+    out_px.w = alpha_out;    // A
+
+    float4* row_out = (float4*)((char*)dstOutputRaw + y * dstPitchBytes);
+    row_out[x] = out_px;
+}
+
 
 CUDA_KERNEL_CALL
 void ArtPointillism_CUDA
@@ -408,17 +743,38 @@ void ArtPointillism_CUDA
     // We need to reset the dot count to 0 for this frame
     cudaMemsetAsync (g_gpuCtx.d_counters, 0, sizeof(int), stream);
 
+    // --- 2. PALETTE UPLOAD ---
+    // Retrieve the CPU Painter Strategy to get the color data
+    IPainter* painter = GetPainterRegistry (algoGpuParams->PainterStyle);
+
+    // Extract the Planar Buffers (L, a, b arrays)
+    RenderContext cpu_ctx;
+    painter->SetupContext(cpu_ctx);
+
+    // Upload to GPU (Only happens if style changed)
+    g_gpuCtx.UpdatePaletteFromPlanar
+    (
+        cpu_ctx.pal_L,
+        cpu_ctx.pal_a,
+        cpu_ctx.pal_b,
+        cpu_ctx.palette_size,
+        static_cast<int>(algoGpuParams->PainterStyle),
+        stream
+    );
+
     // Normalize slider
     const float edge_sens = static_cast<float>(algoGpuParams->EdgeSensitivity) / 100.0f;
 
     dim3 blockDim(16, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
 
+    // PHASE 1: Preprocess (RGB->Lab, Density)
     k_Preprocess_Fused <<< gridDim, blockDim, 0, stream >>>
     (
         inBuffer,
         g_gpuCtx.d_densityMap,
-        width, height,
+        width,
+        height,
         srcPitch,
         edge_sens
     );
@@ -442,6 +798,7 @@ void ArtPointillism_CUDA
     dim3 blockP2(32, 16, 1); // 512 threads per block
     dim3 gridP2((width + blockP2.x - 1) / blockP2.x, (height + blockP2.y - 1) / blockP2.y, 1);
 
+    // PHASE 2: Seeding (Warp Aggregated)
     k_Seeding_WarpAggregated <<< gridP2, blockP2, 0, stream >>>
     (
         g_gpuCtx.d_densityMap,
@@ -492,7 +849,7 @@ void ArtPointillism_CUDA
 
     while (step >= 1)
     {
-        k_JFA_Step <<<grid2D, block2D, 0, stream >>>
+        k_JFA_Step <<< grid2D, block2D, 0, stream >>>
         (
             src, dst,
             width, height,
@@ -506,6 +863,85 @@ void ArtPointillism_CUDA
 
     // RESULT: 'src' now points to the final valid Voronoi Map.
 
+    // --- PHASE 4: ARTISTIC RENDERING ---
 
+    // 1. Clear Color Accumulators
+    // We reuse the 'gridDot' dimension calculated earlier for Phase 3 Splat
+    // (max_dots / 256)
+    cudaMemsetAsync (g_gpuCtx.d_dotColors, 0, MAX_GPU_DOTS * sizeof(DotColorAccumulator), stream);
+
+    // 2. Kernel A: Integrate Colors (Pixel Scatter)
+    // Uses the 2D Grid (width/height)
+    k_Integrate_Colors_Atomic << <grid2D, block2D, 0, stream >> >(
+        g_gpuCtx.d_jfaPong,       // The Final Voronoi Map (result of Phase 3)
+        (const float4*)inBuffer,  // Original Source (Read RGB)
+        inBuffer,                 // Raw pointer for pitch math
+        srcPitch,                 // Bytes
+        g_gpuCtx.d_dotColors,     // Output Accumulator
+        width,
+        height
+        );
+
+    // 3. Kernel B: Decompose & Attributes (Dot Parallel)
+    // Uses the 1D Dot Grid
+
+    // Extract Shape/Mode for Kernel
+    // Map CPU Enum to Kernel Int
+    int shape_id = 0; // Circle
+    if (algoGpuParams->Shape == StrokeShape::ART_POINTILLISM_SHAPE_SQUARE) shape_id = 1;
+    if (algoGpuParams->Shape == StrokeShape::ART_POINTILLISM_SHAPE_ELLIPSE) shape_id = 2;
+    // Or if PainterStyle overrides it... (Logic matches CPU)
+    // Let's assume 'Shape' in params is the final decided shape.
+
+    int mode_id = 0; // Scientific
+                     // Simple logic: Van Gogh / Matisse = Expressive (1)
+    if (algoGpuParams->PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH ||
+        algoGpuParams->PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE)
+    {
+        mode_id = 1;
+    }
+
+    k_Decompose_Attributes <<< gridDot, blockDot, 0, stream >>>
+    (
+        g_gpuCtx.d_dotColors,
+        g_gpuCtx.d_dots,
+        g_gpuCtx.d_densityMap,
+        g_gpuCtx.d_palette,    // The Palette we uploaded
+        g_gpuCtx.d_dotInfo,    // Destination for attributes
+        g_gpuCtx.d_counters,   // Dot Count
+        width,
+        height,
+        32,                    // Palette Size (Fixed max)
+        static_cast<float>(algoGpuParams->Vibrancy),
+        mode_id,
+        shape_id
+    );
+
+    // 4. Kernel C: Final Gather (Pixel Parallel)
+    // Uses the 2D Grid
+
+    // Normalize Slider (0-100)
+    const float dot_size_val = static_cast<float>(algoGpuParams->DotSize);
+    const float opacity_val  = static_cast<float>(algoGpuParams->Opacity);
+
+    k_Render_Final_Gather <<< grid2D, block2D, 0, stream >>>
+    (
+        g_gpuCtx.d_jfaPong,    // JFA Map
+        g_gpuCtx.d_dots,       // Dot Positions
+        g_gpuCtx.d_dotInfo,    // Dot Colors/Angles
+        g_gpuCtx.d_palette,    // Palette
+        inBuffer,              // Source (for blending)
+        outBuffer,             // Destination
+        width,
+        height,
+        srcPitch, dstPitch,
+        dot_size_val,
+        shape_id,
+        static_cast<int>(algoGpuParams->Background),
+        opacity_val
+    );
+
+    cudaDeviceSynchronize();
+    
     return;
 }

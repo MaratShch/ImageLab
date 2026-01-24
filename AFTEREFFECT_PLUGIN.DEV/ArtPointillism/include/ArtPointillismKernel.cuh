@@ -2,6 +2,8 @@
 #define __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_KERNELS_DEFINITIONS__
 
 #include <cuda_runtime.h>
+#include <vector>
+#include <algorithm>
 
 // --- ADOBE INTEROP TYPE ---
 // 16-byte aligned float4. Corresponds to BGRA_32f.
@@ -51,81 +53,124 @@ typedef int GlobalCounters;
 #define MAX_GPU_DOTS 1000000
 
 
+// Constant for Palette Padding
+// We pad unused palette slots with "Infinity" so the math ignores them.
+static const float GPU_PALETTE_INF = 10000.0f;
+
+// Stores the artistic properties of a dot after Decomposition
+struct __align__(16) DotRenderInfo
+{
+    // Colors are indices into the Palette (0..31)
+    int   colorIndex1;
+    int   colorIndex2;
+    float ratio;        // Mix ratio 0..1
+    float orientation;  // Angle in radians (for Van Gogh)
+                        // We can pack these tighter if needed, but 16-byte alignment is good for memory fetch
+};
+
 class GpuContext final
 {
 public:
-    // --- VRAM Buffers ---
-    DensityInfo* d_densityMap = nullptr;
-    JFACell*     d_jfaPing = nullptr;
-    JFACell*     d_jfaPong = nullptr;
-    GPUDot*      d_dots = nullptr;
-    float4*      d_dotColors = nullptr; // Accumulator
-    int*         d_counters = nullptr; // [0]: DotCount
-                                       // --- State ---
-    size_t current_alloc_pixels = 0;
+    // --- VRAM BUFFERS ---
+    DensityInfo*         d_densityMap = nullptr;
+    JFACell*             d_jfaPing = nullptr;
+    JFACell*             d_jfaPong = nullptr;
 
-    ~GpuContext()
-    { 
-        Cleanup();
-        return;
-    }
+    // Dot Data
+    GPUDot*              d_dots = nullptr; // Position
+    DotColorAccumulator* d_dotColors = nullptr; // Sum of colors (Phase 4A)
+    DotRenderInfo*       d_dotInfo = nullptr; // <--- MISSING MEMBER ADDED HERE
+
+    int*                 d_counters = nullptr; // Atomic counters
+    float4*              d_palette = nullptr; // Palette
+
+                                              // --- STATE TRACKING ---
+    size_t m_currentAllocPixels = 0;
+    int    m_currentPainterId = -1;
+
+public:
+    GpuContext() = default;
+    ~GpuContext() { Cleanup(); }
 
     void Cleanup (void)
     {
-        if (d_densityMap)
-            cudaFree(d_densityMap);
-        if (d_jfaPing)
-            cudaFree(d_jfaPing);
-        if (d_jfaPong)
-            cudaFree(d_jfaPong);
-        if (d_dots)
-            cudaFree(d_dots);
-        if (d_dotColors)
-            cudaFree(d_dotColors);
-        if (d_counters)
-            cudaFree(d_counters);
-        
-        current_alloc_pixels = 0;
+        if (d_densityMap) cudaFree(d_densityMap);
+        if (d_jfaPing)    cudaFree(d_jfaPing);
+        if (d_jfaPong)    cudaFree(d_jfaPong);
+        if (d_dots)       cudaFree(d_dots);
+        if (d_dotColors)  cudaFree(d_dotColors);
+        if (d_dotInfo)    cudaFree(d_dotInfo); // <--- FREE HERE
+        if (d_counters)   cudaFree(d_counters);
+        if (d_palette)    cudaFree(d_palette);
 
         d_densityMap = nullptr;
-        d_jfaPing = nullptr;
-        d_jfaPong = nullptr;
-        d_dots = nullptr;
-        d_dotColors = nullptr;
-        d_counters = nullptr;
+        d_jfaPing = nullptr; d_jfaPong = nullptr;
+        d_dots = nullptr; d_dotColors = nullptr; d_dotInfo = nullptr;
+        d_counters = nullptr; d_palette = nullptr;
+
+        m_currentAllocPixels = 0;
+        m_currentPainterId = -1;
 
         return;
     }
 
-    // Smart Reallocation: Only mallocs if resolution increases
-    void CheckAndReallocate (int width, int height)
+    void CheckAndReallocate(int width, int height)
     {
-        size_t needed_pixels = width * height;
+        const size_t needed_pixels = static_cast<size_t>(width * height);
 
-        // Add 10% buffer or check if size changed significantly to avoid thrashing
-        if (needed_pixels > current_alloc_pixels)
+        if (needed_pixels > m_currentAllocPixels)
         {
-            Cleanup();
+            // 1. Free Image-Dependent Buffers
+            if (d_densityMap) cudaFree(d_densityMap);
+            if (d_jfaPing)    cudaFree(d_jfaPing);
+            if (d_jfaPong)    cudaFree(d_jfaPong);
 
-            // Allocate VRAM
+            // 2. Alloc Image-Dependent Buffers
             cudaMalloc(&d_densityMap, needed_pixels * sizeof(DensityInfo));
             cudaMalloc(&d_jfaPing, needed_pixels * sizeof(JFACell));
             cudaMalloc(&d_jfaPong, needed_pixels * sizeof(JFACell));
 
-            // Dot buffers are fixed size based on MAX constant
-            cudaMalloc(&d_dots, MAX_GPU_DOTS * sizeof(GPUDot));
-            cudaMalloc(&d_dotColors, MAX_GPU_DOTS * sizeof(float4));
+            // 3. Alloc Constant-Size Buffers (One-time check)
+            if (!d_dots)      cudaMalloc(&d_dots, MAX_GPU_DOTS * sizeof(GPUDot));
+            if (!d_dotColors) cudaMalloc(&d_dotColors, MAX_GPU_DOTS * sizeof(DotColorAccumulator));
 
-            // Counters (Tiny)
-            cudaMalloc(&d_counters, 32 * sizeof(int)); // Small scratch space
+            // <--- ALLOCATE DOT INFO HERE
+            if (!d_dotInfo)   cudaMalloc(&d_dotInfo, MAX_GPU_DOTS * sizeof(DotRenderInfo));
 
-            current_alloc_pixels = needed_pixels;
+            if (!d_counters)  cudaMalloc(&d_counters, 32 * sizeof(int));
+            if (!d_palette)   cudaMalloc(&d_palette, 32 * sizeof(float4));
+
+            m_currentAllocPixels = needed_pixels;
         }
         return;
     }
 
+    void UpdatePaletteFromPlanar
+    (
+        const float* pal_L,
+        const float* pal_a,
+        const float* pal_b,
+        int count,
+        int style_id,
+        cudaStream_t stream
+    )
+    {
+        if (style_id != m_currentPainterId || d_palette == nullptr)
+        {
+            float4 temp_buffer[32];
+            for (int i = 0; i < 32; ++i) {
+                if (i < count) {
+                    temp_buffer[i] = make_float4(pal_L[i], pal_a[i], pal_b[i], 0.0f);
+                }
+                else {
+                    temp_buffer[i] = make_float4(GPU_PALETTE_INF, GPU_PALETTE_INF, GPU_PALETTE_INF, 0.0f);
+                }
+            }
+            cudaMemcpyAsync(d_palette, temp_buffer, 32 * sizeof(float4), cudaMemcpyHostToDevice, stream);
+            m_currentPainterId = style_id;
+        }
+        return;
+    }
 };
-
-
 
 #endif // __IMAGE_LAB_ART_POINTILISM_GPU_ACCELERATOR_KERNELS_DEFINITIONS__
