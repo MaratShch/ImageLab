@@ -72,7 +72,6 @@ public:
 		PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
 		mPPixSuite->GetPixelFormat(*outFrame, &pixelFormat);
 		const csSDK_int32 gpuBytesPerPixel = GetGPUBytesPerPixel(pixelFormat);
-		const csSDK_int32 is16f = (ImageLabGpuPixel16f == pixelFormat) ? 1 : 0;
 
 		prRect bounds{};
 		mPPixSuite->GetBounds (*outFrame, &bounds);
@@ -111,7 +110,7 @@ public:
             const cudaStream_t stream = 0;
 
 			// Launch CUDA kernel
-			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, is16f, width, height, &algoGpuParams, stream);
+			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, stream);
 
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
 			{

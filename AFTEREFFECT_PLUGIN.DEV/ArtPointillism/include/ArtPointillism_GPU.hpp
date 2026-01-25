@@ -35,7 +35,6 @@ void ArtPointillism_CUDA
     float* RESTRICT outBuffer,      // destination (output) buffer
     int srcPitch,                   // source buffer pitch in pixels 
     int dstPitch,                   // destination buffer pitch in pixels
-    int is16f,                      // is 16 or 32 float bit width
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
     const PontillismControls* algoGpuParams, // algorithm controls
