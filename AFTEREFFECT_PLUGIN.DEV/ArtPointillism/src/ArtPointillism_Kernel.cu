@@ -1012,18 +1012,6 @@ void ArtPointillism_CUDA
         shape_id
     );
 
-//    // [DEBUG TEST C] - Verify Decomposition Logic
-//    k_Debug_ShowDecomposition << < gridDim, blockDim, 0, stream >> > (
-//        g_gpuCtx.d_jfaPong,    // Use the final JFA map
-//        g_gpuCtx.d_dotInfo,    // The buffer we just filled in Decompose
-//        g_gpuCtx.d_palette,    // The palette we uploaded
-//        outBuffer,
-//        width, height,
-//        dstPitchBytes
-//        );
-//
-//    return; // <--- STOP HERE to view result
-
     // 4.C: Final Gather (Drawing)
     const float opacity_val = static_cast<float>(Opacity);
 
