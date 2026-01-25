@@ -802,6 +802,7 @@ void ArtPointillism_CUDA
     cudaStream_t stream
 )
 {
+    // 0. Read Algorithm Control Parameters
     const ArtPointillismPainter PainterStyle    = algoGpuParams->PainterStyle;
     const int32_t               DotDencity      = algoGpuParams->DotDencity;
     const int32_t               DotSize         = algoGpuParams->DotSize;

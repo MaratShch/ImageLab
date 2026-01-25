@@ -40,7 +40,7 @@ public:
 		PPixHand* outFrame
 	) noexcept
 	{
-        CACHE_ALIGN PrParam algoParams[9]{};
+        CACHE_ALIGN PrParam algoParams[9];
 
         void* frameData     = nullptr;
 		void* destFrameData = nullptr;
@@ -52,14 +52,14 @@ public:
         cudaError_t cudaErrCode = cudaErrorUnknown;
 
 		// read control setting
-		PrTime const clipTime = inRenderParams->inClipTime;
+		const PrTime clipTime = inRenderParams->inClipTime;
 
         algoParams[0] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_PAINTER_STYLE), clipTime);
         algoParams[1] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_DENCITY), clipTime);
         algoParams[2] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_SIZE), clipTime);
         algoParams[3] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY), clipTime);
         algoParams[4] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE), clipTime);
-        algoParams[5] = GetParam(UnderlyingType(ArtPointillismControls::ART_POINTILLISM_STROKE_STROKE_SHAPE), clipTime);
+        algoParams[5] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_STROKE_STROKE_SHAPE), clipTime);
         algoParams[6] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART), clipTime);
         algoParams[7] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY), clipTime);
         algoParams[8] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED), clipTime);
