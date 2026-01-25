@@ -311,5 +311,8 @@
     <None Include="include\ArtPointillismKernel.cuh">
       <Filter>include</Filter>
     </None>
+    <None Include="include\ArtPointillismKernelDBG.cuh">
+      <Filter>include</Filter>
+    </None>
   </ItemGroup>
 </Project>

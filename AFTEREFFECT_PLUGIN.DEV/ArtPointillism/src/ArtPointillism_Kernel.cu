@@ -209,23 +209,25 @@ __global__ void k_Preprocess_Fused
 
     // 3. Mix & Normalize
     // Sensitivity: 0 = Luma Only, 1 = Edge Only
-    float w_edge = edgeSensitivity; // Already normalized 0..1 by host
-    float w_luma = 1.0f - w_edge;
+    const float w_edge = edgeSensitivity; // Already normalized 0..1 by host
+    const float w_luma = 1.0f - w_edge;
 
     float final_density = (L_inv * w_luma) + (edge_mag * w_edge);
 
     // Apply "Lifted Floor" logic (from our CPU lessons)
     // Prevent zero-density holes
-    final_density = fmaxf(final_density, 0.1f);
+    final_density = fmaxf(final_density, 0.25f);
     final_density = fminf(final_density, 1.0f);
 
     // 4. Calculate Orientation (for Van Gogh Flow)
     // Angle perpendicular to gradient
     float angle = atan2f(Gy, Gx) + 1.570796f; // + 90 deg
 
-                                              // 5. Store
+    // 5. Store
     int idx = y * width + x;
     dstMap[idx] = make_float2(final_density, angle);
+
+    return;
 }
 
 
@@ -440,7 +442,8 @@ __global__ void k_JFA_Step
 }
 
 
-__global__ void k_Integrate_Colors_Atomic(
+__global__ void k_Integrate_Colors_Atomic
+(
     const JFACell* RESTRICT jfaMap,
     const float*   RESTRICT srcInputRaw, // Adobe Input Buffer (Raw Float Ptr)
     int            srcPitchBytes,            // Pitch in Bytes
@@ -563,13 +566,13 @@ __global__ void k_Decompose_Attributes
     if (strokeShape == 2)
     { // Oriented Ellipse
         GPUDot d = dotPos[id];
-        int px = min(max((int)d.pos_x, 1), width - 2);
-        int py = min(max((int)d.pos_y, 1), height - 2);
+        int px = std::min(std::max((int)d.pos_x, 1), width - 2);
+        int py = std::min(std::max((int)d.pos_y, 1), height - 2);
 
         // Read Gradient from Density Map
         // (Assuming you stored Angle in .y of DensityInfo in Phase 1?
         // If so, we just read it directly! No need to recalc Sobel.)
-        int mapIdx = py * width + px;
+        const int mapIdx = py * width + px;
         angle = densityMap[mapIdx].y; // Phase 1 stored this!
     }
     else if (strokeShape == 1)
@@ -594,7 +597,7 @@ __global__ void k_Decompose_Attributes
 // 1 = Show Voronoi Cells (Random colors based on Dot ID)
 // 2 = Show Geometry (Red = Inside Dot, Blue = Outside/Background)
 // 3 = Show Palette Index (Grayscale based on Color Index)
-#define DEBUG_MODE 2
+#define DEBUG_MODE 0
 
 __global__ void k_Render_Final_Gather
 (
@@ -759,7 +762,8 @@ __global__ void k_Render_Final_Gather
     float3 rgb_linear = lab_to_rgb_linear(final_lab);
 
     // 8. Blending
-    if (opacity > 0.0f) {
+    if (opacity > 0.0f)
+    {
         const float4* row_in = (const float4*)((const char*)srcInputRaw + y * srcPitchBytes);
         float4 src_px = row_in[x];
         float3 src_rgb = make_float3(src_px.z, src_px.y, src_px.x);
@@ -781,289 +785,8 @@ __global__ void k_Render_Final_Gather
     return;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////// DBG FUNCTIONS ////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////
-__global__ void k_Debug_SolidRed
-(
-    float* RESTRICT dst,
-    int width,
-    int height,
-    int dstPitchBytes
-)
-{
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (x >= width || y >= height) return;
-
-    // Calculate pointer to this pixel
-    float4* row = (float4*)((char*)dst + y * dstPitchBytes);
-
-    // Write Solid RED
-    // Adobe 32f is usually B, G, R, A
-    row[x] = make_float4(0.0f, 0.0f, 1.0f, 1.0f);
-    return;
-}
-
-
-__global__ void k_Debug_Grid
-(
-    float* __restrict__ dst,
-    int width, int height,
-    int dstPitchBytes
-)
-{
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    // Calculate pointer
-    float4* row = (float4*)((char*)dst + y * dstPitchBytes);
-
-    float r = 0.0f;
-    // Draw Grid every 50 pixels
-    if ((x % 50) == 0 || (y % 50) == 0)
-    {
-        r = 1.0f; // Red Lines
-    }
-
-    row[x] = make_float4(0.0f, 0.0f, r, 1.0f);
-}
-
-
-__global__ void k_Debug_Passthrough
-(
-    const float* __restrict__ src,
-    float*       __restrict__ dst,
-    int width, int height,
-    int srcPitchBytes, int dstPitchBytes
-)
-{
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= width || y >= height) return;
-
-    // Read Source using srcPitch
-    float4 px = *(const float4*)((const char*)src + y * srcPitchBytes + x * sizeof(float4));
-
-    // Write Dest using dstPitch
-    float4* out = (float4*)((char*)dst + y * dstPitchBytes + x * sizeof(float4));
-
-    *out = px;
-}
-
-
-// --- DEBUG KERNEL: Visualize Density Map ---
-__global__ void k_Preprocess_Fused_DBG
-(
-    const float* RESTRICT srcPtr,      // Adobe Input
-    DensityInfo* RESTRICT internalMap, // Internal Density Map
-    float*       RESTRICT debugOutput, // Adobe Output (for visualization)
-    int width, 
-    int height,
-    int srcPitchBytes,
-    int dstPitchBytes,                     // Needed to write to screen
-    float edgeSensitivity
-)
-{
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    // 1. Read Input (Standard Logic)
-    const float4* row_in = (const float4*)((const char*)srcPtr + y * srcPitchBytes);
-    float4 px = row_in[x];
-
-    // 2. Convert to Lab
-    // (Inline simplified conversion or call helper if defined)
-    float r = px.z; float g = px.y; float b = px.x;
-    // Standard Linear RGB -> Luma approx for speed in debug, or full Lab
-    // Let's use the exact same logic as your production kernel:
-    float X = 0.4124564f * r + 0.3575761f * g + 0.1804375f * b;
-    float Y = 0.2126729f * r + 0.7151522f * g + 0.0721750f * b;
-    float Z = 0.0193339f * r + 0.1191920f * g + 0.9503041f * b;
-
-    // Normalize Y
-    float yn = Y; // Assuming Y is 0..1 from linear RGB
-
-                  // Lab f(t) for L only
-    float fy = (yn > 0.008856f) ? cbrtf(yn) : (7.787f * yn + 16.0f / 116.0f);
-    float L = (116.0f * fy) - 16.0f;
-    float L_norm = L / 100.0f;
-    float L_inv = 1.0f - L_norm;
-
-    // 3. Sobel Edge Detection
-    float Gx = 0.0f;
-    float Gy = 0.0f;
-
-    for (int dy = -1; dy <= 1; dy++) {
-        int ny = min(max(y + dy, 0), height - 1);
-        const float4* nrow = (const float4*)((const char*)srcPtr + ny * srcPitchBytes);
-
-        for (int dx = -1; dx <= 1; dx++) {
-            int nx = min(max(x + dx, 0), width - 1);
-            float4 n_px = nrow[nx];
-            // Simple Luma for edge check: 0.21R + 0.71G + 0.07B
-            float n_luma = 0.2126f*n_px.z + 0.7152f*n_px.y + 0.0722f*n_px.x;
-
-            if (dx != 0) {
-                float w = (dy == 0) ? 2.0f : 1.0f;
-                Gx += (dx * w * n_luma);
-            }
-            if (dy != 0) {
-                float w = (dx == 0) ? 2.0f : 1.0f;
-                Gy += (dy * w * n_luma);
-            }
-        }
-    }
-
-    float edge = sqrtf(Gx*Gx + Gy*Gy);
-
-    // 4. Mix
-    float w_edge = edgeSensitivity;
-    float w_luma = 1.0f - w_edge;
-    float density = (L_inv * w_luma) + (edge * w_edge);
-
-    // 5. Store Internal (Standard Behavior)
-    int idx = y * width + x;
-    internalMap[idx].x = density;
-    internalMap[idx].y = 0.0f; // Angle dummy
-
-                               // --- DEBUG OUTPUT ---
-                               // Write the Density directly to the screen as Gray.
-                               // High Density (1.0) = White Pixel.
-                               // Low Density (0.0) = Black Pixel.
-
-    float4* row_out = (float4*)((char*)debugOutput + y * dstPitchBytes);
-    row_out[x] = make_float4(density, density, density, 1.0f); // B, G, R, A
-
-    return;
-}
-
-// --- DEBUG KERNEL 1: VISUALIZE DENSITY MAP (Phase 1 Check) ---
-// Expected: A Grayscale, inverted version of your image.
-// Failure:  Static noise, scratches, or pure black/white.
-__global__ void k_Debug_ShowDensity
-(
-    const DensityInfo* RESTRICT densityMap,
-    float*             RESTRICT dst,
-    int width, int height,
-    int dstPitchBytes
-) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= width || y >= height) return;
-
-    // Read Density (0.0 to 1.0)
-    int idx = y * width + x;
-    float d = densityMap[idx].x;
-
-    // Write as Grayscale Green
-    float4* row = (float4*)((char*)dst + y * dstPitchBytes);
-    row[x] = make_float4(d, d, d, 1.0f);
-}
-
-// --- DEBUG KERNEL 2: VISUALIZE VORONOI MAP (Phase 2 & 3 Check) ---
-// Expected: A "Stained Glass" / Mosaic look. Large colored cells.
-// Failure:  Tiny pixel-sized noise (JFA failed), or Black (No seeds generated).
-__global__ void k_Debug_ShowJFA
-(
-    const JFACell* RESTRICT jfaMap,
-    float*         RESTRICT dst,
-    int width, int height,
-    int dstPitchBytes
-) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= width || y >= height) return;
-
-    int idx = y * width + x;
-    int id = unpack_id(jfaMap[idx]);
-
-    float4 color;
-    if (id == -1) {
-        color = make_float4(0, 0, 0, 1); // Black if no owner
-    }
-    else {
-        // Hash the ID to get a random color
-        float r = random_float(id, 0, 0);
-        float g = random_float(id, 1, 0);
-        float b = random_float(id, 2, 0);
-        color = make_float4(r, g, b, 1.0f);
-    }
-
-    float4* row = (float4*)((char*)dst + y * dstPitchBytes);
-    row[x] = color;
-}
-
-
-// --- DEBUG KERNEL: Visualize Decomposition Results ---
-__global__ void k_Debug_ShowDecomposition
-(
-    const JFACell*       RESTRICT jfaMap,   // To find owner
-    const DotRenderInfo* RESTRICT dotInfo,  // The result of Decompose
-    const float4*        RESTRICT palette,  // To see the actual color
-    float*               RESTRICT dst,      // Output
-    int width, int height,
-    int dstPitchBytes
-)
-{
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    const int idx = y * width + x;
-
-    // 1. Find Owner
-    const int dot_id = unpack_id(jfaMap[idx]);
-
-    float3 final_rgb;
-
-    if (dot_id != -1)
-    {
-        // 2. Read Decomposition Result
-        DotRenderInfo info = dotInfo[dot_id];
-
-        // 3. Get the Primary Selected Palette Color
-        int pal_idx = info.colorIndex1;
-
-        // Safety Check
-        if (pal_idx >= 0 && pal_idx < 32)
-        { // 32 is max palette size
-            float4 lab = palette[pal_idx];
-            float3 lab3 = make_float3(lab.x, lab.y, lab.z);
-
-            // Convert Lab Palette -> RGB for display
-            final_rgb = lab_to_rgb_linear(lab3);
-        }
-        else
-        {
-            // Error: Invalid Index -> Magenta
-            final_rgb = make_float3(1.0f, 0.0f, 1.0f);
-        }
-    }
-    else
-    {
-        // No owner -> Black
-        final_rgb = make_float3(0.0f, 0.0f, 0.0f);
-    }
-
-    // 4. Write Output
-    float4* row = (float4*)((char*)dst + y * dstPitchBytes);
-
-    // Output BGRA 1.0 Alpha
-    row[x] = make_float4(final_rgb.z, final_rgb.y, final_rgb.x, 1.0f);
-
-    return;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////
+#include "ArtPointillismKernelDBG.cuh"
 
 
 CUDA_KERNEL_CALL
@@ -1079,6 +802,16 @@ void ArtPointillism_CUDA
     cudaStream_t stream
 )
 {
+    const ArtPointillismPainter PainterStyle    = algoGpuParams->PainterStyle;
+    const int32_t               DotDencity      = algoGpuParams->DotDencity;
+    const int32_t               DotSize         = algoGpuParams->DotSize;
+    const int32_t               EdgeSensitivity = algoGpuParams->EdgeSensitivity;
+    const int32_t               Vibrancy        = algoGpuParams->Vibrancy;
+    const StrokeShape           Shape           = algoGpuParams->Shape;
+    const BackgroundArt         Background      = algoGpuParams->Background;
+    const int32_t               Opacity         = algoGpuParams->Opacity;
+    const int32_t               RandomSeed      = algoGpuParams->RandomSeed;
+
     // -------------------------------------------------------------------------
     // 1. SETUP & MEMORY
     // -------------------------------------------------------------------------
@@ -1098,7 +831,7 @@ void ArtPointillism_CUDA
     // -------------------------------------------------------------------------
 
     // Retrieve the CPU Painter Strategy
-    IPainter* painter = GetPainterRegistry(algoGpuParams->PainterStyle);
+    IPainter* painter = GetPainterRegistry(PainterStyle);
 
     // Extract Data
     RenderContext cpu_ctx;
@@ -1111,7 +844,7 @@ void ArtPointillism_CUDA
         cpu_ctx.pal_a,
         cpu_ctx.pal_b,
         cpu_ctx.palette_size,
-        static_cast<int>(algoGpuParams->PainterStyle),
+        static_cast<int>(PainterStyle),
         stream
     );
 
@@ -1119,7 +852,7 @@ void ArtPointillism_CUDA
     // 3. PHASE 1: PREPROCESS (Density & Structure)
     // -------------------------------------------------------------------------
 
-    const float edge_sens = static_cast<float>(algoGpuParams->EdgeSensitivity) / 100.0f;
+    const float edge_sens = static_cast<float>(EdgeSensitivity) / 100.0f;
 
     dim3 blockDim(16, 32, 1);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y, 1);
@@ -1135,44 +868,46 @@ void ArtPointillism_CUDA
     );
 
     // -------------------------------------------------------------------------
-    // 4. MATH: DOT BUDGET & RADIUS CALCULATION
+    // 4. MATH: DOT BUDGET & RADIUS CALCULATION (TUNED)
     // -------------------------------------------------------------------------
 
-    // Base Probability (Matches CPU logic: 250 dots per 100x100 block)
-    constexpr float base_prob = 0.025f;
+    // A. BOOST THE BASE DENSITY
+    // Old: 250.0f. New: 350.0f.
+    // This forces more dots even at default settings, reducing gaps.
+    constexpr float base_dots_per_block = 350.0f;
 
-    // A. Calculate Density Multiplier based on Slider
-    float density_val = static_cast<float>(algoGpuParams->DotDencity);
-    float multiplier = 1.0f;
-
+    // B. Calculate Multiplier (Same as before)
+    float density_val = static_cast<float>(DotDencity);
+    float count_multiplier = 1.0f;
     if (density_val < 50.0f)
     {
-        multiplier = 0.1f + (density_val / 50.0f) * 0.9f;
+        count_multiplier = 0.1f + (density_val / 50.0f) * 0.9f;
     }
     else
     {
-        multiplier = 1.0f + ((density_val - 50.0f) / 50.0f) * 3.0f;
+        count_multiplier = 1.0f + ((density_val - 50.0f) / 50.0f) * 3.0f;
     }
 
-    // Probability for Seeding Kernel
-    float final_prob_scale = base_prob * multiplier;
+    // Probability for Seeding
+    // Note: 350 dots / 10000 px = 0.035 base prob
+    float base_prob = base_dots_per_block / 10000.0f;
+    float final_prob_scale = base_prob * count_multiplier;
 
-    // B. Calculate Dynamic Radius for Rendering Kernel
-    // We estimate total dots to determine average spacing
-    float area_factor = ((float)width * height) / 10000.0f;
-    float base_dots = 250.0f;
-    float total_expected_dots = area_factor * base_dots * multiplier;
+    // C. Calculate Dynamic Radius
+    const float area_factor = (static_cast<float>(width * height)) / 10000.0f;
+    const float total_expected_dots = std::min(static_cast<float>(MAX_GPU_DOTS), area_factor * base_dots_per_block * count_multiplier);
+    const float avg_spacing = std::sqrt((static_cast<float>(width * height)) / total_expected_dots);
 
-    // Average spacing (pixels between dot centers)
-    float avg_spacing = sqrtf(((float)width * height) / total_expected_dots);
+    // D. BOOST THE OVERLAP
+    // We want dots to comfortably overlap neighbors to hide the canvas.
+    // Old Start: 0.6. New Start: 0.85.
+    float size_val = static_cast<float>(DotSize);
+    float overlap_factor = 0.85f + (size_val / 100.0f) * 1.5f;
 
-    // Overlap Factor based on Size Slider
-    float size_val = static_cast<float>(algoGpuParams->DotSize);
-    float overlap_factor = 0.5f + (size_val / 100.0f) * 2.0f;
-
-    // Final Radius (with safety clamp)
-    float computedRadius = avg_spacing * overlap_factor * 0.8f;
-    if (computedRadius < 1.5f) computedRadius = 1.5f;
+    // Final Radius
+    // Remove the 0.8 reduction. Let them be full size.
+    float computedRadius = avg_spacing * overlap_factor;
+    if (computedRadius < 2.5f) computedRadius = 2.5f;
 
     // -------------------------------------------------------------------------
     // 5. PHASE 2: SEEDING (Warp Aggregated)
@@ -1189,7 +924,7 @@ void ArtPointillism_CUDA
         width,
         height,
         final_prob_scale,
-        algoGpuParams->RandomSeed,
+        RandomSeed,
         MAX_GPU_DOTS
     );
 
@@ -1197,7 +932,7 @@ void ArtPointillism_CUDA
     // 6. PHASE 3: GEOMETRIC REFINEMENT (JFA)
     // -------------------------------------------------------------------------
 
-    int max_dim = (width > height) ? width : height;
+    const int max_dim = (width > height) ? width : height;
     int step = 1;
     while (step < max_dim) step <<= 1;
     step >>= 1;
@@ -1253,12 +988,12 @@ void ArtPointillism_CUDA
 
     // 4.B: Decompose & Attributes
     int shape_id = 0;
-    if (algoGpuParams->Shape == StrokeShape::ART_POINTILLISM_SHAPE_SQUARE) shape_id = 1;
-    if (algoGpuParams->Shape == StrokeShape::ART_POINTILLISM_SHAPE_ELLIPSE) shape_id = 2;
+    if (Shape == StrokeShape::ART_POINTILLISM_SHAPE_SQUARE) shape_id = 1;
+    if (Shape == StrokeShape::ART_POINTILLISM_SHAPE_ELLIPSE) shape_id = 2;
 
     const int mode_id =
-        (algoGpuParams->PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH ||
-            algoGpuParams->PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE) ? 1 : 0;
+        (PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH ||
+            PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE) ? 1 : 0;
 
     k_Decompose_Attributes <<< gridDot, blockDot, 0, stream >>>
     (
@@ -1271,7 +1006,7 @@ void ArtPointillism_CUDA
         width,
         height,
         32,
-        static_cast<float>(algoGpuParams->Vibrancy),
+        static_cast<float>(Vibrancy),
         mode_id,
         shape_id
     );
@@ -1289,7 +1024,7 @@ void ArtPointillism_CUDA
 //    return; // <--- STOP HERE to view result
 
     // 4.C: Final Gather (Drawing)
-    const float opacity_val = static_cast<float>(algoGpuParams->Opacity);
+    const float opacity_val = static_cast<float>(Opacity);
 
     k_Render_Final_Gather <<< gridDim, blockDim, 0, stream >>>
     (
@@ -1301,11 +1036,11 @@ void ArtPointillism_CUDA
         outBuffer,
         width,
         height,
-        srcPitchBytes,  // Correct Bytes
-        dstPitchBytes,  // Correct Bytes
-        computedRadius, // Correct Dynamic Radius
+        srcPitchBytes,
+        dstPitchBytes,
+        computedRadius,
         shape_id,
-        static_cast<int>(algoGpuParams->Background),
+        static_cast<int>(Background),
         opacity_val
     );
 

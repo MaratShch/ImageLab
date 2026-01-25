@@ -40,7 +40,7 @@ public:
 		PPixHand* outFrame
 	) noexcept
 	{
-        CACHE_ALIGN PrParam algoParams[8]{};
+        CACHE_ALIGN PrParam algoParams[9]{};
 
         void* frameData     = nullptr;
 		void* destFrameData = nullptr;
@@ -59,9 +59,10 @@ public:
         algoParams[2] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_SIZE), clipTime);
         algoParams[3] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY), clipTime);
         algoParams[4] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE), clipTime);
-        algoParams[5] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART), clipTime);
-        algoParams[6] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY), clipTime);
-        algoParams[7] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED), clipTime);
+        algoParams[5] = GetParam(UnderlyingType(ArtPointillismControls::ART_POINTILLISM_STROKE_STROKE_SHAPE), clipTime);
+        algoParams[6] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART), clipTime);
+        algoParams[7] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY), clipTime);
+        algoParams[8] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED), clipTime);
 
 #ifdef _DEBUG
 		const csSDK_int32 instanceCnt = TotalInstances();
@@ -100,9 +101,10 @@ public:
             algoGpuParams.DotSize           = algoParams[2].mInt32;
             algoGpuParams.EdgeSensitivity   = algoParams[3].mInt32;
             algoGpuParams.Vibrancy          = algoParams[4].mInt32;
-            algoGpuParams.Background        = static_cast<BackgroundArt>(algoParams[5].mInt32);
-            algoGpuParams.Opacity           = algoParams[6].mInt32;
-            algoGpuParams.RandomSeed        = algoParams[7].mInt32;
+            algoGpuParams.Shape             = static_cast<StrokeShape>(algoParams[5].mInt32);
+            algoGpuParams.Background        = static_cast<BackgroundArt>(algoParams[6].mInt32);
+            algoGpuParams.Opacity           = algoParams[7].mInt32;
+            algoGpuParams.RandomSeed        = algoParams[8].mInt32;
 
             // --- GET THE ADOBE STREAM ---
             // The context pointer is the cudaStream_t
