@@ -106,9 +106,6 @@ public:
             algoGpuParams.Opacity           = algoParams[7].mInt32;
             algoGpuParams.RandomSeed        = algoParams[8].mInt32;
 
-            // --- GET THE ADOBE STREAM ---
-            // The context pointer is the cudaStream_t
-            // Premiere has already set the active CUDA Context for this thread.
             const cudaStream_t stream = 0;
 
 			// Launch CUDA kernel

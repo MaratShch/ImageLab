@@ -18,16 +18,6 @@ extern "C" {
 }
 #endif
 
-typedef struct Pixel16
-{
-	unsigned short x; /* BLUE	*/
-	unsigned short y; /* GREEN	*/
-	unsigned short z; /* RED	*/	
-	unsigned short w; /* ALPHA	*/
-}Pixel16, *PPixel16;
-
-constexpr size_t Pixel16Size = sizeof(Pixel16);
-
 CUDA_KERNEL_CALL
 void ArtPointillism_CUDA
 (
@@ -38,7 +28,7 @@ void ArtPointillism_CUDA
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
     const PontillismControls* algoGpuParams, // algorithm controls
-    cudaStream_t stream = 0
+    cudaStream_t stream = static_cast<cudaStream_t>(0)
 );
 
 
