@@ -183,10 +183,12 @@ DecomposedColor Decompose
     for (int k = 0; k < count; ++k)
     {
         float d = dists[k];
-        if (d < min1) {
+        if (d < min1)
+        {
             min2 = min1; p2 = p1;
             min1 = d;    p1 = k;
-        } else if (d < min2) {
+        } else if (d < min2)
+        {
             min2 = d;    p2 = k;
         }
     }
@@ -235,7 +237,8 @@ void RenderKernel_Cluster
     float r_sq = radius * radius;
 
     // 3. Sub-Dot Loop
-    for (int k = 0; k < sub_dots; ++k) {
+    for (int k = 0; k < sub_dots; ++k)
+    {
         int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
         
         // FIX: Reconstruct color from Planar Arrays [L, a, b]
@@ -250,22 +253,27 @@ void RenderKernel_Cluster
         float cy = pt.y + rng.next_range(-scatter_range, scatter_range);
 
         // ... Bounding Box & Pixel Loop (Same as before) ...
-        int min_x = std::max(0, (int)(cx - radius));
-        int max_x = std::min(width, (int)(cx + radius) + 1);
-        int min_y = std::max(0, (int)(cy - radius));
-        int max_y = std::min(height, (int)(cy + radius) + 1);
+        int min_x = std::max(0, static_cast<int>(cx - radius));
+        int max_x = std::min(width, static_cast<int>(cx + radius) + 1);
+        int min_y = std::max(0, static_cast<int>(cy - radius));
+        int max_y = std::min(height, static_cast<int>(cy + radius) + 1);
 
-        for (int y = min_y; y < max_y; ++y) {
+        for (int y = min_y; y < max_y; ++y)
+        {
             float dy = (float)y - cy;
             int row_offset = y * width;
-            for (int x = min_x; x < max_x; ++x) {
+            for (int x = min_x; x < max_x; ++x)
+            {
                 float dx = (float)x - cx;
-                if ((dx*dx + dy*dy) <= r_sq) {
+                if ((dx*dx + dy*dy) <= r_sq)
+                {
                     Blend_Lab_Pixel(&canvas[(row_offset + x) * 3], draw_color, opacity);
                 }
             }
         }
     }
+
+    return;
 }
 
 
@@ -295,12 +303,13 @@ void RenderKernel_Mosaic
     float opacity = 0.95f; 
 
     float angle_deg = rng.next_range(-15.0f, 15.0f);
-    float angle_rad = angle_deg * 3.14159f / 180.0f;
+    float angle_rad = angle_deg * FastCompute::PI / 180.0f;
     float cos_a, sin_a;
 
     FastCompute::SinCos(angle_rad, sin_a, cos_a);
 
-    for (int k = 0; k < sub_dots; ++k) {
+    for (int k = 0; k < sub_dots; ++k)
+    {
         int color_idx = (rng.next_float() < mix.ratio) ? mix.idx_p1 : mix.idx_p2;
         
         // FIX: Planar Lookup
@@ -312,19 +321,22 @@ void RenderKernel_Mosaic
         // ... Drawing Logic (Same as before) ...
         float half_size = size * 0.5f;
         float bb_radius = half_size * 1.414f; 
-        int min_x = std::max(0, (int)(pt.x - bb_radius));
-        int max_x = std::min(width, (int)(pt.x + bb_radius) + 1);
-        int min_y = std::max(0, (int)(pt.y - bb_radius));
-        int max_y = std::min(height, (int)(pt.y + bb_radius) + 1);
+        int min_x = std::max(0, static_cast<int>(pt.x - bb_radius));
+        int max_x = std::min(width, static_cast<int>(pt.x + bb_radius) + 1);
+        int min_y = std::max(0, static_cast<int>(pt.y - bb_radius));
+        int max_y = std::min(height, static_cast<int>(pt.y + bb_radius) + 1);
 
-        for (int y = min_y; y < max_y; ++y) {
+        for (int y = min_y; y < max_y; ++y)
+        {
             float dy = (float)y - pt.y;
             int row_offset = y * width;
-            for (int x = min_x; x < max_x; ++x) {
+            for (int x = min_x; x < max_x; ++x)
+            {
                 float dx = (float)x - pt.x;
                 float local_x = dx * cos_a - dy * sin_a;
                 float local_y = dx * sin_a + dy * cos_a;
-                if (std::abs(local_x) <= half_size && std::abs(local_y) <= half_size) {
+                if (std::abs(local_x) <= half_size && std::abs(local_y) <= half_size)
+                {
                     Blend_Lab_Pixel(&canvas[(row_offset + x) * 3], draw_color, opacity);
                 }
             }
@@ -354,12 +366,12 @@ void RenderKernel_Flow
     DecomposedColor mix = Decompose(processed_color, ctx);
 
     // ... Gradient Calculation (Same) ...
-    int px = std::min(std::max(1, (int)pt.x), width - 2);
-    int py = std::min(std::max(1, (int)pt.y), height - 2);
-    float g_x = density_map[py * width + (px + 1)] - density_map[py * width + (px - 1)];
-    float g_y = density_map[(py + 1) * width + px] - density_map[(py - 1) * width + px];
-    float angle = std::atan2(g_y, g_x) + (3.14159f * 0.5f); 
-    
+    const int px = std::min(std::max(1, static_cast<int>(pt.x)), width  - 2);
+    const int py = std::min(std::max(1, static_cast<int>(pt.y)), height - 2);
+    const float g_x = density_map[py * width + (px + 1)] - density_map[py * width + (px - 1)];
+    const float g_y = density_map[(py + 1) * width + px] - density_map[(py - 1) * width + px];
+
+    float angle = std::atan2(g_y, g_x) + FastCompute::HalfPI;
     float len_a, len_b;
     
     // 3. Geometry Setup
@@ -393,23 +405,25 @@ void RenderKernel_Flow
 
     // ... Drawing Logic (Same) ...
     float bb_radius = std::max(len_a, len_b);
-    int min_x = std::max(0, (int)(pt.x - bb_radius));
-    int max_x = std::min(width, (int)(pt.x + bb_radius) + 1);
-    int min_y = std::max(0, (int)(pt.y - bb_radius));
-    int max_y = std::min(height, (int)(pt.y + bb_radius) + 1);
+    int min_x = std::max(0, static_cast<int>(pt.x - bb_radius));
+    int max_x = std::min(width, static_cast<int>(pt.x + bb_radius) + 1);
+    int min_y = std::max(0, static_cast<int>(pt.y - bb_radius));
+    int max_y = std::min(height, static_cast<int>(pt.y + bb_radius) + 1);
 
-    float a_sq = len_a * len_a;
-    float b_sq = len_b * len_b;
+    const float a_sq = len_a * len_a;
+    const float b_sq = len_b * len_b;
 
     for (int y = min_y; y < max_y; ++y)
     {
         float dy = (float)y - pt.y;
         int row_offset = y * width;
-        for (int x = min_x; x < max_x; ++x) {
+        for (int x = min_x; x < max_x; ++x)
+        {
             float dx = (float)x - pt.x;
             float u = dx * cos_a + dy * sin_a;
             float v = -dx * sin_a + dy * cos_a;
-            if (((u*u)/a_sq + (v*v)/b_sq) <= 1.0f) {
+            if (((u*u)/a_sq + (v*v)/b_sq) <= 1.0f)
+            {
                 Blend_Lab_Pixel(&canvas[(row_offset + x) * 3], draw_color, opacity);
             }
         }

@@ -599,51 +599,44 @@ __global__ void k_Decompose_Attributes
 // 3 = Show Palette Index (Grayscale based on Color Index)
 #define DEBUG_MODE 0
 
-__global__ void k_Render_Final_Gather
-(
+__global__ void k_Render_Final_Gather(
     const JFACell*       RESTRICT jfaMap,
     const GPUDot*        RESTRICT dots,
     const DotRenderInfo* RESTRICT dotInfo,
     const float4*        RESTRICT palette,
     const float*         RESTRICT srcInputRaw,
     float*               RESTRICT dstOutputRaw,
-    int width, 
+    int width,
     int height,
-    int srcPitchBytes, 
+    int srcPitchBytes,
     int dstPitchBytes,
     float computedRadius,
     int strokeShape,
     int backgroundMode,
     float opacity
-)
-{
+) {
+    // 1. Thread Coords
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= width || y >= height) return;
 
     const int idx = y * width + x;
-    const int dot_id = unpack_id(jfaMap[idx]);
 
-    // --- DEBUG MODE 1: CHECK JFA MAP ---
-#if DEBUG_MODE == 1
-    if (dot_id == -1) {
-        // No Owner -> Black
-        float4* row = (float4*)((char*)dstOutputRaw + y * dstPitchBytes);
-        row[x] = make_float4(0, 0, 0, 1);
-    }
-    else {
-        // Hash ID to Color
-        float r = random_float(dot_id, 0, 0);
-        float g = random_float(dot_id, 1, 0);
-        float b = random_float(dot_id, 2, 0);
-        float4* row = (float4*)((char*)dstOutputRaw + y * dstPitchBytes);
-        row[x] = make_float4(r, g, b, 1.0f);
-    }
-    return; // STOP HERE
-#endif
+    // --- STEP A: READ SOURCE (To capture Original Alpha) ---
+    // Adobe 32f buffer is float4 (B, G, R, A) or similar
+    const float4* row_in = (const float4*)((const char*)srcInputRaw + y * srcPitchBytes);
+    float4 src_px = row_in[x];
 
-    float3 final_lab;
-    float alpha_out = 1.0f;
+    // CAPTURE ORIGINAL ALPHA (Preserve strict pass-through by default)
+    float final_alpha = src_px.w;
+
+    // Convert source BGR -> RGB -> Lab (Used later for 'Source Background' mode or Blending)
+    float3 src_rgb = make_float3(src_px.z, src_px.y, src_px.x);
+
+    // --- STEP B: DETERMINE OWNERSHIP ---
+    int dot_id = unpack_id(jfaMap[idx]);
+
+    float3 final_lab; // We work in Lab space
     bool painted = false;
 
     if (dot_id != -1)
@@ -651,137 +644,101 @@ __global__ void k_Render_Final_Gather
         GPUDot d = dots[dot_id];
         DotRenderInfo info = dotInfo[dot_id];
 
-        float dx = static_cast<float>(x) - d.pos_x;
-        float dy = static_cast<float>(y) - d.pos_y;
+        float dx = (float)x - d.pos_x;
+        float dy = (float)y - d.pos_y;
         float base_r = computedRadius;
 
         bool inside = false;
 
+        // Geometry Checks
         if (strokeShape == 0)
         { // Circle
             if ((dx*dx + dy*dy) <= (base_r * base_r)) inside = true;
         }
         else
         {
-            // Rotation Logic
-            float cos_a = std::cos(info.orientation);
-            float sin_a = std::sin(info.orientation);
+            float cos_a = cosf(info.orientation);
+            float sin_a = sinf(info.orientation);
             float u = dx * cos_a + dy * sin_a;
             float v = -dx * sin_a + dy * cos_a;
 
             if (strokeShape == 1)
-            {
+            { // Square
                 inside = (fabsf(u) < base_r && fabsf(v) < base_r);
             }
             else if (strokeShape == 2)
-            {
+            { // Ellipse (Van Gogh)
                 float a_axis = base_r * 1.7f;
                 float b_axis = base_r * 0.5f;
                 if (((u*u) / (a_axis*a_axis) + (v*v) / (b_axis*b_axis)) <= 1.0f) inside = true;
             }
         }
 
-        // --- DEBUG MODE 2: CHECK GEOMETRY ---
-#if DEBUG_MODE == 2
+        // Coloring
+        if (inside)
         {
-            // FORCE RADIUS for testing
-            float base_r = 20.0f; // <--- HARDCODE THIS
-           // float base_r = computedRadius; // Comment this out
+            // FIX: Coherent Coloring (Randomness based on Dot ID, not Pixel X,Y)
+            // 0x5EE1 is a magic seed to scramble the bits
+            float roll = random_float(dot_id, dot_id, 0x5EE1);
 
-            bool inside = false;
-
-            // ... geometry check ...
-            if ((dx*dx + dy*dy) <= (base_r * base_r)) inside = true;
-
-            float4* row = (float4*)((char*)dstOutputRaw + y * dstPitchBytes);
-
-            if (inside)
-            {
-                // RED
-                row[x] = make_float4(0.0f, 0.0f, 1.0f, 1.0f);
-            }
-            else
-            {
-                // BLUE
-                row[x] = make_float4(1.0f, 0.0f, 0.0f, 1.0f);
-            }
-        }
-        return;
-#endif
-
-                // --- DEBUG MODE 3: CHECK DATA INTEGRITY ---
-#if DEBUG_MODE == 3
-        float4* row = (float4*)((char*)dstOutputRaw + y * dstPitchBytes);
-        // Visualise Color Index as Grayscale
-        // 32 is max palette size.
-        float val = (float)info.colorIndex1 / 32.0f;
-        row[x] = make_float4(val, val, val, 1.0f);
-        return; // STOP
-#endif
-
-                // Normal Coloring Logic
-        if (inside) {
-            float roll = random_float(x, y, dot_id);
             int c_idx = (roll < info.ratio) ? info.colorIndex1 : info.colorIndex2;
-
-            // Safety check for palette index
-            // If c_idx is garbage, we might crash or get NaNs
-            c_idx = std::max(0, std::min(c_idx, 31));
+            c_idx = std::max(0, std::min(c_idx, 31)); // Safety clamp
 
             float4 pal_col = palette[c_idx];
             final_lab = make_float3(pal_col.x, pal_col.y, pal_col.z);
             painted = true;
         }
-    }
+}
 
-    // 6. Background Handling
+    // --- STEP C: BACKGROUND LOGIC ---
     if (!painted)
     {
         if (backgroundMode == 1)
-        {
+        { // White
             final_lab = make_float3(100.0f, 0.0f, 0.0f);
         }
         else if (backgroundMode == 2)
-        {
-            const float4* row_in = (const float4*)((const char*)srcInputRaw + y * srcPitchBytes);
-            float4 px = row_in[x];
-            final_lab = rgb_to_lab(make_float3(px.z, px.y, px.x));
+        { // Source Image
+          // Convert pre-loaded Source RGB to Lab on the fly
+            final_lab = rgb_to_lab(src_rgb);
         }
         else if (backgroundMode == 3)
-        {
+        { // Transparent
+          // VISIBLE VOID: L=0, Alpha = 0.
             final_lab = make_float3(0, 0, 0);
-            alpha_out = 0.0f;
+            final_alpha = 0.0f; // <--- The ONLY case where we explicitly modify alpha to 0
         }
         else
-        {
+        { // Canvas (Cream) - Default
             final_lab = make_float3(96.0f, 2.0f, 8.0f);
         }
     }
 
-    // 7. Lab -> RGB
+    // --- STEP D: OUTPUT CONVERSION ---
+    // 1. Lab -> Linear RGB
     float3 rgb_linear = lab_to_rgb_linear(final_lab);
 
-    // 8. Blending
+    // 2. Opacity Blend (Mixing generated art back with Original Source)
     if (opacity > 0.0f)
     {
-        const float4* row_in = (const float4*)((const char*)srcInputRaw + y * srcPitchBytes);
-        float4 src_px = row_in[x];
-        float3 src_rgb = make_float3(src_px.z, src_px.y, src_px.x);
-
         float factor = opacity / 100.0f;
+        // Mix Processed RGB with Original Source RGB (loaded in Step A)
         rgb_linear.x = rgb_linear.x * (1.0f - factor) + src_rgb.x * factor;
         rgb_linear.y = rgb_linear.y * (1.0f - factor) + src_rgb.y * factor;
         rgb_linear.z = rgb_linear.z * (1.0f - factor) + src_rgb.z * factor;
     }
 
+    // 3. Write Output
+    // Re-pack into BGR format, PRESERVING 'final_alpha'
     float4 out_px;
-    out_px.x = rgb_linear.z;
-    out_px.y = rgb_linear.y;
-    out_px.z = rgb_linear.x;
-    out_px.w = alpha_out;
+    out_px.x = rgb_linear.z; // B
+    out_px.y = rgb_linear.y; // G
+    out_px.z = rgb_linear.x; // R
+    out_px.w = final_alpha;  // A (Either Source A, or 0.0 if transparent mode)
 
     float4* row_out = (float4*)((char*)dstOutputRaw + y * dstPitchBytes);
     row_out[x] = out_px;
+
     return;
 }
 
