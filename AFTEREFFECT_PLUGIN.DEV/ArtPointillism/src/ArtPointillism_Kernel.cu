@@ -592,7 +592,6 @@ __global__ void k_Decompose_Attributes
 // 1 = Show Voronoi Cells (Random colors based on Dot ID)
 // 2 = Show Geometry (Red = Inside Dot, Blue = Outside/Background)
 // 3 = Show Palette Index (Grayscale based on Color Index)
-#define DEBUG_MODE 0
 
 __global__ void k_Render_Final_Gather(
     const JFACell*       RESTRICT jfaMap,
@@ -607,6 +606,7 @@ __global__ void k_Render_Final_Gather(
     int dstPitchBytes,
     float computedRadius,
     int strokeShape,
+    bool longStroke,
     int backgroundMode,
     float opacity
 ) {
@@ -646,7 +646,7 @@ __global__ void k_Render_Final_Gather(
         bool inside = false;
 
         // Geometry Checks
-        if (strokeShape == 0)
+        if (strokeShape == UnderlyingType(StrokeShape::ART_POINTILLISM_SHAPE_CIRCLE))
         { // Circle
             if ((dx*dx + dy*dy) <= (base_r * base_r)) inside = true;
         }
@@ -657,15 +657,25 @@ __global__ void k_Render_Final_Gather(
             float u = dx * cos_a + dy * sin_a;
             float v = -dx * sin_a + dy * cos_a;
 
-            if (strokeShape == 1)
+            if (strokeShape == UnderlyingType(StrokeShape::ART_POINTILLISM_SHAPE_SQUARE))
             { // Square
                 inside = (fabsf(u) < base_r && fabsf(v) < base_r);
             }
-            else if (strokeShape == 2)
+            else if (strokeShape == UnderlyingType(StrokeShape::ART_POINTILLISM_SHAPE_ELLIPSE))
             { // Ellipse (Van Gogh)
-                float a_axis = base_r * 1.7f;
-                float b_axis = base_r * 0.5f;
-                if (((u*u) / (a_axis*a_axis) + (v*v) / (b_axis*b_axis)) <= 1.0f) inside = true;
+                float a_axis, b_axis;
+                if (true == longStroke)
+                {
+                    a_axis = base_r * 3.0f;
+                    b_axis = base_r * 0.45f;
+                }
+                else
+                {
+                    a_axis = base_r * 1.7f;
+                    b_axis = base_r * 0.5f;
+                }
+                if (((u*u) / (a_axis*a_axis) + (v*v) / (b_axis*b_axis)) <= 1.0f)
+                    inside = true;
             }
         }
 
@@ -826,9 +836,7 @@ void ArtPointillism_CUDA
     // -------------------------------------------------------------------------
 
     // A. BOOST THE BASE DENSITY
-    // Old: 250.0f. New: 350.0f.
-    // This forces more dots even at default settings, reducing gaps.
-    constexpr float base_dots_per_block = 250.0f;
+    constexpr float base_dots_per_block = 350.0f;
 
     // B. Calculate Multiplier (Same as before)
     float density_val = static_cast<float>(DotDencity);
@@ -843,7 +851,6 @@ void ArtPointillism_CUDA
     }
 
     // Probability for Seeding
-    // Note: 350 dots / 10000 px = 0.035 base prob
     constexpr float base_prob = base_dots_per_block / 10000.0f;
     float final_prob_scale = base_prob * count_multiplier;
 
@@ -979,6 +986,7 @@ void ArtPointillism_CUDA
         dstPitchBytes,
         computedRadius,
         shape_id,
+        (PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH),
         static_cast<int>(Background),
         opacity_val
     );
