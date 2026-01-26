@@ -53,6 +53,8 @@ public:
 
 		// read control setting
 		const PrTime clipTime = inRenderParams->inClipTime;
+        const PrTime renderTick = inRenderParams->inRenderTicksPerFrame;
+        const int frameCounter = (renderTick > 0 ? static_cast<int>(clipTime / renderTick) : 0);
 
         algoParams[0] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_PAINTER_STYLE), clipTime);
         algoParams[1] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_DENCITY), clipTime);
@@ -109,7 +111,7 @@ public:
             const cudaStream_t stream = 0;
 
 			// Launch CUDA kernel
-			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, stream);
+			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter,  stream);
 
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
 			{

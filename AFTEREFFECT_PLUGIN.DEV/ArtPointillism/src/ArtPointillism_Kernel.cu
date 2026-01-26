@@ -21,12 +21,12 @@ __device__ inline uint32_t pcg_hash (uint32_t input) noexcept
 }
 
 // Generate deterministic float [0.0, 1.0)
-__device__ inline float random_float(int x, int y, int seed) noexcept
+__device__ inline float random_float (int x, int y, int seed) noexcept
 {
     // Mix coordinates to break grid patterns
-    uint32_t coord_hash = (uint32_t)x * 131u + (uint32_t)y * 65521u;
-    uint32_t h = pcg_hash(coord_hash ^ (uint32_t)seed);
-    return (float)h * 2.3283064e-10f; // 1.0 / 2^32
+    const uint32_t coord_hash = static_cast<uint32_t>(x) * 131u + static_cast<uint32_t>(y) * 65521u;
+    const uint32_t h = pcg_hash(coord_hash ^ static_cast<uint32_t>(seed));
+    return static_cast<float>(h) * 2.3283064e-10f; // 1.0 / 2^32
 }
 
 
@@ -751,6 +751,7 @@ void ArtPointillism_CUDA
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
     const PontillismControls* algoGpuParams, // algorithm controls
+    int frameCounter,
     cudaStream_t stream
 )
 {
@@ -827,7 +828,7 @@ void ArtPointillism_CUDA
     // A. BOOST THE BASE DENSITY
     // Old: 250.0f. New: 350.0f.
     // This forces more dots even at default settings, reducing gaps.
-    constexpr float base_dots_per_block = 350.0f;
+    constexpr float base_dots_per_block = 250.0f;
 
     // B. Calculate Multiplier (Same as before)
     float density_val = static_cast<float>(DotDencity);
@@ -865,6 +866,7 @@ void ArtPointillism_CUDA
     // -------------------------------------------------------------------------
     // 5. PHASE 2: SEEDING (Warp Aggregated)
     // -------------------------------------------------------------------------
+    const int time_variant_seed = RandomSeed + frameCounter;
 
     dim3 blockP2(32, 16, 1);
     dim3 gridP2((width + blockP2.x - 1) / blockP2.x, (height + blockP2.y - 1) / blockP2.y, 1);
@@ -877,7 +879,7 @@ void ArtPointillism_CUDA
         width,
         height,
         final_prob_scale,
-        RandomSeed,
+        time_variant_seed,
         MAX_GPU_DOTS
     );
 
@@ -903,7 +905,8 @@ void ArtPointillism_CUDA
         g_gpuCtx.d_dots,
         g_gpuCtx.d_counters,
         g_gpuCtx.d_jfaPing,
-        width, height
+        width,
+        height
     );
 
     // Ping-Pong Loop
@@ -940,13 +943,8 @@ void ArtPointillism_CUDA
     );
 
     // 4.B: Decompose & Attributes
-    int shape_id = 0;
-    if (Shape == StrokeShape::ART_POINTILLISM_SHAPE_SQUARE) shape_id = 1;
-    if (Shape == StrokeShape::ART_POINTILLISM_SHAPE_ELLIPSE) shape_id = 2;
-
-    const int mode_id =
-        (PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_VAN_GOGH ||
-            PainterStyle == ArtPointillismPainter::ART_POINTILLISM_PAINTER_MATISSE) ? 1 : 0;
+    const int shape_id = static_cast<int>(cpu_ctx.shape);
+    const int mode_id  = static_cast<int>(cpu_ctx.color_mode);
 
     k_Decompose_Attributes <<< gridDot, blockDot, 0, stream >>>
     (

@@ -28,6 +28,7 @@ void ArtPointillism_CUDA
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
     const PontillismControls* algoGpuParams, // algorithm controls
+    int frameCounter,
     cudaStream_t stream = static_cast<cudaStream_t>(0)
 );
 
