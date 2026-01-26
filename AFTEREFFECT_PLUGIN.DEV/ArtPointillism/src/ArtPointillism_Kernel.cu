@@ -10,30 +10,25 @@
 // Static Context (Singleton style for simplicity)
 static GpuContext g_gpuCtx;
 
-// MurmurHash3 bit mixer (Stateless)
-// This guarantees that pixel (100, 100) ALWAYS generates the same random number
-// for a given seed, regardless of which thread executes it.
-__device__ inline uint32_t hash_coords (uint32_t x, uint32_t y, uint32_t seed) noexcept
+
+// High-Quality PCG Hash (Stateless)
+// Significantly better distribution for seeding than Murmur.
+__device__ inline uint32_t pcg_hash (uint32_t input) noexcept
 {
-    uint32_t h = x;
-    h ^= y;
-    h ^= seed;        // The User's "Random Seed" slider
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
-    return h;
+    const uint32_t state = input * 747796405u + 2891336453u;
+    const uint32_t word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
 }
 
-// Returns float [0.0, 1.0)
+// Generate deterministic float [0.0, 1.0)
 __device__ inline float random_float(int x, int y, int seed) noexcept
 {
-    uint32_t h = hash_coords(x, y, seed);
-    constexpr float div = 1.0f / 16777216.0f;
-    // Convert int bits to float [0, 1) standard trick
-    return (h & 0x00FFFFFF) * div;
+    // Mix coordinates to break grid patterns
+    uint32_t coord_hash = (uint32_t)x * 131u + (uint32_t)y * 65521u;
+    uint32_t h = pcg_hash(coord_hash ^ (uint32_t)seed);
+    return (float)h * 2.3283064e-10f; // 1.0 / 2^32
 }
+
 
 
 // Helper: RGB to Lab (Inline Device Function)
@@ -848,7 +843,7 @@ void ArtPointillism_CUDA
 
     // Probability for Seeding
     // Note: 350 dots / 10000 px = 0.035 base prob
-    float base_prob = base_dots_per_block / 10000.0f;
+    constexpr float base_prob = base_dots_per_block / 10000.0f;
     float final_prob_scale = base_prob * count_multiplier;
 
     // C. Calculate Dynamic Radius
