@@ -12,7 +12,6 @@ enum class ArtPointillismControls : int32_t
     ART_POINTILLISM_SLIDER_DOT_SIZE,
     ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY,
     ART_POINTILLISM_SLIDER_COLOR_VIBRANCE,
-    ART_POINTILLISM_STROKE_STROKE_SHAPE,
     ART_POINTILLISM_BACKGROUND_ART,
     ART_POINTILLISM_OPACITY,
     ART_POINTILLISM_RANDOM_SEED,
@@ -26,7 +25,6 @@ constexpr char controlItemName[][24] =
     "Dot Size",
     "Edge Sensitivity",
     "Vibrancy",
-    "Stroke Shape",
     "Background",
     "Background Opacity",
     "Random Seed"

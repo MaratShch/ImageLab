@@ -11,7 +11,6 @@ struct PontillismControls
     int32_t                 DotSize;
     int32_t                 EdgeSensitivity;
     int32_t                 Vibrancy;
-    StrokeShape             Shape;
     BackgroundArt           Background;
     int32_t                 Opacity;
     int32_t                 RandomSeed;

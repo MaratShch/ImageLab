@@ -51,10 +51,6 @@ PF_Err ProcessImgInPR
 			err = PR_ImageStyle_ImpressionismArt (in_data, out_data, params, output);
 		break;
 		
-		case eSTYLE_POINTILLISM:
-			err = PR_ImageStyle_PointillismArt (in_data, out_data, params, output);
-		break;
-
 		case eSTYLE_MOSAIC:
 			err = PR_ImageStyle_MosaicArt (in_data, out_data, params, output);
 		break;

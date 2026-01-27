@@ -199,7 +199,6 @@
     <ClCompile Include="src\ImageStyle_OilPaint.cpp" />
     <ClCompile Include="src\ImageStyle_PaintArt.cpp" />
     <ClCompile Include="src\ImageStyle_PaintUtils.cpp" />
-    <ClCompile Include="src\ImageStyle_PointillismArt.cpp" />
     <ClCompile Include="src\ImageStyle_SegmentationUtils.cpp" />
     <ClCompile Include="src\ImageStyle_SketchCharcoal.cpp" />
     <ClCompile Include="src\ImageStyle_SketchPencil.cpp" />

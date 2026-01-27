@@ -771,7 +771,6 @@ void ArtPointillism_CUDA
     const int32_t               DotSize         = algoGpuParams->DotSize;
     const int32_t               EdgeSensitivity = algoGpuParams->EdgeSensitivity;
     const int32_t               Vibrancy        = algoGpuParams->Vibrancy;
-    const StrokeShape           Shape           = algoGpuParams->Shape;
     const BackgroundArt         Background      = algoGpuParams->Background;
     const int32_t               Opacity         = algoGpuParams->Opacity;
     const int32_t               RandomSeed      = algoGpuParams->RandomSeed;

@@ -51,10 +51,6 @@ PF_Err ImageStyleInAE_8bits
 			err = AE_ImageStyle_ImpressionismArt_ARGB_8u (in_data, out_data, params, output);
 		break;
 
-		case eSTYLE_POINTILLISM:
-			err = AE_ImageStyle_PointillismArt_ARGB_8u (in_data, out_data, params, output);
-		break;
-
 		case eSTYLE_MOSAIC:
 			err = AE_ImageStyle_MosaicArt_ARGB_8u (in_data, out_data, params, output);
 		break;
@@ -124,10 +120,6 @@ PF_Err ImageStyleInAE_16bits
 			err = AE_ImageStyle_ImpressionismArt_ARGB_16u (in_data, out_data, params, output);
 		break;
 
-		case eSTYLE_POINTILLISM:
-			err = AE_ImageStyle_PointillismArt_ARGB_16u (in_data, out_data, params, output);
-		break;
-
 		case eSTYLE_MOSAIC:
 			err = AE_ImageStyle_MosaicArt_ARGB_16u (in_data, out_data, params, output);
 		break;
@@ -194,10 +186,6 @@ PF_Err ImageStyleInAE_32bits
 
         case eSTYLE_IMPRESSIONISM:
             err = AE_ImageStyle_ImpressionismArt_ARGB_32f(in_data, out_data, params, output);
-        break;
-
-        case eSTYLE_POINTILLISM:
-            err = AE_ImageStyle_PointillismArt_ARGB_32f(in_data, out_data, params, output);
         break;
 
         case eSTYLE_MOSAIC:

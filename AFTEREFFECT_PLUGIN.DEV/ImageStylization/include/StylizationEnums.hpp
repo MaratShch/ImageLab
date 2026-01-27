@@ -17,7 +17,6 @@ typedef enum
 	eSTYLE_PAINT,
 	eSTYLE_OIL_PAINT,
 	eSTYLE_IMPRESSIONISM,
-	eSTYLE_POINTILLISM,
 	eSTYLE_MOSAIC,
 	eSTYLE_CUBISM,
 	eSTYLE_TOTAL_EFFECTS
@@ -36,7 +35,6 @@ constexpr static char strStyleEffect[] =
 	"Art: Paint|"
 	"Art: Oil Paint|"
 	"Art: Impressionism|"
-	"Art: Pointillism|"
 	"Art: Mosaic|"
 	"Art: Cubism"
 };
