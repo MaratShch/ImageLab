@@ -298,6 +298,9 @@
     <CustomBuild Include="ArtPointillism.r">
       <Filter>resource</Filter>
     </CustomBuild>
+    <CustomBuild Include="src\ArtPointillism_Kernel.cu">
+      <Filter>src</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtPointillism.rc">
@@ -305,9 +308,6 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\ArtPointillism_Kernel.cu">
-      <Filter>src</Filter>
-    </None>
     <None Include="include\ArtPointillismKernel.cuh">
       <Filter>include</Filter>
     </None>
