@@ -2,8 +2,6 @@
 #include "AFMedianFilterEnum.hpp"
 #include "PrSDKAESupport.h"
 
-constexpr int verR = PF_VERSION(IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR, IMAGE_LAB_AE_PLUGIN_VERSION_MINOR, 0, PF_Stage_RELEASE, 1);
-constexpr int verD = PF_VERSION(IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR, IMAGE_LAB_AE_PLUGIN_VERSION_MINOR, 0, PF_Stage_DEVELOP, 1);
 
 static PF_Err
 About(
