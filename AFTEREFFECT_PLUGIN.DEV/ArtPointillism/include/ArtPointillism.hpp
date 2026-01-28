@@ -12,7 +12,7 @@ constexpr int ArtPointillism_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ArtPointillism_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ArtPointillism_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ArtPointillism_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ArtPointillism_VersionBuild = 1;
 

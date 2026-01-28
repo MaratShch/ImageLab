@@ -12,7 +12,7 @@ constexpr int ColorSubstitution_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ColorSubstitution_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ColorSubstitution_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ColorSubstitution_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ColorSubstitution_VersionBuild = 1;
 

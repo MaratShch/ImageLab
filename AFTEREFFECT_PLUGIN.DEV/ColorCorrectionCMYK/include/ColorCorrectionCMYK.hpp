@@ -10,7 +10,7 @@ constexpr int ColorCorrection_VersionSub   = 0;
 #ifdef _DEBUG
 constexpr int ColorCorrection_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ColorCorrection_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ColorCorrection_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ColorCorrection_VersionBuild = 1;
 

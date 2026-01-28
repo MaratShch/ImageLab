@@ -12,7 +12,7 @@ constexpr int FuzzyMedian_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int FuzzyMedian_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int FuzzyMedian_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int FuzzyMedian_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int FuzzyMedian_VersionBuild = 1;
 

@@ -12,7 +12,7 @@ constexpr int PrismaVideo_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int PrismaVideo_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int PrismaVideo_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int PrismaVideo_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int PrismaVideo_VersionBuild = 1;
 

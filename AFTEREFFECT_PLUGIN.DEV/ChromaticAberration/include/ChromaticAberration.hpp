@@ -12,7 +12,7 @@ constexpr int ChromaticAberration_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ChromaticAberration_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ChromaticAberration_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ChromaticAberration_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ChromaticAberration_VersionBuild = 1;
 

@@ -12,7 +12,7 @@ constexpr int RetroVision_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int RetroVision_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int RetroVision_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int RetroVision_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int RetroVision_VersionBuild = 1;
 

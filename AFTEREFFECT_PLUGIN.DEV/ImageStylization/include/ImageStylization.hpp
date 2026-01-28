@@ -13,7 +13,7 @@ constexpr int ImageStyle_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ImageStyle_VersionStage = PF_Stage_DEVELOP;
+constexpr int ImageStyle_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ImageStyle_VersionBuild = 1;
 

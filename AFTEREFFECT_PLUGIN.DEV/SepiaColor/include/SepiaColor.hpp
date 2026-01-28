@@ -11,7 +11,7 @@ constexpr int SepiaColor_VersionSub   = 0;
 #ifdef _DEBUG
 constexpr int SepiaColor_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int SepiaColor_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int SepiaColor_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int SepiaColor_VersionBuild = 1;
 

@@ -11,7 +11,7 @@ constexpr int Convolution_VersionSub   = 0;
 #ifdef _DEBUG
 constexpr int Convolution_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int Convolution_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int Convolution_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int Convolution_VersionBuild = 1;
 

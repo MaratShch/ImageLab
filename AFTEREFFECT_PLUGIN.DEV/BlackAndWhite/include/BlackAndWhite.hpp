@@ -10,7 +10,7 @@ constexpr int BWFilter_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int BWFilter_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int BWFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int BWFilter_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int BWFilter_VersionBuild = 1;
 

@@ -12,7 +12,7 @@ constexpr int ImageStabilizer_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ImageStabilizer_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ImageStabilizer_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ImageStabilizer_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ImageStabilizer_VersionBuild = 1;
 

@@ -12,7 +12,7 @@ constexpr int ImageSharpening_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ImageSharpening_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ImageSharpening_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ImageSharpening_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ImageSharpening_VersionBuild = 1;
 

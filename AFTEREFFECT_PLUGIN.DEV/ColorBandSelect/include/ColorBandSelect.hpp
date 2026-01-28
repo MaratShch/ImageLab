@@ -11,7 +11,7 @@ constexpr int ColorBandSelect_VersionSub   = 0;
 #ifdef _DEBUG
 constexpr int ColorBandSelect_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ColorBandSelect_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ColorBandSelect_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ColorBandSelect_VersionBuild = 1;
 

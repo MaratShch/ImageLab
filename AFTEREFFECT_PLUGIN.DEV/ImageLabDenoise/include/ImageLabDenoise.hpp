@@ -12,7 +12,7 @@ constexpr int ImageLabDenoise_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ImageLabDenoise_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ImageLabDenoise_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ImageLabDenoise_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ImageLabDenoise_VersionBuild = 1;
 

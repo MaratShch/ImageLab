@@ -12,7 +12,7 @@ constexpr int AverageFilter_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int AverageFilter_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int AverageFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int AverageFilter_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int AverageFilter_VersionBuild = 1;
 

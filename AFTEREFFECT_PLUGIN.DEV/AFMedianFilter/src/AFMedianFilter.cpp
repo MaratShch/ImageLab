@@ -1,7 +1,9 @@
 #include "AFMedianFilter.hpp"
+#include "AFMedianFilterEnum.hpp"
 #include "PrSDKAESupport.h"
 
-
+constexpr int verR = PF_VERSION(IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR, IMAGE_LAB_AE_PLUGIN_VERSION_MINOR, 0, PF_Stage_RELEASE, 1);
+constexpr int verD = PF_VERSION(IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR, IMAGE_LAB_AE_PLUGIN_VERSION_MINOR, 0, PF_Stage_DEVELOP, 1);
 
 static PF_Err
 About(
@@ -97,8 +99,11 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    CACHE_ALIGN PF_ParamDef	def{};
+    PF_Err		err = PF_Err_NONE;
 
-	return PF_Err_NONE;
+    out_data->num_params = UnderlyingType(AFMF::eIMAGE_AFMEDIAN_TOTAL_CONTROLS);
+	return err;
 }
 
 

@@ -12,7 +12,7 @@ constexpr int Dehaze_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int Dehaze_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int Dehaze_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int Dehaze_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int Dehaze_VersionBuild = 1;
 

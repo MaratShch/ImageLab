@@ -12,7 +12,7 @@ constexpr int BilateralFilter_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int BilateralFilter_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int BilateralFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int BilateralFilter_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int BilateralFilter_VersionBuild = 1;
 

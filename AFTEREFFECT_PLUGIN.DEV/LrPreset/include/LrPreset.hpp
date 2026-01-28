@@ -12,7 +12,7 @@ constexpr int LrPreset_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int LrPreset_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int LrPreset_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int LrPreset_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int LrPreset_VersionBuild = 1;
 

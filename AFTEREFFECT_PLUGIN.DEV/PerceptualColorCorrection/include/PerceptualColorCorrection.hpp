@@ -11,7 +11,7 @@ constexpr int PerceptualColorCorrection_VersionSub   = 0;
 #ifdef _DEBUG
 constexpr int PerceptualColorCorrection_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int PerceptualColorCorrection_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int PerceptualColorCorrection_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int PerceptualColorCorrection_VersionBuild = 1;
 

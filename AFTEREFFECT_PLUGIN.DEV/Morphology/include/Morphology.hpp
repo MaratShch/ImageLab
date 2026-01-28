@@ -14,7 +14,7 @@ constexpr int MorphologyFilter_VersionSub   = 0;
 #ifdef _DEBUG
 constexpr int MorphologyFilter_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int MorphologyFilter_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int MorphologyFilter_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int MorphologyFilter_VersionBuild = 1;
 
