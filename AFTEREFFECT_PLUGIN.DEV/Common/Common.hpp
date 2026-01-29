@@ -89,7 +89,7 @@ inline void* ComputeAddress (const void* pAddr, const size_t bytes_offset) noexc
 
 inline uint64_t RDTSC() noexcept
 {
-#ifdef _MSC_VER
+#if defined(__INTEL_COMPILER) || defined(_MSC_VER)
 	return __rdtsc();
 #elif defined(__GNUC__) || defined(__clang__)
 	uint32_t hi, lo;
