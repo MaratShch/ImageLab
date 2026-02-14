@@ -81,9 +81,6 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageLabDenoiseUtils.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ImageLabDenoiseAlgo.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -102,9 +99,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabDenoiseUtils.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp">

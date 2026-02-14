@@ -1,5 +1,4 @@
 #include "ImageLabDenoise.hpp"
-#include "ImageLabDenoiseUtils.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 
@@ -34,12 +33,6 @@ GlobalSetup(
 
     if (false == LoadMemoryInterfaceProvider (in_data))
         return err;
-    if (false == LoadProcLibDLL (in_data))
-    {
-        // unload previously loaded library on proc DLL load fails
-        UnloadMemoryInterfaceProvider();
-        return err;
-    }
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_WIDE_TIME_INPUT                |
@@ -98,9 +91,6 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    // Unload processing library
-    UnloadProcLibDll ();
-
     // Unload memory management library
     UnloadMemoryInterfaceProvider();
 
