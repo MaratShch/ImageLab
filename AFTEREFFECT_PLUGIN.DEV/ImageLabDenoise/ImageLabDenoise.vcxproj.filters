@@ -87,6 +87,9 @@
     <ClInclude Include="include\AlgoMemHandler.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoControls.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabDenoise.cpp">
@@ -111,6 +114,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoMemHandlerNC.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControlsNC.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

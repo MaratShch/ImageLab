@@ -1,5 +1,7 @@
 #include "ImageLabDenoise.hpp"
 #include "ImageLabDenoiseEnum.hpp"
+#include "AlgoMemHandler.hpp"
+#include "AlgoControls.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -19,15 +21,15 @@ PF_Err ProcessImgInPR
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 
-//    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
-//    if (true == mem_handler_valid(algoMemHandler))
-//    {
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, 0, false);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
         // This plugin called frop PR - check video fomat
         auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
-//            const PontillismControls algoControls = GetControlParametersStruct(params);
+            const AlgoControls algoControls = getAlgoControlsDefault();
 
             switch (destinationPixelFormat)
             {
@@ -129,11 +131,11 @@ PF_Err ProcessImgInPR
             err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
         }
 
-//        free_memory_buffers(algoMemHandler);
+        free_memory_buffers(algoMemHandler);
 
-//    } // if (true == mem_handler_valid (algoMemHandler))
-//    else
-//        err = PF_Err_OUT_OF_MEMORY;
+    } // if (true == mem_handler_valid (algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
 
     return err;
 }

@@ -155,6 +155,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoControls.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\ImageLabDenoiseAlgo.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
@@ -175,6 +176,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\ImageLabDenoiseEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoControlsNC.cpp" />
     <ClCompile Include="src\AlgoMemHandlerNC.cpp" />
     <ClCompile Include="src\ImageLabDenoise.cpp" />
     <ClCompile Include="src\ImageLabDenoiseAE.cpp" />

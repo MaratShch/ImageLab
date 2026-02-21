@@ -30,38 +30,6 @@ constexpr inline float FreqSlider2Value (const int32_t sliderVal) noexcept
     return (static_cast<float>(sliderVal + 100) / 100.f);
 }
 
-enum class ProcAccuracy : int32_t
-{
-    AccDraft = 0,	// Draft (Stride 5) - Fastest for scrubbing the timeline.
-    AccStandard,	// Standard (Stride 3) - Good balance.
-    AccHigh,		// High (Stride 2) - Standard high-quality.
-    AccMaster	 	// Master (Stride 1) - Slowest, best for final render.
-};
-
-constexpr int32_t eDenoiseAmountMin = 0;
-constexpr int32_t eDenoiseAmountMax = 200;
-constexpr int32_t eDenoiseAmountDef = 100;
-
-constexpr int32_t eDetailPreservMin = 0;
-constexpr int32_t eDetailPreservMax = 50;
-constexpr int32_t eDetailPreservDef = 25;
-
-constexpr float eMatchSensitivityMin = 0.5f;
-constexpr float eMatchSensitivityMax = 5.0f;
-constexpr float eMatchSensitivityDef = 2.5f;
-
-constexpr int32_t eSearchRadiusMin = 4;
-constexpr int32_t eSearchRadiusMax = 32;
-constexpr int32_t eSearchRadiusDef = 10;
-
-constexpr int32_t eLowFreqMultMin = -100;
-constexpr int32_t eLowFreqMultMax = 0;
-constexpr int32_t eLowFreqMultDef = 100;
-
-constexpr int32_t eHighFreqMultMin = -100;
-constexpr int32_t eHighFreqMultMax = 0;
-constexpr int32_t eHighFreqMultDef = 100;
-
 
 
 #endif // __IMAGE_LAB_DENOISE_FILTER_ENUMERATORS__
