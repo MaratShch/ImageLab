@@ -2,6 +2,7 @@
 #include "ImageLabDenoiseEnum.hpp"
 #include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
+#include "ColorConvert.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -36,10 +37,11 @@ PF_Err ProcessImgInPR
                 case PrPixelFormat_BGRA_4444_8u:
                 {
                     const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
-                    PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
+                          PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-                    // convert to semi-planar CieLAB color space
+                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
+                    AVX2_Convert_BGRA_8u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch);
                 }
                 break;
 

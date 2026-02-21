@@ -90,6 +90,9 @@
     <ClInclude Include="include\AlgoControls.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabDenoise.cpp">
@@ -117,6 +120,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoControlsNC.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

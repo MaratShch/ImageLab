@@ -157,6 +157,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgoControls.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
+    <ClInclude Include="include\ColorConvert.hpp" />
     <ClInclude Include="include\ImageLabDenoiseAlgo.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
     <CustomBuild Include="include\ImageLabDenoise.hpp">
@@ -178,6 +179,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <ClCompile Include="src\AlgoControlsNC.cpp" />
     <ClCompile Include="src\AlgoMemHandlerNC.cpp" />
+    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp" />
     <ClCompile Include="src\ImageLabDenoise.cpp" />
     <ClCompile Include="src\ImageLabDenoiseAE.cpp" />
     <ClCompile Include="src\ImageLabDenoisePR.cpp" />
