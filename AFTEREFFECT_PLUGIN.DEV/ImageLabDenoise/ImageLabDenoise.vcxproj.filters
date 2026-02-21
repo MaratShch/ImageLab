@@ -107,9 +107,6 @@
     <ClCompile Include="src\ImageLabDenoisePreProc.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabAvx2LibLink.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageLabDenoise.rc">
