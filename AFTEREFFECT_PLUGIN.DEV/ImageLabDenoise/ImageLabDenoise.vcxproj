@@ -155,8 +155,14 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoBayesFilter.hpp" />
+    <ClInclude Include="include\AlgoBlockMatch.hpp" />
     <ClInclude Include="include\AlgoControls.hpp" />
+    <ClInclude Include="include\AlgoMatrixMath.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
+    <ClInclude Include="include\AlgoNoiseOracle.hpp" />
+    <ClInclude Include="include\AlgoPyramidBuilder.hpp" />
+    <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\ColorConvert.hpp" />
     <ClInclude Include="include\ImageLabDenoiseAlgo.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
@@ -177,8 +183,14 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\ImageLabDenoiseEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoBayesFilter.cpp" />
     <ClCompile Include="src\AlgoControlsNC.cpp" />
+    <ClCompile Include="src\AlgoExtractGroup.cpp" />
+    <ClCompile Include="src\AlgoMatrixMath.cpp" />
     <ClCompile Include="src\AlgoMemHandlerNC.cpp" />
+    <ClCompile Include="src\AlgoNoiseOracle.cpp" />
+    <ClCompile Include="src\AlgoPyramidBuilder.cpp" />
+    <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\Avx2ConvertRgbYuv.cpp" />
     <ClCompile Include="src\ImageLabDenoise.cpp" />
     <ClCompile Include="src\ImageLabDenoiseAE.cpp" />

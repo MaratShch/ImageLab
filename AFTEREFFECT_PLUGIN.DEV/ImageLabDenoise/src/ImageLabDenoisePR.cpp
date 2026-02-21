@@ -2,6 +2,7 @@
 #include "ImageLabDenoiseEnum.hpp"
 #include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
+#include "AlgorithmMain.hpp"
 #include "ColorConvert.hpp"
 #include "PrSDKAESupport.h"
 
@@ -42,6 +43,11 @@ PF_Err ProcessImgInPR
 
                     // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
                     AVX2_Convert_BGRA_8u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    // convert denoised image to BGRA_8u interleaved output buffer
                 }
                 break;
 
