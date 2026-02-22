@@ -3,6 +3,7 @@
 #include "AVX2_AlgoNoiseOracle.hpp"
 #include "AlgoNoiseOracle.hpp" // Required for OracleCandidate, BinInfo, Compute_MAD, etc.
 
+
 // =========================================================
 // AVX2 ACCELERATED DCT PROJECTION
 // =========================================================
@@ -227,10 +228,13 @@ void AVX2_Process_Channel_Oracle
     }
 
     // 6. INTERPOLATE COVARIANCE MATRICES TO 256-LEVEL LUT (SCALAR)
-    for(int32_t intensity = 0; intensity < 256; ++intensity) {
+    for(int32_t intensity = 0; intensity < 256; ++intensity)
+    {
         int32_t b_left = -1, b_right = -1;
-        for(int32_t b = 0; b < numBins; ++b) {
-            if (bins[b].count > 0) {
+        for(int32_t b = 0; b < numBins; ++b)
+        {
+            if (bins[b].count > 0)
+            {
                 if (bins[b].mean_val <= intensity) b_left = b;
                 if (bins[b].mean_val >= intensity && b_right == -1) b_right = b;
             }
@@ -241,11 +245,13 @@ void AVX2_Process_Channel_Oracle
         if (b_left == -1) continue; 
         
         float weight_right = 0.0f;
-        if (b_left != b_right) {
+        if (b_left != b_right)
+        {
             weight_right = (intensity - bins[b_left].mean_val) / (bins[b_right].mean_val - bins[b_left].mean_val);
         }
         
-        for(int32_t i = 0; i < 256; ++i) {
+        for(int32_t i = 0; i < 256; ++i)
+        {
             covLUT[intensity * 256 + i] = bin_covs[b_left][i] * (1.0f - weight_right) + bin_covs[b_right][i] * weight_right;
         }
     }
@@ -268,3 +274,5 @@ void AVX2_Estimate_Noise_Covariances
     AVX2_Process_Channel_Oracle(mem.U_planar, mem.NoiseCov_U, width, height, mem.OracleWorkspace, workspaceSizeFloats);
     AVX2_Process_Channel_Oracle(mem.V_planar, mem.NoiseCov_V, width, height, mem.OracleWorkspace, workspaceSizeFloats);
 }
+
+

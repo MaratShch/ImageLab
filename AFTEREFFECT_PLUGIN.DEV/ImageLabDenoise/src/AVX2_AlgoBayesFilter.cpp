@@ -489,3 +489,5 @@ void AVX2_Process_Scale_NL_Bayes
         }
     }
 }
+
+

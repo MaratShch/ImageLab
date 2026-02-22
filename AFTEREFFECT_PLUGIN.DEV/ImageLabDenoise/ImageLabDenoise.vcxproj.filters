@@ -135,9 +135,6 @@
     <ClCompile Include="src\AlgoControlsNC.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgoExtractGroup.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\AlgoMemHandlerNC.cpp">
       <Filter>src</Filter>
     </ClCompile>

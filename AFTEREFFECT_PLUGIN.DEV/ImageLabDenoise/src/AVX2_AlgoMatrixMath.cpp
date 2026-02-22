@@ -1,6 +1,7 @@
 #include <cmath>
 #include "AVX2_AlgoMatrixMath.hpp"
 
+
 // =========================================================
 // AVX2 MATRIX MULTIPLICATION (A * B)
 // =========================================================
@@ -217,3 +218,4 @@ bool AVX2_Inverse_Matrix (double* RESTRICT io_mat, const int32_t p_N) noexcept
     }
     return true;
 }
+

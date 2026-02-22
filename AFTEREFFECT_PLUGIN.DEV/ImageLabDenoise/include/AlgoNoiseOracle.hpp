@@ -1,9 +1,9 @@
 #pragma once
 
 #include <cstdint>
-#include <cmath>
 #include <algorithm>
 #include "Common.hpp"
+#include "FastAriphmetics.hpp"
 #include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
 
@@ -65,7 +65,7 @@ inline void Generate_DCT_Basis(float D[16][16]) noexcept
             for (int32_t y = 0; y < 4; ++y) {
                 for (int32_t x = 0; x < 4; ++x) {
                     const int32_t p = y * 4 + x;
-                    D[k][p] = alpha_u * alpha_v * std::cos(pi * u * (2.0f * x + 1.0f) / 8.0f) * std::cos(pi * v * (2.0f * y + 1.0f) / 8.0f);
+                    D[k][p] = alpha_u * alpha_v * FastCompute::Cos(pi * u * (2.0f * x + 1.0f) / 8.0f) * FastCompute::Cos(pi * v * (2.0f * y + 1.0f) / 8.0f);
                 }
             }
         }
@@ -127,7 +127,7 @@ inline float Calculate_Sparse_Distance(const float* RESTRICT dctA, const float* 
 inline float Compute_MAD(float* RESTRICT arr, const int32_t size) noexcept 
 {
     if (size == 0) return 0.0f;
-    std::sort(arr, arr + size);
+        std::sort(arr, arr + size);
     float median = (size % 2 == 0) ? (arr[size/2 - 1] + arr[size/2]) * 0.5f : arr[size/2];
     
     for (int32_t i = 0; i < size; ++i) {

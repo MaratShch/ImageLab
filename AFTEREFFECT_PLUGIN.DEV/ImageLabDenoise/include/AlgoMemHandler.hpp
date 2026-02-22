@@ -70,7 +70,7 @@ struct MemHandler
     size_t totalSize; 
 };
 
-MemHandler alloc_memory_buffers(int32_t sizeX, int32_t sizeY, int32_t blockSize, const bool dbgPrn = false) noexcept;
+MemHandler alloc_memory_buffers(int32_t sizeX, int32_t sizeY) noexcept;
 
 void free_memory_buffers(MemHandler& algoMemHandler) noexcept;
 

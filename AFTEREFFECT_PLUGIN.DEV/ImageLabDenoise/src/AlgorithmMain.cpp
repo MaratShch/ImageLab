@@ -106,6 +106,7 @@ void Algorithm_Main
         const int32_t hW = mem.padW / 2, hH = mem.padH / 2;
         const int32_t fW = mem.padW,     fH = mem.padH;
         
+
         // --- LEVEL 2: QUARTER RESOLUTION ---
         AVX2_Process_Scale_NL_Bayes (mem, mem.Y_quart, mem.U_quart, mem.V_quart, qW, qH, 0.0625f);
 
@@ -128,6 +129,7 @@ void Algorithm_Main
         Unpack_Edges_YUV(mem.Accum_Y, sizeX, sizeY, mem.padW);
         Unpack_Edges_YUV(mem.Accum_U, sizeX, sizeY, mem.padW);
         Unpack_Edges_YUV(mem.Accum_V, sizeX, sizeY, mem.padW);
+
     }
    
     return;

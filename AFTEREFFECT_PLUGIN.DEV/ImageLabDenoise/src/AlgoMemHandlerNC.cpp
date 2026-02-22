@@ -5,7 +5,7 @@
 #include "ImageLabMemInterface.hpp"
 
 
-MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY, const int32_t blockSize, const bool dbgPrn) noexcept
+MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexcept
 {
     MemHandler algoMemHandler{};
     
@@ -134,32 +134,6 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY, const
         algoMemHandler.Scratch3D = reinterpret_cast<float*>(superBuffer + off_Scratch3D);
     }
     
-    // ==================================================================================
-    // 4. DEBUG TELEMETRY
-    // ==================================================================================
-    if (dbgPrn && superBuffer != nullptr) 
-    {
-        const double totalMb = static_cast<double>(totalBytes) / (1024.0 * 1024.0);
-        std::cout << "Total Allocation: " << totalMb << " MB\n";
-        std::cout << "Average Allocation per pixel: " << static_cast<double>(totalBytes) / frameSize << " bytes.\n";
-        
-        auto printBuf = [&](const char* n, size_t s, size_t o, void* p)
-        {
-            std::cout << std::left << std::setw(18) << n << " | Sz: " << std::setw(10) << s 
-                      << " | Off: " << std::setw(10) << o << " | Ptr: " << p << "\n";
-        };
-
-        printBuf("Y_planar", alignedFull, off_Y_planar, algoMemHandler.Y_planar);
-        printBuf("Y_diff_full", alignedFull, off_Y_diff_full, algoMemHandler.Y_diff_full);
-        printBuf("Y_half", alignedHalf, off_Y_half, algoMemHandler.Y_half);
-        printBuf("OracleWorkspace", oracleWorkspaceSize, off_OracleWorkspace, algoMemHandler.OracleWorkspace);
-        printBuf("NoiseCov_Y", covLutSize, off_NoiseCov_Y, algoMemHandler.NoiseCov_Y);
-        printBuf("Accum_Y", accumSize, off_Accum_Y, algoMemHandler.Accum_Y);
-        printBuf("Weight_Count", accumSize, off_Weight_Count, algoMemHandler.Weight_Count);
-        printBuf("Scratch3D", scratch3DSize, off_Scratch3D, algoMemHandler.Scratch3D);
-        std::cout << "========================================\n\n";
-    }
-
     return algoMemHandler;
 }
 

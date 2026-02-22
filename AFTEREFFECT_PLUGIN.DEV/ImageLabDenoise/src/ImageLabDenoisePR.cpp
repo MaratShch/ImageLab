@@ -24,7 +24,7 @@ PF_Err ProcessImgInPR
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 
-    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, 0, false);
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
     if (true == mem_handler_valid(algoMemHandler))
     {
         // This plugin called frop PR - check video fomat

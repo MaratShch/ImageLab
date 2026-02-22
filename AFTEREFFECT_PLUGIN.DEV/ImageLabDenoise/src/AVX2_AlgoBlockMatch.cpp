@@ -147,3 +147,4 @@ int32_t AVX2_Extract_Similar_Patches
 
     return std::min(valid_patches, 512);
 }
+

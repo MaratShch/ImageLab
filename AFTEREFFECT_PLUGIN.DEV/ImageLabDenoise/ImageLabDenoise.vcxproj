@@ -197,7 +197,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AlgoControlsNC.cpp" />
-    <ClCompile Include="src\AlgoExtractGroup.cpp" />
     <ClCompile Include="src\AlgoMemHandlerNC.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\Avx2ConvertRgbYuv.cpp" />
