@@ -29,24 +29,22 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
-    if (false == LoadMemoryInterfaceProvider (in_data))
+    if (false == LoadMemoryInterfaceProvider(in_data))
         return err;
 
     constexpr PF_OutFlags out_flags1 =
-        PF_OutFlag_WIDE_TIME_INPUT                |
-        PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
-        PF_OutFlag_USE_OUTPUT_EXTENT              |
-        PF_OutFlag_PIX_INDEPENDENT                |
-        PF_OutFlag_DEEP_COLOR_AWARE               |
-        PF_OutFlag_SEND_UPDATE_PARAMS_UI;
+        PF_OutFlag_PIX_INDEPENDENT |
+        PF_OutFlag_SEND_UPDATE_PARAMS_UI |
+        PF_OutFlag_USE_OUTPUT_EXTENT |
+        PF_OutFlag_DEEP_COLOR_AWARE |
+        PF_OutFlag_WIDE_TIME_INPUT;
 
     constexpr PF_OutFlags out_flags2 =
         PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
-        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
-        PF_OutFlag2_SUPPORTS_GET_FLATTENED_SEQUENCE_DATA;
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 
 	out_data->my_version =
@@ -70,13 +68,13 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
     err = PF_Err_NONE;

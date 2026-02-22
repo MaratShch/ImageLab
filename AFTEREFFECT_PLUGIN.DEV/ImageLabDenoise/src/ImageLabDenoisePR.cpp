@@ -3,6 +3,7 @@
 #include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
 #include "AlgorithmMain.hpp"
+#include "AVX2_AlgoColorConvert.hpp"
 #include "ColorConvert.hpp"
 #include "PrSDKAESupport.h"
 
@@ -48,6 +49,7 @@ PF_Err ProcessImgInPR
                     Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
                     // convert denoised image to BGRA_8u interleaved output buffer
+                    AVX2_Convert_YUV_to_BGRA_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
                 }
                 break;
 

@@ -155,50 +155,21 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\AlgoBayesFilter.hpp" />
-    <ClInclude Include="include\AlgoBlockMatch.hpp" />
     <ClInclude Include="include\AlgoControls.hpp" />
-    <ClInclude Include="include\AlgoMatrixMath.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoNoiseOracle.hpp" />
-    <ClInclude Include="include\AlgoPyramidBuilder.hpp" />
     <ClInclude Include="include\AlgorithmMain.hpp" />
+    <ClInclude Include="include\AVX2_AlgoBayesFilter.hpp" />
+    <ClInclude Include="include\AVX2_AlgoBlockMatch.hpp" />
+    <ClInclude Include="include\AVX2_AlgoColorConvert.hpp" />
+    <ClInclude Include="include\AVX2_AlgoMatrixMath.hpp" />
+    <ClInclude Include="include\AVX2_AlgoNoiseOracle.hpp" />
+    <ClInclude Include="include\AVX2_AlgoPyramidBuilder.hpp" />
     <ClInclude Include="include\ColorConvert.hpp" />
+    <ClInclude Include="include\ImageLabDenoise.hpp" />
     <ClInclude Include="include\ImageLabDenoiseAlgo.hpp" />
-    <ClInclude Include="include\ImageLabMemInterface.hpp" />
-    <CustomBuild Include="include\ImageLabDenoise.hpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo "ADOBE AFTER EFFECT SDK ROOT: " $(ADOBE_AFTEREFFECT_SDK_ROOT)
-cl /I"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers" /I"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk" /I"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP" /I "$(SolutionDir)\ADOBE_AE\INCLUDES" /EP "$(ProjectDir)\%(Filename).r" &gt; "$(ProjectDir)\%(Filename).rr"
-"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Resources\PiPLTool" "$(ProjectDir)%(Filename).rr" "$(ProjectDir)%(Filename).rrc"
-cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filename)".rc
-</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo "ADOBE AFTER EFFECT SDK ROOT: " $(ADOBE_AFTEREFFECT_SDK_ROOT)
-cl /I"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers" /I"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk" /I"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP" /I "$(SolutionDir)\ADOBE_AE\INCLUDES" /EP "$(ProjectDir)\%(Filename).r" &gt; "$(ProjectDir)\%(Filename).rr"
-"$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Resources\PiPLTool" "$(ProjectDir)%(Filename).rr" "$(ProjectDir)%(Filename).rrc"
-cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filename)".rc
-</Command>
-    </CustomBuild>
     <ClInclude Include="include\ImageLabDenoiseEnum.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\AlgoBayesFilter.cpp" />
-    <ClCompile Include="src\AlgoControlsNC.cpp" />
-    <ClCompile Include="src\AlgoExtractGroup.cpp" />
-    <ClCompile Include="src\AlgoMatrixMath.cpp" />
-    <ClCompile Include="src\AlgoMemHandlerNC.cpp" />
-    <ClCompile Include="src\AlgoNoiseOracle.cpp" />
-    <ClCompile Include="src\AlgoPyramidBuilder.cpp" />
-    <ClCompile Include="src\AlgorithmMain.cpp" />
-    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp" />
-    <ClCompile Include="src\ImageLabDenoise.cpp" />
-    <ClCompile Include="src\ImageLabDenoiseAE.cpp" />
-    <ClCompile Include="src\ImageLabDenoisePR.cpp" />
-    <ClCompile Include="src\ImageLabDenoisePreProc.cpp" />
-    <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp" />
-    <ClCompile Include="src\ImageLabDenoiseSR.cpp" />
-    <ClCompile Include="src\ImageLabMemInterface.cpp" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ImageLabDenoise.r">
@@ -223,6 +194,26 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageLabDenoise.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\AlgoControlsNC.cpp" />
+    <ClCompile Include="src\AlgoExtractGroup.cpp" />
+    <ClCompile Include="src\AlgoMemHandlerNC.cpp" />
+    <ClCompile Include="src\AlgorithmMain.cpp" />
+    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp" />
+    <ClCompile Include="src\AVX2_AlgoBayesFilter.cpp" />
+    <ClCompile Include="src\AVX2_AlgoBlockMatch.cpp" />
+    <ClCompile Include="src\AVX2_AlgoColorConvert.cpp" />
+    <ClCompile Include="src\AVX2_AlgoMatrixMath.cpp" />
+    <ClCompile Include="src\AVX2_AlgoNoiseOracle.cpp" />
+    <ClCompile Include="src\AVX2_AlgoPyramidBuilder.cpp" />
+    <ClCompile Include="src\ImageLabDenoise.cpp" />
+    <ClCompile Include="src\ImageLabDenoiseAE.cpp" />
+    <ClCompile Include="src\ImageLabDenoisePR.cpp" />
+    <ClCompile Include="src\ImageLabDenoisePreProc.cpp" />
+    <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp" />
+    <ClCompile Include="src\ImageLabDenoiseSR.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

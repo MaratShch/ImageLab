@@ -6,12 +6,11 @@
 #include "AlgorithmMain.hpp"
 
 // NC Algorithm headers
-#include "AlgoPyramidBuilder.hpp"
-#include "AlgoNoiseOracle.hpp"
-#include "AlgoBayesFilter.hpp"
+#include "AVX2_AlgoPyramidBuilder.hpp"
+#include "AVX2_AlgoNoiseOracle.hpp"
+#include "AVX2_AlgoBayesFilter.hpp"
 
-
-// Safely replicates the last column and row into the padding zone
+// Safely repacks the host buffer to the padded stride, then pads the edges
 inline void Pad_Edges_YUV
 (
     float* RESTRICT plane,
@@ -21,7 +20,20 @@ inline void Pad_Edges_YUV
     int32_t padH
 ) noexcept
 {
-    // Pad Right Edge
+    // 1. REPACK BUFFER: Expand from tight host pitch (sizeX) to internal pitch (padW)
+    // Iterate backwards (bottom to top) to prevent overwriting unshifted data.
+    if (padW > sizeX)
+    {
+        for (int32_t y = sizeY - 1; y > 0; --y)
+        {
+            for (int32_t x = sizeX - 1; x >= 0; --x)
+            {
+                plane[y * padW + x] = plane[y * sizeX + x];
+            }
+        }
+    }
+
+    // 2. Pad Right Edge
     for (int32_t y = 0; y < sizeY; ++y)
     {
         const float last_val = plane[y * padW + (sizeX - 1)];
@@ -30,7 +42,8 @@ inline void Pad_Edges_YUV
             plane[y * padW + x] = last_val;
         }
     }
-    // Pad Bottom Edge
+    
+    // 3. Pad Bottom Edge
     for (int32_t y = sizeY; y < padH; ++y)
     {
         for (int32_t x = 0; x < padW; ++x)
@@ -39,6 +52,29 @@ inline void Pad_Edges_YUV
         }
     }
     return;
+}
+
+// Safely un-packs the padded stride back to the tight host stride
+inline void Unpack_Edges_YUV
+(
+    float* RESTRICT plane,
+    int32_t sizeX,
+    int32_t sizeY,
+    int32_t padW
+) noexcept
+{
+    // Compress from internal pitch (padW) back to tight host pitch (sizeX)
+    // Iterate forwards (top to bottom) to safely overwrite.
+    if (padW > sizeX)
+    {
+        for (int32_t y = 1; y < sizeY; ++y)
+        {
+            for (int32_t x = 0; x < sizeX; ++x)
+            {
+                plane[y * sizeX + x] = plane[y * padW + x];
+            }
+        }
+    }
 }
 
 // =========================================================
@@ -54,16 +90,16 @@ void Algorithm_Main
 {
     if (mem_handler_valid(mem))
     {
-        // 0. DUPLICATE EDGES INTO PADDING
+        // 0. DUPLICATE EDGES INTO PADDING (Now includes stride re-packing)
         Pad_Edges_YUV(mem.Y_planar, sizeX, sizeY, mem.padW, mem.padH);
         Pad_Edges_YUV(mem.U_planar, sizeX, sizeY, mem.padW, mem.padH);
         Pad_Edges_YUV(mem.V_planar, sizeX, sizeY, mem.padW, mem.padH);
         
         // 1. CONSTRUCT PYRAMID (Using padW / padH)
-        Build_Laplacian_Pyramid (mem, mem.padW, mem.padH);
+        AVX2_Build_Laplacian_Pyramid (mem, mem.padW, mem.padH);
         
         // 2. BLIND NOISE ORACLE (Using padW / padH)
-        Estimate_Noise_Covariances (mem, mem.padW, mem.padH, algoCtrl);
+        AVX2_Estimate_Noise_Covariances (mem, mem.padW, mem.padH, algoCtrl);
 
         // 3. MULTI-SCALE DENOISING
         const int32_t qW = mem.padW / 4, qH = mem.padH / 4;
@@ -71,28 +107,27 @@ void Algorithm_Main
         const int32_t fW = mem.padW,     fH = mem.padH;
         
         // --- LEVEL 2: QUARTER RESOLUTION ---
-        // 2x2 averaging twice reduces noise variance by 16 (4^2)
-        Process_Scale_NL_Bayes (mem, mem.Y_quart, mem.U_quart, mem.V_quart, qW, qH, 0.0625f);
+        AVX2_Process_Scale_NL_Bayes (mem, mem.Y_quart, mem.U_quart, mem.V_quart, qW, qH, 0.0625f);
 
-        // Reconstruct Half Resolution
-        // The denoised Quarter result resides in mem.Accum_*
-        Reconstruct_Laplacian_Level (mem.Accum_Y, mem.Y_diff_half, mem.Y_half, hW, hH);
-        Reconstruct_Laplacian_Level (mem.Accum_U, mem.U_diff_half, mem.U_half, hW, hH);
-        Reconstruct_Laplacian_Level (mem.Accum_V, mem.V_diff_half, mem.V_half, hW, hH);
+        AVX2_Reconstruct_Laplacian_Level (mem.Accum_Y, mem.Y_diff_half, mem.Y_half, hW, hH);
+        AVX2_Reconstruct_Laplacian_Level (mem.Accum_U, mem.U_diff_half, mem.U_half, hW, hH);
+        AVX2_Reconstruct_Laplacian_Level (mem.Accum_V, mem.V_diff_half, mem.V_half, hW, hH);
 
         // --- LEVEL 1: HALF RESOLUTION ---
-        // 2x2 averaging once reduces noise variance by 4
-        Process_Scale_NL_Bayes (mem, mem.Y_half, mem.U_half, mem.V_half, hW, hH, 0.25f);
+        AVX2_Process_Scale_NL_Bayes (mem, mem.Y_half, mem.U_half, mem.V_half, hW, hH, 0.25f);
 
-        // Reconstruct Full Resolution
-        Reconstruct_Laplacian_Level (mem.Accum_Y, mem.Y_diff_full, mem.Y_planar, fW, fH);
-        Reconstruct_Laplacian_Level (mem.Accum_U, mem.U_diff_full, mem.U_planar, fW, fH);
-        Reconstruct_Laplacian_Level (mem.Accum_V, mem.V_diff_full, mem.V_planar, fW, fH);
+        AVX2_Reconstruct_Laplacian_Level (mem.Accum_Y, mem.Y_diff_full, mem.Y_planar, fW, fH);
+        AVX2_Reconstruct_Laplacian_Level (mem.Accum_U, mem.U_diff_full, mem.U_planar, fW, fH);
+        AVX2_Reconstruct_Laplacian_Level (mem.Accum_V, mem.V_diff_full, mem.V_planar, fW, fH);
 
-        Process_Scale_NL_Bayes (mem, mem.Y_planar, mem.U_planar, mem.V_planar, fW, fH, 1.0f);
+        // --- LEVEL 0: FULL RESOLUTION ---
+        AVX2_Process_Scale_NL_Bayes (mem, mem.Y_planar, mem.U_planar, mem.V_planar, fW, fH, 1.0f);
         
-        // NOTE: The final, pristine denoised image is now located in:
-        // mem.Accum_Y, mem.Accum_U, mem.Accum_V
+        // 4. RESTORE TIGHT HOST PITCH
+        // The host color converter will read from Accum_*, expecting tightly packed data.
+        Unpack_Edges_YUV(mem.Accum_Y, sizeX, sizeY, mem.padW);
+        Unpack_Edges_YUV(mem.Accum_U, sizeX, sizeY, mem.padW);
+        Unpack_Edges_YUV(mem.Accum_V, sizeX, sizeY, mem.padW);
     }
    
     return;

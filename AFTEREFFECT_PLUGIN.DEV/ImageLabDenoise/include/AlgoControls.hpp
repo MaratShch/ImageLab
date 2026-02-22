@@ -27,6 +27,7 @@ struct AlgoControls
     
     int32_t block_size;
     
+    // NEW: IPOL Noise Clinic parameters
     float noise_curve_a; 
     float noise_curve_b;  
 };

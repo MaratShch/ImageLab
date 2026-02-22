@@ -75,44 +75,96 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoControls.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoNoiseOracle.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgorithmMain.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_AlgoBayesFilter.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_AlgoBlockMatch.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_AlgoColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_AlgoMatrixMath.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_AlgoNoiseOracle.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_AlgoPyramidBuilder.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabDenoise.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabDenoiseAlgo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
     <ClInclude Include="include\ImageLabDenoiseEnum.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageLabDenoiseAlgo.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoMemHandler.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoControls.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorConvert.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoBayesFilter.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoBlockMatch.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoMatrixMath.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoNoiseOracle.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoPyramidBuilder.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgorithmMain.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="ImageLabDenoise.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ImageLabDenoise.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\AlgoControlsNC.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoExtractGroup.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoMemHandlerNC.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgorithmMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_AlgoBayesFilter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_AlgoBlockMatch.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_AlgoColorConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_AlgoMatrixMath.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_AlgoNoiseOracle.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_AlgoPyramidBuilder.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\ImageLabDenoise.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -122,57 +174,17 @@
     <ClCompile Include="src\ImageLabDenoisePR.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabDenoisePreProc.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\ImageLabDenoiseSR.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabDenoisePreProc.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoMemHandlerNC.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoControlsNC.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoBayesFilter.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoExtractGroup.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoMatrixMath.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoNoiseOracle.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoPyramidBuilder.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgorithmMain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="ImageLabDenoise.rc">
-      <Filter>resource</Filter>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="include\ImageLabDenoise.hpp">
-      <Filter>include</Filter>
-    </CustomBuild>
-    <CustomBuild Include="ImageLabDenoise.r">
-      <Filter>resource</Filter>
-    </CustomBuild>
   </ItemGroup>
 </Project>

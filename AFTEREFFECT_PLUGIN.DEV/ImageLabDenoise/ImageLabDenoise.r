@@ -13,7 +13,7 @@ resource 'PiPL' (16000) {
 		},
 		/* [2] */
 		Name {
-			"Image Denoise"
+			"Denoise"
 		},
 		/* [3] */
 		Category {
@@ -56,11 +56,11 @@ resource 'PiPL' (16000) {
 		},
 		/* [10] */
 		AE_Effect_Global_OutFlags {
-			100664402
+			100664386
 		},
 
 		AE_Effect_Global_OutFlags_2 {
-			8519752
+			131144
 		},
 		/* [11] */
 		AE_Effect_Match_Name {

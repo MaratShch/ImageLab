@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
 #include <algorithm>
 #include "Common.hpp"
 #include "AlgoMemHandler.hpp"
@@ -55,18 +56,14 @@ inline bool Is_Valid_Block (const float* RESTRICT img, int32_t x, int32_t y, int
 inline void Generate_DCT_Basis(float D[16][16]) noexcept 
 {
     constexpr float pi = 3.14159265358979323846f;
-    for (int32_t u = 0; u < 4; ++u)
-    {
-        for (int32_t v = 0; v < 4; ++v)
-        {
+    for (int32_t u = 0; u < 4; ++u) {
+        for (int32_t v = 0; v < 4; ++v) {
             const int32_t k = u * 4 + v;
             const float alpha_u = (u == 0) ? 0.5f : 0.707106781f;
             const float alpha_v = (v == 0) ? 0.5f : 0.707106781f;
             
-            for (int32_t y = 0; y < 4; ++y)
-            {
-                for (int32_t x = 0; x < 4; ++x)
-                {
+            for (int32_t y = 0; y < 4; ++y) {
+                for (int32_t x = 0; x < 4; ++x) {
                     const int32_t p = y * 4 + x;
                     D[k][p] = alpha_u * alpha_v * std::cos(pi * u * (2.0f * x + 1.0f) / 8.0f) * std::cos(pi * v * (2.0f * y + 1.0f) / 8.0f);
                 }
@@ -84,13 +81,10 @@ inline void Forward_DCT_4x4
     const float D[16][16]
 ) noexcept 
 {
-    for (int32_t k = 0; k < 16; ++k)
-    {
+    for (int32_t k = 0; k < 16; ++k) {
         float sum = 0.0f;
-        for (int32_t y = 0; y < 4; ++y)
-        {
-            for (int32_t x = 0; x < 4; ++x)
-            {
+        for (int32_t y = 0; y < 4; ++y) {
+            for (int32_t x = 0; x < 4; ++x) {
                 sum += D[k][y * 4 + x] * block[y * stride + x];
             }
         }
@@ -99,13 +93,12 @@ inline void Forward_DCT_4x4
 }
 
 // Matches Colom's 'compute_sparse_distance'
-inline float Calculate_Sparse_Distance (const float* RESTRICT dctA, const float* RESTRICT dctB) noexcept 
+inline float Calculate_Sparse_Distance(const float* RESTRICT dctA, const float* RESTRICT dctB) noexcept 
 {
     struct Diff { float abs_diff; float penalty; };
-    CACHE_ALIGN Diff diffs[16];
+    Diff diffs[16];
     
-    for(int32_t i = 0; i < 16; ++i)
-    {
+    for(int32_t i = 0; i < 16; ++i) {
         float a = dctA[i];
         float b = dctB[i];
         diffs[i].abs_diff = std::abs(a - b);
@@ -113,12 +106,10 @@ inline float Calculate_Sparse_Distance (const float* RESTRICT dctA, const float*
     }
     
     // Insertion sort to find the smallest 12 differences (ignores the 4 largest)
-    for (int32_t i = 1; i < 16; ++i)
-    {
+    for (int32_t i = 1; i < 16; ++i) {
         Diff key = diffs[i];
         int32_t j = i - 1;
-        while (j >= 0 && diffs[j].abs_diff > key.abs_diff)
-        {
+        while (j >= 0 && diffs[j].abs_diff > key.abs_diff) {
             diffs[j + 1] = diffs[j];
             j = j - 1;
         }
@@ -126,8 +117,7 @@ inline float Calculate_Sparse_Distance (const float* RESTRICT dctA, const float*
     }
     
     float sd = 0.0f;
-    for (int32_t i = 0; i < 12; ++i)
-    { 
+    for (int32_t i = 0; i < 12; ++i) { 
         sd += diffs[i].penalty;
     }
     return sd;

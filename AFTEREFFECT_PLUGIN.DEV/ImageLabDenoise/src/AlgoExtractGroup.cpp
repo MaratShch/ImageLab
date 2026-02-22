@@ -1,5 +1,6 @@
 #include <algorithm>
-#include "AlgoBlockMatch.hpp"
+//#include "AlgoBlockMatch.hpp"
+#include "AVX2_AlgoBlockMatch.hpp"
 
 int32_t Extract_Similar_Patches
 (
@@ -40,7 +41,8 @@ int32_t Extract_Similar_Patches
                 continue;
             }
 
-            float dist = Calculate_Patch_Distance(
+            float dist = AVX2_Calculate_Patch_Distance
+            (
                 Y_plane, U_plane, V_plane, 
                 ref_x, ref_y, tgt_x, tgt_y, width
             );
