@@ -8,7 +8,7 @@
 // NC Algorithm headers
 #include "AVX2_AlgoPyramidBuilder.hpp"
 #include "AVX2_AlgoNoiseOracle.hpp"
-#include "AVX2_AlgoBayesFilter.hpp"
+#include "AVX2_Smpl_AlgoBayesFilter.hpp"
 
 // Safely repacks the host buffer to the padded stride, then pads the edges
 inline void Pad_Edges_YUV
@@ -106,30 +106,28 @@ void Algorithm_Main
         const int32_t hW = mem.padW / 2, hH = mem.padH / 2;
         const int32_t fW = mem.padW,     fH = mem.padH;
         
-
         // --- LEVEL 2: QUARTER RESOLUTION ---
-        AVX2_Process_Scale_NL_Bayes (mem, mem.Y_quart, mem.U_quart, mem.V_quart, qW, qH, 0.0625f);
+        AVX2_Smpl_Process_Scale_NL_Bayes (mem, mem.Y_quart, mem.U_quart, mem.V_quart, qW, qH, 0.0625f);
 
         AVX2_Reconstruct_Laplacian_Level (mem.Accum_Y, mem.Y_diff_half, mem.Y_half, hW, hH);
         AVX2_Reconstruct_Laplacian_Level (mem.Accum_U, mem.U_diff_half, mem.U_half, hW, hH);
         AVX2_Reconstruct_Laplacian_Level (mem.Accum_V, mem.V_diff_half, mem.V_half, hW, hH);
 
         // --- LEVEL 1: HALF RESOLUTION ---
-        AVX2_Process_Scale_NL_Bayes (mem, mem.Y_half, mem.U_half, mem.V_half, hW, hH, 0.25f);
+        AVX2_Smpl_Process_Scale_NL_Bayes (mem, mem.Y_half, mem.U_half, mem.V_half, hW, hH, 0.25f);
 
         AVX2_Reconstruct_Laplacian_Level (mem.Accum_Y, mem.Y_diff_full, mem.Y_planar, fW, fH);
         AVX2_Reconstruct_Laplacian_Level (mem.Accum_U, mem.U_diff_full, mem.U_planar, fW, fH);
         AVX2_Reconstruct_Laplacian_Level (mem.Accum_V, mem.V_diff_full, mem.V_planar, fW, fH);
 
         // --- LEVEL 0: FULL RESOLUTION ---
-        AVX2_Process_Scale_NL_Bayes (mem, mem.Y_planar, mem.U_planar, mem.V_planar, fW, fH, 1.0f);
+        AVX2_Smpl_Process_Scale_NL_Bayes (mem, mem.Y_planar, mem.U_planar, mem.V_planar, fW, fH, 1.0f);
         
         // 4. RESTORE TIGHT HOST PITCH
         // The host color converter will read from Accum_*, expecting tightly packed data.
         Unpack_Edges_YUV(mem.Accum_Y, sizeX, sizeY, mem.padW);
         Unpack_Edges_YUV(mem.Accum_U, sizeX, sizeY, mem.padW);
         Unpack_Edges_YUV(mem.Accum_V, sizeX, sizeY, mem.padW);
-
     }
    
     return;

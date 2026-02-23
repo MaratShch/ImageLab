@@ -87,22 +87,22 @@
     <ClInclude Include="include\AlgorithmMain.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AVX2_AlgoBayesFilter.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AVX2_AlgoBlockMatch.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AVX2_AlgoColorConvert.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AVX2_AlgoMatrixMath.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AVX2_AlgoNoiseOracle.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AVX2_AlgoPyramidBuilder.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_Smpl_AlgoBayesFilter.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_Smpl_AlgoBlockMatch.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AVX2_Smpl_AlgoMatrixMath.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ColorConvert.hpp">
@@ -141,22 +141,22 @@
     <ClCompile Include="src\AlgorithmMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AVX2_AlgoBayesFilter.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_AlgoBlockMatch.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\AVX2_AlgoColorConvert.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_AlgoMatrixMath.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AVX2_AlgoNoiseOracle.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AVX2_AlgoPyramidBuilder.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Smpl_AlgoBayesFilter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Smpl_AlgoBlockMatch.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Smpl_AlgoMatrixMath.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Avx2ConvertRgbYuv.cpp">

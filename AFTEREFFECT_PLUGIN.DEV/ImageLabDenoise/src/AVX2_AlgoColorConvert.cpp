@@ -1,7 +1,6 @@
 #include <algorithm>
 #include "AVX2_AlgoColorConvert.hpp"
 
-
 // =========================================================
 // AVX2 ACCELERATED YUV PLANAR TO BGRA INTERLEAVED
 // =========================================================
@@ -123,4 +122,3 @@ void AVX2_Convert_YUV_to_BGRA_8u
 	
 	return;
 }
-

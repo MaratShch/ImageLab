@@ -56,14 +56,18 @@ inline bool Is_Valid_Block (const float* RESTRICT img, int32_t x, int32_t y, int
 inline void Generate_DCT_Basis(float D[16][16]) noexcept 
 {
     constexpr float pi = 3.14159265358979323846f;
-    for (int32_t u = 0; u < 4; ++u) {
-        for (int32_t v = 0; v < 4; ++v) {
+    for (int32_t u = 0; u < 4; ++u)
+    {
+        for (int32_t v = 0; v < 4; ++v)
+        {
             const int32_t k = u * 4 + v;
             const float alpha_u = (u == 0) ? 0.5f : 0.707106781f;
             const float alpha_v = (v == 0) ? 0.5f : 0.707106781f;
             
-            for (int32_t y = 0; y < 4; ++y) {
-                for (int32_t x = 0; x < 4; ++x) {
+            for (int32_t y = 0; y < 4; ++y)
+            {
+                for (int32_t x = 0; x < 4; ++x)
+                {
                     const int32_t p = y * 4 + x;
                     D[k][p] = alpha_u * alpha_v * FastCompute::Cos(pi * u * (2.0f * x + 1.0f) / 8.0f) * FastCompute::Cos(pi * v * (2.0f * y + 1.0f) / 8.0f);
                 }
@@ -127,7 +131,7 @@ inline float Calculate_Sparse_Distance(const float* RESTRICT dctA, const float* 
 inline float Compute_MAD(float* RESTRICT arr, const int32_t size) noexcept 
 {
     if (size == 0) return 0.0f;
-        std::sort(arr, arr + size);
+    std::sort(arr, arr + size);
     float median = (size % 2 == 0) ? (arr[size/2 - 1] + arr[size/2]) * 0.5f : arr[size/2];
     
     for (int32_t i = 0; i < size; ++i) {
