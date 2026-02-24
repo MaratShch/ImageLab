@@ -150,6 +150,15 @@
     <ClCompile Include="src\AVX2_AlgoPyramidBuilder.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_BGRA_8u_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_VUYA_8u_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_VUYA_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\AVX2_Smpl_AlgoBayesFilter.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -159,7 +168,7 @@
     <ClCompile Include="src\AVX2_Smpl_AlgoMatrixMath.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp">
+    <ClCompile Include="src\AVX2ConvertRgbYuv.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabDenoise.cpp">

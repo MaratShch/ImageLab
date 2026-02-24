@@ -6,15 +6,15 @@
 // =========================================================
 void AVX2_Convert_YUV_to_BGRA_8u
 (
-    const float* RESTRICT pY,
-    const float* RESTRICT pU,
-    const float* RESTRICT pV,
-    const PF_Pixel_BGRA_8u* RESTRICT pInput, 
-    PF_Pixel_BGRA_8u* RESTRICT pOutput,
-    int32_t w,
-    int32_t h,
-    int32_t src_pitch, // Pitch in pixels
-    int32_t dst_pitch  // Pitch in pixels
+    const float* RESTRICT pY,               // Y Orthonormal plan
+    const float* RESTRICT pU,               // U Orthonormal plan
+    const float* RESTRICT pV,               // V Orthonormal plan
+    const PF_Pixel_BGRA_8u* RESTRICT pInput,// BGRA_8u input pixel (used for grab alpha channel values only) 
+    PF_Pixel_BGRA_8u* RESTRICT pOutput,     // BGRA_8u denoised output image
+    int32_t w,                              // horizontal frame size in pixels
+    int32_t h,                              // vertical frame size in lines
+    int32_t src_pitch,                      // input buffer (pInput) line pitch in pixels
+    int32_t dst_pitch                       // output buffer (pOutput) line pitch in pixels
 )
 {
     // Transformation Constants

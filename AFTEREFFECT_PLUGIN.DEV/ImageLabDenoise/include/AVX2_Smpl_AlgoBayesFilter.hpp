@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
-#include "Common.hpp"
 #include "AlgoMemHandler.hpp"
+#include "AlgoControls.hpp"
 
 void AVX2_Smpl_Process_Scale_NL_Bayes
 (
@@ -11,5 +11,6 @@ void AVX2_Smpl_Process_Scale_NL_Bayes
     float* RESTRICT V_scale,
     const int32_t width, 
     const int32_t height,
-    const float noise_variance_multiplier
+    const float noise_variance_multiplier,
+    const AlgoControls& algoCtrl
 );

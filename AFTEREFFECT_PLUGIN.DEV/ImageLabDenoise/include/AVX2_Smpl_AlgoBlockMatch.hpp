@@ -15,10 +15,8 @@ float AVX2_Smpl_Calculate_Patch_Distance
     const float* RESTRICT Y_plane,
     const float* RESTRICT U_plane,
     const float* RESTRICT V_plane,
-    const int32_t ref_x, 
-    const int32_t ref_y,
-          int32_t tgt_x,
-          int32_t tgt_y,
+    const int32_t ref_x, const int32_t ref_y,
+    const int32_t tgt_x, const int32_t tgt_y,
     const int32_t width
 ) noexcept;
 

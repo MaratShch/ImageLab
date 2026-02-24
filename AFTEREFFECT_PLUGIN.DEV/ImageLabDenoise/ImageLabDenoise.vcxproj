@@ -199,10 +199,13 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\AlgoControlsNC.cpp" />
     <ClCompile Include="src\AlgoMemHandlerNC.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
-    <ClCompile Include="src\Avx2ConvertRgbYuv.cpp" />
+    <ClCompile Include="src\AVX2ConvertRgbYuv.cpp" />
     <ClCompile Include="src\AVX2_AlgoColorConvert.cpp" />
     <ClCompile Include="src\AVX2_AlgoNoiseOracle.cpp" />
     <ClCompile Include="src\AVX2_AlgoPyramidBuilder.cpp" />
+    <ClCompile Include="src\AVX2_Convert_BGRA_8u_YUV.cpp" />
+    <ClCompile Include="src\AVX2_Convert_VUYA_8u_YUV.cpp" />
+    <ClCompile Include="src\AVX2_Convert_YUV_to_VUYA_8u.cpp" />
     <ClCompile Include="src\AVX2_Smpl_AlgoBayesFilter.cpp" />
     <ClCompile Include="src\AVX2_Smpl_AlgoBlockMatch.cpp" />
     <ClCompile Include="src\AVX2_Smpl_AlgoMatrixMath.cpp" />

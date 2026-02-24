@@ -75,10 +75,18 @@ PF_Err ProcessImgInPR
                 case PrPixelFormat_VUYA_4444_8u:
                 {
                     const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
-                    PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
+                          PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
                     const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
 
+                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
+                    AVX2_Convert_VUYA_8u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch, isBT709);
+
+                    // call algorithm flow
+                    Algorithm_Main(algoMemHandler, sizeX, sizeY, algoControls);
+
+                    // convert denoised image to BGRA_8u interleaved output buffer
+                    AVX2_Convert_YUV_to_VUYA_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, isBT709);
                 }
                 break;
 

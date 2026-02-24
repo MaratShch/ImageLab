@@ -4,32 +4,26 @@
 
 enum class ProcAccuracy : int32_t
 {
-	AccDraft = 0,	// Draft (Stride 5) - Fastest for scrubbing the timeline.
-	AccStandard,	// Standard (Stride 3) - Good balance.
-	AccHigh,		// High (Stride 2) - Standard high-quality.
-	AccMaster	 	// Master (Stride 1) - Slowest, best for final render.
+    AccDraft = 0,   // Draft (Stride 4) - Fastest for scrubbing the timeline.
+    AccStandard,    // Standard (Stride 2) - Good balance (3.9s baseline).
+    AccHigh         // High (Stride 1) - Overlapping patches at every pixel.
 };
 
 struct AlgoControls
 {
-    float denoise_amount;
-    float luma_strength;
-    float chroma_strength;
+    // --- GLOBAL STRENGTH ---
+    float master_denoise_amount; 
 
-    float detail_preservation;
-    float match_sensitivity;
+    // --- CHANNEL SEPARATION ---
+    float luma_strength;   
+    float chroma_strength; 
+
+    // --- FREQUENCY / SCALE TUNING ---
+    float fine_detail_preservation; 
+    float coarse_noise_reduction;   
     
-    int32_t search_radius;
-    int32_t stride;
-    
-    float low_freq_mult;
-    float high_freq_mult;
-    
-    int32_t block_size;
-    
-    // NEW: IPOL Noise Clinic parameters
-    float noise_curve_a; 
-    float noise_curve_b;  
+    // --- PERFORMANCE ---
+    ProcAccuracy accuracy; 
 };
 
-AlgoControls getAlgoControlsDefault (void);
+AlgoControls getAlgoControlsDefault(void);
