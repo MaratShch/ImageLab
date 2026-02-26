@@ -225,7 +225,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClCompile Include="src\ImageLabDenoise.cpp" />
     <ClCompile Include="src\ImageLabDenoiseAE.cpp" />
     <ClCompile Include="src\ImageLabDenoisePR.cpp" />
-    <ClCompile Include="src\ImageLabDenoisePreProc.cpp" />
     <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp" />
     <ClCompile Include="src\ImageLabDenoiseSR.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />

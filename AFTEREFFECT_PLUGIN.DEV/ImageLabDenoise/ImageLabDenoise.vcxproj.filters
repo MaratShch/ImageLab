@@ -222,9 +222,6 @@
     <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabDenoisePreProc.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
