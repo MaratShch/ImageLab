@@ -132,22 +132,58 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ImageLabDenoisePR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_RGB_10u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_VUYA_32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_RGB_10u_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabDenoiseAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_VUYA_32f_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_ARGB_32f_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabDenoise.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_BGRA_32f.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_BGRA_32f_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_ARGB_16u_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_BGRA_16u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_BGRA_16u_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\AlgoControlsNC.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgoMemHandlerNC.cpp">
+    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_8u.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AlgorithmMain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_AlgoColorConvert.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_AlgoNoiseOracle.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_AlgoPyramidBuilder.cpp">
+    <ClCompile Include="src\AVX2_Convert_ARGB_8u_YUV.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AVX2_Convert_BGRA_8u_YUV.cpp">
@@ -159,7 +195,13 @@
     <ClCompile Include="src\AVX2_Convert_YUV_to_VUYA_8u.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AVX2_AlgoColorConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\AVX2_Smpl_AlgoBayesFilter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgorithmMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AVX2_Smpl_AlgoBlockMatch.cpp">
@@ -168,70 +210,25 @@
     <ClCompile Include="src\AVX2_Smpl_AlgoMatrixMath.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AVX2ConvertRgbYuv.cpp">
+    <ClCompile Include="src\AlgoMemHandlerNC.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabDenoise.cpp">
+    <ClCompile Include="src\AVX2_AlgoPyramidBuilder.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabDenoiseAE.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabDenoisePR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabDenoisePreProc.cpp">
+    <ClCompile Include="src\AVX2_AlgoNoiseOracle.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabDenoiseSeqSetup.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ImageLabDenoiseSR.cpp">
+    <ClCompile Include="src\ImageLabDenoisePreProc.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_ARGB_8u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_8u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_BGRA_16u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_BGRA_16u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_ARGB_16u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_16u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_BGRA_32f_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_BGRA_32f.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_32f.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_ARGB_32f_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_VUYA_32f_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_VUYA_32f.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_RGB_10u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_RGB_10u_YUV.cpp">
+    <ClCompile Include="src\ImageLabDenoiseSR.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
