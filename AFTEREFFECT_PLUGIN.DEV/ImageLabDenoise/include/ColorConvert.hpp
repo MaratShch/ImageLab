@@ -52,4 +52,29 @@ void AVX2_Convert_YUV_to_VUYA_8u
     bool isBT709                            // true for BT709, false for BT601
 ) noexcept;
 
+void AVX2_Convert_ARGB_8u_YUV
+(
+    const PF_Pixel_ARGB_8u* RESTRICT pInput, // Input ARGB_8u (Interleaved)
+    float* RESTRICT Y_out,                   // Y plane (Luma)
+    float* RESTRICT U_out,                   // U plane (Red-Blue axis)
+    float* RESTRICT V_out,                   // V plane (Green-Magenta axis)
+    int32_t sizeX,                           // Width in Pixels
+    int32_t sizeY,                           // Height in Pixels
+    int32_t linePitch                        // Row Pitch in Pixels
+) noexcept;
+
+void AVX2_Convert_YUV_to_ARGB_8u
+(
+    const float* RESTRICT pY,                // Y plane [Orthonormal format]
+    const float* RESTRICT pU,                // U plane [Orthonormal format]
+    const float* RESTRICT pV,                // V plane [Orthonormal format]
+    const PF_Pixel_ARGB_8u* RESTRICT pInput, // ARGB_8u input pixel (Alpha source)
+    PF_Pixel_ARGB_8u* RESTRICT pOutput,      // ARGB_8u denoised output
+    int32_t w,
+    int32_t h,
+    int32_t src_pitch,
+    int32_t dst_pitch
+) noexcept;
+
+
 #endif // __IMAGE_LAB2_NOSIE_REDUCTION_ALGO_COLOR_CONVERT__

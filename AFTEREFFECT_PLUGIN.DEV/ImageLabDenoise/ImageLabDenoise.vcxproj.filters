@@ -192,5 +192,11 @@
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_ARGB_8u_YUV.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_8u.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

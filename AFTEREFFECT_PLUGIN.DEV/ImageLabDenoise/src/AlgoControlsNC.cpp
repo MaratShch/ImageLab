@@ -1,8 +1,133 @@
 #include "AlgoControls.hpp"
+#include "ImageLabDenoise.hpp"
+#include "ImageLabDenoiseEnum.hpp"
+
+PF_Err
+SetupControlElements
+(
+    const PF_InData*  RESTRICT in_data,
+          PF_OutData* RESTRICT out_data
+)
+{
+    CACHE_ALIGN PF_ParamDef	def{};
+    PF_Err		err = PF_Err_NONE;
+
+    constexpr PF_ParamFlags     flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags   ui_flags = PF_PUI_NONE;
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP
+    (
+        controlItemName[0],
+        UnderlyingType(eDenoiseMethod::eIMAGE_LAB_DENOISE_TOTAL),
+        UnderlyingType(eDenoiseMethod::eIMAGE_LAB_DENOISE_DRAFT),
+        eDenoiseMethodStr,
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD)
+    );
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX
+    (
+        controlItemName[1],
+        MasterDenoiseAmountMin,
+        MasterDenoiseAmountMax,
+        MasterDenoiseAmountMin,
+        MasterDenoiseAmountMax,
+        MasterDenoiseAmountDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT)
+    );
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX
+    (
+        controlItemName[2],
+        LumaStrengthMin,
+        LumaStrengthMax,
+        LumaStrengthMin,
+        LumaStrengthMax,
+        LumaStrengthDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH)
+    );
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX
+    (
+        controlItemName[3],
+        ChromaStrengthMin,
+        ChromaStrengthMax,
+        ChromaStrengthMin,
+        ChromaStrengthMax,
+        ChromaStrengthDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH)
+    );
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX
+    (
+        controlItemName[4],
+        DetailsPreservationMin,
+        DetailsPreservationMax,
+        DetailsPreservationMin,
+        DetailsPreservationMax,
+        DetailsPreservationDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION)
+    );
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX
+    (
+        controlItemName[5],
+        CoarseNoiseMin,
+        CoarseNoiseMax,
+        CoarseNoiseMin,
+        CoarseNoiseMax,
+        CoarseNoiseDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE)
+    );
+
+    out_data->num_params = UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CONTROLS);
+
+    return err;
+}
+
+
+AlgoControls GetControlParametersStruct
+(
+    PF_ParamDef* RESTRICT params[]
+)
+{
+    CACHE_ALIGN AlgoControls algoCtrl{};
+
+    algoCtrl.accuracy = static_cast<ProcAccuracy>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD)]->u.pd.value - 1);
+    algoCtrl.master_denoise_amount = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT)]->u.fs_d.value);
+    algoCtrl.luma_strength         = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH)]->u.fs_d.value);
+    algoCtrl.chroma_strength       = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH)]->u.fs_d.value);
+    algoCtrl.fine_detail_preservation = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION)]->u.fs_d.value);
+    algoCtrl.coarse_noise_reduction = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE)]->u.fs_d.value);
+
+    return algoCtrl;
+}
+
+
 
 AlgoControls getAlgoControlsDefault(void)
 {
-    AlgoControls algoCtrl{};
+    CACHE_ALIGN AlgoControls algoCtrl{};
     
     // =========================================================
     // GLOBAL STRENGTH

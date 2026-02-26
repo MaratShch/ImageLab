@@ -103,8 +103,7 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-
-	return PF_Err_NONE;
+    return SetupControlElements (in_data, out_data);
 }
 
 

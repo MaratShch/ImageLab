@@ -4,8 +4,8 @@
 #include "CommonAdobeAE.hpp"
 
 
-constexpr char strName[] = "ImageLab Denoise";
-constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rImageLab Denoise plugin.";
+constexpr char strName[] = "ImageLab Noise Clinic";
+constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rImageLab Noise Clinic plugin.";
 constexpr int ImageLabDenoise_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int ImageLabDenoise_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int ImageLabDenoise_VersionSub = 0;
@@ -84,6 +84,13 @@ ImageLabDenoise_SequenceSetdown
     PF_OutData		*out_data,
     PF_ParamDef		*params[],
     PF_LayerDef		*output
+);
+
+PF_Err
+SetupControlElements
+(
+    const PF_InData*  RESTRICT in_data,
+          PF_OutData* RESTRICT out_data
 );
 
 

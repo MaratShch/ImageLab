@@ -16,8 +16,8 @@ BEGIN
 	"MIB8",
 	"eman",
 	0, 0x0,
-	8, 0x0,
-	"\x07Denoise", 
+	16, 0x0,
+	"\x0CNoise Clinic\0\0\0", 
 
 	"MIB8",
 	"gtac", 
@@ -70,8 +70,8 @@ BEGIN
 	"MIB8",
 	"ANMe",
 	0, 0x0,
-	20, 0x0,
-	"\x11ImageLab2 Denoise\0\0", 
+	24, 0x0,
+	"\x16ImageLab2 Noise Clinic\0", 
 
 	"MIB8",
 	0x6165464CL, 

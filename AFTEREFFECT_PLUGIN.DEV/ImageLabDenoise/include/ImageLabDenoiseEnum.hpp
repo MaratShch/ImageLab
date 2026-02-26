@@ -5,31 +5,61 @@
 #include "AE_Effect.h"
 #include "CompileTimeUtils.hpp"
 
-enum class DenoiseControl : int32_t
+enum class eDenoiseControl : int32_t
 {
     eIMAGE_LAB_DENOISE_INPUT,
+    eIMAGE_LAB_DENOISE_ACC_SANDARD,
     eIMAGE_LAB_DENOISE_AMOUNT,
-    eIMAGE_LAB_DENOISE_LUMA_STRENCGTH,
-    eIMAGE_LAB_DENOISE_CHROMA_STRENCGTH,
-    eIMAGE_LAB_DEENOISE_DETAILS_PRESERVATION,
-    eIMAGE_LAB_DENOSIE_MATCH_SENSITIVITY,
-    eIMAGE_LAB_DENOISE_SEARCH_RADIUS,
-    eIMAGE_LAB_DENOISE_STRIDE,
-    eIMAGE_LAB_DENOISE_LOW_FREQUENCY_MULT,
-    eIMAGE_LAB_DENOISE_HIGH_FREQUENCY_MULT,
+    eIMAGE_LAB_DENOISE_LUMA_STRENGTH,
+    eIMAGE_LAB_DENOISE_CHROMA_STRENGTH,
+    eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION,
+    eIMAGE_LAB_DENOISE_COARSE_NOISE,
     eIMAGE_LAB_DENOISE_CONTROLS
 };
 
-constexpr inline float Slider2Value (const int32_t sliderVal) noexcept
+constexpr char controlItemName[][24] =
 {
-    return (static_cast<float>(sliderVal) / 100.f);
-}
+    "Accurance",
+    "Denoise Amount",
+    "Luma Strength",
+    "Chrome Strength",
+    "Details Preservation",
+    "Coarse Noise"
+};
 
-constexpr inline float FreqSlider2Value (const int32_t sliderVal) noexcept
+enum class eDenoiseMethod : int32_t
 {
-    return (static_cast<float>(sliderVal + 100) / 100.f);
-}
+    eIMAGE_LAB_DENOISE_DRAFT,
+    eIMAGE_LAB_DENOISE_STANDARD,
+    eIMAGE_LAB_DENOISE_ACCURATE,
+    eIMAGE_LAB_DENOISE_TOTAL
+};
 
+constexpr char eDenoiseMethodStr[] =
+{
+    "Draft|"
+    "Standard|"
+    "Accurate"
+};
 
+constexpr float MasterDenoiseAmountMin = 0.f;
+constexpr float MasterDenoiseAmountMax = 3.f;
+constexpr float MasterDenoiseAmountDef = 1.f;
+
+constexpr float LumaStrengthMin = 0.f;
+constexpr float LumaStrengthMax = 3.f;
+constexpr float LumaStrengthDef = 1.f;
+
+constexpr float ChromaStrengthMin = 0.f;
+constexpr float ChromaStrengthMax = 3.f;
+constexpr float ChromaStrengthDef = 1.f;
+
+constexpr float DetailsPreservationMin = 0.f;
+constexpr float DetailsPreservationMax = 2.f;
+constexpr float DetailsPreservationDef = 1.f;
+
+constexpr float CoarseNoiseMin = 0.f;
+constexpr float CoarseNoiseMax = 2.f;
+constexpr float CoarseNoiseDef = 1.f;
 
 #endif // __IMAGE_LAB_DENOISE_FILTER_ENUMERATORS__
