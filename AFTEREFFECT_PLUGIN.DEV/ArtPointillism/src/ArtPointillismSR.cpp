@@ -17,7 +17,6 @@ ArtPointilism_PreRender
     PF_PreRenderExtra	*extra
 )
 {
-    PontillismControls renderParams{};
     PF_Err err = PF_Err_NONE;
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
@@ -33,21 +32,21 @@ ArtPointilism_PreRender
             extra->output->pre_render_data = paramsHandler;
 
             PF_CHECKOUT_PARAM (in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_PAINTER_STYLE), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.PainterStyle = static_cast<ArtPointillismPainter>(paramVal.u.pd.value - 1);
+                paramsStrP->PainterStyle = static_cast<ArtPointillismPainter>(paramVal.u.pd.value - 1);
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_DENCITY), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.DotDencity = static_cast<int32_t>(paramVal.u.sd.value);
+                paramsStrP->DotDencity = static_cast<int32_t>(paramVal.u.sd.value);
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_SIZE), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.DotSize = static_cast<int32_t>(paramVal.u.sd.value);
+                paramsStrP->DotSize = static_cast<int32_t>(paramVal.u.sd.value);
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.EdgeSensitivity = static_cast<int32_t>(paramVal.u.sd.value);
+                paramsStrP->EdgeSensitivity = static_cast<int32_t>(paramVal.u.sd.value);
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.Vibrancy = static_cast<int32_t>(paramVal.u.sd.value);
+                paramsStrP->Vibrancy = static_cast<int32_t>(paramVal.u.sd.value);
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.Background = static_cast<BackgroundArt>(paramVal.u.pd.value - 1);
+                paramsStrP->Background = static_cast<BackgroundArt>(paramVal.u.pd.value - 1);
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.Opacity = static_cast<int32_t>(paramVal.u.sd.value);
+                paramsStrP->Opacity = static_cast<int32_t>(paramVal.u.sd.value);
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-                renderParams.RandomSeed = static_cast<int32_t>(paramVal.u.sd.value);
+                paramsStrP->RandomSeed = static_cast<int32_t>(paramVal.u.sd.value);
 
            PF_RenderRequest req = extra->input->output_request;
            PF_CheckoutResult in_result{};

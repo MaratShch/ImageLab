@@ -18,11 +18,10 @@ ImageLabDenoise_PreRender
     PF_PreRenderExtra	*extra
 )
 {
-    CACHE_ALIGN AlgoControls sRenderParam{};
     PF_Err err = PF_Err_NONE;
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
-    PF_Handle paramsHandler = handleSuite->host_new_handle(sizeof(sRenderParam));
+    PF_Handle paramsHandler = handleSuite->host_new_handle(sizeof(AlgoControls));
 
     if (nullptr != paramsHandler)
     {
@@ -35,22 +34,22 @@ ImageLabDenoise_PreRender
 
             // ============= Acquire algorithm control parameters ==================== //
             PF_CHECKOUT_PARAM (in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-            sRenderParam.accuracy = static_cast<ProcAccuracy>(paramVal.u.pd.value - 1);
+                paramsStrP->accuracy = static_cast<ProcAccuracy>(paramVal.u.pd.value - 1);
 
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-            sRenderParam.master_denoise_amount = static_cast<float>(paramVal.u.fs_d.value);
+                paramsStrP->master_denoise_amount = static_cast<float>(paramVal.u.fs_d.value);
 
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-            sRenderParam.luma_strength = static_cast<float>(paramVal.u.fs_d.value);
+                paramsStrP->luma_strength = static_cast<float>(paramVal.u.fs_d.value);
 
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-            sRenderParam.chroma_strength = static_cast<float>(paramVal.u.fs_d.value);
+                paramsStrP->chroma_strength = static_cast<float>(paramVal.u.fs_d.value);
 
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-            sRenderParam.fine_detail_preservation = static_cast<float>(paramVal.u.fs_d.value);
+                paramsStrP->fine_detail_preservation = static_cast<float>(paramVal.u.fs_d.value);
 
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
-            sRenderParam.coarse_noise_reduction = static_cast<float>(paramVal.u.fs_d.value);
+                paramsStrP->coarse_noise_reduction = static_cast<float>(paramVal.u.fs_d.value);
 
             PF_RenderRequest req = extra->input->output_request;
             PF_CheckoutResult in_result{};
