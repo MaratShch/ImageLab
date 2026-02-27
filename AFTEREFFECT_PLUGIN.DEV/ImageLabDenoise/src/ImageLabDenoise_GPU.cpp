@@ -1,0 +1,124 @@
+#include "ImageLabDenoise_GPU.hpp"
+#include "ImageLab2GpuObj.hpp"
+#include "Common.hpp"
+
+#ifdef _DEBUG
+#pragma comment(lib, "..\\BUILD.OUT\\LIB\\Debug\\CommonGPULib.lib")
+#else 
+#pragma comment(lib, "..\\BUILD.OUT\\LIB\\Release\\CommonGPULib.lib")
+#endif
+
+
+class ImageLabDenoiseGPU final : public CImageLab2GpuObj
+{
+public:
+	CLASS_NON_COPYABLE(ImageLabDenoiseGPU);
+	CLASS_NON_MOVABLE(ImageLabDenoiseGPU);
+
+    ImageLabDenoiseGPU() = default;
+	~ImageLabDenoiseGPU() = default;
+
+	prSuiteError InitializeCUDA(void)
+	{
+		return suiteError_NoError;
+	}
+
+	virtual prSuiteError Initialize (PrGPUFilterInstance* ioInstanceData)
+	{
+		CImageLab2GpuObj::Initialize(ioInstanceData);
+		if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
+			return InitializeCUDA();
+		return suiteError_Fail;	
+	}
+
+	prSuiteError Render
+	(
+		const PrGPUFilterRenderParams* inRenderParams,
+		const PPixHand* inFrames,
+		csSDK_size_t inFrameCount,
+		PPixHand* outFrame
+	) noexcept
+	{
+        CACHE_ALIGN PrParam algoParams[6];
+
+        void* frameData     = nullptr;
+		void* destFrameData = nullptr;
+		void* srcFrameData  = nullptr;
+		float* inBuffer     = nullptr;
+		float* outBuffer    = nullptr;
+
+        csSDK_int32 destRowBytes, srcRowBytes;
+        cudaError_t cudaErrCode = cudaErrorUnknown;
+
+		// read control setting
+//		const PrTime clipTime = inRenderParams->inClipTime;
+//      const PrTime renderTick = inRenderParams->inRenderTicksPerFrame;
+//      const int frameCounter = (renderTick > 0 ? static_cast<int>(clipTime / renderTick) : 0);
+
+//       algoParams[0] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_PAINTER_STYLE), clipTime);
+//       algoParams[1] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_DENCITY), clipTime);
+//        algoParams[2] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_SIZE), clipTime);
+//        algoParams[3] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY), clipTime);
+//        algoParams[4] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE), clipTime);
+//        algoParams[5] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART), clipTime);
+//        algoParams[6] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY), clipTime);
+//        algoParams[7] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED), clipTime);
+
+#ifdef _DEBUG
+		const csSDK_int32 instanceCnt = TotalInstances();
+#endif
+
+		mGPUDeviceSuite->GetGPUPPixData (*outFrame, &frameData);
+
+		PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
+		mPPixSuite->GetPixelFormat(*outFrame, &pixelFormat);
+		const csSDK_int32 gpuBytesPerPixel = GetGPUBytesPerPixel(pixelFormat);
+
+		prRect bounds{};
+		mPPixSuite->GetBounds (*outFrame, &bounds);
+		const int width  = bounds.right  - bounds.left;
+		const int height = bounds.bottom - bounds.top;
+
+		mGPUDeviceSuite->GetGPUPPixData(*outFrame, &destFrameData);
+		mPPixSuite->GetRowBytes(*outFrame, &destRowBytes);
+		const csSDK_int32 dstPitch = destRowBytes / gpuBytesPerPixel;
+
+		mGPUDeviceSuite->GetGPUPPixData(*inFrames, &srcFrameData);
+		mPPixSuite->GetRowBytes(*inFrames, &srcRowBytes);
+		const csSDK_int32 srcPitch = srcRowBytes / gpuBytesPerPixel;
+
+		// start CUDA
+		if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
+		{
+			// CUDA device pointers
+			inBuffer  = reinterpret_cast<float*>(srcFrameData);
+			outBuffer = reinterpret_cast<float*>(destFrameData);
+
+            CACHE_ALIGN AlgoControls algoGpuParams;
+
+//            algoGpuParams.PainterStyle      = static_cast<ArtPointillismPainter>(algoParams[0].mInt32);
+//            algoGpuParams.DotDencity        = algoParams[1].mInt32;
+//            algoGpuParams.DotSize           = algoParams[2].mInt32;
+//            algoGpuParams.EdgeSensitivity   = algoParams[3].mInt32;
+//            algoGpuParams.Vibrancy          = algoParams[4].mInt32;
+//            algoGpuParams.Background        = static_cast<BackgroundArt>(algoParams[5].mInt32);
+//            algoGpuParams.Opacity           = algoParams[6].mInt32;
+//            algoGpuParams.RandomSeed        = algoParams[7].mInt32;
+
+            const cudaStream_t stream = 0;
+
+			// Launch CUDA kernel
+//			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter,  stream);
+
+			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
+			{
+				return suiteError_Fail;
+			}
+		}
+
+		return suiteError_NoError;
+	}
+
+};
+
+DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<ImageLabDenoiseGPU>);

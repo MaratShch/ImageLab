@@ -16,6 +16,9 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{323d428d-85ab-4433-9e4d-2ec7e49974f2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\CUDA">
+      <UniqueIdentifier>{a5f90d87-9614-4525-a630-33695fe808b8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
@@ -118,6 +121,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabDenoise_GPU.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -228,5 +234,16 @@
     <ClCompile Include="src\ImageLabDenoiseSR.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabDenoise_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="include\CUDA\CudaMemHandler.cuh">
+      <Filter>include\CUDA</Filter>
+    </None>
+    <None Include="src\ImageLabDenoise.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>
