@@ -13,6 +13,9 @@ enum class ProcAccuracy : int32_t
 
 struct AlgoControls
 {
+    // --- PERFORMANCE ---
+    ProcAccuracy accuracy;
+
     // --- GLOBAL STRENGTH ---
     float master_denoise_amount; 
 
@@ -23,9 +26,6 @@ struct AlgoControls
     // --- FREQUENCY / SCALE TUNING ---
     float fine_detail_preservation; 
     float coarse_noise_reduction;   
-    
-    // --- PERFORMANCE ---
-    ProcAccuracy accuracy; 
 };
 
 constexpr size_t AlgoControlsSize = sizeof(AlgoControls);
