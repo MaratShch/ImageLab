@@ -177,9 +177,6 @@
     <ClInclude Include="include\AlgoColorEngine.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoOutput.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgoMemHandler.hpp">
       <Filter>include</Filter>
     </ClInclude>

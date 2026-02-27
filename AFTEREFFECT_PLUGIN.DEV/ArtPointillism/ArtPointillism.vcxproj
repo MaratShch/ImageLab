@@ -172,7 +172,6 @@
     <ClInclude Include="include\AlgoJFA.hpp" />
     <ClInclude Include="include\AlgoLumaManipulation.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
-    <ClInclude Include="include\AlgoOutput.hpp" />
     <ClInclude Include="include\ArtPointillism.hpp" />
     <ClInclude Include="include\ArtPointillismAlgo.hpp" />
     <ClInclude Include="include\ArtPointillismControl.hpp" />
