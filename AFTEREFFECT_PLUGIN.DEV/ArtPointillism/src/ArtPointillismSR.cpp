@@ -185,6 +185,9 @@ ArtPointilism_SmartRender
 
                 } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
 
+                // free (return back to memory manager) already non used buffer
+                free_memory_buffers (algoMemHandler);
+
             } //  if (true == mem_handler_valid(algoMemHandler))
 
         } // if (nullptr != input_worldP && nullptr != output_worldP)

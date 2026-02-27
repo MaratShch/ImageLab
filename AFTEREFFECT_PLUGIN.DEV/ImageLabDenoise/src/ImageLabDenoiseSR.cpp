@@ -1,9 +1,12 @@
 #include "ImageLabDenoise.hpp"
 #include "ImageLabDenoiseEnum.hpp"
 #include "CommonSmartRender.hpp"
-#include "ImageLabMemInterface.hpp"
+#include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
 #include "CommonSmartRender.hpp"
+#include "ColorConvert.hpp"
+#include "AlgorithmMain.hpp"
+
 
 using PAlgoControls = AlgoControls*;
 
@@ -90,6 +93,107 @@ ImageLabDenoise_SmartRender
 {
     PF_EffectWorld* input_worldP = nullptr;
     PF_EffectWorld* output_worldP = nullptr;
-    PF_Err err = PF_Err_NONE;
-    return err;
+    PF_Err	err = PF_Err_NONE;
+
+    AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
+    const AlgoControls* pFilterStrParams = reinterpret_cast<const AlgoControls*>(handleSuite->host_lock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data)));
+
+    if (nullptr != pFilterStrParams)
+    {
+        ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_INPUT), &input_worldP)));
+        ERR(extraP->cb->checkout_output(in_data->effect_ref, &output_worldP));
+
+        if (nullptr != input_worldP && nullptr != output_worldP)
+        {
+            const A_long sizeX = input_worldP->width;
+            const A_long sizeY = input_worldP->height;
+            const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
+            const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
+
+            PF_PixelFormat format = PF_PixelFormat_INVALID;
+            AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
+
+            MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+            if (true == mem_handler_valid(algoMemHandler))
+            {
+                if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+                {
+                    switch (format)
+                    {
+                    case PF_PixelFormat_ARGB128:
+                    {
+                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+
+                        const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                              PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+
+                        // convert to planar YUV Ortonormal color space
+                        AVX2_Convert_ARGB_32f_YUV (input_pixels, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, srcPitch);
+
+                        // execute algorithm
+                        Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
+
+                        // back convert to native buffer format after processing complete
+                        AVX2_Convert_YUV_to_ARGB_32f(algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                    }
+                    break;
+
+                    case PF_PixelFormat_ARGB64:
+                    {
+                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+
+                        const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
+                              PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
+
+                        // convert to planar YUV Ortonormal color space
+                        AVX2_Convert_ARGB_16u_YUV (input_pixels, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, srcPitch);
+
+                        // execute algorithm
+                        Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
+
+                        // back convert to native buffer format after processing complete
+                        AVX2_Convert_YUV_to_ARGB_16u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                    }
+                    break;
+
+                    case PF_PixelFormat_ARGB32:
+                    {
+                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+                        const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
+                              PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
+
+                        // convert to planar YUV Ortonormal color space
+                        AVX2_Convert_ARGB_8u_YUV (input_pixels, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, srcPitch);
+
+                        // execute algorithm
+                        Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
+
+                        // back convert to native buffer format after processing complete
+                        AVX2_Convert_YUV_to_ARGB_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                    }
+                    break;
+
+                    default:
+                        err = PF_Err_BAD_CALLBACK_PARAM;
+                        break;
+                    } // switch (format)
+
+                } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+
+                // free (return back to memory manager) already non used buffer
+                free_memory_buffers (algoMemHandler);
+
+            } //  if (true == mem_handler_valid(algoMemHandler))
+
+        } // if (nullptr != input_worldP && nullptr != output_worldP)
+
+        handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
+
+    } // if (nullptr != pFilterStrParams)
+
+    return PF_Err_NONE;
 }
