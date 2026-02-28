@@ -2,8 +2,7 @@
 #define __IMAGE_LAB_DENOISE_FILTER__
 
 #include "CommonAdobeAE.hpp"
-
-
+#include "AlgoControls.hpp"
 constexpr char strName[] = "ImageLab Noise Clinic";
 constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rImageLab Noise Clinic plugin.";
 constexpr int ImageLabDenoise_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
@@ -92,6 +91,11 @@ SetupControlElements
     const PF_InData*  RESTRICT in_data,
           PF_OutData* RESTRICT out_data
 );
+
+
+AlgoControls GetControlParametersStruct(PF_ParamDef* RESTRICT params[]);
+AlgoControls getAlgoControlsDefault(void);
+
 
 
 #endif /* __IMAGE_LAB_DENOISE_FILTER__ */

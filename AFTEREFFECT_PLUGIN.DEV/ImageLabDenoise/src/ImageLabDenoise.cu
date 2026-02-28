@@ -1,7 +1,9 @@
-#include "CUDA/CudaMemHandler.cuh"
 #include <cstdio>
+#include "CUDA/CudaMemHandler.cuh"
+#include "ImageLabDenoise_GPU.hpp"
 
-bool alloc_cuda_memory_buffers(CudaMemHandler& mem, int32_t target_tile_width, int32_t target_tile_height)
+
+bool alloc_cuda_memory_buffers (CudaMemHandler& mem, int32_t target_tile_width, int32_t target_tile_height)
 {
     // Add 16 pixels of halo padding to all sides (32 total per dimension)
     mem.tileW = target_tile_width;
@@ -82,4 +84,26 @@ void free_cuda_memory_buffers(CudaMemHandler& mem)
     cudaFree(mem.d_Weight_Count);
 
     cudaFree(mem.d_SearchPool);
+}
+
+
+
+CUDA_KERNEL_CALL
+void ImageLabDenoise_CUDA
+(
+    const float* RESTRICT inBuffer, // source (input) buffer
+    float* RESTRICT outBuffer,      // destination (output) buffer
+    int srcPitch,                   // source buffer pitch in pixels 
+    int dstPitch,                   // destination buffer pitch in pixels
+    int width,                      // horizontal image size in pixels
+    int height,                     // vertical image size in lines
+    const AlgoControls* algoGpuParams, // algorithm controls
+    int frameCount,
+    cudaStream_t stream
+)
+{
+    const int srcPitchBytes = srcPitch * sizeof(float4);
+    const int dstPitchBytes = dstPitch * sizeof(float4);
+
+    return;
 }

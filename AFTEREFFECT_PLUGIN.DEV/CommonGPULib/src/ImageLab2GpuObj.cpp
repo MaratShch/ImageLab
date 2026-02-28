@@ -134,7 +134,7 @@ const int CImageLab2GpuObj::GetGPUBytesPerPixel (const PrPixelFormat inPixelForm
 
 PrParam CImageLab2GpuObj::GetParam (csSDK_int32 inIndex, PrTime inTime)
 {
-	PrParam param {};
+	PrParam param;
 	inIndex -= 1; // GPU filters do not include the input frame
 	mVideoSegmentSuite->GetParam (mNodeID, inIndex, inTime, &param);
 	return param;

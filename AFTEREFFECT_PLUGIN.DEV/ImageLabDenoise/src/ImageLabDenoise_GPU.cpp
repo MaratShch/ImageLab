@@ -1,5 +1,7 @@
 #include "ImageLabDenoise_GPU.hpp"
 #include "ImageLab2GpuObj.hpp"
+#include "CompileTimeUtils.hpp"
+#include "ImageLabDenoiseEnum.hpp"
 #include "Common.hpp"
 
 #ifdef _DEBUG
@@ -51,18 +53,16 @@ public:
         cudaError_t cudaErrCode = cudaErrorUnknown;
 
 		// read control setting
-//		const PrTime clipTime = inRenderParams->inClipTime;
-//      const PrTime renderTick = inRenderParams->inRenderTicksPerFrame;
-//      const int frameCounter = (renderTick > 0 ? static_cast<int>(clipTime / renderTick) : 0);
+		const PrTime clipTime = inRenderParams->inClipTime;
+        const PrTime renderTick = inRenderParams->inRenderTicksPerFrame;
+        const int frameCounter = (renderTick > 0 ? static_cast<int>(clipTime / renderTick) : 0);
 
-//       algoParams[0] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_PAINTER_STYLE), clipTime);
-//       algoParams[1] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_DENCITY), clipTime);
-//        algoParams[2] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_DOT_SIZE), clipTime);
-//        algoParams[3] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_EDGE_SENSITIVITY), clipTime);
-//        algoParams[4] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_SLIDER_COLOR_VIBRANCE), clipTime);
-//        algoParams[5] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_BACKGROUND_ART), clipTime);
-//        algoParams[6] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_OPACITY), clipTime);
-//        algoParams[7] = GetParam (UnderlyingType(ArtPointillismControls::ART_POINTILLISM_RANDOM_SEED), clipTime);
+        algoParams[0] = GetParam (UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD), clipTime);
+        algoParams[1] = GetParam (UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT), clipTime);
+        algoParams[2] = GetParam (UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH), clipTime);
+        algoParams[3] = GetParam (UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH), clipTime);
+        algoParams[4] = GetParam (UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION), clipTime);
+        algoParams[5] = GetParam (UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE), clipTime);
 
 #ifdef _DEBUG
 		const csSDK_int32 instanceCnt = TotalInstances();
@@ -96,19 +96,17 @@ public:
 
             CACHE_ALIGN AlgoControls algoGpuParams;
 
-//            algoGpuParams.PainterStyle      = static_cast<ArtPointillismPainter>(algoParams[0].mInt32);
-//            algoGpuParams.DotDencity        = algoParams[1].mInt32;
-//            algoGpuParams.DotSize           = algoParams[2].mInt32;
-//            algoGpuParams.EdgeSensitivity   = algoParams[3].mInt32;
-//            algoGpuParams.Vibrancy          = algoParams[4].mInt32;
-//            algoGpuParams.Background        = static_cast<BackgroundArt>(algoParams[5].mInt32);
-//            algoGpuParams.Opacity           = algoParams[6].mInt32;
-//            algoGpuParams.RandomSeed        = algoParams[7].mInt32;
+            algoGpuParams.accuracy                  = static_cast<ProcAccuracy>(algoParams[0].mInt32);
+            algoGpuParams.master_denoise_amount     = static_cast<float>(algoParams[1].mFloat64);
+            algoGpuParams.luma_strength             = static_cast<float>(algoParams[2].mFloat64);
+            algoGpuParams.chroma_strength           = static_cast<float>(algoParams[3].mFloat64);
+            algoGpuParams.fine_detail_preservation  = static_cast<float>(algoParams[4].mFloat64);
+            algoGpuParams.coarse_noise_reduction    = static_cast<float>(algoParams[5].mFloat64);
 
             const cudaStream_t stream = 0;
 
 			// Launch CUDA kernel
-//			ArtPointillism_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter,  stream);
+            ImageLabDenoise_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter,  stream);
 
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
 			{

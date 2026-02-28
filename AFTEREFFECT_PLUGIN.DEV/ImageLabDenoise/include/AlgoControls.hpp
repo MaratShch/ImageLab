@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include "Common.hpp"
-#include "AE_Effect.h"
 
 enum class ProcAccuracy : int32_t
 {
@@ -30,6 +29,3 @@ struct AlgoControls
 
 constexpr size_t AlgoControlsSize = sizeof(AlgoControls);
 
-
-AlgoControls GetControlParametersStruct(PF_ParamDef* RESTRICT params[]);
-AlgoControls getAlgoControlsDefault(void);

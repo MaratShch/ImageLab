@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <cuda_runtime.h>
-#include "Common.hpp"
+#include "ImageLabCUDA.hpp"
 
 // CUDA Error Checking Macro
 #define CUDA_CHECK(call) \

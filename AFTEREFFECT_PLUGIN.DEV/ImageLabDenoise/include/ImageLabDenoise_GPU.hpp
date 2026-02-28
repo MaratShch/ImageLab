@@ -28,6 +28,7 @@ void ImageLabDenoise_CUDA
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
     const AlgoControls* algoGpuParams, // algorithm controls
+    int frameCount,
     cudaStream_t stream = static_cast<cudaStream_t>(0)
 );
 
