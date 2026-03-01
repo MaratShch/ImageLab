@@ -27,7 +27,7 @@ void ImageLabDenoise_CUDA
     int dstPitch,                   // destination buffer pitch in pixels
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
-    const AlgoControls* algoGpuParams, // algorithm controls
+    const AlgoControls* RESTRICT algoGpuParams, // algorithm controls
     int frameCount,
     cudaStream_t stream = static_cast<cudaStream_t>(0)
 );

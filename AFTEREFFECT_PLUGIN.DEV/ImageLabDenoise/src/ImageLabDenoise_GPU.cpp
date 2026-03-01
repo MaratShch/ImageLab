@@ -120,3 +120,7 @@ public:
 };
 
 DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<ImageLabDenoiseGPU>);
+
+void ImageLabDenoise_CUDA(const float *RESTRICT inBuffer, float *RESTRICT outBuffer, int srcPitch, int dstPitch, int width, int height, const AlgoControls * algoGpuParams, int frameCount, cudaStream_t stream)
+{
+}
