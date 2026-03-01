@@ -177,7 +177,7 @@ __global__ void Kernel_Convert_YUV_to_BGRA_32f
 }
 
 // =========================================================
-// KERNEL: LAPLACIAN PYRAMID DOWNSAMPLE
+// KERNEL: 2x2 BOX DOWNSAMPLE (SPATIAL SCALES)
 // =========================================================
 __global__ void Kernel_Downsample_Laplacian
 (
@@ -186,30 +186,33 @@ __global__ void Kernel_Downsample_Laplacian
     int src_width, 
     int src_height,
     int dst_width, 
-    int dst_height
+    int dst_height,
+    int src_pitch, 
+    int dst_pitch
 )
 {
-    // Global 2D Thread Coordinates
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    // Calculate global 2D thread coordinates
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (x < dst_width && y < dst_height)
     {
-        // Calculate corresponding source coordinates (2x scale)
+        // Map destination coordinate back to 2x source coordinate
         int src_x = x * 2;
         int src_y = y * 2;
 
-        // Ensure we don't read out of bounds on the source edges
-        int sx_1 = std::min(src_x + 1, src_width - 1);
-        int sy_1 = std::min(src_y + 1, src_height - 1);
+        // Clamp edges safely to avoid out-of-bounds memory reads
+        int sx_1 = min(src_x + 1, src_width - 1);
+        int sy_1 = min(src_y + 1, src_height - 1);
 
-        // 2x2 Box Filter (Standard Haar/Laplacian downsample)
-        float p00 = src_plane[src_y * src_width + src_x];
-        float p10 = src_plane[src_y * src_width + sx_1];
-        float p01 = src_plane[sy_1 * src_width + src_x];
-        float p11 = src_plane[sy_1 * src_width + sx_1];
+        // Fetch the 2x2 box
+        float p00 = src_plane[src_y * src_pitch + src_x];
+        float p10 = src_plane[src_y * src_pitch + sx_1];
+        float p01 = src_plane[sy_1 * src_pitch + src_x];
+        float p11 = src_plane[sy_1 * src_pitch + sx_1];
 
-        dst_plane[y * dst_width + x] = (p00 + p10 + p01 + p11) * 0.25f;
+        // Average and store
+        dst_plane[y * dst_pitch + x] = (p00 + p10 + p01 + p11) * 0.25f;
     }
 }
 
@@ -275,12 +278,31 @@ void ImageLabDenoise_CUDA
     // 5. START CORE DENOISE ALGORITHM
     // =========================================================
 
-    // --> Kernel_BuildLaplacianPyramid<<<...>>>
-    // --> Kernel_EstimateBlindOracle<<<...>>>
-    // --> Kernel_L2_BlockMatching<<<...>>>
-    // --> Kernel_CollaborativeBayesShrinkage<<<...>>>
-    // --> Kernel_AtomicAggregation<<<...>>>
+    // 1. Full to Half Resolution
+    const int half_W = width / 2;
+    const int half_H = height / 2;
+    dim3 blocksHalf((half_W + 31) / 32, (half_H + 15) / 16);
 
+    Kernel_Downsample_Laplacian <<<blocksHalf, threadsPerBlock, 0, stream >>>
+        (gpuMem.d_Y_planar, gpuMem.d_Y_half, width, height, half_W, half_H, width, half_W);
+    Kernel_Downsample_Laplacian <<<blocksHalf, threadsPerBlock, 0, stream >>>
+        (gpuMem.d_U_planar, gpuMem.d_U_half, width, height, half_W, half_H, width, half_W);
+    Kernel_Downsample_Laplacian <<<blocksHalf, threadsPerBlock, 0, stream >>>
+        (gpuMem.d_V_planar, gpuMem.d_V_half, width, height, half_W, half_H, width, half_W);
+
+    // 2. Half to Quarter Resolution
+    const int quart_W = half_W / 2;
+    const int quart_H = half_H / 2;
+    dim3 blocksQuart((quart_W + 31) / 32, (quart_H + 15) / 16);
+
+    Kernel_Downsample_Laplacian <<<blocksQuart, threadsPerBlock, 0, stream >>>
+        (gpuMem.d_Y_half, gpuMem.d_Y_quart, half_W, half_H, quart_W, quart_H, half_W, quart_W);
+    Kernel_Downsample_Laplacian <<<blocksQuart, threadsPerBlock, 0, stream >>>
+        (gpuMem.d_U_half, gpuMem.d_U_quart, half_W, half_H, quart_W, quart_H, half_W, quart_W);
+    Kernel_Downsample_Laplacian <<<blocksQuart, threadsPerBlock, 0, stream >>>
+        (gpuMem.d_V_half, gpuMem.d_V_quart, half_W, half_H, quart_W, quart_H, half_W, quart_W);
+
+    // --> Kernel_EstimateBlindOracle<<<...>>>
     // =========================================================
     // 7. KERNEL DISPATCH: BACKWARD COLOR CONVERSION
     // =========================================================
@@ -298,7 +320,7 @@ void ImageLabDenoise_CUDA
     );
 
     // Wait till all GPU memory copies and kernels in this stream are completed
-    cudaStreamSynchronize (stream);
+    cudaDeviceSynchronize();
 
     // Release VRAM back to the system
     free_cuda_memory_buffers (gpuMem);
