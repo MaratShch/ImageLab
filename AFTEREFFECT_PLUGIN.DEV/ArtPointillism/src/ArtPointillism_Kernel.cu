@@ -990,7 +990,7 @@ void ArtPointillism_CUDA
         opacity_val
     );
 
-    // Wait for stream to finish (optional for debug, remove for max async performance)
+
     cudaDeviceSynchronize();
 
     return;

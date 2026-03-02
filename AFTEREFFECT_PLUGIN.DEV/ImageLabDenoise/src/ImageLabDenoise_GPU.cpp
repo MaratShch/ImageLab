@@ -103,10 +103,10 @@ public:
             algoGpuParams.fine_detail_preservation  = static_cast<float>(algoParams[4].mFloat64);
             algoGpuParams.coarse_noise_reduction    = static_cast<float>(algoParams[5].mFloat64);
 
-            const cudaStream_t stream = 0;
+            constexpr cudaStream_t stream = 0;
 
 			// Launch CUDA kernel
-            ImageLabDenoise_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter,  stream);
+            ImageLabDenoise_CUDA(inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter,  stream);
 
 			if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
 			{
@@ -120,7 +120,3 @@ public:
 };
 
 DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<ImageLabDenoiseGPU>);
-
-void ImageLabDenoise_CUDA(const float *RESTRICT inBuffer, float *RESTRICT outBuffer, int srcPitch, int dstPitch, int width, int height, const AlgoControls * algoGpuParams, int frameCount, cudaStream_t stream)
-{
-}

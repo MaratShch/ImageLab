@@ -21,15 +21,15 @@ extern "C" {
 CUDA_KERNEL_CALL
 void ImageLabDenoise_CUDA
 (
-    const float* RESTRICT inBuffer, // source (input) buffer
-    float* RESTRICT outBuffer,      // destination (output) buffer
-    int srcPitch,                   // source buffer pitch in pixels 
-    int dstPitch,                   // destination buffer pitch in pixels
-    int width,                      // horizontal image size in pixels
-    int height,                     // vertical image size in lines
-    const AlgoControls* RESTRICT algoGpuParams, // algorithm controls
+    const float* RESTRICT inBuffer,
+    float* RESTRICT outBuffer,
+    int srcPitch,
+    int dstPitch,
+    int width,
+    int height,
+    const AlgoControls* algoGpuParams,
     int frameCount,
-    cudaStream_t stream = static_cast<cudaStream_t>(0)
+    cudaStream_t stream
 );
 
 
