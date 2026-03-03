@@ -448,12 +448,12 @@ void ImageLabDenoise_CUDA
     dim3 blocksPerGrid((width + 31) / 32, (height + 15) / 16);
 
     // --- 2. FORWARD COLOR CONVERSION ---
-    Kernel_Convert_BGRA_32f_YUV << <blocksPerGrid, threadsPerBlock, 0, stream >> >
-        (
+    Kernel_Convert_BGRA_32f_YUV <<<blocksPerGrid, threadsPerBlock, 0, stream >>>
+    (
             reinterpret_cast<const float4*>(inBuffer),
             gpuMem.d_Y_planar, gpuMem.d_U_planar, gpuMem.d_V_planar,
             width, height, srcPitch, width
-            );
+    );
 
     // --- 3. SPATIAL DOWNSAMPLING (PYRAMID) ---
     const int half_W = width / 2;
