@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include "PrSDKGPUDeviceSuite.h"
 #include "PrSDKGPUImageProcessingSuite.h"
 #include "PrSDKGPUFilter.h"
@@ -8,7 +9,7 @@
 #include "PrSDKPPix2Suite.h"
 #include "PrSDKVideoSegmentSuite.h"
 #include "ClassRestrictions.hpp"
-#include <atomic>
+
 
 #ifdef __cplusplus
 #define PLUGIN_GPU_ENTRY_POINT_CALL	extern "C" DllExport
