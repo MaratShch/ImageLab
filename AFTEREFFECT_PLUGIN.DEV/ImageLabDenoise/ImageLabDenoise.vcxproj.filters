@@ -136,6 +136,9 @@
     <CustomBuild Include="ImageLabDenoise.r">
       <Filter>resource</Filter>
     </CustomBuild>
+    <CustomBuild Include="src\ImageLabDenoise_Kernel.cu">
+      <Filter>src</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabDenoisePR.cpp">
@@ -241,9 +244,6 @@
   <ItemGroup>
     <None Include="include\CUDA\CudaMemHandler.cuh">
       <Filter>include\CUDA</Filter>
-    </None>
-    <None Include="src\ImageLabDenoise.cu">
-      <Filter>src</Filter>
     </None>
   </ItemGroup>
 </Project>

@@ -1,4 +1,3 @@
-#include <tuple>
 #include "ImageLabDenoise_GPU.hpp"
 #include "ImageLab2GpuObj.hpp"
 #include "CompileTimeUtils.hpp"
@@ -123,19 +122,6 @@ public:
 	}
 
     private:
-        std::tuple<size_t, size_t> GetGpuMemoryInfo() noexcept
-        {
-            size_t free_byte = 0ull;
-            size_t total_byte = 0ull;
-
-            cudaError_t cuda_status = cudaMemGetInfo(&free_byte, &total_byte);
-
-            if (cuda_status != cudaSuccess)
-                return{ 0, 0 };
-
-            return std::make_tuple(free_byte, total_byte);
-        }
-
         size_t CalculateNoiseClinicVramRequirement (int width, int height) noexcept
         {
             // Ensure 256-byte alignment for fast coalesced global memory access

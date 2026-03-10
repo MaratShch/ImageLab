@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <tuple>
+#include <cuda_runtime.h>
 #include "PrSDKGPUDeviceSuite.h"
 #include "PrSDKGPUImageProcessingSuite.h"
 #include "PrSDKGPUFilter.h"
@@ -83,6 +85,20 @@ protected:
 		}
 		return suiteError;
 	}
+
+    std::tuple<size_t, size_t> GetGpuMemoryInfo() noexcept
+    {
+        size_t free_byte = 0ull;
+        size_t total_byte = 0ull;
+
+        cudaError_t cuda_status = cudaMemGetInfo(&free_byte, &total_byte);
+
+        if (cuda_status != cudaSuccess)
+            return{ 0, 0 };
+
+        return std::make_tuple(free_byte, total_byte);
+    }
+
 
 	PrParam GetParam (csSDK_int32 inIndex, PrTime inTime);
 	const size_t RoundUp (size_t inValue, size_t inMultiple);
