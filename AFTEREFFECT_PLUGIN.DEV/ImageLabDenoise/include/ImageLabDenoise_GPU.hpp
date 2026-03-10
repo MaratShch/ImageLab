@@ -27,7 +27,7 @@ void ImageLabDenoise_CUDA
     int dstPitch,
     int width,
     int height,
-    const AlgoControls* algoGpuParams,
+    const AlgoControls* RESTRICT algoGpuParams,
     int frameCount,
     cudaStream_t stream
 );
