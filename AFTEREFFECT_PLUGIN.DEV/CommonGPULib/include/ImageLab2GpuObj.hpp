@@ -86,7 +86,7 @@ protected:
 		return suiteError;
 	}
 
-    std::tuple<size_t, size_t> GetGpuMemoryInfo() noexcept
+    std::tuple<size_t, size_t> GetGpuMemoryInfo_CUDA (void) noexcept
     {
         size_t free_byte = 0ull;
         size_t total_byte = 0ull;
@@ -97,6 +97,12 @@ protected:
             return{ 0, 0 };
 
         return std::make_tuple(free_byte, total_byte);
+    }
+
+    inline const size_t GetSafeMargin_CUDA (void) noexcept
+    {
+        constexpr size_t safeMargin = static_cast<size_t>(128 * 1024 * 1024);
+        return safeMargin;
     }
 
 

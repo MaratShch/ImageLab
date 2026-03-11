@@ -54,47 +54,46 @@ public:
 
         prRect bounds{};
         mPPixSuite->GetBounds(*outFrame, &bounds);
-        const int width  = bounds.right - bounds.left;
+        const int width  = bounds.right  - bounds.left;
         const int height = bounds.bottom - bounds.top;
 
-        if (true == IsVramSufficientForRender (width, height))
-        {
-            const PrTime clipTime = inRenderParams->inClipTime;
-            const PrTime renderTick = inRenderParams->inRenderTicksPerFrame;
-            const int frameCounter = (renderTick > 0 ? static_cast<int>(clipTime / renderTick) : 0);
+        const PrTime clipTime = inRenderParams->inClipTime;
+        const PrTime renderTick = inRenderParams->inRenderTicksPerFrame;
+        const int frameCounter = (renderTick > 0 ? static_cast<int>(clipTime / renderTick) : 0);
 
-            // read control setting
-            algoParams[0] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD), clipTime);
-            algoParams[1] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT), clipTime);
-            algoParams[2] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH), clipTime);
-            algoParams[3] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH), clipTime);
-            algoParams[4] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION), clipTime);
-            algoParams[5] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE), clipTime);
+        // read control setting
+        algoParams[0] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD), clipTime);
+        algoParams[1] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT), clipTime);
+        algoParams[2] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH), clipTime);
+        algoParams[3] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH), clipTime);
+        algoParams[4] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION), clipTime);
+        algoParams[5] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE), clipTime);
 
 #ifdef _DEBUG
-            const csSDK_int32 instanceCnt = TotalInstances();
+        const csSDK_int32 instanceCnt = TotalInstances();
 #endif
 
-            mGPUDeviceSuite->GetGPUPPixData(*outFrame, &frameData);
+        mGPUDeviceSuite->GetGPUPPixData(*outFrame, &frameData);
 
-            PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
-            mPPixSuite->GetPixelFormat(*outFrame, &pixelFormat);
-            const csSDK_int32 gpuBytesPerPixel = GetGPUBytesPerPixel(pixelFormat);
+        PrPixelFormat pixelFormat = PrPixelFormat_Invalid;
+        mPPixSuite->GetPixelFormat(*outFrame, &pixelFormat);
+        const csSDK_int32 gpuBytesPerPixel = GetGPUBytesPerPixel(pixelFormat);
 
+        mGPUDeviceSuite->GetGPUPPixData(*outFrame, &destFrameData);
+        mPPixSuite->GetRowBytes(*outFrame, &destRowBytes);
+        const csSDK_int32 dstPitch = destRowBytes / gpuBytesPerPixel;
+        
+        mGPUDeviceSuite->GetGPUPPixData(*inFrames, &srcFrameData);
+        mPPixSuite->GetRowBytes(*inFrames, &srcRowBytes);
+        const csSDK_int32 srcPitch = srcRowBytes / gpuBytesPerPixel;
 
-            mGPUDeviceSuite->GetGPUPPixData(*outFrame, &destFrameData);
-            mPPixSuite->GetRowBytes(*outFrame, &destRowBytes);
-            const csSDK_int32 dstPitch = destRowBytes / gpuBytesPerPixel;
-
-            mGPUDeviceSuite->GetGPUPPixData(*inFrames, &srcFrameData);
-            mPPixSuite->GetRowBytes(*inFrames, &srcRowBytes);
-            const csSDK_int32 srcPitch = srcRowBytes / gpuBytesPerPixel;
-
-            // start CUDA
-            if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
+        // start CUDA
+        if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
+        {
+            if (true == IsVramSufficientForRender (width, height))
             {
                 // CUDA device pointers
-                const float* inBuffer  = reinterpret_cast<const float*>(srcFrameData);
+                const float* inBuffer = reinterpret_cast<const float*>(srcFrameData);
                 float* outBuffer = reinterpret_cast<float*>(destFrameData);
 
                 CACHE_ALIGN AlgoControls algoGpuParams;
@@ -111,15 +110,13 @@ public:
                 // Launch CUDA kernel
                 ImageLabDenoise_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter, stream);
 
-                if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
-                {
-                    return suiteError_Fail;
-                }
+                return (cudaSuccess == (cudaErrCode = cudaPeekAtLastError()) ? suiteError_NoError : suiteError_Fail);
             }
-            return suiteError_NoError;
+            return suiteError_OutOfMemory;
         }
-        return suiteError_OutOfMemory;
-	}
+        return suiteError_InvalidCall;
+    }
+
 
     private:
         size_t CalculateNoiseClinicVramRequirement (int width, int height) noexcept
@@ -158,14 +155,10 @@ public:
         bool IsVramSufficientForRender (int width, int height) noexcept
         {
             size_t free_vram, total_vram;
-            std::tie(free_vram, total_vram) = GetGpuMemoryInfo();
+            std::tie(free_vram, total_vram) = GetGpuMemoryInfo_CUDA();
 
             const size_t required_vram = CalculateNoiseClinicVramRequirement (width, height);
-
-            // Safety margin: Leave 64 MB free for driver overhead and local kernel memory
-            constexpr size_t safety_margin = 64 * 1024 * 1024;
-
-            return (free_vram < (required_vram + safety_margin) ? false : true);
+            return (free_vram < (required_vram + GetSafeMargin_CUDA()) ? false : true);
          }
 };
 
