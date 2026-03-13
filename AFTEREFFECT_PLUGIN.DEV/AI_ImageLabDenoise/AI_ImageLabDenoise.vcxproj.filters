@@ -93,5 +93,35 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\AI_Denoise.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AI_DenoiseEnum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\AI_ImageLabDenoise.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AI_ImageLabDenoiseAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AI_ImageLabDenoisePR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AI_ImageLabDenoiseSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="AI_ImageLabDenoise.r">
+      <Filter>resource</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="AI_ImageLabDenoise.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
