@@ -1,5 +1,4 @@
 #include "ColorizeMe.hpp"
-#include "CubeLUT.h"
 #include <Windows.h>
 #include "CommonDebugUtils.hpp"
 
@@ -31,17 +30,18 @@ GlobalSetup(
 	PF_LayerDef		*output
 ) 
 {
-	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
-		PF_OutFlag_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags1 =
+        PF_OutFlag_PIX_INDEPENDENT       |
+        PF_OutFlag_SEND_UPDATE_PARAMS_UI |
+        PF_OutFlag_USE_OUTPUT_EXTENT     |
+        PF_OutFlag_DEEP_COLOR_AWARE      |
+        PF_OutFlag_WIDE_TIME_INPUT;
 
-	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags2 =
+        PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+        PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
 	out_data->my_version =
 		PF_VERSION(ColorizeMe_VersionMajor,
@@ -95,106 +95,8 @@ ParamsSetup(
 {
 	PF_ParamDef	def;
 	PF_Err		err = PF_Err_NONE;
-	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
-	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
 
-	def.flags = flags;
-	def.ui_flags = ui_flags;
-
-	AEFX_CLR_STRUCT_EX(def);
-
-	PF_ADD_BUTTON(
-		ButtonLutParam,
-		ButtonLut,
-		0,
-		PF_ParamFlag_SUPERVISE,
-		COLOR_LUT_FILE_BUTTON
-	);
-
-	AEFX_CLR_STRUCT_EX(def);
-
-	PF_ADD_CHECKBOX(
-		CheckBoxParamName,
-		CheckBoxName,
-		FALSE,
-		0,
-		COLOR_NEGATE_CHECKBOX
-	);
-
-	AEFX_CLR_STRUCT_EX(def);
-
-	PF_ADD_POPUP(
-		InterpType,						/* pop-up name			*/
-		COLOR_INTERPOLATION_MAX_TYPES,	/* numbver of variants	*/
-		COLOR_INTERPOLATION_LINEAR,		/* default variant		*/
-		Interpolation,					/* string for pop-up	*/
-		COLOR_INTERPOLATION_POPUP);		/* control ID			*/
-
-	AEFX_CLR_STRUCT_EX(def);
-
-	PF_ADD_SLIDER(
-		RedPedestalName,
-		gMinRedPedestal,
-		gMaxRedPedestal,
-		gMinRedPedestal,
-		gMaxRedPedestal,
-		gDefRedPedestal,
-		COLOR_RED_PEDESTAL_SLIDER);
-
-	AEFX_CLR_STRUCT_EX(def);
-
-	PF_ADD_SLIDER(
-		GreenPedestalName,
-		gMinGreenPedestal,
-		gMaxGreenPedestal,
-		gMinGreenPedestal,
-		gMaxGreenPedestal,
-		gDefGreenPedestal,
-		COLOR_GREEN_PEDESTAL_SLIDER);
-
-	AEFX_CLR_STRUCT_EX(def);
-
-	PF_ADD_SLIDER(
-		BluePedestalName,
-		gMinBluePedestal,
-		gMaxBluePedestal,
-		gMinBluePedestal,
-		gMaxBluePedestal,
-		gDefBluePedestal,
-		COLOR_BLUE_PEDESTAL_SLIDER);
-	
-	AEFX_CLR_STRUCT_EX(def);
-
-	PF_ADD_BUTTON(
-		pedestalResetName,
-		pedestalReset,
-		0,
-		PF_ParamFlag_SUPERVISE,
-		COLOR_PEDESTAL_RESET_BUTTON
-	);
-
-	out_data->num_params = COLOR_TOTAL_PARAMS;
-
-	/* cleanup on exit (for DBG purpose only) */
-	AEFX_CLR_STRUCT_EX(def);
 	return err;
-}
-
-static bool
-IsProcessingActivated(
-	PF_InData	*in_data,
-	PF_ParamDef	*params[]
-) 
-{
-	const bool bProc =
-		(0 == params[COLOR_RED_PEDESTAL_SLIDER  ]->u.sd.value &&
-		 0 == params[COLOR_GREEN_PEDESTAL_SLIDER]->u.sd.value &&
-         0 == params[COLOR_BLUE_PEDESTAL_SLIDER ]->u.sd.value &&
-         0 == params[COLOR_NEGATE_CHECKBOX]->u.bd.value &&
-			(nullptr == in_data->sequence_data ||
-			(PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize && (0xDEADBEEF != (reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)))->magic)))
-		) ? false : true;
-	return bProc;
 }
 
 
@@ -207,54 +109,6 @@ Render(
 ) 
 {
 	PF_Err	err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
-
-	if (false == IsProcessingActivated(in_data, params))
-	{
-		/* no acion items, just copy input buffer to outpu without processing */
-		if (PremierId != in_data->appl_id)
-		{
-			AEFX_SuiteScoper<PF_WorldTransformSuite1> worldTransformSuite =
-				AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data);
-
-			err = (PF_Quality_HI == in_data->quality) ?
-				worldTransformSuite->copy_hq(in_data->effect_ref, &params[COLOR_INPUT]->u.ld, output, NULL, NULL) :
-				worldTransformSuite->copy(in_data->effect_ref, &params[COLOR_INPUT]->u.ld, output, NULL, NULL);
-		}
-		else {
-			err = PF_COPY(&params[COLOR_INPUT]->u.ld, output, NULL,	NULL);
-		}
-	} /* if (false == IsProcessingActivated(in_data, params)) */
-	else
-	{
-		if (PremierId == in_data->appl_id)
-		{
-			/* This plugin called frop PR - check video fomat */
-			AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-				AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-					in_data,
-					kPFPixelFormatSuite,
-					kPFPixelFormatSuiteVersion1,
-					out_data);
-
-			PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-			if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
-			{
-				err = ProcessImgInPR(in_data, out_data, params, output, destinationPixelFormat);
-			} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-			else
-			{
-				// In Premiere Pro, this message will appear in the Events panel
-				PF_STRCPY(out_data->return_msg, "Unsupported image format...");
-				err = PF_Err_INVALID_INDEX;
-			}
-		}
-		else
-		{
-			/* This plugin called from AE */
-			err = ProcessImgInAE(in_data, out_data, params, output);                 
-		}
-	}
 
 	return err;
 }
@@ -268,43 +122,8 @@ SequenceSetup(
 	PF_LayerDef		*output
 ) noexcept
 {
-	SequenceData* seqData = nullptr;
-	PF_Err err = PF_Err_NONE;
-	LutIdx idx = invalidLut;
-
-	if (nullptr != out_data->sequence_data && PF_GET_HANDLE_SIZE(out_data->sequence_data) == SequenceDataSize) {
-		idx = (reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)))->lut_idx;
-		PF_DISPOSE_HANDLE_EX(out_data->sequence_data);
-	}
-
-	out_data->sequence_data = PF_NEW_HANDLE(SequenceDataSize);
-	if (!out_data->sequence_data) {
-		return PF_Err_INTERNAL_STRUCT_DAMAGED;
-	}
-
-	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)))->magic = 0xDEADBEEF;
-	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data)))->lut_idx = idx;
-	out_data->flat_sdata_size = SequenceDataSize;
-	return err;
-}
-
-
-static PF_Err
-SequenceResetupEx(PF_InData* in_data, const LutIdx& lutIdx)
-{
 	PF_Err err = PF_Err_NONE;
 
-	if (nullptr != in_data->sequence_data && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize) {
-		PF_DISPOSE_HANDLE_EX(in_data->sequence_data);
-	}
-
-	in_data->sequence_data = PF_NEW_HANDLE(SequenceDataSize);
-	if (!in_data->sequence_data) {
-		return PF_Err_INTERNAL_STRUCT_DAMAGED;
-	}
-
-	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)))->magic = 0xDEADBEEF;
-	(reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data)))->lut_idx = lutIdx;
 	return err;
 }
 
@@ -317,18 +136,8 @@ SequenceReSetup(
 	PF_LayerDef		*output
 ) noexcept
 {
-	SequenceData* seqData = nullptr;
-	LutIdx lut_idx = invalidLut;
 
-	if (!in_data->sequence_data) {
-		if (nullptr != in_data->sequence_data && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize)
-		{
-			seqData = reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(in_data->sequence_data));
-			if (0xDEADBEEF == seqData->magic)
-				lut_idx = seqData->lut_idx;
-		}
-	}
-	return SequenceResetupEx (in_data, lut_idx);
+    return PF_Err_NONE;
 }
 
 
@@ -340,21 +149,7 @@ SequenceSetdown(
 	PF_LayerDef		*output
 ) noexcept
 {
-	SequenceData* seqData = nullptr;
 	PF_Err err = PF_Err_NONE;
-	LutIdx lut_idx = -1;
-
-	if (nullptr != in_data->sequence_data && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize)
-	{
-		seqData = reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
-		lut_idx = (0xDEADBEEF == seqData->magic ? seqData->lut_idx : invalidLut);
-		removeLut(lut_idx);
-
-		/* free memory handler with memory cleanup */
-		PF_DISPOSE_HANDLE_EX(in_data->sequence_data);
-		in_data->sequence_data = out_data->sequence_data = nullptr;
-	}
-
 	return err;
 }
 
@@ -368,34 +163,6 @@ UserChangedParam(
 ) 
 {
 	PF_Err err = PF_Err_NONE;
-	CubeLUT* pCubeLUT = nullptr;
-
-	switch (which_hitP->param_index)
-	{
-		case COLOR_LUT_FILE_BUTTON:
-		{
-			const std::string lutName = GetLutFileName();
-			if (!lutName.empty() && PF_GET_HANDLE_SIZE(in_data->sequence_data) == SequenceDataSize)
-			{
-				SequenceData* seqData = reinterpret_cast<SequenceData*>(GET_OBJ_FROM_HNDL(out_data->sequence_data));
-				const LutIdx lut_idx = addToLut(lutName);
-				seqData->lut_idx = lut_idx;
-			}
-		}
-		break;
-
-		case COLOR_PEDESTAL_RESET_BUTTON:
-			params[COLOR_RED_PEDESTAL_SLIDER  ]->u.sd.value = 0;
-			params[COLOR_RED_PEDESTAL_SLIDER  ]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
-			params[COLOR_GREEN_PEDESTAL_SLIDER]->u.sd.value = 0;
-			params[COLOR_GREEN_PEDESTAL_SLIDER]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
-			params[COLOR_BLUE_PEDESTAL_SLIDER ]->u.sd.value = 0;
-			params[COLOR_BLUE_PEDESTAL_SLIDER ]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
-		break;
-
-		default:
-		break;
-	} /* switch (which_hitP->param_index) */
 
 	return err;
 }
@@ -413,6 +180,26 @@ UpdateParameterUI(
 	return err;
 }
 
+static PF_Err
+PreRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_PreRenderExtra		*extraP
+)
+{
+    return PF_Err_NONE;
+}
+
+
+static PF_Err
+SmartRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+)
+{
+    return PF_Err_NONE;
+}
 
 
 PLUGIN_ENTRY_POINT_CALL	PF_Err
@@ -470,6 +257,14 @@ EffectMain (
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
 
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+            break;
+
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
+
 			default:
 			break;
 		}
@@ -481,34 +276,3 @@ EffectMain (
 
 	return err;
 }
-
-
-#ifdef AE_OS_WIN
-BOOL WINAPI DllMain (HINSTANCE hDLL, DWORD dwReason, LPVOID lpReserved)
-{
-	HINSTANCE my_instance_handle = 0;
-
-	switch (dwReason)
-	{
-		case DLL_PROCESS_ATTACH:
-			InitLutHelper();
-			my_instance_handle = hDLL;
-		break;
-
-		case DLL_THREAD_ATTACH:
-			my_instance_handle = hDLL;
-		break;
-
-		case DLL_THREAD_DETACH:
-			my_instance_handle = 0;
-		break;
-
-		case DLL_PROCESS_DETACH:
-			DisposeAllLUTs();
-			my_instance_handle = 0;
-		break;
-	}
-	return(TRUE);
-}
-#endif
-

@@ -21,9 +21,6 @@
     <ClCompile Include="src\ColorizeMe.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\CubeLUT.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ColorizeMeAE.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -31,9 +28,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\FileDialog.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\LutHelper.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -62,17 +56,11 @@
     <ClInclude Include="..\Common\FastAriphmetics.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
-    <ClInclude Include="include\CubeLUT.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\CommonDebugUtils.hpp">
       <Filter>include_comon</Filter>
-    </ClInclude>
-    <ClInclude Include="include\LutHelper.hpp">
-      <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
       <Filter>include_comon</Filter>
