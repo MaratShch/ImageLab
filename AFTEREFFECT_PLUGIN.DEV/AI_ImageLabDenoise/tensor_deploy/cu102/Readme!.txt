@@ -1,0 +1,1 @@
+deployment for CUDA-10.2 + TensorRT-8.2.5.1 + cuDNN-8.7.0.84
