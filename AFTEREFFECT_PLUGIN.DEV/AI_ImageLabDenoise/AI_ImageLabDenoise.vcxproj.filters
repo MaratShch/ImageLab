@@ -134,6 +134,12 @@
     <None Include="tensor_deploy\cu102\nvidia_102_deploy.zip">
       <Filter>tensor_deploy\cu102</Filter>
     </None>
+    <None Include="tensor_deploy\onnx\unet_noise_clinic_dynamic.onnx">
+      <Filter>tensor_deploy\onnx</Filter>
+    </None>
+    <None Include="tensor_deploy\onnx\unet_noise_clinic_dynamic.onnx.data">
+      <Filter>tensor_deploy\onnx</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="tensor_deploy\cu102\Readme!.txt">
