@@ -503,7 +503,7 @@ namespace ArtMosaic
 			{ 
 				Pixel q = neighbor(p, n);
 				const A_long idx = q.getIdx(sizeX);
-				if (!isInside(q, sizeX, sizeY) || l[idx])
+                if (!isInside(q, sizeX, sizeY) || l[idx] < 0)
 					continue;
 
 				const T& srcPixel = pSrc[p.getIdx(pitch)];
