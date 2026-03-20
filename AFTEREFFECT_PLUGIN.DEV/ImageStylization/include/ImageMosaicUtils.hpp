@@ -25,7 +25,7 @@ namespace ArtMosaic
 
 		~Pixel() = default;
 
-		inline const A_long getIdx (const A_long& pitch) const noexcept
+		inline const A_long getIdx (const A_long pitch) const noexcept
 		{
 			return x + y * pitch;
 		}
@@ -74,7 +74,7 @@ namespace ArtMosaic
 	{
 		public:
 
-		explicit Superpixel (const A_long& x0, const A_long& y0, const Color& c) noexcept
+		explicit Superpixel (const A_long x0, const A_long& y0, const Color& c) noexcept
 		{
 			x = static_cast<float>(x0);
 			y = static_cast<float>(y0);
@@ -83,7 +83,7 @@ namespace ArtMosaic
 			pix = nullptr;
 		}
 
-		explicit Superpixel (const A_long& x0, const A_long y0, Color&& c) noexcept
+		explicit Superpixel (const A_long x0, const A_long y0, Color&& c) noexcept
 		{
 			x = static_cast<float>(x0);
 			y = static_cast<float>(y0);
@@ -93,7 +93,7 @@ namespace ArtMosaic
 		}
 
 
-		float distance (const A_long& i, const A_long& j, const Color& c, const float& wSpace) const noexcept
+		float distance (const A_long i, const A_long j, const Color& c, const float wSpace) const noexcept
 		{
 			const float eucldist = sq(x - static_cast<float>(i)) + sq(y - static_cast<float>(j));
 			const float colordist = color_distance (col, c);
@@ -106,12 +106,12 @@ namespace ArtMosaic
 		Pixel* pix;
 	};
 
-	void fillProcBuf   (Color* pBuf, const A_long& pixNumber, const float& val) noexcept;
-	void fillProcBuf   (std::unique_ptr<Color[]>& pBuf,  const A_long& pixNumber, const float& val) noexcept;
-	void fillProcBuf   (A_long* pBuf, const A_long& pixNumber, const A_long& val) noexcept;
-	void fillProcBuf   (std::unique_ptr<A_long[]>& pBuf, const A_long& pixNumber, const A_long& val) noexcept;
-	void fillProcBuf   (float* pBuf, const A_long& pixNumber, const float& val) noexcept;
-	void fillProcBuf   (std::unique_ptr<float[]>& pBuf, const A_long& pixNumber, const float& val) noexcept;
+	void fillProcBuf   (Color* pBuf, const A_long pixNumber, const float val) noexcept;
+	void fillProcBuf   (std::unique_ptr<Color[]>& pBuf,  const A_long pixNumber, const float val) noexcept;
+	void fillProcBuf   (A_long* pBuf, const A_long pixNumber, const A_long val) noexcept;
+	void fillProcBuf   (std::unique_ptr<A_long[]>& pBuf, const A_long pixNumber, const A_long val) noexcept;
+	void fillProcBuf   (float* pBuf, const A_long pixNumber, const float val) noexcept;
+	void fillProcBuf   (std::unique_ptr<float[]>& pBuf, const A_long pixNumber, const float val) noexcept;
 
 	float computeError (const std::vector<Superpixel>& sp, const std::vector<std::vector<float>>& centers) noexcept;
 	void  moveCenters  (std::vector<Superpixel>& sp, const std::vector< std::vector<float>>& centers) noexcept;
@@ -119,15 +119,15 @@ namespace ArtMosaic
 	Pixel neighbor (const PixelPos i, const PixelPos j, const A_long n) noexcept;
 	Pixel neighbor (const Pixel& p, const A_long n) noexcept;
 
-	void labelCC (std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long& sizeX, const A_long& sizeY) noexcept;
-	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<A_long>& H, std::unique_ptr<A_long[]>& L, const A_long& K, const A_long& sizeX, const A_long& sizeY) noexcept;
+	void labelCC (std::unique_ptr<A_long[]>& CC, std::vector<int32_t>& H, std::unique_ptr<A_long[]>& L, const A_long sizeX, const A_long sizeY) noexcept;
+	void discardMinorCC (std::unique_ptr<A_long[]>& CC, const std::vector<A_long>& H, std::unique_ptr<A_long[]>& L, const A_long K, const A_long sizeX, const A_long sizeY) noexcept;
 
 	inline bool isInside
 	(
-		const A_long& x,
-		const A_long& y,
-		const A_long& w,
-		const A_long& h
+		const A_long x,
+		const A_long y,
+		const A_long w,
+		const A_long h
 	) noexcept 
 	{
 		return (0 <= x && x < w && 0 <= y && y < h);
@@ -136,8 +136,8 @@ namespace ArtMosaic
 	inline bool isInside
 	(
 		const Pixel& p,
-		const A_long& w,
-		const A_long& h
+		const A_long w,
+		const A_long h
 	) noexcept
 	{
 		return isInside (p.x, p.y, w, h);
@@ -179,9 +179,9 @@ namespace ArtMosaic
 	(
 		const T* __restrict I,
 		const Pixel& p,
-		const A_long& w,
-		const A_long& h,
-		const A_long& pitch
+		const A_long w,
+		const A_long h,
+		const A_long pitch
 	) noexcept
 	{
 		A_long g = 0;
@@ -217,11 +217,11 @@ namespace ArtMosaic
 	(
 		std::vector<Superpixel>& sp,
 		const T* __restrict I,
-		const A_long& radius,
-		const A_long& K,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& pitch
+		const A_long radius,
+		const A_long K,
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long pitch
 	) noexcept
 	{
 		for (A_long k = 0; k < K; k++)
@@ -319,9 +319,9 @@ namespace ArtMosaic
 		std::vector<std::vector<float>>& centers,
 		std::unique_ptr<A_long[]>& L,
 		const T* __restrict pSrc,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& pitch
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long pitch
 	) noexcept
 	{
 		A_long i, j;
@@ -382,9 +382,9 @@ namespace ArtMosaic
 		const T* __restrict pSrc,
 		std::vector<ArtMosaic::Superpixel>& sp,
 		std::unique_ptr<A_long[]>& L,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& pitch
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long pitch
 	) noexcept
 	{
 		A_long j, i, k;
@@ -442,9 +442,9 @@ namespace ArtMosaic
 		const T* __restrict pSrc,
 		const std::vector<ArtMosaic::Superpixel>& sp,
 		std::unique_ptr<A_long[]>& L,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& pitch
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long pitch
 	) noexcept
 	{
 		A_long i, j, dist, n;
@@ -564,9 +564,9 @@ namespace ArtMosaic
 		std::vector<Superpixel>& sp,
 		std::unique_ptr<A_long []>& L,
 		const T* __restrict pSrc,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& pitch
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long pitch
 	) noexcept
 	{
 		auto CC = std::make_unique<A_long[]>(sizeX * sizeY);
@@ -598,12 +598,12 @@ namespace ArtMosaic
 		const T* __restrict pSrc,
 		std::unique_ptr<A_long[]>& L,
 		const Color& GrayColor,
-		const float& m,
-		A_long& K,
-		const A_long& g,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& srcPitch
+		const float m,
+		A_long K,
+		const A_long g,
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long srcPitch
 	) noexcept
 	{
 		std::vector<Superpixel> sp;
@@ -711,10 +711,10 @@ namespace ArtMosaic
 		      std::unique_ptr<A_long[]>& L,
 		const Color& borderCol,
 		const Color& whiteCol,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& srcPitch,
-		const A_long& dstPitch,
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long srcPitch,
+		const A_long dstPitch,
 		bool borders = true
 	) noexcept
 	{
@@ -797,13 +797,13 @@ namespace ArtMosaic
 		      T* __restrict pDst,
 		const Color& grayColor,
 		const Color& whiteColor,
-		const float& m,
-		      A_long& k,
-		const A_long& g,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& srcPitch,
-		const A_long& dstPitch
+		const float m,
+		      A_long k,
+		const A_long g,
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long srcPitch,
+		const A_long dstPitch
 	) noexcept
 	{
 		const A_long bufSize = sizeX * sizeY;
@@ -836,13 +836,13 @@ namespace ArtMosaic
 		T* __restrict pDst,
 		const Color& grayColor,
 		const Color& whiteColor,
-		const float& m,
-		A_long& k,
-		const A_long& g,
-		const A_long& sizeX,
-		const A_long& sizeY,
-		const A_long& srcPitch,
-		const A_long& dstPitch
+		const float m,
+		A_long k,
+		const A_long g,
+		const A_long sizeX,
+		const A_long sizeY,
+		const A_long srcPitch,
+		const A_long dstPitch
 	) noexcept
 	{
 		const A_long bufSize = CreateAlignment(sizeX * sizeY, CACHE_LINE);

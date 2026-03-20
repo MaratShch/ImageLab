@@ -10,7 +10,7 @@
 #endif
 
 
-void ArtMosaic::fillProcBuf (Color* pBuf, const A_long& pixNumber, const float& val) noexcept
+void ArtMosaic::fillProcBuf (Color* pBuf, const A_long pixNumber, const float val) noexcept
 {
 	constexpr A_long elemInStruct = sizeof(pBuf[0]) / sizeof(pBuf[0].r);
 	const A_long rawSize    = pixNumber * elemInStruct;
@@ -33,12 +33,12 @@ void ArtMosaic::fillProcBuf (Color* pBuf, const A_long& pixNumber, const float& 
 	return;
 }
 
-void ArtMosaic::fillProcBuf (std::unique_ptr<Color[]>& pBuf, const A_long& pixNumber, const float& val) noexcept
+void ArtMosaic::fillProcBuf (std::unique_ptr<Color[]>& pBuf, const A_long pixNumber, const float val) noexcept
 {
 	ArtMosaic::fillProcBuf (pBuf.get(), pixNumber, val);
 }
 
-void ArtMosaic::fillProcBuf (A_long* pBuf, const A_long& pixNumber, const A_long& val) noexcept
+void ArtMosaic::fillProcBuf (A_long* pBuf, const A_long pixNumber, const A_long val) noexcept
 {
 	const A_long rawSize16  = pixNumber / 16;
 	const A_long rawFract16 = pixNumber % 16;
@@ -61,13 +61,13 @@ void ArtMosaic::fillProcBuf (A_long* pBuf, const A_long& pixNumber, const A_long
 	return;
 }
 
-void ArtMosaic::fillProcBuf(std::unique_ptr<A_long[]>& pBuf, const A_long& pixNumber, const A_long& val) noexcept
+void ArtMosaic::fillProcBuf(std::unique_ptr<A_long[]>& pBuf, const A_long pixNumber, const A_long val) noexcept
 {
 	ArtMosaic::fillProcBuf (pBuf.get(), pixNumber, val);
 }
 
 
-void ArtMosaic::fillProcBuf (float* pBuf, const A_long& pixNumber, const float& val) noexcept
+void ArtMosaic::fillProcBuf (float* pBuf, const A_long pixNumber, const float val) noexcept
 {
 	const A_long rawSize16 = pixNumber / 16;
 	const A_long rawFract16 = pixNumber % 16;
@@ -91,7 +91,7 @@ void ArtMosaic::fillProcBuf (float* pBuf, const A_long& pixNumber, const float& 
 }
 
 
-void ArtMosaic::fillProcBuf(std::unique_ptr<float[]>& pBuf, const A_long& pixNumber, const float& val) noexcept
+void ArtMosaic::fillProcBuf(std::unique_ptr<float[]>& pBuf, const A_long pixNumber, const float val) noexcept
 {
 	ArtMosaic::fillProcBuf(pBuf.get(), pixNumber, val);
 }
@@ -158,10 +158,10 @@ void ArtMosaic::labelCC
 	std::unique_ptr<A_long[]>& CC,
 	std::vector<int32_t>& H,
 	std::unique_ptr<A_long[]>& L,
-	const A_long& sizeX,
-	const A_long& sizeY
+	const A_long sizeX,
+	const A_long sizeY
 ) noexcept
-{ ///////// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+{
 	std::stack<ArtMosaic::Pixel> S;
 	auto cc = CC.get();
 	auto l  = L.get();
@@ -224,9 +224,9 @@ void ArtMosaic::discardMinorCC
 	std::unique_ptr<A_long[]>& CC,
 	const std::vector<A_long>& H,
 	std::unique_ptr<A_long[]>& L,
-	const A_long& K,
-	const A_long& sizeX,
-	const A_long& sizeY
+	const A_long K,
+	const A_long sizeX,
+	const A_long sizeY
 ) noexcept
 {
 	A_long j, i;
