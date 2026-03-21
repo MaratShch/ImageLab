@@ -21,5 +21,5 @@ maxG = max(data(:,:,2), [], 'all');
 minB = min(data(:,:,3), [], 'all');
 maxB = max(data(:,:,3), [], 'all');
 
-gamma = 0.4545;
-imshow(imadjust(data, [], [], gamma));
+gamma = 2.2;
+imshow(imadjust(data, [], [], 1.0/gamma));
