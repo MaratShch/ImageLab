@@ -552,3 +552,20 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_32f
     PF_ParamDef* __restrict params[],
     PF_LayerDef* __restrict output
 ) noexcept;
+
+PF_Err
+ImageStylization_PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+);
+
+PF_Err
+ImageStylization_SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extra
+);
+

@@ -55,21 +55,23 @@ GlobalSetup
 	PF_LayerDef		*output
 )
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
-    LoadMemoryInterfaceProvider (in_data);
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return err;
 
-	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT       |
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT     |
-		PF_OutFlag_DEEP_COLOR_AWARE      |
-		PF_OutFlag_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags1 =
+        PF_OutFlag_PIX_INDEPENDENT       |
+        PF_OutFlag_SEND_UPDATE_PARAMS_UI |
+        PF_OutFlag_USE_OUTPUT_EXTENT     |
+        PF_OutFlag_DEEP_COLOR_AWARE      |
+        PF_OutFlag_WIDE_TIME_INPUT;
 
-	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags2 =
+        PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+        PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
 	out_data->my_version =
 		PF_VERSION(
@@ -104,7 +106,8 @@ GlobalSetup
 	/* generate random values in buffer used in Glassy Effect */
 	utils_create_random_buffer();
 
-	return err;
+    err = PF_Err_NONE;
+    return err;
 }
 
 
@@ -249,6 +252,26 @@ UpdateParameterUI
 	return err;
 }
 
+static PF_Err
+PreRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_PreRenderExtra		*extraP
+)
+{
+    return ImageStylization_PreRender (in_data, out_data, extraP);
+}
+
+
+static PF_Err
+SmartRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+)
+{
+    return ImageStylization_SmartRender (in_data, out_data, extraP);
+}
 
 
 PLUGIN_ENTRY_POINT_CALL  PF_Err
@@ -311,6 +334,14 @@ EffectMain
 			case PF_Cmd_UPDATE_PARAMS_UI:
 				ERR(UpdateParameterUI(in_data, out_data, params, output));
 			break;
+
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+            break;
+
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
 
 			default:
 			break;
