@@ -13,10 +13,56 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="tensor_deploy">
+      <UniqueIdentifier>{771bd8dc-3ae0-4fff-bb9f-de4b09966ef4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tensor_deploy\cu102">
+      <UniqueIdentifier>{c6ea0900-63cc-4d03-a1ef-ac7219028cfc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tensor_deploy\cu131">
+      <UniqueIdentifier>{834dbcc2-febe-41fa-8c75-a49d5fa9f2b5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tensor_deploy\onnx">
+      <UniqueIdentifier>{fc59a5ed-1d49-4341-8abb-0019f6db7fc8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python">
+      <UniqueIdentifier>{3b87acc2-3848-4597-b912-68b1b8d79d3b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="matlab">
+      <UniqueIdentifier>{f0e4fbda-d14a-4875-9fbb-327c76694f5a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\EngineBuilder.cpp">
       <Filter>src</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="tensor_deploy\cu102\nvidia_102_deploy.z01">
+      <Filter>tensor_deploy\cu102</Filter>
+    </None>
+    <None Include="tensor_deploy\cu102\nvidia_102_deploy.z02">
+      <Filter>tensor_deploy\cu102</Filter>
+    </None>
+    <None Include="tensor_deploy\cu102\nvidia_102_deploy.zip">
+      <Filter>tensor_deploy\cu102</Filter>
+    </None>
+    <None Include="tensor_deploy\onnx\unet_noise_clinic_dynamic.onnx">
+      <Filter>tensor_deploy\onnx</Filter>
+    </None>
+    <None Include="tensor_deploy\onnx\unet_noise_clinic_dynamic.onnx.data">
+      <Filter>tensor_deploy\onnx</Filter>
+    </None>
+    <None Include="python\CR3ToPNG16.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="matlab\CR3ToPNG16.m">
+      <Filter>matlab</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="tensor_deploy\cu102\Readme!.txt">
+      <Filter>tensor_deploy\cu102</Filter>
+    </Text>
   </ItemGroup>
 </Project>
