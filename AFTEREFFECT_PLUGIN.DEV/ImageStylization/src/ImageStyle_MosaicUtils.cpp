@@ -10,92 +10,100 @@
 #endif
 
 
-void ArtMosaic::fillProcBuf (Color* pBuf, const A_long pixNumber, const float val) noexcept
+void ArtMosaic::fillProcBuf(Color* pBuf, const A_long pixNumber, const float val) noexcept
 {
-	constexpr A_long elemInStruct = sizeof(pBuf[0]) / sizeof(pBuf[0].r);
-	const A_long rawSize    = pixNumber * elemInStruct;
-	const A_long rawSize24  = rawSize / 24;
-	const A_long rawFract24 = rawSize % 24;
+    constexpr A_long elemInStruct = sizeof(pBuf[0]) / sizeof(pBuf[0].r);
+    const A_long rawSize = pixNumber * elemInStruct;
+    const A_long rawSize24 = rawSize / 24;
+    const A_long rawFract24 = rawSize % 24;
 
-	float* pBufF = reinterpret_cast<float*>(pBuf);
+    float* pBufF = reinterpret_cast<float*>(pBuf);
 
-	const __m256 fPattern = _mm256_set_ps(val, val, val, val, val, val, val, val);
-	for (A_long i = 0; i < rawSize24; i++)
-	{
-		_mm256_storeu_ps (pBufF, fPattern), pBufF += 8;
-		_mm256_storeu_ps (pBufF, fPattern), pBufF += 8;
-		_mm256_storeu_ps (pBufF, fPattern), pBufF += 8;
-	}
+    // Use set1_ps for cleaner broadcasting
+    const __m256 fPattern = _mm256_set1_ps(val);
 
-	for (A_long i = 0; i < rawFract24; i++)
-		pBufF[i] = val;
+    for (A_long i = 0; i < rawSize24; i++)
+    {
+        _mm256_storeu_ps(pBufF, fPattern), pBufF += 8;
+        _mm256_storeu_ps(pBufF, fPattern), pBufF += 8;
+        _mm256_storeu_ps(pBufF, fPattern), pBufF += 8;
+    }
 
-	return;
+    for (A_long i = 0; i < rawFract24; i++)
+        pBufF[i] = val;
+
+    return;
 }
 
-void ArtMosaic::fillProcBuf (std::unique_ptr<Color[]>& pBuf, const A_long pixNumber, const float val) noexcept
+void ArtMosaic::fillProcBuf(std::unique_ptr<Color[]>& pBuf, const A_long pixNumber, const float val) noexcept
 {
-	ArtMosaic::fillProcBuf (pBuf.get(), pixNumber, val);
+    ArtMosaic::fillProcBuf(pBuf.get(), pixNumber, val);
 }
 
-void ArtMosaic::fillProcBuf (A_long* pBuf, const A_long pixNumber, const A_long val) noexcept
+void ArtMosaic::fillProcBuf(A_long* pBuf, const A_long pixNumber, const A_long val) noexcept
 {
-	const A_long rawSize16  = pixNumber / 16;
-	const A_long rawFract16 = pixNumber % 16;
-	const __m256i iPattern = _mm256_set_epi32 (val, val, val, val, val, val, val, val);
-	__m256i* pBufAvxPtr = reinterpret_cast<__m256i*>(pBuf);
+    const A_long rawSize16 = pixNumber / 16;
+    const A_long rawFract16 = pixNumber % 16;
 
-	for (A_long i = 0; i < rawSize16; i++)
-	{
-		_mm256_store_si256 (pBufAvxPtr, iPattern), pBufAvxPtr++;
-		_mm256_store_si256 (pBufAvxPtr, iPattern), pBufAvxPtr++;
-	}
+    // Use set1_epi32
+    const __m256i iPattern = _mm256_set1_epi32(val);
+    __m256i* pBufAvxPtr = reinterpret_cast<__m256i*>(pBuf);
 
-	if (0 != rawFract16)
-	{
-		A_long* pBufPtr = reinterpret_cast<A_long*>(pBufAvxPtr);
-		for (A_long i = 0; i < rawFract16; i++)
-			pBufPtr[i] = val;
-	}
+    for (A_long i = 0; i < rawSize16; i++)
+    {
+        // FIX: Changed to storeu (unaligned)
+        _mm256_storeu_si256(pBufAvxPtr, iPattern), pBufAvxPtr++;
+        _mm256_storeu_si256(pBufAvxPtr, iPattern), pBufAvxPtr++;
+    }
 
-	return;
+    if (0 != rawFract16)
+    {
+        A_long* pBufPtr = reinterpret_cast<A_long*>(pBufAvxPtr);
+        for (A_long i = 0; i < rawFract16; i++)
+            pBufPtr[i] = val;
+    }
+
+    return;
 }
 
 void ArtMosaic::fillProcBuf(std::unique_ptr<A_long[]>& pBuf, const A_long pixNumber, const A_long val) noexcept
 {
-	ArtMosaic::fillProcBuf (pBuf.get(), pixNumber, val);
+    ArtMosaic::fillProcBuf(pBuf.get(), pixNumber, val);
 }
 
 
-void ArtMosaic::fillProcBuf (float* pBuf, const A_long pixNumber, const float val) noexcept
+void ArtMosaic::fillProcBuf(float* pBuf, const A_long pixNumber, const float val) noexcept
 {
-	const A_long rawSize16 = pixNumber / 16;
-	const A_long rawFract16 = pixNumber % 16;
-	const __m256 fPattern = _mm256_set_ps(val, val, val, val, val, val, val, val);
-	__m256* pBufAvxPtr = reinterpret_cast<__m256*>(pBuf);
+    const A_long rawSize16 = pixNumber / 16;
+    const A_long rawFract16 = pixNumber % 16;
 
-	for (A_long i = 0; i < rawSize16; i++)
-	{
-		_mm256_store_ps (reinterpret_cast<float*>(pBufAvxPtr), fPattern), pBufAvxPtr++;
-		_mm256_store_ps (reinterpret_cast<float*>(pBufAvxPtr), fPattern), pBufAvxPtr++;
-	}
+    // Use set1_ps
+    const __m256 fPattern = _mm256_set1_ps(val);
 
-	if (0 != rawFract16)
-	{
-		float* pBufPtr = reinterpret_cast<float*>(pBufAvxPtr);
-		for (A_long i = 0; i < rawFract16; i++)
-			pBufPtr[i] = val;
-	}
+    // Better to cast to float* for the pointer arithmetic and storing
+    float* pBufAvxPtr = pBuf;
 
-	return;
+    for (A_long i = 0; i < rawSize16; i++)
+    {
+        // FIX: Changed to storeu_ps (unaligned)
+        _mm256_storeu_ps(pBufAvxPtr, fPattern), pBufAvxPtr += 8;
+        _mm256_storeu_ps(pBufAvxPtr, fPattern), pBufAvxPtr += 8;
+    }
+
+    if (0 != rawFract16)
+    {
+        for (A_long i = 0; i < rawFract16; i++)
+            pBufAvxPtr[i] = val;
+    }
+
+    return;
 }
 
 
 void ArtMosaic::fillProcBuf(std::unique_ptr<float[]>& pBuf, const A_long pixNumber, const float val) noexcept
 {
-	ArtMosaic::fillProcBuf(pBuf.get(), pixNumber, val);
+    ArtMosaic::fillProcBuf(pBuf.get(), pixNumber, val);
 }
-
 
 float ArtMosaic::computeError (const std::vector<ArtMosaic::Superpixel>& sp, const std::vector<std::vector<float>>& centers) noexcept
 {

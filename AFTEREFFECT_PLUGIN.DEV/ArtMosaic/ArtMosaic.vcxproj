@@ -160,13 +160,20 @@
     <ClInclude Include="include\ArtMosaic.hpp" />
     <ClInclude Include="include\ArtMosaicEnum.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\ImageMosaicUtils.hpp" />
+    <ClInclude Include="include\MosaicColorConvert.hpp" />
+    <ClInclude Include="include\MosaicMemHandler.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtMosaic.cpp" />
     <ClCompile Include="src\ArtMosaicAE.cpp" />
     <ClCompile Include="src\ArtMosaicPR.cpp" />
     <ClCompile Include="src\ArtMosaicSR.cpp" />
+    <ClCompile Include="src\BGRA8u_RGBPlanar.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
+    <ClCompile Include="src\ImageStyle_MosaicUtils.cpp" />
+    <ClCompile Include="src\MosaicAlgorithmMain.cpp" />
+    <ClCompile Include="src\MosaicMemHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtMosaic.r">
