@@ -7,7 +7,7 @@ PF_Err ArtMosaic_InAE_8bits
 	PF_OutData*  out_data,
 	PF_ParamDef* params[],
 	PF_LayerDef* output
-) noexcept
+) 
 {
 	return PF_Err_NONE;
 }
@@ -18,7 +18,7 @@ PF_Err ArtMosaic_InAE_16bits
 	PF_OutData*  out_data,
 	PF_ParamDef* params[],
 	PF_LayerDef* output
-) noexcept
+) 
 {
 	return PF_Err_NONE;
 }
@@ -29,7 +29,7 @@ PF_Err ArtMosaic_InAE_32bits
     PF_OutData*  out_data,
     PF_ParamDef* params[],
     PF_LayerDef* output
-) noexcept
+) 
 {
     return PF_Err_NONE;
 }
@@ -41,7 +41,7 @@ inline PF_Err ArtMosaic_InAE_DeepWorld
     PF_OutData*  out_data,
     PF_ParamDef* params[],
     PF_LayerDef* output
-) noexcept
+) 
 {
     PF_Err	err = PF_Err_NONE;
     PF_PixelFormat format = PF_PixelFormat_INVALID;
@@ -65,7 +65,7 @@ ProcessImgInAE
 	PF_OutData*		out_data,
 	PF_ParamDef*	params[],
 	PF_LayerDef*	output
-) noexcept
+) 
 {
 	return (PF_WORLD_IS_DEEP(output) ?
         ArtMosaic_InAE_DeepWorld (in_data, out_data, params, output) :

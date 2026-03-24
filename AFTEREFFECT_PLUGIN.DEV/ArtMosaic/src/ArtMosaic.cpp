@@ -1,4 +1,6 @@
 #include "ArtMosaic.hpp"
+#include "ArtMosaicEnum.hpp"
+#include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -29,7 +31,10 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return err;
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_PIX_INDEPENDENT       |
@@ -74,6 +79,7 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
+    err = PF_Err_NONE;
 	return err;
 }
 
@@ -85,8 +91,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
 }
 
 
@@ -98,6 +104,21 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    CACHE_ALIGN PF_ParamDef	def{};
+
+    constexpr PF_ParamFlags     flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags   ui_flags = PF_PUI_NONE;
+
+    PF_ADD_SLIDER(
+        sliderName,
+        cellMin,
+        cellMax,
+        cellMin,
+        cellMax,
+        cellDef,
+        UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_CELLS_SLIDER));
+
+    out_data->num_params = UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_TOTAL_CONTROLS);
 
 	return PF_Err_NONE;
 }
@@ -115,27 +136,26 @@ Render(
 
 
 
-static PF_Err
+inline PF_Err
 PreRender(
     PF_InData			*in_data,
     PF_OutData			*out_data,
     PF_PreRenderExtra	*extra
 )
 {
-    return PF_Err_NONE;
+    return ArtMosaic_PreRender (in_data, out_data, extra);
 }
 
 
 
-static PF_Err
+inline PF_Err
 SmartRender(
     PF_InData				*in_data,
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extraP
 )
 {
-    PF_Err	err = PF_Err_NONE;
-    return err;
+    return ArtMosaic_SmartRender (in_data, out_data, extraP);
 }
 
 
