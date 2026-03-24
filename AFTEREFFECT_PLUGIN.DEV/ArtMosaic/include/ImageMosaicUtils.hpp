@@ -52,30 +52,6 @@ void MosaicAlgorithmMain (const MemHandler& memHndl, A_long width, A_long height
  
 namespace ArtMosaic
 {
-	using PixelPos = A_long;
-
-	class Pixel final
-	{
-	public:
-		PixelPos x, y;
-		Pixel (const PixelPos& x0, const PixelPos& y0) noexcept
-		{
-			x = x0;
-			y = y0;
-		}
-		Pixel() noexcept
-		{
-			Pixel(0, 0);
-		}
-
-		~Pixel() = default;
-
-		inline const A_long getIdx (const A_long pitch) const noexcept
-		{
-			return x + y * pitch;
-		}
-	};
-
 
 	class Color final
 	{
