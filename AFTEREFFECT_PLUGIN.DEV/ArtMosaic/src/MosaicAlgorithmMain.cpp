@@ -44,12 +44,12 @@ inline float planarSqNormGradient
 
 void MosaicAlgorithmMain (const MemHandler& memHndl, A_long width, A_long height, A_long K)
 {
-    const float m = 40.f;
-//    A_long g = 0;
-    A_long k = K;
+    constexpr float m = 40.f;
     constexpr int maxNorm = std::numeric_limits<unsigned char>::max();
-    const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-    const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
+    constexpr ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
+    constexpr ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
+
+    A_long k = K;
 
     // --- 1. INITIALIZATION ---
     
@@ -154,7 +154,7 @@ void MosaicAlgorithmMain (const MemHandler& memHndl, A_long width, A_long height
 
     // --- 2. MAIN SLIC ITERATIONS ---
     
-    const A_long maxIter = 10;
+    constexpr A_long maxIter = 10;
     const float wSpace = m / static_cast<float>(S);
     const float wSpaceSq = wSpace * wSpace; // Pre-calculate the squared weight!
     

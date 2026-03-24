@@ -82,14 +82,8 @@ namespace ArtMosaic
 	public:
 		float r, g, b;
 
-		Color() noexcept { r = g = b = 0; }
-
-		Color(const float& r0, const float& g0, const float& b0) noexcept
-		{
-			r = r0;
-			g = g0;
-			b = b0;
-		}
+        constexpr Color() noexcept : r(0), g(0), b(0) {};
+        constexpr Color(const float r0, const float g0, const float b0) noexcept : r(r0), g(g0), b(b0) {};
 
 		~Color() = default;
 	};
