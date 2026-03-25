@@ -37,10 +37,10 @@ struct MemHandler
     int32_t* bfs_Queue;
 };
 
-MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const int32_t = 1000) noexcept;
-void free_memory_buffers(MemHandler& algoMemHandler) noexcept;
+MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const int32_t = 1000);
+void free_memory_buffers(MemHandler& algoMemHandler);
 
-inline bool mem_handler_valid(const MemHandler& hndl) noexcept
+inline bool mem_handler_valid(const MemHandler& hndl)
 {
     return (hndl.memBlockId >= 0 && hndl.SuperBufferHead != nullptr) ? true : false;
 }

@@ -128,15 +128,39 @@
     <ClCompile Include="src\BGRA8u_RGBPlanar.cpp">
       <Filter>src</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="ArtMosaic.rc">
-      <Filter>resource</Filter>
-    </ResourceCompile>
+    <ClCompile Include="src\ARGB8u_RGBPLanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BGRA16u_RGBPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ARGB16u_RGBPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\BGRA32f_RGBPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ARGB32f_RGBPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\VUYA8u_RGBPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\VUYA32f_RGBPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\RGB10u_RGBPlanar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtMosaic.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ArtMosaic.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

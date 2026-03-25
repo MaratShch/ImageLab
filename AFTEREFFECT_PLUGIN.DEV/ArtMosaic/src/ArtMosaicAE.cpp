@@ -1,5 +1,8 @@
 #include "ArtMosaic.hpp"
 #include "ArtMosaicEnum.hpp"
+#include "MosaicColorConvert.hpp"
+#include "MosaicMemHandler.hpp"
+
 
 PF_Err ArtMosaic_InAE_8bits
 (
@@ -9,8 +12,36 @@ PF_Err ArtMosaic_InAE_8bits
 	PF_LayerDef* output
 ) 
 {
-	return PF_Err_NONE;
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_INPUT)]->u.ld);
+    const A_long cellsNumber = params[UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_CELLS_SLIDER)]->u.sd.value;
+
+    const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+          PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+    PF_Err err = PF_Err_NONE;
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, cellsNumber);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
+        rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+        MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+        planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+
+        free_memory_buffers (algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
+
+	return err;
 }
+
 
 PF_Err ArtMosaic_InAE_16bits
 (
@@ -20,8 +51,36 @@ PF_Err ArtMosaic_InAE_16bits
 	PF_LayerDef* output
 ) 
 {
-	return PF_Err_NONE;
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_INPUT)]->u.ld);
+    const A_long cellsNumber = params[UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_CELLS_SLIDER)]->u.sd.value;
+
+    const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+          PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+    PF_Err err = PF_Err_NONE;
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, cellsNumber);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
+        rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+        MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+        planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+
+        free_memory_buffers (algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
+
+    return err;
 }
+
 
 PF_Err ArtMosaic_InAE_32bits
 (
@@ -31,7 +90,34 @@ PF_Err ArtMosaic_InAE_32bits
     PF_LayerDef* output
 ) 
 {
-    return PF_Err_NONE;
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_INPUT)]->u.ld);
+    const A_long cellsNumber = params[UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_CELLS_SLIDER)]->u.sd.value;
+
+    const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
+          PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    PF_Err err = PF_Err_NONE;
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, cellsNumber);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
+        rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+        MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+        planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+
+        free_memory_buffers (algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
+
+    return err;
 }
 
 
@@ -41,7 +127,7 @@ inline PF_Err ArtMosaic_InAE_DeepWorld
     PF_OutData*  out_data,
     PF_ParamDef* params[],
     PF_LayerDef* output
-) 
+)
 {
     PF_Err	err = PF_Err_NONE;
     PF_PixelFormat format = PF_PixelFormat_INVALID;

@@ -6,7 +6,7 @@
 #include "ImageLabMemInterface.hpp"
 
 
-MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY, const int32_t K) noexcept
+MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY, const int32_t K) 
 {
     MemHandler algoMemHandler{};
     
@@ -119,7 +119,7 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY, const
 }
 
 
-void free_memory_buffers(MemHandler& algoMemHandler) noexcept
+void free_memory_buffers(MemHandler& algoMemHandler) 
 {
     if (algoMemHandler.SuperBufferHead != nullptr && algoMemHandler.memBlockId >= 0)
     {

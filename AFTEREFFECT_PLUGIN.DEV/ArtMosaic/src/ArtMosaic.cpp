@@ -31,10 +31,10 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+    PF_Err	err = PF_Err_NONE;
 
     if (false == LoadMemoryInterfaceProvider(in_data))
-        return err;
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_PIX_INDEPENDENT       |
@@ -70,14 +70,17 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-//		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
-	}
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+    }
 
     err = PF_Err_NONE;
 	return err;
@@ -131,7 +134,7 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
+    return ((PremierId == in_data->appl_id ? ProcessImgInPR(in_data, out_data, params, output) : ProcessImgInAE(in_data, out_data, params, output)));
 }
 
 
@@ -174,25 +177,25 @@ EffectMain(
 	try {
 		switch (cmd)
 		{
-			case PF_Cmd_ABOUT:
-				ERR(About(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_ABOUT:
+                ERR(About(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_GLOBAL_SETUP:
-				ERR(GlobalSetup(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_GLOBAL_SETUP:
+                ERR(GlobalSetup(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_GLOBAL_SETDOWN:
-				ERR(GlobalSetdown(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_GLOBAL_SETDOWN:
+                ERR(GlobalSetdown(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_PARAMS_SETUP:
-				ERR(ParamsSetup(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_PARAMS_SETUP:
+                ERR(ParamsSetup (in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_RENDER:
-				ERR(Render(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_RENDER:
+                ERR(Render(in_data, out_data, params, output));
+            break;
 
             case PF_Cmd_SMART_PRE_RENDER:
                 ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
@@ -203,7 +206,7 @@ EffectMain(
             break;
 
             default:
-			break;
+            break;
 		}
 	}
 	catch (PF_Err &thrown_err)

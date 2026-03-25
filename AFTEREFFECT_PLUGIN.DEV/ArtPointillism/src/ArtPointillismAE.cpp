@@ -49,7 +49,7 @@ PF_Err ArtPointilism_InAE_8bits
     else
         err = PF_Err_OUT_OF_MEMORY;
 
-	return PF_Err_NONE;
+	return err;
 }
 
 
@@ -95,7 +95,7 @@ PF_Err ArtPointilism_InAE_16bits
     else
         err = PF_Err_OUT_OF_MEMORY;
 
-    return PF_Err_NONE;
+    return err;
 }
 
 
@@ -141,7 +141,7 @@ PF_Err ArtPointilism_InAE_32bits
     else
         err = PF_Err_OUT_OF_MEMORY;
 
-    return PF_Err_NONE;
+    return err;
 }
 
 

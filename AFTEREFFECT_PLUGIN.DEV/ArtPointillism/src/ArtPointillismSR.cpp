@@ -195,5 +195,5 @@ ArtPointilism_SmartRender
 
     } // if (nullptr != pFilterStrParams)
 
-    return PF_Err_NONE;
+    return err;
 }

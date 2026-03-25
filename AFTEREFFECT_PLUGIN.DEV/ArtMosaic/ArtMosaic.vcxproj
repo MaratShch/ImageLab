@@ -94,11 +94,14 @@
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>include;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <FloatingPointModel>Fast</FloatingPointModel>
+      <FloatingPointModel>
+      </FloatingPointModel>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <EnableExpandedLineNumberInfo>true</EnableExpandedLineNumberInfo>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -125,7 +128,8 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <FloatingPointModel>Fast</FloatingPointModel>
+      <FloatingPointModel>
+      </FloatingPointModel>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
@@ -165,15 +169,23 @@
     <ClInclude Include="include\MosaicMemHandler.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\ARGB16u_RGBPlanar.cpp" />
+    <ClCompile Include="src\ARGB32f_RGBPlanar.cpp" />
+    <ClCompile Include="src\ARGB8u_RGBPLanar.cpp" />
     <ClCompile Include="src\ArtMosaic.cpp" />
     <ClCompile Include="src\ArtMosaicAE.cpp" />
     <ClCompile Include="src\ArtMosaicPR.cpp" />
     <ClCompile Include="src\ArtMosaicSR.cpp" />
+    <ClCompile Include="src\BGRA16u_RGBPlanar.cpp" />
+    <ClCompile Include="src\BGRA32f_RGBPlanar.cpp" />
     <ClCompile Include="src\BGRA8u_RGBPlanar.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\ImageStyle_MosaicUtils.cpp" />
     <ClCompile Include="src\MosaicAlgorithmMain.cpp" />
     <ClCompile Include="src\MosaicMemHandler.cpp" />
+    <ClCompile Include="src\RGB10u_RGBPlanar.cpp" />
+    <ClCompile Include="src\VUYA32f_RGBPlanar.cpp" />
+    <ClCompile Include="src\VUYA8u_RGBPlanar.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtMosaic.r">
