@@ -169,6 +169,10 @@
     <ClInclude Include="include\MemoryInterface.hpp" />
     <ClInclude Include="include\MemoryPolicy.hpp" />
     <ClInclude Include="include\UtilsSemaphore.hpp" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ImageLabUtils.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
