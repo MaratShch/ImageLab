@@ -3,6 +3,7 @@
 #include "ArtMosaic_GPU.hpp"
 #include "ArtMosaicEnum.hpp"
 #include "ImageLab2GpuObj.hpp"
+#include "FastAriphmetics.hpp"
 
 #ifdef _DEBUG
 #pragma comment(lib, "..\\BUILD.OUT\\LIB\\Debug\\CommonGPULib.lib")
@@ -86,7 +87,7 @@ public:
 		// start CUDA
 		if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
 		{
-            if (true == IsVramSufficientForRender(width, height, cellsNumber))
+            if (true == IsVramSufficientForRender (width, height, cellsNumber))
             {
                 // CUDA device pointers
                 inBuffer = reinterpret_cast<float*>(srcFrameData);
@@ -106,13 +107,50 @@ public:
 	}
 
 private:
-    size_t CalculateRequiredGpuMemory (int width, int height, int K) noexcept
+    size_t CalculateSlicGpuMemory (int width, int height, int requested_k)
     {
-        // 1. Image-Dependent Calculation
-        const size_t needed_pixels = static_cast<size_t>(width * height);
+        const int totalPixels = width * height;
 
-        // 3. Return Total VRAM Required (in bytes)
-        return 0;
+        // Safety clamp (cannot have more clusters than pixels)
+        const int safe_k = (requested_k > totalPixels) ? totalPixels : requested_k;
+
+        // Calculate grid dimensions to account for the mapping array
+        float superPixInitVal = static_cast<float>(totalPixels) / static_cast<float>(safe_k);
+        const int S = FastCompute::Max(static_cast<int>(FastCompute::Sqrt(superPixInitVal)), 1);
+
+        const int nX = width  / S;
+        const int nY = height / S;
+        const int max_grid_k = nX * nY;
+
+        // ----------------------------------------------------
+        // 1. PER-PIXEL BUFFERS (The bulk of the memory)
+        // ----------------------------------------------------
+        // d_r, d_g, d_b, d_distances, d_labels (Main Arena)
+        // d_cc, d_sizes, d_new_labels (Union-Find Connectivity)
+        // Total: 8 buffers * 4 bytes (sizeof float/int) = 32 bytes per pixel
+        size_t pixel_memory = static_cast<size_t>(totalPixels) * 32;
+
+        // ----------------------------------------------------
+        // 2. PER-CLUSTER BUFFERS
+        // ----------------------------------------------------
+        // d_cluster (x, y, r, g, b) -> 5 buffers
+        // d_acc (x, y, r, g, b, count) -> 6 buffers
+        // Total: 11 buffers * 4 bytes = 44 bytes per cluster
+        size_t cluster_memory = static_cast<size_t>(safe_k * 44);
+
+        // ----------------------------------------------------
+        // 3. GRID MAPPING & MISC BUFFERS
+        // ----------------------------------------------------
+        // d_grid_to_k mapping array (max_grid_k * 4 bytes)
+        size_t mapping_memory = static_cast<size_t>(max_grid_k * 4);
+
+        // d_actualK scalar (4 bytes) + padding/alignment safety margin (1024 bytes)
+        constexpr size_t misc_memory = 4 + 1024;
+
+        // Calculate Grand Total
+        size_t total_vram_bytes = pixel_memory + cluster_memory + mapping_memory + misc_memory;
+
+        return total_vram_bytes;
     }
 
     bool IsVramSufficientForRender (int width, int height, int K = 1000) noexcept
@@ -120,7 +158,7 @@ private:
         size_t free_vram, total_vram;
         std::tie(free_vram, total_vram) = GetGpuMemoryInfo_CUDA();
 
-        const size_t required_vram = CalculateRequiredGpuMemory (width, height, K);
+        const size_t required_vram = CalculateSlicGpuMemory(width, height, K);
         return (free_vram < (required_vram + GetSafeMargin_CUDA()) ? false : true);
     }
 };

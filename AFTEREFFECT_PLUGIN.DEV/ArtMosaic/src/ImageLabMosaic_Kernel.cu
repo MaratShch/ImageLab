@@ -51,7 +51,8 @@ bool allocateGpuArena (GpuMemHandler& mem, int width, int height, int requested_
     return true;
 }
 
-void freeGpuArena(GpuMemHandler& mem) { 
+void freeGpuArena(GpuMemHandler& mem)
+{ 
     if (mem.master_arena) { cudaFree(mem.master_arena); mem.master_arena = nullptr; }
 }
 
@@ -123,7 +124,21 @@ __global__ void InitCentersSingleThreadKernel
     *d_actualK = actualK;
 }
 
-__global__ void InitCentersParallelKernel(GpuMemHandler mem, int* d_grid_to_k, int w, int h, int S, int nX, int nY, int hPW, int hPH, int s_half, int* d_actualK) {
+__global__ void InitCentersParallelKernel
+(
+    GpuMemHandler mem,
+    int* d_grid_to_k, 
+    int w, 
+    int h, 
+    int S, 
+    int nX, 
+    int nY, 
+    int hPW, 
+    int hPH, 
+    int s_half, 
+    int* d_actualK
+)
+{
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -133,7 +148,8 @@ __global__ void InitCentersParallelKernel(GpuMemHandler mem, int* d_grid_to_k, i
     int jj = j * S + s_half + hPH;
     int grid_idx = j * nX + i;
 
-    if (ii < w && jj < h) {
+    if (ii < w && jj < h)
+    {
         // Safely claim the next available index in the compacted array
         int my_k = atomicAdd(d_actualK, 1);
 
@@ -145,25 +161,38 @@ __global__ void InitCentersParallelKernel(GpuMemHandler mem, int* d_grid_to_k, i
         mem.d_cluster_b[my_k] = mem.d_b[planarIdx];
         
         d_grid_to_k[grid_idx] = my_k; 
-    } else {
+    }
+    else
+    {
         // Mark as a hole
         d_grid_to_k[grid_idx] = -1;
     }
 }
 
 
-__global__ void GradientPerturbationKernel(GpuMemHandler mem, int w, int h, int actualK) {
-    int k_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (k_idx < actualK) {
+__global__ void GradientPerturbationKernel
+(
+    GpuMemHandler mem,
+    int w,
+    int h,
+    int actualK
+)
+{
+    const int k_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (k_idx < actualK)
+    {
         int startX = __float2int_rn(mem.d_cluster_x[k_idx]);
         int startY = __float2int_rn(mem.d_cluster_y[k_idx]);
         float minGrad = FLT_MAX;
         int bestX = startX, bestY = startY;
 
-        for (int j = -1; j <= 1; j++) {
-            for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++)
+        {
+            for (int i = -1; i <= 1; i++)
+            {
                 int cx = startX + i, cy = startY + j;
-                if (cx >= 0 && cx < w && cy >= 0 && cy < h) {
+                if (cx >= 0 && cx < w && cy >= 0 && cy < h)
+                {
                     int idx = cy * w + cx;
                     int nx = min(cx + 1, w - 1);
                     float drX = mem.d_r[cy * w + nx] - mem.d_r[idx];
@@ -186,7 +215,12 @@ __global__ void GradientPerturbationKernel(GpuMemHandler mem, int w, int h, int 
     }
 }
 
-__global__ void ClearDistancesKernel(GpuMemHandler mem, int count) {
+__global__ void ClearDistancesKernel
+(
+    GpuMemHandler mem,
+    int count
+)
+{
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < count) {
         mem.d_distances[i] = FLT_MAX;
@@ -195,7 +229,18 @@ __global__ void ClearDistancesKernel(GpuMemHandler mem, int count) {
 }
 
 // OPTIMIZED: HW Intrinsic L1 Caching and Early Exit
-__global__ void FastAssignmentKernel(GpuMemHandler mem, const int* d_grid_to_k, int w, int h, int S, int nX, int nY, float wSpaceSq) {
+__global__ void FastAssignmentKernel
+(
+    GpuMemHandler mem,
+    const int* d_grid_to_k,
+    int w,
+    int h,
+    int S,
+    int nX,
+    int nY,
+    float wSpaceSq
+)
+{
     int px = blockIdx.x * blockDim.x + threadIdx.x;
     int py = blockIdx.y * blockDim.y + threadIdx.y;
     if (px >= w || py >= h) return;
@@ -213,13 +258,17 @@ __global__ void FastAssignmentKernel(GpuMemHandler mem, const int* d_grid_to_k, 
     int gx = px / S, gy = py / S;
     
     #pragma unroll
-    for (int dy = -2; dy <= 2; dy++) {
+    for (int dy = -2; dy <= 2; dy++)
+    {
         #pragma unroll
-        for (int dx = -2; dx <= 2; dx++) {
+        for (int dx = -2; dx <= 2; dx++)
+        {
             int cx = gx + dx, cy = gy + dy;
-            if (cx >= 0 && cx < nX && cy >= 0 && cy < nY) {
+            if (cx >= 0 && cx < nX && cy >= 0 && cy < nY)
+            {
                 int k_idx = __ldg(&d_grid_to_k[cy * nX + cx]);
-                if (k_idx != -1) {
+                if (k_idx != -1)
+                {
                     float cX = __ldg(&mem.d_cluster_x[k_idx]);
                     float cY = __ldg(&mem.d_cluster_y[k_idx]);
 
@@ -227,7 +276,8 @@ __global__ void FastAssignmentKernel(GpuMemHandler mem, const int* d_grid_to_k, 
                     int cX_i = __float2int_rn(cX);
                     int cY_i = __float2int_rn(cY);
 
-                    if (px >= cX_i - S && px < cX_i + S && py >= cY_i - S && py < cY_i + S) {
+                    if (px >= cX_i - S && px < cX_i + S && py >= cY_i - S && py < cY_i + S)
+                    {
                         float d_x = (float)px - cX;
                         float d_y = (float)py - cY;
                         float ds = (d_x * d_x + d_y * d_y) * wSpaceSq;
@@ -253,9 +303,15 @@ __global__ void FastAssignmentKernel(GpuMemHandler mem, const int* d_grid_to_k, 
     mem.d_distances[pIdx] = min_dist;
 }
 
-__global__ void ClearAccumulatorsKernel(GpuMemHandler mem, int K) {
+__global__ void ClearAccumulatorsKernel
+(
+    GpuMemHandler mem,
+    int K
+)
+{
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < K) {
+    if (i < K)
+    {
         mem.d_acc_x[i] = 0.0f; mem.d_acc_y[i] = 0.0f;
         mem.d_acc_r[i] = 0.0f; mem.d_acc_g[i] = 0.0f; mem.d_acc_b[i] = 0.0f;
         mem.d_acc_count[i] = 0;
@@ -263,7 +319,13 @@ __global__ void ClearAccumulatorsKernel(GpuMemHandler mem, int K) {
 }
 
 // OPTIMIZED: Read-Only caching for R,G,B inputs during atomics
-__global__ void AccumulateKernel(GpuMemHandler mem, int w, int h) {
+__global__ void AccumulateKernel
+(
+    GpuMemHandler mem,
+    int w,
+    int h
+)
+{
     int px = blockIdx.x * blockDim.x + threadIdx.x;
     int py = blockIdx.y * blockDim.y + threadIdx.y;
     if (px >= w || py >= h) return;
@@ -271,7 +333,8 @@ __global__ void AccumulateKernel(GpuMemHandler mem, int w, int h) {
     int pIdx = py * w + px;
     int k_idx = mem.d_labels[pIdx];
     
-    if (k_idx >= 0) {
+    if (k_idx >= 0)
+    {
         atomicAdd(&mem.d_acc_x[k_idx], (float)px);
         atomicAdd(&mem.d_acc_y[k_idx], (float)py);
         atomicAdd(&mem.d_acc_r[k_idx], __ldg(&mem.d_r[pIdx]));
@@ -281,9 +344,14 @@ __global__ void AccumulateKernel(GpuMemHandler mem, int w, int h) {
     }
 }
 
-__global__ void UpdateCentersKernel(GpuMemHandler mem, int K) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < K && mem.d_acc_count[i] > 0) {
+__global__ void UpdateCentersKernel
+(
+    GpuMemHandler mem, int K
+)
+{
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < K && mem.d_acc_count[i] > 0)
+    {
         float inv = 1.0f / (float)mem.d_acc_count[i];
         mem.d_cluster_x[i] = mem.d_acc_x[i] * inv; mem.d_cluster_y[i] = mem.d_acc_y[i] * inv;
         mem.d_cluster_r[i] = mem.d_acc_r[i] * inv; mem.d_cluster_g[i] = mem.d_acc_g[i] * inv; mem.d_cluster_b[i] = mem.d_acc_b[i] * inv;
@@ -294,26 +362,44 @@ __global__ void UpdateCentersKernel(GpuMemHandler mem, int K) {
 // 3. FAST PARALLEL UNION-FIND 
 // =========================================================
 
-__global__ void InitCCKernel(int* d_cc, int* d_sizes, int* d_new_labels, int numPixels) {
+__global__ void InitCCKernel
+(
+    int* RESTRICT d_cc,
+    int* RESTRICT d_sizes,
+    int* RESTRICT d_new_labels,
+    int numPixels
+)
+{
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < numPixels) {
+    if (idx < numPixels)
+    {
         d_cc[idx] = idx;
         d_sizes[idx] = 0;
         d_new_labels[idx] = -1;
     }
 }
 
-__global__ void LinkCCKernel(const int* labels, int* cc, int w, int h) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+__global__ void LinkCCKernel
+(
+    const int* RESTRICT labels, 
+    int* RESTRICT cc,
+    int w,
+    int h
+)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    
     if (x >= w || y >= h) return;
     int idx = y * w + x;
     int L = labels[idx];
 
-    auto merge = [&](int nIdx) {
+    auto merge = [&](int nIdx)
+    {
         if (labels[nIdx] == L) {
             int u = idx, v = nIdx;
-            while (u != v) {
+            while (u != v)
+            {
                 u = cc[u]; v = cc[v];
                 if (u < v) { int old = atomicMin(&cc[v], u); if (old == v) break; v = old; }
                 else if (v < u) { int old = atomicMin(&cc[u], v); if (old == u) break; u = old; }
@@ -324,11 +410,17 @@ __global__ void LinkCCKernel(const int* labels, int* cc, int w, int h) {
     if (y + 1 < h) merge(idx + w);
 }
 
-__global__ void CompressCCKernel(int* cc, int numPixels) {
+__global__ void CompressCCKernel
+(
+    int* cc, int numPixels
+)
+{
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < numPixels) {
+    if (idx < numPixels)
+    {
         int root = idx;
-        while (root != cc[root]) {
+        while (root != cc[root])
+        {
             cc[root] = cc[cc[root]]; 
             root = cc[root];
         }
@@ -336,19 +428,37 @@ __global__ void CompressCCKernel(int* cc, int numPixels) {
     }
 }
 
-__global__ void SizeCCKernel(const int* cc, int* sizes, int numPixels) {
+__global__ void SizeCCKernel
+(
+    const int* cc,
+    int* sizes,
+    int numPixels
+)
+{
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < numPixels) atomicAdd(&sizes[cc[idx]], 1);
+    if (idx < numPixels)
+        atomicAdd(&sizes[cc[idx]], 1);
 }
 
-__global__ void ResolveOrphansKernel(const int* labels, const int* cc, const int* sizes, int* new_labels, int min_size, int w, int h) {
+__global__ void ResolveOrphansKernel
+(
+    const int* RESTRICT labels, 
+    const int* RESTRICT cc,
+    const int* RESTRICT sizes,
+    int* RESTRICT new_labels,
+    int min_size,
+    int w,
+    int h
+)
+{
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= w || y >= h) return;
     int idx = y * w + x;
     int root = cc[idx];
 
-    if (sizes[root] <= min_size) {
+    if (sizes[root] <= min_size)
+    {
         int L = labels[idx];
         int candidate = -1;
         if (x > 0 && labels[idx - 1] != L) candidate = labels[idx - 1];
@@ -360,11 +470,22 @@ __global__ void ResolveOrphansKernel(const int* labels, const int* cc, const int
     }
 }
 
-__global__ void ApplyResolvedLabelsKernel(int* labels, const int* cc, const int* sizes, const int* new_labels, int min_size, int numPixels) {
+__global__ void ApplyResolvedLabelsKernel
+(
+    int* RESTRICT labels,
+    const int* RESTRICT cc,
+    const int* RESTRICT sizes,
+    const int* RESTRICT new_labels,
+    int min_size,
+    int numPixels
+)
+{
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < numPixels) {
+    if (idx < numPixels)
+    {
         int root = cc[idx];
-        if (sizes[root] <= min_size) {
+        if (sizes[root] <= min_size)
+        {
             int nl = new_labels[root];
             if (nl != -1) labels[idx] = nl;
         }
@@ -374,8 +495,18 @@ __global__ void ApplyResolvedLabelsKernel(int* labels, const int* cc, const int*
 // =========================================================
 // 4. FINAL RENDER
 // =========================================================
-
-__global__ void RenderMosaicKernel(const float* d_in, GpuMemHandler mem, float* d_out, int w, int h, int sP, int dP, int K) {
+__global__ void RenderMosaicKernel
+(
+    const float* RESTRICT d_in, 
+    GpuMemHandler mem, 
+    float* RESTRICT d_out,
+    int w,
+    int h,
+    int sP,
+    int dP,
+    int K
+)
+{
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= w || y >= h) return;
@@ -389,9 +520,11 @@ __global__ void RenderMosaicKernel(const float* d_in, GpuMemHandler mem, float* 
     if (x + 1 < w && mem.d_labels[idx + 1] != lVal) isBorder = true;
     else if (y + 1 < h && mem.d_labels[idx + w] != lVal) isBorder = true;
 
-    if (isBorder) {
+    if (isBorder)
+    {
         out_row[x*4+0] = 0.5f; out_row[x*4+1] = 0.5f; out_row[x*4+2] = 0.5f;
-    } else if (lVal >= 0 && lVal < K) {
+    } else if (lVal >= 0 && lVal < K)
+    {
         out_row[x*4+0] = mem.d_cluster_b[lVal] / 255.0f;
         out_row[x*4+1] = mem.d_cluster_g[lVal] / 255.0f;
         out_row[x*4+2] = mem.d_cluster_r[lVal] / 255.0f;
@@ -402,7 +535,6 @@ __global__ void RenderMosaicKernel(const float* d_in, GpuMemHandler mem, float* 
 // =========================================================
 // 5. MAIN DISPATCHER
 // =========================================================
-
 CUDA_KERNEL_CALL
 void ImageLabMosaic_CUDA
 (
@@ -426,7 +558,7 @@ void ImageLabMosaic_CUDA
     int hPW = std::max(0, width - S * nX) / 2; 
     int hPH = std::max(0, height - S * nY) / 2;
 
-    dim3 pThreads(32, 16); dim3 pBlocks((width + 31) / 32, (height + 15) / 16);
+    dim3 pThreads(32, 16, 1); dim3 pBlocks((width + 31) / 32, (height + 15) / 16, 1);
     int pBlocks1D = (numPixels + 255) / 256;
 
     int *d_grid_to_k, *d_actualK, *d_cc, *d_sizes, *d_new_labels;
@@ -436,22 +568,23 @@ void ImageLabMosaic_CUDA
     cudaMalloc(&d_sizes, numPixels * sizeof(int));
     cudaMalloc(&d_new_labels, numPixels * sizeof(int));
 
-    InterleavedToPlanarKernel<<<pBlocks, pThreads, 0, stream>>>(inBuffer, mem.d_r, mem.d_g, mem.d_b, width, height, srcPitch);
+    InterleavedToPlanarKernel <<<pBlocks, pThreads, 0, stream>>>(inBuffer, mem.d_r, mem.d_g, mem.d_b, width, height, srcPitch);
     
     // Calculate grid size specifically for the nX * nY cluster grid
-    dim3 kBlocks((nX + 31) / 32, (nY + 15) / 16);
+    dim3 kBlocks((nX + 31) / 32, (nY + 15) / 16, 1);
 
     // Run fully parallel
     InitCentersParallelKernel<<<kBlocks, pThreads, 0, stream>>>(mem, d_grid_to_k, width, height, S, nX, nY, hPW, hPH, S/2, d_actualK);
     
     int host_actualK = 0;
-    cudaMemcpyAsync(&host_actualK, d_actualK, sizeof(int), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync (&host_actualK, d_actualK, sizeof(int), cudaMemcpyDeviceToHost, stream);
     cudaStreamSynchronize(stream);
 
-    int cBlocks = (host_actualK + 255) / 256;
-    GradientPerturbationKernel<<<cBlocks, 256, 0, stream>>>(mem, width, height, host_actualK);
+    const int cBlocks = (host_actualK + 255) / 256;
+    GradientPerturbationKernel <<<cBlocks, 256, 0, stream>>>(mem, width, height, host_actualK);
 
-    float wSpaceSq = (40.0f / (float)S) * (40.0f / (float)S);
+    const float wSpace = 40.0f / static_cast<float>(S);
+    const float wSpaceSq = wSpace * wSpace;
     
     // --- 1. FAST ASSIGNMENT ---
     for (int i = 0; i < 10; i++)
@@ -465,9 +598,9 @@ void ImageLabMosaic_CUDA
     }
 
     // --- 2. FAST UNION-FIND CONNECTIVITY ---
-    int MIN_SIZE = (numPixels / host_actualK) >> 2;
+    const int MIN_SIZE = (numPixels / host_actualK) >> 2;
 
-    for(int pass = 0; pass < 3; pass++)
+    for (int pass = 0; pass < 3; pass++)
     {
         InitCCKernel <<<pBlocks1D, 256, 0, stream>>>(d_cc, d_sizes, d_new_labels, numPixels);
         
@@ -476,20 +609,26 @@ void ImageLabMosaic_CUDA
         for (int c = 0; c < 3; c++) 
             CompressCCKernel <<<pBlocks1D, 256, 0, stream>>>(d_cc, numPixels);
         
-        SizeCCKernel<<<pBlocks1D, 256, 0, stream>>>(d_cc, d_sizes, numPixels);
+        SizeCCKernel <<<pBlocks1D, 256, 0, stream>>>(d_cc, d_sizes, numPixels);
         ResolveOrphansKernel <<<pBlocks, pThreads, 0, stream>>>(mem.d_labels, d_cc, d_sizes, d_new_labels, MIN_SIZE, width, height);
-        ApplyResolvedLabelsKernel<<<pBlocks1D, 256, 0, stream>>>(mem.d_labels, d_cc, d_sizes, d_new_labels, MIN_SIZE, numPixels);
+        ApplyResolvedLabelsKernel <<<pBlocks1D, 256, 0, stream>>>(mem.d_labels, d_cc, d_sizes, d_new_labels, MIN_SIZE, numPixels);
     }
 
     // --- 3. FINAL RE-AVERAGE ---
-    ClearAccumulatorsKernel<<<cBlocks, 256, 0, stream>>>(mem, host_actualK);
+    ClearAccumulatorsKernel <<<cBlocks, 256, 0, stream>>>(mem, host_actualK);
     AccumulateKernel <<<pBlocks, pThreads, 0, stream>>>(mem, width, height);
     UpdateCentersKernel <<<cBlocks, 256, 0, stream>>>(mem, host_actualK);
 
-    RenderMosaicKernel<<<pBlocks, pThreads, 0, stream>>>(inBuffer, mem, outBuffer, width, height, srcPitch, dstPitch, host_actualK);
+    RenderMosaicKernel <<<pBlocks, pThreads, 0, stream>>>(inBuffer, mem, outBuffer, width, height, srcPitch, dstPitch, host_actualK);
     
-    cudaStreamSynchronize(stream);
-    cudaFree(d_grid_to_k); cudaFree(d_actualK); 
-    cudaFree(d_cc); cudaFree(d_sizes); cudaFree(d_new_labels);
+    cudaDeviceSynchronize();
+
     freeGpuArena(mem);
+    cudaFree(d_grid_to_k);
+    cudaFree(d_actualK); 
+    cudaFree(d_cc);
+    cudaFree(d_sizes);
+    cudaFree(d_new_labels);
+
+    return;
 }
