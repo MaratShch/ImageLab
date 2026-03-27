@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cuda_runtime.h>
+#include "Common.hpp"
 #include "ImageLabCUDA.hpp"
 
 // CUDA Error Checking Macro
@@ -16,33 +17,41 @@
 
 struct GpuMemHandler
 {
-    // --- Image-Sized Buffers ---
-    float* d_r;
-    float* d_g;
-    float* d_b;
-    int*   d_labels;    // Stores the cluster ID each pixel belongs to
-    float* d_distances; // Stores the closest distance found so far
+    // Central VRAM Arena Block
+    void* master_arena;
+    int32_t safe_k;
+    int32_t step_size;
 
-    // --- Cluster-Sized Buffers (Size depends on safe_k) ---
-    float* d_cluster_x;
-    float* d_cluster_y;
-    float* d_cluster_r;
-    float* d_cluster_g;
-    float* d_cluster_b;
+    // Internal Planar Image Buffers (Range: 0.0f to 255.0f)
+    float* RESTRICT d_r;
+    float* RESTRICT d_g;
+    float* RESTRICT d_b;
 
-    // --- Accumulator Buffers (For averaging during iterations) ---
-    float* d_acc_x;
-    float* d_acc_y;
-    float* d_acc_r;
-    float* d_acc_g;
-    float* d_acc_b;
-    int*   d_acc_count; // How many pixels are assigned to this cluster
+    // SLIC Algorithm Core Buffers
+    float* RESTRICT d_distances;
+    int32_t* RESTRICT d_labels;
 
-    // --- Safe Algorithm Parameters ---
-    int safe_k;
-    int step_size;
-    
-    // The master pointer to our single VRAM block
-    void* master_arena; 
+    // Superpixel Cluster Data
+    float* RESTRICT d_cluster_x;
+    float* RESTRICT d_cluster_y;
+    float* RESTRICT d_cluster_r;
+    float* RESTRICT d_cluster_g;
+    float* RESTRICT d_cluster_b;
+
+    // Accumulators for Center Updating
+    float* RESTRICT d_acc_x;
+    float* RESTRICT d_acc_y;
+    float* RESTRICT d_acc_r;
+    float* RESTRICT d_acc_g;
+    float* RESTRICT d_acc_b;
+    int32_t* RESTRICT d_acc_count;
+
+    // --- THESE ARE THE MISSING VARIABLES ---
+    // Fast Union-Find & Connectivity Buffers 
+    int32_t* RESTRICT d_grid_to_k;
+    int32_t* RESTRICT d_actualK;
+    int32_t* RESTRICT d_cc;
+    int32_t* RESTRICT d_sizes;
+    int32_t* RESTRICT d_new_labels;
 };
 

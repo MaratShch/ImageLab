@@ -7,7 +7,9 @@
  #define FORCE_INLINE_CALL __forceinline__
  #define DEVICE      __device__ 
 #else
- #define RESTRICT	__restrict
+ #ifndef RESTRICT 
+  #define RESTRICT	__restrict
+ #endif // RESTRICT
  #define INLINE_CALL inline
  #define FORCE_INLINE_CALL INLINE_CALL
  #define DEVICE 
