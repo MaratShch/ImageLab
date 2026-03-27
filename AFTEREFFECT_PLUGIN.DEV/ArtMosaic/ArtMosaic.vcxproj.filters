@@ -16,6 +16,9 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{b8577185-2b60-4c39-910f-1e6b5a56eb9e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\CUDA">
+      <UniqueIdentifier>{6d0fe882-a45e-4959-8720-28d56d29bfff}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -99,6 +102,9 @@
     <ClInclude Include="include\MosaicColorConvert.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtMosaic_GPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtMosaic.cpp">
@@ -152,6 +158,9 @@
     <ClCompile Include="src\RGB10u_RGBPlanar.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ArtMosaic_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtMosaic.r">
@@ -162,5 +171,13 @@
     <ResourceCompile Include="ArtMosaic.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\ImageLabMosaic_Kernel.cu">
+      <Filter>src</Filter>
+    </None>
+    <None Include="include\CUDA\CudaMemHandler.cuh">
+      <Filter>include\CUDA</Filter>
+    </None>
   </ItemGroup>
 </Project>
