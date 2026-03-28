@@ -59,7 +59,7 @@ public:
         const int32_t frameCounter = (renderTick > 0 ? static_cast<int32_t>(clipTime / renderTick) : 0);
 
         cellsNumberParam = GetParam (UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_CELLS_SLIDER), clipTime);
-        const int32_t cellsNumber = cellsNumberParam.mInt32;
+        const int32_t cellsNumber = CLAMP_VALUE(cellsNumberParam.mInt32, cellMin, cellMax);
 
 #ifdef _DEBUG
 		const csSDK_int32 instanceCnt = TotalInstances();

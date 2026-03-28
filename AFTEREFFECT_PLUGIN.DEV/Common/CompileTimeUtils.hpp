@@ -19,28 +19,28 @@ __device__
 MIN_VALUE (const T a, const T b) noexcept { return ((a < b) ? a : b); }
 
 template <typename T>
-inline T 
+constexpr inline T 
 #ifdef __NVCC__
 __device__
 #endif
 MAX_VALUE (const T a, const T b) noexcept  { return ((a > b) ? a : b); }
 
 template <typename T>
-inline T 
+constexpr inline T 
 #ifdef __NVCC__
 __device__
 #endif
 MIN3_VALUE(const T a, const T b, const T c) noexcept  { return (a < b) ? MIN_VALUE(a, c) : MIN_VALUE(b, c); }
 
 template <typename T>
-inline T 
+constexpr inline T 
 #ifdef __NVCC__
 __device__
 #endif
 MAX3_VALUE(const T a, const T b, const T c) noexcept  { return (a > b) ? MAX_VALUE(a, c) : MAX_VALUE(b, c); }
 
 template <typename T>
-inline T 
+constexpr inline T 
 #ifdef __NVCC__
 __device__
 #endif
