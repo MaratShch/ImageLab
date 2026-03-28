@@ -8,271 +8,232 @@
 #include "ImageMosaicUtils.hpp"
 
 
-static PF_Err PR_ImageStyle_MosaicArt_BGRA_8u
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
-{
-	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-	PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_8u*  __restrict>(pfLayer->data);
-	PF_Pixel_BGRA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_8u*  __restrict>(output->data);
-
-	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-
-	/* parameters */
-	const float m = 40.f;
-	A_long k = 1000, g = 0;
-	constexpr int maxNorm = std::numeric_limits<unsigned char>::max();
-	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
-
-	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
-
-	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
-}
-
-
-static PF_Err PR_ImageStyle_MosaicArt_BGRA_16u
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
-{
-	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-	PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
-	PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_16u* __restrict>(output->data);
-
-	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
-
-	/* parameters */
-	const float m = 40.f;
-	A_long k = 1000, g = 0;
-	constexpr int maxNorm = std::numeric_limits<short int>::max();
-	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
-
-	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
-
-	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
-}
-
-
-static PF_Err PR_ImageStyle_MosaicArt_BGRA_32f
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
-{
-	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-	PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
-	PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<PF_Pixel_BGRA_32f* __restrict>(output->data);
-
-	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width  = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
-
-	/* parameters */
-	const float m = 40.f;
-	A_long k = 1000, g = 0;
-	constexpr float maxNorm = f32_value_white;
-	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-	const ArtMosaic::Color GrayColor (maxNorm / 2.f, maxNorm / 2.f, maxNorm / 2.f);
-
-	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
-
-	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
-	return PF_Err_NONE;
-}
-
-
-
-static PF_Err PR_ImageStyle_MosaicArt_VUYA_8u
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
-{
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-	PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
-	PF_Pixel_VUYA_8u*  __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_8u* __restrict>(output->data);
-
-	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-
-	/* parameters */
-	const float m = 40.f;
-	A_long k = 1000, g = 0;
-	constexpr int maxNorm = std::numeric_limits<unsigned char>::max();
-	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
-
-	const bool bRet = ArtMosaic::SlicImage (localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
-
-	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
-}
-
-
-static PF_Err PR_ImageStyle_MosaicArt_VUYA_32f
-(
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
-{
-	const PF_LayerDef* __restrict pfLayer = reinterpret_cast<const PF_LayerDef*  __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-	PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
-	PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<PF_Pixel_VUYA_32f* __restrict>(output->data);
-
-	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
-
-	/* parameters */
-	const float m = 40.f;
-	A_long k = 1000, g = 0;
-	constexpr float maxNorm = f32_value_white;
-	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-	const ArtMosaic::Color GrayColor (maxNorm / 2.f, maxNorm / 2.f, maxNorm / 2.f);
-
-	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, line_pitch, line_pitch);
-
-	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
-}
-
-
-
 PF_Err PR_ImageStyle_MosaicArt
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+)
 {
-	PF_Err err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
+    PF_Err err{ PF_Err_NONE };
+    PF_Err errFormat{ PF_Err_INVALID_INDEX };
+    PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
-	/* This plugin called frop PR - check video fomat */
-	AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-		AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-			in_data,
-			kPFPixelFormatSuite,
-			kPFPixelFormatSuiteVersion1,
-			out_data);
+    const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    const A_long cellsNumber = 1000;
 
-	PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
-	{
-		switch (destinationPixelFormat)
-		{
-			case PrPixelFormat_BGRA_4444_8u:
-				err = PR_ImageStyle_MosaicArt_BGRA_8u (in_data, out_data, params, output);
-			break;
+    const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+    const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+    const A_long lineRawPitch = pfLayer->rowbytes;
 
-			case PrPixelFormat_VUYA_4444_8u_709:
-			case PrPixelFormat_VUYA_4444_8u:
-				err = PR_ImageStyle_MosaicArt_VUYA_8u (in_data, out_data, params, output);
-			break;
 
-			case PrPixelFormat_VUYA_4444_32f_709:
-			case PrPixelFormat_VUYA_4444_32f:
-				err = PR_ImageStyle_MosaicArt_VUYA_32f (in_data, out_data, params, output);
-			break;
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, cellsNumber);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
+        /* This plugin called frop PR - check video fomat */
+        auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
-			case PrPixelFormat_BGRA_4444_16u:
-				err = PR_ImageStyle_MosaicArt_BGRA_16u (in_data, out_data, params, output);
-			break;
+        if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+        {
+            switch (destinationPixelFormat)
+            {
+            case PrPixelFormat_BGRA_4444_8u:
+            {
+                const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
+                PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-			case PrPixelFormat_BGRA_4444_32f:
-				err = PR_ImageStyle_MosaicArt_BGRA_32f (in_data, out_data, params, output);
-			break;
+                rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+                planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+            }
+            break;
 
-			default:
-				err = PF_Err_INVALID_INDEX;
-			break;
-		}
-	}
-	else
-	{
-		err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
-	}
+            case PrPixelFormat_BGRA_4444_16u:
+            {
+                const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
+                PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-	return err;
+                rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+                planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+            }
+            break;
+
+            case PrPixelFormat_BGRA_4444_32f:
+            {
+                const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+                PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+
+                rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+                planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+            }
+            break;
+
+            case PrPixelFormat_VUYA_4444_8u_709:
+            case PrPixelFormat_VUYA_4444_8u:
+            {
+                const bool is709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+                const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+                PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+
+                vuya2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch, is709);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);            // perform SLIC algorithm
+                planar2vuya(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch, is709); // back convert from planar to interleaved format
+            }
+            break;
+
+            case PrPixelFormat_VUYA_4444_32f_709:
+            case PrPixelFormat_VUYA_4444_32f:
+            {
+                const bool is709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
+                const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+                PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+
+                vuya2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch, is709);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);            // perform SLIC algorithm
+                planar2vuya(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch, is709); // back convert from planar to interleaved format
+            }
+            break;
+
+            case PrPixelFormat_ARGB_4444_8u:
+            {
+                const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(pfLayer->data);
+                PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+
+                rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+                planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+            }
+            break;
+
+            case PrPixelFormat_ARGB_4444_16u:
+            {
+                const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(pfLayer->data);
+                PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+
+                rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+                planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+            }
+            break;
+
+            case PrPixelFormat_ARGB_4444_32f:
+            {
+                const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(pfLayer->data);
+                PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+                const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+
+                rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+                planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+            }
+            break;
+
+            default:
+                err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+                break;
+            } // switch (destinationPixelFormat)/
+
+            free_memory_buffers(algoMemHandler);
+
+        } // if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))/
+        else
+        {
+            // error in determine pixel format
+            err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+        }
+    } // if (true == mem_handler_valid(algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
+
+    return err;
 }
 
 
 PF_Err AE_ImageStyle_MosaicArt_ARGB_8u
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+)
 {
-	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-	PF_Pixel_ARGB_8u*     __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input->data);
-	PF_Pixel_ARGB_8u*     __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    constexpr A_long cellsNumber = 1000;
 
-	auto const height = output->height;
-	auto const width = output->width;
-	auto const src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-	auto const dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+          PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-	/* parameters */
-	const float m = 40.f;
-	A_long k = 1000, g = 0;
-	constexpr int maxNorm = std::numeric_limits<unsigned char>::max();
-	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
+    PF_Err err = PF_Err_NONE;
 
-	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, src_line_pitch, dst_line_pitch);
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
 
-	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, cellsNumber);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
+        rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+        MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+        planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+
+        free_memory_buffers(algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
+
+    return err;
 }
 
 
 PF_Err AE_ImageStyle_MosaicArt_ARGB_16u
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
-) noexcept
+    PF_InData*   __restrict in_data,
+    PF_OutData*  __restrict out_data,
+    PF_ParamDef* __restrict params[],
+    PF_LayerDef* __restrict output
+)
 {
-	const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-	PF_Pixel_ARGB_16u*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input->data);
-	PF_Pixel_ARGB_16u*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    constexpr A_long cellsNumber = 1000;
 
-	const A_long height = output->height;
-	const A_long width = output->width;
-	const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-	const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+          PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-	/* parameters */
-	const float m = 40.f;
-	A_long k = 1000, g = 0;
-	constexpr int maxNorm = std::numeric_limits<short int>::max();
-	const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-	const ArtMosaic::Color GrayColor (maxNorm / 2, maxNorm / 2, maxNorm / 2);
+    PF_Err err = PF_Err_NONE;
 
-	const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, src_line_pitch, dst_line_pitch);
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
 
-	return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, cellsNumber);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
+        rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+        MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+        planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+
+        free_memory_buffers(algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
+
+    return err;
 }
 
 
@@ -282,25 +243,35 @@ PF_Err AE_ImageStyle_MosaicArt_ARGB_32f
     PF_OutData*  __restrict out_data,
     PF_ParamDef* __restrict params[],
     PF_LayerDef* __restrict output
-) noexcept
+)
 {
-    const PF_EffectWorld* __restrict input = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-    PF_Pixel_ARGB_32f*    __restrict localSrc = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input->data);
-    PF_Pixel_ARGB_32f*    __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
+    constexpr A_long cellsNumber = 1000;
 
-    const A_long height = output->height;
-    const A_long width = output->width;
-    const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
-    const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
+          PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
 
-    /* parameters */
-    const float m = 40.f;
-    A_long k = 1000, g = 0;
-    constexpr float maxNorm = f32_value_white;
-    const ArtMosaic::Color WhiteColor(maxNorm, maxNorm, maxNorm);
-    const ArtMosaic::Color GrayColor(maxNorm / 2.f, maxNorm / 2.f, maxNorm / 2.f);
+    PF_Err err = PF_Err_NONE;
 
-    const bool bRet = ArtMosaic::SlicImage(localSrc, localDst, GrayColor, WhiteColor, m, k, g, width, height, src_line_pitch, dst_line_pitch);
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
 
-    return (true == bRet ? PF_Err_NONE : PF_Err_INVALID_INDEX);
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, cellsNumber);
+    if (true == mem_handler_valid(algoMemHandler))
+    {
+        rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+        MosaicAlgorithmMain(algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
+        planar2rgb(localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+
+        free_memory_buffers(algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
+
+    return err;
 }
+

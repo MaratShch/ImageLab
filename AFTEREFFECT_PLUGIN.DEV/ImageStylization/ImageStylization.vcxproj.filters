@@ -105,6 +105,9 @@
     <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\MosaicMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStylization.cpp">
@@ -174,6 +177,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageStylizationSr.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MosaicMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MosaicAlgorithmMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
