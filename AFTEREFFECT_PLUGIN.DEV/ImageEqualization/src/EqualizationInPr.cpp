@@ -27,7 +27,8 @@ PF_Err PR_ImageEq_Manual
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-				err = PR_ImageEq_Manual_BGRA_4444_32f(in_data, out_data, params, output);
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+                err = PR_ImageEq_Manual_BGRA_4444_32f(in_data, out_data, params, output);
 			break;
 
 			case PrPixelFormat_VUYA_4444_8u:

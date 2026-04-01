@@ -46,7 +46,8 @@ static PF_Err ProcessImgInPR
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-			{
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+            {
 				const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 				      PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
@@ -196,6 +197,7 @@ GlobalSetup(
         PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
         PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
         PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+        PF_OutFlag2_FLOAT_COLOR_AWARE                |
         PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
     PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
@@ -228,7 +230,8 @@ GlobalSetup(
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
 	return err;

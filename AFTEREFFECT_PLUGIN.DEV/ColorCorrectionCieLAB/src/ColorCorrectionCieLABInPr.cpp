@@ -397,7 +397,8 @@ PF_Err ProcessImgInPR
 				break;
 
 				case PrPixelFormat_BGRA_4444_32f:
-					err = CIELabCorrect_BGRA_4444_32f (in_data, out_data, params, output, L_level, A_level, B_level, iObserver, iIlluminant);
+                case PrPixelFormat_BGRA_4444_32f_Linear:
+                    err = CIELabCorrect_BGRA_4444_32f (in_data, out_data, params, output, L_level, A_level, B_level, iObserver, iIlluminant);
 				break;
 
 				default:

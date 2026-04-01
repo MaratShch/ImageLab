@@ -166,6 +166,9 @@
     <CustomBuild Include="ArtMosaic.r">
       <Filter>resource</Filter>
     </CustomBuild>
+    <CustomBuild Include="src\ImageLabMosaic_Kernel.cu">
+      <Filter>src</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtMosaic.rc">
@@ -173,9 +176,6 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\ImageLabMosaic_Kernel.cu">
-      <Filter>src</Filter>
-    </None>
     <None Include="include\CUDA\CudaMemHandler.cuh">
       <Filter>include\CUDA</Filter>
     </None>

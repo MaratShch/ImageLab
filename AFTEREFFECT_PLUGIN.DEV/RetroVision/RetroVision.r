@@ -59,7 +59,7 @@ resource 'PiPL' (16000) {
 			100697170
 		},
 	    AE_Effect_Global_OutFlags_2 {
-			8520776
+			8524872
 		},
 		/* [11] */
 		AE_Effect_Match_Name {

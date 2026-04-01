@@ -372,7 +372,8 @@ PF_Err PR_ImageStyle_SketchPencil
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-				err = PR_ImageStyle_SketchPencil_BGRA_32f(in_data, out_data, params, output);
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+                err = PR_ImageStyle_SketchPencil_BGRA_32f(in_data, out_data, params, output);
 			break;
 
 			default:

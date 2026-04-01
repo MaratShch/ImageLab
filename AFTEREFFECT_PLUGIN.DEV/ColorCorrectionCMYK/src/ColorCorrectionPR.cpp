@@ -80,7 +80,8 @@ ProcessImgInPR
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-			{
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+            {
 				switch (colorSpaceType)
 				{
 					case COLOR_SPACE_CMYK:

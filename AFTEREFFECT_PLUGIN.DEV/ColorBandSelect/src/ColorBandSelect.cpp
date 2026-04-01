@@ -37,10 +37,12 @@ GlobalSetup(
 		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
-	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
+    constexpr PF_OutFlags out_flags2 =
+        PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+        PF_OutFlag2_FLOAT_COLOR_AWARE                |
+        PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
 	out_data->my_version =
 		PF_VERSION(

@@ -54,7 +54,8 @@ PF_Err RenderInPremier
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-			{
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+            {
 				const PF_Pixel_BGRA_32f* __restrict pSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 				      PF_Pixel_BGRA_32f* __restrict pDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
 				const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);

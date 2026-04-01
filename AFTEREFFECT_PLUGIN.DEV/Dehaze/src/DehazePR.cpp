@@ -28,7 +28,8 @@ PF_Err ProcessImgInPR
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-			break;
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+            break;
 
 			case PrPixelFormat_VUYA_4444_8u_709:
 			case PrPixelFormat_VUYA_4444_8u:

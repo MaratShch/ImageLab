@@ -677,6 +677,7 @@ PF_Err ProcessImgInPR
 		break;
 
         case PrPixelFormat_BGRA_4444_32f:
+        case PrPixelFormat_BGRA_4444_32f_Linear:
            bValue = ProcessPrImage_BGRA_4444_32f (in_data, out_data, params, output);
         break;
 

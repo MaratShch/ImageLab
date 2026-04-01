@@ -56,6 +56,7 @@ GlobalSetup(
         PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
         PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
         PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
+        PF_OutFlag2_FLOAT_COLOR_AWARE                |
         PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
     out_data->my_version =
@@ -82,9 +83,11 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f_Linear);
     }
 
     return PF_Err_NONE;

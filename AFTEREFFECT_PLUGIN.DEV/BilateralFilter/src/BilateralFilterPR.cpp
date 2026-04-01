@@ -81,6 +81,7 @@ PF_Err ProcessImgInPR
                 break;
 
                 case PrPixelFormat_BGRA_4444_32f:
+                case PrPixelFormat_BGRA_4444_32f_Linear:
                 {
                     const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
@@ -129,6 +130,7 @@ PF_Err ProcessImgInPR
                 break;
 
                 case PrPixelFormat_ARGB_4444_32f:
+                case PrPixelFormat_ARGB_4444_32f_Linear:
                 {
                     const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(pfLayer->data);
                           PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);

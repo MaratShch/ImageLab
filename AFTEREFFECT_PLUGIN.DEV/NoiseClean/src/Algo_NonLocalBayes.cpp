@@ -113,7 +113,8 @@ PF_Err NoiseClean_AlgoNonLocalBayes
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-			break;
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+            break;
 
 			default:
 				err = PF_Err_INVALID_INDEX;

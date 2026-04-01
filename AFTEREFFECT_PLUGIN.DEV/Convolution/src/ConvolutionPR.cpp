@@ -679,7 +679,8 @@ bool ProcessImgInPR
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
-				bValue = ProcessPrImage_BGRA_4444_32f (in_data, out_data, params, output, choosedKernel);
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+                bValue = ProcessPrImage_BGRA_4444_32f (in_data, out_data, params, output, choosedKernel);
 			break;
 
 			case PrPixelFormat_VUYA_4444_32f:

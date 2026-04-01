@@ -1,0 +1,15 @@
+#ifndef __IMAGE_LAB_CHROMATIC_ABERRATION_FILTER_ENUMERATORS__
+#define __IMAGE_LAB_CHROMATIC_ABERRATION_FILTER_ENUMERATORS__
+
+#include "AE_Effect.h"
+#include "CompileTimeUtils.hpp"
+
+
+enum class ArtPaintControls : int32_t
+{
+    ART_PAINT_INPUT,
+    ART_PAINT_TOTAL_PARAMS
+};
+
+
+#endif // __IMAGE_LAB_CHROMATIC_ABERRATION_FILTER_ENUMERATORS__
