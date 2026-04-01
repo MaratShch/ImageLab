@@ -30,7 +30,7 @@ PF_Err ArtMosaic_InAE_8bits
     {
         rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
         MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-        planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+        planar2rgb<false, false> (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
 
         free_memory_buffers (algoMemHandler);
     }
@@ -69,7 +69,7 @@ PF_Err ArtMosaic_InAE_16bits
     {
         rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
         MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-        planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+        planar2rgb<false, false> (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
 
         free_memory_buffers (algoMemHandler);
     }
@@ -108,7 +108,7 @@ PF_Err ArtMosaic_InAE_32bits
     {
         rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch);     // convert interleaved to planar format (range 0.f ... 225.f)
         MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-        planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
+        planar2rgb<false, false> (localSrc, algoMemHandler, localDst, sizeX, sizeY, src_pitch, dst_pitch); // back convert from planar to interleaved format
 
         free_memory_buffers (algoMemHandler);
     }

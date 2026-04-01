@@ -118,7 +118,7 @@ ArtMosaic_SmartRender
 
                             rgb2planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch);      // convert interleaved to planar format (range 0.f ... 225.f)
                             MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);        // perform SLIC algorithm
-                            planar2rgb (input_pixels, algoMemHandler, output_pixels, sizeX, sizeY, srcPitch, dstPitch); // back convert from planar to interleaved format
+                            planar2rgb<false, false> (input_pixels, algoMemHandler, output_pixels, sizeX, sizeY, srcPitch, dstPitch); // back convert from planar to interleaved format
                         }
                         break;
 
@@ -132,7 +132,7 @@ ArtMosaic_SmartRender
 
                             rgb2planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch);      // convert interleaved to planar format (range 0.f ... 225.f)
                             MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);        // perform SLIC algorithm
-                            planar2rgb (input_pixels, algoMemHandler, output_pixels, sizeX, sizeY, srcPitch, dstPitch); // back convert from planar to interleaved format
+                            planar2rgb<false, false> (input_pixels, algoMemHandler, output_pixels, sizeX, sizeY, srcPitch, dstPitch); // back convert from planar to interleaved format
                         }
                         break;
 
@@ -146,7 +146,7 @@ ArtMosaic_SmartRender
 
                             rgb2planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch);      // convert interleaved to planar format (range 0.f ... 225.f)
                             MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);        // perform SLIC algorithm
-                            planar2rgb (input_pixels, algoMemHandler, output_pixels, sizeX, sizeY, srcPitch, dstPitch); // back convert from planar to interleaved format
+                            planar2rgb<false, false> (input_pixels, algoMemHandler, output_pixels, sizeX, sizeY, srcPitch, dstPitch); // back convert from planar to interleaved format
                         }
                         break;
 

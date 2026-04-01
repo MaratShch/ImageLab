@@ -36,39 +36,86 @@ PF_Err ProcessImgInPR
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:
+                case PrPixelFormat_BGRX_4444_8u:
+                case PrPixelFormat_BGRP_4444_8u:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_8u);
+                    const bool isPremul = (destinationPixelFormat == PrPixelFormat_BGRP_4444_8u);
+
                     const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-                    rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    if (isPremul == true)
+                        rgbp2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    else
+                        rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+
                     MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-                    planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+
+                    if (isOpaque == true)
+                        planar2rgb<true, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else if (isPremul == true)
+                        planar2rgb<false, true>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else
+                        planar2rgb<false, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
                 }
                 break;
 
                 case PrPixelFormat_BGRA_4444_16u:
+                case PrPixelFormat_BGRX_4444_16u:
+                case PrPixelFormat_BGRP_4444_16u:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_16u);
+                    const bool isPremul = (destinationPixelFormat == PrPixelFormat_BGRP_4444_16u);
+
                     const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
                     const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
 
-                    rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    if (isPremul == true)
+                        rgbp2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    else
+                        rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                   
                     MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-                    planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+
+                    if (isOpaque == true)
+                        planar2rgb<true, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else if (isPremul == true)
+                        planar2rgb<false, true>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else
+                        planar2rgb<false, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
                 }
                 break;
 
                 case PrPixelFormat_BGRA_4444_32f:
                 case PrPixelFormat_BGRA_4444_32f_Linear:
+                case PrPixelFormat_BGRX_4444_32f:
+                case PrPixelFormat_BGRX_4444_32f_Linear:
+                case PrPixelFormat_BGRP_4444_32f:
+                case PrPixelFormat_BGRP_4444_32f_Linear:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_32f || destinationPixelFormat == PrPixelFormat_BGRX_4444_32f_Linear);
+                    const bool isPremul = (destinationPixelFormat == PrPixelFormat_BGRP_4444_32f || destinationPixelFormat == PrPixelFormat_BGRP_4444_32f_Linear);
+
                     const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
                     const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-                    rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    if (isPremul == true)
+                        rgbp2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    else
+                        rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+
                     MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-                    planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+
+                    if (isOpaque == true)
+                        planar2rgb<true, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else if (isPremul == true)
+                        planar2rgb<false, true>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else
+                        planar2rgb<false, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
                 }
                 break;
 
@@ -113,39 +160,84 @@ PF_Err ProcessImgInPR
                 break;
 
                 case PrPixelFormat_ARGB_4444_8u:
+                case PrPixelFormat_PRGB_4444_8u:
+                case PrPixelFormat_XRGB_4444_8u:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_8u);
+                    const bool isPremul = (destinationPixelFormat == PrPixelFormat_BGRP_4444_8u);
+
                     const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(pfLayer->data);
                           PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
                     const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-                    rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    if (isPremul == true)
+                        rgbp2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    else
+                        rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+
                     MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-                    planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+
+                    if (isOpaque == true)
+                        planar2rgb<true, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else if (isPremul == true)
+                        planar2rgb<false, true>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else
+                        planar2rgb<false, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
                 }
                 break;
 
                 case PrPixelFormat_ARGB_4444_16u:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_8u);
+                    const bool isPremul = (destinationPixelFormat == PrPixelFormat_BGRP_4444_8u);
+
                     const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(pfLayer->data);
                           PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
                     const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-                    rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    if (isPremul == true)
+                        rgbp2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    else
+                        rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+
                     MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-                    planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+
+                    if (isOpaque == true)
+                        planar2rgb<true, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else if (isPremul == true)
+                        planar2rgb<false, true>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else
+                        planar2rgb<false, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
                 }
                 break;
 
                 case PrPixelFormat_ARGB_4444_32f:
                 case PrPixelFormat_ARGB_4444_32f_Linear:
+                case PrPixelFormat_PRGB_4444_32f:
+                case PrPixelFormat_PRGB_4444_32f_Linear:
+                case PrPixelFormat_XRGB_4444_32f:
+                case PrPixelFormat_XRGB_4444_32f_Linear:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_32f || destinationPixelFormat == PrPixelFormat_XRGB_4444_32f_Linear);
+                    const bool isPremul = (destinationPixelFormat == PrPixelFormat_PRGB_4444_32f || destinationPixelFormat == PrPixelFormat_PRGB_4444_32f_Linear);
+
                     const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(pfLayer->data);
                           PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
                     const A_long linePitch = lineRawPitch / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                    rgb2planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    if (isPremul == true)
+                        rgbp2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+                    else
+                        rgb2planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch);     // convert interleaved to planar format (range 0.f ... 225.f)
+
                     MosaicAlgorithmMain (algoMemHandler, sizeX, sizeY, cellsNumber);    // perform SLIC algorithm
-                    planar2rgb (localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+
+                    if (isOpaque == true)
+                        planar2rgb<true, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else if (isPremul == true)
+                        planar2rgb<false, true>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
+                    else
+                        planar2rgb<false, false>(localSrc, algoMemHandler, localDst, sizeX, sizeY, linePitch, linePitch); // back convert from planar to interleaved format
                 }
                 break;
 

@@ -46,62 +46,95 @@ void rgb2planar
     }
 }
 
-void planar2rgb
+
+void rgbp2planar
 (
     const PF_Pixel_ARGB_8u* RESTRICT pSrc,
     const MemHandler& memHndl,
-    PF_Pixel_ARGB_8u* RESTRICT pDst,
     A_long sizeX,
     A_long sizeY,
-    A_long srcPitch,
-    A_long dstPitch
+    A_long srcPitch // Assumed to be in PIXELS based on your snippet
 )
 {
-    const float* RESTRICT pR = memHndl.R_planar;
-    const float* RESTRICT pG = memHndl.G_planar;
-    const float* RESTRICT pB = memHndl.B_planar;
+    float* RESTRICT pR = memHndl.R_planar;
+    float* RESTRICT pG = memHndl.G_planar;
+    float* RESTRICT pB = memHndl.B_planar;
 
     const A_long spanX8 = sizeX & ~7;
+
+    const __m256i mask_FF = _mm256_set1_epi32(0xFF);
     const __m256 v_zero = _mm256_setzero_ps();
     const __m256 v_255 = _mm256_set1_ps(255.0f);
 
-    // Alpha is at Byte 0 in ARGB_8u memory, which corresponds to the lowest 8 bits in integer.
-    const __m256i v_alpha_mask = _mm256_set1_epi32(0x000000FF);
-
     for (A_long j = 0; j < sizeY; j++)
     {
-        const PF_Pixel_ARGB_8u* pSrcLine = pSrc + j * srcPitch;
-        PF_Pixel_ARGB_8u* pOutLine = pDst + j * dstPitch;
+        const PF_Pixel_ARGB_8u* pLine = pSrc + j * srcPitch;
         A_long i = 0;
 
+        // --- AVX2 FAST PATH ---
         for (; i < spanX8; i += 8)
         {
+            // Memory is A, R, G, B. Little-endian loads this as 0xBBGGRRAA.
+            __m256i v_argb = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&pLine[i]));
+
+            // Extract channels using correct bit-shifts for 0xBBGGRRAA
+            __m256i v_a_int = _mm256_and_si256(v_argb, mask_FF); // Alpha is at Byte 0
+            __m256i v_r_int = _mm256_and_si256(_mm256_srli_epi32(v_argb, 8), mask_FF);
+            __m256i v_g_int = _mm256_and_si256(_mm256_srli_epi32(v_argb, 16), mask_FF);
+            __m256i v_b_int = _mm256_and_si256(_mm256_srli_epi32(v_argb, 24), mask_FF);
+
+            // Convert integer to float
+            __m256 v_a_f = _mm256_cvtepi32_ps(v_a_int);
+            __m256 v_r_f = _mm256_cvtepi32_ps(v_r_int);
+            __m256 v_g_f = _mm256_cvtepi32_ps(v_g_int);
+            __m256 v_b_f = _mm256_cvtepi32_ps(v_b_int);
+
+            // Create a mask to protect against Division by Zero (where Alpha > 0)
+            __m256 mask_a_gt_0 = _mm256_cmp_ps(v_a_f, v_zero, _CMP_GT_OQ);
+
+            // Calculate un-premultiply factor: 255.0 / Alpha
+            __m256 v_factor = _mm256_div_ps(v_255, v_a_f);
+
+            // Apply mask: if Alpha was 0, force the factor to 0.0f
+            v_factor = _mm256_and_ps(v_factor, mask_a_gt_0);
+
+            // Un-premultiply and safely clamp to 255.0f
+            v_r_f = _mm256_min_ps(_mm256_mul_ps(v_r_f, v_factor), v_255);
+            v_g_f = _mm256_min_ps(_mm256_mul_ps(v_g_f, v_factor), v_255);
+            v_b_f = _mm256_min_ps(_mm256_mul_ps(v_b_f, v_factor), v_255);
+
+            // Store to planar buffers
             const A_long idx = j * sizeX + i;
-            __m256 v_r_f = _mm256_min_ps(_mm256_max_ps(_mm256_loadu_ps(&pR[idx]), v_zero), v_255);
-            __m256 v_g_f = _mm256_min_ps(_mm256_max_ps(_mm256_loadu_ps(&pG[idx]), v_zero), v_255);
-            __m256 v_b_f = _mm256_min_ps(_mm256_max_ps(_mm256_loadu_ps(&pB[idx]), v_zero), v_255);
-
-            __m256i v_r_i = _mm256_slli_epi32(_mm256_cvtps_epi32(v_r_f), 8);
-            __m256i v_g_i = _mm256_slli_epi32(_mm256_cvtps_epi32(v_g_f), 16);
-            __m256i v_b_i = _mm256_slli_epi32(_mm256_cvtps_epi32(v_b_f), 24);
-
-            __m256i v_src_alpha = _mm256_and_si256(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&pSrcLine[i])), v_alpha_mask);
-
-            __m256i v_argb = _mm256_or_si256(v_b_i, _mm256_or_si256(v_g_i, _mm256_or_si256(v_r_i, v_src_alpha)));
-            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&pOutLine[i]), v_argb);
+            _mm256_storeu_ps(&pR[idx], v_r_f);
+            _mm256_storeu_ps(&pG[idx], v_g_f);
+            _mm256_storeu_ps(&pB[idx], v_b_f);
         }
 
+        // --- SCALAR TAIL ---
         for (; i < sizeX; i++)
         {
             const A_long idx = j * sizeX + i;
-            float r = pR[idx] < 0.0f ? 0.0f : (pR[idx] > 255.0f ? 255.0f : pR[idx]);
-            float g = pG[idx] < 0.0f ? 0.0f : (pG[idx] > 255.0f ? 255.0f : pG[idx]);
-            float b = pB[idx] < 0.0f ? 0.0f : (pB[idx] > 255.0f ? 255.0f : pB[idx]);
+            A_u_char a = pLine[i].A;
 
-            pOutLine[i].A = pSrcLine[i].A; // If this is 0, AE will render a black/transparent frame!
-            pOutLine[i].R = static_cast<A_u_char>(r);
-            pOutLine[i].G = static_cast<A_u_char>(g);
-            pOutLine[i].B = static_cast<A_u_char>(b);
+            if (a > 0)
+            {
+                float factor = 255.0f / static_cast<float>(a);
+                float r = static_cast<float>(pLine[i].R) * factor;
+                float g = static_cast<float>(pLine[i].G) * factor;
+                float b = static_cast<float>(pLine[i].B) * factor;
+
+                // Clamp to prevent blowout from illegal source pixels
+                pR[idx] = r > 255.0f ? 255.0f : r;
+                pG[idx] = g > 255.0f ? 255.0f : g;
+                pB[idx] = b > 255.0f ? 255.0f : b;
+            }
+            else
+            {
+                // If completely transparent, snap RGB to 0
+                pR[idx] = 0.0f;
+                pG[idx] = 0.0f;
+                pB[idx] = 0.0f;
+            }
         }
     }
 }
