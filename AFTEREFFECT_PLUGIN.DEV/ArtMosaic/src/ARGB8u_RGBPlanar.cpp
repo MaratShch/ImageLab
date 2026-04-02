@@ -44,6 +44,7 @@ void rgb2planar
             pB[j * sizeX + i] = static_cast<float>(pLine[i].B);
         }
     }
+    return;
 }
 
 
@@ -137,4 +138,5 @@ void rgbp2planar
             }
         }
     }
+    return;
 }
