@@ -37,7 +37,11 @@ PF_Err ProcessImgInPR
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:
+                case PrPixelFormat_BGRP_4444_8u:
+                case PrPixelFormat_BGRX_4444_8u:
                 {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_8u);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_8u);
                     const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
@@ -54,7 +58,11 @@ PF_Err ProcessImgInPR
                 break;
 
                 case PrPixelFormat_BGRA_4444_16u:
+                case PrPixelFormat_BGRP_4444_16u:
+                case PrPixelFormat_BGRX_4444_16u:
                 {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_16u);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_16u);
                     const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
@@ -71,8 +79,11 @@ PF_Err ProcessImgInPR
                 break;
 
                 case PrPixelFormat_BGRA_4444_32f:
-                case PrPixelFormat_BGRA_4444_32f_Linear:
+                case PrPixelFormat_BGRP_4444_32f:
+                case PrPixelFormat_BGRX_4444_32f:
                 {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_32f);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_32f);
                     const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
@@ -88,19 +99,35 @@ PF_Err ProcessImgInPR
                 }
                 break;
 
+                case PrPixelFormat_BGRA_4444_32f_Linear:
+                case PrPixelFormat_BGRP_4444_32f_Linear:
+                case PrPixelFormat_BGRX_4444_32f_Linear:
+                {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_32f_Linear);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_32f_Linear);
+                    const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+
+
+                }
+
                 case PrPixelFormat_VUYA_4444_8u_709:
                 case PrPixelFormat_VUYA_4444_8u:
+                case PrPixelFormat_VUYX_4444_8u_709:
+                case PrPixelFormat_VUYX_4444_8u:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_VUYX_4444_8u_709 || destinationPixelFormat == PrPixelFormat_VUYX_4444_8u);
                     const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat || PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
 
                     // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
                     AVX2_Convert_VUYA_8u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch, isBT709);
 
                     // call algorithm flow
-                    Algorithm_Main(algoMemHandler, sizeX, sizeY, algoControls);
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
                     // convert denoised image to BGRA_8u interleaved output buffer
                     AVX2_Convert_YUV_to_VUYA_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, isBT709);
@@ -109,11 +136,14 @@ PF_Err ProcessImgInPR
 
                 case PrPixelFormat_VUYA_4444_32f_709:
                 case PrPixelFormat_VUYA_4444_32f:
+                case PrPixelFormat_VUYX_4444_32f_709:
+                case PrPixelFormat_VUYX_4444_32f:
                 {
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_VUYX_4444_32f_709 || destinationPixelFormat == PrPixelFormat_VUYX_4444_32f);
                     const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat || PrPixelFormat_VUYX_4444_32f_709 == destinationPixelFormat);
 
                     // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
                     AVX2_Convert_VUYA_32f_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch, isBT709);
@@ -142,6 +172,42 @@ PF_Err ProcessImgInPR
                     AVX2_Convert_YUV_to_RGB_10u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localDst, sizeX, sizeY, linePitch);
                 }
                 break;
+
+                case PrPixelFormat_ARGB_4444_8u:
+                case PrPixelFormat_PRGB_4444_8u:
+                case PrPixelFormat_XRGB_4444_8u:
+                {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_8u);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_8u);
+
+                }
+
+                case PrPixelFormat_ARGB_4444_16u:
+                case PrPixelFormat_PRGB_4444_16u:
+                case PrPixelFormat_XRGB_4444_16u:
+                {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_16u);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_16u);
+
+                }
+
+                case PrPixelFormat_ARGB_4444_32f:
+                case PrPixelFormat_PRGB_4444_32f:
+                case PrPixelFormat_XRGB_4444_32f:
+                {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_32f);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_32f);
+
+                }
+
+                case PrPixelFormat_ARGB_4444_32f_Linear:
+                case PrPixelFormat_PRGB_4444_32f_Linear:
+                case PrPixelFormat_XRGB_4444_32f_Linear:
+                {
+                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_32f_Linear);
+                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_32f_Linear);
+
+                }
 
                 default:
                     err = PF_Err_INTERNAL_STRUCT_DAMAGED;

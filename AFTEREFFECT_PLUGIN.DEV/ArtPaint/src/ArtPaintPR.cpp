@@ -22,55 +22,33 @@ PF_Err ProcessImgInPR
 		switch (destinationPixelFormat)
 		{
             case PrPixelFormat_BGRA_4444_8u:
-            break;
-
-            case PrPixelFormat_BGRA_4444_16u:
-            break;
-
-            case PrPixelFormat_BGRA_4444_32f:
-            case PrPixelFormat_BGRA_4444_32f_Linear:
-            break;
-
             case PrPixelFormat_BGRP_4444_8u:
-            break;
-
-            case PrPixelFormat_BGRP_4444_16u:
-            break;
-
-            case PrPixelFormat_BGRP_4444_32f:
-            case PrPixelFormat_BGRP_4444_32f_Linear:
-            break;
-
             case PrPixelFormat_BGRX_4444_8u:
             break;
 
+            case PrPixelFormat_BGRA_4444_16u:
+            case PrPixelFormat_BGRP_4444_16u:
             case PrPixelFormat_BGRX_4444_16u:
             break;
 
+            case PrPixelFormat_BGRA_4444_32f:
             case PrPixelFormat_BGRX_4444_32f:
+            case PrPixelFormat_BGRP_4444_32f:
+            break;
+
+            case PrPixelFormat_BGRA_4444_32f_Linear:
             case PrPixelFormat_BGRX_4444_32f_Linear:
+            case PrPixelFormat_BGRP_4444_32f_Linear:
             break;
 
             case PrPixelFormat_VUYA_4444_8u_709:
             case PrPixelFormat_VUYA_4444_8u:
-            break;
-
-            case PrPixelFormat_VUYP_4444_8u_709:
-            case PrPixelFormat_VUYP_4444_8u:
-            break;
-
             case PrPixelFormat_VUYX_4444_8u_709:
             case PrPixelFormat_VUYX_4444_8u:
             break;
 
             case PrPixelFormat_VUYA_4444_32f_709:
             case PrPixelFormat_VUYA_4444_16u:
-            break;
-
-            case PrPixelFormat_VUYP_4444_32f_709:
-            case PrPixelFormat_VUYP_4444_32f:
-            break;
-
             case PrPixelFormat_VUYX_4444_32f_709:
             case PrPixelFormat_VUYX_4444_32f:
             break;
@@ -79,32 +57,22 @@ PF_Err ProcessImgInPR
             break;
 
             case PrPixelFormat_ARGB_4444_8u:
-            break;
-
-            case PrPixelFormat_ARGB_4444_16u:
-            break;
-
-            case PrPixelFormat_ARGB_4444_32f:
-            case PrPixelFormat_ARGB_4444_32f_Linear:
-            break;
-
+            case PrPixelFormat_XRGB_4444_8u:
             case PrPixelFormat_PRGB_4444_8u:
             break;
 
+            case PrPixelFormat_ARGB_4444_16u:
+            case PrPixelFormat_XRGB_4444_16u:
             case PrPixelFormat_PRGB_4444_16u:
             break;
 
-            case PrPixelFormat_PRGB_4444_32f:
-            case PrPixelFormat_PRGB_4444_32f_Linear:
-            break;
-
-            case PrPixelFormat_XRGB_4444_8u:
-            break;
-
-            case PrPixelFormat_XRGB_4444_16u:
-            break;
-
+            case PrPixelFormat_ARGB_4444_32f:
             case PrPixelFormat_XRGB_4444_32f:
+            case PrPixelFormat_PRGB_4444_32f:
+            break;
+    
+            case PrPixelFormat_ARGB_4444_32f_Linear:
+            case PrPixelFormat_PRGB_4444_32f_Linear:
             case PrPixelFormat_XRGB_4444_32f_Linear:
             break;
 
