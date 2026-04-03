@@ -76,7 +76,6 @@ void PaintAlgorithmMain (const MemHandler& memHndl, const AlgoControls& algoCtrl
         memHndl.EigVectY, 
         memHndl.pI_arena, 
         memHndl.pJ_arena, 
-        memHndl.pLogW_arena, 
         memHndl.max_edges,
         width, 
         height, 

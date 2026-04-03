@@ -13,7 +13,6 @@ A_long bw_image2cocircularity_graph_AVX2_flat
     const float* RESTRICT eigY,
     A_long* RESTRICT pI,
     A_long* RESTRICT pJ,
-    float* RESTRICT pLogW,
     size_t max_edges,
     A_long width,
     A_long height,
@@ -101,7 +100,6 @@ A_long bw_image2cocircularity_graph_AVX2_flat
                                 {
                                     pI[edgeCount] = p0;
                                     pJ[edgeCount] = rowOffset + nx + b;
-                                    pLogW[edgeCount] = 0.0f; // Directly setting Log(1.0) = 0.0f
                                     edgeCount++;
                                 }
                             }
@@ -135,7 +133,6 @@ A_long bw_image2cocircularity_graph_AVX2_flat
                             {
                                 pI[edgeCount] = p0;
                                 pJ[edgeCount] = rowOffset + nx;
-                                pLogW[edgeCount] = 0.0f; 
                                 edgeCount++;
                             }
                         }

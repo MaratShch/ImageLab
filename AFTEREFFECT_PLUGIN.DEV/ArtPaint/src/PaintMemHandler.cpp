@@ -101,7 +101,6 @@ MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const 
         // Phase 4 Pointers
         algoMemHandler.pI_arena    = reinterpret_cast<A_long*>(superBuffer + off_pI);
         algoMemHandler.pJ_arena    = reinterpret_cast<A_long*>(superBuffer + off_pJ);
-        algoMemHandler.pLogW_arena = reinterpret_cast<float*>(superBuffer + off_pLogW);
 
         // Phase 5 Pointers
         algoMemHandler.imProc1 = reinterpret_cast<float*>(superBuffer + off_imProc1);

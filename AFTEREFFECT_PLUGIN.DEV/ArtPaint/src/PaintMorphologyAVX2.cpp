@@ -10,7 +10,6 @@ bool erode_max_plus_optimized
     float* RESTRICT imOut,
     const A_long* RESTRICT I,
     const A_long* RESTRICT J,
-    const float* RESTRICT pLogW, // Pre-computed: norm * Log(W)
     const A_long nLines,
     const A_long frameSize
 ) noexcept
@@ -23,16 +22,16 @@ bool erode_max_plus_optimized
     {
         const A_long i = I[l];
         const A_long j = J[l];
-        const float w = pLogW[l]; // Instant memory read!
-        
-        if (imOut[j] + w > imIn[i])
+
+        // Instant memory read without calculating 'w'
+        if (imOut[j] > imIn[i])
         {
-            imOut[j] = imIn[i] - w;
+            imOut[j] = imIn[i];
             change = true;
         }
-        if (imOut[i] + w > imIn[j])
+        if (imOut[i] > imIn[j])
         {
-            imOut[i] = imIn[j] - w;
+            imOut[i] = imIn[j];
             change = true;
         }
     }
@@ -45,7 +44,6 @@ bool dilate_max_plus_optimized
     float* RESTRICT imOut,
     const A_long* RESTRICT I,
     const A_long* RESTRICT J,
-    const float* RESTRICT pLogW, // Pre-computed: norm * Log(W)
     const A_long nLines,
     const A_long frameSize
 ) noexcept
@@ -58,16 +56,16 @@ bool dilate_max_plus_optimized
     {
         const A_long i = I[l];
         const A_long j = J[l];
-        const float w = pLogW[l]; // Instant memory read!
-        
-        if (imOut[i] < imIn[j] + w)
+
+        // Instant memory read without calculating '+ w'
+        if (imOut[i] < imIn[j])
         {
-            imOut[i] = imIn[j] + w;
+            imOut[i] = imIn[j];
             change = true;
         }
-        if (imOut[j] < imIn[i] + w)
+        if (imOut[j] < imIn[i])
         {
-            imOut[j] = imIn[i] + w;
+            imOut[j] = imIn[i];
             change = true;
         }
     }
@@ -82,7 +80,6 @@ float* run_erode_iterated
     float* RESTRICT bufB,
     const A_long* RESTRICT I,
     const A_long* RESTRICT J,
-    const float* RESTRICT pLogW,
     const A_long iterations,
     const A_long nonZeros,
     const A_long frameSize
@@ -95,7 +92,7 @@ float* run_erode_iterated
 
     for (A_long k = 0; k < iterations && changed; ++k)
     {
-        changed = erode_max_plus_optimized(src, dst, I, J, pLogW, nonZeros, frameSize);
+        changed = erode_max_plus_optimized(src, dst, I, J, nonZeros, frameSize);
         src = dst;
         std::swap(dst, alt); // Swap buffers for next iteration
     }
@@ -109,7 +106,6 @@ float* run_dilate_iterated
     float* RESTRICT bufB,
     const A_long* RESTRICT I,
     const A_long* RESTRICT J,
-    const float* RESTRICT pLogW,
     const A_long iterations,
     const A_long nonZeros,
     const A_long frameSize
@@ -122,7 +118,7 @@ float* run_dilate_iterated
 
     for (A_long k = 0; k < iterations && changed; ++k)
     {
-        changed = dilate_max_plus_optimized(src, dst, I, J, pLogW, nonZeros, frameSize);
+        changed = dilate_max_plus_optimized(src, dst, I, J, nonZeros, frameSize);
         src = dst;
         std::swap(dst, alt);
     }
@@ -146,14 +142,14 @@ void morpho_open_optimized
     const A_long frameSize = width * height;
 
     // 1. Erode
-    float* pEroded = run_erode_iterated(imIn, memHndl.imProc1, memHndl.imProc2, I, J, pLogW, iter, nonZeros, frameSize);
+    float* pEroded = run_erode_iterated(imIn, memHndl.imProc1, memHndl.imProc2, I, J, iter, nonZeros, frameSize);
     
     // Determine which buffer is free to use as the destination for Dilation
     float* pDilateDst = (pEroded == memHndl.imProc1) ? memHndl.imProc2 : memHndl.imProc1;
     float* pDilateAlt = (pEroded == memHndl.imProc1) ? memHndl.imProc1 : memHndl.imProc2;
 
     // 2. Dilate
-    float* pDilated = run_dilate_iterated(pEroded, pDilateDst, pDilateAlt, I, J, pLogW, iter, nonZeros, frameSize);
+    float* pDilated = run_dilate_iterated(pEroded, pDilateDst, pDilateAlt, I, J, iter, nonZeros, frameSize);
 
     // 3. Copy final result to output
     std::memcpy(imOut, pDilated, frameSize * sizeof(float));
@@ -176,14 +172,14 @@ void morpho_close_optimized
     const A_long frameSize = width * height;
 
     // 1. Dilate
-    float* pDilated = run_dilate_iterated(imIn, memHndl.imProc1, memHndl.imProc2, I, J, pLogW, iter, nonZeros, frameSize);
+    float* pDilated = run_dilate_iterated(imIn, memHndl.imProc1, memHndl.imProc2, I, J, iter, nonZeros, frameSize);
     
     // Determine free buffer
     float* pErodeDst = (pDilated == memHndl.imProc1) ? memHndl.imProc2 : memHndl.imProc1;
     float* pErodeAlt = (pDilated == memHndl.imProc1) ? memHndl.imProc1 : memHndl.imProc2;
 
     // 2. Erode
-    float* pEroded = run_erode_iterated(pDilated, pErodeDst, pErodeAlt, I, J, pLogW, iter, nonZeros, frameSize);
+    float* pEroded = run_erode_iterated(pDilated, pErodeDst, pErodeAlt, I, J, iter, nonZeros, frameSize);
 
     // 3. Copy final result to output
     std::memcpy(imOut, pEroded, frameSize * sizeof(float));
@@ -211,16 +207,16 @@ void morpho_asf_optimized
     for (A_long k = 1; k <= iter; ++k)
     {
         // --- CLOSE STAGE (Dilate k times, Erode k times) ---
-        float* pDilated = run_dilate_iterated(pCurrentSrc, memHndl.imProc1, memHndl.imProc2, I, J, pLogW, k, nonZeros, frameSize);
+        float* pDilated = run_dilate_iterated(pCurrentSrc, memHndl.imProc1, memHndl.imProc2, I, J, k, nonZeros, frameSize);
         float* pErodeDst = (pDilated == memHndl.imProc1) ? memHndl.imProc2 : memHndl.imProc1;
         float* pErodeAlt = (pDilated == memHndl.imProc1) ? memHndl.imProc1 : memHndl.imProc2;
-        float* pClosed = run_erode_iterated(pDilated, pErodeDst, pErodeAlt, I, J, pLogW, k, nonZeros, frameSize);
+        float* pClosed = run_erode_iterated(pDilated, pErodeDst, pErodeAlt, I, J, k, nonZeros, frameSize);
 
         // --- OPEN STAGE (Erode k times, Dilate k times) ---
-        float* pEroded = run_erode_iterated(pClosed, memHndl.imProc1, memHndl.imProc2, I, J, pLogW, k, nonZeros, frameSize);
+        float* pEroded = run_erode_iterated(pClosed, memHndl.imProc1, memHndl.imProc2, I, J, k, nonZeros, frameSize);
         float* pDilateDst = (pEroded == memHndl.imProc1) ? memHndl.imProc2 : memHndl.imProc1;
         float* pDilateAlt = (pEroded == memHndl.imProc1) ? memHndl.imProc1 : memHndl.imProc2;
-        float* pOpened = run_dilate_iterated(pEroded, pDilateDst, pDilateAlt, I, J, pLogW, k, nonZeros, frameSize);
+        float* pOpened = run_dilate_iterated(pEroded, pDilateDst, pDilateAlt, I, J, k, nonZeros, frameSize);
 
         pCurrentSrc = pOpened; // Feed result into the next scale of the ASF loop
     }

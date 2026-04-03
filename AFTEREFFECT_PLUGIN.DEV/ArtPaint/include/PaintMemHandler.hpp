@@ -37,7 +37,6 @@ struct MemHandler
     size_t max_edges;    // Safety cap to prevent buffer overruns
     A_long* pI_arena;    // Pre-allocated Source pixel indices
     A_long* pJ_arena;    // Pre-allocated Target pixel indices
-    float* pLogW_arena;  // Pre-allocated Log Weights
 
     // Phase 5: Morphology Ping-Pong Buffers
     float* imProc1;
