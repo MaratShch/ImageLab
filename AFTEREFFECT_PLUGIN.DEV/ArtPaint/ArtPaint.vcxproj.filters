@@ -93,6 +93,27 @@
     <ClInclude Include="include\PaintAlgoContols.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\PaintAlgoAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintAlgoMain.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintCocircularity_graphs.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintMorpologyKernels.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintSparseMatrix.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPaint.cpp">
@@ -111,6 +132,27 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\PaintAlgoControls.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintAlgoAVX2.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintAlgorithmMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintCocircularity_graphs.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintColorConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintMorphologyAVX2.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintMorpologyKernels.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

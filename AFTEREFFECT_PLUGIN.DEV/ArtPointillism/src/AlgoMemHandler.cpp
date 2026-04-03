@@ -227,7 +227,6 @@ MemHandler alloc_memory_buffers(int32_t sizeX, int32_t sizeY, const bool dbgPrn)
 
 void free_memory_buffers(MemHandler& algoMemHandler)
 {
-    // PRO-LEVEL CLEANUP:
     // We only free the Master Block. 
     // All other pointers are just offsets into this block and die automatically.
 

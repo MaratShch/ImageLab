@@ -156,7 +156,14 @@
     <ClInclude Include="include\ArtPaint.hpp" />
     <ClInclude Include="include\ArtPaintEnums.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\PaintAlgoAVX2.hpp" />
     <ClInclude Include="include\PaintAlgoContols.hpp" />
+    <ClInclude Include="include\PaintAlgoMain.hpp" />
+    <ClInclude Include="include\PaintCocircularity_graphs.hpp" />
+    <ClInclude Include="include\PaintColorConvert.hpp" />
+    <ClInclude Include="include\PaintMemHandler.hpp" />
+    <ClInclude Include="include\PaintMorpologyKernels.hpp" />
+    <ClInclude Include="include\PaintSparseMatrix.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPaint.cpp" />
@@ -164,7 +171,14 @@
     <ClCompile Include="src\ArtPaintPR.cpp" />
     <ClCompile Include="src\ArtPaintSR.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
+    <ClCompile Include="src\PaintAlgoAVX2.cpp" />
     <ClCompile Include="src\PaintAlgoControls.cpp" />
+    <ClCompile Include="src\PaintAlgorithmMain.cpp" />
+    <ClCompile Include="src\PaintCocircularity_graphs.cpp" />
+    <ClCompile Include="src\PaintColorConvert.cpp" />
+    <ClCompile Include="src\PaintMemHandler.cpp" />
+    <ClCompile Include="src\PaintMorphologyAVX2.cpp" />
+    <ClCompile Include="src\PaintMorpologyKernels.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPaint.r">

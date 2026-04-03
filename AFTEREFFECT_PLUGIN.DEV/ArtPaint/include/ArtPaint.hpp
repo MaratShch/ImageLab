@@ -54,9 +54,8 @@ ArtPaint_SmartRender
 
 const AlgoControls getControlsValues
 (
-    PF_InData*   RESTRICT in_data,
-    PF_OutData*  RESTRICT out_data,
     PF_ParamDef* RESTRICT params[]
-);
+) noexcept;
+
 
 #endif /* __IMAGE_LAB_ART_PAINT_STYLE_FILTER__ */

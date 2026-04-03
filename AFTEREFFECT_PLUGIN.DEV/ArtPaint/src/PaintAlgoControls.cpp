@@ -3,10 +3,8 @@
 
 const AlgoControls getControlsValues
 (
-    PF_InData*   RESTRICT in_data,
-    PF_OutData*  RESTRICT out_data,
     PF_ParamDef* RESTRICT params[]
-)
+) noexcept
 {
     CACHE_ALIGN AlgoControls algoControls{};
 
