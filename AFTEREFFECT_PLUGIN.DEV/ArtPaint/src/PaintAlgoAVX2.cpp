@@ -480,7 +480,7 @@ void diagonalize_structure_tensors_AVX2
         const float c_i = C[i];
 
         const float delta = (a_i - b_i) * (a_i - b_i) + 4.f * c_i * c_i;
-        const float sqrtDelta = std::sqrt(delta);
+        const float sqrtDelta = FastCompute::Sqrt(delta);
         const float trace = a_i + b_i;
 
         Lambda1[i] = 0.5f * (trace + sqrtDelta);
@@ -488,7 +488,7 @@ void diagonalize_structure_tensors_AVX2
 
         const float x1 = 2.f * c_i;
         const float x2 = b_i - a_i - sqrtDelta;
-        const float norm_eig_vect = std::sqrt(x1 * x1 + x2 * x2);
+        const float norm_eig_vect = FastCompute::Sqrt(x1 * x1 + x2 * x2);
 
         if (norm_eig_vect > 0.f)
         {

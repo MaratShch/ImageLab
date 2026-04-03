@@ -1,6 +1,7 @@
 #include <immintrin.h>
 #include <cmath>
 #include <algorithm>
+#include "FastAriphmetics.hpp"
 #include "PaintCocircularity_graphs.hpp"
 
 // Fast absolute value mask for AVX2 floats
@@ -13,7 +14,7 @@ A_long bw_image2cocircularity_graph_AVX2_flat
     A_long* RESTRICT pI,
     A_long* RESTRICT pJ,
     float* RESTRICT pLogW,
-    size_t max_edges,      // Matches the perfectly aligned size_t in your MemHandler
+    size_t max_edges,
     A_long width,
     A_long height,
     float coCirc,
@@ -88,7 +89,7 @@ A_long bw_image2cocircularity_graph_AVX2_flat
 
                     // Combine Masks
                     __m256 v_finalMask = _mm256_and_ps(v_maskCone, v_maskCirc);
-                    int mask = _mm256_movemask_ps(v_finalMask);
+                    const int mask = _mm256_movemask_ps(v_finalMask);
                     
                     if (mask != 0) 
                     {
@@ -112,7 +113,7 @@ A_long bw_image2cocircularity_graph_AVX2_flat
                 for (; nx <= endX; ++nx)
                 {
                     float dx = static_cast<float>(nx - x);
-                    float dist = std::sqrt(dx*dx + dy*dy + 1e-6f);
+                    float dist = FastCompute::Sqrt(dx*dx + dy*dy + 1e-6f);
 
                     float dx_n = dx / dist;
                     float dy_n = dy / dist;
