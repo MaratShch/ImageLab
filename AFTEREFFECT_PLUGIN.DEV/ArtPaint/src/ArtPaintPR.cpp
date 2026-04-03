@@ -4,10 +4,10 @@
 
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*   RESTRICT in_data,
+	PF_OutData*  RESTRICT out_data,
+	PF_ParamDef* RESTRICT params[],
+	PF_LayerDef* RESTRICT output
 ) 
 {
 	PF_Err err{ PF_Err_NONE };
@@ -48,7 +48,7 @@ PF_Err ProcessImgInPR
             break;
 
             case PrPixelFormat_VUYA_4444_32f_709:
-            case PrPixelFormat_VUYA_4444_16u:
+            case PrPixelFormat_VUYA_4444_32f:
             case PrPixelFormat_VUYX_4444_32f_709:
             case PrPixelFormat_VUYX_4444_32f:
             break;

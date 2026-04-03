@@ -2,7 +2,7 @@
 #define __IMAGE_LAB_ART_PAINT_STYLE_FILTER__
 
 #include "CommonAdobeAE.hpp"
-
+#include "PaintAlgoContols.hpp"
 
 constexpr char strName[] = "Art::Paint";
 constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rArt Paint plugin.";
@@ -19,19 +19,19 @@ constexpr int ArtPaint_VersionBuild = 1;
 
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*   RESTRICT in_data,
+	PF_OutData*  RESTRICT out_data,
+	PF_ParamDef* RESTRICT params[],
+	PF_LayerDef* RESTRICT output
 ) ;
 
 PF_Err
 ProcessImgInAE
 (
-	PF_InData*		in_data,
-	PF_OutData*		out_data,
-	PF_ParamDef*	params[],
-	PF_LayerDef*	output
+	PF_InData*	 RESTRICT in_data,
+	PF_OutData*	 RESTRICT out_data,
+	PF_ParamDef* RESTRICT params[],
+	PF_LayerDef* RESTRICT output
 ) ;
 
 PF_Err
@@ -51,5 +51,12 @@ ArtPaint_SmartRender
     PF_SmartRenderExtra		*extraP
 );
 
+
+const AlgoControls getControlsValues
+(
+    PF_InData*   RESTRICT in_data,
+    PF_OutData*  RESTRICT out_data,
+    PF_ParamDef* RESTRICT params[]
+);
 
 #endif /* __IMAGE_LAB_ART_PAINT_STYLE_FILTER__ */

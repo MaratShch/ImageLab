@@ -3,10 +3,10 @@
 
 PF_Err ArtPaint_InAE_8bits
 (
-	PF_InData*   in_data,
-	PF_OutData*  out_data,
-	PF_ParamDef* params[],
-	PF_LayerDef* output
+	PF_InData*   RESTRICT in_data,
+	PF_OutData*  RESTRICT out_data,
+	PF_ParamDef* RESTRICT params[],
+	PF_LayerDef* RESTRICT output
 ) 
 {
 	return PF_Err_NONE;
@@ -14,10 +14,10 @@ PF_Err ArtPaint_InAE_8bits
 
 PF_Err ArtPaint_InAE_16bits
 (
-	PF_InData*   in_data,
-	PF_OutData*  out_data,
-	PF_ParamDef* params[],
-	PF_LayerDef* output
+	PF_InData*   RESTRICT in_data,
+	PF_OutData*  RESTRICT out_data,
+	PF_ParamDef* RESTRICT params[],
+	PF_LayerDef* RESTRICT output
 ) 
 {
 	return PF_Err_NONE;
@@ -26,10 +26,10 @@ PF_Err ArtPaint_InAE_16bits
 
 PF_Err ArtPaint_InAE_32bits
 (
-    PF_InData*   in_data,
-    PF_OutData*  out_data,
-    PF_ParamDef* params[],
-    PF_LayerDef* output
+    PF_InData*   RESTRICT in_data,
+    PF_OutData*  RESTRICT out_data,
+    PF_ParamDef* RESTRICT params[],
+    PF_LayerDef* RESTRICT output
 ) 
 {
     return PF_Err_NONE;
@@ -38,16 +38,16 @@ PF_Err ArtPaint_InAE_32bits
 
 inline PF_Err ArtPaint_InAE_DeepWorld
 (
-    PF_InData*   in_data,
-    PF_OutData*  out_data,
-    PF_ParamDef* params[],
-    PF_LayerDef* output
+    PF_InData*   RESTRICT in_data,
+    PF_OutData*  RESTRICT out_data,
+    PF_ParamDef* RESTRICT params[],
+    PF_LayerDef* RESTRICT output
 ) 
 {
     PF_Err	err = PF_Err_NONE;
     PF_PixelFormat format = PF_PixelFormat_INVALID;
     AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
-    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(ArtPaintControls::ART_PAINT_INPUT)]->u.ld), &format))
+    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* RESTRICT>(&params[UnderlyingType(ArtPaintControls::ART_PAINT_INPUT)]->u.ld), &format))
     {
         err = (format == PF_PixelFormat_ARGB128 ?
             ArtPaint_InAE_32bits(in_data, out_data, params, output) : ArtPaint_InAE_16bits(in_data, out_data, params, output));
@@ -62,11 +62,11 @@ inline PF_Err ArtPaint_InAE_DeepWorld
 PF_Err
 ProcessImgInAE
 (
-	PF_InData*		in_data,
-	PF_OutData*		out_data,
-	PF_ParamDef*	params[],
-	PF_LayerDef*	output
-) 
+    PF_InData*	 RESTRICT in_data,
+    PF_OutData*	 RESTRICT out_data,
+    PF_ParamDef* RESTRICT params[],
+    PF_LayerDef* RESTRICT output
+)
 {
 	return (PF_WORLD_IS_DEEP(output) ?
         ArtPaint_InAE_DeepWorld (in_data, out_data, params, output) :

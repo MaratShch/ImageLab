@@ -1,6 +1,7 @@
 #include "ArtPaint.hpp"
+#include "ArtPaintEnums.hpp"
 #include "PrSDKAESupport.h"
-
+#include "ImageLabMemInterface.hpp"
 
 static PF_Err
 About(
@@ -28,7 +29,10 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_NONE;
+
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -115,8 +119,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
 }
 
 
@@ -128,8 +132,71 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    CACHE_ALIGN PF_ParamDef	def{};
 
-	return PF_Err_NONE;
+    constexpr PF_ParamFlags     flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags   ui_flags = PF_PUI_NONE;
+ 
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        ArtPaintControlsStr[0],
+        UnderlyingType(StrokeBias::TotalStrokeBias),
+        UnderlyingType(StrokeBias::DarkBias_Open),
+        StrokeBiasStr,
+        UnderlyingType(ArtPaintControls::ART_PAINT_STYLE));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        ArtPaintControlsStr[1],
+        sigmaMin,
+        sigmaMax,
+        sigmaMin,
+        sigmaMax,
+        sigmaDef,
+        PF_Precision_TENTHS,
+        0,
+        0,
+        UnderlyingType(ArtPaintControls::ART_PAINT_BRUSH_WIDTH));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        ArtPaintControlsStr[2],
+        angularMin,
+        angularMax,
+        angularMin,
+        angularMax,
+        angularDef,
+        PF_Precision_INTEGER,
+        0,
+        0,
+        UnderlyingType(ArtPaintControls::ART_PAINT_BRUSH_LENGTH));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        ArtPaintControlsStr[3],
+        angleMin,
+        angleMax,
+        angleMin,
+        angleMax,
+        angleDef,
+        PF_Precision_INTEGER,
+        0,
+        0,
+        UnderlyingType(ArtPaintControls::ART_PAINT_STROKE_CURVATIVE));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_SLIDER(
+        ArtPaintControlsStr[4],
+        iterMin,
+        iterMax,
+        iterMin,
+        iterMax,
+        iterDef,
+        UnderlyingType(ArtPaintControls::ART_PAINT_STROKE_SPREADING));
+
+    out_data->num_params = UnderlyingType(ArtPaintControls::ART_PAINT_TOTAL_PARAMS);
+
+    return PF_Err_NONE;
 }
 
 

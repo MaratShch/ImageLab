@@ -156,6 +156,7 @@
     <ClInclude Include="include\ArtPaint.hpp" />
     <ClInclude Include="include\ArtPaintEnums.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\PaintAlgoContols.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPaint.cpp" />
@@ -163,6 +164,7 @@
     <ClCompile Include="src\ArtPaintPR.cpp" />
     <ClCompile Include="src\ArtPaintSR.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
+    <ClCompile Include="src\PaintAlgoControls.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPaint.r">
