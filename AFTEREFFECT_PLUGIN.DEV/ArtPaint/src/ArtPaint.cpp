@@ -69,7 +69,6 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-#if 0
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
@@ -81,31 +80,19 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f_Linear);
-
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f);
-
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
-
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f_Linear);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_16u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f_Linear);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_16u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f_Linear);
-#endif
     }
 
 	return err;
@@ -140,6 +127,14 @@ ParamsSetup(
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
         ArtPaintControlsStr[0],
+        UnderlyingType(RenderQuality::TotalQualitites),
+        UnderlyingType(RenderQuality::Fast_HalfSize),
+        RenderQualityStr,
+        UnderlyingType(ArtPaintControls::ART_PAINT_RENDER_QUALITY));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        ArtPaintControlsStr[1],
         UnderlyingType(StrokeBias::TotalStrokeBias),
         UnderlyingType(StrokeBias::DarkBias_Open),
         StrokeBiasStr,
@@ -147,7 +142,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        ArtPaintControlsStr[1],
+        ArtPaintControlsStr[2],
         sigmaMin,
         sigmaMax,
         sigmaMin,
@@ -160,7 +155,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        ArtPaintControlsStr[2],
+        ArtPaintControlsStr[3],
         angularMin,
         angularMax,
         angularMin,
@@ -173,7 +168,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        ArtPaintControlsStr[3],
+        ArtPaintControlsStr[4],
         angleMin,
         angleMax,
         angleMin,
@@ -186,7 +181,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_SLIDER(
-        ArtPaintControlsStr[4],
+        ArtPaintControlsStr[5],
         iterMin,
         iterMax,
         iterMin,

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include "Common.hpp"
 #include "AefxDevPatch.hpp"
-
+#include "PaintAlgoContols.hpp"
 
 struct MemHandler
 {
@@ -11,6 +11,11 @@ struct MemHandler
     uint8_t* RESTRICT SuperBufferHead;
     size_t totalSize;
 
+    uint32_t origin_width;
+    uint32_t origin_height;
+    uint32_t proc_width;
+    uint32_t proc_height;
+    
     // Internal Planar Image Buffers (Range: 0.0f to 255.0f)
     float* Y_planar;
     float* U_planar;
@@ -43,7 +48,7 @@ struct MemHandler
     float* imProc2;
 };
 
-MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY, const bool dbgPrn = false) noexcept;
+MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY, const RenderQuality renderQualityVal = RenderQuality::Fast_HalfSize, const int32_t radius = 7) noexcept;
 void free_memory_buffers (MemHandler& algoMemHandler) noexcept;
 
 inline bool check_memory_buffers (const MemHandler& algoMemHandler) noexcept

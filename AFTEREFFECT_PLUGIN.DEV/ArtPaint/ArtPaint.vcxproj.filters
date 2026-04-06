@@ -111,7 +111,19 @@
     <ClInclude Include="include\PaintSparseMatrix.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\PaintColorConvert.hpp">
+    <ClInclude Include="include\PaintColorDispatcher.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintColorDispatcherOut.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintColorInterleaved.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintColorPlanar.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PaintPixelTraits.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -143,9 +155,6 @@
     <ClCompile Include="src\PaintCocircularity_graphs.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\PaintColorConvert.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\PaintMemHandler.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -155,15 +164,21 @@
     <ClCompile Include="src\PaintMorpologyKernels.cpp">
       <Filter>src</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ArtPaint.r">
-      <Filter>resource</Filter>
-    </None>
+    <ClCompile Include="src\PaintColorDispatcher.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintColorDispatcherOut.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtPaint.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ArtPaint.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

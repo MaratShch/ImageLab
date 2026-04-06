@@ -8,6 +8,7 @@
 enum class ArtPaintControls : int32_t
 {
     ART_PAINT_INPUT,
+    ART_PAINT_RENDER_QUALITY,
     ART_PAINT_STYLE,
     ART_PAINT_BRUSH_WIDTH,
     ART_PAINT_BRUSH_LENGTH,
@@ -16,8 +17,9 @@ enum class ArtPaintControls : int32_t
     ART_PAINT_TOTAL_PARAMS
 };
 
-constexpr A_char ArtPaintControlsStr[5][24] =
+constexpr A_char ArtPaintControlsStr[][24] =
 {
+    "Render Quality",
     "Paint Style",
     "Brush Width",
     "Brush Length",
@@ -32,5 +34,10 @@ constexpr char StrokeBiasStr[] =
     "Balanced"
 };
 
+constexpr char RenderQualityStr[] = 
+{
+    "Fast|"
+    "Accurate"
+};
 
 #endif // __IMAGE_LAB_CHROMATIC_ABERRATION_FILTER_ENUMERATORS__

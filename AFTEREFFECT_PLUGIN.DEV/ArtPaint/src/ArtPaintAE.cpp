@@ -1,5 +1,10 @@
 #include "ArtPaint.hpp"
 #include "ArtPaintEnums.hpp"
+#include "PaintMemHandler.hpp"
+#include "PaintColorDispatcher.hpp"
+#include "PaintColorDispatcherOut.hpp"
+#include "PaintAlgoMain.hpp"
+
 
 PF_Err ArtPaint_InAE_8bits
 (
@@ -9,8 +14,34 @@ PF_Err ArtPaint_InAE_8bits
 	PF_LayerDef* RESTRICT output
 ) 
 {
-	return PF_Err_NONE;
+    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPaintControls::ART_PAINT_INPUT)]->u.ld);
+    const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
+          PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+
+    PF_Err err = PF_Err_NONE;
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    const AlgoControls algoParams = getControlsValues(params);
+
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, algoParams.quality);
+    if (true == check_memory_buffers(algoMemHandler))
+    {
+        dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch, PixelFormat::ARGB_8u, algoParams.quality);
+        PaintAlgorithmMain (algoMemHandler, algoParams);
+        dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, PixelFormat::ARGB_8u, algoParams.quality);
+
+        free_memory_buffers (algoMemHandler);
+    } // if (true == mem_handler_valid (algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
+
+    return err;
 }
+
 
 PF_Err ArtPaint_InAE_16bits
 (
@@ -20,7 +51,32 @@ PF_Err ArtPaint_InAE_16bits
 	PF_LayerDef* RESTRICT output
 ) 
 {
-	return PF_Err_NONE;
+    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPaintControls::ART_PAINT_INPUT)]->u.ld);
+    const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
+          PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+
+    PF_Err err = PF_Err_NONE;
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    const AlgoControls algoParams = getControlsValues (params);
+
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, algoParams.quality);
+    if (true == check_memory_buffers(algoMemHandler))
+    {
+        dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch, PixelFormat::ARGB_16u, algoParams.quality);
+        PaintAlgorithmMain (algoMemHandler, algoParams);
+        dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, PixelFormat::ARGB_16u, algoParams.quality);
+
+        free_memory_buffers(algoMemHandler);
+    } // if (true == mem_handler_valid (algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
+
+    return err;
 }
 
 
@@ -32,7 +88,32 @@ PF_Err ArtPaint_InAE_32bits
     PF_LayerDef* RESTRICT output
 ) 
 {
-    return PF_Err_NONE;
+    PF_EffectWorld*   __restrict input = reinterpret_cast<      PF_EffectWorld*   __restrict>(&params[UnderlyingType(ArtPaintControls::ART_PAINT_INPUT)]->u.ld);
+    const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
+          PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+
+    PF_Err err = PF_Err_NONE;
+
+    const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long sizeY = output->height;
+    const A_long sizeX = output->width;
+
+    const AlgoControls algoParams = getControlsValues(params);
+
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, algoParams.quality);
+    if (true == check_memory_buffers(algoMemHandler))
+    {
+        dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch, PixelFormat::ARGB_32f, algoParams.quality);
+        PaintAlgorithmMain (algoMemHandler, algoParams);
+        dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, PixelFormat::ARGB_32f, algoParams.quality);
+
+        free_memory_buffers(algoMemHandler);
+    } // if (true == mem_handler_valid (algoMemHandler))
+    else
+        err = PF_Err_OUT_OF_MEMORY;
+
+    return err;
 }
 
 

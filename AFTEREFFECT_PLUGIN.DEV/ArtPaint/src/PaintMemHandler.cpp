@@ -5,21 +5,37 @@
 #include "PaintMemHandler.hpp"
 #include "ImageLabMemInterface.hpp"
 
-
-MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const bool dbgPrn) noexcept
+MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const RenderQuality quality, const int32_t radius) noexcept
 {
-    MemHandler algoMemHandler{};
+    CACHE_ALIGN MemHandler algoMemHandler{};
     
     constexpr int32_t cacheLine = static_cast<int32_t>(CACHE_LINE);
-    const int32_t frameSize = sizeX * sizeY;
+
+    algoMemHandler.origin_width  = sizeX; // original frame width
+    algoMemHandler.origin_height = sizeY; // original frame height
+
+    if (RenderQuality::Fast_HalfSize == quality)
+    {
+        algoMemHandler.proc_width  = algoMemHandler.origin_width >> 1;
+        algoMemHandler.proc_height = algoMemHandler.origin_height >> 1;
+    }
+    else
+    {
+        algoMemHandler.proc_width  = algoMemHandler.origin_width;
+        algoMemHandler.proc_height = algoMemHandler.origin_height;
+    }
+
+    // The AVX2 engine memory uses the small dimensions!
+    const int32_t frameSize = algoMemHandler.proc_width * algoMemHandler.proc_height;
+    
     const int32_t rawFloatSize = frameSize * static_cast<int32_t>(sizeof(float));
-
     const int32_t rawFloatAlignedSize = CreateAlignment(rawFloatSize, cacheLine);
-
+    
     // ==================================================================================
     // 1. CALCULATE PHASE 4 SIZES (GRAPH FLAT EDGE-LIST)
     // ==================================================================================
-    algoMemHandler.max_edges = static_cast<size_t>(frameSize * 10);
+    const int32_t max_edges_per_pixel = (2 * radius + 1) * 2; 
+    algoMemHandler.max_edges = static_cast<size_t>(frameSize) * max_edges_per_pixel;
     
     const size_t rawEdgeIdxSize = algoMemHandler.max_edges * sizeof(A_long);
     const size_t rawEdgeWeightSize = algoMemHandler.max_edges * sizeof(float);
@@ -70,12 +86,13 @@ MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const 
     void* ptr = nullptr;
     const int32_t blockId = ::GetMemoryBlock(static_cast<int32_t>(totalBytes), 0, &ptr);
 
-    if (ptr != nullptr)
+    if (nullptr != ptr)
     {
         uint8_t* superBuffer = reinterpret_cast<uint8_t*>(ptr);
+
         // Store Head for Deallocation
         algoMemHandler.SuperBufferHead = superBuffer;
-        algoMemHandler.memBlockId = static_cast<int64_t>(blockId);
+        algoMemHandler.memBlockId = blockId;
 
         algoMemHandler.Y_planar = reinterpret_cast<float*>(superBuffer + off_Y_planar);
         algoMemHandler.U_planar = reinterpret_cast<float*>(superBuffer + off_U_planar);
@@ -113,9 +130,9 @@ MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const 
 
 void free_memory_buffers (MemHandler& algoMemHandler) noexcept
 {
-    if (algoMemHandler.SuperBufferHead != nullptr) 
+    if (algoMemHandler.memBlockId >= 0 && algoMemHandler.SuperBufferHead != nullptr)
     {
-        ::FreeMemoryBlock (algoMemHandler.memBlockId);
+        ::FreeMemoryBlock(algoMemHandler.memBlockId);
     }
     
     // Zero out the struct to prevent Use-After-Free bugs

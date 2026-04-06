@@ -25,6 +25,52 @@ public:
 };
 
 template <typename T>
+class is_RGB_premul
+{
+    /**
+    * RGB proc variation
+    */
+    template <typename TT,
+        typename std::enable_if<
+        std::is_same<TT, PF_Pixel_BGRP_8u>::value ||
+        std::is_same<TT, PF_Pixel_BGRP_16u>::value ||
+        std::is_same<TT, PF_Pixel_BGRP_32f>::value ||
+        std::is_same<TT, PF_Pixel_PRGB_8u>::value ||
+        std::is_same<TT, PF_Pixel_PRGB_16u>::value ||
+        std::is_same<TT, PF_Pixel_PRGB_32f>::value>::type* = nullptr>
+        static auto test(int)->std::true_type;
+
+    template<typename>
+    static auto test(...)->std::false_type;
+
+public:
+    static constexpr const bool value = decltype(test<T>(0))::value;
+};
+
+template <typename T>
+class is_RGB_transparent
+{
+    /**
+    * RGB proc variation
+    */
+    template <typename TT,
+        typename std::enable_if<
+        std::is_same<TT, PF_Pixel_BGRX_8u>::value ||
+        std::is_same<TT, PF_Pixel_BGRX_16u>::value ||
+        std::is_same<TT, PF_Pixel_BGRX_32f>::value ||
+        std::is_same<TT, PF_Pixel_XRGB_8u>::value ||
+        std::is_same<TT, PF_Pixel_XRGB_16u>::value ||
+        std::is_same<TT, PF_Pixel_XRGB_32f>::value>::type* = nullptr>
+        static auto test(int)->std::true_type;
+
+    template<typename>
+    static auto test(...)->std::false_type;
+
+public:
+    static constexpr const bool value = decltype(test<T>(0))::value;
+};
+
+template <typename T>
 class is_YUV_proc
 {
 	/**
@@ -42,6 +88,26 @@ class is_YUV_proc
 
 public:
 	static constexpr const bool value = decltype(test<T>(0))::value;
+};
+
+template <typename T>
+class is_YUV_premul
+{
+    /**
+    * YUV proc variation
+    */
+    template <typename TT,
+        typename std::enable_if<
+        std::is_same<TT, PF_Pixel_VUYP_8u>::value ||
+        std::is_same<TT, PF_Pixel_VUYP_16u>::value ||
+        std::is_same<TT, PF_Pixel_VUYP_32f>::value>::type* = nullptr>
+        static auto test(int)->std::true_type;
+
+    template<typename>
+    static auto test(...)->std::false_type;
+
+public:
+    static constexpr const bool value = decltype(test<T>(0))::value;
 };
 
 
@@ -87,7 +153,7 @@ template<typename T>
 struct is_RGB_or_YUV : std::integral_constant<bool, is_RGB_proc<T>::value || is_YUV_proc<T>::value> {};
 
 template<typename T>
-struct is_RGB_Variants : std::integral_constant<bool, is_RGB_proc<T>::value || is_no_alpha_channel<T>::value> {};
+struct is_RGB_Variants : std::integral_constant<bool, is_RGB_proc<T>::value || is_RGB_premul<T>::value || is_RGB_transparent<T>::value || is_no_alpha_channel<T>::value> {};
 
 template<typename T>
-struct is_SupportedImageBuffer : std::integral_constant<bool, is_RGB_Variants<T>::value || is_YUV_proc<T>::value> {};
+struct is_SupportedImageBuffer : std::integral_constant<bool, is_RGB_Variants<T>::value || is_YUV_proc<T>::value || is_YUV_premul<T>::value> {};

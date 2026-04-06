@@ -160,9 +160,13 @@
     <ClInclude Include="include\PaintAlgoContols.hpp" />
     <ClInclude Include="include\PaintAlgoMain.hpp" />
     <ClInclude Include="include\PaintCocircularity_graphs.hpp" />
-    <ClInclude Include="include\PaintColorConvert.hpp" />
+    <ClInclude Include="include\PaintColorDispatcher.hpp" />
+    <ClInclude Include="include\PaintColorDispatcherOut.hpp" />
+    <ClInclude Include="include\PaintColorInterleaved.hpp" />
+    <ClInclude Include="include\PaintColorPlanar.hpp" />
     <ClInclude Include="include\PaintMemHandler.hpp" />
     <ClInclude Include="include\PaintMorpologyKernels.hpp" />
+    <ClInclude Include="include\PaintPixelTraits.hpp" />
     <ClInclude Include="include\PaintSparseMatrix.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -175,7 +179,8 @@
     <ClCompile Include="src\PaintAlgoControls.cpp" />
     <ClCompile Include="src\PaintAlgorithmMain.cpp" />
     <ClCompile Include="src\PaintCocircularity_graphs.cpp" />
-    <ClCompile Include="src\PaintColorConvert.cpp" />
+    <ClCompile Include="src\PaintColorDispatcher.cpp" />
+    <ClCompile Include="src\PaintColorDispatcherOut.cpp" />
     <ClCompile Include="src\PaintMemHandler.cpp" />
     <ClCompile Include="src\PaintMorphologyAVX2.cpp" />
     <ClCompile Include="src\PaintMorpologyKernels.cpp" />

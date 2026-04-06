@@ -49,41 +49,38 @@ int dilate_max_plus_symmetric_iterated
     const A_long frameSize
 ) noexcept;
 
-A_long morpho_open
+void morpho_open
 (
-    float* RESTRICT imIn,
-    float* RESTRICT imOut,
+    float* RESTRICT imInOut, 
     const A_long* RESTRICT I,
     const A_long* RESTRICT J,
-    A_long it,
-    A_long nonZeros,
-    A_long sizeX,
-    A_long sizeY,
+    const A_long iter,
+    const A_long nonZeros,
+    const A_long width,
+    const A_long height,
     const MemHandler& memHndl
 ) noexcept;
 
-A_long morpho_close
+void morpho_close
 (
-    float* RESTRICT imIn,
-    float* RESTRICT imOut,
+    float* RESTRICT imInOut,
     const A_long* RESTRICT I,
     const A_long* RESTRICT J,
-    A_long it,
-    A_long nonZeros,
-    A_long sizeX,
-    A_long sizeY,
+    const A_long iter,
+    const A_long nonZeros,
+    const A_long width,
+    const A_long height,
     const MemHandler& memHndl
 ) noexcept;
 
-A_long morpho_asf
+void morpho_asf
 (
-    float* RESTRICT imIn,
-    float* RESTRICT imOut,
+    float* RESTRICT imInOut,
     const A_long* RESTRICT I,
     const A_long* RESTRICT J,
-    A_long it,
-    A_long nonZeros,
-    A_long sizeX,
-    A_long sizeY,
+    const A_long iter,
+    const A_long nonZeros,
+    const A_long width,
+    const A_long height,
     const MemHandler& memHndl
 ) noexcept;

@@ -7,4 +7,4 @@
 #include "PaintMorpologyKernels.hpp"
 
 
-void PaintAlgorithmMain (const MemHandler& memHndl, const AlgoControls& algoCtrl, A_long width, A_long height);
+void PaintAlgorithmMain (const MemHandler& memHndl, const AlgoControls& algoCtrl);

@@ -8,6 +8,7 @@ const AlgoControls getControlsValues
 {
     CACHE_ALIGN AlgoControls algoControls{};
 
+    algoControls.quality = static_cast<RenderQuality>(params[UnderlyingType(ArtPaintControls::ART_PAINT_RENDER_QUALITY)]->u.pd.value - 1);
     algoControls.bias    = static_cast<StrokeBias>(params[UnderlyingType(ArtPaintControls::ART_PAINT_STYLE)]->u.pd.value - 1);
     algoControls.sigma   = static_cast<float>(params[UnderlyingType(ArtPaintControls::ART_PAINT_BRUSH_WIDTH)]->u.fs_d.value);
     algoControls.angular = static_cast<float>(params[UnderlyingType(ArtPaintControls::ART_PAINT_BRUSH_LENGTH)]->u.fs_d.value);

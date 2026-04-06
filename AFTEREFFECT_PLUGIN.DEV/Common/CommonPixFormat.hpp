@@ -12,6 +12,8 @@ typedef struct {
 	A_u_char	R;
 	A_u_char	A;
 } PF_Pixel_BGRA_8u;
+using PF_Pixel_BGRP_8u = PF_Pixel_BGRA_8u;
+using PF_Pixel_BGRX_8u = PF_Pixel_BGRA_8u;
 
 typedef struct {
 	A_u_char	A;
@@ -19,6 +21,8 @@ typedef struct {
 	A_u_char	G;
 	A_u_char	B;
 } PF_Pixel_ARGB_8u;
+using PF_Pixel_PRGB_8u = PF_Pixel_ARGB_8u;
+using PF_Pixel_XRGB_8u = PF_Pixel_ARGB_8u;
 
 typedef struct {
 	A_u_short	B;
@@ -26,6 +30,8 @@ typedef struct {
 	A_u_short	R;
 	A_u_short	A;
 } PF_Pixel_BGRA_16u;
+using PF_Pixel_BGRP_16u = PF_Pixel_BGRA_16u;
+using PF_Pixel_BGRX_16u = PF_Pixel_BGRA_16u;
 
 typedef struct {
 	A_u_short	A;
@@ -33,6 +39,8 @@ typedef struct {
 	A_u_short	G;
 	A_u_short	B;
 } PF_Pixel_ARGB_16u;
+using PF_Pixel_PRGB_16u = PF_Pixel_ARGB_16u;
+using PF_Pixel_XRGB_16u = PF_Pixel_ARGB_16u;
 
 typedef struct {
 	PF_FpShort	B;
@@ -40,6 +48,8 @@ typedef struct {
 	PF_FpShort	R;
 	PF_FpShort	A;
 } PF_Pixel_BGRA_32f;
+using PF_Pixel_BGRP_32f = PF_Pixel_BGRA_32f;
+using PF_Pixel_BGRX_32f = PF_Pixel_BGRA_32f;
 
 typedef struct {
 	PF_FpShort	A;
@@ -47,6 +57,8 @@ typedef struct {
 	PF_FpShort	G;
 	PF_FpShort	B;
 } PF_Pixel_ARGB_32f;
+using PF_Pixel_PRGB_32f = PF_Pixel_ARGB_32f;
+using PF_Pixel_XRGB_32f = PF_Pixel_ARGB_32f;
 
 typedef struct {
 	A_u_char	V;
@@ -54,6 +66,7 @@ typedef struct {
 	A_u_char	Y;
 	A_u_char	A;
 } PF_Pixel_VUYA_8u;
+using PF_Pixel_VUYP_8u = PF_Pixel_VUYA_8u;
 
 typedef struct {
 	A_u_short	V;
@@ -61,6 +74,7 @@ typedef struct {
 	A_u_short	Y;
 	A_u_short	A;
 } PF_Pixel_VUYA_16u;
+using PF_Pixel_VUYP_16u = PF_Pixel_VUYA_16u;
 
 typedef struct {
 	PF_FpShort	V;
@@ -68,6 +82,7 @@ typedef struct {
 	PF_FpShort	Y;
 	PF_FpShort	A;
 } PF_Pixel_VUYA_32f;
+using PF_Pixel_VUYP_32f = PF_Pixel_VUYA_32f;
 
 typedef struct {
 	A_u_long	_pad_ : 2;
@@ -79,14 +94,29 @@ typedef struct {
 #pragma pack(pop)
 
 constexpr size_t PF_Pixel_BGRA_8u_size   = sizeof(PF_Pixel_BGRA_8u);
+constexpr size_t PF_Pixel_BGRP_8u_size   = sizeof(PF_Pixel_BGRP_8u);
+constexpr size_t PF_Pixel_BGRX_8u_size   = sizeof(PF_Pixel_BGRX_8u);
 constexpr size_t PF_Pixel_ARGB_8u_size   = sizeof(PF_Pixel_ARGB_8u);
+constexpr size_t PF_Pixel_PRGB_8u_size   = sizeof(PF_Pixel_PRGB_8u);
+constexpr size_t PF_Pixel_XRGB_8u_size   = sizeof(PF_Pixel_XRGB_8u);
 constexpr size_t PF_Pixel_BGRA_16u_size  = sizeof(PF_Pixel_BGRA_16u);
+constexpr size_t PF_Pixel_BGRP_16u_size  = sizeof(PF_Pixel_BGRP_16u);
+constexpr size_t PF_Pixel_BGRX_16u_size  = sizeof(PF_Pixel_BGRX_16u);
 constexpr size_t PF_Pixel_ARGB_16u_size  = sizeof(PF_Pixel_ARGB_16u);
+constexpr size_t PF_Pixel_PRGB_16u_size  = sizeof(PF_Pixel_PRGB_16u);
+constexpr size_t PF_Pixel_XRGB_16u_size  = sizeof(PF_Pixel_XRGB_16u);
 constexpr size_t PF_Pixel_BGRA_32f_size  = sizeof(PF_Pixel_BGRA_32f);
+constexpr size_t PF_Pixel_BGRP_32f_size  = sizeof(PF_Pixel_BGRP_32f);
+constexpr size_t PF_Pixel_BGRX_32f_size  = sizeof(PF_Pixel_BGRX_32f);
 constexpr size_t PF_Pixel_ARGB_32f_size  = sizeof(PF_Pixel_ARGB_32f);
+constexpr size_t PF_Pixel_PRGB_32f_size  = sizeof(PF_Pixel_PRGB_32f);
+constexpr size_t PF_Pixel_XRGB_32f_size  = sizeof(PF_Pixel_XRGB_32f);
 constexpr size_t PF_Pixel_VUYA_8u_size   = sizeof(PF_Pixel_VUYA_8u);
 constexpr size_t PF_Pixel_VUYA_16u_size  = sizeof(PF_Pixel_VUYA_16u);
 constexpr size_t PF_Pixel_VUYA_32f_size  = sizeof(PF_Pixel_VUYA_32f);
+constexpr size_t PF_Pixel_VUYP_8u_size   = sizeof(PF_Pixel_VUYA_8u);
+constexpr size_t PF_Pixel_VUYP_16u_size  = sizeof(PF_Pixel_VUYA_16u);
+constexpr size_t PF_Pixel_VUYP_32f_size  = sizeof(PF_Pixel_VUYA_32f);
 constexpr size_t PF_Pixel_RGB_10u_size   = sizeof(PF_Pixel_RGB_10u);
 
 constexpr A_u_char u8_value_black = 0u;

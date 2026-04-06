@@ -3,6 +3,12 @@
 #include <cstdint>
 #include "Common.hpp"
 
+enum class RenderQuality : int32_t
+{
+    Fast_HalfSize,
+    Accurate_Full_Size,
+    TotalQualitites
+};
 
 enum class StrokeBias : int32_t
 {
@@ -30,12 +36,13 @@ constexpr int32_t iterDef = 5;
 
 struct AlgoControls
 {
-    float sigma;      // e.g., 5.0f (Brush Size / Tensor smoothing)
-    float angular;    // e.g., 9.0f (Stroke flow tolerance)
-    float angle;      // e.g., 30.0f (Stroke conic tolerance)
-    int32_t iter;     // e.g., 5 (Stroke length / thickness)
-    StrokeBias bias;  // Toggle for Open, Close, or Balanced ASF
+    StrokeBias bias;        // Toggle for Open, Close, or Balanced ASF
+    RenderQuality quality;  // Render Quality
+    float sigma;            // e.g., 5.0f (Brush Size / Tensor smoothing)
+    float angular;          // e.g., 9.0f (Stroke flow tolerance)
+    float angle;            // e.g., 30.0f (Stroke conic tolerance)
+    int32_t iter;           // e.g., 5 (Stroke length / thickness)
     
-    // Default constructor to your baseline values
-    constexpr AlgoControls() noexcept : sigma(sigmaDef), angular(angularDef), angle(angleDef), iter(iterDef), bias(StrokeBias::DarkBias_Open) {} 
+    // Default constructor
+    constexpr AlgoControls() noexcept : bias(StrokeBias::DarkBias_Open), quality(RenderQuality::Fast_HalfSize), sigma(sigmaDef), angular(angularDef), angle(angleDef), iter(iterDef) {}
 };

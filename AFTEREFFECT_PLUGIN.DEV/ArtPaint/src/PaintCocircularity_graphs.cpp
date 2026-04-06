@@ -63,14 +63,24 @@ A_long bw_image2cocircularity_graph_AVX2_flat
                                                 _mm256_setr_ps(0.f, 1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f));
                     __m256 v_dx = _mm256_sub_ps(v_nx, v_x);
                     
-                    __m256 v_distSq = _mm256_add_ps(_mm256_mul_ps(v_dx, v_dx), v_dy2);
-                    __m256 v_dist = _mm256_sqrt_ps(_mm256_add_ps(v_distSq, v_epsilon));
+//                    __m256 v_distSq = _mm256_add_ps(_mm256_mul_ps(v_dx, v_dx), v_dy2);
+                    // Calculates: (v_dx * v_dx) + v_dy2 natively
+                    __m256 v_distSq = _mm256_fmadd_ps(v_dx, v_dx, v_dy2);
 
-                    __m256 v_dx_n = _mm256_div_ps(v_dx, v_dist);
-                    __m256 v_dy_n = _mm256_div_ps(v_dy, v_dist);
+                    __m256 v_distSq_eps = _mm256_add_ps(v_distSq, v_epsilon);
+                    
+                    // Calculate 1.0 / sqrt(x) in ~3 clock cycles natively
+                    __m256 v_invDist = _mm256_rsqrt_ps(v_distSq_eps);
 
+                    // Multiply instead of dividing
+                    __m256 v_dx_n = _mm256_mul_ps(v_dx, v_invDist);
+                    __m256 v_dy_n = _mm256_mul_ps(v_dy, v_invDist);
+                    
                     // Conic constraint
-                    __m256 v_v1_dot_d = _mm256_add_ps(_mm256_mul_ps(v_v1x, v_dx_n), _mm256_mul_ps(v_v1y, v_dy_n));
+//                    __m256 v_v1_dot_d = _mm256_add_ps(_mm256_mul_ps(v_v1x, v_dx_n), _mm256_mul_ps(v_v1y, v_dy_n));
+                    __m256 v_y_part = _mm256_mul_ps(v_v1y, v_dy_n);
+                    __m256 v_v1_dot_d = _mm256_fmadd_ps(v_v1x, v_dx_n, v_y_part);
+
                     __m256 v_abs_v1_dot_d = _mm256_and_ps(v_v1_dot_d, _mm256_castsi256_ps(ABS_MASK));
                     __m256 v_maskCone = _mm256_cmp_ps(v_abs_v1_dot_d, v_coCone, _CMP_GE_OQ);
 
@@ -88,23 +98,43 @@ A_long bw_image2cocircularity_graph_AVX2_flat
 
                     // Combine Masks
                     __m256 v_finalMask = _mm256_and_ps(v_maskCone, v_maskCirc);
-                    const int mask = _mm256_movemask_ps(v_finalMask);
                     
-                    if (mask != 0) 
+                    int mask = _mm256_movemask_ps(v_finalMask);
+                    
+                    // --- HARDWARE BIT MANIPULATION (BMI) ---
+                    // Eliminates the 8-iteration scalar loop and branch mispredictions
+                    while (mask != 0) 
                     {
-                        for (int b = 0; b < 8; ++b)
+                        // _tzcnt_u32 instantly returns the index of the lowest set bit
+                        int b = _tzcnt_u32(mask); 
+                        
+                        if (edgeCount < max_edges) 
                         {
-                            if (mask & (1 << b)) 
-                            {
-                                if (edgeCount < max_edges) 
-                                {
-                                    pI[edgeCount] = p0;
-                                    pJ[edgeCount] = rowOffset + nx + b;
-                                    edgeCount++;
-                                }
-                            }
+                            pI[edgeCount] = p0;
+                            pJ[edgeCount] = rowOffset + nx + b;
+                            edgeCount++;
                         }
-                    }
+                        
+                        // Clear the lowest set bit we just processed
+                        mask &= (mask - 1); 
+                    }                   
+ //                   const int mask = _mm256_movemask_ps(v_finalMask);
+ //                   
+ //                   if (mask != 0) 
+ //                   {
+ //                       for (int b = 0; b < 8; ++b)
+ //                       {
+ //                          if (mask & (1 << b)) 
+ //                           {
+ //                               if (edgeCount < max_edges) 
+ //                               {
+ //                                   pI[edgeCount] = p0;
+ //                                   pJ[edgeCount] = rowOffset + nx + b;
+ //                                   edgeCount++;
+ //                               }
+ //                           }
+ //                       }
+ //                   }
                 }
 
                 // --- SCALAR TAIL ---
