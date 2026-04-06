@@ -183,7 +183,6 @@
     <ClCompile Include="src\PaintColorDispatcherOut.cpp" />
     <ClCompile Include="src\PaintMemHandler.cpp" />
     <ClCompile Include="src\PaintMorphologyAVX2.cpp" />
-    <ClCompile Include="src\PaintMorpologyKernels.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="ArtPaint.r">

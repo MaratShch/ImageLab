@@ -158,16 +158,13 @@
     <ClCompile Include="src\PaintMemHandler.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\PaintMorphologyAVX2.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\PaintMorpologyKernels.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\PaintColorDispatcher.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\PaintColorDispatcherOut.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\PaintMorphologyAVX2.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

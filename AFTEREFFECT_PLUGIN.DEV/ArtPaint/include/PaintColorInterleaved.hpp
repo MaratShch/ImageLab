@@ -63,7 +63,8 @@ inline void convert_to_interleaved_impl
             __m256 out1, out2, out3;
 
             if (Traits::IsYUV) { out1 = vV; out2 = vU; out3 = vY; } 
-            else {
+            else
+            {
                 out3 = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
                 out2 = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
                 out1 = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU)); 
@@ -75,10 +76,11 @@ inline void convert_to_interleaved_impl
         const A_long remaining = width - x;
         if (remaining > 0)
         {
-            alignas(32) float tail_Y[8] = {0}, tail_U[8] = {0}, tail_V[8] = {0};
-            alignas(32) PixelType tail_orig[8] = {}, tail_out[8]  = {};
+            CACHE_ALIGN float tail_Y[8] = {0}, tail_U[8] = {0}, tail_V[8] = {0};
+            CACHE_ALIGN PixelType tail_orig[8] = {}, tail_out[8]  = {};
 
-            for (A_long i = 0; i < remaining; ++i) {
+            for (A_long i = 0; i < remaining; ++i)
+            {
                 tail_Y[i] = row_Y[x + i]; tail_U[i] = row_U[x + i]; tail_V[i] = row_V[x + i];
                 tail_orig[i] = orig_row[x + i];
             }
@@ -87,7 +89,8 @@ inline void convert_to_interleaved_impl
             __m256 out1, out2, out3;
 
             if (Traits::IsYUV) { out1 = vV; out2 = vU; out3 = vY; } 
-            else {
+            else
+            {
                 out3 = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
                 out2 = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
                 out1 = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU)); 
@@ -97,6 +100,7 @@ inline void convert_to_interleaved_impl
             for (A_long i = 0; i < remaining; ++i) { out_row[x + i] = tail_out[i]; }
         }
     }
+    return;
 }
 
 // ============================================================================
@@ -141,16 +145,19 @@ inline void convert_to_interleaved_impl
         out_BR = _mm256_add_ps(_mm256_add_ps(m00_1, m01_3), _mm256_add_ps(m10_3, m11_9));
     };
 
-    auto interleave_to_rows = [&](__m256 left, __m256 right, __m256& out1, __m256& out2) {
+    auto interleave_to_rows = [&](__m256 left, __m256 right, __m256& out1, __m256& out2)
+    {
         __m256 lo = _mm256_unpacklo_ps(left, right);
         __m256 hi = _mm256_unpackhi_ps(left, right);
         out1 = _mm256_permute2f128_ps(lo, hi, 0x20);
         out2 = _mm256_permute2f128_ps(lo, hi, 0x31);
     };
 
-    auto apply_rec709 = [&](__m256 Y, __m256 U, __m256 V, __m256& o1, __m256& o2, __m256& o3) {
+    auto apply_rec709 = [&](__m256 Y, __m256 U, __m256 V, __m256& o1, __m256& o2, __m256& o3)
+    {
         if (Traits::IsYUV) { o1 = V; o2 = U; o3 = Y; } 
-        else {
+        else
+        {
             o3 = _mm256_add_ps(Y, _mm256_mul_ps(v_inv_r_v, V)); 
             o2 = _mm256_add_ps(Y, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, U), _mm256_mul_ps(v_inv_g_v, V))); 
             o1 = _mm256_add_ps(Y, _mm256_mul_ps(v_inv_b_u, U)); 
@@ -214,12 +221,12 @@ inline void convert_to_interleaved_impl
         const A_long remaining = planar_width - x;
         if (remaining > 0)
         {
-            alignas(32) float tail_Y0[8] = {0}, tail_Y0_s[8] = {0}, tail_Y1[8] = {0}, tail_Y1_s[8] = {0};
-            alignas(32) float tail_U0[8] = {0}, tail_U0_s[8] = {0}, tail_U1[8] = {0}, tail_U1_s[8] = {0};
-            alignas(32) float tail_V0[8] = {0}, tail_V0_s[8] = {0}, tail_V1[8] = {0}, tail_V1_s[8] = {0};
+            CACHE_ALIGN float tail_Y0[8] = {0}, tail_Y0_s[8] = {0}, tail_Y1[8] = {0}, tail_Y1_s[8] = {0};
+            CACHE_ALIGN float tail_U0[8] = {0}, tail_U0_s[8] = {0}, tail_U1[8] = {0}, tail_U1_s[8] = {0};
+            CACHE_ALIGN float tail_V0[8] = {0}, tail_V0_s[8] = {0}, tail_V1[8] = {0}, tail_V1_s[8] = {0};
 
-            alignas(32) PixelType tail_orig0[16] = {}, tail_orig1[16] = {};
-            alignas(32) PixelType tail_out0[16]  = {}, tail_out1[16]  = {};
+            CACHE_ALIGN PixelType tail_orig0[16] = {}, tail_orig1[16] = {};
+            CACHE_ALIGN PixelType tail_out0[16]  = {}, tail_out1[16]  = {};
 
             for (A_long i = 0; i < remaining; ++i) 
             {
@@ -269,12 +276,14 @@ inline void convert_to_interleaved_impl
             Traits::StoreAVX2(tail_out1, r1_1_1, r1_1_2, r1_1_3, tail_orig1);
             Traits::StoreAVX2(tail_out1 + 8, r1_2_1, r1_2_2, r1_2_3, tail_orig1 + 8);
 
-            for (A_long i = 0; i < remaining * 2; ++i) {
+            for (A_long i = 0; i < remaining * 2; ++i)
+            {
                 out_row0[x*2 + i] = tail_out0[i];
                 out_row1[x*2 + i] = tail_out1[i];
             }
         }
     }
+    return;
 }
 
 } // end namespace detail
@@ -295,4 +304,5 @@ void convert_to_interleaved_AVX2
         memHndl, origSrcBuf, dstBuf, width, height, srcLinePitch, dstLinePitch, 
         std::integral_constant<bool, IsHalfSize>{}
     );
+    return;
 }
