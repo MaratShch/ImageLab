@@ -4,7 +4,8 @@
 #include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
 #include "CommonSmartRender.hpp"
-#include "ColorConvert.hpp"
+#include "DenoiseColorDispatcher.hpp"
+#include "DenoiseColorDispatcherOut.hpp"
 #include "AlgorithmMain.hpp"
 
 
@@ -128,13 +129,13 @@ ImageLabDenoise_SmartRender
                               PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
                         // convert to planar YUV Ortonormal color space
-                        AVX2_Convert_ARGB_32f_YUV (input_pixels, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, srcPitch);
+                        dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_8u);
 
                         // execute algorithm
                         Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
                         // back convert to native buffer format after processing complete
-                        AVX2_Convert_YUV_to_ARGB_32f(algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                        dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_8u);
                     }
                     break;
 
@@ -147,32 +148,32 @@ ImageLabDenoise_SmartRender
                               PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
                         // convert to planar YUV Ortonormal color space
-                        AVX2_Convert_ARGB_16u_YUV (input_pixels, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, srcPitch);
-
+                        dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_16u);
+                        
                         // execute algorithm
                         Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
                         // back convert to native buffer format after processing complete
-                        AVX2_Convert_YUV_to_ARGB_16u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                        dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_16u);
                     }
                     break;
 
                     case PF_PixelFormat_ARGB32:
                     {
-                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                        const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
-                              PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
+                        const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                              PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
                         // convert to planar YUV Ortonormal color space
-                        AVX2_Convert_ARGB_8u_YUV (input_pixels, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, srcPitch);
+                        dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_32f);
 
                         // execute algorithm
                         Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
                         // back convert to native buffer format after processing complete
-                        AVX2_Convert_YUV_to_ARGB_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                        dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_32f);
                     }
                     break;
 

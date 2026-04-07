@@ -6,10 +6,14 @@
 
 #if defined(__INTEL_COMPILER) || defined(_MSC_VER)
  #include <intrin.h>
- #define RESTRICT __restrict
+ #ifndef RESTRICT
+  #define RESTRICT __restrict
+ #endif
 #else
  #include "AefxDevPatch.hpp"
- #define RESTRICT __restrict__
+ #ifndef RESTRICT
+  #define RESTRICT __restrict__
+ #endif
 #endif
 
 #if defined(_MSC_VER)

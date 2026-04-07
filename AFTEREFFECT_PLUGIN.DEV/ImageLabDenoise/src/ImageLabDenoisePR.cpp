@@ -3,8 +3,8 @@
 #include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
 #include "AlgorithmMain.hpp"
-#include "AVX2_AlgoColorConvert.hpp"
-#include "ColorConvert.hpp"
+#include "DenoiseColorDispatcher.hpp"
+#include "DenoiseColorDispatcherOut.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -37,122 +37,302 @@ PF_Err ProcessImgInPR
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:
-                case PrPixelFormat_BGRP_4444_8u:
-                case PrPixelFormat_BGRX_4444_8u:
                 {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_8u);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_8u);
                     const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
 
-                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
-                    AVX2_Convert_BGRA_8u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch);
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRA_8u);
 
                     // call algorithm flow
                     Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
-                    // convert denoised image to BGRA_8u interleaved output buffer
-                    AVX2_Convert_YUV_to_BGRA_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRA_8u);
                 }
                 break;
 
-                case PrPixelFormat_BGRA_4444_16u:
-                case PrPixelFormat_BGRP_4444_16u:
-                case PrPixelFormat_BGRX_4444_16u:
+                case PrPixelFormat_BGRP_4444_8u:
                 {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_16u);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_16u);
-                    const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
-                          PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
-                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+                    const PF_Pixel_BGRP_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRP_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRP_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRP_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRP_8u_size);
 
-                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
-                    AVX2_Convert_BGRA_16u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch);
-
-                    // call algorithm flow
-                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
-
-                    // convert denoised image to BGRA_8u interleaved output buffer
-                    AVX2_Convert_YUV_to_BGRA_16u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
-                }
-                break;
-
-                case PrPixelFormat_BGRA_4444_32f:
-                case PrPixelFormat_BGRP_4444_32f:
-                case PrPixelFormat_BGRX_4444_32f:
-                {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_32f);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_32f);
-                    const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
-                          PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
-                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
-
-                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
-                    AVX2_Convert_BGRA_32f_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch);
+                    dispatch_convert_to_planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRP_8u);
 
                     // call algorithm flow
                     Algorithm_Main(algoMemHandler, sizeX, sizeY, algoControls);
 
-                    // convert denoised image to BGRA_8u interleaved output buffer
-                    AVX2_Convert_YUV_to_BGRA_32f (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch);
+                    dispatch_convert_to_interleaved(algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRP_8u);
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_8u:
+                {
+                    const PF_Pixel_BGRX_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRX_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRX_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRX_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRX_8u_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRX_8u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRX_8u);
+                }
+                break;
+
+                case PrPixelFormat_BGRA_4444_16u:
+                {
+                    const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRA_16u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRA_16u);
+                }
+                break;
+
+                case PrPixelFormat_BGRP_4444_16u:
+                {
+                    const PF_Pixel_BGRP_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRP_16u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRP_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRP_16u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRP_16u_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRP_16u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRP_16u);
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_16u:
+                {
+                    const PF_Pixel_BGRX_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRX_16u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRX_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRX_16u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRX_16u_size);
+                    
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRX_16u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRX_16u);
+                }
+                break;
+
+                case PrPixelFormat_BGRA_4444_32f:
+                {
+                    const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+                    
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRA_32f);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRA_32f);
+                }
+                break;
+
+                case PrPixelFormat_BGRP_4444_32f:
+                {
+                    const PF_Pixel_BGRP_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRP_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRP_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRP_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRP_32f_size);
+                    
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRP_32f);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRP_32f);
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_32f:
+                {
+                    const PF_Pixel_BGRX_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRX_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRX_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRX_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRX_32f_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRX_32f);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRX_32f);
                 }
                 break;
 
                 case PrPixelFormat_BGRA_4444_32f_Linear:
-                case PrPixelFormat_BGRP_4444_32f_Linear:
-                case PrPixelFormat_BGRX_4444_32f_Linear:
                 {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_BGRP_4444_32f_Linear);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_BGRX_4444_32f_Linear);
                     const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
                     const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
 
-
-                }
-
-                case PrPixelFormat_VUYA_4444_8u_709:
-                case PrPixelFormat_VUYA_4444_8u:
-                case PrPixelFormat_VUYX_4444_8u_709:
-                case PrPixelFormat_VUYX_4444_8u:
-                {
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_VUYX_4444_8u_709 || destinationPixelFormat == PrPixelFormat_VUYX_4444_8u);
-                    const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
-                          PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
-                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat || PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
-
-                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
-                    AVX2_Convert_VUYA_8u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch, isBT709);
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRA_32f_Linear);
 
                     // call algorithm flow
                     Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
-                    // convert denoised image to BGRA_8u interleaved output buffer
-                    AVX2_Convert_YUV_to_VUYA_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, isBT709);
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRA_32f_Linear);
+                }
+                break;
+
+                case PrPixelFormat_BGRP_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRP_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRP_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRP_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRP_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRP_32f_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRP_32f_Linear);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRP_32f_Linear);
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRX_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRX_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRX_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRX_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRX_32f_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::BGRX_32f_Linear);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+                     
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::BGRX_32f_Linear);
+                }
+                break;
+
+                case PrPixelFormat_VUYA_4444_8u:
+                {
+                    const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYA_8u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+                     
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYA_8u);
+                }
+                break;
+
+                case PrPixelFormat_VUYA_4444_8u_709:
+                {
+                    const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+                    
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYA_8u_709);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+                     
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYA_8u_709);
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_8u:
+                {
+                    const PF_Pixel_VUYP_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYP_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYP_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYP_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYP_8u_size);
+                    
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYP_8u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+                     
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYP_8u);
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_8u_709:
+                {
+                    const PF_Pixel_VUYP_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYP_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYP_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYP_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYP_8u_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYP_8u_709);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+                     
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYP_8u_709);
+                }
+                break;
+
+                case PrPixelFormat_VUYA_4444_32f:
+                {
+                    const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+                    
+                    dispatch_convert_to_planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYA_32f);
+
+                    // call algorithm flow
+                    Algorithm_Main(algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved(algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYA_32f);
                 }
                 break;
 
                 case PrPixelFormat_VUYA_4444_32f_709:
-                case PrPixelFormat_VUYA_4444_32f:
-                case PrPixelFormat_VUYX_4444_32f_709:
-                case PrPixelFormat_VUYX_4444_32f:
                 {
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_VUYX_4444_32f_709 || destinationPixelFormat == PrPixelFormat_VUYX_4444_32f);
                     const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
-                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                    const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat || PrPixelFormat_VUYX_4444_32f_709 == destinationPixelFormat);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
-                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
-                    AVX2_Convert_VUYA_32f_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch, isBT709);
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYA_32f_709);
 
                     // call algorithm flow
                     Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
-                    // convert denoised image to BGRA_8u interleaved output buffer
-                    AVX2_Convert_YUV_to_VUYA_32f (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, isBT709);
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYA_32f_709);
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_32f:
+                {
+                    const PF_Pixel_VUYP_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYP_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYP_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYP_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYP_32f_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYP_32f);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYP_32f);
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_32f_709:
+                {
+                    const PF_Pixel_VUYP_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYP_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_VUYP_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYP_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYP_32f_size);
+
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::VUYP_32f_709);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::VUYP_32f_709);
                 }
                 break;
 
@@ -160,54 +340,61 @@ PF_Err ProcessImgInPR
                 {
                     const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
                           PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
-                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
 
-                    // convert BGRA_8u interleaved buffer to YUV (Orthonormal) planar format
-                    AVX2_Convert_RGB_10u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, linePitch);
+                    dispatch_convert_to_planar(localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::RGB_10u);
 
                     // call algorithm flow
                     Algorithm_Main(algoMemHandler, sizeX, sizeY, algoControls);
 
-                    // convert denoised image to BGRA_8u interleaved output buffer
-                    AVX2_Convert_YUV_to_RGB_10u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localDst, sizeX, sizeY, linePitch);
+                    dispatch_convert_to_interleaved(algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::RGB_10u);
                 }
                 break;
 
                 case PrPixelFormat_ARGB_4444_8u:
-                case PrPixelFormat_PRGB_4444_8u:
-                case PrPixelFormat_XRGB_4444_8u:
                 {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_8u);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_8u);
+                    const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::ARGB_8u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::ARGB_8u);
                 }
+                break;
 
                 case PrPixelFormat_ARGB_4444_16u:
-                case PrPixelFormat_PRGB_4444_16u:
-                case PrPixelFormat_XRGB_4444_16u:
                 {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_16u);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_16u);
+                    const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(pfLayer->data);
+                          PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::ARGB_16u);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::ARGB_16u);
                 }
+                break;
 
                 case PrPixelFormat_ARGB_4444_32f:
-                case PrPixelFormat_PRGB_4444_32f:
-                case PrPixelFormat_XRGB_4444_32f:
                 {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_32f);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_32f);
+                    const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(pfLayer->data);
+                          PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+                    const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, linePitch, PixelFormat::ARGB_32f);
+
+                    // call algorithm flow
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, linePitch, linePitch, PixelFormat::ARGB_32f);
                 }
-
-                case PrPixelFormat_ARGB_4444_32f_Linear:
-                case PrPixelFormat_PRGB_4444_32f_Linear:
-                case PrPixelFormat_XRGB_4444_32f_Linear:
-                {
-                    const bool preMul   = (destinationPixelFormat == PrPixelFormat_PRGB_4444_32f_Linear);
-                    const bool isOpaque = (destinationPixelFormat == PrPixelFormat_XRGB_4444_32f_Linear);
-
-                }
+                break;
 
                 default:
                     err = PF_Err_INTERNAL_STRUCT_DAMAGED;
@@ -221,7 +408,7 @@ PF_Err ProcessImgInPR
             err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
         }
 
-        free_memory_buffers(algoMemHandler);
+        free_memory_buffers (algoMemHandler);
 
     } // if (true == mem_handler_valid (algoMemHandler))
     else

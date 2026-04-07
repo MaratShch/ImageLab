@@ -90,9 +90,6 @@
     <ClInclude Include="include\AlgorithmMain.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AVX2_AlgoColorConvert.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AVX2_AlgoNoiseOracle.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -108,9 +105,6 @@
     <ClInclude Include="include\AVX2_Smpl_AlgoMatrixMath.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorConvert.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ImageLabDenoise.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -124,6 +118,21 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ImageLabDenoise_GPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DenoiseColorDispatcherOut.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DenoiseColorInterleaved.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DenoiseColorPlanar.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DenoisePixelTraits.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DenoiseColorDispatcher.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -144,67 +153,13 @@
     <ClCompile Include="src\ImageLabDenoisePR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_RGB_10u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_VUYA_32f.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_RGB_10u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ImageLabDenoiseAE.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_VUYA_32f_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_ARGB_32f_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_32f.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabDenoise.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_BGRA_32f.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_BGRA_32f_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_16u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_ARGB_16u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_BGRA_16u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_BGRA_16u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\AlgoControlsNC.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_ARGB_8u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_ARGB_8u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_BGRA_8u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_VUYA_8u_YUV.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_Convert_YUV_to_VUYA_8u.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AVX2_AlgoColorConvert.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AVX2_Smpl_AlgoBayesFilter.cpp">
@@ -238,6 +193,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabDenoise_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DenoiseColorDispatcherOut.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DenoiseColorDispatcher.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

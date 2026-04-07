@@ -3,8 +3,8 @@
 #include "AlgoMemHandler.hpp"
 #include "AlgoControls.hpp"
 #include "AlgorithmMain.hpp"
-#include "AVX2_AlgoColorConvert.hpp"
-#include "ColorConvert.hpp"
+#include "DenoiseColorDispatcher.hpp"
+#include "DenoiseColorDispatcherOut.hpp"
 
 
 PF_Err ImageDenoise_InAE_8bits
@@ -31,13 +31,13 @@ PF_Err ImageDenoise_InAE_8bits
     {
         const AlgoControls algoControls = GetControlParametersStruct (params);
 
-        AVX2_Convert_ARGB_8u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, src_pitch);
+        dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch, PixelFormat::ARGB_8u);
 
         // execute algorithm
-        Algorithm_Main(algoMemHandler, sizeX, sizeY, algoControls);
+        Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
         // back convert to native buffer format after processing complete
-        AVX2_Convert_YUV_to_ARGB_8u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch);
+        dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, PixelFormat::ARGB_8u);
 
         free_memory_buffers(algoMemHandler);
     } // if (true == mem_handler_valid (algoMemHandler))
@@ -72,13 +72,13 @@ PF_Err  ImageDenoise_InAE_16bits
     {
         const AlgoControls algoControls = GetControlParametersStruct(params);
 
-        AVX2_Convert_ARGB_16u_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, src_pitch);
+        dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch, PixelFormat::ARGB_16u);
 
         // execute algorithm
         Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
         // back convert to native buffer format after processing complete
-        AVX2_Convert_YUV_to_ARGB_16u (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch);
+        dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, PixelFormat::ARGB_16u);
 
         free_memory_buffers(algoMemHandler);
     } // if (true == mem_handler_valid (algoMemHandler))
@@ -113,13 +113,13 @@ PF_Err ImageDenoise_InAE_32bits
     {
         const AlgoControls algoControls = GetControlParametersStruct(params);
 
-        AVX2_Convert_ARGB_32f_YUV (localSrc, algoMemHandler.Y_planar, algoMemHandler.U_planar, algoMemHandler.V_planar, sizeX, sizeY, src_pitch);
+        dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, src_pitch, PixelFormat::ARGB_32f);
 
         // execute algorithm
-        Algorithm_Main(algoMemHandler, sizeX, sizeY, algoControls);
+        Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
 
         // back convert to native buffer format after processing complete
-        AVX2_Convert_YUV_to_ARGB_32f (algoMemHandler.Accum_Y, algoMemHandler.Accum_U, algoMemHandler.Accum_V, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch);
+        dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, src_pitch, dst_pitch, PixelFormat::ARGB_32f);
 
         free_memory_buffers(algoMemHandler);
     } // if (true == mem_handler_valid (algoMemHandler))
