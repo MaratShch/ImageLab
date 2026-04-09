@@ -18,17 +18,27 @@ extern "C" {
 }
 #endif
 
+typedef struct Pixel16
+{
+    unsigned short x; /* BLUE	*/
+    unsigned short y; /* GREEN	*/
+    unsigned short z; /* RED	*/
+    unsigned short w; /* ALLPHA	*/
+}Pixel16, *PPixel16;
+
+
 CUDA_KERNEL_CALL
 void ArtPaint_CUDA
 (
-    const float* RESTRICT inBuffer, // source (input) buffer
-    float* RESTRICT outBuffer,      // destination (output) buffer
+    const void* RESTRICT inBuffer, // source (input) buffer
+    void* RESTRICT outBuffer,      // destination (output) buffer
     int srcPitch,                   // source buffer pitch in pixels 
     int dstPitch,                   // destination buffer pitch in pixels
     int width,                      // horizontal image size in pixels
     int height,                     // vertical image size in lines
     const AlgoControls* algoGpuParams, // algorithm controls
-    int frameCounter,
+    int frameCounter,               // frame counter (zero based)
+    bool isFloat16,                 // // true - compute in float16, false - compute in float32
     cudaStream_t stream = static_cast<cudaStream_t>(0)
 );
 

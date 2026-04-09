@@ -86,12 +86,20 @@ protected:
 		return suiteError;
 	}
 
+    // Helper to pad sizes to the nearest 256-byte boundary
+    const inline size_t AlignSizeCuda (size_t size) noexcept
+    {
+        // CUDA aligns memory to 256 bytes for optimal warp memory transactions
+        constexpr size_t CUDA_ALIGNMENT = 256ull;
+        return (size + CUDA_ALIGNMENT - 1) & ~(CUDA_ALIGNMENT - 1);
+    }
+
     std::tuple<size_t, size_t> GetGpuMemoryInfo_CUDA (void) noexcept
     {
         size_t free_byte = 0ull;
         size_t total_byte = 0ull;
 
-        cudaError_t cuda_status = cudaMemGetInfo(&free_byte, &total_byte);
+        const cudaError_t cuda_status = cudaMemGetInfo(&free_byte, &total_byte);
 
         if (cuda_status != cudaSuccess)
             return{ 0, 0 };

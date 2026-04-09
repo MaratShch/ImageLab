@@ -92,25 +92,26 @@ public:
 		// start CUDA
 		if (mDeviceInfo.outDeviceFramework == PrGPUDeviceFramework_CUDA)
 		{
-            if (true == IsVramSufficientForRender(width, height))
+            CACHE_ALIGN AlgoControls algoGpuParams;
+
+            algoGpuParams.quality = static_cast<RenderQuality>(algoParams[0].mInt32);
+            algoGpuParams.bias = static_cast<StrokeBias>(algoParams[1].mInt32);
+            algoGpuParams.sigma = static_cast<float>(algoParams[2].mFloat64);
+            algoGpuParams.angular = static_cast<float>(algoParams[3].mFloat64);
+            algoGpuParams.angle = static_cast<float>(algoParams[4].mFloat64);
+            algoGpuParams.iter = static_cast<int32_t>(algoParams[5].mInt32);
+
+            if (true == IsVramSufficientForRender (width, height, algoGpuParams.quality))
             {
                 // CUDA device pointers
                 inBuffer = reinterpret_cast<float*>(srcFrameData);
                 outBuffer = reinterpret_cast<float*>(destFrameData);
 
-                CACHE_ALIGN AlgoControls algoGpuParams;
-
-                algoGpuParams.quality = static_cast<RenderQuality>(algoParams[0].mInt32);
-                algoGpuParams.bias    = static_cast<StrokeBias>(algoParams[1].mInt32);
-                algoGpuParams.sigma   = static_cast<float>(algoParams[2].mFloat64);
-                algoGpuParams.angular = static_cast<float>(algoParams[3].mFloat64);
-                algoGpuParams.angle   = static_cast<float>(algoParams[4].mFloat64);
-                algoGpuParams.iter    = static_cast<int32_t>(algoParams[5].mInt32);
-
                 constexpr cudaStream_t stream{ 0 };
+                constexpr bool isFloat16 = false;
 
                 // Launch CUDA kernel
-                ArtPaint_CUDA(inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter, stream);
+                ArtPaint_CUDA (inBuffer, outBuffer, srcPitch, dstPitch, width, height, &algoGpuParams, frameCounter, isFloat16, stream);
 
                 return (cudaSuccess == (cudaErrCode = cudaPeekAtLastError()) ? suiteError_NoError : suiteError_Fail);
             }
@@ -121,20 +122,69 @@ public:
 	}
 
 private:
-    size_t CalculateRequiredGpuMemory (int width, int height) noexcept
-    {
-        // 1. Image-Dependent Calculation
-        const size_t needed_pixels = static_cast<size_t>(width * height);
 
-        return needed_pixels;
+    size_t CalculateRequiredGpuMemory(int32_t sizeX, int32_t sizeY, RenderQuality quality, int32_t radius = 7) noexcept
+    {
+        // 1. Determine Processed Resolution
+        int32_t proc_width  = sizeX;
+        int32_t proc_height = sizeY;
+
+        if (quality == RenderQuality::Fast_HalfSize)
+        {
+            proc_width >>= 1;
+            proc_height >>= 1;
+        }
+
+        // Cast to size_t immediately to prevent overflow on massive resolutions (e.g., 8K)
+        const size_t frameSize = static_cast<size_t>(proc_width * proc_height);
+
+        // 2. Base Float Buffer Sizes
+        const size_t rawFloatSize = frameSize * sizeof(float);
+        const size_t alignedFloatSize = AlignSizeCuda (rawFloatSize);
+
+        // 3. Edge List Sizes (Phase 4)
+        const int32_t max_edges_per_pixel = (2 * radius + 1) * 2;
+        const size_t max_edges = frameSize * max_edges_per_pixel;
+
+        const size_t rawEdgeIdxSize = max_edges * sizeof(int32_t);  // For I and J arrays
+        const size_t rawEdgeWeightSize = max_edges * sizeof(float); // For LogW array
+
+        const size_t alignedEdgeIdxSize = AlignSizeCuda(rawEdgeIdxSize);
+        const size_t alignedEdgeWeightSize = AlignSizeCuda(rawEdgeWeightSize);
+
+        // ==================================================================================
+        // 4. SUMMATION OF ALL PIPELINE BUFFERS
+        // ==================================================================================
+        size_t totalBytes = 0;
+
+        // Y, U, V Planar
+        totalBytes += 3 * alignedFloatSize;
+
+        // Phase 1: tensorA, tensorB, tensorC
+        totalBytes += 3 * alignedFloatSize;
+
+        // Phase 2: tensorA_sm, tensorB_sm, tensorC_sm, tmpBlur
+        totalBytes += 4 * alignedFloatSize;
+
+        // Phase 3: Lambda1, Lambda2, EigVectX, EigVectY
+        totalBytes += 4 * alignedFloatSize;
+
+        // Phase 4: pI, pJ, pLogW
+        totalBytes += 2 * alignedEdgeIdxSize;
+        totalBytes += 1 * alignedEdgeWeightSize;
+
+        // Phase 5: imProc1, imProc2
+        totalBytes += 2 * alignedFloatSize;
+
+        return totalBytes;
     }
 
-    bool IsVramSufficientForRender (int width, int height) noexcept
+    bool IsVramSufficientForRender (int width, int height, RenderQuality quality) noexcept
     {
         size_t free_vram, total_vram;
         std::tie(free_vram, total_vram) = GetGpuMemoryInfo_CUDA();
 
-        const size_t required_vram = CalculateRequiredGpuMemory (width, height);
+        const size_t required_vram = CalculateRequiredGpuMemory (width, height, quality);
         return (free_vram < (required_vram + GetSafeMargin_CUDA()) ? false : true);
     }
 };
