@@ -98,6 +98,10 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -129,6 +133,8 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>cudart_static.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(CUDA_PATH)\lib\x64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -155,6 +161,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ArtPaint.hpp" />
     <ClInclude Include="include\ArtPaintEnums.hpp" />
+    <ClInclude Include="include\ArtPaint_GPU.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
     <ClInclude Include="include\PaintAlgoAVX2.hpp" />
     <ClInclude Include="include\PaintAlgoContols.hpp" />
@@ -174,6 +181,7 @@
     <ClCompile Include="src\ArtPaintAE.cpp" />
     <ClCompile Include="src\ArtPaintPR.cpp" />
     <ClCompile Include="src\ArtPaintSR.cpp" />
+    <ClCompile Include="src\ArtPaint_GPU.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\PaintAlgoAVX2.cpp" />
     <ClCompile Include="src\PaintAlgoControls.cpp" />
@@ -207,6 +215,21 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtPaint.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="src\ArtPaint_Kernel.cu">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math --expt-relaxed-constexpr -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MD,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common -o "$(IntDir)%(Filename).obj" "$(ProjectDir)src\%(FileName).cu"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo Build CUDA kernel by nvcc. CUDA PATH = $(CUDA_PATH). CUDA Kernel file = %(Filename).cu
+"$(CUDA_PATH)\bin\nvcc.exe" -D_DEBUG  --gpu-architecture=compute_60 --gpu-code=sm_60,sm_61,sm_62,sm_70,sm_72,sm_75 -use_fast_math --expt-relaxed-constexpr -c -ccbin "$(VCInstallDir)bin" -v -D_MBCS -Xcompiler /MDd,/EHsc,/W3,/nologo,/Zi -I"$(CUDA_PATH)\include" -I./ -I./include -I../Common --debug --device-debug -o "$(IntDir)%(FileName).obj" "$(ProjectDir)src\%(FileName).cu"</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building %(Filename).cu</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building %(Filename).cu</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)\%(Filename).obj</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).cu</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).cu</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

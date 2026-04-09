@@ -126,6 +126,9 @@
     <ClInclude Include="include\PaintPixelTraits.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtPaint_GPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPaint.cpp">
@@ -167,6 +170,9 @@
     <ClCompile Include="src\PaintMorphologyAVX2.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ArtPaint_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtPaint.rc">
@@ -176,6 +182,9 @@
   <ItemGroup>
     <CustomBuild Include="ArtPaint.r">
       <Filter>resource</Filter>
+    </CustomBuild>
+    <CustomBuild Include="src\ArtPaint_Kernel.cu">
+      <Filter>src</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>
