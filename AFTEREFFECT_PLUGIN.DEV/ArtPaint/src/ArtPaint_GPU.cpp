@@ -189,4 +189,4 @@ private:
     }
 };
 
-DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<ArtPaintGPU>);
+//DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<ArtPaintGPU>);

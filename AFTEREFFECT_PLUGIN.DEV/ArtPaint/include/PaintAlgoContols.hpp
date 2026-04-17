@@ -46,3 +46,6 @@ struct AlgoControls
     // Default constructor
     constexpr AlgoControls() noexcept : bias(StrokeBias::DarkBias_Open), quality(RenderQuality::Fast_HalfSize), sigma(sigmaDef), angular(angularDef), angle(angleDef), iter(iterDef) {}
 };
+
+using PAlgoControls = AlgoControls*;
+constexpr size_t AlgoControlsSize = sizeof(AlgoControls);

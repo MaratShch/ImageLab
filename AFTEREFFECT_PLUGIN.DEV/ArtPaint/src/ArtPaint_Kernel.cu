@@ -374,7 +374,7 @@ void ArtPaint_CUDA
         int proc_height = (quality == RenderQuality::Fast_HalfSize) ? (height >> 1) : height;
 
         uint8_t* superBuffer = reinterpret_cast<uint8_t*>(g_arenaMem);
-        size_t frameSize = static_cast<size_t>(proc_width) * static_cast<size_t>(proc_height);
+        int32_t frameSize = static_cast<size_t>(proc_width) * static_cast<size_t>(proc_height);
         size_t alignedFloatSize = AlignSizeCuda(frameSize * sizeof(float));
 
         const int max_local_edges = (2 * radius + 1) * 2;
