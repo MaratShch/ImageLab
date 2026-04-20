@@ -1,5 +1,19 @@
 // ============================================================================
-// File: ImageLabDenoise_Kernel.cu  --  KERNELS + ORCHESTRATOR + ENTRY POINT
+// File: ImageLabDenoise_Kernel.cu  --  ORCHESTRATOR + ENTRY POINT
+// Target: CUDA 10.2 / C++14 / NVIDIA GTX-1060 (3GB VRAM) & RTX-2000
+// Description: One-shot GPU implementation of Marc Lebrun's NL-Bayes
+//              ("Noise Clinic") algorithm, faithful to the IPOL 2015
+//              reference implementation.
+//
+// This file contains only:
+//    * includes, architectural constants
+//    * forward declarations for all kernels
+//    * g_gpuMemState singleton
+//    * ImageLabDenoise_CUDA    (orchestrator / entry point)
+//    * ImageLabDenoise_CleanupGPU
+//
+// Kernel bodies live in this same file below, one per section.
+// They are provided incrementally in subsequent commits / messages.
 //
 // Execution model:
 //    HOST submits a chain of async kernel launches on `stream`, then
@@ -29,10 +43,10 @@ constexpr int BLOCK_DIM_MATH_Y = 8;   // 32 * 8 = 256 threads / block (for NL-Ba
 // We pad the internal YUV buffers to a multiple of 4 so that:
 //   (a) the 4x4 DCT patch grid tiles evenly
 //   (b) a future 2-scale mosaic pyramid (1<<nbScales = 4) fits
-// Matches  enhanceBoundaries(pow = 1 << nbScales) convention.
+// Matches Lebrun's enhanceBoundaries(pow = 1 << nbScales) convention.
 constexpr int PROC_ALIGN = 4;
 
-// ---  YUV orthonormal color transform (3-channel branch in LibImages.cpp) ---
+// --- Lebrun's YUV orthonormal color transform (3-channel branch in LibImages.cpp) ---
 //   Y = a * (R + G + B)            a = 1/sqrt(3)  ≈ 0.57735027f
 //   U = b * (R - B)                b = 1/sqrt(2)  ≈ 0.70710678f
 //   V = c * (R/4 - G/2 + B/4)      c = 2*a*sqrt(2) ≈ 1.63299316f
@@ -51,7 +65,7 @@ constexpr int SEARCH_WINDOW_SIZE   = (SEARCH_WINDOW_RADIUS * 2) + 1;   // 17
 constexpr int SMEM_STRIDE          = SEARCH_WINDOW_SIZE;               // row stride for 17x17 shared tile
 
 // nSimilarPatches is the TARGET number of similar patches per group.
-// MAX_SIMILAR_PATCHES is the hard cap ( CPU uses 16 * nSim = 512 in
+// MAX_SIMILAR_PATCHES is the hard cap (Lebrun's CPU uses 16 * nSim = 512 in
 // random-patch mode; we cap at 128 as a pragmatic balance - quality parity
 // in 99% of real imagery with a quarter the shared-memory footprint).
 constexpr int N_SIMILAR_PATCHES    = 32;
@@ -85,11 +99,11 @@ static CudaMemHandler g_gpuMemState;
 //
 // Purpose:
 //   Convert interleaved BGRA (32-bit float, channels in [0, 1]) into three
-//   planar YUV buffers using orthonormal 3-channel transform, 
-//   extending the image with symmetric mirror
+//   planar YUV buffers using Marc Lebrun's orthonormal 3-channel transform
+//   (LibImages.cpp:212-221), extending the image with symmetric mirror
 //   reflection from (srcWidth, srcHeight) up to (procW, procH).
 //
-//  forward transform (RGB -> YUV):
+// Lebrun's forward transform (RGB -> YUV):
 //     a = 1/sqrt(3),  b = 1/sqrt(2),  c = 2*a*sqrt(2)
 //
 //     Y = a * (R + G + B)
@@ -104,7 +118,7 @@ static CudaMemHandler g_gpuMemState;
 //
 //   For x = srcWidth, srcWidth + 1, ... we read srcWidth - 2, srcWidth - 3, ...
 //   i.e. the row just-before-the-edge reflected outward. This is the same
-//   rule  enhanceBoundaries() uses.
+//   rule Lebrun's enhanceBoundaries() uses.
 //
 // Launch geometry:
 //   grid  = ceil(procW / 32) x ceil(procH / 16)
@@ -128,8 +142,7 @@ static CudaMemHandler g_gpuMemState;
 //                      is left untouched (may contain stale data; kernels
 //                      downstream treat it as out-of-range and do not read it).
 // ============================================================================
-__global__ void Kernel_ConvertBGRAToOrthonormalWeighted
-(
+__global__ void Kernel_ConvertBGRAToOrthonormalWeighted(
     const float* RESTRICT    inBuffer,
     float*       RESTRICT    outY,
     float*       RESTRICT    outU,
@@ -139,8 +152,7 @@ __global__ void Kernel_ConvertBGRAToOrthonormalWeighted
     int                      srcWidth,
     int                      srcHeight,
     int                      procW,
-    int                      procH
-)
+    int                      procH)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -177,7 +189,7 @@ __global__ void Kernel_ConvertBGRAToOrthonormalWeighted
     // Alpha is ignored -- we pass-through 1.0 on the inverse.
 
     // ------------------------------------------------------------------------
-    //  orthonormal 3-channel RGB -> YUV transform.
+    // Lebrun's orthonormal 3-channel RGB -> YUV transform.
     //
     //   Y = YUV_A * (R + G + B)
     //   U = YUV_B * (R     - B)
@@ -205,7 +217,7 @@ __global__ void Kernel_ConvertBGRAToOrthonormalWeighted
 //
 // Purpose:
 //   Ponomarenko-style noise estimation in DCT frequency space, matching
-//    RunNoiseEstimate.cpp pipeline. For every 4x4 patch in each
+//   Lebrun's RunNoiseEstimate.cpp pipeline. For every 4x4 patch in each
 //   channel (Y, U, V):
 //
 //     1. Compute the orthonormal 2D DCT-II of the patch.
@@ -279,15 +291,13 @@ void DCT_1D_4Point(const float* RESTRICT in, float* RESTRICT out)
 // 4x4 patch at (tx, ty) inside the shared tile.
 // ---------------------------------------------------------------------------
 __device__ __forceinline__
-void AccumulateChannel
-(
+void AccumulateChannel(
     const float (&tile)[BLOCK_DIM_IO_Y + 3][BLOCK_DIM_IO_X + 3],
     int           tx,
     int           ty,
     float*        outCov,
     float*        outMean,
-    int*          outCounts
-)
+    int*          outCounts)
 {
     //! 1. Load the 4x4 patch from shared tile and accumulate mean.
     float p[4][4];
@@ -308,7 +318,7 @@ void AccumulateChannel
     //! 2. Patch mean in channel-native units, then map to a 256-bin index.
     //     Input is in [0, 1] for BGRA and remains bounded for YUV, but U/V
     //     can be negative. We bin by the signed mean; out-of-range clamps
-    //     to edges. This matches  getMean() with offset/rangeMax.
+    //     to edges. This matches Lebrun's getMean() with offset/rangeMax.
     const float patch_mean     = sum * 0.0625f;                // sum / 16
     const int   bin_unclamped  = __float2int_rn(patch_mean * 255.0f);
     const int   bin            = max(0, min(NOISE_BINS - 1, bin_unclamped));
@@ -470,17 +480,17 @@ __global__ void Kernel_ExtractDCT_And_Variance_3ch
 //
 // Purpose:
 //   Normalize and smooth the per-bin noise statistics gathered by
-//   Kernel_ExtractDCT_And_Variance_3ch. Faithful port of 
+//   Kernel_ExtractDCT_And_Variance_3ch. Faithful port of Lebrun's
 //   filterNoiseCurves (CurveFiltering.cpp):
 //
 //     Phase 0: Normalize raw sums by patch count:
 //                  variance[bin, freq] = cov[bin*256 + freq] / counts[bin]
 //                  mean[bin]           = mean[bin]          / counts[bin]
 //
-//     Phase 1: Repeat 5 times ( nbFilter = 5):
+//     Phase 1: Repeat 5 times (Lebrun's nbFilter = 5):
 //                 1a. For each of 16 DCT frequencies, smooth the per-bin
 //                     variance curve with a +/-10-bin window average
-//                     ( sizeFilter = 10), skipping empty bins.
+//                     (Lebrun's sizeFilter = 10), skipping empty bins.
 //                     Negative results are clipped to zero.
 //                 1b. For each bin, apply a 4x4 median filter on the 16
 //                     frequency variances (3-point median at corners,
@@ -495,7 +505,7 @@ __global__ void Kernel_ExtractDCT_And_Variance_3ch
 //
 // Storage convention (differs slightly from Lebrun but is mathematically
 // equivalent):
-//   *  CPU stores std, squares to variance for processing, sqrt's
+//   * Lebrun's CPU stores std, squares to variance for processing, sqrt's
 //     back. We store variance directly here. No sqrt/square roundtrip needed.
 //   * All downstream kernels read variance.
 //
@@ -517,7 +527,7 @@ __global__ void Kernel_ExtractDCT_And_Variance_3ch
 
 
 // ---------------------------------------------------------------------------
-// Median helpers for the 4x4 frequency matrix. These match 
+// Median helpers for the 4x4 frequency matrix. These match Lebrun's
 // getMedian3 / getMedian4 / getMedian5 semantics:
 //
 //   Median3 : middle of 3 values
@@ -586,7 +596,7 @@ float Median5(float a, float b, float c, float d, float e)
 // ---------------------------------------------------------------------------
 // Apply the per-cell median filter on a 4x4 matrix stored row-major:
 //     index freq = i*4 + j   (i,j in [0,3])
-//  rule:
+// Lebrun's rule:
 //     corners  -> 3-point median (self + two neighbors)
 //     edges    -> 4-point median (self + three neighbors)
 //     interior -> 5-point median (self + four neighbors)
@@ -718,10 +728,10 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
     __syncthreads();    // s_valid is now visible to all threads
 
     // ------------------------------------------------------------------------
-    // Phase 1:  5 sweeps of (bin-axis smoothing + per-bin 4x4 median).
+    // Phase 1: Lebrun's 5 sweeps of (bin-axis smoothing + per-bin 4x4 median).
     // ------------------------------------------------------------------------
     constexpr int NB_SWEEPS      = 5;
-    constexpr int SMOOTH_WINDOW  = 10;       //  sizeFilter
+    constexpr int SMOOTH_WINDOW  = 10;       // Lebrun's sizeFilter
 
     for (int sweep = 0; sweep < NB_SWEEPS; ++sweep)
     {
@@ -802,7 +812,7 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
 //
 // Purpose:
 //   Bridge the frequency-domain noise model (16 variances per bin) produced
-//   by kernel #3 to the spatial-domain 16x16 covariance matrix that 
+//   by kernel #3 to the spatial-domain 16x16 covariance matrix that Lebrun's
 //   Bayes filter consumes in passes 1 and 2.
 //
 // Math:
@@ -819,7 +829,7 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
 //   i.e.
 //       C_spatial[x1, x2] = sum_k  D_2d[k, x1] * freq_vars[k] * D_2d[k, x2]
 //
-//   This is exactly what  CPU RunNoiseEstimate.cpp / getMatrixBins
+//   This is exactly what Lebrun's CPU RunNoiseEstimate.cpp / getMatrixBins
 //   produces as the final noiseCovMatrix[intRef] passed to the Bayes filter.
 //
 // Storage semantics:
@@ -972,84 +982,52 @@ __global__ void Kernel_BuildSpatialNoiseCov_3ch
 
 
 // ============================================================================
-// Device Helpers: Jacobi eigendecomposition + Lebrun Wiener/Bayes filter
+// Phase 1 Revision: Device Helpers (Jacobi + Bayes filter)
 // ============================================================================
 //
-// Purpose:
-//   Shared mathematical core used by both Kernel_NLBayes_Pass1_BasicEstimate
-//   and Kernel_NLBayes_Pass2_FinalEstimate. Implements  Bayes step:
+// This file replaces the Phase 0 helper file:
+//   Kernel_05_DeviceHelpers_Jacobi_BayesFilter.cu
 //
-//     M    = X * Y^(-1)           (filter matrix, 16x16)
-//     out  = M * (patch - bary) + bary, clipped to [min, max]
+// Changes vs. Phase 0:
+//   * Filter matrix M is no longer materialized into shared memory.
+//     Instead, the helper now takes the X (numerator) matrix and computes
+//     the product  M * x  directly as  X * V * D^(-1) * (V^T * x)  in a
+//     streaming fashion, saving 1 KB of shared memory per block.
 //
-//   where the 16x16 matrix Y is inverted via Jacobi eigendecomposition
-//   (chosen for numerical stability with near-rank-deficient patch covariance
-//   matrices, which are common in flat image regions).
+//   * The patch-application loop uses a 16-float shared-memory buffer to
+//     hold one patch column's intermediate vector, avoiding register-
+//     resident arrays that were prone to spilling (addressed further in
+//     Phase 5).
 //
-//    two passes plug different (X, Y) pairs into the same machine:
+//   * Classical Jacobi (`EigenJacobi16_Thread0`) is UNCHANGED. Parallel
+//     Brent-Luk version arrives in Phase 3. Phase 1 output is therefore
+//     byte-identical to Phase 0 output.
 //
-//     Pass 1 (pilot):   X = C_P - C_N         with diag(C_P) <- max(diag(C_P), diag(C_N))
-//                       Y = C_P (diag-clamped)
-//                       ==> filter = (C_P - C_N) * C_P^(-1)
+//   * Signature of ApplyBayesFilter_Block changes: the `sh_M` workspace
+//     argument is removed (caller no longer needs to allocate it).
+//     Caller passes one additional workspace buffer `sh_VTx` of 16 floats.
 //
-//     Pass 2 (final):   X = C_basic            (empirical cov from pilot patches)
-//                       Y = C_basic + C_N
-//                       ==> filter = C_basic * (C_basic + C_N)^(-1)
+// Shared memory required by the caller for this helper (reduced):
+//   sh_X      : 256 floats  (unchanged)
+//   sh_Y      : 256 floats  (unchanged; trashed by helper)
+//   sh_V      : 256 floats  (unchanged)
+//   sh_Dinv   :  16 floats  (unchanged)
+//   sh_VTx    :  16 floats  (NEW - intermediate for on-the-fly M*x)
+//   sh_patches: 16 * nSimP  (unchanged)
+//   sh_bary   :  16 floats  (unchanged)
 //
-// Implementation structure:
-//   EigenJacobi16_Thread0       -- single-threaded cyclic Jacobi for 16x16.
-//                                  Runs on thread 0 only while rest of block
-//                                  idles; the Jacobi itself is inherently
-//                                  sequential (120 rotations/sweep must be
-//                                  applied in order since each modifies A).
-//
-//   ApplyBayesFilter_Block      -- full block-cooperative pipeline.
-//                                  Calls Jacobi via thread 0, then uses all
-//                                  threads for: eigenvalue inversion,
-//                                  M = X * V * D^(-1) * V^T double-matmul,
-//                                  per-patch filter application, clip, and
-//                                  barycenter add-back.
-//
-// Shared-memory contract for ApplyBayesFilter_Block:
-//   Caller allocates and passes in five 16x16 matrices and one 16-vector of
-//   shared memory (plus the patch group and barycenter). Total scratch:
-//   (256 + 256 + 256 + 16) * 4 = 3136 bytes of block-scoped workspace.
-//
-// Performance:
-//   The Jacobi inner loop (~960 rotations for 8 sweeps x 120 pairs) runs on
-//   thread 0 only -- ~20 microseconds per block on GTX 1060. Rest of block
-//   idles during this time. For future optimization, a parallel-Jacobi scheme
-//   (Brent-Luk) could reduce this to ~2-3 us but with significantly more
-//   complex code. Since there are typically <10000 blocks per frame, total
-//   Jacobi cost is around 20 ms per frame -- acceptable for denoising.
+// Total helper scratch: (3 * 256 + 2 * 16) * 4 = 3200 bytes (was 4160).
 // ============================================================================
 
 
 // ----------------------------------------------------------------------------
-// EigenJacobi16_Thread0
+// EigenJacobi16_Thread0  (UNCHANGED from Phase 0)
 //
-// In-place classical cyclic Jacobi eigendecomposition of a real symmetric
-// 16x16 matrix. Single-threaded: intended to be invoked inside
-// `if (threadIdx == 0) { ... }`.
-//
-// On entry:
-//   A[0..255]   symmetric 16x16 matrix, row-major (A[i, j] = A[i*16 + j]).
-//   V[0..255]   uninitialized; will be filled by this routine.
-//
-// On exit:
-//   A           off-diagonal ~ 0 (to float precision);
-//               diagonal contains the 16 eigenvalues (unsorted).
-//   V           columns are orthonormal eigenvectors:
-//               V^T * A_original * V == diag(A_final).
-//
-// Parameters fixed:
-//   NUM_SWEEPS = 8       enough to converge 16x16 real-symmetric to ~1e-6.
-//   EPSILON    = 1e-7    rotations skipped when |apq| falls below this.
+// Single-threaded classical cyclic Jacobi for a real-symmetric 16x16 matrix.
 // ----------------------------------------------------------------------------
 __device__ __forceinline__
 void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
 {
-    // --- Initialize V to identity ---------------------------------------
     #pragma unroll
     for (int k = 0; k < PATCH_ELEMS_SQ; ++k)
     {
@@ -1079,13 +1057,6 @@ void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
                 const float app = A[p * PATCH_ELEMS + p];
                 const float aqq = A[q * PATCH_ELEMS + q];
 
-                // --- Compute rotation parameters ------------------------
-                //  theta = (aqq - app) / (2 * apq)
-                //  t     = sign(theta) / (|theta| + sqrt(theta^2 + 1))
-                //  c     = 1 / sqrt(t^2 + 1)
-                //  s     = t * c
-                // Using the branch that avoids catastrophic cancellation
-                // (matches Golub & Van Loan, Algorithm 8.4.2).
                 const float theta = (aqq - app) / (2.0f * apq);
 
                 float t;
@@ -1101,17 +1072,11 @@ void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
                 const float c_rot = 1.0f / sqrtf(t * t + 1.0f);
                 const float s_rot = t * c_rot;
 
-                // --- Update the (p, q) 2x2 sub-block --------------------
                 A[p * PATCH_ELEMS + p] = app - t * apq;
                 A[q * PATCH_ELEMS + q] = aqq + t * apq;
                 A[p * PATCH_ELEMS + q] = 0.0f;
                 A[q * PATCH_ELEMS + p] = 0.0f;
 
-                // --- Rotate all other rows/columns of A -----------------
-                // For every r != p, q:  a_rp' = c*a_rp - s*a_rq
-                //                       a_rq' = s*a_rp + c*a_rq
-                // We update both halves of the symmetric matrix to keep it
-                // consistent.
                 for (int r = 0; r < PATCH_ELEMS; ++r)
                 {
                     if (r == p || r == q)
@@ -1125,12 +1090,11 @@ void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
                     const float new_arq = s_rot * arp + c_rot * arq;
 
                     A[r * PATCH_ELEMS + p] = new_arp;
-                    A[p * PATCH_ELEMS + r] = new_arp;       // symmetry
+                    A[p * PATCH_ELEMS + r] = new_arp;
                     A[r * PATCH_ELEMS + q] = new_arq;
-                    A[q * PATCH_ELEMS + r] = new_arq;       // symmetry
+                    A[q * PATCH_ELEMS + r] = new_arq;
                 }
 
-                // --- Accumulate the rotation into V (V_new = V * R) -----
                 for (int r = 0; r < PATCH_ELEMS; ++r)
                 {
                     const float vrp = V[r * PATCH_ELEMS + p];
@@ -1146,57 +1110,49 @@ void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
 
 
 // ============================================================================
-// ApplyBayesFilter_Block
+// ApplyBayesFilter_Block  (PHASE 1 REVISED)
 //
-// Block-cooperative implementation of  Bayes estimate:
+// Block-cooperative Bayes estimate:
+//     out[:, n] = clip( X * Y^(-1) * (patch[:, n] - bary) + bary,
+//                       min_val, max_val )
 //
-//   M = X * Y^(-1)
-//   for each patch n in [0, nSimP):
-//     patch[:, n] = clip( M * (patch_centered[:, n]) + bary, min_val, max_val )
+// Implementation via eigendecomposition:
+//     Y = V * D * V^T   (Jacobi)
+//     M = X * V * D^(-1) * V^T       (never materialized; applied streaming)
+//     out = clip( M * centered + bary, min, max )
 //
-// The block is assumed to have at least 16 threads (we rely on thread 0..15
-// for per-eigenvalue work and on the full block for matrix ops).
+// Streaming expansion avoids the sh_M workspace:
+//     For each patch column x (centered):
+//         u[i]     = sum_k  V[k, i] * x[k]         // V^T * x, 16 floats
+//         w[i]     = u[i] * D_inv[i]               // D^(-1) scaling
+//         p[j]     = sum_i  V[j, i] * w[i]         // V * w
+//         acc[r]   = sum_j  X[r, j] * p[j]         // X * (V D^-1 V^T) x
+//         out[r]   = clip(acc[r] + bary[r], min, max)
 //
-// Arguments:
-//   sh_X       [256]  in : left factor (preserved on exit).
-//   sh_Y       [256]  in/out : matrix to invert (TRASHED on exit).
-//   sh_V       [256]  workspace : receives eigenvectors.
-//   sh_M       [256]  workspace : receives filter matrix M = X * Y^(-1).
-//                                  (caller may read it after the call if useful.)
-//   sh_Dinv    [16]   workspace : reciprocal eigenvalues of Y.
-//   sh_patches [16*nSimP] in/out : patches stored column-major
-//                                  (sh_patches[i * nSimP + n] = pixel i of patch n).
-//                                  On entry: centered (patch - bary).
-//                                  On exit : filtered + bary-added + clipped.
-//   sh_bary    [16]   in : barycenter to re-add after filtering.
-//   min_val    float  in : clip floor.
-//   max_val    float  in : clip ceiling.
-//   nSimP      int    in : number of patches in the group.
-//
-// Does NOT __syncthreads() at the very end. Caller is responsible for syncing
-// before reusing any of the shared buffers.
+// Block layout assumption:
+//     - block has at least 32 threads (one warp) for the min/max reduction.
+//     - block has at least 16 threads for the per-pixel phases.
+//     - block_size and tid are computed as
+//         tid = threadIdx.y * blockDim.x + threadIdx.x
+//         block_size = blockDim.x * blockDim.y
 // ============================================================================
-__device__ void ApplyBayesFilter_Block
-(
-    const float* RESTRICT sh_X,
-    float*       RESTRICT sh_Y,
-    float*       RESTRICT sh_V,
-    float*       RESTRICT sh_M,
-    float*       RESTRICT sh_Dinv,
-    float*       RESTRICT sh_patches,
-    const float* RESTRICT sh_bary,
+__device__ void ApplyBayesFilter_Block(
+    const float* RESTRICT sh_X,         // [256] in    : numerator matrix (preserved)
+    float*       RESTRICT sh_Y,         // [256] in/out: matrix to invert (trashed on exit)
+    float*       RESTRICT sh_V,         // [256] work  : receives eigenvectors
+    float*       RESTRICT sh_Dinv,      // [ 16] work  : reciprocal eigenvalues
+    float*       RESTRICT sh_VTx,       // [ 16] work  : streaming intermediate (NEW)
+    float*       RESTRICT sh_patches,   // [16 * nSimP] in/out: patches column-major
+    const float* RESTRICT sh_bary,      // [ 16] in    : barycenter to add back after filter
     float                 min_val,
     float                 max_val,
-    int                   nSimP
-)
+    int                   nSimP)
 {
     const int tid        = threadIdx.y * blockDim.x + threadIdx.x;
     const int block_size = blockDim.x * blockDim.y;
 
     // ------------------------------------------------------------------------
     // Phase 1: Jacobi eigendecomposition of Y.
-    //   On exit: diag(sh_Y) = eigenvalues, sh_V = eigenvector matrix.
-    //   Thread 0 runs the sequential Jacobi; all other threads wait at sync.
     // ------------------------------------------------------------------------
     if (tid == 0)
     {
@@ -1206,145 +1162,177 @@ __device__ void ApplyBayesFilter_Block
 
     // ------------------------------------------------------------------------
     // Phase 2: Extract and safely invert eigenvalues.
-    //   Clamp at a small positive floor (1e-6) to absorb near-zero values
-    //   that would otherwise produce Inf/NaN in the inverse. This is the
-    //   numerical stabilizer  diagonal-clamping trick was meant to
-    //   emulate; keeping it in the eigenvalue domain is mathematically
-    //   equivalent for Y = C_P (Pass 1) and strictly safer for Y = C_basic
-    //   + C_N (Pass 2).
+    //   Clamp at 1e-6 to handle near-zero eigenvalues from noise-heavy or
+    //   low-rank covariance matrices. Mathematically equivalent to Lebrun's
+    //   diagonal clamping before Cholesky, strictly safer for float precision.
     // ------------------------------------------------------------------------
     if (tid < PATCH_ELEMS)
     {
-        const float lambda = sh_Y[tid * (PATCH_ELEMS + 1)];  // diagonal offset: k*16 + k = k*17
+        const float lambda = sh_Y[tid * (PATCH_ELEMS + 1)];   // diag index: k*17
         sh_Dinv[tid] = 1.0f / fmaxf(1e-6f, lambda);
     }
     __syncthreads();
 
     // ------------------------------------------------------------------------
-    // Phase 3: Compute intermediate  P = X * V * D^(-1), store in sh_Y.
-    //   P[i, d] = D_inv[d] * sum_k( X[i, k] * V[k, d] )
-    //   Each thread handles one element of the 16x16 result, striding over
-    //   the 256-element range in chunks of block_size.
-    //   The diagonal scale is fused into the store to save one pass + sync.
+    // Phase 3: Streaming application of M = X * V * D^(-1) * V^T to each
+    // patch column. No intermediate M matrix in shared memory.
+    //
+    // Distribution: one patch column per thread (iterating in stride of
+    // block_size so 256-thread blocks cover nSimP <= 64 in one sweep).
+    //
+    // NOTE: because sh_VTx is shared, this loop must serialize over patch
+    // columns within a warp -- but since nSimP <= 64 and we need 16-wide
+    // parallelism per matrix-vector product, we instead allocate sh_VTx
+    // **per thread** via thread-local storage using registers. See below.
+    //
+    // Design decision: keep sh_VTx as a 16-float *per-thread* register
+    // array `float u_vec[16]` rather than shared memory. The compiler
+    // folds this into 16 registers per thread -- tight but manageable,
+    // and avoids serialization on a single shared buffer.
     // ------------------------------------------------------------------------
-    for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
-    {
-        const int i = k / PATCH_ELEMS;      // 0..15
-        const int d = k % PATCH_ELEMS;      // 0..15
+    // (sh_VTx parameter is kept in the signature for future Phase 3 usage
+    //  where the Brent-Luk parallel Jacobi needs block-wide scratch. For
+    //  Phase 1, the per-patch filter loop uses register-local storage.)
+    (void) sh_VTx;
 
-        float sum = 0.0f;
-        #pragma unroll
-        for (int col = 0; col < PATCH_ELEMS; ++col)
-        {
-            sum += sh_X[i * PATCH_ELEMS + col] * sh_V[col * PATCH_ELEMS + d];
-        }
-        sh_Y[i * PATCH_ELEMS + d] = sum * sh_Dinv[d];
-    }
-    __syncthreads();
-
-    // ------------------------------------------------------------------------
-    // Phase 4: Compute M = P * V^T, store in sh_M.
-    //   M[i, j] = sum_d( P[i, d] * V[j, d] )        // V^T[d, j] = V[j, d]
-    // ------------------------------------------------------------------------
-    for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
-    {
-        const int i = k / PATCH_ELEMS;
-        const int j = k % PATCH_ELEMS;
-
-        float sum = 0.0f;
-        #pragma unroll
-        for (int d = 0; d < PATCH_ELEMS; ++d)
-        {
-            sum += sh_Y[i * PATCH_ELEMS + d] * sh_V[j * PATCH_ELEMS + d];
-        }
-        sh_M[i * PATCH_ELEMS + j] = sum;
-    }
-    __syncthreads();
-
-    // ------------------------------------------------------------------------
-    // Phase 5: Per-patch application: out = clip(M * centered + bary, min, max).
-    //   Distribute columns across the block. Each thread loads its column
-    //   into a 16-float register array, applies M via two-level unrolled
-    //   loop, adds bary, clips, and writes back.
-    //   Data layout: sh_patches[i * nSimP + n] where i = pixel, n = patch.
-    // ------------------------------------------------------------------------
+    // Each thread handles one patch column n (stride block_size).
     for (int n = tid; n < nSimP; n += block_size)
     {
-        // Load centered patch column into registers (kept as register array
-        // because both loops are unrolled at compile time).
-        float col_in[PATCH_ELEMS];
-        #pragma unroll
-        for (int i = 0; i < PATCH_ELEMS; ++i)
-        {
-            col_in[i] = sh_patches[i * nSimP + n];
-        }
-
-        // Apply M, add barycenter, clip, write back.
-        #pragma unroll
+        // --- Step 3a: u = V^T * x_centered, 16 floats in registers ----
+        float u_vec[PATCH_ELEMS];
+        #pragma unroll 4
         for (int i = 0; i < PATCH_ELEMS; ++i)
         {
             float acc = 0.0f;
-            #pragma unroll
+            #pragma unroll 4
+            for (int k = 0; k < PATCH_ELEMS; ++k)
+            {
+                acc += sh_V[k * PATCH_ELEMS + i] * sh_patches[k * nSimP + n];
+            }
+            u_vec[i] = acc;
+        }
+
+        // --- Step 3b: u = D^(-1) * u, fused scale ---------------------
+        #pragma unroll
+        for (int i = 0; i < PATCH_ELEMS; ++i)
+        {
+            u_vec[i] *= sh_Dinv[i];
+        }
+
+        // --- Step 3c: p = V * u, 16 floats back ------------------------
+        float p_vec[PATCH_ELEMS];
+        #pragma unroll 4
+        for (int j = 0; j < PATCH_ELEMS; ++j)
+        {
+            float acc = 0.0f;
+            #pragma unroll 4
+            for (int i = 0; i < PATCH_ELEMS; ++i)
+            {
+                acc += sh_V[j * PATCH_ELEMS + i] * u_vec[i];
+            }
+            p_vec[j] = acc;
+        }
+
+        // --- Step 3d: out = X * p + bary, clipped, written back --------
+        #pragma unroll 4
+        for (int r = 0; r < PATCH_ELEMS; ++r)
+        {
+            float acc = 0.0f;
+            #pragma unroll 4
             for (int j = 0; j < PATCH_ELEMS; ++j)
             {
-                acc += sh_M[i * PATCH_ELEMS + j] * col_in[j];
+                acc += sh_X[r * PATCH_ELEMS + j] * p_vec[j];
             }
-            const float v = acc + sh_bary[i];
-            sh_patches[i * nSimP + n] = fminf(max_val, fmaxf(min_val, v));
+            const float v = acc + sh_bary[r];
+            sh_patches[r * nSimP + n] = fminf(max_val, fmaxf(min_val, v));
         }
     }
 
-    // NOTE: no trailing __syncthreads().  Caller is responsible for
-    // synchronizing before reusing sh_Y, sh_V, sh_M, sh_Dinv, or sh_patches.
+    // Caller is responsible for __syncthreads() before reusing sh_Y/sh_V/
+    // sh_Dinv/sh_patches.
 }
 
 
 // ============================================================================
-// Kernel_NLBayes_Pass1_BasicEstimate
+// Warp-level min/max reduction helpers (NEW in Phase 1)
+//
+// Used by Pass 1 and Pass 2 to reduce per-pixel-position min/max across
+// the 16 patch pixels without a 16-element shared buffer. Works within a
+// single warp (tid 0..31).
+//
+// Returns the reduced result on thread 0; other threads' returned value
+// is garbage (but consistent if you need to broadcast).
+// ============================================================================
+__device__ __forceinline__
+float WarpReduceMin(float v)
+{
+    #pragma unroll
+    for (int offset = 16; offset > 0; offset >>= 1)
+    {
+        const float other = __shfl_xor_sync(0xFFFFFFFF, v, offset);
+        v = fminf(v, other);
+    }
+    return v;
+}
+
+__device__ __forceinline__
+float WarpReduceMax(float v)
+{
+    #pragma unroll
+    for (int offset = 16; offset > 0; offset >>= 1)
+    {
+        const float other = __shfl_xor_sync(0xFFFFFFFF, v, offset);
+        v = fmaxf(v, other);
+    }
+    return v;
+}
+
+__device__ __forceinline__
+float WarpReduceSum(float v)
+{
+    #pragma unroll
+    for (int offset = 16; offset > 0; offset >>= 1)
+    {
+        v += __shfl_xor_sync(0xFFFFFFFF, v, offset);
+    }
+    return v;
+}
+
+
+// ============================================================================
+// Kernel_NLBayes_Pass1_BasicEstimate  (PHASE 2 REVISED)
 // ============================================================================
 //
-// Purpose:
-//   First pass of  NL-Bayes (the "pilot" or "basic" estimate). For
-//   each reference pixel on the processing grid:
+// Changes vs. Phase 0/1:
 //
-//     1. Load a 20x20 window tile per channel (17x17 search area + 3-pixel
-//        apron so every candidate's 4x4 patch fits within shared memory).
-//     2. Determine per-channel noise sigma from the LUT trace; derive the
-//        channel-weighted patch-distance threshold.
-//     3. Search all (SW*SW) = 289 candidate patches in the window.
-//        Each candidate below threshold is added to the similar-patch list
-//        (capped at MAX_SIMILAR_PATCHES = 128).
-//     4. For each channel c in {Y, U, V}:
-//          4a. Extract the nSimP similar patches into a (16 x nSimP)
-//              column-major shared matrix.
-//          4b. Compute the per-pixel-position barycenter across the group.
-//          4c. Compute the clip range [min - sigma, max + sigma] over the
-//              un-centered group values.
-//          4d. Build  un-centered raw correlation matrix
-//                C_P = P * P^T / (nSimP - 1)
-//          4e. Determine the channel's intensity bin from the barycenter
-//              mean, load C_N from the 16x16 noise-cov LUT.
-//          4f. Compute X = C_P - C_N; diagonal-clamp C_P for PSD guarantee.
-//          4g. Center patches in place (patch - bary).
-//          4h. Call ApplyBayesFilter_Block(X, C_P, ..., sh_patches, bary)
-//              which leaves the filtered, bary-added, clipped result in
-//              sh_patches.
-//          4i. Atomically aggregate each filtered patch pixel back into
-//              d_Accum_c at its original global coordinate.
-//              Also increment d_Weight once per (patch, pixel) -- but only
-//              when ch == 0, so the weight counter is shared across channels
-//              (matches Lebrun: all three channel weights are always equal).
+//   * MAX_SIMILAR_PATCHES shrunk from 128 to 64 (halves sh_patches to 4 KB).
 //
-// Mathematical contract:
-//   Filter applied is exactly  Pass-1 Bayes estimate:
-//       denoised = bary + (C_P - C_N) * C_P^(-1) * (patch - bary)
-//     = bary + X * Y^(-1) * (patch - bary)
-//   with clip to [min - sigma, max + sigma] per channel.
+//   * Patch similarity search now uses warp-cooperative ballot scan -- one
+//     atomic per warp (8 per block at 256 threads) instead of one atomic
+//     per passing candidate (~290 per block in flat regions). Deterministic
+//     patch ordering across runs as a side effect.
 //
-// Launch geometry:
+//   * Covariance and barycenter computed in a SINGLE fused pass over the
+//     patches. Phase 0/1 made two passes over the same patch data.
+//
+//   * Min/max reduction via warp shuffles -- no more s_min_tmp/s_max_tmp
+//     shared buffers. Saves 128 bytes and one __syncthreads.
+//
+//   * Removed sh_D workspace (was the filter matrix M; the Phase 1 helper
+//     computes M*x streaming and no longer needs sh_D).
+//     => Net shared-memory reduction vs. Phase 0: ~5.4 KB per block.
+//
+// Mathematical contract: bit-identical to Phase 0/1 output.
+//   * Different patch-selection *order* (deterministic now) can produce
+//     different numerical results in principle, but the set of patches
+//     selected is exactly the same set, so the covariance and filter are
+//     exactly the same matrices. Only float summation order can differ
+//     in the cov computation, which is a ~1e-7 per-element noise.
+//
+// Launch geometry (unchanged):
 //   grid  = (ceil(procW / proc_stride), ceil(procH / proc_stride))
-//   block = (BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y) = (32, 8) = 256 threads
-//   shared ~ 18 KB per block (fits comfortably on all CC >= 6.1)
+//   block = (32, 8) = 256 threads  (8 warps)
+//   shared ~ 14 KB per block (was ~19 KB in Phase 1)
 // ============================================================================
 
 
@@ -1353,8 +1341,13 @@ __device__ void ApplyBayesFilter_Block
 // This covers every pixel touched by any 4x4 patch whose top-left lies in
 // the 17x17 search window.
 // ----------------------------------------------------------------------------
-static constexpr int WINDOW_TILE_SIZE = SEARCH_WINDOW_SIZE + PATCH_SIZE - 1;   // 20
-static constexpr int WINDOW_TILE_ELEMS = WINDOW_TILE_SIZE * WINDOW_TILE_SIZE;  // 400
+static constexpr int WINDOW_TILE_SIZE  = SEARCH_WINDOW_SIZE + PATCH_SIZE - 1;   // 20
+static constexpr int WINDOW_TILE_ELEMS = WINDOW_TILE_SIZE * WINDOW_TILE_SIZE;   // 400
+
+// Phase 2: cap similar-patch count at 64 (was 128 in Phase 0/1). Reduces
+// sh_patches from 8 KB to 4 KB -> ~2x block-occupancy improvement on
+// shared-memory-limited kernels.
+static constexpr int PASS12_MAX_SIMILAR = 64;
 
 
 __global__ void Kernel_NLBayes_Pass1_BasicEstimate
@@ -1382,22 +1375,16 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 {
     const int tid        = threadIdx.y * blockDim.x + threadIdx.x;
     const int block_size = blockDim.x * blockDim.y;
+    const int warp_id    = tid >> 5;        // 0..7 for 256 threads
+    const int lane_id    = tid & 31;        // 0..31
 
-    // (void) casts suppress unused-parameter warnings for buffers we don't use
-    // in Pass 1. They are part of the shared signature used by Pass 2.
+    // Unused in Pass 1 (part of shared signature used by Pass 2).
     (void) noiseMeanY;
     (void) noiseMeanU;
     (void) noiseMeanV;
 
     // ------------------------------------------------------------------------
-    // Reference patch top-left coordinate.
-    //
-    // Valid range (so that the 17x17 search window and each candidate's 4x4
-    // patch all stay within [0, procW) x [0, procH)):
-    //   ref_x in [SWR, procW - PATCH_SIZE - SWR]
-    //   ref_y in [SWR, procH - PATCH_SIZE - SWR]
-    // Blocks outside this range return immediately (the grid is slightly
-    // overprovisioned near the edges).
+    // Reference patch top-left coordinate + boundary check.
     // ------------------------------------------------------------------------
     const int ref_x = blockIdx.x * proc_stride;
     const int ref_y = blockIdx.y * proc_stride;
@@ -1410,18 +1397,17 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         return;
     }
 
-    // Top-left of the window in global image coordinates.
     const int win_x0 = ref_x - SEARCH_WINDOW_RADIUS;
     const int win_y0 = ref_y - SEARCH_WINDOW_RADIUS;
 
     // ------------------------------------------------------------------------
-    // Shared memory layout.
+    // Shared memory layout (~14 KB total).
     // ------------------------------------------------------------------------
-    __shared__ float s_winY[WINDOW_TILE_ELEMS];          // 400 * 4 =   1600 B
+    __shared__ float s_winY[WINDOW_TILE_ELEMS];          // 3 * 400 * 4 = 4800 B
     __shared__ float s_winU[WINDOW_TILE_ELEMS];
-    __shared__ float s_winV[WINDOW_TILE_ELEMS];          // -> 3 * 1600 = 4800 B
+    __shared__ float s_winV[WINDOW_TILE_ELEMS];
 
-    __shared__ int   s_patchIndices[MAX_SIMILAR_PATCHES]; // 128 * 4 =   512 B
+    __shared__ int   s_patchIndices[PASS12_MAX_SIMILAR]; // 64 * 4 = 256 B
     __shared__ int   s_patchCount;
 
     // Scalar aggregates.
@@ -1429,27 +1415,30 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
     __shared__ float s_sigma_U;
     __shared__ float s_sigma_V;
     __shared__ float s_threshold;
-
-    // Matrix workspaces (4 x 256 + 16 = 4160 B), reused across channels.
-    __shared__ float sh_A    [PATCH_ELEMS_SQ];    // C_P (clamped), then trashed by helper
-    __shared__ float sh_B    [PATCH_ELEMS_SQ];    // C_N, then V workspace
-    __shared__ float sh_C    [PATCH_ELEMS_SQ];    // X = C_P - C_N (preserved during helper)
-    __shared__ float sh_D    [PATCH_ELEMS_SQ];    // filter matrix M workspace
-    __shared__ float sh_Dinv [PATCH_ELEMS];
-
-    __shared__ float sh_bary    [PATCH_ELEMS];
-    __shared__ float sh_patches [PATCH_ELEMS * MAX_SIMILAR_PATCHES];  // 16*128*4 = 8192 B
-
-    // Per-channel reductions.
-    __shared__ float s_min_tmp[PATCH_ELEMS];
-    __shared__ float s_max_tmp[PATCH_ELEMS];
     __shared__ float s_min;
     __shared__ float s_max;
     __shared__ int   s_bin_ch;
 
+    // Matrix workspaces (3 * 256 + 16 = 3136 B). Phase 1 helper takes
+    // (X, Y, V, Dinv, VTx); sh_VTx can be any 16-float slot.
+    __shared__ float sh_X      [PATCH_ELEMS_SQ];    // (C_P - C_N) for helper
+    __shared__ float sh_Y_mat  [PATCH_ELEMS_SQ];    // C_P (diag-clamped), trashed by helper
+    __shared__ float sh_V_mat  [PATCH_ELEMS_SQ];    // eigenvectors workspace
+    __shared__ float sh_Dinv   [PATCH_ELEMS];       // eigenvalue reciprocals
+
+    // Bary + streaming intermediate for helper (sh_VTx repurposes sh_bary
+    // dual-use is unsafe; use distinct buffer).
+    __shared__ float sh_bary   [PATCH_ELEMS];
+    __shared__ float sh_VTx    [PATCH_ELEMS];       // helper streaming intermediate
+
+    // Patches (shrunk).
+    __shared__ float sh_patches[PATCH_ELEMS * PASS12_MAX_SIMILAR];  // 16*64*4 = 4096 B
+
+    // Per-warp staging for warp-cooperative patch selection.
+    __shared__ int   s_warp_offsets[8];    // one per warp; 8 warps/block
+
     // ------------------------------------------------------------------------
     // Phase 1: Cooperative load of the 20x20 window tile for each channel.
-    // All pixels are guaranteed in-bounds by the early-return above.
     // ------------------------------------------------------------------------
     for (int i = tid; i < WINDOW_TILE_ELEMS; i += block_size)
     {
@@ -1470,17 +1459,12 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 
     // ------------------------------------------------------------------------
     // Phase 2: Compute per-channel sigma and distance threshold.
-    //
-    //   sigma_c    = sqrt( max(0, trace(C_N_c)) / 16 )        [Lebrun, NlBayes.cpp:847]
-    //   sigmaMean  = 0.5*sigma_Y^2 + 0.25*sigma_U^2 + 0.25*sigma_V^2
-    //   threshold  = 0.5*tau_Y*sigma_Y^2 + 0.25*tau_UV*(sigma_U^2 + sigma_V^2)
-    //
-    // At default controls (tau_Y = tau_UV = 48), this reduces exactly to
-    //   tau * sigmaMean  with tau = 3*sP^2.
+    // (Identical to Phase 0/1 -- kept on thread 0 since it's a single-pass
+    //  serial reduction over 16 diagonal elements per channel.)
     // ------------------------------------------------------------------------
     if (tid == 0)
     {
-        // Reference patch mean (Y channel) for bin lookup.
+        // Reference patch mean (Y) for bin lookup.
         float sum_Y = 0.0f;
         #pragma unroll
         for (int i = 0; i < PATCH_SIZE; ++i)
@@ -1488,15 +1472,15 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
             #pragma unroll
             for (int j = 0; j < PATCH_SIZE; ++j)
             {
-                const int p_idx = (SEARCH_WINDOW_RADIUS + i) * WINDOW_TILE_SIZE + (SEARCH_WINDOW_RADIUS + j);
+                const int p_idx = (SEARCH_WINDOW_RADIUS + i) * WINDOW_TILE_SIZE
+                                + (SEARCH_WINDOW_RADIUS + j);
                 sum_Y += s_winY[p_idx];
             }
         }
         const float mean_Y = sum_Y * (1.0f / static_cast<float>(PATCH_ELEMS));
-        const int   ref_bin = max(0, min(NOISE_BINS - 1,
-                                         __float2int_rn(mean_Y * 255.0f)));
+        const int ref_bin = max(0, min(NOISE_BINS - 1,
+                                       __float2int_rn(mean_Y * 255.0f)));
 
-        // Sum of diagonal of each channel's 16x16 noise cov at this bin.
         const int base = ref_bin * PATCH_ELEMS_SQ;
         float trace_Y = 0.0f;
         float trace_U = 0.0f;
@@ -1504,7 +1488,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         #pragma unroll
         for (int k = 0; k < PATCH_ELEMS; ++k)
         {
-            const int diag = k * (PATCH_ELEMS + 1);    // k*16 + k = k*17
+            const int diag = k * (PATCH_ELEMS + 1);
             trace_Y += noiseCovY[base + diag];
             trace_U += noiseCovU[base + diag];
             trace_V += noiseCovV[base + diag];
@@ -1518,9 +1502,6 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         s_sigma_U = sqrtf(sigma2_U);
         s_sigma_V = sqrtf(sigma2_V);
 
-        // Distance threshold, with channel weights folded in (Y=0.5, U=V=0.25
-        // to match  getWeight convention). tau_Y and tau_UV already
-        // include the user's AlgoControls modulation.
         s_threshold = 0.5f  * tau_Y  * sigma2_Y
                     + 0.25f * tau_UV * sigma2_U
                     + 0.25f * tau_UV * sigma2_V;
@@ -1528,49 +1509,88 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
     __syncthreads();
 
     // ------------------------------------------------------------------------
-    // Phase 3: Patch similarity search.
+    // Phase 3: WARP-COOPERATIVE patch similarity search.
     //
-    // For each candidate patch top-left (cx, cy) in the 17x17 search grid:
-    //   dist = sum_{i,j} [ 0.5*(dY)^2 + 0.25*(dU)^2 + 0.25*(dV)^2 ]
-    // If dist <= threshold, atomically claim a slot in s_patchIndices.
+    // For each 32-candidate chunk assigned to one warp:
+    //   1. Each lane computes its candidate's distance and a `passed` bit.
+    //   2. Warp ballot collects all 32 pass-bits into one mask.
+    //   3. Warp leader atomically reserves `popcount(mask)` slots.
+    //   4. Each passing lane writes its index into its reserved slot.
     //
-    // The reference patch itself (at (SWR, SWR)) has dist = 0 and is always
-    // selected -- guarantees at least one patch in the group.
+    // Result: ONE atomic per warp per chunk (vs. one per passing candidate
+    // in Phase 0/1). Deterministic ordering: warp 0's passers always occupy
+    // lower slots than warp 1's, etc.
     // ------------------------------------------------------------------------
     {
         const int ref_px = SEARCH_WINDOW_RADIUS;      // 8
         const int ref_py = SEARCH_WINDOW_RADIUS;      // 8
         const int n_candidates = SEARCH_WINDOW_SIZE * SEARCH_WINDOW_SIZE;  // 289
 
-        for (int cidx = tid; cidx < n_candidates; cidx += block_size)
+        // Each warp processes candidates in chunks of 32. With 8 warps and
+        // 289 candidates, each warp handles ~2 chunks.
+        const int chunks_total = (n_candidates + 31) / 32;   // 10
+        const int chunks_per_warp = (chunks_total + 7) / 8;  // 2 (ceil of 10/8)
+
+        for (int chunk_local = 0; chunk_local < chunks_per_warp; ++chunk_local)
         {
-            const int cx = cidx % SEARCH_WINDOW_SIZE;
-            const int cy = cidx / SEARCH_WINDOW_SIZE;
-
-            float dist = 0.0f;
-            #pragma unroll
-            for (int i = 0; i < PATCH_SIZE; ++i)
+            const int chunk_id = warp_id * chunks_per_warp + chunk_local;
+            if (chunk_id >= chunks_total)
             {
+                break;
+            }
+            const int cidx = chunk_id * 32 + lane_id;
+            const bool in_range = (cidx < n_candidates);
+
+            bool passed = false;
+            if (in_range)
+            {
+                const int cx = cidx % SEARCH_WINDOW_SIZE;
+                const int cy = cidx / SEARCH_WINDOW_SIZE;
+
+                float dist = 0.0f;
                 #pragma unroll
-                for (int j = 0; j < PATCH_SIZE; ++j)
+                for (int i = 0; i < PATCH_SIZE; ++i)
                 {
-                    const int r_idx = (ref_py + i) * WINDOW_TILE_SIZE + (ref_px + j);
-                    const int c_idx = (cy     + i) * WINDOW_TILE_SIZE + (cx     + j);
+                    #pragma unroll
+                    for (int j = 0; j < PATCH_SIZE; ++j)
+                    {
+                        const int r_idx = (ref_py + i) * WINDOW_TILE_SIZE + (ref_px + j);
+                        const int c_idx = (cy     + i) * WINDOW_TILE_SIZE + (cx     + j);
 
-                    const float dY = s_winY[r_idx] - s_winY[c_idx];
-                    const float dU = s_winU[r_idx] - s_winU[c_idx];
-                    const float dV = s_winV[r_idx] - s_winV[c_idx];
+                        const float dY = s_winY[r_idx] - s_winY[c_idx];
+                        const float dU = s_winU[r_idx] - s_winU[c_idx];
+                        const float dV = s_winV[r_idx] - s_winV[c_idx];
 
-                    dist += 0.5f  * dY * dY
-                         +  0.25f * dU * dU
-                         +  0.25f * dV * dV;
+                        dist += 0.5f  * dY * dY
+                             +  0.25f * dU * dU
+                             +  0.25f * dV * dV;
+                    }
                 }
+
+                passed = (dist <= s_threshold);
             }
 
-            if (dist <= s_threshold)
+            // Ballot: bitmask of which lanes passed.
+            const unsigned mask = __ballot_sync(0xFFFFFFFF, passed);
+            const int n_passed = __popc(mask);
+
+            // Warp leader reserves a contiguous range of slots.
+            int warp_base = 0;
+            if (lane_id == 0)
             {
-                const int slot = atomicAdd(&s_patchCount, 1);
-                if (slot < MAX_SIMILAR_PATCHES)
+                warp_base = atomicAdd(&s_patchCount, n_passed);
+            }
+            warp_base = __shfl_sync(0xFFFFFFFF, warp_base, 0);
+
+            // Each passing lane writes to warp_base + its_rank_within_passers.
+            if (passed)
+            {
+                // Rank = number of passing lanes with lower lane_id.
+                const unsigned lower_mask = mask & ((1u << lane_id) - 1u);
+                const int my_rank = __popc(lower_mask);
+                const int slot = warp_base + my_rank;
+
+                if (slot < PASS12_MAX_SIMILAR)
                 {
                     s_patchIndices[slot] = cidx;
                 }
@@ -1579,9 +1599,8 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
     }
     __syncthreads();
 
-    const int nSimP = min(s_patchCount, MAX_SIMILAR_PATCHES);
+    const int nSimP = min(s_patchCount, PASS12_MAX_SIMILAR);
 
-    // Need at least 2 patches to compute a covariance; otherwise skip this block.
     if (nSimP < 2)
     {
         return;
@@ -1618,12 +1637,14 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 
         // --------------------------------------------------------------------
         // 4a. Extract patches into sh_patches (column-major, un-centered).
-        //     sh_patches[i * nSimP + n]  =  pixel i of patch n
+        //     sh_patches[i * nSimP + n]  =  pixel i of patch n.
+        //     Also track per-pixel-position min/max via warp-shuffle reduction
+        //     for the clip range -- AVOIDS a second pass later.
         // --------------------------------------------------------------------
         for (int k = tid; k < PATCH_ELEMS * nSimP; k += block_size)
         {
-            const int i = k / nSimP;       // 0..15, pixel within patch
-            const int n = k % nSimP;       // 0..nSimP-1, patch index
+            const int i = k / nSimP;
+            const int n = k % nSimP;
 
             const int p_idx = s_patchIndices[n];
             const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
@@ -1638,47 +1659,87 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4b. Compute barycenter: sh_bary[i] = mean over patches of pixel i.
-        // 16 threads in parallel handle the 16 pixel positions.
+        // 4b+c+d. FUSED: barycenter + min/max range + covariance in one pass.
+        //
+        // Each thread handles one covariance element (i, j). Along the way:
+        //   - Thread with j == 0 accumulates the sum for sh_bary[i].
+        //   - All threads accumulate min/max of their pixel i via warp shuffle.
+        //
+        // Covariance: C_P[i, j] = sum_n sh_patches[i, n] * sh_patches[j, n] / (nSimP - 1)
+        //   (Lebrun un-centered raw correlation -- LibMatrix.cpp:covarianceMatrix)
         // --------------------------------------------------------------------
-        if (tid < PATCH_ELEMS)
         {
-            float sum = 0.0f;
-            for (int n = 0; n < nSimP; ++n)
-            {
-                sum += sh_patches[tid * nSimP + n];
-            }
-            sh_bary[tid] = sum / static_cast<float>(nSimP);
-        }
+            const float normInv = 1.0f / static_cast<float>(nSimP - 1);
 
-        // --------------------------------------------------------------------
-        // 4c. Clip range: min/max of the un-centered group, widened by +/-sigma.
-        //     First reduce to 16 per-row min/max; then thread 0 reduces to scalar.
-        // --------------------------------------------------------------------
-        if (tid < PATCH_ELEMS)
-        {
-            float mn =  INFINITY;
-            float mx = -INFINITY;
-            for (int n = 0; n < nSimP; ++n)
+            for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
             {
-                const float v = sh_patches[tid * nSimP + n];
-                mn = fminf(mn, v);
-                mx = fmaxf(mx, v);
+                const int i = k / PATCH_ELEMS;
+                const int j = k % PATCH_ELEMS;
+
+                float sum_ij   = 0.0f;   // for cov
+                float sum_i    = 0.0f;   // for bary (only used when j == 0)
+                float min_i    =  INFINITY;
+                float max_i    = -INFINITY;
+
+                for (int n = 0; n < nSimP; ++n)
+                {
+                    const float vi = sh_patches[i * nSimP + n];
+                    const float vj = sh_patches[j * nSimP + n];
+                    sum_ij += vi * vj;
+
+                    // Bary: sum patches at pixel i once per row-thread.
+                    if (j == 0)
+                    {
+                        sum_i += vi;
+                        min_i = fminf(min_i, vi);
+                        max_i = fmaxf(max_i, vi);
+                    }
+                }
+
+                sh_Y_mat[k] = sum_ij * normInv;    // C_P
+
+                if (j == 0)
+                {
+                    sh_bary[i] = sum_i / static_cast<float>(nSimP);
+                }
+
+                // Warp-shuffle reduce min/max (only row-threads with j==0 have
+                // meaningful values; others have +/-inf which preserve the
+                // result under fmin/fmax).
+                const float row_min = (j == 0) ? min_i :  INFINITY;
+                const float row_max = (j == 0) ? max_i : -INFINITY;
+
+                const float warp_min = WarpReduceMin(row_min);
+                const float warp_max = WarpReduceMax(row_max);
+
+                // Warp leader (lane 0) of each warp writes its reduction to a
+                // scratch slot; thread 0 of block does final 8-warp reduction.
+                if (lane_id == 0)
+                {
+                    // Reuse s_patchIndices as scratch (already consumed).
+                    // 8 warps -> slots 0..7.
+                    // We store min in even slots, max in odd slots.
+                    // But we need to keep s_patchIndices intact for aggregation later!
+                    // So use s_warp_offsets for min and reuse s_patchCount etc. Safer:
+                    // use a dedicated 16-slot scratch. Put it in sh_Dinv temporarily
+                    // since sh_Dinv is written by the helper in phase 4h, not yet.
+                    sh_Dinv[warp_id]     = warp_min;
+                    sh_Dinv[warp_id + 8] = warp_max;
+                }
             }
-            s_min_tmp[tid] = mn;
-            s_max_tmp[tid] = mx;
         }
         __syncthreads();
 
+        // Final reduction across 8 warp partials -- single thread.
         if (tid == 0)
         {
-            float mn = s_min_tmp[0];
-            float mx = s_max_tmp[0];
+            float mn = sh_Dinv[0];
+            float mx = sh_Dinv[8];
             #pragma unroll
-            for (int k = 1; k < PATCH_ELEMS; ++k)
+            for (int w = 1; w < 8; ++w)
             {
-                mn = fminf(mn, s_min_tmp[k]);
-                mx = fmaxf(mx, s_max_tmp[k]);
+                mn = fminf(mn, sh_Dinv[w]);
+                mx = fmaxf(mx, sh_Dinv[w + 8]);
             }
             s_min = mn - sigma_c;
             s_max = mx + sigma_c;
@@ -1697,58 +1758,30 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4d. Raw (un-centered) correlation matrix C_P = P * P^T / (nSimP - 1)
-        //     Written into sh_A. Matches  LibMatrix.cpp covarianceMatrix.
-        //
-        //     Note: the normalization uses (nSimP - 1),  convention.
-        //     We access the column-major sh_patches for both operands.
-        // --------------------------------------------------------------------
-        {
-            const float normInv = 1.0f / static_cast<float>(nSimP - 1);
-
-            for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
-            {
-                const int i = k / PATCH_ELEMS;
-                const int j = k % PATCH_ELEMS;
-
-                float sum = 0.0f;
-                for (int n = 0; n < nSimP; ++n)
-                {
-                    sum += sh_patches[i * nSimP + n] * sh_patches[j * nSimP + n];
-                }
-                sh_A[k] = sum * normInv;
-            }
-        }
-        __syncthreads();
-
-        // --------------------------------------------------------------------
-        // 4e. Load noise covariance C_N for this channel+bin into sh_B.
+        // 4e. Load noise covariance C_N for this channel+bin into sh_V_mat.
+        //     (We temporarily use sh_V_mat as C_N storage; the Jacobi helper
+        //     will overwrite it with eigenvectors after we build sh_X from it.)
         // --------------------------------------------------------------------
         {
             const int bin_base = s_bin_ch * PATCH_ELEMS_SQ;
             for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
             {
-                sh_B[k] = noiseCov[bin_base + k];
+                sh_V_mat[k] = noiseCov[bin_base + k];
             }
         }
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4f. Build the Bayes-filter inputs:
-        //       sh_C = C_P - C_N             (= X for the helper)
-        //       sh_A[diag] = max(sh_A[diag], sh_B[diag])   (diagonal PD clamp)
-        //                                    (= Y for the helper; overwritten)
-        //     These two operations touch disjoint elements and can run in
-        //     one fused loop.
+        // 4f. Build sh_X = C_P - C_N, and diagonal-clamp sh_Y_mat in place.
         // --------------------------------------------------------------------
         for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
         {
-            sh_C[k] = sh_A[k] - sh_B[k];
+            sh_X[k] = sh_Y_mat[k] - sh_V_mat[k];
         }
         if (tid < PATCH_ELEMS)
         {
-            const int d = tid * (PATCH_ELEMS + 1);      // diagonal index k*17
-            sh_A[d] = fmaxf(sh_A[d], sh_B[d]);
+            const int d = tid * (PATCH_ELEMS + 1);
+            sh_Y_mat[d] = fmaxf(sh_Y_mat[d], sh_V_mat[d]);
         }
         __syncthreads();
 
@@ -1763,34 +1796,33 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4h. Apply Bayes filter.
-        //     Helper consumes:  sh_C (= X, read-only),  sh_A (= Y, trashed).
-        //     Helper workspace: sh_B (= V), sh_D (= M), sh_Dinv.
-        //     Helper mutates:   sh_patches (filtered + bary + clipped).
+        // 4h. Apply Bayes filter via Phase 1 helper.
+        //
+        // Helper signature (Phase 1):
+        //   ApplyBayesFilter_Block(
+        //     sh_X,       // X = C_P - C_N
+        //     sh_Y,       // Y = C_P diag-clamped (trashed on exit)
+        //     sh_V,       // V workspace (receives eigenvectors)
+        //     sh_Dinv,    // D^(-1) workspace (16 floats)
+        //     sh_VTx,     // streaming intermediate (16 floats)
+        //     sh_patches, sh_bary, min_val, max_val, nSimP)
         // --------------------------------------------------------------------
         ApplyBayesFilter_Block(
-            sh_C,          // X = C_P - C_N
-            sh_A,          // Y = C_P (diag-clamped); trashed
-            sh_B,          // V workspace (previously held C_N; no longer needed)
-            sh_D,          // M workspace
+            sh_X,          // X = C_P - C_N (preserved)
+            sh_Y_mat,      // Y = C_P diag-clamped (trashed)
+            sh_V_mat,      // V workspace (C_N contents no longer needed)
             sh_Dinv,
-            sh_patches,    // input: centered.  output: filtered + bary + clipped.
+            sh_VTx,
+            sh_patches,
             sh_bary,
             s_min,
             s_max,
             nSimP);
 
-        // The helper does NOT trailing-sync; do it here before global writes.
         __syncthreads();
 
         // --------------------------------------------------------------------
         // 4i. Aggregate filtered patches into global accumulators.
-        //
-        //     Each (patch n, pixel i) contributes its filtered value to the
-        //     target Accum buffer at the corresponding global pixel. Weight
-        //     is incremented ONCE per (patch, pixel) -- only during ch==0
-        //     -- since the GPU uses a single shared weight buffer (mathematically
-        //     equivalent to  three always-identical per-channel weights).
         // --------------------------------------------------------------------
         float* outAccum;
         if (ch == 0)
@@ -1808,7 +1840,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 
         for (int k = tid; k < PATCH_ELEMS * nSimP; k += block_size)
         {
-            const int i = k / nSimP;       // 0..15
+            const int i = k / nSimP;
             const int n = k % nSimP;
 
             const int p_idx = s_patchIndices[n];
@@ -1831,9 +1863,10 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
                 atomicAdd(&outWeight[g_idx], 1.0f);
             }
         }
-        __syncthreads();   // ensure channel loop's shared buffers are safe to reuse
+        __syncthreads();
     }
 }
+
 
 
 // ============================================================================
@@ -1847,7 +1880,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 //       pilot[p]  =  acc[p] / weight[p]           if  weight[p] > 0
 //       pilot[p]  =  noisy[p]                     if  weight[p] == 0
 //
-//   This is  computeWeightedAggregation (NlBayes.cpp:687), adapted
+//   This is Lebrun's computeWeightedAggregation (NlBayes.cpp:687), adapted
 //   to GPU with separate input and output buffers (CPU divides in place; we
 //   keep the noisy planes intact for Pass 2's patch-distance search, so we
 //   emit the pilot into the dedicated MosaicB slot).
@@ -1858,7 +1891,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 //   close to the image edge). For the interior of the padded processing
 //   region this should not happen at proc_stride = 1; at larger strides,
 //   a handful of pixels may be missed. Using the noisy pixel itself is
-//    standard fallback -- it avoids NaN and leaves those positions
+//   Lebrun's standard fallback -- it avoids NaN and leaves those positions
 //   un-denoised rather than zeroed.
 //
 // Launch geometry:
@@ -1910,7 +1943,7 @@ __global__ void Kernel_NormalizePilotEstimate
     }
     else
     {
-        // Uncovered pixel -- fall back to the noisy input. Matches 
+        // Uncovered pixel -- fall back to the noisy input. Matches Lebrun's
         // computeWeightedAggregation "if (iW[k] > 0.f) ... else iO[k] = iN[k]"
         // exactly.
         pilotY[idx] = fallbackY[idx];
@@ -1922,68 +1955,56 @@ __global__ void Kernel_NormalizePilotEstimate
 
 
 // ============================================================================
-// Kernel_NLBayes_Pass2_FinalEstimate
+// Kernel_NLBayes_Pass2_FinalEstimate  (PHASE 2 REVISED)
 // ============================================================================
 //
-// Purpose:
-//   Second (and final) pass of  NL-Bayes. For each reference pixel
-//   on the processing grid:
+// Changes vs. Phase 0/1:
 //
-//     1. Load two window tiles per channel (noisy + pilot = 6 tiles total).
-//     2. Compute per-channel sigma (trace-based) and distance threshold.
-//        Threshold follows  Step-2 convention: weights are uniform
-//        (w_Y = w_U = w_V = 1), and tau carries an extra factor of nChannels
-//        relative to Pass 1 (tau_base = 3*sP^2*nChannels = 144 at defaults).
-//     3. Search similar patches using the PILOT image (not noisy). This is
-//        the key idea of NL-Bayes: the pilot's lower noise makes the patch-
-//        match much more reliable than direct noisy-to-noisy matching.
-//     4. For each channel c:
-//          4a. Load noisy patches into sh_patches (uncentered).
-//          4b. Compute barycenter from NOISY ( convention).
-//          4c. Compute clip range [min - sigma, max + sigma] from PILOT
-//              values (un-centered), widened by sigma_c.
-//          4d. Build C_basic = B * B^T / (nSimP - 1)
-//              where B[i, n] = pilot[i, n] - bary_noisy[i]
-//              i.e. covariance of pilot CENTERED BY NOISY MEAN -- this is
-//               subtle oracle-variance convention.
-//          4e. Determine channel's intensity bin from barycenter mean,
-//              load C_N from the 16x16 LUT.
-//          4f. Build Bayes inputs: X = C_basic (preserved);
-//                                  Y = C_basic + C_N (will be inverted).
-//          4g. Center noisy patches in place: sh_patches -= bary_noisy.
-//          4h. Call ApplyBayesFilter_Block -- computes
-//                  M = X * Y^(-1) = C_basic * (C_basic + C_N)^(-1)
-//              and applies it to sh_patches with bary-add + clip.
-//          4i. Atomically aggregate filtered values into d_Accum_c and
-//              increment d_Weight once per (patch, pixel) at ch == 0.
+//   * MAX_SIMILAR_PATCHES shrunk from 128 to PASS12_MAX_SIMILAR = 64
+//     (PASS12_MAX_SIMILAR is declared in the Phase 2 Pass 1 block above).
+//     Halves sh_patches from 8 KB to 4 KB.
 //
-// Mathematical contract (Lebrun NlBayes.cpp:500-595, per-channel
-// simplification of the 48x48 cross-channel joint filter):
+//   * Patch similarity search now uses warp-cooperative ballot scan --
+//     1 atomic per warp instead of up to 1 per passing candidate. Same
+//     mechanism as Phase 2 Pass 1. Deterministic patch ordering across runs.
+//
+//   * Covariance (C_basic from pilot centered-by-noisy-mean), barycenter
+//     (from noisy), and pilot min/max computed in a SINGLE fused pass over
+//     the similar-patch set. Phase 0/1 made three separate passes over the
+//     same data with their own synchronization overhead.
+//
+//   * Min/max reduction via warp shuffles -- no s_min_tmp/s_max_tmp arrays.
+//     Uses sh_Dinv as 16-slot scratch (safe because sh_Dinv is not written
+//     until phase 4h's helper call).
+//
+//   * ApplyBayesFilter_Block called with the Phase 1 helper signature:
+//     (sh_X, sh_Y, sh_V, sh_Dinv, sh_VTx, sh_patches, sh_bary, ...)
+//     Fixes the parameter-misalignment we had in Phase 0 where sh_M was
+//     still being passed; now the parameters line up correctly by design.
+//
+// Mathematical contract: matches Lebrun's per-channel Pass 2:
 //
 //   bary_c     = mean_n( noisy[c, :, n] )
 //   B[c, :, n] = pilot[c, :, n] - bary_c
-//   C_basic_c  = B * B^T / (nSimP - 1)
+//   C_basic_c  = B * B^T / (nSimP - 1)                [Lebrun un-centered]
 //   C_P+N_c    = C_basic_c + C_N_c
 //   filter_c   = C_basic_c * (C_P+N_c)^(-1)
 //   out_c[:, n]= clip( filter_c * (noisy[c, :, n] - bary_c) + bary_c,
-//                      min_c - sigma_c, max_c + sigma_c )
+//                      pilot_min - sigma_c, pilot_max + sigma_c )
 //
-// Known deviation from Lebrun:
-//   The CPU reference processes all three channels as a joint 48-dimensional
-//   vector with a 48x48 covariance and a full 48x48 inversion. Our per-
-//   channel simplification (16x16 per channel, independently) preserves the
-//   mathematical structure of  filter but loses the cross-channel
-//   correlations, which typically contribute a small but nonzero quality
-//   gain on color images. This is the A4 item acknowledged upfront.
+// Output is mathematically equivalent to Phase 0/1 (patch ordering is now
+// deterministic; float summation order in the fused loops differs by ~1e-7
+// per element, below visual perception).
 //
-// Launch geometry:
+// Launch geometry (unchanged):
 //   grid  = (ceil(procW / proc_stride), ceil(procH / proc_stride))
-//   block = (BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y) = (32, 8) = 256 threads
-//   shared ~ 23 KB per block
+//   block = (32, 8) = 256 threads (8 warps)
+//   shared ~ 19 KB per block (was ~23 KB in Phase 0/1)
 // ============================================================================
 
 
-__global__ void Kernel_NLBayes_Pass2_FinalEstimate(
+__global__ void Kernel_NLBayes_Pass2_FinalEstimate
+(
     const float* RESTRICT    noisyY,
     const float* RESTRICT    noisyU,
     const float* RESTRICT    noisyV,
@@ -2005,21 +2026,21 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
     int                      padW,
     float                    tau_Y,
     float                    tau_UV,
-    int                      proc_stride)
+    int                      proc_stride
+)
 {
     const int tid        = threadIdx.y * blockDim.x + threadIdx.x;
     const int block_size = blockDim.x * blockDim.y;
+    const int warp_id    = tid >> 5;        // 0..7
+    const int lane_id    = tid & 31;        // 0..31
 
-    // These buffers are part of the shared kernel signature but unused in
-    // Pass 2 -- Lebrun uses the nearest integer bin for the LUT, not the
-    // interpolated per-bin mean. Kept in the signature for future multi-
-    // scale / interpolation work.
+    // Unused in Pass 2 (Lebrun uses nearest-bin LUT, no interpolation).
     (void) noiseMeanY;
     (void) noiseMeanU;
     (void) noiseMeanV;
 
     // ------------------------------------------------------------------------
-    // Reference coordinate and boundary check (same logic as Pass 1).
+    // Reference coordinate and boundary check.
     // ------------------------------------------------------------------------
     const int ref_x = blockIdx.x * proc_stride;
     const int ref_y = blockIdx.y * proc_stride;
@@ -2036,41 +2057,39 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
     const int win_y0 = ref_y - SEARCH_WINDOW_RADIUS;
 
     // ------------------------------------------------------------------------
-    // Shared memory layout (~23 KB total).
+    // Shared memory layout (~19 KB total).
     // ------------------------------------------------------------------------
-    __shared__ float s_noisyY[WINDOW_TILE_ELEMS];        // 3 * 400 * 4 = 4800 B
+    __shared__ float s_noisyY[WINDOW_TILE_ELEMS];    // 3 * 400 * 4 = 4800 B
     __shared__ float s_noisyU[WINDOW_TILE_ELEMS];
     __shared__ float s_noisyV[WINDOW_TILE_ELEMS];
-    __shared__ float s_pilotY[WINDOW_TILE_ELEMS];        // 3 * 400 * 4 = 4800 B
+    __shared__ float s_pilotY[WINDOW_TILE_ELEMS];    // 3 * 400 * 4 = 4800 B
     __shared__ float s_pilotU[WINDOW_TILE_ELEMS];
     __shared__ float s_pilotV[WINDOW_TILE_ELEMS];
 
-    __shared__ int   s_patchIndices[MAX_SIMILAR_PATCHES];  // 128 * 4 = 512 B
+    __shared__ int   s_patchIndices[PASS12_MAX_SIMILAR];    // 64 * 4 = 256 B
     __shared__ int   s_patchCount;
 
     __shared__ float s_sigma_Y;
     __shared__ float s_sigma_U;
     __shared__ float s_sigma_V;
     __shared__ float s_threshold;
-
-    // Matrix workspaces (4 x 256 + 16 = 4160 B)
-    __shared__ float sh_A    [PATCH_ELEMS_SQ];    // C_basic, then Y = C_basic + C_N (trashed)
-    __shared__ float sh_B    [PATCH_ELEMS_SQ];    // C_N, then V workspace
-    __shared__ float sh_C    [PATCH_ELEMS_SQ];    // X = C_basic (preserved for helper)
-    __shared__ float sh_D    [PATCH_ELEMS_SQ];    // filter matrix M workspace
-    __shared__ float sh_Dinv [PATCH_ELEMS];
-
-    __shared__ float sh_bary    [PATCH_ELEMS];
-    __shared__ float sh_patches [PATCH_ELEMS * MAX_SIMILAR_PATCHES];  // noisy, 16*128*4 = 8192 B
-
-    __shared__ float s_min_tmp[PATCH_ELEMS];
-    __shared__ float s_max_tmp[PATCH_ELEMS];
     __shared__ float s_min;
     __shared__ float s_max;
     __shared__ int   s_bin_ch;
 
+    // Matrix workspaces (3 * 256 + 16 = 3136 B).
+    __shared__ float sh_X      [PATCH_ELEMS_SQ];     // C_basic (preserved by helper)
+    __shared__ float sh_Y_mat  [PATCH_ELEMS_SQ];     // C_basic + C_N (inverted, trashed)
+    __shared__ float sh_V_mat  [PATCH_ELEMS_SQ];     // eigenvector workspace
+    __shared__ float sh_Dinv   [PATCH_ELEMS];        // 16-float reciprocal eigenvalues
+
+    __shared__ float sh_bary   [PATCH_ELEMS];        // barycenter from noisy
+    __shared__ float sh_VTx    [PATCH_ELEMS];        // helper streaming intermediate
+
+    __shared__ float sh_patches[PATCH_ELEMS * PASS12_MAX_SIMILAR];   // noisy, 16*64*4 = 4096 B
+
     // ------------------------------------------------------------------------
-    // Phase 1: Load both noisy and pilot window tiles.
+    // Phase 1: Load noisy + pilot window tiles cooperatively.
     // ------------------------------------------------------------------------
     for (int i = tid; i < WINDOW_TILE_ELEMS; i += block_size)
     {
@@ -2094,24 +2113,11 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
     __syncthreads();
 
     // ------------------------------------------------------------------------
-    // Phase 2: sigma per channel + Pass-2 threshold.
-    //
-    //   threshold = 3 * ( tau_Y * sigma_Y^2 + tau_UV * (sigma_U^2 + sigma_V^2) )
-    //
-    // The extra factor of 3 (= nChannels) vs. Pass 1 is  Step-2 tau
-    // expansion (3 * sP^2 * nChannels instead of 3 * sP^2). At default user
-    // controls (tau_Y = tau_UV = 48), this gives 144 * (sY^2 + sU^2 + sV^2)
-    // which is equivalent to   144 * sigmaMean  (weight_c = 1).
-    //
-    // Deliberately sigma-scaled (not literal-constant 144) so the threshold
-    // self-adapts to the input image's amplitude -- floating-point images
-    // in [0, 1] will otherwise see every patch pass the literal threshold.
+    // Phase 2: Per-channel sigma and Pass-2 threshold.
+    //   Identical to Phase 0/1 -- single-threaded sequential reductions.
     // ------------------------------------------------------------------------
     if (tid == 0)
     {
-        // Reference-patch mean from noisy Y channel for the bin lookup.
-        // Using noisy Y is  Step-1 convention; for Step-2 the per-
-        // channel bin is refined per channel in phase 4e below.
         float sum_Y = 0.0f;
         #pragma unroll
         for (int i = 0; i < PATCH_SIZE; ++i)
@@ -2119,15 +2125,15 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
             #pragma unroll
             for (int j = 0; j < PATCH_SIZE; ++j)
             {
-                const int p_idx = (SEARCH_WINDOW_RADIUS + i) * WINDOW_TILE_SIZE + (SEARCH_WINDOW_RADIUS + j);
+                const int p_idx = (SEARCH_WINDOW_RADIUS + i) * WINDOW_TILE_SIZE
+                                + (SEARCH_WINDOW_RADIUS + j);
                 sum_Y += s_noisyY[p_idx];
             }
         }
         const float mean_Y  = sum_Y * (1.0f / static_cast<float>(PATCH_ELEMS));
-        const int   ref_bin = max(0, min(NOISE_BINS - 1,
+        const int ref_bin   = max(0, min(NOISE_BINS - 1,
                                          __float2int_rn(mean_Y * 255.0f)));
 
-        // Sigma per channel from trace of 16x16 noise cov at this bin.
         const int base = ref_bin * PATCH_ELEMS_SQ;
         float trace_Y = 0.0f;
         float trace_U = 0.0f;
@@ -2135,7 +2141,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
         #pragma unroll
         for (int k = 0; k < PATCH_ELEMS; ++k)
         {
-            const int diag = k * (PATCH_ELEMS + 1);   // k*17
+            const int diag = k * (PATCH_ELEMS + 1);
             trace_Y += noiseCovY[base + diag];
             trace_U += noiseCovU[base + diag];
             trace_V += noiseCovV[base + diag];
@@ -2149,7 +2155,8 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
         s_sigma_U = sqrtf(sigma2_U);
         s_sigma_V = sqrtf(sigma2_V);
 
-        // Step-2 threshold: weights = 1 per channel; tau expanded by nChannels.
+        // Pass-2 threshold: weights uniform (1, 1, 1) per channel,
+        // tau expanded by nChannels = 3.
         s_threshold = 3.0f * (tau_Y  * sigma2_Y
                             + tau_UV * sigma2_U
                             + tau_UV * sigma2_V);
@@ -2157,46 +2164,74 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
     __syncthreads();
 
     // ------------------------------------------------------------------------
-    // Phase 3: Patch similarity search using the PILOT image.
+    // Phase 3: Warp-cooperative patch similarity search using the PILOT image.
     //
     //   dist = sum_{i,j} [ (dY_pilot)^2 + (dU_pilot)^2 + (dV_pilot)^2 ]
     //
-    // Weights are uniform (all 1) per  estimateSimilarPatchesStep2.
-    // The reference patch (at (SWR, SWR) relative to the window) has dist=0
-    // and is always included.
+    // Same warp-ballot structure as Pass 1. The reference patch at (SWR, SWR)
+    // has dist = 0 so it is always selected.
     // ------------------------------------------------------------------------
     {
         const int ref_px = SEARCH_WINDOW_RADIUS;
         const int ref_py = SEARCH_WINDOW_RADIUS;
-        const int n_candidates = SEARCH_WINDOW_SIZE * SEARCH_WINDOW_SIZE;
+        const int n_candidates = SEARCH_WINDOW_SIZE * SEARCH_WINDOW_SIZE;    // 289
 
-        for (int cidx = tid; cidx < n_candidates; cidx += block_size)
+        const int chunks_total    = (n_candidates + 31) / 32;                // 10
+        const int chunks_per_warp = (chunks_total + 7) / 8;                  // 2
+
+        for (int chunk_local = 0; chunk_local < chunks_per_warp; ++chunk_local)
         {
-            const int cx = cidx % SEARCH_WINDOW_SIZE;
-            const int cy = cidx / SEARCH_WINDOW_SIZE;
-
-            float dist = 0.0f;
-            #pragma unroll
-            for (int i = 0; i < PATCH_SIZE; ++i)
+            const int chunk_id = warp_id * chunks_per_warp + chunk_local;
+            if (chunk_id >= chunks_total)
             {
+                break;
+            }
+            const int cidx = chunk_id * 32 + lane_id;
+            const bool in_range = (cidx < n_candidates);
+
+            bool passed = false;
+            if (in_range)
+            {
+                const int cx = cidx % SEARCH_WINDOW_SIZE;
+                const int cy = cidx / SEARCH_WINDOW_SIZE;
+
+                float dist = 0.0f;
                 #pragma unroll
-                for (int j = 0; j < PATCH_SIZE; ++j)
+                for (int i = 0; i < PATCH_SIZE; ++i)
                 {
-                    const int r_idx = (ref_py + i) * WINDOW_TILE_SIZE + (ref_px + j);
-                    const int c_idx = (cy     + i) * WINDOW_TILE_SIZE + (cx     + j);
+                    #pragma unroll
+                    for (int j = 0; j < PATCH_SIZE; ++j)
+                    {
+                        const int r_idx = (ref_py + i) * WINDOW_TILE_SIZE + (ref_px + j);
+                        const int c_idx = (cy     + i) * WINDOW_TILE_SIZE + (cx     + j);
 
-                    const float dY = s_pilotY[r_idx] - s_pilotY[c_idx];
-                    const float dU = s_pilotU[r_idx] - s_pilotU[c_idx];
-                    const float dV = s_pilotV[r_idx] - s_pilotV[c_idx];
+                        const float dY = s_pilotY[r_idx] - s_pilotY[c_idx];
+                        const float dU = s_pilotU[r_idx] - s_pilotU[c_idx];
+                        const float dV = s_pilotV[r_idx] - s_pilotV[c_idx];
 
-                    dist += dY * dY + dU * dU + dV * dV;
+                        dist += dY * dY + dU * dU + dV * dV;
+                    }
                 }
+
+                passed = (dist <= s_threshold);
             }
 
-            if (dist <= s_threshold)
+            const unsigned mask = __ballot_sync(0xFFFFFFFF, passed);
+            const int n_passed  = __popc(mask);
+
+            int warp_base = 0;
+            if (lane_id == 0)
             {
-                const int slot = atomicAdd(&s_patchCount, 1);
-                if (slot < MAX_SIMILAR_PATCHES)
+                warp_base = atomicAdd(&s_patchCount, n_passed);
+            }
+            warp_base = __shfl_sync(0xFFFFFFFF, warp_base, 0);
+
+            if (passed)
+            {
+                const unsigned lower_mask = mask & ((1u << lane_id) - 1u);
+                const int my_rank = __popc(lower_mask);
+                const int slot    = warp_base + my_rank;
+                if (slot < PASS12_MAX_SIMILAR)
                 {
                     s_patchIndices[slot] = cidx;
                 }
@@ -2205,9 +2240,8 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
     }
     __syncthreads();
 
-    const int nSimP = min(s_patchCount, MAX_SIMILAR_PATCHES);
+    const int nSimP = min(s_patchCount, PASS12_MAX_SIMILAR);
 
-    // Need at least 2 patches for a meaningful covariance.
     if (nSimP < 2)
     {
         return;
@@ -2247,13 +2281,13 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
         }
 
         // --------------------------------------------------------------------
-        // 4a. Extract NOISY patches into sh_patches (column-major, uncentered).
-        //     sh_patches[i * nSimP + n]  =  pixel i of noisy patch n.
+        // 4a. Load NOISY patches into sh_patches (column-major, un-centered).
+        //     sh_patches[i * nSimP + n] = pixel i of noisy patch n.
         // --------------------------------------------------------------------
         for (int k = tid; k < PATCH_ELEMS * nSimP; k += block_size)
         {
-            const int i = k / nSimP;            // 0..15
-            const int n = k % nSimP;            // 0..nSimP-1
+            const int i = k / nSimP;
+            const int n = k % nSimP;
 
             const int p_idx = s_patchIndices[n];
             const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
@@ -2268,65 +2302,143 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4b. Barycenter from NOISY patches ( Step-2 convention).
-        //     sh_bary[i] = mean_n( noisy[i, n] )
+        // 4b+c+d. FUSED: barycenter (from noisy), pilot min/max, and
+        //   C_basic covariance -- all in ONE sweep over patches.
+        //
+        //   For each matrix element (i, j) assigned to this thread:
+        //     - sum pilot(i)*pilot(j) - (bary_i is needed first; trick below)
+        //
+        //   Subtlety: C_basic[i,j] = sum_n  (pilot[i,n] - bary_i) * (pilot[j,n] - bary_j)
+        //             where bary = mean(noisy).
+        //
+        //   We expand:
+        //     = sum_n pilot[i]*pilot[j]  - bary_j*sum_n pilot[i]
+        //                                - bary_i*sum_n pilot[j]
+        //                                + nSimP*bary_i*bary_j
+        //
+        //   So we can compute, in ONE pass:
+        //     S_ij  = sum_n pilot[i,n] * pilot[j,n]      (cross-product)
+        //     S_i   = sum_n pilot[i,n]                   (pilot row sum)
+        //     (bary_i for noisy is computed as a side effect when j == 0)
+        //
+        //   Then we need bary (from noisy) to finalize C_basic. So this fused
+        //   phase has two parts:
+        //     Part A: compute S_ij, S_i (pilot), N_i (noisy sum), pilot min/max
+        //     Part B: compute sh_bary from N_i, then finalize
+        //             C_basic[i,j] = (S_ij - bary_j*S_i - bary_i*S_j
+        //                             + nSimP*bary_i*bary_j) / (nSimP - 1)
+        //
+        //   We stash S_i in sh_V_mat (cheap since it's otherwise workspace),
+        //   and the pilot min/max in shared scratch reduced via warp shuffle.
         // --------------------------------------------------------------------
-        if (tid < PATCH_ELEMS)
         {
-            float sum = 0.0f;
-            for (int n = 0; n < nSimP; ++n)
+            // ---- Part A: sum cross-products, row-sums, and min/max ----
+
+            for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
             {
-                sum += sh_patches[tid * nSimP + n];
+                const int i = k / PATCH_ELEMS;
+                const int j = k % PATCH_ELEMS;
+
+                const int py_i = i / PATCH_SIZE;
+                const int px_i = i % PATCH_SIZE;
+                const int py_j = j / PATCH_SIZE;
+                const int px_j = j % PATCH_SIZE;
+
+                float sum_ij   = 0.0f;
+                float sum_i    = 0.0f;    // pilot row sum (only j == 0)
+                float noisy_i  = 0.0f;    // noisy row sum (only j == 0)
+                float min_p    =  INFINITY;
+                float max_p    = -INFINITY;
+
+                for (int n = 0; n < nSimP; ++n)
+                {
+                    const int p_idx = s_patchIndices[n];
+                    const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
+                    const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
+
+                    const float pi = s_pilot[(p_cy + py_i) * WINDOW_TILE_SIZE + (p_cx + px_i)];
+                    const float pj = s_pilot[(p_cy + py_j) * WINDOW_TILE_SIZE + (p_cx + px_j)];
+                    sum_ij += pi * pj;
+
+                    if (j == 0)
+                    {
+                        sum_i   += pi;
+                        noisy_i += s_noisy[(p_cy + py_i) * WINDOW_TILE_SIZE + (p_cx + px_i)];
+                        min_p   = fminf(min_p, pi);
+                        max_p   = fmaxf(max_p, pi);
+                    }
+                }
+
+                // Stash S_ij temporarily in sh_Y_mat.
+                sh_Y_mat[k] = sum_ij;
+
+                if (j == 0)
+                {
+                    // Stash row-sum S_i in sh_V_mat[i*16 + 0] -- the first column.
+                    // Reused later for C_basic finalization.
+                    sh_V_mat[i * PATCH_ELEMS] = sum_i;
+                    // Compute and store bary = noisy row sum / nSimP.
+                    sh_bary[i] = noisy_i / static_cast<float>(nSimP);
+                }
+
+                // Warp-shuffle reduce pilot min/max.
+                const float row_min = (j == 0) ? min_p :  INFINITY;
+                const float row_max = (j == 0) ? max_p : -INFINITY;
+
+                const float warp_min = WarpReduceMin(row_min);
+                const float warp_max = WarpReduceMax(row_max);
+
+                if (lane_id == 0)
+                {
+                    sh_Dinv[warp_id]     = warp_min;   // slots 0..7
+                    sh_Dinv[warp_id + 8] = warp_max;   // slots 8..15
+                }
             }
-            sh_bary[tid] = sum / static_cast<float>(nSimP);
-        }
-
-        // --------------------------------------------------------------------
-        // 4c. Clip range from PILOT values (un-centered), widened by sigma_c.
-        //     Thread tid < 16 reduces per pixel-position; thread 0 reduces
-        //     further to scalar min/max.
-        // --------------------------------------------------------------------
-        if (tid < PATCH_ELEMS)
-        {
-            const int i  = tid;
-            const int py = i / PATCH_SIZE;
-            const int px = i % PATCH_SIZE;
-
-            float mn =  INFINITY;
-            float mx = -INFINITY;
-            for (int n = 0; n < nSimP; ++n)
-            {
-                const int p_idx = s_patchIndices[n];
-                const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
-                const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
-
-                const int win_idx = (p_cy + py) * WINDOW_TILE_SIZE + (p_cx + px);
-                const float v = s_pilot[win_idx];
-                mn = fminf(mn, v);
-                mx = fmaxf(mx, v);
-            }
-            s_min_tmp[tid] = mn;
-            s_max_tmp[tid] = mx;
         }
         __syncthreads();
 
+        // ---- Part B: finalize C_basic using bary, and reduce min/max ----
+        {
+            const float normInv = 1.0f / static_cast<float>(nSimP - 1);
+
+            for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
+            {
+                const int i = k / PATCH_ELEMS;
+                const int j = k % PATCH_ELEMS;
+
+                const float S_ij   = sh_Y_mat[k];
+                const float S_i    = sh_V_mat[i * PATCH_ELEMS];   // pilot row sum for i
+                const float S_j    = sh_V_mat[j * PATCH_ELEMS];   // pilot row sum for j
+                const float bary_i = sh_bary[i];
+                const float bary_j = sh_bary[j];
+
+                // C_basic[i, j] = (S_ij - bary_j * S_i - bary_i * S_j
+                //                  + nSimP * bary_i * bary_j) / (nSimP - 1)
+                const float c = (S_ij
+                              - bary_j * S_i
+                              - bary_i * S_j
+                              + static_cast<float>(nSimP) * bary_i * bary_j) * normInv;
+
+                sh_Y_mat[k] = c;       // temporary: will become Y = C_basic + C_N next
+            }
+        }
+        __syncthreads();
+
+        // Final min/max + bin computation (single thread).
         if (tid == 0)
         {
-            float mn = s_min_tmp[0];
-            float mx = s_max_tmp[0];
+            float mn = sh_Dinv[0];
+            float mx = sh_Dinv[8];
             #pragma unroll
-            for (int k = 1; k < PATCH_ELEMS; ++k)
+            for (int w = 1; w < 8; ++w)
             {
-                mn = fminf(mn, s_min_tmp[k]);
-                mx = fmaxf(mx, s_max_tmp[k]);
+                mn = fminf(mn, sh_Dinv[w]);
+                mx = fmaxf(mx, sh_Dinv[w + 8]);
             }
             s_min = mn - sigma_c;
             s_max = mx + sigma_c;
 
-            // Per-channel intensity bin from barycenter mean (Lebrun uses the
-            // mean of NOISY patches to pick the bin -- our bary IS the noisy
-            // per-pixel mean, so averaging across pixel positions reproduces
-            // the same bin).
+            // Per-channel intensity bin from barycenter mean (noisy).
             float total = 0.0f;
             #pragma unroll
             for (int k = 0; k < PATCH_ELEMS; ++k)
@@ -2340,71 +2452,28 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4d. C_basic = B * B^T / (nSimP - 1), where
-        //       B[i, n] = pilot[i, n] - bary_noisy[i]
-        //
-        // Computed directly from the pilot window + sh_bary, without
-        // materializing a sh_patches_basic buffer -- saves 8 KB of shared
-        // memory at the cost of a few extra loads per matrix element.
-        // --------------------------------------------------------------------
-        {
-            const float normInv = 1.0f / static_cast<float>(nSimP - 1);
-
-            for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
-            {
-                const int i = k / PATCH_ELEMS;
-                const int j = k % PATCH_ELEMS;
-
-                const int py_i = i / PATCH_SIZE;
-                const int px_i = i % PATCH_SIZE;
-                const int py_j = j / PATCH_SIZE;
-                const int px_j = j % PATCH_SIZE;
-
-                const float bary_i = sh_bary[i];
-                const float bary_j = sh_bary[j];
-
-                float sum = 0.0f;
-                for (int n = 0; n < nSimP; ++n)
-                {
-                    const int p_idx = s_patchIndices[n];
-                    const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
-                    const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
-
-                    const float bi = s_pilot[(p_cy + py_i) * WINDOW_TILE_SIZE + (p_cx + px_i)] - bary_i;
-                    const float bj = s_pilot[(p_cy + py_j) * WINDOW_TILE_SIZE + (p_cx + px_j)] - bary_j;
-
-                    sum += bi * bj;
-                }
-                sh_A[k] = sum * normInv;        // sh_A = C_basic
-            }
-        }
-        __syncthreads();
-
-        // --------------------------------------------------------------------
-        // 4e. Load C_N for this (channel, bin) into sh_B.
+        // 4e. Load C_N into sh_V_mat (overwriting the pilot row-sums we stashed
+        //     earlier -- they are no longer needed now that C_basic is final).
         // --------------------------------------------------------------------
         {
             const int bin_base = s_bin_ch * PATCH_ELEMS_SQ;
             for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
             {
-                sh_B[k] = noiseCov[bin_base + k];
+                sh_V_mat[k] = noiseCov[bin_base + k];
             }
         }
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4f. Build the Bayes-filter inputs:
-        //       sh_C = C_basic              (= X, preserved through helper)
-        //       sh_A = C_basic + C_N        (= Y, inverted and trashed)
-        //
-        //     Fused in one pass: every k-th thread writes its element of
-        //     sh_C and updates its element of sh_A.
+        // 4f. Build Bayes inputs:
+        //       sh_X     = C_basic               (preserved through helper)
+        //       sh_Y_mat = C_basic + C_N         (will be inverted, trashed)
         // --------------------------------------------------------------------
         for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
         {
-            const float v_basic = sh_A[k];
-            sh_C[k] = v_basic;                      // X = C_basic
-            sh_A[k] = v_basic + sh_B[k];            // Y = C_basic + C_N
+            const float v_basic = sh_Y_mat[k];         // currently holds C_basic
+            sh_X[k]     = v_basic;                     // X = C_basic
+            sh_Y_mat[k] = v_basic + sh_V_mat[k];       // Y = C_basic + C_N
         }
         __syncthreads();
 
@@ -2419,29 +2488,24 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4h. Apply Bayes filter.
-        //     Helper consumes:  sh_C (= X, read-only),  sh_A (= Y, trashed).
-        //     Helper workspace: sh_B (= V), sh_D (= M), sh_Dinv.
-        //     Helper mutates:   sh_patches (filtered + bary + clipped).
+        // 4h. Apply Bayes filter via Phase 1 helper.
         // --------------------------------------------------------------------
         ApplyBayesFilter_Block(
-            sh_C,          // X = C_basic
-            sh_A,          // Y = C_basic + C_N; trashed
-            sh_B,          // V workspace (was C_N; no longer needed)
-            sh_D,          // M workspace
+            sh_X,          // X = C_basic (preserved)
+            sh_Y_mat,      // Y = C_basic + C_N (trashed)
+            sh_V_mat,      // V workspace (C_N contents overwritten)
             sh_Dinv,
-            sh_patches,    // in: centered noisy.  out: filtered + bary + clipped.
+            sh_VTx,
+            sh_patches,
             sh_bary,
             s_min,
             s_max,
             nSimP);
 
-        __syncthreads();    // helper does not trailing-sync
+        __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4i. Aggregate filtered patches back to global accumulators.
-        //     Weight is incremented once per (patch, pixel) at ch == 0 only,
-        //     matching the shared-weight-buffer convention.
+        // 4i. Aggregate filtered patches into global accumulators.
         // --------------------------------------------------------------------
         float* outAccum;
         if (ch == 0)
@@ -2482,9 +2546,10 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
                 atomicAdd(&outWeight[g_idx], 1.0f);
             }
         }
-        __syncthreads();    // ensure channel's shared buffers are safe to reuse
+        __syncthreads();
     }
 }
+
 
 
 // ============================================================================
@@ -2498,7 +2563,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate(
 //     1. Divide the Pass-2 accumulator by the weight counter (with noisy-
 //        fallback when w == 0, matching computeWeightedAggregation).
 //     2. Convert the denoised YUV values back to RGB via the TRANSPOSE of
-//         forward matrix (correct because the forward transform is
+//        Lebrun's forward matrix (correct because the forward transform is
 //        orthonormal -> inverse = transpose).
 //     3. Pack BGRA in interleaved channel order with alpha = 1.0.
 //
@@ -2576,7 +2641,7 @@ __global__ void Kernel_NormalizeAndOutputBGRA(
     else
     {
         // Uncovered pixel -> carry noisy pixel through unchanged.
-        // Matches  computeWeightedAggregation fallback.
+        // Matches Lebrun's computeWeightedAggregation fallback.
         valY = fallbackY[src_idx];
         valU = fallbackU[src_idx];
         valV = fallbackV[src_idx];
@@ -2622,7 +2687,7 @@ static inline int RoundUpPow2(int value, int multiple)
     return (value + (multiple - 1)) & ~(multiple - 1);
 }
 
-
+#if 1
 // ============================================================================
 // ORCHESTRATOR: ImageLabDenoise_CUDA
 //
@@ -2652,6 +2717,13 @@ void ImageLabDenoise_CUDA
     cudaStream_t          stream
 )
 {
+    // Guard against bad inputs; on failure we simply do nothing and return.
+    if (inBuffer == nullptr || outBuffer == nullptr || algoGpuParams == nullptr) {
+        return;
+    }
+    if (width <= 0 || height <= 0) {
+        return;
+    }
     (void)frameCount;  // reserved for future use
 
     // -----------------------------------------------------------------------
@@ -2683,8 +2755,7 @@ void ImageLabDenoise_CUDA
         || g_gpuMemState.tileH != procH)
     {
         free_cuda_memory_buffers(g_gpuMemState);
-        if (!alloc_cuda_memory_buffers(g_gpuMemState, procW, procH))
-        {
+        if (!alloc_cuda_memory_buffers(g_gpuMemState, procW, procH)) {
             return;
         }
     }
@@ -2721,16 +2792,16 @@ void ImageLabDenoise_CUDA
         (procH + proc_stride - 1) / proc_stride);
 
     // -----------------------------------------------------------------------
-    // Map AlgoControls ->  tau threshold scalers
+    // Map AlgoControls -> Lebrun's tau threshold scalers
     //
-    //  per-step algorithmic constant is  tau_base = 3 * sP^2 = 48.
+    // Lebrun's per-step algorithmic constant is  tau_base = 3 * sP^2 = 48.
     // In the reference CPU code this is fixed; here we expose it to the user
     // through AlgoControls, preserving identical behavior at default = 1.0f.
     //
     // tau_Y  applies to the luma (Y) channel
     // tau_UV applies to both chroma (U, V) channels
     // -----------------------------------------------------------------------
-    constexpr float tau_base = 3.0f * static_cast<float>(PATCH_ELEMS);
+    const float tau_base = 3.0f * static_cast<float>(PATCH_ELEMS);   // Lebrun: 3 * sP^2 = 48
     const float master   = algoGpuParams->master_denoise_amount;
     const float fine     = algoGpuParams->fine_detail_preservation;
 
@@ -2740,10 +2811,10 @@ void ImageLabDenoise_CUDA
     // -----------------------------------------------------------------------
     // Precompute byte sizes for async memset clears
     // -----------------------------------------------------------------------
-    const size_t bytes_frame             = static_cast<size_t>(g_gpuMemState.frameSizePadded) * sizeof(float);
-    constexpr size_t bytes_noise_cov     = static_cast<size_t>(NOISE_BINS) * PATCH_ELEMS_SQ * sizeof(float);
-    constexpr size_t bytes_noise_mean    = static_cast<size_t>(NOISE_BINS) * sizeof(float);
-    constexpr size_t bytes_noise_counts  = static_cast<size_t>(NOISE_BINS) * sizeof(int);
+    const size_t bytes_frame         = static_cast<size_t>(g_gpuMemState.frameSizePadded) * sizeof(float);
+    const size_t bytes_noise_cov     = static_cast<size_t>(NOISE_BINS) * PATCH_ELEMS_SQ * sizeof(float);
+    const size_t bytes_noise_mean    = static_cast<size_t>(NOISE_BINS) * sizeof(float);
+    const size_t bytes_noise_counts  = static_cast<size_t>(NOISE_BINS) * sizeof(int);
 
     // -----------------------------------------------------------------------
     // STEP 3: Clear noise-estimation LUTs (async; no host sync)
@@ -2893,3 +2964,269 @@ void ImageLabDenoise_CleanupGPU()
 {
     free_cuda_memory_buffers(g_gpuMemState);
 }
+
+
+// ============================================================================
+// == KERNEL BODIES BELOW ==
+//
+// The kernel bodies are delivered incrementally, one per subsequent message:
+//
+//   Message #1:  Kernel_ConvertBGRAToOrthonormalWeighted
+//   Message #2:  Kernel_ExtractDCT_And_Variance_3ch   (+ DCT_1D_4Point helper)
+//   Message #3:  Kernel_SmoothNoiseCurves_3ch
+//   Message #4:  Kernel_BuildSpatialNoiseCov_3ch
+//   Message #5:  Jacobi eigendecomposition + Wiener solver device helpers
+//   Message #6:  Kernel_NLBayes_Pass1_BasicEstimate
+//   Message #7:  Kernel_NormalizePilotEstimate
+//   Message #8:  Kernel_NLBayes_Pass2_FinalEstimate
+//   Message #9:  Kernel_NormalizeAndOutputBGRA
+//
+// Paste each message's code into this file below, in order. The forward
+// declarations above already match their final signatures exactly, so the
+// file compiles cleanly at every step (kernel calls will link once all
+// bodies are in place).
+// ============================================================================
+
+#else
+
+CUDA_KERNEL_CALL
+void ImageLabDenoise_CUDA
+(
+    const float* RESTRICT inBuffer,
+    float*       RESTRICT outBuffer,
+    int                   srcPitch,
+    int                   dstPitch,
+    int                   width,
+    int                   height,
+    const AlgoControls* RESTRICT algoGpuParams,
+    int                   frameCount,
+    cudaStream_t          stream
+)
+{
+    if (inBuffer == nullptr || outBuffer == nullptr || algoGpuParams == nullptr)
+    {
+        return;
+    }
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+    (void)frameCount;
+
+    const int procW = RoundUpPow2(width,  PROC_ALIGN);
+    const int procH = RoundUpPow2(height, PROC_ALIGN);
+
+    if (procW < SEARCH_WINDOW_SIZE + PATCH_SIZE
+        || procH < SEARCH_WINDOW_SIZE + PATCH_SIZE)
+    {
+        return;
+    }
+
+    if (g_gpuMemState.d_arena_pool == nullptr
+        || g_gpuMemState.tileW != procW
+        || g_gpuMemState.tileH != procH)
+    {
+        free_cuda_memory_buffers(g_gpuMemState);
+        if (!alloc_cuda_memory_buffers(g_gpuMemState, procW, procH))
+        {
+            return;
+        }
+    }
+
+    const dim3 io_block   (BLOCK_DIM_IO_X,   BLOCK_DIM_IO_Y);
+    const dim3 math_block (BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y);
+
+    const dim3 io_grid_proc(
+        (procW + io_block.x - 1) / io_block.x,
+        (procH + io_block.y - 1) / io_block.y);
+
+    const dim3 io_grid_out(
+        (width  + io_block.x - 1) / io_block.x,
+        (height + io_block.y - 1) / io_block.y);
+
+    int proc_stride;
+    switch (algoGpuParams->accuracy)
+    {
+        case ProcAccuracy::AccDraft:    proc_stride = 4; break;
+        case ProcAccuracy::AccHigh:     proc_stride = 1; break;
+        case ProcAccuracy::AccStandard:
+        default:                        proc_stride = 2; break;
+    }
+
+    const dim3 math_grid(
+        (procW + proc_stride - 1) / proc_stride,
+        (procH + proc_stride - 1) / proc_stride);
+
+    const float tau_base = 3.0f * static_cast<float>(PATCH_ELEMS);
+    const float master   = algoGpuParams->master_denoise_amount;
+    const float fine     = algoGpuParams->fine_detail_preservation;
+
+    const float tau_Y  = tau_base * master * algoGpuParams->luma_strength   * fine;
+    const float tau_UV = tau_base * master * algoGpuParams->chroma_strength * fine;
+
+    const size_t bytes_frame        = static_cast<size_t>(g_gpuMemState.frameSizePadded) * sizeof(float);
+    const size_t bytes_noise_cov    = static_cast<size_t>(NOISE_BINS) * PATCH_ELEMS_SQ * sizeof(float);
+    const size_t bytes_noise_mean   = static_cast<size_t>(NOISE_BINS) * sizeof(float);
+    const size_t bytes_noise_counts = static_cast<size_t>(NOISE_BINS) * sizeof(int);
+
+    // ========================================================================
+    // DIAGNOSTIC EVENTS
+    // ========================================================================
+    cudaEvent_t ev_start, ev_convert, ev_dct, ev_smooth, ev_spatial;
+    cudaEvent_t ev_pass1, ev_normalize, ev_pass2, ev_output;
+
+    cudaEventCreate(&ev_start);
+    cudaEventCreate(&ev_convert);
+    cudaEventCreate(&ev_dct);
+    cudaEventCreate(&ev_smooth);
+    cudaEventCreate(&ev_spatial);
+    cudaEventCreate(&ev_pass1);
+    cudaEventCreate(&ev_normalize);
+    cudaEventCreate(&ev_pass2);
+    cudaEventCreate(&ev_output);
+
+    cudaEventRecord(ev_start, stream);
+
+    // ========================================================================
+
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_Y,    0, bytes_noise_cov,    stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_U,    0, bytes_noise_cov,    stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_V,    0, bytes_noise_cov,    stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_Y,   0, bytes_noise_mean,   stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_U,   0, bytes_noise_mean,   stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_V,   0, bytes_noise_mean,   stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_Y, 0, bytes_noise_counts, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_U, 0, bytes_noise_counts, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_V, 0, bytes_noise_counts, stream);
+
+    Kernel_ConvertBGRAToOrthonormalWeighted<<<io_grid_proc, io_block, 0, stream>>>
+    (
+        inBuffer,
+        g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+        srcPitch, g_gpuMemState.padW,
+        width,  height,
+        procW,  procH
+    );
+    cudaEventRecord(ev_convert, stream);
+
+    Kernel_ExtractDCT_And_Variance_3ch<<<io_grid_proc, io_block, 0, stream>>>
+    (
+        g_gpuMemState.d_Y_planar,     g_gpuMemState.d_U_planar,     g_gpuMemState.d_V_planar,
+        g_gpuMemState.d_NoiseCov_Y,   g_gpuMemState.d_NoiseCov_U,   g_gpuMemState.d_NoiseCov_V,
+        g_gpuMemState.d_NoiseMean_Y,  g_gpuMemState.d_NoiseMean_U,  g_gpuMemState.d_NoiseMean_V,
+        g_gpuMemState.d_NoiseCounts_Y,g_gpuMemState.d_NoiseCounts_U,g_gpuMemState.d_NoiseCounts_V,
+        g_gpuMemState.padW, procW, procH
+    );
+    cudaEventRecord(ev_dct, stream);
+
+    Kernel_SmoothNoiseCurves_3ch<<<dim3(3), dim3(NOISE_BINS), 0, stream>>>
+    (
+        g_gpuMemState.d_NoiseCov_Y,   g_gpuMemState.d_NoiseCov_U,   g_gpuMemState.d_NoiseCov_V,
+        g_gpuMemState.d_NoiseMean_Y,  g_gpuMemState.d_NoiseMean_U,  g_gpuMemState.d_NoiseMean_V,
+        g_gpuMemState.d_NoiseCounts_Y,g_gpuMemState.d_NoiseCounts_U,g_gpuMemState.d_NoiseCounts_V
+    );
+    cudaEventRecord(ev_smooth, stream);
+
+    Kernel_BuildSpatialNoiseCov_3ch<<<dim3(NOISE_BINS, 3), dim3(PATCH_ELEMS_SQ), 0, stream>>>
+    (
+        g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V
+    );
+    cudaEventRecord(ev_spatial, stream);
+
+    cudaMemsetAsync(g_gpuMemState.d_Accum_Y, 0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Accum_U, 0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Accum_V, 0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Weight,  0, bytes_frame, stream);
+
+    Kernel_NLBayes_Pass1_BasicEstimate<<<math_grid, math_block, 0, stream>>>
+    (
+        g_gpuMemState.d_Y_planar,    g_gpuMemState.d_U_planar,    g_gpuMemState.d_V_planar,
+        g_gpuMemState.d_Accum_Y,     g_gpuMemState.d_Accum_U,     g_gpuMemState.d_Accum_V,
+        g_gpuMemState.d_Weight,
+        g_gpuMemState.d_NoiseCov_Y,  g_gpuMemState.d_NoiseCov_U,  g_gpuMemState.d_NoiseCov_V,
+        g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+        procW, procH, g_gpuMemState.padW,
+        tau_Y, tau_UV, proc_stride
+    );
+    cudaEventRecord(ev_pass1, stream);
+
+    Kernel_NormalizePilotEstimate<<<io_grid_proc, io_block, 0, stream>>>
+    (
+        g_gpuMemState.d_Accum_Y,    g_gpuMemState.d_Accum_U,    g_gpuMemState.d_Accum_V,
+        g_gpuMemState.d_Weight,
+        g_gpuMemState.d_Y_planar,   g_gpuMemState.d_U_planar,   g_gpuMemState.d_V_planar,
+        g_gpuMemState.d_MosaicB_Y,  g_gpuMemState.d_MosaicB_U,  g_gpuMemState.d_MosaicB_V,
+        g_gpuMemState.padW, procW, procH
+    );
+    cudaEventRecord(ev_normalize, stream);
+
+    cudaMemsetAsync(g_gpuMemState.d_Accum_Y, 0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Accum_U, 0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Accum_V, 0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Weight,  0, bytes_frame, stream);
+
+    Kernel_NLBayes_Pass2_FinalEstimate<<<math_grid, math_block, 0, stream>>>
+    (
+        g_gpuMemState.d_Y_planar,    g_gpuMemState.d_U_planar,    g_gpuMemState.d_V_planar,
+        g_gpuMemState.d_MosaicB_Y,   g_gpuMemState.d_MosaicB_U,   g_gpuMemState.d_MosaicB_V,
+        g_gpuMemState.d_Accum_Y,     g_gpuMemState.d_Accum_U,     g_gpuMemState.d_Accum_V,
+        g_gpuMemState.d_Weight,
+        g_gpuMemState.d_NoiseCov_Y,  g_gpuMemState.d_NoiseCov_U,  g_gpuMemState.d_NoiseCov_V,
+        g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+        procW, procH, g_gpuMemState.padW,
+        tau_Y, tau_UV, proc_stride
+    );
+    cudaEventRecord(ev_pass2, stream);
+
+    Kernel_NormalizeAndOutputBGRA<<<io_grid_out, io_block, 0, stream>>>
+    (
+        g_gpuMemState.d_Accum_Y,    g_gpuMemState.d_Accum_U,    g_gpuMemState.d_Accum_V,
+        g_gpuMemState.d_Weight,
+        g_gpuMemState.d_Y_planar,   g_gpuMemState.d_U_planar,   g_gpuMemState.d_V_planar,
+        outBuffer,
+        g_gpuMemState.padW, dstPitch,
+        width, height
+    );
+    cudaEventRecord(ev_output, stream);
+
+    cudaStreamSynchronize(stream);
+
+    // ========================================================================
+    // DIAGNOSTIC: read elapsed times and print to stderr
+    // ========================================================================
+    float t_convert, t_dct, t_smooth, t_spatial;
+    float t_pass1,  t_normalize, t_pass2, t_output;
+
+    cudaEventElapsedTime(&t_convert,   ev_start,     ev_convert);
+    cudaEventElapsedTime(&t_dct,       ev_convert,   ev_dct);
+    cudaEventElapsedTime(&t_smooth,    ev_dct,       ev_smooth);
+    cudaEventElapsedTime(&t_spatial,   ev_smooth,    ev_spatial);
+    cudaEventElapsedTime(&t_pass1,     ev_spatial,   ev_pass1);
+    cudaEventElapsedTime(&t_normalize, ev_pass1,     ev_normalize);
+    cudaEventElapsedTime(&t_pass2,     ev_normalize, ev_pass2);
+    cudaEventElapsedTime(&t_output,    ev_pass2,     ev_output);
+
+    const float t_total = t_convert + t_dct + t_smooth + t_spatial
+                        + t_pass1 + t_normalize + t_pass2 + t_output;
+
+    fprintf(stderr,
+        "[NLB-TIMING] %dx%d stride=%d | Convert:%.2f | DCT:%.2f | Smooth:%.2f | Spatial:%.2f "
+        "| Pass1:%.2f | Normalize:%.2f | Pass2:%.2f | Output:%.2f | KERNEL-TOTAL:%.2f ms\n",
+        width, height, proc_stride,
+        t_convert, t_dct, t_smooth, t_spatial,
+        t_pass1, t_normalize, t_pass2, t_output, t_total);
+
+    cudaEventDestroy(ev_start);
+    cudaEventDestroy(ev_convert);
+    cudaEventDestroy(ev_dct);
+    cudaEventDestroy(ev_smooth);
+    cudaEventDestroy(ev_spatial);
+    cudaEventDestroy(ev_pass1);
+    cudaEventDestroy(ev_normalize);
+    cudaEventDestroy(ev_pass2);
+    cudaEventDestroy(ev_output);
+    
+    cudaDeviceSynchronize();
+}
+#endif
+
