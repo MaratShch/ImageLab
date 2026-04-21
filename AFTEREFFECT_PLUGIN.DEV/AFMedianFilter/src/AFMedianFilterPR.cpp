@@ -21,30 +21,69 @@ PF_Err ProcessImgInPR
 	{
 		switch (destinationPixelFormat)
 		{
-			case PrPixelFormat_BGRA_4444_8u:
-			break;
+            case PrPixelFormat_BGRA_4444_8u:
+            break;
 
-			case PrPixelFormat_BGRA_4444_16u:
-			break;
+            case PrPixelFormat_BGRP_4444_8u:
+            break;
 
-			case PrPixelFormat_BGRA_4444_32f:
+            case PrPixelFormat_BGRX_4444_8u:
+            break;
+
+            case PrPixelFormat_BGRA_4444_16u:
+            break;
+
+            case PrPixelFormat_BGRP_4444_16u:
+            break;
+
+            case PrPixelFormat_BGRX_4444_16u:
+            break;
+
+            case PrPixelFormat_BGRA_4444_32f:
             case PrPixelFormat_BGRA_4444_32f_Linear:
             break;
 
-			case PrPixelFormat_VUYA_4444_8u_709:
-			case PrPixelFormat_VUYA_4444_8u:
-			break;
+            case PrPixelFormat_BGRX_4444_32f:
+            case PrPixelFormat_BGRX_4444_32f_Linear:
+            break;
 
-			case PrPixelFormat_VUYA_4444_32f_709:
-			case PrPixelFormat_VUYA_4444_32f:
-			break;
+            case PrPixelFormat_BGRP_4444_32f:
+            case PrPixelFormat_BGRP_4444_32f_Linear:
+            break;
 
-			case PrPixelFormat_RGB_444_10u:
-			break;
+            case PrPixelFormat_VUYA_4444_8u_709:
+            case PrPixelFormat_VUYA_4444_8u:
+            break;
 
-			default:
-			break;
-		} /* switch (destinationPixelFormat) */
+            case PrPixelFormat_VUYP_4444_8u_709:
+            case PrPixelFormat_VUYP_4444_8u:
+            break;
+
+            case PrPixelFormat_VUYA_4444_32f_709:
+            case PrPixelFormat_VUYA_4444_32f:
+            break;
+
+            case PrPixelFormat_VUYP_4444_32f_709:
+            case PrPixelFormat_VUYP_4444_32f:
+            break;
+
+            case PrPixelFormat_RGB_444_10u:
+            break;
+
+            case PrPixelFormat_ARGB_4444_8u:
+            break;
+
+            case PrPixelFormat_ARGB_4444_16u:
+            break;
+
+            case PrPixelFormat_ARGB_4444_32f:
+            case PrPixelFormat_ARGB_4444_32f_Linear:
+            break;
+
+            default:
+                err = PF_Err_INVALID_INDEX;
+            break;
+        } /* switch (destinationPixelFormat) */
 
 	} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
 	else

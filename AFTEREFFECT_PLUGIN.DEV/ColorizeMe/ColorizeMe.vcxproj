@@ -190,9 +190,12 @@
     <ClCompile Include="src\ColorizeMe.cpp" />
     <ClCompile Include="src\ColorizeMeAE.cpp" />
     <ClCompile Include="src\ColorizeMePR.cpp" />
+    <ClCompile Include="src\ColorizeMeSR.cpp" />
     <ClCompile Include="src\FileDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp" />
+    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\ColorTransform.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />

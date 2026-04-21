@@ -2,79 +2,6 @@
 #include "CommonDebugUtils.hpp"
 
 
-bool ProcessPrImage_BGRA_4444_8u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output
-) noexcept
-{
-	return true;
-}
-
-
-bool ProcessPrImage_BGRA_4444_16u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output
-) noexcept
-{
-	return true;
-}
-
-bool ProcessPrImage_BGRA_4444_32f
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output
-) noexcept
-{
-	return true;
-}
-
-
-bool ProcessPrImage_VUYA_4444_8u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output,
-	const bool isBT709
-) noexcept
-{
-	return true;
-}
-
-
-bool ProcessPrImage_VUYA_4444_32f
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output,
-	const bool isBT709
-) noexcept
-{
-	return true;
-}
-
-
-bool ProcessPrImage_RGB_444_10u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output
-) noexcept
-{
-	return true;
-}
-
-
 
 PF_Err ProcessImgInPR
 (
@@ -85,42 +12,87 @@ PF_Err ProcessImgInPR
 	const PrPixelFormat&    pixelFormat
 ) noexcept
 {
-	bool bValue = true;
+    PF_Err err{ PF_Err_NONE };
+    PF_Err errFormat{ PF_Err_INVALID_INDEX };
+    PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
-	/* acquire controls parameters */
+    /* This plugin called frop PR - check video fomat */
+    auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
-	switch (pixelFormat)
-	{
-		case PrPixelFormat_BGRA_4444_8u:
-			bValue = ProcessPrImage_BGRA_4444_8u(in_data, out_data, params, output);
-		break;
+    if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+    {
+        switch (destinationPixelFormat)
+        {
+            case PrPixelFormat_BGRA_4444_8u:
+            break;
 
-		case PrPixelFormat_BGRA_4444_16u:
-			bValue = ProcessPrImage_BGRA_4444_16u(in_data, out_data, params, output);
-		break;
+            case PrPixelFormat_BGRP_4444_8u:
+            break;
 
-		case PrPixelFormat_BGRA_4444_32f:
-			bValue = ProcessPrImage_BGRA_4444_32f(in_data, out_data, params, output);
-		break;
+            case PrPixelFormat_BGRX_4444_8u:
+            break;
 
-		case PrPixelFormat_VUYA_4444_8u:
-		case PrPixelFormat_VUYA_4444_8u_709:
-			bValue = ProcessPrImage_VUYA_4444_8u(in_data, out_data, params, output, PrPixelFormat_VUYA_4444_8u_709 == pixelFormat);
-		break;
+            case PrPixelFormat_BGRA_4444_16u:
+            break;
 
-		case PrPixelFormat_VUYA_4444_32f:
-		case PrPixelFormat_VUYA_4444_32f_709:
-			bValue = ProcessPrImage_VUYA_4444_32f(in_data, out_data, params, output, PrPixelFormat_VUYA_4444_8u_709 == pixelFormat);
-		break;
+            case PrPixelFormat_BGRP_4444_16u:
+            break;
 
-		case PrPixelFormat_RGB_444_10u:
-			bValue = ProcessPrImage_RGB_444_10u(in_data, out_data, params, output);
-		break;
+            case PrPixelFormat_BGRX_4444_16u:
+            break;
 
-		default:
-			bValue = false;
-		break;
-	}
+            case PrPixelFormat_BGRA_4444_32f:
+            case PrPixelFormat_BGRA_4444_32f_Linear:
+            break;
 
-	return (true == bValue ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
+            case PrPixelFormat_BGRX_4444_32f:
+            case PrPixelFormat_BGRX_4444_32f_Linear:
+            break;
+
+            case PrPixelFormat_BGRP_4444_32f:
+            case PrPixelFormat_BGRP_4444_32f_Linear:
+            break;
+
+            case PrPixelFormat_VUYA_4444_8u_709:
+            case PrPixelFormat_VUYA_4444_8u:
+            break;
+
+            case PrPixelFormat_VUYP_4444_8u_709:
+            case PrPixelFormat_VUYP_4444_8u:
+            break;
+
+            case PrPixelFormat_VUYA_4444_32f_709:
+            case PrPixelFormat_VUYA_4444_32f:
+            break;
+
+            case PrPixelFormat_VUYP_4444_32f_709:
+            case PrPixelFormat_VUYP_4444_32f:
+            break;
+
+            case PrPixelFormat_RGB_444_10u:
+            break;
+
+            case PrPixelFormat_ARGB_4444_8u:
+            break;
+
+            case PrPixelFormat_ARGB_4444_16u:
+            break;
+
+            case PrPixelFormat_ARGB_4444_32f:
+            case PrPixelFormat_ARGB_4444_32f_Linear:
+            break;
+
+            default:
+                err = PF_Err_INVALID_INDEX;
+            break;
+        } /* switch (destinationPixelFormat) */
+
+    } /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
+    else
+    {
+        /* error in determine pixel format */
+        err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+    }
+
+    return err;
 }

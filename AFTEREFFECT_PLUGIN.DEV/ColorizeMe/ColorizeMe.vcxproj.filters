@@ -30,6 +30,9 @@
     <ClCompile Include="src\FileDialog.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ColorizeMeSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ColorizeMe.hpp">
@@ -90,6 +93,12 @@
       <Filter>include_comon</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_comon</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
       <Filter>include_comon</Filter>
     </ClInclude>
   </ItemGroup>
