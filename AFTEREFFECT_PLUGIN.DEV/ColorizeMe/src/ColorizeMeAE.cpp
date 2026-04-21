@@ -1,36 +1,36 @@
 #include "ColorizeMe.hpp"
 
-static bool ProcessImgInAE_8bits
+bool ProcessImgInAE_8bits
 (
 	PF_InData*    in_data,
 	PF_OutData*   out_data,
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output
-) noexcept
+) 
 {
 	return true;
 }
 
 
-static bool ProcessImgInAE_16bits
+bool ProcessImgInAE_16bits
 (
 	PF_InData*    in_data,
 	PF_OutData*   out_data,
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output
-) noexcept
+) 
 {
 	return true;
 }
 
 
-static bool ProcessImgInAE_32bits
+bool ProcessImgInAE_32bits
 (
     PF_InData*    in_data,
     PF_OutData*   out_data,
     PF_ParamDef*  params[],
     PF_LayerDef*  output
-) noexcept
+) 
 {
     return true;
 }

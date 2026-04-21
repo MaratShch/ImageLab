@@ -30,7 +30,7 @@ constexpr int ColorizeMe_VersionSub = 0;
 #ifdef _DEBUG
 constexpr int ColorizeMe_VersionStage = PF_Stage_DEVELOP;
 #else
-constexpr int ColorizeMe_VersionStage = PF_Stage_DEVELOP;// PF_Stage_RELEASE;
+constexpr int ColorizeMe_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int ColorizeMe_VersionBuild = 0;
 
@@ -41,7 +41,7 @@ PF_Err ProcessImgInAE
 	PF_OutData*   out_data,
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output
-) noexcept;
+);
 
 PF_Err ProcessImgInPR
 (
@@ -50,29 +50,5 @@ PF_Err ProcessImgInPR
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output,
 	const PrPixelFormat&    pixelFormat
-) noexcept;
+);
 
-bool ProcessPrImage_BGRA_4444_8u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output
-) noexcept;
-
-bool ProcessPrImage_BGRA_4444_16u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output
-) noexcept;
-
-bool ProcessPrImage_VUYA_4444_8u
-(
-	PF_InData*    in_data,
-	PF_OutData*   out_data,
-	PF_ParamDef*  params[],
-	PF_LayerDef*  output,
-	const bool isBT709
-) noexcept;
