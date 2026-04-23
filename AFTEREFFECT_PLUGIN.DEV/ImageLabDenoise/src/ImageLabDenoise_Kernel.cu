@@ -34,16 +34,16 @@
 // ============================================================================
 
 // --- Launch-config block dimensions ---
-constexpr int BLOCK_DIM_IO_X   = 32;
-constexpr int BLOCK_DIM_IO_Y   = 16;
+constexpr int BLOCK_DIM_IO_X = 32;
+constexpr int BLOCK_DIM_IO_Y = 16;
 constexpr int BLOCK_DIM_MATH_X = 32;
 constexpr int BLOCK_DIM_MATH_Y = 8;   // 32 * 8 = 256 threads / block (for NL-Bayes passes)
 
-// --- Image-dimension alignment ---
-// We pad the internal YUV buffers to a multiple of 4 so that:
-//   (a) the 4x4 DCT patch grid tiles evenly
-//   (b) a future 2-scale mosaic pyramid (1<<nbScales = 4) fits
-// Matches Lebrun's enhanceBoundaries(pow = 1 << nbScales) convention.
+                                      // --- Image-dimension alignment ---
+                                      // We pad the internal YUV buffers to a multiple of 4 so that:
+                                      //   (a) the 4x4 DCT patch grid tiles evenly
+                                      //   (b) a future 2-scale mosaic pyramid (1<<nbScales = 4) fits
+                                      // Matches Lebrun's enhanceBoundaries(pow = 1 << nbScales) convention.
 constexpr int PROC_ALIGN = 4;
 
 // --- Lebrun's YUV orthonormal color transform (3-channel branch in LibImages.cpp) ---
@@ -52,24 +52,24 @@ constexpr int PROC_ALIGN = 4;
 //   V = c * (R/4 - G/2 + B/4)      c = 2*a*sqrt(2) ≈ 1.63299316f
 // Inverse uses a' = a, b' = b, c' = a/b = sqrt(2/3) ≈ 0.81649658f;
 // the inverse matrix is the transpose of the forward (orthonormal).
-constexpr float YUV_A       = 0.57735027f;   // 1 / sqrt(3)
-constexpr float YUV_B       = 0.70710678f;   // 1 / sqrt(2)
-constexpr float YUV_C       = 1.63299316f;   // 2 * YUV_A * sqrt(2)
-constexpr float YUV_C_INV   = 0.81649658f;   // YUV_A / YUV_B  = sqrt(2/3)
+constexpr float YUV_A = 0.57735027f;   // 1 / sqrt(3)
+constexpr float YUV_B = 0.70710678f;   // 1 / sqrt(2)
+constexpr float YUV_C = 1.63299316f;   // 2 * YUV_A * sqrt(2)
+constexpr float YUV_C_INV = 0.81649658f;   // YUV_A / YUV_B  = sqrt(2/3)
 
-// --- Noise-estimation geometry ---
-// Lebrun uses nSimilarPatches = 2*sP^2 = 32 and a search window of
-// (nSimilarPatches/2 | 1) = 17 cells across.
+                                           // --- Noise-estimation geometry ---
+                                           // Lebrun uses nSimilarPatches = 2*sP^2 = 32 and a search window of
+                                           // (nSimilarPatches/2 | 1) = 17 cells across.
 constexpr int SEARCH_WINDOW_RADIUS = 8;
-constexpr int SEARCH_WINDOW_SIZE   = (SEARCH_WINDOW_RADIUS * 2) + 1;   // 17
-constexpr int SMEM_STRIDE          = SEARCH_WINDOW_SIZE;               // row stride for 17x17 shared tile
+constexpr int SEARCH_WINDOW_SIZE = (SEARCH_WINDOW_RADIUS * 2) + 1;   // 17
+constexpr int SMEM_STRIDE = SEARCH_WINDOW_SIZE;               // row stride for 17x17 shared tile
 
-// nSimilarPatches is the TARGET number of similar patches per group.
-// MAX_SIMILAR_PATCHES is the hard cap (Lebrun's CPU uses 16 * nSim = 512 in
-// random-patch mode; we cap at 128 as a pragmatic balance - quality parity
-// in 99% of real imagery with a quarter the shared-memory footprint).
-constexpr int N_SIMILAR_PATCHES    = 32;
-constexpr int MAX_SIMILAR_PATCHES  = 128;
+                                                              // nSimilarPatches is the TARGET number of similar patches per group.
+                                                              // MAX_SIMILAR_PATCHES is the hard cap (Lebrun's CPU uses 16 * nSim = 512 in
+                                                              // random-patch mode; we cap at 128 as a pragmatic balance - quality parity
+                                                              // in 99% of real imagery with a quarter the shared-memory footprint).
+constexpr int N_SIMILAR_PATCHES = 32;
+constexpr int MAX_SIMILAR_PATCHES = 128;
 
 // DCT patch noise-estimation constants (4x4 orthonormal DCT-II)
 //   C0 = 1/2
@@ -167,14 +167,14 @@ __global__ void Kernel_ConvertBGRAToOrthonormalWeighted(
     // Resolve source coordinate via Lebrun-style symmetric mirror reflection.
     // Branchless variant:  src = (coord < extent) ? coord : (2*extent - 2 - coord)
     // ------------------------------------------------------------------------
-    int src_x = (x < srcWidth)  ? x : (2 * srcWidth  - 2 - x);
+    int src_x = (x < srcWidth) ? x : (2 * srcWidth - 2 - x);
     int src_y = (y < srcHeight) ? y : (2 * srcHeight - 2 - y);
 
     // Safety clamp in case the padding exceeds srcWidth/srcHeight (e.g.
     // a pathologically small input image). Should never trigger for
     // typical inputs where procW - srcWidth <= 3.
     if (src_x < 0)          src_x = 0;
-    if (src_x >= srcWidth)  src_x = srcWidth  - 1;
+    if (src_x >= srcWidth)  src_x = srcWidth - 1;
     if (src_y < 0)          src_y = 0;
     if (src_y >= srcHeight) src_y = srcHeight - 1;
 
@@ -183,9 +183,9 @@ __global__ void Kernel_ConvertBGRAToOrthonormalWeighted(
     //   channel 0 = B, 1 = G, 2 = R, 3 = A
     // ------------------------------------------------------------------------
     const int   src_base = (src_y * srcPitchPixels + src_x) * 4;
-    const float b        = inBuffer[src_base + 0];
-    const float g        = inBuffer[src_base + 1];
-    const float r        = inBuffer[src_base + 2];
+    const float b = inBuffer[src_base + 0];
+    const float g = inBuffer[src_base + 1];
+    const float r = inBuffer[src_base + 2];
     // Alpha is ignored -- we pass-through 1.0 on the inverse.
 
     // ------------------------------------------------------------------------
@@ -292,7 +292,7 @@ void DCT_1D_4Point(const float* RESTRICT in, float* RESTRICT out)
 // ---------------------------------------------------------------------------
 __device__ __forceinline__
 void AccumulateChannel(
-    const float (&tile)[BLOCK_DIM_IO_Y + 3][BLOCK_DIM_IO_X + 3],
+    const float(&tile)[BLOCK_DIM_IO_Y + 3][BLOCK_DIM_IO_X + 3],
     int           tx,
     int           ty,
     float*        outCov,
@@ -303,15 +303,15 @@ void AccumulateChannel(
     float p[4][4];
     float sum = 0.0f;
 
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < 4; ++i)
     {
-        #pragma unroll
+#pragma unroll
         for (int j = 0; j < 4; ++j)
         {
             const float v = tile[ty + i][tx + j];
             p[i][j] = v;
-            sum    += v;
+            sum += v;
         }
     }
 
@@ -319,27 +319,27 @@ void AccumulateChannel(
     //     Input is in [0, 1] for BGRA and remains bounded for YUV, but U/V
     //     can be negative. We bin by the signed mean; out-of-range clamps
     //     to edges. This matches Lebrun's getMean() with offset/rangeMax.
-    const float patch_mean     = sum * 0.0625f;                // sum / 16
-    const int   bin_unclamped  = __float2int_rn(patch_mean * 255.0f);
-    const int   bin            = max(0, min(NOISE_BINS - 1, bin_unclamped));
+    const float patch_mean = sum * 0.0625f;                // sum / 16
+    const int   bin_unclamped = __float2int_rn(patch_mean * 255.0f);
+    const int   bin = max(0, min(NOISE_BINS - 1, bin_unclamped));
 
     //! 3. Run 2D DCT: 4 rows, then 4 columns.
     float tmp[4][4];
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < 4; ++i)
     {
         DCT_1D_4Point(p[i], tmp[i]);
     }
 
     float dct[4][4];
-    #pragma unroll
+#pragma unroll
     for (int j = 0; j < 4; ++j)
     {
         const float col[4] = { tmp[0][j], tmp[1][j], tmp[2][j], tmp[3][j] };
         float       colOut[4];
         DCT_1D_4Point(col, colOut);
 
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < 4; ++i)
         {
             dct[i][j] = colOut[i];
@@ -356,19 +356,19 @@ void AccumulateChannel(
 
     float* binBase = outCov + bin * PATCH_ELEMS_SQ;            // bin stride = 256
 
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < 4; ++i)
     {
-        #pragma unroll
+#pragma unroll
         for (int j = 0; j < 4; ++j)
         {
             const int   freq = i * 4 + j;
-            const float c    = dct[i][j];
+            const float c = dct[i][j];
             atomicAdd(&binBase[freq], c * c);
         }
     }
 
-    atomicAdd(&outMean[bin],   patch_mean);
+    atomicAdd(&outMean[bin], patch_mean);
     atomicAdd(&outCounts[bin], 1);
 }
 
@@ -554,10 +554,10 @@ float Median4(float a, float b, float c, float d)
 {
     // Small branchless-ish sort via conditional swaps, then return avg of middle two.
     float arr[4] = { a, b, c, d };
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < 3; ++i)
     {
-        #pragma unroll
+#pragma unroll
         for (int j = i + 1; j < 4; ++j)
         {
             if (arr[j] < arr[i])
@@ -575,10 +575,10 @@ __device__ __forceinline__
 float Median5(float a, float b, float c, float d, float e)
 {
     float arr[5] = { a, b, c, d, e };
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < 4; ++i)
     {
-        #pragma unroll
+#pragma unroll
         for (int j = i + 1; j < 5; ++j)
         {
             if (arr[j] < arr[i])
@@ -668,7 +668,7 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
 {
     // Channel demultiplex: block 0 handles Y, 1 handles U, 2 handles V.
     const int channel = blockIdx.x;
-    const int bin     = threadIdx.x;
+    const int bin = threadIdx.x;
 
     float*       ioCov;
     float*       ioMean;
@@ -676,20 +676,20 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
 
     if (channel == 0)
     {
-        ioCov    = ioCovY;
-        ioMean   = ioMeanY;
+        ioCov = ioCovY;
+        ioMean = ioMeanY;
         inCounts = inCountsY;
     }
     else if (channel == 1)
     {
-        ioCov    = ioCovU;
-        ioMean   = ioMeanU;
+        ioCov = ioCovU;
+        ioMean = ioMeanU;
         inCounts = inCountsU;
     }
     else
     {
-        ioCov    = ioCovV;
-        ioMean   = ioMeanV;
+        ioCov = ioCovV;
+        ioMean = ioMeanV;
         inCounts = inCountsV;
     }
 
@@ -699,11 +699,11 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
     //   cur[freq]   = Sum(dct_coeff^2) / count        [= variance]
     //   ioMean[bin] = Sum(patch_mean)  / count        [= mean intensity]
     // ------------------------------------------------------------------------
-    const int   count  = inCounts[bin];
-    const bool  valid  = (count > 0);
-    const float invN   = valid ? (1.0f / static_cast<float>(count)) : 0.0f;
+    const int   count = inCounts[bin];
+    const bool  valid = (count > 0);
+    const float invN = valid ? (1.0f / static_cast<float>(count)) : 0.0f;
 
-    __shared__ float s_buf [NOISE_BINS];     // smoothing working buffer
+    __shared__ float s_buf[NOISE_BINS];     // smoothing working buffer
     __shared__ int   s_valid[NOISE_BINS];    // 1 = bin has patches, 0 = empty
 
     s_valid[bin] = valid ? 1 : 0;
@@ -719,7 +719,7 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
     float cur[PATCH_ELEMS];
     const int bin_base = bin * PATCH_ELEMS_SQ;
 
-    #pragma unroll
+#pragma unroll
     for (int freq = 0; freq < PATCH_ELEMS; ++freq)
     {
         cur[freq] = valid ? (ioCov[bin_base + freq] * invN) : 0.0f;
@@ -727,11 +727,11 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
 
     __syncthreads();    // s_valid is now visible to all threads
 
-    // ------------------------------------------------------------------------
-    // Phase 1: Lebrun's 5 sweeps of (bin-axis smoothing + per-bin 4x4 median).
-    // ------------------------------------------------------------------------
-    constexpr int NB_SWEEPS      = 5;
-    constexpr int SMOOTH_WINDOW  = 10;       // Lebrun's sizeFilter
+                        // ------------------------------------------------------------------------
+                        // Phase 1: Lebrun's 5 sweeps of (bin-axis smoothing + per-bin 4x4 median).
+                        // ------------------------------------------------------------------------
+    constexpr int NB_SWEEPS = 5;
+    constexpr int SMOOTH_WINDOW = 10;       // Lebrun's sizeFilter
 
     for (int sweep = 0; sweep < NB_SWEEPS; ++sweep)
     {
@@ -747,16 +747,16 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
             __syncthreads();
 
             // Compute valid neighbor range [nmin, nmax] (fixes bug C2).
-            const int nmin = max(0,              bin - SMOOTH_WINDOW);
+            const int nmin = max(0, bin - SMOOTH_WINDOW);
             const int nmax = min(NOISE_BINS - 1, bin + SMOOTH_WINDOW);
 
-            float sum      = 0.0f;
-            int   n_valid  = 0;
+            float sum = 0.0f;
+            int   n_valid = 0;
             for (int nb = nmin; nb <= nmax; ++nb)
             {
                 if (s_valid[nb])
                 {
-                    sum     += s_buf[nb];
+                    sum += s_buf[nb];
                     n_valid += 1;
                 }
             }
@@ -777,7 +777,7 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
         // This is entirely thread-local (each thread operates on its own `cur`).
         float filt[PATCH_ELEMS];
 
-        #pragma unroll
+#pragma unroll
         for (int f = 0; f < PATCH_ELEMS; ++f)
         {
             const int i = f / 4;
@@ -786,7 +786,7 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
         }
 
         // Commit the filtered values. Next sweep continues from here.
-        #pragma unroll
+#pragma unroll
         for (int f = 0; f < PATCH_ELEMS; ++f)
         {
             cur[f] = filt[f];
@@ -798,7 +798,7 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
     // Only the first 16 slots per bin are used; the remaining [16..255] stay
     // zero here -- kernel #4 will fill them with the full 16x16 spatial cov.
     // ------------------------------------------------------------------------
-    #pragma unroll
+#pragma unroll
     for (int freq = 0; freq < PATCH_ELEMS; ++freq)
     {
         ioCov[bin_base + freq] = cur[freq];
@@ -864,16 +864,16 @@ __global__ void Kernel_SmoothNoiseCurves_3ch
 __constant__ float c_DCT_1D_4PT_MATRIX[PATCH_ELEMS] =
 {
     // k = 0 (DC row):   all 0.5
-     0.5f,          0.5f,          0.5f,          0.5f,
+    0.5f,          0.5f,          0.5f,          0.5f,
 
     // k = 1:           +C1, +C3, -C3, -C1
-     0.65328148f,   0.27059805f,  -0.27059805f,  -0.65328148f,
+    0.65328148f,   0.27059805f,  -0.27059805f,  -0.65328148f,
 
     // k = 2:           +C2, -C2, -C2, +C2        (C2 = 0.5)
-     0.5f,         -0.5f,         -0.5f,          0.5f,
+    0.5f,         -0.5f,         -0.5f,          0.5f,
 
     // k = 3:           +C3, -C1, +C1, -C3
-     0.27059805f,  -0.65328148f,   0.65328148f,  -0.27059805f
+    0.27059805f,  -0.65328148f,   0.65328148f,  -0.27059805f
 };
 
 
@@ -894,9 +894,9 @@ __global__ void Kernel_BuildSpatialNoiseCov_3ch
     //   threadIdx.x = output-matrix element index  [0, 256)
     //                 where element  = row * 16 + col
     // ------------------------------------------------------------------------
-    const int bin     = blockIdx.x;
+    const int bin = blockIdx.x;
     const int channel = blockIdx.y;
-    const int tid     = threadIdx.x;
+    const int tid = threadIdx.x;
 
     float* ioCov;
     if (channel == 0)
@@ -914,20 +914,20 @@ __global__ void Kernel_BuildSpatialNoiseCov_3ch
 
     const int bin_base = bin * PATCH_ELEMS_SQ;     // * 256
 
-    // ------------------------------------------------------------------------
-    // Phase 1: Cooperative load into shared memory.
-    //   s_D1d       : the 4x4 DCT-1D matrix, flat layout (16 floats).
-    //   s_freqVars  : the 16 frequency variances for this (bin, channel).
-    //
-    // Staging freqVars into shared BEFORE any writes guarantees no read-
-    // after-write hazard even though we'll overwrite slots [0..15] later.
-    // ------------------------------------------------------------------------
-    __shared__ float s_D1d     [PATCH_ELEMS];
+                                                   // ------------------------------------------------------------------------
+                                                   // Phase 1: Cooperative load into shared memory.
+                                                   //   s_D1d       : the 4x4 DCT-1D matrix, flat layout (16 floats).
+                                                   //   s_freqVars  : the 16 frequency variances for this (bin, channel).
+                                                   //
+                                                   // Staging freqVars into shared BEFORE any writes guarantees no read-
+                                                   // after-write hazard even though we'll overwrite slots [0..15] later.
+                                                   // ------------------------------------------------------------------------
+    __shared__ float s_D1d[PATCH_ELEMS];
     __shared__ float s_freqVars[PATCH_ELEMS];
 
     if (tid < PATCH_ELEMS)
     {
-        s_D1d     [tid] = c_DCT_1D_4PT_MATRIX[tid];
+        s_D1d[tid] = c_DCT_1D_4PT_MATRIX[tid];
         s_freqVars[tid] = ioCov[bin_base + tid];
     }
 
@@ -956,7 +956,7 @@ __global__ void Kernel_BuildSpatialNoiseCov_3ch
 
     float sum = 0.0f;
 
-    #pragma unroll
+#pragma unroll
     for (int k = 0; k < PATCH_ELEMS; ++k)
     {
         const int i = k / 4;
@@ -1017,30 +1017,41 @@ __global__ void Kernel_BuildSpatialNoiseCov_3ch
 //   sh_bary   :  16 floats  (unchanged)
 //
 // Total helper scratch: (3 * 256 + 2 * 16) * 4 = 3200 bytes (was 4160).
-// ============================================================================
 
 
 // ----------------------------------------------------------------------------
-// EigenJacobi16_Thread0  (UNCHANGED from Phase 0)
+// EigenJacobi16_Thread0
 //
-// Single-threaded classical cyclic Jacobi for a real-symmetric 16x16 matrix.
+// In-place classical cyclic Jacobi eigendecomposition of a real symmetric
+// 16x16 matrix. Single-threaded: intended to be invoked inside
+// `if (tid == 0) { ... }`.
+//
+// On entry:
+//   A[0..255]   symmetric 16x16 matrix, row-major (A[i, j] = A[i*16 + j]).
+//   V[0..255]   uninitialized; will be filled by this routine.
+//
+// On exit:
+//   A           off-diagonal ~ 0 (to float precision);
+//               diagonal contains the 16 eigenvalues (unsorted).
+//   V           columns are orthonormal eigenvectors:
+//               V^T * A_original * V == diag(A_final).
 // ----------------------------------------------------------------------------
 __device__ __forceinline__
 void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
 {
-    #pragma unroll
+#pragma unroll
     for (int k = 0; k < PATCH_ELEMS_SQ; ++k)
     {
         V[k] = 0.0f;
     }
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i < PATCH_ELEMS; ++i)
     {
         V[i * PATCH_ELEMS + i] = 1.0f;
     }
 
     constexpr int   NUM_SWEEPS = 8;
-    constexpr float EPSILON    = 1e-7f;
+    constexpr float EPSILON = 1e-7f;
 
     for (int sweep = 0; sweep < NUM_SWEEPS; ++sweep)
     {
@@ -1108,7 +1119,6 @@ void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
     }
 }
 
-
 // ============================================================================
 // ApplyBayesFilter_Block  (PHASE 1 REVISED)
 //
@@ -1136,7 +1146,8 @@ void EigenJacobi16_Thread0(float* RESTRICT A, float* RESTRICT V)
 //         tid = threadIdx.y * blockDim.x + threadIdx.x
 //         block_size = blockDim.x * blockDim.y
 // ============================================================================
-__device__ void ApplyBayesFilter_Block(
+__device__ void ApplyBayesFilter_Block
+(
     const float* RESTRICT sh_X,         // [256] in    : numerator matrix (preserved)
     float*       RESTRICT sh_Y,         // [256] in/out: matrix to invert (trashed on exit)
     float*       RESTRICT sh_V,         // [256] work  : receives eigenvectors
@@ -1146,9 +1157,10 @@ __device__ void ApplyBayesFilter_Block(
     const float* RESTRICT sh_bary,      // [ 16] in    : barycenter to add back after filter
     float                 min_val,
     float                 max_val,
-    int                   nSimP)
+    int                   nSimP
+)
 {
-    const int tid        = threadIdx.y * blockDim.x + threadIdx.x;
+    const int tid = threadIdx.y * blockDim.x + threadIdx.x;
     const int block_size = blockDim.x * blockDim.y;
 
     // ------------------------------------------------------------------------
@@ -1193,18 +1205,18 @@ __device__ void ApplyBayesFilter_Block(
     // (sh_VTx parameter is kept in the signature for future Phase 3 usage
     //  where the Brent-Luk parallel Jacobi needs block-wide scratch. For
     //  Phase 1, the per-patch filter loop uses register-local storage.)
-    (void) sh_VTx;
+    (void)sh_VTx;
 
     // Each thread handles one patch column n (stride block_size).
     for (int n = tid; n < nSimP; n += block_size)
     {
         // --- Step 3a: u = V^T * x_centered, 16 floats in registers ----
         float u_vec[PATCH_ELEMS];
-        #pragma unroll 4
+#pragma unroll 4
         for (int i = 0; i < PATCH_ELEMS; ++i)
         {
             float acc = 0.0f;
-            #pragma unroll 4
+#pragma unroll 4
             for (int k = 0; k < PATCH_ELEMS; ++k)
             {
                 acc += sh_V[k * PATCH_ELEMS + i] * sh_patches[k * nSimP + n];
@@ -1213,7 +1225,7 @@ __device__ void ApplyBayesFilter_Block(
         }
 
         // --- Step 3b: u = D^(-1) * u, fused scale ---------------------
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < PATCH_ELEMS; ++i)
         {
             u_vec[i] *= sh_Dinv[i];
@@ -1221,11 +1233,11 @@ __device__ void ApplyBayesFilter_Block(
 
         // --- Step 3c: p = V * u, 16 floats back ------------------------
         float p_vec[PATCH_ELEMS];
-        #pragma unroll 4
+#pragma unroll 4
         for (int j = 0; j < PATCH_ELEMS; ++j)
         {
             float acc = 0.0f;
-            #pragma unroll 4
+#pragma unroll 4
             for (int i = 0; i < PATCH_ELEMS; ++i)
             {
                 acc += sh_V[j * PATCH_ELEMS + i] * u_vec[i];
@@ -1234,11 +1246,11 @@ __device__ void ApplyBayesFilter_Block(
         }
 
         // --- Step 3d: out = X * p + bary, clipped, written back --------
-        #pragma unroll 4
+#pragma unroll 4
         for (int r = 0; r < PATCH_ELEMS; ++r)
         {
             float acc = 0.0f;
-            #pragma unroll 4
+#pragma unroll 4
             for (int j = 0; j < PATCH_ELEMS; ++j)
             {
                 acc += sh_X[r * PATCH_ELEMS + j] * p_vec[j];
@@ -1266,7 +1278,7 @@ __device__ void ApplyBayesFilter_Block(
 __device__ __forceinline__
 float WarpReduceMin(float v)
 {
-    #pragma unroll
+#pragma unroll
     for (int offset = 16; offset > 0; offset >>= 1)
     {
         const float other = __shfl_xor_sync(0xFFFFFFFF, v, offset);
@@ -1278,7 +1290,7 @@ float WarpReduceMin(float v)
 __device__ __forceinline__
 float WarpReduceMax(float v)
 {
-    #pragma unroll
+#pragma unroll
     for (int offset = 16; offset > 0; offset >>= 1)
     {
         const float other = __shfl_xor_sync(0xFFFFFFFF, v, offset);
@@ -1290,7 +1302,7 @@ float WarpReduceMax(float v)
 __device__ __forceinline__
 float WarpReduceSum(float v)
 {
-    #pragma unroll
+#pragma unroll
     for (int offset = 16; offset > 0; offset >>= 1)
     {
         v += __shfl_xor_sync(0xFFFFFFFF, v, offset);
@@ -1341,12 +1353,12 @@ float WarpReduceSum(float v)
 // This covers every pixel touched by any 4x4 patch whose top-left lies in
 // the 17x17 search window.
 // ----------------------------------------------------------------------------
-static constexpr int WINDOW_TILE_SIZE  = SEARCH_WINDOW_SIZE + PATCH_SIZE - 1;   // 20
+static constexpr int WINDOW_TILE_SIZE = SEARCH_WINDOW_SIZE + PATCH_SIZE - 1;   // 20
 static constexpr int WINDOW_TILE_ELEMS = WINDOW_TILE_SIZE * WINDOW_TILE_SIZE;   // 400
 
-// Phase 2: cap similar-patch count at 64 (was 128 in Phase 0/1). Reduces
-// sh_patches from 8 KB to 4 KB -> ~2x block-occupancy improvement on
-// shared-memory-limited kernels.
+                                                                                // Phase 2: cap similar-patch count at 64 (was 128 in Phase 0/1). Reduces
+                                                                                // sh_patches from 8 KB to 4 KB -> ~2x block-occupancy improvement on
+                                                                                // shared-memory-limited kernels.
 static constexpr int PASS12_MAX_SIMILAR = 64;
 
 
@@ -1373,15 +1385,15 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
     int                      proc_stride
 )
 {
-    const int tid        = threadIdx.y * blockDim.x + threadIdx.x;
+    const int tid = threadIdx.y * blockDim.x + threadIdx.x;
     const int block_size = blockDim.x * blockDim.y;
-    const int warp_id    = tid >> 5;        // 0..7 for 256 threads
-    const int lane_id    = tid & 31;        // 0..31
+    const int warp_id = tid >> 5;        // 0..7 for 256 threads
+    const int lane_id = tid & 31;        // 0..31
 
-    // Unused in Pass 1 (part of shared signature used by Pass 2).
-    (void) noiseMeanY;
-    (void) noiseMeanU;
-    (void) noiseMeanV;
+                                         // Unused in Pass 1 (part of shared signature used by Pass 2).
+    (void)noiseMeanY;
+    (void)noiseMeanU;
+    (void)noiseMeanV;
 
     // ------------------------------------------------------------------------
     // Reference patch top-left coordinate + boundary check.
@@ -1421,25 +1433,25 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 
     // Matrix workspaces (3 * 256 + 16 = 3136 B). Phase 1 helper takes
     // (X, Y, V, Dinv, VTx); sh_VTx can be any 16-float slot.
-    __shared__ float sh_X      [PATCH_ELEMS_SQ];    // (C_P - C_N) for helper
-    __shared__ float sh_Y_mat  [PATCH_ELEMS_SQ];    // C_P (diag-clamped), trashed by helper
-    __shared__ float sh_V_mat  [PATCH_ELEMS_SQ];    // eigenvectors workspace
-    __shared__ float sh_Dinv   [PATCH_ELEMS];       // eigenvalue reciprocals
+    __shared__ float sh_X[PATCH_ELEMS_SQ];    // (C_P - C_N) for helper
+    __shared__ float sh_Y_mat[PATCH_ELEMS_SQ];    // C_P (diag-clamped), trashed by helper
+    __shared__ float sh_V_mat[PATCH_ELEMS_SQ];    // eigenvectors workspace
+    __shared__ float sh_Dinv[PATCH_ELEMS];       // eigenvalue reciprocals
 
-    // Bary + streaming intermediate for helper (sh_VTx repurposes sh_bary
-    // dual-use is unsafe; use distinct buffer).
-    __shared__ float sh_bary   [PATCH_ELEMS];
-    __shared__ float sh_VTx    [PATCH_ELEMS];       // helper streaming intermediate
+                                                 // Bary + streaming intermediate for helper (sh_VTx repurposes sh_bary
+                                                 // dual-use is unsafe; use distinct buffer).
+    __shared__ float sh_bary[PATCH_ELEMS];
+    __shared__ float sh_VTx[PATCH_ELEMS];       // helper streaming intermediate
 
-    // Patches (shrunk).
+                                                // Patches (shrunk).
     __shared__ float sh_patches[PATCH_ELEMS * PASS12_MAX_SIMILAR];  // 16*64*4 = 4096 B
 
-    // Per-warp staging for warp-cooperative patch selection.
+                                                                    // Per-warp staging for warp-cooperative patch selection.
     __shared__ int   s_warp_offsets[8];    // one per warp; 8 warps/block
 
-    // ------------------------------------------------------------------------
-    // Phase 1: Cooperative load of the 20x20 window tile for each channel.
-    // ------------------------------------------------------------------------
+                                           // ------------------------------------------------------------------------
+                                           // Phase 1: Cooperative load of the 20x20 window tile for each channel.
+                                           // ------------------------------------------------------------------------
     for (int i = tid; i < WINDOW_TILE_ELEMS; i += block_size)
     {
         const int lx = i % WINDOW_TILE_SIZE;
@@ -1466,26 +1478,26 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
     {
         // Reference patch mean (Y) for bin lookup.
         float sum_Y = 0.0f;
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < PATCH_SIZE; ++i)
         {
-            #pragma unroll
+#pragma unroll
             for (int j = 0; j < PATCH_SIZE; ++j)
             {
                 const int p_idx = (SEARCH_WINDOW_RADIUS + i) * WINDOW_TILE_SIZE
-                                + (SEARCH_WINDOW_RADIUS + j);
+                    + (SEARCH_WINDOW_RADIUS + j);
                 sum_Y += s_winY[p_idx];
             }
         }
         const float mean_Y = sum_Y * (1.0f / static_cast<float>(PATCH_ELEMS));
         const int ref_bin = max(0, min(NOISE_BINS - 1,
-                                       __float2int_rn(mean_Y * 255.0f)));
+            __float2int_rn(mean_Y * 255.0f)));
 
         const int base = ref_bin * PATCH_ELEMS_SQ;
         float trace_Y = 0.0f;
         float trace_U = 0.0f;
         float trace_V = 0.0f;
-        #pragma unroll
+#pragma unroll
         for (int k = 0; k < PATCH_ELEMS; ++k)
         {
             const int diag = k * (PATCH_ELEMS + 1);
@@ -1503,8 +1515,8 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         s_sigma_V = sqrtf(sigma2_V);
 
         s_threshold = 0.5f  * tau_Y  * sigma2_Y
-                    + 0.25f * tau_UV * sigma2_U
-                    + 0.25f * tau_UV * sigma2_V;
+            + 0.25f * tau_UV * sigma2_U
+            + 0.25f * tau_UV * sigma2_V;
     }
     __syncthreads();
 
@@ -1526,8 +1538,8 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         const int ref_py = SEARCH_WINDOW_RADIUS;      // 8
         const int n_candidates = SEARCH_WINDOW_SIZE * SEARCH_WINDOW_SIZE;  // 289
 
-        // Each warp processes candidates in chunks of 32. With 8 warps and
-        // 289 candidates, each warp handles ~2 chunks.
+                                                                           // Each warp processes candidates in chunks of 32. With 8 warps and
+                                                                           // 289 candidates, each warp handles ~2 chunks.
         const int chunks_total = (n_candidates + 31) / 32;   // 10
         const int chunks_per_warp = (chunks_total + 7) / 8;  // 2 (ceil of 10/8)
 
@@ -1548,22 +1560,22 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
                 const int cy = cidx / SEARCH_WINDOW_SIZE;
 
                 float dist = 0.0f;
-                #pragma unroll
+#pragma unroll
                 for (int i = 0; i < PATCH_SIZE; ++i)
                 {
-                    #pragma unroll
+#pragma unroll
                     for (int j = 0; j < PATCH_SIZE; ++j)
                     {
                         const int r_idx = (ref_py + i) * WINDOW_TILE_SIZE + (ref_px + j);
-                        const int c_idx = (cy     + i) * WINDOW_TILE_SIZE + (cx     + j);
+                        const int c_idx = (cy + i) * WINDOW_TILE_SIZE + (cx + j);
 
                         const float dY = s_winY[r_idx] - s_winY[c_idx];
                         const float dU = s_winU[r_idx] - s_winU[c_idx];
                         const float dV = s_winV[r_idx] - s_winV[c_idx];
 
                         dist += 0.5f  * dY * dY
-                             +  0.25f * dU * dU
-                             +  0.25f * dV * dV;
+                            + 0.25f * dU * dU
+                            + 0.25f * dV * dV;
                     }
                 }
 
@@ -1609,7 +1621,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
     // ------------------------------------------------------------------------
     // Phase 4: Per-channel Bayes filter loop.
     // ------------------------------------------------------------------------
-    #pragma unroll 1
+#pragma unroll 1
     for (int ch = 0; ch < 3; ++ch)
     {
         const float* s_win;
@@ -1618,21 +1630,21 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 
         if (ch == 0)
         {
-            s_win    = s_winY;
+            s_win = s_winY;
             noiseCov = noiseCovY;
-            sigma_c  = s_sigma_Y;
+            sigma_c = s_sigma_Y;
         }
         else if (ch == 1)
         {
-            s_win    = s_winU;
+            s_win = s_winU;
             noiseCov = noiseCovU;
-            sigma_c  = s_sigma_U;
+            sigma_c = s_sigma_U;
         }
         else
         {
-            s_win    = s_winV;
+            s_win = s_winV;
             noiseCov = noiseCovV;
-            sigma_c  = s_sigma_V;
+            sigma_c = s_sigma_V;
         }
 
         // --------------------------------------------------------------------
@@ -1647,8 +1659,8 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
             const int n = k % nSimP;
 
             const int p_idx = s_patchIndices[n];
-            const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
-            const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
+            const int p_cx = p_idx % SEARCH_WINDOW_SIZE;
+            const int p_cy = p_idx / SEARCH_WINDOW_SIZE;
 
             const int px = i % PATCH_SIZE;
             const int py = i / PATCH_SIZE;
@@ -1676,10 +1688,10 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
                 const int i = k / PATCH_ELEMS;
                 const int j = k % PATCH_ELEMS;
 
-                float sum_ij   = 0.0f;   // for cov
-                float sum_i    = 0.0f;   // for bary (only used when j == 0)
-                float min_i    =  INFINITY;
-                float max_i    = -INFINITY;
+                float sum_ij = 0.0f;   // for cov
+                float sum_i = 0.0f;   // for bary (only used when j == 0)
+                float min_i = INFINITY;
+                float max_i = -INFINITY;
 
                 for (int n = 0; n < nSimP; ++n)
                 {
@@ -1706,7 +1718,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
                 // Warp-shuffle reduce min/max (only row-threads with j==0 have
                 // meaningful values; others have +/-inf which preserve the
                 // result under fmin/fmax).
-                const float row_min = (j == 0) ? min_i :  INFINITY;
+                const float row_min = (j == 0) ? min_i : INFINITY;
                 const float row_max = (j == 0) ? max_i : -INFINITY;
 
                 const float warp_min = WarpReduceMin(row_min);
@@ -1723,7 +1735,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
                     // So use s_warp_offsets for min and reuse s_patchCount etc. Safer:
                     // use a dedicated 16-slot scratch. Put it in sh_Dinv temporarily
                     // since sh_Dinv is written by the helper in phase 4h, not yet.
-                    sh_Dinv[warp_id]     = warp_min;
+                    sh_Dinv[warp_id] = warp_min;
                     sh_Dinv[warp_id + 8] = warp_max;
                 }
             }
@@ -1735,7 +1747,7 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         {
             float mn = sh_Dinv[0];
             float mx = sh_Dinv[8];
-            #pragma unroll
+#pragma unroll
             for (int w = 1; w < 8; ++w)
             {
                 mn = fminf(mn, sh_Dinv[w]);
@@ -1746,14 +1758,14 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
 
             // Per-channel intensity bin from barycenter mean.
             float total = 0.0f;
-            #pragma unroll
+#pragma unroll
             for (int k = 0; k < PATCH_ELEMS; ++k)
             {
                 total += sh_bary[k];
             }
             const float group_mean = total * (1.0f / static_cast<float>(PATCH_ELEMS));
             s_bin_ch = max(0, min(NOISE_BINS - 1,
-                                  __float2int_rn(group_mean * 255.0f)));
+                __float2int_rn(group_mean * 255.0f)));
         }
         __syncthreads();
 
@@ -1844,8 +1856,8 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
             const int n = k % nSimP;
 
             const int p_idx = s_patchIndices[n];
-            const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
-            const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
+            const int p_cx = p_idx % SEARCH_WINDOW_SIZE;
+            const int p_cy = p_idx / SEARCH_WINDOW_SIZE;
 
             const int px = i % PATCH_SIZE;
             const int py = i / PATCH_SIZE;
@@ -1866,7 +1878,6 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         __syncthreads();
     }
 }
-
 
 
 // ============================================================================
@@ -2029,15 +2040,15 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
     int                      proc_stride
 )
 {
-    const int tid        = threadIdx.y * blockDim.x + threadIdx.x;
+    const int tid = threadIdx.y * blockDim.x + threadIdx.x;
     const int block_size = blockDim.x * blockDim.y;
-    const int warp_id    = tid >> 5;        // 0..7
-    const int lane_id    = tid & 31;        // 0..31
+    const int warp_id = tid >> 5;        // 0..7
+    const int lane_id = tid & 31;        // 0..31
 
-    // Unused in Pass 2 (Lebrun uses nearest-bin LUT, no interpolation).
-    (void) noiseMeanY;
-    (void) noiseMeanU;
-    (void) noiseMeanV;
+                                         // Unused in Pass 2 (Lebrun uses nearest-bin LUT, no interpolation).
+    (void)noiseMeanY;
+    (void)noiseMeanU;
+    (void)noiseMeanV;
 
     // ------------------------------------------------------------------------
     // Reference coordinate and boundary check.
@@ -2078,19 +2089,25 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
     __shared__ int   s_bin_ch;
 
     // Matrix workspaces (3 * 256 + 16 = 3136 B).
-    __shared__ float sh_X      [PATCH_ELEMS_SQ];     // C_basic (preserved by helper)
-    __shared__ float sh_Y_mat  [PATCH_ELEMS_SQ];     // C_basic + C_N (inverted, trashed)
-    __shared__ float sh_V_mat  [PATCH_ELEMS_SQ];     // eigenvector workspace
-    __shared__ float sh_Dinv   [PATCH_ELEMS];        // 16-float reciprocal eigenvalues
+    __shared__ float sh_X[PATCH_ELEMS_SQ];     // C_basic (preserved by helper)
+    __shared__ float sh_Y_mat[PATCH_ELEMS_SQ];     // C_basic + C_N (inverted, trashed)
+    __shared__ float sh_V_mat[PATCH_ELEMS_SQ];     // eigenvector workspace
+    __shared__ float sh_Dinv[PATCH_ELEMS];        // 16-float reciprocal eigenvalues
 
-    __shared__ float sh_bary   [PATCH_ELEMS];        // barycenter from noisy
-    __shared__ float sh_VTx    [PATCH_ELEMS];        // helper streaming intermediate
+    __shared__ float sh_bary[PATCH_ELEMS];        // barycenter from noisy
+    __shared__ float sh_VTx[PATCH_ELEMS];        // helper streaming intermediate
 
     __shared__ float sh_patches[PATCH_ELEMS * PASS12_MAX_SIMILAR];   // noisy, 16*64*4 = 4096 B
 
-    // ------------------------------------------------------------------------
-    // Phase 1: Load noisy + pilot window tiles cooperatively.
-    // ------------------------------------------------------------------------
+                                                                     // Phase 4: per-block staging tiles (same as Pass 1).
+    __shared__ float s_stage_Y[WINDOW_TILE_ELEMS];    // 1600 B
+    __shared__ float s_stage_U[WINDOW_TILE_ELEMS];    // 1600 B
+    __shared__ float s_stage_V[WINDOW_TILE_ELEMS];    // 1600 B
+    __shared__ float s_stage_W[WINDOW_TILE_ELEMS];    // 1600 B
+
+                                                      // ------------------------------------------------------------------------
+                                                      // Phase 1: Load noisy + pilot window tiles cooperatively.
+                                                      // ------------------------------------------------------------------------
     for (int i = tid; i < WINDOW_TILE_ELEMS; i += block_size)
     {
         const int lx = i % WINDOW_TILE_SIZE;
@@ -2104,6 +2121,11 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
         s_pilotY[i] = pilotY[g_idx];
         s_pilotU[i] = pilotU[g_idx];
         s_pilotV[i] = pilotV[g_idx];
+
+        s_stage_Y[i] = 0.0f;
+        s_stage_U[i] = 0.0f;
+        s_stage_V[i] = 0.0f;
+        s_stage_W[i] = 0.0f;
     }
 
     if (tid == 0)
@@ -2119,26 +2141,26 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
     if (tid == 0)
     {
         float sum_Y = 0.0f;
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < PATCH_SIZE; ++i)
         {
-            #pragma unroll
+#pragma unroll
             for (int j = 0; j < PATCH_SIZE; ++j)
             {
                 const int p_idx = (SEARCH_WINDOW_RADIUS + i) * WINDOW_TILE_SIZE
-                                + (SEARCH_WINDOW_RADIUS + j);
+                    + (SEARCH_WINDOW_RADIUS + j);
                 sum_Y += s_noisyY[p_idx];
             }
         }
-        const float mean_Y  = sum_Y * (1.0f / static_cast<float>(PATCH_ELEMS));
-        const int ref_bin   = max(0, min(NOISE_BINS - 1,
-                                         __float2int_rn(mean_Y * 255.0f)));
+        const float mean_Y = sum_Y * (1.0f / static_cast<float>(PATCH_ELEMS));
+        const int ref_bin = max(0, min(NOISE_BINS - 1,
+            __float2int_rn(mean_Y * 255.0f)));
 
         const int base = ref_bin * PATCH_ELEMS_SQ;
         float trace_Y = 0.0f;
         float trace_U = 0.0f;
         float trace_V = 0.0f;
-        #pragma unroll
+#pragma unroll
         for (int k = 0; k < PATCH_ELEMS; ++k)
         {
             const int diag = k * (PATCH_ELEMS + 1);
@@ -2158,8 +2180,8 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
         // Pass-2 threshold: weights uniform (1, 1, 1) per channel,
         // tau expanded by nChannels = 3.
         s_threshold = 3.0f * (tau_Y  * sigma2_Y
-                            + tau_UV * sigma2_U
-                            + tau_UV * sigma2_V);
+            + tau_UV * sigma2_U
+            + tau_UV * sigma2_V);
     }
     __syncthreads();
 
@@ -2176,7 +2198,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
         const int ref_py = SEARCH_WINDOW_RADIUS;
         const int n_candidates = SEARCH_WINDOW_SIZE * SEARCH_WINDOW_SIZE;    // 289
 
-        const int chunks_total    = (n_candidates + 31) / 32;                // 10
+        const int chunks_total = (n_candidates + 31) / 32;                // 10
         const int chunks_per_warp = (chunks_total + 7) / 8;                  // 2
 
         for (int chunk_local = 0; chunk_local < chunks_per_warp; ++chunk_local)
@@ -2196,14 +2218,14 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
                 const int cy = cidx / SEARCH_WINDOW_SIZE;
 
                 float dist = 0.0f;
-                #pragma unroll
+#pragma unroll
                 for (int i = 0; i < PATCH_SIZE; ++i)
                 {
-                    #pragma unroll
+#pragma unroll
                     for (int j = 0; j < PATCH_SIZE; ++j)
                     {
                         const int r_idx = (ref_py + i) * WINDOW_TILE_SIZE + (ref_px + j);
-                        const int c_idx = (cy     + i) * WINDOW_TILE_SIZE + (cx     + j);
+                        const int c_idx = (cy + i) * WINDOW_TILE_SIZE + (cx + j);
 
                         const float dY = s_pilotY[r_idx] - s_pilotY[c_idx];
                         const float dU = s_pilotU[r_idx] - s_pilotU[c_idx];
@@ -2217,7 +2239,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
             }
 
             const unsigned mask = __ballot_sync(0xFFFFFFFF, passed);
-            const int n_passed  = __popc(mask);
+            const int n_passed = __popc(mask);
 
             int warp_base = 0;
             if (lane_id == 0)
@@ -2230,7 +2252,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
             {
                 const unsigned lower_mask = mask & ((1u << lane_id) - 1u);
                 const int my_rank = __popc(lower_mask);
-                const int slot    = warp_base + my_rank;
+                const int slot = warp_base + my_rank;
                 if (slot < PASS12_MAX_SIMILAR)
                 {
                     s_patchIndices[slot] = cidx;
@@ -2250,7 +2272,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
     // ------------------------------------------------------------------------
     // Phase 4: Per-channel Bayes filter loop.
     // ------------------------------------------------------------------------
-    #pragma unroll 1
+#pragma unroll 1
     for (int ch = 0; ch < 3; ++ch)
     {
         const float* s_noisy;
@@ -2260,24 +2282,24 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
 
         if (ch == 0)
         {
-            s_noisy  = s_noisyY;
-            s_pilot  = s_pilotY;
+            s_noisy = s_noisyY;
+            s_pilot = s_pilotY;
             noiseCov = noiseCovY;
-            sigma_c  = s_sigma_Y;
+            sigma_c = s_sigma_Y;
         }
         else if (ch == 1)
         {
-            s_noisy  = s_noisyU;
-            s_pilot  = s_pilotU;
+            s_noisy = s_noisyU;
+            s_pilot = s_pilotU;
             noiseCov = noiseCovU;
-            sigma_c  = s_sigma_U;
+            sigma_c = s_sigma_U;
         }
         else
         {
-            s_noisy  = s_noisyV;
-            s_pilot  = s_pilotV;
+            s_noisy = s_noisyV;
+            s_pilot = s_pilotV;
             noiseCov = noiseCovV;
-            sigma_c  = s_sigma_V;
+            sigma_c = s_sigma_V;
         }
 
         // --------------------------------------------------------------------
@@ -2290,8 +2312,8 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
             const int n = k % nSimP;
 
             const int p_idx = s_patchIndices[n];
-            const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
-            const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
+            const int p_cx = p_idx % SEARCH_WINDOW_SIZE;
+            const int p_cy = p_idx / SEARCH_WINDOW_SIZE;
 
             const int px = i % PATCH_SIZE;
             const int py = i / PATCH_SIZE;
@@ -2344,17 +2366,17 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
                 const int py_j = j / PATCH_SIZE;
                 const int px_j = j % PATCH_SIZE;
 
-                float sum_ij   = 0.0f;
-                float sum_i    = 0.0f;    // pilot row sum (only j == 0)
-                float noisy_i  = 0.0f;    // noisy row sum (only j == 0)
-                float min_p    =  INFINITY;
-                float max_p    = -INFINITY;
+                float sum_ij = 0.0f;
+                float sum_i = 0.0f;    // pilot row sum (only j == 0)
+                float noisy_i = 0.0f;    // noisy row sum (only j == 0)
+                float min_p = INFINITY;
+                float max_p = -INFINITY;
 
                 for (int n = 0; n < nSimP; ++n)
                 {
                     const int p_idx = s_patchIndices[n];
-                    const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
-                    const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
+                    const int p_cx = p_idx % SEARCH_WINDOW_SIZE;
+                    const int p_cy = p_idx / SEARCH_WINDOW_SIZE;
 
                     const float pi = s_pilot[(p_cy + py_i) * WINDOW_TILE_SIZE + (p_cx + px_i)];
                     const float pj = s_pilot[(p_cy + py_j) * WINDOW_TILE_SIZE + (p_cx + px_j)];
@@ -2362,10 +2384,10 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
 
                     if (j == 0)
                     {
-                        sum_i   += pi;
+                        sum_i += pi;
                         noisy_i += s_noisy[(p_cy + py_i) * WINDOW_TILE_SIZE + (p_cx + px_i)];
-                        min_p   = fminf(min_p, pi);
-                        max_p   = fmaxf(max_p, pi);
+                        min_p = fminf(min_p, pi);
+                        max_p = fmaxf(max_p, pi);
                     }
                 }
 
@@ -2382,7 +2404,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
                 }
 
                 // Warp-shuffle reduce pilot min/max.
-                const float row_min = (j == 0) ? min_p :  INFINITY;
+                const float row_min = (j == 0) ? min_p : INFINITY;
                 const float row_max = (j == 0) ? max_p : -INFINITY;
 
                 const float warp_min = WarpReduceMin(row_min);
@@ -2390,7 +2412,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
 
                 if (lane_id == 0)
                 {
-                    sh_Dinv[warp_id]     = warp_min;   // slots 0..7
+                    sh_Dinv[warp_id] = warp_min;   // slots 0..7
                     sh_Dinv[warp_id + 8] = warp_max;   // slots 8..15
                 }
             }
@@ -2406,18 +2428,18 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
                 const int i = k / PATCH_ELEMS;
                 const int j = k % PATCH_ELEMS;
 
-                const float S_ij   = sh_Y_mat[k];
-                const float S_i    = sh_V_mat[i * PATCH_ELEMS];   // pilot row sum for i
-                const float S_j    = sh_V_mat[j * PATCH_ELEMS];   // pilot row sum for j
+                const float S_ij = sh_Y_mat[k];
+                const float S_i = sh_V_mat[i * PATCH_ELEMS];   // pilot row sum for i
+                const float S_j = sh_V_mat[j * PATCH_ELEMS];   // pilot row sum for j
                 const float bary_i = sh_bary[i];
                 const float bary_j = sh_bary[j];
 
                 // C_basic[i, j] = (S_ij - bary_j * S_i - bary_i * S_j
                 //                  + nSimP * bary_i * bary_j) / (nSimP - 1)
                 const float c = (S_ij
-                              - bary_j * S_i
-                              - bary_i * S_j
-                              + static_cast<float>(nSimP) * bary_i * bary_j) * normInv;
+                    - bary_j * S_i
+                    - bary_i * S_j
+                    + static_cast<float>(nSimP) * bary_i * bary_j) * normInv;
 
                 sh_Y_mat[k] = c;       // temporary: will become Y = C_basic + C_N next
             }
@@ -2429,7 +2451,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
         {
             float mn = sh_Dinv[0];
             float mx = sh_Dinv[8];
-            #pragma unroll
+#pragma unroll
             for (int w = 1; w < 8; ++w)
             {
                 mn = fminf(mn, sh_Dinv[w]);
@@ -2440,14 +2462,14 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
 
             // Per-channel intensity bin from barycenter mean (noisy).
             float total = 0.0f;
-            #pragma unroll
+#pragma unroll
             for (int k = 0; k < PATCH_ELEMS; ++k)
             {
                 total += sh_bary[k];
             }
             const float group_mean = total * (1.0f / static_cast<float>(PATCH_ELEMS));
             s_bin_ch = max(0, min(NOISE_BINS - 1,
-                                  __float2int_rn(group_mean * 255.0f)));
+                __float2int_rn(group_mean * 255.0f)));
         }
         __syncthreads();
 
@@ -2472,7 +2494,7 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
         for (int k = tid; k < PATCH_ELEMS_SQ; k += block_size)
         {
             const float v_basic = sh_Y_mat[k];         // currently holds C_basic
-            sh_X[k]     = v_basic;                     // X = C_basic
+            sh_X[k] = v_basic;                     // X = C_basic
             sh_Y_mat[k] = v_basic + sh_V_mat[k];       // Y = C_basic + C_N
         }
         __syncthreads();
@@ -2505,20 +2527,21 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
         __syncthreads();
 
         // --------------------------------------------------------------------
-        // 4i. Aggregate filtered patches into global accumulators.
+        // 4i. Phase 4: Stage filtered patches into block-local tile.
+        //     (Same structure as Pass 1.)
         // --------------------------------------------------------------------
-        float* outAccum;
+        float* s_stage_ch;
         if (ch == 0)
         {
-            outAccum = outAccumY;
+            s_stage_ch = s_stage_Y;
         }
         else if (ch == 1)
         {
-            outAccum = outAccumU;
+            s_stage_ch = s_stage_U;
         }
         else
         {
-            outAccum = outAccumV;
+            s_stage_ch = s_stage_V;
         }
 
         for (int k = tid; k < PATCH_ELEMS * nSimP; k += block_size)
@@ -2527,26 +2550,48 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
             const int n = k % nSimP;
 
             const int p_idx = s_patchIndices[n];
-            const int p_cx  = p_idx % SEARCH_WINDOW_SIZE;
-            const int p_cy  = p_idx / SEARCH_WINDOW_SIZE;
+            const int p_cx = p_idx % SEARCH_WINDOW_SIZE;
+            const int p_cy = p_idx / SEARCH_WINDOW_SIZE;
 
             const int px = i % PATCH_SIZE;
             const int py = i / PATCH_SIZE;
 
-            const int gx = win_x0 + p_cx + px;
-            const int gy = win_y0 + p_cy + py;
-
-            const int g_idx = gy * padW + gx;
+            const int local_x = p_cx + px;
+            const int local_y = p_cy + py;
+            const int tile_idx = local_y * WINDOW_TILE_SIZE + local_x;
 
             const float val = sh_patches[i * nSimP + n];
-            atomicAdd(&outAccum[g_idx], val);
+            atomicAdd(&s_stage_ch[tile_idx], val);
 
             if (ch == 0)
             {
-                atomicAdd(&outWeight[g_idx], 1.0f);
+                atomicAdd(&s_stage_W[tile_idx], 1.0f);
             }
         }
         __syncthreads();
+    }
+
+    // ------------------------------------------------------------------------
+    // Phase 4: Coalesced flush of staging tile to global accumulators.
+    //
+    // Runs ONCE at the end of the kernel (after all 3 channels have staged).
+    // ------------------------------------------------------------------------
+    for (int k = tid; k < WINDOW_TILE_ELEMS; k += block_size)
+    {
+        const float wW = s_stage_W[k];
+        if (wW > 0.0f)
+        {
+            const int lx = k % WINDOW_TILE_SIZE;
+            const int ly = k / WINDOW_TILE_SIZE;
+            const int gx = win_x0 + lx;
+            const int gy = win_y0 + ly;
+            const int g_idx = gy * padW + gx;
+
+            atomicAdd(&outAccumY[g_idx], s_stage_Y[k]);
+            atomicAdd(&outAccumU[g_idx], s_stage_U[k]);
+            atomicAdd(&outAccumV[g_idx], s_stage_V[k]);
+            atomicAdd(&outWeight[g_idx], wW);
+        }
     }
 }
 
@@ -2659,7 +2704,7 @@ __global__ void Kernel_NormalizeAndOutputBGRA(
     const float half_cinv = 0.5f * YUV_C_INV;
 
     const float r = YUV_A * valY + YUV_B * valU + half_cinv  * valV;
-    const float g = YUV_A * valY                - YUV_C_INV  * valV;
+    const float g = YUV_A * valY - YUV_C_INV  * valV;
     const float b = YUV_A * valY - YUV_B * valU + half_cinv  * valV;
 
     // ------------------------------------------------------------------------
@@ -2717,27 +2762,7 @@ void ImageLabDenoise_CUDA
     cudaStream_t          stream
 )
 {
-    // Guard against bad inputs; on failure we simply do nothing and return.
-    if (inBuffer == nullptr || outBuffer == nullptr || algoGpuParams == nullptr) {
-        return;
-    }
-    if (width <= 0 || height <= 0) {
-        return;
-    }
-    (void)frameCount;  // reserved for future use
-
-    // -----------------------------------------------------------------------
-    // STEP 0: Compute internal padded processing dimensions (Lebrun-style).
-    //
-    // Examples:    width = 999,  height = 999  ->  procW = 1000, procH = 1000
-    //              width = 1001, height = 1001 ->  procW = 1004, procH = 1004
-    //              width = 1920, height = 1080 ->  procW = 1920, procH = 1080
-    //
-    // The padded region [width..procW) x [height..procH) will be filled
-    // by mirror-reflection inside Kernel_ConvertBGRAToOrthonormalWeighted,
-    // then stripped at Kernel_NormalizeAndOutputBGRA.
-    // -----------------------------------------------------------------------
-    const int procW = RoundUpPow2(width,  PROC_ALIGN);
+    const int procW = RoundUpPow2(width, PROC_ALIGN);
     const int procH = RoundUpPow2(height, PROC_ALIGN);
 
     // Must have at least one full search-window worth of pixels.
@@ -2763,27 +2788,28 @@ void ImageLabDenoise_CUDA
     // -----------------------------------------------------------------------
     // STEP 2: Launch configurations
     // -----------------------------------------------------------------------
-    const dim3 io_block   (BLOCK_DIM_IO_X,   BLOCK_DIM_IO_Y);
-    const dim3 math_block (BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y);     // 256 threads / block
+    const dim3 io_block(BLOCK_DIM_IO_X, BLOCK_DIM_IO_Y);
+    const dim3 math_block(BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y);     // 256 threads / block
 
-    // Grid for I/O kernels that cover the full padded region
+                                                                   // Grid for I/O kernels that cover the full padded region
     const dim3 io_grid_proc(
         (procW + io_block.x - 1) / io_block.x,
         (procH + io_block.y - 1) / io_block.y);
 
     // Grid for the final output kernel -- native image extent only (no pad)
     const dim3 io_grid_out(
-        (width  + io_block.x - 1) / io_block.x,
+        (width + io_block.x - 1) / io_block.x,
         (height + io_block.y - 1) / io_block.y);
 
     // Accuracy-driven patch-processing stride (paste-trick density).
     // Draft = fast, coarse.  Standard = balanced.  High = every pixel.
     int proc_stride;
-    switch (algoGpuParams->accuracy) {
-        case ProcAccuracy::AccDraft:    proc_stride = 4; break;
-        case ProcAccuracy::AccHigh:     proc_stride = 1; break;
-        case ProcAccuracy::AccStandard:
-        default:                        proc_stride = 2; break;
+    switch (algoGpuParams->accuracy)
+    {
+    case ProcAccuracy::AccDraft:    proc_stride = 4; break;
+    case ProcAccuracy::AccHigh:     proc_stride = 1; break;
+    case ProcAccuracy::AccStandard:
+    default:                        proc_stride = 2; break;
     }
 
     // Grid for NL-Bayes passes: one block per reference-patch center.
@@ -2802,29 +2828,29 @@ void ImageLabDenoise_CUDA
     // tau_UV applies to both chroma (U, V) channels
     // -----------------------------------------------------------------------
     const float tau_base = 3.0f * static_cast<float>(PATCH_ELEMS);   // Lebrun: 3 * sP^2 = 48
-    const float master   = algoGpuParams->master_denoise_amount;
-    const float fine     = algoGpuParams->fine_detail_preservation;
+    const float master = algoGpuParams->master_denoise_amount;
+    const float fine = algoGpuParams->fine_detail_preservation;
 
-    const float tau_Y  = tau_base * master * algoGpuParams->luma_strength   * fine;
+    const float tau_Y = tau_base * master * algoGpuParams->luma_strength   * fine;
     const float tau_UV = tau_base * master * algoGpuParams->chroma_strength * fine;
 
     // -----------------------------------------------------------------------
     // Precompute byte sizes for async memset clears
     // -----------------------------------------------------------------------
-    const size_t bytes_frame         = static_cast<size_t>(g_gpuMemState.frameSizePadded) * sizeof(float);
-    const size_t bytes_noise_cov     = static_cast<size_t>(NOISE_BINS) * PATCH_ELEMS_SQ * sizeof(float);
-    const size_t bytes_noise_mean    = static_cast<size_t>(NOISE_BINS) * sizeof(float);
-    const size_t bytes_noise_counts  = static_cast<size_t>(NOISE_BINS) * sizeof(int);
+    const size_t bytes_frame = static_cast<size_t>(g_gpuMemState.frameSizePadded) * sizeof(float);
+    const size_t bytes_noise_cov = static_cast<size_t>(NOISE_BINS) * PATCH_ELEMS_SQ * sizeof(float);
+    const size_t bytes_noise_mean = static_cast<size_t>(NOISE_BINS) * sizeof(float);
+    const size_t bytes_noise_counts = static_cast<size_t>(NOISE_BINS) * sizeof(int);
 
     // -----------------------------------------------------------------------
     // STEP 3: Clear noise-estimation LUTs (async; no host sync)
     // -----------------------------------------------------------------------
-    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_Y,    0, bytes_noise_cov,    stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_U,    0, bytes_noise_cov,    stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_V,    0, bytes_noise_cov,    stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_Y,   0, bytes_noise_mean,   stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_U,   0, bytes_noise_mean,   stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_V,   0, bytes_noise_mean,   stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_Y, 0, bytes_noise_cov, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_U, 0, bytes_noise_cov, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_V, 0, bytes_noise_cov, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_Y, 0, bytes_noise_mean, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_U, 0, bytes_noise_mean, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_V, 0, bytes_noise_mean, stream);
     cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_Y, 0, bytes_noise_counts, stream);
     cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_U, 0, bytes_noise_counts, stream);
     cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_V, 0, bytes_noise_counts, stream);
@@ -2832,14 +2858,14 @@ void ImageLabDenoise_CUDA
     // -----------------------------------------------------------------------
     // STEP 4: BGRA -> YUV (with mirror-reflect padding width/height -> procW/procH)
     // -----------------------------------------------------------------------
-    Kernel_ConvertBGRAToOrthonormalWeighted<<<io_grid_proc, io_block, 0, stream>>>
-    (
-        inBuffer,
-        g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
-        srcPitch, g_gpuMemState.padW,
-        width,  height,    // source valid-region extents
-        procW,  procH      // target (padded) extents
-    );
+    Kernel_ConvertBGRAToOrthonormalWeighted << <io_grid_proc, io_block, 0, stream >> >
+        (
+            inBuffer,
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            srcPitch, g_gpuMemState.padW,
+            width, height,    // source valid-region extents
+            procW, procH      // target (padded) extents
+            );
 
     // -----------------------------------------------------------------------
     // STEP 5: Noise estimation (Ponomarenko-style per-bin DCT variance)
@@ -2851,30 +2877,30 @@ void ImageLabDenoise_CUDA
     //   5c. Convert 16-value frequency variance vectors into the full 16x16
     //       spatial noise covariance matrices (D^T * diag * D) per bin.
     // -----------------------------------------------------------------------
-    Kernel_ExtractDCT_And_Variance_3ch<<<io_grid_proc, io_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Y_planar,     g_gpuMemState.d_U_planar,     g_gpuMemState.d_V_planar,
-        g_gpuMemState.d_NoiseCov_Y,   g_gpuMemState.d_NoiseCov_U,   g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y,  g_gpuMemState.d_NoiseMean_U,  g_gpuMemState.d_NoiseMean_V,
-        g_gpuMemState.d_NoiseCounts_Y,g_gpuMemState.d_NoiseCounts_U,g_gpuMemState.d_NoiseCounts_V,
-        g_gpuMemState.padW, procW, procH
-    );
+    Kernel_ExtractDCT_And_Variance_3ch << <io_grid_proc, io_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            g_gpuMemState.d_NoiseCounts_Y, g_gpuMemState.d_NoiseCounts_U, g_gpuMemState.d_NoiseCounts_V,
+            g_gpuMemState.padW, procW, procH
+            );
 
     // 3 channels x 256 bins per channel. One block per channel, 256 threads per block (one per bin).
-    Kernel_SmoothNoiseCurves_3ch<<<dim3(3), dim3(NOISE_BINS), 0, stream>>>
-    (
-        g_gpuMemState.d_NoiseCov_Y,   g_gpuMemState.d_NoiseCov_U,   g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y,  g_gpuMemState.d_NoiseMean_U,  g_gpuMemState.d_NoiseMean_V,
-        g_gpuMemState.d_NoiseCounts_Y,g_gpuMemState.d_NoiseCounts_U,g_gpuMemState.d_NoiseCounts_V
-    );
+    Kernel_SmoothNoiseCurves_3ch << <dim3(3), dim3(NOISE_BINS), 0, stream >> >
+        (
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            g_gpuMemState.d_NoiseCounts_Y, g_gpuMemState.d_NoiseCounts_U, g_gpuMemState.d_NoiseCounts_V
+            );
 
     // D^T * diag(freq_vars) * D -> spatial 16x16 covariance per bin.
     // 3 channels x 256 bins, one block per (channel, bin), 256 threads per block
     // (one per spatial-matrix element).
-    Kernel_BuildSpatialNoiseCov_3ch<<<dim3(NOISE_BINS, 3), dim3(PATCH_ELEMS_SQ), 0, stream>>>
-    (
-        g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V
-    );
+    Kernel_BuildSpatialNoiseCov_3ch << <dim3(NOISE_BINS, 3), dim3(PATCH_ELEMS_SQ), 0, stream >> >
+        (
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V
+            );
 
     // -----------------------------------------------------------------------
     // STEP 6: NL-BAYES PASS 1 (pilot / basic estimate)
@@ -2885,27 +2911,27 @@ void ImageLabDenoise_CUDA
     cudaMemsetAsync(g_gpuMemState.d_Accum_Y, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_U, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_V, 0, bytes_frame, stream);
-    cudaMemsetAsync(g_gpuMemState.d_Weight,  0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Weight, 0, bytes_frame, stream);
 
-    Kernel_NLBayes_Pass1_BasicEstimate<<<math_grid, math_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Y_planar,    g_gpuMemState.d_U_planar,    g_gpuMemState.d_V_planar,
-        g_gpuMemState.d_Accum_Y,     g_gpuMemState.d_Accum_U,     g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_NoiseCov_Y,  g_gpuMemState.d_NoiseCov_U,  g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
-        procW, procH, g_gpuMemState.padW,
-        tau_Y, tau_UV, proc_stride
-    );
+    Kernel_NLBayes_Pass1_BasicEstimate << <math_grid, math_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            procW, procH, g_gpuMemState.padW,
+            tau_Y, tau_UV, proc_stride
+            );
 
-    Kernel_NormalizePilotEstimate<<<io_grid_proc, io_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Accum_Y,    g_gpuMemState.d_Accum_U,    g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_Y_planar,   g_gpuMemState.d_U_planar,   g_gpuMemState.d_V_planar,   // fallback
-        g_gpuMemState.d_MosaicB_Y,  g_gpuMemState.d_MosaicB_U,  g_gpuMemState.d_MosaicB_V,  // pilot output
-        g_gpuMemState.padW, procW, procH
-    );
+    Kernel_NormalizePilotEstimate << <io_grid_proc, io_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,   // fallback
+            g_gpuMemState.d_MosaicB_Y, g_gpuMemState.d_MosaicB_U, g_gpuMemState.d_MosaicB_V,  // pilot output
+            g_gpuMemState.padW, procW, procH
+            );
 
     // -----------------------------------------------------------------------
     // STEP 7: NL-BAYES PASS 2 (final estimate)
@@ -2915,32 +2941,32 @@ void ImageLabDenoise_CUDA
     cudaMemsetAsync(g_gpuMemState.d_Accum_Y, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_U, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_V, 0, bytes_frame, stream);
-    cudaMemsetAsync(g_gpuMemState.d_Weight,  0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Weight, 0, bytes_frame, stream);
 
-    Kernel_NLBayes_Pass2_FinalEstimate<<<math_grid, math_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Y_planar,    g_gpuMemState.d_U_planar,    g_gpuMemState.d_V_planar,    // noisy
-        g_gpuMemState.d_MosaicB_Y,   g_gpuMemState.d_MosaicB_U,   g_gpuMemState.d_MosaicB_V,   // pilot
-        g_gpuMemState.d_Accum_Y,     g_gpuMemState.d_Accum_U,     g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_NoiseCov_Y,  g_gpuMemState.d_NoiseCov_U,  g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
-        procW, procH, g_gpuMemState.padW,
-        tau_Y, tau_UV, proc_stride
-    );
+    Kernel_NLBayes_Pass2_FinalEstimate << <math_grid, math_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,    // noisy
+            g_gpuMemState.d_MosaicB_Y, g_gpuMemState.d_MosaicB_U, g_gpuMemState.d_MosaicB_V,   // pilot
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            procW, procH, g_gpuMemState.padW,
+            tau_Y, tau_UV, proc_stride
+            );
 
     // -----------------------------------------------------------------------
     // STEP 8: YUV -> BGRA (strip padding; write ONLY width x height region)
     // -----------------------------------------------------------------------
-    Kernel_NormalizeAndOutputBGRA<<<io_grid_out, io_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Accum_Y,    g_gpuMemState.d_Accum_U,    g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_Y_planar,   g_gpuMemState.d_U_planar,   g_gpuMemState.d_V_planar,   // fallback for zero-weight pixels
-        outBuffer,
-        g_gpuMemState.padW, dstPitch,
-        width, height          // original (unpadded) output extents
-    );
+    Kernel_NormalizeAndOutputBGRA << <io_grid_out, io_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,   // fallback for zero-weight pixels
+            outBuffer,
+            g_gpuMemState.padW, dstPitch,
+            width, height          // original (unpadded) output extents
+            );
 
     // -----------------------------------------------------------------------
     // STEP 9: Single end-of-frame synchronization point.
@@ -3003,17 +3029,9 @@ void ImageLabDenoise_CUDA
     cudaStream_t          stream
 )
 {
-    if (inBuffer == nullptr || outBuffer == nullptr || algoGpuParams == nullptr)
-    {
-        return;
-    }
-    if (width <= 0 || height <= 0)
-    {
-        return;
-    }
     (void)frameCount;
 
-    const int procW = RoundUpPow2(width,  PROC_ALIGN);
+    const int procW = RoundUpPow2(width, PROC_ALIGN);
     const int procH = RoundUpPow2(height, PROC_ALIGN);
 
     if (procW < SEARCH_WINDOW_SIZE + PATCH_SIZE
@@ -3033,24 +3051,24 @@ void ImageLabDenoise_CUDA
         }
     }
 
-    const dim3 io_block   (BLOCK_DIM_IO_X,   BLOCK_DIM_IO_Y);
-    const dim3 math_block (BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y);
+    const dim3 io_block(BLOCK_DIM_IO_X, BLOCK_DIM_IO_Y);
+    const dim3 math_block(BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y);
 
     const dim3 io_grid_proc(
         (procW + io_block.x - 1) / io_block.x,
         (procH + io_block.y - 1) / io_block.y);
 
     const dim3 io_grid_out(
-        (width  + io_block.x - 1) / io_block.x,
+        (width + io_block.x - 1) / io_block.x,
         (height + io_block.y - 1) / io_block.y);
 
     int proc_stride;
     switch (algoGpuParams->accuracy)
     {
-        case ProcAccuracy::AccDraft:    proc_stride = 4; break;
-        case ProcAccuracy::AccHigh:     proc_stride = 1; break;
-        case ProcAccuracy::AccStandard:
-        default:                        proc_stride = 2; break;
+    case ProcAccuracy::AccDraft:    proc_stride = 4; break;
+    case ProcAccuracy::AccHigh:     proc_stride = 1; break;
+    case ProcAccuracy::AccStandard:
+    default:                        proc_stride = 2; break;
     }
 
     const dim3 math_grid(
@@ -3058,15 +3076,15 @@ void ImageLabDenoise_CUDA
         (procH + proc_stride - 1) / proc_stride);
 
     const float tau_base = 3.0f * static_cast<float>(PATCH_ELEMS);
-    const float master   = algoGpuParams->master_denoise_amount;
-    const float fine     = algoGpuParams->fine_detail_preservation;
+    const float master = algoGpuParams->master_denoise_amount;
+    const float fine = algoGpuParams->fine_detail_preservation;
 
-    const float tau_Y  = tau_base * master * algoGpuParams->luma_strength   * fine;
+    const float tau_Y = tau_base * master * algoGpuParams->luma_strength   * fine;
     const float tau_UV = tau_base * master * algoGpuParams->chroma_strength * fine;
 
-    const size_t bytes_frame        = static_cast<size_t>(g_gpuMemState.frameSizePadded) * sizeof(float);
-    const size_t bytes_noise_cov    = static_cast<size_t>(NOISE_BINS) * PATCH_ELEMS_SQ * sizeof(float);
-    const size_t bytes_noise_mean   = static_cast<size_t>(NOISE_BINS) * sizeof(float);
+    const size_t bytes_frame = static_cast<size_t>(g_gpuMemState.frameSizePadded) * sizeof(float);
+    const size_t bytes_noise_cov = static_cast<size_t>(NOISE_BINS) * PATCH_ELEMS_SQ * sizeof(float);
+    const size_t bytes_noise_mean = static_cast<size_t>(NOISE_BINS) * sizeof(float);
     const size_t bytes_noise_counts = static_cast<size_t>(NOISE_BINS) * sizeof(int);
 
     // ========================================================================
@@ -3089,104 +3107,104 @@ void ImageLabDenoise_CUDA
 
     // ========================================================================
 
-    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_Y,    0, bytes_noise_cov,    stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_U,    0, bytes_noise_cov,    stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_V,    0, bytes_noise_cov,    stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_Y,   0, bytes_noise_mean,   stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_U,   0, bytes_noise_mean,   stream);
-    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_V,   0, bytes_noise_mean,   stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_Y, 0, bytes_noise_cov, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_U, 0, bytes_noise_cov, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseCov_V, 0, bytes_noise_cov, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_Y, 0, bytes_noise_mean, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_U, 0, bytes_noise_mean, stream);
+    cudaMemsetAsync(g_gpuMemState.d_NoiseMean_V, 0, bytes_noise_mean, stream);
     cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_Y, 0, bytes_noise_counts, stream);
     cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_U, 0, bytes_noise_counts, stream);
     cudaMemsetAsync(g_gpuMemState.d_NoiseCounts_V, 0, bytes_noise_counts, stream);
 
-    Kernel_ConvertBGRAToOrthonormalWeighted<<<io_grid_proc, io_block, 0, stream>>>
-    (
-        inBuffer,
-        g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
-        srcPitch, g_gpuMemState.padW,
-        width,  height,
-        procW,  procH
-    );
+    Kernel_ConvertBGRAToOrthonormalWeighted << <io_grid_proc, io_block, 0, stream >> >
+        (
+            inBuffer,
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            srcPitch, g_gpuMemState.padW,
+            width, height,
+            procW, procH
+            );
     cudaEventRecord(ev_convert, stream);
 
-    Kernel_ExtractDCT_And_Variance_3ch<<<io_grid_proc, io_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Y_planar,     g_gpuMemState.d_U_planar,     g_gpuMemState.d_V_planar,
-        g_gpuMemState.d_NoiseCov_Y,   g_gpuMemState.d_NoiseCov_U,   g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y,  g_gpuMemState.d_NoiseMean_U,  g_gpuMemState.d_NoiseMean_V,
-        g_gpuMemState.d_NoiseCounts_Y,g_gpuMemState.d_NoiseCounts_U,g_gpuMemState.d_NoiseCounts_V,
-        g_gpuMemState.padW, procW, procH
-    );
+    Kernel_ExtractDCT_And_Variance_3ch << <io_grid_proc, io_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            g_gpuMemState.d_NoiseCounts_Y, g_gpuMemState.d_NoiseCounts_U, g_gpuMemState.d_NoiseCounts_V,
+            g_gpuMemState.padW, procW, procH
+            );
     cudaEventRecord(ev_dct, stream);
 
-    Kernel_SmoothNoiseCurves_3ch<<<dim3(3), dim3(NOISE_BINS), 0, stream>>>
-    (
-        g_gpuMemState.d_NoiseCov_Y,   g_gpuMemState.d_NoiseCov_U,   g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y,  g_gpuMemState.d_NoiseMean_U,  g_gpuMemState.d_NoiseMean_V,
-        g_gpuMemState.d_NoiseCounts_Y,g_gpuMemState.d_NoiseCounts_U,g_gpuMemState.d_NoiseCounts_V
-    );
+    Kernel_SmoothNoiseCurves_3ch << <dim3(3), dim3(NOISE_BINS), 0, stream >> >
+        (
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            g_gpuMemState.d_NoiseCounts_Y, g_gpuMemState.d_NoiseCounts_U, g_gpuMemState.d_NoiseCounts_V
+            );
     cudaEventRecord(ev_smooth, stream);
 
-    Kernel_BuildSpatialNoiseCov_3ch<<<dim3(NOISE_BINS, 3), dim3(PATCH_ELEMS_SQ), 0, stream>>>
-    (
-        g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V
-    );
+    Kernel_BuildSpatialNoiseCov_3ch << <dim3(NOISE_BINS, 3), dim3(PATCH_ELEMS_SQ), 0, stream >> >
+        (
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V
+            );
     cudaEventRecord(ev_spatial, stream);
 
     cudaMemsetAsync(g_gpuMemState.d_Accum_Y, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_U, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_V, 0, bytes_frame, stream);
-    cudaMemsetAsync(g_gpuMemState.d_Weight,  0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Weight, 0, bytes_frame, stream);
 
-    Kernel_NLBayes_Pass1_BasicEstimate<<<math_grid, math_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Y_planar,    g_gpuMemState.d_U_planar,    g_gpuMemState.d_V_planar,
-        g_gpuMemState.d_Accum_Y,     g_gpuMemState.d_Accum_U,     g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_NoiseCov_Y,  g_gpuMemState.d_NoiseCov_U,  g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
-        procW, procH, g_gpuMemState.padW,
-        tau_Y, tau_UV, proc_stride
-    );
+    Kernel_NLBayes_Pass1_BasicEstimate << <math_grid, math_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            procW, procH, g_gpuMemState.padW,
+            tau_Y, tau_UV, proc_stride
+            );
     cudaEventRecord(ev_pass1, stream);
 
-    Kernel_NormalizePilotEstimate<<<io_grid_proc, io_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Accum_Y,    g_gpuMemState.d_Accum_U,    g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_Y_planar,   g_gpuMemState.d_U_planar,   g_gpuMemState.d_V_planar,
-        g_gpuMemState.d_MosaicB_Y,  g_gpuMemState.d_MosaicB_U,  g_gpuMemState.d_MosaicB_V,
-        g_gpuMemState.padW, procW, procH
-    );
+    Kernel_NormalizePilotEstimate << <io_grid_proc, io_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            g_gpuMemState.d_MosaicB_Y, g_gpuMemState.d_MosaicB_U, g_gpuMemState.d_MosaicB_V,
+            g_gpuMemState.padW, procW, procH
+            );
     cudaEventRecord(ev_normalize, stream);
 
     cudaMemsetAsync(g_gpuMemState.d_Accum_Y, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_U, 0, bytes_frame, stream);
     cudaMemsetAsync(g_gpuMemState.d_Accum_V, 0, bytes_frame, stream);
-    cudaMemsetAsync(g_gpuMemState.d_Weight,  0, bytes_frame, stream);
+    cudaMemsetAsync(g_gpuMemState.d_Weight, 0, bytes_frame, stream);
 
-    Kernel_NLBayes_Pass2_FinalEstimate<<<math_grid, math_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Y_planar,    g_gpuMemState.d_U_planar,    g_gpuMemState.d_V_planar,
-        g_gpuMemState.d_MosaicB_Y,   g_gpuMemState.d_MosaicB_U,   g_gpuMemState.d_MosaicB_V,
-        g_gpuMemState.d_Accum_Y,     g_gpuMemState.d_Accum_U,     g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_NoiseCov_Y,  g_gpuMemState.d_NoiseCov_U,  g_gpuMemState.d_NoiseCov_V,
-        g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
-        procW, procH, g_gpuMemState.padW,
-        tau_Y, tau_UV, proc_stride
-    );
+    Kernel_NLBayes_Pass2_FinalEstimate << <math_grid, math_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            g_gpuMemState.d_MosaicB_Y, g_gpuMemState.d_MosaicB_U, g_gpuMemState.d_MosaicB_V,
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
+            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
+            procW, procH, g_gpuMemState.padW,
+            tau_Y, tau_UV, proc_stride
+            );
     cudaEventRecord(ev_pass2, stream);
 
-    Kernel_NormalizeAndOutputBGRA<<<io_grid_out, io_block, 0, stream>>>
-    (
-        g_gpuMemState.d_Accum_Y,    g_gpuMemState.d_Accum_U,    g_gpuMemState.d_Accum_V,
-        g_gpuMemState.d_Weight,
-        g_gpuMemState.d_Y_planar,   g_gpuMemState.d_U_planar,   g_gpuMemState.d_V_planar,
-        outBuffer,
-        g_gpuMemState.padW, dstPitch,
-        width, height
-    );
+    Kernel_NormalizeAndOutputBGRA << <io_grid_out, io_block, 0, stream >> >
+        (
+            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+            g_gpuMemState.d_Weight,
+            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+            outBuffer,
+            g_gpuMemState.padW, dstPitch,
+            width, height
+            );
     cudaEventRecord(ev_output, stream);
 
     cudaStreamSynchronize(stream);
@@ -3195,19 +3213,19 @@ void ImageLabDenoise_CUDA
     // DIAGNOSTIC: read elapsed times and print to stderr
     // ========================================================================
     float t_convert, t_dct, t_smooth, t_spatial;
-    float t_pass1,  t_normalize, t_pass2, t_output;
+    float t_pass1, t_normalize, t_pass2, t_output;
 
-    cudaEventElapsedTime(&t_convert,   ev_start,     ev_convert);
-    cudaEventElapsedTime(&t_dct,       ev_convert,   ev_dct);
-    cudaEventElapsedTime(&t_smooth,    ev_dct,       ev_smooth);
-    cudaEventElapsedTime(&t_spatial,   ev_smooth,    ev_spatial);
-    cudaEventElapsedTime(&t_pass1,     ev_spatial,   ev_pass1);
-    cudaEventElapsedTime(&t_normalize, ev_pass1,     ev_normalize);
-    cudaEventElapsedTime(&t_pass2,     ev_normalize, ev_pass2);
-    cudaEventElapsedTime(&t_output,    ev_pass2,     ev_output);
+    cudaEventElapsedTime(&t_convert, ev_start, ev_convert);
+    cudaEventElapsedTime(&t_dct, ev_convert, ev_dct);
+    cudaEventElapsedTime(&t_smooth, ev_dct, ev_smooth);
+    cudaEventElapsedTime(&t_spatial, ev_smooth, ev_spatial);
+    cudaEventElapsedTime(&t_pass1, ev_spatial, ev_pass1);
+    cudaEventElapsedTime(&t_normalize, ev_pass1, ev_normalize);
+    cudaEventElapsedTime(&t_pass2, ev_normalize, ev_pass2);
+    cudaEventElapsedTime(&t_output, ev_pass2, ev_output);
 
     const float t_total = t_convert + t_dct + t_smooth + t_spatial
-                        + t_pass1 + t_normalize + t_pass2 + t_output;
+        + t_pass1 + t_normalize + t_pass2 + t_output;
 
     fprintf(stderr,
         "[NLB-TIMING] %dx%d stride=%d | Convert:%.2f | DCT:%.2f | Smooth:%.2f | Spatial:%.2f "
@@ -3225,7 +3243,7 @@ void ImageLabDenoise_CUDA
     cudaEventDestroy(ev_normalize);
     cudaEventDestroy(ev_pass2);
     cudaEventDestroy(ev_output);
-    
+
     cudaDeviceSynchronize();
 }
 #endif
