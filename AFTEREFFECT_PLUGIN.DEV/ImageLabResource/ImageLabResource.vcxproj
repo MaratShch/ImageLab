@@ -130,6 +130,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Image Include="..\..\..\..\..\Gemini_Generated_Image_o2lwrto2lwrto2lw.bmp" />
+    <Image Include="..\..\..\..\..\Logo_ArtPaint.bmp" />
+    <Image Include="resource\vga256.bmp" />
     <Image Include="vga256.bmp" />
     <Image Include="resource\Atari.bmp" />
     <Image Include="resource\cga1.bmp" />
@@ -150,6 +153,7 @@
   <ItemGroup>
     <ClInclude Include="include\resource.h" />
     <ClInclude Include="include\RetroVisionResource.hpp" />
+    <ClInclude Include="resource\resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource\ImageLabResource.rc">
