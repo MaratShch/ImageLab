@@ -150,6 +150,7 @@
     <Image Include="resource\vga.bmp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\ArtPaintResource.hpp" />
     <ClInclude Include="include\RetroVisionResource.hpp" />
     <ClInclude Include="resource\resource.h" />
   </ItemGroup>

@@ -1,7 +1,10 @@
 #include "ArtPaint.hpp"
 #include "ArtPaintEnums.hpp"
+#include "ArtPaint_DrawLogo.hpp"
 #include "PrSDKAESupport.h"
 #include "ImageLabMemInterface.hpp"
+
+
 
 static PF_Err
 About(
@@ -29,10 +32,17 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     if (false == LoadMemoryInterfaceProvider(in_data))
-        return PF_Err_INTERNAL_STRUCT_DAMAGED;
+        return err;
+
+    if (false == LoadResourceDll(in_data))
+    {
+        // unload previously loaded library on proc DLL load fails
+        UnloadMemoryInterfaceProvider();
+        return err;
+    }
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -95,6 +105,8 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f_Linear);
     }
 
+    err = (true == LoadLogo() ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED);
+
 	return err;
 }
 
@@ -107,6 +119,8 @@ GlobalSetdown(
 	PF_LayerDef		*output)
 {
     UnloadMemoryInterfaceProvider();
+    FreeResourceDll();
+
     return PF_Err_NONE;
 }
 

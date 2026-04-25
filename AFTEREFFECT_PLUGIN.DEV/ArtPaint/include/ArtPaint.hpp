@@ -57,5 +57,4 @@ const AlgoControls getControlsValues
     PF_ParamDef* RESTRICT params[]
 ) noexcept;
 
-
 #endif /* __IMAGE_LAB_ART_PAINT_STYLE_FILTER__ */

@@ -129,6 +129,9 @@
     <ClInclude Include="include\ArtPaint_GPU.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\ArtPaint_DrawLogo.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ArtPaint.cpp">
@@ -171,6 +174,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ArtPaint_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ArtPaint_DrawLogo.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
