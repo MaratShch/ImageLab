@@ -1,5 +1,5 @@
-#ifndef __IMAGE_LAB_AUTHOMATIC_WB_MEM_INTERFACE__
-#define __IMAGE_LAB_AUTHOMATIC_WB_MEM_INTERFACE__
+#ifndef __IMAGE_LAB_ART_PAINT_MEM_INTERFACE__
+#define __IMAGE_LAB_ART_PAINT_MEM_INTERFACE__
 
 #include <windows.h>
 #include "AE_Effect.h"
@@ -25,4 +25,4 @@ typedef struct MemoryManagerInterface
 	DWORD             _dbgLastError;
 } MemoryManagerInterface;
 
-#endif // __IMAGE_LAB_AUTHOMATIC_WB_MEM_INTERFACE__
+#endif // __IMAGE_LAB_ART_PAINT_MEM_INTERFACE__
