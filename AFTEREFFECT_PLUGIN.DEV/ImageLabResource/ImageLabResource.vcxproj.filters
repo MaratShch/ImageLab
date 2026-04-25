@@ -62,20 +62,14 @@
     <Image Include="vga256.bmp">
       <Filter>resource</Filter>
     </Image>
-    <Image Include="..\..\..\..\..\Logo_ArtPaint.bmp">
-      <Filter>resource</Filter>
-    </Image>
     <Image Include="resource\vga256.bmp">
       <Filter>resource</Filter>
     </Image>
-    <Image Include="..\..\..\..\..\Gemini_Generated_Image_o2lwrto2lwrto2lw.bmp">
+    <Image Include="resource\Logo_ArtPaint.bmp">
       <Filter>resource</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\resource.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\RetroVisionResource.hpp">
       <Filter>include</Filter>
     </ClInclude>
