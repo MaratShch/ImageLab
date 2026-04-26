@@ -5,8 +5,14 @@
 
 
 static HMODULE hLib = NULL;
+static CACHE_ALIGN Logo logoBmp{};
 
-CACHE_ALIGN Logo logoBmp{};
+
+const Logo& getBitmap(void)
+{
+    return logoBmp;
+}
+
 
 bool LoadResourceDll (PF_InData* in_data)
 {
@@ -66,8 +72,3 @@ bool LoadLogo (void)
     return bRet;
 }
 
-
-const Logo getBitmap(void)
-{
-    return logoBmp;
-}

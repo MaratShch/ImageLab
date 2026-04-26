@@ -10,6 +10,6 @@ using Logo = std::array<int32_t, logoSize>;
 bool LoadResourceDll(PF_InData* in_data);
 void FreeResourceDll(void);
 bool LoadLogo(void);
-const Logo getBitmap(void);
+const Logo& getBitmap(void);
 
 #endif // __IMAGE_LAB_ART_PAINT_DRAW_LOGO_MODULE__
