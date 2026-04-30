@@ -8,6 +8,7 @@
 enum class ArtPaintControls : int32_t
 {
     ART_PAINT_INPUT,
+    ART_PAINT_LOGO,
     ART_PAINT_RENDER_QUALITY,
     ART_PAINT_STYLE,
     ART_PAINT_BRUSH_WIDTH,
@@ -19,6 +20,7 @@ enum class ArtPaintControls : int32_t
 
 constexpr A_char ArtPaintControlsStr[][24] =
 {
+    "Logo",
     "Render Quality",
     "Paint Style",
     "Brush Width",
