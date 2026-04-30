@@ -179,6 +179,9 @@
     <ClCompile Include="src\ArtPaint_DrawLogo.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ArtPaint_GUI.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ArtPaint.rc">

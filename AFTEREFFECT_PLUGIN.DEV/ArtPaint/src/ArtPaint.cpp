@@ -49,7 +49,9 @@ GlobalSetup(
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
 		PF_OutFlag_USE_OUTPUT_EXTENT     |
 		PF_OutFlag_DEEP_COLOR_AWARE      |
-		PF_OutFlag_WIDE_TIME_INPUT;
+		PF_OutFlag_WIDE_TIME_INPUT       |
+        PF_OutFlag_CUSTOM_UI             |
+        PF_OutFlag_SEND_UPDATE_PARAMS_UI;
 
     constexpr PF_OutFlags out_flags2 =
         PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
@@ -134,13 +136,53 @@ ParamsSetup(
 	PF_LayerDef		*output)
 {
     CACHE_ALIGN PF_ParamDef	def{};
+    PF_Err		err = PF_Err_NONE;
 
     constexpr PF_ParamFlags     flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
     constexpr PF_ParamUIFlags   ui_flags = PF_PUI_NONE;
- 
+
+    // add Plugin Logo (GUI)
+    AEFX_CLR_STRUCT_EX(def);
+    def.flags = flags;
+    def.ui_flags = ui_flags;
+    def.ui_width = logoWidth;
+    def.ui_height = logoHeight;
+    PF_ADD_ARBITRARY2(
+        ArtPaintControlsStr[0],
+        logoWidth,
+        logoHeight,
+        0,
+        PF_PUI_CONTROL,
+        0,
+        UnderlyingType(ArtPaintControls::ART_PAINT_LOGO),
+        0);
+
+    if (PF_Err_NONE == err)
+    {
+        PF_CustomUIInfo	ui;
+        AEFX_CLR_STRUCT_EX(ui);
+
+        ui.events = PF_CustomEFlag_EFFECT;
+
+        ui.comp_ui_width = 0;
+        ui.comp_ui_height = 0;
+        ui.comp_ui_alignment = PF_UIAlignment_NONE;
+
+        ui.layer_ui_width = 0;
+        ui.layer_ui_height = 0;
+        ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        ui.preview_ui_width = 0;
+        ui.preview_ui_height = 0;
+        ui.layer_ui_alignment = PF_UIAlignment_NONE;
+
+        err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
+    } // if (PF_Err_NONE == err)
+
+
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
-        ArtPaintControlsStr[0],
+        ArtPaintControlsStr[1],
         UnderlyingType(RenderQuality::TotalQualitites),
         UnderlyingType(RenderQuality::Fast_HalfSize),
         RenderQualityStr,
@@ -148,7 +190,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
-        ArtPaintControlsStr[1],
+        ArtPaintControlsStr[2],
         UnderlyingType(StrokeBias::TotalStrokeBias),
         UnderlyingType(StrokeBias::DarkBias_Open),
         StrokeBiasStr,
@@ -156,7 +198,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        ArtPaintControlsStr[2],
+        ArtPaintControlsStr[3],
         sigmaMin,
         sigmaMax,
         sigmaMin,
@@ -169,7 +211,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        ArtPaintControlsStr[3],
+        ArtPaintControlsStr[4],
         angularMin,
         angularMax,
         angularMin,
@@ -182,7 +224,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        ArtPaintControlsStr[4],
+        ArtPaintControlsStr[5],
         angleMin,
         angleMax,
         angleMin,
@@ -195,7 +237,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_SLIDER(
-        ArtPaintControlsStr[5],
+        ArtPaintControlsStr[6],
         iterMin,
         iterMax,
         iterMin,
@@ -280,11 +322,11 @@ HandleEvent
 
     switch (extra->e_type)
     {
-    case PF_Event_DRAW:
-        //        err = DrawEvent(in_data, out_data, params, output, extra);
+        case PF_Event_DRAW:
+            err = DrawEvent (in_data, out_data, params, output, extra);
         break;
 
-    default:
+        default:
         break;
     }
     return err;
@@ -335,9 +377,9 @@ EffectMain(
                 ERR(UpdateParameterUI(in_data, out_data, params, output));
             break;
 
-//          case PF_Cmd_EVENT:
-//              ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
-//          break;
+            case PF_Cmd_EVENT:
+                ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
+            break;
 
             case PF_Cmd_SMART_PRE_RENDER:
                 ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));

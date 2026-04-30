@@ -184,6 +184,7 @@
     <ClCompile Include="src\ArtPaintSR.cpp" />
     <ClCompile Include="src\ArtPaint_DrawLogo.cpp" />
     <ClCompile Include="src\ArtPaint_GPU.cpp" />
+    <ClCompile Include="src\ArtPaint_GUI.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\PaintAlgoAVX2.cpp" />
     <ClCompile Include="src\PaintAlgoControls.cpp" />
