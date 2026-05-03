@@ -32,11 +32,7 @@
 // ============================================================================
 // ARCHITECTURAL CONSTANTS
 // ============================================================================
-#if __CUDA_ARCH__ >= 800
-    #define MATH_LAUNCH_BOUNDS __launch_bounds__(256, 4)
-#else
-    #define MATH_LAUNCH_BOUNDS __launch_bounds__(256, 4)
-#endif
+#define MATH_LAUNCH_BOUNDS __launch_bounds__(256, 4)
 
 // --- Launch-config block dimensions ---
 constexpr int BLOCK_DIM_IO_X = 32;
@@ -67,14 +63,6 @@ constexpr float YUV_C_INV = 0.81649658f;   // YUV_A / YUV_B  = sqrt(2/3)
 // (nSimilarPatches/2 | 1) = 17 cells across.
 constexpr int SEARCH_WINDOW_RADIUS = 8;
 constexpr int SEARCH_WINDOW_SIZE = (SEARCH_WINDOW_RADIUS * 2) + 1;   // 17
-constexpr int SMEM_STRIDE = SEARCH_WINDOW_SIZE;               // row stride for 17x17 shared tile
-
-// nSimilarPatches is the TARGET number of similar patches per group.
-// MAX_SIMILAR_PATCHES is the hard cap (Lebrun's CPU uses 16 * nSim = 512 in
-// random-patch mode; we cap at 128 as a pragmatic balance - quality parity
-// in 99% of real imagery with a quarter the shared-memory footprint).
-constexpr int N_SIMILAR_PATCHES = 32;
-constexpr int MAX_SIMILAR_PATCHES = 128;
 
 // DCT patch noise-estimation constants (4x4 orthonormal DCT-II)
 //   C0 = 1/2
@@ -147,7 +135,8 @@ static CudaMemHandler g_gpuMemState;
 //                      is left untouched (may contain stale data; kernels
 //                      downstream treat it as out-of-range and do not read it).
 // ============================================================================
-__global__ void Kernel_ConvertBGRAToOrthonormalWeighted(
+__global__ void Kernel_ConvertBGRAToOrthonormalWeighted
+(
     const float* RESTRICT    inBuffer,
     float*       RESTRICT    outY,
     float*       RESTRICT    outU,
@@ -157,7 +146,8 @@ __global__ void Kernel_ConvertBGRAToOrthonormalWeighted(
     int                      srcWidth,
     int                      srcHeight,
     int                      procW,
-    int                      procH)
+    int                      procH
+)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
