@@ -32,6 +32,11 @@
 // ============================================================================
 // ARCHITECTURAL CONSTANTS
 // ============================================================================
+#if __CUDA_ARCH__ >= 800
+    #define MATH_LAUNCH_BOUNDS __launch_bounds__(256, 4)
+#else
+    #define MATH_LAUNCH_BOUNDS __launch_bounds__(256, 4)
+#endif
 
 // --- Launch-config block dimensions ---
 constexpr int BLOCK_DIM_IO_X = 32;
@@ -39,11 +44,11 @@ constexpr int BLOCK_DIM_IO_Y = 16;
 constexpr int BLOCK_DIM_MATH_X = 32;
 constexpr int BLOCK_DIM_MATH_Y = 8;   // 32 * 8 = 256 threads / block (for NL-Bayes passes)
 
-                                      // --- Image-dimension alignment ---
-                                      // We pad the internal YUV buffers to a multiple of 4 so that:
-                                      //   (a) the 4x4 DCT patch grid tiles evenly
-                                      //   (b) a future 2-scale mosaic pyramid (1<<nbScales = 4) fits
-                                      // Matches Lebrun's enhanceBoundaries(pow = 1 << nbScales) convention.
+// --- Image-dimension alignment ---
+// We pad the internal YUV buffers to a multiple of 4 so that:
+//   (a) the 4x4 DCT patch grid tiles evenly
+//   (b) a future 2-scale mosaic pyramid (1<<nbScales = 4) fits
+// Matches Lebrun's enhanceBoundaries(pow = 1 << nbScales) convention.
 constexpr int PROC_ALIGN = 4;
 
 // --- Lebrun's YUV orthonormal color transform (3-channel branch in LibImages.cpp) ---
@@ -57,11 +62,19 @@ constexpr float YUV_B = 0.70710678f;   // 1 / sqrt(2)
 constexpr float YUV_C = 1.63299316f;   // 2 * YUV_A * sqrt(2)
 constexpr float YUV_C_INV = 0.81649658f;   // YUV_A / YUV_B  = sqrt(2/3)
 
-                                           // --- Noise-estimation geometry ---
-                                           // Lebrun uses nSimilarPatches = 2*sP^2 = 32 and a search window of
-                                           // (nSimilarPatches/2 | 1) = 17 cells across.
+// --- Noise-estimation geometry ---
+// Lebrun uses nSimilarPatches = 2*sP^2 = 32 and a search window of
+// (nSimilarPatches/2 | 1) = 17 cells across.
 constexpr int SEARCH_WINDOW_RADIUS = 8;
 constexpr int SEARCH_WINDOW_SIZE = (SEARCH_WINDOW_RADIUS * 2) + 1;   // 17
+constexpr int SMEM_STRIDE = SEARCH_WINDOW_SIZE;               // row stride for 17x17 shared tile
+
+// nSimilarPatches is the TARGET number of similar patches per group.
+// MAX_SIMILAR_PATCHES is the hard cap (Lebrun's CPU uses 16 * nSim = 512 in
+// random-patch mode; we cap at 128 as a pragmatic balance - quality parity
+// in 99% of real imagery with a quarter the shared-memory footprint).
+constexpr int N_SIMILAR_PATCHES = 32;
+constexpr int MAX_SIMILAR_PATCHES = 128;
 
 // DCT patch noise-estimation constants (4x4 orthonormal DCT-II)
 //   C0 = 1/2
@@ -906,14 +919,14 @@ __global__ void Kernel_BuildSpatialNoiseCov_3ch
 
     const int bin_base = bin * PATCH_ELEMS_SQ;     // * 256
 
-                                                   // ------------------------------------------------------------------------
-                                                   // Phase 1: Cooperative load into shared memory.
-                                                   //   s_D1d       : the 4x4 DCT-1D matrix, flat layout (16 floats).
-                                                   //   s_freqVars  : the 16 frequency variances for this (bin, channel).
-                                                   //
-                                                   // Staging freqVars into shared BEFORE any writes guarantees no read-
-                                                   // after-write hazard even though we'll overwrite slots [0..15] later.
-                                                   // ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// Phase 1: Cooperative load into shared memory.
+//   s_D1d       : the 4x4 DCT-1D matrix, flat layout (16 floats).
+//   s_freqVars  : the 16 frequency variances for this (bin, channel).
+//
+// Staging freqVars into shared BEFORE any writes guarantees no read-
+// after-write hazard even though we'll overwrite slots [0..15] later.
+// ------------------------------------------------------------------------
     __shared__ float s_D1d[PATCH_ELEMS];
     __shared__ float s_freqVars[PATCH_ELEMS];
 
@@ -1072,6 +1085,15 @@ __device__ void Cholesky16_Warp(
 
     // ------------------------------------------------------------------------
     // Step 2: Compute trace and epsilon (Tikhonov regularization).
+    //
+    // PATH C TUNING (week N+1): switched from trace-relative epsilon to a
+    // FIXED floor of 1e-6, matching the Jacobi version's eigenvalue clamp
+    // behavior. The trace-relative formula caused over-regularization at HD
+    // scale where covariance traces are larger, leading to softened edges.
+    //
+    // We still keep the trace-reduction code below (no longer needed for
+    // epsilon, but inexpensive and the warp shuffles are mandatory anyway --
+    // commenting them out would not save measurable time).
     // ------------------------------------------------------------------------
     float my_diag = active ? row[lane_id] : 0.0f;
 
@@ -1081,11 +1103,13 @@ __device__ void Cholesky16_Warp(
     {
         trace += __shfl_xor_sync(0xFFFFFFFF, trace, offset);
     }
-    // All lanes now hold identical `trace` (sum across active 16 lanes;
-    // the 16..31 lanes contributed zeros).
+    // All lanes now hold identical `trace` -- preserved for diagnostic use,
+    // not used in epsilon calculation below.
+    (void) trace;
 
-    float epsilon = 1e-6f * trace / 16.0f;
-    epsilon = fmaxf(epsilon, 1e-7f);
+    // FIXED-FLOOR REGULARIZATION (Path C change):
+    // Matches Lebrun's CPU clamp at 1e-6 and our prior Jacobi clamp.
+    const float epsilon = 1e-6f;
 
     if (active)
     {
@@ -1495,13 +1519,13 @@ float WarpReduceSum(float v)
 static constexpr int WINDOW_TILE_SIZE = SEARCH_WINDOW_SIZE + PATCH_SIZE - 1;   // 20
 static constexpr int WINDOW_TILE_ELEMS = WINDOW_TILE_SIZE * WINDOW_TILE_SIZE;   // 400
 
-                                                                                // Phase 2: cap similar-patch count at 64 (was 128 in Phase 0/1). Reduces
-                                                                                // sh_patches from 8 KB to 4 KB -> ~2x block-occupancy improvement on
-                                                                                // shared-memory-limited kernels.
+// Phase 2: cap similar-patch count at 64 (was 128 in Phase 0/1). Reduces
+// sh_patches from 8 KB to 4 KB -> ~2x block-occupancy improvement on
+// shared-memory-limited kernels.
 static constexpr int PASS12_MAX_SIMILAR = 64;
 
-
-__global__ void Kernel_NLBayes_Pass1_BasicEstimate
+__global__ MATH_LAUNCH_BOUNDS
+void Kernel_NLBayes_Pass1_BasicEstimate
 (
     const float* RESTRICT    inY,
     const float* RESTRICT    inU,
@@ -1676,8 +1700,8 @@ __global__ void Kernel_NLBayes_Pass1_BasicEstimate
         const int ref_py = SEARCH_WINDOW_RADIUS;      // 8
         const int n_candidates = SEARCH_WINDOW_SIZE * SEARCH_WINDOW_SIZE;  // 289
 
-                                                                           // Each warp processes candidates in chunks of 32. With 8 warps and
-                                                                           // 289 candidates, each warp handles ~2 chunks.
+// Each warp processes candidates in chunks of 32. With 8 warps and
+// 289 candidates, each warp handles ~2 chunks.
         const int chunks_total = (n_candidates + 31) / 32;   // 10
         const int chunks_per_warp = (chunks_total + 7) / 8;  // 2 (ceil of 10/8)
 
@@ -2146,7 +2170,8 @@ __global__ void Kernel_NormalizePilotEstimate
 // ============================================================================
 
 
-__global__ void Kernel_NLBayes_Pass2_FinalEstimate
+__global__ MATH_LAUNCH_BOUNDS
+void Kernel_NLBayes_Pass2_FinalEstimate
 (
     const float* RESTRICT    noisyY,
     const float* RESTRICT    noisyU,
@@ -2237,9 +2262,9 @@ __global__ void Kernel_NLBayes_Pass2_FinalEstimate
     __shared__ float s_stage_V[WINDOW_TILE_ELEMS];    // 1600 B
     __shared__ float s_stage_W[WINDOW_TILE_ELEMS];    // 1600 B
 
-                                                      // ------------------------------------------------------------------------
-                                                      // Phase 1: Load noisy + pilot window tiles cooperatively.
-                                                      // ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// Phase 1: Load noisy + pilot window tiles cooperatively.
+// ------------------------------------------------------------------------
     for (int i = tid; i < WINDOW_TILE_ELEMS; i += block_size)
     {
         const int lx = i % WINDOW_TILE_SIZE;
@@ -2921,7 +2946,7 @@ void ImageLabDenoise_CUDA
     const dim3 io_block(BLOCK_DIM_IO_X, BLOCK_DIM_IO_Y);
     const dim3 math_block(BLOCK_DIM_MATH_X, BLOCK_DIM_MATH_Y);     // 256 threads / block
 
-                                                                   // Grid for I/O kernels that cover the full padded region
+// Grid for I/O kernels that cover the full padded region
     const dim3 io_grid_proc(
         (procW + io_block.x - 1) / io_block.x,
         (procH + io_block.y - 1) / io_block.y);
