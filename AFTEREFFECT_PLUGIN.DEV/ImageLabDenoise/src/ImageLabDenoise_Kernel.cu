@@ -32,7 +32,15 @@
 // ============================================================================
 // ARCHITECTURAL CONSTANTS
 // ============================================================================
-#define MATH_LAUNCH_BOUNDS __launch_bounds__(256, 4)
+// Pass 1: low shared memory pressure, high occupancy preferred everywhere
+#define MATH_PASS1_LAUNCH_BOUNDS __launch_bounds__(256, 4)
+
+// Pass 2: high shared memory pressure, optimal blocks/SM differs by architecture
+#if __CUDA_ARCH__ >= 800
+    #define MATH_PASS2_LAUNCH_BOUNDS __launch_bounds__(256, 4)   // Ada/newer
+#else
+    #define MATH_PASS2_LAUNCH_BOUNDS __launch_bounds__(256, 3)   // Pascal
+#endif
 
 // --- Launch-config block dimensions ---
 constexpr int BLOCK_DIM_IO_X = 32;
@@ -1514,7 +1522,7 @@ static constexpr int WINDOW_TILE_ELEMS = WINDOW_TILE_SIZE * WINDOW_TILE_SIZE;   
 // shared-memory-limited kernels.
 static constexpr int PASS12_MAX_SIMILAR = 64;
 
-__global__ MATH_LAUNCH_BOUNDS
+__global__ MATH_PASS1_LAUNCH_BOUNDS 
 void Kernel_NLBayes_Pass1_BasicEstimate
 (
     const float* RESTRICT    inY,
@@ -1527,9 +1535,6 @@ void Kernel_NLBayes_Pass1_BasicEstimate
     const float* RESTRICT    noiseCovY,
     const float* RESTRICT    noiseCovU,
     const float* RESTRICT    noiseCovV,
-    const float* RESTRICT    noiseMeanY,
-    const float* RESTRICT    noiseMeanU,
-    const float* RESTRICT    noiseMeanV,
     int                      procW,
     int                      procH,
     int                      padW,
@@ -1542,11 +1547,6 @@ void Kernel_NLBayes_Pass1_BasicEstimate
     const int block_size = blockDim.x * blockDim.y;
     const int warp_id = tid >> 5;        // 0..7 for 256 threads
     const int lane_id = tid & 31;        // 0..31
-
-                                         // Unused in Pass 1 (part of shared signature used by Pass 2).
-    (void)noiseMeanY;
-    (void)noiseMeanU;
-    (void)noiseMeanV;
 
     // ------------------------------------------------------------------------
     // Reference patch top-left coordinate + boundary check.
@@ -1592,18 +1592,16 @@ void Kernel_NLBayes_Pass1_BasicEstimate
     __shared__ float sh_V_mat[PATCH_ELEMS_SQ];    // sh_L: Cholesky factor workspace
     __shared__ float sh_scratch16[PATCH_ELEMS];   // 16-float scratch (reduction staging)
 
-                                                 // Bary preserved across helper invocation.
+     // Bary preserved across helper invocation.
     __shared__ float sh_bary[PATCH_ELEMS];
 
-                                                // Patches (shrunk).
+    // Patches (shrunk).
     __shared__ float sh_patches[PATCH_ELEMS * PASS12_MAX_SIMILAR];  // 16*64*4 = 4096 B
 
-                                                                    // Per-warp staging for warp-cooperative patch selection.
-    __shared__ int   s_warp_offsets[8];    // one per warp; 8 warps/block
 
-                                           // ------------------------------------------------------------------------
-                                           // Phase 1: Cooperative load of the 20x20 window tile for each channel.
-                                           // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Phase 1: Cooperative load of the 20x20 window tile for each channel.
+    // ------------------------------------------------------------------------
     for (int i = tid; i < WINDOW_TILE_ELEMS; i += block_size)
     {
         const int lx = i % WINDOW_TILE_SIZE;
@@ -2160,7 +2158,7 @@ __global__ void Kernel_NormalizePilotEstimate
 // ============================================================================
 
 
-__global__ MATH_LAUNCH_BOUNDS
+__global__ MATH_PASS2_LAUNCH_BOUNDS 
 void Kernel_NLBayes_Pass2_FinalEstimate
 (
     const float* RESTRICT    noisyY,
@@ -2176,9 +2174,6 @@ void Kernel_NLBayes_Pass2_FinalEstimate
     const float* RESTRICT    noiseCovY,
     const float* RESTRICT    noiseCovU,
     const float* RESTRICT    noiseCovV,
-    const float* RESTRICT    noiseMeanY,
-    const float* RESTRICT    noiseMeanU,
-    const float* RESTRICT    noiseMeanV,
     int                      procW,
     int                      procH,
     int                      padW,
@@ -2191,11 +2186,6 @@ void Kernel_NLBayes_Pass2_FinalEstimate
     const int block_size = blockDim.x * blockDim.y;
     const int warp_id = tid >> 5;        // 0..7
     const int lane_id = tid & 31;        // 0..31
-
-                                         // Unused in Pass 2 (Lebrun uses nearest-bin LUT, no interpolation).
-    (void)noiseMeanY;
-    (void)noiseMeanU;
-    (void)noiseMeanV;
 
     // ------------------------------------------------------------------------
     // Reference coordinate and boundary check.
@@ -3064,7 +3054,6 @@ void ImageLabDenoise_CUDA
             g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
             g_gpuMemState.d_Weight,
             g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
-            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
             procW, procH, g_gpuMemState.padW,
             tau_Y, tau_UV, proc_stride
             );
@@ -3095,7 +3084,6 @@ void ImageLabDenoise_CUDA
             g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
             g_gpuMemState.d_Weight,
             g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
-            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
             procW, procH, g_gpuMemState.padW,
             tau_Y, tau_UV, proc_stride
             );
@@ -3307,7 +3295,6 @@ void ImageLabDenoise_CUDA
             g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
             g_gpuMemState.d_Weight,
             g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
-            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
             procW, procH, g_gpuMemState.padW,
             tau_Y, tau_UV, proc_stride
             );
@@ -3335,7 +3322,6 @@ void ImageLabDenoise_CUDA
             g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
             g_gpuMemState.d_Weight,
             g_gpuMemState.d_NoiseCov_Y, g_gpuMemState.d_NoiseCov_U, g_gpuMemState.d_NoiseCov_V,
-            g_gpuMemState.d_NoiseMean_Y, g_gpuMemState.d_NoiseMean_U, g_gpuMemState.d_NoiseMean_V,
             procW, procH, g_gpuMemState.padW,
             tau_Y, tau_UV, proc_stride
             );
@@ -3393,3 +3379,11 @@ void ImageLabDenoise_CUDA
 }
 #endif
 
+// ============================================================================
+// CLEANUP 
+// ============================================================================
+CUDA_KERNEL_CALL
+void ImageLabDenoise_CleanupGPU()
+{
+    free_cuda_memory_buffers(g_gpuMemState);
+}
