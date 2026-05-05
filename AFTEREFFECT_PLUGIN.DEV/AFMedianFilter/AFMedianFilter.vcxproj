@@ -156,11 +156,16 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AFMedianAlgorithm.hpp" />
+    <ClInclude Include="include\AFMedianControls.hpp" />
     <ClInclude Include="include\AFMedianFilter.hpp" />
     <ClInclude Include="include\AFMedianFilterEnum.hpp" />
+    <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AFMedianAlgorithm.cpp" />
+    <ClCompile Include="src\AFMedianControls.cpp" />
     <ClCompile Include="src\AFMedianFilter.cpp" />
     <ClCompile Include="src\AFMedianFilterAE.cpp" />
     <ClCompile Include="src\AFMedianFilterPR.cpp" />

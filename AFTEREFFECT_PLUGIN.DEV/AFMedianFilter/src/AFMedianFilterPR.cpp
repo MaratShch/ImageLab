@@ -1,13 +1,14 @@
 #include "AFMedianFilter.hpp"
+#include "AFMedianControls.hpp"
 #include "PrSDKAESupport.h"
 
 
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
 ) noexcept
 {
 	PF_Err err{ PF_Err_NONE };
@@ -19,6 +20,8 @@ PF_Err ProcessImgInPR
 
 	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 	{
+        const AfmfControls algoControls = getAlgoControls (params);
+
 		switch (destinationPixelFormat)
 		{
             case PrPixelFormat_BGRA_4444_8u:
