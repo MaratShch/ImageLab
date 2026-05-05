@@ -2867,7 +2867,7 @@ static inline int RoundUpPow2(int value, int multiple)
     return (value + (multiple - 1)) & ~(multiple - 1);
 }
 
-#if 0
+#if 1
 // ============================================================================
 // ORCHESTRATOR: ImageLabDenoise_CUDA
 //
@@ -3377,7 +3377,6 @@ void ImageLabDenoise_CUDA
 
     cudaDeviceSynchronize();
 }
-#endif
 
 // ============================================================================
 // CLEANUP 
@@ -3387,3 +3386,6 @@ void ImageLabDenoise_CleanupGPU()
 {
     free_cuda_memory_buffers(g_gpuMemState);
 }
+
+#endif
+
