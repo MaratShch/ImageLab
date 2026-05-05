@@ -90,6 +90,15 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AFMedianControls.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AFMedianAlgorithm.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AFMedianFilter.cpp">
@@ -105,6 +114,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AFMedianControls.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AFMedianAlgorithm.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

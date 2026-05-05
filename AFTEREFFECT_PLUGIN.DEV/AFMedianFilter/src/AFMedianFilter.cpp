@@ -108,7 +108,6 @@ GlobalSetdown(
 }
 
 
-
 static PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
@@ -116,11 +115,43 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    CACHE_ALIGN PF_ParamDef	def{};
-    PF_Err		err = PF_Err_NONE;
+    CACHE_ALIGN PF_ParamDef	def;
+
+    constexpr PF_ParamFlags     flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags   ui_flags = PF_PUI_NONE;
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        AFMFControlsStr[0],                                                     // pop-up name
+        UnderlyingType(AFMF_RadiusSize::eIMAGE_AFMEDIAN_WINDOW_TOTAL_VARIANTS), // number of variants
+        UnderlyingType(AFMF_RadiusSize::eIMAGE_AFMEDIAN_WINDOW_DISABLED),       // default variant
+        windowSizeStr,                                                          // string for pop-up
+        UnderlyingType(AFMF::eIMAGE_AFMEDIAN_PARAM_RADIUS));                    // control ID
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        AFMFControlsStr[1],
+        noiseToleranceMin,
+        noiseToleranceMax,
+        noiseToleranceMin,
+        noiseToleranceMax,
+        noiseToleranceDef,
+        PF_Precision_TENTHS,
+        0,
+        0,
+        UnderlyingType(AFMF::eIMAGE_AFMEDIAN_PARAM_TOLERANCE));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        AFMFControlsStr[2],                                                     // pop-up name
+        UnderlyingType(AFMF_Iterations::eIMAGE_AFMEDIAN_ITER_TOTAL_VARIANTS),   // number of variants
+        UnderlyingType(AFMF_Iterations::eIMAGE_AFMEDIAN_ITER_1),                // default variant
+        iterPassStr,                                                            // string for pop-up
+        UnderlyingType(AFMF::eIMAGE_AFMEDIAN_PARAM_ITERATIONS));                // control ID
 
     out_data->num_params = UnderlyingType(AFMF::eIMAGE_AFMEDIAN_TOTAL_CONTROLS);
-	return err;
+
+	return PF_Err_NONE;
 }
 
 

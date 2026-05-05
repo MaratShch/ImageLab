@@ -1,8 +1,7 @@
-#ifndef __IMAGE_LAB_IMAGE_GEOMETRY_FILTER__
-#define __IMAGE_LAB_IMAGE_GEOMETRY_FILTER__
+#ifndef __IMAGE_LAB_ADAPTIVE_FREQUENCY_MEDIAN_FILTER__
+#define __IMAGE_LAB_ADAPTIVE_FREQUENCY_MEDIAN_FILTER__
 
 #include "CommonAdobeAE.hpp"
-
 
 constexpr char strName[] = "Adaptive Frequency Median Filtering";
 constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rAdaptive Frequency Median Filtering plugin.";
@@ -20,10 +19,10 @@ constexpr int AFMedianFilter_VersionBuild = 1;
 PF_Err 
 ProcessImgInPR
 (
-    PF_InData*   __restrict in_data,
-    PF_OutData*  __restrict out_data,
-    PF_ParamDef* __restrict params[],
-    PF_LayerDef* __restrict output
+    PF_InData*    in_data,
+    PF_OutData*   out_data,
+    PF_ParamDef*  params[],
+    PF_LayerDef*  output
 );
 
 PF_Err
@@ -52,4 +51,4 @@ AFMedianFilter_SmartRender
 );
 
 
-#endif /* __IMAGE_LAB_IMAGE_GEOMETRY_FILTER__ */
+#endif // __IMAGE_LAB_ADAPTIVE_FREQUENCY_MEDIAN_FILTER__
