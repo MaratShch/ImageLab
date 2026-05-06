@@ -1,7 +1,7 @@
 #include "AFMedianFilter.hpp"
 #include "AFMedianFilterEnum.hpp"
 #include "PrSDKAESupport.h"
-
+#include "ImageLabMemInterface.hpp"
 
 static PF_Err
 About(
@@ -29,7 +29,10 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_NONE;
+
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -103,8 +106,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
 }
 
 

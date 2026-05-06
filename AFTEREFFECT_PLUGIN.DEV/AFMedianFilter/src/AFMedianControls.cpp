@@ -1,7 +1,6 @@
 #include "AFMedianControls.hpp"
 
 
-
 const AfmfControls getAlgoControls (PF_ParamDef* params[])
 {
     AfmfControls controls;

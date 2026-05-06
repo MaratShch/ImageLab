@@ -7,6 +7,10 @@ struct MemHandler
 {
     int64_t memBlockId;
 	uint8_t* SuperBufferHead;
+
+    float* proc_Y;
+    float* proc_U;
+    float* proc_V;
 };
 
 
