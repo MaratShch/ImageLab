@@ -6,11 +6,20 @@
 struct MemHandler
 {
     int64_t memBlockId;
-	uint8_t* SuperBufferHead;
+    uint8_t* SuperBufferHead;
 
+    // Incoming (Read-Only during processing)
     float* proc_Y;
     float* proc_U;
     float* proc_V;
+
+    // Outgoing / Temporary
+    float* out_Y;
+    float* scratch_Y;
+
+    // Metadata
+    int32_t strideY_Elements; // The cache-aligned width of the physical memory row
+    int32_t maxPadding;       // The worst-case radius from the UI
 };
 
 

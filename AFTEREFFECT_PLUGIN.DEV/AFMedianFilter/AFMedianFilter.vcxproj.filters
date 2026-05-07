@@ -90,13 +90,19 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AFMedianControls.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgoMemHandler.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AFMedianAlgorithm.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControls.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgorithmMain.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -119,7 +125,22 @@
     <ClCompile Include="src\AFMedianControls.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AFMedianAlgorithm.cpp">
+    <ClCompile Include="src\AlgorithmMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ApplyMirroredPadding.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ColorConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ProcessImageScalar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControlsAFMF.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoMemHandlerAFMF.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

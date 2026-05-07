@@ -21,9 +21,22 @@ constexpr char AFMFControlsStr[][24] =
     "Iterations Number"
 };
 
-constexpr int32_t kerenlRadiusMin = 1;
+enum class AFMF_Output : int32_t
+{
+    AFMF_OUTPUT_IMAGE = 0,
+    AFMF_OUTPUT_NOISE_MAP,
+    AFMF_OUTPUT_TOTALS
+};
+
+constexpr char afmfOutputStr[] =
+{
+    "Denoised Image|"
+    "Noise Map      "
+};
+
+constexpr int32_t kernelRadiusMin = 1;
 constexpr int32_t kernelRadiusMax = 8;
-constexpr int32_t kernelRadiusDef = kerenlRadiusMin;
+constexpr int32_t kernelRadiusDef = kernelRadiusMin;
 
 enum class AFMF_RadiusSize : int32_t
 {

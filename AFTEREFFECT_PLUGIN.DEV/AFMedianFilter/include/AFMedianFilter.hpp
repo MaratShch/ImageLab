@@ -2,6 +2,7 @@
 #define __IMAGE_LAB_ADAPTIVE_FREQUENCY_MEDIAN_FILTER__
 
 #include "CommonAdobeAE.hpp"
+#include "AlgoControls.hpp"
 
 constexpr char strName[] = "Adaptive Frequency Median Filtering";
 constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rAdaptive Frequency Median Filtering plugin.";
@@ -15,6 +16,7 @@ constexpr int AFMedianFilter_VersionStage = PF_Stage_RELEASE;
 #endif
 constexpr int AFMedianFilter_VersionBuild = 1;
 
+const AlgoControls getAlgoControls(PF_ParamDef* params[]);
 
 PF_Err 
 ProcessImgInPR
