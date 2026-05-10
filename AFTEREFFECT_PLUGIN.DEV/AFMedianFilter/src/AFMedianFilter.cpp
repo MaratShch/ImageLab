@@ -126,14 +126,30 @@ ParamsSetup(
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
         AFMFControlsStr[0],                                                     // pop-up name
+        UnderlyingType(AFMF_Input::AFMF_INPUT_TOTALS),                          // number of variants
+        UnderlyingType(AFMF_Input::AFMF_INPUT_LUMINANCE),                       // default variant
+        afmfInputStr,                                                           // string for pop-up
+        UnderlyingType(AFMF::eIMAGE_AFMEDIAN_INPUT_TYPE));                      // control ID
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        AFMFControlsStr[1],                                                     // pop-up name
+        UnderlyingType(AFMF_Output::AFMF_OUTPUT_TOTALS),                        // number of variants
+        UnderlyingType(AFMF_Output::AFMF_OUTPUT_IMAGE),                         // default variant
+        afmfOutputStr,                                                          // string for pop-up
+        UnderlyingType(AFMF::eIMAGE_AFMEDIAN_OUTPUT_TYPE));                     // control ID
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        AFMFControlsStr[2],                                                     // pop-up name
         UnderlyingType(AFMF_RadiusSize::eIMAGE_AFMEDIAN_WINDOW_TOTAL_VARIANTS), // number of variants
-        UnderlyingType(AFMF_RadiusSize::eIMAGE_AFMEDIAN_WINDOW_DISABLED),       // default variant
+        UnderlyingType(AFMF_RadiusSize::eIMAGE_AFMEDIAN_WINDOW_3x3),            // default variant
         windowSizeStr,                                                          // string for pop-up
         UnderlyingType(AFMF::eIMAGE_AFMEDIAN_PARAM_RADIUS));                    // control ID
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        AFMFControlsStr[1],
+        AFMFControlsStr[3],
         noiseToleranceMin,
         noiseToleranceMax,
         noiseToleranceMin,
@@ -146,7 +162,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
-        AFMFControlsStr[2],                                                     // pop-up name
+        AFMFControlsStr[4],                                                     // pop-up name
         UnderlyingType(AFMF_Iterations::eIMAGE_AFMEDIAN_ITER_TOTAL_VARIANTS),   // number of variants
         UnderlyingType(AFMF_Iterations::eIMAGE_AFMEDIAN_ITER_1),                // default variant
         iterPassStr,                                                            // string for pop-up

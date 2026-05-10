@@ -8,17 +8,34 @@
 enum class AFMF : int32_t
 {
     eIMAGE_AFMEDIAN_INPUT,
-    eIMAGE_AFMEDIAN_PARAM_RADIUS,
-    eIMAGE_AFMEDIAN_PARAM_TOLERANCE,
-    eIMAGE_AFMEDIAN_PARAM_ITERATIONS,
-    eIMAGE_AFMEDIAN_TOTAL_CONTROLS
+    eIMAGE_AFMEDIAN_INPUT_TYPE,         // control - Luminance or RGB
+    eIMAGE_AFMEDIAN_OUTPUT_TYPE,        // control - Denoised iage or Noise map
+    eIMAGE_AFMEDIAN_PARAM_RADIUS,       // control - AFMF radius in pixels
+    eIMAGE_AFMEDIAN_PARAM_TOLERANCE,    // control - AFMF tolerance
+    eIMAGE_AFMEDIAN_PARAM_ITERATIONS,   // control - AAFMF number of iterations
+    eIMAGE_AFMEDIAN_TOTAL_CONTROLS      
 };
 
 constexpr char AFMFControlsStr[][24] =
 {
+    "Input Type",
+    "Output Type",
     "Window Size",
     "Filter Tolerance",
     "Iterations Number"
+};
+
+enum class AFMF_Input : int32_t
+{
+    AFMF_INPUT_LUMINANCE = 0,
+    AFMF_INPUT_ALL_RGB,
+    AFMF_INPUT_TOTALS
+};
+
+constexpr char afmfInputStr[] =
+{
+    "Luminance only (faster)|"
+    "All channels (RGB)"
 };
 
 enum class AFMF_Output : int32_t
@@ -40,8 +57,7 @@ constexpr int32_t kernelRadiusDef = kernelRadiusMin;
 
 enum class AFMF_RadiusSize : int32_t
 {
-    eIMAGE_AFMEDIAN_WINDOW_DISABLED = 0,
-    eIMAGE_AFMEDIAN_WINDOW_3x3 = 1,
+    eIMAGE_AFMEDIAN_WINDOW_3x3 = 0,
     eIMAGE_AFMEDIAN_WINDOW_5x5,
     eIMAGE_AFMEDIAN_WINDOW_7x7,
     eIMAGE_AFMEDIAN_WINDOW_9x9,
@@ -54,7 +70,6 @@ enum class AFMF_RadiusSize : int32_t
 
 constexpr char windowSizeStr[] = // computed as: FilterRadiua * 2 + 1
 {
-    "DISABLE|"
     "   3x3|"
     "   5x5|"
     "   7x7|"
@@ -65,9 +80,9 @@ constexpr char windowSizeStr[] = // computed as: FilterRadiua * 2 + 1
     " 17x17"
 };
 
-constexpr float noiseToleranceMin = 0.f;
-constexpr float noiseToleranceMax = 15.f;
-constexpr float noiseToleranceDef = noiseToleranceMin;
+constexpr float noiseToleranceMin = 0.0f; 
+constexpr float noiseToleranceMax = 10.f;
+constexpr float noiseToleranceDef = 1.0f;
 
 constexpr char noiseToleranceStr[] = "Noise Tolerance";
 

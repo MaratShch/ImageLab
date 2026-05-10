@@ -15,6 +15,8 @@ struct MemHandler
 
     // Outgoing / Temporary
     float* out_Y;
+    float* out_U; // use it for RGB processing only
+    float* out_V; // use it for RGB processing only
     float* scratch_Y;
 
     // Metadata

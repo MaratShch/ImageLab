@@ -1,10 +1,12 @@
+#include <iomanip>
 #include "Common.hpp"
 #include "CompileTimeUtils.hpp"
 #include "AlgoMemHandler.hpp"
 #include "AFMedianFilterEnum.hpp"
 #include "ImageLabMemInterface.hpp"
 
-MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, const bool dbgPrn)
+
+MemHandler alloc_memory_buffers(int32_t sizeX, int32_t sizeY, const bool dbgPrn)
 {
     MemHandler algoMemHandler{};
     
@@ -16,7 +18,7 @@ MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, const bool dbgPrn
     int32_t physicalSizeX = sizeX + (maxPadding * 2);
     int32_t physicalSizeY = sizeY + (maxPadding * 2);
 
-    constexpr int32_t cacheLine = static_cast<int32_t>(CACHE_LINE); // Usually 64
+    constexpr int32_t cacheLine = static_cast<int32_t>(CACHE_LINE);
 
     // 2. Calculate the Cache-Aligned Stride using PHYSICAL width
     const int32_t rowBytes = physicalSizeX * sizeof(float);
@@ -28,52 +30,62 @@ MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, const bool dbgPrn
     // 3. Calculate the total size for ONE color channel using PHYSICAL height
     const size_t channelSizeBytes = static_cast<size_t>(alignedStrideBytes) * physicalSizeY;
 
-    // 4. Calculate the SuperBuffer total size
-    // We now need 5 blocks: proc_Y, proc_U, proc_V, out_Y, scratch_Y
-    const size_t totalSuperBufferSize = channelSizeBytes * 5;
+    // 4. Calculate the SuperBuffer total size.
+    //    7 blocks supports both luma and RGB modes:
+    //       proc_Y / proc_U / proc_V   -> 3 input planes  (Y/U/V or R/G/B)
+    //       out_Y  / out_U  / out_V    -> 3 output planes (Y/U/V or R/G/B)
+    //       scratch_Y                  -> 1 shared scratch plane (reused
+    //                                     across channels in RGB mode since
+    //                                     channels are processed sequentially)
+    constexpr size_t kNumBlocks = 7;
+    const     size_t totalSuperBufferSize = channelSizeBytes * kNumBlocks;
 
     // 5. One-Shot Allocation
     void* ptr = nullptr;
     const int32_t blockId = ::GetMemoryBlock(static_cast<int32_t>(totalSuperBufferSize), 0, &ptr);
-    uint8_t* superBuffer = reinterpret_cast<uint8_t*>(ptr);
 
-    if (blockId >= 0 && superBuffer != nullptr)
+    if (nullptr != ptr && blockId >= 0)
     {
-        algoMemHandler.memBlockId = static_cast<int64_t>(blockId);
-        // Store Head for Deallocation
-        algoMemHandler.SuperBufferHead = superBuffer;
+        algoMemHandler.memBlockId = blockId;
+        algoMemHandler.SuperBufferHead = reinterpret_cast<uint8_t*>(ptr);
 
-        // 6. Slice the Arena into raw starting pointers for all 5 channels
-        float* raw_Y = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead);
-        float* raw_U = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + channelSizeBytes);
-        float* raw_V = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 2));
-        float* raw_out = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 3));
-        float* raw_scr = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 4));
+        // 6. Slice the Arena into raw starting pointers for all 7 channels.
+        //    Each block is exactly channelSizeBytes wide and (because
+        //    alignedStrideBytes is a multiple of cacheLine) all block starts
+        //    inherit the SuperBufferHead's alignment.
+        float* raw_proc_Y = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 0));
+        float* raw_proc_U = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 1));
+        float* raw_proc_V = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 2));
+        float* raw_out_Y  = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 3));
+        float* raw_out_U  = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 4));
+        float* raw_out_V  = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 5));
+        float* raw_scr_Y  = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + (channelSizeBytes * 6));
 
-        // 7. [THE PADDING SERVICE] Shift all 5 pointers identically!
-        // Move the pointers inwards by (Radius rows) and (Radius columns).
-        // Now index [0] natively points to the true (0,0) pixel of the image.
-        int32_t paddingOffsetElements = (maxPadding * algoMemHandler.strideY_Elements) + maxPadding;
+        // 7. [THE PADDING SERVICE] Shift all 7 pointers identically.
+        //    Move each pointer inwards by (maxPadding rows) and (maxPadding cols).
+        //    Now index [0] natively points to the true (0,0) pixel of the image,
+        //    and negative indices reach legally into the halo region for filter
+        //    overreads at the borders.
+        const int32_t paddingOffsetElements = (maxPadding * algoMemHandler.strideY_Elements) + maxPadding;
 
-        algoMemHandler.proc_Y = raw_Y + paddingOffsetElements;
-        algoMemHandler.proc_U = raw_U + paddingOffsetElements;
-        algoMemHandler.proc_V = raw_V + paddingOffsetElements;
-        algoMemHandler.out_Y = raw_out + paddingOffsetElements;
-        algoMemHandler.scratch_Y = raw_scr + paddingOffsetElements;
+        algoMemHandler.proc_Y = raw_proc_Y + paddingOffsetElements;
+        algoMemHandler.proc_U = raw_proc_U + paddingOffsetElements;
+        algoMemHandler.proc_V = raw_proc_V + paddingOffsetElements;
+        algoMemHandler.out_Y  = raw_out_Y  + paddingOffsetElements;
+        algoMemHandler.out_U  = raw_out_U  + paddingOffsetElements;
+        algoMemHandler.out_V  = raw_out_V  + paddingOffsetElements;
+        algoMemHandler.scratch_Y = raw_scr_Y + paddingOffsetElements;
     }
-
     return algoMemHandler;
 }
 
 void free_memory_buffers (MemHandler& algoMemHandler)
 {
-    if (algoMemHandler.SuperBufferHead != nullptr && algoMemHandler.memBlockId >= 0)
+    if (algoMemHandler.SuperBufferHead != nullptr)
     {
         ::FreeMemoryBlock(algoMemHandler.memBlockId);
     }
 
+    // Zero out the struct to prevent Use-After-Free bugs
     algoMemHandler = {};
-    algoMemHandler.memBlockId = -1;
-
-    return;
 }
