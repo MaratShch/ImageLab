@@ -105,6 +105,9 @@
     <ClInclude Include="include\AlgorithmMain.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AFMedian_GPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AFMedianFilter.cpp">
@@ -143,6 +146,9 @@
     <ClCompile Include="src\AlgoMemHandlerAFMF.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AFMedian_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AFMedianFilter.rc">
@@ -153,5 +159,13 @@
     <CustomBuild Include="AFMedianFilter.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\AFMF_FP32_CUDA.cu">
+      <Filter>src</Filter>
+    </None>
+    <None Include="src\AFMF_FP16_CUDA.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>

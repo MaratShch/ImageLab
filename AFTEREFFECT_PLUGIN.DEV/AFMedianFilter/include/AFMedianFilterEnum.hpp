@@ -68,7 +68,7 @@ enum class AFMF_RadiusSize : int32_t
     eIMAGE_AFMEDIAN_WINDOW_TOTAL_VARIANTS
 };
 
-constexpr char windowSizeStr[] = // computed as: FilterRadiua * 2 + 1
+constexpr char windowSizeStr[] = // computed as: FilterRadius * 2 + 1
 {
     "   3x3|"
     "   5x5|"

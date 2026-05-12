@@ -3377,6 +3377,7 @@ void ImageLabDenoise_CUDA
 
     cudaDeviceSynchronize();
 }
+#endif
 
 // ============================================================================
 // CLEANUP 
@@ -3386,6 +3387,3 @@ void ImageLabDenoise_CleanupGPU()
 {
     free_cuda_memory_buffers(g_gpuMemState);
 }
-
-#endif
-

@@ -19,7 +19,7 @@ constexpr int32_t MAX_PADDED_SIZE = 512;
 // AVX2 helpers (file-local) -- min/max sweep utilities
 // ============================================================================
 
-static inline __m256i avx2_mask_for_count (const int32_t count) noexcept
+inline __m256i avx2_mask_for_count (const int32_t count) noexcept
 {
     static CACHE_ALIGN constexpr int32_t kMaskTable[9][8] = {
         {  0,  0,  0,  0,  0,  0,  0,  0 },
@@ -35,7 +35,7 @@ static inline __m256i avx2_mask_for_count (const int32_t count) noexcept
     return _mm256_load_si256(reinterpret_cast<const __m256i*>(kMaskTable[count]));
 }
 
-static inline float avx2_hmin_ps (const __m256 v) noexcept
+inline float avx2_hmin_ps (const __m256 v) noexcept
 {
     __m128 lo = _mm256_castps256_ps128(v);
     __m128 hi = _mm256_extractf128_ps(v, 1);
@@ -45,7 +45,7 @@ static inline float avx2_hmin_ps (const __m256 v) noexcept
     return _mm_cvtss_f32(r);
 }
 
-static inline float avx2_hmax_ps (const __m256 v) noexcept
+inline float avx2_hmax_ps (const __m256 v) noexcept
 {
     __m128 lo = _mm256_castps256_ps128(v);
     __m128 hi = _mm256_extractf128_ps(v, 1);
@@ -70,7 +70,7 @@ static inline float avx2_hmax_ps (const __m256 v) noexcept
 // whatever happens to live at that overread address cannot affect the
 // reduced min/max.
 // ============================================================================
-static inline void avx2_minmax_3x3
+inline void avx2_minmax_3x3
 (
     const float* RESTRICT centerPtr,
     const int32_t         strideElements,
@@ -115,13 +115,13 @@ static inline void avx2_minmax_3x3
 // AVX2 bitonic sort building blocks  (unchanged from previous step)
 // ============================================================================
 
-static inline __m256 avx2_reverse_8 (__m256 v) noexcept
+inline __m256 avx2_reverse_8 (__m256 v) noexcept
 {
     __m256 t = _mm256_permute2f128_ps(v, v, 0x01);
     return _mm256_shuffle_ps(t, t, _MM_SHUFFLE(0, 1, 2, 3));
 }
 
-static inline __m256 avx2_bsort_8 (__m256 v) noexcept
+inline __m256 avx2_bsort_8 (__m256 v) noexcept
 {
     __m256 t;
 
@@ -146,7 +146,7 @@ static inline __m256 avx2_bsort_8 (__m256 v) noexcept
     return v;
 }
 
-static inline void avx2_reverse_half (__m256* vecs, const int32_t M) noexcept
+inline void avx2_reverse_half (__m256* vecs, const int32_t M) noexcept
 {
     for (int32_t i = 0; i < M / 2; ++i)
     {
@@ -161,7 +161,7 @@ static inline void avx2_reverse_half (__m256* vecs, const int32_t M) noexcept
     }
 }
 
-static inline void avx2_bstage_inter (__m256* vecs, const int32_t VC, const int32_t D) noexcept
+inline void avx2_bstage_inter (__m256* vecs, const int32_t VC, const int32_t D) noexcept
 {
     const int32_t VD = D >> 3;
     for (int32_t blockStart = 0; blockStart < VC; blockStart += 2 * VD)
@@ -178,7 +178,7 @@ static inline void avx2_bstage_inter (__m256* vecs, const int32_t VC, const int3
     }
 }
 
-static inline void avx2_bstage_intra_4 (__m256* vecs, const int32_t VC) noexcept
+inline void avx2_bstage_intra_4 (__m256* vecs, const int32_t VC) noexcept
 {
     for (int32_t i = 0; i < VC; ++i)
     {
@@ -188,7 +188,7 @@ static inline void avx2_bstage_intra_4 (__m256* vecs, const int32_t VC) noexcept
     }
 }
 
-static inline void avx2_bstage_intra_2 (__m256* vecs, const int32_t VC) noexcept
+inline void avx2_bstage_intra_2 (__m256* vecs, const int32_t VC) noexcept
 {
     for (int32_t i = 0; i < VC; ++i)
     {
@@ -198,7 +198,7 @@ static inline void avx2_bstage_intra_2 (__m256* vecs, const int32_t VC) noexcept
     }
 }
 
-static inline void avx2_bstage_intra_1 (__m256* vecs, const int32_t VC) noexcept
+inline void avx2_bstage_intra_1 (__m256* vecs, const int32_t VC) noexcept
 {
     for (int32_t i = 0; i < VC; ++i)
     {
@@ -208,7 +208,7 @@ static inline void avx2_bstage_intra_1 (__m256* vecs, const int32_t VC) noexcept
     }
 }
 
-static inline void avx2_bmerge (__m256* vecs, const int32_t VC) noexcept
+inline void avx2_bmerge (__m256* vecs, const int32_t VC) noexcept
 {
     const int32_t N = VC * 8;
     for (int32_t D = N / 2; D >= 8; D >>= 1)
@@ -220,7 +220,7 @@ static inline void avx2_bmerge (__m256* vecs, const int32_t VC) noexcept
     avx2_bstage_intra_1(vecs, VC);
 }
 
-static inline void avx2_bsort (__m256* vecs, const int32_t VC) noexcept
+inline void avx2_bsort (__m256* vecs, const int32_t VC) noexcept
 {
     for (int32_t i = 0; i < VC; ++i)
     {
