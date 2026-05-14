@@ -54,8 +54,8 @@ public:
 
         prRect bounds{};
         mPPixSuite->GetBounds(*outFrame, &bounds);
-        const int width  = bounds.right  - bounds.left;
-        const int height = bounds.bottom - bounds.top;
+        const int32_t width  = bounds.right  - bounds.left;
+        const int32_t height = bounds.bottom - bounds.top;
 
         const PrTime clipTime = inRenderParams->inClipTime;
         const PrTime renderTick = inRenderParams->inRenderTicksPerFrame;

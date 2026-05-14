@@ -200,37 +200,8 @@ void Algorithm_Main
     const AlgoControls&  algoCtrl
 )
 {
-    // ------------------------------------------------------------------------
-    // 1. Sanitise UI inputs once, reuse for every channel.
-    // ------------------------------------------------------------------------
-    AlgoControls ctrl = algoCtrl;
-    ctrl.Sanitize();
-
     const int32_t stride = memHandler.strideY_Elements;
 
-    // ------------------------------------------------------------------------
-    // 2. Dispatch on inputType.
-    // ------------------------------------------------------------------------
-    if (ctrl.inputType == AFMF_Input::AFMF_INPUT_LUMINANCE)
-    {
-        // ===== LUMA-ONLY MODE =====
-        // Single pass over the Y plane.
-        ProcessSingleChannel
-        (
-            memHandler.proc_Y,
-            memHandler.scratch_Y,
-            memHandler.out_Y,
-            sizeX, sizeY, stride, ctrl
-        );
-
-        // Optional noise-map post-processing.
-        if (ctrl.outputType == AFMF_Output::AFMF_OUTPUT_NOISE_MAP)
-        {
-            ComputeNoiseMap_Luma(memHandler, sizeX, sizeY);
-        }
-    }
-    else // AFMF_Input::AFMF_INPUT_ALL_RGB
-    {
         // ===== RGB MODE =====
         // Three independent passes; scratch_Y is shared safely because the
         // channels are processed strictly in sequence.
@@ -239,29 +210,28 @@ void Algorithm_Main
             memHandler.proc_Y,
             memHandler.scratch_Y,
             memHandler.out_Y,
-            sizeX, sizeY, stride, ctrl
+            sizeX, sizeY, stride, algoCtrl
         );
         ProcessSingleChannel  // G channel
         (
             memHandler.proc_U,
             memHandler.scratch_Y,
             memHandler.out_U,
-            sizeX, sizeY, stride, ctrl
+            sizeX, sizeY, stride, algoCtrl
         );
         ProcessSingleChannel  // B channel
         (
             memHandler.proc_V,
             memHandler.scratch_Y,
             memHandler.out_V,
-            sizeX, sizeY, stride, ctrl
+            sizeX, sizeY, stride, algoCtrl
         );
 
         // Optional per-channel noise-map post-processing.
-        if (ctrl.outputType == AFMF_Output::AFMF_OUTPUT_NOISE_MAP)
+        if (algoCtrl.outputType == AFMF_Output::AFMF_OUTPUT_NOISE_MAP)
         {
             ComputeNoiseMap_RGB(memHandler, sizeX, sizeY);
         }
-    }
 
     return;
 }

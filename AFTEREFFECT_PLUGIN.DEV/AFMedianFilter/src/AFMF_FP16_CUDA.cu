@@ -37,7 +37,7 @@ namespace FP16 {
 
 constexpr int   kBlockX     = 32;
 constexpr int   kBlockY     = 16;
-constexpr int   kMaxRadius  = 8;
+constexpr int   kMaxRadius  = kernelRadiusMax;
 constexpr int   kTileX      = kBlockX + 2 * kMaxRadius;   // 48
 constexpr int   kTileY      = kBlockY + 2 * kMaxRadius;   // 32
 constexpr int   kMaxWindow  = (2 * kMaxRadius + 1) * (2 * kMaxRadius + 1);   // 289
@@ -624,45 +624,25 @@ __global__ void merge_noise_map_fp16_to_bgra_fp32(
 //  Same prototype as the FP32 path. Internals are __half.
 // ============================================================================
 CUDA_KERNEL_CALL
-void ImageLabAFMF16_CUDA(const float* RESTRICT inBuffer,
-    float* RESTRICT outBuffer,
+void ImageLabAFMF16_CUDA
+(
+    const float* RESTRICT inBuffer,
+          float* RESTRICT outBuffer,
     int                   srcPitch,
     int                   dstPitch,
     int                   width,
     int                   height,
     const AlgoControls* RESTRICT algoGpuParams,
     int                   frameCount,
-    cudaStream_t          stream)
+    cudaStream_t          stream
+)
 {
-    // ------------------------------------------------------------------------
-    // Pull controls into host memory.  cudaMemcpyDefault uses UVA to detect
-    // the actual memory type of algoGpuParams (device / host / managed).
-    // The host caller is observed to pass a pointer to a stack-allocated
-    // AlgoControls (host memory); a fixed cudaMemcpyDeviceToHost direction
-    // would fail and trip the CUDA context into a sticky error state.
-    // ------------------------------------------------------------------------
-    AlgoControls ctrl{};
-    cudaMemcpyAsync(&ctrl, algoGpuParams, sizeof(AlgoControls),
-        cudaMemcpyDefault, stream);
-    cudaStreamSynchronize(stream);
-    ctrl.Sanitize();
-
-    const int   radius = ctrl.radius;
-    const int   iterations = ctrl.iterations;
-    const bool  wantNoise =
-        (ctrl.outputType == AFMF_Output::AFMF_OUTPUT_NOISE_MAP);
-
+    const int   radius = algoGpuParams->radius;
     // Tolerance converted to __half once, reused across all kernel launches
-    const __half tolerance_h = __float2half(ctrl.tolerance);
-
-    // ------------------------------------------------------------------------
-    // Defensive frame count.  The host caller is observed to pass
-    // frameCount = 0, which with a strict `for (f = 0; f < frameCount; ++f)`
-    // loop means *no kernels run* and the output buffer is left untouched.
-    // Treating non-positive as a single-frame request keeps the function
-    // useful at that call site.
-    // ------------------------------------------------------------------------
-    const int effFrameCount = (frameCount > 0) ? frameCount : 1;
+    const __half tolerance_h = __float2half(algoGpuParams->tolerance);
+    const int   iterations = algoGpuParams->iterations;
+    const bool  wantNoise =
+        (algoGpuParams->outputType == AFMF_Output::AFMF_OUTPUT_NOISE_MAP);
 
     const dim3 block(kBlockX, kBlockY, 1);
     const dim3 grid((width + kBlockX - 1) / kBlockX,
@@ -714,10 +694,8 @@ void ImageLabAFMF16_CUDA(const float* RESTRICT inBuffer,
     const size_t bgraOutFloatsPerFrame =
         static_cast<size_t>(height) * dstPitch * 4u;
 
-    for (int f = 0; f < effFrameCount; ++f)
-    {
-        const float* frameIn = inBuffer + f * bgraInFloatsPerFrame;
-        float* frameOut = outBuffer + f * bgraOutFloatsPerFrame;
+       const float* frameIn = inBuffer;
+        float* frameOut = outBuffer;
 
         // Split BGRA-FP32 [0,1] -> 3 __half planes [0,255]
         split_bgra_fp32_to_planar_fp16 << <grid, block, 0, stream >> >(
@@ -786,7 +764,6 @@ void ImageLabAFMF16_CUDA(const float* RESTRICT inBuffer,
                 planarPitch,
                 srcPitch, dstPitch);
         }
-    }
 
     cudaDeviceSynchronize();
 

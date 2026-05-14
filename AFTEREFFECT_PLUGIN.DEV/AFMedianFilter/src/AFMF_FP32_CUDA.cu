@@ -50,7 +50,7 @@ namespace {
 
 constexpr int   kBlockX     = 32;
 constexpr int   kBlockY     = 16;
-constexpr int   kMaxRadius  = 8;
+constexpr int   kMaxRadius  = kernelRadiusMax;
 constexpr int   kTileX      = kBlockX + 2 * kMaxRadius;   // 48
 constexpr int   kTileY      = kBlockY + 2 * kMaxRadius;   // 32
 
@@ -561,54 +561,24 @@ __global__ void merge_noise_map_to_bgra_fp32(
   //  ImageLabAFMF32_CUDA  --  host-side aggregator
   // ============================================================================
 CUDA_KERNEL_CALL
-void ImageLabAFMF32_CUDA(const float*  RESTRICT inBuffer,
-    float*  RESTRICT outBuffer,
-    int                    srcPitch,    // BGRA pixels/row
-    int                    dstPitch,    // BGRA pixels/row
+void ImageLabAFMF32_CUDA
+(
+    const float*  RESTRICT inBuffer,
+          float*  RESTRICT outBuffer,
+    int                    srcPitch,
+    int                    dstPitch,
     int                    width,
     int                    height,
     const AlgoControls* RESTRICT algoGpuParams,
     int                    frameCount,
-    cudaStream_t           stream)
+    cudaStream_t           stream
+)
 {
-    // ------------------------------------------------------------------------
-    // 1. Pull controls into host memory.
-    //
-    //    cudaMemcpyDefault uses UVA to detect the actual memory type of
-    //    algoGpuParams (device / host / managed) and routes accordingly.
-    //    This is required because the host caller is observed to pass a
-    //    pointer to a stack-allocated AlgoControls (host memory), e.g.:
-    //        const AlgoControls algoParams = getAlgoControlsDefault();
-    //        ImageLabAFMF32_CUDA(..., &algoParams, ...);
-    //    A fixed cudaMemcpyDeviceToHost direction would error out here
-    //    and put the CUDA context into a sticky error state that causes
-    //    every subsequent kernel launch on this thread to fail silently.
-    // ------------------------------------------------------------------------
-    AlgoControls ctrl{};
-    cudaMemcpyAsync(&ctrl, algoGpuParams, sizeof(AlgoControls),
-        cudaMemcpyDefault, stream);
-    cudaStreamSynchronize(stream);
-    ctrl.Sanitize();
-
-    const int   radius = ctrl.radius;
-    const float tolerance = ctrl.tolerance;       // already in [0,255] scale
-    const int   iterations = ctrl.iterations;
+    const int   radius = algoGpuParams->radius;
+    const float tolerance = algoGpuParams->tolerance;       // already in [0,255] scale
+    const int   iterations = algoGpuParams->iterations;
     const bool  wantNoise =
-        (ctrl.outputType == AFMF_Output::AFMF_OUTPUT_NOISE_MAP);
-
-    // ------------------------------------------------------------------------
-    // 2. Defensive frame count.
-    //
-    //    The host caller is observed to pass frameCount = 0 (e.g.:
-    //        const int frameCount = 0;
-    //        ImageLabAFMF32_CUDA(..., frameCount, stream);
-    //    ), which with a strict `for (f = 0; f < frameCount; ++f)` loop
-    //    means *no kernels run at all* and the output buffer is left
-    //    untouched.  Treating any non-positive value as a request to
-    //    process a single frame keeps the function useful for that
-    //    common single-frame call site.
-    // ------------------------------------------------------------------------
-    const int effFrameCount = (frameCount > 0) ? frameCount : 1;
+        (algoGpuParams->outputType == AFMF_Output::AFMF_OUTPUT_NOISE_MAP);
 
     // ------------------------------------------------------------------------
     // 3. Grid setup
@@ -669,10 +639,8 @@ void ImageLabAFMF32_CUDA(const float*  RESTRICT inBuffer,
     const size_t bgraOutFloatsPerFrame =
         static_cast<size_t>(height) * dstPitch * 4u;
 
-    for (int f = 0; f < effFrameCount; ++f)
-    {
-        const float* frameIn = inBuffer + f * bgraInFloatsPerFrame;
-        float* frameOut = outBuffer + f * bgraOutFloatsPerFrame;
+        const float* frameIn = inBuffer;
+        float* frameOut = outBuffer;
 
         // 5a. Split BGRA[0,1] -> 3 planes [0,255]
         split_bgra_to_planar_fp32 << <grid, block, 0, stream >> >(
@@ -734,7 +702,6 @@ void ImageLabAFMF32_CUDA(const float*  RESTRICT inBuffer,
                 planarPitch,
                 srcPitch, dstPitch);
         }
-    }
 
     cudaDeviceSynchronize();
 

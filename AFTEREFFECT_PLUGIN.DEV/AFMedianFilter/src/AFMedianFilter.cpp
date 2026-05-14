@@ -80,14 +80,6 @@ GlobalSetup(
 //        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_16u);
 //        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f);
 //        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f_Linear);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u_709);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f_709);
-//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f);
 //        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 //        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
 //        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
@@ -126,14 +118,6 @@ ParamsSetup(
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
         AFMFControlsStr[0],                                                     // pop-up name
-        UnderlyingType(AFMF_Input::AFMF_INPUT_TOTALS),                          // number of variants
-        UnderlyingType(AFMF_Input::AFMF_INPUT_LUMINANCE),                       // default variant
-        afmfInputStr,                                                           // string for pop-up
-        UnderlyingType(AFMF::eIMAGE_AFMEDIAN_INPUT_TYPE));                      // control ID
-
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-    PF_ADD_POPUP(
-        AFMFControlsStr[1],                                                     // pop-up name
         UnderlyingType(AFMF_Output::AFMF_OUTPUT_TOTALS),                        // number of variants
         UnderlyingType(AFMF_Output::AFMF_OUTPUT_IMAGE),                         // default variant
         afmfOutputStr,                                                          // string for pop-up
@@ -141,7 +125,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
-        AFMFControlsStr[2],                                                     // pop-up name
+        AFMFControlsStr[1],                                                     // pop-up name
         UnderlyingType(AFMF_RadiusSize::eIMAGE_AFMEDIAN_WINDOW_TOTAL_VARIANTS), // number of variants
         UnderlyingType(AFMF_RadiusSize::eIMAGE_AFMEDIAN_WINDOW_3x3),            // default variant
         windowSizeStr,                                                          // string for pop-up
@@ -149,7 +133,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX(
-        AFMFControlsStr[3],
+        AFMFControlsStr[2],
         noiseToleranceMin,
         noiseToleranceMax,
         noiseToleranceMin,
@@ -162,7 +146,7 @@ ParamsSetup(
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_POPUP(
-        AFMFControlsStr[4],                                                     // pop-up name
+        AFMFControlsStr[3],                                                     // pop-up name
         UnderlyingType(AFMF_Iterations::eIMAGE_AFMEDIAN_ITER_TOTAL_VARIANTS),   // number of variants
         UnderlyingType(AFMF_Iterations::eIMAGE_AFMEDIAN_ITER_1),                // default variant
         iterPassStr,                                                            // string for pop-up
