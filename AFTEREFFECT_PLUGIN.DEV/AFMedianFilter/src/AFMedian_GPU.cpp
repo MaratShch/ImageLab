@@ -135,4 +135,4 @@ private:
     }
 };
 
-DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<AFMedianGPU>);
+//DECLARE_GPUFILTER_ENTRY(PrGPUFilterModule<AFMedianGPU>);

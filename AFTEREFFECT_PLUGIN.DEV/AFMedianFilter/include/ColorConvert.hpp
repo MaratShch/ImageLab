@@ -6,25 +6,29 @@
 #include "Common.hpp"
 #include "CommonPixFormat.hpp"
 #include "AlgoMemHandler.hpp"
+#include "AFMFPixelTraits.hpp"
 
 void dispatch_convert_to_planar
 (
-    const PF_Pixel_BGRA_8u* imgInBuffer, 
-    const MemHandler& memHndl, 
-    const int32_t sizeX, 
-    const int32_t sizeY, 
-    const int32_t linePitch
-);
+    const void* RESTRICT srcBuf,
+    const MemHandler& memHndl,
+    const A_long width,
+    const A_long height,
+    const A_long stride_pixels,
+    const PixelFormat format
+) noexcept;
+
 
 void dispatch_convert_to_interleaved
 (
     const MemHandler& memHndl,
-    const PF_Pixel_BGRA_8u* originalInBuffer, // Needed to copy the Alpha channel
-    PF_Pixel_BGRA_8u* outBuffer,              // The final Adobe render destination
-    const int32_t sizeX, 
-    const int32_t sizeY, 
-    const int32_t inLinePitchPixels,          // MUST be signed int32_t!
-    const int32_t outLinePitchPixels          // MUST be signed int32_t!
-);
+    const void* RESTRICT origSrcBuf,
+    void* RESTRICT dstBuf,
+    const A_long width,
+    const A_long height,
+    const A_long srcLinePitch,
+    const A_long dstLinePitch,
+    const PixelFormat format
+) noexcept;
 
 #endif // __IMAGE_LAB2_NOSIE_REDUCTION_ALGO_COLOR_CONVERT__

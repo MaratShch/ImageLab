@@ -108,6 +108,15 @@
     <ClInclude Include="include\AFMedian_GPU.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AFMFColorPlanar.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AFMFPixelTraits.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AFMFColorInterleaved.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AFMedianFilter.cpp">
@@ -134,9 +143,6 @@
     <ClCompile Include="src\ApplyMirroredPadding.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorConvert.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ProcessImageScalar.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -147,6 +153,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AFMedian_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AFMFColorDispatcher.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AFMFColorDispatcherOut.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

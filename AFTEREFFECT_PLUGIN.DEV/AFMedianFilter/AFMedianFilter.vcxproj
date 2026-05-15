@@ -162,6 +162,9 @@
     <ClInclude Include="include\AFMedianFilter.hpp" />
     <ClInclude Include="include\AFMedianFilterEnum.hpp" />
     <ClInclude Include="include\AFMedian_GPU.hpp" />
+    <ClInclude Include="include\AFMFColorInterleaved.hpp" />
+    <ClInclude Include="include\AFMFColorPlanar.hpp" />
+    <ClInclude Include="include\AFMFPixelTraits.hpp" />
     <ClInclude Include="include\AlgoControls.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgorithmMain.hpp" />
@@ -175,11 +178,12 @@
     <ClCompile Include="src\AFMedianFilterPR.cpp" />
     <ClCompile Include="src\AFMedianFilterSR.cpp" />
     <ClCompile Include="src\AFMedian_GPU.cpp" />
+    <ClCompile Include="src\AFMFColorDispatcher.cpp" />
+    <ClCompile Include="src\AFMFColorDispatcherOut.cpp" />
     <ClCompile Include="src\AlgoControlsAFMF.cpp" />
     <ClCompile Include="src\AlgoMemHandlerAFMF.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\ApplyMirroredPadding.cpp" />
-    <ClCompile Include="src\ColorConvert.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\ProcessImageScalar.cpp" />
   </ItemGroup>
