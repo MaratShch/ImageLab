@@ -43,7 +43,7 @@ public:
 		PPixHand* outFrame
 	) noexcept
 	{
-        CACHE_ALIGN PrParam algoParams[6];
+        CACHE_ALIGN PrParam algoParams[7];
 
         void* frameData     = nullptr;
 		void* destFrameData = nullptr;
@@ -62,12 +62,13 @@ public:
         const int frameCounter = (renderTick > 0 ? static_cast<int>(clipTime / renderTick) : 0);
 
         // read control setting
-        algoParams[0] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD), clipTime);
-        algoParams[1] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT), clipTime);
-        algoParams[2] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH), clipTime);
-        algoParams[3] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH), clipTime);
-        algoParams[4] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION), clipTime);
-        algoParams[5] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE), clipTime);
+        algoParams[0] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ALGO_OUTPUT), clipTime);
+        algoParams[1] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_STANDARD), clipTime);
+        algoParams[2] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT), clipTime);
+        algoParams[3] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH), clipTime);
+        algoParams[4] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH), clipTime);
+        algoParams[5] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_DETAILS_PRESERVATION), clipTime);
+        algoParams[6] = GetParam(UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_COARSE_NOISE), clipTime);
 
 #ifdef _DEBUG
         const csSDK_int32 instanceCnt = TotalInstances();
@@ -98,12 +99,13 @@ public:
 
                 CACHE_ALIGN AlgoControls algoGpuParams;
 
-                algoGpuParams.accuracy = static_cast<ProcAccuracy>(algoParams[0].mInt32);
-                algoGpuParams.master_denoise_amount = static_cast<float>(algoParams[1].mFloat64);
-                algoGpuParams.luma_strength = static_cast<float>(algoParams[2].mFloat64);
-                algoGpuParams.chroma_strength = static_cast<float>(algoParams[3].mFloat64);
-                algoGpuParams.fine_detail_preservation = static_cast<float>(algoParams[4].mFloat64);
-                algoGpuParams.coarse_noise_reduction = static_cast<float>(algoParams[5].mFloat64);
+                algoGpuParams.out = static_cast<OutputType>(algoParams[0].mInt32);
+                algoGpuParams.accuracy = static_cast<ProcAccuracy>(algoParams[1].mInt32);
+                algoGpuParams.master_denoise_amount = static_cast<float>(algoParams[2].mFloat64);
+                algoGpuParams.luma_strength = static_cast<float>(algoParams[3].mFloat64);
+                algoGpuParams.chroma_strength = static_cast<float>(algoParams[4].mFloat64);
+                algoGpuParams.fine_detail_preservation = static_cast<float>(algoParams[5].mFloat64);
+                algoGpuParams.coarse_noise_reduction = static_cast<float>(algoParams[6].mFloat64);
 
                 constexpr cudaStream_t stream{ 0 };
 

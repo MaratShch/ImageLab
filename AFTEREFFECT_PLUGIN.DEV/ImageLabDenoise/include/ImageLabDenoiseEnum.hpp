@@ -8,7 +8,8 @@
 enum class eDenoiseControl : int32_t
 {
     eIMAGE_LAB_DENOISE_INPUT,
-    eIMAGE_LAB_DENOISE_ACC_SANDARD,
+    eIMAGE_LAB_DENOISE_ALGO_OUTPUT,
+    eIMAGE_LAB_DENOISE_ACC_STANDARD,
     eIMAGE_LAB_DENOISE_AMOUNT,
     eIMAGE_LAB_DENOISE_LUMA_STRENGTH,
     eIMAGE_LAB_DENOISE_CHROMA_STRENGTH,
@@ -19,12 +20,26 @@ enum class eDenoiseControl : int32_t
 
 constexpr char controlItemName[][24] =
 {
+    "Algorithm Output",
     "Accurance",
     "Denoise Amount",
     "Luma Strength",
     "Chrome Strength",
     "Details Preservation",
     "Coarse Noise"
+};
+
+enum class eDenoiseAlgoOutput : int32_t
+{
+    eIMAGE_LAB_DENOISE_OUTPUT_IMAGE,
+    eIMAGE_LAB_DENOISE_OUTPUT_NOISE_MAP,
+    eIMAGE_LAB_DENOISE_OUTPUT_TOTAL
+};
+
+constexpr char eDenoiseOutputAlgo[] =
+{
+    "Denoised Image|"
+    "Noise Map"
 };
 
 enum class eDenoiseMethod : int32_t

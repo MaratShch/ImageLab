@@ -2,10 +2,10 @@
 #include <iomanip>
 #include "CompileTimeUtils.hpp"
 #include "AlgoMemHandler.hpp" 
-#include "ImageLabMemInterface.hpp"
+#include "ImageLabMemInterface.hpp" 
 
 
-MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexcept
+MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY, const bool dbgPrn) noexcept
 {
     MemHandler algoMemHandler{};
     
@@ -84,69 +84,75 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
     const size_t off_Weight_Count = currentOffset; currentOffset += accumSize;
     const size_t off_Scratch3D = currentOffset; currentOffset += scratch3DSize;
 
+    // Noisy YUV originals (for Noise Map output; see AlgoMemHandler.hpp)
+    const size_t off_Y_noisy_orig = currentOffset; currentOffset += alignedFull;
+    const size_t off_U_noisy_orig = currentOffset; currentOffset += alignedFull;
+    const size_t off_V_noisy_orig = currentOffset; currentOffset += alignedFull;
+
     const size_t totalBytes = currentOffset;
 
     // ==================================================================================
     // 3. ALLOCATION & POINTER MAPPING
     // ==================================================================================
     void* ptr = nullptr;
-    const int32_t blockId = ::GetMemoryBlock (static_cast<int32_t>(totalBytes), 0, &ptr);
-    uint8_t* superBuffer = reinterpret_cast<uint8_t*>(ptr);
+    const int32_t blockId = ::GetMemoryBlock(static_cast<int32_t>(totalBytes), 0, &ptr);
 
-    if (ptr != nullptr)
+    if (nullptr != ptr && blockId >= 0)
     {
-        algoMemHandler.memBlockId = static_cast<int64_t>(blockId);
-        // Store Head for Deallocation
-        algoMemHandler.SuperBufferHead = superBuffer; 
+        algoMemHandler.memBlockId = blockId;
+        algoMemHandler.SuperBufferHead = reinterpret_cast<uint8_t*>(ptr);
         algoMemHandler.totalSize = totalBytes;
 
         // Pyramid Mappings
-        algoMemHandler.Y_planar = reinterpret_cast<float*>(superBuffer + off_Y_planar);
-        algoMemHandler.U_planar = reinterpret_cast<float*>(superBuffer + off_U_planar);
-        algoMemHandler.V_planar = reinterpret_cast<float*>(superBuffer + off_V_planar);
-        algoMemHandler.Y_diff_full = reinterpret_cast<float*>(superBuffer + off_Y_diff_full);
-        algoMemHandler.U_diff_full = reinterpret_cast<float*>(superBuffer + off_U_diff_full);
-        algoMemHandler.V_diff_full = reinterpret_cast<float*>(superBuffer + off_V_diff_full);
+        algoMemHandler.Y_planar = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Y_planar);
+        algoMemHandler.U_planar = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_U_planar);
+        algoMemHandler.V_planar = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_V_planar);
+        algoMemHandler.Y_diff_full = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Y_diff_full);
+        algoMemHandler.U_diff_full = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_U_diff_full);
+        algoMemHandler.V_diff_full = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_V_diff_full);
 
-        algoMemHandler.Y_half = reinterpret_cast<float*>(superBuffer + off_Y_half);
-        algoMemHandler.U_half = reinterpret_cast<float*>(superBuffer + off_U_half);
-        algoMemHandler.V_half = reinterpret_cast<float*>(superBuffer + off_V_half);
-        algoMemHandler.Y_diff_half = reinterpret_cast<float*>(superBuffer + off_Y_diff_half);
-        algoMemHandler.U_diff_half = reinterpret_cast<float*>(superBuffer + off_U_diff_half);
-        algoMemHandler.V_diff_half = reinterpret_cast<float*>(superBuffer + off_V_diff_half);
+        algoMemHandler.Y_half = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Y_half);
+        algoMemHandler.U_half = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_U_half);
+        algoMemHandler.V_half = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_V_half);
+        algoMemHandler.Y_diff_half = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Y_diff_half);
+        algoMemHandler.U_diff_half = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_U_diff_half);
+        algoMemHandler.V_diff_half = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_V_diff_half);
 
-        algoMemHandler.Y_quart = reinterpret_cast<float*>(superBuffer + off_Y_quart);
-        algoMemHandler.U_quart = reinterpret_cast<float*>(superBuffer + off_U_quart);
-        algoMemHandler.V_quart = reinterpret_cast<float*>(superBuffer + off_V_quart);
+        algoMemHandler.Y_quart = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Y_quart);
+        algoMemHandler.U_quart = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_U_quart);
+        algoMemHandler.V_quart = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_V_quart);
 
         // Oracle Mappings
-        algoMemHandler.NoiseCov_Y = reinterpret_cast<float*>(superBuffer + off_NoiseCov_Y);
-        algoMemHandler.NoiseCov_U = reinterpret_cast<float*>(superBuffer + off_NoiseCov_U);
-        algoMemHandler.NoiseCov_V = reinterpret_cast<float*>(superBuffer + off_NoiseCov_V);
-        algoMemHandler.OracleWorkspace = reinterpret_cast<float*>(superBuffer + off_OracleWorkspace);
+        algoMemHandler.NoiseCov_Y = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_NoiseCov_Y);
+        algoMemHandler.NoiseCov_U = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_NoiseCov_U);
+        algoMemHandler.NoiseCov_V = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_NoiseCov_V);
+        algoMemHandler.OracleWorkspace = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_OracleWorkspace);
 
         // Bayesian Filter Mappings
-        algoMemHandler.SearchPool = reinterpret_cast<PatchDistance*>(superBuffer + off_SearchPool);
-        algoMemHandler.Accum_Y = reinterpret_cast<float*>(superBuffer + off_Accum_Y);
-        algoMemHandler.Accum_U = reinterpret_cast<float*>(superBuffer + off_Accum_U);
-        algoMemHandler.Accum_V = reinterpret_cast<float*>(superBuffer + off_Accum_V);
-        algoMemHandler.Weight_Count = reinterpret_cast<float*>(superBuffer + off_Weight_Count);
-        algoMemHandler.Scratch3D = reinterpret_cast<float*>(superBuffer + off_Scratch3D);
+        algoMemHandler.SearchPool = reinterpret_cast<PatchDistance*>(algoMemHandler.SuperBufferHead + off_SearchPool);
+        algoMemHandler.Accum_Y = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Accum_Y);
+        algoMemHandler.Accum_U = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Accum_U);
+        algoMemHandler.Accum_V = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Accum_V);
+        algoMemHandler.Weight_Count = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Weight_Count);
+        algoMemHandler.Scratch3D = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Scratch3D);
+
+        // Noisy YUV originals
+        algoMemHandler.Y_noisy_orig = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_Y_noisy_orig);
+        algoMemHandler.U_noisy_orig = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_U_noisy_orig);
+        algoMemHandler.V_noisy_orig = reinterpret_cast<float*>(algoMemHandler.SuperBufferHead + off_V_noisy_orig);
     }
     
+
     return algoMemHandler;
 }
 
-
 void free_memory_buffers(MemHandler& algoMemHandler) noexcept
 {
-    if (algoMemHandler.SuperBufferHead != nullptr && algoMemHandler.memBlockId >= 0)
+    if (algoMemHandler.SuperBufferHead != nullptr)
     {
         ::FreeMemoryBlock(algoMemHandler.memBlockId);
     }
 
+    // Zero out the struct to prevent Use-After-Free bugs
     algoMemHandler = {};
-    algoMemHandler.memBlockId = -1;
-
-    return;
 }

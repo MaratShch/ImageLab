@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include "Common.hpp"
 
 enum class ProcAccuracy : int32_t
 {
@@ -10,11 +9,14 @@ enum class ProcAccuracy : int32_t
     AccHigh         // High (Stride 1) - Overlapping patches at every pixel.
 };
 
+enum class OutputType : int32_t
+{
+    DenoisedImage = 0,
+    NoiseMap
+};
+
 struct AlgoControls
 {
-    // --- PERFORMANCE ---
-    ProcAccuracy accuracy;
-
     // --- GLOBAL STRENGTH ---
     float master_denoise_amount; 
 
@@ -25,7 +27,12 @@ struct AlgoControls
     // --- FREQUENCY / SCALE TUNING ---
     float fine_detail_preservation; 
     float coarse_noise_reduction;   
+    
+    // --- PERFORMANCE ---
+    ProcAccuracy accuracy; 
+    
+    // --- OUTPUT
+    OutputType out;
 };
 
-constexpr size_t AlgoControlsSize = sizeof(AlgoControls);
-
+AlgoControls getAlgoControlsDefault(void);

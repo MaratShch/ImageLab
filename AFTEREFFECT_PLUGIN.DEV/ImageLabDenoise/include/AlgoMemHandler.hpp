@@ -66,11 +66,25 @@ struct MemHandler
     
     // 3D Volume Workspace for Matrix Math
     float* Scratch3D; 
-    
+
+    // =========================================================
+    // NOISY YUV ORIGINALS (for Noise Map output)
+    //
+    // Hold a verbatim copy of the noisy Y/U/V planes captured right
+    // after Pad_Edges_YUV runs but BEFORE the pyramid build mutates
+    // Y/U/V_planar via Laplacian reconstruction. These buffers are
+    // ONLY read at the end of Algorithm_Main when the user requested
+    // OutputType::NoiseMap; they are never touched otherwise.
+    // Size: alignedFull each (same as Y_planar etc.).
+    // =========================================================
+    float* Y_noisy_orig;
+    float* U_noisy_orig;
+    float* V_noisy_orig;
+
     size_t totalSize; 
 };
 
-MemHandler alloc_memory_buffers(int32_t sizeX, int32_t sizeY) noexcept;
+MemHandler alloc_memory_buffers(int32_t sizeX, int32_t sizeY, const bool dbgPrn = false) noexcept;
 
 void free_memory_buffers(MemHandler& algoMemHandler) noexcept;
 

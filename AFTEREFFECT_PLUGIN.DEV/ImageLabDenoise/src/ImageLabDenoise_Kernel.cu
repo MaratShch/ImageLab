@@ -2858,6 +2858,128 @@ __global__ void Kernel_NormalizeAndOutputBGRA(
 }
 
 
+// ============================================================================
+// Kernel_NormalizeAndOutputNoiseMap
+// ============================================================================
+//
+// Alternative output kernel: writes a NOISE MAP visualization instead of the
+// denoised image. Used when AlgoControls::out == OutputType::NoiseMap.
+//
+// Math:
+//   noise_yuv  = noisy_yuv - denoised_yuv          (per channel)
+//   amp_yuv    = NOISE_MAP_AMP * noise_yuv         (industry-standard ~8x)
+//   amp_rgb    = yuv_to_rgb(amp_yuv)               (linear orthonormal transform)
+//   output_rgb = 0.5 + amp_rgb                     (center around mid-gray)
+//   output_rgb = clamp(output_rgb, 0.0, 1.0)
+//
+// Industry convention (Neat Video, RawTherapee, etc.):
+//   - Mid-gray (0.5)         => no noise was removed at that pixel
+//   - Bright pixels (>0.5)   => positive noise was subtracted (bright noise removed)
+//   - Dark pixels   (<0.5)   => negative noise was subtracted (dark noise removed)
+//   - Saturated white/black  => high-magnitude noise removed (clipped by amp factor)
+//
+// Output range matches the denoised output kernel: floats in [0.0, 1.0],
+// BGRA layout, alpha = 1.0.
+//
+// IMPORTANT: This kernel does NOT modify the algorithm or its results.
+// It only reads the same accumulators that the denoised output kernel reads,
+// and writes a different visualization of the same data.
+// ============================================================================
+__global__ void Kernel_NormalizeAndOutputNoiseMap(
+    const float* RESTRICT    accY,
+    const float* RESTRICT    accU,
+    const float* RESTRICT    accV,
+    const float* RESTRICT    accW,
+    const float* RESTRICT    fallbackY,         // noisy YUV from the convert stage
+    const float* RESTRICT    fallbackU,
+    const float* RESTRICT    fallbackV,
+    float*       RESTRICT    outBuffer,
+    int                      padW,
+    int                      dstPitchPixels,
+    int                      width,
+    int                      height)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height)
+    {
+        return;
+    }
+
+    // Amplification factor for noise visualization. Higher values make
+    // small noise more visible; 8x is typical for industrial denoisers.
+    // Kept as a constant here (could be exposed via AlgoControls later).
+    constexpr float NOISE_MAP_AMP = 8.0f;
+
+    // ------------------------------------------------------------------------
+    // Read DENOISED YUV (with weight fallback to noisy, matching the existing
+    // output kernel exactly) and the NOISY YUV directly.
+    // ------------------------------------------------------------------------
+    const int src_idx = y * padW + x;
+    const float w = accW[src_idx];
+
+    // Noisy YUV: always read from fallback arrays (the d_*_planar buffers
+    // hold the orthonormal YUV of the noisy input image, unchanged from
+    // the Convert step).
+    const float noisyY = fallbackY[src_idx];
+    const float noisyU = fallbackU[src_idx];
+    const float noisyV = fallbackV[src_idx];
+
+    // Denoised YUV: from accumulators normalized by weight, or noisy on
+    // uncovered pixels (where noise_yuv would be exactly zero -> mid-gray).
+    float denY, denU, denV;
+    if (w > 0.0f)
+    {
+        const float invW = 1.0f / w;
+        denY = accY[src_idx] * invW;
+        denU = accU[src_idx] * invW;
+        denV = accV[src_idx] * invW;
+    }
+    else
+    {
+        denY = noisyY;
+        denU = noisyU;
+        denV = noisyV;
+    }
+
+    // ------------------------------------------------------------------------
+    // Compute amplified noise in YUV: amp_yuv = AMP * (noisy - denoised)
+    // ------------------------------------------------------------------------
+    const float ampY = NOISE_MAP_AMP * (noisyY - denY);
+    const float ampU = NOISE_MAP_AMP * (noisyU - denU);
+    const float ampV = NOISE_MAP_AMP * (noisyV - denV);
+
+    // ------------------------------------------------------------------------
+    // YUV -> RGB via the transpose of the orthonormal forward matrix.
+    // Identical math to Kernel_NormalizeAndOutputBGRA, applied to amplified
+    // noise instead of denoised values.
+    // ------------------------------------------------------------------------
+    const float half_cinv = 0.5f * YUV_C_INV;
+
+    float r = YUV_A * ampY + YUV_B * ampU + half_cinv  * ampV;
+    float g = YUV_A * ampY - YUV_C_INV  * ampV;
+    float b = YUV_A * ampY - YUV_B * ampU + half_cinv  * ampV;
+
+    // ------------------------------------------------------------------------
+    // Offset by mid-gray and clamp to display range.
+    // ------------------------------------------------------------------------
+    r = fminf(1.0f, fmaxf(0.0f, 0.5f + r));
+    g = fminf(1.0f, fmaxf(0.0f, 0.5f + g));
+    b = fminf(1.0f, fmaxf(0.0f, 0.5f + b));
+
+    // ------------------------------------------------------------------------
+    // Pack BGRA, alpha = 1.0 (same layout as denoised output).
+    // ------------------------------------------------------------------------
+    const int out_base = (y * dstPitchPixels + x) * 4;
+
+    outBuffer[out_base + 0] = b;
+    outBuffer[out_base + 1] = g;
+    outBuffer[out_base + 2] = r;
+    outBuffer[out_base + 3] = 1.0f;
+}
+
+
 
 // ============================================================================
 // HELPER: round up to next multiple of N (N must be a power of two)
@@ -3088,18 +3210,39 @@ void ImageLabDenoise_CUDA
             tau_Y, tau_UV, proc_stride
             );
 
-    // -----------------------------------------------------------------------
-    // STEP 8: YUV -> BGRA (strip padding; write ONLY width x height region)
-    // -----------------------------------------------------------------------
-    Kernel_NormalizeAndOutputBGRA << <io_grid_out, io_block, 0, stream >> >
-        (
-            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
-            g_gpuMemState.d_Weight,
-            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,   // fallback for zero-weight pixels
-            outBuffer,
-            g_gpuMemState.padW, dstPitch,
-            width, height          // original (unpadded) output extents
-            );
+    // ------------------------------------------------------------------------
+    // STEP 8: YUV -> BGRA output. Two flavors:
+    //   - DenoisedImage : standard denoised RGBA output
+    //   - NoiseMap      : noise visualization (denoised - noisy, amplified,
+    //                     offset to mid-gray). Same pixel range and BGRA
+    //                     layout as the denoised output, just different
+    //                     content. The algorithm itself is unchanged --
+    //                     only the final visualization kernel differs.
+    // ------------------------------------------------------------------------
+    if (algoGpuParams->out == OutputType::NoiseMap)
+    {
+        Kernel_NormalizeAndOutputNoiseMap << <io_grid_out, io_block, 0, stream >> >
+            (
+                g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+                g_gpuMemState.d_Weight,
+                g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+                outBuffer,
+                g_gpuMemState.padW, dstPitch,
+                width, height
+                );
+    }
+    else
+    {
+        Kernel_NormalizeAndOutputBGRA << <io_grid_out, io_block, 0, stream >> >
+            (
+                g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+                g_gpuMemState.d_Weight,
+                g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+                outBuffer,
+                g_gpuMemState.padW, dstPitch,
+                width, height
+                );
+    }
 
     // -----------------------------------------------------------------------
     // STEP 9: Single end-of-frame synchronization point.
@@ -3111,7 +3254,9 @@ void ImageLabDenoise_CUDA
     // TODO(A6): when multi-scale denoising is implemented, move this sync
     // to AFTER the coarse-to-fine loop completes.
     // -----------------------------------------------------------------------
-    cudaStreamSynchronize(stream);
+    cudaDeviceSynchronize();
+
+    return;
 }
 
 
@@ -3327,15 +3472,39 @@ void ImageLabDenoise_CUDA
             );
     cudaEventRecord(ev_pass2, stream);
 
-    Kernel_NormalizeAndOutputBGRA << <io_grid_out, io_block, 0, stream >> >
-        (
-            g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
-            g_gpuMemState.d_Weight,
-            g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
-            outBuffer,
-            g_gpuMemState.padW, dstPitch,
-            width, height
-            );
+    // ------------------------------------------------------------------------
+    // STEP 8: YUV -> BGRA output. Two flavors:
+    //   - DenoisedImage : standard denoised RGBA output
+    //   - NoiseMap      : noise visualization (denoised - noisy, amplified,
+    //                     offset to mid-gray). Same pixel range and BGRA
+    //                     layout as the denoised output, just different
+    //                     content. The algorithm itself is unchanged --
+    //                     only the final visualization kernel differs.
+    // ------------------------------------------------------------------------
+    if (algoGpuParams->out == OutputType::NoiseMap)
+    {
+        Kernel_NormalizeAndOutputNoiseMap << <io_grid_out, io_block, 0, stream >> >
+            (
+                g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+                g_gpuMemState.d_Weight,
+                g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+                outBuffer,
+                g_gpuMemState.padW, dstPitch,
+                width, height
+                );
+    }
+    else
+    {
+        Kernel_NormalizeAndOutputBGRA << <io_grid_out, io_block, 0, stream >> >
+            (
+                g_gpuMemState.d_Accum_Y, g_gpuMemState.d_Accum_U, g_gpuMemState.d_Accum_V,
+                g_gpuMemState.d_Weight,
+                g_gpuMemState.d_Y_planar, g_gpuMemState.d_U_planar, g_gpuMemState.d_V_planar,
+                outBuffer,
+                g_gpuMemState.padW, dstPitch,
+                width, height
+                );
+    }
     cudaEventRecord(ev_output, stream);
 
     cudaStreamSynchronize(stream);
@@ -3378,6 +3547,7 @@ void ImageLabDenoise_CUDA
     cudaDeviceSynchronize();
 }
 
+
 // ============================================================================
 // CLEANUP 
 // ============================================================================
@@ -3386,5 +3556,4 @@ void ImageLabDenoise_CleanupGPU()
 {
     free_cuda_memory_buffers(g_gpuMemState);
 }
-
 #endif

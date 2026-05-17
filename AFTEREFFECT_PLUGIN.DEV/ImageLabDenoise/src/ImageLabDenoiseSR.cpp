@@ -34,7 +34,7 @@ ImageLabDenoise_PreRender
             extra->output->pre_render_data = paramsHandler;
 
             // ============= Acquire algorithm control parameters ==================== //
-            PF_CHECKOUT_PARAM (in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
+            PF_CHECKOUT_PARAM (in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_STANDARD), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);
                 paramsStrP->accuracy = static_cast<ProcAccuracy>(paramVal.u.pd.value - 1);
 
             PF_CHECKOUT_PARAM(in_data, UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT), in_data->current_time, in_data->time_step, in_data->time_scale, &paramVal);

@@ -19,16 +19,26 @@ SetupControlElements
     PF_ADD_POPUP
     (
         controlItemName[0],
+        UnderlyingType(eDenoiseAlgoOutput::eIMAGE_LAB_DENOISE_OUTPUT_TOTAL),
+        UnderlyingType(eDenoiseAlgoOutput::eIMAGE_LAB_DENOISE_OUTPUT_IMAGE),
+        eDenoiseOutputAlgo,
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ALGO_OUTPUT)
+    );
+
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP
+    (
+        controlItemName[1],
         UnderlyingType(eDenoiseMethod::eIMAGE_LAB_DENOISE_TOTAL),
         UnderlyingType(eDenoiseMethod::eIMAGE_LAB_DENOISE_DRAFT),
         eDenoiseMethodStr,
-        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD)
+        UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_STANDARD)
     );
 
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX
     (
-        controlItemName[1],
+        controlItemName[2],
         MasterDenoiseAmountMin,
         MasterDenoiseAmountMax,
         MasterDenoiseAmountMin,
@@ -43,7 +53,7 @@ SetupControlElements
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX
     (
-        controlItemName[2],
+        controlItemName[3],
         LumaStrengthMin,
         LumaStrengthMax,
         LumaStrengthMin,
@@ -58,7 +68,7 @@ SetupControlElements
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX
     (
-        controlItemName[3],
+        controlItemName[4],
         ChromaStrengthMin,
         ChromaStrengthMax,
         ChromaStrengthMin,
@@ -73,7 +83,7 @@ SetupControlElements
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX
     (
-        controlItemName[4],
+        controlItemName[5],
         DetailsPreservationMin,
         DetailsPreservationMax,
         DetailsPreservationMin,
@@ -88,7 +98,7 @@ SetupControlElements
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_FLOAT_SLIDERX
     (
-        controlItemName[5],
+        controlItemName[6],
         CoarseNoiseMin,
         CoarseNoiseMax,
         CoarseNoiseMin,
@@ -113,7 +123,8 @@ AlgoControls GetControlParametersStruct
 {
     CACHE_ALIGN AlgoControls algoCtrl{};
 
-    algoCtrl.accuracy = static_cast<ProcAccuracy>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_SANDARD)]->u.pd.value - 1);
+    algoCtrl.out                   = static_cast<OutputType>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ALGO_OUTPUT)]->u.pd.value - 1);
+    algoCtrl.accuracy              = static_cast<ProcAccuracy>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_ACC_STANDARD)]->u.pd.value - 1);
     algoCtrl.master_denoise_amount = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_AMOUNT)]->u.fs_d.value);
     algoCtrl.luma_strength         = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_LUMA_STRENGTH)]->u.fs_d.value);
     algoCtrl.chroma_strength       = static_cast<float>(params[UnderlyingType(eDenoiseControl::eIMAGE_LAB_DENOISE_CHROMA_STRENGTH)]->u.fs_d.value);
@@ -182,5 +193,7 @@ AlgoControls getAlgoControlsDefault(void)
     // Default: ProcAccuracy::AccStandard (Stride 2 - balances speed and artifact suppression)
     algoCtrl.accuracy = ProcAccuracy::AccStandard;
     
+    algoCtrl.out = OutputType::DenoisedImage;
+
     return algoCtrl;
 }
