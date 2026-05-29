@@ -120,65 +120,65 @@ ImageLabDenoise_SmartRender
                 {
                     switch (format)
                     {
-                    case PF_PixelFormat_ARGB128:
-                    {
-                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
-                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                        case PF_PixelFormat_ARGB128:
+                        {
+                            const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                            const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                        const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
-                              PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+                            const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                                  PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
-                        // convert to planar YUV Ortonormal color space
-                        dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_8u);
+                            // convert to planar YUV Ortonormal color space
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_8u);
 
-                        // execute algorithm
-                        Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
+                            // execute algorithm
+                            Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
-                        // back convert to native buffer format after processing complete
-                        dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_8u);
-                    }
-                    break;
+                            // back convert to native buffer format after processing complete
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_8u);
+                        }
+                        break;
 
-                    case PF_PixelFormat_ARGB64:
-                    {
-                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                        case PF_PixelFormat_ARGB64:
+                        {
+                            const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                            const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-                        const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
-                              PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
+                            const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
+                                  PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
-                        // convert to planar YUV Ortonormal color space
-                        dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_16u);
+                            // convert to planar YUV Ortonormal color space
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_16u);
                         
-                        // execute algorithm
-                        Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
+                            // execute algorithm
+                            Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
-                        // back convert to native buffer format after processing complete
-                        dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_16u);
-                    }
-                    break;
+                            // back convert to native buffer format after processing complete
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_16u);
+                        }
+                        break;
 
-                    case PF_PixelFormat_ARGB32:
-                    {
-                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
-                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                        case PF_PixelFormat_ARGB32:
+                        {
+                            const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                            const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                        const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
-                              PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+                            const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                                  PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
-                        // convert to planar YUV Ortonormal color space
-                        dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_32f);
+                            // convert to planar YUV Ortonormal color space
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_32f);
 
-                        // execute algorithm
-                        Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
+                            // execute algorithm
+                            Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
-                        // back convert to native buffer format after processing complete
-                        dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_32f);
-                    }
-                    break;
+                            // back convert to native buffer format after processing complete
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_32f);
+                        }
+                        break;
 
-                    default:
-                        err = PF_Err_BAD_CALLBACK_PARAM;
+                        default:
+                            err = PF_Err_BAD_CALLBACK_PARAM;
                         break;
                     } // switch (format)
 
