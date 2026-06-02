@@ -2,6 +2,7 @@
 #define __IMAGE_LAB_AUTHOMATIC_WHITE_BALANCE_GPU_HANDLERS__
 
 #include <cuda_runtime.h>
+#include "AlgoControl.hpp"
 #include "AlgCommonEnums.hpp"
 #include "ColorTransformMatrix.hpp"
 
@@ -31,20 +32,29 @@ constexpr size_t Pixel16Size = sizeof(Pixel16);
 constexpr float algAWBepsilon = 0.00001f;
 
 CUDA_KERNEL_CALL
-void AuthomaticWhiteBalance_CUDA
+void ImageLabAWB32_CUDA
 (
-    float* inBuf,
-    float* outBuf,
-    int destPitch,
-    int srcPitch,
-    int	is16f,
-    int width,
-    int height,
-    const eILLUMINATE illuminant,
-    const eChromaticAdaptation chroma,
-    const eCOLOR_SPACE color_space,
-    const float gray_threshold,
-    unsigned int iter_cnt
+    const float*  RESTRICT inBuffer,
+    float*  RESTRICT       outBuffer,
+    int                    srcPitch,    // BGRA pixels/row
+    int                    dstPitch,    // BGRA pixels/row
+    int                    width,
+    int                    height,
+    const AlgoControls* RESTRICT algoGpuParams,
+    cudaStream_t           stream
+);
+
+CUDA_KERNEL_CALL
+void ImageLabAWB16_CUDA
+(
+    const float*  RESTRICT inBuffer,
+    float*  RESTRICT       outBuffer,
+    int                    srcPitch,
+    int                    dstPitch,
+    int                    width,
+    int                    height,
+    const AlgoControls* RESTRICT algoGpuParams,
+    cudaStream_t           stream
 );
 
 

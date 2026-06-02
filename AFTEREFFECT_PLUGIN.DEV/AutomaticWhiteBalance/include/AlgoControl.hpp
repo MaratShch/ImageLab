@@ -4,7 +4,7 @@
 #include <algorithm>
 #include "ColorTransformMatrix.hpp"
 #include "AlgCommonEnums.hpp"
-#include "AE_Effect.h"
+
 
 struct AlgoControls
 {
@@ -15,5 +15,3 @@ struct AlgoControls
 	int32_t sliderThreshold;
 };
 
-AlgoControls getAlgoControlsDefault (void);
-AlgoControls GetControlParametersStruct (PF_ParamDef* params[]);

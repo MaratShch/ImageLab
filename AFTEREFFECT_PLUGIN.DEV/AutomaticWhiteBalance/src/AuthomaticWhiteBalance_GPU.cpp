@@ -76,7 +76,7 @@ public:
 
         mGPUDeviceSuite->GetGPUPPixData(*outFrame, &destFrameData);
         mPPixSuite->GetRowBytes(*outFrame, &destRowBytes);
-        const int destPitch = destRowBytes / gpuBytesPerPixel;
+        const int dstPitch = destRowBytes / gpuBytesPerPixel;
 
         mGPUDeviceSuite->GetGPUPPixData(*inFrames, &srcFrameData);
         mPPixSuite->GetRowBytes(*inFrames, &srcRowBytes);
@@ -89,14 +89,44 @@ public:
             inBuffer = reinterpret_cast<float*>(srcFrameData);
             outBuffer = reinterpret_cast<float*>(destFrameData);
 
-            const eILLUMINATE illuminant         = control_param_illuminant (param1);
-            const eChromaticAdaptation chromatic = control_param_chromatic_adaptation (param2);
-            const eCOLOR_SPACE color_space       = control_param_color_space (param3);
-            const float gray_threshold           = control_param_gray_threshold (param4);
-            const unsigned int iter_cnt          = control_param_iteration_count(param5);
+            AlgoControls algoControls{};
 
-            // Launch CUDA kernel
-            AuthomaticWhiteBalance_CUDA (inBuffer, outBuffer, destPitch, srcPitch, is16f, width, height, illuminant, chromatic, color_space, gray_threshold, iter_cnt);
+            algoControls.illuminate      = control_param_illuminant (param1);
+            algoControls.chromatic       = control_param_chromatic_adaptation (param2);
+            algoControls.colorSpace      = control_param_color_space (param3);
+            algoControls.sliderIterCnt   = control_param_gray_threshold(param4);
+            algoControls.sliderThreshold = control_param_iteration_count(param5);
+
+            const cudaStream_t stream{ 0 };
+
+            if (is16f)
+            {
+                ImageLabAWB16_CUDA
+                (
+                    inBuffer,
+                    outBuffer,
+                    srcPitch,
+                    dstPitch,
+                    width,
+                    height,
+                    &algoControls,
+                    stream
+                );
+            }
+            else
+            {
+                ImageLabAWB32_CUDA
+                (
+                    inBuffer,
+                    outBuffer,
+                    srcPitch,
+                    dstPitch,
+                    width,
+                    height,
+                    &algoControls,
+                    stream
+                );
+            }
 
             cudaError_t cudaErrCode = cudaErrorUnknown;
             if (cudaSuccess != (cudaErrCode = cudaPeekAtLastError()))
@@ -127,7 +157,7 @@ private:
 
     const float control_param_gray_threshold (const PrParam& param) noexcept
     {
-        return static_cast<const float>(CLAMP_VALUE(param.mInt32, 10, 90))/100.f;
+        return static_cast<const float>(CLAMP_VALUE(param.mInt32, 10, 90));
     }
 
     const unsigned int control_param_iteration_count(const PrParam& param) noexcept

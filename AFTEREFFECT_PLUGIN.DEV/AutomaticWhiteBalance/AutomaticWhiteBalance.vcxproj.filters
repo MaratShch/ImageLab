@@ -16,6 +16,9 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{160961c9-292f-49e4-a500-03118c1e6828}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\CUDA">
+      <UniqueIdentifier>{44caac02-f074-456f-a2d9-0914f3a44a78}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
@@ -168,8 +171,19 @@
     <CustomBuild Include="AutomaticWhiteBalance.r">
       <Filter>resource</Filter>
     </CustomBuild>
-    <CustomBuild Include="src\AuthomaticWhiteBalanceKernel.cu">
+    <CustomBuild Include="src\ImageLabAWB32_CUDA.cu">
       <Filter>src</Filter>
     </CustomBuild>
+    <CustomBuild Include="src\ImageLabAWB16_CUDA.cu">
+      <Filter>src</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="include\CUDA\AwbGpuColorMath.cuh">
+      <Filter>include\CUDA</Filter>
+    </None>
+    <None Include="include\CUDA\AwbGpuCommon.cuh">
+      <Filter>include\CUDA</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -110,7 +110,7 @@ typedef struct
     int32_t              srParam_ItrerationsNumber;
 } AWB_SmartRenderParams, *PAWB_SmartRenderParams;
 
-AlgoControls GetControlParametersStruct(PF_ParamDef* RESTRICT params[]);
 AlgoControls getAlgoControlsDefault(void);
+AlgoControls GetControlParametersStruct(PF_ParamDef* params[]);
 
 constexpr size_t AWB_SmartRenderParamsSize = sizeof(AWB_SmartRenderParams);

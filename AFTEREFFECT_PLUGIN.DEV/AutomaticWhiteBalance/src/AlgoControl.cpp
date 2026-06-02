@@ -1,3 +1,4 @@
+#include "AE_Effect.h"
 #include "AlgoControl.hpp"
 #include "ColorTransformMatrix.hpp"
 
