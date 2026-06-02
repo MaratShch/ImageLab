@@ -94,8 +94,8 @@ public:
             algoControls.illuminate      = control_param_illuminant (param1);
             algoControls.chromatic       = control_param_chromatic_adaptation (param2);
             algoControls.colorSpace      = control_param_color_space (param3);
-            algoControls.sliderIterCnt   = control_param_gray_threshold(param4);
-            algoControls.sliderThreshold = control_param_iteration_count(param5);
+            algoControls.sliderThreshold = control_param_iteration_count(param4);
+            algoControls.sliderIterCnt   = control_param_gray_threshold(param5);
 
             const cudaStream_t stream{ 0 };
 
