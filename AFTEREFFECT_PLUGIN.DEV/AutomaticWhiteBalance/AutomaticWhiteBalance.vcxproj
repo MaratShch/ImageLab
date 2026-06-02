@@ -148,6 +148,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgCommonFunctions.cpp" />
+    <ClCompile Include="src\AlgConvertDispatcher.cpp" />
+    <ClCompile Include="src\AlgConvertDispatcherOut.cpp" />
+    <ClCompile Include="src\AlgoControl.cpp" />
+    <ClCompile Include="src\AlgoMemHandler.cpp" />
+    <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\AuthomaticWhiteBalanceSR.cpp" />
     <ClCompile Include="src\AuthomaticWhiteBalance.cpp" />
     <ClCompile Include="src\AuthomaticWhiteBalanceAE.cpp">
@@ -184,7 +190,15 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgCommonEnums.hpp" />
     <ClInclude Include="include\AlgCommonFunctions.hpp" />
+    <ClInclude Include="include\AlgConvertColorInterleaved.hpp" />
+    <ClInclude Include="include\AlgConvertColorPlanar.hpp" />
+    <ClInclude Include="include\AlgConvertDispatcher.hpp" />
+    <ClInclude Include="include\AlgConvertDispatcherOut.hpp" />
+    <ClInclude Include="include\AlgConvertPixelTraits.hpp" />
     <ClInclude Include="include\AlgCorrectionMatrix.hpp" />
+    <ClInclude Include="include\AlgoControl.hpp" />
+    <ClInclude Include="include\AlgoMemHandler.hpp" />
+    <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\AuthomaticWhiteBalance.hpp" />
     <ClInclude Include="include\AuthomaticWhiteBalanceGPU.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />

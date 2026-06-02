@@ -36,6 +36,24 @@
     <ClCompile Include="src\AuthomaticWhiteBalance_GPU.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AlgCommonFunctions.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgConvertDispatcher.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgConvertDispatcherOut.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgorithmMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
@@ -115,6 +133,30 @@
     </ClInclude>
     <ClInclude Include="..\Common\CommonSmartRender.hpp">
       <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertColorInterleaved.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertColorPlanar.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertDispatcher.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertDispatcherOut.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertPixelTraits.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControl.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgorithmMain.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

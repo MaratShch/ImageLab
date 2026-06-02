@@ -64,14 +64,31 @@ GlobalSetup(
 		/*	Add the pixel formats we support in order of preference. */
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f_Linear);
     }
 
 	return PF_Err_NONE;
@@ -159,38 +176,7 @@ Render (
 	PF_LayerDef		*output
 )
 {
-	PF_Err	err = PF_Err_NONE;
-	PF_Err errFormat = PF_Err_INVALID_INDEX;
-
-	if (PremierId == in_data->appl_id)
-	{
-		/* This plugin called frop PR - check video fomat */
-		AEFX_SuiteScoper<PF_PixelFormatSuite1> pixelFormatSuite =
-			AEFX_SuiteScoper<PF_PixelFormatSuite1>(
-				in_data,
-				kPFPixelFormatSuite,
-				kPFPixelFormatSuiteVersion1,
-				out_data);
-
-		PrPixelFormat destinationPixelFormat = PrPixelFormat_Invalid;
-		if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
-		{
-			err = ProcessImgInPR (in_data, out_data, params, output, destinationPixelFormat);
-		} /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
-		else
-		{
-			// In Premiere Pro, this message will appear in the Events panel
-			PF_STRCPY(out_data->return_msg, "Unsupoorted image format...");
-			err = PF_Err_INVALID_INDEX;
-		}
-	}
-	else
-	{
-		/* This plugin called from AE */
-		err = ProcessImgInAE (in_data, out_data, params, output);
-	}
-
-	return err;
+    return ((PremierId == in_data->appl_id ? ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output)));
 }
 
 

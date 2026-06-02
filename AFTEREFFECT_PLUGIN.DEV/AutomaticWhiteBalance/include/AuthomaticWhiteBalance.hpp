@@ -5,6 +5,7 @@
 #include "Param_Utils.h"
 #include "ColorTransformMatrix.hpp"
 #include "AlgCommonEnums.hpp"
+#include "AlgoControl.hpp"
 
 constexpr int AWB_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int AWB_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
@@ -18,11 +19,6 @@ constexpr int AWB_VersionBuild = 1;
 
 constexpr char strName[] = "Automatic White Balance";
 constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rAutomatic White Balance based on gray-point algorithm.";
-
-bool LoadMemoryInterfaceProvider (int32_t appId, int32_t major, int32_t minor = 0) noexcept;
-int32_t GetMemoryBlock (int32_t size, int32_t align, void** pMem) noexcept;
-void FreeMemoryBlock (int32_t id) noexcept;
-
 
 constexpr char ILLUMINATE_NAME[] = "Illuminate";
 
@@ -77,16 +73,15 @@ PF_Err ProcessImgInAE
 	PF_OutData*   out_data,
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output
-) noexcept;
+);
 
 PF_Err ProcessImgInPR
 (
 	PF_InData*    in_data,
 	PF_OutData*   out_data,
 	PF_ParamDef*  params[],
-	PF_LayerDef*  output,
-	const PrPixelFormat& pixelFormat
-) noexcept;
+	PF_LayerDef*  output
+);
 
 
 PF_Err
@@ -95,7 +90,7 @@ AuthomaticWhiteBalance_PreRender
     PF_InData			*in_data,
     PF_OutData			*out_data,
     PF_PreRenderExtra	*extra
-) noexcept;
+);
 
 PF_Err
 AuthomaticWhiteBalance_SmartRender
@@ -103,7 +98,7 @@ AuthomaticWhiteBalance_SmartRender
     PF_InData				*in_data,
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extraP
-) noexcept;
+);
 
 // structure for SmartRender parameters
 typedef struct
@@ -114,5 +109,8 @@ typedef struct
     float                srParam_GrayThreshold;
     int32_t              srParam_ItrerationsNumber;
 } AWB_SmartRenderParams, *PAWB_SmartRenderParams;
+
+AlgoControls GetControlParametersStruct(PF_ParamDef* RESTRICT params[]);
+AlgoControls getAlgoControlsDefault(void);
 
 constexpr size_t AWB_SmartRenderParamsSize = sizeof(AWB_SmartRenderParams);

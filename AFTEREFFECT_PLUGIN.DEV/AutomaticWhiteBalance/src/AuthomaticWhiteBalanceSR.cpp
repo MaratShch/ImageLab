@@ -14,7 +14,7 @@ AuthomaticWhiteBalance_PreRender
     PF_InData			*in_data,
     PF_OutData			*out_data,
     PF_PreRenderExtra	*extra
-) noexcept
+) 
 {
     AWB_SmartRenderParams renderParams{};
     PF_Err err = PF_Err_NONE;
@@ -79,131 +79,6 @@ AuthomaticWhiteBalance_PreRender
 }
 
 
-template <typename T>
-PF_Err
-AuthomaticWhiteBalance_SmartRenderAlgo
-(
-    T* __restrict pSrcImage,
-    T* __restrict pDstImage,
-    A_long sizeX,
-    A_long sizeY,
-    A_long srcPitch,
-    A_long dstPitch,
-    const PAWB_SmartRenderParams __restrict pParamList
-) noexcept
-{
-    CACHE_ALIGN float U_avg[gMaxCnt]{};
-    CACHE_ALIGN float V_avg[gMaxCnt]{};
-    T* __restrict pMem[2]{};
-    T* __restrict srcInput = nullptr;
-    T* __restrict dstOutput = nullptr;
-    void* pMemoryBlock = nullptr;
-
-    const eILLUMINATE          eIlluminant    = pParamList->srParam_Illuminant;
-    const eChromaticAdaptation eChromaAdapt   = pParamList->srParam_ChromaticAdapt;
-    const eCOLOR_SPACE         eColorSpace    = pParamList->srParam_ColorSpace;
-    const float                fGrayThreahold = pParamList->srParam_GrayThreshold;
-    const int32_t              iterCnt        = pParamList->srParam_ItrerationsNumber;
-
-    const A_long memBlocksNumber = FastCompute::Min(2, (iterCnt - 1));
-    PF_Err	err = PF_Err_NONE;
-
-    int32_t memBlockId = -1;
-    int32_t srcIdx = 0, dstIdx = 1;
-    A_long inPitch = 0, outPitch = 0;
-
-    if (memBlocksNumber > 0)
-    {
-        const size_t frameSize = sizeX * sizeY;
-        const size_t requiredMemSize = memBlocksNumber * frameSize * sizeof(T);
-        memBlockId = ::GetMemoryBlock(requiredMemSize, 0, &pMemoryBlock);
-        if (nullptr == pMemoryBlock || memBlockId < 0)
-            return PF_Err_OUT_OF_MEMORY; // not enough memory for allocate temporary buffer for ALGO
-
-        pMem[0] = reinterpret_cast<T* __restrict>(pMemoryBlock);
-        pMem[1] = (2 == memBlocksNumber) ? pMem[0] + frameSize : nullptr;
-    }
-
-    float uAvg, vAvg;
-
-    // Perform iterations in corresponding to the slider value 
-    for (A_long k = 0; k < iterCnt; k++)
-    {
-        if (0 == k)
-        {   // First iteration
-            srcInput = pSrcImage;
-            dstIdx++;
-            dstIdx &= 0x1;
-            dstOutput = (1 == iterCnt) ? pDstImage : pMem[dstIdx];
-            inPitch = srcPitch;
-            outPitch = (1 == iterCnt) ? dstPitch : sizeX;
-        }
-        else if ((iterCnt - 1) == k)
-        {   // Last iteration 
-            srcInput  = pMem[dstIdx];
-            dstOutput = pDstImage;
-            inPitch   = sizeX;
-            outPitch  = dstPitch;
-        } /* if (k > 0) */
-        else
-        {   // Intermediate iteration
-            srcIdx = dstIdx;
-            dstIdx++;
-            dstIdx &= 0x1;
-            srcInput  = pMem[srcIdx];
-            dstOutput = pMem[dstIdx];
-            inPitch   = outPitch = sizeX;
-        }
-
-        uAvg = vAvg = 0.f;
-        // collect statistics about image and compute averages values for U and for V components
-        collect_rgb_statistics (srcInput, sizeX, sizeY, inPitch, fGrayThreahold, eColorSpace, &uAvg, &vAvg);
-
-        U_avg[k] = uAvg;
-        V_avg[k] = vAvg;
-
-        if (k > 0)
-        {
-            const float U_diff = U_avg[k] - U_avg[k - 1];
-            const float V_diff = V_avg[k] - V_avg[k - 1];
-
-            const float normVal = FastCompute::Sqrt(U_diff * U_diff + V_diff * V_diff);
-
-            if (normVal < algAWBepsilon)
-            {
-                // U and V no longer improving, so just copy source to destination and break the loop
-                simple_image_copy (srcInput, pDstImage, sizeX, sizeY, srcPitch, outPitch);
-
-                // release temporary memory buffers on exit from function
-                if (-1 != memBlockId)
-                {
-                    ::FreeMemoryBlock(memBlockId);
-                    memBlockId = -1;
-                }
-                return true; // U and V no longer improving
-            }
-        } // if (k > 0) 
-
-          // compute correction matrix
-        float correctionMatrix[3]{};
-        compute_correction_matrix (uAvg, vAvg, eColorSpace, eIlluminant, eChromaAdapt, correctionMatrix);
-
-        // in second: perform image color correction
-        image_rgb_correction (srcInput, dstOutput, sizeX, sizeY, inPitch, outPitch, correctionMatrix);
-
-    } // for (A_long k = 0; k < iterCnt; k++)
-
-      // release temporary memory buffers on exit from function
-    if (-1 != memBlockId)
-    {
-        ::FreeMemoryBlock(memBlockId);
-        memBlockId = -1;
-    }
-
-    return err;
-}
-
-
 
 PF_Err
 AuthomaticWhiteBalance_SmartRender
@@ -211,7 +86,7 @@ AuthomaticWhiteBalance_SmartRender
     PF_InData				*in_data,
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extraP
-) noexcept
+) 
 {
     PF_EffectWorld* input_worldP = nullptr;
     PF_EffectWorld* output_worldP = nullptr;
@@ -246,7 +121,6 @@ AuthomaticWhiteBalance_SmartRender
                         PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
                         PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
-                        err = AuthomaticWhiteBalance_SmartRenderAlgo (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, pAWBStrParams);
                     }
                     break;
 
@@ -258,7 +132,6 @@ AuthomaticWhiteBalance_SmartRender
                         PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
                         PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
-                        err = AuthomaticWhiteBalance_SmartRenderAlgo (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, pAWBStrParams);
                     }
                     break;
 
@@ -270,7 +143,6 @@ AuthomaticWhiteBalance_SmartRender
                         PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
                         PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
 
-                        err = AuthomaticWhiteBalance_SmartRenderAlgo (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, pAWBStrParams);
                     }
                     break;
 
