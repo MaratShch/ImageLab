@@ -33,7 +33,7 @@ void Algorithm_Main
     if (!mem_handler_valid(memHandler) || sizeX <= 0 || sizeY <= 0)
         return;
 
-    const int64_t total     = static_cast<int64_t>(sizeX) * static_cast<int64_t>(sizeY);
+    const int64_t total     = static_cast<int64_t>(sizeX * sizeY);
     const int32_t iterCnt   = std::max(1, std::min(gMaxIter, algoCtrl.sliderIterCnt));
     const float   threshold = static_cast<float>(algoCtrl.sliderThreshold) * 0.01f;
     // NOTE: threshold feeds the ORTHONORMAL metric sqrt(C1^2+C2^2)/Y, which has a
@@ -50,7 +50,7 @@ void Algorithm_Main
     // ---- pass 0: estimate from source, write balanced result to output ------
     GrayEstimate est = collect_gray_estimate(iR, iG, iB, total, threshold, gStatStep);
 
-    float M[9];
+    CACHE_ALIGN float M[9];
     build_correction_matrix_linear(est, algoCtrl, M);
     apply_correction(iR, iG, iB, oR, oG, oB, total, M);
 

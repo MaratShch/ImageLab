@@ -370,7 +370,7 @@ std::vector<int32_t> ftc_utils_segmentation (int32_t* inHist, int32_t inHistSize
 	if (false == isGray)
 	{
 		constexpr size_t histMemSize = sizeof(circularH);
-		memset (circularH, 0, cyclicHistSize);
+		memset (circularH, 0, cyclicHistSize * sizeof(circularH[0]));
 
 		for (i = 0; i < inHistSize; i++)
 			circularH[i] = circularH[i + inHistSize] = circularH[i + 2 * inHistSize] = inHist[i];

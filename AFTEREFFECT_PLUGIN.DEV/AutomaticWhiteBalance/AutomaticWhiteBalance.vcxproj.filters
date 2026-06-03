@@ -161,6 +161,9 @@
     <ClInclude Include="include\AlgorithmMain.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AutomaticWhiteBalance.rc">
