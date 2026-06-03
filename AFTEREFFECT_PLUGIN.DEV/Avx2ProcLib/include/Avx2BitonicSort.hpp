@@ -382,7 +382,7 @@ inline void FullSort_18_elem_8u(__m256i a[18]) noexcept
 	VectorSort8uPacked (a[7 ], a[8 ]);
 	VectorSort8uPacked (a[5 ], a[11]);
 	VectorSort8uPacked (a[6 ], a[12]);
-	VectorSort8uPacked (a[19], a[12]);
+	VectorSort8uPacked (a[9 ], a[12]);
 	VectorSort8uPacked (a[5 ], a[7 ]);
 	VectorSort8uPacked (a[12], a[14]);
 	VectorSort8uPacked (a[3 ], a[5 ]);
@@ -894,7 +894,7 @@ inline void FullSort_18_elem_16u(__m256i a[18]) noexcept
 	VectorSort16uPacked (a[7],  a[8]);
 	VectorSort16uPacked (a[5],  a[11]);
 	VectorSort16uPacked (a[6],  a[12]);
-	VectorSort16uPacked (a[19], a[12]);
+	VectorSort16uPacked (a[9],  a[12]);
 	VectorSort16uPacked (a[5],  a[7]);
 	VectorSort16uPacked (a[12], a[14]);
 	VectorSort16uPacked (a[3],  a[5]);
@@ -1405,7 +1405,7 @@ inline void FullSort_18_elem_32f (__m256 a[18]) noexcept
 	VectorSort32fPacked (a[7],  a[8]);
 	VectorSort32fPacked (a[5],  a[11]);
 	VectorSort32fPacked (a[6],  a[12]);
-	VectorSort32fPacked (a[19], a[12]);
+	VectorSort32fPacked (a[9],  a[12]);
 	VectorSort32fPacked (a[5],  a[7]);
 	VectorSort32fPacked (a[12], a[14]);
 	VectorSort32fPacked (a[3],  a[5]);

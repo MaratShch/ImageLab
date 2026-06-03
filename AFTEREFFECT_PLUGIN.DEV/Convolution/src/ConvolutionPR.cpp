@@ -685,7 +685,7 @@ bool ProcessImgInPR
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
-				bValue = ProcessPrImage_VUYA_4444_32f (in_data, out_data, params, output, choosedKernel, PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
+				bValue = ProcessPrImage_VUYA_4444_32f (in_data, out_data, params, output, choosedKernel, PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
 			break;
 
 			case PrPixelFormat_RGB_444_10u:

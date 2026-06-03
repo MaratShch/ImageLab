@@ -141,7 +141,7 @@ PF_Err NoiseClean_AlgoAnisotropicDiffusion
 			const float fSumB = Gfunction (diffNorthB, noiseLevel) * diffNorthB +
 								Gfunction (diffWestB,  noiseLevel) * diffWestB  +
 								Gfunction (diffEastB,  noiseLevel) * diffEastB  +
-								Gfunction (diffSouthB, noiseLevel) * diffSouthG;
+								Gfunction (diffSouthB, noiseLevel) * diffSouthB;
 
 			const float newR = currentR + fSumR * timeStep;
 			const float newG = currentG + fSumG * timeStep;

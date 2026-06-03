@@ -379,8 +379,8 @@ void RenderKernel_Flow
     {
         len_a = (float)params.DotSize * 0.3f; // Long axis
         len_b = len_a * 0.2f;                 // Short axis (Aspect ratio ~1:3)
-        if (len_a < 3.0f) len_a = 3.0f;
-        if (len_b < 0.75) len_b = 0.75f;
+        if (len_a < 3.0f)  len_a = 3.0f;
+        if (len_b < 0.75f) len_b = 0.75f;
     }
     else
     {

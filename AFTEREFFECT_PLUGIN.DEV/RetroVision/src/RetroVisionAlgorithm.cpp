@@ -95,7 +95,7 @@ inline fRGB HorizontalGaussianBlur
     const fRGB* current,
     A_long left,
     A_long right,
-    std::vector<float> kernel
+    const std::vector<float>& kernel
 )
 {
     fRGB out{};
@@ -114,7 +114,7 @@ inline fRGB VerticalGaussianBlur
     A_long top,
     A_long down,
     A_long pitch,
-    std::vector<float> kernel
+    const std::vector<float>& kernel
 )
 {
     fRGB out{};
