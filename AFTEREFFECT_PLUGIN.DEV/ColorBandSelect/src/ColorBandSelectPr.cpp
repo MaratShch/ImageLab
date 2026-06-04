@@ -201,7 +201,7 @@ PF_Err ColorBandSelect_VUYA_4444_32f
 
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
 	auto const ChannelR = params[COLOR_BAND_CHANNEL_RED]->u.bd.value;
 	auto const ChannelG = params[COLOR_BAND_CHANNEL_GREEN]->u.bd.value;

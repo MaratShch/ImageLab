@@ -717,6 +717,7 @@ PF_Err AE_ImageStyle_CartoonEffect_ARGB_8u
         pTmpStorage = nullptr;
 
     } // if (true == bMemSizeTest)
+    else
 		errCode = PF_Err_OUT_OF_MEMORY;
 
 	return errCode;

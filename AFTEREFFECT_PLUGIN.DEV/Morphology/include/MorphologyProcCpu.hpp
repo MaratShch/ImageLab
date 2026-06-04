@@ -4,9 +4,9 @@
 template <typename T>
 inline T* alloc_tmp_storage
 (
-	const A_long& height,
-	const A_long& pitch,
-	T*&           realPtr
+	const A_long height,
+	const A_long pitch,
+	T*           realPtr
 ) noexcept
 {
 	const A_long linePitch{ std::abs(pitch) };
@@ -38,12 +38,12 @@ inline void Morphology_Erode
 	const T*       __restrict pSrc,
 	T*             __restrict pDst,
 	const SE_Type* __restrict pSe,
-	const A_long&             seSize,
-	const A_long&             height,
-	const A_long&             width,
-	const A_long&             srcPitch,
-	const A_long&             dstPitch,
-	const U&                  compareVal
+	const A_long             seSize,
+	const A_long             height,
+	const A_long             width,
+	const A_long             srcPitch,
+	const A_long             dstPitch,
+	const U                  compareVal
 ) noexcept
 {
 	A_long i, j;
@@ -92,12 +92,12 @@ inline void Morphology_Dilate
 	const T*       __restrict pSrc,
 	T*             __restrict pDst,
 	const SE_Type* __restrict pSe,
-	const A_long&             seSize,
-	const A_long&             height,
-	const A_long&             width,
-	const A_long&             srcPitch,
-	const A_long&             dstPitch,
-	const U&                  compareVal
+	const A_long             seSize,
+	const A_long             height,
+	const A_long             width,
+	const A_long             srcPitch,
+	const A_long             dstPitch,
+	const U                  compareVal
 ) noexcept
 {
 	A_long i, j;
@@ -148,13 +148,13 @@ inline void Morphology_Open /* Erode -> Dilate */
 	const T*       __restrict pSrc,
 	T*             __restrict pDst,
 	const SE_Type* __restrict pSe,
-	const A_long&             seSize,
-	const A_long&             height,
-	const A_long&             width,
-	const A_long&             srcPitch,
-	const A_long&             dstPitch,
-	const U&                  valErode,
-	const U&                  valDilate
+	const A_long             seSize,
+	const A_long             height,
+	const A_long             width,
+	const A_long             srcPitch,
+	const A_long             dstPitch,
+	const U                  valErode,
+	const U                  valDilate
 ) noexcept
 {
 	/* allocate temporary memory storage */
@@ -179,13 +179,13 @@ inline void Morphology_Close /* Dilate -> Erode */
 	const T*       __restrict pSrc,
 	T*             __restrict pDst,
 	const SE_Type* __restrict pSe,
-	const A_long&             seSize,
-	const A_long&             height,
-	const A_long&             width,
-	const A_long&             srcPitch,
-	const A_long&             dstPitch,
-	const U&                  valErode,
-	const U&                  valDilate
+	const A_long             seSize,
+	const A_long             height,
+	const A_long             width,
+	const A_long             srcPitch,
+	const A_long             dstPitch,
+	const U                  valErode,
+	const U                  valDilate
 ) noexcept
 {
 	/* allocate temporary memory storage */
@@ -209,12 +209,12 @@ inline void Morphology_Thin
 	const T*       __restrict pSrc,
 	T*             __restrict pDst,
 	const SE_Type* __restrict pSe,
-	const A_long&             seSize,
-	const A_long&             height,
-	const A_long&             width,
-	const A_long&             srcPitch,
-	const A_long&             dstPitch,
-	const U&                  val
+	const A_long             seSize,
+	const A_long             height,
+	const A_long             width,
+	const A_long             srcPitch,
+	const A_long             dstPitch,
+	const U                  val
 ) noexcept
 {
 	return;
@@ -227,12 +227,12 @@ inline void Morphology_Thick
 	const T*       __restrict pSrc,
 	T*             __restrict pDst,
 	const SE_Type* __restrict pSe,
-	const A_long&             seSize,
-	const A_long&             height,
-	const A_long&             widt,
-	const A_long&             srcPitch,
-	const A_long&             dstPitch,
-	const U&                  val
+	const A_long             seSize,
+	const A_long             height,
+	const A_long             widt,
+	const A_long             srcPitch,
+	const A_long             dstPitch,
+	const U                  val
 ) noexcept
 {
 	return;
@@ -252,12 +252,12 @@ inline void ImgSubtract
 	const T* __restrict pSrc1,
 	const T* __restrict pSrc2,
 	      T* __restrict pDst,
-	const A_long& srcPitch,
-	const A_long& dstPitch,
-	const A_long& sizeX,
-	const A_long& sizeY,
-	const U&      minVal,
-	const U&      maxVal
+	const A_long srcPitch,
+	const A_long dstPitch,
+	const A_long sizeX,
+	const A_long sizeY,
+	const U      minVal,
+	const U      maxVal
 ) noexcept
 {
 	for (A_long j = 0; j < sizeY; j++)
@@ -284,12 +284,12 @@ inline void ImgSubtract
 	const T* __restrict pSrc1,
 	const T* __restrict pSrc2,
 	T* __restrict pDst,
-	const A_long& srcPitch,
-	const A_long& dstPitch,
-	const A_long& sizeX,
-	const A_long& sizeY,
-	const U&      minVal,
-	const U&      maxVal
+	const A_long srcPitch,
+	const A_long dstPitch,
+	const A_long sizeX,
+	const A_long sizeY,
+	const U      minVal,
+	const U      maxVal
 ) noexcept
 {
 	for (A_long j = 0; j < sizeY; j++)
@@ -316,13 +316,13 @@ inline void Morphology_Gradient
 	const T*       __restrict pSrc,
 	T*             __restrict pDst,
 	const SE_Type* __restrict pSe,
-	const A_long&             seSize,
-	const A_long&             height,
-	const A_long&             width,
-	const A_long&             srcPitch,
-	const A_long&             dstPitch,
-	const U&                  valErode, // max
-	const U&                  valDilate // min
+	const A_long             seSize,
+	const A_long             height,
+	const A_long             width,
+	const A_long             srcPitch,
+	const A_long             dstPitch,
+	const U                  valErode, // max
+	const U                  valDilate // min
 ) noexcept
 {
 	/* allocate temporary memory storage */

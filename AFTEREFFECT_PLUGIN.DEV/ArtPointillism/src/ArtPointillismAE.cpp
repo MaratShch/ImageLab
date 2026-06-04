@@ -25,6 +25,7 @@ PF_Err ArtPointilism_InAE_8bits
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
+    const A_long labPitch = sizeX;
 
     MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
     if (true == mem_handler_valid(algoMemHandler))
@@ -36,7 +37,7 @@ PF_Err ArtPointilism_InAE_8bits
 
         const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        AVX2_ConvertRgbToCIELab_SemiPlanar(localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, dst_pitch);
+        AVX2_ConvertRgbToCIELab_SemiPlanar(localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, labPitch);
 
         // execute algorithm
         ArtPointillismAlgorithmExec(algoMemHandler, algoControls, sizeX, sizeY);
@@ -71,7 +72,8 @@ PF_Err ArtPointilism_InAE_16bits
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
-    
+    const A_long labPitch = sizeX;
+
     MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
     if (true == mem_handler_valid(algoMemHandler))
     {
@@ -82,7 +84,7 @@ PF_Err ArtPointilism_InAE_16bits
 
         const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, dst_pitch);
+        AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, labPitch);
 
         // execute algorithm
         ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);
@@ -115,6 +117,7 @@ PF_Err ArtPointilism_InAE_32bits
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
+    const A_long labPitch = sizeX;
 
     PF_Err err = PF_Err_NONE;
 
@@ -128,7 +131,7 @@ PF_Err ArtPointilism_InAE_32bits
 
         const PontillismControls algoControls = GetControlParametersStruct(params);
 
-        AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, dst_pitch);
+        AVX2_ConvertRgbToCIELab_SemiPlanar (localSrc, srcL, srcAB, sizeX, sizeY, src_pitch, labPitch);
 
         // execute algorithm
         ArtPointillismAlgorithmExec (algoMemHandler, algoControls, sizeX, sizeY);

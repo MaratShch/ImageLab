@@ -153,7 +153,7 @@ PF_Err PR_ImageStyle_SketchPencil_VUYA_32f
 
 	auto const& height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const& width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+	auto const& line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
 	constexpr size_t cpuPageSize{ CPU_PAGE_SIZE };
 	auto const singleBufElemSize = width * height;

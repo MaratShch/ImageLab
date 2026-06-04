@@ -279,7 +279,7 @@ inline float cost_monotone(const int32_t* __restrict hist0, int32_t i1, int32_t 
 	CACHE_ALIGN float hist[256]{};
 	CACHE_ALIGN float hMono[256]{};
 
-	const int32_t& L = i2 - i1 + 1;
+	const int32_t L = std::min(i2 - i1 + 1, 256);
 	int32_t i, j;
 
 	for (i = 0; i < L; i++)

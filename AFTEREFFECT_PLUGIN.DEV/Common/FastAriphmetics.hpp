@@ -214,9 +214,9 @@ namespace FastCompute
 	}
 
 	template <typename T>
-	inline constexpr T Pow(const T x) noexcept
+	inline constexpr T Pow (const T x, const T y) noexcept
 	{
-		return std::pow(x);
+		return std::pow(x, y);
 	}
 
 	/* Qubic root for float */

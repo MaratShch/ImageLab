@@ -329,15 +329,15 @@ PF_Err PR_ImageStyle_SketchCharcoal_VUYA_32f
 ) noexcept
 {
     const PF_LayerDef*      __restrict pfLayer = reinterpret_cast<const PF_LayerDef* __restrict>(&params[IMAGE_STYLE_INPUT]->u.ld);
-    const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
-    PF_Pixel_VUYA_8u*       __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
+    const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
+    PF_Pixel_VUYA_32f*       __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
     void* pMemPtr = nullptr;
 
     PF_Err err = PF_Err_NONE;
 
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-    const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+    const A_long line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
     // Allocate memory buffer (triple buffer).
     // We proceed only with LUMA components.
@@ -358,7 +358,7 @@ PF_Err PR_ImageStyle_SketchCharcoal_VUYA_32f
         float* pTmpStorage3 = pTmpStorage2 + frameSize;
 
         // convert RGB to YUV and store only Y (Luma) component normalized to range 0...255 
-        Yuv2Luma_Negate (localSrc, pTmpStorage1, sizeX, sizeY, line_pitch, sizeX, static_cast<float>(u8_value_white), 255.f);
+        Yuv2Luma_Negate (localSrc, pTmpStorage1, sizeX, sizeY, line_pitch, sizeX, f32_value_black, f32_value_white);
 
         // Compute LUMA - gradient and binarize result (final result stored into pTmpStorage1 with overwrite input contant)
         ImageBW_ComputeGradientBin (pTmpStorage1, pTmpStorage2, pTmpStorage3, sizeX, sizeY);
@@ -368,7 +368,7 @@ PF_Err PR_ImageStyle_SketchCharcoal_VUYA_32f
 
         // Final convolution
         constexpr float rangeDown = 1.f / 255.f;
-        ImgConvolution (pTmpStorage2, localSrc, localDst, sizeX, sizeY, line_pitch, sizeX, line_pitch, static_cast<float>(f32_value_white), rangeDown);
+        ImgConvolution (pTmpStorage2, localSrc, localDst, sizeX, sizeY, line_pitch, sizeX, line_pitch, f32_value_white, rangeDown);
 
         // discard memory 
         pTmpStorage1 = pTmpStorage2 = pTmpStorage3 = nullptr;

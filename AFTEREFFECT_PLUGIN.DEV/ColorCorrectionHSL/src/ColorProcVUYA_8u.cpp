@@ -425,7 +425,7 @@ PF_Err prProcessImage_VUYA_4444_8u_HPLuv
 
 	auto const height = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
 	auto const width = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
-	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+	auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
 
 	constexpr float reciproc255 = 1.0f / 255.0f;
 

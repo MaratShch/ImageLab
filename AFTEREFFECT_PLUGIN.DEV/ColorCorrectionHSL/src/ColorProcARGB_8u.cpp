@@ -395,7 +395,7 @@ PF_Err prProcessImage_ARGB_4444_8u_HPLuv
 			float hue, per, luv;
 			
 			/* convert sRGB to HSLuv format */
-			sRgb2hsLuv(R, G, B, hue, per, luv);
+            rgb2hpLuv(R, G, B, hue, per, luv);
 
 			/* add values to HSLuv */
 			auto const newHue = CLAMP_VALUE(hue + add_hue, 0.f, 360.0f);

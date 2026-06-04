@@ -745,6 +745,7 @@ inline void hpLuv2rgb(const float& H, const float& P, const float& Luv, float& R
 	float X, Y, Z;
 
 	/* CONVERT HPLuv to LCH */
+    HSLuv::hpluv2lch (H, P, Luv, L, C, H_);
 
 	/* convert LCH to LUV */
 	HSLuv::lch2luv(L, C, H_, l, u, v);

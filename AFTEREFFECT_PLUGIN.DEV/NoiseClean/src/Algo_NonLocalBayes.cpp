@@ -102,7 +102,7 @@ PF_Err NoiseClean_AlgoNonLocalBayes
 				      PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
 				const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
 				const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-				const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+				const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 				constexpr float fMaxColorValue = 1.0f;
 
 				err = NonLocalBayes_YUV_Processing(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, algoParamSet1, algoParamSet2, fMaxColorValue);

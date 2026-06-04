@@ -194,9 +194,9 @@ inline std::pair<U, U> Convert2PixComponents
             U u, v;
             xy_to_uv (x, y, u, v);
             
-            pDst[i].Y = xyz.Y;
-            pDst[i].u = u;
-            pDst[i].v = v;
+            pDstLine[i].Y = xyz.Y;
+            pDstLine[i].u = u;
+            pDstLine[i].v = v;
 
             accumY  += xyz.Y;
             accumYu += (xyz.Y * u);

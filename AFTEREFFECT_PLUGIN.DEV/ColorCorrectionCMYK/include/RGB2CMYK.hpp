@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include "CompileTimeUtils.hpp"
 
 template<typename T>
@@ -7,19 +8,25 @@ inline const typename std::enable_if<std::is_floating_point<T>::value>::type
 #ifdef __NVCC__
 __device__
 #endif
-rgb_to_cmyk (const T& R, const T& G, const T& B, T& C, T& M, T& Y, T& K) noexcept
+rgb_to_cmyk (const T R, const T G, const T B, T& C, T& M, T& Y, T& K) noexcept
 {
 	constexpr T One = static_cast<T>(1);
-	T const& k = One - MAX3_VALUE(R, G, B);
-	T const& ReciprocOneMinusK = One / (One - k);
+	T const k = One - MAX3_VALUE(R, G, B);
+    T const diff = One - k;
 
-	T const& c = (One - R - k) * ReciprocOneMinusK;
-	T const& m = (One - G - k) * ReciprocOneMinusK;
-	T const& y = (One - B - k) * ReciprocOneMinusK;
+    if (std::abs(diff) < FLT_EPSILON)
+    {
+        T const ReciprocOneMinusK = One / (One - k);
 
-	C = c;
-	M = m;
-	Y = y;
+        T const c = (One - R - k) * ReciprocOneMinusK;
+        T const m = (One - G - k) * ReciprocOneMinusK;
+        T const y = (One - B - k) * ReciprocOneMinusK;
+
+        C = c;
+        M = m;
+        Y = y;
+    }
+    C = M = Y = 0.f;
 	K = k;
 
 	return;
@@ -31,7 +38,7 @@ inline const typename std::enable_if<std::is_floating_point<T>::value>::type
 #ifdef __NVCC__
 __device__
 #endif
-cmyk_to_rgb (const T& C, const T& M, const T& Y, const T& K, T& R, T& G, T& B) noexcept
+cmyk_to_rgb (const T C, const T M, const T Y, const T K, T& R, T& G, T& B) noexcept
 {
 	constexpr T One = static_cast<T>(1);
 	T const& OneMinusC = One - C;

@@ -1,5 +1,6 @@
 #include "FastAriphmetics.hpp"
 #include "PaintAlgoAVX2.hpp"
+#include "CompileTimeUtils.hpp"
 
 void compute_initial_tensors_fused_AVX2
 (
@@ -380,7 +381,9 @@ void smooth_structure_tensors_AVX2
     float* RESTRICT tmpBlur // Passed from MemHandler
 ) noexcept
 {
-    CACHE_ALIGN float kernel[128];
+    constexpr size_t maxRadius = static_cast<size_t>(2.f * sigmaMax + 0.5f);
+    constexpr size_t maxKernelSize = CreateAlignment(2 * maxRadius + 1, static_cast<size_t>(128));
+    CACHE_ALIGN float kernel[maxKernelSize];
 
     const A_long radius = static_cast<A_long>(std::ceil(2.f * sigma));
     const A_long kernelSize = 2 * radius + 1;

@@ -52,7 +52,7 @@ namespace AVX2
 			{
 				__m256 srcVec = _mm256_cvtepi32_ps(_mm256_loadu_si256(reinterpret_cast<const __m256i* __restrict>(&pCumSum[i])));
 				__m256 outVec = _mm256_mul_ps(srcVec, fMult);
-				_mm256_store_ps(&pLut[i], outVec);
+				_mm256_storeu_ps(&pLut[i], outVec);
 			}
 			return;
 		}

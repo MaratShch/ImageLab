@@ -593,7 +593,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_8u
         blockId = -1;
     }
     else
-        errCode = PF_Err_OUT_OF_MEMORY;
+        errCode = errCode;
 
 	return PF_Err_NONE;
 }
@@ -682,7 +682,7 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_16u
     else
         errCode = PF_Err_OUT_OF_MEMORY;
 
-	return PF_Err_NONE;
+	return errCode;
 }
 
 
@@ -701,8 +701,8 @@ PF_Err AE_ImageStyle_PaintArt_ARGB_32f
 
     const A_long height = output->height;
     const A_long width = output->width;
-    const A_long src_line_pitch = input->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-    const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+    const A_long src_line_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+    const A_long dst_line_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
     constexpr float normalizer = 255.f;
     constexpr float reciproc180 = 1.0f / 180.0f;

@@ -42,7 +42,7 @@ void AVX2::ColorConvert::BGRA8u_to_VUYA8u
 			(
 				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::yR +
 				static_cast<int32_t>(pSrcScalar[x].G) * InternalColorConvert::yG +
-				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::yB
+				static_cast<int32_t>(pSrcScalar[x].B) * InternalColorConvert::yB
 			) >> InternalColorConvert::Shift;
 
 			pDstScalar[x].U =
@@ -52,7 +52,7 @@ void AVX2::ColorConvert::BGRA8u_to_VUYA8u
 				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::uB
 			) >> InternalColorConvert::Shift;
 
-			pDstScalar[x].U =
+			pDstScalar[x].V =
 			(
 				static_cast<int32_t>(pSrcScalar[x].R) * InternalColorConvert::vR +
 				static_cast<int32_t>(pSrcScalar[x].G) * InternalColorConvert::vG +
