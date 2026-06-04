@@ -129,13 +129,13 @@ ImageLabDenoise_SmartRender
                                   PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
                             // convert to planar YUV Ortonormal color space
-                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_8u);
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_32f);
 
                             // execute algorithm
                             Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
                             // back convert to native buffer format after processing complete
-                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_8u);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_32f);
                         }
                         break;
 
@@ -167,13 +167,13 @@ ImageLabDenoise_SmartRender
                                   PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
                             // convert to planar YUV Ortonormal color space
-                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_32f);
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_8u);
 
                             // execute algorithm
                             Algorithm_Main (algoMemHandler, sizeX, sizeY, *pFilterStrParams);
 
                             // back convert to native buffer format after processing complete
-                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_32f);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_8u);
                         }
                         break;
 

@@ -4,7 +4,11 @@
 #include "CompileTimeUtils.hpp"
 #include "AlgCommonFunctions.hpp"
 #include "AlgCorrectionMatrix.hpp"
+#include "AlgoMemHandler.hpp"
 #include "CommonSmartRender.hpp"
+#include "AlgConvertDispatcher.hpp"
+#include "AlgConvertDispatcherOut.hpp"
+#include "AlgorithmMain.hpp"
 #include "AE_Effect.h"
 
 
@@ -16,14 +20,13 @@ AuthomaticWhiteBalance_PreRender
     PF_PreRenderExtra	*extra
 ) 
 {
-    AWB_SmartRenderParams renderParams{};
     PF_Err err = PF_Err_NONE;
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
-    PF_Handle paramsHandler = handleSuite->host_new_handle(AWB_SmartRenderParamsSize);
+    PF_Handle paramsHandler = handleSuite->host_new_handle(sizeof(AlgoControls));
     if (nullptr != paramsHandler)
     {
-        PAWB_SmartRenderParams paramsStrP = reinterpret_cast<PAWB_SmartRenderParams>(handleSuite->host_lock_handle(paramsHandler));
+        AlgoControls* paramsStrP = reinterpret_cast<AlgoControls*>(handleSuite->host_lock_handle(paramsHandler));
         if (nullptr != paramsStrP)
         {
             extra->output->pre_render_data = paramsHandler;
@@ -34,27 +37,31 @@ AuthomaticWhiteBalance_PreRender
             PF_ParamDef param_GrayThreshold{};
             PF_ParamDef param_IterationsNumber{};
 
-            const PF_Err errParam1 = PF_CHECKOUT_PARAM(in_data, AWB_ILLUMINATE_POPUP,  in_data->current_time, in_data->time_step, in_data->time_scale, &param_Illuminant);
-            const PF_Err errParam2 = PF_CHECKOUT_PARAM(in_data, AWB_CHROMATIC_POPUP,   in_data->current_time, in_data->time_step, in_data->time_scale, &param_Chromatic);
-            const PF_Err errParam3 = PF_CHECKOUT_PARAM(in_data, AWB_COLOR_SPACE_POPUP, in_data->current_time, in_data->time_step, in_data->time_scale, &param_ColorSpace);
-            const PF_Err errParam4 = PF_CHECKOUT_PARAM(in_data, AWB_THRESHOLD_SLIDER,  in_data->current_time, in_data->time_step, in_data->time_scale, &param_GrayThreshold);
-            const PF_Err errParam5 = PF_CHECKOUT_PARAM(in_data, AWB_ITERATIONS_SLIDER, in_data->current_time, in_data->time_step, in_data->time_scale, &param_IterationsNumber);
+            const A_long current_time = in_data->current_time;
+            const A_long time_step    = in_data->time_step;
+            const A_long time_scale   = in_data->time_scale;
+                           
+            const PF_Err errParam1 = PF_CHECKOUT_PARAM(in_data, AWB_ILLUMINATE_POPUP,  current_time, time_step, time_scale, &param_Illuminant);
+            const PF_Err errParam2 = PF_CHECKOUT_PARAM(in_data, AWB_CHROMATIC_POPUP,   current_time, time_step, time_scale, &param_Chromatic);
+            const PF_Err errParam3 = PF_CHECKOUT_PARAM(in_data, AWB_COLOR_SPACE_POPUP, current_time, time_step, time_scale, &param_ColorSpace);
+            const PF_Err errParam4 = PF_CHECKOUT_PARAM(in_data, AWB_THRESHOLD_SLIDER,  current_time, time_step, time_scale, &param_GrayThreshold);
+            const PF_Err errParam5 = PF_CHECKOUT_PARAM(in_data, AWB_ITERATIONS_SLIDER, current_time, time_step, time_scale, &param_IterationsNumber);
 
             if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2 && PF_Err_NONE == errParam3 && PF_Err_NONE == errParam4 && PF_Err_NONE == errParam5)
             {
-                paramsStrP->srParam_Illuminant        =  CLAMP_VALUE(static_cast<eILLUMINATE>(param_Illuminant.u.pd.value), DAYLIGHT, COOL_WHITE_FLUORESCENT);
-                paramsStrP->srParam_ChromaticAdapt    =  CLAMP_VALUE(static_cast<eChromaticAdaptation>(param_Chromatic.u.pd.value), CHROMATIC_CAT02, CHROMATIC_CMCCAT2000);
-                paramsStrP->srParam_ColorSpace        =  CLAMP_VALUE(static_cast<eCOLOR_SPACE>(param_ColorSpace.u.pd.value), BT601, SMPTE240M);
-                paramsStrP->srParam_GrayThreshold     = static_cast<float>(CLAMP_VALUE(static_cast<int32_t>(param_GrayThreshold.u.sd.value), gMinGrayThreshold, gMaxGrayThreshold)) / 100.f;
-                paramsStrP->srParam_ItrerationsNumber =  CLAMP_VALUE(static_cast<int32_t>(param_IterationsNumber.u.sd.value), iterMinCnt, iterMaxCnt);
+                paramsStrP->illuminate      = CLAMP_VALUE(static_cast<eILLUMINATE>(param_Illuminant.u.pd.value - 1), DAYLIGHT, COOL_WHITE_FLUORESCENT);
+                paramsStrP->chromatic       = CLAMP_VALUE(static_cast<eChromaticAdaptation>(param_Chromatic.u.pd.value - 1), CHROMATIC_CAT02, CHROMATIC_CMCCAT2000);
+                paramsStrP->colorSpace      = CLAMP_VALUE(static_cast<eCOLOR_SPACE>(param_ColorSpace.u.pd.value - 1), BT601, SMPTE240M);
+                paramsStrP->sliderThreshold = static_cast<float>(CLAMP_VALUE(static_cast<int32_t>(param_GrayThreshold.u.sd.value), gMinGrayThreshold, gMaxGrayThreshold));
+                paramsStrP->sliderIterCnt   = CLAMP_VALUE(static_cast<int32_t>(param_IterationsNumber.u.sd.value), iterMinCnt, iterMaxCnt);
             } // if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2 ... )
             else
             {
-                paramsStrP->srParam_Illuminant        = DAYLIGHT;
-                paramsStrP->srParam_ChromaticAdapt    = CHROMATIC_CAT02;
-                paramsStrP->srParam_ColorSpace        = BT709;
-                paramsStrP->srParam_GrayThreshold     = static_cast<float>(gDefGrayThreshold) / 100.f;
-                paramsStrP->srParam_ItrerationsNumber = iterDefCnt;
+                paramsStrP->illuminate      = DAYLIGHT;
+                paramsStrP->chromatic       = CHROMATIC_CAT02;
+                paramsStrP->colorSpace      = BT709;
+                paramsStrP->sliderThreshold = static_cast<float>(gDefGrayThreshold);
+                paramsStrP->sliderIterCnt   = iterDefCnt;
             }
 
             PF_RenderRequest req = extra->input->output_request;
@@ -93,7 +100,7 @@ AuthomaticWhiteBalance_SmartRender
     PF_Err	err = PF_Err_NONE;
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
-    const PAWB_SmartRenderParams pAWBStrParams = reinterpret_cast<const PAWB_SmartRenderParams>(handleSuite->host_lock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data)));
+    const AlgoControls* pAWBStrParams = reinterpret_cast<const AlgoControls*>(handleSuite->host_lock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data)));
 
     if (nullptr != pAWBStrParams)
     {
@@ -106,52 +113,72 @@ AuthomaticWhiteBalance_SmartRender
             const A_long sizeY = input_worldP->height;
             const A_long srcRowBytes = input_worldP->rowbytes;  // Get input buffer pitch in bytes
             const A_long dstRowBytes = output_worldP->rowbytes; // Get output buffer pitch in bytes
+            const A_long iterCnt = pAWBStrParams->sliderIterCnt;
 
-            PF_PixelFormat format = PF_PixelFormat_INVALID;
-            AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
-            if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+            MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, iterCnt);
+            if (true == mem_handler_valid(algoMemHandler))
             {
-                switch (format)
+                PF_PixelFormat format = PF_PixelFormat_INVALID;
+                AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
+                if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
                 {
-                    case PF_PixelFormat_ARGB128:
+                    switch (format)
                     {
-                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
-                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                        case PF_PixelFormat_ARGB128:
+                        {
+                            const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                            const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                        PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
-                        PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+                            const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                                  PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
-                    }
-                    break;
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::BGRA_32f);
+                            Algorithm_Main (algoMemHandler, sizeX, sizeY, *pAWBStrParams);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::BGRA_32f);
+                        }
+                        break;
 
-                    case PF_PixelFormat_ARGB64:
-                    {
-                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
-                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                        case PF_PixelFormat_ARGB64:
+                        {
+                            const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                            const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-                        PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
-                        PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
+                            const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
+                                  PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
-                    }
-                    break;
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::BGRA_16u);
+                            Algorithm_Main (algoMemHandler, sizeX, sizeY, *pAWBStrParams);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::BGRA_16u);
+                        }
+                        break;
 
-                    case PF_PixelFormat_ARGB32:
-                    {
-                        const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
-                        const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                        case PF_PixelFormat_ARGB32:
+                        {
+                            const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                            const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-                        PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
-                        PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
+                            const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
+                                  PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
 
-                    }
-                    break;
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::BGRA_8u);
+                            Algorithm_Main (algoMemHandler, sizeX, sizeY, *pAWBStrParams);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::BGRA_8u);
+                        }
+                        break;
 
-                    default:
-                        err = PF_Err_BAD_CALLBACK_PARAM;
-                    break;
-                } // switch (format)
+                        default:
+                            err = PF_Err_BAD_CALLBACK_PARAM;
+                        break;
+                    } // switch (format)
 
-            } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+                } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+                else
+                    err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+                free_memory_buffers (algoMemHandler);
+            }
+            else
+                err = PF_Err_OUT_OF_MEMORY;
 
             ERR(extraP->cb->checkin_layer_pixels(in_data->effect_ref, AWB_INPUT));
 

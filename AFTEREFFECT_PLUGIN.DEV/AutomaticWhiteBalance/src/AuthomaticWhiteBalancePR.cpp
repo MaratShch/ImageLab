@@ -21,7 +21,9 @@ PF_Err ProcessImgInPR
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
 
-    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    const AlgoControls algoControls = GetControlParametersStruct(params);
+
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, algoControls.sliderIterCnt);
     if (true == mem_handler_valid(algoMemHandler))
     {
         // This plugin called frop PR - check video fomat
@@ -29,8 +31,6 @@ PF_Err ProcessImgInPR
 
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
-            const AlgoControls algoControls = GetControlParametersStruct(params);
-
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:

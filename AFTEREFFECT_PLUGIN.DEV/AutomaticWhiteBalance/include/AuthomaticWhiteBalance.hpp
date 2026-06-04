@@ -11,7 +11,7 @@ constexpr int AWB_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int AWB_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int AWB_VersionSub = 0;
 #ifdef _DEBUG
-constexpr int AWB_VersionStage = PF_Stage_DEVELOP;
+constexpr int AWB_VersionStage = PF_Stage_RELEASE;// PF_Stage_DEVELOP;
 #else
 constexpr int AWB_VersionStage = PF_Stage_RELEASE;
 #endif
@@ -100,17 +100,6 @@ AuthomaticWhiteBalance_SmartRender
     PF_SmartRenderExtra		*extraP
 );
 
-// structure for SmartRender parameters
-typedef struct
-{
-    eILLUMINATE          srParam_Illuminant;
-    eChromaticAdaptation srParam_ChromaticAdapt;
-    eCOLOR_SPACE         srParam_ColorSpace;
-    float                srParam_GrayThreshold;
-    int32_t              srParam_ItrerationsNumber;
-} AWB_SmartRenderParams, *PAWB_SmartRenderParams;
 
 AlgoControls getAlgoControlsDefault(void);
 AlgoControls GetControlParametersStruct(PF_ParamDef* params[]);
-
-constexpr size_t AWB_SmartRenderParamsSize = sizeof(AWB_SmartRenderParams);
