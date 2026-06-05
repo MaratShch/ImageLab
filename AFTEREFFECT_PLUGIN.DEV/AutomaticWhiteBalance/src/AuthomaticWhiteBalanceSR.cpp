@@ -132,9 +132,9 @@ AuthomaticWhiteBalance_SmartRender
                             const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
                                   PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
-                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::BGRA_32f);
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_32f);
                             Algorithm_Main (algoMemHandler, sizeX, sizeY, *pAWBStrParams);
-                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::BGRA_32f);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_32f);
                         }
                         break;
 
@@ -146,9 +146,9 @@ AuthomaticWhiteBalance_SmartRender
                             const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
                                   PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
-                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::BGRA_16u);
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_16u);
                             Algorithm_Main (algoMemHandler, sizeX, sizeY, *pAWBStrParams);
-                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::BGRA_16u);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_16u);
                         }
                         break;
 
@@ -160,9 +160,9 @@ AuthomaticWhiteBalance_SmartRender
                             const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
                                   PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
 
-                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::BGRA_8u);
+                            dispatch_convert_to_planar (input_pixels, algoMemHandler, sizeX, sizeY, srcPitch, PixelFormat::ARGB_8u);
                             Algorithm_Main (algoMemHandler, sizeX, sizeY, *pAWBStrParams);
-                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::BGRA_8u);
+                            dispatch_convert_to_interleaved (algoMemHandler, input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, PixelFormat::ARGB_8u);
                         }
                         break;
 
