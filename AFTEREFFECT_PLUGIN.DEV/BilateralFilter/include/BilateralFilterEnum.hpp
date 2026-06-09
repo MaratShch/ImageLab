@@ -8,7 +8,7 @@ typedef enum {
 	eBILATERAL_FILTER_RADIUS,
     eBILATERAL_FILTER_SIGMA,
     eBILATERAL_TOTAL_CONTROLS
-}eAVERAGE_FILTER_ITEMS;
+}eBILATERAL_FILTER_ITEMS;
 
 
 constexpr char FilterWindowSizeStr[]   = "Filter Radius";

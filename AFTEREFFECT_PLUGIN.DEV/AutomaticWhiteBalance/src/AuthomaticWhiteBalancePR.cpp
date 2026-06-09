@@ -26,7 +26,7 @@ PF_Err ProcessImgInPR
     MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, algoControls.sliderIterCnt);
     if (true == mem_handler_valid(algoMemHandler))
     {
-        // This plugin called frop PR - check video fomat
+        // This plugin called frop PR - check video format
         auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))

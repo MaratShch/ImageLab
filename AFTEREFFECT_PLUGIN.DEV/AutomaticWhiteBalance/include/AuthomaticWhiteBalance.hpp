@@ -18,7 +18,7 @@ constexpr int AWB_VersionStage = PF_Stage_RELEASE;
 constexpr int AWB_VersionBuild = 1;
 
 constexpr char strName[] = "Automatic White Balance";
-constexpr char strCopyright[] = "\n2019-2025. ImageLab2 Copyright(c).\rAutomatic White Balance based on gray-point algorithm.";
+constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rAutomatic White Balance based on gray-point algorithm.";
 
 constexpr char ILLUMINATE_NAME[] = "Illuminate";
 
