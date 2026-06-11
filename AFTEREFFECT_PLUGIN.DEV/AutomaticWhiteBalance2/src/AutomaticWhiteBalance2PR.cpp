@@ -36,7 +36,7 @@ PF_Err ProcessImgInPR
                 }
                 break;
 
-                case PrPixelFormat_BGRP_4444_8u:
+                case PrPixelFormat_BGRA_4444_16u:
                 {
                 }
                 break;
@@ -46,32 +46,7 @@ PF_Err ProcessImgInPR
                 }
                 break;
 
-                case PrPixelFormat_BGRA_4444_16u:
-                {
-                }
-                break;
-
-                case PrPixelFormat_BGRP_4444_16u:
-                {
-                }
-                break;
-
-                case PrPixelFormat_BGRX_4444_16u:
-                {
-                }
-                break;
-
                 case PrPixelFormat_BGRA_4444_32f:
-                {
-                }
-                break;
-
-                case PrPixelFormat_BGRP_4444_32f:
-                {
-                }
-                break;
-
-                case PrPixelFormat_BGRX_4444_32f:
                 {
                 }
                 break;
@@ -81,7 +56,32 @@ PF_Err ProcessImgInPR
                 }
                 break;
 
+                case PrPixelFormat_BGRP_4444_8u:
+                {
+                }
+                break;
+
+                case PrPixelFormat_BGRP_4444_16u:
+                {
+                }
+                break;
+
+                case PrPixelFormat_BGRP_4444_32f:
+                {
+                }
+                break;
+
                 case PrPixelFormat_BGRP_4444_32f_Linear:
+                {
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_16u:
+                {
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_32f:
                 {
                 }
                 break;
@@ -91,27 +91,12 @@ PF_Err ProcessImgInPR
                 }
                 break;
 
-                case PrPixelFormat_VUYA_4444_8u:
-                {
-                }
-                break;
-
                 case PrPixelFormat_VUYA_4444_8u_709:
                 {
                 }
                 break;
 
-                case PrPixelFormat_VUYP_4444_8u:
-                {
-                }
-                break;
-
-                case PrPixelFormat_VUYP_4444_8u_709:
-                {
-                }
-                break;
-
-                case PrPixelFormat_VUYA_4444_32f:
+                case PrPixelFormat_VUYA_4444_8u:
                 {
                 }
                 break;
@@ -121,12 +106,47 @@ PF_Err ProcessImgInPR
                 }
                 break;
 
-                case PrPixelFormat_VUYP_4444_32f:
+                case PrPixelFormat_VUYA_4444_32f:
+                {
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_8u_709:
+                {
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_8u:
                 {
                 }
                 break;
 
                 case PrPixelFormat_VUYP_4444_32f_709:
+                {
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_32f:
+                {
+                }
+                break;
+
+                case PrPixelFormat_VUYX_4444_8u_709:
+                {
+                }
+                break;
+
+                case PrPixelFormat_VUYX_4444_8u:
+                {
+                }
+                break;
+
+                case PrPixelFormat_VUYX_4444_32f_709:
+                {
+                }
+                break;
+
+                case PrPixelFormat_VUYX_4444_32f:
                 {
                 }
                 break;
@@ -147,6 +167,31 @@ PF_Err ProcessImgInPR
                 break;
 
                 case PrPixelFormat_ARGB_4444_32f:
+                {
+                }
+                break;
+
+                case PrPixelFormat_PRGB_4444_32f:
+                {
+                }
+                break;
+
+                case PrPixelFormat_XRGB_4444_32f:
+                {
+                }
+                break;
+
+                case PrPixelFormat_ARGB_4444_32f_Linear:
+                {
+                }
+                break;
+
+                case PrPixelFormat_PRGB_4444_32f_Linear:
+                {
+                }
+                break;
+
+                case PrPixelFormat_XRGB_4444_32f_Linear:
                 {
                 }
                 break;

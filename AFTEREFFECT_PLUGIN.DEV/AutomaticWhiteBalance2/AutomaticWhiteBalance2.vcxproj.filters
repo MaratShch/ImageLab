@@ -103,13 +103,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="AutomaticWhiteBalance2.r">
-      <Filter>resource</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="AutomaticWhiteBalance2.rc">
       <Filter>resource</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="AutomaticWhiteBalance2.r">
+      <Filter>resource</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
