@@ -271,6 +271,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FilmSimulation", "FilmSimulation", "{154DCF49-3C27-412D-A238-CCBF93350E06}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AutomaticWhiteBalance2", "AutomaticWhiteBalance2\AutomaticWhiteBalance2.vcxproj", "{C21082F0-602D-4F8C-A2D0-9B52C2727943}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D266F837-A6FD-48CD-820D-578816B7AC3D} = {D266F837-A6FD-48CD-820D-578816B7AC3D}
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AutomaticWhiteBalance2", "AutomaticWhiteBalance2", "{9C7238A2-40CD-4A31-9645-B93ED3700F5B}"
 EndProject

@@ -87,6 +87,33 @@
     <ClInclude Include="include\AutomaticWhiteBalance2Enum.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgCommonEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgCommonFunctions.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgCorrectionMatrix.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControl.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgorithmMain.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AwbCorrection.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AwbEgressBGRA.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AwbHostConvert.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AutomaticWhiteBalance2.cpp">
@@ -99,6 +126,15 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AutomaticWhiteBalance2SR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgorithmMain_PCA.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AwbCorrection.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AwbHostConvert.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

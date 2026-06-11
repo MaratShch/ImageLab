@@ -27,26 +27,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
@@ -93,6 +93,8 @@
       <AdditionalIncludeDirectories>include;include\CUDA;..\Common;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\adobesdk;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Headers\SP;$(ADOBE_AFTEREFFECT_SDK_ROOT)\Examples\Util;..\CommonGPULib\include;$(ADOBE_PREMIER_SDK_ROOT)\Examples\Headers;$(CUDA_PATH)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -119,6 +121,9 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -147,14 +152,26 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgCommonEnums.hpp" />
+    <ClInclude Include="include\AlgCommonFunctions.hpp" />
+    <ClInclude Include="include\AlgCorrectionMatrix.hpp" />
+    <ClInclude Include="include\AlgoControl.hpp" />
+    <ClInclude Include="include\AlgoMemHandler.hpp" />
+    <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\AutomaticWhiteBalance2.hpp" />
     <ClInclude Include="include\AutomaticWhiteBalance2Enum.hpp" />
+    <ClInclude Include="include\AwbCorrection.hpp" />
+    <ClInclude Include="include\AwbEgressBGRA.hpp" />
+    <ClInclude Include="include\AwbHostConvert.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgorithmMain_PCA.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalance2.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalance2AE.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalance2PR.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalance2SR.cpp" />
+    <ClCompile Include="src\AwbCorrection.cpp" />
+    <ClCompile Include="src\AwbHostConvert.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="AutomaticWhiteBalance2.r">
