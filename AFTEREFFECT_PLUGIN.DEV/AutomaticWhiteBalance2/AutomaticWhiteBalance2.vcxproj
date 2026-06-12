@@ -161,10 +161,11 @@
     <ClInclude Include="include\AutomaticWhiteBalance2.hpp" />
     <ClInclude Include="include\AutomaticWhiteBalance2Enum.hpp" />
     <ClInclude Include="include\AwbCorrection.hpp" />
-    <ClInclude Include="include\AwbEgressBGRA.hpp" />
     <ClInclude Include="include\AwbHostConvert.hpp" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoMemHandler.cpp" />
     <ClCompile Include="src\AlgorithmMain_PCA.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalance2.cpp" />
     <ClCompile Include="src\AutomaticWhiteBalance2AE.cpp" />
@@ -172,6 +173,7 @@
     <ClCompile Include="src\AutomaticWhiteBalance2SR.cpp" />
     <ClCompile Include="src\AwbCorrection.cpp" />
     <ClCompile Include="src\AwbHostConvert.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="AutomaticWhiteBalance2.r">

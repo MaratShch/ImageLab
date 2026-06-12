@@ -108,10 +108,10 @@
     <ClInclude Include="include\AwbCorrection.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AwbEgressBGRA.hpp">
+    <ClInclude Include="include\AwbHostConvert.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AwbHostConvert.hpp">
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -135,6 +135,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AwbHostConvert.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoMemHandler.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
