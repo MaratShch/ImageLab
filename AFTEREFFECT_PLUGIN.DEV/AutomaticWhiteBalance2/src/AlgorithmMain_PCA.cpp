@@ -23,6 +23,7 @@
 #include "AlgoControl.hpp"
 #include "AlgorithmMain.hpp"
 #include "AwbCorrection.hpp"   // AwbEstimate, build_correction_matrix_linear, apply_correction
+#include "AlgorithmEnums.hpp"
 
 namespace
 {
@@ -228,7 +229,7 @@ void Algorithm_Main
     const AlgoControls&   params
 ) noexcept
 {
-    if (!mem_handler_valid(memHandler) || sizeX <= 0 || sizeY <= 0)
+    if (false == mem_handler_valid(memHandler))
         return;
 
     const int64_t total = static_cast<int64_t>(sizeX) * static_cast<int64_t>(sizeY);
@@ -240,9 +241,9 @@ void Algorithm_Main
     float* RESTRICT oG = memHandler.output.G;
     float* RESTRICT oB = memHandler.output.B;
 
-    const float fraction = clampf(params.percentExtremePixels, 1.0f, 10.0f) * 0.01f;
-    const float satThr   = clampf(params.saturationThreshold,  0.80f, 1.00f);
-    const float blackY   = clampf(params.blackLevelThreshold,  0.00f, 0.10f);
+    const float fraction = clampf(params.percentExtremePixels, extremePixMin, extremePixMax) * 0.01f;
+    const float satThr   = clampf(params.saturationThreshold,  saturationThrMin, saturationThrMax);
+    const float blackY   = clampf(params.blackLevelThreshold,  blackLevelThresholdMin, blackLevelThresholdMax);
 
     // luminance weights follow the selected colorSpace (RGB2YUV luma row)
     int csIdx = static_cast<int>(params.colorSpace);

@@ -1,6 +1,7 @@
 #include "AutomaticWhiteBalance2.hpp"
+#include "AlgorithmEnums.hpp"
 #include "PrSDKAESupport.h"
-
+#include "ImageLabMemInterface.hpp"
 
 
 static PF_Err
@@ -29,7 +30,8 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     constexpr PF_OutFlags out_flags1 =
         PF_OutFlag_PIX_INDEPENDENT       |
@@ -65,41 +67,41 @@ GlobalSetup(
         (*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_16u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f_Linear);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_16u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f_Linear);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f_709);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f_Linear);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f_Linear);
-        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f_Linear);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_8u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_16u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f_Linear);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_8u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_16u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f_Linear);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u_709);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f_709);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u_709);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f_709);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f_Linear);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f_Linear);
+//        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f_Linear);
     }
 
-	return err;
+	return PF_Err_NONE;
 }
 
 
@@ -110,8 +112,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
 }
 
 
@@ -123,8 +125,78 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    CACHE_ALIGN PF_ParamDef	def{};
+    PF_Err		err = PF_Err_NONE;
 
-	return PF_Err_NONE;
+    constexpr PF_ParamFlags popup_flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags popup_ui_flags = PF_PUI_NONE;
+
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
+    PF_ADD_POPUP(
+        strCtrlNames[0],		                                            // pop-up name
+        gTotalNumbersOfColorSpaces,	                                        // number of Color Spaces
+        gDefNumberOfColorSpace,		                                        // default color space
+        strColorSpace,    		                                            // string for pop-up
+        UnderlyingType(eImageLab2AWB_Controls::AWB2_COLOR_SPACE_POPUP));	// control ID
+
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
+    PF_ADD_POPUP(
+        strCtrlNames[1],		                                            // pop-up name
+        UnderlyingType(eILLUMINATE::TOTAL_ILLUMINANTES),		            // number of Illuminates
+        UnderlyingType(eILLUMINATE::DAYLIGHT),                              // default Illumnat
+        strIlluminantName,			                                        // string for pop-up
+        UnderlyingType(eImageLab2AWB_Controls::AWB2_ILLUMINATE_POPUP));	    // control ID
+
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
+    PF_ADD_POPUP(
+        strCtrlNames[2],                                                    // pop-up name
+        UnderlyingType(eChromaticAdaptation::TOTAL_CHROMATIC),		        // number of Illuminates
+        UnderlyingType(eChromaticAdaptation::CHROMATIC_CAT02),              // default Illumnat
+        strChtomaticAdaptation,			                                    // string for pop-up
+        UnderlyingType(eImageLab2AWB_Controls::AWB2_CHROMATIC_POPUP));	    // control ID
+
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        strCtrlNames[3],                                                    // pop-up name
+        extremePixMin,
+        extremePixMax,
+        extremePixMin,
+        extremePixMax,
+        extremePixDef,
+        PF_Precision_TENTHS,
+        0,
+        0,
+        UnderlyingType(eImageLab2AWB_Controls::AWB2_EXTERME_PIXELS));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        strCtrlNames[4],                                                    // pop-up name
+        saturationThrMin,
+        saturationThrMax,
+        saturationThrMin,
+        saturationThrMax,
+        saturationThrDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(eImageLab2AWB_Controls::AWB2_SATRURATION_THRESHOLD));
+
+    AEFX_INIT_PARAM_STRUCTURE(def, popup_flags, popup_ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        strCtrlNames[5],                                                    // pop-up name
+        blackLevelThresholdMin,
+        blackLevelThresholdMax,
+        blackLevelThresholdMin,
+        blackLevelThresholdMax,
+        blackLevelThresholdDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(eImageLab2AWB_Controls::AWB2_BLACK_LEVEL_THRESHOLD));
+
+    out_data->num_params = UnderlyingType(eImageLab2AWB_Controls::AWB2_TOTAL_CONTROLS);
+
+	return err;
 }
 
 

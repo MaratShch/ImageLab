@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <algorithm>
 #include "ColorTransformMatrix.hpp"
-#include "AlgCommonEnums.hpp"
+#include "AlgorithmEnums.hpp"
+#include "AE_Effect.h"
+
 
 /**
  * @brief Configuration parameters for the PCA-Based Automatic White Balance algorithm.
@@ -21,19 +23,19 @@ struct AlgoControls
      * @brief The color standard of the input/output image (determines linearization curve).
      * @default BT709
      */
-    eCOLOR_SPACE colorSpace = BT709;
+    eCOLOR_SPACE colorSpace = eCOLOR_SPACE::BT709;
 
     /**
      * @brief Chromatic adaptation transform model used to perform the white balance shift.
      * @default CHROMATIC_BRADFORD
      */
-    eChromaticAdaptation chromatic = CHROMATIC_BRADFORD;
+    eChromaticAdaptation chromatic = eChromaticAdaptation::CHROMATIC_BRADFORD;
 
     /**
      * @brief Target white point / illuminate to map the estimated light source to.
      * @default DAYLIGHT (D65)
      */
-    eILLUMINATE illuminate = DAYLIGHT;
+    eILLUMINATE illuminate = eILLUMINATE::DAYLIGHT;
 
     /**
      * @brief CIE standard color observer definition (used for color matching function calculations).
@@ -73,3 +75,4 @@ struct AlgoControls
 
 
 AlgoControls getAlgoControlsDefault (void);
+AlgoControls getAlgoControlsParameters(PF_ParamDef* params[]);

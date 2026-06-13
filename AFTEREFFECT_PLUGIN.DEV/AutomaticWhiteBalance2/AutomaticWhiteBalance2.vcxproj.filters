@@ -87,9 +87,6 @@
     <ClInclude Include="include\AutomaticWhiteBalance2Enum.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgCommonEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgCommonFunctions.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -112,6 +109,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgorithmEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -141,6 +141,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControls.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

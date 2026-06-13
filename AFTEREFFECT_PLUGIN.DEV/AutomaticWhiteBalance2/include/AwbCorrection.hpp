@@ -2,7 +2,7 @@
 #define __IMAGE_LAB_PCA_AWB_CORRECTION__
 
 #include <cstdint>
-#include "AlgCommonEnums.hpp"   // eILLUMINATE, eChromaticAdaptation
+#include "AlgorithmEnums.hpp"   // eILLUMINATE, eChromaticAdaptation
 
 // ---------------------------------------------------------------------------
 // Illuminant estimate: summed linear RGB over the selected pixels + the count.

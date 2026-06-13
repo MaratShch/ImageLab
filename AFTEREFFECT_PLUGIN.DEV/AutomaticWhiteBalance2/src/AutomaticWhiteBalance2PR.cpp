@@ -1,7 +1,9 @@
 #include "AutomaticWhiteBalance2.hpp"
 #include "AutomaticWhiteBalance2Enum.hpp"
-
-
+#include "AlgoMemHandler.hpp"
+#include "AlgoControl.hpp"
+#include "AlgorithmMain.hpp"
+#include "AwbHostConvert.hpp"
 
 PF_Err ProcessImgInPR
 (
@@ -18,21 +20,30 @@ PF_Err ProcessImgInPR
     const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[UnderlyingType(eAWB2::eIMAGE_AWB2_INPUT)]->u.ld);
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+    const A_long rowBytes = pfLayer->rowbytes;
 
-//    const AlgoControls algoControls = GetControlParametersStruct(params);
-
-//    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY, algoControls.sliderIterCnt);
-//    if (true == mem_handler_valid(algoMemHandler))
+    MemHandler algoMemHandler = alloc_memory_buffers (sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
         // This plugin called frop PR - check video format
         auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
 
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
+            const AlgoControls algoControls = getAlgoControlsParameters (params);
+
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:
                 {
+                    const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
+                          PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    Convert_BGRA8u_to_LinearPlanar (algoMemHandler, localSrc, sizeX, sizeY, srcLinePitch, sizeX);
+                    Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
+                    Convert_LinearPlanar_to_BGRA8u (algoMemHandler, localSrc, localDst, sizeX, sizeY, srcLinePitch, dstLinePitch, sizeX);
                 }
                 break;
 
@@ -208,11 +219,11 @@ PF_Err ProcessImgInPR
             err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
         }
 
-//        free_memory_buffers(algoMemHandler);
+        free_memory_buffers (algoMemHandler);
 
     } // if (true == mem_handler_valid (algoMemHandler))
-//    else
-//        err = PF_Err_OUT_OF_MEMORY;
+    else
+        err = PF_Err_OUT_OF_MEMORY;
 
     return err;
 }

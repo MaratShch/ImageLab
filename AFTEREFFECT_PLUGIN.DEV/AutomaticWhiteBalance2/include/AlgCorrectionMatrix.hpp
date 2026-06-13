@@ -3,9 +3,10 @@
 
 #include "ImageLabCUDA.hpp"
 #include "ColorTransformMatrix.hpp"
-#include "AlgCommonEnums.hpp"
+#include "AlgorithmEnums.hpp"
+#include "CompileTimeUtils.hpp"
 
-INLINE_CALL const float* RESTRICT GetIlluminate(const eILLUMINATE illuminateIdx) noexcept
+INLINE_CALL const float* RESTRICT GetIlluminate (const eILLUMINATE illuminateIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblIlluminate[12][3] = {
 		{ 95.0470f,  100.0000f, 108.8830f }, // DAYLIGHT - D65 (DEFAULT)
@@ -21,10 +22,10 @@ INLINE_CALL const float* RESTRICT GetIlluminate(const eILLUMINATE illuminateIdx)
 		{ 100.3650f, 100.0000f,  67.8680f }  // COOL_WHITE_FLUORESCENT
 	};
 
-	return tblIlluminate[illuminateIdx];
+	return tblIlluminate[UnderlyingType(illuminateIdx)];
 }
 
-INLINE_CALL const float* RESTRICT GetColorAdaptation(const eChromaticAdaptation adaptationIdx) noexcept
+INLINE_CALL const float* RESTRICT GetColorAdaptation (const eChromaticAdaptation adaptationIdx) noexcept
 {
 	CACHE_ALIGN static constexpr float tblColorAdaptation[5][9] = {
 		{ 0.73280f,  0.4296f, -0.16240f, -0.7036f, 1.69750f, 0.0061f, 0.0030f,  0.0136f, 0.98340f }, // CAT-02
@@ -34,7 +35,7 @@ INLINE_CALL const float* RESTRICT GetColorAdaptation(const eChromaticAdaptation 
 		{ 0.79820f,  0.3389f, -0.13710f, -0.5918f, 1.55120f, 0.0406f, 0.0008f,  0.2390f, 0.97530f }, // CMCCAT2000
 	};
 
-	return tblColorAdaptation[adaptationIdx];
+	return tblColorAdaptation[UnderlyingType(adaptationIdx)];
 }
 
 
@@ -47,7 +48,7 @@ INLINE_CALL const float* RESTRICT GetColorAdaptationInv(const eChromaticAdaptati
 		{ 0.815633f,  0.047155f, 0.137217f, 0.379114f, 0.576942f,  0.044001f, -0.012260f,  0.016743f, 0.995519f }, // INV SHARP
 		{ 1.062305f, -0.256743f, 0.160018f, 0.407920f, 0.55023f,   0.034437f, -0.100833f, -0.134626f, 1.016755f }, // INV CMCCAT2000
 	};
-	return tblColorAdaptationInv[invAdaptationIdx];
+	return tblColorAdaptationInv[UnderlyingType(invAdaptationIdx)];
 }
 
 

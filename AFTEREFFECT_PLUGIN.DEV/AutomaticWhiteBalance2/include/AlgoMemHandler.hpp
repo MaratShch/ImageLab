@@ -44,9 +44,8 @@ struct MemHandler
     RGBPlanes scratch;  // internal ping/pong for iteration ({nullptr,...} when single-shot)
 };
 
-MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, int32_t iterCnt = 1) noexcept;
+MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY) noexcept;
 void       free_memory_buffers  (MemHandler& mem) noexcept;
-void       print_mem_handler    (const MemHandler& mem) noexcept;
 
 inline bool mem_handler_valid (const MemHandler& h) noexcept
 {

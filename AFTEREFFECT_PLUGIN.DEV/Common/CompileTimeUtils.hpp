@@ -1,10 +1,11 @@
 #ifndef __IMAGE_LAB_COMPILE_TIME_UTILS__
 #define __IMAGE_LAB_COMPILE_TIME_UTILS__
 
+#include <cstdint>
 #include <type_traits>
 
 
-template <typename T>
+template <typename T, std::enable_if_t<std::is_enum<T>::value, int32_t> = 0>
 constexpr auto UnderlyingType(const T e) noexcept
 {
     return static_cast<std::underlying_type_t<T>>(e);
