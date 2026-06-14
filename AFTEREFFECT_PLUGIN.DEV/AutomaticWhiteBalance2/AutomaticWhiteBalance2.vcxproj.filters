@@ -105,13 +105,25 @@
     <ClInclude Include="include\AwbCorrection.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AwbHostConvert.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AlgorithmEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertColorInterleaved.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertColorPlanar.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertDispatcher.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertDispatcherOut.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgConvertPixelTraits.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -134,9 +146,6 @@
     <ClCompile Include="src\AwbCorrection.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\AwbHostConvert.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -144,6 +153,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoControls.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgConvertDispatcher.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgConvertDispatcherOut.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

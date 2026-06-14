@@ -3,7 +3,9 @@
 #include "AlgoMemHandler.hpp"
 #include "AlgoControl.hpp"
 #include "AlgorithmMain.hpp"
-#include "AwbHostConvert.hpp"
+#include "AlgConvertDispatcher.hpp"
+#include "AlgConvertDispatcherOut.hpp"
+
 
 PF_Err ProcessImgInPR
 (
@@ -41,9 +43,9 @@ PF_Err ProcessImgInPR
                     const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
                     const A_long dstLinePitch = srcLinePitch;
 
-                    Convert_BGRA8u_to_LinearPlanar (algoMemHandler, localSrc, sizeX, sizeY, srcLinePitch, sizeX);
+                    dispatch_convert_to_planar (localSrc, algoMemHandler, sizeX, sizeY, srcLinePitch, PixelFormat::BGRA_8u);
                     Algorithm_Main (algoMemHandler, sizeX, sizeY, algoControls);
-                    Convert_LinearPlanar_to_BGRA8u (algoMemHandler, localSrc, localDst, sizeX, sizeY, srcLinePitch, dstLinePitch, sizeX);
+                    dispatch_convert_to_interleaved (algoMemHandler, localSrc, localDst, sizeX, sizeY, srcLinePitch, dstLinePitch, PixelFormat::BGRA_8u);
                 }
                 break;
 
