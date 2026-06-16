@@ -67,6 +67,7 @@ typedef struct {
 	A_u_char	A;
 } PF_Pixel_VUYA_8u;
 using PF_Pixel_VUYP_8u = PF_Pixel_VUYA_8u;
+using PF_Pixel_VUYX_8u = PF_Pixel_VUYA_8u;
 
 typedef struct {
 	A_u_short	V;
@@ -75,6 +76,7 @@ typedef struct {
 	A_u_short	A;
 } PF_Pixel_VUYA_16u;
 using PF_Pixel_VUYP_16u = PF_Pixel_VUYA_16u;
+using PF_Pixel_VUYX_16u = PF_Pixel_VUYA_16u;
 
 typedef struct {
 	PF_FpShort	V;
@@ -83,6 +85,7 @@ typedef struct {
 	PF_FpShort	A;
 } PF_Pixel_VUYA_32f;
 using PF_Pixel_VUYP_32f = PF_Pixel_VUYA_32f;
+using PF_Pixel_VUYX_32f = PF_Pixel_VUYA_32f;
 
 typedef struct {
 	A_u_long	_pad_ : 2;
@@ -114,9 +117,12 @@ constexpr size_t PF_Pixel_XRGB_32f_size  = sizeof(PF_Pixel_XRGB_32f);
 constexpr size_t PF_Pixel_VUYA_8u_size   = sizeof(PF_Pixel_VUYA_8u);
 constexpr size_t PF_Pixel_VUYA_16u_size  = sizeof(PF_Pixel_VUYA_16u);
 constexpr size_t PF_Pixel_VUYA_32f_size  = sizeof(PF_Pixel_VUYA_32f);
-constexpr size_t PF_Pixel_VUYP_8u_size   = sizeof(PF_Pixel_VUYA_8u);
-constexpr size_t PF_Pixel_VUYP_16u_size  = sizeof(PF_Pixel_VUYA_16u);
-constexpr size_t PF_Pixel_VUYP_32f_size  = sizeof(PF_Pixel_VUYA_32f);
+constexpr size_t PF_Pixel_VUYP_8u_size   = sizeof(PF_Pixel_VUYP_8u);
+constexpr size_t PF_Pixel_VUYP_16u_size  = sizeof(PF_Pixel_VUYP_16u);
+constexpr size_t PF_Pixel_VUYP_32f_size  = sizeof(PF_Pixel_VUYP_32f);
+constexpr size_t PF_Pixel_VUYX_8u_size   = sizeof(PF_Pixel_VUYX_8u);
+constexpr size_t PF_Pixel_VUYX_16u_size  = sizeof(PF_Pixel_VUYX_16u);
+constexpr size_t PF_Pixel_VUYX_32f_size  = sizeof(PF_Pixel_VUYX_32f);
 constexpr size_t PF_Pixel_RGB_10u_size   = sizeof(PF_Pixel_RGB_10u);
 
 constexpr A_u_char u8_value_black = 0u;
