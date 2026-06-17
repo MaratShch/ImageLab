@@ -101,5 +101,3 @@ AuthomaticWhiteBalance_SmartRender
 );
 
 
-AlgoControls getAlgoControlsDefault(void);
-AlgoControls GetControlParametersStruct(PF_ParamDef* params[]);

@@ -1,5 +1,6 @@
 #include "AlgoControl.hpp"
 #include "AlgorithmEnums.hpp"
+#include "AE_Effect.h"
 
 AlgoControls getAlgoControlsDefault (void)
 {

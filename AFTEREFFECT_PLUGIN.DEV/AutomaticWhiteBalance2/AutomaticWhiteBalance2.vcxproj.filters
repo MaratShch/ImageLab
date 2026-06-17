@@ -123,6 +123,9 @@
     <ClInclude Include="include\AlgConvertPixelTraits.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AuthomaticWhiteBalance2GPU.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AutomaticWhiteBalance2.cpp">
@@ -158,6 +161,9 @@
     <ClCompile Include="src\AlgConvertDispatcherOut.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AuthomaticWhiteBalance2_GPU.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AutomaticWhiteBalance2.rc">
@@ -168,5 +174,13 @@
     <CustomBuild Include="AutomaticWhiteBalance2.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\ImageLabPCA16_CUDA.cu">
+      <Filter>src</Filter>
+    </None>
+    <None Include="src\ImageLabPCA32_CUDA.cu">
+      <Filter>src</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -5,7 +5,6 @@
 #include <algorithm>
 #include "ColorTransformMatrix.hpp"
 #include "AlgorithmEnums.hpp"
-#include "AE_Effect.h"
 
 
 /**
@@ -73,6 +72,3 @@ struct AlgoControls
     float blackLevelThreshold = 0.02f;
 };
 
-
-AlgoControls getAlgoControlsDefault (void);
-AlgoControls getAlgoControlsParameters(PF_ParamDef* params[]);

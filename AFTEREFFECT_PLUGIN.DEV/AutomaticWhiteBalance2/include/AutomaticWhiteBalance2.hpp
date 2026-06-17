@@ -4,7 +4,7 @@
 #include "CommonAdobeAE.hpp"
 #include "PrSDKAESupport.h"
 #include "Param_Utils.h"
-
+#include "AlgoControl.hpp"
 
 
 constexpr char strName[] = "Automatic White Balance 2";
@@ -53,5 +53,8 @@ AuthomaticWhiteBalance_SmartRender
     PF_SmartRenderExtra		*extraP
 );
 
+
+AlgoControls getAlgoControlsDefault(void);
+AlgoControls getAlgoControlsParameters(PF_ParamDef* params[]);
 
 #endif // __IMAGE_LAB_IMAGE_AWB2_FILTER__

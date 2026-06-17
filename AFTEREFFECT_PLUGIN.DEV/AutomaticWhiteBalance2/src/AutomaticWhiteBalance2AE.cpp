@@ -4,7 +4,7 @@
 #include "AlgorithmMain.hpp"
 #include "AlgConvertDispatcher.hpp"
 #include "AlgConvertDispatcherOut.hpp"
-
+#include "AutomaticWhiteBalance2.hpp"
 
 PF_Err AutomaticWhiteBalance2_InAE_8bits
 (
