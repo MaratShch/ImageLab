@@ -164,7 +164,6 @@
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\AutomaticWhiteBalance2.hpp" />
-    <ClInclude Include="include\AutomaticWhiteBalance2Enum.hpp" />
     <ClInclude Include="include\AwbCorrection.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>

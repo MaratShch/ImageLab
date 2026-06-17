@@ -84,9 +84,6 @@
     <ClInclude Include="include\AutomaticWhiteBalance2.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AutomaticWhiteBalance2Enum.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgCommonFunctions.hpp">
       <Filter>include</Filter>
     </ClInclude>
