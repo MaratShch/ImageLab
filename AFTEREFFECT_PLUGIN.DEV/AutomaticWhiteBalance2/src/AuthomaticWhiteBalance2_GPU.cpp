@@ -169,12 +169,12 @@ private:
         return static_cast<const float>(CLAMP_VALUE(param.mFloat64, 1.0, 10.0));
     }
 
-    const unsigned int control_param_saturation_threshold (const PrParam& param) noexcept
+    const float control_param_saturation_threshold (const PrParam& param) noexcept
     {
         return static_cast<const float>(CLAMP_VALUE(param.mFloat64, 0.80, 1.0));
     }
 
-    const unsigned int control_param_black_level_threshold (const PrParam& param) noexcept
+    const float control_param_black_level_threshold (const PrParam& param) noexcept
     {
         return static_cast<const float>(CLAMP_VALUE(param.mFloat64, 0.0, 0.10));
     }

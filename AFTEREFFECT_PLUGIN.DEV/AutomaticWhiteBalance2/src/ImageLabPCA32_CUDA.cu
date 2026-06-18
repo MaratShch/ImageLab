@@ -64,9 +64,9 @@
 // ----------------------------------------------------------------------------
 //  Fixed algorithm constants (identical to the CPU/AVX2 reference)
 // ----------------------------------------------------------------------------
-#define AWB_PCA_BINS      4096
-#define AWB_PCA_PROJMAX   1.74f      // max projection (c.u.) for channels < 1 (~sqrt 3)
-#define AWB_MIN_VALID     16         // CPU returns "fail" when valid count < 16
+constexpr int32_t AWB_PCA_BINS = 4096;
+constexpr float  AWB_PCA_PROJMAX = 1.74f;      // max projection (c.u.) for channels < 1 (~sqrt 3)
+constexpr int32_t AWB_MIN_VALID = 16;         // CPU returns "fail" when valid count < 16
 
 // ----------------------------------------------------------------------------
 //  Device-resident constant tables (baked into the module; no host copy).
@@ -117,7 +117,7 @@ __device__ const float cCat[5][9] =
     { 0.40024f,  0.7076f, -0.08081f, -0.2263f, 1.16532f, 0.0457f, 0.0f,     0.0f,    0.91822f }, // VON-KRIES
     { 0.89510f,  0.2664f, -0.16140f, -0.7502f, 1.71350f, 0.0367f, 0.0389f, -0.0685f, 1.02960f }, // BRADFORD
     { 1.26940f, -0.0988f, -0.17060f, -0.8364f, 1.80060f, 0.0357f, 0.0297f, -0.0315f, 1.00180f }, // SHARP
-    { 0.79820f,  0.3389f, -0.13710f, -0.5918f, 1.55120f, 0.0406f, 0.0008f,  0.2390f, 0.97530f }  // CMCCAT2000
+    { 0.79820f,  0.3389f, -0.13710f, -0.5918f, 1.55120f, 0.0406f, 0.0008f,  0.0239f, 0.97530f }  // CMCCAT2000
 };
 __device__ const float cCatInv[5][9] =
 {
@@ -513,7 +513,7 @@ void ImageLabPCA32_CUDA
     chromIdx = (chromIdx < 0) ? 0 : (chromIdx > 4 ? 4 : chromIdx);
     // algoGpuParams->observer is intentionally unused (matches the CPU path).
 
-    const float invBinW = (float)AWB_PCA_BINS / AWB_PCA_PROJMAX;
+    const float invBinW = static_cast<float>(AWB_PCA_BINS) / AWB_PCA_PROJMAX;
 
     // ---- ONE allocation: the arena ----
     PcaArena* d_arena = nullptr;
