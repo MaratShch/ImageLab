@@ -58,4 +58,10 @@ void ImageLabPCA32_CUDA
     cudaStream_t           stream
 );
 
+CUDA_KERNEL_CALL
+void ImageLabPCA16_CleanupGPU(void);
+
+CUDA_KERNEL_CALL
+void ImageLabPCA32_CleanupGPU(void);
+
 #endif // __IMAGE_LAB_AUTHOMATIC_WHITE_BALANCE_GPU_HANDLERS__

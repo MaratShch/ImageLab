@@ -15,3 +15,4 @@ struct AlgoControls
 	int32_t sliderThreshold;
 };
 
+AlgoControls getAlgoControlsDefault(void);

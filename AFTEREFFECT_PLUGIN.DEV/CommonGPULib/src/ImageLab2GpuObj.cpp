@@ -142,5 +142,5 @@ PrParam CImageLab2GpuObj::GetParam (csSDK_int32 inIndex, PrTime inTime)
 
 const size_t CImageLab2GpuObj::RoundUp (size_t inValue, size_t inMultiple)
 {
-	return inValue ? ((inValue + inMultiple - 1) / inMultiple) * inMultiple : 0;
+	return inValue ? ((inValue + inMultiple - 1u) / inMultiple) * inMultiple : 0u;
 }

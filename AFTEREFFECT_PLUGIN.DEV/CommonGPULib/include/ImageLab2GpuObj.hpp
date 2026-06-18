@@ -94,7 +94,7 @@ protected:
         return (size + CUDA_ALIGNMENT - 1) & ~(CUDA_ALIGNMENT - 1);
     }
 
-    std::tuple<size_t, size_t> GetGpuMemoryInfo_CUDA (void) noexcept
+    const std::tuple<size_t, size_t> GetGpuMemoryInfo_CUDA (void) noexcept
     {
         size_t free_byte = 0ull;
         size_t total_byte = 0ull;

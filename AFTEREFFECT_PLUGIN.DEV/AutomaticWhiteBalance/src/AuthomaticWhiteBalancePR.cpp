@@ -4,6 +4,7 @@
 #include "AlgConvertDispatcher.hpp"
 #include "AlgConvertDispatcherOut.hpp"
 #include "AlgorithmMain.hpp"
+#include "AlgoControl.hpp"
 
 PF_Err ProcessImgInPR
 (

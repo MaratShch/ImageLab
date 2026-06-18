@@ -100,4 +100,5 @@ AuthomaticWhiteBalance_SmartRender
     PF_SmartRenderExtra		*extraP
 );
 
+AlgoControls GetControlParametersStruct(PF_ParamDef* params[]);
 
