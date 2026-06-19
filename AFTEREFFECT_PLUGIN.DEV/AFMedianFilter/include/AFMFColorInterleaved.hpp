@@ -45,9 +45,9 @@ void convert_to_interleaved_AVX2
     PixelType* RESTRICT out_pixels        = reinterpret_cast<      PixelType*>(dstBuf);
 
     // Source Planar Buffers (Strict Routing: Y=R, U=G, V=B)
-    const float* RESTRICT in_Y = memHndl.proc_Y; // Red
-    const float* RESTRICT in_U = memHndl.proc_U; // Green
-    const float* RESTRICT in_V = memHndl.proc_V; // Blue
+    const float* RESTRICT in_Y = memHndl.out_Y; // Red
+    const float* RESTRICT in_U = memHndl.out_U; // Green
+    const float* RESTRICT in_V = memHndl.out_V; // Blue
 
     const A_long planar_stride = memHndl.strideY_Elements;
     

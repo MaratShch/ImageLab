@@ -1,5 +1,5 @@
-#ifndef __IMAGE_LAB2_NOSIE_REDUCTION_ALGO_COLOR_CONVERT__
-#define __IMAGE_LAB2_NOSIE_REDUCTION_ALGO_COLOR_CONVERT__
+#ifndef __IMAGE_LAB2_AFMF_ALGO_COLOR_CONVERT__
+#define __IMAGE_LAB2_AFMF_ALGO_COLOR_CONVERT__
 
 #include <immintrin.h>
 #include <cstdint>
@@ -31,4 +31,4 @@ void dispatch_convert_to_interleaved
     const PixelFormat format
 ) noexcept;
 
-#endif // __IMAGE_LAB2_NOSIE_REDUCTION_ALGO_COLOR_CONVERT__
+#endif // __IMAGE_LAB2_AFMF_ALGO_COLOR_CONVERT__

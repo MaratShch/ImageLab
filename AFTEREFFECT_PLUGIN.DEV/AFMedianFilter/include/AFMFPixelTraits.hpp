@@ -1,7 +1,8 @@
 #pragma once
-#include <immintrin.h>
+
 #include <algorithm>
 #include <cmath>
+#include <immintrin.h>
 #include "CommonPixFormat.hpp" 
 #include "FastAriphmetics.hpp"
 
@@ -94,10 +95,10 @@ static const __m256 v_inv_b_u = _mm256_set1_ps(1.8556f);
 // (Replace with _mm256_pow_ps if linking Intel SVML)
 inline __m256 ApplyGammaAVX2(__m256 v, float exponent) noexcept
 {
-    CACHE_ALIGN float arr[8];
+    AVX2_ALIGN float arr[8];
     _mm256_store_ps(arr, v);
     for (int i = 0; i < 8; ++i) {
-        arr[i] = FastCompute::Pow(std::max(0.0f, arr[i]), exponent);
+        arr[i] = FastCompute::Pow(FastCompute::Max(0.0f, arr[i]), exponent);
     }
     return _mm256_load_ps(arr);
 }
