@@ -38,7 +38,7 @@ AFMedianFilter_PreRender
             extra->output->pre_render_data = paramsHandler;
 
             paramsStrP->outputType = static_cast<AFMF_Output>(paramVal[0].u.pd.value - 1);
-            paramsStrP->radius     = popup2value(static_cast<int32_t>(paramVal[1].u.sd.value));
+            paramsStrP->radius     = popup2value(static_cast<int32_t>(paramVal[1].u.pd.value - 1));
             paramsStrP->tolerance  = static_cast<float>(paramVal[2].u.fs_d.value / 10.0);
             paramsStrP->iterations = popup2value(static_cast<int32_t>(paramVal[3].u.pd.value - 1));
 

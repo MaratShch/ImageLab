@@ -10,7 +10,7 @@ constexpr int AFMedianFilter_VersionMajor = IMAGE_LAB_AE_PLUGIN_VERSION_MAJOR;
 constexpr int AFMedianFilter_VersionMinor = IMAGE_LAB_AE_PLUGIN_VERSION_MINOR;
 constexpr int AFMedianFilter_VersionSub = 0;
 #ifdef _DEBUG
-constexpr int AFMedianFilter_VersionStage = PF_Stage_DEVELOP;
+constexpr int AFMedianFilter_VersionStage = PF_Stage_RELEASE;// PF_Stage_DEVELOP;
 #else
 constexpr int AFMedianFilter_VersionStage = PF_Stage_RELEASE;
 #endif
