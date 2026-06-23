@@ -64,17 +64,22 @@ prSuiteError CImageLab2GpuObj::Initialize (PrGPUFilterInstance* ioInstanceData)
 					const SPErr errVidSeg =
 						mBasicSite->AcquireSuite(kPrSDKVideoSegmentSuite, kPrSDKVideoSegmentSuiteVersion, (const void**)&mVideoSegmentSuite);
 
-					mTimelineID = ioInstanceData->inTimelineID;
-					mNodeID = ioInstanceData->inNodeID;
+					mTimelineID  = ioInstanceData->inTimelineID;
+					mNodeID      = ioInstanceData->inNodeID;
 					mDeviceIndex = ioInstanceData->inDeviceIndex;
 
-					mGPUDeviceSuite->GetDeviceInfo(kPrSDKGPUDeviceSuiteVersion, mDeviceIndex, &mDeviceInfo);
 
-					/* start sites validation */
-					if (suiteError_NoError == errGpuDev && suiteError_NoError == errGpuPrc  && suiteError_NoError == errMemMng &&
-						suiteError_NoError == errPpxSit && suiteError_NoError == errPpx2Sit && suiteError_NoError == errVidSeg)
+					// start sites validation
+					if (suiteError_NoError == errGpuDev  && nullptr != mGPUDeviceSuite          &&
+                        suiteError_NoError == errGpuPrc  && nullptr != mGPUImageProcessingSuite &&
+                        suiteError_NoError == errMemMng  && nullptr != mMemoryManagerSuite      &&
+						suiteError_NoError == errPpxSit  && nullptr != mPPixSuite               &&
+                        suiteError_NoError == errPpx2Sit && nullptr != mPPix2Suite              &&
+                        suiteError_NoError == errVidSeg  && nullptr != mVideoSegmentSuite)
 					{
-						err = suiteError_NoError;
+                        mGPUDeviceSuite->GetDeviceInfo(kPrSDKGPUDeviceSuiteVersion, mDeviceIndex, &mDeviceInfo);
+                        
+                        err = suiteError_NoError;
 					}
 				}
 			}

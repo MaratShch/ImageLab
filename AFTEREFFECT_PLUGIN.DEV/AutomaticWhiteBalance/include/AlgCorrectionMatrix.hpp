@@ -45,8 +45,8 @@ INLINE_CALL const float* RESTRICT GetColorAdaptationInv(const eChromaticAdaptati
 		{ 1.859936f, -1.129382f, 0.219897f, 0.361191f, 0.638812f,  0.0f,       0.0f,       0.0f,      1.089064f }, // INV VON-KRIES
 		{ 0.986993f, -0.147054f, 0.159963f, 0.432305f, 0.518360f,  0.049291f, -0.008529f,  0.040043f, 0.968487f }, // INV BRADFORD
 		{ 0.815633f,  0.047155f, 0.137217f, 0.379114f, 0.576942f,  0.044001f, -0.012260f,  0.016743f, 0.995519f }, // INV SHARP
-		{ 1.062305f, -0.256743f, 0.160018f, 0.407920f, 0.55023f,   0.034437f, -0.100833f, -0.134626f, 1.016755f }, // INV CMCCAT2000
-	};
+        { 1.076450f, -0.237662f, 0.161212f, 0.410964f, 0.554342f,  0.034694f, -0.010954f, -0.013389f, 1.024343f }  // INV CMCCAT2000
+    };
 	return tblColorAdaptationInv[invAdaptationIdx];
 }
 

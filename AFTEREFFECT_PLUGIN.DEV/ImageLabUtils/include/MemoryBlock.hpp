@@ -1,7 +1,9 @@
 #pragma once
 #include <stdint.h>
 #include <type_traits>
+#include "ClassRestrictions.hpp"
 #include "LibExport.hpp"
+
 
 namespace ImageLabMemoryUtils
 {
@@ -9,6 +11,8 @@ namespace ImageLabMemoryUtils
 	class CMemoryBlock
 	{
 		public:
+            CLASS_NON_COPYABLE(CMemoryBlock);
+
 			CMemoryBlock() = default;
 			virtual ~CMemoryBlock(void) { memBlockFree(); };
 

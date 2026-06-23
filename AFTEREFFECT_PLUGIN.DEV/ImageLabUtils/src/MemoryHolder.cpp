@@ -47,18 +47,18 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 	{
 		if (m_Holder[i]->getMemSize() >= reqSize)
 		{
-			/* pre-allocated block found, let's check if this block is not busy */
-			/* lock queue access */
+			// pre-allocated block found, let's check if this block is not busy
+			// lock queue access
 			std::unique_lock<std::mutex> lock(m_QueueMutualAccess);
 			const int32_t freeQueueCapacity = static_cast<int32_t>(m_FreeBlocks.size());
 			for (int32_t j = 0; j < freeQueueCapacity; j++)
 			{
 				if (m_FreeBlocks[j] == i)
 				{
-					/* this block in free queue, so we may use it */
+					// this block in free queue, so we may use it
 					blockId = static_cast<int>(i);
 
-					/* remove founded block from free queue and put it to busy queue */
+					// remove founded block from free queue and put it to busy queue
 					m_FreeBlocks.erase(m_FreeBlocks.begin() + j);
 					m_BusyBlocks.push_front(blockId);
 					break;
@@ -66,7 +66,7 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 			}
 		}
 	}
-	/* we not found pre-allocated buffer so, let use first free element and make memory re-alloc */
+	// we not found pre-allocated buffer so, let use first free element and make memory re-alloc
 	if (INVALID_MEMORY_BLOCK == blockId)
 	{
 		/* lock queue access */
@@ -124,7 +124,8 @@ int32_t CMemoryHolder::AllocMemory (uint32_t memSize, void** ptr, const MemOwned
 	if (0 != memSize && nullptr != ptr)
 	{
 		blockId = searchMemoryBlock(memSize);
-		*ptr = m_Holder[blockId]->getMemPtr();
+        if (blockId >= 0)
+		    *ptr = m_Holder[blockId]->getMemPtr();
 	}
 
 	return ::CreateMemHanler(blockId);

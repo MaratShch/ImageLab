@@ -30,10 +30,10 @@ void Algorithm_Main
     const AlgoControls& algoCtrl
 ) noexcept
 {
-    if (!mem_handler_valid(memHandler) || sizeX <= 0 || sizeY <= 0)
+    if (!mem_handler_valid(memHandler))
         return;
 
-    const int64_t total     = static_cast<int64_t>(sizeX * sizeY);
+    const int64_t total     = static_cast<int64_t>(sizeX) * static_cast<int64_t>(sizeY);
     const int32_t iterCnt   = std::max(1, std::min(gMaxIter, algoCtrl.sliderIterCnt));
     const float   threshold = static_cast<float>(algoCtrl.sliderThreshold) * 0.01f;
     // NOTE: threshold feeds the ORTHONORMAL metric sqrt(C1^2+C2^2)/Y, which has a
