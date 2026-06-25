@@ -85,11 +85,26 @@ inline void AEFX_CLR_STRUCT_EX(T& str) noexcept
 }
 
 
-inline void* ComputeAddress (const void* pAddr, const size_t bytes_offset) noexcept
+// Overload for read-only memory
+inline const void* ComputeAddress (const void* pAddr, const std::ptrdiff_t bytes_offset) noexcept
 {
-	const size_t ptr = reinterpret_cast<const size_t>(pAddr);
-	return reinterpret_cast<void*>(ptr + bytes_offset);
+    // 1. Cast to a byte-sized pointer (unsigned char* is standard for raw memory)
+    const auto* byte_ptr = static_cast<const unsigned char*>(pAddr);
+
+    // 2. The compiler safely handles the signed pointer arithmetic
+    return static_cast<const void*>(byte_ptr + bytes_offset);
 }
+
+// Overload for writable memory
+inline void* ComputeAddress (void* pAddr, const std::size_t bytes_offset) noexcept
+{
+    // 1. Cast to a byte-sized pointer (unsigned char* is standard for raw memory)
+    auto* byte_ptr = static_cast<unsigned char*>(pAddr);
+
+    // 2. The compiler safely handles the signed pointer arithmetic
+    return static_cast<void*>(byte_ptr + bytes_offset);
+}
+
 
 inline uint64_t RDTSC() noexcept
 {

@@ -10,7 +10,7 @@ void* CreateMemoryHandler(void)
 
 void  ReleaseMemoryHandler(void* p)
 {
-	/* nothing to do */
+	// nothing to do
 	(void)p;
 	return;
 }

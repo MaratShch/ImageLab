@@ -166,7 +166,7 @@ ParamsSetup(
 }
 
 
-static PF_Err
+inline PF_Err
 Render(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,

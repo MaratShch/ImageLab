@@ -42,7 +42,7 @@ public:
 		PPixHand* outFrame
 	) noexcept
 	{
-        CACHE_ALIGN PrParam algoGpuParams[4];
+        CACHE_ALIGN PrParam algoGpuParams[4]{};
 
         void* frameData     = nullptr;
 		void* destFrameData = nullptr;
@@ -92,15 +92,15 @@ public:
                 CACHE_ALIGN AlgoControls algoControls;
 
                 algoControls.outputType = static_cast<AFMF_Output>(algoGpuParams[0].mInt32);
-                algoControls.radius     = popup2value (static_cast<int32_t>    (algoGpuParams[1].mInt32));
-                algoControls.tolerance  = static_cast<float>      (algoGpuParams[2].mFloat64);
-                algoControls.iterations = popup2value (static_cast<int32_t>    (algoGpuParams[3].mInt32));
+                algoControls.radius     = popup2value (static_cast<int32_t>(algoGpuParams[1].mInt32));
+                algoControls.tolerance  = static_cast<float>(algoGpuParams[2].mFloat64 / 10.0);
+                algoControls.iterations = popup2value (static_cast<int32_t>(algoGpuParams[3].mInt32));
 
                 algoControls.Sanitize();
 
                 // CUDA device pointers
-                const float* inBuffer  = reinterpret_cast<const float*>(srcFrameData);
-                      float* outBuffer = reinterpret_cast<float*>(destFrameData);
+                const float* RESTRICT inBuffer  = reinterpret_cast<const float*>(srcFrameData);
+                      float* RESTRICT outBuffer = reinterpret_cast<float*>(destFrameData);
 
                 constexpr cudaStream_t stream{ 0 };
 
