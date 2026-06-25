@@ -69,7 +69,7 @@ void FreeMemoryBlock (int32_t id) noexcept
 
 int32_t memGetLastError (void) noexcept
 {
-    return static_cast<A_long>(memInterface._dbgLastError);
+    return static_cast<int32_t>(memInterface._dbgLastError);
 }
 
 

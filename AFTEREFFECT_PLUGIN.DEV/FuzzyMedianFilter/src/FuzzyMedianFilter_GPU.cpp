@@ -56,8 +56,8 @@ public:
 
 		// read control setting
         PrTime const clipTime{ inRenderParams->inClipTime };
-        auto const& paramFilterRadius = GetParam(eFUZZY_MEDIAN_FILTER_KERNEL_SIZE, clipTime);
-        auto const& paramFilterSigma  = GetParam(eFUZZY_MEDIAN_FILTER_SIGMA_VALUE, clipTime);
+        auto const paramFilterRadius = GetParam(eFUZZY_MEDIAN_FILTER_KERNEL_SIZE, clipTime);
+        auto const paramFilterSigma  = GetParam(eFUZZY_MEDIAN_FILTER_SIGMA_VALUE, clipTime);
 
 #ifdef _DEBUG
 		const csSDK_int32 instanceCnt = TotalInstances();
@@ -90,7 +90,7 @@ public:
 			inBuffer  = reinterpret_cast<float*>(srcFrameData);
 			outBuffer = reinterpret_cast<float*>(destFrameData);
 
-            auto const filterRadius = GetFilterRadius(static_cast<eFUZZY_FILTER_WINDOW_SIZE>(paramFilterRadius.mInt32));
+            auto const filterRadius = GetFilterRadius(static_cast<eFUZZY_FILTER_WINDOW_SIZE>(paramFilterRadius.mInt32 - 1));
             auto const filterSigma  = ClampSigmaValue(static_cast<float>(paramFilterSigma.mFloat64));
             
             // Launch CUDA kernel

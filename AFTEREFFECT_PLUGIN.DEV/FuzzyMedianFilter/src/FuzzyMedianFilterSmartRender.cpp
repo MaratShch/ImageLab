@@ -35,7 +35,7 @@ FuzzyMedian_PreRender
 
             if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             {
-                paramsStrP->fWindowSize = CLAMP_VALUE(static_cast<eFUZZY_FILTER_WINDOW_SIZE>(widowSize.u.pd.value), eFUZZY_FILTER_BYPASSED, eFUZZY_FILTER_TOTAL_VARIANTS);
+                paramsStrP->fWindowSize = CLAMP_VALUE(static_cast<eFUZZY_FILTER_WINDOW_SIZE>(widowSize.u.pd.value - 1), eFUZZY_FILTER_BYPASSED, eFUZZY_FILTER_WINDOW_7x7);
                 paramsStrP->fSigma      = CLAMP_VALUE(static_cast<float>(filterSigma.u.fs_d.value), fSliderValMin, fSliderValMax);
             } // if (PF_Err_NONE == errParam1 && PF_Err_NONE == errParam2)
             else
@@ -246,6 +246,7 @@ FuzzyMedian_SmartRender
         } // if (nullptr != input_worldP && nullptr != output_worldP)
 
         handleSuite->host_unlock_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
+        handleSuite->host_dispose_handle(reinterpret_cast<PF_Handle>(extraP->input->pre_render_data));
 
     } // if (nullptr != pFilterStrParams)
     else

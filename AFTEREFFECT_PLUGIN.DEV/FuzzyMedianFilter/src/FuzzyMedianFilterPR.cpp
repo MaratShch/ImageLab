@@ -269,7 +269,7 @@ PF_Err ProcessImgInPR
                     const eCOLOR_SPACE colorSpace = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat ? BT709 : BT601);
                     const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
                           PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
-                    dstPitch = srcPitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+                    dstPitch = srcPitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
 
                     // for VUYA pixels these are not actual black and white values, like for RGB - these are values for scale and clamp final filtered pixel
                     constexpr PF_Pixel_VUYA_32f white{1.f, 1.f, 1.f, 1.f}, black{0.f, 0.f, 0.f, 0.f};
