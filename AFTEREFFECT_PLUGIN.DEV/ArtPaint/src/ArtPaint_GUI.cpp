@@ -57,5 +57,7 @@ PF_Err DrawEvent
 
     surfaceSuite->DrawImage(surface_ref, drawbotImage, &drawbotPoint, alpha);
 
+    event_extra->evt_out_flags = PF_EO_HANDLED_EVENT;
+
     return PF_Err_NONE;
 }
