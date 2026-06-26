@@ -19,14 +19,14 @@ INLINE_ALGO_CALL void FuzzyLogic_7x7
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
           T* __restrict pOut,
-    const A_long&          sizeX,
-    const A_long&          sizeY,
-    const A_long&          labInPitch,
-    const A_long&          imgInPitch,
-    const A_long&          imgOutPitch,
-    const T&               blackPix, // black (minimal) color pixel value - used for clamping
-    const T&               whitePix, // white (maximal) color pixel value - used for clamping
-    const float&           fSigma = 2.f
+    const A_long          sizeX,
+    const A_long          sizeY,
+    const A_long          labInPitch,
+    const A_long          imgInPitch,
+    const A_long          imgOutPitch,
+    const T&              blackPix, // black (minimal) color pixel value - used for clamping
+    const T&              whitePix, // white (maximal) color pixel value - used for clamping
+    const float           fSigma = 2.f
 ) noexcept
 {
     // Don't mark this pixels as Nort, South, etc... just assign numbers from left to rigth and from top to down
@@ -242,15 +242,15 @@ INLINE_ALGO_CALL void FuzzyLogic_7x7
     const fCIELabPix* __restrict pLabIn,
     const T* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
           T* __restrict pOut,
-    const A_long&          sizeX,
-    const A_long&          sizeY,
-    const A_long&          labInPitch,
-    const A_long&          imgInPitch,
-    const A_long&          imgOutPitch,
-    const T&               blackPix, // black (minimal) color pixel value - used for clamping
-    const T&               whitePix, // white (maximal) color pixel value - used for clamping
-    const float            fSigma = 2.f,
-    const eCOLOR_SPACE&    colorSpace = BT709
+    const A_long          sizeX,
+    const A_long          sizeY,
+    const A_long          labInPitch,
+    const A_long          imgInPitch,
+    const A_long          imgOutPitch,
+    const T&              blackPix, // black (minimal) color pixel value - used for clamping
+    const T&              whitePix, // white (maximal) color pixel value - used for clamping
+    const float           fSigma = 2.f,
+    const eCOLOR_SPACE    colorSpace = BT709
 ) noexcept
 {
     // Don't mark this pixels as Nort, South, etc... just assign numbers from left to rigth and from top to down
@@ -414,38 +414,38 @@ INLINE_ALGO_CALL void FuzzyLogic_7x7
             }
 
             __VECTOR_ALIGNED__
-                for (int k = 0; k < 48; k += 8)
-                {
-                    dVal[k + 0] = FastCompute::Abs(C - iVal[k + 0]);
-                    dVal[k + 1] = FastCompute::Abs(C - iVal[k + 1]);
-                    dVal[k + 2] = FastCompute::Abs(C - iVal[k + 2]);
-                    dVal[k + 3] = FastCompute::Abs(C - iVal[k + 3]);
-                    dVal[k + 4] = FastCompute::Abs(C - iVal[k + 4]);
-                    dVal[k + 5] = FastCompute::Abs(C - iVal[k + 5]);
-                    dVal[k + 6] = FastCompute::Abs(C - iVal[k + 6]);
-                    dVal[k + 7] = FastCompute::Abs(C - iVal[k + 7]);
-                }
+            for (int k = 0; k < 48; k += 8)
+            {
+                dVal[k + 0] = FastCompute::Abs(C - iVal[k + 0]);
+                dVal[k + 1] = FastCompute::Abs(C - iVal[k + 1]);
+                dVal[k + 2] = FastCompute::Abs(C - iVal[k + 2]);
+                dVal[k + 3] = FastCompute::Abs(C - iVal[k + 3]);
+                dVal[k + 4] = FastCompute::Abs(C - iVal[k + 4]);
+                dVal[k + 5] = FastCompute::Abs(C - iVal[k + 5]);
+                dVal[k + 6] = FastCompute::Abs(C - iVal[k + 6]);
+                dVal[k + 7] = FastCompute::Abs(C - iVal[k + 7]);
+            }
 
             __VECTOR_ALIGNED__
-                for (int k = 0; k < 48; k += 8)
-                {
-                    fVal[k + 0] = gaussian_sim(dVal[k + 0], 0.f, sqSigma);
-                    fVal[k + 1] = gaussian_sim(dVal[k + 1], 0.f, sqSigma);
-                    fVal[k + 2] = gaussian_sim(dVal[k + 2], 0.f, sqSigma);
-                    fVal[k + 3] = gaussian_sim(dVal[k + 3], 0.f, sqSigma);
-                    fVal[k + 4] = gaussian_sim(dVal[k + 4], 0.f, sqSigma);
-                    fVal[k + 5] = gaussian_sim(dVal[k + 5], 0.f, sqSigma);
-                    fVal[k + 6] = gaussian_sim(dVal[k + 6], 0.f, sqSigma);
-                    fVal[k + 7] = gaussian_sim(dVal[k + 7], 0.f, sqSigma);
-                }
+            for (int k = 0; k < 48; k += 8)
+            {
+                fVal[k + 0] = gaussian_sim(dVal[k + 0], 0.f, sqSigma);
+                fVal[k + 1] = gaussian_sim(dVal[k + 1], 0.f, sqSigma);
+                fVal[k + 2] = gaussian_sim(dVal[k + 2], 0.f, sqSigma);
+                fVal[k + 3] = gaussian_sim(dVal[k + 3], 0.f, sqSigma);
+                fVal[k + 4] = gaussian_sim(dVal[k + 4], 0.f, sqSigma);
+                fVal[k + 5] = gaussian_sim(dVal[k + 5], 0.f, sqSigma);
+                fVal[k + 6] = gaussian_sim(dVal[k + 6], 0.f, sqSigma);
+                fVal[k + 7] = gaussian_sim(dVal[k + 7], 0.f, sqSigma);
+            }
 
             val1 = val2 = 0.f;
             __VECTOR_ALIGNED__
-                for (int k = 0; k < 48; k++)
-                {
-                    val1 += fVal[k];
-                    val2 += (fVal[k] * iVal[k]);
-                }
+            for (int k = 0; k < 48; k++)
+            {
+                val1 += fVal[k];
+                val2 += (fVal[k] * iVal[k]);
+            }
 
             fCIELabPix filteredPix;
             filteredPix.L = val2 / val1;
@@ -472,14 +472,14 @@ INLINE_ALGO_CALL void FuzzyLogic_7x7
     const fCIELabPix* __restrict pLabIn,
     const PF_Pixel_RGB_10u* __restrict pIn, /* add Input original (non-filtered) image for get Alpha channels values onl y*/
           PF_Pixel_RGB_10u* __restrict pOut,
-    const A_long&          sizeX,
-    const A_long&          sizeY,
-    const A_long&          labInPitch,
-    const A_long&          imgInPitch,
-    const A_long&          imgOutPitch,
+    const A_long          sizeX,
+    const A_long          sizeY,
+    const A_long          labInPitch,
+    const A_long          imgInPitch,
+    const A_long          imgOutPitch,
     const PF_Pixel_RGB_10u& blackPix, // black (minimal) color pixel value - used for clamping
     const PF_Pixel_RGB_10u& whitePix, // white (maximal) color pixel value - used for clamping
-    const float&           fSigma = 2.f
+    const float           fSigma = 2.f
 ) noexcept
 {
     // Don't mark this pixels as Nort, South, etc... just assign numbers from left to rigth and from top to down

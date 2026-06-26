@@ -33,13 +33,18 @@ bool LoadMemoryInterfaceProvider (PF_InData* in_data)
             memInterface.MemoryInterfaceAllocBlock = reinterpret_cast<AllocMemBlock> (GetProcAddress(hLib, __TEXT("AllocMemoryBlock")));
             memInterface.MemoryInterfaceReleaseBlock = reinterpret_cast<FreeMemBlock>(GetProcAddress(hLib, __TEXT("ReleaseMemoryBlock")));
 
-            if (nullptr != memInterface.MemoryInterfaceOpen)
+            if (nullptr != memInterface.MemoryInterfaceOpen && nullptr != memInterface.MemoryInterfaceClose &&
+                nullptr != memInterface.MemoryInterfaceAllocBlock && nullptr != memInterface.MemoryInterfaceReleaseBlock)
             {
                 // open memory interface handler
                 MemoryInterfaceHndl = memInterface.MemoryInterfaceOpen();
                 memInterface._dbgLastError = ::GetLastError();
                 err = true;
             } // if (nullptr != memInterface.MemoryInterfaceOpen)
+            else
+            {
+                UnloadMemoryInterfaceProvider();
+            }
         } // if (NULL != hLib)
     } // if (PF_Err_NONE == extErr && 0 != pluginFullPath[0])
 
@@ -62,7 +67,7 @@ void FreeMemoryBlock (int32_t id) noexcept
     return;
 }
 
-A_long memGetLastError (void) noexcept
+int32_t memGetLastError (void) noexcept
 {
     return static_cast<A_long>(memInterface._dbgLastError);
 }

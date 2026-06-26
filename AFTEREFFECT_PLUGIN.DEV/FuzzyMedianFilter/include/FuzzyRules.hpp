@@ -35,9 +35,9 @@
 
  inline float gaussian_sim 
  (
-    const float& d,         // Correlation with Pixels
-    const float& m,         // Mean
-    const float& sqSigma    // Square of Sigma
+    const float d,         // Correlation with Pixels
+    const float m,         // Mean
+    const float sqSigma    // Square of Sigma
  ) noexcept
  {
     const float diff = d - m;
