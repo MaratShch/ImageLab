@@ -100,14 +100,14 @@ RetroVision_PreRender
             // Read Retro-monitor type for simulation
             errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_DISPLAY), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
             if (PF_Err_NONE == errParam)
-                paramsStrP->monitor = static_cast<RetroMonitor>(algoParam.u.pd.value);
+                paramsStrP->monitor = static_cast<RetroMonitor>(algoParam.u.pd.value - 1);
             else
                 errParam = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
             // Read CGA Palette type for simulation
             errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CGA_PALETTE), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
             if (PF_Err_NONE == errParam)
-                paramsStrP->cga_palette = static_cast<PaletteCGA>(algoParam.u.pd.value);
+                paramsStrP->cga_palette = static_cast<PaletteCGA>(algoParam.u.pd.value - 1);
             else
                 errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
 
@@ -121,14 +121,14 @@ RetroVision_PreRender
             // Read EGA Palette type for simulation
             errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_EGA_PALETTE), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
             if (PF_Err_NONE == errParam)
-                paramsStrP->ega_palette = static_cast<PaletteEGA>(algoParam.u.pd.value);
+                paramsStrP->ega_palette = static_cast<PaletteEGA>(algoParam.u.pd.value - 1);
             else
                 errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
 
             // Read VGA Palette type for simulation
             errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_VGA_PALETTE), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
             if (PF_Err_NONE == errParam)
-                paramsStrP->vga_palette = static_cast<PaletteVGA>(algoParam.u.pd.value);
+                paramsStrP->vga_palette = static_cast<PaletteVGA>(algoParam.u.pd.value - 1);
             else
                 errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
 
@@ -198,7 +198,7 @@ RetroVision_PreRender
             // Read CRT Artifacts - Aperture Grill / Mask type
             errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_APPERTURE_GRILL_POPUP), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
             if (PF_Err_NONE == errParam)
-                paramsStrP->mask_type = static_cast<AppertureGtrill>(algoParam.u.pd.value);
+                paramsStrP->mask_type = static_cast<AppertureGtrill>(algoParam.u.pd.value - 1);
             else
                 errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
 
@@ -219,7 +219,7 @@ RetroVision_PreRender
             // Hercules white color tint
             errParam = PF_CHECKOUT_PARAM(in_data, UnderlyingType(RetroVision::eRETRO_VISION_CRT_ARTIFACTS_HERCULES_WHITE_COLOR), in_data->current_time, in_data->time_step, in_data->time_scale, &algoParam);
             if (PF_Err_NONE == errParam)
-                paramsStrP->white_color_hercules = static_cast<HerculesWhiteColor>(algoParam.u.pd.value);
+                paramsStrP->white_color_hercules = static_cast<HerculesWhiteColor>(algoParam.u.pd.value - 1);
             else
                 errParam |= PF_Err_INTERNAL_STRUCT_DAMAGED;
 
@@ -303,8 +303,8 @@ RetroVision_SmartRender
                             output_pixels,
                             sizeX,
                             sizeY,
-                            srcRowBytes,
-                            dstRowBytes,
+                            srcPitch,
+                            dstPitch,
                             whiteLevel,
                             pFilterStrParams
                         );
@@ -326,8 +326,8 @@ RetroVision_SmartRender
                             output_pixels,
                             sizeX,
                             sizeY,
-                            srcRowBytes,
-                            dstRowBytes,
+                            srcPitch,
+                            dstPitch,
                             whiteLevel,
                             pFilterStrParams
                         );
@@ -349,8 +349,8 @@ RetroVision_SmartRender
                             output_pixels,
                             sizeX,
                             sizeY,
-                            srcRowBytes,
-                            dstRowBytes,
+                            srcPitch,
+                            dstPitch,
                             whiteLevel,
                             pFilterStrParams
                         );
@@ -358,7 +358,7 @@ RetroVision_SmartRender
                     break;
 
                     default:
-                        err = PF_Err_BAD_CALLBACK_PARAM;
+                        err = PF_Err_INTERNAL_STRUCT_DAMAGED;
                     break;
                 } // switch (format)
 
