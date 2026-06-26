@@ -135,7 +135,7 @@ ParamsSetup(
 }
 
 
-static PF_Err
+inline PF_Err
 Render(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
@@ -147,17 +147,28 @@ Render(
 
 
 
-static PF_Err
-SmartRender(
-	PF_InData				*in_data,
-	PF_OutData				*out_data,
-	PF_SmartRenderExtra		*extraP
+inline PF_Err
+PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
 )
 {
-	PF_Err	err = PF_Err_NONE;
-	return err;
+    return ColorBandSelect_PreRender(in_data, out_data, extra);
 }
 
+
+inline PF_Err
+SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+)
+{
+    return ColorBandSelect_SmartRender(in_data, out_data, extraP);
+}
 
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
@@ -194,7 +205,15 @@ EffectMain (
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
-			default:
+            case PF_Cmd_SMART_PRE_RENDER:
+                ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
+            break;
+
+            case PF_Cmd_SMART_RENDER:
+                ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
+            break;
+
+            default:
 			break;
 		}
 	}

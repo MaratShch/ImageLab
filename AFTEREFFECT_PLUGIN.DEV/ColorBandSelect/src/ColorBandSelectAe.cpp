@@ -8,11 +8,11 @@ PF_Err ColorBandSelectInAE_8bits
 	PF_OutData*  out_data,
 	PF_ParamDef* params[],
 	PF_LayerDef* output
-) noexcept
+) 
 {
 	PF_EffectWorld*   __restrict input    = reinterpret_cast<PF_EffectWorld* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
-	PF_Pixel_ARGB_8u*       __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
+	      PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output->data);
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
@@ -44,11 +44,11 @@ PF_Err ColorBandSelectInAE_16bits
 	PF_OutData*  out_data,
 	PF_ParamDef* params[],
 	PF_LayerDef* output
-) noexcept
+) 
 {
 	PF_EffectWorld*    __restrict input    = reinterpret_cast<      PF_EffectWorld* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
-	PF_Pixel_ARGB_16u*       __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
+	      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output->data);
 
 	auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 	auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
@@ -80,11 +80,11 @@ PF_Err ColorBandSelectInAE_32bits
     PF_OutData*  out_data,
     PF_ParamDef* params[],
     PF_LayerDef* output
-) noexcept
+) 
 {
     PF_EffectWorld*    __restrict input = reinterpret_cast<      PF_EffectWorld* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
     const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
-    PF_Pixel_ARGB_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
+          PF_Pixel_ARGB_32f*       __restrict localDst = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output->data);
 
     auto const src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     auto const dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);

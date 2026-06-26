@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 
 typedef enum {
 	COLOR_BAND_FILTER_INPUT,

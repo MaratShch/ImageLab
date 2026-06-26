@@ -27,6 +27,9 @@
     <ClCompile Include="src\ColorBandSelectPr.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ColorBandSelectSr.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ColorBandSelect.hpp">

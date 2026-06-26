@@ -38,7 +38,7 @@ PF_Err ColorBandSelect_BGRA_4444_8u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+) 
 {
 	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	PF_Pixel_BGRA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_8u*  __restrict>(pfLayer->data);
@@ -69,7 +69,7 @@ PF_Err ColorBandSelect_BGRA_4444_16u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+) 
 {
 	const PF_LayerDef*  __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	PF_Pixel_BGRA_16u*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_16u*  __restrict>(pfLayer->data);
@@ -100,7 +100,7 @@ PF_Err ColorBandSelect_BGRA_4444_32f
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+) 
 {
 	const PF_LayerDef*  __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	PF_Pixel_BGRA_32f*  __restrict localSrc = reinterpret_cast<PF_Pixel_BGRA_32f*  __restrict>(pfLayer->data);
@@ -131,7 +131,7 @@ PF_Err ColorBandSelect_BGR_444_10u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+) 
 {
 	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	PF_Pixel_RGB_10u*  __restrict localSrc = reinterpret_cast<PF_Pixel_RGB_10u*  __restrict>(pfLayer->data);
@@ -162,7 +162,7 @@ PF_Err ColorBandSelect_VUYA_4444_8u
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+) 
 {
 	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	PF_Pixel_VUYA_8u*  __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_8u*  __restrict>(pfLayer->data);
@@ -193,7 +193,7 @@ PF_Err ColorBandSelect_VUYA_4444_32f
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+) 
 {
 	const PF_LayerDef* __restrict pfLayer  = reinterpret_cast<const PF_LayerDef* __restrict>(&params[COLOR_BAND_FILTER_INPUT]->u.ld);
 	PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<PF_Pixel_VUYA_32f*  __restrict>(pfLayer->data);
@@ -225,7 +225,7 @@ PF_Err ProcessImgInPR
 	PF_OutData*  __restrict out_data,
 	PF_ParamDef* __restrict params[],
 	PF_LayerDef* __restrict output
-) noexcept
+) 
 {
 	PF_Err err{ PF_Err_NONE };
 	PF_Err errFormat{ PF_Err_INVALID_INDEX };
