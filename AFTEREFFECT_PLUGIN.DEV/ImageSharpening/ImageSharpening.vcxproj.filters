@@ -27,6 +27,9 @@
     <ClCompile Include="src\ImageSharpeningPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageSharpeningSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">

@@ -32,5 +32,20 @@ PF_Err RenderInAfterEffect
 	PF_LayerDef*	output
 );
 
+PF_Err
+PerceptualColorCorrection_PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+);
+
+PF_Err
+PerceptualColorCorrection_SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+);
 
 #endif /* __PERCEPTUAL_COLOR_CORRECTION__ */

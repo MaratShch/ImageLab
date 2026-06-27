@@ -122,7 +122,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeedHighLevel</Optimization>
+      <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
@@ -173,6 +173,7 @@
     <ClCompile Include="src\PerceptualColorCorrection.cpp" />
     <ClCompile Include="src\PerceptualColorCorrectionAe.cpp" />
     <ClCompile Include="src\PerceptualColorCorrectionPr.cpp" />
+    <ClCompile Include="src\PerceptualColorCorrectionSR.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="PerceptualColorCorrection.r">

@@ -95,6 +95,9 @@
     <ClCompile Include="src\PerceptualColorCorrectionPr.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\PerceptualColorCorrectionSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PerceptualColorCorrection.rc">

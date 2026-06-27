@@ -92,6 +92,9 @@
     <ClCompile Include="src\ImageStabilizerPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageStabilizerSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ImageStabilizer.rc">
