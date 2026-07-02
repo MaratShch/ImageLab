@@ -132,7 +132,7 @@ ParamsSetup(
 }
 
 
-static PF_Err
+inline PF_Err
 Render(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
@@ -144,27 +144,26 @@ Render(
 
 
 
-static PF_Err
+inline PF_Err
 PreRender(
     PF_InData			*in_data,
     PF_OutData			*out_data,
     PF_PreRenderExtra	*extra
 )
 {
-    return PF_Err_NONE;
+    return FilmSimulation_PreRender (in_data, out_data, extra);
 }
 
 
 
-static PF_Err
+inline PF_Err
 SmartRender(
     PF_InData				*in_data,
     PF_OutData				*out_data,
     PF_SmartRenderExtra		*extraP
 )
 {
-    PF_Err	err = PF_Err_NONE;
-    return err;
+    return FilmSimulation_SmartRender (in_data, out_data, extraP);
 }
 
 

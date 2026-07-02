@@ -160,6 +160,7 @@
     <ClCompile Include="src\FilmSimulation.cpp" />
     <ClCompile Include="src\FilmSimulationAE.cpp" />
     <ClCompile Include="src\FilmSimulationPR.cpp" />
+    <ClCompile Include="src\FilmSimulationSR.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FilmSimulation.r">

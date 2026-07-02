@@ -19,10 +19,10 @@ constexpr int FilmSimulation_VersionBuild = 1;
 
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
 ) noexcept;
 
 PF_Err
@@ -33,6 +33,22 @@ ProcessImgInAE
 	PF_ParamDef*	params[],
 	PF_LayerDef*	output
 ) noexcept;
+
+PF_Err
+FilmSimulation_PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+);
+
+PF_Err
+FilmSimulation_SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+);
 
 
 #endif // __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__
