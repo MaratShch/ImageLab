@@ -94,6 +94,8 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -121,7 +123,8 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
-      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
