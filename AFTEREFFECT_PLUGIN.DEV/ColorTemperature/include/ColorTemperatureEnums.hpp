@@ -2,7 +2,6 @@
 #define __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ENUMS_AND_DEFINES__
 
 #include <cstdint>
-#include "ColorTemperatureControls.hpp"
 
 constexpr double  algoColorTempScale  = 1000.0;
 constexpr int32_t algoColorTempMin    = -4000;

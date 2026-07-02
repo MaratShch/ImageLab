@@ -7,7 +7,7 @@ constexpr char controlItemName[][32] = {
 	"Using Preset",					// check box
 	"Preset Type",					// popup
 	"Observer",						// popup
-	"Color Temperature. °K x 1000", // slider
+	"Color Temperature. Â°K x 1000", // slider
 	"Temperature Offset",			// slider
 	"Tint coarse",					// slider
 	"Tint fine",					// slider

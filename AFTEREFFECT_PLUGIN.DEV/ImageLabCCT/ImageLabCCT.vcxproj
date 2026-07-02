@@ -129,11 +129,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\cct2rgb.cpp" />
-    <ClCompile Include="src\cct_interface.cpp" />
-    <ClCompile Include="src\cct_refine.cpp" />
-  </ItemGroup>
-  <ItemGroup>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp" />
+    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\ColorTransform.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
@@ -153,30 +150,20 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\AlgoPlanckianLocus.hpp" />
-    <ClInclude Include="include\Cct2rgb.hpp" />
-    <ClInclude Include="include\CctLimits.hpp" />
-    <ClInclude Include="include\CctLut.hpp" />
-    <ClInclude Include="include\cct_interface.hpp" />
-    <ClInclude Include="include\ColorCurves.hpp" />
-    <ClInclude Include="include\ColorIlluminant.hpp" />
-    <ClInclude Include="include\ColorTemperatureChromaticityValues.hpp" />
+    <ClInclude Include="include\Cameras\ARRI_LogC3_EI.hpp" />
+    <ClInclude Include="include\Cameras\ARRI_LogC4.hpp" />
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="internal\Blackbody_color_datafile.pdf">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </None>
-    <None Include="internal\pdf_extract.py">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </None>
+    <None Include="python\arri_logc3_generator\gen_arri_logc3_header.py" />
+    <None Include="python\arri_logc4_generator\gen_arri_logc4_header.py" />
+    <None Include="python\cct_xyz_generator\CIE_xyz_1931_2deg.csv" />
+    <None Include="python\cct_xyz_generator\CIE_xyz_1964_10deg.csv" />
+    <None Include="python\cct_xyz_generator\gen_cmf_header.py" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="internal\CCT_RGB_1931_1000K_25000K_step100K.txt">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-    </Text>
+    <ClCompile Include="src\dummy.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

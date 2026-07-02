@@ -16,25 +16,26 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{250c5b00-f4e3-4cb5-a83c-58e34d64aa4b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="internal">
-      <UniqueIdentifier>{daa5806e-28c7-4920-9224-8459d1907584}</UniqueIdentifier>
+    <Filter Include="python">
+      <UniqueIdentifier>{0252335d-ee2a-45dd-b192-107e5a45b7ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\arri_logc3_generator">
+      <UniqueIdentifier>{fc5fb54d-51d9-41ee-a0e6-64b868e85356}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\arri_logc4_generator">
+      <UniqueIdentifier>{ba9602ae-0d98-4fad-a553-f47596ee68d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\cct_xyz_generator">
+      <UniqueIdentifier>{e38a771d-ee1e-4694-80b7-fe1407883ee9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras">
+      <UniqueIdentifier>{5084e0ce-711a-4c3e-9c60-415b765eba04}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\CIE">
+      <UniqueIdentifier>{2f20662e-3df6-480f-bada-2d1aa3b5532f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\cct_interface.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\cct_refine.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\cct2rgb.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="include\cct_interface.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
@@ -86,45 +87,51 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoPlanckianLocus.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\CctLimits.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorCurves.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorIlluminant.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureChromaticityValues.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\CctLut.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\CommonSmartRender.hpp">
       <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="include\Cct2rgb.hpp">
-      <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\ARRI_LogC3_EI.hpp">
+      <Filter>include\Cameras</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\ARRI_LogC4.hpp">
+      <Filter>include\Cameras</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp">
+      <Filter>include\CIE</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp">
+      <Filter>include\CIE</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="internal\Blackbody_color_datafile.pdf">
-      <Filter>internal</Filter>
+    <None Include="python\arri_logc3_generator\gen_arri_logc3_header.py">
+      <Filter>python\arri_logc3_generator</Filter>
     </None>
-    <None Include="internal\pdf_extract.py">
-      <Filter>internal</Filter>
+    <None Include="python\arri_logc4_generator\gen_arri_logc4_header.py">
+      <Filter>python\arri_logc4_generator</Filter>
+    </None>
+    <None Include="python\cct_xyz_generator\CIE_xyz_1931_2deg.csv">
+      <Filter>python\cct_xyz_generator</Filter>
+    </None>
+    <None Include="python\cct_xyz_generator\CIE_xyz_1964_10deg.csv">
+      <Filter>python\cct_xyz_generator</Filter>
+    </None>
+    <None Include="python\cct_xyz_generator\gen_cmf_header.py">
+      <Filter>python\cct_xyz_generator</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="internal\CCT_RGB_1931_1000K_25000K_step100K.txt">
-      <Filter>internal</Filter>
-    </Text>
+    <ClCompile Include="src\dummy.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

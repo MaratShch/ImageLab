@@ -99,6 +99,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <GenerateAlternateCodePaths>AVX2</GenerateAlternateCodePaths>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(OutDir)\..\LIB\Debug</AdditionalLibraryDirectories>
@@ -121,7 +122,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
@@ -132,6 +133,7 @@
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <GenerateAlternateCodePaths>AVX2</GenerateAlternateCodePaths>
+      <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -183,30 +185,17 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\AlgoProcStructures.hpp" />
-    <ClInclude Include="include\AlgoRules.hpp" />
-    <ClInclude Include="include\ColorTemperature.hpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureAlgo.hpp" />
+    <ClInclude Include="include\ColorTemperature.hpp" />
     <ClInclude Include="include\ColorTemperatureControls.hpp" />
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp" />
-    <ClInclude Include="include\ColorTemperatureDraw.hpp" />
     <ClInclude Include="include\ColorTemperatureEnums.hpp" />
-    <ClInclude Include="include\ColorTemperatureGUI.hpp" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp" />
     <ClCompile Include="src\ColorTemperatureAE.cpp" />
-    <ClCompile Include="src\ColorTemperatureAlgo.cpp" />
-    <ClCompile Include="src\ColorTemperatureControl.cpp" />
-    <ClCompile Include="src\ColorTemperatureControlsPresets.cpp" />
-    <ClCompile Include="src\ColorTemperatureGUI.cpp" />
-    <ClCompile Include="src\ColorTemperatureGUIThread.cpp" />
     <ClCompile Include="src\ColorTemperaturePR.cpp" />
     <ClCompile Include="src\ColorTemperatureSR.cpp" />
-    <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>

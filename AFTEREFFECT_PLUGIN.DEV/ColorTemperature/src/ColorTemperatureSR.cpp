@@ -1,5 +1,5 @@
-#include "AlgoRules.hpp"
 #include "ColorTemperature.hpp"
+#include "CommonSmartRender.hpp"
 
 PF_Err
 ColorTemperarture_PreRender

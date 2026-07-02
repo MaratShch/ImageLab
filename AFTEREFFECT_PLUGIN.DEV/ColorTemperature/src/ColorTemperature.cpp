@@ -1,33 +1,9 @@
 #include "ColorTemperature.hpp"
-#include "ColorTemperatureGUI.hpp"
-#include "ColorTemperatureDraw.hpp"
-#include "ColorTemperatureControlsPresets.hpp"
-#include "ImageLabMemInterface.hpp"
-#include "AlgoProcStructures.hpp"
+#include "ColorTemperatureEnums.hpp"
+#include "ColorTemperatureControls.hpp"
+
 #include "PrSDKAESupport.h"
 #include "AEGP_SuiteHandler.h"
-#include <atomic>
-#include <thread>
-
-
-#ifdef _DEBUG
-volatile AlgoCCT::CctHandleF32* pGCctHandler32{ nullptr };
-volatile pHandle* pGHandle{ nullptr };
-#endif
-
-
-// vector contains preset settings
-std::vector<IPreset*> vPresets (mumberOfPresets);
-
-const std::vector<IPreset*>& getPresets(void) noexcept { return vPresets; }
-
-
-
-void threadGuiCallback (void)
-{
-    return;
-}
-
 
 
 static PF_Err
@@ -56,8 +32,6 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    LoadMemoryInterfaceProvider(in_data);
-
 	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
     PF_Handle pGlobalStorage = nullptr;
 
@@ -136,53 +110,6 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_12u_PQ_2020);
     }
 
-    // Initialize CCT LUTs
-    AlgoCCT::CctHandleF32* globalCctHandler32 = new AlgoCCT::CctHandleF32();
-
-    if (nullptr != globalCctHandler32)
-    {
-        // Add CctHandler to global data
-        AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
-        if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(pHandle))))
-        {
-            pHandle* pHndl = static_cast<pHandle*>(handleSuite->host_lock_handle(pGlobalStorage));
-            if (PremierId != in_data->appl_id)
-            {
-                AEFX_SuiteScoper<AEGP_UtilitySuite3> u_suite(in_data, kAEGPUtilitySuite, kAEGPUtilitySuiteVersion3);
-                u_suite->AEGP_RegisterWithAEGP(nullptr, strName, &pHndl->id);
-            }
-
-            pHndl->hndl = globalCctHandler32;
-            pHndl->valid = static_cast<A_long>(0xDEADBEEF);
-
-            out_data->global_data = pGlobalStorage;
-            handleSuite->host_unlock_handle(pGlobalStorage);
-
-#ifdef _DEBUG
-            pGHandle = pHndl;
-#endif
-
-            // Initialize PreSets
-            setPresetsVector(vPresets);
-            err = PF_Err_NONE;
-
-        } // if (nullptr != (pGlobalStorage = handleSuite->host_new_handle(sizeof(globalCctHandler32))))
-    }
-    else
-    {
-        // abnormal exit - free all allocated resources before
-        delete globalCctHandler32;
-        globalCctHandler32 = nullptr;
-        UnloadMemoryInterfaceProvider();
-    }
-
-#ifdef _DEBUG
-    pGCctHandler32 = globalCctHandler32;
-#endif
-
-//    StartGuiThread();
-
-
     return err;
 }
 
@@ -194,30 +121,6 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    StopGuiThread();
-
-    if (nullptr != in_data->global_data)
-    {
-        pHandle* pGlobal = static_cast<pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-
-        if (nullptr != pGlobal && nullptr != pGlobal->hndl)
-        {
-            pGlobal->valid = 0x0;
-            AlgoCCT::CctHandleF32* globalCctHandler32 = pGlobal->hndl;
-            
-            globalCctHandler32->Deinitialize();
-            delete globalCctHandler32;
-            globalCctHandler32 = nullptr;
-            
-            pGlobal = nullptr;
-        } // if (nullptr != pGlobal && nullptr != pGlobal->hndl)
-
-        AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data)->host_dispose_handle(in_data->global_data);
-    }
-
-    resetPresets (vPresets);
-    UnloadMemoryInterfaceProvider();
-
     return PF_Err_NONE;
 }
 
@@ -582,7 +485,7 @@ SequenceSetdown(
 }
 
 
-static PF_Err
+inline PF_Err
 Render(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
@@ -640,19 +543,6 @@ HandleEvent(
 	PF_EventExtra	*extra)
 {
 	PF_Err		err = PF_Err_NONE;
-	
-	switch (extra->e_type)
-	{
-		case PF_Event_DRAW:
-			err = DrawEvent (in_data, out_data, params, output,	extra);
-		break;
-
-//		case PF_Event_ADJUST_CURSOR:
-//		break;
-	
-		default:
-		break;
-	}
 	return err;
 }
 
@@ -667,31 +557,6 @@ UserChangedParam(
 )
 {
 	PF_Err errControl = PF_Err_NONE;
-
-	switch (which_hitP->param_index)
-	{
-		case COLOR_TEMPERATURE_PRESET_CHECKBOX:
-		{
-			auto const& PresetUsage = params[COLOR_TEMPERATURE_PRESET_CHECKBOX]->u.bd.value;
-			errControl = (PresetUsage ? PresetsActivation(in_data, out_data, params) : PresetsDeactivation(in_data, out_data, params));
-		}
-		break;
-
-		case COLOR_TEMPERATURE_PRESET_TYPE_POPUP:
-		{
-		}
-		break;
-
-		case COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP:
-		{
-		}
-		break;
-
-		default:
-			/* nothing ToDo */
-		break;
-	};
-
 	return errControl;
 }
 
@@ -784,9 +649,6 @@ EffectMain(
 	        case PF_Cmd_EVENT:
 				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
 			break;
-
-            case PF_Cmd_QUERY_DYNAMIC_FLAGS:
-            break;
 
             case PF_Cmd_ARBITRARY_CALLBACK:
                 err = HandleArbitrary(in_data, out_data, params, output, reinterpret_cast<PF_ArbParamsExtra*>(extra));

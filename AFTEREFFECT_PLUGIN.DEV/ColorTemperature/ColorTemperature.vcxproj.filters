@@ -9,18 +9,14 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="include">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
     <Filter Include="include_common">
       <UniqueIdentifier>{d8b9f80f-7c3e-4b11-aaae-ae3f3f367ca7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{88569e79-6655-4f2e-854b-b0daec7edc6b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\ColorTemperature.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
@@ -72,32 +68,8 @@
     <ClInclude Include="..\Common\CommonColorTemperature.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\ColorTemperatureEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureGUI.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureControls.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureControlsPresets.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureAlgo.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="..\Common\CommonSmartRender.hpp">
       <Filter>include_common</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoProcStructures.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoRules.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ColorTemperatureDraw.hpp">
-      <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
       <Filter>include_common</Filter>
@@ -107,6 +79,21 @@
     </ClInclude>
     <ClInclude Include="..\Common\AlignedAllocator.hpp">
       <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperature.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperatureEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperatureControls.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ColorTemperatureControlsPresets.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -119,28 +106,10 @@
     <ClCompile Include="src\ColorTemperaturePR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\ColorTemperatureGUI.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ColorTemperatureControlsPresets.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ColorTemperatureSR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\DllMain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ColorTemperatureGUIThread.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ColorTemperatureControl.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ColorTemperatureAlgo.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
