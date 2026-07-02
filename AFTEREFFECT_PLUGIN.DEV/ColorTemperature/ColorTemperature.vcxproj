@@ -162,6 +162,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp" />
+    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
     <ClInclude Include="..\Common\ColorTransform.hpp" />
