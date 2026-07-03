@@ -28,7 +28,9 @@ static PF_Err ProcessImgInPR
 		switch (destinationPixelFormat)
 		{
 			case PrPixelFormat_BGRA_4444_8u:
-			{
+            case PrPixelFormat_BGRX_4444_8u:
+            case PrPixelFormat_BGRP_4444_8u:
+            {
 				const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
 				      PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
@@ -36,8 +38,10 @@ static PF_Err ProcessImgInPR
 			}
 			break;
 
-			case PrPixelFormat_BGRA_4444_16u:
-			{
+            case PrPixelFormat_BGRA_4444_16u:
+            case PrPixelFormat_BGRX_4444_16u:
+            case PrPixelFormat_BGRP_4444_16u:
+            {
 				const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
 				      PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
@@ -46,7 +50,11 @@ static PF_Err ProcessImgInPR
 			break;
 
 			case PrPixelFormat_BGRA_4444_32f:
+            case PrPixelFormat_BGRX_4444_32f:
+            case PrPixelFormat_BGRP_4444_32f:
             case PrPixelFormat_BGRA_4444_32f_Linear:
+            case PrPixelFormat_BGRX_4444_32f_Linear:
+            case PrPixelFormat_BGRP_4444_32f_Linear:
             {
 				const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
 				      PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
@@ -57,7 +65,11 @@ static PF_Err ProcessImgInPR
 
 			case PrPixelFormat_VUYA_4444_8u:
 			case PrPixelFormat_VUYA_4444_8u_709:
-			{
+            case PrPixelFormat_VUYX_4444_8u:
+            case PrPixelFormat_VUYX_4444_8u_709:
+            case PrPixelFormat_VUYP_4444_8u:
+            case PrPixelFormat_VUYP_4444_8u_709:
+            {
 				const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
 				      PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
@@ -67,7 +79,11 @@ static PF_Err ProcessImgInPR
 
 			case PrPixelFormat_VUYA_4444_32f:
 			case PrPixelFormat_VUYA_4444_32f_709:
-			{
+            case PrPixelFormat_VUYX_4444_32f:
+            case PrPixelFormat_VUYX_4444_32f_709:
+            case PrPixelFormat_VUYP_4444_32f:
+            case PrPixelFormat_VUYP_4444_32f_709:
+            {
 				const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
 				      PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
 				auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
@@ -84,7 +100,43 @@ static PF_Err ProcessImgInPR
 			}
 			break;
 
-			default:
+            case PrPixelFormat_ARGB_4444_8u:
+            case PrPixelFormat_XRGB_4444_8u:
+            case PrPixelFormat_PRGB_4444_8u:
+            {
+                const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(pfLayer->data);
+                       PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+                auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                ImageProcess(localSrc, localDst, height, width, line_pitch, line_pitch, flip);
+            }
+            break;
+
+            case PrPixelFormat_ARGB_4444_16u:
+            case PrPixelFormat_XRGB_4444_16u:
+            case PrPixelFormat_PRGB_4444_16u:
+            {
+                const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(pfLayer->data);
+                      PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
+                auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                ImageProcess(localSrc, localDst, height, width, line_pitch, line_pitch, flip);
+            }
+            break;
+
+            case PrPixelFormat_ARGB_4444_32f:
+            case PrPixelFormat_XRGB_4444_32f:
+            case PrPixelFormat_PRGB_4444_32f:
+            case PrPixelFormat_ARGB_4444_32f_Linear:
+            case PrPixelFormat_XRGB_4444_32f_Linear:
+            case PrPixelFormat_PRGB_4444_32f_Linear:
+            {
+                const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(pfLayer->data);
+                      PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
+                auto const line_pitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                ImageProcess(localSrc, localDst, height, width, line_pitch, line_pitch, flip);
+            }
+            break;
+
+            default:
 				err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
 			break;
 		} /* switch (destinationPixelFormat) */
@@ -187,10 +239,10 @@ GlobalSetup(
 	PF_Err	err = PF_Err_NONE;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT |
+		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT |
-		PF_OutFlag_DEEP_COLOR_AWARE |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
 		PF_OutFlag_WIDE_TIME_INPUT;
 
     constexpr PF_OutFlags out_flags2 =
@@ -225,12 +277,40 @@ GlobalSetup(
 
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u_709);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_8u);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
-		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYA_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYX_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f_709);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_VUYP_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
 		(*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRX_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRP_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_8u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_16u);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_ARGB_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f_Linear);
+        (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f_Linear);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
 	}
 
