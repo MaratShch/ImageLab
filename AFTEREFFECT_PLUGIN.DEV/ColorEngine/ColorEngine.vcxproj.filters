@@ -1,0 +1,154 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{a82a5cae-2d72-44e0-b494-b8bb583f1586}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{6686895e-249e-4e01-9f60-40b218790a03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include_common">
+      <UniqueIdentifier>{1c651c3f-987b-430d-b660-c65d0d3e944e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras">
+      <UniqueIdentifier>{8b0d48d6-82a5-476e-8aaf-21791e01d805}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\ARRI">
+      <UniqueIdentifier>{01c978a0-1d31-4e70-8df0-1cf800169226}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\CIE">
+      <UniqueIdentifier>{aa8f242e-20a7-43b4-82e2-788fdf344228}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python">
+      <UniqueIdentifier>{efa70a46-39a3-406d-8651-f7f0a22c7a00}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\ARRI">
+      <UniqueIdentifier>{e99fdaa5-2e03-444a-8c56-44807bed3621}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\cct_xyz_generator">
+      <UniqueIdentifier>{42e70d36-a4c9-4d63-a46e-5c0032fadd1c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\cct_xyz_generator\CIE">
+      <UniqueIdentifier>{3aa68dc3-b2ca-4424-9557-74892f95e6d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\ARRI\arri_logc3_generator">
+      <UniqueIdentifier>{5a788874-ba4b-4f9c-a897-49c68c553b85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\ARRI\arri_logc4_generator">
+      <UniqueIdentifier>{685446ac-799b-4a00-a0c8-8ab2467ab830}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ClassRestrictions.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Common.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonSmartRender.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmetics.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\LibExport.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\ARRI\ARRI_LogC3_EI.hpp">
+      <Filter>include\Cameras\ARRI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\ARRI\ARRI_LogC4.hpp">
+      <Filter>include\Cameras\ARRI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp">
+      <Filter>include\CIE</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp">
+      <Filter>include\CIE</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\dummy.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\cct_xyz_generator\gen_cmf_header.py">
+      <Filter>python\cct_xyz_generator</Filter>
+    </None>
+    <None Include="python\cct_xyz_generator\CIE_xyz_1931_2deg.csv">
+      <Filter>python\cct_xyz_generator\CIE</Filter>
+    </None>
+    <None Include="python\cct_xyz_generator\CIE_xyz_1964_10deg.csv">
+      <Filter>python\cct_xyz_generator\CIE</Filter>
+    </None>
+    <None Include="python\ARRI\ARRI - LogC False Color - Specification.pdf">
+      <Filter>python\ARRI</Filter>
+    </None>
+    <None Include="python\ARRI\arri_logc3_generator\ARRI_ALEXA_LogC_Curve_in_VFX.pdf">
+      <Filter>python\ARRI\arri_logc3_generator</Filter>
+    </None>
+    <None Include="python\ARRI\arri_logc3_generator\gen_arri_logc3_header.py">
+      <Filter>python\ARRI\arri_logc3_generator</Filter>
+    </None>
+    <None Include="python\ARRI\arri_logc4_generator\ARRI - LogC4 - Specification.pdf">
+      <Filter>python\ARRI\arri_logc4_generator</Filter>
+    </None>
+    <None Include="python\ARRI\arri_logc4_generator\gen_arri_logc4_header.py">
+      <Filter>python\ARRI\arri_logc4_generator</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="python\cct_xyz_generator\Readme!.txt">
+      <Filter>python\cct_xyz_generator</Filter>
+    </Text>
+  </ItemGroup>
+</Project>

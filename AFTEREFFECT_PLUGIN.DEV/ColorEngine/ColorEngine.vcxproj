@@ -18,10 +18,54 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp" />
+    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
+    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
+    <ClInclude Include="..\Common\ColorTransform.hpp" />
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
+    <ClInclude Include="..\Common\Common.hpp" />
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
+    <ClInclude Include="..\Common\CommonSmartRender.hpp" />
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
+    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp" />
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
+    <ClInclude Include="..\Common\LibExport.hpp" />
+    <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\Cameras\ARRI\ARRI_LogC3_EI.hpp" />
+    <ClInclude Include="include\Cameras\ARRI\ARRI_LogC4.hpp" />
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
+    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\dummy.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\ARRI\ARRI - LogC False Color - Specification.pdf" />
+    <None Include="python\ARRI\arri_logc3_generator\ARRI_ALEXA_LogC_Curve_in_VFX.pdf" />
+    <None Include="python\ARRI\arri_logc3_generator\gen_arri_logc3_header.py" />
+    <None Include="python\ARRI\arri_logc4_generator\ARRI - LogC4 - Specification.pdf" />
+    <None Include="python\ARRI\arri_logc4_generator\gen_arri_logc4_header.py" />
+    <None Include="python\cct_xyz_generator\CIE_xyz_1931_2deg.csv" />
+    <None Include="python\cct_xyz_generator\CIE_xyz_1964_10deg.csv" />
+    <None Include="python\cct_xyz_generator\gen_cmf_header.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="python\cct_xyz_generator\Readme!.txt" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1A740F20-311F-4CE3-A9B1-9D2265C53CEC}</ProjectGuid>
     <RootNamespace>ImageLabCCT</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
+    <ProjectName>ColorEngine</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -131,43 +175,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="..\Common\AefxDevPatch.hpp" />
-    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
-    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
-    <ClInclude Include="..\Common\ColorTransform.hpp" />
-    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
-    <ClInclude Include="..\Common\Common.hpp" />
-    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
-    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
-    <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
-    <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
-    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
-    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
-    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
-    <ClInclude Include="..\Common\CommonSmartRender.hpp" />
-    <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
-    <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
-    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
-    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp" />
-    <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
-    <ClInclude Include="..\Common\LibExport.hpp" />
-    <ClInclude Include="..\Common\Param_Utils.h" />
-    <ClInclude Include="include\Cameras\ARRI_LogC3_EI.hpp" />
-    <ClInclude Include="include\Cameras\ARRI_LogC4.hpp" />
-    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
-    <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="python\arri_logc3_generator\gen_arri_logc3_header.py" />
-    <None Include="python\arri_logc4_generator\gen_arri_logc4_header.py" />
-    <None Include="python\cct_xyz_generator\CIE_xyz_1931_2deg.csv" />
-    <None Include="python\cct_xyz_generator\CIE_xyz_1964_10deg.csv" />
-    <None Include="python\cct_xyz_generator\gen_cmf_header.py" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\dummy.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
