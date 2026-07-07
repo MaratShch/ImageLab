@@ -35,10 +35,21 @@
 namespace ARRI_LogC4
 {
     // LogC4 curve constants (single set; EI-independent).
-    constexpr double a = 2231.8263090676883;
-    constexpr double b = 0.9071358748778103;
-    constexpr double c = 0.09286412512218964;
-    constexpr double s = 0.1135972086105891;  // slope of sub-black linear segment
+    // a, b, c are the EXACT spec definitions, evaluated by the compiler in
+    // double precision (no transcribed decimals -> zero transcription error):
+    constexpr double a = (262144.0 - 16.0) / 117.45;   // (2^18 - 16) / 117.45
+    constexpr double b = (1023.0 - 95.0) / 1023.0;
+    constexpr double c = 95.0 / 1023.0;
+    // s and t involve 2^x with non-integer x (not constexpr-evaluable in
+    // C++14), so they are stored as full-precision double literals computed
+    // from the exact spec closed forms:
+    //   expo0 = 14*(-c/b) + 6
+    //   s = 2^expo0 * ln(2) * 14 / (a*b)     (tangent slope at E_p = 0)
+    //   t = (2^expo0 - 64) / a               (decode value at E_p = 0)
+    // Both verified to be exact (0 ULP) against the closed forms; s differs
+    // from the colour-science tabulation by 1 ULP (this value is the exact
+    // tangent, guaranteeing C1 continuity at the branch point).
+    constexpr double s = 0.11359720861058911;   // slope of sub-black linear segment
     constexpr double t = -0.01805699611991131;  // offset of sub-black linear segment
 
     // Decode a LogC4 encoded value E_p (normalized float) to relative
@@ -54,6 +65,19 @@ namespace ARRI_LogC4
             return (std::exp2(expo) - static_cast<T>(64)) / static_cast<T>(a);
         }
         return E_p * static_cast<T>(s) + static_cast<T>(t);
+    }
+
+    // Encode relative scene-linear E_scene -> LogC4 code value, per the
+    // ARRI forward formula:
+    //   E_p = (E >= t) ? ((log2(a*E + 64) - 6)/14)*b + c : (E - t)/s
+    template<typename T>
+    inline T encode(T E_scene) noexcept
+    {
+        if (E_scene >= static_cast<T>(t))
+            return ((std::log2(static_cast<T>(a) * E_scene + static_cast<T>(64))
+                     - static_cast<T>(6)) / static_cast<T>(14)) * static_cast<T>(b)
+                   + static_cast<T>(c);
+        return (E_scene - static_cast<T>(t)) / static_cast<T>(s);
     }
 
 } // namespace ARRI_LogC4

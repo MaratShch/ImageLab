@@ -9,6 +9,7 @@
  * scene-linear values (18%% grey -> ~0.18).
  *
  * Decode (encoded t in [0,1] -> linear x), with break = e*cut + f :
+ *     (encode is the exact ARRI forward: t = x>cut ? c*log10(a*x+b)+d : e*x+f)
  *     x = (t > break) ? (pow(10,(t-d)/c) - b) / a
  *                     : (t - f) / e
  *
@@ -22,6 +23,12 @@
  *
  * Constants: ARRI ALEXA LogC Curve - Usage in VFX white paper, as
  * tabulated in colour-science (authoritative reproduction).
+ * ACCURACY NOTE: every value below is bit-exact to the published ARRI table
+ * (verified against colour-science, 0 mismatches). ARRI publishes these
+ * parameters to 6 decimal places; no higher-precision primary source exists,
+ * so these ARE the highest available accuracy. The branch threshold is
+ * computed as e*cut+f in full double precision at runtime (not stored
+ * rounded), which preserves continuity at the segment break.
  * Generated on: 2026-07-02 11:38:52
  * Standard    : C++14 (no newer features used)
  */
@@ -98,6 +105,21 @@ namespace ARRI_LogC3
 
     template<typename T>
     inline T decode(T t, int ei) noexcept { return decode<T>(t, params_for_EI(ei)); }
+
+    // Encode scene-linear x -> LogC3 code value (normalized [0,1]), per the
+    // ARRI forward formula:  t = (x > cut) ? c*log10(a*x+b)+d : e*x+f
+    template<typename T>
+    inline T encode(T x, const Params& p) noexcept
+    {
+        if (x > static_cast<T>(p.cut))
+            return static_cast<T>(p.c) *
+                   std::log10(static_cast<T>(p.a) * x + static_cast<T>(p.b))
+                   + static_cast<T>(p.d);
+        return static_cast<T>(p.e) * x + static_cast<T>(p.f);
+    }
+
+    template<typename T>
+    inline T encode(T x, int ei) noexcept { return encode<T>(x, params_for_EI(ei)); }
 
 } // namespace ARRI_LogC3
 
