@@ -37,6 +37,45 @@
     <Filter Include="python\ARRI\arri_logc4_generator">
       <UniqueIdentifier>{685446ac-799b-4a00-a0c8-8ab2467ab830}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\Cameras\ACES">
+      <UniqueIdentifier>{aef9d810-8fd7-45ef-935d-140e2d1f8f44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\APPLE">
+      <UniqueIdentifier>{5559cd82-2cfe-4e38-9aef-7ccdc53bdfda}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\BlackMagic">
+      <UniqueIdentifier>{29b9b75f-954f-421d-8b39-56330f9acf1a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\CANON">
+      <UniqueIdentifier>{a99627e9-5bae-423f-93fe-777341811e30}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\CINEON">
+      <UniqueIdentifier>{aef57138-2b4d-43db-903f-afda8502efa1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\DJI">
+      <UniqueIdentifier>{0a24ec50-75df-40cb-8784-fdc36fe38118}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\FUJI">
+      <UniqueIdentifier>{83e8b093-259d-4788-84fb-41071ef5226f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\GoPro">
+      <UniqueIdentifier>{fa01350b-1127-4cab-9bed-f79e01a490fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\LEICA">
+      <UniqueIdentifier>{fe871247-3818-4073-9377-304e43e1e9bb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\PANASONIC">
+      <UniqueIdentifier>{c788954d-b02f-4c10-a020-cc6fcccfe352}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\NIKON">
+      <UniqueIdentifier>{2935ac04-7c53-45c7-91c1-cf16a04c25a7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\RED">
+      <UniqueIdentifier>{4830c644-f28b-4b58-b104-e519b373fa55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\Cameras\SONY">
+      <UniqueIdentifier>{2586e868-6c39-4672-99cb-0297acd51dc3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -113,6 +152,45 @@
     </ClInclude>
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp">
       <Filter>include\CIE</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\ACES\ACES_Transfer.hpp">
+      <Filter>include\Cameras\ACES</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\APPLE\Apple_Log.hpp">
+      <Filter>include\Cameras\APPLE</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\BlackMagic\BMD_FilmGen5.hpp">
+      <Filter>include\Cameras\BlackMagic</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\CANON\Canon_CLog3.hpp">
+      <Filter>include\Cameras\CANON</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\CINEON\Cineon_Log.hpp">
+      <Filter>include\Cameras\CINEON</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\DJI\DJI_DLog.hpp">
+      <Filter>include\Cameras\DJI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\FUJI\Fuji_FLog2.hpp">
+      <Filter>include\Cameras\FUJI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\GoPro\GoPro_Protune.hpp">
+      <Filter>include\Cameras\GoPro</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\LEICA\Leica_LLog.hpp">
+      <Filter>include\Cameras\LEICA</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\NIKON\Nikon_NLog.hpp">
+      <Filter>include\Cameras\NIKON</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\PANASONIC\Panasonic_VLog.hpp">
+      <Filter>include\Cameras\PANASONIC</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\RED\RED_Log3G10.hpp">
+      <Filter>include\Cameras\RED</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Cameras\SONY\Sony_SLog3.hpp">
+      <Filter>include\Cameras\SONY</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

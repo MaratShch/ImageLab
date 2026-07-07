@@ -40,8 +40,21 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\Cameras\ACES\ACES_Transfer.hpp" />
+    <ClInclude Include="include\Cameras\APPLE\Apple_Log.hpp" />
     <ClInclude Include="include\Cameras\ARRI\ARRI_LogC3_EI.hpp" />
     <ClInclude Include="include\Cameras\ARRI\ARRI_LogC4.hpp" />
+    <ClInclude Include="include\Cameras\BlackMagic\BMD_FilmGen5.hpp" />
+    <ClInclude Include="include\Cameras\CANON\Canon_CLog3.hpp" />
+    <ClInclude Include="include\Cameras\CINEON\Cineon_Log.hpp" />
+    <ClInclude Include="include\Cameras\DJI\DJI_DLog.hpp" />
+    <ClInclude Include="include\Cameras\FUJI\Fuji_FLog2.hpp" />
+    <ClInclude Include="include\Cameras\GoPro\GoPro_Protune.hpp" />
+    <ClInclude Include="include\Cameras\LEICA\Leica_LLog.hpp" />
+    <ClInclude Include="include\Cameras\NIKON\Nikon_NLog.hpp" />
+    <ClInclude Include="include\Cameras\PANASONIC\Panasonic_VLog.hpp" />
+    <ClInclude Include="include\Cameras\RED\RED_Log3G10.hpp" />
+    <ClInclude Include="include\Cameras\SONY\Sony_SLog3.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
   </ItemGroup>
