@@ -55,6 +55,10 @@
     <ClInclude Include="include\Cameras\PANASONIC\Panasonic_VLog.hpp" />
     <ClInclude Include="include\Cameras\RED\RED_Log3G10.hpp" />
     <ClInclude Include="include\Cameras\SONY\Sony_SLog3.hpp" />
+    <ClInclude Include="include\CCTLut\cpp14\CCT_LUT_CIE_1931_2DEG.hpp" />
+    <ClInclude Include="include\CCTLut\cpp14\CCT_LUT_CIE_1964_10DEG.hpp" />
+    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1931_2DEG.hpp" />
+    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
   </ItemGroup>

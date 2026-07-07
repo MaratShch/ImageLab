@@ -76,6 +76,15 @@
     <Filter Include="include\Cameras\SONY">
       <UniqueIdentifier>{2586e868-6c39-4672-99cb-0297acd51dc3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\CCTLut">
+      <UniqueIdentifier>{8a3a00db-12b9-47c5-a62d-5a383774be73}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\CCTLut\cpp14">
+      <UniqueIdentifier>{a9e7cbeb-2ebd-430a-a7c1-1493f8e7f642}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\CCTLut\cpp20">
+      <UniqueIdentifier>{49baacd4-9fe9-4f06-97cf-553ae047ec98}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -191,6 +200,18 @@
     </ClInclude>
     <ClInclude Include="include\Cameras\SONY\Sony_SLog3.hpp">
       <Filter>include\Cameras\SONY</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CCTLut\cpp14\CCT_LUT_CIE_1931_2DEG.hpp">
+      <Filter>include\CCTLut\cpp14</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CCTLut\cpp14\CCT_LUT_CIE_1964_10DEG.hpp">
+      <Filter>include\CCTLut\cpp14</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1931_2DEG.hpp">
+      <Filter>include\CCTLut\cpp20</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG.hpp">
+      <Filter>include\CCTLut\cpp20</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
