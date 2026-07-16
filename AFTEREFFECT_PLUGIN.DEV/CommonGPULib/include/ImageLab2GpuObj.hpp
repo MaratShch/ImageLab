@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <tuple>
+#include <sstream>
 #include <cuda_runtime.h>
 #include "PrSDKGPUDeviceSuite.h"
 #include "PrSDKGPUImageProcessingSuite.h"
@@ -94,16 +95,14 @@ protected:
         return (size + CUDA_ALIGNMENT - 1) & ~(CUDA_ALIGNMENT - 1);
     }
 
-    const std::tuple<size_t, size_t> GetGpuMemoryInfo_CUDA (void) noexcept
+    const std::tuple<size_t, size_t> GetGpuMemoryInfo_CUDA(void) noexcept
     {
-        size_t free_byte = 0ull;
-        size_t total_byte = 0ull;
+        size_t free_byte = 0ull, total_byte = 0ull;
 
-        const cudaError_t cuda_status = cudaMemGetInfo(&free_byte, &total_byte);
-
-        if (cuda_status != cudaSuccess)
-            return{ 0, 0 };
-
+        // Bind to the device Premiere assigned to this instance before querying.
+        if (cudaSuccess != cudaSetDevice(static_cast<int>(mDeviceIndex)) || cudaSuccess != cudaMemGetInfo(&free_byte, &total_byte))
+            return std::make_tuple(size_t{ 0 }, size_t{ 0 });
+        
         return std::make_tuple(free_byte, total_byte);
     }
 
@@ -171,29 +170,36 @@ template<class GPUFilter>
 		return GPUFilter::Shutdown(piSuites, *ioIndex);
 	}
 
-	static prSuiteError CreateInstance(
-		PrGPUFilterInstance* ioInstanceData)
-	{
-		GPUFilter* gpuFilter = new GPUFilter();
-		const prSuiteError result = gpuFilter->Initialize(ioInstanceData);
-		if (PrSuiteErrorSucceeded(result))
-		{
-			ioInstanceData->ioPrivatePluginData = gpuFilter;
-		}
-		else
-		{
-			delete gpuFilter;
-            gpuFilter = nullptr;
-		}
-		return result;
-	}
+    static prSuiteError CreateInstance (PrGPUFilterInstance* ioInstanceData)
+    {
+        if (nullptr == ioInstanceData)
+            return suiteError_InvalidParms;
+
+        GPUFilter* gpuFilter = nullptr;
+        
+        try { gpuFilter = new GPUFilter(); }
+        catch (...) { return suiteError_OutOfMemory; }
+        
+        const prSuiteError result = gpuFilter->Initialize(ioInstanceData);
+        if (PrSuiteErrorSucceeded(result))
+            ioInstanceData->ioPrivatePluginData = gpuFilter;
+        else
+            delete gpuFilter;
+
+        return result;
+    }
 
 	static prSuiteError DisposeInstance(
 		PrGPUFilterInstance* ioInstanceData)
 	{
-		delete reinterpret_cast<GPUFilter*>(ioInstanceData->ioPrivatePluginData);
-		ioInstanceData->ioPrivatePluginData = nullptr;
-		return suiteError_NoError;
+        GPUFilter* filter = static_cast<GPUFilter*>(ioInstanceData->ioPrivatePluginData);
+        if (nullptr != filter)
+        {
+            delete filter;
+            ioInstanceData->ioPrivatePluginData = nullptr;
+            filter = nullptr;
+        }
+        return suiteError_NoError;
 	}
 
 	static prSuiteError GetFrameDependencies(
@@ -202,7 +208,8 @@ template<class GPUFilter>
 		csSDK_int32* ioQueryIndex,
 		PrGPUFilterFrameDependency* outFrameRequirements)
 	{
-		return ((GPUFilter*)inInstanceData->ioPrivatePluginData)->GetFrameDependencies(inRenderParams, ioQueryIndex, outFrameRequirements);
+        GPUFilter* filter = static_cast<GPUFilter*>(inInstanceData->ioPrivatePluginData);
+        return (nullptr != filter) ? filter->GetFrameDependencies(inRenderParams, ioQueryIndex, outFrameRequirements) : suiteError_InvalidParms;
 	}
 
 	static prSuiteError Precompute(
@@ -211,7 +218,8 @@ template<class GPUFilter>
 		csSDK_int32 inIndex,
 		PPixHand inFrame)
 	{
-		return ((GPUFilter*)inInstanceData->ioPrivatePluginData)->Precompute(inRenderParams, inIndex, inFrame);
+        GPUFilter* filter = static_cast<GPUFilter*>(inInstanceData->ioPrivatePluginData);
+		return (nullptr != filter) ? filter->Precompute(inRenderParams, inIndex, inFrame) : suiteError_InvalidParms;
 	}
 
 	static prSuiteError Render(
@@ -221,7 +229,8 @@ template<class GPUFilter>
 		csSDK_size_t inFrameCount,
 		PPixHand* outFrame)
 	{
-		return ((GPUFilter*)inInstanceData->ioPrivatePluginData)->Render(inRenderParams, inFrames, inFrameCount, outFrame);
+        GPUFilter* filter = static_cast<GPUFilter*>(inInstanceData->ioPrivatePluginData);
+		return (nullptr != filter) ? filter->Render(inRenderParams, inFrames, inFrameCount, outFrame) : suiteError_InvalidParms;
 	}
 };
 

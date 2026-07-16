@@ -5,6 +5,8 @@ std::atomic<uint32_t>CImageLab2GpuObj::objCnt = 0u;
 CImageLab2GpuObj::CImageLab2GpuObj()
 {
 	objCnt++;
+
+    mBasicSite = nullptr;
 	mGPUDeviceSuite = nullptr;
 	mGPUImageProcessingSuite = nullptr;
 	mMemoryManagerSuite = nullptr;
@@ -23,6 +25,7 @@ CImageLab2GpuObj::CImageLab2GpuObj()
 
 CImageLab2GpuObj::~CImageLab2GpuObj()
 {
+    Cleanup();
 	objCnt--;
 	return;
 }
@@ -139,13 +142,14 @@ const int CImageLab2GpuObj::GetGPUBytesPerPixel (const PrPixelFormat inPixelForm
 
 PrParam CImageLab2GpuObj::GetParam (csSDK_int32 inIndex, PrTime inTime)
 {
-	PrParam param;
-	inIndex -= 1; // GPU filters do not include the input frame
-	mVideoSegmentSuite->GetParam (mNodeID, inIndex, inTime, &param);
-	return param;
+    PrParam param{};
+    if (nullptr != mVideoSegmentSuite)
+        mVideoSegmentSuite->GetParam(mNodeID, inIndex - 1, inTime, &param);
+    return param;
 }
 
 const size_t CImageLab2GpuObj::RoundUp (size_t inValue, size_t inMultiple)
 {
-	return inValue ? ((inValue + inMultiple - 1u) / inMultiple) * inMultiple : 0u;
+    return (inValue && inMultiple) ? ((inValue + inMultiple - 1u) / inMultiple) * inMultiple : inValue;
 }
+
