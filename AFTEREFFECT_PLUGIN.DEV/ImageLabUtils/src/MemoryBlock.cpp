@@ -12,7 +12,7 @@ bool CMemoryBlock::memBlockAlloc (uint32_t mSize, uint32_t mAlign)
 	if (mSize > 0u)
 	{
 		const SIZE_T memSize = static_cast<SIZE_T>(mSize);
-		constexpr DWORD allocType = MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN;
+		constexpr DWORD allocType = MEM_RESERVE | MEM_COMMIT;
 		LPVOID p = VirtualAlloc (NULL, memSize, allocType, PAGE_READWRITE);
 		if (NULL != p)
 		{

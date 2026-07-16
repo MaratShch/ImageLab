@@ -14,7 +14,11 @@ namespace ImageLabMemoryUtils
 	class CMemoryInterface final
 	{
 		public:
-		static CMemoryInterface* getInstance()
+
+        CLASS_NON_COPYABLE(CMemoryInterface);
+        CLASS_NON_MOVABLE(CMemoryInterface);
+
+        static CMemoryInterface* getInstance()
 		{
 			CMemoryInterface* iMemory = s_instance.load (std::memory_order_acquire);
 			if (nullptr == iMemory)
@@ -30,6 +34,13 @@ namespace ImageLabMemoryUtils
 			return iMemory;
 		} /* static MemoryInterface* getInstance() */
 
+        static void destroyInstance() noexcept
+        {
+            std::lock_guard<std::mutex> myLock(s_protectMutex);
+            CMemoryInterface* p = s_instance.exchange(nullptr, std::memory_order_acq_rel);
+            delete p; // ~CMemoryHolder frees blocks; ~CSemaphore closes handle
+        }
+
 		int32_t allocMemoryBlock(const int32_t size, void** pMem, const int32_t alignment = 0);
 		void releaseMemoryBlock (int32_t id);
 		int64_t getMemoryStatistics(void);
@@ -37,9 +48,6 @@ namespace ImageLabMemoryUtils
 		private:
 			CMemoryInterface() {};
 			~CMemoryInterface(){};
-
-		CLASS_NON_COPYABLE(CMemoryInterface);
-		CLASS_NON_MOVABLE(CMemoryInterface);
 
 		CMemoryHolder m_MemHolder;
 

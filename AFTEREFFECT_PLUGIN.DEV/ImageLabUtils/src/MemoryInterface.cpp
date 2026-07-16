@@ -10,6 +10,9 @@ std::mutex CMemoryInterface::s_protectMutex;
 
 int32_t CMemoryInterface::allocMemoryBlock(const int32_t size, void** pMem, const int32_t alignment)
 {
+    if (size <= 0 || nullptr == pMem)
+        return INVALID_MEMORY_BLOCK;
+
 	void* pMemory = nullptr;
 	(void)alignment; // just for avoid compilation warning on currently non used parameter
 	const int32_t blockIdx = m_MemHolder.AllocMemory(static_cast<uint32_t>(size), &pMemory);

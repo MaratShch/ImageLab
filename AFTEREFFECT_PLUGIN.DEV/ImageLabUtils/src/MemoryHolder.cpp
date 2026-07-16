@@ -8,7 +8,7 @@ using namespace ImageLabMemoryUtils;
 
 
 CMemoryHolder::CMemoryHolder () :
-	m_HolderCapacity(FastCompute::Min(32u, std::thread::hardware_concurrency() + 1u)),
+	m_HolderCapacity(FastCompute::Min(32u, FastCompute::Max(4u, std::thread::hardware_concurrency() + 1u))),
 	m_Semaphore(m_HolderCapacity)
 {
 	m_TotalAllocated = 0ull;
@@ -42,7 +42,7 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 	
 	m_Semaphore.Wait();
 
-	/* search already pre-allocated blocks */
+	// search already pre-allocated blocks
 	for (int32_t i = 0; i < m_HolderCapacity && -1 == blockId; i++)
 	{
 		if (m_Holder[i]->getMemSize() >= reqSize)
@@ -69,22 +69,24 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 	// we not found pre-allocated buffer so, let use first free element and make memory re-alloc
 	if (INVALID_MEMORY_BLOCK == blockId)
 	{
-		/* lock queue access */
+		// lock queue access
 		std::unique_lock<std::mutex> lock(m_QueueMutualAccess);
 
 		int32_t idx = m_FreeBlocks.front();
-		m_FreeBlocks.pop_front(); /* remove this element from empty queue */
+		m_FreeBlocks.pop_front(); // remove this element from empty queue
 
-		/* re-allocate requred memory */
+		// re-allocate requred memory 
 		m_TotalAllocated -= (m_Holder[idx]->getMemSize());
 		m_Holder[idx]->memBlockFree();
 		if (true == m_Holder[idx]->memBlockAlloc(reqSize, CACHE_LINE))
 		{
 			m_TotalAllocated += m_Holder[idx]->getMemSize();
-			/* put this idx into busy queue */
+			// put this idx into busy queue
 			m_BusyBlocks.push_front(idx);
 			blockId = idx;
 		}
+        else
+            m_FreeBlocks.push_back(idx); // return slot to pool (block now empty)
 	}
 	
 	return blockId;
@@ -93,26 +95,29 @@ int32_t CMemoryHolder::searchMemoryBlock (uint32_t reqSize)
 
 void CMemoryHolder::releaseMemoryBlock (int32_t blockIdx)
 {
+    bool wasBusy = false;
 	if (INVALID_MEMORY_BLOCK != blockIdx && blockIdx < m_HolderCapacity)
 	{
-		/* lock queue access */
+		// lock queue access
 		std::unique_lock<std::mutex> lock(m_QueueMutualAccess);
 
-		/* check if this block in busy queue */
+		// check if this block in busy queue
 		const int32_t busyQueueCapacity = static_cast<int32_t>(m_BusyBlocks.size());
 		for (int32_t i = 0; i < busyQueueCapacity; i++)
 		{
 			if (blockIdx == m_BusyBlocks[i])
 			{
-				/* this block in busy queue, let's move it and place into free queue */
+				// this block in busy queue, let's move it and place into free queue
 				m_BusyBlocks.erase(m_BusyBlocks.begin() + i);
 				m_FreeBlocks.push_front(blockIdx);
+                wasBusy = true;
 				break;
 			}
 		}
 	}
 
-	m_Semaphore.Release();
+    if (wasBusy) // release exactly one permit per real busy->free transition
+	    m_Semaphore.Release();
 
 	return;
 }
@@ -133,7 +138,7 @@ int32_t CMemoryHolder::AllocMemory (uint32_t memSize, void** ptr, const MemOwned
 
 void CMemoryHolder::ReleaseMemory (int32_t blockId)
 {
-	const int32_t Id = ::CreateBlockIdx(blockId);
+	const int32_t Id = ::GetBlockIdx(blockId);
 	releaseMemoryBlock(Id);
 	return;
 }

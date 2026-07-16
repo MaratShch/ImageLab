@@ -117,7 +117,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
@@ -137,6 +137,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
+    <ClCompile Include="src\ImageLabIPC.cpp" />
     <ClCompile Include="src\ImageLabUtils.cpp" />
     <ClCompile Include="src\MemoryBlock.cpp" />
     <ClCompile Include="src\MemoryHolder.cpp" />
@@ -163,11 +164,14 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\ImageLabCommonUtils.hpp" />
+    <ClInclude Include="include\ImageLabIPC.hpp" />
     <ClInclude Include="include\ImageLabUtils.hpp" />
     <ClInclude Include="include\MemoryBlock.hpp" />
     <ClInclude Include="include\MemoryHolder.hpp" />
     <ClInclude Include="include\MemoryInterface.hpp" />
     <ClInclude Include="include\MemoryPolicy.hpp" />
+    <ClInclude Include="include\UtilsPipe.hpp" />
     <ClInclude Include="include\UtilsSemaphore.hpp" />
     <ClInclude Include="resource.h" />
   </ItemGroup>

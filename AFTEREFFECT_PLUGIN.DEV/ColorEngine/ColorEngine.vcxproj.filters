@@ -213,6 +213,9 @@
     <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG.hpp">
       <Filter>include\CCTLut\cpp20</Filter>
     </ClInclude>
+    <ClInclude Include="include\CCTLut\CCTLut.hpp">
+      <Filter>include\CCTLut</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dummy.cpp">
