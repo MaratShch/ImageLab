@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <array>
 #include "Common.hpp"
+#include <windows.h>
 
 namespace detail
 {
@@ -87,4 +88,15 @@ inline uint32_t crc32_reflected (const uint8_t* buffer, size_t length) noexcept
     }
 
     return ~crc;
+}
+
+
+inline int64_t SafeConvertHandleToInt64 (const HANDLE h) noexcept
+{
+    return static_cast<int64_t>(reinterpret_cast<intptr_t>(h));
+}
+
+inline HANDLE SafeConvertInt64ToHandle (const int64_t i) noexcept
+{
+    return reinterpret_cast<HANDLE>(static_cast<intptr_t>(i));
 }
