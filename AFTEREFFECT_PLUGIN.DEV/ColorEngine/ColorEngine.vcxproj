@@ -58,8 +58,8 @@
     <ClInclude Include="include\CCTLut\CCTLut.hpp" />
     <ClInclude Include="include\CCTLut\cpp14\CCT_LUT_CIE_1931_2DEG.hpp" />
     <ClInclude Include="include\CCTLut\cpp14\CCT_LUT_CIE_1964_10DEG.hpp" />
-    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1931_2DEG.hpp" />
-    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG.hpp" />
+    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1931_2DEG_CPP20.hpp" />
+    <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG_CPP20.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
   </ItemGroup>
@@ -74,6 +74,8 @@
     <None Include="python\ARRI\arri_logc4_generator\gen_arri_logc4_header.py" />
     <None Include="python\cct_xyz_generator\CIE_xyz_1931_2deg.csv" />
     <None Include="python\cct_xyz_generator\CIE_xyz_1964_10deg.csv" />
+    <None Include="python\cct_xyz_generator\gen_cct_lut_header_cpp14.py" />
+    <None Include="python\cct_xyz_generator\gen_cct_lut_header_cpp20.py" />
     <None Include="python\cct_xyz_generator\gen_cmf_header.py" />
   </ItemGroup>
   <ItemGroup>
