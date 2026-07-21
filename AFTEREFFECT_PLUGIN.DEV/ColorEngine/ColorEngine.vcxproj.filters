@@ -85,6 +85,9 @@
     <Filter Include="include\CCTLut\cpp20">
       <UniqueIdentifier>{49baacd4-9fe9-4f06-97cf-553ae047ec98}</UniqueIdentifier>
     </Filter>
+    <Filter Include="python\rgb_linear_generator">
+      <UniqueIdentifier>{85cb4c0e-d828-421d-8dc4-a55da94ef16f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -252,6 +255,9 @@
     </None>
     <None Include="python\cct_xyz_generator\gen_cmf_header.py">
       <Filter>python\cct_xyz_generator</Filter>
+    </None>
+    <None Include="python\rgb_linear_generator\gen_linearize_lut.py">
+      <Filter>python\rgb_linear_generator</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

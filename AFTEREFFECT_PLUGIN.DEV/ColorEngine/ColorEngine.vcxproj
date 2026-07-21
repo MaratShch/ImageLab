@@ -77,6 +77,7 @@
     <None Include="python\cct_xyz_generator\gen_cct_lut_header_cpp14.py" />
     <None Include="python\cct_xyz_generator\gen_cct_lut_header_cpp20.py" />
     <None Include="python\cct_xyz_generator\gen_cmf_header.py" />
+    <None Include="python\rgb_linear_generator\gen_linearize_lut.py" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\cct_xyz_generator\Readme!.txt" />
