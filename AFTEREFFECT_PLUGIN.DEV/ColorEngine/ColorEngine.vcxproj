@@ -62,6 +62,13 @@
     <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG_CPP20.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_GAMMA_8BIT_F64.hpp" />
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_REC709_10BIT_F64.hpp" />
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_SRGB_16BIT_F64.hpp" />
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_GAMMA_8BIT_F64.hpp" />
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_REC709_10BIT_F64.hpp" />
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_16BIT_F64.hpp" />
+    <ClInclude Include="include\LinearLut\LinearLut.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\dummy.cpp" />

@@ -88,6 +88,15 @@
     <Filter Include="python\rgb_linear_generator">
       <UniqueIdentifier>{85cb4c0e-d828-421d-8dc4-a55da94ef16f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\LinearLut">
+      <UniqueIdentifier>{4764e0fc-2ba1-4bd0-a90e-bd634027d8ad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\LinearLut\cpp14">
+      <UniqueIdentifier>{1a88f780-f011-4654-b501-571fb1dd31ad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\LinearLut\cpp20">
+      <UniqueIdentifier>{f2cce046-9d5a-42f3-a62d-98f41ebb6a7d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -218,6 +227,27 @@
     </ClInclude>
     <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG_CPP20.hpp">
       <Filter>include\CCTLut\cpp20</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LinearLut\LinearLut.hpp">
+      <Filter>include\LinearLut</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_GAMMA_8BIT_F64.hpp">
+      <Filter>include\LinearLut\cpp14</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_REC709_10BIT_F64.hpp">
+      <Filter>include\LinearLut\cpp14</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_SRGB_16BIT_F64.hpp">
+      <Filter>include\LinearLut\cpp14</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_GAMMA_8BIT_F64.hpp">
+      <Filter>include\LinearLut\cpp20</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_REC709_10BIT_F64.hpp">
+      <Filter>include\LinearLut\cpp20</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_16BIT_F64.hpp">
+      <Filter>include\LinearLut\cpp20</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

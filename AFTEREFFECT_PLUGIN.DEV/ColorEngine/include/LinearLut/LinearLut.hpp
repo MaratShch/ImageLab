@@ -1,0 +1,14 @@
+#ifndef __IMAGE_LAB2_COLOR_ENGINE_CCT_LUT__
+#define __IMAGE_LAB2_COLOR_ENGINE_CCT_LUT__
+
+#if __cplusplus >= 202002L
+ #include "cpp20/LINEARIZE_LUT_GAMMA_8BIT_F64.hpp"
+ #include "cpp20/LINEARIZE_LUT_REC709_10BIT_F64.hpp"
+ #include "cpp20/LINEARIZE_LUT_SRGB_16BIT_F64.hpp"
+#else
+ #include "cpp14/LINEARIZE_LUT_GAMMA_8BIT_F64.hpp"
+ #include "cpp14/LINEARIZE_LUT_REC709_10BIT_F64.hpp"
+ #include "cpp14/LINEARIZE_LUT_SRGB_16BIT_F64.hpp"
+#endif
+
+#endif // __IMAGE_LAB2_COLOR_ENGINE_CCT_LUT__
