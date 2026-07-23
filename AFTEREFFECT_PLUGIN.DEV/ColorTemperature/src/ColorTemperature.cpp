@@ -1,6 +1,20 @@
 #include "ColorTemperature.hpp"
 #include "PrSDKAESupport.h"
 
+#include "ColorTemperatureControls.hpp"
+#include "cct_interface.hpp"
+
+// static link with ColorEngine static library
+#ifdef _DEBUG
+#pragma comment(lib, "..\\BUILD.OUT\\LIB\\Debug\\ColorEngine.lib")
+#else 
+#pragma comment(lib, "..\\BUILD.OUT\\LIB\\Release\\ColorEngine.lib")
+#endif
+
+// Create CCTHandle
+static AlgoCCT::CctHandle<double> cctHdnl;
+
+
 static PF_Err
 About(
 	PF_InData		*in_data,
