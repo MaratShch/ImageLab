@@ -60,6 +60,7 @@
     <ClInclude Include="include\CCTLut\cpp14\CCT_LUT_CIE_1964_10DEG.hpp" />
     <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1931_2DEG_CPP20.hpp" />
     <ClInclude Include="include\CCTLut\cpp20\CCT_LUT_CIE_1964_10DEG_CPP20.hpp" />
+    <ClInclude Include="include\cct_interface.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1931_2DEG.hpp" />
     <ClInclude Include="include\CIE\CMF_CIE_XYZ_1964_10DEG.hpp" />
     <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_SRGB_10BIT_F64_CPP14.hpp" />
@@ -69,9 +70,6 @@
     <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_16BIT_F64_CPP20.hpp" />
     <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_8BIT_F64_CPP20.hpp" />
     <ClInclude Include="include\LinearLut\LinearLut.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\dummy.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="python\ARRI\ARRI - LogC False Color - Specification.pdf" />
@@ -88,6 +86,10 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\cct_xyz_generator\Readme!.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\cct_interface.cpp" />
+    <ClCompile Include="src\cct_refine.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1A740F20-311F-4CE3-A9B1-9D2265C53CEC}</ProjectGuid>

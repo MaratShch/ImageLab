@@ -2,7 +2,7 @@
 #include "CommonSmartRender.hpp"
 
 PF_Err
-ColorTemperarture_PreRender
+ColorTemperature_PreRender
 (
     PF_InData			*in_data,
     PF_OutData			*out_data,

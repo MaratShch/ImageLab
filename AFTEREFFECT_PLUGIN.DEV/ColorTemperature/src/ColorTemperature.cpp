@@ -1,10 +1,5 @@
 #include "ColorTemperature.hpp"
-#include "ColorTemperatureEnums.hpp"
-#include "ColorTemperatureControls.hpp"
-
 #include "PrSDKAESupport.h"
-#include "AEGP_SuiteHandler.h"
-
 
 static PF_Err
 About(
@@ -13,8 +8,7 @@ About(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_SPRINTF(
-		out_data->return_msg,
+	PF_SPRINTF(out_data->return_msg,
 		"%s, v%d.%d\r%s",
 		strName,
 		ColorTemperature_VersionMajor,
@@ -32,25 +26,22 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
-    PF_Handle pGlobalStorage = nullptr;
+	PF_Err	err = PF_Err_NONE;
 
 	constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_WIDE_TIME_INPUT                |
-		PF_OutFlag_SEQUENCE_DATA_NEEDS_FLATTENING |
-		PF_OutFlag_USE_OUTPUT_EXTENT              |
-		PF_OutFlag_PIX_INDEPENDENT                |
-		PF_OutFlag_DEEP_COLOR_AWARE               |
-        PF_OutFlag_CUSTOM_UI                      | 
-		PF_OutFlag_SEND_UPDATE_PARAMS_UI;
+		PF_OutFlag_PIX_INDEPENDENT       |
+		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
+		PF_OutFlag_USE_OUTPUT_EXTENT     |
+		PF_OutFlag_DEEP_COLOR_AWARE      |
+		PF_OutFlag_WIDE_TIME_INPUT;
 
-	constexpr PF_OutFlags out_flags2 =
-		PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG     |
-		PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS             |
-		PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT            |
-		PF_OutFlag2_SUPPORTS_GET_FLATTENED_SEQUENCE_DATA |
+    constexpr PF_OutFlags out_flags2 =
+        PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT |
         PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
+    PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;
 
 	out_data->my_version =
 		PF_VERSION(
@@ -61,7 +52,7 @@ GlobalSetup(
 			ColorTemperature_VersionBuild
 		);
 
-	out_data->out_flags  = out_flags1;
+	out_data->out_flags = out_flags1;
 	out_data->out_flags2 = out_flags2;
 
 	/* For Premiere - declare supported pixel formats */
@@ -110,7 +101,7 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_12u_PQ_2020);
     }
 
-    return err;
+	return err;
 }
 
 
@@ -121,7 +112,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    return PF_Err_NONE;
+	/* nothing to do */
+	return PF_Err_NONE;
 }
 
 
@@ -133,354 +125,12 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_ParamDef	def;
-    PF_Err err = PF_Err_NONE;
-
-    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE;
+	CACHE_ALIGN PF_ParamDef	def;
+	PF_Err		err = PF_Err_NONE;
+	constexpr PF_ParamFlags flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
 	constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
-	constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
-	// SetUp 'Using Preset' checkbox. Default state - non selected/
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_CHECKBOXX(
-		controlItemName[0],
-		FALSE,
-		flags,
-		COLOR_TEMPERATURE_PRESET_CHECKBOX);
-
-	// Setup 'Preset' popup - initially disable
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-	PF_ADD_POPUP(
-		controlItemName[1],                     // pop-up name
-		COLOR_TEMPERARTURE_TOTAL_PRESETS,       // number of variants
-		COLOR_TEMPERARTURE_PRESET_LANDSCAPE,    // default variant
-		controlItemPresetType,                  // string for pop-up
-		COLOR_TEMPERATURE_PRESET_TYPE_POPUP);   // control ID
-
-	// Setup 'Observer' popup - default value "2 degrees 1931"
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_POPUP(
-		controlItemName[2],                     // pop-up name
-		COLOR_TEMPERATURE_TOTAL_OBSERVERS,      // number of variants
-		COLOR_TEMPERATURE_OBSERVER_1931_2,      // default variant
-		controlItemObserver,                    // string for pop-up
-		COLOR_TEMPERATURE_OBSERVER_TYPE_POPUP); // control ID
-
-	// Setup 'Color Temperature' slider
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[3],
-		colorTemperature2Slider(algoColorTempMin),
-		colorTemperature2Slider(algoColorTempMax),
-		colorTemperature2Slider(algoColorTempMin),
-		colorTemperature2Slider(algoColorTempMax),
-		colorTemperature2Slider(algoColorWhitePoint),
-		PF_Precision_TENTHS,
-		0,
-		0,
-		COLOR_TEMPERATURE_COARSE_VALUE_SLIDER);
-
-	// Setup 'Color Temperature Offset' slider
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[4],
-		algoColorTempFineMin,
-		algoColorTempFineMax,
-		algoColorTempFineMin,
-		algoColorTempFineMax,
-		algoColorTempFineDef,
-		PF_Precision_TENTHS,
-		0,
-		0,
-		COLOR_TEMPERATURE_FINE_VALUE_SLIDER);
-
-	// Setup 'Tint coarse' slider
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[5],
-		algoColorTintMin,
-		algoColorTintMax,
-		algoColorTintMin,
-		algoColorTintMax,
-		algoColorTintDefault,
-		PF_Precision_TENTHS,
-		0,
-		0,
-		COLOR_TEMPERATURE_TINT_SLIDER);
-
-	// Setup 'Tint fine' slider
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_FLOAT_SLIDERX(
-		controlItemName[6],
-		algoColorTintFineMin,
-		algoColorTintFineMax,
-		algoColorTintFineMin,
-		algoColorTintFineMax,
-		algoColorTintFineDefault,
-        PF_Precision_THOUSANDTHS,
-		0,
-		0,
-		COLOR_TEMPERATURE_TINT_FINE_SLIDER);
-
-    // add Color CCT bar (GUI)
-    AEFX_CLR_STRUCT_EX(def);
-    def.flags     = flags;
-    def.ui_flags  = PF_PUI_CONTROL;
-    def.ui_width  = gGuiBarWidth;
-    def.ui_height = gGuiBarHeight;
-    if (PremierId != in_data->appl_id)
-    {
-        PF_ADD_COLOR(
-            controlItemName[7],
-            0,
-            0,
-            0,
-            COLOR_TEMPERATURE_COLOR_BAR_GUI);
-    }
-    else
-    {
-        PF_ADD_ARBITRARY2(
-            controlItemName[7],
-            gGuiBarWidth,
-            gGuiBarHeight,
-            0,
-            PF_PUI_CONTROL,
-            0,
-            COLOR_TEMPERATURE_COLOR_BAR_GUI,
-            0);
-    }
-    if (PF_Err_NONE == err)
-    {
-        PF_CustomUIInfo	ui;
-        AEFX_CLR_STRUCT_EX(ui);
-
-        ui.events = PF_CustomEFlag_EFFECT;
-
-        ui.comp_ui_width = 0;
-        ui.comp_ui_height = 0;
-        ui.comp_ui_alignment = PF_UIAlignment_NONE;
-
-        ui.layer_ui_width = 0;
-        ui.layer_ui_height = 0;
-        ui.layer_ui_alignment = PF_UIAlignment_NONE;
-
-        ui.preview_ui_width = 0;
-        ui.preview_ui_height = 0;
-        ui.layer_ui_alignment = PF_UIAlignment_NONE;
-
-        err = (*(in_data->inter.register_ui))(in_data->effect_ref, &ui);
-    } // if (PF_Err_NONE == err)
-
-    // Setup 'Camera SPD' button - initially disabled
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
-	PF_ADD_BUTTON(
-		controlItemName[8],
-		controlItemCameraSPD,
-		0,
-		PF_ParamFlag_SUPERVISE,
-		COLOR_TEMPERATURE_CAMERA_SPD_BUTTON
-	);
-
-	// Setup 'Load Preset' button/
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_BUTTON(
-		controlItemName[9],
-		controlItemLoadPreset,
-		0,
-		PF_ParamFlag_SUPERVISE,
-		COLOR_TEMPERATURE_LOAD_PRESET_BUTTON
-	);
-
-	// Setup 'Save Preset' button
-	AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-	PF_ADD_BUTTON(
-		controlItemName[10],
-		controlItemSavePreset,
-		0,
-		PF_ParamFlag_SUPERVISE,
-		COLOR_TEMPERATURE_SAVE_PRESET_BUTTON
-	);
-
-    out_data->num_params = COLOR_TEMPERATURE_TOTAL_CONTROLS;
-
-	return PF_Err_NONE;
-}
-
-
-static PF_Err
-SequenceSetup(
-	PF_InData		*in_data,
-	PF_OutData		*out_data
-)
-{
-	PF_Err err = PF_Err_NONE;
-#if 0
-    auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
-	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
-	if (nullptr != seqDataHndl)
-	{
-		unflatSequenceData* unflatSequenceDataH = reinterpret_cast<unflatSequenceData*>(handleSuite->host_lock_handle(seqDataHndl));
-		if (nullptr != unflatSequenceDataH)
-		{
-			AEFX_CLR_STRUCT_EX(*unflatSequenceDataH);
-			unflatSequenceDataH->isFlat = false;
-			unflatSequenceDataH->magic = sequenceDataMagic;
-			unflatSequenceDataH->colorCoeff.cct = unflatSequenceDataH->colorCoeff.tint = 0.f;
-			unflatSequenceDataH->colorCoeff.r = unflatSequenceDataH->colorCoeff.g = unflatSequenceDataH->colorCoeff.b = 0.f;
-
-			/* notify AE that this is our sequence data handle */
-			out_data->sequence_data = seqDataHndl;
-			/* unlock handle */
-			handleSuite->host_unlock_handle(seqDataHndl);
-		} /* if (nullptr != seqP) */
-	} /* if (nullptr != seqDataHndl) */
-	else
-		err = PF_Err_OUT_OF_MEMORY;
-#endif
-	return err;
-}
-
-
-static PF_Err
-SequenceReSetup(
-	PF_InData		*in_data,
-	PF_OutData		*out_data
-)
-{
-	PF_Err err = PF_Err_NONE;
-#if 0
-	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
-	PF_Handle seqDataHndl = handleSuite->host_new_handle(sizeof(unflatSequenceData));
-
-	/* if sequence data is present */
-	if (nullptr != in_data->sequence_data)
-	{
-		/* get handle to flat data ... */
-		PF_Handle flatSequenceDataH = in_data->sequence_data;
-		/* ... then get its actual data pointer */
-		flatSequenceData* flatSequenceDataP = static_cast<flatSequenceData*>(GET_OBJ_FROM_HNDL(flatSequenceDataH));
-		if (nullptr != flatSequenceDataP && true == flatSequenceDataP->isFlat)
-		{
-			/* create a new handle, allocating the size of your (unflat) sequence data for it */
-			PF_Handle unflatSequenceDataH = handleSuite->host_new_handle(sizeof(unflatSequenceData));
-			if (nullptr != unflatSequenceDataH)
-			{
-				/* lock and get actual data pointer for unflat data */
-				unflatSequenceData* unflatSequenceDataP = static_cast<unflatSequenceData*>(handleSuite->host_lock_handle(unflatSequenceDataH));
-				if (nullptr != unflatSequenceDataP)
-				{
-					AEFX_CLR_STRUCT_EX(*unflatSequenceDataP);
-					/* set flag for being "unflat" */
-					unflatSequenceDataP->isFlat = false;
-					/* directly copy int value unflat -> flat */
-					unflatSequenceDataP->magic = flatSequenceDataP->magic;
-					unflatSequenceDataP->colorCoeff = flatSequenceDataP->colorCoeff;
-
-					/* notify AE of unflat sequence data */
-					out_data->sequence_data = unflatSequenceDataH;
-
-					/* dispose flat sequence data! */
-					handleSuite->host_dispose_handle(flatSequenceDataH);
-					in_data->sequence_data = nullptr;
-				} /* if (nullptr != unflatSequenceDataP) */
-				else
-					err = PF_Err_INTERNAL_STRUCT_DAMAGED;
-
-				/* unlock unflat sequence data handle */
-				handleSuite->host_unlock_handle(unflatSequenceDataH);
-
-			} /* if (nullptr != unflatSequenceDataH) */
-
-		} /* if (nullptr != flatSequenceDataP && true == flatSequenceDataP->isFlat) */
-		else
-		{
-			/* use input unflat data as unchanged output */
-			out_data->sequence_data = in_data->sequence_data;
-		}
-	} /* if (nullptr != in_data->sequence_data) */
-	else
-	{
-		/* no sequence data exists ? Let's create one! */
-		err = SequenceSetup (in_data, out_data);
-	}
-#endif
-	return err;
-}
-
-
-static PF_Err
-SequenceFlatten(
-	PF_InData		*in_data,
-	PF_OutData		*out_data
-)
-{
-	PF_Err err = PF_Err_NONE;
-#if 0
-	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
-	if (nullptr != in_data->sequence_data)
-	{
-		/* assume it's always unflat data and get its handle ... */
-		PF_Handle unflatSequenceDataH = in_data->sequence_data;
-		/* ... then get its actual data pointer */
-		unflatSequenceData* unflatSequenceDataP = static_cast<unflatSequenceData*>(GET_OBJ_FROM_HNDL(unflatSequenceDataH));
-		if (nullptr != unflatSequenceDataP)
-		{
-			/* create a new handle, allocating the size of our (flat) sequence data for it */ 
-			PF_Handle flatSequenceDataH = handleSuite->host_new_handle(sizeof(flatSequenceData));
-			if (nullptr != flatSequenceDataH)
-			{
-				/* lock and get actual data pointer for flat data */
-				flatSequenceData* flatSequenceDataP = static_cast<flatSequenceData*>(handleSuite->host_lock_handle(flatSequenceDataH));
-				if (nullptr != flatSequenceDataP)
-				{
-					/* clear structure fields */
-					AEFX_CLR_STRUCT_EX(*flatSequenceDataP);
-					/* set flag for being FLAT */
-					flatSequenceDataP->isFlat = true;
-					/* copy values from unflat to flat */
-					flatSequenceDataP->magic = unflatSequenceDataP->magic;
-					flatSequenceDataP->colorCoeff = unflatSequenceDataP->colorCoeff;
-
-					/* notify AE of new flat sequence data */
-					out_data->sequence_data = flatSequenceDataH;
-
-					/* unlock flat sequence data handle */
-					handleSuite->host_unlock_handle(flatSequenceDataH);
-				} /* if (nullptr != flatSequenceDataP) */
-
-			} /* if (nullptr != flatSequenceDataH) */
-			else
-				err = PF_Err_INTERNAL_STRUCT_DAMAGED;
-
-			/* dispose unflat sequence data! */
-			handleSuite->host_dispose_handle(unflatSequenceDataH);
-			in_data->sequence_data = nullptr;
-		} /* if (nullptr != unflatSequenceDataP) */
-
-	} /* if (nullptr != in_data->sequence_data) */
-	else
-		err = PF_Err_INTERNAL_STRUCT_DAMAGED;
-#endif
-	return err;
-}
-
-
-static PF_Err
-SequenceSetdown(
-	PF_InData		*in_data,
-	PF_OutData		*out_data
-)
-{
-	auto const handleSuite{ AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data) };
-	if (nullptr != in_data->sequence_data)
-	{
-		handleSuite->host_dispose_handle(in_data->sequence_data);
-	}
-
-	/* Invalidate the sequence_data pointers in both AE's input and output data fields (to signal that we have properly disposed of the data). */
-	in_data->sequence_data  = nullptr;
-	out_data->sequence_data = nullptr;
-
+	out_data->num_params = 1;
 	return PF_Err_NONE;
 }
 
@@ -492,166 +142,85 @@ Render(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	return ((PremierId == in_data->appl_id ?
-		ProcessImgInPR(in_data, out_data, params, output) : // Premier host
-		ProcessImgInAE(in_data, out_data, params, output)));// After Effect host
-}
-
-
-inline PF_Err
-PreRender(
-	PF_InData		   *in_data,
-	PF_OutData		   *out_data,
-    PF_PreRenderExtra  *extra
-)
-{
-	return ColorTemperarture_PreRender (in_data, out_data, extra);
-}
-
-
-
-inline PF_Err
-SmartRender (
-	PF_InData		     *in_data,
-	PF_OutData		     *out_data,
-    PF_SmartRenderExtra  *extra
-)
-{
-	return ColorTemperature_SmartRender (in_data, out_data, extra);
-}
-
-
-static PF_Err
-GetFlattenedSequenceData(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output)
-{
-	return PF_Err_NONE;
-}
-
-
-
-
-static PF_Err
-HandleEvent(
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output,
-	PF_EventExtra	*extra)
-{
-	PF_Err		err = PF_Err_NONE;
-	return err;
-}
-
-
-static PF_Err
-UserChangedParam(
-	PF_InData						*in_data,
-	PF_OutData						*out_data,
-	PF_ParamDef						*params[],
-	PF_LayerDef						*outputP,
-	const PF_UserChangedParamExtra	*which_hitP
-)
-{
-	PF_Err errControl = PF_Err_NONE;
-	return errControl;
+	return ((PremierId == in_data->appl_id ? ProcessImgInPR (in_data, out_data, params, output) : ProcessImgInAE (in_data, out_data, params, output)));
 }
 
 
 
 static PF_Err
 UpdateParameterUI(
-	PF_InData			*in_data,
-	PF_OutData			*out_data,
-	PF_ParamDef			*params[],
-	PF_LayerDef			*outputP
-) noexcept
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*output
+)
 {
-	PF_Err err = PF_Err_NONE;
-	return err;
-}
-
-
-static PF_Err
-HandleArbitrary(
-    PF_InData		*in_data,
-    PF_OutData		*out_data,
-    PF_ParamDef		*params[],
-    PF_LayerDef		*output,
-    PF_ArbParamsExtra	*extra)
-{
-    PF_Err		err = PF_Err_NONE;
+    PF_Err	err = PF_Err_NONE;
     return err;
 }
 
 
+inline PF_Err SmartRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+)
+{
+    return ColorTemperature_SmartRender (in_data, out_data, extraP);
+}
+
+
+inline PF_Err
+PreRender(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_PreRenderExtra		*extraP
+)
+{
+    return ColorTemperature_PreRender (in_data, out_data, extraP);
+}
+
+
+
+
 PLUGIN_ENTRY_POINT_CALL PF_Err
 EffectMain(
-	PF_Cmd			cmd,
-	PF_InData		*in_data,
-	PF_OutData		*out_data,
-	PF_ParamDef		*params[],
-	PF_LayerDef		*output,
-	void			*extra)
+    PF_Cmd			cmd,
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    void			*extra)
 {
-	PF_Err err = PF_Err_NONE;
+    PF_Err		err{ PF_Err_NONE };
 
-	try {
-		switch (cmd)
-		{
-			case PF_Cmd_ABOUT:
-				ERR(About(in_data, out_data, params, output));
-			break;
+    try {
+        switch (cmd)
+        {
+            case PF_Cmd_ABOUT:
+                ERR(About(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_GLOBAL_SETUP:
-				ERR(GlobalSetup(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_GLOBAL_SETUP:
+                ERR(GlobalSetup(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_GLOBAL_SETDOWN:
-				ERR(GlobalSetdown(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_GLOBAL_SETDOWN:
+                ERR(GlobalSetdown(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_PARAMS_SETUP:
-				ERR(ParamsSetup(in_data, out_data, params, output));
-			break;
+            case PF_Cmd_PARAMS_SETUP:
+                ERR(ParamsSetup(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_SEQUENCE_SETUP:
-				ERR(SequenceSetup(in_data, out_data));
-			break;
+            case PF_Cmd_RENDER:
+                ERR(Render(in_data, out_data, params, output));
+            break;
 
-			case PF_Cmd_SEQUENCE_RESETUP:
-				ERR(SequenceReSetup(in_data, out_data));
-			break;
-
-			case PF_Cmd_SEQUENCE_FLATTEN:
-				ERR(SequenceFlatten(in_data, out_data));
-			break;
-
-			case PF_Cmd_SEQUENCE_SETDOWN:
-				ERR(SequenceSetdown(in_data, out_data));
-			break;
-
-			case PF_Cmd_RENDER:
-				ERR(Render(in_data, out_data, params, output));
-			break;
-
-			case PF_Cmd_USER_CHANGED_PARAM:
-				ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
-			break;
-
-			case PF_Cmd_UPDATE_PARAMS_UI:
-				ERR(UpdateParameterUI(in_data, out_data, params, output));
-			break;
-
-	        case PF_Cmd_EVENT:
-				ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
-			break;
-
-            case PF_Cmd_ARBITRARY_CALLBACK:
-                err = HandleArbitrary(in_data, out_data, params, output, reinterpret_cast<PF_ArbParamsExtra*>(extra));
+            // Handling this selector will ensure that the UI will be properly initialized,
+            // even before the user starts changing parameters to trigger PF_Cmd_USER_CHANGED_PARAM
+            case PF_Cmd_UPDATE_PARAMS_UI:
+                ERR(UpdateParameterUI(in_data, out_data, params, output));
             break;
 
             case PF_Cmd_SMART_PRE_RENDER:
@@ -662,18 +231,14 @@ EffectMain(
                 ERR(SmartRender(in_data, out_data, reinterpret_cast<PF_SmartRenderExtra*>(extra)));
             break;
 
-			 case PF_Cmd_GET_FLATTENED_SEQUENCE_DATA:
-			    ERR(GetFlattenedSequenceData(in_data, out_data, params, output));
-			 break;
+            default:
+            break;
+        }
+    }
+    catch (PF_Err &thrown_err)
+    {
+        err = thrown_err;
+    }
 
-			default:
-			break;
-		}
-	}
-	catch (PF_Err& thrown_err)
-	{
-		err = thrown_err;
-	}
-
-	return err;
+    return err;
 }
