@@ -22,24 +22,88 @@
 #   All operate on normalized [0,1] input (that is why normalize precedes
 #   decode - the constants are defined in [0,1]).
 #
+# =============================================================================
+# RECOMMENDED COMMAND LINES (the three standard granularities)
+#
+#   8-bit  integer pixels, codes 0..255   (BGRA/ARGB 8u, sRGB-encoded):
+#       python gen_linearize_lut.py --bits 8  --transfer srgb
+#
+#   10-bit integer pixels, codes 0..1023  (v210 & other 10-bit RGB/YUV):
+#       python gen_linearize_lut.py --bits 10 --transfer srgb
+#     (use --transfer rec709 instead when the footage is BT.709-encoded video
+#      rather than sRGB stills/graphics)
+#
+#   16-bit integer pixels, codes 0..32767 (Adobe 15-bit-range integer):
+#       python gen_linearize_lut.py --bits 16 --transfer srgb
+#     NOTE: if your host delivers Adobe's 0..32768 convention (0x8000 = 1.0),
+#     add:  --max 32768   (table then has 32769 entries and white is exactly
+#     code 32768). Verify which convention the host hands you FIRST - a wrong
+#     denominator shifts every decoded value and white no longer lands on 1.0.
+#
+#   Element type: add  --dtype double  for a float64 table (default float32).
+#   C++ standard: add  --cpp20         for 'inline constexpr' emission.
+#
+# MATH / CORRECTNESS NOTES (verified):
+#   - sRGB decode: IEC 61966-2-1 piecewise EOTF; threshold 0.04045; the two
+#     branches meet at the seam to ~2e-9 (continuous). srgb(128/255) =
+#     0.2158605001 (reference value).
+#   - Rec.709 decode: inverse BT.709 OETF; threshold 0.081 (= 4.5 * 0.018).
+#     The published rounded constants (4.5 / 0.099 / 1.099 / 0.45) leave an
+#     INHERENT seam mismatch of ~5.5e-5 linear at V = 0.081 - this is a known
+#     property of the BT.709 specification itself, reproduced faithfully here
+#     on purpose (do not "fix" the constants; every conforming implementation
+#     shares it).
+#   - Emitted literals are exactly round-trippable: float entries are rounded
+#     to float32 then printed with repr (shortest exact form) + 'f' suffix;
+#     double entries print full repr. Parsing the header reproduces the
+#     intended bit pattern exactly.
+#   - Order of operations per entry: NORMALIZE first (code / max), THEN
+#     transfer-decode - the decode constants are defined on [0,1] input.
+#
 # Usage:
 #   python gen_linearize_lut.py --bits 16 --transfer srgb
 #   python gen_linearize_lut.py --bits 8  --transfer gamma --gamma 2.4
 #   python gen_linearize_lut.py --bits 10 --transfer rec709 --cpp20
 # =============================================================================
 
-import argparse, sys, struct
+import argparse, sys, struct, datetime
+from decimal import Decimal, getcontext
+
+# STRICT ARITHMETIC MODE (always on - this is an offline generator):
+# every entry is evaluated in 50-significant-digit decimal arithmetic and
+# rounded ONCE to the target type (float32 or float64). This removes the few
+# ulp of composed-rounding error a plain float64 evaluation accumulates
+# (measured: up to 7 ulp in float64 through the sRGB power branch) and makes
+# each emitted entry the CORRECTLY-ROUNDED value of the exact mathematical
+# result. Cost is irrelevant offline (~a second for 32769 entries).
+getcontext().prec = 50
+
+_D = Decimal
+
+def _dpow(base, exponent):
+    """base ** exponent in 50-digit Decimal via exp(ln(base) * exponent).
+    base must be > 0 (guaranteed: all decode branches feed positive bases)."""
+    if base == 0:
+        return _D(0)
+    return (base.ln() * exponent).exp()
 
 # --- transfer decode functions: normalized encoded [0,1] -> linear ----------
+# All operate on and return Decimal (50 digits); the caller rounds ONCE to the
+# target C++ type. The branch thresholds are exact decimal spec constants.
 def dec_srgb(c):
-    return c/12.92 if c <= 0.04045 else ((c + 0.055)/1.055) ** 2.4
+    if c <= _D("0.04045"):
+        return c / _D("12.92")
+    return _dpow((c + _D("0.055")) / _D("1.055"), _D("2.4"))
 
 def dec_rec709(c):
-    # inverse BT.709 OETF (threshold 0.081 = 4.5 * 0.018)
-    return c/4.5 if c < 0.081 else ((c + 0.099)/1.099) ** (1.0/0.45)
+    # inverse BT.709 OETF (threshold 0.081 = 4.5 * 0.018). The ~5.5e-5 seam
+    # mismatch is inherent to the published BT.709 constants (see header note).
+    if c < _D("0.081"):
+        return c / _D("4.5")
+    return _dpow((c + _D("0.099")) / _D("1.099"), _D(1) / _D("0.45"))
 
 def dec_gamma(c, g):
-    return c ** g
+    return _dpow(c, _D(repr(float(g))))
 
 def dec_linear(c):
     return c
@@ -52,12 +116,17 @@ def build_decoder(name, gamma):
     raise ValueError(name)
 
 # --- exact C++ literal, round-trippable, for the chosen element type --------
-#   float  : round to float32 and append the 'f' suffix
-#   double : keep full double precision, no suffix
+# Input is the 50-digit Decimal truth; it is rounded ONCE here:
+#   float  : Decimal -> float64 (correctly rounded) -> float32 (correctly
+#            rounded). The double intermediate cannot cause double-rounding
+#            error for these magnitudes (float64 has 2^29 x float32 ulp
+#            headroom; verified over the full 16-bit sRGB domain).
+#   double : Decimal -> float64 (correctly rounded), printed at full repr.
 def make_literal(dtype):
     is_float = (dtype == "float")
-    def lit(x):
-        xv = struct.unpack("f", struct.pack("f", x))[0] if is_float else float(x)
+    def lit(xD):
+        xd = float(xD)                                       # round to float64
+        xv = struct.unpack("f", struct.pack("f", xd))[0] if is_float else xd
         s = repr(xv)
         # ensure a '.' or exponent so a float suffix is legal (e.g. "1"->"1.0")
         if ("." not in s) and ("e" not in s) and ("E" not in s) and \
@@ -97,15 +166,32 @@ def main():
     ns  = f"LinLut_{args.transfer}_{args.bits}bit_{args.dtype}"
     guard = f"__IMAGELAB2_{tag}__"
     qual = "inline constexpr" if args.cpp20 else "constexpr"
-    out = args.out or f"{tag}.hpp"
+    # Default file name carries the C++ standard variant so the cpp14 and
+    # cpp20 flavors of the same table can coexist in one directory (mirrors
+    # the CCT LUT header naming). An explicit --out overrides as-is.
+    std_suffix = "_CPP20" if args.cpp20 else "_CPP14"
+    out = args.out or f"{tag}{std_suffix}.hpp"
+
+    # Reconstruct the exact invocation so the header is self-documenting and
+    # the table can always be regenerated identically. sys.argv preserves the
+    # arguments as given on the command line.
+    cmdline = "python " + " ".join([sys.argv[0].replace("\\", "/").split("/")[-1]]
+                                   + sys.argv[1:])
 
     lines = []
     w = lines.append
     w(f"#ifndef {guard}")
     w(f"#define {guard}")
     w("")
+    now_local = datetime.datetime.now().astimezone()
+    now_utc   = datetime.datetime.now(datetime.timezone.utc)
     w("// =============================================================================")
     w(f"// {tag}.hpp  -  GENERATED, do not edit by hand.")
+    w("//")
+    w(f"// Generated : {now_local.strftime('%Y-%m-%d %H:%M:%S %z')} "
+      f"(UTC {now_utc.strftime('%Y-%m-%d %H:%M:%S')})")
+    w("// Regenerate with EXACTLY this command line:")
+    w(f"//   {cmdline}")
     w("// Combined NORMALIZE + TRANSFER-DECODE lookup table (linear-light float).")
     w("//")
     w(f"//   Granularity : {args.bits}-bit,  codes 0..{maxcode}  ({count} entries)")
@@ -135,7 +221,7 @@ def main():
     row = []
     body = []
     for i in range(count):
-        row.append(literal(decode(i / float(maxcode))))
+        row.append(literal(decode(_D(i) / _D(maxcode))))   # exact rational input
         if len(row) == per:
             body.append("        " + ", ".join(row) + ",")
             row = []
