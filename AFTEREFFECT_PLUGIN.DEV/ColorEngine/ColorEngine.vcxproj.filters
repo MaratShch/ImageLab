@@ -231,22 +231,22 @@
     <ClInclude Include="include\LinearLut\LinearLut.hpp">
       <Filter>include\LinearLut</Filter>
     </ClInclude>
-    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_GAMMA_8BIT_F64.hpp">
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_SRGB_8BIT_F64_CPP14.hpp">
       <Filter>include\LinearLut\cpp14</Filter>
     </ClInclude>
-    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_REC709_10BIT_F64.hpp">
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_SRGB_10BIT_F64_CPP14.hpp">
       <Filter>include\LinearLut\cpp14</Filter>
     </ClInclude>
-    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_SRGB_16BIT_F64.hpp">
+    <ClInclude Include="include\LinearLut\cpp14\LINEARIZE_LUT_SRGB_16BIT_F64_CPP14.hpp">
       <Filter>include\LinearLut\cpp14</Filter>
     </ClInclude>
-    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_GAMMA_8BIT_F64.hpp">
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_8BIT_F64_CPP20.hpp">
       <Filter>include\LinearLut\cpp20</Filter>
     </ClInclude>
-    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_REC709_10BIT_F64.hpp">
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_10BIT_F64_CPP20.hpp">
       <Filter>include\LinearLut\cpp20</Filter>
     </ClInclude>
-    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_16BIT_F64.hpp">
+    <ClInclude Include="include\LinearLut\cpp20\LINEARIZE_LUT_SRGB_16BIT_F64_CPP20.hpp">
       <Filter>include\LinearLut\cpp20</Filter>
     </ClInclude>
   </ItemGroup>
