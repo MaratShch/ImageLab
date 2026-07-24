@@ -187,6 +187,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\ColorTemperature.hpp" />
     <ClInclude Include="include\ColorTemperatureControls.hpp" />
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp" />
@@ -194,6 +195,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\ColorTemperature.cpp" />
     <ClCompile Include="src\ColorTemperatureAE.cpp" />
     <ClCompile Include="src\ColorTemperaturePR.cpp" />

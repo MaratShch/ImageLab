@@ -21,7 +21,7 @@ PF_Err ProcessImgInPR
     // This plugin called from PR - check video fomat
     const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-    const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+    const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
     const A_long rowBytes = pfLayer->rowbytes;
 
     /* This plugin called frop PR - check video fomat */
@@ -33,7 +33,11 @@ PF_Err ProcessImgInPR
         {
             case PrPixelFormat_BGRA_4444_8u:
             {
+                const PF_Pixel_BGRA_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* RESTRICT>(pfLayer->data);
+                      PF_Pixel_BGRA_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* RESTRICT>(output->data);
                 const A_long stride = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+
+
             }
             break;
 

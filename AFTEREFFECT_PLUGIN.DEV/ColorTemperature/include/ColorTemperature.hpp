@@ -53,4 +53,5 @@ ColorTemperature_SmartRender
 );
 
 
+
 #endif /* __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_FILTER__ */

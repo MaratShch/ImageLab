@@ -2,7 +2,7 @@
 #include "PrSDKAESupport.h"
 
 #include "ColorTemperatureControls.hpp"
-#include "cct_interface.hpp"
+#include "AlgorithmMain.hpp"
 
 // static link with ColorEngine static library
 #ifdef _DEBUG
@@ -13,6 +13,8 @@
 
 // Create CCTHandle
 static AlgoCCT::CctHandle<double> cctHdnl;
+
+AlgoCCT::CctHandle<double>& get_cct_handler(void) noexcept { return cctHdnl; }
 
 
 static PF_Err
@@ -78,6 +80,7 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+#if 0
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
@@ -113,6 +116,7 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_12u_PQ_709);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_12u_PQ_P3);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_12u_PQ_2020);
+#endif
     }
 
 	return err;
