@@ -98,6 +98,21 @@
     <ClInclude Include="include\AlgorithmMain.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoFormatIngest.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoSuperPixel.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\super_pixel.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControl.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp">
@@ -116,6 +131,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgorithmMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoMemHandler.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

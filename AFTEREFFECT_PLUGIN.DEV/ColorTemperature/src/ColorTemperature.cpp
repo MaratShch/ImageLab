@@ -1,6 +1,7 @@
 #include "ColorTemperature.hpp"
 #include "PrSDKAESupport.h"
 
+#include "ImageLabMemInterface.hpp"
 #include "ColorTemperatureControls.hpp"
 #include "AlgorithmMain.hpp"
 
@@ -42,7 +43,10 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return err;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -119,6 +123,8 @@ GlobalSetup(
 #endif
     }
 
+    err = PF_Err_NONE;
+
 	return err;
 }
 
@@ -130,8 +136,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
 }
 
 

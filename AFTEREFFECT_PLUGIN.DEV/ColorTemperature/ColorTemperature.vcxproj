@@ -187,14 +187,20 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoControl.hpp" />
+    <ClInclude Include="include\AlgoFormatIngest.hpp" />
+    <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgorithmMain.hpp" />
+    <ClInclude Include="include\AlgoSuperPixel.hpp" />
     <ClInclude Include="include\ColorTemperature.hpp" />
     <ClInclude Include="include\ColorTemperatureControls.hpp" />
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp" />
     <ClInclude Include="include\ColorTemperatureEnums.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\super_pixel.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoMemHandler.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\ColorTemperature.cpp" />
     <ClCompile Include="src\ColorTemperatureAE.cpp" />
