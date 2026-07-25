@@ -197,7 +197,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp" />
     <ClInclude Include="include\ColorTemperatureEnums.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
-    <ClInclude Include="include\super_pixel.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AlgoMemHandler.cpp" />

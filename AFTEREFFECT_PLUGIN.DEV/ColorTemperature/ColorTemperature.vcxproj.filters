@@ -104,9 +104,6 @@
     <ClInclude Include="include\AlgoSuperPixel.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\super_pixel.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgoMemHandler.hpp">
       <Filter>include</Filter>
     </ClInclude>

@@ -12,10 +12,7 @@
 #pragma comment(lib, "..\\BUILD.OUT\\LIB\\Release\\ColorEngine.lib")
 #endif
 
-// Create CCTHandle
-static AlgoCCT::CctHandle<double> cctHdnl;
 
-AlgoCCT::CctHandle<double>& get_cct_handler(void) noexcept { return cctHdnl; }
 
 
 static PF_Err
