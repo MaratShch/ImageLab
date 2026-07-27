@@ -87,6 +87,9 @@
     <ClInclude Include="include\FilmSimulationEnum.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\film_grain_profiles.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -99,6 +102,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\FilmSimulationSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_grain_profiles.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

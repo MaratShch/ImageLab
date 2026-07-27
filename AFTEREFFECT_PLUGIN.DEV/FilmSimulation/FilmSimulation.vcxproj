@@ -155,12 +155,14 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\FilmSimulation.hpp" />
     <ClInclude Include="include\FilmSimulationEnum.hpp" />
+    <ClInclude Include="include\film_grain_profiles.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp" />
     <ClCompile Include="src\FilmSimulationAE.cpp" />
     <ClCompile Include="src\FilmSimulationPR.cpp" />
     <ClCompile Include="src\FilmSimulationSR.cpp" />
+    <ClCompile Include="src\film_grain_profiles.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FilmSimulation.r">
