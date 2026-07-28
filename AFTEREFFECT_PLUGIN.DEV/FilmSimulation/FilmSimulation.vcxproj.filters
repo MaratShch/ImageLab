@@ -16,6 +16,9 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{b7a20539-10d8-459a-9ea2-0c5b6477a2ef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="python">
+      <UniqueIdentifier>{fcf44b00-4966-4e0e-80be-e29b1305dec6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -87,7 +90,7 @@
     <ClInclude Include="include\FilmSimulationEnum.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\film_grain_profiles.hpp">
+    <ClInclude Include="include\film_profiles.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -104,7 +107,7 @@
     <ClCompile Include="src\FilmSimulationSR.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\film_grain_profiles.cpp">
+    <ClCompile Include="src\film_profiles.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -117,5 +120,39 @@
     <CustomBuild Include="FilmSimulation.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\cpp_codegen.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\film_profiles.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\film_sim.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\make_period_chart.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\make_test_chart.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\README.md">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\run.cmd">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\sheet.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\verify.py">
+      <Filter>python</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="python\Readme!.txt">
+      <Filter>python</Filter>
+    </Text>
   </ItemGroup>
 </Project>
