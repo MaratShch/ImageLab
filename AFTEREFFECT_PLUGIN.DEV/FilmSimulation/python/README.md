@@ -254,14 +254,14 @@ structure is built to accept real data; only the numbers are provisional.
 
 | File | Purpose |
 |------|---------|
-| `film_profiles.py` | Physical parameters, 26 stocks, 4 print stocks, 11 gauges |
+| `film_profiles.py` | Physical parameters, 56 stocks, 5 print stocks, 14 gauges |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |
 | `verify.py` | 67-check suite: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, edge cases |
 | `make_test_chart.py` | Synthetic chart (ramp, patches, MTF bars, specular discs) |
 | `make_period_chart.py` | Larger chart for the period stocks and the réseau |
-| `contact_sheet.png` | All 26 stocks on the small chart |
+| `contact_sheet.png` | All 56 stocks on the small chart |
 | `period_sheet.png` | The period stocks, plus a 3-generation dupe comparison |
 | `dufay_crop.png` | Dufaycolor réseau at 1:1, so the grid is visible |
 
@@ -273,7 +273,7 @@ structure is built to accept real data; only the numbers are provisional.
 - grain reproduces the datasheet RMS granularity to within 1.3%
 - granularity rises monotonically with scan resolution and never exceeds the figure
 - 500T renders 2.54× grainier than 50D — the datasheet ratio is 2.54
-- 18% grey anchors to 18% display for all 21 stocks and all 3 print stocks
+- 18% grey anchors to 18% display for all 56 stocks and all 5 print stocks
 - red is softest and blue sharpest through a 25 c/mm target
 - halation is red-dominant and CineStill halates far more than a remjet stock
 - reversal stocks clip a wide ramp far sooner than negative stocks
@@ -306,3 +306,105 @@ against the Python implementation.
   MB. Use `--max-dim` to work smaller.
 - Requires Python 3.12 as specified; the modules also import on 3.10 (plain `Enum`
   rather than `StrEnum`), which is how the test suite was run.
+
+---
+
+## Expansion set: 26 → 55 stocks
+
+29 stocks added. Database now holds **55 film stocks, 4 print stocks, 12 gauges**
+(Super 8 added at 5.79 mm).
+
+| Group | Stocks |
+|---|---|
+| Agfa B&W | APX 25, APX 100, APX 400 |
+| Agfa colour | Optima 100, Vista 200 |
+| Eastman reversal | Ektachrome EF 5239 (35 mm), 7239 (16 mm) |
+| Ektachrome stills | 64 daylight, 160T tungsten |
+| Fuji | F-125 8530, F-125 8630, Neopan Acros 100, Neopan 1600, Provia 400X, Sensia 100 |
+| Polaroid | SX-70, 664, 667 |
+| USSR | Svema Foto-250, Tasma FN-65 |
+| 8 mm gauges | generic B&W reversal, generic colour reversal |
+| Indian cinema 1940–60 | Gevacolor 1952, Gevaert Panchro 1950, Eastman Plus-X 5231 |
+| Britain | Ilford HP3, Ilford HPS |
+| France | Lumière Lumichrome |
+| Italy / Latin America | Ferrania P30 |
+
+### Confidence tiers
+
+The original block carries one blanket `# EST`. The new block is graded, because
+the sources vary enormously and you should be able to see which is which:
+
+- **[T1] Datasheet-grounded.** Published speed, granularity and resolution exist;
+  numbers fitted to them. Good to roughly 10 %.
+- **[T2] Partially grounded.** Speed and reputation documented; grain and MTF
+  interpolated from siblings in the same family and era.
+- **[T3] Reconstruction.** No datasheet available. Built from era, speed class,
+  process type and written descriptions. Plausible and internally consistent —
+  **not** measurements.
+
+`[T3]` set: Svema Foto-250, Tasma FN-65, both 8 mm entries, Gevacolor 1952,
+Gevaert Panchro 1950, Lumière Lumichrome. Lumichrome is the weakest of the lot
+and says so in its own description.
+
+### Gauge pairs
+
+`5239`/`7239` and `8530`/`8630` are the same emulsion on different base, so their
+numbers are **deliberately identical**. The visible difference is magnification,
+which the renderer derives from `--format`, not from the profile. Render the 16 mm
+member with `--format 16mm` or `--format super16` or the distinction is lost.
+Same for the two 8 mm entries: use `--format 8mm` or `--format super8`.
+
+### Two honest notes
+
+**South America.** No South American country manufactured raw film at scale in
+1940–1980; its studios shot on imports, Ferrania prominently among them. So
+`FERRANIA_P30` is labelled as the Italian stock it is rather than dressed up as
+something it isn't.
+
+**India.** Indian studios also shot imports across the whole 1940–60 window.
+Domestic manufacture began 1960 with Hindustan Photo Films at Ootacamund
+("Indu" stock), just outside the window. Gevacolor is documented on *Aan* (1952)
+and *Mother India* (1957).
+
+### Monotonicity bound corrected
+
+`ToneCurve`'s docstring previously claimed monotonicity is guaranteed for
+`shoulder_k <= 2 * toe_k`. That is the analytic bound on the second derivative,
+but measured on the actual transfer, ratios above about **1.4** produce a
+reversal of order 1e-6 near the shoulder asymptote. Harmless visually, but
+`verify.py` checks for it. Four of the new low-Dmax reversal stocks tripped it and
+were retuned; the docstring now states the empirical bound.
+
+### Known limitation: low-Dmax stocks don't yet look low-Dmax
+
+Instant film's defining property is a low Dmax — SX-70 reaches 1.87 where
+Kodachrome reaches 3.20, so its blacks are open and slightly milky however you
+expose it. **That is currently not visible in the render.**
+`_normalised_transmittance()` rescales each curve's own `dmin..dmax` to `1..0`,
+so the stock's own Dmax is the divisor, every stock is stretched to fill the
+output range, and the difference is normalised away. The profiles and the C++
+tables carry the correct Dmax; the Python renderer flattens it. On the test chart
+SX-70 and Kodachrome both bottom out at display 0.000.
+
+For negatives this is correct — the negative is an intermediate and the print
+stock sets the final range. For reversal it is wrong, because the film *is* the
+viewed image.
+
+**Proposed fix, not applied:** normalise reversal against a fixed viewing-black
+reference (Dmax 3.40) instead of each stock's own Dmax. Predicted sRGB floors:
+
+| Stock | Floor | Stock | Floor |
+|---|---|---|---|
+| POLAROID_SX70 | 0.159 | KODACHROME_64 | 0.005 |
+| POLAROID_667 | 0.151 | EKTACHROME_64 | 0.006 |
+| POLAROID_664 | 0.129 | FUJI_VELVIA_50 | 0.006 |
+| EIGHT_MM_BW | 0.103 | FUJI_PROVIA_400X | 0.008 |
+| AGFACOLOR_NEU_1936 | 0.052 | EIGHT_MM_COLOR | 0.009 |
+| DUFAYCOLOR_1937 | 0.035 | EASTMAN_EKTACHROME_* | 0.012 |
+
+Polaroids and 8 mm B&W get their real floor; Kodachrome, Velvia and modern E-6
+are essentially untouched. Agfacolor Neu and Dufaycolor also read more correctly
+for their era as a side effect.
+
+This changes rendered output for all 17 reversal stocks, so it awaits your
+decision.

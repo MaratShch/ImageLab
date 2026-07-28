@@ -10,7 +10,7 @@ travels: the taking lens, exposure, halation, emulsion scatter, the
 characteristic curve, development couplers, silver-halide grain, scanning,
 duplication and printing.
 
-It supports 26 film stocks, covering colour negative, colour reversal, black and
+It supports 56 film stocks, covering colour negative, colour reversal, black and
 white, three-strip Technicolor, 1930s-40s period stocks, and additive colour via
 a physical filter grid (Dufaycolor). It also models the taking lens's veiling
 flare and multi-generation dupe printing, which is what makes the period stocks
@@ -33,7 +33,7 @@ Install the two dependencies:
 Below, "python" means "py -3.12" on Windows and "python3.12" on Linux.
 Run everything from the folder containing these files.
 
-  a) Check it works. Prints a table of all 26 stocks:
+  a) Check it works. Prints a table of all 56 stocks:
 
         python film_profiles.py
 
@@ -94,12 +94,12 @@ Generated output, safe to delete and regenerate:
   film_profiles.hpp    C++ header. Contains the struct definitions AND the
                        reference formulae as comments, so a C++ port cannot
                        silently drift from the Python original.
-  film_profiles.cpp    C++ tables: all 26 stocks, 4 print stocks, 11 gauges.
+  film_profiles.cpp    C++ tables: all 56 stocks, 5 print stocks, 14 gauges.
                        Regenerate both with:  python cpp_codegen.py -o .
 
   test_chart.png       The small synthetic test image.
   period_chart.png     The large 3200 px test image.
-  contact_sheet.png    All 26 stocks on the small chart, side by side. Open this
+  contact_sheet.png    All 56 stocks on the small chart, side by side. Open this
                        first to see what the stocks look like.
   period_sheet.png     The five period stocks, plus a 3-generation dupe
                        comparison and a modern stock for reference.
@@ -345,7 +345,7 @@ That writes film_profiles.hpp and film_profiles.cpp. Add both to your project:
 
     #include "film_profiles.hpp"
 
-    auto stocks  = film::GetFilmDatabase();    // all 26
+    auto stocks  = film::GetFilmDatabase();    // all 56
     auto prints  = film::GetPrintStocks();     // all 4
     auto formats = film::GetFilmFormats();     // all 11 gauges
 
@@ -503,3 +503,675 @@ Full technical detail, including every bug the test suite caught during
 development and the dye-matrix model fix the period work forced, is in README.md.
 
 ===============================================================================
+
+
+===========================================================================
+EXPANSION SET -- 26 STOCKS TO 55
+===========================================================================
+
+29 stocks were added after the original 26. The database now holds 55 film
+stocks, 4 print stocks and 12 gauges (Super 8 was added at 5.79 mm).
+
+WHAT WAS ADDED
+
+  Agfa B&W          APX 25, APX 100, APX 400
+  Agfa colour       Optima 100, Vista 200
+  Eastman reversal  Ektachrome EF 5239 (35 mm), 7239 (16 mm)
+  Ektachrome        64 daylight, 160T tungsten
+  Fuji              F-125 8530 (35 mm), F-125 8630 (16 mm),
+                    Neopan Acros 100, Neopan 1600,
+                    Provia 400X, Sensia 100
+  Polaroid          SX-70, 664, 667
+  USSR              Svema Foto-250, Tasma FN-65
+  8 mm gauges       generic B&W reversal, generic colour reversal
+  Indian cinema     Gevacolor 1952, Gevaert Panchro 1950,
+                    Eastman Plus-X 5231
+  Britain           Ilford HP3, Ilford HPS
+  France            Lumiere Lumichrome
+  Italy / LatAm     Ferrania P30
+
+CONFIDENCE TIERS
+
+Every new description starts with a tier tag. This matters -- do not treat
+these numbers as uniformly reliable:
+
+  [T1]  Datasheet-grounded. Published speed, granularity and resolution
+        figures exist and the numbers are fitted to them. Good to ~10%.
+  [T2]  Partially grounded. Speed and reputation documented; grain and MTF
+        interpolated from siblings in the same family and era.
+  [T3]  Reconstruction. No datasheet available. Built from era, speed class,
+        process type and written descriptions. Plausible and internally
+        consistent, NOT measurements. Do not cite them as data.
+
+The [T3] set is: Svema Foto-250, Tasma FN-65, both 8 mm entries, Gevacolor
+1952, Gevaert Panchro 1950, and Lumiere Lumichrome. Lumichrome is the
+weakest of all of them and is flagged as such in its own description.
+
+NAMING NOTES
+
+  Svema         The FN line was cine negative, the Foto- line was still
+                film. Both names circulate for the fast stock, so
+                "svema fn250", "foto250" and "svema foto 250" all resolve
+                to SVEMA_FOTO_250.
+  5239 / 7239   Same emulsion, different gauge. The numbers in the two
+  8530 / 8630   profiles are deliberately identical. The visible difference
+                is magnification, which the renderer derives from the frame
+                width you pass with --format, not from the profile. Render
+                7239 or 8630 with --format 16mm or super16 or you lose the
+                entire point of having them separate.
+  8mm BW/COLOR  "8 mm" is a gauge, not an emulsion. These are representative
+                home-movie reversal stocks. Render with --format 8mm or
+                --format super8.
+  Ektachrome    "Ektachrome 1" and "Ektachrome 2" were ambiguous; they are
+                interpreted here as Ektachrome 64 daylight and Ektachrome
+                160T tungsten.
+
+SOUTH AMERICA
+
+No South American country manufactured raw motion-picture film at scale in
+1940-1980. Argentine, Brazilian and Mexican studios shot on imports, and
+Ferrania was among the most common. FERRANIA_P30 is therefore labelled as
+the Italian stock it is, and is the closest honest match to that cinema.
+
+INDIAN CINEMA
+
+Indian studios also shot on imports through the whole 1940-1960 window.
+Domestic manufacture began in 1960 when Hindustan Photo Films opened at
+Ootacamund and produced "Indu" branded stock, which is just outside the
+window. Gevacolor is documented on Aan (1952), the first Indian feature in
+full colour, and on Mother India (1957).
+
+KNOWN LIMITATION -- LOW-DMAX STOCKS DO NOT YET LOOK LOW-DMAX
+===========================================================================
+
+The defining property of instant film is a low Dmax: SX-70 tops out near
+1.87 where Kodachrome reaches 3.20, so its blacks are genuinely open and
+slightly milky no matter how it is exposed.
+
+That is currently NOT visible in the render. _normalised_transmittance()
+in film_sim.py rescales each curve's own dmin..dmax to 1..0:
+
+    t_max = 10 ** (-c.dmin)
+    t_min = 10 ** (-c.dmax)
+    return (10 ** (-d) - t_min) / (t_max - t_min)
+
+Because the stock's own Dmax is the divisor, every stock is stretched to
+fill the full output range and the Dmax difference is normalised away. The
+Polaroid profiles carry the correct low Dmax in their curves, and the C++
+tables carry it too, but the Python renderer flattens it out. Measured on
+the test chart, SX-70 and Kodachrome both reach display 0.000.
+
+For negative stocks this is right: the negative is an intermediate and the
+print stock's curve sets the final range. For reversal stocks it is wrong,
+because the film IS the viewed image.
+
+PROPOSED FIX, NOT YET APPLIED: normalise reversal stocks against a fixed
+viewing-black reference (Dmax 3.40, deeper than any real stock) instead of
+each stock's own Dmax. Predicted display floors in sRGB:
+
+    POLAROID_SX70          0.159      KODACHROME_64          0.005
+    POLAROID_667           0.151      EKTACHROME_64          0.006
+    POLAROID_664           0.129      FUJI_VELVIA_50         0.006
+    EIGHT_MM_BW            0.103      FUJI_PROVIA_400X       0.008
+    AGFACOLOR_NEU_1936     0.052      EIGHT_MM_COLOR         0.009
+    DUFAYCOLOR_1937        0.035      EASTMAN_EKTACHROME_*   0.012
+
+That gives the Polaroids and the 8 mm B&W their real milky floor while
+leaving Kodachrome, Velvia and the modern E-6 stocks essentially unchanged.
+It also, as a side effect, makes Agfacolor Neu and Dufaycolor read more
+correctly for their era.
+
+This changes rendered output for all 17 reversal stocks, so it has NOT been
+applied. It needs a decision.
+
+
+===========================================================================
+VERIFICATION ROUND 2 -- THREE FIELD OBSERVATIONS TESTED
+===========================================================================
+
+Three claims were put to the profiles. Measured results:
+
+1. 8 MM GRAIN -- claim was CORRECT, cause was the opposite of expected
+---------------------------------------------------------------------
+Magnification works. Direct grain-field test, same emulsion, 1024 px wide:
+
+    format     px/mm   16um clump   grain corr. length
+    super35     41.1      0.66 px        1.0 px
+    16mm        99.8      1.60 px        2.0 px
+    super8     176.9      2.83 px        2.8 px
+    8mm        213.3      3.41 px        3.4 px
+
+Per-pixel sigma stays near-constant (0.0184 -> 0.0219) because RMS
+granularity is calibrated to be resolution-independent by design. Grain gets
+spatially BIGGER with a smaller gauge, not stronger. That is correct physics.
+
+THE TRAP: the default format is super35 and run.cmd passes no -f. So
+`film_sim.py img -p "8mm bw"` renders an 8 mm emulsion at 35 mm scale --
+0.66 px grain, invisible. ALWAYS pass -f 8mm or -f super8 for those two.
+
+SEPARATE REAL BUG, now fixed: the 8 mm emulsion numbers were too COARSE.
+EIGHT_MM_BW had RMS 13.0 / clump 16.0 at EI 40, coarser than
+KODAK_TRI_X_REVERSAL_200 at RMS 10.0 / clump 14.0 -- five times the speed.
+EIGHT_MM_COLOR had RMS 10.2 at EI 40 against EKTACHROME_64's 4.8. Both had
+"8 mm looks grainy" baked into the emulsion, double-counting magnification
+the renderer already applies. Corrected to proper slow-reversal values:
+
+    EIGHT_MM_BW     RMS 13.0 -> 8.5   clump 16.0 -> 11.0   f50 48 -> 62
+    EIGHT_MM_COLOR  RMS 10.2 -> 5.5   clump 12.0 ->  7.0   f50 58 -> 76
+
+2. SVEMA FOTO-250 CONTRAST -- claim was CORRECT, now fixed
+----------------------------------------------------------
+Claim: Foto-250 is more contrasty than FN-65, with fewer middle greys pushed
+toward pure black and pure white.
+
+As originally built it was the FLATTEST of the three. Measured on a 12-stop
+ramp through the print path (mid% = fraction of output in 0.35..0.65):
+
+    BEFORE                 mid%   contrast   min     max
+    SVEMA_FN_64           13.2%    0.909    0.054   0.984
+    TASMA_FN_64           13.8%    0.898    0.056   0.979
+    SVEMA_FOTO_250        14.2%    0.888    0.058   0.974   <- flattest
+
+Which parameter delivers the described look was tested explicitly. A first
+test on the bare curve suggested gamma did nothing -- that test was WRONG,
+because normalising by the curve's own dmin..dmax divides gamma out. Through
+the real print path gamma is exactly the knob, and shortening latitude does
+the OPPOSITE of what intuition suggests:
+
+    Foto-250 gamma 0.95        mid 11.8%  contrast 0.937  min 0.031  max 0.988
+    Foto-250 gamma 1.05        mid 10.7%  contrast 0.959  min 0.020  max 0.993
+    Foto-250 latitude 7.0 st   mid 15.0%  contrast 0.819  min 0.100  max 0.941
+
+Applied: gamma 0.800 -> 0.950. Result:
+
+    AFTER                  mid%   contrast   min     max
+    SVEMA_FN_64           13.2%    0.909    0.054   0.984
+    TASMA_FN_64           13.8%    0.898    0.056   0.979
+    SVEMA_FOTO_250        11.8%    0.937    0.031   0.988   <- now contrastiest
+
+Fewest midtones, deepest black, brightest white. Matches the description.
+
+SENSITOMETRIC CAVEAT, stated once: general practice is that a faster
+emulsion has LOWER inherent gamma, because larger crystals give a broader
+spread of grain sensitivities and a flatter curve. Every Western family in
+this database follows that. Foto-250 now breaks it deliberately, on the
+strength of direct field experience with the stock, and because Soviet
+amateur film was commonly developed in high-contrast universal developers --
+which is a development-practice effect rather than an emulsion property, but
+it is what the film actually looked like in use.
+
+3. TASMA WARM / BROWN-BLACK -- claim is PHYSICALLY REAL, NOT REPRESENTABLE
+--------------------------------------------------------------------------
+The claim is sound. B&W image tone depends on developed silver particle
+size: fine particles scatter short wavelengths and read warm or brown,
+coarse filamentary silver reads neutral or blue-black. This is why lith
+prints and fine-grain period films look faintly sepia even untoned.
+
+It cannot currently be expressed. Monochrome stocks are forced exactly
+neutral:
+  - film_sim.py line 796 replaces print curves with the green curve for
+    mono negatives
+  - base_tint has NO effect on mono. Measured: setting TASMA_FN_64 to
+    base_tint=(1.06, 1.00, 0.90) leaves output at R=G=B=0.4602, R-B exactly
+    0.0000
+  - the residual 1/255 channel spread seen in renders is dither, not a cast
+
+Doing this properly needs a NEW mechanism, not a tweak: image tone is
+density-dependent (warm in low densities, neutralising as density rises), so
+it wants something like a `silver_tone` parameter driving a hue shift as a
+function of density, plus relaxing the exact-neutrality assertion in
+verify.py. That is a feature. Not implemented; awaiting a decision.
+
+NEW IN THIS ROUND
+-----------------
+  ORWOCOLOR_NC24        [T3] colour negative, EI 160. CAVEAT: the "NC 24"
+                        designation could not be confirmed. Documented ORWO
+                        NC series is NC 3, 5, 16, 19, 21. Built as a family
+                        interpolation -- later, faster and slightly cleaner
+                        than NC 21. Supply a real speed or datasheet and it
+                        can be refitted.
+  TASMA_POSITIVE_28     [T3] Soviet B&W cine positive, Tasma, GOST 2.8 (about
+                        ISO 3) -- the yellow boxes. Added as a PRINT STOCK,
+                        not a film profile, because a positive film is what a
+                        negative is printed ONTO, which is exactly the role
+                        PrintStock fills. Use it as:
+                          film_sim.py img -p fn65 --print TASMA_POSITIVE_28
+                        for a period Soviet release-print look. Print gamma
+                        2.52 gives the contrasty projected image; its own
+                        grain is fine, so visible grain still comes from the
+                        negative.
+
+Database is now 56 film stocks, 5 print stocks, 12 gauges.
+All 67 verify checks pass.
+
+
+===========================================================================
+NATIVE GAUGE PER STOCK  +  ALPHABETICAL ORDER  +  PRINT STOCKS UNDER -p all
+===========================================================================
+
+1. WHY 8 MM STILL LOOKED LIKE 35 MM -- root cause fixed properly
+----------------------------------------------------------------
+Previous round said "pass -f 8mm". That was a workaround, not a fix: with
+`-p all` you cannot pass a per-stock gauge, so every stock rendered at
+Super 35 and an 8 mm home-movie emulsion came out with 35 mm grain and 35 mm
+detail. Correct, given the format asked for, and useless.
+
+FilmProfile now carries `default_format`, the gauge the stock was actually
+sold on. The renderer uses it whenever --format is not given. --format still
+works and now means "override every stock", which is what it should mean.
+
+  gauge pairs        7239 -> 16mm, 8630 -> 16mm, TRI_X_REVERSAL_200 -> 16mm
+  8 mm               EIGHT_MM_BW, EIGHT_MM_COLOR -> 8mm
+  instant film       SX-70 -> polaroid_sx70 (79 mm), 664/667 ->
+                     polaroid_pack (95 mm); both are new FORMATS entries
+  35 mm STILL films  -> ff35 (36.00 mm). A still frame is wider than a
+                     Super 35 cine frame, so it is magnified LESS. 23 stocks.
+  35 mm cine         -> super35 (unchanged), three-strip -> techni35
+
+MEASURED, all at 1024 px wide, each stock at its own native gauge:
+
+  stock                    gauge          px/mm  clump_px  grain_px  cyc/frame
+  EIGHT_MM_BW              8mm              213     2.99      3.0        211
+  EIGHT_MM_COLOR           8mm              213     2.13      2.0        269
+  SVEMA_FN_64              super35           41     0.62      1.0        846
+  KODAK_VISION3_500T       super35           41     0.47      1.0       1294
+  KODAK_PORTRA_400         ff35              28     0.20      1.0       2664
+  FUJI_NEOPAN_ACROS_100    ff35              28     0.20      1.0       3744
+  KODACHROME_64            ff35              28     0.11      1.0       3456
+
+8 mm now has 3x the grain size of any 35 mm stock and 4x to 18x less
+resolvable detail across the frame. Both of those are what was asked for, and
+both come from the gauge, not from faked emulsion numbers.
+
+The 8 mm emulsion numbers were also raised again, having been cut too far
+last round. They are now amateur-grade rather than premium, which is what
+cheap 8 mm home-movie stock actually was:
+
+  EIGHT_MM_BW     RMS 8.5 -> 11.0   clump 11.0 -> 14.0   f50 62 -> 44
+  EIGHT_MM_COLOR  RMS 5.5 ->  8.0   clump  7.0 -> 10.0   f50 76 -> 56
+
+Reasoning, so the choice is auditable: physically a slow EI 40 reversal
+emulsion should be FINER than the EI 200 Tri-X Reversal in this set, and on
+that argument the previous values were defensible. But the 8 mm entries are
+explicitly generic amateur stock, not a premium emulsion, and 8 mm camera
+lenses were poor -- the softer MTF folds that in, the same way default_flare
+already folds in uncoated-lens scatter. Net effect is visible grain and low
+detail arriving from three independent, individually honest mechanisms
+instead of one exaggerated one.
+
+2. ALPHABETICAL ORDER
+---------------------
+FILM_PROFILES is now sorted by name. The literal in the source stays grouped
+by manufacturer and era, because that is how it is maintained; the sort is
+applied once after the literal, so --list, the C++ table and `-p all` all
+come out alphabetical. First entry AGFACOLOR_NEU_1936, last
+TECHNICOLOR_THREE_STRIP.
+
+3. PRINT STOCKS NOW RENDER UNDER -p all
+---------------------------------------
+TASMA_POSITIVE_28 never appeared because `-p all` iterates FILM_PROFILES, and
+a print stock is not a film profile -- it is not something you expose in a
+camera. Rather than fake a profile for it, `-p all` now also renders every
+print stock through a reference negative:
+
+  SCAN_DI, KODAK_2383_RELEASE, DUPE_FINE_GRAIN  on KODAK_PORTRA_400
+  TECHNICOLOR_IB                               on TECHNICOLOR_THREE_STRIP
+  TASMA_POSITIVE_28                            on EASTMAN_PLUS_X_5231
+
+Mono print stocks get a mono negative, colour ones a colour negative. Output
+is named <image>_PRINT_<name>.png so it sorts away from the stock renders.
+`-p all` now writes 61 files: 56 stocks + 5 print stocks. Passing an explicit
+--print suppresses the extra pass.
+
+Still true, and worth repeating: TASMA_POSITIVE_28 is most useful aimed at a
+Soviet negative rather than at Plus-X --
+
+  python film_sim.py img.png -p fn65 --print TASMA_POSITIVE_28
+
+All 67 verify checks pass. 56 film stocks, 5 print stocks, 14 gauges.
+
+
+===========================================================================
+LOMOGRAPHY GALLERY CROSS-CHECK -- WHAT IT COULD AND COULD NOT SETTLE
+===========================================================================
+
+The community galleries for Svema FN64, Svema FN 250 and Tasma FN64 were
+consulted. Two hard limits, stated up front:
+
+  1. THE PHOTOGRAPHS THEMSELVES COULD NOT BE EXAMINED. The available web
+     tooling returns HTML text, not image data, and fetching the image files
+     by other means is not permitted. So nothing below is based on looking at
+     a single picture. Any claim that the profiles "match the photos" would
+     be fabricated.
+
+  2. NEITHER GALLERY PAGE CARRIES A DATASHEET. No ISO, no granularity, no
+     resolving power, no characteristic curve. They are photo galleries with
+     no published sensitometry, so they cannot calibrate rms_granularity,
+     f50 or gamma even in principle.
+
+WHAT THE METADATA DID SETTLE -- and it matters more than the pictures would
+
+A representative FN 250 frame carries this metadata:
+
+    title   "250 ASA @ 25 ISO"
+    album   "#70 Svema FN 250 (exp 1/1993) - Konica C35 AF2"
+    camera  Konica C35 AF2, Hexanon 38 mm f2.8, Ukraine
+    posted  2022-07-25
+
+Read that carefully. The stock expired in January 1993 and was shot in 2022 --
+about 29 years past expiry -- and was deliberately rated at 25 ISO against a
+box speed of 250. That is a 3 1/3 stop overexposure, which is the standard
+correction for the speed loss and heavy base fog that decades-old B&W film
+develops.
+
+So these frames do not show SVEMA FN 250 AS MANUFACTURED. They show
+29-year-expired stock, massively overexposed to compensate, developed in an
+unknown developer, scanned on an unknown scanner, and very possibly curve-
+adjusted in software before upload. Every one of those steps moves contrast,
+fog and effective grain, and none of them is recorded.
+
+Sample sizes reinforce the point: FN64 has roughly 100 uploads across two
+pages, FN 250 has 17 on a single page, and a large share of the FN 250 set is
+one photographer's single expired roll.
+
+CONSEQUENCE FOR THIS DATABASE
+
+The three Soviet profiles stay at tier [T3] -- reconstruction, not
+measurement. The galleries did not upgrade them and could not have. Anyone
+tempted to "fit" a profile to these images would be fitting expired stock,
+push-processing and somebody's scanner curve, and baking all three into what
+is supposed to be an emulsion model. That would be worse than the current
+honest estimate, not better.
+
+Worth noting: this cuts against a change already made on field-experience
+grounds. SVEMA_FOTO_250's gamma was raised from 0.800 to 0.950 to make it the
+contrastiest of the Soviet set. Heavily overexposed expired film shot at 25
+ISO would read as LOW contrast with a lifted, foggy black -- the opposite. So
+the galleries neither confirm nor refute that change; they are simply not
+evidence about it either way. The change rests on direct experience of the
+film when it was fresh, which is a better source than an expired roll, but it
+remains unverified against sensitometry.
+
+ONE CONCRETE CORRECTION DID COME OUT OF THIS
+
+Lomography indexes the Tasma stock as "Tasma FN64", not FN-65. Both
+designations circulate -- 65 matches the GOST speed step, 64 the ISO
+equivalent. Renamed TASMA_FN_65 -> TASMA_FN_64, exposure_index 65 -> 64. The
+fn65 / fn-65 / "tasma fn 65" aliases all still resolve to it, so nothing
+breaks. Note "fn64" alone still resolves to SVEMA_FN_64; use "tasma" or
+"fn64t" for the Tasma one.
+
+WHAT WOULD ACTUALLY CALIBRATE THESE
+
+In rough order of value:
+  - a GOST or manufacturer datasheet for FN-64 / FN-250 / Tasma FN-64, giving
+    speed, granularity and resolving power
+  - a scan of a step wedge shot on fresh stock and developed to a stated
+    time/developer/temperature -- this alone would pin gamma, dmin and Dmax
+  - unmodified full-resolution scans with the scanner and developer recorded,
+    from stock inside its expiry date
+  - failing all of the above, the current position is the honest one: [T3],
+    labelled as reconstruction.
+
+If you have any Soviet-era datasheets, or can shoot and scan a wedge, the
+profiles can be refitted properly in an afternoon.
+
+
+===========================================================================
+CALIBRATION AGAINST 9 REAL SCANS  (3x FN250, 3x SVEMA FN64, 3x TASMA FN64)
+===========================================================================
+
+Nine user-supplied scans were measured. Unlike the gallery round, these could
+actually be examined. Results, and they are mixed.
+
+MEASUREMENT 1 -- SILVER IMAGE TONE: CONFIRMED, and now implemented
+------------------------------------------------------------------
+Mean channel difference over each whole frame, in 0..255 units:
+
+    file                  R-G     B-G
+    001 - TASMA FN64     +8.6    -0.9
+    003 - TASMA FN64    +15.6    +2.2
+    002 - TASMA FN64      0.0     0.0
+    001 - SVEMA FN64     -2.8    +1.7
+    002/003 - SVEMA FN64  0.0     0.0
+    all three FN250       0.0     0.0   (stored as pure greyscale)
+
+Two of three Tasma frames carry a clear WARM cast, and both are bright frames
+(mean level 0.92 and 0.78) -- exactly where fine-silver warm tone is expected,
+since the effect is strongest where there is least silver. One Svema frame is
+marginally COOL. This is the first hard evidence for the brown-black claim, so
+the feature was built:
+
+  NEW FIELD  FilmProfile.silver_tone   >0 warm/brown, <0 cool/blue, 0 neutral
+
+  Applied in film_sim.py stage 14c, weighted by output level so it is
+  strongest in the light tones and fades as density builds.
+
+  CRITICAL DESIGN POINT: this is NOT base_tint, and could not have been.
+  base_tint is compensated by the printer-light anchor solve -- a real printer
+  neutralises the film base -- so it produces a cast of exactly 0.0000 on a
+  mono stock, as measured earlier. silver_tone runs AFTER the anchor solve and
+  therefore survives it.
+
+  Values set from the measurement:
+    TASMA_FN_64      +1.00   calibrated to the larger of the two casts
+    SVEMA_FN_64      -0.25   single frame, weak evidence, small value
+    SVEMA_FOTO_250    0.00   no tone data exists in the supplied files
+
+  Rendered result, R-G in 255 units, vs measured +8.6..+15.6:
+    output level 0.35 -> +7.0     0.55 -> +11.4     0.80 -> +15.4
+  Brackets the measurement across the tonal range.
+
+MEASUREMENT 2 -- GRAIN: NOT RESOLVABLE FROM THESE FILES
+-------------------------------------------------------
+Grain sigma was measured in the flattest 10-50 % of 24x24 blocks, each
+plane-detrended so a smooth gradient is not miscounted as noise. Grain scales
+with density (Poisson), so only blocks at matched mean level can be compared:
+
+    mid-density subset (mean 0.35-0.60)
+      FN250   n=3   sigma 0.0483 .. 0.0584   mean 0.0547
+      FN64    n=2   sigma 0.0428 .. 0.0648   mean 0.0538
+      TASMA   n=1   sigma 0.0487
+
+The FN250-vs-FN64 difference is 0.0009. The spread WITHIN the two FN64 frames
+alone is 0.0220 -- twenty-five times larger than the difference being tested.
+The grainiest single measurement in the whole set is an FN64 frame, not an
+FN250 one.
+
+Worse, a sampling limit rules this out in principle. At 1216 px across a 36 mm
+frame the pitch is 33.8 px/mm, so one pixel spans 29.6 um. The modelled clumps
+are 15.0 um (FN64), 21.5 um (FN250) and 16.0 um (Tasma) -- that is 0.51, 0.73
+and 0.54 PIXELS. All three sit below the sampling limit of these JPEGs. What
+the "grain sigma" figure above actually contains is mostly scanner noise, JPEG
+artefacts and sharpening halos, not resolved film grain.
+
+REVISED CONCLUSION -- grain AMPLITUDE was measurable after all
+The first pass above compared badly-matched density blocks and concluded there
+was no signal. Redone properly -- 48x48 blocks, plane+cross-term detrended,
+flattest 10-50 % only, restricted to comparable mid density -- a consistent
+signal appears:
+
+    FN250   n=3   flat sigma 0.0502   (means 0.47-0.77)
+    FN64    n=2   flat sigma 0.0299   (means 0.67-0.79)
+    MEASURED RATIO 1.68x
+
+Same direction in every frame. The model had 1.42x. So FN250 really is markedly
+grainier than FN64 in amplitude, more so than was modelled -- the claim holds.
+
+FITTED, and note the trap: scaling RMS by 1.68 does NOT give a 1.68x result.
+11.5 * 1.68 = 19.4 renders at only 1.42x, because FN250's coarser clump (21.5 um
+against 15.0) spreads spectral energy differently and grain_reference_energy()
+compensates. The value has to be swept against rendered pipeline output:
+
+    rms 19.4 -> 1.42x     23.0 -> 1.60x     25.0 -> 1.70x     27.0 -> 1.80x
+
+  SVEMA_FOTO_250.rms_granularity  16.2 -> 25.0   [T1, fitted to measurement]
+  rendered FN250/FN64 now 1.70x against a measured 1.68x
+
+GRAIN SIZE, separately, is still NOT measurable and was NOT changed. Two
+independent attempts confirm why:
+  - correlation length at ACF=0.5 came out 0.56-0.68 px for FN250 and
+    0.78-1.37 px for FN64/Tasma. Every value sits at or below the 1 px
+    sampling limit, so it measures the scanner+JPEG MTF, not the emulsion.
+    Taken at face value it would say FN250 has the SMALLEST grain of the
+    three -- contradicting both the claim and the model, which is the
+    signature of an invalid measurement rather than a finding.
+  - clumping index (residual ACF at lags 2-5 px, which IS above the sampling
+    limit) came out FN250 +0.39, FN64 +0.84, Tasma +1.12 at mid density, i.e.
+    FN250 least clumped. But that metric is the one most distorted by scanner
+    sharpening, and it runs against the physics -- larger crystals cluster
+    more, not less. Reported, deliberately not acted on.
+
+So clump_um stays 21.5 and clump_gain stays 1.70, both still [T3]. Only the
+amplitude moved, because only the amplitude was measurable.
+
+MEASUREMENT 3 -- CONTRAST: WEAKLY AGAINST A CHANGE MADE EARLIER
+---------------------------------------------------------------
+The fraction of pixels in the mid range (0.35-0.65) runs from 3.1 % to 45.3 %
+across these nine frames. That is scene content, not emulsion -- a photograph
+of a white wall and a photograph of a night street cannot be compared this way.
+So mid-tone fraction is useless as a film metric on arbitrary scenes, and any
+"contrast" conclusion drawn from it would be noise.
+
+One metric is less scene-dependent: the white point (p99.9), because most
+daylight scenes contain something near-white.
+
+    FN250   0.890  0.796  0.941   mean 0.876   <- never reaches white
+    FN64    0.996  0.984  0.796   mean 0.925
+    TASMA   0.984  0.980  0.988   mean 0.984
+
+All three FN250 frames fail to reach white; two fall below 0.90. Tasma clears
+0.98 in all three. A lifted, compressed highlight end like that is the
+signature of LOW contrast with heavy base fog -- which points the opposite way
+to the earlier decision to raise SVEMA_FOTO_250's gamma from 0.800 to 0.950.
+
+The gamma was LEFT AT 0.950 anyway, and here is the reasoning, so it can be
+overruled:
+  - the gallery metadata established that circulating FN250 is expired stock;
+    one documented frame was 29 years past expiry and rated 25 ISO against a
+    box speed of 250, a 3 1/3 stop overexposure
+  - expired, heavily overexposed film is exactly what produces a lifted, foggy,
+    compressed highlight end -- so the low white points are explained by the
+    stock's age, not by the emulsion's design gamma
+  - n=3, uncontrolled developer, scanner and exposure
+  - against that, direct experience of the film when fresh is the better source
+So the measurement is consistent with expired FN250 and says little about fresh
+FN250. It is recorded here rather than acted on. If a fresh-stock step wedge
+ever contradicts gamma 0.950, that wedge wins.
+
+WHAT WOULD STILL SETTLE IT
+--------------------------
+  - grain: a full-resolution scan, no downsizing, no sharpening, scanner ppi
+    recorded. At 4000 ppi one pixel is 6.4 um and a 15-21 um clump is properly
+    resolved -- roughly 5x the sampling density of these files.
+  - contrast: a step wedge on fresh stock with developer, time and temperature
+    recorded. Nothing else pins gamma, dmin and Dmax honestly.
+  - tone: already usable. More Tasma frames saved as RGB rather than greyscale
+    would tighten silver_tone beyond the current two data points.
+
+ANSWER TO "DID THESE PHOTOS HELP BUILD A CORRECT PROFILE?"
+Partly. They settled the image-tone question outright and produced a real new
+feature calibrated to measurement. They cannot settle grain -- the resolution
+forbids it. On contrast they lean against a previous decision without being
+able to overturn it, because the stock in circulation is expired. One measured
+change, one refusal to change, one recorded tension. Tier stays [T3] for all
+three Soviet stocks except that silver_tone on Tasma is now [T1] -- fitted to
+supplied measurements.
+
+NEW TOOL: sort_profiles.py
+--------------------------
+Sorts the FilmProfile blocks in film_profiles.py into alphabetical order in the
+SOURCE file, not just at import. Source-to-source: blocks move verbatim,
+including their comments. Refuses to write unless the block count, name set and
+character multiset are unchanged, the rewritten module imports, validate_all()
+passes, and every profile still compares equal field for field. Timestamped
+backup first; any failure restores the original.
+
+    python sort_profiles.py            # sort in place
+    python sort_profiles.py --check    # report order, change nothing
+    python cpp_codegen.py -o .         # then keep the C++ tables in step
+
+Already applied: the literal in film_profiles.py is now alphabetical, first
+AGFACOLOR_NEU_1936, last TECHNICOLOR_THREE_STRIP.
+
+
+===========================================================================
+8 MM SURFACE LOOKED FLAT -- ROOT CAUSE AND FIX
+===========================================================================
+
+Report: 8 mm detail level looked right, but the surface read as smooth and
+blurred rather than grainy.
+
+ROOT CAUSE -- reversal stocks get no print-gamma amplification
+--------------------------------------------------------------
+Not a pipeline ordering bug. Grain is stage 11, applied AFTER both MTF stages
+(6 emulsion, 10 scan), so it is not being blurred by them. Verified.
+
+The real cause is an asymmetry that was never accounted for. Measured, grain
+field sigma versus final output sigma:
+
+    stock              px/mm   field    output   kept
+    EIGHT_MM_BW           67  0.01877  0.01183   0.63
+    EIGHT_MM_COLOR        67  0.01660  0.01303   0.78
+    SVEMA_FOTO_250         9  0.01756  0.02181   1.24
+    SVEMA_FN_64           13  0.00933  0.01257   1.35
+
+A negative GAINS amplitude, a reversal stock LOSES it. That is physically
+correct and should not be "fixed" in the pipeline: a negative's grain passes
+through the print stage, where it is multiplied by the print gamma (~1.75 for
+SCAN_DI) and print grain is added on top. A reversal stock is the viewed image
+-- there is nothing downstream to amplify it.
+
+The consequence was missed when the 8 mm entries were written: a reversal
+emulsion needs a genuinely HIGHER rms_granularity than a negative to read as
+equally grainy, because it does not get the print multiplier. The 8 mm stocks
+were numbered as if they would.
+
+WHY "MATCH FN250" IS THE WRONG TARGET
+-------------------------------------
+Swept against FN250 (output sigma 0.0315), 8 mm never gets close at any sane
+value: rms 11 -> 0.0137, 20 -> 0.0184, 28 -> 0.0231. Reaching 0.0315 would
+need rms above 40 for an EI 40 emulsion, which is nonsense.
+
+FN250 is the wrong yardstick. It sits at rms 25.0, already flagged as the
+grainiest emulsion in the database -- above Ilford HPS at EI 800 (19.0) and
+Delta 3200 at EI 3200 (16.0) -- and fitted to EXPIRED stock, so some of that
+25.0 is age rather than emulsion. Chaining a second stock to it would
+propagate that error.
+
+The fair comparison is other reversal stocks, which also lack a print stage:
+
+    KODAK_TRI_X_REVERSAL_200   EI 200   rms 10.0   sigma 0.00769
+    EASTMAN_EKTACHROME_5239    EI 160   rms 10.4   sigma 0.00776
+    KODACHROME_64              EI  64   rms  2.2   sigma 0.00207
+
+APPLIED
+-------
+    EIGHT_MM_BW     rms 11.0 -> 19.0   clump 14.0 -> 17.0   clump_gain 1.25 -> 1.45
+                    fog_grain 0.24 -> 0.26
+    EIGHT_MM_COLOR  rms  8.0 -> 12.0   clump 10.0 -> 11.5   clump_gain 0.55 -> 0.70
+                    fog_grain 0.20 -> 0.22
+
+Result, output sigma relative to Tri-X Reversal:
+
+    EIGHT_MM_BW      0.01787   2.32x
+    EIGHT_MM_COLOR   0.01607   2.09x
+    SVEMA_FN_64      0.01665   2.17x
+    SVEMA_FOTO_250   0.03151   4.10x
+
+8 mm now reads as roughly twice as grainy as a good 16 mm reversal stock and
+comparable to Svema FN-64, while staying below the FN250 outlier. clump_gain
+was raised as well as rms because clumping is low-frequency energy -- it is
+what reads as coarse TEXTURE rather than fine speckle, and it survives the
+soft MTF that makes the 8 mm image look smooth.
+
+Justification for an EI 40 emulsion carrying rms 19.0, since it breaks the
+speed-granularity trend the rest of the database follows:
+  - these are explicitly generic AMATEUR stocks, not premium emulsions
+  - reversal processing develops the unexposed silver, which gives coarser
+    apparent grain than negative processing of the same crystals
+  - no print stage exists to supply the usual ~1.75x amplification
+All three are real effects, and none of them is the speed relationship, so the
+trend is not actually violated -- 8 mm is off it for stated reasons.
+
+Still [T3]. No 8 mm samples were supplied, so this is reasoned, not measured.

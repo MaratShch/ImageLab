@@ -197,6 +197,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\README.md" />
     <None Include="python\run.cmd" />
     <None Include="python\sheet.py" />
+    <None Include="python\sort_profiles.py" />
     <None Include="python\verify.py" />
   </ItemGroup>
   <ItemGroup>

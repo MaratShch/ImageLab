@@ -251,6 +251,10 @@ struct FilmProfile {
     /// Print stock used when the caller does not choose one. Ignored for
     /// reversal stocks.
     std::string default_print;
+    /// Gauge this stock was sold on. Used when the host does not specify one.
+    /// Every spatial quantity here is physical (um, cycles/mm), so this is the
+    /// number that converts emulsion physics into pixels.
+    std::string default_format;
     /// True if this stock uses an additive colour filter grid, in which case
     /// `reseau` is meaningful and the layered colour path does not apply.
     bool has_reseau;
@@ -262,6 +266,9 @@ struct FilmProfile {
     /// glass go together in practice. It lifts the black floor and compresses
     /// contrast globally, and nothing in the emulsion model substitutes for it:
     /// without it a 1930s stock still renders with modern blacks.
+    /// Monochrome image tone: >0 warm/brown-black, <0 cool/blue-black.
+    /// Applied after the printer-light solve, weighted toward the light tones.
+    float silver_tone;
     float default_flare;
     Feature features;
 
@@ -413,8 +420,10 @@ def _profile_block(p: FilmProfile) -> str:
             {_vec3(p.base_tint)},
             {_f(p.misregistration_um)},
             "{_escape(p.default_print)}",
+            "{_escape(p.default_format)}",
             {"true" if p.has_reseau else "false"},
             {_reseau(p.reseau)},
+            {_f(p.silver_tone)},
             {_f(p.default_flare)},
             {_feature_expr(p.features)}
         }},

@@ -58,6 +58,7 @@ Tested on CPython 3.12, 64-bit, Windows and Linux/WSL2.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import math
 import struct
 import sys
@@ -74,6 +75,7 @@ from film_profiles import (
     IDENTITY3,
     Feature,
     FilmProfile,
+    PRINT_STOCKS,
     PrintStock,
     ReseauSpec,
     RGBCurves,
@@ -1220,6 +1222,22 @@ def simulate(
         if tint[c] != 1.0:
             out[:, :, c] *= np.float32(1.0 + (tint[c] - 1.0) * 0.5)
 
+    # -- 14c. silver image tone (monochrome only) ----------------------------
+    # Developed silver is not spectrally neutral. Fine particles scatter short
+    # wavelengths and read warm; coarse filamentary silver reads neutral to
+    # blue. The effect is strongest where there is least silver -- the light
+    # tones -- and fades as density builds, so it is weighted by the output
+    # level rather than applied flat.
+    #
+    # This runs after the printer-light anchor solve on purpose. base_tint is
+    # *compensated* by that solve, which is why it cannot tint a B&W stock at
+    # all; this stage is downstream of it and therefore survives.
+    if profile.is_monochrome and profile.silver_tone != 0.0:
+        tone = np.float32(profile.silver_tone)
+        w = out[:, :, 1]                      # bright = least silver = warmest
+        out[:, :, 0] *= (1.0 + np.float32(0.28) * tone * w)
+        out[:, :, 2] *= (1.0 - np.float32(0.22) * tone * w)
+
     return np.clip(out, 0.0, 1.0, out=out)
 
 
@@ -1277,7 +1295,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("-o", "--outdir", type=Path, default=Path("film_renders"))
     p.add_argument(
-        "-f", "--format", dest="film_format", default="super35", choices=sorted(FORMATS)
+        "-f", "--format", dest="film_format", default=None,
+        choices=sorted(FORMATS),
+        help="override the gauge. Default: each stock's own native gauge "
+             "(8 mm stocks render as 8 mm, 35 mm stills as 36 mm, and so on)"
     )
     p.add_argument(
         "--print-stock",
@@ -1384,7 +1405,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     settings = RenderSettings(
-        film_format=args.film_format,
+        film_format=args.film_format or "super35",
         print_stock=args.print_stock,
         exposure_stops=args.exposure,
         scene_kelvin=args.scene_kelvin,
@@ -1407,28 +1428,24 @@ def main(argv: list[str] | None = None) -> int:
 
     linear = load_linear(args.image, args.max_dim)
     h, w = linear.shape[:2]
-    px_per_mm = w / FORMATS[args.film_format]
-    print(
-        f"[INFO] {args.image.name}  {w}x{h}  "
-        f"{args.film_format} ({FORMATS[args.film_format]:.2f} mm wide)  "
-        f"{px_per_mm:.1f} px/mm"
-    )
-    if px_per_mm < 60.0:
-        # Grain finer than a pixel cannot be resolved. The scanner MTF stage
-        # band-limits it so nothing aliases visibly, but the fine-grained stocks
-        # will not show their real structure until the render is big enough.
-        print(
-            f"[WARN] only {px_per_mm:.0f} px/mm; grain structure of fine stocks "
-            f"is below the pixel grid. Render at >= "
-            f"{round(60.0 * FORMATS[args.film_format]):d} px wide for this format "
-            "to resolve it."
-        )
+    if args.film_format is not None:
+        print(f"[INFO] {args.image.name}  {w}x{h}  gauge overridden to "
+              f"{args.film_format} ({FORMATS[args.film_format]:.2f} mm) for every stock")
+    else:
+        print(f"[INFO] {args.image.name}  {w}x{h}  "
+              f"each stock rendered at its own native gauge")
 
     args.outdir.mkdir(parents=True, exist_ok=True)
     stem = args.image.stem
     out_rng = np.random.default_rng(args.seed ^ 0x5EED)
 
     for stock in stocks:
+        # Each stock renders at its own gauge unless the caller overrode it.
+        # This is what makes an 8 mm profile actually look like 8 mm: every
+        # spatial number in the database is physical (um, cycles/mm), so the
+        # gauge is the only thing that turns it into pixels.
+        fmt = args.film_format or stock.default_format
+        settings = dataclasses.replace(settings, film_format=fmt)
         chain = "reversal (no print)" if stock.is_reversal else (
             settings.print_stock or stock.default_print
         )
@@ -1441,17 +1458,43 @@ def main(argv: list[str] | None = None) -> int:
         if stock.has_reseau and settings.reseau:
             extra.append("reseau")
         note = ("  " + ", ".join(extra)) if extra else ""
-        print(f"  -> {stock.name:32s} [{chain}]{note}", flush=True)
+        ppmm = linear.shape[1] / FORMATS[fmt]
+        print(f"  -> {stock.name:32s} [{chain}]  {fmt} "
+              f"{ppmm:.0f}px/mm{note}", flush=True)
         result = simulate(linear, stock, settings)
         dest = args.outdir / f"{stem}_{stock.name}.png"
         save_linear(dest, result, args.bits, out_rng)
+
+    # A print stock is not something you can expose in a camera, so it has no
+    # profile of its own and `-p all` used to skip it entirely -- which is why
+    # TASMA_POSITIVE_28 never appeared. Render each one through a reference
+    # negative instead, so every entry in the database produces an image.
+    n_prints = 0
+    if args.profile.lower() == "all" and not args.print_stock:
+        for ps in PRINT_STOCKS:
+            mono_print = ps.curves.r == ps.curves.g == ps.curves.b
+            if ps.name == "TECHNICOLOR_IB":
+                ref = "TECHNICOLOR_THREE_STRIP"
+            elif mono_print:
+                ref = "EASTMAN_PLUS_X_5231"
+            else:
+                ref = "KODAK_PORTRA_400"
+            neg = get_profile(ref)
+            st = dataclasses.replace(
+                settings, film_format=neg.default_format, print_stock=ps.name)
+            print(f"  -> PRINT {ps.name:26s} [on {ref}]", flush=True)
+            res = simulate(linear, neg, st)
+            save_linear(args.outdir / f"{stem}_PRINT_{ps.name}.png",
+                        res, args.bits, out_rng)
+            n_prints += 1
 
     if args.emit_cpp:
         import cpp_codegen
 
         cpp_codegen.generate(args.outdir)
 
-    print(f"[INFO] wrote {len(stocks)} render(s) to {args.outdir}")
+    print(f"[INFO] wrote {len(stocks) + n_prints} render(s) "
+          f"({len(stocks)} stocks + {n_prints} print stocks) to {args.outdir}")
     return 0
 
 

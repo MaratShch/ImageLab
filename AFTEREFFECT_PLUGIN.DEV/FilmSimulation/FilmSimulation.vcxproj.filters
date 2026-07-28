@@ -149,6 +149,9 @@
     <None Include="python\verify.py">
       <Filter>python</Filter>
     </None>
+    <None Include="python\sort_profiles.py">
+      <Filter>python</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\Readme!.txt">

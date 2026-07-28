@@ -135,7 +135,12 @@ class ToneCurve:
     which gives, in order: a flat base+fog region, a smooth toe, a straight
     line of slope ``gamma``, a smooth shoulder, and a flat Dmax. That is
     exactly the topology of a real H&D curve, with only five free parameters
-    and guaranteed monotonicity as long as ``shoulder_k <= 2 * toe_k``.
+    and monotonicity in practice as long as ``shoulder_k <= 1.4 * toe_k``.
+    (``validate`` still only rejects above 2x, which is the analytic bound for
+    the sign of the second derivative. Measured on the actual transfer, ratios
+    above roughly 1.4 can produce a reversal of order 1e-6 near the shoulder
+    asymptote -- harmless visually, but verify.py checks for it, so keep new
+    stocks at or below 1.4x.)
 
     For **negative** stocks ``x`` is log exposure, so density rises with light.
     For **reversal** stocks ``x`` is *negated* log exposure, so density falls
@@ -554,7 +559,30 @@ class FilmProfile:
     base_tint: tuple[float, float, float] = (1.0, 1.0, 1.0)
     misregistration_um: float = 6.0
     default_print: str = "SCAN_DI"
+    #: Gauge this stock was actually sold on. The renderer uses it whenever the
+    #: caller does not pass --format explicitly, which is what makes `-p all`
+    #: meaningful: an 8 mm home-movie stock rendered at Super 35 shows 35 mm
+    #: grain and 35 mm detail, i.e. nothing like 8 mm. Every spatial quantity in
+    #: this database is in micrometres or cycles/mm, so the gauge is the single
+    #: number that converts emulsion physics into pixels.
+    default_format: str = "super35"
     reseau: ReseauSpec | None = None
+    #: Image-tone of the developed silver, for monochrome stocks only.
+    #: Positive = warm / brown-black, negative = cool / blue-black, 0 = neutral.
+    #: Physically this is particle-size dependent: fine silver scatters short
+    #: wavelengths and reads warm, coarse filamentary silver reads neutral to
+    #: blue. It is strongest at LOW density (highlights) and fades as density
+    #: rises, which is why an untoned fine-grain print still looks faintly
+    #: sepia in its light tones.
+    #:
+    #: NOTE this is deliberately NOT base_tint. base_tint is compensated by the
+    #: printer-light anchor solve (a real printer neutralises the film base), so
+    #: it cannot produce a visible cast -- measured, it produces R-B of exactly
+    #: 0.0000. silver_tone is applied after the anchor solve and survives.
+    #:
+    #: Calibrated against user-supplied Tasma FN64 scans: two of three frames
+    #: showed a mean R-G of +8.6 and +15.6 / 255 in their bright regions.
+    silver_tone: float = 0.0
     default_flare: float = 0.0
     features: Feature = Feature.NONE
 
@@ -633,11 +661,15 @@ FORMATS: dict[str, float] = {
     "techni35": 24.89,    # three-strip Technicolor used full aperture
     "super16": 12.52,
     "16mm": 10.26,
-    "8mm": 4.80,
+    "8mm": 4.80,       # Standard 8 / Double 8 frame width
+    "super8": 5.79,      # Super 8 -- smaller sprockets, bigger frame
     "ff35": 36.00,        # 35 mm still full frame
     "medium645": 56.00,
     "large4x5": 127.00,
     "imax15": 70.41,
+    # Instant film image areas, so the Polaroid profiles scale correctly.
+    "polaroid_sx70": 79.00,   # SX-70 / 600 integral image area is 79 x 79 mm
+    "polaroid_pack": 95.00,   # 664/667 peel-apart image area is 73 x 95 mm
 }
 """Image width on the negative, millimetres. Grain, halation, MTF and channel
 registration are all scaled from this plus the render width in pixels, which is
@@ -715,128 +747,380 @@ def _rev(
 # All numeric values are estimates; see the CALIBRATION HONESTY NOTE above.
 # ===========================================================================
 FILM_PROFILES: tuple[FilmProfile, ...] = (
-    # -----------------------------------------------------------------------
-    # Kodak VISION3 family. Tabular grain, strong DIR couplers, wide latitude.
-    # Grain and softness scale monotonically with speed across the family,
-    # which is the single most useful sanity check on the numbers below.
-    # -----------------------------------------------------------------------
     FilmProfile(
-        name="KODAK_VISION3_50D_5203",
-        aliases=("5203", "vision3 50d", "50d"),
+        name="AGFACOLOR_NEU_1936",
+        aliases=("agfacolor", "agfacolor neu", "agfa 1936", "sovcolor"),
         description=(
-            "Tack-sharp slow daylight stock. Very fine tabular grain, highest "
-            "resolving power of the family, strong anti-halation backing so "
-            "almost no bloom."
+            "The first modern integral tripack: three dye layers on one strip, "
+            "the ancestor of every colour film since. As a 1936 product its "
+            "dyes were badly impure, so it desaturates and cross-contaminates "
+            "even while running high contrast -- the muted, slightly sickly "
+            "palette of 1940s German colour features. Captured Agfa technology "
+            "later became the Soviet Sovcolor process, hence the alias."
         ),
-        era="2011-present",
-        exposure_index=50,
+        era="1936-1945",
+        kind=StockKind.REVERSAL,
+        exposure_index=8,
         balance_kelvin=5500,
+        # Reversal, so these are expressed against negated log exposure and
+        # toe_x governs the highlight end. High gamma, very little latitude.
         curves=RGBCurves(
-            r=_neg(0.20, 0.585, toe_x=-1.70, shoulder_x=2.05),
-            g=_neg(0.19, 0.600, toe_x=-1.64, shoulder_x=2.00),
-            b=_neg(0.18, 0.615, toe_x=-1.56, shoulder_x=1.92),
+            r=_rev(0.30, 1.62, toe_x=-0.62, toe_k=0.20, shoulder_x=0.72),
+            g=_rev(0.28, 1.70, toe_x=-0.66, toe_k=0.20, shoulder_x=0.70),
+            b=_rev(0.33, 1.78, toe_x=-0.58, toe_k=0.20, shoulder_x=0.66),
         ),
-        grain=GrainSpec(2.6, 4.2, 4.6, 5.4, clump_gain=0.14, fog_grain=0.16),
-        mtf=MTFSpec(78.0, 88.0, 98.0, adjacency=0.12, adjacency_um=16.0),
+        grain=GrainSpec(11.0, 14.0, 13.0, 17.0, clump_gain=1.25, fog_grain=0.30),
+        mtf=MTFSpec(26.0, 30.0, 34.0, adjacency=0.02),
         halation=HalationSpec(
-            radii_um=(9.0, 45.0, 200.0),
-            gain_r=0.07, gain_g=0.025, gain_b=0.008,
-            threshold_stops=2.1,
+            radii_um=(22.0, 110.0, 500.0),
+            gain_r=0.30, gain_g=0.16, gain_b=0.09,
+            threshold_stops=1.0,
         ),
-        couplers=CouplerSpec(0.14, 48.0, 0.08, 10.0),
-        dye_matrix=_dye(-0.13),
-        base_tint=(1.000, 0.990, 0.968),
-        misregistration_um=4.0,
-        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+        couplers=CouplerSpec(),
+        # The combination nothing else in this database has: a reversal stock
+        # with strongly *positive* dye off-diagonals. Every other reversal stock
+        # here has clean negative terms and gains saturation; this one bleeds
+        # between records and loses it, while the steep curves keep contrast
+        # high. Desaturated and contrasty at once, which is hard to fake with a
+        # saturation control and falls straight out of the matrix.
+        dye_matrix=_dye(0.45),
+        base_tint=(0.985, 1.000, 0.945),
+        misregistration_um=9.0,
+        default_flare=0.09,
+        default_format="ff35",
+        features=Feature.HALATION | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE,
     ),
     FilmProfile(
-        name="KODAK_VISION3_250D_5207",
-        aliases=("5207", "vision3 250d", "250d"),
+        name="AGFA_APX_100",
+        aliases=("apx100", "apx 100", "agfa apx 100"),
         description=(
-            "Mid-speed daylight workhorse. The family compromise: noticeably "
-            "finer than 500T but with real speed, and the cleanest highlight "
-            "rolloff of the daylight stocks."
+            "[T1] The middle APX and the general-purpose one. Slightly lower "
+            "contrast and a longer straight line than the Kodak equivalents "
+            "of the same speed, which is why it was liked for portraiture."
         ),
-        era="2009-present",
-        exposure_index=250,
+        era="1990s-Present",
+        is_monochrome=True,
+        exposure_index=100,
         balance_kelvin=5500,
-        curves=RGBCurves(
-            r=_neg(0.21, 0.590, toe_x=-1.66, shoulder_x=1.98),
-            g=_neg(0.20, 0.608, toe_x=-1.60, shoulder_x=1.92),
-            b=_neg(0.19, 0.628, toe_x=-1.50, shoulder_x=1.82),
+        curves=_mono(ToneCurve(0.11, 0.620, -1.56, 0.31, 1.80, 0.42)),
+        grain=GrainSpec(7.4, 9.0, 9.0, 9.0, clump_gain=0.85, fog_grain=0.17),
+        mtf=MTFSpec(80.0, 80.0, 80.0, adjacency=0.10, adjacency_um=14.0),
+        spectral_weights=(0.28, 0.56, 0.16),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+
+    # =======================================================================
+    # EXPANSION SET -- added after the original 26.
+    #
+    # CONFIDENCE TIERS. The original block carries a blanket "# EST" note.
+    # This block is graded, because the sources behind these numbers vary
+    # enormously in quality and you should be able to see which is which
+    # without digging:
+    #
+    #   [T1] Datasheet-grounded. Published ISO speed, RMS granularity or
+    #        diffuse grain number, and an MTF or resolving-power figure exist
+    #        for this emulsion. Numbers below are fitted to them. Treat as
+    #        trustworthy to maybe 10 %.
+    #
+    #   [T2] Partially grounded. Speed and general reputation are documented;
+    #        grain and MTF are interpolated from siblings in the same family or
+    #        from the manufacturer's other stocks of that era and speed.
+    #
+    #   [T3] Reconstruction. No datasheet available to me. Built from era,
+    #        speed class, process type and written descriptions of the look.
+    #        These are plausible, internally consistent, and NOT measurements.
+    #        Do not cite them as such.
+    # =======================================================================
+
+    # ---------------------------- Agfa B&W ---------------------------------
+    FilmProfile(
+        name="AGFA_APX_25",
+        aliases=("apx25", "apx 25", "agfa apx 25"),
+        description=(
+            "[T1] Agfa's slow fine-grain B&W. One of the finest-grained "
+            "conventional cubic emulsions ever sold: grain is essentially "
+            "below the resolution of a normal scan, so what you see instead "
+            "is bite and micro-contrast. Punishing to expose -- ISO 25 means "
+            "a tripod indoors -- and discontinued in 2005."
         ),
-        grain=GrainSpec(4.2, 7.0, 7.6, 9.0, clump_gain=0.20, fog_grain=0.18),
-        mtf=MTFSpec(62.0, 70.0, 80.0, adjacency=0.11, adjacency_um=19.0),
-        halation=HalationSpec(
-            radii_um=(11.0, 55.0, 260.0),
-            gain_r=0.15, gain_g=0.055, gain_b=0.020,
-            threshold_stops=1.9,
-        ),
-        couplers=CouplerSpec(0.135, 54.0, 0.075, 11.0),
-        dye_matrix=_dye(-0.125),
-        base_tint=(1.000, 0.988, 0.962),
-        misregistration_um=4.5,
-        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+        era="1990s-2005",
+        is_monochrome=True,
+        exposure_index=25,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.10, 0.640, -1.62, 0.30, 1.86, 0.40)),
+        grain=GrainSpec(4.3, 5.0, 5.0, 5.0, clump_gain=0.55, fog_grain=0.14),
+        mtf=MTFSpec(112.0, 112.0, 112.0, adjacency=0.13, adjacency_um=11.0),
+        spectral_weights=(0.28, 0.56, 0.16),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
     ),
     FilmProfile(
-        name="KODAK_VISION3_200T_5213",
-        aliases=("5213", "vision3 200t", "200t"),
+        name="AGFA_APX_400",
+        aliases=("apx400", "apx 400", "agfa apx 400"),
         description=(
-            "Mid-speed tungsten stock. Interiors without the grain penalty of "
-            "500T; slightly warmer curve crossover than the daylight stocks."
+            "[T1] The fast APX. Classic clumpy cubic grain, noticeably "
+            "coarser than Ilford's 400 of the same period and with a slightly "
+            "softer shoulder, so highlights roll rather than block."
         ),
-        era="2010-present",
+        era="1990s-2000s",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.13, 0.660, -1.50, 0.29, 1.70, 0.40)),
+        grain=GrainSpec(11.6, 15.0, 15.0, 15.0, clump_gain=1.25, fog_grain=0.22),
+        mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.06, adjacency_um=19.0),
+        spectral_weights=(0.28, 0.56, 0.16),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+
+    # --------------------------- Agfa colour -------------------------------
+    FilmProfile(
+        name="AGFA_OPTIMA_100",
+        aliases=("optima", "agfa optima", "optima 100", "optima ii"),
+        description=(
+            "[T2] Agfa's consumer colour negative. The Agfa house palette: "
+            "warm, slightly restrained, with yellows and skin tones favoured "
+            "over the saturated primaries Kodak and Fuji were chasing. Dye "
+            "purity is a step below either, which shows as gentle desaturation "
+            "rather than a colour cast."
+        ),
+        era="1990s-2000s",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.600),
+            g=_neg(0.62, 0.610),
+            b=_neg(1.02, 0.620),
+        ),
+        grain=GrainSpec(7.8, 11.0, 12.0, 14.0, clump_gain=0.80, fog_grain=0.18),
+        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.09, adjacency_um=17.0),
+        couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
+        dye_matrix=_dye(0.07),
+        base_tint=(1.0, 0.985, 0.955),
+        misregistration_um=5.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="AGFA_VISTA_200",
+        aliases=("vista", "agfa vista", "vista 200"),
+        description=(
+            "[T2] Punchier and cooler than Optima -- Agfa's answer to the "
+            "supermarket-film wars, with higher saturation and a steeper "
+            "green. Note the name outlived the emulsion: late AgfaPhoto-branded "
+            "Vista was Fuji stock in an Agfa box. This models the real Agfa one."
+        ),
+        era="1990s-2000s",
         exposure_index=200,
-        balance_kelvin=3200,
+        balance_kelvin=5500,
         curves=RGBCurves(
-            r=_neg(0.215, 0.592, toe_x=-1.64, shoulder_x=1.96),
-            g=_neg(0.205, 0.610, toe_x=-1.58, shoulder_x=1.90),
-            b=_neg(0.195, 0.632, toe_x=-1.48, shoulder_x=1.79),
+            r=_neg(0.21, 0.615),
+            g=_neg(0.64, 0.635),
+            b=_neg(1.05, 0.640),
         ),
-        grain=GrainSpec(4.6, 7.6, 8.2, 9.8, clump_gain=0.22, fog_grain=0.19),
-        mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=20.0),
-        halation=HalationSpec(
-            radii_um=(12.0, 60.0, 290.0),
-            gain_r=0.19, gain_g=0.07, gain_b=0.026,
-            threshold_stops=1.8,
-        ),
-        couplers=CouplerSpec(0.133, 56.0, 0.073, 12.0),
-        dye_matrix=_dye(-0.12),
-        base_tint=(1.000, 0.987, 0.959),
-        misregistration_um=4.8,
-        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+        grain=GrainSpec(9.4, 13.0, 14.0, 16.5, clump_gain=0.92, fog_grain=0.19),
+        mtf=MTFSpec(56.0, 63.0, 69.0, adjacency=0.08, adjacency_um=18.0),
+        couplers=CouplerSpec(0.30, 50.0, 0.13, 12.0),
+        dye_matrix=_dye(-0.05),
+        base_tint=(0.99, 0.995, 1.0),
+        misregistration_um=5.5,
+        default_format="ff35",
+        features=Feature.NONE,
     ),
     FilmProfile(
-        name="KODAK_VISION3_500T_5219",
-        aliases=("5219", "vision3 500t", "500t"),
+        name="CINESTILL_800T",
+        aliases=("cinestill", "800t", "cinestill 800t"),
         description=(
-            "Modern Hollywood workhorse. Coarse but clean tabular structure, "
-            "tungsten balanced, strong DIR couplers, and enough highlight "
-            "latitude to make blown windows recoverable."
+            "VISION3 500T with the remjet anti-halation layer stripped off so "
+            "it can run through C-41. The result is the most extreme halation "
+            "in production: every streetlight grows a red corona. Useful here "
+            "as a stress test of the halation model."
         ),
-        era="2007-present",
-        exposure_index=500,
+        era="2012-present",
+        exposure_index=800,
         balance_kelvin=3200,
-        # Slight gamma spread plus offset toes: the crossover that gives
-        # VISION3 its warm highlight and neutral shadow.
         curves=RGBCurves(
-            r=_neg(0.22, 0.600, toe_x=-1.62, shoulder_x=1.90),
-            g=_neg(0.20, 0.620, toe_x=-1.55, shoulder_x=1.82),
-            b=_neg(0.19, 0.645, toe_x=-1.44, shoulder_x=1.70),
+            r=_neg(0.22, 0.610, toe_x=-1.52, shoulder_x=1.86),
+            g=_neg(0.20, 0.630, toe_x=-1.46, shoulder_x=1.78),
+            b=_neg(0.19, 0.652, toe_x=-1.36, shoulder_x=1.66),
         ),
-        grain=GrainSpec(6.6, 10.5, 11.5, 13.5, clump_gain=0.28, fog_grain=0.20),
-        mtf=MTFSpec(44.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
+        grain=GrainSpec(8.4, 11.5, 12.5, 15.0, clump_gain=0.36, fog_grain=0.22),
+        mtf=MTFSpec(40.0, 48.0, 56.0, adjacency=0.09, adjacency_um=24.0),
+        # No remjet: the glow is enormous and reaches very far.
         halation=HalationSpec(
-            radii_um=(14.0, 70.0, 360.0),
-            weights=(0.58, 0.30, 0.12),
-            gain_r=0.30, gain_g=0.11, gain_b=0.04,
-            threshold_stops=1.5,
+            radii_um=(20.0, 130.0, 700.0),
+            weights=(0.42, 0.34, 0.24),
+            gain_r=1.05, gain_g=0.30, gain_b=0.10,
+            threshold_stops=0.9,
         ),
-        couplers=CouplerSpec(0.13, 60.0, 0.07, 13.0),
-        dye_matrix=_dye(-0.115),
-        base_tint=(1.000, 0.985, 0.955),
+        couplers=CouplerSpec(0.12, 60.0, 0.06, 13.0),
+        dye_matrix=_dye(-0.11),
+        base_tint=(1.000, 0.986, 0.958),
         misregistration_um=5.0,
-        features=Feature.HALATION | Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+        default_format="ff35",
+        features=Feature.HALATION | Feature.NO_REMJET | Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="DUFAYCOLOR_1937",
+        aliases=("dufaycolor", "dufay", "reseau", "mosaic"),
+        description=(
+            "Additive colour with no dye layers at all: a microscopic grid of "
+            "red lines and chequered blue and green squares ruled onto the base, "
+            "with one panchromatic emulsion behind it. Pastel, low-saturation "
+            "colour, soft, very slow, and the grid stays faintly visible as "
+            "texture. RENDER THIS ONE LARGE -- the grid is a physical 20 "
+            "lines/mm, so below about 2000 px wide there are not enough pixels "
+            "to resolve it and the mosaic is disabled with a warning."
+        ),
+        era="1932-1950s",
+        kind=StockKind.REVERSAL,
+        exposure_index=10,
+        balance_kelvin=5500,
+        # One emulsion, so one curve. All the colour behaviour comes from the
+        # reseau, not from these.
+        curves=_mono(ToneCurve(0.30, 1.48, -0.72, 0.22, 0.94, 0.34)),
+        grain=GrainSpec(12.5, 16.5, 16.5, 16.5, clump_gain=1.35, fog_grain=0.34),
+        mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.03),
+        halation=HalationSpec(
+            radii_um=(22.0, 105.0, 470.0),
+            gain_r=0.24, gain_g=0.24, gain_b=0.24,
+            threshold_stops=1.05,
+        ),
+        couplers=CouplerSpec(),
+        reseau=ReseauSpec(
+            lines_per_mm=20.0,
+            # Broad, overlapping dyed-gelatin passbands. These off-diagonals are
+            # what make the process pastel rather than lurid.
+            filter_matrix=(
+                (0.62, 0.14, 0.03),
+                (0.16, 0.55, 0.14),
+                (0.05, 0.20, 0.52),
+            ),
+            pattern="dufay",
+            reconstruction_pitches=0.62,
+        ),
+        misregistration_um=0.0,  # one record, so nothing to misregister
+        default_flare=0.11,
+        features=(
+            Feature.HALATION | Feature.MOSAIC_RESEAU
+            | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE
+        ),
+    ),
+    FilmProfile(
+        name="EASTMAN_5247_1974",
+        aliases=("5247", "eastman 5247"),
+        description=(
+            "The 1970s. Low saturation, heavy clustered grain, soft everywhere "
+            "and prone to a warm cast. If you want the look of a film shot "
+            "between 1974 and 1982, this is closer than any grain plugin."
+        ),
+        era="1974-1982",
+        exposure_index=100,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.30, 0.545, toe_x=-1.24, toe_k=0.40, shoulder_x=1.46),
+            g=_neg(0.28, 0.560, toe_x=-1.18, toe_k=0.38, shoulder_x=1.40),
+            b=_neg(0.29, 0.580, toe_x=-1.08, toe_k=0.36, shoulder_x=1.30),
+        ),
+        grain=GrainSpec(13.0, 18.5, 20.0, 24.0, clump_gain=1.40, fog_grain=0.30,
+                        anisotropy=1.04),
+        mtf=MTFSpec(24.0, 28.0, 33.0, adjacency=0.03, adjacency_um=34.0),
+        halation=HalationSpec(
+            radii_um=(22.0, 110.0, 520.0),
+            weights=(0.50, 0.32, 0.18),
+            gain_r=0.52, gain_g=0.22, gain_b=0.09,
+            threshold_stops=1.0,
+        ),
+        couplers=CouplerSpec(0.02, 80.0),
+        dye_matrix=_dye(0.22),
+        base_tint=(1.000, 0.968, 0.918),
+        misregistration_um=10.0,
+        features=Feature.HALATION | Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="EASTMAN_DOUBLE_X_5222",
+        aliases=("5222", "double x", "double-x", "xx"),
+        description=(
+            "The B&W motion picture stock: Manhattan, Raging Bull, Schindler's "
+            "List. Cubic grain with a distinctive silvery mid-tone and a very "
+            "long straight line. Still in production, essentially unchanged "
+            "since 1959."
+        ),
+        era="1959-present",
+        is_monochrome=True,
+        exposure_index=250,
+        balance_kelvin=3200,
+        curves=_mono(ToneCurve(0.13, 0.620, -1.70, 0.32, 2.26, 0.58)),
+        grain=GrainSpec(8.0, 12.0, 12.0, 12.0, clump_gain=1.05, fog_grain=0.22),
+        mtf=MTFSpec(56.0, 56.0, 56.0, adjacency=0.09),
+        spectral_weights=(0.32, 0.47, 0.21),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+
+    # ------------------ Eastman Ektachrome EF news reversal ----------------
+    FilmProfile(
+        name="EASTMAN_EKTACHROME_5239",
+        aliases=("5239", "ektachrome ef", "eastman daylight 5239", "ef daylight"),
+        description=(
+            "[T2] Ektachrome EF Daylight, 35 mm. Fast reversal news and "
+            "documentary stock, EI 160, routinely push-processed further. "
+            "Lower contrast than a pictorial slide film because it had to "
+            "survive being projected straight off the camera roll, and grainy "
+            "in a way 1960s television flattered."
+        ),
+        era="1960s-1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=160,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_rev(0.19, 1.45, toe_x=-0.86, shoulder_x=1.04),
+            g=_rev(0.20, 1.48, toe_x=-0.88, shoulder_x=1.02),
+            b=_rev(0.23, 1.50, toe_x=-0.92, shoulder_x=0.98),
+        ),
+        grain=GrainSpec(10.4, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
+        mtf=MTFSpec(48.0, 54.0, 60.0, adjacency=0.08, adjacency_um=18.0),
+        halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
+                             threshold_stops=1.9),
+        couplers=CouplerSpec(0.10, 50.0, 0.05, 11.0),
+        dye_matrix=_dye(0.04),
+        misregistration_um=5.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="EASTMAN_EKTACHROME_7239",
+        aliases=("7239", "eastman daylight 7239", "ef 16mm"),
+        description=(
+            "[T2] Ektachrome EF Daylight, 16 mm -- the same emulsion as 5239 "
+            "on 16 mm base. The emulsion numbers here are deliberately "
+            "identical: the visible difference between the two is entirely "
+            "magnification, which the renderer derives from the frame width "
+            "you choose, not from the profile. Pick format '16mm' or 'super16' "
+            "with this one and the grain will grow on its own."
+        ),
+        era="1960s-1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=160,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_rev(0.19, 1.45, toe_x=-0.86, shoulder_x=1.04),
+            g=_rev(0.20, 1.48, toe_x=-0.88, shoulder_x=1.02),
+            b=_rev(0.23, 1.50, toe_x=-0.92, shoulder_x=0.98),
+        ),
+        grain=GrainSpec(10.4, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
+        mtf=MTFSpec(48.0, 54.0, 60.0, adjacency=0.08, adjacency_um=18.0),
+        halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
+                             threshold_stops=1.9),
+        couplers=CouplerSpec(0.10, 50.0, 0.05, 11.0),
+        dye_matrix=_dye(0.04),
+        misregistration_um=5.0,
+        default_format="16mm",
+        features=Feature.NONE,
     ),
     # -----------------------------------------------------------------------
     # Older Eastman colour negative. Cubic crystals, no coupler sophistication.
@@ -871,36 +1155,310 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         misregistration_um=8.0,
         features=Feature.HALATION,
     ),
+    # =======================================================================
+    # 1930s-1940s stocks.
+    #
+    # !! READ THIS BEFORE TRUSTING ANY NUMBER BELOW !!
+    #
+    # Everything in this block is a *reconstruction*, not an estimate. For the
+    # modern stocks above, the numbers are engineering guesses anchored to
+    # published datasheets I could reason about. Here there are no datasheets I
+    # can consult: the figures are inferred from how surviving footage looks,
+    # from the physics of the emulsion technology of the period, and from
+    # internal consistency with the rest of the database. Treat them as
+    # artistic targets. Super-XX is the firmest of the five because it stayed
+    # in production for decades; Agfacolor Neu and the Soviet stock are the
+    # softest, and Dufaycolor's reseau pitch is the only figure there I would
+    # defend within a factor of two.
+    #
+    # Period characteristics these share, and which are the real content:
+    #   * high base fog (dmin 0.25-0.38 vs 0.12-0.22 modern) -- weak blacks
+    #   * low Dmax and short shoulder -- highlights clip early
+    #   * coarse, strongly clustered cubic grain
+    #   * soft: f50 of 20-35 c/mm against 44-98 for modern stock
+    #   * no DIR couplers at all: the chemistry did not exist yet
+    #   * heavy halation: anti-halation backing was primitive or absent
+    #   * large default_flare, because the lenses were uncoated
+    # =======================================================================
     FilmProfile(
-        name="EASTMAN_5247_1974",
-        aliases=("5247", "eastman 5247"),
+        name="EASTMAN_ORTHO_1930",
+        aliases=("ortho", "orthochromatic", "1930 ortho", "eastman ortho"),
         description=(
-            "The 1970s. Low saturation, heavy clustered grain, soft everywhere "
-            "and prone to a warm cast. If you want the look of a film shot "
-            "between 1974 and 1982, this is closer than any grain plugin."
+            "Orthochromatic black and white negative: sensitive to blue and "
+            "green, effectively blind to red. Red renders as black and a blue "
+            "sky renders as blank white. This single property is the most "
+            "recognisable cue of pre-1930s cinema, and the reason period makeup "
+            "was so extreme -- ordinary red lipstick photographed black, so "
+            "actors wore yellow and green greasepaint instead."
         ),
-        era="1974-1982",
-        exposure_index=100,
-        balance_kelvin=3200,
-        curves=RGBCurves(
-            r=_neg(0.30, 0.545, toe_x=-1.24, toe_k=0.40, shoulder_x=1.46),
-            g=_neg(0.28, 0.560, toe_x=-1.18, toe_k=0.38, shoulder_x=1.40),
-            b=_neg(0.29, 0.580, toe_x=-1.08, toe_k=0.36, shoulder_x=1.30),
-        ),
-        grain=GrainSpec(13.0, 18.5, 20.0, 24.0, clump_gain=1.40, fog_grain=0.30,
-                        anisotropy=1.04),
-        mtf=MTFSpec(24.0, 28.0, 33.0, adjacency=0.03, adjacency_um=34.0),
+        era="1920s-early 1930s",
+        is_monochrome=True,
+        exposure_index=25,
+        balance_kelvin=3400,  # carbon arc / early incandescent
+        curves=_mono(ToneCurve(0.32, 0.700, -1.06, 0.26, 1.44, 0.40)),
+        grain=GrainSpec(13.5, 17.0, 17.0, 17.0, clump_gain=1.45, fog_grain=0.38,
+                        anisotropy=1.05),
+        mtf=MTFSpec(28.0, 28.0, 28.0, adjacency=0.02),
         halation=HalationSpec(
-            radii_um=(22.0, 110.0, 520.0),
-            weights=(0.50, 0.32, 0.18),
-            gain_r=0.52, gain_g=0.22, gain_b=0.09,
+            radii_um=(24.0, 120.0, 560.0),
+            weights=(0.46, 0.34, 0.20),
+            gain_r=0.30, gain_g=0.30, gain_b=0.30,
             threshold_stops=1.0,
         ),
-        couplers=CouplerSpec(0.02, 80.0),
-        dye_matrix=_dye(0.22),
-        base_tint=(1.000, 0.968, 0.918),
-        misregistration_um=10.0,
-        features=Feature.HALATION | Feature.UNEVEN_EMULSION,
+        couplers=CouplerSpec(),  # no coupler chemistry existed
+        # The whole point of this profile. Red sensitivity is not merely low, it
+        # is nearly absent; the residual 2% stands in for slight far-red leakage.
+        spectral_weights=(0.02, 0.45, 0.53),
+        misregistration_um=0.0,
+        default_flare=0.13,
+        features=(
+            Feature.HALATION | Feature.ORTHO_RESPONSE
+            | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE
+        ),
+    ),
+    FilmProfile(
+        name="EASTMAN_PLUS_X_5231",
+        aliases=("plus-x", "plusx", "5231", "plus x 5231", "eastman plus-x"),
+        description=(
+            "[T1] Eastman Plus-X negative 5231, EI 80 tungsten / 100 daylight. "
+            "The fine-grain B&W cine negative of the era and the aspirational "
+            "choice for Indian studios that could afford imported Eastman over "
+            "cheaper European stock. Noticeably finer and sharper than the "
+            "Gevaert equivalent, with a long straight line that grades easily. "
+            "If you want a period Indian B&W look that came off a well-funded "
+            "production rather than a poverty-row one, this is the one."
+        ),
+        era="1950s-2000s",
+        is_monochrome=True,
+        exposure_index=80,
+        balance_kelvin=3200,
+        curves=_mono(ToneCurve(0.12, 0.680, -1.48, 0.30, 1.74, 0.42)),
+        grain=GrainSpec(8.0, 11.0, 11.0, 11.0, clump_gain=1.00, fog_grain=0.20),
+        mtf=MTFSpec(60.0, 60.0, 60.0, adjacency=0.08, adjacency_um=16.0),
+        spectral_weights=(0.27, 0.54, 0.19),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="EASTMAN_SUPER_XX_1938",
+        aliases=("super xx", "superxx", "super-xx", "1201", "1938"),
+        description=(
+            "The fast panchromatic negative that made 1940s Hollywood look the "
+            "way it does -- deep-focus photography and film noir were shot on "
+            "this. Fast for its day, so coarse and clustered grain, soft by "
+            "modern standards, with a long straight line that holds shadow "
+            "detail far better than its contemporaries."
+        ),
+        era="1938-1950s",
+        is_monochrome=True,
+        exposure_index=100,
+        balance_kelvin=3200,
+        curves=_mono(ToneCurve(0.28, 0.610, -1.52, 0.34, 1.92, 0.52)),
+        grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=1.30, fog_grain=0.32),
+        mtf=MTFSpec(35.0, 35.0, 35.0, adjacency=0.04),
+        halation=HalationSpec(
+            radii_um=(20.0, 100.0, 460.0),
+            gain_r=0.26, gain_g=0.26, gain_b=0.26,
+            threshold_stops=1.1,
+        ),
+        couplers=CouplerSpec(),
+        # Panchromatic but, like most emulsions of the period, still weaker in
+        # red than a modern film and rather hot in blue.
+        spectral_weights=(0.24, 0.46, 0.30),
+        misregistration_um=0.0,
+        default_flare=0.10,
+        features=Feature.HALATION | Feature.NITRATE_BASE,
+    ),
+
+    # ----------------------------- 8 mm gauges ------------------------------
+    # "8mm" is a gauge, not an emulsion. These two are representative home-movie
+    # reversal stocks -- what was actually loaded in a Standard 8 or Super 8
+    # cartridge. The overwhelming visual signature of 8 mm is magnification:
+    # a 4.80 mm wide frame blown up to HD is a 400x area enlargement, so grain
+    # and softness that would be invisible on 35 mm dominate the image. That
+    # comes from the format width, so render these with format '8mm' or
+    # 'super8' or the whole point is lost. MEASURED: at 1024 px wide a 16 um
+    # clump spans 0.66 px on super35 but 3.41 px on 8mm. The DEFAULT FORMAT IS
+    # super35, so `film_sim.py img -p '8mm bw'` with no -f renders 8 mm grain at
+    # 35 mm scale and looks wrong. Always pass -f 8mm or -f super8.
+    # Emulsion grain is deliberately FINE here (EI 40 reversal, finer than the
+    # EI 200 Tri-X Reversal in this set). Do not coarsen it to 'make 8 mm look
+    # like 8 mm' -- that double-counts the magnification the renderer already
+    # applies.
+    FilmProfile(
+        name="EIGHT_MM_BW",
+        aliases=("8mm bw", "8mm b&w", "8mm mono", "eight mm bw", "regular8 bw"),
+        description=(
+            "[T3] Representative 8 mm B&W reversal home-movie stock, EI 40, of "
+            "the Plus-X / Tri-X reversal class. Reversal because home movies "
+            "were projected directly -- there was no print stage and no "
+            "negative to grade. Moderate contrast, chunky cubic grain, and a "
+            "resolution that was never the limiting factor next to the camera "
+            "lenses of the day."
+        ),
+        era="1930s-1980s",
+        kind=StockKind.REVERSAL,
+        is_monochrome=True,
+        exposure_index=40,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.14, 1.45, -0.62, 0.22, 0.73, 0.30)),
+        # Grain raised because a REVERSAL stock gets no print stage, and the
+        # print stage is where a negative's grain is multiplied by the print
+        # gamma (~1.75). Measured: from grain field to final output a negative
+        # KEEPS 1.24x of its grain amplitude, a reversal stock keeps 0.63x.
+        # That asymmetry is physically right -- reversal film is the viewed
+        # image, there is nothing downstream to amplify it -- but it means a
+        # reversal emulsion needs a genuinely higher RMS to read as grainy.
+        # Justified by amateur emulsion quality and by reversal processing,
+        # which develops the unexposed silver and yields coarser apparent
+        # grain than negative processing of the same crystals.
+        grain=GrainSpec(19.0, 17.0, 17.0, 17.0, clump_gain=1.45, fog_grain=0.26,
+                        anisotropy=1.06),
+        mtf=MTFSpec(44.0, 44.0, 44.0, adjacency=0.05, adjacency_um=19.0),
+        spectral_weights=(0.27, 0.54, 0.19),
+        misregistration_um=0.0,
+        default_format="8mm",
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="EIGHT_MM_COLOR",
+        aliases=("8mm color", "8mm colour", "eight mm color", "super8 color"),
+        description=(
+            "[T3] Representative 8 mm colour reversal home-movie stock, EI 40, "
+            "of the Kodachrome II / Ektachrome 160 cartridge class. Warm, "
+            "saturated, contrasty -- reversal film projected in a dark room "
+            "could afford contrast that a print chain could not. The nostalgic "
+            "'home movie' look is this emulsion plus enormous magnification "
+            "plus, usually, decades of dye fade."
+        ),
+        era="1930s-1980s",
+        kind=StockKind.REVERSAL,
+        exposure_index=40,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_rev(0.17, 1.66, toe_x=-0.78, shoulder_x=0.94),
+            g=_rev(0.18, 1.68, toe_x=-0.80, shoulder_x=0.92),
+            b=_rev(0.21, 1.64, toe_x=-0.84, shoulder_x=0.90),
+        ),
+        # Same reversal reasoning as EIGHT_MM_BW: no print stage to amplify
+        # the grain, so the emulsion number has to carry it.
+        grain=GrainSpec(12.0, 10.5, 11.5, 13.0, clump_gain=0.70, fog_grain=0.22,
+                        anisotropy=1.06),
+        mtf=MTFSpec(50.0, 56.0, 62.0, adjacency=0.08, adjacency_um=17.0),
+        halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
+                             threshold_stops=2.0),
+        couplers=CouplerSpec(0.08, 50.0, 0.05, 11.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.0, 0.99, 0.965),
+        misregistration_um=5.0,
+        default_format="8mm",
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="EKTACHROME_160T",
+        aliases=("ektachrome 2", "ektachrome 160", "e160t", "ektachrome 160t"),
+        description=(
+            "[T1] Tungsten Ektachrome, EI 160, your 'Ektachrome 2'. Balanced "
+            "for 3200 K lamps, so shot in daylight without correction it goes "
+            "strongly blue. Faster and correspondingly grainier than the 64, "
+            "and the stock behind a great deal of 1970s interior and stage "
+            "photography."
+        ),
+        era="1970s-2000s",
+        kind=StockKind.REVERSAL,
+        exposure_index=160,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_rev(0.17, 1.62, toe_x=-0.82, shoulder_x=0.98),
+            g=_rev(0.18, 1.65, toe_x=-0.84, shoulder_x=0.96),
+            b=_rev(0.20, 1.66, toe_x=-0.88, shoulder_x=0.88),
+        ),
+        grain=GrainSpec(8.2, 9.5, 10.5, 12.5, clump_gain=0.52, fog_grain=0.17),
+        mtf=MTFSpec(58.0, 65.0, 72.0, adjacency=0.10, adjacency_um=16.0),
+        halation=HalationSpec(gain_r=0.05, gain_g=0.017, gain_b=0.005,
+                             threshold_stops=2.0),
+        couplers=CouplerSpec(0.09, 50.0, 0.05, 11.0),
+        dye_matrix=_dye(-0.14),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+
+    # -------------------------- Ektachrome stills --------------------------
+    FilmProfile(
+        name="EKTACHROME_64",
+        aliases=("ektachrome 1", "e64", "ektachrome 64", "ektachrome64"),
+        description=(
+            "[T1] Daylight Ektachrome, EI 64. Interpreted here as your "
+            "'Ektachrome 1'. Cooler and more neutral than Kodachrome, with "
+            "cleaner greens and less of the red bias, and processed in ordinary "
+            "E-6 rather than Kodachrome's proprietary line."
+        ),
+        era="1970s-2012",
+        kind=StockKind.REVERSAL,
+        exposure_index=64,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_rev(0.15, 1.70, toe_x=-0.78, shoulder_x=0.94),
+            g=_rev(0.16, 1.74, toe_x=-0.79, shoulder_x=0.92),
+            b=_rev(0.17, 1.76, toe_x=-0.80, shoulder_x=0.89),
+        ),
+        grain=GrainSpec(4.8, 6.0, 6.5, 7.5, clump_gain=0.34, fog_grain=0.13),
+        mtf=MTFSpec(72.0, 80.0, 88.0, adjacency=0.12, adjacency_um=14.0),
+        halation=HalationSpec(gain_r=0.045, gain_g=0.015, gain_b=0.004,
+                             threshold_stops=2.1),
+        couplers=CouplerSpec(0.08, 48.0, 0.05, 10.0),
+        dye_matrix=_dye(-0.18),
+        misregistration_um=3.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="FERRANIA_P30",
+        aliases=("p30", "ferrania", "ferrania p30", "neorealism"),
+        description=(
+            "[T2] Ferrania P30, Italy, EI 80. High silver content, contrasty, "
+            "and fine-grained for its speed -- the cine stock behind Italian "
+            "neorealism and, because Ferrania undercut Kodak across southern "
+            "Europe and Latin America, behind a great deal of Argentine, "
+            "Brazilian and Mexican production too. A note on your question "
+            "about South America: no country there manufactured raw film at "
+            "scale in 1940-1980. Its studios shot on imports, and Ferrania was "
+            "one of the most common. So this is an Italian stock, honestly "
+            "labelled, that gets you closest to that cinema. High gamma and "
+            "deep Dmax are the signature -- P30 blacks are genuinely black."
+        ),
+        era="1960s / revived 2017",
+        is_monochrome=True,
+        exposure_index=80,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.11, 0.880, -1.40, 0.28, 1.72, 0.38)),
+        grain=GrainSpec(7.4, 10.0, 10.0, 10.0, clump_gain=1.15, fog_grain=0.18),
+        mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.09, adjacency_um=15.0),
+        spectral_weights=(0.27, 0.55, 0.18),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="FOMAPAN_400_ACTION",
+        aliases=("fomapan", "fomapan 400", "fomapan 400 action"),
+        description=(
+            "Czech B&W, nominally 400 but metering closer to 250. Older-style "
+            "emulsion: coarser and more clustered than HP5, softer, and with a "
+            "steeper curve that gives it noticeably more bite."
+        ),
+        era="1990s-present",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.14, 0.690, -1.44, 0.30, 1.98, 0.50)),
+        grain=GrainSpec(11.5, 15.5, 15.5, 15.5, clump_gain=1.30, fog_grain=0.28,
+                        anisotropy=1.03),
+        mtf=MTFSpec(42.0, 42.0, 42.0, adjacency=0.05),
+        spectral_weights=(0.30, 0.48, 0.22),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.UNEVEN_EMULSION,
     ),
     # -----------------------------------------------------------------------
     # Fuji
@@ -966,104 +1524,371 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         misregistration_um=4.8,
         features=Feature.HALATION | Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
-    # -----------------------------------------------------------------------
-    # Eastern bloc colour
-    # -----------------------------------------------------------------------
+
+    # ------------------------------ Fuji -----------------------------------
     FilmProfile(
-        name="ORWOCOLOR_NC21",
-        aliases=("nc21", "nc 21", "orwocolor"),
+        name="FUJI_F125_8530",
+        aliases=("f125", "8530", "fuji f125", "f-125", "fuji f125 8530"),
         description=(
-            "East German colour negative. Low saturation from weak dye "
-            "separation, coarse clustered grain, muted palette and visible "
-            "coating unevenness."
+            "[T2] Fujicolor F-125 tungsten negative, 35 mm. Fuji's fine-grain "
+            "studio stock of the period: tighter grain than the Eastman 100T "
+            "equivalents and the characteristic Fuji green-cyan lean in the "
+            "shadows, which comes from where the three curves cross rather "
+            "than from any tint."
         ),
-        era="1970s-1990s",
+        era="1990s-2000s",
+        exposure_index=125,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.575),
+            g=_neg(0.60, 0.585),
+            b=_neg(0.98, 0.600),
+        ),
+        grain=GrainSpec(5.4, 8.0, 9.0, 11.0, clump_gain=0.42, fog_grain=0.16),
+        mtf=MTFSpec(70.0, 78.0, 84.0, adjacency=0.13, adjacency_um=13.0),
+        halation=HalationSpec(gain_r=0.035, gain_g=0.012, gain_b=0.003,
+                             threshold_stops=2.0),
+        couplers=CouplerSpec(0.34, 54.0, 0.16, 11.0),
+        dye_matrix=_dye(-0.08),
+        base_tint=(0.98, 1.0, 0.99),
+        misregistration_um=4.5,
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="FUJI_F125_8630",
+        aliases=("8630", "fuji f125 8630", "f125 16mm"),
+        description=(
+            "[T2] Fujicolor F-125, 16 mm base. Same emulsion as 8530 -- see "
+            "the note on 7239 about why the numbers are identical and the "
+            "gauge does the work."
+        ),
+        era="1990s-2000s",
+        exposure_index=125,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.575),
+            g=_neg(0.60, 0.585),
+            b=_neg(0.98, 0.600),
+        ),
+        grain=GrainSpec(5.4, 8.0, 9.0, 11.0, clump_gain=0.42, fog_grain=0.16),
+        mtf=MTFSpec(70.0, 78.0, 84.0, adjacency=0.13, adjacency_um=13.0),
+        halation=HalationSpec(gain_r=0.035, gain_g=0.012, gain_b=0.003,
+                             threshold_stops=2.0),
+        couplers=CouplerSpec(0.34, 54.0, 0.16, 11.0),
+        dye_matrix=_dye(-0.08),
+        base_tint=(0.98, 1.0, 0.99),
+        misregistration_um=4.5,
+        default_format="16mm",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="FUJI_NEOPAN_1600",
+        aliases=("neopan 1600", "neopan1600", "fuji neopan 1600 lomo"),
+        description=(
+            "[T1] Fast Fuji B&W, EI 1600. Big open grain and a deliberately "
+            "flat curve so that the shadows it was designed to reach do not "
+            "crush. Available-light and concert film; often the grain is the "
+            "point rather than a compromise."
+        ),
+        era="1990s-2010s",
+        is_monochrome=True,
+        exposure_index=1600,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.17, 0.610, -1.44, 0.28, 1.62, 0.40)),
+        grain=GrainSpec(17.2, 22.0, 22.0, 22.0, clump_gain=1.50, fog_grain=0.30),
+        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.04, adjacency_um=22.0),
+        spectral_weights=(0.27, 0.55, 0.18),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="FUJI_NEOPAN_ACROS_100",
+        aliases=("acros", "neopan acros", "acros 100", "neopan 100 acros"),
+        description=(
+            "[T1] Fuji's fine-grain B&W, built on flat tabular crystals rather "
+            "than cubic ones. That is why clump_gain is so low: tabular grains "
+            "lie flat and pack evenly instead of clustering, so Acros looks "
+            "smooth rather than velvety at the same grain size. Also famous "
+            "for near-absent reciprocity failure -- not modelled here, since "
+            "this pipeline has no exposure-time axis."
+        ),
+        era="2000-Present",
+        is_monochrome=True,
         exposure_index=100,
         balance_kelvin=5500,
-        curves=RGBCurves(
-            r=_neg(0.30, 0.520, toe_x=-1.28, toe_k=0.38, shoulder_x=1.42),
-            g=_neg(0.29, 0.530, toe_x=-1.34, toe_k=0.38, shoulder_x=1.46),
-            b=_neg(0.31, 0.545, toe_x=-1.22, toe_k=0.36, shoulder_x=1.38),
-        ),
-        grain=GrainSpec(12.0, 14.0, 15.0, 18.0, clump_gain=1.35, fog_grain=0.30,
-                        anisotropy=1.06),
-        mtf=MTFSpec(26.0, 30.0, 34.0, adjacency=0.02),
-        halation=HalationSpec(
-            radii_um=(20.0, 100.0, 420.0),
-            gain_r=0.22, gain_g=0.12, gain_b=0.08,
-            threshold_stops=1.3,
-        ),
-        couplers=CouplerSpec(0.03, 80.0),
-        # Heavily impure dyes: large *positive* off-diagonals desaturate for
-        # real, instead of the old blend-toward-luma trick.
-        dye_matrix=_dye(0.40),
-        base_tint=(0.965, 1.000, 0.950),
-        misregistration_um=11.0,
-        features=Feature.HALATION | Feature.UNEVEN_EMULSION,
+        curves=_mono(ToneCurve(0.10, 0.600, -1.58, 0.32, 1.84, 0.44)),
+        grain=GrainSpec(6.2, 7.0, 7.0, 7.0, clump_gain=0.22, fog_grain=0.13),
+        mtf=MTFSpec(104.0, 104.0, 104.0, adjacency=0.14, adjacency_um=11.0),
+        spectral_weights=(0.27, 0.55, 0.18),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
     ),
-    # -----------------------------------------------------------------------
-    # Still colour negative
-    # -----------------------------------------------------------------------
     FilmProfile(
-        name="KODAK_PORTRA_400",
-        aliases=("portra", "portra 400"),
+        name="FUJI_PROVIA_400X",
+        aliases=("provia", "provia 400x", "400x", "rxp"),
         description=(
-            "Modern still colour negative. Enormous latitude, gentle toe, and "
-            "the flattering warm skin rendering it was designed around. Use "
-            "with format ff35 or medium645."
+            "[T1] Fuji's fast professional reversal. Remarkably fine-grained "
+            "for EI 400 -- roughly the granularity a 100-speed slide film had "
+            "a generation earlier -- with Fuji's cool, clean colour and "
+            "well-behaved neutrals. Discontinued 2013."
         ),
-        era="1998-present",
+        era="2000s-2013",
+        kind=StockKind.REVERSAL,
         exposure_index=400,
         balance_kelvin=5500,
         curves=RGBCurves(
-            r=_neg(0.21, 0.560, toe_x=-1.86, toe_k=0.34, shoulder_x=2.24),
-            g=_neg(0.20, 0.578, toe_x=-1.80, toe_k=0.32, shoulder_x=2.18),
-            b=_neg(0.20, 0.596, toe_x=-1.70, toe_k=0.30, shoulder_x=2.08),
+            r=_rev(0.16, 1.55, toe_x=-0.84, shoulder_x=1.00),
+            g=_rev(0.17, 1.58, toe_x=-0.86, shoulder_x=0.98),
+            b=_rev(0.18, 1.60, toe_x=-0.88, shoulder_x=0.96),
         ),
-        grain=GrainSpec(4.0, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
-        mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
-        halation=HalationSpec(
-            radii_um=(10.0, 50.0, 240.0),
-            gain_r=0.12, gain_g=0.045, gain_b=0.016,
-            threshold_stops=2.0,
-        ),
-        couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
-        dye_matrix=_dye(-0.11),
-        base_tint=(1.000, 0.992, 0.972),
+        grain=GrainSpec(10.8, 12.0, 13.0, 15.0, clump_gain=0.44, fog_grain=0.18),
+        mtf=MTFSpec(60.0, 68.0, 74.0, adjacency=0.11, adjacency_um=15.0),
+        halation=HalationSpec(gain_r=0.04, gain_g=0.014, gain_b=0.004,
+                             threshold_stops=2.1),
+        couplers=CouplerSpec(0.10, 48.0, 0.06, 10.0),
+        dye_matrix=_dye(-0.16),
         misregistration_um=4.0,
-        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+        default_format="ff35",
+        features=Feature.NONE,
     ),
     FilmProfile(
-        name="CINESTILL_800T",
-        aliases=("cinestill", "800t", "cinestill 800t"),
+        name="FUJI_SENSIA_100",
+        aliases=("sensia", "sensia 100", "sensia ii"),
         description=(
-            "VISION3 500T with the remjet anti-halation layer stripped off so "
-            "it can run through C-41. The result is the most extreme halation "
-            "in production: every streetlight grows a red corona. Useful here "
-            "as a stress test of the halation model."
+            "[T2] Fuji's consumer slide film -- essentially a de-tuned Provia "
+            "sold in a cheaper box. Slightly softer, slightly grainier, "
+            "slightly warmer than the professional line, and less careful about "
+            "neutral rendering. The holiday-slide look of the 1990s."
         ),
-        era="2012-present",
-        exposure_index=800,
-        balance_kelvin=3200,
+        era="1990s-2000s",
+        kind=StockKind.REVERSAL,
+        exposure_index=100,
+        balance_kelvin=5500,
         curves=RGBCurves(
-            r=_neg(0.22, 0.610, toe_x=-1.52, shoulder_x=1.86),
-            g=_neg(0.20, 0.630, toe_x=-1.46, shoulder_x=1.78),
-            b=_neg(0.19, 0.652, toe_x=-1.36, shoulder_x=1.66),
+            r=_rev(0.16, 1.62, toe_x=-0.80, shoulder_x=0.96),
+            g=_rev(0.17, 1.66, toe_x=-0.82, shoulder_x=0.94),
+            b=_rev(0.19, 1.68, toe_x=-0.86, shoulder_x=0.90),
         ),
-        grain=GrainSpec(8.4, 11.5, 12.5, 15.0, clump_gain=0.36, fog_grain=0.22),
-        mtf=MTFSpec(40.0, 48.0, 56.0, adjacency=0.09, adjacency_um=24.0),
-        # No remjet: the glow is enormous and reaches very far.
+        grain=GrainSpec(7.6, 9.0, 9.5, 11.0, clump_gain=0.40, fog_grain=0.15),
+        mtf=MTFSpec(64.0, 72.0, 78.0, adjacency=0.11, adjacency_um=14.0),
+        halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.004,
+                             threshold_stops=2.05),
+        couplers=CouplerSpec(0.09, 48.0, 0.05, 10.0),
+        dye_matrix=_dye(-0.13),
+        base_tint=(1.0, 0.995, 0.985),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="FUJI_VELVIA_50",
+        aliases=("velvia", "velvia 50", "rvp50"),
+        description=(
+            "The most saturated colour film ever sold, and the reason a "
+            "generation of landscape photographs look the way they do. "
+            "Extremely fine grain, brutal contrast, about five usable stops. "
+            "Use with format ff35 or medium645."
+        ),
+        era="1990-present",
+        kind=StockKind.REVERSAL,
+        exposure_index=50,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_rev(0.13, 2.00, toe_x=-0.66, toe_k=0.16, shoulder_x=0.80),
+            g=_rev(0.13, 2.06, toe_x=-0.68, toe_k=0.16, shoulder_x=0.78),
+            b=_rev(0.14, 2.14, toe_x=-0.72, toe_k=0.16, shoulder_x=0.76),
+        ),
+        grain=GrainSpec(2.4, 3.6, 3.8, 4.4, clump_gain=0.18, fog_grain=0.12),
+        mtf=MTFSpec(88.0, 98.0, 108.0, adjacency=0.15, adjacency_um=12.0),
         halation=HalationSpec(
-            radii_um=(20.0, 130.0, 700.0),
-            weights=(0.42, 0.34, 0.24),
-            gain_r=1.05, gain_g=0.30, gain_b=0.10,
-            threshold_stops=0.9,
+            radii_um=(7.0, 36.0, 160.0),
+            gain_r=0.05, gain_g=0.02, gain_b=0.006,
+            threshold_stops=2.3,
         ),
-        couplers=CouplerSpec(0.12, 60.0, 0.06, 13.0),
-        dye_matrix=_dye(-0.11),
-        base_tint=(1.000, 0.986, 0.958),
-        misregistration_um=5.0,
-        features=Feature.HALATION | Feature.NO_REMJET | Feature.STRONG_DIR_COUPLERS,
+        couplers=CouplerSpec(0.20, 44.0, 0.10, 9.0),
+        # Aggressive negative off-diagonals: this is where Velvia's colour
+        # comes from, not from a saturation slider.
+        dye_matrix=_dye(-0.42),
+        misregistration_um=3.0,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+
+    # -------------------- Indian cinema, 1940-1960 --------------------------
+    # India had a large film industry long before it had a raw-stock industry.
+    # Through the 1940s and 1950s studios in Bombay, Madras and Calcutta shot
+    # on imported negative -- Gevaert from Belgium, Eastman from Rochester,
+    # Agfa and later ORWO. Domestic manufacture began only in 1960, when
+    # Hindustan Photo Films opened at Ootacamund and began producing "Indu"
+    # branded stock under Bell & Howell licence; that is just outside the
+    # window you asked about, so the three entries here are the imports that
+    # were actually threaded through Indian cameras in that period.
+    FilmProfile(
+        name="GEVACOLOR_1952",
+        aliases=("gevacolor", "geva", "gevacolor 1952"),
+        description=(
+            "[T3] Gevaert's subtractive colour process, Belgium. The colour "
+            "stock of early Indian colour cinema: Aan (1952), the first Indian "
+            "feature in full colour, and Mother India (1957) were both shot on "
+            "Gevacolor. Very slow, coarse, and with markedly impure dyes -- the "
+            "positive dye_matrix here is doing real work, desaturating "
+            "everything toward a muddy pastel. Gevacolor prints also faded "
+            "notoriously fast, which is why surviving material looks pinker "
+            "than the stock ever did new. Fade is not modelled; this is the "
+            "emulsion as shot."
+        ),
+        era="1948-1960s",
+        exposure_index=16,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.26, 0.590, toe_x=-1.42, shoulder_x=1.52),
+            g=_neg(0.66, 0.605, toe_x=-1.44, shoulder_x=1.50),
+            b=_neg(1.06, 0.575, toe_x=-1.48, shoulder_x=1.46),
+        ),
+        grain=GrainSpec(14.2, 17.0, 18.0, 21.0, clump_gain=1.50, fog_grain=0.30,
+                        anisotropy=1.10),
+        mtf=MTFSpec(30.0, 33.0, 36.0, adjacency=0.03, adjacency_um=24.0),
+        halation=HalationSpec(
+            radii_um=(16.0, 80.0, 380.0),
+            gain_r=0.10, gain_g=0.04, gain_b=0.012,
+            threshold_stops=1.3,
+        ),
+        couplers=CouplerSpec(0.10, 60.0, 0.04, 14.0),
+        dye_matrix=_dye(0.20),
+        base_tint=(1.0, 0.965, 0.905),
+        misregistration_um=11.0,
+        default_flare=0.030,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+    FilmProfile(
+        name="GEVAERT_PANCHRO_1950",
+        aliases=("gevaert", "gevaert panchro", "panchro 1950", "geva bw"),
+        description=(
+            "[T3] Gevaert panchromatic B&W cine negative, around EI 32. The "
+            "workhorse behind a great deal of Indian B&W production in the "
+            "1940s and 1950s, and of European production too. Panchromatic, so "
+            "unlike the true ortho stocks it does register red -- but weakly, "
+            "which is why skin in period Indian films often reads darker and "
+            "more sculptural than a modern panchromatic stock would render it."
+        ),
+        era="1940s-1960s",
+        is_monochrome=True,
+        exposure_index=32,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.16, 0.750, -1.34, 0.27, 1.58, 0.38)),
+        grain=GrainSpec(11.0, 14.0, 14.0, 14.0, clump_gain=1.40, fog_grain=0.28,
+                        anisotropy=1.08),
+        mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.04, adjacency_um=22.0),
+        spectral_weights=(0.24, 0.53, 0.23),
+        misregistration_um=0.0,
+        default_flare=0.022,
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="ILFORD_DELTA_3200",
+        aliases=("delta 3200", "delta3200", "delta"),
+        description=(
+            "Extreme available-light B&W, true speed nearer 1000. Tabular "
+            "crystals so the grain is enormous but oddly even rather than "
+            "clumpy -- a useful demonstration that grain size and grain "
+            "character are independent parameters."
+        ),
+        era="1998-present",
+        is_monochrome=True,
+        exposure_index=3200,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.18, 0.600, -1.56, 0.36, 2.10, 0.60)),
+        grain=GrainSpec(16.0, 22.0, 22.0, 22.0, clump_gain=0.45, fog_grain=0.34),
+        mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.06),
+        spectral_weights=(0.33, 0.46, 0.21),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+    ),
+
+    # ------------------ Britain, France, Italy / Latin America -------------
+    FilmProfile(
+        name="ILFORD_HP3",
+        aliases=("hp3", "hp-3", "ilford hp3", "hypersensitive panchromatic"),
+        description=(
+            "[T2] Ilford Hypersensitive Panchromatic 3 -- the British B&W "
+            "standard for two decades, in press cameras, on newsreel cameras, "
+            "and in the hands of most of Fleet Street. Two generations of "
+            "emulsion technology before the HP5 in this database: coarser, "
+            "softer, lower in contrast, and with a much longer gentle toe. "
+            "Rated ISO 400 in later packaging though earlier ratings were lower "
+            "under the old ASA system."
+        ),
+        era="1941-1965",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.16, 0.720, -1.46, 0.34, 1.66, 0.44)),
+        grain=GrainSpec(13.6, 18.0, 18.0, 18.0, clump_gain=1.50, fog_grain=0.26,
+                        anisotropy=1.06),
+        mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.04, adjacency_um=22.0),
+        spectral_weights=(0.26, 0.54, 0.20),
+        misregistration_um=0.0,
+        default_flare=0.014,
+        default_format="ff35",
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    # -----------------------------------------------------------------------
+    # Black and white negative
+    # -----------------------------------------------------------------------
+    FilmProfile(
+        name="ILFORD_HP5_PLUS_400",
+        aliases=("hp5", "hp5 plus", "hp5+", "ilford hp5"),
+        description=(
+            "Photojournalism B&W. Cubic crystals, velvety clustered grain, and "
+            "a long straight line with a shoulder so gentle it almost never "
+            "clips. Pushes to 1600 without complaint."
+        ),
+        era="1989-present",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.12, 0.640, -1.62, 0.34, 2.30, 0.60)),
+        grain=GrainSpec(9.0, 13.0, 13.0, 13.0, clump_gain=1.00, fog_grain=0.24),
+        mtf=MTFSpec(52.0, 52.0, 52.0, adjacency=0.08),
+        # Panchromatic, hotter in blue and red than video luma. This is why
+        # B&W film darkens red lips and lightens a blue sky.
+        spectral_weights=(0.34, 0.46, 0.20),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="ILFORD_HPS",
+        aliases=("hps", "ilford hps", "nouvelle vague", "hps 800"),
+        description=(
+            "[T2] Ilford HPS, EI 800 -- for a decade the fastest B&W film "
+            "generally available anywhere. British emulsion, but its fame is "
+            "French: Raoul Coutard shot Breathless in 1960 on HPS 35 mm still "
+            "stock, bulk-spliced into hundred-foot rolls, because nothing else "
+            "was fast enough to shoot Paris interiors and streets with "
+            "available light. Push-processed beyond box speed on top of that. "
+            "The result -- enormous open grain, a flat curve, grey rather than "
+            "black blacks, heavy base fog -- became the visual signature of the "
+            "Nouvelle Vague and, second-hand, of every low-budget film that "
+            "wanted to look urgent. The high dmin and fog_grain here are "
+            "deliberate: clean shadows would be wrong."
+        ),
+        era="1954-1960s",
+        is_monochrome=True,
+        exposure_index=800,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.21, 0.620, -1.38, 0.32, 1.54, 0.42)),
+        grain=GrainSpec(19.0, 26.0, 26.0, 26.0, clump_gain=1.65, fog_grain=0.40,
+                        anisotropy=1.08),
+        mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.02, adjacency_um=26.0),
+        spectral_weights=(0.26, 0.54, 0.20),
+        misregistration_um=0.0,
+        default_flare=0.020,
+        default_format="ff35",
+        features=Feature.UNEVEN_EMULSION,
     ),
     # -----------------------------------------------------------------------
     # Colour reversal. No print stage: the film IS the positive.
@@ -1099,6 +1924,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.30),
         base_tint=(1.0, 1.0, 1.0),
         misregistration_um=3.0,
+        default_format="ff35",
         features=Feature.NONE,
     ),
     FilmProfile(
@@ -1130,142 +1956,38 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         misregistration_um=3.5,
         features=Feature.STRONG_DIR_COUPLERS,
     ),
-    FilmProfile(
-        name="FUJI_VELVIA_50",
-        aliases=("velvia", "velvia 50", "rvp50"),
-        description=(
-            "The most saturated colour film ever sold, and the reason a "
-            "generation of landscape photographs look the way they do. "
-            "Extremely fine grain, brutal contrast, about five usable stops. "
-            "Use with format ff35 or medium645."
-        ),
-        era="1990-present",
-        kind=StockKind.REVERSAL,
-        exposure_index=50,
-        balance_kelvin=5500,
-        curves=RGBCurves(
-            r=_rev(0.13, 2.00, toe_x=-0.66, toe_k=0.16, shoulder_x=0.80),
-            g=_rev(0.13, 2.06, toe_x=-0.68, toe_k=0.16, shoulder_x=0.78),
-            b=_rev(0.14, 2.14, toe_x=-0.72, toe_k=0.16, shoulder_x=0.76),
-        ),
-        grain=GrainSpec(2.4, 3.6, 3.8, 4.4, clump_gain=0.18, fog_grain=0.12),
-        mtf=MTFSpec(88.0, 98.0, 108.0, adjacency=0.15, adjacency_um=12.0),
-        halation=HalationSpec(
-            radii_um=(7.0, 36.0, 160.0),
-            gain_r=0.05, gain_g=0.02, gain_b=0.006,
-            threshold_stops=2.3,
-        ),
-        couplers=CouplerSpec(0.20, 44.0, 0.10, 9.0),
-        # Aggressive negative off-diagonals: this is where Velvia's colour
-        # comes from, not from a saturation slider.
-        dye_matrix=_dye(-0.42),
-        misregistration_um=3.0,
-        features=Feature.STRONG_DIR_COUPLERS,
-    ),
     # -----------------------------------------------------------------------
-    # Black and white negative
+    # Still colour negative
     # -----------------------------------------------------------------------
     FilmProfile(
-        name="ILFORD_HP5_PLUS_400",
-        aliases=("hp5", "hp5 plus", "hp5+", "ilford hp5"),
+        name="KODAK_PORTRA_400",
+        aliases=("portra", "portra 400"),
         description=(
-            "Photojournalism B&W. Cubic crystals, velvety clustered grain, and "
-            "a long straight line with a shoulder so gentle it almost never "
-            "clips. Pushes to 1600 without complaint."
-        ),
-        era="1989-present",
-        is_monochrome=True,
-        exposure_index=400,
-        balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.12, 0.640, -1.62, 0.34, 2.30, 0.60)),
-        grain=GrainSpec(9.0, 13.0, 13.0, 13.0, clump_gain=1.00, fog_grain=0.24),
-        mtf=MTFSpec(52.0, 52.0, 52.0, adjacency=0.08),
-        # Panchromatic, hotter in blue and red than video luma. This is why
-        # B&W film darkens red lips and lightens a blue sky.
-        spectral_weights=(0.34, 0.46, 0.20),
-        misregistration_um=0.0,
-        features=Feature.NONE,
-    ),
-    FilmProfile(
-        name="FOMAPAN_400_ACTION",
-        aliases=("fomapan", "fomapan 400", "fomapan 400 action"),
-        description=(
-            "Czech B&W, nominally 400 but metering closer to 250. Older-style "
-            "emulsion: coarser and more clustered than HP5, softer, and with a "
-            "steeper curve that gives it noticeably more bite."
-        ),
-        era="1990s-present",
-        is_monochrome=True,
-        exposure_index=400,
-        balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.14, 0.690, -1.44, 0.30, 1.98, 0.50)),
-        grain=GrainSpec(11.5, 15.5, 15.5, 15.5, clump_gain=1.30, fog_grain=0.28,
-                        anisotropy=1.03),
-        mtf=MTFSpec(42.0, 42.0, 42.0, adjacency=0.05),
-        spectral_weights=(0.30, 0.48, 0.22),
-        misregistration_um=0.0,
-        features=Feature.UNEVEN_EMULSION,
-    ),
-    FilmProfile(
-        name="EASTMAN_DOUBLE_X_5222",
-        aliases=("5222", "double x", "double-x", "xx"),
-        description=(
-            "The B&W motion picture stock: Manhattan, Raging Bull, Schindler's "
-            "List. Cubic grain with a distinctive silvery mid-tone and a very "
-            "long straight line. Still in production, essentially unchanged "
-            "since 1959."
-        ),
-        era="1959-present",
-        is_monochrome=True,
-        exposure_index=250,
-        balance_kelvin=3200,
-        curves=_mono(ToneCurve(0.13, 0.620, -1.70, 0.32, 2.26, 0.58)),
-        grain=GrainSpec(8.0, 12.0, 12.0, 12.0, clump_gain=1.05, fog_grain=0.22),
-        mtf=MTFSpec(56.0, 56.0, 56.0, adjacency=0.09),
-        spectral_weights=(0.32, 0.47, 0.21),
-        misregistration_um=0.0,
-        features=Feature.NONE,
-    ),
-    FilmProfile(
-        name="SVEMA_FN_64",
-        aliases=("svema", "fn64", "fn-64", "svema fn64"),
-        description=(
-            "Soviet B&W. High contrast, coarse and irregular crystals, weak "
-            "red sensitivity, and visible large-scale coating unevenness from "
-            "loose quality control. That unevenness reads as 'old film' far "
-            "more strongly than extra grain does."
-        ),
-        era="1980s-1990s",
-        is_monochrome=True,
-        exposure_index=64,
-        balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.860, -1.18, 0.24, 1.52, 0.34)),
-        grain=GrainSpec(11.5, 15.0, 15.0, 15.0, clump_gain=1.55, fog_grain=0.32,
-                        anisotropy=1.10),
-        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
-        spectral_weights=(0.26, 0.50, 0.24),
-        misregistration_um=0.0,
-        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
-    ),
-    FilmProfile(
-        name="ILFORD_DELTA_3200",
-        aliases=("delta 3200", "delta3200", "delta"),
-        description=(
-            "Extreme available-light B&W, true speed nearer 1000. Tabular "
-            "crystals so the grain is enormous but oddly even rather than "
-            "clumpy -- a useful demonstration that grain size and grain "
-            "character are independent parameters."
+            "Modern still colour negative. Enormous latitude, gentle toe, and "
+            "the flattering warm skin rendering it was designed around. Use "
+            "with format ff35 or medium645."
         ),
         era="1998-present",
-        is_monochrome=True,
-        exposure_index=3200,
+        exposure_index=400,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.18, 0.600, -1.56, 0.36, 2.10, 0.60)),
-        grain=GrainSpec(16.0, 22.0, 22.0, 22.0, clump_gain=0.45, fog_grain=0.34),
-        mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.06),
-        spectral_weights=(0.33, 0.46, 0.21),
-        misregistration_um=0.0,
-        features=Feature.TABULAR_GRAIN,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.560, toe_x=-1.86, toe_k=0.34, shoulder_x=2.24),
+            g=_neg(0.20, 0.578, toe_x=-1.80, toe_k=0.32, shoulder_x=2.18),
+            b=_neg(0.20, 0.596, toe_x=-1.70, toe_k=0.30, shoulder_x=2.08),
+        ),
+        grain=GrainSpec(4.0, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
+        mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
+        halation=HalationSpec(
+            radii_um=(10.0, 50.0, 240.0),
+            gain_r=0.12, gain_g=0.045, gain_b=0.016,
+            threshold_stops=2.0,
+        ),
+        couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
+        dye_matrix=_dye(-0.11),
+        base_tint=(1.000, 0.992, 0.972),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
     # -----------------------------------------------------------------------
     # Black and white reversal
@@ -1294,7 +2016,438 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         mtf=MTFSpec(46.0, 46.0, 46.0, adjacency=0.07),
         spectral_weights=(0.32, 0.47, 0.21),
         misregistration_um=0.0,
+        default_format="16mm",
         features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KODAK_VISION3_200T_5213",
+        aliases=("5213", "vision3 200t", "200t"),
+        description=(
+            "Mid-speed tungsten stock. Interiors without the grain penalty of "
+            "500T; slightly warmer curve crossover than the daylight stocks."
+        ),
+        era="2010-present",
+        exposure_index=200,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.215, 0.592, toe_x=-1.64, shoulder_x=1.96),
+            g=_neg(0.205, 0.610, toe_x=-1.58, shoulder_x=1.90),
+            b=_neg(0.195, 0.632, toe_x=-1.48, shoulder_x=1.79),
+        ),
+        grain=GrainSpec(4.6, 7.6, 8.2, 9.8, clump_gain=0.22, fog_grain=0.19),
+        mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=20.0),
+        halation=HalationSpec(
+            radii_um=(12.0, 60.0, 290.0),
+            gain_r=0.19, gain_g=0.07, gain_b=0.026,
+            threshold_stops=1.8,
+        ),
+        couplers=CouplerSpec(0.133, 56.0, 0.073, 12.0),
+        dye_matrix=_dye(-0.12),
+        base_tint=(1.000, 0.987, 0.959),
+        misregistration_um=4.8,
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_VISION3_250D_5207",
+        aliases=("5207", "vision3 250d", "250d"),
+        description=(
+            "Mid-speed daylight workhorse. The family compromise: noticeably "
+            "finer than 500T but with real speed, and the cleanest highlight "
+            "rolloff of the daylight stocks."
+        ),
+        era="2009-present",
+        exposure_index=250,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.590, toe_x=-1.66, shoulder_x=1.98),
+            g=_neg(0.20, 0.608, toe_x=-1.60, shoulder_x=1.92),
+            b=_neg(0.19, 0.628, toe_x=-1.50, shoulder_x=1.82),
+        ),
+        grain=GrainSpec(4.2, 7.0, 7.6, 9.0, clump_gain=0.20, fog_grain=0.18),
+        mtf=MTFSpec(62.0, 70.0, 80.0, adjacency=0.11, adjacency_um=19.0),
+        halation=HalationSpec(
+            radii_um=(11.0, 55.0, 260.0),
+            gain_r=0.15, gain_g=0.055, gain_b=0.020,
+            threshold_stops=1.9,
+        ),
+        couplers=CouplerSpec(0.135, 54.0, 0.075, 11.0),
+        dye_matrix=_dye(-0.125),
+        base_tint=(1.000, 0.988, 0.962),
+        misregistration_um=4.5,
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_VISION3_500T_5219",
+        aliases=("5219", "vision3 500t", "500t"),
+        description=(
+            "Modern Hollywood workhorse. Coarse but clean tabular structure, "
+            "tungsten balanced, strong DIR couplers, and enough highlight "
+            "latitude to make blown windows recoverable."
+        ),
+        era="2007-present",
+        exposure_index=500,
+        balance_kelvin=3200,
+        # Slight gamma spread plus offset toes: the crossover that gives
+        # VISION3 its warm highlight and neutral shadow.
+        curves=RGBCurves(
+            r=_neg(0.22, 0.600, toe_x=-1.62, shoulder_x=1.90),
+            g=_neg(0.20, 0.620, toe_x=-1.55, shoulder_x=1.82),
+            b=_neg(0.19, 0.645, toe_x=-1.44, shoulder_x=1.70),
+        ),
+        grain=GrainSpec(6.6, 10.5, 11.5, 13.5, clump_gain=0.28, fog_grain=0.20),
+        mtf=MTFSpec(44.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.30, gain_g=0.11, gain_b=0.04,
+            threshold_stops=1.5,
+        ),
+        couplers=CouplerSpec(0.13, 60.0, 0.07, 13.0),
+        dye_matrix=_dye(-0.115),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION | Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    # -----------------------------------------------------------------------
+    # Kodak VISION3 family. Tabular grain, strong DIR couplers, wide latitude.
+    # Grain and softness scale monotonically with speed across the family,
+    # which is the single most useful sanity check on the numbers below.
+    # -----------------------------------------------------------------------
+    FilmProfile(
+        name="KODAK_VISION3_50D_5203",
+        aliases=("5203", "vision3 50d", "50d"),
+        description=(
+            "Tack-sharp slow daylight stock. Very fine tabular grain, highest "
+            "resolving power of the family, strong anti-halation backing so "
+            "almost no bloom."
+        ),
+        era="2011-present",
+        exposure_index=50,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.585, toe_x=-1.70, shoulder_x=2.05),
+            g=_neg(0.19, 0.600, toe_x=-1.64, shoulder_x=2.00),
+            b=_neg(0.18, 0.615, toe_x=-1.56, shoulder_x=1.92),
+        ),
+        grain=GrainSpec(2.6, 4.2, 4.6, 5.4, clump_gain=0.14, fog_grain=0.16),
+        mtf=MTFSpec(78.0, 88.0, 98.0, adjacency=0.12, adjacency_um=16.0),
+        halation=HalationSpec(
+            radii_um=(9.0, 45.0, 200.0),
+            gain_r=0.07, gain_g=0.025, gain_b=0.008,
+            threshold_stops=2.1,
+        ),
+        couplers=CouplerSpec(0.14, 48.0, 0.08, 10.0),
+        dye_matrix=_dye(-0.13),
+        base_tint=(1.000, 0.990, 0.968),
+        misregistration_um=4.0,
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="LUMIERE_LUMICHROME",
+        aliases=("lumiere", "lumichrome", "lumiere lumichrome"),
+        description=(
+            "[T3] Lumiere B&W negative, Lyon, around EI 40. The most speculative "
+            "profile in this database and flagged accordingly -- I have no "
+            "datasheet for it, only the general behaviour of French B&W negative "
+            "of the period. Lumiere manufactured independently until Ilford "
+            "absorbed the company in 1961, and their emulsions had a reputation "
+            "for a soft, long-scale rendering quite unlike the contrastier "
+            "German and British stocks. Treat the numbers as a plausible French "
+            "period look, not as a measurement of a specific product."
+        ),
+        era="1940s-1961",
+        is_monochrome=True,
+        exposure_index=40,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.15, 0.700, -1.40, 0.34, 1.70, 0.46)),
+        grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=1.50, fog_grain=0.30,
+                        anisotropy=1.10),
+        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03, adjacency_um=24.0),
+        spectral_weights=(0.24, 0.52, 0.24),
+        misregistration_um=0.0,
+        default_flare=0.024,
+        default_format="ff35",
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
+    ),
+    # -----------------------------------------------------------------------
+    # Eastern bloc colour
+    # -----------------------------------------------------------------------
+    FilmProfile(
+        name="ORWOCOLOR_NC21",
+        aliases=("nc21", "nc 21", "orwocolor"),
+        description=(
+            "East German colour negative. Low saturation from weak dye "
+            "separation, coarse clustered grain, muted palette and visible "
+            "coating unevenness."
+        ),
+        era="1970s-1990s",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.30, 0.520, toe_x=-1.28, toe_k=0.38, shoulder_x=1.42),
+            g=_neg(0.29, 0.530, toe_x=-1.34, toe_k=0.38, shoulder_x=1.46),
+            b=_neg(0.31, 0.545, toe_x=-1.22, toe_k=0.36, shoulder_x=1.38),
+        ),
+        grain=GrainSpec(12.0, 14.0, 15.0, 18.0, clump_gain=1.35, fog_grain=0.30,
+                        anisotropy=1.06),
+        mtf=MTFSpec(26.0, 30.0, 34.0, adjacency=0.02),
+        halation=HalationSpec(
+            radii_um=(20.0, 100.0, 420.0),
+            gain_r=0.22, gain_g=0.12, gain_b=0.08,
+            threshold_stops=1.3,
+        ),
+        couplers=CouplerSpec(0.03, 80.0),
+        # Heavily impure dyes: large *positive* off-diagonals desaturate for
+        # real, instead of the old blend-toward-luma trick.
+        dye_matrix=_dye(0.40),
+        base_tint=(0.965, 1.000, 0.950),
+        misregistration_um=11.0,
+        features=Feature.HALATION | Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="ORWOCOLOR_NC24",
+        aliases=("nc24", "nc-24", "orwocolor nc24", "orwo nc 24"),
+        description=(
+            "[T3] ORWO colour negative, modelled as a later and faster member "
+            "of the NC family than the NC 21 already in this database. HONEST "
+            "CAVEAT: I could not confirm 'NC 24' as a shipped ORWO product "
+            "designation. The documented NC series runs NC 3, NC 5, NC 16, "
+            "NC 19, NC 21. If you have a real speed or datasheet for NC 24, "
+            "give it to me and I will refit; until then this is a family "
+            "interpolation, not a product. Built as EI 160 with the ORWO house "
+            "signature intact: heavy orange mask residue, very impure dyes (the "
+            "largest positive dye_matrix in the set after Gevacolor), weak "
+            "couplers, soft MTF and coarse grain -- but a step cleaner and "
+            "faster than NC 21, as later production generally was."
+        ),
+        era="1980s-1990s",
+        exposure_index=160,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.29, 0.545, toe_x=-1.32, toe_k=0.36, shoulder_x=1.46),
+            g=_neg(0.28, 0.555, toe_x=-1.38, toe_k=0.36, shoulder_x=1.50),
+            b=_neg(0.30, 0.570, toe_x=-1.26, toe_k=0.34, shoulder_x=1.42),
+        ),
+        grain=GrainSpec(13.0, 15.0, 16.0, 19.0, clump_gain=1.30, fog_grain=0.29,
+                        anisotropy=1.08),
+        mtf=MTFSpec(28.0, 32.0, 36.0, adjacency=0.02),
+        couplers=CouplerSpec(0.05, 78.0),
+        dye_matrix=_dye(0.34),
+        base_tint=(0.970, 1.000, 0.955),
+        misregistration_um=10.0,
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="POLAROID_664",
+        aliases=("664", "polaroid 664", "type 664"),
+        description=(
+            "[T2] Peel-apart pack B&W, ISO 100. Sharper and more contrasty "
+            "than SX-70 because the negative and receiving sheet are pressed "
+            "together and then separated, rather than viewed through a stack "
+            "of layers. Still a print, so still a limited Dmax."
+        ),
+        era="1980s-2009",
+        kind=StockKind.REVERSAL,
+        is_monochrome=True,
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.14, 1.30, -0.65, 0.24, 0.74, 0.32)),
+        grain=GrainSpec(8.6, 13.0, 13.0, 13.0, clump_gain=0.85, fog_grain=0.20),
+        mtf=MTFSpec(40.0, 40.0, 40.0, adjacency=0.05, adjacency_um=20.0),
+        spectral_weights=(0.28, 0.56, 0.16),
+        misregistration_um=0.0,
+        default_format="polaroid_pack",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="POLAROID_667",
+        aliases=("667", "polaroid 667", "type 667"),
+        description=(
+            "[T2] The very fast pack B&W, ISO 3000. Coarse, flat and grey, "
+            "with the lowest Dmax of the three Polaroids here. Used where "
+            "there was no light and no second chance -- oscilloscope traces, "
+            "forensic work, backstage. Loved now for exactly the qualities "
+            "that made it a compromise then."
+        ),
+        era="1980s-2009",
+        kind=StockKind.REVERSAL,
+        is_monochrome=True,
+        exposure_index=3000,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.16, 1.15, -0.70, 0.24, 0.77, 0.32)),
+        grain=GrainSpec(19.4, 26.0, 26.0, 26.0, clump_gain=1.35, fog_grain=0.34),
+        mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.03, adjacency_um=24.0),
+        spectral_weights=(0.28, 0.56, 0.16),
+        misregistration_um=0.0,
+        default_format="polaroid_pack",
+        features=Feature.NONE,
+    ),
+
+    # ----------------------------- Polaroid --------------------------------
+    # The signature of instant film is NOT grain -- it is a low Dmax. SX-70
+    # tops out near 1.85 where Kodachrome reaches 3.2, so the blacks are
+    # genuinely open and slightly milky no matter how you expose. Combined
+    # with a soft MTF (the image-receiving layer is thick and diffuse) and dye
+    # clouds rather than silver clumps, that is the whole look.
+    FilmProfile(
+        name="POLAROID_SX70",
+        aliases=("sx70", "sx-70", "polaroid sx 70", "sx 70"),
+        description=(
+            "[T2] Integral instant colour, EI 150. Low Dmax gives the "
+            "characteristic open, chalky blacks; the diffuse receiving layer "
+            "gives the softness; dye diffusion gives a gentle mottle instead "
+            "of grain. Warm, low contrast, and dependent on temperature during "
+            "development in ways nothing here models."
+        ),
+        era="1972-2008",
+        kind=StockKind.REVERSAL,
+        exposure_index=150,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=ToneCurve(0.21, 1.44, -0.52, 0.26, 0.60, 0.34),
+            g=ToneCurve(0.22, 1.46, -0.54, 0.26, 0.59, 0.34),
+            b=ToneCurve(0.25, 1.42, -0.58, 0.26, 0.56, 0.34),
+        ),
+        grain=GrainSpec(6.8, 17.0, 18.0, 20.0, clump_gain=0.95, fog_grain=0.26,
+                        anisotropy=1.06),
+        mtf=MTFSpec(18.0, 20.0, 22.0, adjacency=0.0),
+        couplers=CouplerSpec(0.0, 55.0, 0.0, 12.0),
+        dye_matrix=_dye(0.12),
+        base_tint=(1.0, 0.975, 0.930),
+        misregistration_um=9.0,
+        default_format="polaroid_sx70",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="SOVIET_PANCHROM_1939",
+        aliases=("panchrom", "sovkino", "shostka", "soviet 1939", "kinoplenka"),
+        description=(
+            "Soviet panchromatic negative of the late 1930s, as made at the "
+            "Shostka film factory. Coarse, foggy, soft, weak in red, and above "
+            "all inconsistent: batch-to-batch and within-roll sensitivity "
+            "variation was bad enough that major productions of the period "
+            "often preferred imported Agfa or Kodak stock when they could get "
+            "it. That unevenness is modelled here and is most of the character."
+        ),
+        era="1930s-1940s",
+        is_monochrome=True,
+        exposure_index=45,
+        balance_kelvin=3200,
+        # Steeper and shorter than Super-XX: more contrast, less latitude,
+        # highlights gone sooner.
+        curves=_mono(ToneCurve(0.36, 0.780, -1.14, 0.26, 1.42, 0.36)),
+        grain=GrainSpec(14.5, 18.5, 18.5, 18.5, clump_gain=1.60, fog_grain=0.40,
+                        anisotropy=1.12),
+        mtf=MTFSpec(24.0, 24.0, 24.0, adjacency=0.02),
+        halation=HalationSpec(
+            radii_um=(26.0, 130.0, 600.0),
+            weights=(0.44, 0.34, 0.22),
+            gain_r=0.34, gain_g=0.34, gain_b=0.34,
+            threshold_stops=0.95,
+        ),
+        couplers=CouplerSpec(),
+        spectral_weights=(0.20, 0.47, 0.33),
+        misregistration_um=0.0,
+        default_flare=0.12,
+        features=(
+            Feature.HALATION | Feature.UNEVEN_EMULSION
+            | Feature.ORTHO_RESPONSE | Feature.NITRATE_BASE
+        ),
+    ),
+    FilmProfile(
+        name="SVEMA_FN_64",
+        aliases=("svema", "fn64", "fn-64", "svema fn64"),
+        description=(
+            "Soviet B&W. High contrast, coarse and irregular crystals, weak "
+            "red sensitivity, and visible large-scale coating unevenness from "
+            "loose quality control. That unevenness reads as 'old film' far "
+            "more strongly than extra grain does."
+        ),
+        era="1980s-1990s",
+        is_monochrome=True,
+        exposure_index=64,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.16, 0.860, -1.18, 0.24, 1.52, 0.34)),
+        grain=GrainSpec(11.5, 15.0, 15.0, 15.0, clump_gain=1.55, fog_grain=0.32,
+                        anisotropy=1.10),
+        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
+        spectral_weights=(0.26, 0.50, 0.24),
+        misregistration_um=0.0,
+        # Measured: one scan showed a slight COOL cast, R-G -2.8 and B-G +1.7 out of 255. Weak evidence, single frame, hence the small value.
+        silver_tone=-0.25,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
+    ),
+
+    # ------------------------------- USSR ----------------------------------
+    FilmProfile(
+        name="SVEMA_FOTO_250",
+        aliases=("foto250", "foto-250", "svema foto 250", "svema fn250",
+                 "fn250", "svema 250"),
+        description=(
+            "[T3] Svema's fast B&W, the high-speed sibling of FN-64. Note on "
+            "naming: Svema's FN line was cine negative and the Foto- line was "
+            "still film; both names are in circulation for the fast stock and "
+            "both resolve to this entry. Compared with FN-64: about two stops "
+            "faster, grain roughly 40 % coarser, resolution down by a quarter, "
+            "and the coating unevenness worse rather than better -- fast Soviet "
+            "emulsions were where quality control gave up first."
+        ),
+        era="1970s-1990s",
+        is_monochrome=True,
+        exposure_index=250,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.19, 0.950, -1.24, 0.26, 1.46, 0.36)),
+        # rms_granularity is [T1] -- FITTED TO MEASUREMENT, not estimated.
+        # Flat-region sigma over 3 supplied scans at matched mid density gave
+        # FN250 0.0502 against SVEMA_FN_64's 0.0299, a ratio of 1.68x.
+        # Tuned through the FULL PIPELINE, not by scaling RMS directly: a
+        # naive 11.5*1.68=19.4 only gives 1.42x, because the coarser clump
+        # (21.5 um vs 15.0) spreads spectral energy differently and the
+        # calibration integral compensates. Swept against rendered output at
+        # matched mid density, 25.0 lands on 1.70x. Was 16.2 (1.42x).
+        # clump_um and clump_gain stay [T3]: grain SIZE is not measurable from
+        # those files. At 1216 px across 36 mm one pixel spans 29.6 um while
+        # the clumps are ~0.7 px, so the measured correlation length is the
+        # scanner/JPEG MTF, not the emulsion.
+        grain=GrainSpec(25.0, 21.5, 21.5, 21.5, clump_gain=1.70, fog_grain=0.38,
+                        anisotropy=1.14),
+        mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.02, adjacency_um=26.0),
+        spectral_weights=(0.25, 0.49, 0.26),
+        misregistration_um=0.0,
+        default_format="ff35",
+        # Left neutral: all three supplied FN250 scans were stored as pure greyscale (R-G exactly 0.0), so they carry no tone information at all.
+        silver_tone=0.0,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
+    ),
+    FilmProfile(
+        name="TASMA_FN_64",
+        aliases=("tasma", "fn64t", "tasma fn64", "tasma fn 64",
+                 "fn65", "fn-65", "tasma fn65", "tasma fn 65"),
+        description=(
+            "[T3] Tasma (Kazan) B&W cine negative, EI 64 -- Svema's rival "
+            "supplier to Soviet studios. Broadly the same class as FN-64 with "
+            "marginally better coating consistency and slightly finer grain, "
+            "which is why Tasma tended to be preferred for features when it "
+            "could be got. Still unmistakably Eastern Bloc: contrasty, weak in "
+            "the red, and never quite even across the frame. Designation note: "
+            "both 'FN-64' and 'FN-65' circulate for this stock -- 65 matches the "
+            "GOST speed step, 64 the ISO equivalent, and Lomography's community "
+            "database indexes it as Tasma FN64. Renamed to FN_64 to match the "
+            "commonest usage; the fn65 aliases still resolve here."
+        ),
+        era="1960s-1990s",
+        is_monochrome=True,
+        exposure_index=64,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.15, 0.820, -1.22, 0.25, 1.50, 0.34)),
+        grain=GrainSpec(12.4, 16.0, 16.0, 16.0, clump_gain=1.45, fog_grain=0.30,
+                        anisotropy=1.08),
+        mtf=MTFSpec(32.0, 32.0, 32.0, adjacency=0.03, adjacency_um=24.0),
+        spectral_weights=(0.26, 0.50, 0.24),
+        misregistration_um=0.0,
+        # Measured: two of three user-supplied scans show a warm cast in their bright regions, R-G of +8.6 and +15.6 out of 255. Calibrated to the larger of the two.
+        silver_tone=1.0,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     # -----------------------------------------------------------------------
     # Technicolor three-strip. Not a stock but a whole imaging system.
@@ -1340,224 +2493,16 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         misregistration_um=26.0,
         default_print="TECHNICOLOR_IB",
         default_flare=0.075,
+        default_format="techni35",
         features=Feature.HALATION | Feature.THREE_STRIP | Feature.UNEVEN_EMULSION,
     ),
-    # =======================================================================
-    # 1930s-1940s stocks.
-    #
-    # !! READ THIS BEFORE TRUSTING ANY NUMBER BELOW !!
-    #
-    # Everything in this block is a *reconstruction*, not an estimate. For the
-    # modern stocks above, the numbers are engineering guesses anchored to
-    # published datasheets I could reason about. Here there are no datasheets I
-    # can consult: the figures are inferred from how surviving footage looks,
-    # from the physics of the emulsion technology of the period, and from
-    # internal consistency with the rest of the database. Treat them as
-    # artistic targets. Super-XX is the firmest of the five because it stayed
-    # in production for decades; Agfacolor Neu and the Soviet stock are the
-    # softest, and Dufaycolor's reseau pitch is the only figure there I would
-    # defend within a factor of two.
-    #
-    # Period characteristics these share, and which are the real content:
-    #   * high base fog (dmin 0.25-0.38 vs 0.12-0.22 modern) -- weak blacks
-    #   * low Dmax and short shoulder -- highlights clip early
-    #   * coarse, strongly clustered cubic grain
-    #   * soft: f50 of 20-35 c/mm against 44-98 for modern stock
-    #   * no DIR couplers at all: the chemistry did not exist yet
-    #   * heavy halation: anti-halation backing was primitive or absent
-    #   * large default_flare, because the lenses were uncoated
-    # =======================================================================
-    FilmProfile(
-        name="EASTMAN_ORTHO_1930",
-        aliases=("ortho", "orthochromatic", "1930 ortho", "eastman ortho"),
-        description=(
-            "Orthochromatic black and white negative: sensitive to blue and "
-            "green, effectively blind to red. Red renders as black and a blue "
-            "sky renders as blank white. This single property is the most "
-            "recognisable cue of pre-1930s cinema, and the reason period makeup "
-            "was so extreme -- ordinary red lipstick photographed black, so "
-            "actors wore yellow and green greasepaint instead."
-        ),
-        era="1920s-early 1930s",
-        is_monochrome=True,
-        exposure_index=25,
-        balance_kelvin=3400,  # carbon arc / early incandescent
-        curves=_mono(ToneCurve(0.32, 0.700, -1.06, 0.26, 1.44, 0.40)),
-        grain=GrainSpec(13.5, 17.0, 17.0, 17.0, clump_gain=1.45, fog_grain=0.38,
-                        anisotropy=1.05),
-        mtf=MTFSpec(28.0, 28.0, 28.0, adjacency=0.02),
-        halation=HalationSpec(
-            radii_um=(24.0, 120.0, 560.0),
-            weights=(0.46, 0.34, 0.20),
-            gain_r=0.30, gain_g=0.30, gain_b=0.30,
-            threshold_stops=1.0,
-        ),
-        couplers=CouplerSpec(),  # no coupler chemistry existed
-        # The whole point of this profile. Red sensitivity is not merely low, it
-        # is nearly absent; the residual 2% stands in for slight far-red leakage.
-        spectral_weights=(0.02, 0.45, 0.53),
-        misregistration_um=0.0,
-        default_flare=0.13,
-        features=(
-            Feature.HALATION | Feature.ORTHO_RESPONSE
-            | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE
-        ),
-    ),
-    FilmProfile(
-        name="EASTMAN_SUPER_XX_1938",
-        aliases=("super xx", "superxx", "super-xx", "1201", "1938"),
-        description=(
-            "The fast panchromatic negative that made 1940s Hollywood look the "
-            "way it does -- deep-focus photography and film noir were shot on "
-            "this. Fast for its day, so coarse and clustered grain, soft by "
-            "modern standards, with a long straight line that holds shadow "
-            "detail far better than its contemporaries."
-        ),
-        era="1938-1950s",
-        is_monochrome=True,
-        exposure_index=100,
-        balance_kelvin=3200,
-        curves=_mono(ToneCurve(0.28, 0.610, -1.52, 0.34, 1.92, 0.52)),
-        grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=1.30, fog_grain=0.32),
-        mtf=MTFSpec(35.0, 35.0, 35.0, adjacency=0.04),
-        halation=HalationSpec(
-            radii_um=(20.0, 100.0, 460.0),
-            gain_r=0.26, gain_g=0.26, gain_b=0.26,
-            threshold_stops=1.1,
-        ),
-        couplers=CouplerSpec(),
-        # Panchromatic but, like most emulsions of the period, still weaker in
-        # red than a modern film and rather hot in blue.
-        spectral_weights=(0.24, 0.46, 0.30),
-        misregistration_um=0.0,
-        default_flare=0.10,
-        features=Feature.HALATION | Feature.NITRATE_BASE,
-    ),
-    FilmProfile(
-        name="SOVIET_PANCHROM_1939",
-        aliases=("panchrom", "sovkino", "shostka", "soviet 1939", "kinoplenka"),
-        description=(
-            "Soviet panchromatic negative of the late 1930s, as made at the "
-            "Shostka film factory. Coarse, foggy, soft, weak in red, and above "
-            "all inconsistent: batch-to-batch and within-roll sensitivity "
-            "variation was bad enough that major productions of the period "
-            "often preferred imported Agfa or Kodak stock when they could get "
-            "it. That unevenness is modelled here and is most of the character."
-        ),
-        era="1930s-1940s",
-        is_monochrome=True,
-        exposure_index=45,
-        balance_kelvin=3200,
-        # Steeper and shorter than Super-XX: more contrast, less latitude,
-        # highlights gone sooner.
-        curves=_mono(ToneCurve(0.36, 0.780, -1.14, 0.26, 1.42, 0.36)),
-        grain=GrainSpec(14.5, 18.5, 18.5, 18.5, clump_gain=1.60, fog_grain=0.40,
-                        anisotropy=1.12),
-        mtf=MTFSpec(24.0, 24.0, 24.0, adjacency=0.02),
-        halation=HalationSpec(
-            radii_um=(26.0, 130.0, 600.0),
-            weights=(0.44, 0.34, 0.22),
-            gain_r=0.34, gain_g=0.34, gain_b=0.34,
-            threshold_stops=0.95,
-        ),
-        couplers=CouplerSpec(),
-        spectral_weights=(0.20, 0.47, 0.33),
-        misregistration_um=0.0,
-        default_flare=0.12,
-        features=(
-            Feature.HALATION | Feature.UNEVEN_EMULSION
-            | Feature.ORTHO_RESPONSE | Feature.NITRATE_BASE
-        ),
-    ),
-    FilmProfile(
-        name="AGFACOLOR_NEU_1936",
-        aliases=("agfacolor", "agfacolor neu", "agfa 1936", "sovcolor"),
-        description=(
-            "The first modern integral tripack: three dye layers on one strip, "
-            "the ancestor of every colour film since. As a 1936 product its "
-            "dyes were badly impure, so it desaturates and cross-contaminates "
-            "even while running high contrast -- the muted, slightly sickly "
-            "palette of 1940s German colour features. Captured Agfa technology "
-            "later became the Soviet Sovcolor process, hence the alias."
-        ),
-        era="1936-1945",
-        kind=StockKind.REVERSAL,
-        exposure_index=8,
-        balance_kelvin=5500,
-        # Reversal, so these are expressed against negated log exposure and
-        # toe_x governs the highlight end. High gamma, very little latitude.
-        curves=RGBCurves(
-            r=_rev(0.30, 1.62, toe_x=-0.62, toe_k=0.20, shoulder_x=0.72),
-            g=_rev(0.28, 1.70, toe_x=-0.66, toe_k=0.20, shoulder_x=0.70),
-            b=_rev(0.33, 1.78, toe_x=-0.58, toe_k=0.20, shoulder_x=0.66),
-        ),
-        grain=GrainSpec(11.0, 14.0, 13.0, 17.0, clump_gain=1.25, fog_grain=0.30),
-        mtf=MTFSpec(26.0, 30.0, 34.0, adjacency=0.02),
-        halation=HalationSpec(
-            radii_um=(22.0, 110.0, 500.0),
-            gain_r=0.30, gain_g=0.16, gain_b=0.09,
-            threshold_stops=1.0,
-        ),
-        couplers=CouplerSpec(),
-        # The combination nothing else in this database has: a reversal stock
-        # with strongly *positive* dye off-diagonals. Every other reversal stock
-        # here has clean negative terms and gains saturation; this one bleeds
-        # between records and loses it, while the steep curves keep contrast
-        # high. Desaturated and contrasty at once, which is hard to fake with a
-        # saturation control and falls straight out of the matrix.
-        dye_matrix=_dye(0.45),
-        base_tint=(0.985, 1.000, 0.945),
-        misregistration_um=9.0,
-        default_flare=0.09,
-        features=Feature.HALATION | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE,
-    ),
-    FilmProfile(
-        name="DUFAYCOLOR_1937",
-        aliases=("dufaycolor", "dufay", "reseau", "mosaic"),
-        description=(
-            "Additive colour with no dye layers at all: a microscopic grid of "
-            "red lines and chequered blue and green squares ruled onto the base, "
-            "with one panchromatic emulsion behind it. Pastel, low-saturation "
-            "colour, soft, very slow, and the grid stays faintly visible as "
-            "texture. RENDER THIS ONE LARGE -- the grid is a physical 20 "
-            "lines/mm, so below about 2000 px wide there are not enough pixels "
-            "to resolve it and the mosaic is disabled with a warning."
-        ),
-        era="1932-1950s",
-        kind=StockKind.REVERSAL,
-        exposure_index=10,
-        balance_kelvin=5500,
-        # One emulsion, so one curve. All the colour behaviour comes from the
-        # reseau, not from these.
-        curves=_mono(ToneCurve(0.30, 1.48, -0.72, 0.22, 0.94, 0.34)),
-        grain=GrainSpec(12.5, 16.5, 16.5, 16.5, clump_gain=1.35, fog_grain=0.34),
-        mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.03),
-        halation=HalationSpec(
-            radii_um=(22.0, 105.0, 470.0),
-            gain_r=0.24, gain_g=0.24, gain_b=0.24,
-            threshold_stops=1.05,
-        ),
-        couplers=CouplerSpec(),
-        reseau=ReseauSpec(
-            lines_per_mm=20.0,
-            # Broad, overlapping dyed-gelatin passbands. These off-diagonals are
-            # what make the process pastel rather than lurid.
-            filter_matrix=(
-                (0.62, 0.14, 0.03),
-                (0.16, 0.55, 0.14),
-                (0.05, 0.20, 0.52),
-            ),
-            pattern="dufay",
-            reconstruction_pitches=0.62,
-        ),
-        misregistration_um=0.0,  # one record, so nothing to misregister
-        default_flare=0.11,
-        features=(
-            Feature.HALATION | Feature.MOSAIC_RESEAU
-            | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE
-        ),
-    ),
 )
+
+# Presented in alphabetical order by name. The literal above is grouped by
+# manufacturer and era because that is how it is maintained; this is how it is
+# consumed -- by --list, by the C++ table, and by `-p all`. Sorting here rather
+# than reordering the literal keeps related stocks editable side by side.
+FILM_PROFILES = tuple(sorted(FILM_PROFILES, key=lambda _p: _p.name))
 
 
 PRINT_STOCKS: tuple[PrintStock, ...] = (
@@ -1629,6 +2574,31 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
         grain_rms=1.8,  # dye transfer adds almost no grain of its own
         grain_clump_um=7.0,
         dye_matrix=_dye(-0.16),
+    ),
+    PrintStock(
+        name="TASMA_POSITIVE_28",
+        description=(
+            "[T3] Soviet B&W cine positive film, Tasma (Kazan), GOST 2.8 -- the "
+            "release-print stock, sold in the yellow boxes. Note this is "
+            "deliberately a PrintStock and not a FilmProfile: a positive film "
+            "is not something you expose in a camera, it is what a negative is "
+            "printed onto, which is exactly the role PrintStock fills in this "
+            "pipeline. Pair it with a Soviet negative for a period Soviet "
+            "release-print look: TASMA_FN_65 or SVEMA_FN_64 with "
+            "--print TASMA_POSITIVE_28. High print gamma gives the contrasty, "
+            "crushed-shadow projected image; grain is fine, as positive stock "
+            "always is, so nearly all visible grain still comes from the "
+            "negative. GOST 2.8 is roughly ISO 3 -- print stock is slow because "
+            "it only ever sees a printer lamp."
+        ),
+        curves=RGBCurves(
+            r=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
+            g=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
+            b=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
+        ),
+        mtf_f50=62.0,
+        grain_rms=4.2,
+        grain_clump_um=7.5,
     ),
 )
 
