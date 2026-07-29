@@ -19,6 +19,8 @@ PF_Err ProcessImgInPR
 
 	if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
 	{
+        const double fpsRate = image_lab_get_fps (in_data);
+
 		switch (destinationPixelFormat)
 		{
             case PrPixelFormat_BGRA_4444_8u:

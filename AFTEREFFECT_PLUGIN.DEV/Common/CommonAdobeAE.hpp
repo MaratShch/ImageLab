@@ -1,6 +1,8 @@
 #ifndef __IMAGE_LAB2_ADOBE_AE_COMMON_INCLUDES_FILES__
 #define __IMAGE_LAB2_ADOBE_AE_COMMON_INCLUDES_FILES__
 
+#include <cmath>
+
 #include "AEConfig.h"
 #include "entry.h"
 #ifdef AE_OS_WIN
@@ -93,6 +95,38 @@ inline void EnableUI (PF_ParamUIFlags uiFlag) noexcept
 {
 	uiFlag &= ~PF_PUI_DISABLED;
 	return;
+}
+
+
+inline double image_lab_get_fps (const PF_InData* in_data) noexcept
+{
+    if (nullptr == in_data)
+        return 0.0;
+
+    // Prefer local_time_step: documented as "constant from one frame to the
+    // next", where time_step can vary per frame under time remapping.
+    const A_long step = (0 == in_data->local_time_step) ? in_data->time_step : in_data->local_time_step;
+
+    if (0 == step || 0u == in_data->time_scale)   // both can legitimately be 0
+        return 0.0;
+
+    // Convert before taking the magnitude. std::abs on an integer needs
+    // <cstdlib> for its guaranteed overloads, and std::abs(INT32_MIN) is UB --
+    // measured, it returns INT32_MIN itself, i.e. still negative, which would
+    // silently invert the sign of fps. Negative step is legal here: it means
+    // the layer is time-reversed.
+    const double stepMag = std::abs(static_cast<double>(step));
+
+    double fps = static_cast<double>(in_data->time_scale) / stepMag;
+
+    // Premiere Pro sends PF_Cmd_RENDER once per FIELD in native pixel formats,
+    // so the ratio above yields the FIELD rate (60000/1001 = 59.94 for NTSC),
+    // not the frame rate. Both fields of one frame must share the same dust and
+    // scratches or the damage strobes at 60 Hz.
+    if (PremierId == in_data->appl_id && PF_Field_FRAME != in_data->field)
+        fps *= 0.5;
+
+    return fps;
 }
 
 

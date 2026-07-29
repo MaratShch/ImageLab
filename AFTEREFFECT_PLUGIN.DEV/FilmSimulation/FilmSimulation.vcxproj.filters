@@ -93,6 +93,21 @@
     <ClInclude Include="include\film_profiles.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgorithmMain.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControl.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Algo_02_Exposure.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTypes.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -108,6 +123,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\film_profiles.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgorithmMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_02_Exposure.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -150,6 +171,9 @@
       <Filter>python</Filter>
     </None>
     <None Include="python\sort_profiles.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\gen_ref.py">
       <Filter>python</Filter>
     </None>
   </ItemGroup>

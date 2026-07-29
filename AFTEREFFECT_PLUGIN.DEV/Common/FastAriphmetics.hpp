@@ -891,4 +891,68 @@ namespace FastCompute
         return Sqrt (x * x + y * y);
     }
 
-} /* namespace FastCompute */
+    namespace Experimental
+    {
+
+        inline float bits_to_float(const uint32_t u) noexcept
+        {
+            float f; std::memcpy(&f, &u, 4); return f;
+        }
+
+        inline uint32_t float_to_bits(const float f) noexcept
+        {
+            uint32_t u; std::memcpy(&u, &f, 4); return u;
+        }
+
+        // round-to-nearest, branchless, no rintf. Valid for |t| < 2^22.
+        inline float round_nearest(const float t) noexcept
+        {
+            const float magic = 12582912.0f; return (t + magic) - magic;
+        }
+
+        inline float exp2_int(const int32_t n) noexcept
+        {
+            return bits_to_float(static_cast<uint32_t>((n + 127) << 23));
+        }
+
+        template <int DEG> inline float Exp2Poly(float x) noexcept;
+        template <> inline float Exp2Poly<4>(float x) noexcept
+        {
+            const float tr = round_nearest(x);
+            const float f = x - tr;
+            float p = 9.570028381e-03f;
+            p = p * f + 5.591769325e-02f;
+            p = p * f + 2.402474495e-01f;
+            p = p * f + 6.931218359e-01f;
+            p = p * f + 9.999992620e-01f;
+            return p * exp2_int(static_cast<int32_t>(tr));
+        }
+
+        template <int DEG = 4> inline float Exp2(float x) noexcept
+        {
+            if (x > 127.0f) x = 127.0f;
+            if (x < -126.0f) return 0.0f;
+            return Exp2Poly<DEG>(x);
+        }
+
+        template <int DEG = 4> inline float Exp(const float x) noexcept
+        {
+            return Exp2<DEG>(x * 1.44269504088896341f);
+        }
+
+        inline float Log2(const float x) noexcept { return Log(x) * 1.44269504088896341f; }
+        inline float Log10(const float x) noexcept { return Log(x) * 0.43429448190325176f; }
+
+        template <int DEG = 4> inline float Pow(const float a, const float b) noexcept
+        {
+            return Exp2<DEG>(b * Log2(a));
+        }
+
+        template <int DEG = 4> inline float Pow10(const float x) noexcept
+        {
+            return Exp2<DEG>(x * 3.321928094887362f);
+        }
+
+    } // namespace Experimental
+
+} // namespace FastCompute
