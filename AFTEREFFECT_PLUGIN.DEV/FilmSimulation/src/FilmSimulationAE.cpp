@@ -10,6 +10,7 @@ PF_Err FilmSimulation_InAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
+    const double fpsRate = image_lab_get_fps(in_data);
 	return PF_Err_NONE;
 }
 
@@ -21,6 +22,7 @@ PF_Err FilmSimulation_InAE_16bits
 	PF_LayerDef* output
 ) noexcept
 {
+    const double fpsRate = image_lab_get_fps(in_data);
 	return PF_Err_NONE;
 }
 
@@ -32,6 +34,7 @@ PF_Err FilmSimulation_InAE_32bits
     PF_LayerDef* output
 ) noexcept
 {
+    const double fpsRate = image_lab_get_fps(in_data);
     return PF_Err_NONE;
 }
 

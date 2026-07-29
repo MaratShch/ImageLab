@@ -21,5 +21,6 @@ FilmSimulation_SmartRender
     PF_SmartRenderExtra		*extraP
 )
 {
+    const double fpsRate = image_lab_get_fps(in_data);
     return PF_Err_NONE;
 }
