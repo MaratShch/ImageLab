@@ -19,6 +19,12 @@
     <Filter Include="python">
       <UniqueIdentifier>{fcf44b00-4966-4e0e-80be-e29b1305dec6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="python\profiles_generator">
+      <UniqueIdentifier>{3885724c-b99f-4d32-ab19-e983828461f3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\old_films_analyzing">
+      <UniqueIdentifier>{cab7ce8a-9303-4d53-bf80-a13e32f37eae}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -143,43 +149,46 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <None Include="python\cpp_codegen.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\cpp_codegen.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\film_profiles.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\film_profiles.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\film_sim.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\film_sim.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\make_period_chart.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\gen_ref.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\make_test_chart.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\make_period_chart.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\README.md">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\make_test_chart.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\run.cmd">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\README.md">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\sheet.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\run.cmd">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\verify.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\sheet.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\sort_profiles.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\sort_profiles.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
-    <None Include="python\gen_ref.py">
-      <Filter>python</Filter>
+    <None Include="python\profiles_generator\verify.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\old_films_analyzing\analyze_film_scans.py">
+      <Filter>python\old_films_analyzing</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="python\Readme!.txt">
-      <Filter>python</Filter>
+    <Text Include="python\profiles_generator\Readme!.txt">
+      <Filter>python\profiles_generator</Filter>
     </Text>
   </ItemGroup>
 </Project>

@@ -196,20 +196,21 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="FilmSimulation.rc" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="python\cpp_codegen.py" />
-    <None Include="python\film_profiles.py" />
-    <None Include="python\film_sim.py" />
-    <None Include="python\gen_ref.py" />
-    <None Include="python\make_period_chart.py" />
-    <None Include="python\make_test_chart.py" />
-    <None Include="python\README.md" />
-    <None Include="python\run.cmd" />
-    <None Include="python\sheet.py" />
-    <None Include="python\sort_profiles.py" />
-    <None Include="python\verify.py" />
+    <None Include="python\old_films_analyzing\analyze_film_scans.py" />
+    <None Include="python\profiles_generator\cpp_codegen.py" />
+    <None Include="python\profiles_generator\film_profiles.py" />
+    <None Include="python\profiles_generator\film_sim.py" />
+    <None Include="python\profiles_generator\gen_ref.py" />
+    <None Include="python\profiles_generator\make_period_chart.py" />
+    <None Include="python\profiles_generator\make_test_chart.py" />
+    <None Include="python\profiles_generator\README.md" />
+    <None Include="python\profiles_generator\run.cmd" />
+    <None Include="python\profiles_generator\sheet.py" />
+    <None Include="python\profiles_generator\sort_profiles.py" />
+    <None Include="python\profiles_generator\verify.py" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="python\Readme!.txt" />
+    <Text Include="python\profiles_generator\Readme!.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
