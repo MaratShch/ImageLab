@@ -32,7 +32,7 @@ cases = {
     "Fomapan 400 Action": "FOMAPAN_400_ACTION",
     "three-strip": "TECHNICOLOR_THREE_STRIP",
     "8572": "FUJICOLOR_SUPER_F500_8572",
-    "5266": "KODAK_TRI_X_REVERSAL_200",
+    "7266": "KODAK_TRI_X_REVERSAL_200",  # "5266" alias removed in schema v2 (no such Kodak catalogue number)
 }
 bad = {k: get_profile(k).name for k, v in cases.items() if get_profile(k).name != v}
 chk("alias / catalogue-number lookup", not bad, str(bad))
