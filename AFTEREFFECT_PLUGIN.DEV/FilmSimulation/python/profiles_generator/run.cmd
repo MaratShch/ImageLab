@@ -1,1 +1,1 @@
-python film_sim.py Apples.png -p all
+python film_sim.py Marrakesh.png -p all

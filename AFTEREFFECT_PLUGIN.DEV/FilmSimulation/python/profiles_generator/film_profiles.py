@@ -1049,9 +1049,7 @@ def _rev(
 FILM_PROFILES: tuple[FilmProfile, ...] = (
     FilmProfile(
         name="AGFACOLOR_NEU_1936",
-        # "sovcolor" alias moved to SOVCOLOR_DS_4 -- an actual Sovcolor stock
-        # now exists; this entry remains its German ancestor.
-        aliases=("agfacolor", "agfacolor neu", "agfa 1936"),
+        aliases=("agfacolor", "agfacolor neu", "agfa 1936", "sovcolor"),
         description=(
             "The first modern integral tripack: three dye layers on one strip, "
             "the ancestor of every colour film since. As a 1936 product its "
@@ -1204,11 +1202,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         grain=GrainSpec(7.8, 11.0, 12.0, 14.0, clump_gain=0.80, fog_grain=0.18),
         mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.09, adjacency_um=17.0),
-        # Zero-halation audit: an ordinary colour negative with a normal AH
-        # undercoat halates mildly like its class peers (Ektachrome/Sensia
-        # carry 0.04-0.05). Zero was a modelling gap, not a measurement.
-        halation=HalationSpec(gain_r=0.040, gain_g=0.014, gain_b=0.004,
-                             threshold_stops=2.0),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
@@ -1235,11 +1228,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         grain=GrainSpec(9.4, 13.0, 14.0, 16.5, clump_gain=0.92, fog_grain=0.19),
         mtf=MTFSpec(56.0, 63.0, 69.0, adjacency=0.08, adjacency_um=18.0),
-        # Zero-halation audit: an ordinary colour negative with a normal AH
-        # undercoat halates mildly like its class peers (Ektachrome/Sensia
-        # carry 0.04-0.05). Zero was a modelling gap, not a measurement.
-        halation=HalationSpec(gain_r=0.045, gain_g=0.016, gain_b=0.005,
-                             threshold_stops=2.0),
         couplers=CouplerSpec(0.30, 50.0, 0.13, 12.0),
         dye_matrix=_dye(-0.05),
         base_tint=(0.99, 0.995, 1.0),
@@ -1636,11 +1624,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(19.0, 17.0, 17.0, 17.0, clump_gain=1.45, fog_grain=0.26,
                         anisotropy=1.06),
         mtf=MTFSpec(44.0, 44.0, 44.0, adjacency=0.05, adjacency_um=19.0),
-        # Sibling EIGHT_MM_COLOR carries gain_r 0.05 on the same amateur base
-        # class; zero here was inconsistent. Mono, so the halo is neutral --
-        # near-equal gains, no red dominance (there is no layer stack).
-        halation=HalationSpec(gain_r=0.045, gain_g=0.040, gain_b=0.035,
-                             threshold_stops=1.9),
         spectral_weights=(0.27, 0.54, 0.19),
         misregistration_um=0.0,
         default_format="8mm",
@@ -1780,26 +1763,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.14, 0.690, -1.44, 0.30, 1.98, 0.50)),
-        # rms 17.5 is [T1]: the official FOMA datasheet (04/23) publishes
-        # "RMS = 17.5 (Microphen at 20 C, developed to gamma = 0.6, measured
-        # at D = 1.0)". Was 11.5 -- understated ~34% against the maker's own
-        # figure. Caveat kept honest: Foma measured at gamma 0.6; our curve
-        # is fitted at 0.69, and granularity rises with development, so 17.5
-        # is if anything slightly conservative for this profile's contrast.
-        grain=GrainSpec(17.5, 15.5, 15.5, 15.5, clump_gain=1.30, fog_grain=0.28,
+        grain=GrainSpec(11.5, 15.5, 15.5, 15.5, clump_gain=1.30, fog_grain=0.28,
                         anisotropy=1.03),
         mtf=MTFSpec(42.0, 42.0, 42.0, adjacency=0.05),
-        # [T1] Fitted to the datasheet's relative-spectral-sensitivity curve:
-        # panchromatic 400-700 nm, sensitivity RISING toward the red with its
-        # peak near 650-680 nm and a sharp cut just short of 700, moderate
-        # blue with a shallow dip around 450-470. Band-integrated that gives
-        # R >= G >= B -- the previous (0.30, 0.48, 0.22) was green-dominant,
-        # i.e. video-luma-shaped, and contradicted the published curve.
-        # Practical difference vs the old weights: skin and red fabric render
-        # lighter; blue sky is roughly unchanged (the published curve keeps
-        # solid blue sensitivity -- this is a red-STRONG panchro, not a
-        # blue-weak one). Measured: skin mono exposure +4.4%, sky +2.4%.
-        spectral_weights=(0.38, 0.33, 0.29),
+        spectral_weights=(0.30, 0.48, 0.22),
         misregistration_um=0.0,
         default_format="ff35",
         features=Feature.UNEVEN_EMULSION,
@@ -2318,15 +2285,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             "the flattering warm skin rendering it was designed around. Use "
             "with format ff35 or medium645."
         ),
-        # Era corrected after reviewing four Kodak E-4040 datasheets (Sep 2006,
-        # Jan 2008, Feb 2009, Feb 2016): plain "PORTRA 400" did not exist in
-        # the 2006-2009 sheets -- the 400-speed products then were 400NC and
-        # 400VC, different emulsions with their own curves (Log H Ref -1.44,
-        # laddered Status-M dmin ~0.25/0.65/0.85) and PGI (40/42 at 4x6 from
-        # 135). This profile models the 2010 replacement documented in E-4050,
-        # which is what the provenance cites. "1998" was the launch of the
-        # Portra FAMILY, not of this emulsion.
-        era="2010-present",
+        era="1998-present",
         exposure_index=400,
         balance_kelvin=5500,
         curves=RGBCurves(
@@ -2345,66 +2304,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.11),
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=4.0,
-        default_format="ff35",
-        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
-    ),
-    FilmProfile(
-        name="KODAK_PORTRA_800",
-        aliases=("portra 800", "portra800", "800 portra"),
-        description=(
-            "[T1] The fast Portra. Kodak's own positioning across four E-4040 "
-            "editions (2006/2008/2009/2016): well balanced colour saturation, "
-            "very fine grain for the speed, and 'best-in-class underexposure "
-            "latitude' -- the stock for long lenses and failing light. "
-            "Antenna-dye sensitisation buys the extra speed; T-GRAIN and "
-            "modern DIR couplers keep it in the family look. Datasheet facts "
-            "modelled here: ISO 800 daylight (250 at 3400 K with 80B, 200 at "
-            "3200 K with 80A -- the profile stores the daylight rating with "
-            "5500 K balance); no reciprocity correction 1/10,000 s..1 s; "
-            "PGI 48 at 4x6 from 135 (incommensurable with RMS by Kodak's own "
-            "definition, so the grain figure below is a family-scaled [T2] "
-            "estimate, not a conversion). PUSH DATA EXISTS: the sheets "
-            "publish full characteristic curves at EI 1600 (push 1) and "
-            "EI 3200 (push 2) with grey-card density rising 0.85-1.05 and "
-            "0.95-1.15 -- ready ProcessSpec calibration whenever DM-12 gets "
-            "implemented; until then this entry is the EI 800 normal-process "
-            "state. The emulsion is demonstrably stable: the 2016 Kodak "
-            "Alaris sheet reprints the identical 2006 measured plates "
-            "(E4040E/H/M/R, Log H Ref -1.74). Kodak also warns this speed "
-            "class is sensitive to environmental radiation -- expose and "
-            "process promptly; an aged-roll fog lift is AgingSpec territory, "
-            "not modelled here."
-        ),
-        era="1998-present",
-        exposure_index=800,
-        balance_kelvin=5500,
-        # Fitted to the E-4040 EI 800 plate (Status M, Log H Ref -1.74):
-        # gamma ~0.60-0.63 with B > G > R ordering, long gentle toe. dmin is
-        # stored NEUTRAL to match the family convention (VISION3/Portra 400
-        # group); the plate's Status-M ladder (~0.25/0.65/1.0) is the orange
-        # mask, carried in base_tint per mask_encoding="neutral_dmin".
-        curves=RGBCurves(
-            r=_neg(0.22, 0.600, toe_x=-1.72, toe_k=0.34, shoulder_x=2.10),
-            g=_neg(0.21, 0.615, toe_x=-1.66, toe_k=0.32, shoulder_x=2.04),
-            b=_neg(0.21, 0.632, toe_x=-1.56, toe_k=0.30, shoulder_x=1.94),
-        ),
-        # [T2] PGI 48 vs Portra 400's PGI 40 at the same 4x6/135 viewing --
-        # two just-noticeable-difference steps grainier. Scaled from the 400's
-        # rms 4.0 accordingly; clumps grow with the speed, clump_gain stays
-        # T-GRAIN low.
-        grain=GrainSpec(5.6, 8.4, 9.2, 11.0, clump_gain=0.24, fog_grain=0.18),
-        # From the E4040R MTF plate: >100% response to ~10 c/mm (adjacency),
-        # 50% crossings read near 55/45/35 c/mm for B/G/R.
-        mtf=MTFSpec(36.0, 46.0, 56.0, adjacency=0.12, adjacency_um=16.0),
-        halation=HalationSpec(
-            radii_um=(10.0, 50.0, 260.0),
-            gain_r=0.14, gain_g=0.05, gain_b=0.018,
-            threshold_stops=1.9,
-        ),
-        couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
-        dye_matrix=_dye(-0.10),
-        base_tint=(1.000, 0.992, 0.972),
-        misregistration_um=4.5,
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
@@ -2592,84 +2491,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
     # Eastern bloc colour
     # -----------------------------------------------------------------------
     FilmProfile(
-        name="MACO_CUBE_400C",
-        aliases=("cube 400c", "cube400c", "cube 4c", "maco cube", "cube 400"),
-        description=(
-            "[T1] MACO CUBE 400c, Hamburg. A deliberate heresy: at the height "
-            "of the T-grain era, a CLASSIC CUBIC crystal emulsion built from "
-            "THREE thin sub-layers of different speeds -- the multi-emulsion "
-            "architecture the VISION3 family uses, in a B&W film. Datasheet: "
-            "nominal ISO 400, effective speed ISO 100-6400 purely by choice "
-            "of developer and time (that range is a ProcessSpec dimension, "
-            "not something one baked profile can span; this entry models the "
-            "nominal ISO 400 / gamma 0.65 state). Extended panchromatic "
-            "sensitisation 380-730 nm: the published log-sensitivity curve is "
-            "BLUE-DOMINANT (about 0.5 log = 3x above the mid-band at 400 nm), "
-            "dips through green, holds a red plateau with a small peak near "
-            "670 nm, then falls sharply past ~690 with a tail to 730. Band- "
-            "integrated that gives the unusual weights below: strong blue, "
-            "moderate red, WEAKEST green. Datasheet notes tungsten speed runs "
-            "slightly higher thanks to the red extension. Anti-halation is "
-            "coated directly onto the blue 100 um polyester base, preventing "
-            "reflections rather than attenuating them -- halation is left at "
-            "zero. Resolving power 100 lp/mm (1000:1). Grain figures are [T2]: "
-            "MACO published no granularity number. Community lore ties CUBE "
-            "400c to an aerial-film lineage; unconfirmed, noted only as lore."
-        ),
-        era="2001-2007",
-        is_monochrome=True,
-        exposure_index=400,
-        balance_kelvin=5400,
-        # gamma 0.65 = the datasheet's own development aim. Very long straight
-        # line: the published H&D plot spans 4.2 decades of log exposure and
-        # never shoulders inside the plot. dmin 0.25 includes the blue base.
-        curves=_mono(ToneCurve(0.25, 0.650, -1.55, 0.30, 2.65, 0.45)),
-        grain=GrainSpec(10.0, 13.0, 13.0, 13.0, clump_gain=1.05, fog_grain=0.20),
-        mtf=MTFSpec(46.0, 46.0, 46.0, adjacency=0.07, adjacency_um=16.0),
-        spectral_weights=(0.30, 0.26, 0.44),
-        misregistration_um=0.0,
-        default_format="ff35",
-        features=Feature.NONE,
-    ),
-    FilmProfile(
-        name="MACO_PO_100C",
-        aliases=("po 100c", "po100c", "po 100 c", "maco po", "po100"),
-        description=(
-            "[T1] MACO PO 100c, Hamburg. ORTHOPANCHROMATIC -- the deliberate "
-            "middle ground between ortho and panchro: sensitised ~380-610 nm "
-            "with a small residual response to ~650-680, so unlike a true "
-            "ortho film it distinguishes red from black, while still rendering "
-            "red DARK. MACO sold it as 'unsurpassed as a portrait film': the "
-            "darkened-red rendering gives lips and skin texture the etched, "
-            "early-photography look without ortho's black lips. Datasheet: "
-            "ISO 100 daylight (5400 K) but 50-100 under tungsten -- red-poor "
-            "sensitisation costs a full stop under red-rich light, which the "
-            "weights below reproduce; red contrast filters explicitly NOT "
-            "recommended. Resolving power 260 lp/mm at 1000:1 -- 2.5x MACO's "
-            "own panchro films of equal speed -- with extremely fine grain "
-            "(grain numbers [T2], not published). Crystal-clear base; the "
-            "same emulsion reversal-processes to a direct-positive slide with "
-            "exceptional Dmax (the published reversal curve passes D 4.0) -- "
-            "not modelled here, this entry is the ISO 100 negative state."
-        ),
-        era="2003-2007",
-        is_monochrome=True,
-        exposure_index=100,
-        balance_kelvin=5400,
-        # gamma 0.65 datasheet aim; clear base -> low dmin.
-        curves=_mono(ToneCurve(0.08, 0.650, -1.45, 0.28, 1.85, 0.42)),
-        grain=GrainSpec(5.5, 6.5, 6.5, 6.5, clump_gain=0.55, fog_grain=0.14),
-        # 260 lp/mm resolving power is the highest of any pictorial stock in
-        # this database; f50 118 is the ~0.45x convention.
-        mtf=MTFSpec(118.0, 118.0, 118.0, adjacency=0.12, adjacency_um=10.0),
-        # Band-integrated from the published curve: flat ~1.0 across 400-580,
-        # shoulder at ~600, residual "panchromatic region" bump to ~680.
-        spectral_weights=(0.14, 0.42, 0.44),
-        misregistration_um=0.0,
-        default_format="ff35",
-        features=Feature.ORTHO_RESPONSE,
-    ),
-    FilmProfile(
         name="ORWOCOLOR_NC21",
         aliases=("nc21", "nc 21", "orwocolor"),
         description=(
@@ -2679,11 +2500,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         era="1970s-1990s",
         exposure_index=100,
-        # [T3, forum-sourced] ORWO colour negative was balanced around 4500 K --
-        # a deliberate compromise ("universal") value between tungsten and
-        # daylight, not a datasheet number. Supplied by the user from period
-        # forum knowledge; adjust if an ORWO datasheet ever surfaces.
-        balance_kelvin=4500,
+        balance_kelvin=5500,
         curves=RGBCurves(
             r=_neg(0.30, 0.520, toe_x=-1.28, toe_k=0.38, shoulder_x=1.42),
             g=_neg(0.29, 0.530, toe_x=-1.34, toe_k=0.38, shoulder_x=1.46),
@@ -2723,11 +2540,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         era="1980s-1990s",
         exposure_index=160,
-        # [T3, forum-sourced] ORWO colour negative was balanced around 4500 K --
-        # a deliberate compromise ("universal") value between tungsten and
-        # daylight, not a datasheet number. Supplied by the user from period
-        # forum knowledge; adjust if an ORWO datasheet ever surfaces.
-        balance_kelvin=4500,
+        balance_kelvin=5500,
         curves=RGBCurves(
             r=_neg(0.29, 0.545, toe_x=-1.32, toe_k=0.36, shoulder_x=1.46),
             g=_neg(0.28, 0.555, toe_x=-1.38, toe_k=0.36, shoulder_x=1.50),
@@ -2736,15 +2549,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(13.0, 15.0, 16.0, 19.0, clump_gain=1.30, fog_grain=0.29,
                         anisotropy=1.08),
         mtf=MTFSpec(28.0, 32.0, 36.0, adjacency=0.02),
-        # Family-consistency fix: NC21 carries strong halation (0.22/0.12/
-        # 0.08) on the same base technology; a ZERO here was the flag/numeric
-        # audit's own example of indefensible data. Later stock, better AH
-        # coating -> softer than NC21, not absent.
-        halation=HalationSpec(
-            radii_um=(20.0, 100.0, 420.0),
-            gain_r=0.15, gain_g=0.08, gain_b=0.05,
-            threshold_stops=1.4,
-        ),
         couplers=CouplerSpec(0.05, 78.0),
         dye_matrix=_dye(0.34),
         base_tint=(0.970, 1.000, 0.955),
@@ -2834,55 +2638,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.NONE,
     ),
     FilmProfile(
-        name="SOVCOLOR_DS_4",
-        aliases=("ds4", "ds-4", "дс-4", "дс4", "sovcolor", "sovcolor ds4",
-                 "совколор"),
-        description=(
-            "[T3] Sovcolor DS-4 (ДС-4): Soviet colour negative, daylight "
-            "balanced, 35 mm, UNMASKED -- and the absence of the orange "
-            "coupler mask is the signature, not a detail. Sovcolor descends "
-            "from the Agfacolor process taken from Wolfen in 1945, and the "
-            "Soviet line never adopted the integral mask that Kodak and "
-            "post-war Agfa used to correct dye impurity. Consequences: the "
-            "negative base is grey, not orange; per-channel dmin is nearly "
-            "equal (mask_encoding='none'); and the dye impurities the mask "
-            "would have cancelled stay in the image -- the muted, slightly "
-            "crossed, faintly melancholy Sovcolor palette is dye impurity "
-            "rendered honestly, not a grade. 'DS' = dnevnoy svet, daylight; "
-            "balance given by the user as 5600 K. EI is an estimate in the "
-            "GOST 32-45 class; no datasheet could be found -- every number "
-            "here is reconstruction from the Agfacolor lineage and period "
-            "prints, and should be refitted if a GOST sheet ever surfaces."
-        ),
-        era="1960s-1980s",
-        exposure_index=40,
-        balance_kelvin=5600,
-        curves=RGBCurves(
-            # Unmasked: near-equal dmin across channels -- the orange ladder
-            # of a masked negative is deliberately ABSENT here.
-            r=_neg(0.14, 0.600, toe_x=-1.38, shoulder_x=1.48),
-            g=_neg(0.15, 0.615, toe_x=-1.40, shoulder_x=1.50),
-            b=_neg(0.17, 0.630, toe_x=-1.36, shoulder_x=1.44),
-        ),
-        grain=GrainSpec(13.0, 16.0, 17.0, 20.0, clump_gain=1.40, fog_grain=0.30,
-                        anisotropy=1.08),
-        mtf=MTFSpec(30.0, 33.0, 36.0, adjacency=0.02),
-        halation=HalationSpec(
-            radii_um=(16.0, 80.0, 380.0),
-            gain_r=0.12, gain_g=0.05, gain_b=0.02,
-            threshold_stops=1.4,
-        ),
-        couplers=CouplerSpec(0.04, 75.0),
-        # Impure dyes NOT corrected by a mask: strong positive off-diagonals.
-        # This is where "unmasked" becomes visible colour behaviour.
-        dye_matrix=_dye(0.30),
-        # Grey base, faint warm bias -- NOT the orange of a masked negative.
-        base_tint=(1.0, 0.995, 0.980),
-        misregistration_um=9.0,
-        default_flare=0.015,
-        features=Feature.HALATION | Feature.UNEVEN_EMULSION,
-    ),
-    FilmProfile(
         name="SOVIET_PANCHROM_1939",
         aliases=("panchrom", "sovkino", "shostka", "soviet 1939", "kinoplenka"),
         description=(
@@ -2922,88 +2677,130 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         name="SVEMA_FN_64",
         aliases=("svema", "fn64", "fn-64", "svema fn64"),
         description=(
-            "Soviet B&W, 35 mm. High contrast, coarse and irregular crystals, "
-            "and visible large-scale coating unevenness from loose quality "
-            "control. That unevenness reads as 'old film' far more strongly "
-            "than extra grain does. AERO LINEAGE [T3, forum-sourced]: Svema and Tasma B&W emulsions "
-            "descend from aerial-survey film, sensitised deep into the red "
-            "to cut atmospheric haze. On the ground that reads as PALE, "
-            "smooth skin (skin is red-rich and an extended-red film renders "
-            "it light) and darker skies -- the opposite of the weak-red "
-            "rendering previously modelled here. Corrected on the strength "
-            "of period portrait evidence; no datasheet exists either way."
+            "Soviet B&W. High contrast, coarse and irregular crystals, weak "
+            "red sensitivity, and visible large-scale coating unevenness from "
+            "loose quality control. That unevenness reads as 'old film' far "
+            "more strongly than extra grain does."
         ),
         era="1980s-1990s",
         is_monochrome=True,
         exposure_index=64,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.860, -1.18, 0.24, 1.52, 0.34)),
-        grain=GrainSpec(11.5, 15.0, 15.0, 15.0, clump_gain=1.55, fog_grain=0.32,
-                        anisotropy=1.10),
+        # dmin 0.16 [T3]: REVERTED to the estimate. The 0.174 briefly adopted
+        # here came from misreading the v1 analyzer's output (its "dmin" was a
+        # raw pixel value of the DENSE end, not a base density). The owner's
+        # 355-frame v2 batch (native 4416x2944, sRGB-decoded, density space)
+        # reports base at 0.008-0.013 D RELATIVE to scanner white -- the DSLR
+        # rig auto-exposes the base to white, so ABSOLUTE base+fog is
+        # unknowable without an --empty-gate calibration frame. Estimate
+        # stands until that frame exists.
+        # gamma 0.79 [T2]: from the same 355-frame batch, interdecile density
+        # span 1.494 / assumed 1.90 logE scene span = 0.787. An estimate with
+        # a stated assumption, but it displaces a bare T3 guess (0.86), sits
+        # in the documented FN-64 development range (~0.65-0.8 GOST cine),
+        # and fits an aged emulsion, which loses contrast, never gains it.
+        curves=_mono(ToneCurve(0.16, 0.790, -1.18, 0.24, 1.52, 0.34)),
+        # Grain, same batch, 56800 flat blocks at native resolution [T2]:
+        #   sigma(D) toe/mid/dense = 0.021/0.028/0.037 -> shape 0.70/1.0/1.35
+        #   after removing a ~0.01 scanner noise floor in quadrature
+        #   (previous 0.4/1.0/1.2 was T3).
+        #   grain correlation length 3.48 px at 122.7 px/mm = 28 um raw,
+        #   ~23 um after deconvolving a ~2 px scanner PSF -> clump 23 um
+        #   (previous 15 um was T3; the RMS calibration integral keeps the
+        #   rendered amplitude pinned, so only the grain SCALE shifts).
+        #   rms 11.5 kept: still [T1], and the new batch's native-res mid
+        #   sigma 0.028 agrees with the 0.030 that fit produced.
+        #   anisotropy 0.62 REJECTED: grain is physically isotropic; a value
+        #   that far from 1 on a Bayer-demosaiced DSLR scan is the sensor
+        #   pattern, not the film. 1.10 (transport smear estimate) stands.
+        grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
+                        anisotropy=1.10,
+                        sigma_shape_toe=0.70, sigma_shape_dmax=1.35),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
-        # Extended-red aero sensitisation: red weight ABOVE the 0.30 panchro
-        # norm, blue suppressed (haze). Renders skin pale, skies dark.
-        spectral_weights=(0.38, 0.48, 0.14),
+        spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
-        # Measured: one scan showed a slight COOL cast, R-G -2.8 and B-G +1.7 out of 255. Weak evidence, single frame, hence the small value.
-        silver_tone=-0.25,
-        features=Feature.UNEVEN_EMULSION,
+        # [T2] halation: ENABLED from the 355-frame batch, 58 usable
+        # highlight frames. Measured excess density next to blown highlights:
+        # 0.24 D (analyzer documents a 15-20% low bias -> ~0.28 true), 1/e
+        # radius 69 um. The analyzer's masked-background method removes
+        # long-range lens veiling, so the short-range component is film-level
+        # scatter. Gain from inverting D = gamma*log10(1 + 0.5*A*gain/E_mid)
+        # at an assumed 5 stops highlight overshoot -> 0.09; the assumption
+        # spans 0.04 (7 stops) to 0.19 (4 stops), hence T2. Radii: middle
+        # lobe moved to the measured 69 um, weights biased onto it.
+        halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
+                              weights=(0.30, 0.55, 0.15),
+                              gain_r=0.09, gain_g=0.09, gain_b=0.09),
+        # [T2] base_tint: 355-frame batch, (0.992, 1.000, 0.988) -- near
+        # neutral, replacing the earlier 290-frame warm reading (B -2.1%).
+        # Still CONTAMINATED tier: scanner illuminant and WB folded in.
+        base_tint=(0.992, 1.000, 0.988),
+        # silver_tone -0.10 [T2]: the batch's density-weighted drift is close
+        # to neutral (tone_slope_r -0.0026, _b -0.0010 over ~3 D of range,
+        # i.e. |dD| < 0.01), so the old -0.25 (from ONE frame) was too strong.
+        # A weak cold bias is retained for the documented crow-wing look.
+        silver_tone=-0.10,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     FilmProfile(
         name="SVEMA_FN_64_16MM",
-        aliases=("fn64 16mm", "svema fn64 16mm", "fn-64 16"),
+        aliases=("fn64 16mm", "fn64-16", "svema 16mm"),
         description=(
-            "SVEMA FN-64 on 16 mm base. The EMULSION NUMBERS ARE DELIBERATELY "
-            "IDENTICAL to the 35 mm entry: the same coating went onto the "
-            "narrower base, and the visible difference -- coarser grain, less "
-            "resolvable detail -- is magnification, which the renderer derives "
-            "from default_format, not from the profile. At 16 mm the frame is "
-            "10.26 mm wide against 24.89, so the same 15 um crystal spans 2.4x "
-            "as many output pixels. If evidence ever surfaces that Svema coated "
-            "a DIFFERENT emulsion for narrow gauge, split the numbers then; "
-            "inventing a difference now would double-count the magnification. "
-            "See SVEMA_FN_64 for the aero-lineage note."
+            "SVEMA FN-64 in 16 mm. Same emulsion, same curve, same base -- "
+            "the coating line did not know what width the roll would be slit "
+            "to. Everything that differs on screen (coarser apparent grain, "
+            "lower resolved detail) comes from the ~2.1x higher magnification "
+            "of the smaller frame, which the pipeline derives from the format "
+            "via px_per_mm. Do not retune grain or density here."
         ),
         era="1980s-1990s",
         is_monochrome=True,
         exposure_index=64,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.860, -1.18, 0.24, 1.52, 0.34)),
-        grain=GrainSpec(11.5, 15.0, 15.0, 15.0, clump_gain=1.55, fog_grain=0.32,
-                        anisotropy=1.10),
+        curves=_mono(ToneCurve(0.16, 0.790, -1.18, 0.24, 1.52, 0.34)),
+        grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
+                        anisotropy=1.10,
+                        sigma_shape_toe=0.70, sigma_shape_dmax=1.35),
+        halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
+                              weights=(0.30, 0.55, 0.15),
+                              gain_r=0.09, gain_g=0.09, gain_b=0.09),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
-        spectral_weights=(0.38, 0.48, 0.14),
+        spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
-        silver_tone=-0.25,
+        base_tint=(0.992, 1.000, 0.988),
+        silver_tone=-0.10,
         default_format="16mm",
-        features=Feature.UNEVEN_EMULSION,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     FilmProfile(
         name="SVEMA_FN_64_8MM",
-        aliases=("fn64 8mm", "svema fn64 8mm", "fn-64 8"),
+        aliases=("fn64 8mm", "fn64-8", "svema 8mm"),
         description=(
-            "SVEMA FN-64 on 8 mm base -- home-movie gauge. Identical emulsion "
-            "numbers for the same reason as the 16 mm entry: gauge does the "
-            "work. At 4.80 mm frame width the magnification relative to 35 mm "
-            "is about 5x linear, so grain that reads as texture on 35 mm reads "
-            "as boiling gravel here, and the 34 c/mm emulsion resolves only "
-            "~160 cycles across the whole frame. That is the authentic Soviet "
-            "home-movie look; nothing about it needs exaggerating. See "
-            "SVEMA_FN_64 for the aero-lineage note."
+            "SVEMA FN-64 slit for 8 mm home movie cameras. Emulsion identical "
+            "to the 35 mm entry; the ~5.4x magnification of the tiny frame "
+            "does all the damage, and the pipeline derives it from the "
+            "format. Temporal behaviour is the exception: weave and flicker "
+            "belong to the amateur camera and projector, not the emulsion, "
+            "so this entry carries home-gear transport numbers."
         ),
         era="1980s-1990s",
         is_monochrome=True,
         exposure_index=64,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.860, -1.18, 0.24, 1.52, 0.34)),
-        grain=GrainSpec(11.5, 15.0, 15.0, 15.0, clump_gain=1.55, fog_grain=0.32,
-                        anisotropy=1.10),
+        curves=_mono(ToneCurve(0.16, 0.790, -1.18, 0.24, 1.52, 0.34)),
+        grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
+                        anisotropy=1.10,
+                        sigma_shape_toe=0.70, sigma_shape_dmax=1.35),
+        halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
+                              weights=(0.30, 0.55, 0.15),
+                              gain_r=0.09, gain_g=0.09, gain_b=0.09),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
-        spectral_weights=(0.38, 0.48, 0.14),
+        spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
-        silver_tone=-0.25,
+        base_tint=(0.992, 1.000, 0.988),
+        silver_tone=-0.10,
         default_format="8mm",
-        features=Feature.UNEVEN_EMULSION,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
 
     # ------------------------------- USSR ----------------------------------
@@ -3020,8 +2817,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             "and the coating unevenness worse rather than better -- fast Soviet "
             "emulsions were where quality control gave up first. (rms/clump "
             "ordering flagged in audit -- unverified)"
-            " Same aero-survey extended-red lineage as SVEMA_FN_64 -- see the"
-            " AERO LINEAGE note there; pale skin, dark skies, [T3]."
         ),
         era="1970s-1990s",
         is_monochrome=True,
@@ -3043,12 +2838,12 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(25.0, 21.5, 21.5, 21.5, clump_gain=1.70, fog_grain=0.38,
                         anisotropy=1.14),
         mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.02, adjacency_um=26.0),
-        spectral_weights=(0.38, 0.48, 0.14),
+        spectral_weights=(0.25, 0.49, 0.26),
         misregistration_um=0.0,
         default_format="ff35",
         # Left neutral: all three supplied FN250 scans were stored as pure greyscale (R-G exactly 0.0), so they carry no tone information at all.
         silver_tone=0.0,
-        features=Feature.UNEVEN_EMULSION,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     FilmProfile(
         name="TASMA_FN_64",
@@ -3065,8 +2860,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             "GOST speed step, 64 the ISO equivalent, and Lomography's community "
             "database indexes it as Tasma FN64. Renamed to FN_64 to match the "
             "commonest usage; the fn65 aliases still resolve here."
-            " Same aero-survey extended-red lineage as SVEMA_FN_64 -- see the"
-            " AERO LINEAGE note there; pale skin, dark skies, [T3]."
         ),
         era="1960s-1990s",
         is_monochrome=True,
@@ -3076,11 +2869,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(12.4, 16.0, 16.0, 16.0, clump_gain=1.45, fog_grain=0.30,
                         anisotropy=1.08),
         mtf=MTFSpec(32.0, 32.0, 32.0, adjacency=0.03, adjacency_um=24.0),
-        spectral_weights=(0.38, 0.48, 0.14),
+        spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
         # Measured: two of three user-supplied scans show a warm cast in their bright regions, R-G of +8.6 and +15.6 out of 255. Calibrated to the larger of the two.
         silver_tone=1.0,
-        features=Feature.UNEVEN_EMULSION,
+        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     # -----------------------------------------------------------------------
     # Technicolor three-strip. Not a stock but a whole imaging system.
@@ -3185,6 +2978,8 @@ _TEMPORAL_OVERRIDES: dict[str, TemporalSpec] = {
     "TECHNICOLOR_THREE_STRIP": TemporalSpec(26.0, 18.0, 0.8, 3.0, 8.0, 0.0, 2.0, 12.0, 24.0),
     "SOVIET_PANCHROM_1939": TemporalSpec(28.0, 20.0, 0.9, 6.0, 8.0, 0.0, 4.0, 16.0, 24.0),
     "SVEMA_FN_64": TemporalSpec(14.0, 10.0, 0.7, 2.5, 4.0, 0.0, 1.5, 10.0, 24.0),
+    "SVEMA_FN_64_16MM": TemporalSpec(16.0, 11.0, 0.8, 2.8, 4.5, 0.0, 1.8, 10.0, 24.0),
+    "SVEMA_FN_64_8MM": TemporalSpec(24.0, 16.0, 1.0, 4.0, 6.0, 0.0, 2.5, 10.0, 16.0),
     "SVEMA_FOTO_250": TemporalSpec(16.0, 11.0, 0.7, 3.0, 4.0, 0.0, 2.0, 10.0, 24.0),
     "TASMA_FN_64": TemporalSpec(13.0, 9.0, 0.7, 2.2, 4.0, 0.0, 1.2, 10.0, 24.0),
     "ORWOCOLOR_NC21": TemporalSpec(10.0, 7.0, 0.6, 1.8, 4.0, 0.0, 1.0, 8.0, 24.0),
@@ -3203,28 +2998,6 @@ def _reciprocity_for(p: FilmProfile) -> ReciprocitySpec:
     if p.name == "FUJI_NEOPAN_ACROS_100":
         # Acros' documented distinction: no correction needed out to 120 s.
         return ReciprocitySpec(1.0, 1.0, 1.0, onset_s=120.0)
-    if p.name == "MACO_CUBE_400C":
-        # [T1 source, T2 fit] Datasheet table: 1s->2x, 2s->2x, 4s->2.5x,
-        # 8s->2.5x, 15s->4x, 30s->5x, 60s->5.83x. Least-squares single-
-        # exponent fit: p=0.711, onset 0.15s (worst residual 26% at 8s --
-        # the published staircase is not a power law).
-        return ReciprocitySpec(0.711, 0.711, 0.711, onset_s=0.15)
-    if p.name == "MACO_PO_100C":
-        # [T1 source, T2 fit] Datasheet table: 1s->1.5x, 2s->3.5x(read 1.75-
-        # 2x band), 4s->2x, 8s->3x, 15s->4x, 30s->6x. Fit: p=0.587,
-        # onset 0.50s; reproduces the table within ~18%.
-        return ReciprocitySpec(0.587, 0.587, 0.587, onset_s=0.50)
-    if p.name == "FOMAPAN_400_ACTION":
-        # [T1 source, T2 fit] The official datasheet publishes a Schwarzschild
-        # table: 1 s -> 1.5x, 10 s -> 6x, 100 s -> 8x exposure correction --
-        # markedly worse than typical modern B&W. Least-squares fit of the
-        # single-exponent model C(t) = (t/onset)^(1-p) over 1..100 s gives
-        # p = 0.637, onset = 0.20 s, reproducing the table as 1.8x / 4.2x /
-        # 9.6x. The residual is the model's fault, not the data's: Foma's
-        # failure curve is steeper than any single power law (slope 0.60/dec
-        # in 1..10 s, 0.12/dec in 10..100 s). If ReciprocitySpec ever grows a
-        # table form, feed it the three published points directly.
-        return ReciprocitySpec(0.637, 0.637, 0.637, onset_s=0.20)
     if p.is_monochrome:
         # Typical conventional B&W: p ~0.95 past ~1 s. Tier-2/3 estimate.
         return ReciprocitySpec(0.95, 0.95, 0.95, onset_s=1.0)
@@ -3343,22 +3116,6 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "FOMAPAN_400_ACTION": (
         "FOMAPAN 400 Action technical datasheet, Foma Bohemia Ltd",
     ),
-    "KODAK_PORTRA_800": (
-        "KODAK PROFESSIONAL PORTRA 160NC/160VC/400NC/400VC/800 Films, "
-        "publication E-4040, Eastman Kodak Company, September 2006",
-        "KODAK publication E-4040, revised January 2008",
-        "KODAK publication E-4040, revised February 2009",
-        "KODAK PROFESSIONAL PORTRA 800 Film, publication E-4040, "
-        "Kodak Alaris Inc., February 2016",
-    ),
-    "MACO_CUBE_400C": (
-        "MACO CUBE 400c Technical Application datasheet, MACO Photo "
-        "Products / Hans O. Mahn & Co. KG, January 2004",
-    ),
-    "MACO_PO_100C": (
-        "MACO PO 100c Datenblatt, MACO Photo Products / Hans O. Mahn "
-        "& Co. KG, Januar 2004",
-    ),
     "FERRANIA_P30": (
         "Ferrania P30 manufacturer product specification, "
         "Film Ferrania S.r.l., 2017",
@@ -3420,17 +3177,6 @@ def _provenance_for(p: FilmProfile) -> Provenance:
 #: Colour negatives whose per-channel dmin values ladder upward (r << g << b)
 #: because the dmin encodes the orange coupler mask directly (audit finding;
 #: the rest keep near-neutral dmin and carry the mask in base_tint/dye data).
-# Colour negatives coated WITHOUT an integral orange coupler mask. Soviet
-# colour stock (Sovcolor DS/LN lines) was unmasked for most of its life --
-# the mask is an Agfa/Kodak colour-correction invention the Soviet process
-# never adopted at scale. Consequences the renderer sees: near-equal dmin
-# across channels (no orange base), and the dye impurities that the mask
-# would have corrected stay IN the image -- hence the muted, slightly
-# crossed Sovcolor palette. mask_encoding = "none" for these.
-_UNMASKED = {
-    "SOVCOLOR_DS_4",
-}
-
 _DMIN_LADDER = {
     "AGFA_OPTIMA_100",
     "AGFA_VISTA_200",
@@ -3444,15 +3190,6 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
-    # Foma datasheet publishes a single figure, "90 lines per mm", contrast
-    # unstated (convention: high-contrast target). low-TOC value is the usual
-    # ~0.6x estimate, not a published number.
-    "FOMAPAN_400_ACTION": (55.0, 90.0),
-    # CUBE 400c: 100 lp/mm published at 1000:1; PO 100c: 260 lp/mm published
-    # at 1000:1 (the sheet's headline claim). low-TOC values are ~0.6x
-    # estimates, not published.
-    "MACO_CUBE_400C": (60.0, 100.0),
-    "MACO_PO_100C": (150.0, 260.0),
     "FUJI_NEOPAN_ACROS_100": (60.0, 200.0),
     "FUJI_VELVIA_50": (80.0, 160.0),
 }
@@ -3520,11 +3257,7 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
         density_metric = "status_m"
         speed_criterion = "iso5800"
         callier_q = 1.0
-        mask_encoding = (
-            "none" if p.name in _UNMASKED
-            else "dmin_ladder" if p.name in _DMIN_LADDER
-            else "neutral_dmin"
-        )
+        mask_encoding = "dmin_ladder" if p.name in _DMIN_LADDER else "neutral_dmin"
     if historic:
         speed_criterion = "manufacturer_ei"
 
@@ -3535,15 +3268,9 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
             resolving_power_lp_mm_lowc=lo, resolving_power_lp_mm_highc=hi
         )
 
-    # DM-20 resolution, enforced rather than merely documented: the HALATION
-    # bit is DERIVED from the numeric gains here, at load time. The source
-    # literals may set it or not -- whatever they say is overwritten by the
-    # numbers, so flag/numeric disagreement is structurally impossible for
-    # this flag and validate_all()'s halation audit can only fire on a bug in
-    # this very rule. Editorial history behind the old mismatches: the flag
-    # used to mean "PROMINENT halation" while 14 stocks carried small
-    # physical residual gains; under the derived-flags doctrine the flag now
-    # means exactly halation.active, no editorial threshold.
+    # The HALATION flag is derived, never authoritative: the numeric gains in
+    # p.halation decide, and the flag is forced to agree so that renderers
+    # keying on either see the same truth.
     feats = p.features
     if p.halation.active:
         feats |= Feature.HALATION
