@@ -1103,7 +1103,16 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         exposure_index=100,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.11, 0.620, -1.56, 0.31, 1.80, 0.42)),
-        # rms 9.0: published diffuse RMS granularity (Agfa datasheet).
+        # rms 9.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/AGFA/apx100.pdf p1: "Granularity: RMS (x 1000):
+        # 9.0  (REFINAL, 6 min, 20 C)"; corroborated by agfa_films.pdf p10 and
+        # Datasheet_F_PF_E4.pdf p9. Resolving power 150 lp/mm at 1000:1 (same
+        # page) is recorded in _RESOLVING_POWER; Agfa publishes no 1.6:1 figure
+        # for the APX films. Agfa also prints a Schwarzschild table on p1
+        # (1 s -> +1 stop, 10 s -> +2, 100 s -> +3); it is deliberately NOT
+        # fitted into ReciprocitySpec because a single Schwarzschild exponent
+        # cannot reproduce those three points (p would have to be 0.40 at 10 s
+        # and 0.55 at 100 s), so forcing one would invent data.
         grain=GrainSpec(9.0, 9.0, 9.0, 9.0, clump_gain=0.85, fog_grain=0.17),
         mtf=MTFSpec(80.0, 80.0, 80.0, adjacency=0.10, adjacency_um=14.0),
         spectral_weights=(0.28, 0.56, 0.16),
@@ -1151,7 +1160,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         exposure_index=25,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.10, 0.640, -1.62, 0.30, 1.86, 0.40)),
-        # rms 7.0: published diffuse RMS granularity (Agfa datasheet).
+        # rms 7.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/AGFA/agfapanapx25.pdf p1: "Granularity: RMS
+        # (x 1000): 7.0"; corroborated by agfa_films.pdf p10. Resolving power
+        # 200 lp/mm at 1000:1 (same page) -> _RESOLVING_POWER.
         grain=GrainSpec(7.0, 5.0, 5.0, 5.0, clump_gain=0.55, fog_grain=0.14),
         mtf=MTFSpec(112.0, 112.0, 112.0, adjacency=0.13, adjacency_um=11.0),
         spectral_weights=(0.28, 0.56, 0.16),
@@ -1172,7 +1184,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.13, 0.660, -1.50, 0.29, 1.70, 0.40)),
-        # rms 14.0: published diffuse RMS granularity (Agfa datasheet).
+        # rms 14.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/AGFA/apx400.pdf p1: "Granularity: RMS (x 1000):
+        # 14.0"; corroborated by agfa_films.pdf p10. Resolving power 110 lp/mm
+        # at 1000:1 (same page) -> _RESOLVING_POWER.
         grain=GrainSpec(14.0, 15.0, 15.0, 15.0, clump_gain=1.25, fog_grain=0.22),
         mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.06, adjacency_um=19.0),
         spectral_weights=(0.28, 0.56, 0.16),
@@ -1186,7 +1201,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         name="AGFA_OPTIMA_100",
         aliases=("optima", "agfa optima", "optima 100", "optima ii"),
         description=(
-            "[T2] Agfa's consumer colour negative. The Agfa house palette: "
+            "[T1] Agfa's consumer colour negative. The Agfa house palette: "
             "warm, slightly restrained, with yellows and skin tones favoured "
             "over the saturated primaries Kodak and Fuji were chasing. Dye "
             "purity is a step below either, which shows as gentle desaturation "
@@ -1200,7 +1215,18 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.62, 0.610),
             b=_neg(1.02, 0.620),
         ),
-        grain=GrainSpec(7.8, 11.0, 12.0, 14.0, clump_gain=0.80, fog_grain=0.18),
+        # rms 4.0: published diffuse RMS granularity (x1000) for AGFACOLOR
+        # OPTIMA II 100. SOURCE: Agfa "Professional Films" brochure
+        # (PDF/PROFILES/AGFA/agfa_films.pdf p7): "Granularity (x 1000):
+        # RMS 4.0". Corrected 2026-07-31 from the previous estimate of 7.8.
+        # The per-channel rms_r/g/b values are derived from this figure by
+        # _grain_v2's tier-2 stack rule (b ~1.3x, r ~1.1x of green); Agfa does
+        # not publish per-layer granularity.
+        grain=GrainSpec(4.0, 11.0, 12.0, 14.0, clump_gain=0.80, fog_grain=0.18),
+        # f50 values remain engineering estimates: Agfa publishes sharpness
+        # only as a plotted transfer-factor curve (agfa_films.pdf p7), never as
+        # a numeric MTF. The published resolving power (50 lp/mm at 1.6:1,
+        # 140 lp/mm at 1000:1, same page) is recorded in _RESOLVING_POWER.
         mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.09, adjacency_um=17.0),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
@@ -1682,7 +1708,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.18, 1.65, toe_x=-0.84, shoulder_x=0.96),
             b=_rev(0.20, 1.66, toe_x=-0.88, shoulder_x=0.88),
         ),
-        # rms 13.0: published diffuse RMS granularity (Kodak datasheet).
+        # rms 13.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/KODAK/e144-Ektachrome_160T_EPT.pdf p4: "Diffuse
+        # rms Granularity*  13 (very fine)". Same sheet: EI 160 tungsten,
+        # Process E-6, densitometry Status A.
         grain=GrainSpec(13.0, 9.5, 10.5, 12.5, clump_gain=0.52, fog_grain=0.17),
         mtf=MTFSpec(58.0, 65.0, 72.0, adjacency=0.10, adjacency_um=16.0),
         halation=HalationSpec(gain_r=0.05, gain_g=0.017, gain_b=0.005,
@@ -1713,7 +1742,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.16, 1.74, toe_x=-0.79, shoulder_x=0.92),
             b=_rev(0.17, 1.76, toe_x=-0.80, shoulder_x=0.89),
         ),
-        # rms 11.0: published diffuse RMS granularity (Kodak datasheet).
+        # rms 11.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/KODAK/e8-Ektachrome_64_EPR.pdf p5: "Diffuse rms
+        # Granularity* 11 (very fine)". Same sheet: EI 64, Process E-6,
+        # densitometry Status A, and a numeric reciprocity/CC-filter table.
+        # Kodak publishes no resolving-power figure for this stock.
         grain=GrainSpec(11.0, 6.0, 6.5, 7.5, clump_gain=0.34, fog_grain=0.13),
         mtf=MTFSpec(72.0, 80.0, 88.0, adjacency=0.12, adjacency_um=14.0),
         halation=HalationSpec(gain_r=0.045, gain_g=0.015, gain_b=0.004,
@@ -1762,9 +1795,20 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
+        # ISO 400/27 deg confirmed against the datasheet
+        # (PDF/PROFILES/FOMACOLOR/fomapan-400.pdf p1).
         curves=_mono(ToneCurve(0.14, 0.690, -1.44, 0.30, 1.98, 0.50)),
-        grain=GrainSpec(11.5, 15.5, 15.5, 15.5, clump_gain=1.30, fog_grain=0.28,
+        # rms 17.5: published diffuse RMS granularity. SOURCE:
+        # PDF/PROFILES/FOMACOLOR/fomapan-400.pdf p1: "RMS = 17.5 (Microphen at
+        # 20 oC, developed to [gamma] = 0.6 (measured at D = 1.0)". The stated
+        # conditions match this project's metric definition (sigma(D)*1000 at
+        # D = 1.0), so the figure is adopted verbatim. Corrected 2026-07-31
+        # from the previous estimate of 11.5 -- a 52 % under-statement.
+        grain=GrainSpec(17.5, 15.5, 15.5, 15.5, clump_gain=1.30, fog_grain=0.28,
                         anisotropy=1.03),
+        # f50 stays an estimate: Foma publishes no MTF whatsoever. The single
+        # published resolving-power figure (90 lines/mm, same page) is recorded
+        # in _RESOLVING_POWER.
         mtf=MTFSpec(42.0, 42.0, 42.0, adjacency=0.05),
         spectral_weights=(0.30, 0.48, 0.22),
         misregistration_um=0.0,
@@ -1929,7 +1973,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         exposure_index=100,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.10, 0.600, -1.58, 0.32, 1.84, 0.44)),
-        # rms 7.0: published diffuse RMS granularity (Fuji Acros datasheet).
+        # rms 7.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/FUJI/NeopanAcros100.pdf p4: "10.   DIFFUSE RMS
+        # GRANULARITY VALUE ··············· 7" (Microfine, 48 um aperture, 12X,
+        # density 1.0 above minimum). Resolving power 60 lines/mm at 1.6:1 and
+        # 200 lines/mm at 1000:1, same page -> _RESOLVING_POWER. The onset_s=120
+        # reciprocity entry for this stock is likewise datasheet-backed, not an
+        # estimate. (The sheet is 6 pages; an earlier draft of this comment said
+        # p7, which does not exist.)
         grain=GrainSpec(7.0, 7.0, 7.0, 7.0, clump_gain=0.22, fog_grain=0.13),
         mtf=MTFSpec(104.0, 104.0, 104.0, adjacency=0.14, adjacency_um=11.0),
         spectral_weights=(0.27, 0.55, 0.18),
@@ -1955,7 +2006,13 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.17, 1.58, toe_x=-0.86, shoulder_x=0.98),
             b=_rev(0.18, 1.60, toe_x=-0.88, shoulder_x=0.96),
         ),
-        # rms 11.0: published diffuse RMS granularity (Fuji datasheet).
+        # rms 11.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/FUJI/Provia_400X_PIB_1007.pdf p6: "18. DIFFUSE
+        # RMS GRANULARITY VALUE .... 11", aperture 48 um, sample density 1.0
+        # above D-min. Resolving power 55 lp/mm at 1.6:1 and 135 lp/mm at
+        # 1000:1 (same page) -> _RESOLVING_POWER. The sheet also documents
+        # push latitude of -1/2 stop (EI 280) to +2 stops (EI 1600) and
+        # densitometry via Fuji FAD-30S (Status A).
         grain=GrainSpec(11.0, 12.0, 13.0, 15.0, clump_gain=0.44, fog_grain=0.18),
         mtf=MTFSpec(60.0, 68.0, 74.0, adjacency=0.11, adjacency_um=15.0),
         halation=HalationSpec(gain_r=0.04, gain_g=0.014, gain_b=0.004,
@@ -1971,7 +2028,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         name="FUJI_SENSIA_100",
         aliases=("sensia", "sensia 100", "sensia ii"),
         description=(
-            "[T2] Fuji's consumer slide film -- essentially a de-tuned Provia "
+            "[T1] Fuji's consumer slide film -- essentially a de-tuned Provia "
             "sold in a cheaper box. Slightly softer, slightly grainier, "
             "slightly warmer than the professional line, and less careful about "
             "neutral rendering. The holiday-slide look of the 1990s."
@@ -1985,7 +2042,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.17, 1.66, toe_x=-0.82, shoulder_x=0.94),
             b=_rev(0.19, 1.68, toe_x=-0.86, shoulder_x=0.90),
         ),
-        # rms 10.0: published diffuse RMS granularity (Fuji datasheet).
+        # rms 10.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/FUJI/sensia_100_datasheet.pdf p4: "13. DIFFUSE
+        # RMS GRANULARITY VALUE ............ 10". Resolving power 55 lp/mm at
+        # 1.6:1 and 135 lp/mm at 1000:1 (same page) -> _RESOLVING_POWER. The
+        # sheet also gives the base: cellulose triacetate, 127 um, 135 only.
         grain=GrainSpec(10.0, 9.0, 9.5, 11.0, clump_gain=0.40, fog_grain=0.15),
         mtf=MTFSpec(64.0, 72.0, 78.0, adjacency=0.11, adjacency_um=14.0),
         halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.004,
@@ -2015,7 +2076,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.13, 2.06, toe_x=-0.68, toe_k=0.16, shoulder_x=0.78),
             b=_rev(0.14, 2.14, toe_x=-0.72, toe_k=0.16, shoulder_x=0.76),
         ),
-        # rms 9.0: published diffuse RMS granularity (Fuji Velvia 50 Data Guide).
+        # rms 9.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
+        # SOURCE PDF/PROFILES/FUJI/velvia_50_datasheet.pdf p7: "17. DIFFUSE RMS
+        # GRANULARITY VALUE ......9", measured through a 48 um aperture at
+        # "Sample Density: 1.0 above minimum density" -- the same metric this
+        # field defines. Resolving power 80 lp/mm at 1.6:1 and 160 lp/mm at
+        # 1000:1 (same page) already recorded in _RESOLVING_POWER.
+        # NOTE: AF3-0221E2Velvia50PIB.pdf is the same document, not a second
+        # independent source.
         grain=GrainSpec(9.0, 3.6, 3.8, 4.4, clump_gain=0.18, fog_grain=0.12),
         mtf=MTFSpec(88.0, 98.0, 108.0, adjacency=0.15, adjacency_um=12.0),
         halation=HalationSpec(
@@ -2113,9 +2181,27 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         era="1998-present",
         is_monochrome=True,
+        # exposure_index 3200 is the MARKETED meter setting, kept because that
+        # is how the stock is used and named. Harman's own datasheet states the
+        # measured speed is lower -- it gives ISO 1000/31 deg, measured in
+        # ILFORD ID-11, while explaining that the 3200 in the product name is a
+        # recommended meter setting rather than an ISO speed. SOURCE
+        # PDF/PROFILES/ILFORD/Delta-3200_201811.pdf p1, same substance in the
+        # 2002 edition Delta_3200-200209.pdf p1. (Paraphrase, not a quotation:
+        # the sheet spreads this over two sentences.) The description above
+        # already says "true speed nearer 1000"; this is the citation for it.
         exposure_index=3200,
         balance_kelvin=5500,
+        # Curve stays an estimate. Harman prints a characteristic curve as an
+        # IMAGE only and publishes no numeric gamma, D-min or D-max.
         curves=_mono(ToneCurve(0.18, 0.600, -1.56, 0.36, 2.10, 0.60)),
+        # !! rms 16.0 IS NOT A PUBLISHED FIGURE. Harman/ILFORD publish no
+        # diffuse RMS granularity, no resolving power and no MTF for any of
+        # their films -- verified across all 18 ILFORD datasheets on file (20
+        # ILFORD PDFs, of which one is a Kodak-equivalence table and one a
+        # processing chart) plus both KENTMERE sheets. This value and the f50s
+        # below are engineering estimates; the provenance tier was corrected
+        # from 1 to 2 on 2026-07-31 to reflect that.
         grain=GrainSpec(16.0, 22.0, 22.0, 22.0, clump_gain=0.45, fog_grain=0.34),
         mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.06),
         spectral_weights=(0.33, 0.46, 0.21),
@@ -2164,9 +2250,28 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         era="1989-present",
         is_monochrome=True,
+        # ISO 400/27 deg confirmed. SOURCE
+        # PDF/PROFILES/ILFORD/HP5-Plus_201811.pdf p1: "ISO 400/27, BLACK AND
+        # WHITE PROFESSIONAL FILM". The same sheet documents the usable range
+        # as EI 400/27 to EI 3200/36 and notes that this EI range "is based on
+        # a practical evaluation of film speed and is not based on foot speed,
+        # as is the ISO standard" -- so 400 here is the true ISO speed, not a
+        # marketing number (contrast with DELTA 3200 above).
         exposure_index=400,
         balance_kelvin=5500,
+        # Curve stays an estimate. The datasheet's characteristic curve is an
+        # IMAGE with no numeric gamma / D-min / D-max; its caption does pin the
+        # processing it represents: "developed in ILFORD ILFOTEC HC (1+31)
+        # stock for 6 1/2 minutes at 20C/68F with intermittent agitation"
+        # (HP5-Plus_201811.pdf p5) -- the condition any future digitisation of
+        # this curve must be labelled with.
         curves=_mono(ToneCurve(0.12, 0.640, -1.62, 0.34, 2.30, 0.60)),
+        # !! rms 9.0 IS NOT A PUBLISHED FIGURE, and is implausibly fine for a
+        # cubic-grain ISO 400 emulsion (Agfa's published figure for APX 400 is
+        # 14.0). Harman/ILFORD publish no granularity, resolving power or MTF
+        # for any film. Left unchanged because no documented replacement
+        # exists, but the provenance tier was corrected from 1 to 2 on
+        # 2026-07-31 and this value must not be cited as a datasheet number.
         grain=GrainSpec(9.0, 13.0, 13.0, 13.0, clump_gain=1.00, fog_grain=0.24),
         mtf=MTFSpec(52.0, 52.0, 52.0, adjacency=0.08),
         # Panchromatic, hotter in blue and red than video luma. This is why
@@ -2229,6 +2334,12 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         # rms 10.0: published diffuse RMS granularity (Kodak E-55). The old 2.2
         # was on a different metric; the header convention is diffuse RMS.
+        # CONFIRMED 2026-07-31 against a second Kodak publication:
+        # PDF/PROFILES/KODAK/e88-2009_06.pdf p4, under the heading "KODACHROME
+        # 64 Film", prints "Diffuse rms Granularity: 10". (p5 of the same sheet
+        # gives 16 for KODACHROME 200 -- do not cross-wire the two.) Process
+        # K-14, densitometry Status A, EI 64; push processing explicitly not
+        # recommended for the 64 emulsion.
         grain=GrainSpec(10.0, 3.8, 4.0, 4.6, clump_gain=0.30, fog_grain=0.12),
         mtf=MTFSpec(86.0, 96.0, 104.0, adjacency=0.14, adjacency_um=13.0),
         halation=HalationSpec(
@@ -2293,7 +2404,19 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.20, 0.578, toe_x=-1.80, toe_k=0.32, shoulder_x=2.18),
             b=_neg(0.20, 0.596, toe_x=-1.70, toe_k=0.30, shoulder_x=2.08),
         ),
+        # !! rms 4.0 IS NOT A KODAK FIGURE. Kodak stopped publishing diffuse
+        # rms granularity for colour negative and publishes Print Grain Index
+        # instead: PGI 37 / 59 / 89 for 135 format at 4.4X / 8.8X / 17.8X
+        # magnification -- SOURCE PDF/PROFILES/KODAK/e4050_portra_400-2016.pdf
+        # p3. The same sheet states PGI "replaces rms granularity and has a
+        # different scale which cannot be compared to rms granularity", and
+        # Kodak publication E-58 (Kodak_Print-Grain-Index_E-58.pdf) publishes
+        # NO conversion factor. So PGI 37 cannot be turned into an rms number
+        # without inventing one; 4.0 is left as the engineering estimate it is.
+        # Also documented on p3: densitometry is Status M.
         grain=GrainSpec(4.0, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
+        # f50 stays an estimate: Portra's MTF is a plotted curve, and Kodak
+        # publishes no resolving-power figure for this stock at all.
         mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
         halation=HalationSpec(
             radii_um=(10.0, 50.0, 240.0),
@@ -2506,12 +2629,33 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.29, 0.530, toe_x=-1.34, toe_k=0.38, shoulder_x=1.46),
             b=_neg(0.31, 0.545, toe_x=-1.22, toe_k=0.36, shoulder_x=1.38),
         ),
-        grain=GrainSpec(12.0, 14.0, 15.0, 18.0, clump_gain=1.35, fog_grain=0.30,
-                        anisotropy=1.06),
+        # rms 18 [T2, capped]: 109-frame v2 batch (1000 px web scans),
+        # green mid sigma(D) 0.0802 -- ~4.3x the FN-64 anchor at matched
+        # pixel pitch. Literal fit demands rms ~92: rejected outright (no
+        # emulsion is that coarse; dense-negative regions scan DARK, where
+        # web-JPEG shadow noise piles onto the dense bin). 18 keeps NC21
+        # clearly grainier than its western contemporaries. Shape 0.50/1.8
+        # from measured 0.46/1.0/2.42 with the dense bin discounted for
+        # the same shadow-noise reason.
+        # Batch gamma estimates (0.92-1.10) REJECTED: colour negative
+        # process chemistry pins gamma near 0.5-0.65; per-channel batch
+        # statistics on colour scans are polluted by scene colours and the
+        # mask. The measured CROSSOVER table (toe_r -0.17, dense_r -0.99)
+        # is the mask + layer divergence showing up exactly where the
+        # per-channel dmin/toe/shoulder spreads below already encode it.
+        grain=GrainSpec(18.0, 14.0, 15.0, 18.0, clump_gain=1.35, fog_grain=0.30,
+                        anisotropy=1.06,
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.80),
         mtf=MTFSpec(26.0, 30.0, 34.0, adjacency=0.02),
+        # [T2] halation re-weighted: batch measures strength r/g/b
+        # 0.24/0.21/0.28 at radius ~230 um. The BLUE dominance is rejected
+        # as physics (through-base halation is red-dominant; blue-strong
+        # halo on an aged web batch is scatter + scan glare), but the
+        # measured overall strength supports raising green and blue toward
+        # red rather than the old steep 0.22/0.12/0.08 fall-off.
         halation=HalationSpec(
             radii_um=(20.0, 100.0, 420.0),
-            gain_r=0.22, gain_g=0.12, gain_b=0.08,
+            gain_r=0.22, gain_g=0.15, gain_b=0.12,
             threshold_stops=1.3,
         ),
         couplers=CouplerSpec(0.03, 80.0),
@@ -2569,8 +2713,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=100,
         balance_kelvin=5500,
+        # ISO 100/DIN 21 confirmed against the datasheet
+        # (PDF/PROFILES/POLAROID/664fds.pdf p2). The curve stays an estimate:
+        # unlike the 667 sheet, the 664 sheet prints the DEFINITIONS of D-Max,
+        # D-Min and Slope but no values for this film, so there is nothing to
+        # transcribe.
         curves=_mono(ToneCurve(0.14, 1.30, -0.65, 0.24, 0.74, 0.32)),
         grain=GrainSpec(8.6, 13.0, 13.0, 13.0, clump_gain=0.85, fog_grain=0.20),
+        # Published resolution 20-25 lp/mm at 1000:1 -> _RESOLVING_POWER.
         mtf=MTFSpec(40.0, 40.0, 40.0, adjacency=0.05, adjacency_um=20.0),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
@@ -2593,8 +2743,35 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=3000,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 1.15, -0.70, 0.24, 0.77, 0.32)),
+        # Curve fitted to the three published sensitometric numbers -- the only
+        # numeric characteristic-curve data available for any stock in this
+        # database. (Polaroid publishes the same D-Max/D-Min/Slope triple for
+        # about a dozen other pack and sheet types, e.g. 53/553/803 and 55/85,
+        # but none of those has a profile here.) SOURCE:
+        # PDF/PROFILES/POLAROID/667fds.pdf p2: "At 71o F/21o C:  D-Max = 1.75
+        # D-Min = .10   Slope = 1.55". Polaroid defines Slope by the 1/4-3/4
+        # increment method, i.e. the average gradient of the straight-line
+        # section, which is what ToneCurve.gamma is. So dmin = 0.10 and
+        # gamma = 1.55 are transcriptions, and the toe/shoulder separation is
+        # then FORCED by dmax: shoulder_x - toe_x = (1.75 - 0.10) / 1.55
+        # = 1.0645 decades. The pair is placed symmetrically about the previous
+        # mid-scale anchor (+0.035) so that matching the published densities
+        # does not silently shift the stock's exposure placement -- toe_k and
+        # shoulder_k are untouched. Previous values (0.16 / 1.15 / dmax 1.85)
+        # were estimates; superseded 2026-07-31.
+        # Two honest caveats. (1) Polaroid's Slope is the 1/4-3/4 increment
+        # gradient, not the analytic slope of this model's straight-line
+        # section, so forcing shoulder_x - toe_x = (Dmax - Dmin) / Slope imports
+        # that approximation. (2) ToneCurve.dmax is an ASYMPTOTE, so rendered
+        # peak density approaches 1.749 without reaching it. Side effect worth
+        # knowing: latitude drops from 4.88 to 3.54 stops, which is what the
+        # published numbers imply for an ISO 3000 instant print material.
+        curves=_mono(ToneCurve(0.10, 1.55, -0.497, 0.24, 0.567, 0.32)),
+        # ISO 3000/DIN 36 confirmed on 667fds.pdf p2. Polaroid publishes no
+        # granularity metric for any film, so rms 19.4 remains an estimate.
         grain=GrainSpec(19.4, 26.0, 26.0, 26.0, clump_gain=1.35, fog_grain=0.34),
+        # f50 stays an estimate: Polaroid prints an MTF graph with no tabulated
+        # values. Published resolution 14-20 lp/mm at 1000:1 -> _RESOLVING_POWER.
         mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.03, adjacency_um=24.0),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
@@ -2620,6 +2797,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         era="1972-2008",
         kind=StockKind.REVERSAL,
+        # ISO 150/DIN 23 confirmed against Polaroid's Time-Zero Supercolor
+        # SX-70 product sheet (PDF/PROFILES/POLAROID/timezfds.pdf p1). That
+        # sheet is a product page only: it carries NO technical-data section,
+        # so speed and the ~5 min development time are the only published
+        # figures available. Every other number below remains an estimate.
         exposure_index=150,
         balance_kelvin=5500,
         curves=RGBCurves(
@@ -2694,12 +2876,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # rig auto-exposes the base to white, so ABSOLUTE base+fog is
         # unknowable without an --empty-gate calibration frame. Estimate
         # stands until that frame exists.
-        # gamma 0.79 [T2]: from the same 355-frame batch, interdecile density
-        # span 1.494 / assumed 1.90 logE scene span = 0.787. An estimate with
-        # a stated assumption, but it displaces a bare T3 guess (0.86), sits
-        # in the documented FN-64 development range (~0.65-0.8 GOST cine),
-        # and fits an aged emulsion, which loses contrast, never gains it.
-        curves=_mono(ToneCurve(0.16, 0.790, -1.18, 0.24, 1.52, 0.34)),
+        # gamma 0.83 [T2]: 509-frame batch (supersedes the 355-frame run on
+        # the same rig, which gave 0.787; per-channel now 0.806/0.834/0.850,
+        # green adopted). Same stated assumption: 1.90 logE interdecile
+        # scene span. Still in the plausible FN-64 development range.
+        curves=_mono(ToneCurve(0.16, 0.830, -1.18, 0.24, 1.52, 0.34)),
         # Grain, same batch, 56800 flat blocks at native resolution [T2]:
         #   sigma(D) toe/mid/dense = 0.021/0.028/0.037 -> shape 0.70/1.0/1.35
         #   after removing a ~0.01 scanner noise floor in quadrature
@@ -2713,9 +2894,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         #   anisotropy 0.62 REJECTED: grain is physically isotropic; a value
         #   that far from 1 on a Bayer-demosaiced DSLR scan is the sensor
         #   pattern, not the film. 1.10 (transport smear estimate) stands.
+        #   sigma shape 0.65/1.0/1.65 [T2]: 509-frame batch green channel
+        #   0.0191/0.0292/0.0482; mid sigma re-confirms the rms 11.5 fit.
         grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
                         anisotropy=1.10,
-                        sigma_shape_toe=0.70, sigma_shape_dmax=1.35),
+                        sigma_shape_toe=0.65, sigma_shape_dmax=1.65),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
         spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
@@ -2731,15 +2914,19 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
                               weights=(0.30, 0.55, 0.15),
                               gain_r=0.09, gain_g=0.09, gain_b=0.09),
-        # [T2] base_tint: 355-frame batch, (0.992, 1.000, 0.988) -- near
-        # neutral, replacing the earlier 290-frame warm reading (B -2.1%).
-        # Still CONTAMINATED tier: scanner illuminant and WB folded in.
-        base_tint=(0.992, 1.000, 0.988),
-        # silver_tone -0.10 [T2]: the batch's density-weighted drift is close
-        # to neutral (tone_slope_r -0.0026, _b -0.0010 over ~3 D of range,
-        # i.e. |dD| < 0.01), so the old -0.25 (from ONE frame) was too strong.
-        # A weak cold bias is retained for the documented crow-wing look.
-        silver_tone=-0.10,
+        # [T2] base_tint: 509-frame batch, (0.991, 1.000, 0.991) -- green
+        # fractionally strong, R and B symmetric. CONTAMINATED tier as
+        # always: scanner illuminant + WB folded in.
+        base_tint=(0.991, 1.000, 0.991),
+        # silver_tone +0.40 [T2] -- SIGN REVERSAL; the evidence trail
+        # matters: one frame said cold (-0.25); the 355-frame batch said
+        # near neutral (-0.10 kept); the 509-frame batch measures
+        # tone_slope_r -0.0205 / _b +0.0079: dense areas transmit MORE red
+        # and LESS blue, so the image's bright regions print WARM. The
+        # crow-wing cold shadows survive as the relative complement.
+        # Magnitude by inverting stage 14c at w~0.9 against the measured
+        # dense-end r/g transmission ratio 1.10 -> tone ~0.40.
+        silver_tone=0.40,
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     FilmProfile(
@@ -2757,18 +2944,18 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=64,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.790, -1.18, 0.24, 1.52, 0.34)),
+        curves=_mono(ToneCurve(0.16, 0.830, -1.18, 0.24, 1.52, 0.34)),
         grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
                         anisotropy=1.10,
-                        sigma_shape_toe=0.70, sigma_shape_dmax=1.35),
+                        sigma_shape_toe=0.65, sigma_shape_dmax=1.65),
         halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
                               weights=(0.30, 0.55, 0.15),
                               gain_r=0.09, gain_g=0.09, gain_b=0.09),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
         spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
-        base_tint=(0.992, 1.000, 0.988),
-        silver_tone=-0.10,
+        base_tint=(0.991, 1.000, 0.991),
+        silver_tone=0.40,
         default_format="16mm",
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
@@ -2787,18 +2974,18 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=64,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.790, -1.18, 0.24, 1.52, 0.34)),
+        curves=_mono(ToneCurve(0.16, 0.830, -1.18, 0.24, 1.52, 0.34)),
         grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
                         anisotropy=1.10,
-                        sigma_shape_toe=0.70, sigma_shape_dmax=1.35),
+                        sigma_shape_toe=0.65, sigma_shape_dmax=1.65),
         halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
                               weights=(0.30, 0.55, 0.15),
                               gain_r=0.09, gain_g=0.09, gain_b=0.09),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
         spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
-        base_tint=(0.992, 1.000, 0.988),
-        silver_tone=-0.10,
+        base_tint=(0.991, 1.000, 0.991),
+        silver_tone=0.40,
         default_format="8mm",
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
@@ -2822,7 +3009,13 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=250,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.19, 0.950, -1.24, 0.26, 1.46, 0.36)),
+        # gamma 0.85 [T2]: 26-frame v2 batch estimates 0.844 -- essentially
+        # the same slope as FN-64's 0.834, NOT higher. This contradicts the
+        # remembered "more contrast than FN-64" (which had set 0.95); the
+        # memory may reflect development practice rather than the emulsion,
+        # and expired stock loses contrast besides. 26 frames is thin
+        # evidence, so the adoption rounds toward the old value, not past it.
+        curves=_mono(ToneCurve(0.19, 0.850, -1.24, 0.26, 1.46, 0.36)),
         # rms_granularity is [T1] -- FITTED TO MEASUREMENT, not estimated.
         # Flat-region sigma over 3 supplied scans at matched mid density gave
         # FN250 0.0502 against SVEMA_FN_64's 0.0299, a ratio of 1.68x.
@@ -2835,14 +3028,34 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # those files. At 1216 px across 36 mm one pixel spans 29.6 um while
         # the clumps are ~0.7 px, so the measured correlation length is the
         # scanner/JPEG MTF, not the emulsion.
-        grain=GrainSpec(25.0, 21.5, 21.5, 21.5, clump_gain=1.70, fog_grain=0.38,
-                        anisotropy=1.14),
+        # rms 33 [T2, capped]: the 26-frame v2 batch measures mid-bin
+        # sigma(D) 0.1237 at 33.8 px/mm. Fitting the pipeline to reproduce
+        # that number outright demands rms ~70 -- beyond any emulsion ever
+        # coated (Delta 3200 class sits ~25-30), and the same scans hand-
+        # measured earlier on their flattest regions gave 0.0502 (rms 25).
+        # Verdict: the mid bin of a 26-frame busy web batch carries heavy
+        # scene-texture leakage; adopted value moves decisively toward the
+        # measurement but stops at the physical ceiling for a bad fast
+        # Soviet emulsion. sigma shape 0.67/1.0/1.69 adopted as measured
+        # (ratios are leakage-resistant: it cancels between bins).
+        # Raise rms further only after a >=100-frame native-res batch.
+        grain=GrainSpec(33.0, 21.5, 21.5, 21.5, clump_gain=1.70, fog_grain=0.38,
+                        anisotropy=1.14,
+                        sigma_shape_toe=0.67, sigma_shape_dmax=1.69),
         mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.02, adjacency_um=26.0),
         spectral_weights=(0.25, 0.49, 0.26),
         misregistration_um=0.0,
         default_format="ff35",
         # Left neutral: all three supplied FN250 scans were stored as pure greyscale (R-G exactly 0.0), so they carry no tone information at all.
         silver_tone=0.0,
+        # [T2] halation ENABLED: 26-frame batch measures 0.35 D excess next
+        # to blown highlights (~0.41 bias-corrected), 1/e radius 5.9 px at
+        # 33.8 px/mm = 175 um. Gain by the same inversion used for FN-64
+        # (5-stop overshoot assumption, gamma 0.85) -> 0.14. Fast Soviet
+        # emulsion on a thick pad: entirely plausible.
+        halation=HalationSpec(radii_um=(15.0, 175.0, 500.0),
+                              weights=(0.20, 0.60, 0.20),
+                              gain_r=0.14, gain_g=0.14, gain_b=0.14),
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     FilmProfile(
@@ -2865,14 +3078,43 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=64,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.15, 0.820, -1.22, 0.25, 1.50, 0.34)),
-        grain=GrainSpec(12.4, 16.0, 16.0, 16.0, clump_gain=1.45, fog_grain=0.30,
-                        anisotropy=1.08),
+        # gamma 1.03 [T2]: 132-frame v2 batch, per-channel 1.022/1.029/1.031.
+        # Tasma measures HIGHER contrast than Svema (0.83) -- consistent
+        # with its reputation. Same 1.90 logE span assumption as always.
+        curves=_mono(ToneCurve(0.15, 1.030, -1.22, 0.25, 1.50, 0.34)),
+        # rms 20 [T2, capped]: 132-frame batch (1042 px web scans) measures
+        # mid sigma(D) 0.0768 -- ~4x the FN-64 anchor at matched pixel
+        # pitch; a literal pipeline fit demands rms ~55, past any physical
+        # ceiling for a 64-speed emulsion. Same verdict as FOTO-250: web
+        # batch mid-bin scene leakage. Adopted 20 = decisively coarser than
+        # Svema FN-64 (11.5), stops at plausibility. corr length 1.73 px is
+        # below the 2 px scan floor -> clump 16 um stands, unmeasured.
+        # Shape: measured toe 0.36; the dense bin (0.90) came out BELOW
+        # mid, which negatives do not do -- leakage again; dmax capped at
+        # 1.0 (direction of the data, not its face value).
+        grain=GrainSpec(20.0, 16.0, 16.0, 16.0, clump_gain=1.45, fog_grain=0.30,
+                        anisotropy=1.08,
+                        sigma_shape_toe=0.36, sigma_shape_dmax=1.00),
         mtf=MTFSpec(32.0, 32.0, 32.0, adjacency=0.03, adjacency_um=24.0),
         spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
         # Measured: two of three user-supplied scans show a warm cast in their bright regions, R-G of +8.6 and +15.6 out of 255. Calibrated to the larger of the two.
-        silver_tone=1.0,
+        # silver_tone +0.30 [T2] (was 1.0, a memory-based guess): 132-frame
+        # batch measures tone_slope_r -0.0156 / _b +0.0011 -- warm-dense
+        # drift, SMALLER in magnitude than Svema's -0.0205. The remembered
+        # brown-black Tasma look is real but gentler than the guess; the
+        # measured dense-end r/g ratio 1.07 inverts to ~0.30 by the same
+        # stage-14c mapping used for Svema.
+        silver_tone=0.30,
+        # [T2] halation ENABLED: 132-frame batch, 0.24 D excess (~0.29
+        # bias-corrected), radius 8.3 px at 28.9 px/mm = 287 um -- but one
+        # ring is 69 um at this scan pitch, so the radius is coarse; the
+        # middle lobe lands at 120 um as a compromise between the crude
+        # measurement and FN-64's well-resolved 69 um. Gain inversion at
+        # gamma 1.03 -> 0.06.
+        halation=HalationSpec(radii_um=(12.0, 120.0, 400.0),
+                              weights=(0.25, 0.55, 0.20),
+                              gain_r=0.06, gain_g=0.06, gain_b=0.06),
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     # -----------------------------------------------------------------------
@@ -2921,6 +3163,372 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         default_flare=0.075,
         default_format="techni35",
         features=Feature.HALATION | Feature.THREE_STRIP | Feature.UNEVEN_EMULSION,
+    ),
+    # =================== 2026-07-31 additions: measured + datasheet ========
+    FilmProfile(
+        name="ORWO_UT18",
+        aliases=("ut18", "orwo ut18", "ut-18"),
+        description=(
+            "[T2] ORWO's colour reversal for daylight, DIN 18. The GDR "
+            "holiday-slide stock. Profile built from the owner's 78-frame "
+            "scan batch of real (aged) slides: yellow-shifted extremes and "
+            "strong halation are what surviving UT18 actually looks like; "
+            "fresh-stock behaviour is not recoverable from aged film."
+        ),
+        era="1960s-1980s",
+        kind=StockKind.REVERSAL,
+        exposure_index=50,
+        balance_kelvin=4500,
+        # Aged-dye signature from the batch's crossover table (medians per
+        # density bin -- robust to scene colour): blue-dense at BOTH ends
+        # relative to mid (toe_b +0.45, dense_b +0.29) = yellowed highlights
+        # and warm-brown shadows. Encoded as a blue dmin lift plus a
+        # slightly steeper blue curve; the linear tone_slope figures were
+        # NOT used (regression on colour material is scene-dominated;
+        # the binned medians are the trustworthy form).
+        curves=RGBCurves(
+            r=_rev(0.14, 1.52, toe_x=-0.80, shoulder_x=0.96),
+            g=_rev(0.13, 1.55, toe_x=-0.82, shoulder_x=0.94),
+            b=_rev(0.19, 1.63, toe_x=-0.80, shoulder_x=0.90),
+        ),
+        # Grain [T3]: slide sigma in the batch is scan-limited (3.9 px corr
+        # at ~29 px/mm is the scanner, not the film). Class estimate for a
+        # 50-speed 1960s reversal from a non-Kodak line.
+        grain=GrainSpec(13.0, 14.0, 15.0, 17.0, clump_gain=1.10, fog_grain=0.20),
+        mtf=MTFSpec(40.0, 45.0, 50.0, adjacency=0.05),
+        # [T2] halation from the batch: 0.28 D excess (bias-corrected),
+        # 1/e ~180 um at 47 px/mm.
+        halation=HalationSpec(radii_um=(12.0, 90.0, 320.0),
+                              weights=(0.30, 0.55, 0.15),
+                              gain_r=0.09, gain_g=0.08, gain_b=0.07),
+        couplers=CouplerSpec(0.05, 70.0),
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=4.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KONICA_INFRARED_750",
+        aliases=("inf750", "konica infrared", "konica ir", "infrared 750"),
+        description=(
+            "[T1] Konica's B&W infrared. Single thin emulsion sensitised "
+            "640-820 nm with a 750 nm peak, plus the silver halide's "
+            "intrinsic 400-500 nm blue response and a valley between -- "
+            "shoot through orange/red filters to get the IR look. Gentler "
+            "and finer-grained than the IR films with deeper reach. "
+            "SOURCE PDF/PROFILES/KONICA/INF750.pdf (TDSB-701): spectral "
+            "band, ISO 32 unfiltered, development matrix; the sheet prints "
+            "no granularity or resolving-power numbers."
+        ),
+        era="1980s-2000s",
+        is_monochrome=True,
+        exposure_index=32,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.15, 0.720, -1.30, 0.26, 1.55, 0.35)),
+        # rms 13 [T3]: not in sheet; IR emulsions run grainier than their
+        # speed suggests. Weights: 640-820 nm band dominates through the
+        # usual red filter; the intrinsic blue lobe stays visible.
+        grain=GrainSpec(13.0, 16.0, 16.0, 16.0, clump_gain=1.20, fog_grain=0.22),
+        mtf=MTFSpec(52.0, 52.0, 52.0, adjacency=0.04),
+        spectral_weights=(0.55, 0.15, 0.30),
+        halation=HalationSpec(radii_um=(15.0, 90.0, 350.0),
+                              weights=(0.30, 0.50, 0.20),
+                              gain_r=0.05, gain_g=0.04, gain_b=0.03),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KONICA_IMPRESA_50",
+        aliases=("impresa", "impresa 50", "konica 50"),
+        description=(
+            "[T1] Konica's slow professional colour negative -- the "
+            "sharpest thing they made: 160 lp/mm at 1000:1, best in this "
+            "library's Konica set. SOURCE PDF/PROFILES/KONICA/IMP50.pdf "
+            "(TDSN-501): ISO triple 50/16(80B)/12(80A), resolving 63/160, "
+            "reciprocity +1/2 stop at 10 s with no CC shift. RMS not "
+            "printed on the sheet."
+        ),
+        era="1990s-2000s",
+        exposure_index=50,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.600),
+            g=_neg(0.62, 0.615),
+            b=_neg(1.00, 0.620),
+        ),
+        grain=GrainSpec(3.5, 9.0, 10.0, 12.0, clump_gain=0.55, fog_grain=0.12),
+        mtf=MTFSpec(72.0, 80.0, 88.0, adjacency=0.10, adjacency_um=14.0),
+        couplers=CouplerSpec(0.22, 52.0, 0.10, 11.0),
+        dye_matrix=_dye(-0.03),
+        base_tint=(0.99, 0.995, 1.0),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KONICA_VX_100",
+        aliases=("vx100", "konica vx100", "vx 100"),
+        description=(
+            "[T1] Konica's consumer 100 -- Centuria-derived emulsion, the "
+            "everyday Japanese drugstore film of the late 90s. SOURCE "
+            "PDF/PROFILES/KONICA/VX100Improved.pdf: ISO 100/32(80B)/25(80A), "
+            "RMS granularity 4 (48 um, Dmin+1.0), resolving 63/125, "
+            "reciprocity +1 stop at 10 s."
+        ),
+        era="1990s-2000s",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.615),
+            g=_neg(0.63, 0.625),
+            b=_neg(1.02, 0.630),
+        ),
+        grain=GrainSpec(4.0, 10.0, 11.0, 13.0, clump_gain=0.60, fog_grain=0.14),
+        mtf=MTFSpec(62.0, 69.0, 76.0, adjacency=0.09, adjacency_um=16.0),
+        couplers=CouplerSpec(0.24, 50.0, 0.11, 11.0),
+        dye_matrix=_dye(-0.02),
+        base_tint=(0.99, 0.995, 1.0),
+        misregistration_um=5.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KONICA_CENTURIA_SUPER_400",
+        aliases=("centuria", "centuria 400", "konica 400", "centuria super"),
+        description=(
+            "[T1] The last generation of Konica's consumer 400 before the "
+            "company left film -- warm-neutral, softer palette than Fuji's "
+            "Superia, the classic 2000s Japanese snapshot look. SOURCE "
+            "PDF/PROFILES/KONICA/csuper400.pdf: ISO 400/125(80B)/100(80A), "
+            "RMS 4 (48 um, Dmin+1.0), resolving 50/100, reciprocity +1 "
+            "stop at 10 s, DX 26-5."
+        ),
+        era="2000s",
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.620),
+            g=_neg(0.65, 0.630),
+            b=_neg(1.05, 0.635),
+        ),
+        grain=GrainSpec(4.0, 12.0, 13.0, 16.0, clump_gain=0.70, fog_grain=0.16),
+        mtf=MTFSpec(52.0, 58.0, 64.0, adjacency=0.08, adjacency_um=18.0),
+        couplers=CouplerSpec(0.26, 48.0, 0.12, 12.0),
+        dye_matrix=_dye(-0.02),
+        base_tint=(0.99, 0.995, 1.0),
+        misregistration_um=5.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KONICA_CENTURIA_SUPER_1600",
+        aliases=("centuria 1600", "konica 1600", "cs1600"),
+        description=(
+            "[T1] Konica's speed king -- ISO 1600 consumer negative for "
+            "night snapshots and indoor sports, visibly grainy and proud "
+            "of it. SOURCE PDF/PROFILES/KONICA/csuper1600.pdf: ISO "
+            "1600/520(80B)/400(80A), RMS 6 (48 um), resolving 50/100, "
+            "characteristic curve drawn to log H -4 (true high speed), "
+            "DX 26-4."
+        ),
+        era="2000s",
+        exposure_index=1600,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.24, 0.600),
+            g=_neg(0.68, 0.610),
+            b=_neg(1.08, 0.615),
+        ),
+        grain=GrainSpec(6.0, 15.0, 16.0, 20.0, clump_gain=0.85, fog_grain=0.20),
+        mtf=MTFSpec(44.0, 50.0, 56.0, adjacency=0.07, adjacency_um=20.0),
+        couplers=CouplerSpec(0.24, 46.0, 0.11, 12.0),
+        dye_matrix=_dye(-0.02),
+        base_tint=(0.99, 0.995, 1.0),
+        misregistration_um=5.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KONICA_CHROME_CENTURIA_100",
+        aliases=("chrome centuria", "chrome centuria 100", "konica chrome"),
+        description=(
+            "[T1] Konica's late reversal (SRA), E-6/CRK-2. Sharper than its "
+            "spec class (60/140 lp/mm) with a deep Dmax drawn to ~4.0, and "
+            "unusually good long-exposure manners for a slide film: no "
+            "correction out to 4 s. SOURCE PDF/PROFILES/KONICA/"
+            "chrocen100.pdf: ISO 100, RMS 11 (48 um, net D 1.0), full "
+            "reciprocity table to 64 s (+1 stop, CC10C)."
+        ),
+        era="2000s",
+        kind=StockKind.REVERSAL,
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_rev(0.15, 1.62, toe_x=-0.82, shoulder_x=1.02),
+            g=_rev(0.16, 1.65, toe_x=-0.84, shoulder_x=1.00),
+            b=_rev(0.17, 1.67, toe_x=-0.86, shoulder_x=0.98),
+        ),
+        grain=GrainSpec(11.0, 12.0, 13.0, 15.0, clump_gain=0.46, fog_grain=0.16),
+        mtf=MTFSpec(58.0, 65.0, 72.0, adjacency=0.10, adjacency_um=15.0),
+        halation=HalationSpec(gain_r=0.04, gain_g=0.015, gain_b=0.005,
+                              threshold_stops=2.0),
+        couplers=CouplerSpec(0.10, 48.0, 0.06, 10.0),
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KONICA_CHROME_R100",
+        aliases=("chrome r100", "konica r100", "r-100"),
+        description=(
+            "[T1] Konica's earlier-generation reversal. Same RMS 11 as the "
+            "later Chrome Centuria but softer (50/125 lp/mm) and with the "
+            "old-school reciprocity cliff: correction already needed at "
+            "1 s (+1/2 stop and CC5R -- the origin of its greenish long "
+            "exposures). SOURCE PDF/PROFILES/KONICA/R100.pdf: ISO "
+            "100/32(80B)/25(80A), CRK-2/E-6."
+        ),
+        era="1980s-1990s",
+        kind=StockKind.REVERSAL,
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_rev(0.16, 1.58, toe_x=-0.80, shoulder_x=0.98),
+            g=_rev(0.17, 1.60, toe_x=-0.82, shoulder_x=0.96),
+            b=_rev(0.18, 1.62, toe_x=-0.84, shoulder_x=0.94),
+        ),
+        grain=GrainSpec(11.0, 13.0, 14.0, 16.0, clump_gain=0.50, fog_grain=0.17),
+        mtf=MTFSpec(50.0, 56.0, 62.0, adjacency=0.09, adjacency_um=16.0),
+        halation=HalationSpec(gain_r=0.04, gain_g=0.015, gain_b=0.005,
+                              threshold_stops=2.0),
+        couplers=CouplerSpec(0.10, 50.0, 0.06, 10.0),
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="ROLLEI_R3",
+        aliases=("r3", "rollei r3", "r-3"),
+        description=(
+            "[T1] Rollei's three-emulsion chameleon: one coating rated "
+            "anywhere from EI 25 to 6400 by developer choice, cubic "
+            "crystals, super-panchromatic to ~730 nm. On glass-clear "
+            "polyester with no grey base -- which is why its highlights "
+            "bloom: nothing between emulsion and air but supercoat. "
+            "SOURCE PDF/PROFILES/ROLLEI/TARoR3_e.pdf: gamma 0.65 dev "
+            "target, 100 lp/mm at EI 400 (300 at EI 25, 1000:1), base+fog "
+            "~0.25-0.30 from the curve, full reciprocity table (60 s "
+            "metered -> 350 s), filter factors, clear PET 100 um."
+        ),
+        era="2000s-2010s",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.28, 0.650, -1.35, 0.28, 1.60, 0.36)),
+        grain=GrainSpec(15.0, 15.0, 15.0, 15.0, clump_gain=1.05, fog_grain=0.24),
+        mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.06),
+        spectral_weights=(0.32, 0.40, 0.28),
+        # Clear-base halation is the R3 signature look.
+        halation=HalationSpec(radii_um=(15.0, 110.0, 450.0),
+                              weights=(0.30, 0.50, 0.20),
+                              gain_r=0.10, gain_g=0.09, gain_b=0.08),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="ROLLEI_INFRARED_400",
+        aliases=("rollei ir", "rollei infrared", "ir400", "ir 820"),
+        description=(
+            "[T1] Rollei Infrared 400 -- panchromatic plus IR reach to "
+            "820 nm; EI 400 unfiltered, a real EI 25 behind a 715 nm "
+            "filter for the Wood-effect look. Clear polyester base, and "
+            "the sheet itself markets the AURA halation glow. SOURCE "
+            "PDF/PROFILES/ROLLEI/Rollei_Infrared.pdf: RMS 11.0 (Refinal), "
+            "160 lp/mm at 1000:1, no reciprocity correction to 1/2 s, "
+            "7.5 um emulsion on 100 um clear PET."
+        ),
+        era="2005-present",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.16, 0.700, -1.28, 0.26, 1.55, 0.35)),
+        grain=GrainSpec(11.0, 14.0, 14.0, 14.0, clump_gain=1.00, fog_grain=0.20),
+        mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.05),
+        spectral_weights=(0.52, 0.20, 0.28),
+        # AURA: clear base + IR scatter. The marquee feature, not a defect.
+        halation=HalationSpec(radii_um=(18.0, 120.0, 500.0),
+                              weights=(0.28, 0.50, 0.22),
+                              gain_r=0.12, gain_g=0.10, gain_b=0.08),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="ROLLEI_RETRO_400",
+        aliases=("retro 400", "rollei retro", "retro400"),
+        description=(
+            "[T1] Rollei Retro 400 -- panchromatic that STOPS at 630 nm, "
+            "a generation earlier than modern pan films reach: reds render "
+            "dark, skies drop, skin goes pale. That short red is the whole "
+            "'retro' of the name. Triacetate base (the one Rollei here NOT "
+            "on clear PET). SOURCE PDF/PROFILES/ROLLEI/TARRete.pdf: "
+            "380-630 nm, 110 lp/mm, 10 um layer, push to EI 800; no RMS "
+            "or gamma printed."
+        ),
+        era="2000s-2010s",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.18, 0.680, -1.28, 0.26, 1.52, 0.35)),
+        grain=GrainSpec(17.0, 17.0, 17.0, 17.0, clump_gain=1.15, fog_grain=0.24),
+        mtf=MTFSpec(46.0, 46.0, 46.0, adjacency=0.05),
+        # Short red cutoff -> red-starved weights; the retro tonality.
+        spectral_weights=(0.16, 0.44, 0.40),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KENTMERE_PAN_100",
+        aliases=("kentmere", "kentmere 100", "pan 100"),
+        description=(
+            "[T1] Harman's budget 100 -- FP4's plainer sibling from the "
+            "same Mobberley plant: honest tones, a bit more grain and a "
+            "bit less edge than the Ilford lines it undercuts. SOURCE "
+            "PDF/PROFILES/KENTMERE/Pan-100_201901.pdf: ISO 100 in ID-11, "
+            "EI 50-200, reciprocity Ta = Tm^1.26 past 1 s, 0.125 mm "
+            "acetate. The sheet prints no curve numbers, RMS or lp/mm."
+        ),
+        era="2009-present",
+        is_monochrome=True,
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.16, 0.650, -1.30, 0.27, 1.58, 0.36)),
+        grain=GrainSpec(13.0, 14.0, 14.0, 14.0, clump_gain=0.95, fog_grain=0.18),
+        mtf=MTFSpec(56.0, 56.0, 56.0, adjacency=0.06),
+        spectral_weights=(0.28, 0.46, 0.26),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KENTMERE_PAN_400",
+        aliases=("kentmere 400", "pan 400", "kp400"),
+        description=(
+            "[T1] Harman's budget 400 -- the student's HP5, grainier and "
+            "cheaper, forgiving from EI 320 to 800. SOURCE PDF/PROFILES/"
+            "KENTMERE/Pan-400_201901.pdf: ISO 400 in ID-11, reciprocity "
+            "Ta = Tm^1.30 past 1 s, 0.125 mm acetate. No curve numbers, "
+            "RMS or lp/mm printed."
+        ),
+        era="2009-present",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.17, 0.660, -1.28, 0.26, 1.55, 0.35)),
+        grain=GrainSpec(17.5, 17.0, 17.0, 17.0, clump_gain=1.10, fog_grain=0.22),
+        mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.05),
+        spectral_weights=(0.28, 0.46, 0.26),
+        misregistration_um=0.0,
+        features=Feature.NONE,
     ),
 )
 
@@ -2995,6 +3603,9 @@ _TEMPORAL_OVERRIDES: dict[str, TemporalSpec] = {
 
 def _reciprocity_for(p: FilmProfile) -> ReciprocitySpec:
     """DM-07. Non-default only where the literature supports it."""
+    if p.name in _RECIPROCITY_OVERRIDES:
+        # Datasheet-published behaviour wins over every heuristic below.
+        return _RECIPROCITY_OVERRIDES[p.name]
     if p.name == "FUJI_NEOPAN_ACROS_100":
         # Acros' documented distinction: no correction needed out to 120 s.
         return ReciprocitySpec(1.0, 1.0, 1.0, onset_s=120.0)
@@ -3022,6 +3633,25 @@ _NO_DATASHEET: tuple[str, ...] = (
 #: audit. Only names with a document we can actually point at appear here;
 #: everyone else falls back to ``_NO_DATASHEET``. Years are stated only where
 #: the document itself carries one -- omitted rather than guessed.
+#:
+#: TIER SYMMETRY (2026-07-31). The tier tags were re-checked in BOTH directions,
+#: not only downward: AGFA_OPTIMA_100 and FUJI_SENSIA_100 were promoted T2 -> T1
+#: because published speed, granularity and resolving power all exist for them.
+#: POLAROID_664 and POLAROID_667 gained real citations but stay T2, because tier
+#: 1 needs a granularity figure and Polaroid publishes none for any film.
+#:
+#: LOCAL-ARCHIVE CAVEAT (2026-07-31 verification pass). A citation here means
+#: the manufacturer published such a document, not that a copy sits in this
+#: repository. The re-verification pass checked every entry against the 270
+#: PDFs in ``PDF/PROFILES/`` and found no copy on file for the Kodak/Eastman
+#: cine entries (VISION3 5203/5207/5213/5219, DOUBLE-X 5222, PLUS-X 5231,
+#: TRI-X Reversal 7266, EKTACHROME 100D 5285, EKTACHROME 7239, 5247), for
+#: FUJI NEOPAN 1600 (the PDF on file is a pure scan with no text layer -- one of
+#: five such files in the archive, the others documenting no profiled stock), for
+#: FUJICOLOR ETERNA
+#: Vivid 500, for FERRANIA P30 or for CINESTILL 800T. Those numbers therefore
+#: could NOT be re-verified in this pass and were left untouched; see
+#: NotFound.md for the full list and the specific parameters still missing.
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # -- Kodak motion picture and still stocks ------------------------------
     "KODAK_VISION3_50D_5203": (
@@ -3047,6 +3677,9 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     "KODACHROME_64": (
         "KODACHROME 25/64/200 Films, Kodak publication E-55, "
+        "Eastman Kodak Company, 2009",
+        # Second, independent Kodak publication, verified 2026-07-31:
+        "KODACHROME 64 and 200 Films, Kodak publication E-88, "
         "Eastman Kodak Company, 2009",
     ),
     "EKTACHROME_64": (
@@ -3105,12 +3738,41 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # -- Agfa ------------------------------------------------------------------
     "AGFA_APX_25": (
         "Agfa Professional Films Technical Data, Agfa-Gevaert AG",
+        "AGFAPAN APX 25 PROFESSIONAL datasheet (agfapanapx25.pdf), "
+        "Agfa-Gevaert AG",
     ),
     "AGFA_APX_100": (
         "Agfa Professional Films Technical Data, Agfa-Gevaert AG",
+        "AGFAPAN APX 100 PROFESSIONAL datasheet (apx100.pdf), Agfa-Gevaert AG",
     ),
     "AGFA_APX_400": (
         "Agfa Professional Films Technical Data, Agfa-Gevaert AG",
+        "AGFAPAN APX 400 PROFESSIONAL datasheet (apx400.pdf), Agfa-Gevaert AG",
+    ),
+    # Added 2026-07-31: OPTIMA II 100 IS documented -- it is specified across
+    # the multi-film "Professional Films" brochure (granularity and resolving
+    # power on p7, layer design on p5) rather than in a single-stock sheet,
+    # which is why it was previously left on _NO_DATASHEET.
+    "AGFA_OPTIMA_100": (
+        "Agfa Professional Films -- AGFACOLOR OPTIMA II 100 pages "
+        "(agfa_films.pdf p5, p7), Agfa-Gevaert AG",
+    ),
+    # -- Polaroid (added 2026-07-31) -------------------------------------------
+    # All three were on _NO_DATASHEET although Polaroid Film Data Sheets are on
+    # file. 664 and 667 carry full Technical Data pages; the SX-70 document is a
+    # product page with no technical section at all, which is itself the reason
+    # nearly every SX-70 number in this database stays an estimate.
+    "POLAROID_664": (
+        "POLAROID Polapan Pro 100 / Type 664 Film Data Sheet (664fds.pdf), "
+        "Polaroid Corporation",
+    ),
+    "POLAROID_667": (
+        "POLAROID Type 667 Film Data Sheet (667fds.pdf), Polaroid Corporation",
+    ),
+    "POLAROID_SX70": (
+        "POLAROID Time-Zero SX-70 Integral Color Print Film product data "
+        "sheet (timezfds.pdf), Polaroid Corporation -- product page only, no "
+        "technical-data section",
     ),
     # -- Others ----------------------------------------------------------------
     "FOMAPAN_400_ACTION": (
@@ -3143,8 +3805,25 @@ _UNTAGGED_TIER: dict[str, int] = {
     "FUJICOLOR_SUPER_F500_8572": 2,
     "FUJI_ETERNA_VIVID_500T_8547": 2,
     "FUJI_VELVIA_50": 1,
-    "ILFORD_DELTA_3200": 1,
-    "ILFORD_HP5_PLUS_400": 1,
+    # Corrected 1 -> 2 on 2026-07-31. Tier 1 requires a published granularity
+    # figure AND an MTF/resolving-power figure; Harman/ILFORD publish NEITHER for
+    # any emulsion (checked across all 18 ILFORD datasheets on file, plus both
+    # KENTMERE sheets). What IS documented for these two is ISO speed, the
+    # characteristic-curve processing conditions, the reciprocity formula and the
+    # development matrix -- real data, but not enough for tier 1 under this
+    # database's own definition.
+    # For accuracy: Harman DOES publish numeric average gradient (G-bar) for
+    # some emulsions, e.g. "negatives of normal contrast (Gbar 0.62)" for
+    # DELTA 400 and a full G-bar table for ORTHO PLUS -- so "Ilford publishes no
+    # numbers at all" would be too strong a claim. It publishes no GRANULARITY
+    # and no SHARPNESS numbers, which is what these two tiers turn on, and no
+    # G-bar figure for either of these two stocks specifically.
+    # Caveat on the mechanism: _FITTED_FROM maps tier 2 to "secondary_sources",
+    # so both stocks now report that string even though their reciprocity
+    # exponents are datasheet-derived. The tier is a whole-profile summary; the
+    # per-field provenance lives in the comments at each field.
+    "ILFORD_DELTA_3200": 2,
+    "ILFORD_HP5_PLUS_400": 2,
     "KODACHROME_64": 1,
     "KODAK_EKTACHROME_100D_5285": 1,
     "KODAK_PORTRA_400": 1,
@@ -3190,8 +3869,117 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
-    "FUJI_NEOPAN_ACROS_100": (60.0, 200.0),
-    "FUJI_VELVIA_50": (80.0, 160.0),
+    # 2026-07-31 datasheet additions (lowc 1.6:1 / highc 1000:1 lp/mm):
+    "KONICA_IMPRESA_50": (63.0, 160.0),
+    "KONICA_VX_100": (63.0, 125.0),
+    "KONICA_CENTURIA_SUPER_400": (50.0, 100.0),
+    "KONICA_CENTURIA_SUPER_1600": (50.0, 100.0),
+    "KONICA_CHROME_CENTURIA_100": (60.0, 140.0),
+    "KONICA_CHROME_R100": (50.0, 125.0),
+    "ROLLEI_R3": (45.0, 100.0),        # 100 @ EI 400; sheet: up to 300 @ EI 25
+    "ROLLEI_INFRARED_400": (55.0, 160.0),  # 160 high-contrast printed; low T3
+    "ROLLEI_RETRO_400": (40.0, 110.0),     # sheet prints 110, contrast unstated
+    # (low-contrast 1.6:1, high-contrast 1000:1). 0.0 means the manufacturer
+    # does not publish that contrast, NOT that the film cannot resolve it. Every
+    # entry below is a transcription; nothing here is interpolated between
+    # contrasts or between films.
+    #
+    # !! UNIT CAVEAT. The field name says "lp_mm", but the sheets do not all use
+    # the same unit: Agfa, Fuji and Foma print "lines/mm" while Polaroid prints
+    # "line pairs/mm". No sheet states an equivalence between the two, so the
+    # numbers below are stored AS PRINTED and are NOT normalised to a common
+    # unit. A consumer comparing an Agfa figure with a Polaroid one is comparing
+    # two different measurements. Renaming the field would break schema v2, so
+    # the discrepancy is documented rather than papered over.
+    #
+    # -- Fujifilm (both contrasts published) --------------------------------
+    "FUJI_NEOPAN_ACROS_100": (60.0, 200.0),   # NeopanAcros100.pdf p4
+    "FUJI_VELVIA_50": (80.0, 160.0),          # velvia_50_datasheet.pdf p7
+    "FUJI_PROVIA_400X": (55.0, 135.0),        # Provia_400X_PIB_1007.pdf p6
+    "FUJI_SENSIA_100": (55.0, 135.0),         # sensia_100_datasheet.pdf p4
+    # -- Agfa ---------------------------------------------------------------
+    # The three APX sheets print only the 1000:1 column; the colour-negative
+    # pages of the "Professional Films" brochure print both.
+    "AGFA_APX_25": (0.0, 200.0),              # agfapanapx25.pdf p1
+    "AGFA_APX_100": (0.0, 150.0),             # apx100.pdf p1
+    "AGFA_APX_400": (0.0, 110.0),             # apx400.pdf p1
+    "AGFA_OPTIMA_100": (50.0, 140.0),         # agfa_films.pdf p7 (OPTIMA II 100)
+    # -- Foma ---------------------------------------------------------------
+    # CAVEAT: Foma prints "Resolving power / 90 lines per mm" with NO
+    # test-object contrast stated. It is recorded in the high-contrast slot
+    # because an unqualified resolving-power figure is conventionally the
+    # 1000:1 measurement, but that label is an interpretation of Foma's
+    # omission, not something Foma printed. The number 90 itself is verbatim.
+    "FOMAPAN_400_ACTION": (0.0, 90.0),        # fomapan-400.pdf p1
+    # -- Polaroid -----------------------------------------------------------
+    # Polaroid publishes a RANGE, e.g. "Resolution (1000:1): 20 - 25 line
+    # pairs/mm". A single float cannot hold a range, so the LOWER bound is
+    # recorded (the conservative end) rather than a midpoint, which would be an
+    # invented number. Full published ranges: 664 = 20-25, 667 = 14-20.
+    "POLAROID_664": (0.0, 20.0),              # 664fds.pdf p2
+    "POLAROID_667": (0.0, 14.0),              # 667fds.pdf p2
+}
+
+
+#: Datasheet-documented reciprocity behaviour (DM-07). Consulted before the
+#: era/type heuristics in ``_reciprocity_for``, so anything listed here is a
+#: published figure rather than an estimate.
+#:
+#: HOW THE EXPONENT IS OBTAINED. Harman/ILFORD publish the correction as an
+#: adjusted *time*: ``Ta = Tm ** k``, where Tm is the metered time and Ta the
+#: time to actually give. This model instead writes the effective exposure as
+#: ``E_eff = I * t ** p``. Correct exposure requires ``I * Ta**p == I * Tm``,
+#: i.e. ``Ta == Tm ** (1/p)``, so ``p = 1 / k`` exactly. No curve fitting and
+#: no free parameters -- the two formulations are algebraically identical.
+#: ``onset_s`` is likewise taken from the sheets ("no adjustments are needed"
+#: for exposures between 1/10 000 s and 1/2 s).
+#:
+#: !! NOTE FOR CONSUMERS OF THIS STRUCT. The bare form ``E_eff = I * t**p`` is
+#: discontinuous at ``onset_s``: at t = 0.5 s with p = 0.7634 it returns
+#: 0.5**0.7634 = 0.589, i.e. 0.24 stops of failure exactly where the datasheet
+#: says there is none. The physically correct reading of these published figures
+#: is the ONSET-NORMALISED form
+#:     E_eff = I * t                          for t <= onset_s
+#:     E_eff = I * t * (t / onset_s)**(p - 1) for t >  onset_s
+#: which is continuous at the onset and reproduces the published adjusted-time
+#: relation above it. Nothing in film_sim.py consumes ReciprocitySpec yet, so
+#: this is latent rather than a live bug; any renderer that starts using these
+#: fields must use the normalised form.
+_RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
+    # 2026-07-31, fitted from datasheet correction tables (t_a^p * onset^(1-p)
+    # = t_m solved at the printed correction points):
+    "KONICA_IMPRESA_50": ReciprocitySpec(0.87, 0.87, 0.87, onset_s=1.0),
+    #   IMP50.pdf: +1/2 stop at 10 s, no CC -> p = ln10/ln14.1
+    "KONICA_VX_100": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
+    "KONICA_CENTURIA_SUPER_400": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
+    "KONICA_CENTURIA_SUPER_1600": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
+    #   VX/Centuria sheets: +1 stop at 10 s -> p = ln10/ln20 = 0.77
+    "KONICA_CHROME_CENTURIA_100": ReciprocitySpec(0.82, 0.80, 0.80, onset_s=4.0),
+    #   chrocen100.pdf: no correction to 4 s; +1 stop at 64 s with CC10C
+    #   (cyan trim = red channel fails least -> p_r highest)
+    "KONICA_CHROME_R100": ReciprocitySpec(0.88, 0.90, 0.91, onset_s=0.5),
+    #   R100.pdf: +1/2 stop already at 1 s with CC5R (red trim = green/blue
+    #   fail least); the old-generation reversal cliff
+    "ROLLEI_R3": ReciprocitySpec(0.68, 0.68, 0.68, onset_s=1.0),
+    #   TARoR3_e.pdf table: 15->60 s gives p=0.66, 60->350 s gives p=0.70;
+    #   0.68 splits it. Severe -- the sheet is unusually honest about it.
+    "ROLLEI_INFRARED_400": ReciprocitySpec(0.95, 0.95, 0.95, onset_s=0.5),
+    #   Rollei_Infrared.pdf: "N/A" to 1/2 s, nothing documented beyond ->
+    #   B&W default slope from a 0.5 s onset
+    "KENTMERE_PAN_100": ReciprocitySpec(0.794, 0.794, 0.794, onset_s=1.0),
+    #   Pan-100 sheet: Ta = Tm^1.26 -> p = 1/1.26
+    "KENTMERE_PAN_400": ReciprocitySpec(0.769, 0.769, 0.769, onset_s=1.0),
+    #   Pan-400 sheet: Ta = Tm^1.30 -> p = 1/1.30
+    # ILFORD/HP5-Plus_201811.pdf p2: "The graph is based on the formulae
+    # Ta = Tm1.31" (typeset exponent), no correction between 1/2 s and
+    # 1/10 000 s. p = 1/1.31 = 0.7634.
+    "ILFORD_HP5_PLUS_400": ReciprocitySpec(0.7634, 0.7634, 0.7634, onset_s=0.5),
+    # ILFORD/Delta-3200_201811.pdf p2: "Ta = Tm1.33". p = 1/1.33 = 0.7519.
+    # The 2018 sheet is internally inconsistent about the onset (it says no
+    # correction is needed from 1/2 s, then refers to "exposures longer than
+    # 1 second"); 0.5 s is used because the 2002 edition
+    # (Delta_3200-200209.pdf p2) states 1/2 s unambiguously.
+    "ILFORD_DELTA_3200": ReciprocitySpec(0.7519, 0.7519, 0.7519, onset_s=0.5),
 }
 
 
@@ -3215,11 +4003,20 @@ def _grain_v2(p: FilmProfile) -> GrainSpec:
         )
     # sigma(D) shape anchors at D = toe/1.0/dmax. Negatives are monotone;
     # reversal sigma turns over past mid-scale because the densest regions
-    # of a slide received the least exposure. Tier-3.
-    if p.is_reversal:
-        kw.update(sigma_shape_toe=0.7, sigma_shape_mid=1.0, sigma_shape_dmax=0.5)
-    else:
-        kw.update(sigma_shape_toe=0.4, sigma_shape_mid=1.0, sigma_shape_dmax=1.2)
+    # of a slide received the least exposure. Tier-3 heuristic -- and ONLY
+    # a heuristic: it fills the shape when the profile literal still holds
+    # the dataclass defaults (0.4/1.0/1.2). A literal that sets its own
+    # shape (measured stocks: the Soviet scan batches) is authoritative and
+    # must never be silently overwritten here. This exact bug ate two
+    # rounds of measured FN-64 shape adoptions before being caught.
+    if (g.sigma_shape_toe, g.sigma_shape_mid, g.sigma_shape_dmax) == (0.0, 1.0, 0.0):
+        # untouched dataclass defaults -> fill from the heuristic
+        if p.is_reversal:
+            kw.update(sigma_shape_toe=0.7, sigma_shape_mid=1.0,
+                      sigma_shape_dmax=0.5)
+        else:
+            kw.update(sigma_shape_toe=0.4, sigma_shape_mid=1.0,
+                      sigma_shape_dmax=1.2)
     # Grain-size dispersion: fast/pushed emulsions ~0.55, T-grain ~0.25,
     # conventional cubic keeps the 0.35 default. Tier-3.
     if p.exposure_index >= 800:

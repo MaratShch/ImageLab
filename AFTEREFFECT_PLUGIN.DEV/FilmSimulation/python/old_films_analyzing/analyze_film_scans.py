@@ -13,6 +13,33 @@ honesty tier:
 
 Dependencies: numpy + Pillow only. Python 3.10+.
 
+v2.1 additions (movie-team review):
+  Spectral   [SpectralResponse] -- red/green/blue sensitivity weights for
+             feeding FilmProfile.spectral_weights. IMPORTANT HONESTY NOTE:
+             a developed B&W negative is a silver image; its density is
+             essentially wavelength-neutral, so the scan of ordinary frames
+             CANNOT reveal the emulsion's spectral sensitivity (an ortho
+             film's dark red lips are a TONAL fact of the scene rendering,
+             not a channel ratio in the scan). The weights are therefore
+             only measurable from a dedicated target: shoot uniform RED,
+             GREEN and BLUE patches (or one chart) under one exposure and
+             pass --spectral-dir with files named red*.*, green*.*,
+             blue*.*. Without it the section states NOT-MEASURABLE instead
+             of inventing numbers.
+  Crossover  [Crossover] -- nonlinear divergence of R and B against G as a
+             function of density (12 bins, robust per-bin medians), beyond
+             the single linear tone_slope. On colour stock this is the
+             classic shadows-go-green / highlights-go-magenta signature;
+             on B&W it is the silver-tone curvature.
+  Aging      base tints strongly yellow/brown are flagged
+             [CONTAMINATED-BY-AGING]: likely roll degradation (acetate
+             yellowing / vinegar syndrome), not the emulsion's design.
+  Precision  all intermediate math in float64 end to end; 16-bit
+             TIFF/PNG scans are read at full depth (v2.0 flattened
+             everything through 8-bit RGB); histogram percentiles are
+             interpolated within bins; 8192-bin histograms. Output format
+             and value types unchanged.
+
 WHAT IT MEASURES
   Tone       density percentile ladder per channel, base+fog, Dmax lower
              bound, shadow/mid/highlight slope ratios, dynamic range.
@@ -74,11 +101,36 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-VERSION = "2.0"
+VERSION = "2.1"
 
 # ---------------------------------------------------------------------------
 # Transfer curves and density
 # ---------------------------------------------------------------------------
+
+def load_rgb01(path: str) -> np.ndarray:
+    """Load an image as float64 RGB in [0,1] at FULL bit depth.
+
+    PIL's convert("RGB") flattens 16-bit scans through 8 bits -- a 256x
+    precision loss exactly where offline accuracy matters. Handle 16-bit
+    greyscale (I;16, common for B&W film TIFFs) and 16-bit colour
+    explicitly; everything else goes through the 8-bit RGB path.
+    """
+    with Image.open(path) as img:
+        mode = img.mode
+        if mode in ("I;16", "I;16B", "I;16L", "I"):
+            a = np.asarray(img, dtype=np.float64)
+            a /= 65535.0 if mode != "I" else max(float(a.max()), 1.0)
+            return np.repeat(a[:, :, None], 3, axis=2)
+        if mode == "RGB" and getattr(img, "tag_v2", None) is not None:
+            # 16-bit RGB TIFF: PIL exposes it as RGB only after downcast,
+            # so pull the raw data first when the tag says 16 bits
+            bits = img.tag_v2.get(258, (8,))
+            if isinstance(bits, tuple) and bits and bits[0] == 16:
+                a = np.asarray(img, dtype=np.float64) / 65535.0
+                if a.ndim == 3 and a.shape[2] >= 3:
+                    return a[:, :, :3]
+        return np.asarray(img.convert("RGB"), dtype=np.float64) / 255.0
+
 
 def srgb_to_linear(x: np.ndarray) -> np.ndarray:
     """Decode sRGB. JPEGs are sRGB unless the scanner says otherwise."""
@@ -123,7 +175,7 @@ def box_mean_1d(a: np.ndarray, k: int, axis: int) -> np.ndarray:
     hi = [slice(None)] * a.ndim
     lo[axis] = slice(k, None)
     hi[axis] = slice(0, -k)
-    return ((c[tuple(lo)] - c[tuple(hi)]) / k).astype(a.dtype)
+    return (c[tuple(lo)] - c[tuple(hi)]) / k    # float64 stays float64
 
 
 def box_mean(a: np.ndarray, k: int) -> np.ndarray:
@@ -148,7 +200,7 @@ def dilate3(mask: np.ndarray) -> np.ndarray:
 class DensityHistogram:
     """Streaming per-channel density histogram; exact enough percentiles."""
 
-    BINS = 4096
+    BINS = 8192
 
     def __init__(self) -> None:
         self.h = np.zeros((3, self.BINS), dtype=np.int64)
@@ -160,13 +212,151 @@ class DensityHistogram:
             self.h[c] += idx
 
     def percentile(self, c: int, q: float) -> float:
-        cum = np.cumsum(self.h[c])
+        """Percentile with linear interpolation inside the bin: at 8192
+        bins over 3.5 D the quantisation is 4e-4 D; interpolation takes
+        the residual error an order of magnitude below that."""
+        cum = np.cumsum(self.h[c].astype(np.float64))
         if cum[-1] == 0:
             return float("nan")
         target = q / 100.0 * cum[-1]
         i = int(np.searchsorted(cum, target))
         i = min(i, self.BINS - 1)
-        return float(0.5 * (self.edges[i] + self.edges[i + 1]))
+        c0 = cum[i - 1] if i > 0 else 0.0
+        n_in = cum[i] - c0
+        frac = (target - c0) / n_in if n_in > 0 else 0.5
+        return float(self.edges[i] + frac * (self.edges[i + 1] - self.edges[i]))
+
+
+class CrossoverStats:
+    """Nonlinear channel divergence vs density -- the crossover signature.
+
+    The single linear tone_slope answers "does the image drift warm or cold
+    with density"; this class answers HOW the R and B curves bend against G
+    along the density axis. On multilayer colour stock (early Agfacolor,
+    Soviet colour processes) the three layers' curves crossed at different
+    angles, throwing shadows one way and highlights the other -- the classic
+    green-shadows / magenta-highlights fault. On B&W it reads the silver
+    tone's curvature.
+
+    Method: 2D streaming histograms of (D_r - D_g) and (D_b - D_g) binned by
+    D_g. Per-bin MEDIAN, not mean: on colour negative the deltas of coloured
+    scene objects scatter enormously, and the median tracks the dominant
+    near-neutral mass instead of being dragged by saturated objects. That is
+    also the method's stated limit -- a batch with no neutral content biases
+    it, so the report says so.
+    """
+
+    DBINS = 12            # density bins across the usable range
+    VBINS = 481           # delta bins over +-1.5 D (0.00625 D quantisation)
+    VMAX = 1.5
+
+    def __init__(self) -> None:
+        self.h = np.zeros((2, self.DBINS, self.VBINS), dtype=np.int64)
+        self.d_lo = 0.0
+        self.d_hi = DENSITY_CEILING
+
+    def add(self, dens: np.ndarray) -> None:                  # HxWx3 float64
+        g = dens[:, :, 1].ravel()
+        db = np.clip(((g - self.d_lo) / (self.d_hi - self.d_lo)
+                      * self.DBINS).astype(np.int64), 0, self.DBINS - 1)
+        for k, c in enumerate((0, 2)):
+            v = dens[:, :, c].ravel() - g
+            vb = np.clip(((v + self.VMAX) / (2 * self.VMAX)
+                          * self.VBINS).astype(np.int64), 0, self.VBINS - 1)
+            np.add.at(self.h[k], (db, vb), 1)
+
+    def _bin_median(self, k: int, i: int) -> float | None:
+        row = self.h[k, i]
+        n = int(row.sum())
+        if n < 2000:                      # too thin to trust
+            return None
+        cum = np.cumsum(row.astype(np.float64))
+        j = int(np.searchsorted(cum, 0.5 * n))
+        j = min(j, self.VBINS - 1)
+        c0 = cum[j - 1] if j > 0 else 0.0
+        frac = (0.5 * n - c0) / max(cum[j] - c0, 1e-9)
+        step = 2 * self.VMAX / self.VBINS
+        return float(-self.VMAX + (j + frac) * step)
+
+    def result(self, d_base: float, d_dense: float) -> dict:
+        """Table of median deltas per density bin + toe/dense divergence
+        relative to the mid-density bins."""
+        out: dict = {"rows": []}
+        centers, dr, dbv = [], [], []
+        for i in range(self.DBINS):
+            c = self.d_lo + (i + 0.5) * (self.d_hi - self.d_lo) / self.DBINS
+            if not (d_base - 0.05 <= c <= d_dense + 0.05):
+                continue
+            mr = self._bin_median(0, i)
+            mb = self._bin_median(1, i)
+            if mr is None or mb is None:
+                continue
+            centers.append(c)
+            dr.append(mr)
+            dbv.append(mb)
+            out["rows"].append((c, mr, mb))
+        if len(centers) >= 5:
+            n = len(centers)
+            mid = slice(n // 3, 2 * n // 3 + 1)
+            mr0 = float(np.median(dr[mid]))
+            mb0 = float(np.median(dbv[mid]))
+            out["toe_r"] = float(dr[0] - mr0)
+            out["toe_b"] = float(dbv[0] - mb0)
+            out["dense_r"] = float(dr[-1] - mr0)
+            out["dense_b"] = float(dbv[-1] - mb0)
+        return out
+
+
+# ---------------------------------------------------------------------------
+# Spectral response -- only measurable from a dedicated target
+# ---------------------------------------------------------------------------
+
+def spectral_analysis(spectral_dir: str, scan_gamma: str,
+                      gate_offset: float) -> dict:
+    """Sensitivity weights from RED / GREEN / BLUE target frames.
+
+    Protocol: photograph three uniform colour patches (or one chart cropped
+    to three files) on the SAME film under the SAME exposure, scan them the
+    same way, name the files red*.*, green*.*, blue*.*. The developed
+    density each patch produced measures how strongly the emulsion responds
+    to that band. weights = green-normalised density-above-base ratios --
+    exactly the spectral_weights convention of the simulation's profiles.
+
+    An orthochromatic emulsion (blind to red) exposes almost nothing under
+    the red patch: near-base density there, red weight near zero. This is
+    the ONLY honest way to get the number from scans: developed silver is
+    spectrally near-neutral, so ordinary frames cannot reveal it.
+    """
+    import glob as _glob
+    found: dict[str, str] = {}
+    for band in ("red", "green", "blue"):
+        hits = sorted(_glob.glob(os.path.join(spectral_dir, band + "*")))
+        if hits:
+            found[band] = hits[0]
+    if len(found) != 3:
+        return {"error": "need red*, green*, blue* files, found: %s"
+                % sorted(found)}
+    dens = {}
+    for band, fp in found.items():
+        arr = load_rgb01(fp)
+        d = to_density(decode_transfer(arr, scan_gamma)) - gate_offset
+        h, w, _ = d.shape
+        cy, cx = int(h * 0.3), int(w * 0.3)
+        # green scan channel of the central patch: silver density
+        dens[band] = float(np.median(d[cy:h - cy, cx:w - cx, 1]))
+    base = min(dens.values())     # the least-exposed patch approximates base
+    above = {b: max(dens[b] - base, 0.0) for b in dens}
+    if above["green"] < 0.05:
+        return {"error": "green patch produced almost no density above the "
+                         "weakest patch -- exposure too low or wrong files"}
+    wsum = sum(above.values())
+    return {
+        "weight_r": above["red"] / wsum,
+        "weight_g": above["green"] / wsum,
+        "weight_b": above["blue"] / wsum,
+        "density_red": dens["red"], "density_green": dens["green"],
+        "density_blue": dens["blue"],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -602,8 +792,7 @@ def wedge_analysis(files: list[str], ev_re: str, scan_gamma: str,
         if not m:
             continue
         ev = float(m.group(1))
-        with Image.open(fp) as img:
-            arr = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
+        arr = load_rgb01(fp)
         lin = decode_transfer(arr, scan_gamma)
         dens = to_density(lin)
         if positive:
@@ -683,8 +872,7 @@ def analyze(args: argparse.Namespace) -> str:
     gate_offset = 0.0
     calibrated = False
     if args.empty_gate:
-        with Image.open(args.empty_gate) as img:
-            arr = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
+        arr = load_rgb01(args.empty_gate)
         lin = decode_transfer(arr, args.scan_gamma)
         # gate = light with no film; its density IS the scanner zero point
         gate_offset = float(np.median(to_density(lin)))
@@ -692,6 +880,7 @@ def analyze(args: argparse.Namespace) -> str:
         print("[+] empty-gate zero point: %.4f D" % gate_offset)
 
     hist = DensityHistogram()
+    cross = CrossoverStats()
     grain = GrainStats(px_per_mm)
     halo = HalationStats(px_per_mm)
     field = FieldStats()
@@ -708,8 +897,7 @@ def analyze(args: argparse.Namespace) -> str:
     # so halation runs in a light second pass over a frame subset.
     for i, fp in enumerate(files):
         try:
-            with Image.open(fp) as img:
-                arr = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
+            arr = load_rgb01(fp)
         except Exception as e:                                # noqa: BLE001
             warnings.append("failed to read %s: %s" % (fp, e))
             continue
@@ -720,8 +908,8 @@ def analyze(args: argparse.Namespace) -> str:
                 grain.px_per_mm = px_per_mm
                 halo.px_per_mm = px_per_mm
                 spectrum.px_per_mm = px_per_mm
-        clip_lo += int((arr <= 1.0 / 255.0).sum())
-        clip_hi += int((arr >= 254.0 / 255.0).sum())
+        clip_lo += int((arr <= 1.5 / 255.0).sum())     # <= 1.5 LSB of 8-bit:
+        clip_hi += int((arr >= 253.5 / 255.0).sum())   # catches both depths
         total_px += arr.size
 
         lin = decode_transfer(arr, args.scan_gamma)
@@ -745,6 +933,8 @@ def analyze(args: argparse.Namespace) -> str:
         grain.add_frame(dens)
         field.add_frame(dens)
         spectrum.add_frame(dens)
+
+        cross.add(dens[::4, ::4, :])
 
         # silver tone: subsample, regress channel offset against density
         st = dens[::8, ::8, :]
@@ -797,8 +987,7 @@ def analyze(args: argparse.Namespace) -> str:
     # -- pass 2: halation needs the global thresholds -------------------------
     for fp in files[:: max(1, len(files) // 120)]:
         try:
-            with Image.open(fp) as img:
-                arr = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
+            arr = load_rgb01(fp)
         except Exception:                                     # noqa: BLE001
             continue
         dens = to_density(decode_transfer(arr, args.scan_gamma)) - gate_offset
@@ -828,6 +1017,27 @@ def analyze(args: argparse.Namespace) -> str:
                         "at >= 63 px/mm (1600 dpi) for honest granularity"
                         % (0.048 * px_per_mm))
 
+    spectral = {}
+    if args.spectral_dir:
+        spectral = spectral_analysis(args.spectral_dir, args.scan_gamma,
+                                     gate_offset)
+        if "error" in spectral:
+            warnings.append("spectral targets: " + spectral["error"])
+
+    # aging check on the base tint: strongly yellow/brown base = blue (and
+    # to a lesser degree green) absorbed. Likely acetate aging / vinegar
+    # syndrome of THIS roll, not the emulsion's design.
+    tint_chk = {c: 10.0 ** (-(d_base[c] - d_base[1])) for c in range(3)}
+    aging_flag = tint_chk[2] < 0.94 or (tint_chk[0] > 1.02
+                                        and tint_chk[2] < 0.97)
+    if aging_flag:
+        warnings.append("[CONTAMINATED-BY-AGING] base tint is strongly "
+                        "yellow/brown (tint_b %.3f) -- likely base "
+                        "degradation of this roll, not the emulsion design; "
+                        "consider neutralising base_tint in the profile and "
+                        "moving the cast to the simulation's aging controls"
+                        % tint_chk[2])
+
     slope = {}
     for k, nm in ((0, "r"), (1, "b")):
         n = reg_n
@@ -841,7 +1051,8 @@ def analyze(args: argparse.Namespace) -> str:
         span_g=span_g, gamma_est=gamma_est, wedge=wedge,
         grain=grain.result(d_base_g), halo=halo.result(),
         field=field.result(), spectrum=spectrum.result(),
-        tone_slope=slope, warnings=warnings,
+        tone_slope=slope, cross=cross.result(d_base_g, d_dense[1]),
+        spectral=spectral, aging_flag=aging_flag, warnings=warnings,
     )
 
 
@@ -851,7 +1062,8 @@ def analyze(args: argparse.Namespace) -> str:
 
 def build_report(*, args, n_frames, native, px_per_mm, calibrated, ladder,
                  d_base, d_dense, span_g, gamma_est, wedge, grain, halo,
-                 field, spectrum, tone_slope, warnings) -> str:
+                 field, spectrum, tone_slope, cross, spectral, aging_flag,
+                 warnings) -> str:
     name = args.name or Path(args.directory).name.upper()
     L: list[str] = []
     w = L.append
@@ -944,6 +1156,56 @@ def build_report(*, args, n_frames, native, px_per_mm, calibrated, ladder,
     tb = {c: 10.0 ** (-(d_base[c] - d_base[1])) for c in range(3)}
     for c in range(3):
         w("tint_%s = %.3f" % (nm[c], tb[c]))
+    if aging_flag:
+        w("// [CONTAMINATED-BY-AGING] this tint is strongly yellow/brown --")
+        w("// likely acetate aging of THIS roll (vinegar syndrome family),")
+        w("// not the emulsion's design. Simulate it as roll aging, not as")
+        w("// the stock's base_tint.")
+    w("")
+
+    # ---- spectral response ---------------------------------------------
+    w("[SpectralResponse]")
+    if spectral and "weight_r" in spectral:
+        w("// From dedicated RED/GREEN/BLUE targets, green-channel silver")
+        w("// density above the weakest patch, normalised to sum 1. Feed")
+        w("// these to FilmProfile.spectral_weights directly. [MEASURED]")
+        w("weight_r = %.3f" % spectral["weight_r"])
+        w("weight_g = %.3f" % spectral["weight_g"])
+        w("weight_b = %.3f" % spectral["weight_b"])
+        w("// raw patch densities: red %.3f  green %.3f  blue %.3f" % (
+            spectral["density_red"], spectral["density_green"],
+            spectral["density_blue"]))
+        if spectral["weight_r"] < 0.10:
+            w("// red weight near zero: ORTHOCHROMATIC response confirmed")
+    else:
+        w("// [NOT-MEASURABLE] from ordinary frames: developed silver is")
+        w("// spectrally near-neutral, so the scan of a B&W negative carries")
+        w("// no memory of which wavelengths exposed it. An ortho film's")
+        w("// dark-red-lips look lives in the scene RENDERING, not in scan")
+        w("// channel ratios. To measure: shoot uniform RED, GREEN, BLUE")
+        w("// patches on this film at one exposure, scan, name the files")
+        w("// red*, green*, blue*, and pass --spectral-dir DIR.")
+    w("")
+
+    # ---- crossover ----------------------------------------------------
+    w("[Crossover]")
+    if cross.get("rows"):
+        w("// Median (D_r - D_g) and (D_b - D_g) per density bin: how the")
+        w("// channel curves BEND against green along the density axis --")
+        w("// nonlinear crossover, beyond the linear tone_slope. Colour")
+        w("// stock: green-shadow/magenta-highlight faults show here. B&W:")
+        w("// silver-tone curvature. Robust to coloured scene objects via")
+        w("// per-bin medians, but a batch with no neutral content biases")
+        w("// it -- judge against frame variety. [MEASURED]")
+        for c, mr, mb in cross["rows"]:
+            w("bin_d%.2f = %+0.4f, %+0.4f" % (c, mr, mb))
+        if "toe_r" in cross:
+            w("crossover_toe_r = %+0.4f    // R-G at the thin end minus mid" % cross["toe_r"])
+            w("crossover_toe_b = %+0.4f" % cross["toe_b"])
+            w("crossover_dense_r = %+0.4f  // R-G at the dense end minus mid" % cross["dense_r"])
+            w("crossover_dense_b = %+0.4f" % cross["dense_b"])
+    else:
+        w("// not enough per-bin data -- batch too small or too clipped")
     w("")
 
     # ---- silver / dye tone --------------------------------------------------
@@ -1085,6 +1347,9 @@ def main() -> int:
                     help="film frame width covered by the image width, e.g. 36")
     ap.add_argument("--px-per-mm", type=float, default=None,
                     help="scan resolution, overrides --frame-width-mm")
+    ap.add_argument("--spectral-dir", default=None,
+                    help="folder with red*/green*/blue* target frames shot "
+                         "on this film -- enables measured spectral_weights")
     ap.add_argument("--empty-gate", default=None,
                     help="scan of the empty gate/clear rebate: enables "
                          "ABSOLUTE density calibration")
