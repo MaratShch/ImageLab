@@ -50,5 +50,14 @@ FilmSimulation_SmartRender
     PF_SmartRenderExtra		*extraP
 );
 
+PF_Err DrawEvent
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    PF_EventExtra	*event_extra
+);
+
 
 #endif // __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__

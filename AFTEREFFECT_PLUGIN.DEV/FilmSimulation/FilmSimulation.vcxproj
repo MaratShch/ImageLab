@@ -154,22 +154,27 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgoControl.hpp" />
+    <ClInclude Include="include\AlgoControlEnums.hpp" />
+    <ClInclude Include="include\AlgoControlValues.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\AlgoTypes.hpp" />
     <ClInclude Include="include\Algo_02_Exposure.hpp" />
     <ClInclude Include="include\FilmSimulation.hpp" />
-    <ClInclude Include="include\FilmSimulationEnum.hpp" />
     <ClInclude Include="include\film_profiles.hpp" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoControl.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\Algo_02_Exposure.cpp" />
     <ClCompile Include="src\FilmSimulation.cpp" />
     <ClCompile Include="src\FilmSimulationAE.cpp" />
+    <ClCompile Include="src\FilmSimulationGUI.cpp" />
     <ClCompile Include="src\FilmSimulationPR.cpp" />
     <ClCompile Include="src\FilmSimulationSR.cpp" />
     <ClCompile Include="src\film_profiles.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FilmSimulation.r">

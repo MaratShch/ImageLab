@@ -1,4 +1,6 @@
 #include "FilmSimulation.hpp"
+#include "AlgoControl.hpp"
+#include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -29,14 +31,18 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	PF_Err	err = PF_Err_NONE;
+    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 
-	constexpr PF_OutFlags out_flags1 =
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return err;
+
+    constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
 		PF_OutFlag_USE_OUTPUT_EXTENT     |
 		PF_OutFlag_DEEP_COLOR_AWARE      |
-		PF_OutFlag_WIDE_TIME_INPUT;
+        PF_OutFlag_CUSTOM_UI             |
+        PF_OutFlag_WIDE_TIME_INPUT;
 
     constexpr PF_OutFlags out_flags2 =
         PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
@@ -103,32 +109,33 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_12u_PQ_2020);
     }
 
+    err = PF_Err_NONE;
+
 	return err;
 }
 
 
-static PF_Err
+inline PF_Err
 GlobalSetdown(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
+    UnloadMemoryInterfaceProvider();
 	return PF_Err_NONE;
 }
 
 
 
-static PF_Err
+inline PF_Err
 ParamsSetup(
 	PF_InData		*in_data,
 	PF_OutData		*out_data,
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-
-	return PF_Err_NONE;
+    return SetupControlElements (in_data, out_data);
 }
 
 
@@ -166,6 +173,56 @@ SmartRender(
     return FilmSimulation_SmartRender (in_data, out_data, extraP);
 }
 
+inline PF_Err
+UserChangedParam
+(
+    PF_InData						*in_data,
+    PF_OutData						*out_data,
+    PF_ParamDef						*params[],
+    PF_LayerDef						*outputP,
+    const PF_UserChangedParamExtra	*which_hitP
+)
+{
+    return PF_Err_NONE;
+}
+
+
+inline PF_Err
+HandleEvent
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    PF_EventExtra	*extra)
+{
+    PF_Err		err = PF_Err_NONE;
+
+    switch (extra->e_type)
+    {
+        case PF_Event_DRAW:
+            err = DrawEvent (in_data, out_data, params, output, extra);
+        break;
+
+        default:
+        break;
+    }
+    return err;
+}
+
+
+inline PF_Err
+UpdateParameterUI
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*outputP
+)
+{
+    return PF_Err_NONE;
+}
+
 
 
 PLUGIN_ENTRY_POINT_CALL PF_Err
@@ -177,9 +234,10 @@ EffectMain(
 	PF_LayerDef		*output,
 	void			*extra)
 {
-	PF_Err		err{ PF_Err_NONE };
+	PF_Err err = PF_Err_NONE;
 
-	try {
+	try
+    {
 		switch (cmd)
 		{
 			case PF_Cmd_ABOUT:
@@ -202,6 +260,18 @@ EffectMain(
 				ERR(Render(in_data, out_data, params, output));
 			break;
 
+            case PF_Cmd_USER_CHANGED_PARAM:
+                ERR(UserChangedParam(in_data, out_data, params, output, reinterpret_cast<const PF_UserChangedParamExtra*>(extra)));
+            break;
+
+            case PF_Cmd_UPDATE_PARAMS_UI:
+                ERR(UpdateParameterUI(in_data, out_data, params, output));
+            break;
+
+            case PF_Cmd_EVENT:
+                ERR(HandleEvent(in_data, out_data, params, output, reinterpret_cast<PF_EventExtra*>(extra)));
+            break;
+
             case PF_Cmd_SMART_PRE_RENDER:
                 ERR(PreRender(in_data, out_data, reinterpret_cast<PF_PreRenderExtra*>(extra)));
             break;
@@ -214,7 +284,7 @@ EffectMain(
 			break;
 		}
 	}
-	catch (PF_Err &thrown_err)
+	catch (PF_Err& thrown_err)
 	{
 		err = thrown_err;
 	}

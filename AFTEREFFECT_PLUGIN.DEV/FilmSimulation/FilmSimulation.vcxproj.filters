@@ -93,9 +93,6 @@
     <ClInclude Include="include\FilmSimulation.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\FilmSimulationEnum.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\film_profiles.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -112,6 +109,15 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AlgoTypes.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControlValues.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControlEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -135,6 +141,15 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\Algo_02_Exposure.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationGUI.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
