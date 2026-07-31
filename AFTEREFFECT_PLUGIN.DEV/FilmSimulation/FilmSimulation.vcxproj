@@ -96,6 +96,8 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -125,6 +127,7 @@
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
       <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -166,6 +169,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AlgoControl.cpp" />
+    <ClCompile Include="src\AlgoMemHandler.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\Algo_02_Exposure.cpp" />
     <ClCompile Include="src\FilmSimulation.cpp" />

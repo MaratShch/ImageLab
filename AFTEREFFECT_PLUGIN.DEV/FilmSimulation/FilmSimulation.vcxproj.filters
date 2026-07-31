@@ -152,6 +152,9 @@
     <ClCompile Include="src\FilmSimulationGUI.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">

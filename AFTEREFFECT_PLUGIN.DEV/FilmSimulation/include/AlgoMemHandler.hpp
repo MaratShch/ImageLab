@@ -13,8 +13,8 @@ struct MemHandler
 
 };
 
-MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY, int32_t iterCnt = 1) noexcept;
-void       free_memory_buffers  (MemHandler& mem) noexcept;
+MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY);
+void       free_memory_buffers  (MemHandler& mem);
 
 inline bool mem_handler_valid (const MemHandler& h) noexcept
 {
