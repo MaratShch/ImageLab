@@ -18,7 +18,7 @@ validate_all()
 lin = fs.load_linear(Path("test_chart.png"))
 
 # ---- 1. profile integrity ------------------------------------------------
-chk("71 stocks load and validate", len(FILM_PROFILES) == 71, f"n={len(FILM_PROFILES)}")
+chk("83 stocks load and validate", len(FILM_PROFILES) == 83, f"n={len(FILM_PROFILES)}")
 rev = [p.name for p in FILM_PROFILES if p.is_reversal]
 chk("reversal stocks flagged", len(rev) == 20, ", ".join(rev))
 

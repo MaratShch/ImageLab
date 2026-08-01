@@ -1061,9 +1061,16 @@ def simulate(
             )
             fields = (field, field, field)
         else:
+            # Per-channel RMS: rms_rgb() falls back to the scalar where the
+            # profile sets no override. This is where a tripack's blue layer
+            # gets its 1.3x noise (topmost, fastest emulsion) and where
+            # Technicolor's three physically different B&W records diverge.
+            # (The schema always promised this; the renderer used the scalar
+            # for all three channels until 2026-08-01 -- silent bug.)
+            rms_c = gs.rms_rgb()
             fields = tuple(
                 make_grain_field(
-                    grid, rng, clumps[c], gs.clump_gain, gs.rms_granularity, scan_t
+                    grid, rng, clumps[c], gs.clump_gain, rms_c[c], scan_t
                 )
                 for c in range(3)
             )

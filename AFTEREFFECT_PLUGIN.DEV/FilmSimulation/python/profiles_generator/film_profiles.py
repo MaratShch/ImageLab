@@ -3134,14 +3134,29 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         era="1932-1955",
         exposure_index=5,
         balance_kelvin=3400,  # carbon arc
-        # Three identical B&W emulsions, so the curves match; the colour comes
-        # entirely from the taking and transfer matrices.
+        # Matched curves are PROCESS-CORRECT, not a simplification: the
+        # Technicolor lab developed each record separately to a matched
+        # contrast for dye transfer. What was NOT matched is everything
+        # below -- the bipack made the three records physically different:
+        #   GREEN: single film behind the green filter, direct emulsion-
+        #     first exposure -> the sharpest, cleanest record (restorers
+        #     use it as the definition reference).
+        #   BLUE: FRONT film of the bipack, exposed THROUGH ITS OWN BASE ->
+        #     pre-diffused image, extra scatter (higher halation-like
+        #     bloom), slow blue-sensitive emulsion so fine grain.
+        #   RED: REAR film of the bipack, exposed through the entire front
+        #     film plus the red-orange filter dye layer, on the fastest
+        #     panchromatic emulsion -> the softest AND grainiest record.
+        # Tier T3: qualitative facts are well documented in restoration
+        # literature; the numeric splits are estimates around the old
+        # uniform values.
         curves=_mono(ToneCurve(0.18, 0.660, -1.34, 0.30, 1.72, 0.44)),
-        grain=GrainSpec(7.5, 11.0, 11.0, 11.0, clump_gain=1.10, fog_grain=0.24),
-        mtf=MTFSpec(40.0, 40.0, 40.0, adjacency=0.06, adjacency_um=26.0),
+        grain=GrainSpec(7.5, 12.0, 11.0, 10.5, clump_gain=1.10, fog_grain=0.24,
+                        rms_r=8.2, rms_g=7.2, rms_b=6.8),
+        mtf=MTFSpec(32.0, 48.0, 38.0, adjacency=0.06, adjacency_um=26.0),
         halation=HalationSpec(
             radii_um=(16.0, 80.0, 380.0),
-            gain_r=0.24, gain_g=0.24, gain_b=0.24,  # separate B&W records
+            gain_r=0.22, gain_g=0.18, gain_b=0.26,  # blue: base-first scatter
             threshold_stops=1.3,
         ),
         couplers=CouplerSpec(0.0, 0.0, 0.05, 14.0),
@@ -3530,6 +3545,394 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         misregistration_um=0.0,
         features=Feature.NONE,
     ),
+    FilmProfile(
+        name="EASTMAN_5250_1959",
+        aliases=("5250", "ecn 5250", "eastman 5250"),
+        description=(
+            "[T3] Eastman Color Negative 5250 -- the EI 50 tungsten stock "
+            "that carried Hollywood's widescreen era: West Side Story, and "
+            "chronologically the only candidate for The Magnificent Seven "
+            "and How the West Was Won. Numbers beyond EI/balance/process "
+            "are era estimates: Kodak's chronology page (official) gives "
+            "50T/32D, ECN process, 1959, replaced 5248 (EI 25), replaced "
+            "by 5251 in 1962; the period datasheet survives only in print."
+        ),
+        era="1959-1962",
+        exposure_index=50,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.24, 0.56, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.68, 0.575, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.1, 0.585, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(11.5, 16.0, 17.0, 20.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(30.0, 34.0, 38.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.04, 55.0, 0.022, 12.0),
+        dye_matrix=_dye(-0.04),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="EASTMAN_5254_1968",
+        aliases=("5254", "ecn 5254", "eastman 5254"),
+        description=(
+            "[T3] Eastman Color Negative 5254 -- the 100T that shot the New "
+            "Hollywood (and possibly odd rolls of A New Hope; unverified). "
+            "Official record: Kodak chronology -- EI 100T, 1968, replaced "
+            "5251, image structure equal to 5251, discontinued March 1977, "
+            "Academy Award. Everything else is era estimate; no online "
+            "datasheet exists."
+        ),
+        era="1968-1977",
+        exposure_index=100,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.23, 0.56, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.67, 0.575, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.08, 0.59, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(12.5, 16.0, 17.0, 20.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(32.0, 36.0, 40.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.06, 55.0, 0.033, 12.0),
+        dye_matrix=_dye(-0.045),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="EASTMAN_5294_1983",
+        aliases=("5294", "eastman 5294", "high speed 5294"),
+        description=(
+            "[T3] Eastman High Speed 5294 -- the 400T that made mid-80s "
+            "night scenes possible: Back to the Future's parking-lot time "
+            "jump, Temple of Doom's mines ('the second, 94' -- Slocombe). "
+            "Grainy and proud. Official record: Kodak chronology -- EI 400T "
+            "(320 in 16mm), 1983, replaced 5293 (250T, 1982), Emmy; "
+            "replaced by 5295 in 1986. No online datasheet; grain and MTF "
+            "are era estimates consistent with the family ladder."
+        ),
+        era="1983-1986",
+        exposure_index=400,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.24, 0.555, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.68, 0.57, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.09, 0.585, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(12.0, 17.0, 18.0, 22.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(34.0, 38.0, 44.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.08, 55.0, 0.044, 12.0),
+        dye_matrix=_dye(-0.05),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="EASTMAN_EXR_50D_5245",
+        aliases=("5245", "exr 50d", "eastman 5245"),
+        description=(
+            "[T1] EXR 50D -- the sharp slow daylight stock of the 90s; "
+            "New Zealand sunlight in Fellowship of the Ring, Tunisia in "
+            "The Phantom Menace. SOURCE Kodak H-1-5245 (1999): EI 50D/12T "
+            "(80A), rms granularity 'less than 5' (D=1.0, 48 um), resolving "
+            "50/100 lp/mm, ECN-2. Intro 1989, gone 2006."
+        ),
+        era="1989-2006",
+        exposure_index=50,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.575, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.64, 0.59, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.04, 0.6, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(4.2, 11.0, 12.0, 14.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(64.0, 72.0, 80.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.1, 55.0, 0.055, 12.0),
+        dye_matrix=_dye(-0.06),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="EASTMAN_EXR_100T_5248",
+        aliases=("5248", "exr 100t", "eastman exr 5248"),
+        description=(
+            "[T1] EXR 100T -- the finest resolver of the EXR line: the "
+            "sheet prints 80/160 lp/mm where its siblings print 50/100. "
+            "(Code reuse warning: the 1952 EI-25 ECN was also '5248'; this "
+            "is the 1990 EXR film.) SOURCE Kodak H-1-7248 (1999): EI "
+            "100T/64D, rms 'less than 5' (D=1.0, 48 um), ECN-2."
+        ),
+        era="1990-2005",
+        exposure_index=100,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.57, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.65, 0.585, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.05, 0.6, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(5.6, 12.0, 13.0, 15.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(62.0, 70.0, 78.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.1, 55.0, 0.055, 12.0),
+        dye_matrix=_dye(-0.06),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="EASTMAN_EXR_200T_5293",
+        aliases=("5293", "exr 200t", "eastman exr 5293"),
+        description=(
+            "[T1] EXR 200T -- LOTR's workhorse (rated 160 by Lesnie) and "
+            "The Phantom Menace-era staple. (Code reuse warning: 5293 was "
+            "also the short-lived 1982 250T; this is the 1992 EXR film.) "
+            "SOURCE Kodak H-1-5293 (1999): EI 200T/125D, rms 'less than 5' "
+            "(D=1.0, 48 um), resolving 50/100 lp/mm, ECN-2. Gone 2004."
+        ),
+        era="1992-2004",
+        exposure_index=200,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.565, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.66, 0.58, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.06, 0.595, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(7.4, 13.0, 14.0, 17.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(54.0, 62.0, 70.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.1, 55.0, 0.055, 12.0),
+        dye_matrix=_dye(-0.06),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="KODAK_VISION_500T_5279",
+        aliases=("5279", "vision 500t", "vision 5279"),
+        description=(
+            "[T1/T3] Vision 500T -- the fast stock of the late 90s: dark "
+            "Hogwarts corridors in the first two Potters, Helm's Deep "
+            "(rated 320 by Lesnie). SOURCE Kodak H-1-5279 (1996): EI "
+            "500T/320D, ECN-2; from Vision onward Kodak prints only "
+            "granularity CURVES, so rms here is the family-ladder estimate "
+            "(T3), between EXR 5296 and Vision2 5218."
+        ),
+        era="1996-2006",
+        exposure_index=500,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.23, 0.56, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.67, 0.578, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.07, 0.595, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(8.3, 14.0, 15.0, 18.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(46.0, 54.0, 62.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.11, 55.0, 0.061, 12.0),
+        dye_matrix=_dye(-0.08),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="KODAK_VISION_200T_5274",
+        aliases=("5274", "vision 200t", "vision 5274"),
+        description=(
+            "[T1/T3] Vision 200T -- the warm 'fairy-tale' look of the "
+            "first two Harry Potters and Azkaban's 200T record. SOURCE "
+            "Kodak TI2325 (rev. 2001): EI 200T/125D, ECN-2, granularity "
+            "'very low' with curves only -> rms is the family-ladder "
+            "estimate (T3)."
+        ),
+        era="1997-2006",
+        exposure_index=200,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.565, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.66, 0.582, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.05, 0.598, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(5.8, 12.0, 13.0, 16.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(56.0, 64.0, 72.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.11, 55.0, 0.061, 12.0),
+        dye_matrix=_dye(-0.08),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="KODAK_VISION_250D_5246",
+        aliases=("5246", "vision 250d", "vision 5246"),
+        description=(
+            "[T1/T3] Vision 250D -- daylight sibling; Goblet of Fire "
+            "exteriors. SOURCE Kodak H-1-5246t (2003): EI 250D/64T (80A), "
+            "ECN-2, curves-only granularity -> rms is family-ladder (T3)."
+        ),
+        era="1997-2005",
+        exposure_index=250,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.57, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.65, 0.585, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.04, 0.6, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(5.3, 12.0, 13.0, 15.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(58.0, 66.0, 74.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.11, 55.0, 0.061, 12.0),
+        dye_matrix=_dye(-0.08),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="KODAK_VISION2_500T_5218",
+        aliases=("5218", "vision2 500t", "vision2 5218"),
+        description=(
+            "[T1/T3] Vision2 500T -- the 2000s night workhorse: late "
+            "Potters, Crystal Skull interiors (Kaminski). SOURCE Kodak "
+            "H-1-5218t (2006): EI 500T/320D, ECN-2, curves-only "
+            "granularity -> rms is family-ladder (T3), ~10% above "
+            "Vision3 5219."
+        ),
+        era="2002-2010",
+        exposure_index=500,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.56, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.66, 0.58, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.06, 0.598, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(7.3, 12.0, 13.0, 16.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(42.0, 50.0, 58.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.12, 55.0, 0.066, 12.0),
+        dye_matrix=_dye(-0.1),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="KODAK_VISION2_200T_5217",
+        aliases=("5217", "vision2 200t", "vision2 5217"),
+        description=(
+            "[T1/T3] Vision2 200T. NOTE the launch year: 2004 -- any "
+            "claim of 5217 on a film shot in 2003 (Azkaban) is an "
+            "anachronism; that shoot's 200T was Vision 5274. SOURCE Kodak "
+            "H-1-5217 (rev. 2005): EI 200T/125D, ECN-2, 'exceptionally "
+            "low' curves-only granularity -> rms family-ladder (T3)."
+        ),
+        era="2004-2010",
+        exposure_index=200,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.565, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.65, 0.582, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.04, 0.598, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(5.1, 11.0, 12.0, 15.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(54.0, 62.0, 70.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.12, 55.0, 0.066, 12.0),
+        dye_matrix=_dye(-0.1),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="KODAK_VISION2_250D_5205",
+        aliases=("5205", "vision2 250d", "vision2 5205"),
+        description=(
+            "[T1/T3] Vision2 250D -- Crystal Skull's daylight stock "
+            "(Kaminski chose Vision2 over the brand-new Vision3 to match "
+            "the old films). SOURCE Kodak H-1-5205t (2004): EI 250D/64T "
+            "(80A), ECN-2, curves-only granularity -> rms family-ladder "
+            "(T3)."
+        ),
+        era="2004-2009",
+        exposure_index=250,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.57, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.64, 0.585, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(1.03, 0.6, toe_x=-1.42, shoulder_x=1.66),
+        ),
+        grain=GrainSpec(4.7, 11.0, 12.0, 14.0, clump_gain=0.55, fog_grain=0.18),
+        mtf=MTFSpec(56.0, 64.0, 72.0, adjacency=0.09, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(14.0, 70.0, 360.0),
+            weights=(0.58, 0.30, 0.12),
+            gain_r=0.28, gain_g=0.10, gain_b=0.04,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(0.12, 55.0, 0.066, 12.0),
+        dye_matrix=_dye(-0.1),
+        base_tint=(1.000, 0.985, 0.955),
+        misregistration_um=5.0,
+        features=Feature.HALATION,
+    ),
 )
 
 # Presented in alphabetical order by name. The literal above is grouped by
@@ -3869,6 +4272,13 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
+    # 2026-08-01 Kodak sheet additions (TI0835, TI1664, H-1 series):
+    "EASTMAN_5247_1974": (50.0, 100.0),
+    "EASTMAN_DOUBLE_X_5222": (32.0, 100.0),
+    "EASTMAN_EXR_500T_5296": (50.0, 100.0),
+    "EASTMAN_EXR_50D_5245": (50.0, 100.0),
+    "EASTMAN_EXR_100T_5248": (80.0, 160.0),
+    "EASTMAN_EXR_200T_5293": (50.0, 100.0),
     # 2026-07-31 datasheet additions (lowc 1.6:1 / highc 1000:1 lp/mm):
     "KONICA_IMPRESA_50": (63.0, 160.0),
     "KONICA_VX_100": (63.0, 125.0),
