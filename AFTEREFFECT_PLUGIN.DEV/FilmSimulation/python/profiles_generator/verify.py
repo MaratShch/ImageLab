@@ -18,9 +18,12 @@ validate_all()
 lin = fs.load_linear(Path("test_chart.png"))
 
 # ---- 1. profile integrity ------------------------------------------------
-chk("83 stocks load and validate", len(FILM_PROFILES) == 83, f"n={len(FILM_PROFILES)}")
+# 2026-08-02: 83 -> 89 (six Soviet stocks added from Gurlev 1986 / Iofis
+# 1980: SVEMA FOTO-32, FOTO-130, DS-4, TSNL-32, TSNL-65, TASMA OCH-45);
+# reversal count 20 -> 21 (TASMA_OCH_45 is a B&W reversal).
+chk("89 stocks load and validate", len(FILM_PROFILES) == 89, f"n={len(FILM_PROFILES)}")
 rev = [p.name for p in FILM_PROFILES if p.is_reversal]
-chk("reversal stocks flagged", len(rev) == 20, ", ".join(rev))
+chk("reversal stocks flagged", len(rev) == 21, ", ".join(rev))
 
 # alias resolution incl. the user's own phrasing
 cases = {
@@ -36,6 +39,30 @@ cases = {
 }
 bad = {k: get_profile(k).name for k, v in cases.items() if get_profile(k).name != v}
 chk("alias / catalogue-number lookup", not bad, str(bad))
+
+# ---- schema v3: digitised spectral sensitivity -----------------------------
+sp_stocks = [p for p in FILM_PROFILES if p.spectral.has_data]
+chk("spectral pilot stocks present",
+    {"FUJI_NEOPAN_ACROS_100", "KODAK_VISION3_250D_5207",
+     "KONICA_INFRARED_750"} <= {p.name for p in sp_stocks},
+    ", ".join(p.name for p in sp_stocks))
+_sp_ok = all(
+    abs(max(layer)) < 1e-9 and min(layer) >= -4.0 - 1e-9
+    for p in sp_stocks
+    for layer in (p.spectral.log_s_r, p.spectral.log_s_g,
+                  p.spectral.log_s_b, p.spectral.log_s_pan)
+    if layer
+)
+chk("spectral layers peak-normalised to 0.0 within [-4, 0]", _sp_ok)
+# The IR stock must actually be an IR record: sensitivity at 750 nm at peak,
+# and a dead gap in the mid-visible -- this guards against a transcription
+# that silently shifts the grid.
+_ir = get_profile("KONICA_INFRARED_750").spectral
+_ir_idx = lambda nm: int(round((nm - _ir.lambda_start_nm) / _ir.lambda_step_nm))
+chk("IR spectral curve peaks at 750 nm with a dead mid-visible gap",
+    _ir.log_s_pan[_ir_idx(750)] == 0.0
+    and _ir.log_s_pan[_ir_idx(570)] <= -3.9,
+    f"750nm={_ir.log_s_pan[_ir_idx(750)]}, 570nm={_ir.log_s_pan[_ir_idx(570)]}")
 
 # ---- 2. characteristic curves monotonic ----------------------------------
 x = np.linspace(-6, 6, 6001).astype(np.float32)

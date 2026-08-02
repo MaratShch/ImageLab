@@ -1,1 +1,1 @@
-python film_sim.py SnowBoard.png -p all
+python film_sim.py Sunset.png -p all

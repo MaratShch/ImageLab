@@ -10,11 +10,12 @@ travels: the taking lens, exposure, halation, emulsion scatter, the
 characteristic curve, development couplers, silver-halide grain, scanning,
 duplication and printing.
 
-It supports 56 film stocks, covering colour negative, colour reversal, black and
-white, three-strip Technicolor, 1930s-40s period stocks, and additive colour via
-a physical filter grid (Dufaycolor). It also models the taking lens's veiling
-flare and multi-generation dupe printing, which is what makes the period stocks
-actually look period rather than merely soft.
+It supports 89 film stocks, covering colour negative, colour reversal, black and
+white, three-strip Technicolor, 1930s-40s period stocks, Soviet-era Svema and
+Tasma emulsions documented from printed USSR reference books, and additive
+colour via a physical filter grid (Dufaycolor). It also models the taking lens's
+veiling flare and multi-generation dupe printing, which is what makes the period
+stocks actually look period rather than merely soft.
 
 Python 3.12, 64-bit. Works on Windows and on Linux / WSL2, unchanged.
 Dependencies: numpy and Pillow. Nothing else. No OpenCV, no SciPy.
@@ -33,11 +34,11 @@ Install the two dependencies:
 Below, "python" means "py -3.12" on Windows and "python3.12" on Linux.
 Run everything from the folder containing these files.
 
-  a) Check it works. Prints a table of all 56 stocks:
+  a) Check it works. Prints a table of all 89 stocks:
 
         python film_profiles.py
 
-  b) Run the test suite. Should end with "ALL CHECKS PASSED" (67 checks):
+  b) Run the test suite. Should end with "ALL CHECKS PASSED" (70 checks):
 
         python verify.py
 
@@ -73,7 +74,7 @@ You edit these:
 
 You run these:
 
-  verify.py            67-check test suite. Run it after ANY edit to either file
+  verify.py            70-check test suite. Run it after ANY edit to either file
                        above. It catches the mistakes that are invisible by eye:
                        wrong grain amplitude, mid-grey drift, non-monotonic
                        curves, channel casts, broken filter grids.
@@ -89,17 +90,24 @@ You run these:
 
   cpp_codegen.py       Exports the stock database to C++ for your Qt/C++ side.
 
+  gen_film_names.py    Writes film_names.txt: the official film names, one
+                       quoted name per line, in EXACTLY the order of the C++
+                       std::vector. Run it only AFTER cpp_codegen.py has
+                       produced and verified the C++ source.
+
 Generated output, safe to delete and regenerate:
 
   film_profiles.hpp    C++ header. Contains the struct definitions AND the
                        reference formulae as comments, so a C++ port cannot
                        silently drift from the Python original.
-  film_profiles.cpp    C++ tables: all 56 stocks, 5 print stocks, 14 gauges.
+  film_profiles.cpp    C++ tables: all 89 stocks, 5 print stocks, 14 gauges.
                        Regenerate both with:  python cpp_codegen.py -o .
+  film_names.txt       Official film names, quoted, one per line, ordered as
+                       the C++ vector. Regenerate: python gen_film_names.py
 
   test_chart.png       The small synthetic test image.
   period_chart.png     The large 3200 px test image.
-  contact_sheet.png    All 56 stocks on the small chart, side by side. Open this
+  contact_sheet.png    All stocks on the small chart, side by side. Open this
                        first to see what the stocks look like.
   period_sheet.png     The five period stocks, plus a 3-generation dupe
                        comparison and a modern stock for reference.
@@ -110,10 +118,14 @@ Generated output, safe to delete and regenerate:
 Documentation:
 
   Readme!.txt          This file. Practical operation.
-  README.md            The technical write-up: what was wrong with the original
+  doc/README.md        The technical write-up: what was wrong with the original
                        script, the full pipeline table, the physics reasoning,
                        every bug the test suite caught, and the honest limits.
                        Read it when you want the "why".
+  doc/                 The audit trail: datasheet verification reports
+                       (Found.md / NotFound.md), the Soviet reference-book
+                       extraction (SOVIET_EXTRACTION_2026-08-02.md), dated
+                       changelogs, and the measurement adoption reports.
 
 NOT INCLUDED IN THIS ZIP: the folders of finished renders. Those are 16-bit PNGs
 of grain, which do not compress -- over 100 MB. Regenerate in about 30 seconds:
@@ -345,9 +357,9 @@ That writes film_profiles.hpp and film_profiles.cpp. Add both to your project:
 
     #include "film_profiles.hpp"
 
-    auto stocks  = film::GetFilmDatabase();    // all 56
-    auto prints  = film::GetPrintStocks();     // all 4
-    auto formats = film::GetFilmFormats();     // all 11 gauges
+    auto stocks  = film::GetFilmDatabase();    // all 89
+    auto prints  = film::GetPrintStocks();     // all 5
+    auto formats = film::GetFilmFormats();     // all 14 gauges
 
     if (film::has(stock.features, film::Feature::Halation)) { ... }
     if (stock.isReversal()) { /* skip the print stage */ }
@@ -475,6 +487,13 @@ historically well attested -- domestic stock of the period was variable enough
 that major productions often preferred imported Agfa or Kodak when they could get
 it. If you have real Soviet technical handbook data, that profile is the one most
 worth correcting.
+
+UPDATE 2026-08-02: real Soviet handbook data now exists in this database. The
+printed sensitometric tables of Gurlev 1986, Iofis 1980 and Gordiychuk/Pell
+1979 (scans in PDF/PROFILES/SOVIET/) were transcribed and used to ground the
+Svema/Tasma still-film profiles -- see the final chronicle section below and
+doc/SOVIET_EXTRACTION_2026-08-02.md. SOVIET_PANCHROM_1939 itself predates
+those books and stays a reconstruction.
 
 Two changes would matter far more than anything else remaining:
 
@@ -1175,3 +1194,263 @@ All three are real effects, and none of them is the speed relationship, so the
 trend is not actually violated -- 8 mm is off it for stated reasons.
 
 Still [T3]. No 8 mm samples were supplied, so this is reasoned, not measured.
+
+(The chronicle sections above are a running log; stock counts quoted inside
+them -- 55, 56, 61 files under -p all, and so on -- are what was true at the
+time each section was written. Current totals are in the section below.)
+
+
+===========================================================================
+SOVIET REFERENCE-BOOK PASS -- 2026-08-02 -- 83 TO 89 STOCKS
+===========================================================================
+
+The wish from section 9 ("if you have real Soviet technical handbook data,
+that profile is the one most worth correcting") was granted. Three printed
+USSR references were scanned into PDF/PROFILES/SOVIET/ and their
+sensitometric tables transcribed page by page:
+
+  Гурлев Д. С., «Справочник по фотографии (светотехника и материалы)»,
+      Киев: Техніка, 1986 [Gurlev D. S., "Handbook of Photography (Light
+      Engineering and Materials)", Kyiv: Tekhnika, 1986]
+  Иофис Е. А., «Кинофотопроцессы и материалы», 2-е изд., М.: Искусство,
+      1980 [Iofis E. A., "Cine and Photo Processes and Materials", 2nd ed.,
+      Moscow: Iskusstvo, 1980]
+  Гордийчук И. Б., Пелль В. Г., «Справочник кинооператора», М.: Искусство,
+      1979 [Gordiychuk I. B., Pell V. G., "Cinematographer's Handbook",
+      Moscow: Iskusstvo, 1979]
+
+Full transcriptions with page numbers: doc/SOVIET_EXTRACTION_2026-08-02.md.
+Change log: doc/CHANGES_2026-08-02_soviet.md.
+
+SIX NEW STOCKS, curves and densities datasheet-grounded [T2], grain
+honestly [T3] (no Soviet source prints granularity for the still films):
+
+  SVEMA_FOTO_32     B&W neg, S 32 GOST, gamma 0.8 (CT-2), R 135 lin/mm
+  SVEMA_FOTO_130    B&W neg, S 130, gamma 0.8, R 100 -- and a documented
+                    580 nm sensitization cut: orthopanchromatic, reds go
+                    dark. Not a typo; it is what Gurlev prints.
+  SVEMA_DS_4        colour negative, UNMASKED, daylight 5500 K, S 45,
+                    overall gamma 0.8, R 63 lin/mm
+  SVEMA_TSNL_32     colour negative, masked, tungsten 3200 K, S 32,
+                    documented orange-mask dmin ladder, narrow 0.9 logH
+                    latitude, R 58
+  SVEMA_TSNL_65     colour negative, masked, tungsten 3200 K, S 65,
+                    wide 1.5 logH latitude, R 63
+  TASMA_OCH_45      B&W REVERSAL, S 45, Dmax 1.9 / Dmin 0.08 printed,
+                    gamma 1.1-1.6 window, sensitized to 680 nm
+
+RENAME: ORWO_UT18 -> ORWO_CHROM_UT18. The factory leaflet W 746 (VEB
+Filmfabrik Wolfen, scan in PDF/PROFILES/ORWO/) prints the official name
+"ORWO CHROM-FILM UT 18": 18 DIN / 50 ASA / 45 GOST, daylight. All old
+aliases still resolve.
+
+ALIAS: Svema «Фото-65» is the still-film designation of the FN-64 class
+emulsion; Gurlev's printed Foto-65 column (gamma 0.8, D0 0.05, R 110
+lin/mm, 665 nm) agrees with the measured profile, so SVEMA_FN_64 now
+answers to foto-65 / svema foto-65 and its tier rose 3 -> 2.
+
+TRANSLITERATION CONVENTION, used consistently in Python, C++ and the name
+list: З->Z, Л->L, Ц->TS, Ч->CH. СВЕМА ФОТО-32 -> SVEMA FOTO-32,
+ТАСМА МЗ-3Л -> TASMA MZ-3L, ОЧ-45 -> OCH-45, ЦНЛ -> TSNL.
+
+NEW TOOL gen_film_names.py: writes film_names.txt -- every official film
+name, quoted, one per line, no commas, in exactly the order of the C++
+std::vector (both iterate the same sorted FILM_PROFILES tuple; the order
+was verified programmatically 1:1). Run it only after cpp_codegen.py output
+has been generated and verified.
+
+Provenance rule for the Russian sources, applied throughout: the original
+book title is kept unchanged in the citation, with the English translation
+and translated author name alongside. The citations are embedded both in
+_PROVENANCE_SOURCES (queryable) and in the generated .cpp comment blocks.
+
+Also in this pass: 25 files moved to PDF/PROFILES/DELETE_CANDIDATE
+(byte-identical duplicates, URL-only pointers, paper/toner/label documents,
+and the DjVu superseded by its PDF conversion). Nothing deleted.
+
+verify.py count assertions updated 83/20 -> 89/21 -- the only test change.
+
+Database is now 89 film stocks, 5 print stocks, 14 gauges.
+All 67 verify checks pass. C++ compiles clean (g++ -std=c++17).
+
+SECOND PASS, SAME DAY -- CHIBISOV APPENDIX TABLES + MEASURED DUFAYCOLOR
+-----------------------------------------------------------------------
+The fourth reference was mined on the owner's pointer: Чибисов К. В. и др.,
+«Фотография в прошлом, настоящем и будущем», М.: Наука, 1988 [Chibisov
+K. V. et al., "Photography in the Past, Present and Future", Moscow: Nauka,
+1988], Appendix Table I (book p157-158, rotated pages) plus a survey of
+appendix tables II-XIV. Details: doc/SOVIET_EXTRACTION_2026-08-02.md.
+
+  TASMA_OCH_45     gamma 1.35 -> 1.50 and R -> 110 mm^-1 (Chibisov prints
+                   the OCh-45 product row: gamma_rec 1.6, R 110).
+  Foto line        Chibisov's R figures (116/92/75/70) CONFLICT with
+                   Gurlev's (135/110/100/82). Gurlev kept; both cited, so
+                   the tension is auditable, not hidden.
+  Kodak 5247/5294  Table VIII prints Soviet lab measurements (RMS
+                   granularity, MTF@30, mean gradient) for western cine
+                   stocks. Recorded as citations; grain NOT adopted
+                   (cross-era metric equivalence unverified). The printed
+                   5294 green MTF@30 of 0.65 matches the existing profile
+                   exactly -- a free confirmation.
+  Table IX         Independently confirms every DS-4 / TsNL-32 / TsNL-65
+                   value adopted from Gurlev. Extra Soviet colour stocks
+                   sit ready in the book if ever wanted: TsNL-90,
+                   TsO-65, TsO-T-90L, TsOD-16/32.
+
+  DUFAYCOLOR_1937  On the owner's instruction the reseau filter_matrix is
+                   now MEASURED, not estimated: derived from the NSMM
+                   Bradford absorbance curves of three surviving prints
+                   (DUFAYCOLOR/measuredODs_MSI_NSMM_*.jpg), band-averaged
+                   T = 10^-A, rescaled, rows normalised (within-row
+                   crosstalk ratios exact). Blue element leaks red, green
+                   leaks both ways, red is cleanest -- the pastel is now
+                   evidence-based. Tier 3 -> 2.
+
+All 67 verify checks pass after every change; C++ and film_names.txt
+regenerated in step.
+
+
+===========================================================================
+SCHEMA V3 -- DIGITISED SPECTRAL SENSITIVITY CURVES -- 2026-08-02
+===========================================================================
+
+The biggest remaining realism lever is now wired: real spectral
+sensitivity curves from datasheet plots, as data, not as three-number
+approximations. SCHEMA_VERSION 2 -> 3.
+
+NEW STRUCT SpectralSensitivity, appended to FilmProfile (aggregate order
+of the v1/v2 prefix unchanged, same rule as the v2 additions):
+
+  lambda_start_nm + lambda_step_nm   sampling grid (length varies per
+                                     stock: IR extends past 800 nm)
+  log_s_r / log_s_g / log_s_b        SENSITIVE LAYERS of a colour stock
+                                     (cyan-/magenta-/yellow-forming), not
+                                     output channels
+  log_s_pan                          single record: B&W and reseau stocks
+  criterion                          what the source plot's y-axis means
+                                     (the sheets differ; mixing conventions
+                                     silently corrupts comparisons)
+  source                             full citation: author/publisher,
+                                     document title and code, ORIGINAL
+                                     document release date; Russian sources
+                                     keep the original title plus English
+                                     translation
+
+Values are relative log10 sensitivity, peak-normalised to 0.0 per layer;
+-4.0 = below the plot's measurement floor. Absolute speed stays in
+exposure_index. Empty struct = renderer falls back to spectral_weights /
+taking_matrix exactly as before, so nothing breaks for the other 86
+stocks.
+
+PILOT STOCKS, three deliberately different cases:
+
+  FUJI_NEOPAN_ACROS_100     wedge spectrogram, AF3-095E sec. 12 (2001).
+                            Orthopan signature captured: 500 nm dip,
+                            580 nm peak, hard cut at ~655 nm.
+  KODAK_VISION3_250D_5207   three-layer curves, Kodak H-1-5207 (film
+                            2009, sheet rev. March 2026). Per-layer
+                            sheet-absolute peaks recorded in the comment;
+                            y-axis convention preserved in `criterion`.
+  KONICA_INFRARED_750       two-lobe IR record (intrinsic 400-500 nm +
+                            640-820 nm, peak 750 nm) -- the sheet's
+                            unlabelled axis read as linear, and that
+                            assumption is stated in `criterion` rather
+                            than hidden.
+
+Every curve carries its source document (author, title, publication code,
+original release date) both as a Python comment and as a comment above
+the profile literal in the generated .cpp.
+
+GENERATED C++ now stamps, in film_profiles.hpp AND film_profiles.cpp:
+generation timestamp (ISO-8601 UTC) and the schema version it was
+generated from. film_names.txt deliberately carries NEITHER -- it stays
+pure data.
+
+PRECISION DECISION, asked and answered: the spectral tables are emitted
+as std::vector<double> (exact float64 shortest-roundtrip literals), since
+generation is offline and storage free. Everything pre-v3 stays float32
+with exact shortest-roundtrip literals -- those values were authored as
+short decimals, so float32 already reproduces them exactly; the true
+precision bound everywhere is transcription accuracy (+/-0.05..0.1 log,
+stated per stock), not literal rounding. std::vector rather than
+std::array because grid length is per stock; hold instances const.
+
+verify.py: 67 -> 70 checks (spectral pilots present; peak normalisation
+and floor bounds; IR curve peaks at 750 nm with a dead mid-visible gap --
+guards against a silently shifted grid).
+
+NEXT, in order: batch digitisation of the remaining ~40-50 stocks with
+published curves (Fuji AF3 sheets, Ilford/Harman, Kodak E/F/H-1, Konica);
+class templates anchored to documented cut wavelengths for the Soviet
+stocks (Gurlev/Chibisov print the limits); then the renderer-side
+spectral upsampling path (Jakob-Hanika style RGB->spectrum) in the C++
+port, which consumes these tables.
+
+
+===========================================================================
+MACHINE-TRACED H&D CURVES -- digitize_plot.py -- 2026-08-02
+===========================================================================
+
+Curve SHAPES now come from the printed plots, not only the printed
+numbers. New tool digitize_plot.py renders a datasheet plot at 600 dpi,
+finds the frame and gridlines, traces each curve by seeded ink-centroid
+tracking, and least-squares fits the 6-parameter ToneCurve. Residuals are
+quoted in the profile comments; they land at RMS 0.003-0.007 D -- the
+printed line width, roughly ten times better than reading by eye.
+
+First adoptions ([T1] curve shapes):
+  KODAK_VISION3_250D_5207   three layers from H-1-5207, 1426 samples
+                            each, full -8..+8 stop range. The sheet's
+                            absolute Status M dmins are the orange mask
+                            (0.15/0.57/0.84), so the stock moved to
+                            dmin_ladder encoding.
+  FUJI_NEOPAN_ACROS_100     Microfine 15-min curve from AF3-095E, 1092
+                            samples: measured fog 0.122, straight-line
+                            gamma 0.690, toe measured; shoulder beyond
+                            the printed range stays estimated and is
+                            flagged as such.
+
+UPDATE, batch 5 (owner request): H&D curves machine-traced for the
+whole VISION3 family -- 5203 / 5213 / 5219 join 5207 (fit RMS
+0.002-0.011 D, 856-1467 samples per layer; all four now dmin_ladder,
+their Status M dmins being the orange mask) -- and for EASTMAN
+DOUBLE-X 5222 (D-96 6.5-min gamma-0.66 control curve; shoulder beyond
+the plotted range stays estimated and flagged). Requested file
+"eastman 500t 5296 exr - Kodak.pdf" was not found in KODAK/; 5296
+keeps sibling-sheet data until it arrives.
+
+UPDATE, batch 6 (Ferrania): the overlooked FERRANIA sheet "Curve
+caratteristiche e sensibilita spettrali" was opened at last -- P30 H&D
+machine-traced (gamma 1.25 measured, D-76 8 min as printed, 2195
+samples, RMS 0.007 D) and the P30 wedge-spectrogram envelope adopted
+[T2] (peak 610-630 nm, cut ~660). P33 and Orto curves are in the same
+file, ready if those stocks are ever added. Spectral coverage: 49/89.
+
+The remaining plots across the archive -- every H&D family, every
+spectral sensitivity plot, MTF curves, spectral dye densities -- are
+inventoried with priorities and binding method rules in
+doc/DIGITIZATION_QUEUE.md. Where a stock has NO plot, printed table
+values are used instead (owner rule), as already done for the Soviet
+additions. All 70 verify checks pass; C++ regenerated in step.
+
+UPDATE, same day, batches 2+3 (five parallel digitization agents):
+spectral coverage now 35 OF 89 STOCKS -- every spectral plot in the
+archive that matches a database stock is digitised (Agfa, Kodak incl.
+Kodachrome 64 / Ektachromes / Double-X / EXR 500T, Fuji, Harman, all six
+Konica colour stocks, Rollei, Fomapan 400, Polaroid 664/667). Verified
+no-plot sheets: Vista 200, both Kentmeres. Only VISION3 500T 5219 waits
+on a sheet not in the archive (H-1-5219; brochure only). Per-stock
+status table: doc/FilmCurves.md (regenerated by gen_film_curves_md.py
+after every pass).
+
+UPDATE, same day, batch 4 (owner-supplied datasheets): 24 new files
+added to PDF/PROFILES; spectral coverage now 48 OF 89 STOCKS. The
+missing H-1-5219 arrived -- VISION3 is complete -- plus the full
+VISION2 (5217/5218/5205), VISION1 (5274/5246/5279) and EXR
+(5245/5248/5293) generations, Plus-X 5231, the 5247 TI0835 sheet
+(post-1979 EI 125T generation, caveat recorded) and Fuji Eterna Vivid
+500 (KB-0901E). Every Kodak motion-picture stock in the database now
+carries its own digitised spectral curves. Honest findings: the
+supplied 5239.pdf is a mislabeled VNF-1 processing manual (no 5239
+spectral data exists on file); the July 2022 Kentmere Pan 100 sheet
+prints no spectral plot.
