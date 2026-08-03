@@ -97,8 +97,14 @@ __all__ = [
     "FORMAT_GEOM",
     "IDENTITY3",
     "SCHEMA_VERSION",
+    "CoatingSpec",
+    "InterimageSpec",
+    "PERFS_PER_FRAME",
     "get_profile",
     "get_print_stock",
+    "frame_pitch_mm",
+    "derived_spectral_response",
+    "DISPLAY_PRIMARIES",
     "profile_names",
     "validate_all",
 ]
@@ -117,7 +123,16 @@ IDENTITY3: Matrix3 = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 # spectral sensitivity curves digitised from manufacturer datasheet plots.
 # Appended after every v2 field, so the v1/v2 aggregate-initialiser prefix
 # is unchanged, exactly as the v2 additions preserved v1.
-SCHEMA_VERSION = 3
+# v4 (2026-08-03): CoatingSpec appended to FilmProfile, plus the scalar
+# default_vignette. Web-coherent coating unevenness, gate-buckling corner
+# defocus and narrow-gauge edge fog -- the three genuinely emulsion/transport
+# defects behind what viewers read as "old film edges". Appended after every
+# v3 field, so the v1/v2/v3 aggregate-initialiser prefix is unchanged.
+# v5 (2026-08-03): InterimageSpec appended to FilmProfile. Cross-layer
+# development inhibition -- the other half of the DIR-coupler chemistry whose
+# lateral half was already modelled in CouplerSpec. Appended after every v4
+# field, so the v1..v4 aggregate-initialiser prefix is unchanged.
+SCHEMA_VERSION = 5
 
 
 # ---------------------------------------------------------------------------
@@ -793,6 +808,233 @@ class Provenance:
 # Film profile
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)
+class InterimageSpec:
+    """Cross-layer development inhibition -- interimage effects (schema v5).
+
+    THE MECHANISM
+      Developing silver in one layer releases development inhibitor. That
+      inhibitor diffuses in two directions, and the two directions are two
+      different visible effects from one chemistry:
+
+        LATERALLY, within a layer -> edge effects and micro-contrast. Already
+          modelled, as CouplerSpec (radius_um / edge_um).
+        VERTICALLY, into the neighbouring layers -> interimage effects. This
+          spec. Development of the magenta record suppresses the adjacent cyan
+          record, and so on around the pack.
+
+      The visible consequence is the one thing a per-channel curve cannot
+      produce: saturation that rises WITHOUT gamma rising. Each layer's
+      effective exposure depends on what its neighbours are doing, so a
+      saturated red object develops its cyan record against less inhibition
+      than a neutral of the same luminance does, and separates further. It is
+      the core of why Portra holds skin separation and why Velvia saturates
+      the way it does -- Fuji markets the control of it by name ("MCCL
+      technology ... to control the inter-image effect", PROVIA 400X PIB).
+
+    THE MODEL
+      Applied as a correction to each layer's log exposure before the
+      characteristic curve::
+
+          logE_i' = logE_i + sum_{j != i} a_ij * (D_j - d_ref_j)
+
+      where D_j is the neighbouring layer's density and d_ref_j its density
+      at the mid-grey anchor. Off-diagonal terms are NEGATIVE (inhibition);
+      the diagonal is structurally zero because a layer's effect on itself is
+      already inside its own curve. Referencing to the mid-grey density is
+      what keeps a neutral scene unchanged: on a neutral, every (D_j - d_ref)
+      is ~0, so the correction vanishes and only non-neutral colour is
+      affected. That is exactly the observed behaviour of real interimage
+      effects, and it is why this cannot be folded into the curves.
+
+      The equation is implicit -- D_j depends on logE_j', which depends on
+      D_i. Solved by fixed-point iteration seeded with the uncorrected
+      densities. One pass captures most of the effect; the renderer exposes
+      the iteration count because each pass costs a full curve evaluation per
+      channel, and the curve stage is the most expensive in the chain.
+
+    PROVENANCE
+      Tier 2, upgraded from tier 3 on 2026-08-03. The values are now derived
+      from published measurements in the PATENT literature rather than
+      reasoned from stock generation -- see _IIE_TIERS for the metric
+      definition, the conversion algebra and the citations. No manufacturer
+      DATASHEET publishes interimage data (all 395 in the library were
+      searched); patents do, because a patent claiming improved interimage
+      effects has to demonstrate them. The omission is systematic, not accidental -- camera negative is
+      characterised with a single white-light exposure series, and the
+      colour-separation exposure series that would reveal interimage effects
+      is only ever printed for print stocks. The one authoritative
+      quantification located is a citation, not a document in hand: Gschwind,
+      Rosselet and Buser, "Investigation and quantification of inter-image
+      effects", J. Photographic Science 41 (1993), p. 86.
+
+      So these values are reasoned from stock generation and from the
+      STRONG_DIR_COUPLERS flag, not measured. To measure them: shoot a
+      neutral step wedge, then the SAME wedge through red (W25), green (W58)
+      and blue (W47B) filters, on one roll, with an empty-gate reference
+      frame. The single-colour ("self") gamma comes out steeper than the
+      neutral gamma; the ratio gives the coupling strength, and the movement
+      of the other two layers' densities gives the cross terms.
+
+    Attributes:
+        a_rg: effect of the GREEN-sensitive layer's development on the RED
+            layer's effective exposure, in logE per unit density. Negative.
+        a_rb: effect of the BLUE layer on the RED layer.
+        a_gr: effect of the RED layer on the GREEN layer.
+        a_gb: effect of the BLUE layer on the GREEN layer.
+        a_br: effect of the RED layer on the BLUE layer.
+        a_bg: effect of the GREEN layer on the BLUE layer.
+        iterations: fixed-point passes the renderer should run. 1 is the
+            default and captures most of the effect; 0 disables the stage.
+    """
+
+    a_rg: float = 0.0
+    a_rb: float = 0.0
+    a_gr: float = 0.0
+    a_gb: float = 0.0
+    a_br: float = 0.0
+    a_bg: float = 0.0
+    iterations: int = 1
+    #: Where along the curve the coupling acts. 0.0 = uniformly, which is the
+    #: negative-film case: US4729943A states interimage effects "are always
+    #: obtained during chromogenic development". Above 0, the correction is
+    #: scaled by the neighbouring layer's density relative to the mid-grey
+    #: reference, concentrating it in dense areas -- the reversal case, where
+    #: the same patent puts the effects in "high dye-density areas" because
+    #: they come from iodide released in the FIRST black-and-white developer
+    #: rather than from DIR couplers in the colour developer. Tier 3: the
+    #: mechanism split is documented, the 0.65 magnitude is not.
+    density_weighting: float = 0.0
+
+    @property
+    def active(self) -> bool:
+        return self.iterations > 0 and any(
+            v != 0.0 for v in (self.a_rg, self.a_rb, self.a_gr,
+                               self.a_gb, self.a_br, self.a_bg)
+        )
+
+    def matrix(self) -> Matrix3:
+        """Row-major 3x3 with a structurally zero diagonal."""
+        return (
+            (0.0, self.a_rg, self.a_rb),
+            (self.a_gr, 0.0, self.a_gb),
+            (self.a_br, self.a_bg, 0.0),
+        )
+
+    def validate(self, label: str = "") -> None:
+        for nm, v in (("a_rg", self.a_rg), ("a_rb", self.a_rb),
+                      ("a_gr", self.a_gr), ("a_gb", self.a_gb),
+                      ("a_br", self.a_br), ("a_bg", self.a_bg)):
+            if not -1.0 < v <= 0.0:
+                raise ValueError(
+                    f"{label}: {nm}={v} -- interimage terms are inhibition, "
+                    "so they must be in (-1, 0]"
+                )
+        if not 0 <= self.iterations <= 4:
+            raise ValueError(f"{label}: iterations must be in [0, 4]")
+        if not 0.0 <= self.density_weighting <= 1.0:
+            raise ValueError(
+                f"{label}: density_weighting must be in [0, 1]"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class CoatingSpec:
+    """Emulsion coating and camera-gate defects (schema v4).
+
+    Three separate physical mechanisms live here. They are grouped because
+    all three are properties of the FILM (its coating uniformity, its base
+    stiffness, its slit width) rather than of the lens -- but they are
+    independent and each has its own on/off condition.
+
+    WHY THE GEOMETRY IS NOT THE FRAME'S GEOMETRY
+      This is the whole point of the spec and the easiest thing to get
+      wrong. Film is coated as a web up to ~1.4 m wide and then slit into
+      strips; the coating machine has no idea where frame boundaries will
+      fall, because the camera gate decides that later. So coating
+      thickness variation CANNOT produce a defect locked to frame corners.
+      Corner-locked darkening is the LENS (see FilmProfile.default_vignette).
+      What coating variation does produce, in web coordinates:
+
+        * ACROSS the web -- on 35 mm this is the frame's HORIZONTAL axis.
+          A left-right sensitivity gradient, identical on every frame of
+          the roll. It does not flicker.
+        * ALONG the web (machine direction) -- the frame's VERTICAL axis.
+          The film advances one frame pitch per frame, so each frame
+          samples a different stretch of web. THIS is the one real
+          emulsion-driven frame-to-frame "blink": spatially smooth,
+          temporally sliding, never white noise.
+
+      Hence two correlation lengths, and hence the renderer advancing the
+      field by the format's frame pitch instead of redrawing it.
+
+    Attributes:
+        coating_sigma: RMS fractional sensitivity variation of the coating,
+            e.g. 0.035 = 3.5 % one-sigma. 0.0 disables the whole coating
+            field. QC-driven, not date-driven: trough coating (pre-1950s)
+            was worst, slide/extrusion hoppers (1950s) much better,
+            multi-slot simultaneous coating (1970s+) better again -- but
+            Soviet and GDR plants lagged by decades and budget stocks show
+            it to this day.
+        coating_corr_across_mm: Correlation length across the web, mm.
+            Typically shorter than along-web: the hopper's cross-web
+            profile has finer structure than its slow drift in time.
+        coating_corr_along_mm: Correlation length along the web, mm. Longer,
+            because it is the coating flow drifting over seconds of machine
+            time. The ratio of the two is what makes the field streaky
+            rather than blobby.
+        buckle_mtf_loss: Fraction of f50 lost at the frame corners because
+            the film buckles in the gate -- the pressure plate holds the
+            centre flat while the corners lift out of the focal plane. This
+            is corner SOFTNESS, not corner darkening. Driven by base
+            stiffness (thick nitrate and early acetate curl; modern PET
+            does not) and by gate size, so small gauges suffer worst and
+            for longest. 0.0 = rigid base, well-designed gate.
+        edge_fog_density: Extra density at the film edge from light leaking
+            past the edge of the roll plus development edge effects. Only
+            matters when the frame sits close to the film edge, which is a
+            GAUGE fact, not an era fact: Standard 8 is slit from 16 mm, so
+            its frame is right at the edge permanently. On 35 mm the
+            margins are trimmed and this is negligible.
+        edge_fog_mm: Decay length of that fog inward from the film edge, mm.
+    """
+
+    coating_sigma: float = 0.0
+    coating_corr_across_mm: float = 0.0
+    coating_corr_along_mm: float = 0.0
+    buckle_mtf_loss: float = 0.0
+    edge_fog_density: float = 0.0
+    edge_fog_mm: float = 0.0
+
+    @property
+    def has_coating_field(self) -> bool:
+        return self.coating_sigma > 0.0
+
+    @property
+    def has_buckle(self) -> bool:
+        return self.buckle_mtf_loss > 0.0
+
+    @property
+    def has_edge_fog(self) -> bool:
+        return self.edge_fog_density > 0.0 and self.edge_fog_mm > 0.0
+
+    def validate(self, label: str = "") -> None:
+        if not 0.0 <= self.coating_sigma < 0.5:
+            raise ValueError(f"{label}: coating_sigma must be in [0, 0.5)")
+        if self.coating_sigma > 0.0 and (
+            self.coating_corr_across_mm <= 0.0 or self.coating_corr_along_mm <= 0.0
+        ):
+            raise ValueError(
+                f"{label}: coating_sigma > 0 needs both correlation lengths > 0"
+            )
+        if not 0.0 <= self.buckle_mtf_loss < 0.9:
+            raise ValueError(f"{label}: buckle_mtf_loss must be in [0, 0.9)")
+        if self.edge_fog_density < 0.0:
+            raise ValueError(f"{label}: edge_fog_density must be >= 0")
+        if self.edge_fog_mm < 0.0:
+            raise ValueError(f"{label}: edge_fog_mm must be >= 0")
+
+
+@dataclass(frozen=True, slots=True)
 class FilmProfile:
     """Complete description of one film stock.
 
@@ -930,6 +1172,13 @@ class FilmProfile:
     #: showed a mean R-G of +8.6 and +15.6 / 255 in their bright regions.
     silver_tone: float = 0.0
     default_flare: float = 0.0
+    #: Corner falloff of the LENS typically used with this stock, in stops
+    #: (0.5 = corners one half stop down). Deliberately a lens property kept
+    #: beside default_flare, NOT part of CoatingSpec: cos^4(theta) is
+    #: geometry and applies in every era -- modern glass still drops
+    #: 0.3-0.5 stop wide open. The era default here says what a period
+    #: camera would have done; RenderSettings.vignette overrides it.
+    default_vignette: float = 0.0
     features: Feature = Feature.NONE
     # -- schema v2 (see class docstring). Inert defaults; the decoration pass
     # at the bottom of this module fills in per-stock values. ----------------
@@ -949,6 +1198,13 @@ class FilmProfile:
     # -- schema v3: digitised spectral sensitivity curves. Empty default =
     # renderer falls back to spectral_weights / taking_matrix (v2 path).
     spectral: SpectralSensitivity = field(default_factory=SpectralSensitivity)
+    # -- schema v4: coating / gate defects. Inert default = no coating field,
+    # no gate buckling, no edge fog; the decoration pass at the bottom of this
+    # module fills per-stock values from QC tier, era and gauge.
+    coating: CoatingSpec = field(default_factory=CoatingSpec)
+    # -- schema v5: cross-layer interimage effects. Inert default = the v4
+    # behaviour exactly; the decoration pass fills per-stock values.
+    interimage: InterimageSpec = field(default_factory=InterimageSpec)
 
     @property
     def is_reversal(self) -> bool:
@@ -979,6 +1235,10 @@ class FilmProfile:
                 )
         if not 0.0 <= self.default_flare < 1.0:
             raise ValueError(f"{self.name}: default_flare must be in [0, 1)")
+        if not 0.0 <= self.default_vignette < 4.0:
+            raise ValueError(f"{self.name}: default_vignette must be in [0, 4)")
+        self.coating.validate(self.name)
+        self.interimage.validate(self.name)
         if self.grain.rms_granularity <= 0:
             raise ValueError(f"{self.name}: rms_granularity must be > 0")
         if min(self.grain.clumps()) <= 0:
@@ -1037,6 +1297,119 @@ class PrintStock:
 
 
 # ---------------------------------------------------------------------------
+# Derived spectral response (schema v5 helper -- computes, stores nothing)
+# ---------------------------------------------------------------------------
+#: Display primary SPDs, as Gaussians: (peak_nm, fwhm_nm) for R, G, B.
+#: Why display primaries and not scene illuminants: the input to this
+#: simulator is an RGB image, i.e. three numbers per pixel. A spectrum cannot
+#: be recovered from three numbers -- the problem is underdetermined, and no
+#: film dataset fixes that. What an RGB image DOES assert unambiguously is
+#: "these are the intensities of my three display primaries". So integrating
+#: each emulsion layer against those primaries answers a well-posed question:
+#: what would this film record if it photographed a display showing this
+#: image? That is exactly what the simulator is asked to do, and it is honest
+#: about its assumption instead of inventing scene spectra. Values are typical
+#: of a wide-gamut LED display.
+DISPLAY_PRIMARIES: tuple[tuple[float, float], ...] = (
+    (630.0, 25.0),   # R
+    (530.0, 35.0),   # G
+    (465.0, 25.0),   # B
+)
+
+
+def _primary_spd(lambdas: tuple[float, ...], peak: float, fwhm: float):
+    import math as _m
+    sigma = fwhm / 2.354820045
+    return [_m.exp(-0.5 * ((l - peak) / sigma) ** 2) for l in lambdas]
+
+
+def derived_spectral_response(p: "FilmProfile"):
+    """DIAGNOSTIC ONLY -- do NOT drive the renderer from this. See below.
+
+    Exposure response derived from this stock's DIGITISED spectral curves by
+    integrating each emulsion layer against display-primary SPDs.
+
+    WHY THIS IS NOT WIRED INTO THE PIPELINE (measured 2026-08-03)
+      The construction is well-posed but the answers are useless or actively
+      wrong, in two distinct ways:
+
+      1. IT CANNOT REACH BEYOND THE DISPLAY GAMUT. Display primaries stop
+         around 630 nm, so a monitor physically cannot excite an infrared
+         layer. Run on KONICA_INFRARED_750 -- sensitised 640-820 nm with a
+         750 nm peak -- it returns (0.022, 0.017, 0.960), i.e. blue-dominant,
+         because the only part of that emulsion a display can reach is its
+         intrinsic 400-500 nm lobe. That is a TRUE statement about
+         photographing a monitor and a nonsense one about photographing the
+         world. Every extended-red, superpanchromatic and IR stock breaks the
+         same way.
+      2. IT IS NEARLY A NO-OP FOR COLOUR. Display primaries are narrow and
+         emulsion layers are broad, so each primary lands almost entirely on
+         one layer: PORTRA 400 derives to a 0.97-0.99 diagonal, VISION3 5207
+         to 0.96-0.999. Replacing the hand-set weights with that changes
+         almost nothing while adding a whole assumption layer.
+
+      The real fix is a SCENE spectral model -- reflectance basis functions
+      illuminated by a stated illuminant, then integrated against the layer
+      curves. That is a genuine spectral-upsampling model (Smits or
+      Jakob-Hanika class), not a rearrangement of existing data, and it must
+      be built and validated deliberately rather than slipped in. Until then
+      the hand-set ``spectral_weights`` and ``taking_matrix`` remain
+      authoritative, and this function exists to document the finding and to
+      be reused later with proper illuminant SPDs substituted for
+      DISPLAY_PRIMARIES.
+
+    Returns None when the stock carries no curves.
+
+    Returns None when the stock carries no curves, so callers fall back to the
+    hand-set ``spectral_weights`` / ``taking_matrix`` exactly as before.
+
+    Monochrome and reseau stocks return a 3-tuple of weights (the same
+    convention as ``spectral_weights``): one panchromatic layer, three display
+    primaries. Colour stocks return a row-major 3x3 mapping display RGB to the
+    exposure of the red-, green- and blue-SENSITIVE layers.
+
+    Rows are normalised to sum 1.0, so this changes the SPECTRAL BALANCE of
+    the exposure without changing overall speed -- absolute sensitivity stays
+    where it belongs, in ``exposure_index``.
+
+    This is derived on demand and never stored: the profile literals keep
+    their measured values untouched, and the derivation can be improved
+    without editing a single stock.
+    """
+    sp = p.spectral
+    if not sp.has_data:
+        return None
+    n_max = max(len(sp.log_s_r), len(sp.log_s_g), len(sp.log_s_b),
+                len(sp.log_s_pan))
+    if n_max == 0:
+        return None
+    lambdas = tuple(sp.lambda_start_nm + i * sp.lambda_step_nm
+                    for i in range(n_max))
+    prim = [_primary_spd(lambdas, pk, fw) for pk, fw in DISPLAY_PRIMARIES]
+
+    def response(log_s):
+        # sentinel -4.0 means "below the source plot's floor" -> treat as zero
+        lin = [0.0 if v <= -3.999 else 10.0 ** v for v in log_s]
+        out = []
+        for j in range(3):
+            acc = 0.0
+            for i in range(min(len(lin), len(lambdas))):
+                acc += lin[i] * prim[j][i]
+            out.append(acc)
+        tot = sum(out)
+        return tuple(v / tot for v in out) if tot > 0 else None
+
+    if sp.log_s_pan:
+        return response(sp.log_s_pan)
+    if sp.log_s_r and sp.log_s_g and sp.log_s_b:
+        rows = [response(sp.log_s_r), response(sp.log_s_g), response(sp.log_s_b)]
+        if any(r is None for r in rows):
+            return None
+        return tuple(rows)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Film gauges. Aperture dimensions per SMPTE / manufacturer specification.
 # ---------------------------------------------------------------------------
 FORMAT_GEOM: dict[str, tuple[float, float, float, float]] = {
@@ -1063,6 +1436,30 @@ FORMAT_GEOM: dict[str, tuple[float, float, float, float]] = {
 """Full frame geometry (schema v2, DM-17): image width and height on the
 negative in millimetres, anamorphic squeeze factor, and perforation pitch in
 millimetres."""
+
+#: Perforations advanced per frame, per format. Frame pitch in millimetres is
+#: perf_pitch_mm * PERFS_PER_FRAME -- exactly the distance the web moves
+#: between frames, which is what the coating field must be advanced by so its
+#: machine-direction structure slides instead of being redrawn. 0 = unperforated
+#: (sheet/instant film): a single exposure, no advance, no temporal component.
+PERFS_PER_FRAME: dict[str, int] = {
+    "super35": 4, "academy35": 4, "anamorphic35": 4, "techni35": 4,
+    "super16": 1, "16mm": 1,
+    "8mm": 1, "super8": 1,
+    "ff35": 8,          # still 35 mm advances 8 perfs for a 36 mm frame
+    "imax15": 15,       # 15-perf horizontal
+    "medium645": 0, "large4x5": 0,
+    "polaroid_sx70": 0, "polaroid_pack": 0,
+}
+
+
+def frame_pitch_mm(fmt: str) -> float:
+    """Web travel between successive frames, millimetres. 0 = unperforated."""
+    geom = FORMAT_GEOM.get(fmt)
+    if geom is None:
+        return 0.0
+    return geom[3] * PERFS_PER_FRAME.get(fmt, 0)
+
 
 FORMATS: dict[str, float] = {name: geom[0] for name, geom in FORMAT_GEOM.items()}
 """Image width on the negative, millimetres -- the v1 view, derived from
@@ -5728,6 +6125,327 @@ def _grain_v2(p: FilmProfile) -> GrainSpec:
     return replace(g, **kw)
 
 
+#: Coating-uniformity tier. NOT a date axis -- a plant-and-QC axis, which is
+#: why 1974 Eastman 5247 and present-day Fomapan sit in the same tier while a
+#: 1990s Kodak consumer film sits two tiers better. Coating technology went
+#: trough (pre-1950s) -> slide/extrusion hopper (1950s) -> multi-slot
+#: simultaneous (1970s+), but Soviet, GDR and budget plants lagged by decades.
+#: Tier -> (sigma, corr_across_mm, corr_along_mm). Tier 3 estimates: the
+#: sigma figures are anchored on the owner's measured scan batches, whose
+#: field analysis put residual coating mottle at 0.06-0.16 D upper bound
+#: (scene leakage included), i.e. a few percent of sensitivity.
+_COATING_TIERS: dict[str, tuple[float, float, float]] = {
+    "trough": (0.055, 1.6, 7.0),      # pre-1950s, hand-supervised coating
+    "poor": (0.038, 1.9, 8.5),        # Soviet/GDR/budget lines, any era
+    "fair": (0.020, 2.4, 11.0),       # 1950s-70s western, or good Soviet
+    "good": (0.009, 3.0, 14.0),       # 1980s+ western consumer/pro
+    "modern": (0.0, 0.0, 0.0),        # below visibility: VISION2/3, modern Fuji
+}
+
+#: Stocks whose coating tier is worse than their date alone would suggest,
+#: or better. Everything not listed is derived from era in _coating_for().
+_COATING_OVERRIDE: dict[str, str] = {
+    # Soviet / GDR plants: visible mottle regardless of decade.
+    "SVEMA_FN_64": "poor", "SVEMA_FN_64_16MM": "poor", "SVEMA_FN_64_8MM": "poor",
+    "SVEMA_FOTO_250": "poor", "TASMA_FN_64": "poor", "TASMA_POSITIVE_28": "poor",
+    "SOVCOLOR_DS_4": "poor", "SOVIET_PANCHROM_1939": "trough",
+    "ORWOCOLOR_NC21": "poor", "ORWOCOLOR_NC24": "poor", "ORWO_UT18": "poor",
+    # Budget / small-plant lines that still show it.
+    "FOMAPAN_400_ACTION": "poor", "FERRANIA_P30": "fair",
+    "MACO_CUBE_400C": "fair", "MACO_PO_100C": "fair",
+    # Amateur reversal home-movie stock, doubly slit.
+    "EIGHT_MM_BW": "poor", "EIGHT_MM_COLOR": "poor",
+    # Additive-mosaic and three-strip era: coating was the hard part.
+    "DUFAYCOLOR_1937": "trough", "AGFACOLOR_NEU_1936": "trough",
+    "LUMIERE_LUMICHROME": "trough", "TECHNICOLOR_THREE_STRIP": "fair",
+    # Modern majors, explicitly below visibility.
+    "KODAK_VISION3_50D_5203": "modern", "KODAK_VISION3_250D_5207": "modern",
+    "KODAK_VISION3_200T_5213": "modern", "KODAK_VISION3_500T_5219": "modern",
+    "KODAK_VISION2_500T_5218": "modern", "KODAK_VISION2_200T_5217": "modern",
+    "KODAK_VISION2_250D_5205": "modern", "KODAK_PORTRA_400": "modern",
+    "KODAK_PORTRA_800": "modern", "FUJI_ETERNA_VIVID_500T_8547": "modern",
+    "FUJI_NEOPAN_ACROS_100": "modern", "CINESTILL_800T": "modern",
+}
+
+#: Lens corner falloff by era, in stops. Geometry (cos^4) is era-independent;
+#: what changes is the glass and the mount. Brass/uncoated designs of the 1930s
+#: ran fast and wide with heavy mechanical vignetting on top of the natural
+#: falloff; modern multicoated designs still lose 0.3-0.5 stop wide open.
+#: Tier 3 estimates -- a lens property, so any real shoot overrides it.
+_VIGNETTE_BY_ERA: tuple[tuple[int, float], ...] = (
+    (1940, 1.15),   # uncoated, often uncorrected wide-open Petzval/Tessar era
+    (1955, 0.85),   # single-coated post-war primes
+    (1970, 0.65),
+    (1990, 0.50),
+    (2005, 0.40),
+    (9999, 0.35),   # modern multicoated cine glass
+)
+
+
+def _coating_for(p: FilmProfile) -> CoatingSpec:
+    """DM-20 (v4). Coating field, gate buckling and edge fog per stock.
+
+    Three independent mechanisms, three independent conditions:
+      * coating field: QC tier (override table, else era);
+      * gate buckling: base stiffness (era) TIMES gate size (gauge);
+      * edge fog: gauge only -- how close the frame sits to the film edge.
+    """
+    y = _era_start(p.era)
+    modern = "present" in p.era.lower() and y >= 2000
+
+    tier = _COATING_OVERRIDE.get(p.name)
+    if tier is None:
+        if y < 1950:
+            tier = "trough"
+        elif y < 1975:
+            tier = "fair"
+        elif modern or y >= 1995:
+            tier = "modern"
+        else:
+            tier = "good"
+    sigma, across, along = _COATING_TIERS[tier]
+    # An UNEVEN_EMULSION flag on a stock the tier rules called clean means the
+    # profile author saw it in real scans; the flag wins. (Flags are derived
+    # elsewhere in this module, but this one is author-set evidence.)
+    if Feature.UNEVEN_EMULSION in p.features and sigma < _COATING_TIERS["fair"][0]:
+        sigma, across, along = _COATING_TIERS["fair"]
+
+    # -- gate buckling: base stiffness x gate size ---------------------------
+    fmt = p.default_format
+    small_gauge = fmt in ("8mm", "super8", "16mm", "super16")
+    if y < 1955:
+        buckle = 0.16          # nitrate / early acetate, thick and curling
+    elif y < 1980:
+        buckle = 0.10
+    elif modern or y >= 1995:
+        buckle = 0.03          # thin PET, modern gates
+    else:
+        buckle = 0.06
+    if small_gauge:
+        # Amateur gates are small, spring-loaded and imprecise; the frame also
+        # occupies proportionally more of the film width, so the same physical
+        # lift costs more of the picture.
+        buckle *= 1.9 if fmt in ("8mm", "super8") else 1.4
+    buckle = min(buckle, 0.45)
+
+    # -- edge fog: gauge only ------------------------------------------------
+    if fmt in ("8mm", "super8"):
+        # Standard 8 is 16 mm slit down the middle after processing: the frame
+        # sits at the film edge with no trimmed margin at all.
+        edge_d, edge_mm = 0.055, 0.45
+    elif fmt in ("16mm", "super16"):
+        edge_d, edge_mm = 0.028, 0.60
+    else:
+        edge_d, edge_mm = 0.0, 0.0
+
+    return CoatingSpec(
+        coating_sigma=sigma,
+        coating_corr_across_mm=across,
+        coating_corr_along_mm=along,
+        buckle_mtf_loss=round(buckle, 3),
+        edge_fog_density=edge_d,
+        edge_fog_mm=edge_mm,
+    )
+
+
+def _vignette_for(p: FilmProfile) -> float:
+    """DM-21 (v4). Era-typical lens corner falloff, stops. Lens, not emulsion."""
+    if p.default_vignette > 0.0:
+        return p.default_vignette          # author-set wins
+    y = _era_start(p.era)
+    for cutoff, stops in _VIGNETTE_BY_ERA:
+        if y < cutoff:
+            return stops
+    return _VIGNETTE_BY_ERA[-1][1]
+
+
+#: Interimage coupling, logE per unit density, PER RECEIVING LAYER.
+#: Tier 2 -- derived from published measurements, not estimated. Provenance and
+#: the full derivation are in doc/CHANGES_2026-08-03_v5_interimage.md.
+#:
+#: SOURCE US5273870A (Agfa-Gevaert), which defines the metric exactly as this
+#: model needs it: "the percentage steepening of color gradation during color
+#: separation exposure with light of the corresponding spectral region in
+#: relation to the color gradation established on exposure with white light",
+#: citing T. H. James, The Theory of the Photographic Process, 4th ed. (1977),
+#: pp. 574 and 614. Measured at density 1.0 over fog.
+#:
+#: CONVERSION (verified by round-trip, and the sign matches the patent's own
+#: statement that white-light gradation is the LOWER one):
+#:   separation exposure holds the other records constant, so the correction
+#:   term is constant and gamma_sep is the intrinsic curve gamma;
+#:   neutral exposure moves all records together, giving
+#:       gamma_white = gamma0 / (1 - gamma0 * SUM_j a_ij)
+#:   hence  SUM_j a_ij = -(IIE/100) / gamma_sep.
+#: gamma_white comes from US5451492A Table II control row A (Status M,
+#: midscale, C-41 product negative): blue 0.726, green 0.545. Red gamma is
+#: NOT published in either patent; 0.55 assumed, which is the one estimated
+#: input in this chain and is why these are T2 rather than T1.
+#:
+#: THE ASYMMETRY IS PER RECEIVER, NOT PER DISTANCE. Blue receives weakly,
+#: green and red strongly, in all three US5273870A examples and again in
+#: US4830954A (yellow 5-15%, magenta 8-35%, cyan 10-30%). US4725529A Table 1
+#: proves this is emulsion susceptibility rather than geometry: it puts the
+#: inhibitor in the DEVELOPER and applies it to three separate single-layer
+#: coatings -- no layer stack at all -- and still measures red receivers at
+#: 0.43-0.72 dlogE against blue at 0.24-0.48. A per-hop distance factor, by
+#: contrast, has no numeric support in any of the nine patents surveyed.
+#: STORED IN THE PATENT'S OWN UNITS -- IIE percentage per RECEIVING layer,
+#: (blue, green, red) -- and converted to model coefficients per stock using
+#: that stock's OWN curve gamma, because SUM a = -(IIE/100)/gamma_sep and
+#: gamma_sep IS the stock's intrinsic curve gamma. Storing the percentage and
+#: deriving the coefficient means a low-contrast and a high-contrast stock both
+#: reproduce the published IIE figure instead of sharing an absolute number
+#: that only suits one of them. Verified: using a fixed conversion gamma left
+#: blue 28% below the patent target; per-stock conversion removes that.
+_IIE_TIERS: dict[str, tuple[float, float, float]] = {
+    "strong": (25.0, 45.0, 42.0),   # US5273870A Ex.1 invention, DIR in layer B
+    "medium": (25.0, 33.0, 35.0),   # US5273870A Ex.3 invention
+    "mild": (10.0, 15.0, 15.0),     # US5273870A Ex.1 DIR-FREE control
+    "trace": (5.0, 7.0, 7.0),       # half the iodide-only baseline
+    "none": (0.0, 0.0, 0.0),
+}
+
+
+def _iie_density_at(log_e: float, c: ToneCurve) -> float:
+    """Density from the softplus curve. Local copy so this module stays free of
+    any dependency on the renderer -- film_sim imports film_profiles, never the
+    reverse."""
+    import math
+
+    def sp(x: float, k: float) -> float:
+        z = x / k
+        if z > 60.0:
+            return x
+        if z < -60.0:
+            return 0.0
+        return k * math.log1p(math.exp(z))
+    return c.dmin + c.gamma * (sp(log_e - c.toe_x, c.toe_k)
+                               - sp(log_e - c.shoulder_x, c.shoulder_k))
+
+
+def _iie_measure(curves, coef, iterations: int) -> tuple[float, float, float]:
+    """Model IIE percentage per channel, by the patent's own protocol.
+
+    Replicates the renderer's stage 8b exactly -- same fixed-point count, same
+    mid-grey reference -- then measures the gamma ratio between separation and
+    neutral exposure the way US5273870A does.
+    """
+    span = 0.6
+    d_ref = [_iie_density_at(0.0, curves[c]) for c in range(3)]
+    m = ((0.0, coef[0], coef[0]), (coef[1], 0.0, coef[1]),
+         (coef[2], coef[2], 0.0))
+
+    def dens(lg):
+        d = [_iie_density_at(lg[c], curves[c]) for c in range(3)]
+        for _ in range(max(iterations, 1)):
+            adj = [sum(m[c][j] * (d[j] - d_ref[j])
+                       for j in range(3) if j != c) for c in range(3)]
+            d = [_iie_density_at(lg[c] + adj[c], curves[c]) for c in range(3)]
+        return d
+
+    lo_n, hi_n = dens([-span] * 3), dens([span] * 3)
+    out = []
+    for c in range(3):
+        g_white = (hi_n[c] - lo_n[c]) / (2.0 * span)
+        lo_s = dens([-span if j == c else 0.0 for j in range(3)])
+        hi_s = dens([span if j == c else 0.0 for j in range(3)])
+        g_sep = (hi_s[c] - lo_s[c]) / (2.0 * span)
+        out.append(100.0 * (g_sep / g_white - 1.0) if g_white > 1e-9 else 0.0)
+    return tuple(out)
+
+
+def _iie_solve(curves, targets, iterations: int = 1):
+    """Coefficients that make the MODEL reproduce the published IIE figures.
+
+    The closed-form conversion is only valid while the coupling is weak. It
+    matched the patent's DIR-free control to 0.9 percentage points but
+    overshot the strong-DIR tier by 23 points, because at that strength the
+    feedback between records stops being linear and the curve's toe and
+    shoulder start contributing. Rather than pretend the algebra holds, the
+    linear result is used as a seed and then corrected against the model
+    itself -- the same "fit through the full pipeline" approach already used
+    for grain RMS, and for the same reason.
+    """
+    g0 = [curves[c].gamma for c in range(3)]
+    gw = [g0[c] / (1.0 + targets[c] / 100.0) for c in range(3)]
+    coef = []
+    for i in range(3):
+        f = (targets[i] / 100.0) / (1.0 + targets[i] / 100.0)
+        donors = sum(gw[m] for m in range(3) if m != i)
+        coef.append(-f / max(donors, 1e-6))
+    for _ in range(40):
+        got = _iie_measure(curves, coef, iterations)
+        worst = 0.0
+        for c in range(3):
+            if targets[c] <= 0.0:
+                continue
+            err = targets[c] - got[c]
+            worst = max(worst, abs(err))
+            # secant-free damped proportional correction; stable because IIE
+            # rises monotonically with |coef|
+            coef[c] *= 1.0 + 0.5 * err / max(targets[c], 1e-6)
+            coef[c] = max(min(coef[c], -1e-6), -0.94)
+        if worst < 0.15:
+            break
+    return coef
+
+
+def _interimage_for(p: FilmProfile) -> InterimageSpec:
+    """DM-22 (v5). Interimage coupling per stock. Tier 3 throughout.
+
+    Monochrome stocks get nothing: one silver layer has no neighbour to
+    inhibit. Three-strip Technicolor likewise -- its three records are
+    physically separate films, so no inhibitor can cross between them, and
+    that absence is part of why its colour behaves unlike a tripack's. The
+    additive-mosaic stocks (Dufaycolor, Lumiere) are single panchromatic
+    emulsions behind a filter grid: same reasoning, no interimage.
+    """
+    if p.is_monochrome or p.reseau is not None or p.name == "TECHNICOLOR_THREE_STRIP":
+        return InterimageSpec()
+
+    y = _era_start(p.era)
+    if Feature.STRONG_DIR_COUPLERS in p.features:
+        tier = "strong"          # author-set evidence of modern DIR chemistry
+    elif y < 1950:
+        tier = "none"
+    elif y < 1970:
+        tier = "trace"       # thin 1950s-60s emulsions, iodide only
+    elif y < 1980:
+        tier = "mild"        # matches US5273870A's DIR-FREE control level
+    elif y < 1998:
+        tier = "medium"      # DIR present, earlier generation
+    else:
+        tier = "strong"
+
+    iie_b, iie_g, iie_r = _IIE_TIERS[tier]
+    if iie_r == 0.0:
+        return InterimageSpec()
+    # Solved against the model, not by formula -- see _iie_solve.
+    curves = (p.curves.r, p.curves.g, p.curves.b)
+    a_r, a_g, a_b = _iie_solve(curves, (iie_r, iie_g, iie_b), 1)
+
+    # Reversal materials get their interimage effects by a DIFFERENT mechanism
+    # in a DIFFERENT part of the curve, per US4729943A: a negative gets them
+    # "always ... during chromogenic development", while a reversal material
+    # gets them "by the release in the first black-and-white developer of a
+    # development inhibitor", and those land in HIGH dye-density areas. Same
+    # patent notes the consequence -- pushing them harder LOWERS neutral
+    # speed, which is why manufacturers went to second-developer DIR instead.
+    # density_weighting carries that: 0 = uniform across the curve, 1 = fully
+    # proportional to the neighbouring layer's density.
+    # Rows are per RECEIVING layer: the red record receives a_r from each of
+    # its two donors, and so on. Donor identity carries no weighting, because
+    # no surveyed patent measures one.
+    return InterimageSpec(
+        a_rg=a_r, a_rb=a_r,
+        a_gr=a_g, a_gb=a_g,
+        a_br=a_b, a_bg=a_b,
+        iterations=1,
+        density_weighting=0.65 if p.is_reversal else 0.0,
+    )
+
+
 def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
     """Fill every schema-v2 field from the rules and tables above."""
     y = _era_start(p.era)
@@ -5768,6 +6486,9 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
 
     return replace(
         p,
+        coating=_coating_for(p),
+        interimage=_interimage_for(p),
+        default_vignette=_vignette_for(p),
         features=feats,
         grain=_grain_v2(p),
         mtf=replace(p.mtf, **mtf_kw) if mtf_kw else p.mtf,

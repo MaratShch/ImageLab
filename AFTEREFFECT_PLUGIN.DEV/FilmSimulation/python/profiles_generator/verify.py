@@ -1,4 +1,5 @@
 """Verification suite for the film simulation. Run: python3 verify.py"""
+import dataclasses
 import math, struct, sys, zlib
 from pathlib import Path
 import numpy as np
@@ -88,8 +89,16 @@ with Image.open(out) as im:
     chk("PNG decodable by Pillow", im.size == (12, 8))
 
 # ---- 4. mid-grey anchor: 18% scene grey -> 18% display -------------------
+# vignette and coating_scale are pinned off for the whole anchor section. The
+# grey patch of the test chart sits at r = 0.81 toward the frame corner, so
+# with the schema-v4 lens vignette active it legitimately receives up to a
+# stop less light on period stocks -- measured 61% low on AGFACOLOR_NEU_1936,
+# which is correct physics, not a broken anchor. The anchor contract is about
+# the TONE SCALE, so it is tested with spatial falloff excluded; that the
+# frame CENTRE still lands on grey_target with the defects on was verified
+# separately (0.1738 vs 0.1799 -- the residual is the local coating field).
 st = fs.RenderSettings(grain_scale=0.0, print_grain=False, misreg_scale=0.0,
-                       flare=0.0)
+                       flare=0.0, vignette=0.0, coating_scale=0.0)
 errs = {}
 for p in FILM_PROFILES:
     o = fs.simulate(lin, p, st)
@@ -103,13 +112,13 @@ chk("mid grey anchors to 18% for every stock", max(errs.values()) < 0.12,
 for tgt in (0.10, 0.18, 0.35):
     o = fs.simulate(lin, get_profile("5219"), fs.RenderSettings(
         grain_scale=0.0, print_grain=False, misreg_scale=0.0, flare=0.0,
-        grey_target=tgt))
+        vignette=0.0, coating_scale=0.0, grey_target=tgt))
     got = float(o[615:665, 55:145].mean())
     chk(f"grey_target={tgt} honoured", abs(got - tgt)/tgt < 0.12, f"got {got:.4f}")
 for ps in ("SCAN_DI", "KODAK_2383_RELEASE", "TECHNICOLOR_IB"):
     o = fs.simulate(lin, get_profile("5219"), fs.RenderSettings(
         print_stock=ps, grain_scale=0.0, print_grain=False, misreg_scale=0.0,
-        flare=0.0))
+        flare=0.0, vignette=0.0, coating_scale=0.0))
     got = float(o[615:665, 55:145].mean())
     chk(f"mid grey anchored on print stock {ps}", abs(got-0.18)/0.18 < 0.12, f"got {got:.4f}")
 
@@ -465,6 +474,201 @@ chk("--no-reseau switch is honoured",
     "mosaic disabled" not in (lambda: (lambda b: b.getvalue())(io.StringIO()))()
     and np.isfinite(fs.simulate(np.full((64, 1024, 3), 0.18, np.float32), duf,
                                 fs.RenderSettings(reseau=False, flare=0.0))).all())
+
+# ---- 12. schema v4: coating defects + lens vignette ----------------------
+import film_profiles as _fpm
+
+chk("schema version is 4", _fpm.SCHEMA_VERSION == 4, f"v={_fpm.SCHEMA_VERSION}")
+chk("frame pitch = perf pitch x perfs per frame",
+    abs(_fpm.frame_pitch_mm("super35") - 19.0) < 1e-9
+    and abs(_fpm.frame_pitch_mm("8mm") - 3.81) < 1e-9
+    and _fpm.frame_pitch_mm("polaroid_sx70") == 0.0,
+    f'35mm={_fpm.frame_pitch_mm("super35")} 8mm={_fpm.frame_pitch_mm("8mm")}')
+
+# every stock carries a lens vignette; modern majors carry no coating field
+_vig = [p.name for p in FILM_PROFILES if not 0.0 < p.default_vignette < 4.0]
+chk("every stock has a plausible lens vignette", not _vig, ", ".join(_vig[:5]))
+_mod = [p for p in FILM_PROFILES if p.name.startswith("KODAK_VISION3")]
+chk("modern stocks have no coating field",
+    all(p.coating.coating_sigma == 0.0 for p in _mod),
+    ", ".join(p.name for p in _mod if p.coating.coating_sigma > 0))
+_sov = [p for p in FILM_PROFILES
+        if p.name.startswith(("SVEMA", "TASMA", "ORWO", "SOVCOLOR"))]
+chk("Soviet/GDR stocks all carry a coating field",
+    all(p.coating.has_coating_field for p in _sov),
+    ", ".join(p.name for p in _sov if not p.coating.has_coating_field))
+chk("edge fog is gauge-driven, not era-driven",
+    all(p.coating.has_edge_fog for p in FILM_PROFILES
+        if p.default_format in ("8mm", "super8", "16mm", "super16"))
+    and not any(p.coating.has_edge_fog for p in FILM_PROFILES
+                if p.default_format in ("super35", "ff35", "academy35")))
+
+# vignette is real cos^4 geometry: centre exactly 1, corner exactly the ask
+_vf = fs.vignette_field(240, 320, 1.0)
+_corner = 0.25 * (_vf[0, 0] + _vf[0, -1] + _vf[-1, 0] + _vf[-1, -1])
+chk("vignette centre is unity and corner matches the requested stops",
+    abs(_vf[120, 160] - 1.0) < 2e-3 and abs(-math.log2(_corner) - 1.0) < 0.02,
+    f"centre={_vf[120,160]:.4f} corner={-math.log2(_corner):.3f} stops")
+chk("vignette of 0 stops is exactly transparent",
+    float(fs.vignette_field(64, 64, 0.0).min()) == 1.0)
+
+# coating field: mean 1, correct sigma, deterministic, web-coherent
+_sv = get_profile("SVEMA_FN_64")
+_cf = [fs.coating_field(180, 240, 24.89, 18.66, _sv.coating, i, 19.0, 4242)
+       for i in range(12)]
+_ens = np.concatenate([f.ravel() for f in _cf])
+chk("coating field is unbiased", abs(_ens.mean() - 1.0) < 0.01,
+    f"mean={_ens.mean():.5f}")
+chk("coating field sigma tracks the spec",
+    0.6 * _sv.coating.coating_sigma < _ens.std() < 1.4 * _sv.coating.coating_sigma,
+    f"sigma={_ens.std():.4f} spec={_sv.coating.coating_sigma}")
+chk("coating field is a pure function of (seed, web position)",
+    np.array_equal(_cf[3],
+                   fs.coating_field(180, 240, 24.89, 18.66, _sv.coating, 3,
+                                    19.0, 4242)))
+# cross-web streaks are fixed hardware: correlation must persist across frames
+_cw = np.corrcoef(_cf[0].mean(axis=0), _cf[7].mean(axis=0))[0, 1]
+chk("cross-web streaks stay correlated frame to frame", _cw > 0.3,
+    f"corr={_cw:.3f}")
+# and a smaller gauge must drift more slowly: less web travel per frame
+_s8 = get_profile("SVEMA_FN_64_8MM")
+_f8 = [fs.coating_field(180, 240, 4.8, 3.5, _s8.coating, i, 3.81, 4242)
+       for i in range(6)]
+_m35 = np.corrcoef(_cf[0].ravel(), _cf[1].ravel())[0, 1]
+_m8 = np.corrcoef(_f8[0].ravel(), _f8[1].ravel())[0, 1]
+chk("small gauge drifts slower than 35 mm (less web per frame)", _m8 > _m35,
+    f"8mm lag1={_m8:.3f} vs 35mm lag1={_m35:.3f}")
+
+# corner defocus softens corners only, and never darkens
+_edge = np.zeros((180, 240), np.float32)
+_edge[:, ::8] = 1.0
+_cd = fs.corner_defocus(_edge, 0.35)
+chk("corner defocus softens the corners",
+    _cd[:24, :24].std() < 0.92 * _cd[80:100, 110:130].std(),
+    f"corner={_cd[:24,:24].std():.4f} centre={_cd[80:100,110:130].std():.4f}")
+chk("corner defocus preserves mean level (softens, does not darken)",
+    abs(float(_cd.mean()) - float(_edge.mean())) < 0.01,
+    f"{_cd.mean():.4f} vs {_edge.mean():.4f}")
+chk("corner defocus of 0 is a no-op",
+    np.array_equal(fs.corner_defocus(_edge, 0.0), _edge))
+
+# the whole v4 block must be switchable off, and cost nothing when off
+_flat = np.full((180, 240, 3), 0.18, np.float32)
+_off = fs.simulate(_flat, _sv, fs.RenderSettings(
+    film_format="super35", grain_scale=0.0, print_grain=False,
+    vignette=0.0, coating_scale=0.0, flare=0.0))
+_h, _w, _ = _off.shape
+chk("v4 defects fully disable: flat field stays flat",
+    abs(_off[:, :6, 1].mean() / _off[:, _w // 2 - 3:_w // 2 + 3, 1].mean() - 1.0)
+    < 2e-3,
+    f"edge/centre={_off[:, :6, 1].mean() / _off[:, _w//2-3:_w//2+3, 1].mean():.5f}")
+_on = fs.simulate(_flat, _sv, fs.RenderSettings(
+    film_format="super35", grain_scale=0.0, print_grain=False, flare=0.0))
+chk("v4 defects on produces measurable structure", _on.std() > 3.0 * _off.std(),
+    f"on={_on.std():.5f} off={_off.std():.5f}")
+
+# edge fog lightens the positive (more negative density prints lighter)
+_o8 = fs.simulate(_flat, _s8, fs.RenderSettings(
+    film_format="8mm", grain_scale=0.0, print_grain=False, vignette=0.0,
+    flare=0.0))
+_h8, _w8, _ = _o8.shape
+chk("narrow-gauge edge fog lightens the frame edge",
+    _o8[:, :6, 1].mean() > 1.05 * _o8[:, _w8 // 2 - 3:_w8 // 2 + 3, 1].mean(),
+    f"edge/centre={_o8[:, :6, 1].mean() / _o8[:, _w8//2-3:_w8//2+3, 1].mean():.4f}")
+
+# ---- 13. schema v5: interimage effects -----------------------------------
+chk("schema version is 5", _fpm.SCHEMA_VERSION == 5, f"v={_fpm.SCHEMA_VERSION}")
+_iact = [p for p in FILM_PROFILES if p.interimage.active]
+chk("interimage active only on colour tripacks",
+    all(not p.is_monochrome and p.reseau is None
+        and p.name != "TECHNICOLOR_THREE_STRIP" for p in _iact),
+    f"{len(_iact)} stocks active")
+chk("three-strip has no interimage (separate films cannot exchange inhibitor)",
+    not get_profile("TECHNICOLOR_THREE_STRIP").interimage.active)
+chk("every interimage term is inhibition (<= 0)",
+    all(v <= 0.0 for p in FILM_PROFILES
+        for v in (p.interimage.a_rg, p.interimage.a_rb, p.interimage.a_gr,
+                  p.interimage.a_gb, p.interimage.a_br, p.interimage.a_bg)))
+chk("interimage diagonal is structurally zero",
+    all(get_profile("KODAK_PORTRA_400").interimage.matrix()[i][i] == 0.0
+        for i in range(3)))
+chk("modern DIR stocks couple harder than 1950s stocks",
+    abs(get_profile("KODAK_PORTRA_400").interimage.a_rg)
+    > abs(get_profile("EASTMAN_5250_1959").interimage.a_rg))
+chk("neighbour pairs couple harder than the far red-blue pair",
+    abs(get_profile("KODAK_PORTRA_400").interimage.a_rg)
+    > abs(get_profile("KODAK_PORTRA_400").interimage.a_rb))
+
+# the load-bearing property: neutrals untouched, saturated colour separates
+_stI = fs.RenderSettings(film_format="ff35", grain_scale=0.0, print_grain=False,
+                         flare=0.0, vignette=0.0, coating_scale=0.0)
+_pI = get_profile("KODAK_PORTRA_400")
+_pN = dataclasses.replace(_pI, interimage=_fpm.InterimageSpec())
+_neu = np.full((48, 64, 3), 0.18, np.float32)
+_a = fs.simulate(_neu, _pN, _stI).mean(axis=(0, 1))
+_b = fs.simulate(_neu, _pI, _stI).mean(axis=(0, 1))
+chk("interimage leaves a neutral untouched",
+    float(np.abs(_a - _b).max()) < 2e-3,
+    f"max channel delta {float(np.abs(_a-_b).max()):.5f}")
+_sat = np.zeros((48, 64, 3), np.float32)
+_sat[:, :, 0], _sat[:, :, 1], _sat[:, :, 2] = 0.35, 0.10, 0.08
+_c = fs.simulate(_sat, _pN, _stI).mean(axis=(0, 1))
+_d = fs.simulate(_sat, _pI, _stI).mean(axis=(0, 1))
+_s0 = (_c.max() - _c.min()) / max(_c.max(), 1e-6)
+_s1 = (_d.max() - _d.min()) / max(_d.max(), 1e-6)
+chk("interimage raises saturation on a saturated colour", _s1 > _s0,
+    f"sat {_s0:.4f} -> {_s1:.4f}")
+chk("interimage iterations=0 is a no-op",
+    np.array_equal(
+        fs.simulate(_sat, dataclasses.replace(
+            _pI, interimage=dataclasses.replace(_pI.interimage, iterations=0)),
+            _stI),
+        fs.simulate(_sat, _pN, _stI)))
+
+# IIE must reproduce the PUBLISHED figures it was calibrated against
+def _iie_pct(p):
+    _cv = p.curves.as_tuple()
+    _m = p.interimage.matrix()
+    _dr = [float(fs.density_scalar(0.0, _cv[c])) for c in range(3)]
+    def _d(lg):
+        d = [float(fs.density_scalar(lg[c], _cv[c])) for c in range(3)]
+        for _ in range(max(p.interimage.iterations, 1)):
+            adj = [sum(_m[c][j] * (d[j] - _dr[j]) for j in range(3) if j != c)
+                   for c in range(3)]
+            d = [float(fs.density_scalar(lg[c] + adj[c], _cv[c])) for c in range(3)]
+        return d
+    out = []
+    for c in range(3):
+        gw = (_d([0.6]*3)[c] - _d([-0.6]*3)[c]) / 1.2
+        hi = _d([0.6 if j == c else 0.0 for j in range(3)])[c]
+        lo = _d([-0.6 if j == c else 0.0 for j in range(3)])[c]
+        out.append(100.0 * (((hi - lo) / 1.2) / gw - 1.0) if gw > 1e-9 else 0.0)
+    return out[2], out[1], out[0]          # blue, green, red
+
+for _nm, _tgt in (("KODAK_PORTRA_400", (25.0, 45.0, 42.0)),
+                  ("EASTMAN_5247_1974", (10.0, 15.0, 15.0)),
+                  ("EASTMAN_5250_1959", (5.0, 7.0, 7.0))):
+    _got = _iie_pct(get_profile(_nm))
+    _err = max(abs(_got[i] - _tgt[i]) for i in range(3))
+    chk(f"{_nm} reproduces its published IIE percentages", _err < 1.0,
+        f"model {_got[0]:.1f}/{_got[1]:.1f}/{_got[2]:.1f} vs "
+        f"{_tgt[0]:.0f}/{_tgt[1]:.0f}/{_tgt[2]:.0f}, worst {_err:.2f} pp")
+
+chk("interimage couples blue weakly, green and red strongly (per-receiver)",
+    abs(get_profile("KODAK_PORTRA_400").interimage.a_br)
+    < abs(get_profile("KODAK_PORTRA_400").interimage.a_gr),
+    "US4725529A Table 1: red receivers 0.43-0.72 dlogE vs blue 0.24-0.48")
+chk("reversal stocks weight interimage toward high density",
+    get_profile("FUJI_VELVIA_50").interimage.density_weighting > 0.0
+    and get_profile("KODAK_PORTRA_400").interimage.density_weighting == 0.0)
+
+# the spectral derivation is DIAGNOSTIC and must stay out of the pipeline
+chk("spectral derivation exposes the IR failure it is quarantined for",
+    (lambda r: r is not None and r[2] > 0.5)(
+        _fpm.derived_spectral_response(get_profile("KONICA_INFRARED_750"))),
+    "display primaries cannot reach 750 nm -- documented, not wired in")
+chk("renderer does not use the derived spectral response",
+    "derived_spectral_response" not in open("film_sim.py", encoding="utf-8").read())
 
 print()
 print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

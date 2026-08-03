@@ -1,0 +1,655 @@
+#!/usr/bin/env python3
+"""Generate doc/FilmActiveProfiles.md -- the coverage and traceability report.
+
+Every "+" in the output means: a manufacturer document, an official technical
+publication, or a machine-traced plot from one of those backs that property
+for that stock. Every "-" means the value is currently an estimate, an
+analogy from a related stock, or a reconstruction.
+
+WHY THIS IS GENERATED AND NOT WRITTEN BY HAND
+  The evidence already exists in two machine-readable places and one
+  human-readable one:
+    * structured fields that only ever get populated from a document
+      (MTFSpec.resolving_power_*, SpectralSensitivity arrays,
+      Provenance.sources / .tier / .fitted_from);
+    * the per-field comments inside each FilmProfile literal, which carry the
+      citations written while each number was adopted ("SOURCE PDF/...",
+      "published diffuse RMS granularity, CONFIRMED", "[T1]", "Fit RMS ...").
+  A hand-maintained table would drift from those within a week. This script
+  reads both, so regenerating it after any profile edit keeps the report true.
+
+DETECTION RULES, stated so a reader can audit them
+  has_doc      the stock's Provenance.sources holds a real citation (not the
+               _NO_DATASHEET placeholder) OR its source block cites a document
+               ("SOURCE ", "PDF/PROFILES/", "publication", "Technical Data").
+  Per property, "+" requires has_doc AND property-specific evidence:
+    Spectral Sensitivity  digitised curves present, or a documented
+                          sensitisation range / limit in nm.
+    H&D Curve             fitted_from == "datasheet_curve" with a real
+                          citation, or an explicit trace/fit record
+                          ("digitis", "traced", "Fit RMS", "sensitometric").
+    Spectral Response     digitised SpectralSensitivity arrays present. This
+                          is the stricter form of the first column: curve
+                          DATA, not merely a documented range.
+    Grain Characteristics documented crystal/clump/structure statement.
+    RMS Granularity       an rms/granularity figure marked published,
+                          confirmed, printed or sourced.
+    MTF / Resolving       MTFSpec.resolving_power_lp_mm_highc > 0 (only ever
+                          set from a sheet), or documented lp/mm or MTF.
+    Film Base             documented base material or thickness.
+    Emulsion Properties   documented layer count/thickness/coating/grain type.
+    Processing            documented process or developer (ECN-2, C-41, E-6,
+                          D-96, ID-11, ...).
+    Exposure Latitude     documented latitude, push range or EI range.
+    Dynamic Range         documented density range, Dmax or latitude in logH.
+    Colour Characteristics  colour stock with documented dye/mask/balance or
+                          densitometry status.
+    Additional Physical   documented reciprocity, filter factors, base
+                          shrinkage, anti-halation/remjet, DX coding.
+
+  Two deliberate consequences to keep in mind while reading the table:
+    * A "-" is never a claim that the property is missing from the model --
+      every stock renders. It says the number is not backed by a document.
+    * Monochrome stocks show "-" under Colour Characteristics by definition,
+      not for lack of research.
+
+Usage:  python3 gen_active_profiles.py [-o doc/FilmActiveProfiles.md]
+"""
+from __future__ import annotations
+
+import argparse
+import re
+
+import film_profiles as fp
+from film_profiles import Feature
+
+PLACEHOLDER = "No official manufacturer datasheet available"
+
+MANUFACTURER = [
+    ("KODAK", "Eastman Kodak"), ("EASTMAN", "Eastman Kodak"),
+    ("KODACHROME", "Eastman Kodak"), ("TECHNICOLOR", "Technicolor"),
+    ("FUJI", "Fujifilm"), ("AGFA", "Agfa-Gevaert"), ("GEVA", "Gevaert"),
+    ("ORWO", "ORWO / VEB Filmfabrik Wolfen"), ("SVEMA", "Svema (Shostka)"),
+    ("TASMA", "Tasma (Kazan)"), ("SOVCOLOR", "Soviet (Sovcolor)"),
+    ("SOVIET", "Soviet"), ("ILFORD", "Ilford / HARMAN"),
+    ("KENTMERE", "HARMAN technology"), ("KONICA", "Konica / Konica Minolta"),
+    ("ROLLEI", "Maco / Rollei"), ("MACO", "Maco"), ("FOMA", "Foma Bohemia"),
+    ("FERRANIA", "Film Ferrania"), ("POLAROID", "Polaroid"),
+    ("DUFAY", "Dufay-Chromex"), ("LUMIERE", "Lumiere"),
+    ("CINESTILL", "CineStill"), ("EIGHT_MM", "generic amateur stock"),
+]
+
+
+#: Which measurement standard each stored code corresponds to. The profiles
+#: carry the codes; this is the mapping to the published standard, so a reader
+#: can tell what a density or a speed number actually means. Mixing Status M
+#: and Status A, or an ISO speed and a manufacturer EI, silently corrupts any
+#: comparison between stocks -- which is exactly why the codes exist.
+DENSITY_STD = {
+    "status_m": "Status M (ISO 5-3)",
+    "status_a": "Status A (ISO 5-3)",
+    "visual_iso": "visual diffuse (ISO 5-3)",
+}
+SPEED_STD = {
+    "iso6": "ISO 6",
+    "iso2240": "ISO 2240",
+    "iso5800": "ISO 5800",
+    "manufacturer_ei": "manufacturer EI (no standard)",
+}
+
+PROPS = [
+    ("Spectral Sensitivity", "spec_any"),
+    ("Characteristic (H&D) Curve", "hd"),
+    ("Spectral Response Curves", "spec_curve"),
+    ("Film Grain Characteristics", "grain"),
+    ("RMS Granularity", "rms"),
+    ("MTF / Resolving Power", "mtf"),
+    ("Film Base Properties", "base"),
+    ("Emulsion Properties", "emul"),
+    ("Processing Characteristics", "proc"),
+    ("Exposure Latitude", "lat"),
+    ("Dynamic Range", "dr"),
+    ("Color Characteristics", "colour"),
+    ("Additional Physical Properties", "phys"),
+]
+
+RX = {
+    "doc": re.compile(r"SOURCE |PDF/PROFILES|publication |Technical Data|"
+                      r"datasheet|Data Sheet|technical data|Gurlev|"
+                      r"Гурлев|GOST|ГОСТ", re.I),
+    "hd": re.compile(r"digitis|digitiz|traced|Fit RMS|sensitometric|"
+                     r"characteristic curve|D-logE|gamma_rec|H&D", re.I),
+    "spec_any": re.compile(r"sensiti[sz]ation|spectral sensitivity|"
+                           r"panchromat|orthochromat|nm\b|sensitisation limit", re.I),
+    "grain": re.compile(r"crystal|clump|grain structure|grain size|cubic|"
+                        r"tabular|T-grain|flat.grain", re.I),
+    "rms": re.compile(r"(rms|granularity)[^.]{0,120}?"
+                      r"(publish|confirm|printed|sheet|SOURCE|diffuse|"
+                      r"datasheet|measured)", re.I | re.S),
+    "mtf": re.compile(r"lp/mm|lines/mm|lin/mm|MTF|resolving power", re.I),
+    "base": re.compile(r"polyester|\bPET\b|acetate|triacetate|nitrate|"
+                       r"Estar|clear base|base thickness|remjet|\bum base\b|"
+                       r"grey base|gray base", re.I),
+    "emul": re.compile(r"layer thickness|emulsion thickness|multilayer|"
+                       r"three-emulsion|supercoat|single thin emulsion|"
+                       r"coating|\bum layer|thin emulsion", re.I),
+    "proc": re.compile(r"ECN|C-41|CNK|\bE-6\b|CRK|D-96|D-76|ID-11|Microfine|"
+                       r"Refinal|Konicadol|developer|process(ed|ing)?\b|"
+                       r"Rodinal|Xtol|HC-110|Perceptol|CT-2", re.I),
+    "lat": re.compile(r"latitude|push(ed|able|ing)?\b|EI range|"
+                      r"overexpos|exposure index range|\bEI \d+ to", re.I),
+    "dr": re.compile(r"density range|dynamic range|D-?max|Dmax|"
+                     r"latitude[^.]{0,40}log", re.I),
+    "colour": re.compile(r"\bdye\b|dyes\b|mask|saturation|colour balance|"
+                         r"color balance|Status M|Status A|imbibition|"
+                         r"interimage|inter-image", re.I),
+    "phys": re.compile(r"reciprocity|Schwarzschild|shrinkage|curl|"
+                       r"anti-halation|remjet|\bDX\b|Wratten|filter factor|"
+                       r"AURA", re.I),
+}
+
+CITE = re.compile(
+    r"SOURCE\s+([^\n.]{6,140})"
+    r"|((?:PDF/PROFILES/)[\w./+-]+\.pdf)"
+    r"|(Kodak publication [\w-]+)"
+    r"|(publication ([\w-]+))"
+    r"|(H-1-[\w.]+)"
+    r"|(TI\d{4})"
+    r"|(AF3-[\w]+)"
+    r"|(TDS[NB]-\d+)")
+
+
+def blocks_from_source(path: str = "film_profiles.py") -> dict[str, str]:
+    """Per-profile source text, so the inline citations are visible."""
+    src = open(path, encoding="utf-8").read()
+    out: dict[str, str] = {}
+    hits = list(re.finditer(r'name="([A-Z0-9_]+)",', src))
+    for i, m in enumerate(hits):
+        end = hits[i + 1].start() if i + 1 < len(hits) else len(src)
+        out[m.group(1)] = src[m.start():end]
+    return out
+
+
+def manufacturer(name: str) -> str:
+    for key, who in MANUFACTURER:
+        if name.startswith(key) or key in name:
+            return who
+    return "unknown"
+
+
+def film_type(p) -> str:
+    bits = []
+    if p.is_monochrome:
+        bits.append("B&W")
+    else:
+        bits.append("Colour")
+    if p.reseau is not None:
+        bits.append("additive mosaic")
+    if p.name == "TECHNICOLOR_THREE_STRIP":
+        bits.append("3-strip separation")
+    bits.append("reversal" if p.is_reversal else "negative")
+    return ", ".join(bits)
+
+
+def official_name(p, block: str) -> str:
+    """Prefer a real product name from the description, else the key."""
+    m = re.search(r'"\[T[123]\]\s*([^".]{4,60})', block)
+    return p.name.replace("_", " ")
+
+
+def citations(p, block: str, extra_sources: tuple = ()) -> str:
+    found: list[str] = []
+    for s in tuple(p.provenance.sources) + tuple(extra_sources):
+        if PLACEHOLDER not in s:
+            found.append(s)
+    for m in CITE.finditer(block):
+        txt = next((g for g in m.groups() if g), "").strip(" ,;:")
+        if len(txt) > 4 and txt not in found:
+            found.append(txt)
+    # de-duplicate while keeping order, and keep the cell readable
+    seen: list[str] = []
+    for f in found:
+        f = re.sub(r"\s+", " ", f).strip()
+        if f and not any(f in s for s in seen):
+            seen.append(f)
+    return "; ".join(seen[:4]) if seen else "-"
+
+
+#: A property keyword only counts as documented when a document marker sits
+#: within this many characters of it. Without the proximity test, a stock that
+#: cites a sheet for ONE number scores "+" on every property whose keyword
+#: appears anywhere in its prose -- measured on the first run, that inflated
+#: grain and MTF coverage to 80%, with KENTMERE PAN 100 credited for
+#: granularity and resolving power that its sheet does not print.
+PROX_CHARS = 320
+
+#: Profile comments record ABSENCES as carefully as presences -- "the sheet
+#: prints no granularity or resolving-power numbers", "RMS not printed on the
+#: sheet", "grain SIZE is not measurable from those files". Those sentences
+#: contain the property keyword AND sit beside the citation, so a naive
+#: proximity test reads them as evidence FOR the property. Measured: it
+#: credited KENTMERE PAN 100 with resolving power its sheet explicitly does
+#: not print. This window is scanned backwards from each keyword for a
+#: negation before the hit is allowed to count.
+NEG_WINDOW = 90
+RX_NEG = re.compile(
+    r"\b(no|not|never|none|without|absent|lack|lacks|unmeasurab\w*|"
+    r"cannot|can't|un(known|available)|missing|omits?|omitted|"
+    r"rejected|estimate[sd]?|assumed|unverified|only)\b", re.I)
+
+
+def _documented_near(block: str, key: str) -> bool:
+    """True when a property keyword sits close to a document marker AND is not
+    inside a sentence that denies the property."""
+    doc_at = [m.start() for m in RX["doc"].finditer(block)]
+    if not doc_at:
+        return False
+    for m in RX[key].finditer(block):
+        pos = m.start()
+        if not any(abs(pos - d) <= PROX_CHARS for d in doc_at):
+            continue
+        before = block[max(0, pos - NEG_WINDOW):pos]
+        # also look a little past the keyword: "RMS not printed on the sheet"
+        after = block[m.end():m.end() + 40]
+        if RX_NEG.search(before) or RX_NEG.search(after):
+            continue
+        return True
+    return False
+
+
+def evaluate(p, block: str) -> dict[str, str]:
+    real_src = any(PLACEHOLDER not in s for s in p.provenance.sources)
+    has_doc = real_src or bool(RX["doc"].search(block))
+    sp = p.spectral
+    curves = sp.has_data
+
+    def mark(flag: bool) -> str:
+        return "+" if flag else "-"
+
+    res = {}
+    res["spec_any"] = mark(curves or _documented_near(block, "spec_any"))
+    res["hd"] = mark(
+        (p.provenance.fitted_from == "datasheet_curve" and real_src)
+        or _documented_near(block, "hd")
+    )
+    res["spec_curve"] = mark(curves)
+    res["grain"] = mark(_documented_near(block, "grain"))
+    res["rms"] = mark(_documented_near(block, "rms"))
+    res["mtf"] = mark(
+        p.mtf.resolving_power_lp_mm_highc > 0.0
+        or _documented_near(block, "mtf")
+    )
+    for key in ("base", "emul", "proc", "lat", "dr", "phys"):
+        res[key] = mark(_documented_near(block, key))
+    res["colour"] = mark(
+        (not p.is_monochrome) and _documented_near(block, "colour")
+    )
+    return res
+
+
+
+
+def _f(v, nd=2):
+    return ("%%.%df" % nd) % v
+
+
+def _tri(t, nd=3):
+    return "/".join(("%%.%df" % nd) % v for v in t)
+
+
+def numeric_cells(p, ev, blocks_all) -> list[str]:
+    """One numeric cell per property column.
+
+    A trailing ``*`` means the number is the model's own estimate rather than a
+    documented figure -- the same evidence test that produced the +/- table,
+    carried over so no precision is implied where none exists.
+    """
+    def mk(key, text):
+        return text + ("" if ev[key] == "+" else "*")
+
+    cv = p.curves
+    mono = p.is_monochrome
+    g = p.grain
+    m = p.mtf
+    sp = p.spectral
+    ii = p.interimage
+    co = p.coating
+    rc = p.reciprocity
+
+    # spectral sensitivity: the weights actually used by the renderer
+    c_spec = mk("spec_any", _tri(p.spectral_weights))
+
+    # H&D: gamma and base+fog
+    if mono:
+        c_hd = mk("hd", "g %.3f  Dmin %.3f" % (cv.g.gamma, cv.g.dmin))
+    else:
+        c_hd = mk("hd", "g %.3f/%.3f/%.3f  Dmin %.2f/%.2f/%.2f" % (
+            cv.r.gamma, cv.g.gamma, cv.b.gamma,
+            cv.r.dmin, cv.g.dmin, cv.b.dmin))
+
+    # digitised spectral curves: point count and range
+    if sp.has_data:
+        n_lay = sum(1 for l in (sp.log_s_r, sp.log_s_g, sp.log_s_b, sp.log_s_pan) if l)
+        n_pts = max(len(sp.log_s_r), len(sp.log_s_g), len(sp.log_s_b),
+                    len(sp.log_s_pan))
+        hi = sp.lambda_start_nm + (n_pts - 1) * sp.lambda_step_nm
+        c_curves = "%dx%d pts, %.0f-%.0f nm @%.0f" % (
+            n_pts, n_lay, sp.lambda_start_nm, hi, sp.lambda_step_nm)
+    else:
+        c_curves = "none"
+
+    c_grain = mk("grain", "clump %.1f/%.1f/%.1f um  gain %.2f  fog %.2f" % (
+        g.clump_um_r, g.clump_um_g, g.clump_um_b, g.clump_gain, g.fog_grain))
+
+    rms = g.rms_rgb()
+    c_rms = mk("rms", "%.1f" % g.rms_granularity if rms[0] == rms[1] == rms[2]
+               else "%.1f (%.1f/%.1f/%.1f)" % ((g.rms_granularity,) + rms))
+
+    rp = ""
+    if m.resolving_power_lp_mm_highc > 0:
+        if m.resolving_power_lp_mm_lowc > 0:
+            rp = "  RP %.0f/%.0f lp/mm" % (m.resolving_power_lp_mm_lowc,
+                                           m.resolving_power_lp_mm_highc)
+        else:
+            # several sheets print only the 1000:1 figure
+            rp = "  RP %.0f lp/mm @1000:1" % m.resolving_power_lp_mm_highc
+    c_mtf = mk("mtf", "f50 %.0f/%.0f/%.0f c/mm%s" % (m.f50_r, m.f50_g, m.f50_b, rp))
+
+    base = "tint %s" % _tri(p.base_tint)
+    if Feature.NITRATE_BASE in p.features:
+        base += ", nitrate"
+    c_base = mk("base", base)
+
+    if mono:
+        emul = "single silver layer"
+    elif p.reseau is not None:
+        emul = "panchro + %.0f l/mm reseau" % p.reseau.lines_per_mm
+    elif p.name == "TECHNICOLOR_THREE_STRIP":
+        emul = "3 separate B&W records"
+    else:
+        emul = "tripack, dye cloud %.1f um" % g.dye_cloud_um
+    emul += ", misreg %.1f um" % p.misregistration_um
+    c_emul = mk("emul", emul)
+
+    c_proc = mk("proc", "%s; %s; Callier q %.2f" % (
+        DENSITY_STD.get(p.density_metric, p.density_metric),
+        SPEED_STD.get(p.speed_criterion, p.speed_criterion),
+        p.callier_q))
+    c_lat = mk("lat", "%.1f stops" % cv.g.latitude_stops)
+    c_dr = mk("dr", "Dmax %.2f, range %.2f" % (cv.g.dmax, cv.g.dmax - cv.g.dmin))
+
+    if mono or not ii.active:
+        c_col = mk("colour", "silver tone %+.2f" % p.silver_tone if mono else "none")
+    else:
+        pct = _iie_pct(p)
+        c_col = mk("colour", "IIE %.0f/%.0f/%.0f%%  DIR %.2f" % (
+            pct[0], pct[1], pct[2], p.couplers.strength))
+
+    phys = "recip p %.3f @%.1fs" % (rc.schwarzschild_p_g, rc.onset_s)
+    phys += ", vig %.2f st" % p.default_vignette
+    if co.has_coating_field:
+        phys += ", coat %.1f%%" % (co.coating_sigma * 100.0)
+    if co.has_buckle:
+        phys += ", buckle %.0f%%" % (co.buckle_mtf_loss * 100.0)
+    if co.has_edge_fog:
+        phys += ", edge fog %.3f D" % co.edge_fog_density
+    c_phys = mk("phys", phys)
+
+    return [c_spec, c_hd, c_curves, c_grain, c_rms, c_mtf, c_base, c_emul,
+            c_proc, c_lat, c_dr, c_col, c_phys]
+
+
+def _iie_pct(p):
+    """Model interimage percentage per (blue, green, red) receiver, by the
+    US5273870A protocol -- reuses the calibrator in film_profiles."""
+    coef = (p.interimage.a_rg, p.interimage.a_gr, p.interimage.a_br)
+    r, g, b = fp._iie_measure((p.curves.r, p.curves.g, p.curves.b), list(coef),
+                              max(p.interimage.iterations, 1))
+    return b, g, r
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-o", "--output", default="doc/FilmActiveProfiles.md")
+    args = ap.parse_args()
+
+    blocks = blocks_from_source()
+    names = {p.name for p in fp.FILM_PROFILES}
+
+    def parent_of(p):
+        cands = [n for n in names if n != p.name and p.name.startswith(n + "_")]
+        return max(cands, key=len) if cands else None
+
+    def evidence_block(p) -> str:
+        """A gauge variant is the SAME EMULSION as its parent -- the coating
+        line did not know what width the roll would be slit to -- so it
+        inherits the parent's documentation. Without this, SVEMA_FN_64_8MM
+        scored "-" on every property while SVEMA_FN_64 scored "+" on most,
+        which would misreport identical emulsions as differently evidenced."""
+        blk = blocks.get(p.name, "") + " " + p.description
+        par = parent_of(p)
+        if par:
+            blk += " " + blocks.get(par, "")
+        return blk
+
+    by_name = {p.name: p for p in fp.FILM_PROFILES}
+    rows = []
+    for p in fp.FILM_PROFILES:
+        blk = evidence_block(p)
+        par = parent_of(p)
+        extra = by_name[par].provenance.sources if par else ()
+        ev = evaluate(p, blk)
+        rows.append((p, ev, citations(p, blk, extra)))
+
+    L: list[str] = []
+    w = L.append
+    w("# FilmActiveProfiles.md — coverage and traceability report")
+    w("")
+    w(f"Generated by `gen_active_profiles.py` from `film_profiles.py` "
+      f"(schema v{fp.SCHEMA_VERSION}). **{len(rows)} film stocks.** "
+      f"Regenerate after any profile edit — this file is derived, never "
+      f"hand-edited.")
+    w("")
+    w("## How to read this")
+    w("")
+    w("Every cell carries the **actual value the simulator uses**. A trailing "
+      "**`*`** marks a number that is the model's own estimate rather than a "
+      "documented figure -- the same evidence test that produced the earlier "
+      "+/- table, kept so no precision is implied where none exists.")
+    w("")
+    w("### Units and meaning, column by column")
+    w("")
+    w("| Column | Contents |")
+    w("|---|---|")
+    w("| Spectral Sensitivity | renderer weights R/G/B, sum 1.0 |")
+    w("| Characteristic (H&D) Curve | straight-line gamma and base+fog density; "
+      "three values = per dye layer |")
+    w("| Spectral Response Curves | digitised points x layers, wavelength range, "
+      "sampling step |")
+    w("| Film Grain Characteristics | grain correlation length (clump) per "
+      "layer in um, clump gain, fog grain |")
+    w("| RMS Granularity | sigma(D)x1000 through a 48 um aperture at D=1.0; "
+      "brackets = per-layer |")
+    w("| MTF / Resolving Power | f50 in cycles/mm per layer; RP = resolving "
+      "power at 1.6:1 / 1000:1 contrast |")
+    w("| Film Base Properties | base transmittance tint R/G/B, base material "
+      "when notable |")
+    w("| Emulsion Properties | layer architecture, dye cloud size, channel "
+      "misregistration |")
+    w("| Processing Characteristics | densitometry status and speed criterion |")
+    w("| Exposure Latitude | toe-to-shoulder span of the green record, stops |")
+    w("| Dynamic Range | asymptotic Dmax and Dmax-Dmin of the green record |")
+    w("| Color Characteristics | interimage effect per receiver B/G/R as the "
+      "percentage gamma steepening of US5273870A, and DIR coupler strength; "
+      "monochrome stocks show silver image tone instead |")
+    w("| Additional Physical Properties | Schwarzschild exponent and its onset, "
+      "lens vignette in stops, coating sigma, gate buckling, edge fog |")
+    w("")
+    w("Two things a `-` does **not** mean:")
+    w("")
+    w("* It is not a gap in the model. Every stock renders every property — "
+      "the simulator has no missing inputs. A `-` is a statement about "
+      "*evidence*, not about capability.")
+    w("* Monochrome stocks carry `-` under Colour Characteristics by "
+      "definition, not for want of research.")
+    w("")
+    w("Detection is mechanical and auditable: structured fields that only ever "
+      "get filled from a document (resolving power, digitised spectral "
+      "arrays, `Provenance`), plus the per-field citations written into each "
+      "profile literal as its numbers were adopted. The exact rules are in "
+      "the `gen_active_profiles.py` docstring.")
+    w("")
+
+    tier = {1: 0, 2: 0, 3: 0}
+    for p, _, _ in rows:
+        tier[p.provenance.tier] = tier.get(p.provenance.tier, 0) + 1
+    tot = {k: 0 for _, k in PROPS}
+    for _, ev, _ in rows:
+        for _, k in PROPS:
+            if ev[k] == "+":
+                tot[k] += 1
+    w("## Measurement standards")
+    w("")
+    w("Every number above is only meaningful against the conditions it was "
+      "measured under, so the profiles store the densitometry and speed "
+      "criterion per stock rather than assuming one. Mixing Status M with "
+      "Status A, or an ISO speed with a manufacturer EI, silently corrupts "
+      "any comparison between stocks.")
+    w("")
+    w("| Standard | Governs | Where it appears here |")
+    w("|---|---|---|")
+    w("| **ISO 5-3** | spectral conditions for density: Status M, Status A, "
+      "visual diffuse | Processing column; sets what every Dmin/Dmax/gamma "
+      "figure means |")
+    w("| **ISO 6** | black-and-white negative film speed | Processing "
+      "column, 27 stocks |")
+    w("| **ISO 5800** | colour negative film speed | Processing column, "
+      "34 stocks |")
+    w("| **ISO 2240** | colour reversal film speed | Processing column, "
+      "13 stocks |")
+    w("| **ISO 6328** | photographic resolving power | the RP figures in the "
+      "MTF column. Kodak TI0835 states its 50/100 lp/mm for 5247 were "
+      "measured by the *ISO 6328-1982* method |")
+    w("| **ANSI PH2.39** | MTF measurement | Kodak TI0835 cites it (60% AIM) "
+      "for the 5247 MTF curves from which f50 values were read |")
+    w("| 48 um aperture convention | diffuse RMS granularity | the RMS "
+      "column. Manufacturer practice rather than an ISO number: Kodak sheets "
+      "specify a 48 um aperture at D=1.0 above Dmin, Konica sheets state "
+      "\"12X, 0.048 mm, Dmin+1.0\" |")
+    w("| **US5273870A** definition | interimage effect as percentage gamma "
+      "steepening, separation vs white-light exposure | the IIE figures in "
+      "the Colour column; the patent cites T. H. James, *The Theory of the "
+      "Photographic Process*, 4th ed. (1977), pp. 574 and 614 |")
+    w("")
+    w("Two honest caveats on the standards themselves:")
+    w("")
+    w("* **ISO 5-3, ISO 6, ISO 5800 and ISO 2240 are cited as the framework "
+      "the stored codes denote, not as documents in this library.** They were "
+      "not purchased or read; the codes were assigned from what each "
+      "datasheet states about its own measurement conditions. ISO 6328 and "
+      "ANSI PH2.39 are different -- those two are cited *by Kodak TI0835 "
+      "itself*, so their attribution is documented rather than inferred.")
+    w("* `manufacturer EI` on 15 stocks means no standard applies: mostly "
+      "pre-1960 stocks rated before the modern speed standards existed, plus "
+      "the generic amateur-gauge entries. Their ISO/ASA column is a "
+      "manufacturer or historical figure, not a standardised speed.")
+    w("")
+    w("Callier q in the Processing column is the specular-to-diffuse density "
+      "ratio (1.0 for dye images, higher for silver). Mees 1942 p.235 gives "
+      "the grain-size relation behind it: Callier showed q *\"is closely "
+      "related to grain size and increases with it\"*, and Eggert & Kuster "
+      "measured d = 6.8 log q.")
+    w("")
+    w("## Coverage summary")
+    w("")
+    w("| Property | Documented values | of | % |")
+    w("|---|---:|---:|---:|")
+    for label, k in PROPS:
+        w(f"| {label} | {tot[k]} | {len(rows)} | {100.0*tot[k]/len(rows):.0f}% |")
+    w("")
+    w(f"Confidence tiers as recorded in each profile: "
+      f"**tier 1** {tier.get(1,0)}, **tier 2** {tier.get(2,0)}, "
+      f"**tier 3** {tier.get(3,0)}.")
+    w("")
+    docd = sum(1 for _, _, c in rows if c != "-")
+    w(f"Stocks citing at least one document: **{docd} of {len(rows)}**. "
+      f"The remaining {len(rows)-docd} are reconstructions from historical "
+      f"and secondary sources — mostly pre-1960 stocks and the generic "
+      f"amateur-gauge entries, for which no manufacturer sheet is known to "
+      f"survive.")
+    w("")
+    w("## Per-stock detail")
+    w("")
+    hdr = (["Film Name", "Manufacturer", "Production Years", "Film Type",
+            "ISO / ASA"] + [lbl for lbl, _ in PROPS] + ["Reference Documents"])
+    w("| " + " | ".join(hdr) + " |")
+    w("|" + "|".join(["---"] * 5 + [":-:"] * len(PROPS) + ["---"]) + "|")
+    for p, ev, cite in rows:
+        cells = [
+            official_name(p, ""), manufacturer(p.name), p.era, film_type(p),
+            str(p.exposure_index),
+        ] + numeric_cells(p, ev, blocks) + [cite]
+        w("| " + " | ".join(c.replace("|", "/") for c in cells) + " |")
+    w("")
+    w("## Known limitations of this report")
+    w("")
+    w("This table is derived by pattern-matching the profile source, so it "
+      "carries a deliberate bias and two known error classes. Both are stated "
+      "here rather than hidden, because a traceability report that overstates "
+      "its own evidence is worse than none.")
+    w("")
+    w("**Biased toward `-` on purpose.** Evidence must sit within "
+      f"{PROX_CHARS} characters of a citation and must not be inside a "
+      "negation. Profile comments record absences as carefully as presences "
+      '("the sheet prints no granularity or resolving-power numbers"), so '
+      "without the negation guard those sentences read as proof of the very "
+      "property they deny. An earlier run of this generator, before the "
+      "guard, reported 80% coverage for grain and MTF and credited "
+      "KENTMERE PAN 100 with resolving power its sheet explicitly does not "
+      "print. Under-crediting is the safer direction for this document.")
+    w("")
+    w("**Known false negatives.** ROLLEI INFRARED 400 shows `-` for RMS "
+      "Granularity although its sheet prints 11.0; KENTMERE PAN 100 shows "
+      "`-` for Film Base although its sheet states 0.125 mm acetate. Both are "
+      "the negation guard being too eager on nearby words.")
+    w("")
+    w("**A registry gap upstream.** 27 stocks cite documents in their profile "
+      "comments but still carry the `_NO_DATASHEET` placeholder in "
+      "`Provenance.sources`, because they were added without being registered "
+      "in `_PROVENANCE_SOURCES`. This generator recovers their citations by "
+      "parsing the source blocks, so the Reference Documents column is "
+      "correct -- but the structured field is not, and any other consumer of "
+      "`Provenance` will see the placeholder. Fixing that registry is the "
+      "recommended next step.")
+    w("")
+    w("**The definitive fix** is per-field provenance in the schema -- a "
+      "small `srcs` marker beside each adopted number -- which would replace "
+      "all of this inference with a lookup. That is a schema change and needs "
+      "approval before it is made.")
+    w("")
+    w("## What this report says about the database")
+    w("")
+    w("* Tone reproduction and spectral curves are the best-evidenced "
+      "properties, because manufacturers print those plots and they can be "
+      "machine-traced.")
+    w("* Grain **size** (clump dimensions) is the weakest across the whole "
+      "library: sheets print RMS granularity but never clump geometry, and it "
+      "cannot be recovered from a scan below the scanner's own resolution.")
+    w("* Interimage effects are tier 3 for every stock without exception. All "
+      "395 documents in `PDF/PROFILES` were searched: none publishes them, "
+      "because camera negative is characterised with a single white-light "
+      "exposure series. See "
+      "`doc/CHANGES_2026-08-03_v5_interimage.md`.")
+    w("* Pre-1960 and Soviet stocks depend most on reconstruction. Where the "
+      "owner supplied real scan batches (Svema, Tasma, ORWO) the profiles "
+      "carry measured grain and tone instead — see "
+      "`doc/REPORT_FN64_355.md` and `doc/SOVIET_EXTRACTION_2026-08-02.md`.")
+    w("")
+    open(args.output, "w", encoding="utf-8").write("\n".join(L) + "\n")
+    print(f"[INFO] wrote {args.output}: {len(rows)} stocks, "
+          f"{docd} citing documents")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

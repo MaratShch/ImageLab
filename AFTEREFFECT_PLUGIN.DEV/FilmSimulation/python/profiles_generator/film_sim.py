@@ -72,6 +72,7 @@ from PIL import Image
 from film_profiles import (
     FILM_PROFILES,
     FORMATS,
+    frame_pitch_mm,
     IDENTITY3,
     Feature,
     FilmProfile,
@@ -759,10 +760,236 @@ class RenderSettings:
     bit_depth: int = 16
     seed: int = 12345
     max_dim: int = 0                # 0 = no downscale
+    # -- schema v4 -----------------------------------------------------------
+    #: Lens corner falloff in stops; <0 = use the stock's era default.
+    vignette: float = -1.0
+    #: Scales all three CoatingSpec defects together (coating field, gate
+    #: buckling, edge fog). 0.0 disables them; 1.0 = as profiled.
+    coating_scale: float = 1.0
+    #: Frame number within the clip. Only the coating field uses it, to slide
+    #: its machine-direction structure by one frame pitch per frame. Any frame
+    #: can be rendered independently and out of order -- the field is a pure
+    #: function of (seed, absolute web position).
+    frame_index: int = 0
 
     def flare_for(self, profile: FilmProfile) -> float:
         """Veiling flare fraction to use, honouring the per-stock default."""
         return profile.default_flare if self.flare < 0.0 else self.flare
+
+    def vignette_for(self, profile: FilmProfile) -> float:
+        """Lens corner falloff in stops, honouring the per-stock era default."""
+        return profile.default_vignette if self.vignette < 0.0 else self.vignette
+
+
+# ===========================================================================
+# Schema-v4 defects: lens vignette, web-coherent coating field, gate buckling,
+# narrow-gauge edge fog
+# ===========================================================================
+def vignette_field(h: int, w: int, stops: float) -> np.ndarray:
+    """cos^4(theta) illumination falloff, corner pinned to ``stops`` down.
+
+    Real physics rather than a fitted bowl: off-axis illuminance on a flat
+    focal plane falls as cos^4(theta) -- one cosine from the tilted exit
+    pupil, one from the tilted image plane, two from the inverse-square
+    increase in distance. Mechanical vignetting (hoods, filter stacks, an
+    undersized rear element) adds to it in real lenses, which is why period
+    glass loses more than geometry alone predicts; that surplus is what the
+    per-era ``default_vignette`` figure carries.
+
+    Parametrised by the corner loss so the number in the profile is directly
+    meaningful: cos(theta_corner) = 2**(-stops/4), and every other pixel
+    interpolates by its true angle, tan(theta) = (r / r_corner) *
+    tan(theta_corner). Centre is exactly 1.0 by construction.
+
+    Frame-invariant -- compute once per clip, not per frame.
+    """
+    if stops <= 0.0:
+        return np.ones((h, w), dtype=np.float32)
+    cos_c = 2.0 ** (-stops / 4.0)
+    tan_c = math.sqrt(max(1.0 / (cos_c * cos_c) - 1.0, 0.0))
+    yy = (np.arange(h, dtype=np.float64) - (h - 1) * 0.5) / max((h - 1) * 0.5, 1.0)
+    xx = (np.arange(w, dtype=np.float64) - (w - 1) * 0.5) / max((w - 1) * 0.5, 1.0)
+    # r normalised so the frame corner is exactly 1.0
+    r = np.sqrt((yy * yy)[:, None] + (xx * xx)[None, :]) / math.sqrt(2.0)
+    c = 1.0 / np.sqrt(1.0 + (r * tan_c) ** 2)      # cos(theta)
+    return (c ** 4).astype(np.float32)
+
+
+def coating_field(
+    h: int,
+    w: int,
+    frame_w_mm: float,
+    frame_h_mm: float,
+    spec,                    # film.CoatingSpec
+    frame_index: int,
+    pitch_mm: float,
+    seed: int,
+) -> np.ndarray:
+    """Web-coherent coating sensitivity field, mean 1.0.
+
+    The geometry is the point. Film is coated as a wide web and slit into
+    strips afterwards, so the coating pattern lives in WEB coordinates and
+    knows nothing about frame boundaries:
+
+      * across the web (the frame's horizontal axis on 35 mm) the structure
+        is fixed for the whole roll -- a left-right gradient that does not
+        flicker;
+      * along the web (vertical) the film advances ``pitch_mm`` per frame,
+        so each frame samples a different stretch. That, and only that, is
+        the real emulsion-driven frame-to-frame blink.
+
+    Synthesised as a sum of sinusoids in absolute web coordinates rather
+    than as filtered noise. Three reasons, all practical: it is an exact
+    function of (web position, seed) so any frame can be rendered
+    independently and out of order with no state and no seams; the field
+    slides continuously instead of being redrawn; and it costs one small
+    low-resolution evaluation plus a bilinear upsample instead of the
+    full-resolution FFT pair the pre-v4 code ran on every frame.
+
+    Anisotropy comes from drawing the two frequency axes against their own
+    correlation lengths, so the field is streaky along the web the way a
+    coating hopper's slow drift actually is.
+    """
+    sigma = float(spec.coating_sigma)
+    if sigma <= 0.0:
+        return np.ones((h, w), dtype=np.float32)
+
+    # 4 samples per correlation length is the Nyquist-with-headroom rule; the
+    # floor of 24 matters because a large-scale field (corr length comparable
+    # to the frame) would otherwise be represented by ~8 samples and upsample
+    # into a visibly linear ramp instead of a smooth hump.
+    lo_x = int(min(max(4.0 * frame_w_mm / max(spec.coating_corr_across_mm, 1e-6),
+                       24.0), 192.0))
+    lo_y = int(min(max(4.0 * frame_h_mm / max(spec.coating_corr_along_mm, 1e-6),
+                       24.0), 192.0))
+
+    # Absolute web offset of this frame, in millimetres. Unperforated formats
+    # (sheet, instant) have pitch 0: a single exposure, so no advance.
+    y_off_mm = float(frame_index) * float(pitch_mm)
+
+    rng = np.random.default_rng(seed ^ 0x00C0A71C)
+
+    # TWO components, because a coating hopper has two distinct signatures and
+    # collapsing them into one 2D field gets the temporal behaviour wrong:
+    #
+    #   STATIC cross-web profile -- slot and nozzle imperfections are fixed
+    #   hardware, so they lay down streaks at fixed x for the entire roll.
+    #   A function of x alone: identical on every frame, never flickers.
+    #
+    #   DRIFTING 2D field -- coating flow wandering over machine time. This is
+    #   the part that slides with the web and produces the frame-to-frame
+    #   blink.
+    #
+    # Split evenly in variance (hence /sqrt(2) each). Verified: with a single
+    # 2D field the cross-web profile decorrelated frame to frame, contradicting
+    # the fixed-streak physics this docstring describes.
+    n_comp = 64
+    half = sigma / math.sqrt(2.0)
+
+    xs_mm = np.linspace(0.0, frame_w_mm, lo_x, dtype=np.float64)
+    ys_mm = np.linspace(0.0, frame_h_mm, lo_y, dtype=np.float64) + y_off_mm
+
+    # -- static cross-web streaks -------------------------------------------
+    fxs = rng.normal(0.0, 1.0 / (2.0 * math.pi * spec.coating_corr_across_mm),
+                     n_comp)
+    phs = rng.uniform(0.0, 2.0 * math.pi, n_comp)
+    static = np.zeros(lo_x, dtype=np.float64)
+    for k in range(n_comp):
+        static += np.cos(2.0 * math.pi * fxs[k] * xs_mm + phs[k])
+    static *= half / math.sqrt(n_comp * 0.5)
+
+    # -- drifting 2D field ---------------------------------------------------
+    fx = rng.normal(0.0, 1.0 / (2.0 * math.pi * spec.coating_corr_across_mm),
+                    n_comp)
+    fy = rng.normal(0.0, 1.0 / (2.0 * math.pi * spec.coating_corr_along_mm),
+                    n_comp)
+    ph = rng.uniform(0.0, 2.0 * math.pi, n_comp)
+    drift = np.zeros((lo_y, lo_x), dtype=np.float64)
+    for k in range(n_comp):
+        drift += np.cos(2.0 * math.pi * (fy[k] * ys_mm[:, None]
+                                        + fx[k] * xs_mm[None, :]) + ph[k])
+    drift *= half / math.sqrt(n_comp * 0.5)
+
+    lo = (1.0 + static[None, :] + drift).astype(np.float32)
+    return _bilinear_upsample(lo, h, w)
+
+
+def _bilinear_upsample(lo: np.ndarray, h: int, w: int) -> np.ndarray:
+    """Bilinear upsample a small field to (h, w). Source stays cache-resident."""
+    lh, lw = lo.shape
+    if lh == h and lw == w:
+        return lo
+    yi = np.linspace(0.0, lh - 1.0, h)
+    xi = np.linspace(0.0, lw - 1.0, w)
+    y0 = np.minimum(yi.astype(np.int32), lh - 2)
+    x0 = np.minimum(xi.astype(np.int32), lw - 2)
+    fy = (yi - y0).astype(np.float32)[:, None]
+    fx = (xi - x0).astype(np.float32)[None, :]
+    tl = lo[y0][:, x0]
+    tr = lo[y0][:, x0 + 1]
+    bl = lo[y0 + 1][:, x0]
+    br = lo[y0 + 1][:, x0 + 1]
+    top = tl + (tr - tl) * fx
+    bot = bl + (br - bl) * fx
+    return (top + (bot - top) * fy).astype(np.float32)
+
+
+def corner_defocus(plane: np.ndarray, loss: float) -> np.ndarray:
+    """Radially increasing softness from film buckling in the camera gate.
+
+    The pressure plate holds the middle of the frame against the aperture
+    plate; the corners of a curling base lift out of the focal plane, so
+    they are focused on a surface that is no longer where the lens put its
+    image. Corner SOFTNESS, never corner darkening -- the two get conflated
+    constantly and they are different mechanisms.
+
+    Implemented as a 5-tap separable blur blended in by normalised radius
+    squared, not as a second frequency-domain pass. A spatially varying
+    kernel cannot be expressed as one transfer function, so the honest FFT
+    version needs a second full transform per channel -- measured at HD that
+    is about as expensive as the entire emulsion-MTF stage. The effect is
+    mild by nature (``buckle_mtf_loss`` is 0.03-0.30), so a small fixed
+    kernel blended radially is within its own uncertainty and costs a few
+    operations per pixel.
+    """
+    if loss <= 0.0:
+        return plane
+    h, w = plane.shape
+    k = np.array([1.0, 4.0, 6.0, 4.0, 1.0], dtype=np.float32)
+    k /= k.sum()
+    pad = np.pad(plane, ((0, 0), (2, 2)), mode="edge")
+    tmp = np.zeros_like(plane)
+    for i in range(5):
+        tmp += k[i] * pad[:, i:i + w]
+    pad2 = np.pad(tmp, ((2, 2), (0, 0)), mode="edge")
+    blur = np.zeros_like(plane)
+    for i in range(5):
+        blur += k[i] * pad2[i:i + h, :]
+    yy = (np.arange(h, dtype=np.float32) - (h - 1) * 0.5) / max((h - 1) * 0.5, 1.0)
+    xx = (np.arange(w, dtype=np.float32) - (w - 1) * 0.5) / max((w - 1) * 0.5, 1.0)
+    r2 = ((yy * yy)[:, None] + (xx * xx)[None, :]) * np.float32(0.5)  # corner=1
+    wgt = (np.float32(loss) * r2).astype(np.float32)
+    return (plane * (1.0 - wgt) + blur * wgt).astype(np.float32)
+
+
+def edge_fog_density(h: int, w: int, frame_w_mm: float, spec) -> np.ndarray:
+    """Additive density near the film edges. Gauge-driven, not era-driven.
+
+    Standard 8 is 16 mm film slit down the middle AFTER processing, so its
+    frame sits at the film edge with no trimmed margin: light leaking past
+    the edge of the roll and development edge effects both land inside the
+    picture. On 35 mm the margins carry the perforations and get trimmed, so
+    this is negligible and the spec leaves it at zero.
+
+    Applied in the density domain, after development, because that is where
+    both contributors end up and where the spec's units live.
+    """
+    if not spec.has_edge_fog or frame_w_mm <= 0.0:
+        return np.zeros((h, w), dtype=np.float32)
+    x_mm = np.linspace(0.0, frame_w_mm, w, dtype=np.float64)
+    d_edge = np.minimum(x_mm, frame_w_mm - x_mm)     # distance to nearer edge
+    prof = spec.edge_fog_density * np.exp(-d_edge / spec.edge_fog_mm)
+    return np.repeat(prof[None, :].astype(np.float32), h, axis=0)
 
 
 # ===========================================================================
@@ -857,16 +1084,45 @@ def simulate(
         del lum, broad, scattered
 
     # -- 4. coating unevenness ----------------------------------------------
-    if Feature.UNEVEN_EMULSION in profile.features:
-        # Very low frequency multiplicative sensitivity drift, a few percent.
-        # Poor QC stocks show this as slow mottle across the frame; it reads as
-        # "old film" far more strongly than extra grain does.
-        blob = apply_transfer(
-            rng.standard_normal((h, w), dtype=np.float32),
-            grid.gaussian(negative_width_mm * 1000.0 / 22.0),
+    # -- 4b. lens vignette x web-coherent coating field (schema v4) ----------
+    # Two mechanisms, one pass. Both are pure per-pixel multipliers on
+    # exposure, so they fuse into a single field and a single multiply -- the
+    # marginal cost over stage 3 is one extra stream read, not two passes.
+    #
+    # They are kept conceptually apart because they are different physics and
+    # different geometry:
+    #   * the vignette is the LENS. cos^4(theta), locked to the frame, fixed
+    #     for the whole clip, present in every era (modern glass still loses
+    #     0.3-0.5 stop in the corners).
+    #   * the coating field is the FILM, and it lives in WEB coordinates. It
+    #     cannot be locked to frame corners, because the coating machine never
+    #     knew where the frames would fall. Fixed across the web, sliding one
+    #     frame pitch per frame along it.
+    #
+    # This replaces the pre-v4 behaviour, which synthesised isotropic mottle
+    # with a full-resolution FFT pair on every frame: wrong geometry (blobs,
+    # not streaks), wrong temporal behaviour (frozen for a whole sequence
+    # because it was seeded only from settings.seed), and roughly 25x the cost
+    # of the low-resolution synthesis used here.
+    vig_stops = settings.vignette_for(profile)
+    coat = profile.coating
+    cs = max(settings.coating_scale, 0.0)
+    field = None
+    if vig_stops > 0.0:
+        field = vignette_field(h, w, vig_stops)
+    if cs > 0.0 and coat.has_coating_field:
+        eff = dataclasses.replace(
+            coat, coating_sigma=coat.coating_sigma * cs
         )
-        s = float(blob.std()) or 1.0
-        exposure *= (1.0 + 0.035 * (blob / s))[:, :, None].astype(np.float32)
+        cf = coating_field(
+            h, w, negative_width_mm, negative_width_mm * h / max(w, 1),
+            eff, settings.frame_index,
+            frame_pitch_mm(settings.film_format), settings.seed,
+        )
+        field = cf if field is None else (field * cf)
+    if field is not None:
+        exposure *= field[:, :, None]
+        del field
 
     # -- 5. halation (in linear exposure) -----------------------------------
     hal = profile.halation
@@ -915,6 +1171,16 @@ def simulate(
         t = grid.mtf(f50s[c], profile.mtf.adjacency, profile.mtf.adjacency_um)
         exposure[:, :, c] = apply_transfer(exposure[:, :, c], t)
     np.maximum(exposure, np.float32(0.0), out=exposure)
+
+    # -- 6b. corner defocus from film buckling in the gate (schema v4) --------
+    # Needs its own pass: a radially varying blur is not one transfer function,
+    # so it cannot ride along inside the MTF stage above. Kept to a 5-tap
+    # separable kernel blended by radius rather than a second FFT per channel;
+    # see corner_defocus() for why that is within the effect's own uncertainty.
+    if cs > 0.0 and coat.has_buckle:
+        loss = min(coat.buckle_mtf_loss * cs, 0.9)
+        for c in range(3):
+            exposure[:, :, c] = corner_defocus(exposure[:, :, c], loss)
 
     # -- 7. collapse to a single emulsion record ------------------------------
     reseau_mask: np.ndarray | None = None
@@ -999,6 +1265,66 @@ def simulate(
     else:
         for c in range(3):
             dens[:, :, c] = density(log_e[:, :, c], curves[c])
+
+    # -- 8b. interimage effects: cross-layer development inhibition (v5) -----
+    # The vertical half of the DIR-coupler chemistry whose lateral half is
+    # stage 9. Inhibitor released while one layer develops diffuses into its
+    # neighbours and suppresses them, so each layer's EFFECTIVE exposure
+    # depends on what the other two are doing:
+    #
+    #     logE_i' = logE_i + sum_{j != i} a_ij * (D_j - d_ref_j)
+    #
+    # Referencing to the mid-grey density d_ref is what makes this a colour
+    # effect rather than a tone effect: on a neutral every (D_j - d_ref) is
+    # ~0, the correction vanishes, and the grey scale is untouched. A
+    # saturated colour, where the layers disagree, develops against unequal
+    # inhibition and separates further -- saturation rising WITHOUT gamma
+    # rising, which no per-channel curve can produce.
+    #
+    # Implicit equation (D depends on logE' depends on D), solved by
+    # fixed-point iteration seeded with the densities just computed. Each pass
+    # costs one full curve evaluation per channel, and this is the most
+    # expensive stage in the chain, so the count is a profile field the
+    # renderer honours rather than a hardcoded loop.
+    iie = profile.interimage
+    if iie.active and not profile.is_monochrome:
+        m = iie.matrix()
+        # Density each layer reaches at the mid-grey anchor: the reference the
+        # correction is measured from.
+        if reversal:
+            d_ref = [float(density_scalar(-float(anchors[c]), curves[c]))
+                     for c in range(3)]
+        else:
+            d_ref = [float(density_scalar(0.0, curves[c])) for c in range(3)]
+        # density_weighting: 0 = uniform coupling across the curve (negative
+        # film, chromogenic development); >0 concentrates it where the
+        # neighbouring layer is DENSE (reversal film, whose effects come from
+        # iodide released in the first B&W developer and land in high
+        # dye-density areas). Weighting is normalised at the mid-grey
+        # reference so a neutral stays untouched either way -- that property
+        # is the whole point of the stage and must survive the mechanism split.
+        dw = float(iie.density_weighting)
+        for _ in range(int(iie.iterations)):
+            delta = [dens[:, :, j] - np.float32(d_ref[j]) for j in range(3)]
+            if dw > 0.0:
+                for j in range(3):
+                    ref = max(d_ref[j], 1e-4)
+                    wj = (1.0 - dw) + dw * (dens[:, :, j] / np.float32(ref))
+                    delta[j] = delta[j] * wj.astype(np.float32)
+            for c in range(3):
+                adj = np.zeros((h, w), dtype=np.float32)
+                for j in range(3):
+                    if j == c or m[c][j] == 0.0:
+                        continue
+                    adj += np.float32(m[c][j]) * delta[j]
+                if reversal:
+                    dens[:, :, c] = density(
+                        -(log_e[:, :, c] + np.float32(anchors[c])) - adj,
+                        curves[c],
+                    )
+                else:
+                    dens[:, :, c] = density(log_e[:, :, c] + adj, curves[c])
+        del delta
     del log_e
 
     # -- 9. DIR coupler inter-image effects ---------------------------------
@@ -1046,6 +1372,17 @@ def simulate(
         dens[:, :, c] = apply_transfer(dens[:, :, c], t)
 
     np.maximum(dens, np.float32(0.0), out=dens)
+
+    # -- 10b. narrow-gauge edge fog (schema v4) -------------------------------
+    # Additive density, applied after development because that is where both
+    # of its causes land: light leaking past the edge of the roll, and
+    # development edge effects. Purely a GAUGE matter -- Standard 8 is 16 mm
+    # slit down the middle after processing, so its frame sits at the film
+    # edge; 35 mm margins carry the perforations and get trimmed away.
+    if cs > 0.0 and coat.has_edge_fog:
+        fog = edge_fog_density(h, w, negative_width_mm, coat) * np.float32(cs)
+        dens += fog[:, :, None]
+        del fog
 
     # -- 11. grain, in the density domain -------------------------------------
     gs = profile.grain

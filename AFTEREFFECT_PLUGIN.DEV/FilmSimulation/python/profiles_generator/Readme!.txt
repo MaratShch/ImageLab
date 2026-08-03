@@ -1454,3 +1454,356 @@ carries its own digitised spectral curves. Honest findings: the
 supplied 5239.pdf is a mislabeled VNF-1 processing manual (no 5239
 spectral data exists on file); the July 2022 Kentmere Pan 100 sheet
 prints no spectral plot.
+
+
+================================================================================
+SCHEMA v4 (2026-08-03) -- COATING, GATE AND LENS DEFECTS
+================================================================================
+
+Old footage darkens and wobbles toward the corners. The mechanism is NOT
+mainly the emulsion, and the design had to correct that assumption first:
+
+  Film is coated as a web up to 1.4 m wide and slit into strips afterwards.
+  The coating machine has no idea where frame boundaries will fall -- the
+  camera gate decides that later. So coating thickness variation CANNOT
+  produce a defect locked to frame corners. Corner-locked darkening is the
+  LENS (cos^4 theta), and it applies in EVERY era; modern glass still loses
+  0.3-0.5 stop wide open.
+
+Coating variation lives in WEB coordinates instead:
+
+  ACROSS the web (frame's horizontal axis on 35 mm)
+      Streaks at fixed x from fixed hopper hardware. Identical on every
+      frame of the roll. Does not flicker.
+
+  ALONG the web (frame's vertical axis)
+      The film advances one frame pitch per frame, so each frame samples a
+      different stretch of web. THIS is the one real emulsion-driven
+      frame-to-frame blink: spatially smooth and sliding, never white noise.
+
+FOUR EFFECTS ADDED
+
+  1. Lens vignette      FilmProfile.default_vignette, in stops. Real
+                        cos^4(theta) geometry, corner pinned to the requested
+                        stops, centre exactly 1.0. Era default;
+                        RenderSettings.vignette overrides.
+
+  2. Coating field      CoatingSpec.coating_sigma plus two correlation
+                        lengths. QC-driven, NOT date-driven: trough coating
+                        (pre-1950s) worst, slide/extrusion hoppers (1950s)
+                        better, multi-slot simultaneous (1970s+) better
+                        again -- but Soviet, GDR and budget plants lagged by
+                        decades. 1974 Eastman 5247 and present-day Fomapan
+                        share a tier; 1990s Kodak sits two tiers better.
+
+  3. Gate buckling      CoatingSpec.buckle_mtf_loss. The pressure plate holds
+                        the frame centre flat while a curling base lifts the
+                        corners out of the focal plane. Corner SOFTNESS, never
+                        corner darkening -- these two get conflated constantly.
+
+  4. Edge fog           CoatingSpec.edge_fog_density / _mm. GAUGE-driven, not
+                        era-driven: Standard 8 is 16 mm slit down the middle
+                        after processing, so its frame sits at the film edge
+                        permanently. 35 mm margins carry the perforations and
+                        get trimmed away.
+
+NEW RENDER CONTROLS
+
+  --vignette STOPS      lens corner falloff; omit for the stock's era default
+  coating_scale         scales all three coating defects; 0.0 disables
+  frame_index           frame number in the clip. Only the coating field uses
+                        it. The field is a pure function of (seed, absolute
+                        web position), so frames render independently and out
+                        of order -- no state, no seams.
+
+EMERGENT RESULT (not designed in, worth knowing)
+
+  The same emulsion behaves differently by gauge with no extra parameters.
+  8 mm advances only 0.45 correlation-lengths of web per frame, so its mottle
+  DRIFTS SLOWLY (lag-1 field correlation +0.96). 35 mm advances 2.24, so it
+  REFRESHES EACH FRAME (+0.47). And because a 4.8 mm frame is smaller than the
+  coating structure, on 8 mm the variation appears as frame-to-frame
+  BRIGHTNESS FLICKER rather than spatial mottle -- on 35 mm it is the reverse.
+
+COST (measured, HD 1920x1080, worst-case stock, all four active)
+
+  baseline, all v4 off ............ 0.689 s
+  + vignette ...................... +5.6 %
+  + coating field and edge fog .... +2.5 %
+  + corner defocus ................ +11.1 %   <- only neighbourhood pass
+  all four ........................ +19.2 %
+  versus pre-v4 (old per-frame FFT mottle) ... +11.4 %
+  modern stock (buckling only) ............... +10.7 %
+
+  The pre-v4 coating path is GONE, not extended: it synthesised isotropic
+  mottle with a full-resolution FFT pair on every frame -- wrong geometry
+  (blobs, not streaks), wrong temporal behaviour (frozen across a sequence,
+  seeded only from settings.seed), and about 25x the cost of the
+  low-resolution synthesis that replaced it.
+
+KNOWN LIMITS
+
+  * coating_sigma delivers about 0.84x nominal through the low-resolution
+    synthesis and bilinear reconstruction. Left uncorrected on purpose: the
+    parameter is a tier-3 estimate, so a compensation factor would be false
+    precision.
+  * The coating field is applied equally to all three layers; real multilayer
+    coating varies per layer.
+  * buckle_mtf_loss blends a fixed-width kernel rather than scaling a true
+    defocus PSF with distance from the focal plane.
+
+
+================================================================================
+SCHEMA v5 (2026-08-03) -- INTERIMAGE EFFECTS
+================================================================================
+
+Cross-layer development inhibition. Developing silver in one layer releases
+inhibitor; it diffuses LATERALLY (edge effects -- already modelled as
+CouplerSpec) and VERTICALLY into the neighbouring layers (this addition).
+
+    logE_i' = logE_i + sum_{j != i} a_ij * (D_j - d_ref_j)
+
+Off-diagonals negative (inhibition). Diagonal structurally zero -- a layer's
+effect on itself is already inside its own curve. Solved by fixed-point
+iteration; default 1 pass; iterations = 0 disables the stage.
+
+WHY THE MID-GREY REFERENCE MATTERS
+  On a neutral, every (D_j - d_ref) is about zero, the correction vanishes and
+  the grey scale is untouched -- verified, max channel delta 0.00000. On a
+  saturated colour the layers disagree, develop against unequal inhibition and
+  separate further. Saturation rising WITHOUT gamma rising is exactly what a
+  per-channel curve cannot do, and it is the mechanism behind Portra's skin
+  separation and Velvia's saturation.
+
+ACTIVE ON 48 OF 89 STOCKS. Excluded, with reasons: monochrome (one layer, no
+neighbour to inhibit); Dufaycolor and Lumiere (single panchromatic emulsion
+behind a filter grid); Technicolor three-strip (three physically separate
+films cannot exchange inhibitor at all -- part of why its colour behaves
+unlike a tripack's).
+
+PROVENANCE -- TIER 3 THROUGHOUT
+  All 395 documents in PDF/PROFILES were searched. NO manufacturer sheet
+  publishes interimage data, and the omission is systematic: camera negative
+  is characterised with one white-light exposure series, and the
+  colour-separation series that would reveal these effects is only printed for
+  print stocks. The one authoritative quantification found is a citation, not
+  a document in hand -- Gschwind, Rosselet and Buser, "Investigation and
+  quantification of inter-image effects", J. Photographic Science 41 (1993),
+  p. 86.
+
+  TO MEASURE: neutral step wedge, then the SAME wedge through red (W25),
+  green (W58) and blue (W47B) filters, one roll, plus an empty-gate frame.
+  That is the colour-separation series the sheets omit.
+
+SPECTRAL DERIVATION -- BUILT, MEASURED, QUARANTINED
+  derived_spectral_response() integrates the digitised spectral curves against
+  display primaries. It is NOT wired into the renderer, because measurement
+  showed two failures: display primaries stop near 630 nm, so on
+  KONICA_INFRARED_750 (sensitised 640-820 nm, peak 750) it returns
+  (0.022, 0.017, 0.960) -- blue-dominant, since the only part a monitor can
+  reach is the intrinsic 400-500 nm lobe; and for colour stocks it derives
+  near-identity matrices (Portra 0.97-0.99 diagonal), adding an assumption
+  layer for no benefit. The real fix is a SCENE spectral model (reflectance
+  basis under a stated illuminant), to be built deliberately. Until then
+  spectral_weights and taking_matrix remain authoritative.
+
+ADDITIVE ONLY, PROVED
+  Field-by-field diff against the golden v3 copy: 0 of 89 stocks had any
+  existing value changed, 0 print-stock changes. Only coating,
+  default_vignette (v4) and interimage (v5) were appended.
+
+COST
+  One IIE pass costs one extra curve evaluation per channel; the curve stage
+  is the most expensive in the chain, so budget about +1x stage 8 per pass.
+  iterations is DATA, so the C++ port can trade accuracy for time per stock.
+
+
+================================================================================
+INTERIMAGE UPGRADED TIER 3 -> TIER 2 (2026-08-03, patent literature)
+================================================================================
+
+No manufacturer DATASHEET publishes interimage effects. PATENTS do, because a
+patent claiming improved interimage effects has to demonstrate them. Nine were
+surveyed; all are free, public documents.
+
+THE METRIC, from US5273870A (Agfa-Gevaert), verbatim:
+  "the percentage steepening of color gradation during color separation
+  exposure with light of the corresponding spectral region in relation to the
+  color gradation established on exposure with white light"
+  -- citing T. H. James, The Theory of the Photographic Process, 4th ed.
+  (1977), pp. 574 and 614. Measured at density 1.0 over fog.
+
+THE NUMBERS (B/G/R), with a real DIR-free control:
+  Ex.1  invention 25/45/42 %   DIR-free control 10/15/15 %
+  Ex.2  invention 20/42/39 %   DIR-free control  8/15/12 %
+  Ex.3  invention 25/33/35 %   DIR-free control  8/12/14 %
+  Corroborated by US4830954A: yellow 5-15 %, magenta 8-35 %, cyan 10-30 %.
+  The DIR-free control is NOT zero -- a film with no DIR couplers still shows
+  10-15 % interimage from iodide released during development. That is the
+  pre-DIR case, which is why the "mild" tier is not "none".
+
+ASYMMETRY IS PER RECEIVER, NOT PER DISTANCE
+  Blue receives weakly, green and red strongly, in every example found.
+  US4725529A Table 1 proves this is emulsion chemistry rather than geometry:
+  inhibitor in the DEVELOPER, three separate single-layer coatings, no layer
+  stack at all -- red receivers still take 0.43-0.72 dlogE against blue
+  0.24-0.48. Meanwhile not one of the nine patents differentiates adjacent
+  from remote coupling numerically, and US3227554A shows designers ENGINEER
+  remote coupling away with barrier layers rather than accepting geometric
+  falloff. So no per-hop distance factor.
+
+CONVERSION IS SOLVED NUMERICALLY, NOT BY FORMULA
+  Coupled system: gamma_i = gamma0_i * (1 + SUM_j a_ij * gamma_j).
+  Two lessons, both measured rather than assumed:
+    1. the DONORS' gammas divide the target, not the receiver's own --
+       solving channels independently overshot strong DIR by 23 points;
+    2. the linear solution holds only while coupling is weak -- it matched
+       the DIR-free control to 0.9 points and still overshot strong DIR by 23.
+  So _IIE_TIERS stores the PATENT PERCENTAGES and _iie_solve() inverts the
+  model to hit them, the same "fit through the full pipeline" method already
+  used for grain RMS. Result: published figures reproduced to 0.05 PERCENTAGE
+  POINTS on stocks of differing contrast.
+
+REVERSAL MECHANISM SPLIT (US4729943A)
+  Negatives get interimage "always ... during chromogenic development".
+  Reversal gets it "by the release in the first black-and-white developer of a
+  development inhibitor", landing in HIGH dye-density areas -- and pushing it
+  harder LOWERS neutral speed. InterimageSpec.density_weighting carries this:
+  0 negatives, 0.65 reversal, normalised at mid grey so neutrals stay exact.
+
+STILL OPEN
+  * the 0.65 reversal weighting is tier 3 (mechanism documented, magnitude not)
+  * IIE should trade against grain and Dmax (US4729943A: DIR couplers in image
+    layers "increase the granularity" and "reduce contrast and maximum
+    density") -- not modelled
+  * best unexhausted source: US7022468B2, the only document defining IIE(BG)
+    and IIE(BR) separately in log-exposure form; tables truncated online
+  * NOTE US3227554A is NOT the Barr/Thirtle/Vittum paper -- it is
+    "mercaptan-forming couplers" (Barr, Williams, Whitmore) and has no
+    interimage numbers. The paper is Photog. Sci. Eng. 13, 174 (1969).
+
+
+================================================================================
+ISO 5-3 / IT2.18 DENSITOMETRY TABLES -- COMPLETE (2026-08-03)
+================================================================================
+
+iso5_3_density.py holds all nine spectral-product tables.
+
+  Table 2  (ISO 5-3:1995)          visual 570 nm, Type 1 400 nm, Type 2 430 nm
+  Table 4  (ANSI/NAPM IT2.18-1996) Status M  blue 450, green 540, red 640 nm
+  Table 3  (ANSI/NAPM IT2.18-1996) Status A  blue 440, green 530, red 620 nm
+
+The ISO 5-3 copy available here is a standards.iteh.ai PREVIEW that stops
+mid-sentence immediately after NAMING Table 4. The US national adoption,
+ANSI/NAPM IT2.18-1996, carries both Status tables in full -- that is where they
+came from. ISO3664 is viewing conditions and has no densitometry tables.
+
+All tables transcribed from RENDERED PAGE IMAGES, not PDF text layers: the text
+layers interleave the wavelength and value columns and would silently mis-pair
+every row. European decimal comma handled ("4,957" is 4.957).
+
+ONE SUBTLETY THAT WOULD HAVE BEEN A SILENT BUG
+  Table 2 marks out-of-range entries "< 1,000" -- genuinely floor.
+  Tables 3 and 4 DO NOT. They print a SLOPE and an arrow, meaning the response
+  continues linearly in log10 past the last tabulated value:
+      Status M  blue +0.250/-0.220   green +0.106/-0.120   red +0.260/-0.040
+      Status A  blue +0.380/-0.140   green +0.220/-0.170   red +0.270/-0.040
+  (per nm, below range / above range). Truncating them to zero would narrow
+  every channel skirt and bias all derived densities. weights() applies the
+  printed slopes and clamps at 1e-6 relative.
+
+SELF-CHECKS (python3 iso5_3_density.py)
+  * nine tables, 44 entries each, matching the wavelength grid
+  * every table peaks at exactly 5.000, at the printed wavelength
+  * non-selective sample -> density 0.000000 in every metric
+  * uniform 10% transmitter -> exactly 1.000000 in every metric, including all
+    three channels of both Status sets (the real test that slope extrapolation
+    is balanced)
+  * Status M red 640 nm > Status A red 620 nm, asserted in code
+
+WHAT IT UNBLOCKS
+  dye_matrix can now be DERIVED instead of estimated: integrate each stock's
+  digitised spectral dye density curves against Status M (37 colour negative
+  stocks) or Status A (16 reversal stocks), then compare against the existing
+  hand-set matrices -- that comparison measures how wrong the estimates were.
+  Still needed: the dye curves themselves (see DYE_DIGITISATION_STATUS.md).
+
+
+================================================================================
+SOURCE LIBRARY -- ARCHIVED FILES (2026-08-03)
+================================================================================
+
+Moved off the working drive to external storage, with everything needed already
+extracted:
+
+  THE THEORY OF THE PHOTOGRAPHIC PROCESS (Mees 1942)      356 MB, 1118 pp
+      All findings preserved in doc/MEES_1942_EXTRACTION.md with page
+      citations. 1st edition, so interimage/DIR are ABSENT (0 pages) -- DIR
+      couplers postdate it by ~30 years; interimage came from patents instead.
+      Yielded: Schwarzschild p~0.8 and the fact that p is NOT constant (our
+      reciprocity model is one-sided and should be two-sided); Callier
+      q <-> grain size via d = 6.8 log q; Eberhard effect 1.5-2x with a
+      grain-size dependence we do not yet model, and the border/fringe sign
+      split; turbidity as the basis of MTF.
+
+  Cinematography - American Cinematographer Manual        117 MB, 300 pp
+      IMAGE-ONLY SCAN -- pdftotext yields 300 bytes, every keyword search
+      returns zero. Nothing extractable without rendering 300 pages. No loss.
+
+KEPT ON THE WORKING DRIVE (do not archive):
+
+  The Permanence and Care of Color Photographs (Wilhelm)   34 MB, 761 pp
+      Only 34 MB, and it is the canonical source for AgingSpec, which is still
+      all-zero tier-3 hooks: 92 hits on dye fade / fading rate / dark storage,
+      58 on cyan/magenta/yellow dye, 17 on Dmin. Needed for dye_fade_c/m/y,
+      base_yellowing_d and dmin_lift when the aging work starts.
+
+
+================================================================================
+AlgoControl.hpp -- REAL CONTROLS STRUCT (2026-08-03)
+================================================================================
+
+Replaces the "struct AlgoControls { int dummy; };" placeholder.
+
+  AlgoControls
+    21 live fields  -- mirror film_sim.RenderSettings ONE-FOR-ONE
+    bool       filmDamageEnabled   hard gate, DEFAULT false
+    FilmDamage damage              17 fields, specified but NOT yet consumed
+
+FilmDamage is NESTED, not passed separately: one object to hand around, one
+thing to serialise with a preset. The gate keeps the inert block visibly inert
+and is checked ONCE PER FRAME, not per pixel. getFilmDamageDefault() is also
+exposed alone, for a "reset this group" button.
+
+WHY THE 21 MIRROR RenderSettings EXACTLY
+  A C++ render with getAlgoControlsDefault() is directly comparable against the
+  Python reference -- that comparability is what let Algo 02 be verified to
+  1e-15. Verified mechanically: 21/21 defaults match. If either side changes,
+  re-run the check or the reference stops being a reference.
+
+NOT IN THE CONTROLS, ON PURPOSE
+  Film properties (FilmProfile data, 89 stocks). A control never replaces a
+  profile number; it scales or overrides it.
+  Stock-coupled damage: dye fade (per dye set), base yellowing and shrinkage
+  (per base material), scratch COLOUR (depth decides which dye layers survive,
+  so it needs the tripack), blob polarity (white on a print, dark on a
+  negative, inverted on reversal). Those are AgingSpec / CoatingSpec.
+  Only emulsion-INDEPENDENT damage is a control.
+
+TWO CONVENTIONS
+  Sentinels: flare and vignette default to -1.0 = "use the stock's
+  era-appropriate value". 0.0 means "genuinely none". Losing that distinction
+  silently discards per-era lens data.
+  Damage rates are per SECOND, not per frame, so defect density stays constant
+  when fps changes. weaveAmpXUm/YUm default to 0.0 = defer to the stock's
+  TemporalSpec (already populated on all 89 stocks).
+
+STATELESSNESS (required of every damage generator)
+  Pure function of (damageSeed, frameIndex, stageId, ordinal) via a
+  counter-based RNG, with a bounded birth-frame scan for persistent objects.
+  Any frame renderable alone, out of order, on any thread -- same rule the v4
+  coating field follows, and why frameIndex is a control rather than internal
+  state. Set it from layer time x fps, NOT a running counter.
+
+VERIFIED: 27 checks pass; clean under g++ -std=c++14 -Wall -Wextra -pedantic.
+Details: doc/ALGOCONTROL_NOTES.md

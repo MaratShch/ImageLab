@@ -203,10 +203,34 @@
     <None Include="python\old_films_analyzing\analyze_film_scans.py">
       <Filter>python\old_films_analyzing</Filter>
     </None>
+    <None Include="python\profiles_generator\digitize_plot.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\empirical_import.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_active_profiles.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_curves_md.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_names.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\iso5_3_density.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\old_films_analyzing\README_v21.md">
+      <Filter>python\old_films_analyzing</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\profiles_generator\Readme!.txt">
       <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="include\film_names.txt">
+      <Filter>include</Filter>
     </Text>
   </ItemGroup>
 </Project>

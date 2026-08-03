@@ -206,10 +206,17 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
+    <None Include="python\old_films_analyzing\README_v21.md" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
+    <None Include="python\profiles_generator\digitize_plot.py" />
+    <None Include="python\profiles_generator\empirical_import.py" />
     <None Include="python\profiles_generator\film_profiles.py" />
     <None Include="python\profiles_generator\film_sim.py" />
+    <None Include="python\profiles_generator\gen_active_profiles.py" />
+    <None Include="python\profiles_generator\gen_film_curves_md.py" />
+    <None Include="python\profiles_generator\gen_film_names.py" />
     <None Include="python\profiles_generator\gen_ref.py" />
+    <None Include="python\profiles_generator\iso5_3_density.py" />
     <None Include="python\profiles_generator\make_period_chart.py" />
     <None Include="python\profiles_generator\make_test_chart.py" />
     <None Include="python\profiles_generator\README.md" />
@@ -219,6 +226,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\verify.py" />
   </ItemGroup>
   <ItemGroup>
+    <Text Include="include\film_names.txt" />
     <Text Include="python\profiles_generator\Readme!.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

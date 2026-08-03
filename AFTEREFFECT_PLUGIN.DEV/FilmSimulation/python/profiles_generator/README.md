@@ -4,6 +4,22 @@ A rewrite of the original grain-overlay script as an actual photochemical model.
 Python 3.12, 64-bit, Windows and Linux/WSL2. Dependencies: **numpy and Pillow only** —
 no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 
+> **Status 2026-08-02:** the database has grown since this write-up to
+> **89 film stocks, 5 print stocks, 14 gauges** (Soviet reference-book pass:
+> six Svema/Tasma stocks added from Gurlev 1986 / Iofis 1980, ORWO_UT18
+> renamed ORWO_CHROM_UT18). Counts quoted in the body and in the historical
+> sections below are what was true when each section was written. See
+> `SOVIET_EXTRACTION_2026-08-02.md` and `CHANGES_2026-08-02_soviet.md`.
+>
+> **Schema v3 (same day):** digitised spectral sensitivity curves — new
+> `SpectralSensitivity` struct on every profile (inert when empty), generated
+> C++ carries a generation timestamp + schema version, spectral tables are
+> `std::vector<double>`. Test suite is now 70 checks. After the batch
+> digitization passes, **35 of 89 stocks carry per-emulsion spectral curves**
+> (per-stock table: `FilmCurves.md`; 48/89 after the owner-supplied batch-4 sheets — all Kodak MP stocks covered); H&D curves machine-traced and refitted
+> for VISION3 250D and ACROS 100 (`digitize_plot.py`). Details in the final
+> sections of `Readme!.txt` and `CHANGES_2026-08-02_soviet.md`.
+
 ```bash
 python film_sim.py photo.jpg --list                 # what stocks exist
 python film_sim.py photo.jpg -p 5219                # one stock, by catalogue number
@@ -17,6 +33,7 @@ python film_sim.py photo.jpg -p 5219 --flare 0.10    # force period lens flare
 python film_sim.py photo.jpg -p technicolor --emit-cpp
 python verify.py                                    # 67-check test suite
 python cpp_codegen.py -o .                          # regenerate the C++ tables
+python gen_film_names.py                            # official-name list, C++ order
 ```
 
 ## Why the original script could not get there
@@ -254,26 +271,29 @@ structure is built to accept real data; only the numbers are provisional.
 
 | File | Purpose |
 |------|---------|
-| `film_profiles.py` | Physical parameters, 56 stocks, 5 print stocks, 14 gauges |
+| `film_profiles.py` | Physical parameters, 89 stocks, 5 print stocks, 14 gauges |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |
-| `verify.py` | 67-check suite: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, edge cases |
+| `gen_film_names.py` | Writes `film_names.txt`: official names, quoted, one per line, in C++ vector order; run after `cpp_codegen.py` |
+| `verify.py` | 70-check suite: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, edge cases |
 | `make_test_chart.py` | Synthetic chart (ramp, patches, MTF bars, specular discs) |
 | `make_period_chart.py` | Larger chart for the period stocks and the réseau |
-| `contact_sheet.png` | All 56 stocks on the small chart |
+| `contact_sheet.png` | All stocks on the small chart |
 | `period_sheet.png` | The period stocks, plus a 3-generation dupe comparison |
 | `dufay_crop.png` | Dufaycolor réseau at 1:1, so the grid is visible |
+| `doc/` | Audit trail: datasheet verification (Found/NotFound), Soviet book extraction, dated changelogs, measurement adoption reports |
 
 ## Verification
 
-`python verify.py` → 67 checks, all passing. It confirms, among other things:
+`python verify.py` → 70 checks, all passing (67 original + 3 schema-v3
+spectral checks). It confirms, among other things:
 
 - every characteristic curve is monotonic
 - grain reproduces the datasheet RMS granularity to within 1.3%
 - granularity rises monotonically with scan resolution and never exceeds the figure
 - 500T renders 2.54× grainier than 50D — the datasheet ratio is 2.54
-- 18% grey anchors to 18% display for all 56 stocks and all 5 print stocks
+- 18% grey anchors to 18% display for all 89 stocks and all 5 print stocks
 - red is softest and blue sharpest through a 25 c/mm target
 - halation is red-dominant and CineStill halates far more than a remjet stock
 - reversal stocks clip a wide ramp far sooner than negative stocks
@@ -408,3 +428,152 @@ for their era as a side effect.
 
 This changes rendered output for all 17 reversal stocks, so it awaits your
 decision.
+
+
+## 2026-07-31 second pass
+
+71 stocks (83 after the 2026-08-01 pass). Soviet/ORWO profiles re-fitted from the owner's real scan batches
+(see DATASHEET_VERIFICATION_REPORT.md addendum for per-field verdicts) and 13
+stocks added: ORWO UT18 (measured, aged slides), Konica Infrared 750 /
+Impresa 50 / VX 100 / Centuria Super 400 / Centuria Super 1600 / Chrome
+Centuria 100 / Chrome R100, Rollei R3 / Infrared 400 / Retro 400, Kentmere
+Pan 100 / Pan 400 (datasheets). Reciprocity for the new stocks is fitted from
+the printed correction tables, not defaulted. `_grain_v2` no longer
+overwrites author-set sigma shapes (bug fix).
+
+
+## 2026-08-01 pass
+
+83 stocks. Added 12 Kodak motion-picture negatives spanning 1959-2010
+(5250, 5254, 5294, EXR 5245/5248/5293, Vision 5246/5274/5279, Vision2
+5205/5217/5218) so the classic-film and franchise looks map to real
+library entries. Movie-stock claims fact-checked in
+MOVIE_STOCK_VERIFICATION.md -- four systematic errors found in the source
+list (code reuse, anachronisms, 5295/5296 conflation, the Rogue One
+film-out myth, which belongs to Dune 2021).
+
+
+## Schema v4 (2026-08-03): coating, gate and lens defects
+
+Four effects behind what viewers read as "old film edges". The premise was
+corrected during review: coating unevenness **cannot** produce a
+frame-corner-locked defect, because film is coated as a wide web and slit
+afterwards -- the coating never knew where the frames would fall. Corner
+darkening is the LENS.
+
+| Effect | Field | Driver | Eras |
+|---|---|---|---|
+| Lens vignette | `FilmProfile.default_vignette` (stops) | lens | all -- modern glass still loses 0.3-0.5 stop |
+| Coating field | `CoatingSpec.coating_sigma` + 2 correlation lengths | plant QC, not date | Soviet/GDR/budget any era; modern majors zero |
+| Gate buckling | `CoatingSpec.buckle_mtf_loss` | base stiffness x gate size | pre-1955 worst; 8 mm into the 1980s |
+| Edge fog | `CoatingSpec.edge_fog_density/_mm` | gauge only | 8/16 mm; never 35 mm |
+
+New render controls: `vignette` (stops, <0 = era default), `coating_scale`
+(scales all three coating defects, 0 disables), `frame_index` (slides the
+coating field by one frame pitch; any frame renders independently and out of
+order). `frame_pitch_mm(fmt)` and `PERFS_PER_FRAME` are exported.
+
+Measured cost at HD, worst-case stock with all four active: **+19%**, of which
+corner defocus is +11% (a 3-channel separable pass, the only neighbourhood
+operation), vignette +5.6%, coating field and edge fog +2.5% together. Against
+the pre-v4 code (which ran a full-resolution FFT pair per frame for the old
+isotropic mottle) it is **+11%**. Modern stocks pay +11% for gate buckling
+alone and nothing for the rest.
+
+Full rationale, verification and known limits:
+`doc/CHANGES_2026-08-03_v4_coating.md`.
+
+
+## Schema v5 (2026-08-03): interimage effects
+
+`InterimageSpec` -- cross-layer development inhibition, the vertical half of
+the DIR-coupler chemistry whose lateral half is `CouplerSpec`. Applied to log
+exposure before the curve, referenced to the mid-grey density so a neutral is
+untouched (verified: 0.00000 delta) while saturated colour separates further --
+saturation rising without gamma rising, which no per-channel curve can produce.
+
+Active on 48/89 stocks. Excluded with reasons: monochrome, the additive-mosaic
+stocks, and Technicolor three-strip (three separate films cannot exchange
+inhibitor).
+
+**Tier 3 throughout, unavoidably.** All 395 datasheets were searched: none
+publishes interimage data, because camera negative is characterised with a
+single white-light exposure series. To measure, shoot a neutral step wedge plus
+the same wedge through W25/W58/W47B filters on one roll with an empty-gate
+reference.
+
+`derived_spectral_response()` was built, measured, and **quarantined** -- it
+returns blue-dominant weights for a 750 nm infrared film because display
+primaries stop at 630 nm, and near-identity matrices for colour stocks. Not
+wired into the renderer; a verify check asserts it stays out. Details:
+`doc/CHANGES_2026-08-03_v5_interimage.md`.
+
+Additive-only, proved: 0 existing field values changed across 89 stocks.
+
+
+## Interimage upgraded to tier 2 (2026-08-03, later same day)
+
+No datasheet publishes interimage effects -- but PATENTS do, because claiming
+improved interimage requires demonstrating it. US5273870A defines the metric
+("percentage steepening of color gradation during color separation exposure ...
+in relation to ... white light", citing James 4th ed. pp. 574/614) and
+tabulates it with a genuine DIR-free control: invention 25/45/42 % (B/G/R)
+against control 10/15/15 %. Corroborated by US4830954A and US4725529A.
+
+Two things the survey settled:
+
+* **The asymmetry is per RECEIVER, not per distance.** Blue receives weakly,
+  green and red strongly. US4725529A Table 1 proves it is emulsion chemistry
+  rather than geometry -- inhibitor in the developer, three separate
+  single-layer coatings, no stack at all, and red receivers still take
+  0.43-0.72 dlogE against blue 0.24-0.48.
+* **The conversion must be solved numerically.** The closed form matched the
+  DIR-free control to 0.9 pp but overshot strong DIR by 23 pp. `_IIE_TIERS`
+  now stores the patent percentages and the coefficients are fitted against
+  the model, reproducing published figures to **0.05 pp** on stocks of
+  differing contrast.
+
+Reversal stocks additionally carry `density_weighting=0.65`, because
+US4729943A places their interimage in high dye-density areas via first-developer
+iodide rather than colour-developer DIR.
+
+
+## ISO 5-3 densitometry complete (2026-08-03)
+
+`iso5_3_density.py` now carries all nine spectral-product tables: visual,
+Type 1, Type 2 (ISO 5-3:1995 Table 2) and **Status M / Status A blue-green-red**
+(Tables 4 and 3, recovered from ANSI/NAPM IT2.18-1996 after the ISO copy turned
+out to be a preview that stops mid-sentence at the point of naming Table 4).
+
+Peaks: visual 570; Type 1 400; Type 2 430; Status M 450/540/640; Status A
+440/530/620 nm. Status M red peaks longer than Status A red, which is the
+documented reason both exist -- M matches colour negative responses, A matches
+transparency.
+
+One subtlety worth knowing: Tables 3 and 4 do NOT print "< 1,000" out of range,
+they print a SLOPE and an arrow, so the response continues linearly in log10.
+Truncating to zero would narrow every channel skirt and bias derived densities;
+`weights()` applies the printed slopes instead.
+
+This clears the blocker on deriving `dye_matrix` from measured dye curves.
+Details: `doc/ISO_5_3_STATUS.md`.
+
+
+## Archived source files (2026-08-03)
+
+Mees 1942 (356 MB) and the American Cinematographer Manual (117 MB) moved to
+external storage. Mees findings preserved with page citations in
+`doc/MEES_1942_EXTRACTION.md`; the ASC manual is an image-only scan with no
+text layer, so nothing was extractable. **`The Permanence and Care of Color
+Photographs` (34 MB) stays** — canonical source for the still-unpopulated
+`AgingSpec` dye-fade fields.
+
+
+## AlgoControl.hpp (2026-08-03)
+
+Real controls struct, replacing the `int dummy` placeholder. 21 live fields
+mirroring `film_sim.RenderSettings` one-for-one (**verified 21/21**), plus
+`bool filmDamageEnabled` gating a nested `FilmDamage` sub-struct of 17
+specified-but-inert fields. Sentinel convention: `flare` and `vignette` are
+−1.0 for "use the stock default", 0.0 for "genuinely none". Damage rates are
+per second, not per frame. See `doc/ALGOCONTROL_NOTES.md`.
