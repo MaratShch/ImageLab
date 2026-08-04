@@ -130,7 +130,7 @@ constexpr A_u_char u8_value_white = 255u;
 constexpr A_u_short u10_value_black = 0u;
 constexpr A_u_short u10_value_white = 1023u;
 constexpr A_u_short u16_value_black = 0u;
-constexpr A_u_short u16_value_white = 32767u;
+constexpr A_u_short u16_value_white = 32768u; // PF_MAX_CHAN16
 constexpr PF_FpShort f32_value_black = 0.f;
 constexpr PF_FpShort f32_value_white = 1.0f - FLT_EPSILON;
 

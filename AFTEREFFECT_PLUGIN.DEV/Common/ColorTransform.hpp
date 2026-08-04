@@ -58,7 +58,7 @@ inline void imgYUV2RGB
 	int32_t sizeY,
 	int32_t src_line_pitch,
 	int32_t dst_line_pitch,
-	int32_t addendum = 0
+	int32_t bias = 0
 ) noexcept
 {
 	const float* __restrict colorMatrix = YUV2RGB[transformSpace];
@@ -71,10 +71,14 @@ inline void imgYUV2RGB
 		for (int32_t i = 0; i < sizeX; i++)
 		{
 			pDstLine[i].A = pSrcLine[i].A;
-			pDstLine[i].R = pSrcLine[i].Y * colorMatrix[0] + pSrcLine[i].U * colorMatrix[1] + pSrcLine[i].V * colorMatrix[2];
-			pDstLine[i].G = pSrcLine[i].Y * colorMatrix[3] + pSrcLine[i].U * colorMatrix[4] + pSrcLine[i].V * colorMatrix[5] + addendum;
-			pDstLine[i].B = pSrcLine[i].Y * colorMatrix[6] + pSrcLine[i].U * colorMatrix[7] + pSrcLine[i].V * colorMatrix[8] + addendum;
-		}
+
+            const float u = pSrcLine[i].U - bias;
+            const float v = pSrcLine[i].V - bias;
+
+            pDstLine[i].R = pSrcLine[i].Y * m[0] + u * m[1] + v * m[2];
+            pDstLine[i].G = pSrcLine[i].Y * m[3] + u * m[4] + v * m[5];
+            pDstLine[i].B = pSrcLine[i].Y * m[6] + u * m[7] + v * m[8];
+        }
 	}
 	return;
 }
@@ -109,7 +113,7 @@ inline fCIELabPix RGB2CIELab
 	const float vZ = (varZ > 0.0088560f) ? FastCompute::Cbrt(varZ) : 7.7870f * varZ + reciproc16;
 
 	fCIELabPix pixelLAB;
-	pixelLAB.L = CLAMP_VALUE(116.f * vX - 16.f, -100.0f, 100.0f);
+	pixelLAB.L = CLAMP_VALUE(116.f * vY - 16.f, 0.0f, 100.0f);
 	pixelLAB.a = CLAMP_VALUE(500.f * (vX - vY), -128.0f, 128.0f);
 	pixelLAB.b = CLAMP_VALUE(200.f * (vY - vZ), -128.0f, 128.0f);
 

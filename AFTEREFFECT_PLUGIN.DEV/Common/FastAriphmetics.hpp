@@ -233,11 +233,11 @@ namespace FastCompute
 		ix = ix + (ix >> 4);
 		ix = ix + (ix >> 8);
 		ix = 0x2a5137a0 + ix;        // Initial guess.
-		x = reciproc3 * (2.0f * x + x0 / (x * x));  // Newton step.
-		x = reciproc3 * (2.0f * x + x0 / (x * x));  // Newton step again.
-		ix |= sign;
-		return x;
-	}
+        x = reciproc3 * (2.0f * x + xx0 / (x * x));
+        x = reciproc3 * (2.0f * x + xx0 / (x * x));
+        ix |= sign;
+        return x;
+    }
 
 	template <typename T>
 	inline constexpr T Cbrt (const T x) noexcept
@@ -319,12 +319,10 @@ namespace FastCompute
 		return conv.i;
 	}
 
-	inline int __int_as_float(const int in) noexcept
-	{
-		union fi { int i; float f; } conv;
-		conv.i = in;
-		return conv.f;
-	}
+    inline float __int_as_float(const int in) noexcept
+    {
+        float f; std::memcpy(&f, &in, sizeof(f)); return f;
+    }
 
 	inline float Log (const float a) noexcept
 	{
@@ -429,7 +427,7 @@ namespace FastCompute
 				if (y > 0.0f)
 				{
 					// atan2(y,x) = PI/2 - atan(x/y) if |y/x| > 1, y > 0
-					return PI_2 - Atan(z);
+					return -PI_2 - Atan(z);
 				}
 				else
 				{
@@ -606,7 +604,7 @@ namespace FastCompute
         int q = static_cast<int>(k & 3);
 
         // Branchless tables for cos(x)
-        constexpr double S[4] = { +1.0, +1.0, -1.0, +1.0 }; // for sin_poly
+        constexpr double S[4] = { +1.0, -1.0, -1.0, +1.0 }; // for sin_poly (cos variant)
         constexpr double C[4] = { +1.0, +1.0, -1.0, -1.0 }; // for cos_poly
         constexpr double use_cos[4] = { 1.0, 0.0, 1.0, 0.0 };     // pick cos_poly for cos(x)
 
@@ -689,10 +687,9 @@ namespace FastCompute
 		constexpr double p3 = -0.00019840903752;
 	#if defined(__cpp_lib_math_fma) || (defined(__FMA__) || defined(__AVX__))
 		// use fma if available: (((p3*x2 + p2)*x2 + p1)*x2)*xr + xr  (but written carefully)
-		double t = std::fma(p3, x2, p2);
-		t = std::fma(t, x2, p1);
-		t = std::fma(t, x2, 1.0);
-		double sin_poly = std::fma(t, x2, xr); // close Horner with fma
+        double t = std::fma(p3, x2, p2);
+        t = std::fma(t, x2, p1);
+        double sin_poly = std::fma(t * x2, xr, xr); // xr + xr*x2*(p1 + x2*(p2 + x2*p3))
 	#else
 		double sin_poly = xr + x2 * xr * (p1 + x2 * (p2 + x2 * p3));
 	#endif

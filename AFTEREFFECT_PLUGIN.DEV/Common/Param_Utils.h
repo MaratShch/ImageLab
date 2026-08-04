@@ -238,7 +238,7 @@ enum { PF_Precision_INTEGER, PF_Precision_TENTHS, PF_Precision_HUNDREDTHS, PF_Pr
 		PF_STRCPY(def.name, (NAME) ); \
 		def.u.point3d_d.x_value = def.u.point3d_d.x_dephault = X_DFLT; \
 		def.u.point3d_d.y_value = def.u.point3d_d.y_dephault = Y_DFLT; \
-		def.u.point3d_d.z_value = def.u.point3d_d.z_dephault = Y_DFLT; \
+		def.u.point3d_d.z_value = def.u.point3d_d.z_dephault = Z_DFLT; \
 		def.uu.id = (ID); \
 		if ((priv_err = PF_ADD_PARAM(in_data, -1, &def)) != PF_Err_NONE) return priv_err; \
 	} while (0)

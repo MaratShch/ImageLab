@@ -21,14 +21,24 @@
 #include "CommonPixFormat.hpp"
 
 #ifdef _DEBUG
-#define PF_DISPOSE_HANDLE_EX(PF_HANDLE)                     \
-    memset(*(PF_HANDLE), 0, PF_GET_HANDLE_SIZE(PF_HANDLE)); \
-    PF_DISPOSE_HANDLE(PF_HANDLE);							
+ #define PF_DISPOSE_HANDLE_EX(PF_HANDLE) \
+    do { \
+        if ((PF_HANDLE) && *(PF_HANDLE)) { \
+            memset(*(PF_HANDLE), 0, PF_GET_HANDLE_SIZE(PF_HANDLE)); \
+            PF_DISPOSE_HANDLE(PF_HANDLE); \
+        } \
+        (PF_HANDLE) = nullptr; \
+    } while(0)
 #else
-#define PF_DISPOSE_HANDLE_EX(PF_HANDLE)                     \
-    memset(*(PF_HANDLE), 0, PF_GET_HANDLE_SIZE(PF_HANDLE)); \
-    PF_DISPOSE_HANDLE(PF_HANDLE);							\
-    (PF_HANDLE) = nullptr;
+#define PF_DISPOSE_HANDLE_EX(PF_HANDLE)                             \
+    do {                                                            \
+        if ((PF_HANDLE) && *(PF_HANDLE))                            \
+        {                                                           \
+            memset(*(PF_HANDLE), 0, PF_GET_HANDLE_SIZE(PF_HANDLE)); \
+            PF_DISPOSE_HANDLE(PF_HANDLE);							\
+            (PF_HANDLE) = nullptr;                                  \
+        }                                                           \
+    } while (0)
 #endif
 
 #ifndef GET_OBJ_FROM_HNDL
