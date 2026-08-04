@@ -5435,6 +5435,274 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(0.985, 0.995, 1.000),
         features=Feature.UNEVEN_EMULSION,
     ),
+    # ============ 2026-08-04 additions: Fuji A250, Agfa/Geva from archives ===
+    FilmProfile(
+        name="AGFACOLOR_NEG_TYPE_B_1943",
+        aliases=("agfacolor type b", "agfacolor negativ b", "type b 1943"),
+        description=(
+            "[T1] Agfacolor negative Type B, the wartime cine negative -- and "
+            "NOT the same film as AGFACOLOR_NEU_1936, which is the reversal "
+            "monopack. Heavily overlapping layer sensitivities are the whole "
+            "signature: the book's own figure shows peaks of very unequal "
+            "height -- roughly 2.5 (blue) / 1.25 (green) / 0.55 (red) in the "
+            "plotted density units -- with wide overlap, which is exactly why "
+            "the negative looks desaturated before printing. CORRECTION "
+            "2026-08-04: an earlier pass quoted those peaks as 2.28 / 0.99 / "
+            "0.67 and placed the red maximum at 625 nm with sensitivity still "
+            "present at 575 nm. All of that was wrong. It was found by finally "
+            "opening the figure IMAGE (Abb. 59a panel I, extracted from the "
+            "mhtml) instead of inferring from the surrounding German prose, "
+            "which only states that the layers overlap widely. The figure puts "
+            "the red maximum near 655 nm on flat baseline below 600 nm, and "
+            "gives blue a broad 440-480 nm plateau. Its caption calls the plot "
+            "'schematisch' TWICE, so treat these as approximate shapes: do not "
+            "restore two-decimal peak values, and do not trust the wavelengths "
+            "to better than about +/-10 nm. SOURCE Schmidt, Richard / Kochs, "
+            "Adolf, "
+            "'Farbfilmtechnik. Eine Einfuehrung fuer Filmschaffende', Berlin: "
+            "Hesse 1943 (Schriftenreihe der Reichsfilmkammer 10), pp. 54-125, "
+            "Abb. 57-59 -- via PDF/PROFILES/AGFA/Agfacolor 01.mhtml."
+        ),
+        era="1939-1945",
+        # Speed, verbatim: "Die Agfa gibt an, dass Agfacolor-Film, Type B, zu
+        # belichten sei wie Schwarzweissfilm von 15/10 Din" -> DIN 15 = ASA 25.
+        # Studio practice for Type B2, winter 1942/43: 6000 lux base light,
+        # max 15000 lux effect light, i.e. a 1:2.5 lighting ratio ceiling at
+        # f/2 and a 170 degree shutter at 24 fps -- five times the speed of
+        # the earliest Agfacolor, which needed 30000 lux.
+        exposure_index=25,
+        balance_kelvin=4200,     # "Schneeweisskohle" carbon arc, ~4200 K
+        # Curves: the 1943 text gives no gamma or Dmax for the film itself.
+        # Abb. 65 is a laboratory control wedge, not a published film curve,
+        # so its ~1.0 slope is NOT used here. Shape stays a period estimate.
+        curves=RGBCurves(
+            r=_neg(0.34, 0.560, toe_x=-1.30, toe_k=0.34, shoulder_x=1.30),
+            g=_neg(0.32, 0.575, toe_x=-1.34, toe_k=0.34, shoulder_x=1.28),
+            b=_neg(0.36, 0.590, toe_x=-1.26, toe_k=0.32, shoulder_x=1.24),
+        ),
+        grain=GrainSpec(13.5, 17.0, 16.0, 20.0, clump_gain=1.30, fog_grain=0.32,
+                        anisotropy=1.02),
+        mtf=MTFSpec(28.0, 32.0, 36.0, adjacency=0.02, adjacency_um=26.0),
+        # Layer structure, verbatim: "Jede der Einzelschichten des
+        # Agfacolor-Films hat eine Dicke von vier bis fuenf Tausendstel
+        # Millimeter" (4-5 um per emulsion layer) and the yellow filter layer
+        # "hat eine Dicke von nur etwa ein Tausendstel Millimeter" (~1 um).
+        # Abb. 57 states 0.005 mm and 0.001 mm and notes the whole pack is
+        # THINNER than ordinary B&W negative -- unusual for a tripack, and the
+        # reason its MTF is better than the era would suggest.
+        halation=HalationSpec(radii_um=(20.0, 100.0, 440.0),
+                              weights=(0.60, 0.28, 0.12),
+                              gain_r=0.26, gain_g=0.14, gain_b=0.08,
+                              threshold_stops=1.2),
+        couplers=CouplerSpec(0.02, 70.0),
+        dye_matrix=_dye(-0.02),
+        base_tint=(0.98, 0.99, 1.0),
+        misregistration_um=7.0,
+        default_format="academy35",
+        # Spectral curves [T1] digitised from Abb. 59 panel I, "Spektrale
+        # Empfindlichkeitsverteilung der Einzelschichten des Negativfilms".
+        # Caption says "schematisch", so these are a faithful reading of an
+        # idealised drawing, not measured sensitometry -- hence criterion
+        # "wedge_spectrogram_density_schematic". Ordinate is photographic
+        # DENSITY 0-3, converted to relative log sensitivity by peak
+        # normalisation per layer.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=400.0, lambda_step_nm=25.0,
+            # Re-read off the actual figure image on 2026-08-04 (see the
+            # CORRECTION note in the description). The earlier pass had the red
+            # layer peaking at 625 nm with sensitivity at 575 nm; the figure
+            # puts the red peak near 655 nm and flat baseline below 600 nm, and
+            # gives blue a broad 440-480 nm plateau rather than an immediate
+            # falloff. Baseline (D = 0) maps to the -4.0 out-of-band sentinel,
+            # not to -(peak): on a wedge spectrogram a zero-density trace means
+            # "below threshold", not a finite small sensitivity.
+            log_s_b=(-0.400, -0.120, 0.0, -0.080, -0.700, -1.550,
+                     -2.080, -2.400, -4.0, -4.0, -4.0, -4.0, -4.0),
+            log_s_g=(-4.0, -4.0, -4.0, -4.0, -1.020, -0.420, 0.0,
+                     -0.170, -0.720, -1.070, -4.0, -4.0, -4.0),
+            log_s_r=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -0.430, -0.150, 0.0, -0.030, -0.230),
+            criterion="wedge_spectrogram_density_schematic",
+            source=("Schmidt/Kochs, Farbfilmtechnik, Berlin: Hesse 1943, "
+                    "Abb. 59 panel I (schematic)"),
+        ),
+        features=Feature.HALATION | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE,
+    ),
+    FilmProfile(
+        name="FUJICOLOR_A250",
+        aliases=("a250", "a 250", "fuji a250", "8518", "8528"),
+        description=(
+            "[T1] Fujicolor Negative A250, 35mm type 8518 / 16mm type 8528. "
+            "Launched 1980 and then the world's fastest colour negative "
+            "motion-picture film; won an Academy Award of Merit. Integral "
+            "orange mask via coloured couplers. SOURCE Fuji Film Data Sheet "
+            "MP3-57E, Fuji Photo Film Co., printed 1980.08 -- "
+            "PDF/PROFILES/FUJI/'FUJICOLOR NEGATIVE FILM A 250.pdf'. "
+            "NOTE the companion file 'A 250.pdf' is NOT this film's "
+            "datasheet: it is Yamaryo/Ishimaru/Takemura, SMPTE Journal July "
+            "1985, about AX 8514/8512 and LP 8816, and its granularity, CTF "
+            "and exposure numbers must NOT be attributed to A250."
+        ),
+        era="1980-1980s",
+        exposure_index=250,           # "3200K Tungsten Lamps ..... 250"
+        balance_kelvin=3200,
+        # Curves traced from the sheet's own plot (Status M, 3200 K through a
+        # Fuji SC-41 UV filter, 1/50 s). The sheet prints NO numeric gamma,
+        # Dmin or Dmax; these come from a pixel trace calibrated on the
+        # gridlines, +/-0.02 D. Straight-line slope over logE -2.0..-1.0
+        # measured 0.56 / 0.54 / 0.54 (B/G/R). The toe plateau at
+        # logE ~ -3.3 reads B 0.95 / G 0.54 / R 0.22 -- that IS the orange
+        # mask ladder, so mask_encoding is dmin_ladder, not neutral_dmin.
+        curves=RGBCurves(
+            r=_neg(0.22, 0.540, toe_x=-1.62, toe_k=0.32, shoulder_x=1.86),
+            g=_neg(0.54, 0.540, toe_x=-1.58, toe_k=0.32, shoulder_x=1.82),
+            b=_neg(0.95, 0.560, toe_x=-1.50, toe_k=0.30, shoulder_x=1.74),
+        ),
+        # rms NOT in the sheet -- no granularity figure, aperture or density
+        # condition anywhere. Estimated for a 250T stock of 1980, between
+        # Eastman 5293 (200T, rms 7.4) and 5294 (400T). The 1985 SMPTE paper's
+        # 40x40 um figures belong to 8514/8512 and are deliberately not used.
+        grain=GrainSpec(8.6, 14.0, 15.0, 18.0, clump_gain=0.80, fog_grain=0.19),
+        mtf=MTFSpec(48.0, 55.0, 62.0, adjacency=0.07, adjacency_um=19.0),
+        halation=HalationSpec(radii_um=(14.0, 72.0, 360.0),
+                              weights=(0.56, 0.30, 0.14),
+                              gain_r=0.24, gain_g=0.09, gain_b=0.035,
+                              threshold_stops=1.6),
+        couplers=CouplerSpec(0.16, 54.0, 0.08, 12.0),
+        dye_matrix=_dye(-0.075),
+        base_tint=(1.0, 0.988, 0.962),
+        misregistration_um=4.5,
+        default_format="academy35",
+        # [T1] "Spectrogram to Tungsten Light (3200 K)", relative spectral
+        # sensitivity on a printed log scale. Peaks read at B 430, G ~557,
+        # R ~642 nm; crossovers are very deep (B/G ~490 nm, G/R ~580 nm),
+        # which is the yellow-filter-layer design showing up.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=400.0, lambda_step_nm=20.0,
+            log_s_b=(-0.880, 0.0, -0.220, -1.760, -2.840, -3.320,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0),
+            log_s_g=(-4.0, -4.0, -4.0, -4.0, -4.0, -3.750, -2.520,
+                     -0.390, 0.0, -3.840, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0),
+            log_s_r=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0, -2.930, -1.630, -0.560, 0.0, -1.560,
+                     -4.0, -4.0),
+            criterion="relative_log_spectrogram_3200K",
+            source=("Fuji Film Data Sheet MP3-57E, Fuji Photo Film Co., "
+                    "1980.08, 'Spectrogram to Tungsten Light (3200 K)'"),
+        ),
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
+        name="GEVACHROME_902",
+        aliases=("gevachrome", "gevachrome 902", "t.9.02", "t902"),
+        description=(
+            "[T1] Gevachrome Print Film T.9.02, colour REVERSAL print stock "
+            "for printing from reversal originals and for 16mm reductions. "
+            "Its defining property is a gamma the lab dials in: 1.10 to 1.50 "
+            "purely by colour-development time, 4 to 6 minutes, and the "
+            "relationship is stated to be linear. Total emulsion thickness "
+            "cut from 15 to 11.5 um for definition. SOURCE Verbrugghe, "
+            "R.G.L., 'A Sharp Reversal Color Print Film', Journal of the "
+            "SMPTE 76(12), 1967, pp. 1198-1201."
+        ),
+        era="1966-1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=8,        # print stock; no EI stated in the paper
+        balance_kelvin=2950,     # printing light 2900-3000 K, stated
+        # gamma 1.30 = midpoint of the stated 1.10-1.50 development range.
+        # Fig. 4 neutral grey scale: D ~3.0-3.1 at log E 0, shoulder ~0.15.
+        curves=RGBCurves(
+            r=_rev(0.16, 1.30, toe_x=-0.86, shoulder_x=1.06),
+            g=_rev(0.16, 1.30, toe_x=-0.88, shoulder_x=1.04),
+            b=_rev(0.17, 1.32, toe_x=-0.90, shoulder_x=1.02),
+        ),
+        # Granularity given only as a Wiener spectrum at ND 1.00 -- no
+        # sigma_D or RMS number is stated, so rms stays a class estimate.
+        grain=GrainSpec(11.5, 11.0, 12.0, 14.0, clump_gain=0.42, fog_grain=0.16),
+        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.10, adjacency_um=14.0),
+        halation=HalationSpec(gain_r=0.035, gain_g=0.012, gain_b=0.004,
+                              threshold_stops=2.0),
+        couplers=CouplerSpec(0.09, 46.0, 0.05, 10.0),
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=3.5,
+        default_format="academy35",
+        # [T1] Fig. 8, "REL. LOG. SENSITIVITY" 0-3 vs 350-800 nm. Sharp
+        # cut-offs on all three layers -- a print stock only needs to see the
+        # negative's three dye absorption bands.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=400.0, lambda_step_nm=25.0,
+            log_s_b=(-0.140, 0.0, -0.260, -0.620, -1.090, -4.0, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+            log_s_g=(-4.0, -4.0, -4.0, -1.420, -0.920, -0.420, 0.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+            log_s_r=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -1.150, -0.480, -0.480, 0.0, -0.300, -4.0),
+            criterion="relative_log_sensitivity",
+            source=("Verbrugghe, A Sharp Reversal Color Print Film, "
+                    "J. SMPTE 76(12) 1967, Fig. 8"),
+        ),
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="GEVACOLOR_NEG_682",
+        aliases=("gevacolor 682", "type 682", "gevacolor neg 682"),
+        description=(
+            "[T1] Gevacolor Negative Film Type 682, Agfa-Gevaert's ECN-2 "
+            "colour negative of 1979/80. Notable for what it documents: a "
+            "published gamma of 0.57, per-layer RMS granularity curves, DIR "
+            "couplers in the green- and red-sensitive layers, and the "
+            "double-layer technique (a fine-grain medium-speed layer plus a "
+            "faster coarser one per colour record). SOURCE Vervoort, A. / "
+            "Stappaerts, H., 'A New Gevacolor Negative Film Type 682', SMPTE "
+            "Journal 89(9), 1980, pp. 650-652."
+        ),
+        era="1979-1980s",
+        exposure_index=100,      # "rated 100 ASA ... at 3200 K"
+        balance_kelvin=3200,
+        # gamma 0.57 is printed on Fig. 10 (Status M). Dmin read from the same
+        # figure: B 0.90 / G 0.58 / R 0.11 -- the orange mask ladder again.
+        curves=RGBCurves(
+            r=_neg(0.11, 0.570, toe_x=-1.58, shoulder_x=1.88),
+            g=_neg(0.58, 0.570, toe_x=-1.54, shoulder_x=1.84),
+            b=_neg(0.90, 0.575, toe_x=-1.46, shoulder_x=1.76),
+        ),
+        # rms [T1]: Fig. 12 gives sigma_D x 1000 vs density above Dmin.
+        # Green is lowest through the critical mid-scale (21 at 0.25 D falling
+        # to 8 at 1.15), red 23 -> 13.5, blue 38 -> 30. Green taken as the
+        # reference channel with the per-layer values carried explicitly --
+        # note the ordering blue >> red > green is the OPPOSITE of the usual
+        # heuristic, because the DIR couplers act on green and red only.
+        grain=GrainSpec(16.0, 13.0, 12.0, 17.0, clump_gain=0.72, fog_grain=0.17,
+                        rms_r=23.0, rms_g=16.0, rms_b=34.0),
+        mtf=MTFSpec(46.0, 54.0, 62.0, adjacency=0.11, adjacency_um=16.0),
+        halation=HalationSpec(radii_um=(14.0, 74.0, 370.0),
+                              weights=(0.58, 0.29, 0.13),
+                              gain_r=0.24, gain_g=0.10, gain_b=0.04,
+                              threshold_stops=1.6),
+        couplers=CouplerSpec(0.20, 52.0, 0.11, 12.0),
+        dye_matrix=_dye(-0.09),
+        base_tint=(1.0, 0.986, 0.958),
+        misregistration_um=4.5,
+        default_format="academy35",
+        # [T1] Fig. 7, ordinate "PHOTOTICITY [log RE(lambda) S(lambda)]".
+        # Only slight overlap between the three response curves, unlike the
+        # 1943 Agfacolor negative -- forty years of sensitiser chemistry.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=400.0, lambda_step_nm=25.0,
+            log_s_b=(-0.140, 0.0, -0.050, -0.250, -0.670, -1.050, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+            log_s_g=(-4.0, -4.0, -4.0, -1.300, -0.960, -0.530, 0.0,
+                     -0.020, -1.300, -4.0, -4.0, -4.0, -4.0),
+            log_s_r=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -1.190, -0.410, -0.110, 0.0, -0.510, -4.0),
+            criterion="log_phototicity_3200K",
+            source=("Vervoort/Stappaerts, A New Gevacolor Negative Film Type "
+                    "682, SMPTE Journal 89(9) 1980, Fig. 7"),
+        ),
+        features=Feature.HALATION | Feature.STRONG_DIR_COUPLERS,
+    ),
 )
 
 # Presented in alphabetical order by name. The literal above is grouped by
@@ -5558,6 +5826,30 @@ _NO_DATASHEET: tuple[str, ...] = (
 #: could NOT be re-verified in this pass and were left untouched; see
 #: NotFound.md for the full list and the specific parameters still missing.
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
+    # 2026-08-04. Neu 1936 previously fell back to _NO_DATASHEET. It now has
+    # real citations -- but they ground the PROCESS and DATE only, so the tier
+    # stays 3 and fitted_from stays "analogy". See the PROVENANCE LIMIT note.
+    "AGFACOLOR_NEU_1936": (
+        "Color Committee (1937): 'The New Agfacolor Process'. Journal of the "
+        "Society of Motion Picture Engineers, May 1937, pp. 561-562 -- via "
+        "PDF/PROFILES/AGFA/Agfacolor 01.mhtml (Timeline of Historical Colors "
+        "in Photography and Film, page 'Agfacolor Neu / Agfacolor')",
+        "Hatschek, Paul (1936): 'Der neue deutsche Agfa-Farbenfilm'. Die "
+        "Kinotechnik 18(21), 5 Nov. 1936, pp. 345-346 (in German)",
+        "PROVENANCE LIMIT: these two citations establish the process and the "
+        "date only -- subtractive three-colour chromogenic monopack, reversal "
+        "from 1936, colour formers incorporated in the superposed emulsion "
+        "layers instead of added to the developer, silver later dissolved out "
+        "leaving pure dye images. Neither carries a photometric figure: no "
+        "speed, no gamma, no spectral sensitisation, no dmin or dmax. Every "
+        "numeric value in this profile is therefore still an analogy, which is "
+        "why the tier remains 3. Do NOT borrow the quantitative Agfacolor "
+        "data printed on that same page (15/10 Din, the Type B / Type G "
+        "red-sensitivity trade, the Abb. 58-59 layer sensitisation curves): "
+        "all of it describes the 1939+ NEGATIVE/POSITIVE system, a different "
+        "film with a different process, and it is carried by "
+        "AGFACOLOR_NEG_TYPE_B_1943 instead",
+    ),
     # -- Kodak motion picture and still stocks ------------------------------
     "KODAK_VISION3_50D_5203": (
         "KODAK VISION3 50D 5203 Technical Data, Eastman Kodak Company",
@@ -5912,6 +6204,7 @@ def _provenance_for(p: FilmProfile) -> Provenance:
 #: because the dmin encodes the orange coupler mask directly (audit finding;
 #: the rest keep near-neutral dmin and carry the mask in base_tint/dye data).
 _DMIN_LADDER = {
+    "FUJICOLOR_A250", "GEVACOLOR_NEG_682",
     "AGFA_OPTIMA_100",
     "AGFA_VISTA_200",
     "FUJI_F125_8530",
@@ -5930,6 +6223,8 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
+    # 2026-08-04, from each stock's own sheet:
+    "EASTMAN_PLUS_X_5231": (32.0, 100.0),
     # 2026-08-01 Kodak sheet additions (TI0835, TI1664, H-1 series):
     "EASTMAN_5247_1974": (50.0, 100.0),
     "EASTMAN_DOUBLE_X_5222": (32.0, 100.0),

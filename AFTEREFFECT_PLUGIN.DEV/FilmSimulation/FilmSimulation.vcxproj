@@ -164,6 +164,7 @@
     <ClInclude Include="include\AlgoTypes.hpp" />
     <ClInclude Include="include\Algo_02_Exposure.hpp" />
     <ClInclude Include="include\FilmSimulation.hpp" />
+    <ClInclude Include="include\film_enum.hpp" />
     <ClInclude Include="include\film_profiles.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>

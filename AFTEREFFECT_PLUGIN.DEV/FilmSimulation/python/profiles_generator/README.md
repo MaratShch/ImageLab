@@ -5,7 +5,7 @@ Python 3.12, 64-bit, Windows and Linux/WSL2. Dependencies: **numpy and Pillow on
 no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 
 > **Status 2026-08-02:** the database has grown since this write-up to
-> **89 film stocks, 5 print stocks, 14 gauges** (Soviet reference-book pass:
+> **93 film stocks, 5 print stocks, 14 gauges** (Soviet reference-book pass:
 > six Svema/Tasma stocks added from Gurlev 1986 / Iofis 1980, ORWO_UT18
 > renamed ORWO_CHROM_UT18). Counts quoted in the body and in the historical
 > sections below are what was true when each section was written. See
@@ -15,8 +15,9 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > `SpectralSensitivity` struct on every profile (inert when empty), generated
 > C++ carries a generation timestamp + schema version, spectral tables are
 > `std::vector<double>`. Test suite is now 70 checks. After the batch
-> digitization passes, **35 of 89 stocks carry per-emulsion spectral curves**
-> (per-stock table: `FilmCurves.md`; 48/89 after the owner-supplied batch-4 sheets — all Kodak MP stocks covered); H&D curves machine-traced and refitted
+> digitization passes, **35 of 93 stocks carry per-emulsion spectral curves**
+> (per-stock table: `FilmCurves.md`; all Kodak MP stocks covered, plus the
+> 2026-08-04 Agfa/Fuji/Gevaert additions); H&D curves machine-traced and refitted
 > for VISION3 250D and ACROS 100 (`digitize_plot.py`). Details in the final
 > sections of `Readme!.txt` and `CHANGES_2026-08-02_soviet.md`.
 
@@ -271,12 +272,15 @@ structure is built to accept real data; only the numbers are provisional.
 
 | File | Purpose |
 |------|---------|
-| `film_profiles.py` | Physical parameters, 89 stocks, 5 print stocks, 14 gauges |
+| `film_profiles.py` | Physical parameters, 93 stocks, 5 print stocks, 14 gauges |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
-| `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp` for a C++ port |
+| `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp`, then `film_names.txt` and `film_enum.hpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |
-| `gen_film_names.py` | Writes `film_names.txt`: official names, quoted, one per line, in C++ vector order; run after `cpp_codegen.py` |
-| `verify.py` | 70-check suite: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, edge cases |
+| `film_names.txt` | Generated. One display name per line, quoted, spaces not underscores, ASCII, no comments — feeds the effect-panel listbox. Line *N* is vector element *N−1* |
+| `film_enum.hpp` | Generated. `enum class eFILM_PROFILE : int32_t`, from 0, ending `eTOTAL_FILMS_PROFILES`. **Values shift when a stock is inserted** — see the compatibility warning in `CHANGES_2026-08-04_stocks93.md` |
+| `test_film_enum.cpp` | C++14 cross-check that enum values, vector order and `film_names.txt` lines all agree |
+| `gen_film_names.py` | **Deprecated.** Superseded by `cpp_codegen.write_film_names()`, which derives order from the emitted `.cpp` instead of from `FILM_PROFILES`. Kept only for reference |
+| `verify.py` | ~100-check suite: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, edge cases. Render-heavy — run in parts with `VERIFY_SLICE=1-8`, `9-14`, `15-17`, `18-19` |
 | `make_test_chart.py` | Synthetic chart (ramp, patches, MTF bars, specular discs) |
 | `make_period_chart.py` | Larger chart for the period stocks and the réseau |
 | `contact_sheet.png` | All stocks on the small chart |
@@ -293,7 +297,7 @@ spectral checks). It confirms, among other things:
 - grain reproduces the datasheet RMS granularity to within 1.3%
 - granularity rises monotonically with scan resolution and never exceeds the figure
 - 500T renders 2.54× grainier than 50D — the datasheet ratio is 2.54
-- 18% grey anchors to 18% display for all 89 stocks and all 5 print stocks
+- 18% grey anchors to 18% display for all 93 stocks and all 5 print stocks
 - red is softest and blue sharpest through a 25 c/mm target
 - halation is red-dominant and CineStill halates far more than a remjet stock
 - reversal stocks clip a wide ramp far sooner than negative stocks
@@ -492,7 +496,7 @@ exposure before the curve, referenced to the mid-grey density so a neutral is
 untouched (verified: 0.00000 delta) while saturated colour separates further --
 saturation rising without gamma rising, which no per-channel curve can produce.
 
-Active on 48/89 stocks. Excluded with reasons: monochrome, the additive-mosaic
+Active on 51/93 stocks. Excluded with reasons: monochrome, the additive-mosaic
 stocks, and Technicolor three-strip (three separate films cannot exchange
 inhibitor).
 
@@ -508,7 +512,7 @@ primaries stop at 630 nm, and near-identity matrices for colour stocks. Not
 wired into the renderer; a verify check asserts it stays out. Details:
 `doc/CHANGES_2026-08-03_v5_interimage.md`.
 
-Additive-only, proved: 0 existing field values changed across 89 stocks.
+Additive-only, proved: 0 existing field values changed across 93 stocks.
 
 
 ## Interimage upgraded to tier 2 (2026-08-03, later same day)
