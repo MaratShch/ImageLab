@@ -649,8 +649,8 @@ Render(
 			AEFX_SuiteScoper<PF_Iterate16Suite1> iterate16Suite =
 				AEFX_SuiteScoper<PF_Iterate16Suite1>(
 					in_data,
-					kPFIterate8Suite,
-					kPFIterate8SuiteVersion1,
+					kPFIterate16Suite,
+					kPFIterate16SuiteVersion1,
 					out_data);
 
 			iterate16Suite->iterate(
