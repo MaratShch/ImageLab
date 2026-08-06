@@ -49,7 +49,7 @@ __global__ void kBlackAndWhiteCUDA
     }
     
     //     R          G          B           
-    outPix.z = outPix.y = outPix.x = (inPix.z * colorMatrix[0] + inPix.y * colorMatrix[1] + inPix.y * colorMatrix[2]);
+    outPix.z = outPix.y = outPix.x = (inPix.z * colorMatrix[0] + inPix.y * colorMatrix[1] + inPix.x * colorMatrix[2]);
     outPix.w = inPix.w; /* ALPHA channel	*/
 
     if (in16f)

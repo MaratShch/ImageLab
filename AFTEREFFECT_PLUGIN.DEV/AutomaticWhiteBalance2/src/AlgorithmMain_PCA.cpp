@@ -53,7 +53,7 @@ namespace
 #endif
 
     // cyclic Jacobi eigensolver for a real symmetric 3x3 (scalar).
-    void jacobi3(double A[3][3], double w[3], double V[3][3]) noexcept
+    void jacobi3 (double A[3][3], double w[3], double V[3][3]) noexcept
     {
         for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) V[i][j] = (i == j) ? 1.0 : 0.0;
         for (int sweep = 0; sweep < 12; ++sweep)
@@ -63,9 +63,11 @@ namespace
             for (int p = 0; p < 2; ++p)
                 for (int q = p + 1; q < 3; ++q)
                 {
-                    if (std::fabs(A[p][q]) < 1.0e-300) continue;
-                    const double phi = 0.5 * std::atan2(2.0 * A[p][q], A[q][q] - A[p][p]);
-                    const double c = std::cos(phi), s = std::sin(phi);
+                    if (std::fabs(A[p][q]) < 1.0e-30) continue;
+                    const double theta = (A[q][q] - A[p][p]) / (2.0 * A[p][q]);
+                    const double t = (theta >= 0 ? 1.0 : -1.0) / (std::fabs(theta) + std::sqrt(theta*theta + 1.0));
+                    const double c = 1.0 / std::sqrt(t*t + 1.0);
+                    const double s = t * c;
                     for (int k = 0; k < 3; ++k) { const double a = A[k][p], b = A[k][q]; A[k][p] = c*a - s*b; A[k][q] = s*a + c*b; }
                     for (int k = 0; k < 3; ++k) { const double a = A[p][k], b = A[q][k]; A[p][k] = c*a - s*b; A[q][k] = s*a + c*b; }
                     for (int k = 0; k < 3; ++k) { const double a = V[k][p], b = V[k][q]; V[k][p] = c*a - s*b; V[k][q] = s*a + c*b; }

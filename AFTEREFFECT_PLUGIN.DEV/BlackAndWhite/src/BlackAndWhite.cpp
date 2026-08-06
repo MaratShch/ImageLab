@@ -41,6 +41,7 @@ GlobalSetup(
         PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
         PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
         PF_OutFlag2_FLOAT_COLOR_AWARE                |
+//        PF_OutFlag2_AE13_5_THREADSAFE                |
         PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
 	out_data->my_version =
@@ -131,7 +132,7 @@ PreRender
 )
 {
     A_long filterAdvancedAlgoParam = 0;
-    PF_Err err = PF_Err_NONE;
+    PF_Err err = PF_Err_NONE, err2 = PF_Err_NONE;
 
     AEFX_SuiteScoper<PF_HandleSuite1> handleSuite = AEFX_SuiteScoper<PF_HandleSuite1>(in_data, kPFHandleSuite, kPFHandleSuiteVersion1, out_data);
     PF_Handle paramsHandler = handleSuite->host_new_handle(sizeof(filterAdvancedAlgoParam));
@@ -142,10 +143,10 @@ PreRender
         {
             extra->output->pre_render_data = paramsHandler;
 
-            PF_ParamDef	advancdeAlgo{};
-            const PF_Err errParam1 = PF_CHECKOUT_PARAM(in_data, IMAGE_BW_ADVANCED_ALGO, in_data->current_time, in_data->time_step, in_data->time_scale, &advancdeAlgo);
+            PF_ParamDef	advancedAlgo{};
+            const PF_Err errParam1 = PF_CHECKOUT_PARAM(in_data, IMAGE_BW_ADVANCED_ALGO, in_data->current_time, in_data->time_step, in_data->time_scale, &advancedAlgo);
 
-            *paramsP = (PF_Err_NONE == errParam1 ? 0x1 & advancdeAlgo.u.bd.value : 0x0);
+            *paramsP = (PF_Err_NONE == errParam1 ? 0x1 & advancedAlgo.u.bd.value : 0x0);
 
             PF_RenderRequest req = extra->input->output_request;
             PF_CheckoutResult in_result{};
@@ -153,10 +154,14 @@ PreRender
             ERR(extra->cb->checkout_layer
             (in_data->effect_ref, IMAGE_BW_FILTER_INPUT, IMAGE_BW_FILTER_INPUT, &req, in_data->current_time, in_data->time_step, in_data->time_scale, &in_result));
 
-            UnionLRect(&in_result.result_rect, &extra->output->result_rect);
-            UnionLRect(&in_result.max_result_rect, &extra->output->max_result_rect);
-            handleSuite->host_unlock_handle(paramsHandler);
+            if (!err)
+            {
+                UnionLRect(&in_result.result_rect, &extra->output->result_rect);
+                UnionLRect(&in_result.max_result_rect, &extra->output->max_result_rect);
+            }
+            ERR2(PF_CHECKIN_PARAM (in_data, &advancedAlgo));
 
+            handleSuite->host_unlock_handle(paramsHandler);
         } // if (nullptr != paramsStrP)
         else
             err = PF_Err_INTERNAL_STRUCT_DAMAGED;
@@ -211,13 +216,13 @@ SmartRender
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
 
-                        const PF_Pixel_ARGB_32f* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
-                              PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
+                        const PF_Pixel_ARGB_32f* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input_worldP->data);
+                        PF_Pixel_ARGB_32f* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_32f* __restrict>(output_worldP->data);
 
                         if (0 == advancedAlgo)
-                            ProcessImage (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, 0);
+                            ProcessImage(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, 0);
                         else
-                            ProcessImageAdvanced (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                            ProcessImageAdvanced(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
                     }
                     break;
 
@@ -228,13 +233,13 @@ SmartRender
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
 
-                        const PF_Pixel_ARGB_16u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
-                              PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
+                        const PF_Pixel_ARGB_16u* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input_worldP->data);
+                        PF_Pixel_ARGB_16u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_16u* __restrict>(output_worldP->data);
 
                         if (0 == advancedAlgo)
-                            ProcessImage (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, 0);
+                            ProcessImage(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, 0);
                         else
-                            ProcessImageAdvanced (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                            ProcessImageAdvanced(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
                     }
                     break;
 
@@ -245,13 +250,13 @@ SmartRender
                         const A_long srcPitch = srcRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
                         const A_long dstPitch = dstRowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
 
-                        const PF_Pixel_ARGB_8u* __restrict input_pixels  = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
-                              PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
+                        const PF_Pixel_ARGB_8u* __restrict input_pixels = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input_worldP->data);
+                        PF_Pixel_ARGB_8u* __restrict output_pixels = reinterpret_cast<PF_Pixel_ARGB_8u* __restrict>(output_worldP->data);
 
                         if (0 == advancedAlgo)
-                            ProcessImage (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, 0);
+                            ProcessImage(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch, 0);
                         else
-                            ProcessImageAdvanced (input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
+                            ProcessImageAdvanced(input_pixels, output_pixels, sizeX, sizeY, srcPitch, dstPitch);
                     }
                     break;
 
@@ -261,6 +266,8 @@ SmartRender
                 } // switch (format)
 
             } // if (PF_Err_NONE == wsP->PF_GetPixelFormat(input_worldP, &format))
+            else
+                err = PF_Err_BAD_CALLBACK_PARAM;
 
         } // if (nullptr != input_worldP && nullptr != output_worldP)
 
