@@ -21,7 +21,7 @@ PF_Err ProcessImgInPR
 	{
 		switch (destinationPixelFormat)
 		{
-            case PrPixelFormat_BGRA_4444_8u:
+        case PrPixelFormat_BGRA_4444_8u:
             case PrPixelFormat_BGRA_4444_16u:
             case PrPixelFormat_BGRA_4444_32f:
             case PrPixelFormat_BGRA_4444_32f_Linear:
@@ -46,7 +46,11 @@ PF_Err ProcessImgInPR
             case PrPixelFormat_VUYX_4444_32f_709:
             case PrPixelFormat_VUYX_4444_32f:
             case PrPixelFormat_ARGB_4444_8u:
+            case PrPixelFormat_PRGB_4444_8u:
+            case PrPixelFormat_XRGB_4444_8u:
             case PrPixelFormat_ARGB_4444_16u:
+            case PrPixelFormat_PRGB_4444_16u:
+            case PrPixelFormat_XRGB_4444_16u:
             case PrPixelFormat_ARGB_4444_32f:
             case PrPixelFormat_PRGB_4444_32f:
             case PrPixelFormat_XRGB_4444_32f:
@@ -54,9 +58,6 @@ PF_Err ProcessImgInPR
             case PrPixelFormat_PRGB_4444_32f_Linear:
             case PrPixelFormat_XRGB_4444_32f_Linear:
             case PrPixelFormat_RGB_444_10u:
-            case PrPixelFormat_RGB_444_12u_PQ_709:
-            case PrPixelFormat_RGB_444_12u_PQ_P3:
-            case PrPixelFormat_RGB_444_12u_PQ_2020:
 			default:
 			break;
 		} /* switch (destinationPixelFormat) */
