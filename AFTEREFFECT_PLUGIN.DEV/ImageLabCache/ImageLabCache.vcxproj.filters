@@ -81,6 +81,9 @@
     <ClInclude Include="include\ImageLabCache.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageLabCache.cpp">
