@@ -10,7 +10,7 @@ travels: the taking lens, exposure, halation, emulsion scatter, the
 characteristic curve, development couplers, silver-halide grain, scanning,
 duplication and printing.
 
-It supports 89 film stocks, covering colour negative, colour reversal, black and
+It supports 93 film stocks, covering colour negative, colour reversal, black and
 white, three-strip Technicolor, 1930s-40s period stocks, Soviet-era Svema and
 Tasma emulsions documented from printed USSR reference books, and additive
 colour via a physical filter grid (Dufaycolor). It also models the taking lens's
@@ -34,7 +34,7 @@ Install the two dependencies:
 Below, "python" means "py -3.12" on Windows and "python3.12" on Linux.
 Run everything from the folder containing these files.
 
-  a) Check it works. Prints a table of all 89 stocks:
+  a) Check it works. Prints a table of all 93 stocks:
 
         python film_profiles.py
 
@@ -100,7 +100,7 @@ Generated output, safe to delete and regenerate:
   film_profiles.hpp    C++ header. Contains the struct definitions AND the
                        reference formulae as comments, so a C++ port cannot
                        silently drift from the Python original.
-  film_profiles.cpp    C++ tables: all 89 stocks, 5 print stocks, 14 gauges.
+  film_profiles.cpp    C++ tables: all 93 stocks, 5 print stocks, 14 gauges.
                        Regenerate both with:  python cpp_codegen.py -o .
   film_names.txt       Official film names, quoted, one per line, ordered as
                        the C++ vector. Regenerate: python gen_film_names.py
@@ -1270,7 +1270,7 @@ and the DjVu superseded by its PDF conversion). Nothing deleted.
 
 verify.py count assertions updated 83/20 -> 89/21 -- the only test change.
 
-Database is now 89 film stocks, 5 print stocks, 14 gauges.
+Database is now 93 film stocks, 5 print stocks, 14 gauges.
 All 67 verify checks pass. C++ compiles clean (g++ -std=c++17).
 
 SECOND PASS, SAME DAY -- CHIBISOV APPENDIX TABLES + MEASURED DUFAYCOLOR
@@ -1608,7 +1608,7 @@ SPECTRAL DERIVATION -- BUILT, MEASURED, QUARANTINED
   spectral_weights and taking_matrix remain authoritative.
 
 ADDITIVE ONLY, PROVED
-  Field-by-field diff against the golden v3 copy: 0 of 89 stocks had any
+  Field-by-field diff against the golden v3 copy: 0 of 93 stocks had any
   existing value changed, 0 print-stock changes. Only coating,
   default_vignette (v4) and interimage (v5) were appended.
 
@@ -1757,3 +1757,234 @@ KEPT ON THE WORKING DRIVE (do not archive):
       all-zero tier-3 hooks: 92 hits on dye fade / fading rate / dark storage,
       58 on cyan/magenta/yellow dye, 17 on Dmin. Needed for dye_fade_c/m/y,
       base_yellowing_d and dmin_lift when the aging work starts.
+
+
+================================================================================
+AlgoControl.hpp -- REAL CONTROLS STRUCT (2026-08-03)
+================================================================================
+
+Replaces the "struct AlgoControls { int dummy; };" placeholder.
+
+  AlgoControls
+    21 live fields  -- mirror film_sim.RenderSettings ONE-FOR-ONE
+    bool       filmDamageEnabled   hard gate, DEFAULT false
+    FilmDamage damage              17 fields, specified but NOT yet consumed
+
+FilmDamage is NESTED, not passed separately: one object to hand around, one
+thing to serialise with a preset. The gate keeps the inert block visibly inert
+and is checked ONCE PER FRAME, not per pixel. getFilmDamageDefault() is also
+exposed alone, for a "reset this group" button.
+
+WHY THE 21 MIRROR RenderSettings EXACTLY
+  A C++ render with getAlgoControlsDefault() is directly comparable against the
+  Python reference -- that comparability is what let Algo 02 be verified to
+  1e-15. Verified mechanically: 21/21 defaults match. If either side changes,
+  re-run the check or the reference stops being a reference.
+
+NOT IN THE CONTROLS, ON PURPOSE
+  Film properties (FilmProfile data, 93 stocks). A control never replaces a
+  profile number; it scales or overrides it.
+  Stock-coupled damage: dye fade (per dye set), base yellowing and shrinkage
+  (per base material), scratch COLOUR (depth decides which dye layers survive,
+  so it needs the tripack), blob polarity (white on a print, dark on a
+  negative, inverted on reversal). Those are AgingSpec / CoatingSpec.
+  Only emulsion-INDEPENDENT damage is a control.
+
+TWO CONVENTIONS
+  Sentinels: flare and vignette default to -1.0 = "use the stock's
+  era-appropriate value". 0.0 means "genuinely none". Losing that distinction
+  silently discards per-era lens data.
+  Damage rates are per SECOND, not per frame, so defect density stays constant
+  when fps changes. weaveAmpXUm/YUm default to 0.0 = defer to the stock's
+  TemporalSpec (already populated on all 93 stocks).
+
+STATELESSNESS (required of every damage generator)
+  Pure function of (damageSeed, frameIndex, stageId, ordinal) via a
+  counter-based RNG, with a bounded birth-frame scan for persistent objects.
+  Any frame renderable alone, out of order, on any thread -- same rule the v4
+  coating field follows, and why frameIndex is a control rather than internal
+  state. Set it from layer time x fps, NOT a running counter.
+
+VERIFIED: 27 checks pass; clean under g++ -std=c++14 -Wall -Wextra -pedantic.
+Details: doc/ALGOCONTROL_NOTES.md
+
+
+================================================================================
+2026-08-04 -- 89 TO 93 STOCKS; LISTBOX NAME LIST AND INDEX ENUM
+================================================================================
+
+Four stocks added, all from primary documents, schema unchanged at v5:
+
+  AGFACOLOR_NEG_TYPE_B_1943  Schmidt & Kochs, Farbfilmtechnik, Berlin: Hesse
+                             1943, Abb. 57-59 (via AGFA/Agfacolor 01.mhtml)
+  FUJICOLOR_A250             Fuji Data Sheet MP3-57E, 1980.08
+  GEVACHROME_902             Verbrugghe, SMPTE 1967 (colour reversal)
+  GEVACOLOR_NEG_682          Vervoort & Stappaerts, SMPTE 1980
+
+A normalisation bug was caught by validate_all() while adding them. All four
+sources plot a LOGARITHMIC ordinate, so peak-normalising means SUBTRACTING the
+layer peak; an earlier pass took log10(v / peak) on two of them, which badly
+compressed the curves. Recomputed by subtraction, peak wavelengths re-checked
+against the printed figures. A second slip -- A250's green and red arrays sitting
+one grid position early -- was caught the same way.
+
+TWO NEW GENERATED FILES
+-----------------------
+cpp_codegen.py now writes, after film_profiles.cpp and .hpp:
+
+  film_names.txt   one display name per line, double-quoted, spaces instead of
+                   underscores, LF endings, pure ASCII, no comments, no
+                   separators. Feeds the effect-panel listbox directly.
+
+  film_enum.hpp    enum class eFILM_PROFILE : int32_t, values from 0, ending
+                   with eTOTAL_FILMS_PROFILES = 93. Carries generation
+                   timestamp, schema version and profile count in its comment
+                   header.
+
+Both come from parse_vector_names(), which reads the ALREADY-WRITTEN .cpp back
+rather than re-walking FILM_PROFILES. The listbox indexes into the std::vector
+returned by GetFilmDatabase(), so line N of the TXT and enumerator value N-1
+must BE element N-1 of that vector. Reading the emitted table makes that true by
+construction; re-deriving it from FILM_PROFILES would only be assumed true.
+
+test_film_enum.cpp (C++14) cross-checks all three artefacts against each other
+and passes for all 93 profiles.
+
+*** COMPATIBILITY WARNING ***
+The four new stocks are INSERTS, not appends, because FILM_PROFILES is sorted
+alphabetically. AGFACOLOR_NEG_TYPE_B_1943 took index 0, so EVERY enumerator
+value shifted in this release. Any saved project or serialised plugin parameter
+holding a numeric film index from an earlier build will now select the wrong
+stock. Remap by name, not by number. Future additions should ideally be
+appended if index stability matters more than alphabetical order.
+
+DUFAYCOLOR
+----------
+The Timeline .mhtml was extracted and corroborates the existing profile: the
+reseau is quoted at 19-25 lines/mm and the shipped value of 20.0 already sits
+inside that range. No value changed; only the citation was added. The page
+carries no gamma, ASA or H&D data.
+
+TEST SUITE
+----------
+verify.py now accepts VERIFY_SLICE=<from>-<to> so it can be run in parts; the
+full suite is render-heavy and cannot finish inside a short per-process
+wall-clock budget. Across all slices: 103 PASS, 1 FAIL.
+
+Corrected stale assertions: stock count 89 -> 93; reversal count 21 -> 22
+(Gevachrome 902 is a reversal); "schema version is 4" -> "is at least 4" (the
+schema has been v5 since the interimage pass -- that assertion had been wrong
+ever since, and was only never seen because the suite never reached section 18
+before being killed).
+
+Left OPEN, needs a decision -- interimage is layer-distance-blind:
+  FAIL  neighbour pairs couple harder than the far red-blue pair
+For KODAK_PORTRA_400, a_rg and a_rb are identical (-0.257), because _IIE_TIERS
+stores strength per RECEIVING layer and applies it to both donors. Physically
+red and blue are not adjacent -- they are separated by the green layer and the
+yellow filter layer -- so they should couple less than red-green. The test is
+right; the model is incomplete. Fixing it means splitting each per-target
+percentage between its donors, which moves every colour stock away from the
+patent percentages the v5 pass was calibrated to.
+
+Left OPEN, pre-existing and unrelated:
+  FAIL  saturation hierarchy is ordered clean -> impure dyes
+The chain breaks at technicolor 0.179 > 5219 0.196. None of the new stocks
+appear in it and the suite had never run far enough to reach that section
+before, so it cannot be attributed to this pass.
+
+
+--------------------------------------------------------------------------------
+2026-08-04 FOLLOW-UP -- TWO CITATION-INTEGRITY CORRECTIONS
+--------------------------------------------------------------------------------
+
+Both found because the owner asked why AGFACOLOR NEU 1936 had no reference
+document, and what about the mhtml files. Neither would have surfaced otherwise.
+
+1. AGFACOLOR_NEU_1936 NOW CITES ITS SOURCES, BUT STAYS TIER 3
+
+It had been on the _NO_DATASHEET placeholder with fitted_from="analogy". It now
+carries two real citations:
+
+  Color Committee (1937): "The New Agfacolor Process". JSMPE, May 1937,
+    pp. 561-562.
+  Hatschek, Paul (1936): "Der neue deutsche Agfa-Farbenfilm". Die Kinotechnik
+    18(21), 5 Nov. 1936, pp. 345-346.
+
+Tier stays 3, fitted_from stays "analogy", and NO numeric value changed. Those
+documents establish the process and date only -- subtractive three-colour
+chromogenic monopack, reversal from 1936, colour formers incorporated in the
+superposed layers instead of added to the developer, silver later dissolved out
+leaving pure dye images. Neither carries a photometric figure.
+
+A PROVENANCE LIMIT note in the profile spells out the trap: the SAME page
+carries quantitative Agfacolor data (15/10 Din, the Type B vs Type G red
+sensitivity trade, the Abb. 58-59 layer curves) and ALL of it belongs to the
+1939+ negative/positive system -- a different film, different process. Putting
+it on a 1936 reversal monopack would be exactly the error class the movie-stock
+verification pass exists to catch.
+
+For the record, what these files are: "Agfacolor 01.mhtml" is not a book scan.
+It is the Timeline of Historical Colors in Photography and Film page titled
+"Agfacolor Neu / Agfacolor" -- a family page with 100 embedded JPEGs, long
+quoted passages from Schmidt & Kochs, and a bibliography. "Agfacolor 02.mhtml"
+and "03.mhtml" are BYTE-IDENTICAL duplicates of each other
+(md5 29a4e300c897cc7d1caa3ba10c57f5be); one can be deleted.
+
+2. THE AGFACOLOR TYPE B SPECTRAL CURVES WERE WRONG -- CORRECTED
+
+Yesterday's entry claimed peaks of "2.28 / 0.99 / 0.67 in density units" with
+the red maximum at 625 nm. Extracting the figure image from the mhtml
+(Schmidt_Farbfilmtechnik_1943-59-700.jpg, Abb. 59a panel I) and looking at it
+showed three faults:
+
+  blue   figure: peak ~2.5, broad 440-480 nm plateau
+         encoded: 2.28, immediate falloff past 450
+  green  figure: peak ~1.25 at ~555 nm
+         encoded: 0.99
+  red    figure: peak ~0.55 at ~655 nm, FLAT BASELINE below 600 nm
+         encoded: 0.67, peak at 625 nm, non-zero at 575 nm
+
+The red error is the serious one: ~30 nm shift plus phantom sensitivity at
+575 nm. Peak wavelengths now validate at B 450 / G 550 / R 650 nm.
+
+Two method points worth keeping:
+
+  - Baseline maps to the -4.0 out-of-band sentinel, NOT to -(peak). On a wedge
+    spectrogram a zero-density trace means "below threshold", not a finite
+    sensitivity of 10^-1.2. Subtracting the peak everywhere would have invented
+    sensitivity in the dead regions.
+  - The caption says "schematisch" TWICE. The description now records this and
+    forbids restoring two-decimal peak values or trusting wavelengths to better
+    than about +/-10 nm.
+
+Root cause, plainly: the numbers had been inferred from the surrounding German
+prose, which says only that the layers "overlap widely". Prose cannot yield peak
+values, so they should never have been written down as if it had.
+
+STILL UNMINED IN THE SAME IMAGE: Abb. 59a II (negative dye transmittances) and
+Abb. 59b III/IV (positive-film layer sensitivities and dyes). Panel III shows
+the sharply selective sensitisation of the PRINT stock -- primary-source print
+data we do not currently have. Deferred by decision, not oversight.
+
+3. TIMESTAMP FORMAT
+
+Generated banners now read "2026-08-04  06:35:10Z" -- two spaces instead of the
+ISO-8601 "T", for legibility. Still UTC, still Zulu-suffixed, no tabs.
+film_names.txt stays stamp-free and comment-free.
+
+4. SUITE AFTER THE CORRECTIONS
+
+  slice 1-8     27 PASS  0 FAIL
+  slice 9-14    25 PASS  0 FAIL
+  slice 15-19   52 PASS  2 FAIL
+  total        104 PASS  2 FAIL
+
+Both failures are the ones documented above (interimage layer-distance blindness
+and the pre-existing saturation-hierarchy ordering) and are unchanged by this
+pass. The "agfacolor" entry in the saturation chain is AGFACOLOR_NEU_1936, whose
+values were deliberately not touched.
+
+LESSON RECORDED TWICE THIS SESSION: a single-line grep returning zero is not
+evidence of absence. "DIN=0" was really "Din", and "CORRECTION=0" was a string
+split across two source lines. Both nearly became false conclusions.

@@ -43,6 +43,7 @@ from pathlib import Path
 import numpy as np
 
 from film_profiles import (
+    PERFS_PER_FRAME,
     FILM_PROFILES,
     FORMAT_GEOM,
     PRINT_STOCKS,
@@ -649,6 +650,21 @@ struct FilmFormat {
     float height_mm;           ///< image height, millimetres
     float anamorphic_squeeze;  ///< horizontal squeeze factor; 1.0 = spherical
     float perf_pitch_mm;       ///< perforation pitch; 0 = not perforated
+
+    /// Perforations advanced per frame. Multiplied by perf_pitch_mm this gives the
+    /// distance the film web travels between successive frames, which is what the
+    /// coating field needs in order to slide by exactly one frame. 0 for
+    /// unperforated formats - sheet film and instant - where a single exposure means
+    /// no advance at all.
+    int   perfs_per_frame;
+
+    /// Web travel between successive frames, millimetres. Emitted rather than left
+    /// to the caller so there is exactly one definition of it, and so a format with
+    /// no perforations reports 0 without any special case at the call site.
+    float FramePitchMm (void) const noexcept
+    {
+        return perf_pitch_mm * static_cast<float>(perfs_per_frame);
+    }
 };
 
 /// @return All supported film stocks.
@@ -1043,7 +1059,8 @@ def _cpp_source(stamp: str) -> str:
 
     out.append("std::vector<FilmFormat> GetFilmFormats() {\n    return {\n")
     out.extend(
-        f'        {{ "{name}", {_f(w)}, {_f(h)}, {_f(sq)}, {_f(pp)} }},\n'
+        f'        {{ "{name}", {_f(w)}, {_f(h)}, {_f(sq)}, {_f(pp)}, '
+        f'{PERFS_PER_FRAME.get(name, 0)} }},\n'
         for name, (w, h, sq, pp) in sorted(FORMAT_GEOM.items())
     )
     out.append("    };\n}\n\n")
