@@ -11,11 +11,18 @@
 //   CIE standard observers. The solver is Ohno (2013) triangular+parabolic
 //   over a Planckian-locus LUT (see cct_refine.cpp for math and accuracy).
 //
-// LUT BACKEND (compile-time)
-//   The locus tables are GENERATED constexpr std::array headers
-//   (CCT_LUT_CIE_1931_2DEG.hpp / CCT_LUT_CIE_1964_10DEG.hpp, produced by
-//   gen_cct_lut_header.py from official CIE CMF data, double precision,
-//   Duv = 0 stored - every entry lies on the locus by construction).
+// LUT BACKEND (plain external-linkage data)
+//   The locus tables are GENERATED plain `const` C arrays with EXTERNAL
+//   linkage: declaration in CCT_LUT_*.hpp, data in CCT_LUT_*.cpp (double
+//   precision, Duv = 0 stored - every entry lies on the locus by
+//   construction; values identical to the earlier constexpr tables).
+//   This replaced the header-resident `constexpr std::array` backend after
+//   Windows-only runtime crashes: 25k-entry constexpr aggregates in headers
+//   stress MSVC's constexpr/static-init machinery and give every TU a
+//   private internal-linkage copy (C++14); a plain extern const array is
+//   the simplest possible construct - one authoritative copy in .rdata on
+//   every toolchain, zero ODR surface, same files for C++14 and C++20.
+//   BUILD: the two CCT_LUT_*.cpp files must be in the library sources.
 //   Consequences of the compile-time backend:
 //     - NO runtime initialization exists: no lazy init, no ready flags, no
 //       mutex, no per-instance LUT storage. The former multi-instance
@@ -52,7 +59,8 @@
 // =============================================================================
 
 #include "ClassRestrictions.hpp"
-#include "CCTLut/CCTLut.hpp"
+#include "CCTLut/CCT_LUT_CIE_1931_2DEG.hpp"     // extern-linkage plain-array tables
+#include "CCTLut/CCT_LUT_CIE_1964_10DEG.hpp"    //  (data in the matching .cpp files)
 #include "ColorTransformMatrix.hpp"     // eCOLOR_OBSERVER
 #include <utility>
 #include <cstddef>
@@ -73,12 +81,24 @@ namespace AlgoCCT
         public:
             // Constructor only wires the compile-time tables; nothing is
             // built at run time.
-            CctHandle() 
-                : m_lut1(CCT_LUT_1931_2DEG::CCT_LUT_CIE_1931_2DEG.data()),
-                  m_size1(CCT_LUT_1931_2DEG::CCT_LUT_CIE_1931_2DEG_SIZE),
-                  m_lut2(CCT_LUT_1964_10DEG::CCT_LUT_CIE_1964_10DEG.data()),
-                  m_size2(CCT_LUT_1964_10DEG::CCT_LUT_CIE_1964_10DEG_SIZE)
-            {}
+            //
+            // DELIBERATELY DECLARED HERE AND DEFINED IN cct_interface.cpp -
+            // NOT inline. The generated LUT arrays are namespace-scope
+            // `constexpr std::array` and in C++14 such objects have INTERNAL
+            // linkage: every translation unit that includes the generated
+            // headers owns its own private copy. An inline (in-class)
+            // constructor that captures `.data()` of those arrays therefore
+            // has a DIFFERENT definition in every TU - a formal ODR
+            // violation. GCC/ELF linkers make that benign; the MSVC linker
+            // (COMDAT selection + /OPT:REF + /OPT:ICF) may keep a constructor
+            // COMDAT from one object file while discarding/folding the array
+            // COMDATs it references, leaving m_lut1/m_lut2 pointing at
+            // discarded data -> crash on Windows only. Defining the
+            // constructor in exactly ONE TU (cct_interface.cpp) means the
+            // tables are odr-used in exactly one place, which removes the
+            // hazard entirely (and stops every including TU from carrying a
+            // ~1.2 MB private copy of the tables in its object file).
+            CctHandle();
             ~CctHandle() = default;
 
             CLASS_NON_COPYABLE(CctHandle);

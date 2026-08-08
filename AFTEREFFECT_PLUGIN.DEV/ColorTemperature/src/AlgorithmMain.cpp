@@ -1,62 +1,107 @@
-#include "ColorTemperature.hpp"
+#include <cstdint>
+#include <cstring>
+#include <cmath>
+
+#include "Common.hpp"   
+#include "AlgoControl.hpp"
 #include "AlgorithmMain.hpp"
-#include "color_utils.hpp"
 
-// Create CCTHandle
-static AlgoCCT::CctHandle<double> cctHdnl;
-
-AlgoCCT::CctHandle<double>& get_cct_handler(void) noexcept { return cctHdnl; }
-
-// sRGB (IEC 61966-2-1) linear RGB -> XYZ, D65 white (x=0.3127, y=0.3290).
-// Derived exactly from the spec primaries/white in 50-digit arithmetic;
-// literals are the correctly-rounded double of the exact values.
-// Row sums equal D65 XYZ exactly: RGB(1,1,1) -> the white point.
-// NOTE: identical to the ITU-R BT.709 RGB->XYZ matrix (same primaries+white).
-CACHE_ALIGN constexpr double sRGBtoXYZ_f64[9] =
-{
-    0.412390799265959510, 0.35758433938387796,  0.180480788401834290,
-    0.212639005871510360, 0.71516867876775592,  0.072192315360733714,
-    0.019330818715591849, 0.11919477979462599,  0.950532152249660590,
-};
-
-// Exact inverse (XYZ -> linear sRGB), same derivation; M * M^-1 = I to 1e-49
-// in the 50-digit check — both directions from ONE source, so round-trips
-// close exactly (this is the lesson from the CMCCAT2000 episode: derive the
-// inverse from the same exact forward, never from a separately-rounded copy).
-CACHE_ALIGN constexpr double XYZtosRGB_f64[9] =
-{
-     3.240969941904521300, -1.53738317757009350, -0.498610760293003270,
-    -0.969243636280879840,  1.87596750150772060,  0.041555057407175612,
-     0.055630079696993608, -0.20397695888897657,  1.056971514242878600,
-};
+#include "CCTLut/CCTLut.hpp"
+#include "LinearLut/LinearLut.hpp"
 
 
-void AlgorithMain
+// ============================================================================
+// Algorithm_Main - PHASE 2 (RENDER), Steps A..D of the pseudo-code, plus the
+// tail of PHASE 1 (turn the already-computed SuperPixel into CCT/Duv).
+//
+// PRECONDITIONS (done by the caller in main / the plugin render entry):
+//   - memHandler already holds the LINEARIZED, interleaved input RGB buffer
+//     (filled by ingest) AND a same-size output RGB buffer; NO allocation
+//     happens here.
+//   - superPixel is the weighted neutral estimate from ingest_and_superpixel
+//     (locus-gated), computed in double.
+//   - params carries every user control (wbMode, temperatureK/FineK, tint,
+//     confidenceMap, workingSpace, observer, catModel, adaptationDegree).
+//
+// INPUTS  : superPixel (measured neutral, RGB double)
+//           memHandler (in: linear input RGB; out: linear output RGB; scratch)
+//           sizeX, sizeY (pixels)
+//           params (AlgoControls)
+// OUTPUTS : the linear OUTPUT RGB buffer in memHandler, filled with the
+//           corrected image (or the confidence-map passthrough); and the
+//           reported CCT/Duv for the UI readout.
+//
+// STAGES this function is responsible for (see per-line notes below):
+//   STEP A  establish the SOURCE white:
+//             wbMode == Measure -> superpixel_to_cct(superPixel) -> (CCT,Duv)
+//             wbMode == Manual  -> source from params: CCT = temperatureK +
+//                                  temperatureFineK ; Duv = -tint / k
+//   STEP B  establish the TARGET white (v1: fixed D65 reference).
+//   STEP C  build ONE correction matrix M_wb once for the frame:
+//             source/target (CCT,Duv) --getPlanckianUV--> uv --> XYZ (Y=1);
+//             CAT (params.catModel, degree params.adaptationDegree) gives
+//             M_adapt = M^-1 * diag(gains) * M ; then
+//             M_wb = XYZtosRGB * M_adapt * sRGBtoXYZ   (RGB->corrected RGB).
+//   STEP D  produce the OUTPUT linear RGB buffer from the INPUT linear RGB:
+//             params.confidenceMap == 0 -> out[p] = M_wb * in[p]  (per pixel,
+//                                          linear, unclamped; parallelizable)
+//             params.confidenceMap != 0 -> the confidence map already lives in
+//                                          the input linear buffer (ingest was
+//                                          run in map mode) -> COPY in->out
+//                                          unchanged (no correction applied).
+//   (The observer used in Steps A/C MUST match the gate/observer used at
+//    ingest and the one passed to ComputeCct - params.observer throughout.)
+// ============================================================================
+void Algorithm_Main
 (
-    const PF_PixelPtr RESTRICT srcImg,
-          PF_PixelPtr RESTRICT dstImg,
-    const MemHandler& memHndl,
-    const AlgoControls& algoCtrl,
-    const A_long sizeX,
-    const A_long sizeY,
-    const A_long srcPitch,
-    const A_long dstPitch,
-    const AlgoPrIngest::ePrPixelFormat fmt
-)
+    AlgoCCT::CctHandle<double>& cctHdnl,    
+    const SuperPixel<double>& superPixel, // Previously computed SuperPixel	
+    const MemHandler&     memHandler, 	// contains linearized input and output RGB buffers, and buffers for intermediate processing/compute
+    const int32_t         sizeX,	// horizontal linearized image size in pixels	
+    const int32_t         sizeY,	// vertical linearized image size in pixels
+    const AlgoControls&   params,	// Algorithm Control parameters
+    CctDuv<double>&       cct_duv   // Computed CCT and Duv/Tint values    
+) 
 {
-    float* dstRGB_f32 = memHndl.input_f32_interleaved;
-    SuperPixel<double> super{};   // computed in double, max accuracy
+     	double cct_computed = 0.0;      // STEP A output: measured/target CCT [K]
+       	double duv_computed = 0.0;      // STEP A output: measured/target Duv
 
-    const auto& lut8  = getLinerLut8Bits();
-    const auto& lut10 = getLinerLut10Bits();
-    const auto& lut16 = getLinerLut16Bits();
+        // ---- STEP A' : MEASURE the incoming CCT/Duv - ALWAYS (unconditional).
+        // The scene's measured white point is a first-class OUTPUT of every
+        // call (needed for the UI readout and the confidence workflow),
+        // independent of wbMode and independent of whether a correction is
+        // applied. So this runs before, and regardless of, Steps B..D.
+        // IN : superPixel (from ingest), RGB->XYZ matrix, params.observer.
+        // OUT: cct_duv  (the measured source white).
+       	superpixel_to_cct (superPixel, cctHdnl, sRGBtoXYZ_f64, observer_CIE_1931,
+                      		cct_computed, duv_computed);
 
-    ingest_and_superpixel (static_cast<const void*>(srcImg), sizeX, sizeY, srcPitch, fmt, lut8, lut16, lut10, dstRGB_f32, super);
+        cct_duv.cct = cct_computed;    // measured CCT reported unconditionally
+        cct_duv.duv = duv_computed;    // measured Duv reported unconditionally
 
-    double cct_computed = 0.0;
-    double duv_computed = 0.0;
+        // ---- STEP A : establish the SOURCE white for the CORRECTION ---------
+        // (distinct from the measurement above: in Manual mode the correction
+        //  source comes from the sliders, not from the measured value.)
+        //   wbMode == Measure -> source = (cct_computed, duv_computed) above
+        //   wbMode == Manual  -> source CCT = params.temperatureK +
+        //                        params.temperatureFineK ;
+        //                        source Duv = -(params.tint)/k  (UI->CIE)
+        //   NOTE: the Manual branch is NOT YET PRESENT.
 
-    superpixel_to_cct (super, cctHdnl, sRGBtoXYZ_f64, observer_CIE_1931, cct_computed, duv_computed);
+        // ---- STEP B : target white (v1 fixed D65) : NOT YET PRESENT ---------
+
+        // ---- STEP C : build M_wb from source/target via CAT : NOT YET PRESENT
+        //     IN : (cct_computed,duv_computed) source, D65 target,
+        //          params.catModel, params.adaptationDegree, params.observer,
+        //          sRGBtoXYZ / XYZtosRGB
+        //     OUT: M_wb[9]  (built ONCE here, not per pixel)
+
+        // ---- STEP D : fill output linear RGB from input linear RGB ----------
+        //     IN : memHandler input linear RGB, M_wb, params.confidenceMap
+        //     OUT: memHandler output linear RGB
+        //     confidenceMap==0 -> out = M_wb * in  (per pixel, parallel)
+        //     confidenceMap!=0 -> copy in -> out   (map passthrough)
 
     return;
 }
+

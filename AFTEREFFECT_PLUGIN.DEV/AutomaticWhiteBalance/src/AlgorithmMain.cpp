@@ -2,12 +2,10 @@
 #include <utility>
 #include <algorithm>
 
+#include "Common.hpp"
 #include "AlgorithmMain.hpp"
 #include "AlgCommonFunctions.hpp"   // GrayEstimate + scalar kernels
 
-#ifndef RESTRICT
-#define RESTRICT __restrict
-#endif
 
 namespace
 {

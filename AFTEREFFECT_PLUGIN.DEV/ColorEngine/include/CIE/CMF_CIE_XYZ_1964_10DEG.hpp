@@ -26,7 +26,7 @@
 #include <array>
 #include <cstddef>
 
-namespace GeneratedCMF
+namespace CMF_1964_10DEG
 {
 
     // One tabulated CMF sample: wavelength (nm) and the three
@@ -516,6 +516,6 @@ namespace GeneratedCMF
         { 830.0, 1.55314e-06, 6.297e-07, 0.0 }
     } };
 
-} // namespace GeneratedCMF
+} // namespace CMF_1964_10DEG
 
 #endif // __GENERATED_CMF_CIE_XYZ_1964_10DEG_DOUBLE__

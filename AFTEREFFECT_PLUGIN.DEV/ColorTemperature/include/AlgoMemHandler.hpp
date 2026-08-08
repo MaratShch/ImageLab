@@ -32,9 +32,10 @@ struct MemHandler
 MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY) noexcept;
 void       free_memory_buffers  (MemHandler& mem) noexcept;
 
+
 inline bool mem_handler_valid (const MemHandler& mem) noexcept
 {
-    return (0 <= mem.memBlockId && nullptr != mem.SuperBufferHead);
+    return (mem.memBlockId >= 0 && nullptr != mem.SuperBufferHead);
 }
 
 #endif // __IMAGE_LAB_AWB_MEM_HANDLER__

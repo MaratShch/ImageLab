@@ -17,6 +17,30 @@
 using namespace AlgoCCT;
 
 // -----------------------------------------------------------------------------
+// Constructor - defined HERE (the only TU that odr-uses the generated LUT
+// arrays) and NOT inline in the header, on purpose.
+//
+// The generated tables are namespace-scope `constexpr std::array`; under
+// C++14 those have INTERNAL linkage, i.e. a private copy per translation
+// unit. If this constructor lived inline in the header, every TU would bind
+// m_lut1/m_lut2 to ITS OWN private copy - a different definition per TU,
+// which is an ODR violation. ELF linkers tolerate it; MSVC's COMDAT
+// selection with /OPT:REF + /OPT:ICF can keep the constructor from one .obj
+// while discarding or folding the very array COMDATs it points into,
+// producing dangling table pointers and a Windows-only runtime crash.
+// Defining the constructor in exactly one TU makes the tables odr-used in
+// exactly one place: one authoritative copy, valid pointers, no ODR issue.
+// -----------------------------------------------------------------------------
+template <typename T, typename std::enable_if<std::is_floating_point<T>::value>::type* E>
+CctHandle<T, E>::CctHandle()
+    : m_lut1(CCT_LUT_1931_2DEG::CCT_LUT_CIE_1931_2DEG),   // plain array decays
+      m_size1(CCT_LUT_1931_2DEG::CCT_LUT_CIE_1931_2DEG_SIZE),
+      m_lut2(CCT_LUT_1964_10DEG::CCT_LUT_CIE_1964_10DEG),
+      m_size2(CCT_LUT_1964_10DEG::CCT_LUT_CIE_1964_10DEG_SIZE)
+{
+}
+
+// -----------------------------------------------------------------------------
 // cct_compute - thin adapter between the public entry point and the solver.
 // Zeroes the outputs and runs the Ohno triangular+parabolic solver on the
 // given chromaticity against the given locus table.
@@ -147,7 +171,8 @@ std::pair<T, T> CctHandle<T, E>::getPlanckianUV (const std::pair<T, T>& cct_Duv,
 // types are float and double.
 // =============================================================================
 
-// constructor
+// constructor (DEFINED in this TU - see the definition above for why it
+// must not be inline in the header)
 template AlgoCCT::CctHandle<float >::CctHandle();
 template AlgoCCT::CctHandle<double>::CctHandle();
 

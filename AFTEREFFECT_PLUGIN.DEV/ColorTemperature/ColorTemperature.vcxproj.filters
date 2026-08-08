@@ -110,6 +110,21 @@
     <ClInclude Include="include\AlgoControl.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\Algo2Rgb2XYZ.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoIngestAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatEgress.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatIngest.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoWhiteBalance.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp">

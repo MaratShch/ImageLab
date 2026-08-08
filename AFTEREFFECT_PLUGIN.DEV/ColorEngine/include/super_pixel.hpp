@@ -15,3 +15,11 @@ struct SuperPixel
     T g;
     T b;
 };
+
+
+template <typename T>
+struct CctDuv
+{
+    T cct;
+    T duv;
+};
