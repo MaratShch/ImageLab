@@ -1,7 +1,7 @@
 // =============================================================================
 // LINEARIZE_LUT_SRGB_8BIT_F64.cpp  -  GENERATED, do not edit by hand.
 //
-// Generated : 2026-07-26 10:33:34 +0300 (UTC 2026-07-26 07:33:34)
+// Generated : 2026-08-09 14:26:09 +0300 (UTC 2026-08-09 11:26:09)
 // Regenerate with EXACTLY this command line:
 //   python gen_linearize_lut_source.py --bits 8 --transfer srgb --dtype double
 //
@@ -23,8 +23,8 @@
 // long double width; note MSVC long double == double).
 // =============================================================================
 
-#include "Common.hpp"
 #include "LinearLut/LINEARIZE_LUT_SRGB_8BIT_F64.hpp"
+#include "Common.hpp"
 
 namespace LinLut_srgb_8bit_double
 {

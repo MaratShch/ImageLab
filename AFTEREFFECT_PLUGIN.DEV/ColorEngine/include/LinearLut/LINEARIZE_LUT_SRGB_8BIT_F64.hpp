@@ -1,7 +1,7 @@
 // =============================================================================
 // LINEARIZE_LUT_SRGB_8BIT_F64.hpp  -  GENERATED, do not edit by hand.
 //
-// Generated : 2026-07-26 10:33:34 +0300 (UTC 2026-07-26 07:33:34)
+// Generated : 2026-08-09 14:26:09 +0300 (UTC 2026-08-09 11:26:09)
 // Regenerate with EXACTLY this command line:
 //   python gen_linearize_lut_source.py --bits 8 --transfer srgb --dtype double
 //
@@ -28,6 +28,7 @@
 #define __IMAGELAB2_LINEARIZE_LUT_SRGB_8BIT_F64_DECL__
 
 #include <cstddef>
+#include "Common.hpp"
 
 namespace LinLut_srgb_8bit_double
 {
@@ -35,7 +36,11 @@ namespace LinLut_srgb_8bit_double
 
     // Defined in LINEARIZE_LUT_SRGB_8BIT_F64.cpp - plain const
     // array, external linkage, single authoritative copy.
-    extern const double LINEARIZE_LUT_SRGB_8BIT_F64[LINEARIZE_LUT_SRGB_8BIT_F64_SIZE];
+    // CACHE_ALIGN (see Common.hpp) puts the table start on a
+    // cache-line boundary; the modifier is repeated IDENTICALLY
+    // on the definition - MSVC requires declaration and
+    // definition to agree on __declspec(align()).
+    extern CACHE_ALIGN const double LINEARIZE_LUT_SRGB_8BIT_F64[LINEARIZE_LUT_SRGB_8BIT_F64_SIZE];
 } // namespace LinLut_srgb_8bit_double
 
 #endif // __IMAGELAB2_LINEARIZE_LUT_SRGB_8BIT_F64_DECL__

@@ -268,12 +268,18 @@ def main():
         w = f.write
         banner(w, hpp_name, is_cpp=False)
         w(f"#ifndef {guard}\n#define {guard}\n\n")
-        w("#include <cstddef>\n\n")
+        w("#include <cstddef>\n")
+        # Common.hpp provides CACHE_ALIGN (cache-line alignment modifier)
+        w('#include "Common.hpp"\n\n')
         w(f"namespace {ns}\n{{\n")
         w(f"    constexpr std::size_t {tag}_SIZE = {count}u;\n\n")
         w(f"    // Defined in {os.path.basename(cpp_path)} - plain const\n")
         w(f"    // array, external linkage, single authoritative copy.\n")
-        w(f"    extern const {elem} {tag}[{tag}_SIZE];\n")
+        w(f"    // CACHE_ALIGN (see Common.hpp) puts the table start on a\n")
+        w(f"    // cache-line boundary; the modifier is repeated IDENTICALLY\n")
+        w(f"    // on the definition - MSVC requires declaration and\n")
+        w(f"    // definition to agree on __declspec(align()).\n")
+        w(f"    extern CACHE_ALIGN const {elem} {tag}[{tag}_SIZE];\n")
         w(f"}} // namespace {ns}\n\n")
         w(f"#endif // {guard}\n")
 
@@ -281,9 +287,10 @@ def main():
     with open(cpp_path, "w", newline="\n") as f:
         w = f.write
         banner(w, os.path.basename(cpp_path), is_cpp=True)
-        w(f'#include "{hpp_name}"\n\n')
+        w(f'#include "{hpp_name}"\n')
+        w('#include "Common.hpp"\n\n')
         w(f"namespace {ns}\n{{\n")
-        w(f"    const {elem} {tag}[{tag}_SIZE] =\n")
+        w(f"    CACHE_ALIGN const {elem} {tag}[{tag}_SIZE] =\n")
         w("    {\n")
         per_line = 4 if args.dtype == "long_double" else 6
         line = []

@@ -21,13 +21,13 @@
  *                  the correctly-rounded double of the exact result of
  *                  the specified formula (same quadrature, ITS-90 c2).
  *                  Constants emitted via repr() -> bit-exact reconstruction.
- * Generated on   : 2026-07-26 10:06:51
+ * Generated on   : 2026-08-09 14:31:28
  * Standard       : C++14 and newer (plain const array, no
  *                  language-level variants needed)
  */
 
+#include "CctLut/CCT_LUT_CIE_1931_2DEG.hpp"
 #include "Common.hpp"
-#include "CCTLut/CCT_LUT_CIE_1931_2DEG.hpp"
 
 namespace CCT_LUT_1931_2DEG
 {

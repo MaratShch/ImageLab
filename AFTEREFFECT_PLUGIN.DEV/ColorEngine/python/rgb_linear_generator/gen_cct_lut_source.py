@@ -358,7 +358,10 @@ def main() -> None:
                is_cpp=False)
         w(f"#ifndef __GENERATED_{tag}_DECL_HPP__\n")
         w(f"#define __GENERATED_{tag}_DECL_HPP__\n\n")
-        w("#include <cstddef>\n\n")
+        w("#include <cstddef>\n")
+        # Common.hpp provides CACHE_ALIGN (cache-line alignment modifier)
+        # used on the table declaration/definition below.
+        w('#include "Common.hpp"\n\n')
         # Shared row type: identical guarded block in every generated LUT
         # header, so all observer tables use ONE C++ type (include-order
         # independent - whichever header is included first defines it).
@@ -382,7 +385,11 @@ def main() -> None:
         w(f"    constexpr std::size_t {tag}_SIZE = {count}u;\n\n")
         w(f"    // Defined in {os.path.basename(cpp_path)} - plain const\n")
         w(f"    // array, external linkage, single authoritative copy.\n")
-        w(f"    extern const CctLutRow_double {tag}[{tag}_SIZE];\n\n")
+        w(f"    // CACHE_ALIGN (see Common.hpp) puts the table start on a\n")
+        w(f"    // cache-line boundary; the modifier is repeated IDENTICALLY\n")
+        w(f"    // on the definition - MSVC requires declaration and\n")
+        w(f"    // definition to agree on __declspec(align()).\n")
+        w(f"    extern CACHE_ALIGN const CctLutRow_double {tag}[{tag}_SIZE];\n\n")
         w(f"}} // namespace {ns}\n\n")
         w(f"#endif // __GENERATED_{tag}_DECL_HPP__\n")
 
@@ -391,9 +398,12 @@ def main() -> None:
         w = f.write
         banner(w, os.path.basename(cpp_path), desc, args, rows, count,
                grid_note, now, is_cpp=True)
-        w(f'#include "{hpp_name}"\n\n')
+        w(f'#include "{hpp_name}"\n')
+        # explicit (the header already pulls it in, but the modifier is USED
+        # in this file, so the include is stated here too)
+        w('#include "Common.hpp"\n\n')
         w(f"namespace {ns}\n{{\n\n")
-        w(f"    const CctLutRow_double {tag}[{tag}_SIZE] =\n")
+        w(f"    CACHE_ALIGN const CctLutRow_double {tag}[{tag}_SIZE] =\n")
         w("    {\n")
         for (T, u, v) in entries:
             w(f"        {{ {T!r}, {u!r}, {v!r}, 0.0 }},\n")
