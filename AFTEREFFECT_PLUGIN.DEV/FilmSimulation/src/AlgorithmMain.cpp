@@ -1,3 +1,4 @@
+#if 0
 // ===========================================================================
 //  AlgorithmMain.cpp -- film simulation core, scalar reference implementation
 //
@@ -1256,3 +1257,4 @@ void Algorithm_Main
 
     return;
 }
+#endif

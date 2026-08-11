@@ -1,3 +1,4 @@
+#if 0
 // ---------------------------------------------------------------------------
 //  Algo_04_Sim.cpp   --   AVX2
 //
@@ -586,3 +587,4 @@ void AlgoStage04_CoatingAndVignette
 
     return;
 }
+#endif

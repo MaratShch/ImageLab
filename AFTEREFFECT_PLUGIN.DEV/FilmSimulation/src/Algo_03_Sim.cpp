@@ -1,3 +1,4 @@
+#if 0
 // ---------------------------------------------------------------------------
 //  Algo_03_Sim.cpp   --   AVX2
 //
@@ -513,3 +514,4 @@ void AlgoStage03c_TemporalFlicker
 
     return;
 }
+#endif

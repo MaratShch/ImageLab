@@ -1,3 +1,4 @@
+#if 0
 // ---------------------------------------------------------------------------
 //  AlgoSeparableBlur.cpp   --   AVX2
 //
@@ -1590,3 +1591,4 @@ void AlgoBilinearUpsample
 
     return;
 }
+#endif
