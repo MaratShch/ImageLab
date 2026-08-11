@@ -4,7 +4,26 @@ A rewrite of the original grain-overlay script as an actual photochemical model.
 Python 3.12, 64-bit, Windows and Linux/WSL2. Dependencies: **numpy and Pillow only** —
 no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 
-> **Status 2026-08-02:** the database has grown since this write-up to
+> **Status 2026-08-11:** the database has grown to **100 film stocks, 5 print
+> stocks, 14 gauges** — seven stocks added from owner-supplied documents
+> (Kodak Data Book 5th ed. 1952: Verichrome, Panatomic-X / Tri-X / Ortho-X
+> sheet films; Agfa 2003 brochure: Optima 200/400, Portrait 160), and
+> ГОСТ 24876-81 added as a corroborating source on SVEMA_FN_64 (= Foto-65).
+> See `CHANGES_2026-08-11_stocks100.md`. Same day, second pass: GOST norms
+> extracted into the Soviet profiles — two MTF floors raised where the old
+> estimates violated the films' own state standard (SVEMA_FN_64 f50 34→35,
+> SVEMA_FOTO_250 26→30), TsNL-65 mask/fog/latitude corroborated by
+> ГОСТ 25120-82, per-layer gamma conflict Gurlev-vs-GOST recorded not
+> adopted. See `CHANGES_2026-08-11_gost_extraction.md`. Third pass: the 1942
+> Eastman MP book (scan, OCR-indexed) — first Kodak motion-picture document
+> in the archive; EASTMAN_SUPER_XX_1938 documented [C1] (Type 1232 sheet,
+> tier 3→2), PLUS_X_5231 predecessor context [C3]. See
+> `CHANGES_2026-08-11_kodak1942.md`. Fourth pass: SMPTE July-1985
+> Sehlin/Kennel paper registered — measured granularity-vs-exposure and MTF
+> plots for 5247/5294, digitisation queued. See
+> `CHANGES_2026-08-11_smpte1985.md`.
+>
+> **Status 2026-08-02:** the database had grown since this write-up to
 > **93 film stocks, 5 print stocks, 14 gauges** (Soviet reference-book pass:
 > six Svema/Tasma stocks added from Gurlev 1986 / Iofis 1980, ORWO_UT18
 > renamed ORWO_CHROM_UT18). Counts quoted in the body and in the historical

@@ -10,7 +10,7 @@ travels: the taking lens, exposure, halation, emulsion scatter, the
 characteristic curve, development couplers, silver-halide grain, scanning,
 duplication and printing.
 
-It supports 93 film stocks, covering colour negative, colour reversal, black and
+It supports 100 film stocks, covering colour negative, colour reversal, black and
 white, three-strip Technicolor, 1930s-40s period stocks, Soviet-era Svema and
 Tasma emulsions documented from printed USSR reference books, and additive
 colour via a physical filter grid (Dufaycolor). It also models the taking lens's

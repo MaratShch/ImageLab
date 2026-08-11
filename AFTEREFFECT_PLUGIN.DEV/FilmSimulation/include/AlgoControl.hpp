@@ -1,583 +1,536 @@
 #pragma once
 
 #include <cstdint>
-#include "AE_Effect.h"
+
+// eFILM_PROFILE: the generated profile index enumeration. Every algorithm
+// parameter reaches the engine through this structure, and the film selection is
+// an algorithm parameter, so it lives here rather than in the call signature.
+#include "film_enum.hpp"
+
+/**
+ * @file AlgoControl.hpp
+ * @brief User-facing controls for the film-simulation algorithm.
+ *
+ * TWO GROUPS, AND THE DISTINCTION IS LOAD-BEARING
+ *
+ *   AlgoControls        every field is read by the renderer today. It mirrors
+ *                       film_sim.RenderSettings one-for-one, so a C++ render
+ *                       with getAlgoControlsDefault() is directly comparable
+ *                       against the Python reference. That comparability is
+ *                       what let Algo 02 be verified to 1e-15; keep the two in
+ *                       step or the reference stops being a reference.
+ *
+ *   FilmDamage          specified, NOT yet consumed. A named sub-struct of
+ *                       AlgoControls, gated by AlgoControls::filmDamageEnabled.
+ *                       Nesting keeps it one object to pass and one place to
+ *                       serialise, while the flag keeps the inert fields
+ *                       visibly inert: a reader of the live pipeline sees the
+ *                       gate is false and knows the whole block is skipped.
+ *
+ * WHAT IS *NOT* HERE
+ *   Film properties. Those live in FilmProfile (see film_profiles.hpp) and are
+ *   data, not controls -- 89 stocks of measured and cited values. A control
+ *   never replaces a profile number; it scales or overrides it, and every such
+ *   field says so explicitly below.
+ *
+ * SENTINEL CONVENTION
+ *   Fields documented as "<0 = use the stock's own default" exist because the
+ *   profile carries an era-appropriate value that a user may want to override
+ *   without losing it. Passing 0.0 means "genuinely none"; passing -1.0 means
+ *   "whatever this stock would have done".
+ */
+
 
 // ===========================================================================
-//  AlgoControls -- user-facing parameters of the FilmSimulation core.
-//
-//  Mirrors the Python reference RenderSettings field for field (defaults are
-//  IDENTICAL to film_sim.py so C++ output can be diffed against the reference
-//  with no parameter translation), then adds the temporal/damage block that
-//  exists only on the C++/plugin side (pipeline stages 3c, 9b, 15, 16).
-//
-//  CONVENTIONS
-//    - Every "Scale" parameter multiplies a per-stock physical value from the
-//      film profile. 1.0 = the calibrated profile value; 0 = off. This is why
-//      the ranges look narrow: the profile carries the physics, the control
-//      carries taste.
-//    - Enum-like selectors are int32_t indices into the generated tables
-//      (film::GetFilmDatabase() order = alphabetical, stable). Index 0 of the
-//      print/format selectors means "use the stock's own default", so a fresh
-//      instance renders every stock authentically with zero configuration.
-//    - frameIdx and frameRate are NOT here: they are per-render facts supplied
-//      by the host, passed as Algorithm_Main arguments.
-//    - Ae SDK control notes use the CS6+ macro names (PF_ADD_POPUP,
-//      PF_ADD_FLOAT_SLIDERX, PF_ADD_CHECKBOXX, PF_ADD_SLIDER, PF_ADD_TOPIC).
-//      Group the fields into PF_ADD_TOPIC twirlies exactly as the section
-//      banners below; Premiere honours the same macros (it ignores
-//      START_COLLAPSED -- documented host difference).
-//
-//  PERFORMANCE NOTES quote the measured Python-reference costs at HD
-//  (1258 ms/frame total) as RATIOS -- the C++ ratios will be similar even
-//  when absolute times are ~50x lower.
+// Damage controls -- SPECIFIED, NOT YET CONSUMED
 // ===========================================================================
-
-struct AlgoControls
+/**
+ * Physical film damage. Every field here is currently inert: no renderer stage
+ * reads this struct. It exists so the AE/Premiere panel and the C++ port can
+ * be built against a stable layout instead of re-versioning later.
+ *
+ * TWO FAMILIES, DELIBERATELY SPLIT FROM FILM PROPERTIES
+ *   These are POST-HOC events on a developed strip and are emulsion
+ *   independent: a dust particle on VISION3 looks like a dust particle on
+ *   Svema. That is why they are controls.
+ *
+ *   What does NOT belong here, and is profile data instead: dye fade (per dye
+ *   set), base yellowing and shrinkage (per base material), scratch COLOUR
+ *   (depth determines which dye layers survive, so it needs the tripack), and
+ *   blob polarity (white on a print, dark on a negative, inverted again on
+ *   reversal). Those live in AgingSpec and CoatingSpec.
+ *
+ * PHYSICAL UNITS -- NOT RATES PER SECOND
+ *   Every geometric and areal quantity in this group is PHYSICAL: areal density
+ *   per square millimetre of film, size in micrometres on the film. Never per
+ *   second, never per frame, never in pixels, never as a fraction of the frame.
+ *
+ *   This is rule R6 of the defect model requirements, and it is the reason one
+ *   set of numbers serves 35 mm still, Super 35, 16 mm and Regular 8 without
+ *   re-tuning. A 25 um dust particle is 25 um on every gauge; what changes is
+ *   only how much of the picture it covers, and that is DERIVED from the format
+ *   at render time, never authored.
+ *
+ *   An earlier revision of this struct expressed defect rates per second of
+ *   running time. That is wrong twice over: it cannot express a still frame at
+ *   all, and it conflates a property of the film with a property of the
+ *   timeline. Frame rate still enters, but only for the TEMPORAL classes -- how
+ *   long a defect persists -- never for how much of it there is.
+ *
+ * WHAT IS A CONTROL AND WHAT IS A CONSTANT
+ *   These seventeen fields are the whole user-facing surface. The defect model
+ *   specifies roughly two hundred parameters; the other ~185 are MEASURED FACTS
+ *   about film, not choices, and live as named constants in the stage headers
+ *   with their measured value and evidence grade in the comment -- exactly as
+ *   ALGO_HALATION_KNEE_FRACTION and ALGO_MTF_ADJACENCY_INNER already do.
+ *
+ *   Examples of what is deliberately NOT here: the dust size exponent
+ *   (gamma = 2.6), the clumping field spectral slope (beta = 1.0), scratch width
+ *   (26 um), scratch straightness (0.98), the 3.5:1 longitudinal orientation
+ *   bias, the median 3.5 per cent contrast amplitude, the weave X:Y ratio and
+ *   its 0.8 Hz corner, the T1/T2/T3 population shares. Every one of those is a
+ *   measurement or a physical constant. Exposing them would be 200 sliders
+ *   nobody touches.
+ *
+ * ZERO DISABLES, AND IT COSTS NOTHING
+ *   Every scale below follows the engine's existing convention: 0 switches the
+ *   class off completely, and the corresponding generator is not run and its
+ *   buffer not written. Same rule as grainScale, halationScale, coatingScale.
+ *
+ * THE PROFILE SUPPLIES THE ERA, THE CONTROL SUPPLIES THE INTENT
+ *   AgingSpec in each film profile already carries dust_area_ppm,
+ *   mottle_amplitude, scratch_rate_base_per_m, dye_fade_c/m/y and dmin_lift.
+ *   Those set the era-typical LEVEL; the controls below MULTIPLY them. So a 1943
+ *   Agfacolor is dirtier than a VISION3 500T at identical settings, and the
+ *   three particulate controls stay correlated by default through the shared
+ *   profile figure -- which is what the requirements ask for -- while still
+ *   allowing that correlation to be broken deliberately.
+ *
+ * STATELESSNESS REQUIREMENT
+ *   Every generator must be a pure function of (damageSeed, frameIndex,
+ *   stageId, ordinal) via a counter-based RNG, with a bounded birth-frame
+ *   scan for objects that persist. Any frame must be renderable alone, out of
+ *   order, on any thread -- the same rule the coating field already follows.
+ *
+ *   The five-level seed hierarchy the requirements demand needs no new fields:
+ *   L0 stock is the profile index, L1 roll is damageSeed, L2 segment derives
+ *   from frameIndex over the segment length, L3 frame is frameIndex, and L4 is
+ *   the per-defect ordinal.
+ */
+struct FilmDamage
 {
     // =======================================================================
-    //  GROUP 1 -- FILM & PROCESS CHAIN            (PF_ADD_TOPIC "Film Stock")
+    //  MASTER
     // =======================================================================
 
-    // -----------------------------------------------------------------------
-    // WHAT : Which emulsion to simulate. Index into film::GetFilmDatabase(),
-    //        which is ALPHABETICAL and stable across regenerations (62 stocks:
-    //        AGFACOLOR_NEU_1936 ... TECHNICOLOR_THREE_STRIP).
-    // WHY  : The master control -- selects curves, grain, MTF, halation,
-    //        couplers, spectral response, native gauge, everything physical.
-    // RANGE: 0 .. 61          DEFAULT: index of KODAK_VISION3_500T_5219
-    // UNITS: table index (dimensionless)
-    // IMAGE: total -- every stage reads the selected profile.
-    // PERF : indirect. Stocks with zero halation gains, identity matrices, no
-    //        reseau and no print stage (reversal) skip whole passes; Dufaycolor
-    //        (reseau) and 3-strip (taking matrix) are the most expensive picks.
-    // AE   : PF_ADD_POPUP, one item per stock name, alphabetical. Do NOT use a
-    //        slider: the order is nominal, not ordinal. Set
-    //        PF_ParamFlag_SUPERVISE if the UI greys out mono-only controls.
-    // -----------------------------------------------------------------------
-    int32_t filmStockIdx;
+    /// Global severity multiplier on every class below, so one control dials the
+    /// whole look without touching the balance between classes.
+    /// RANGE 0..4. DEFAULT 1.
+    /// AE control: slider.
+    double damageStrength;
 
-    // -----------------------------------------------------------------------
-    // WHAT : Print stock / display transform for NEGATIVE stocks.
-    //        0 = the stock's own default_print (recommended);
-    //        1..N = explicit entry in film::GetPrintStocks() order
-    //        (SCAN_DI, KODAK_2383_RELEASE, DUPE_FINE_GRAIN, TECHNICOLOR_IB,
-    //        TASMA_POSITIVE_28).
-    // WHY  : A negative is an intermediate; the print decides the final
-    //        contrast, palette and Dmax. Reversal stocks IGNORE this (the film
-    //        is the positive) -- grey the control out for them.
-    // RANGE: 0 .. 5           DEFAULT: 0 (stock default)
-    // UNITS: table index
-    // IMAGE: system gamma (scan ~1.0 vs theatrical ~1.6), print dye palette,
-    //        print grain, black level.
-    // PERF : negligible -- same number of passes either way.
-    // AE   : PF_ADD_POPUP with "(Stock default)" as item 1. SUPERVISE to
-    //        disable when the selected stock is reversal.
-    // -----------------------------------------------------------------------
-    int32_t printStockIdx;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Film gauge override. 0 = the stock's own default_format
-    //        (8 mm stock renders as 8 mm, 35 mm still as 36 mm, etc.);
-    //        1..14 = explicit entry of film::GetFilmFormats().
-    // WHY  : px_per_mm = width_px / gauge_mm converts every physical number
-    //        (um, cycles/mm) into pixels. THE resolution-independence
-    //        mechanism, and the whole difference between 8 mm and 35 mm from
-    //        one emulsion (measured: same stock, 3x grain size, 4-18x less
-    //        resolvable detail across the frame).
-    // RANGE: 0 .. 14          DEFAULT: 0 (stock native)
-    // UNITS: table index; underlying value in mm of frame width
-    // IMAGE: grain size in px, sharpness limit, halation reach, weave scale.
-    // PERF : smaller gauge = physically larger blur radii in px = larger
-    //        kernels / more FFT benefit. 8 mm at 4K is the worst case.
-    // AE   : PF_ADD_POPUP, first item "(Stock native gauge)".
-    // -----------------------------------------------------------------------
-    int32_t filmFormatIdx;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Number of duplication GENERATIONS (interpositive / dupe-negative
-    //        pairs) inserted before the print, each pass = blur THEN grain on
-    //        DUPE_FINE_GRAIN stock.
-    // WHY  : Release prints of the photochemical era were 3rd-4th generation;
-    //        generation loss (softening + grain accumulation) is the dominant
-    //        part of the "old print" look, distinct from the negative's own
-    //        character.
-    // RANGE: 0 .. 6           DEFAULT: 0 (camera negative printed directly)
-    // UNITS: generations (integer count)
-    // IMAGE: each step visibly softens fine detail and adds a layer of dupe
-    //        grain; 2 = classic theatrical release feel, 4+ = worn archival.
-    // PERF : LINEAR and significant -- each generation adds one full blur +
-    //        grain pass (~15-20% of frame time each in the reference).
-    // AE   : PF_ADD_SLIDER (integer), 0..6.
-    // -----------------------------------------------------------------------
-    int32_t generations;
-
-    // =======================================================================
-    //  GROUP 2 -- EXPOSURE & SCENE                  (PF_ADD_TOPIC "Exposure")
-    // =======================================================================
-
-    // -----------------------------------------------------------------------
-    // WHAT : Relative exposure applied to scene-linear input, out = in * 2^x.
-    //        (Algo_02 -- already implemented and reference-verified.)
-    // WHY  : Moves the scene along the H&D curve: the film's latitude, toe
-    //        and shoulder behaviour ARE this control's response. The main
-    //        creative control after stock choice, and the only honest way to
-    //        show a stock's under/over-exposure character (e.g. Portra 800's
-    //        underexposure latitude vs slide film's 5-stop cliff).
-    // RANGE: -8.0 .. +8.0     DEFAULT: 0.0
-    // UNITS: photographic stops (1 stop = 2x light)
-    // IMAGE: negative: gentle toe/shoulder migration; reversal: rapid clipping
-    //        beyond ~±2.5 stops -- correct, that is slide film.
-    // PERF : free (one multiply per pixel, fused into the first pass).
-    // AE   : PF_ADD_FLOAT_SLIDERX, range -8..8, slider -4..+4, 2 decimals,
-    //        PF_Precision_HUNDREDTHS.
-    // -----------------------------------------------------------------------
-    float exposureStops;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Colour temperature of the SCENE illuminant, compared against the
-    //        stock's balance_kelvin to derive per-channel gains (von Kries).
-    // WHY  : Tungsten film in daylight goes blue, daylight film under bulbs
-    //        goes orange -- shooting-practice reality. ORWO sits at 4500 K,
-    //        DS-4 at 5600 K, tungsten cine at 3200 K: the mismatch is look.
-    // RANGE: 2000 .. 12000    DEFAULT: 5500
-    // UNITS: kelvin
-    // IMAGE: global cast BEFORE the curve, so casts crush asymmetrically into
-    //        toe/shoulder like real cross-shot film, not like a WB slider.
-    // PERF : free (three gains, fused).
-    // AE   : PF_ADD_FLOAT_SLIDERX 2000..12000, default 5500, 0 decimals.
-    //        (A popup of presets Daylight 5500 / Tungsten 3200 / Shade 7000
-    //        plus this slider is friendlier; popup drives slider via
-    //        PF_ParamFlag_SUPERVISE.)
-    // -----------------------------------------------------------------------
-    float sceneKelvin;
-
-    // -----------------------------------------------------------------------
-    // WHAT : How much of the scene/stock kelvin mismatch is corrected before
-    //        the curve. 0 = none (shoot uncorrected, full cast), 1 = fully
-    //        corrected (as if the right conversion filter was on the lens).
-    // WHY  : Real practice was BOTH: sometimes an 80A/85 filter, sometimes
-    //        shot raw and timed later. This picks the point between.
-    // RANGE: 0.0 .. 1.0       DEFAULT: 0.0 (matches Python reference)
-    // UNITS: fraction
-    // IMAGE: 0 keeps the full cross-shooting cast; 1 neutralises it.
-    // PERF : free.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..1, 2 decimals.
-    // -----------------------------------------------------------------------
-    float wbStrength;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Display-linear value that an 18% scene grey lands on after the
-    //        whole chain. The anchor the per-frame printer-lights solve hits.
-    // WHY  : The photochemical "printer point" in one number. Raising it
-    //        prints brighter, lowering prints darker -- while every nonlinear
-    //        stage keeps behaving correctly around the new anchor.
-    // RANGE: 0.05 .. 0.50     DEFAULT: 0.18
-    // UNITS: display-linear fraction
-    // IMAGE: overall print density; unlike output gain it interacts with the
-    //        curve, so highlights/shadows roll instead of clip.
-    // PERF : free (changes the setup solve only, 0.4% of frame).
-    // AE   : PF_ADD_FLOAT_SLIDERX 0.05..0.5, default 0.18, 3 decimals.
-    // -----------------------------------------------------------------------
-    float greyTarget;
-
-    // =======================================================================
-    //  GROUP 3 -- PHYSICAL LOOK SCALES        (PF_ADD_TOPIC "Film Character")
-    //  All multiply per-stock profile physics. 1.0 = calibrated truth.
-    // =======================================================================
-
-    // -----------------------------------------------------------------------
-    // WHAT : Multiplies the stock's calibrated grain amplitude (its
-    //        rms_granularity, applied in the density domain with the
-    //        sqrt(D - dmin + fog) law).
-    // WHY  : Datasheet-true grain is sometimes more (or less) than a shot
-    //        wants; also the only honest "make it filmic" strength knob.
-    // RANGE: 0.0 .. 4.0       DEFAULT: 1.0
-    // UNITS: multiplier of profile RMS
-    // IMAGE: 0 = clinically clean (loudest digital tell -- avoid); 1 = the
-    //        film's measured granularity; >2 = pushed/expired feel. Grain
-    //        SIZE does not change (that is gauge + clump_um); only amplitude.
-    // PERF : 0 skips the grain synthesis pass entirely (~10% of frame);
-    //        any nonzero value costs the same.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..4, slider 0..2, 2 decimals.
-    // -----------------------------------------------------------------------
-    float grainScale;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Multiplies the stock's halation gains (red-dominant base-bounce
-    //        glow, energy-conserving, thresholded to highlights).
-    // WHY  : Halation strength varied with remjet/AH quality -- CineStill 1.05
-    //        vs VISION3 0.3 vs MACO CUBE 0. Taste control around truth.
-    // RANGE: 0.0 .. 4.0       DEFAULT: 1.0
-    // UNITS: multiplier of profile gains
-    // IMAGE: red-orange bloom around speculars and windows; 0 = digital-crisp
-    //        highlights, 2+ = CineStill-style signature glow on any stock.
-    // PERF : 0 skips three threshold+blur passes (~12% of frame) on stocks
-    //        that have halation; no cost change on zero-halation stocks.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..4, slider 0..2, 2 decimals.
-    // -----------------------------------------------------------------------
-    float halationScale;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Multiplies DIR-coupler inter-image strength (both the blurred
-    //        cross-channel inhibition and the sharp edge term).
-    // WHY  : Couplers raise saturation WITHOUT raising gamma -- the modern
-    //        colour-negative signature. Scaling down de-modernises a stock;
-    //        up gives the hyper-clean 90s Ektachrome ad look.
-    // RANGE: 0.0 .. 2.0       DEFAULT: 1.0
-    // UNITS: multiplier of CouplerSpec strengths
-    // IMAGE: colour separation/saturation and edge "snap", constant contrast.
-    //        No effect on mono stocks or pre-1950 stocks (strength 0).
-    // PERF : 0 skips one blurred cross-channel pass (~8%); linear otherwise no.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..2, 2 decimals.
-    // -----------------------------------------------------------------------
-    float couplerScale;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Scanner/printer optics MTF, 50%-response frequency.
-    //        0 = take from the resolved print stock (mtf_f50) -- recommended.
-    // WHY  : Everything seen from film today passed a scanner; its aperture is
-    //        a real low-pass AND the pre-sampling band-limit that keeps fine
-    //        grain from aliasing. Also the DM-16 knob: one negative, many
-    //        scan qualities (Steenbeck ~40, 2K DI ~80, 4K archival ~150).
-    // RANGE: 0 (=from print stock), else 10.0 .. 300.0   DEFAULT: 0
-    // UNITS: cycles/mm on the negative
-    // IMAGE: global sharpness ceiling and grain rendering fidelity; too high
-    //        with big grain = aliased "digital sand".
-    // PERF : part of the existing frequency-domain pass -- free to change.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..300, default 0, 0 decimals, with 0
-    //        labelled "Auto (print stock)" in the param name.
-    // -----------------------------------------------------------------------
-    float scannerF50;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Multiplies the stock's RMS channel misregistration (um).
-    // WHY  : Three-strip's 26 um fringing is its signature; modern integral
-    //        stock sits at 4-6 um. Exaggerating sells "old colour process".
-    // RANGE: 0.0 .. 4.0       DEFAULT: 1.0
-    // UNITS: multiplier of profile misregistration_um
-    // IMAGE: coloured edge fringing, mostly R vs G/B. Mono stocks: none.
-    // PERF : free (phase term in an existing FFT pass).
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..4, slider 0..2, 2 decimals.
-    // -----------------------------------------------------------------------
-    float misregScale;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Veiling flare of the taking lens as a fraction of light scattered
-    //        into a broad haze. NEGATIVE = use the stock's own default_flare
-    //        (era-matched: 1930s uncoated glass 2-3%, modern ~0).
-    // RANGE: -1.0 (=auto) or 0.0 .. 0.25      DEFAULT: -1.0 (auto)
-    // UNITS: fraction of total light
-    // IMAGE: lifts blacks and compresses contrast globally BEFORE the curve --
-    //        the reason 1930s stocks must not render modern blacks. Applied
-    //        after the curve it would just be a lift; here it breathes.
-    // PERF : cheap (downsample-blur-upsample pyramid, ~3% of frame).
-    // AE   : PF_ADD_FLOAT_SLIDERX -1..0.25 is ugly; better a PF_ADD_CHECKBOXX
-    //        "Flare: Auto (era)" + PF_ADD_FLOAT_SLIDERX 0..0.25 enabled when
-    //        unchecked (SUPERVISE). Struct keeps the single float: <0 = auto.
-    // -----------------------------------------------------------------------
-    float flare;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Adds the PRINT stock's own fine grain on top of the negative's.
-    // WHY  : A real print contributes its own (much finer) granularity;
-    //        disabling emulates a direct high-grade scan of the negative.
-    // RANGE: false/true       DEFAULT: true
-    // IMAGE: subtle fine texture floor, most visible in mids of clean stocks.
-    // PERF : off saves one small grain pass (~4%).
-    // AE   : PF_ADD_CHECKBOXX.
-    // -----------------------------------------------------------------------
-    bool printGrain;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Enables the additive-mosaic (reseau) path for stocks that have
-    //        one (Dufaycolor). Ignored by all others.
-    // WHY  : The mosaic needs >=3 px per grid pitch; below that the renderer
-    //        auto-disables with a warning. This is the manual override for
-    //        speed or for a "registered dye screen removed" restoration look.
-    // RANGE: false/true       DEFAULT: true
-    // IMAGE: Dufaycolor only: the visible RGB grid texture and its pastel
-    //        colour reconstruction; off = plain B&W record through curves.
-    // PERF : on Dufaycolor, the reseau adds mask build + reconstruction
-    //        (~10%); irrelevant for the other 61 stocks.
-    // AE   : PF_ADD_CHECKBOXX.
-    // -----------------------------------------------------------------------
-    bool reseau;
-
-    // =======================================================================
-    //  GROUP 4 -- FILM DAMAGE, PHYSICAL MODEL      (PF_ADD_TOPIC "Film Damage")
-    //
-    //  DESIGN CONTRACT (what "physics, not overlay" means here):
-    //
-    //  1. EVERY defect is an event on a physical film element -- an exposure
-    //     obstruction, a removal of emulsion, a deformation of the base, or a
-    //     lamp/optics event -- inserted at the pipeline stage where that
-    //     element lives. It then inherits everything downstream FOR FREE:
-    //     print gamma, print softness, dupe-generation blur, scanner MTF.
-    //     Nothing is composited onto the finished image.
-    //
-    //  2. POLARITY IS DERIVED, NEVER AUTHORED. On a printed NEGATIVE:
-    //       exposure-time obstruction (dust)  -> less density -> WHITE mark
-    //       emulsion removal (scratch, blob)  -> clear base   -> BLACK mark
-    //       base-side scratch                 -> refraction   -> soft grey line
-    //     On REVERSAL all three invert automatically (profile.kind decides).
-    //     Gate/projection-side defects block the lamp: ALWAYS dark, any stock.
-    //
-    //  3. DAMAGE DEPTH DECIDES COLOUR. Each emulsion-damage event samples a
-    //     penetration depth into the layer stack. Monochrome: depth only sets
-    //     strength -> white/black marks, exactly like real B&W. Colour tripack
-    //     (top->bottom blue/green/red-sensitive, forming yellow/magenta/cyan
-    //     dye): partial depth removes only the top dye(s), so the mark takes
-    //     the colour of what REMAINS --
-    //       through yellow only        -> blue-ish mark on the print
-    //       through yellow + magenta   -> the classic green-cyan print scratch
-    //       full depth to base         -> black (print) / white (reversal)
-    //     Coloured blobs on colour stock and neutral blobs on B&W therefore
-    //     need ZERO extra controls: both fall out of the stack model.
-    //
-    //  4. LIFETIME IS PHYSICAL. Dust lives 1 frame (falls off), hair 5-40
-    //     frames (lodged in the gate, jitters, leaves), scratches PERSIST to
-    //     the end of the roll (a stone in the gate does not heal). All
-    //     stateless: derived from (damageSeed, birth frame) by the bounded
-    //     birth-window scan -- scrub-safe, order-independent, re-render-exact.
-    //
-    //  5. COPY-CHAIN INTERACTION. `generations` (Group 1) is the master/2nd/
-    //     3rd-copy control. Negative-side damage events sample WHICH element
-    //     of the chain they live on: dirt born on the camera negative prints
-    //     through every later stage (softest, most organic); dirt on the last
-    //     dupe stays one generation sharp. Later copies thus accumulate MORE
-    //     total dirt in distinct softness layers -- exactly how a real
-    //     3rd-generation print looks, and why a flat overlay never does.
-    //
-    //  6. FULLY CONTROLLABLE, FULLY OFF-ABLE. damageEnable is a hard bypass;
-    //     every class rate defaults to 0; damagePreset=Off zeroes the preset
-    //     contribution. Factory default renders ZERO damage of any kind --
-    //     the pristine profile physics only.
-    //
-    //  Rates: negative-side classes are per SECOND OF FILM (damage is baked
-    //  into the film, so it follows layer time-stretch); gate-side classes
-    //  are per second of COMPOSITION time (a projector does not slow down
-    //  because the editor slowed the clip).
-    // =======================================================================
-
-    // -----------------------------------------------------------------------
-    // WHAT : MASTER DAMAGE SWITCH. false = hard bypass of stages 3c, 9b, 15,
-    //        16 -- no flicker, no defects, no weave, no gate dirt, regardless
-    //        of every other control in this group.
-    // WHY  : Explicit, greppable OFF. Also the A/B switch for judging the
-    //        clean emulsion look against the damaged one.
-    // RANGE: false/true       DEFAULT: false
-    // IMAGE: false = pristine profile physics only.
-    // PERF : false skips all four damage stages -- weave's full-frame
-    //        resample included -- at zero per-pixel cost.
-    // AE   : PF_ADD_CHECKBOXX at the top of the topic; SUPERVISE greys the
-    //        whole group when off.
-    // -----------------------------------------------------------------------
-    bool damageEnable;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Era preset scaling ALL class rates below at once.
-    //        0=Off(x0)  1=Pristine lab print(x0.05)  2=Archival(x0.3)
-    //        3=Worn theatrical(x1.0 -- sliders mean what they say)
-    //        4=Junk / grindhouse(x3)
-    // RANGE: 0 .. 4           DEFAULT: 3 (neutral multiplier; harmless while
-    //        damageEnable=false and all rates=0)
-    // IMAGE: global density of every class; character unchanged.
-    // AE   : PF_ADD_POPUP.
-    // -----------------------------------------------------------------------
-    int32_t damagePreset;
-
-    // ------------------------- NEGATIVE-SIDE CLASSES -----------------------
-    // Stage 9b: DENSITY domain, before print. Soft, printed-through; polarity
-    // and colour per contracts 2-3.
-    // -----------------------------------------------------------------------
-
-    // -----------------------------------------------------------------------
-    // WHAT : DUST & DIRT present during exposure/processing. Poisson births,
-    //        1-frame life (rarely 2-3 when a particle sticks), soft irregular
-    //        silhouettes (noisy-radius discs -- never circles). Physical
-    //        effect: light obstruction -> underexposure -> WHITE on printed
-    //        negative, BLACK on reversal. Log-normal sizes, median dustSizeUm.
-    // RANGE: rate 0..20 /s of film  DEFAULT 0;  size 5..200 um  DEFAULT 25
-    // IMAGE: per-frame archival "snow". 25 um is ~2 px on 4K super35 -- real
-    //        dust is SMALL; oversized dust is the loudest fake-damage tell.
-    // PERF : sparse, <1%.
-    // AE   : PF_ADD_FLOAT_SLIDERX x2 (rate 0..20 slider 0..5 1dec;
-    //        size 5..200 0dec).
-    // -----------------------------------------------------------------------
-    float dustRateHz;
-    float dustSizeUm;
-
-    // -----------------------------------------------------------------------
-    // WHAT : PROCESSING BLOBS -- chemical splashes, developer spots, air
-    //        bells, drying marks. EMULSION events: depth-sampled (contract 3),
-    //        so colour stock shows coloured spots (blue-ish, green-cyan,
-    //        orange...) and B&W shows white/black, automatically. Life 1-3
-    //        frames; the drying-mark variant drifts over tens of frames.
-    // RANGE: 0 .. 10 events/s of film      DEFAULT: 0
-    // IMAGE: soft-edged blotches 0.1-2 mm -- the old-newsreel blotch.
-    // PERF : sparse, <1%.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..10, slider 0..3, 1 decimal.
-    // -----------------------------------------------------------------------
-    float blobRateHz;
-
-    // -----------------------------------------------------------------------
-    // WHAT : LONGITUDINAL SCRATCHES from transport; sub-kind per event by
-    //        scratchEmulsionBias:
-    //          EMULSION-side -- material removed: depth-coloured/black line,
-    //          near-vertical, sub-pixel width (AA or it crawls), slight
-    //          per-frame wander, PERMANENT once born.
-    //          BASE-side -- refractive groove, nothing removed: soft LOW-
-    //          CONTRAST grey line; genuinely vanishes under wet-gate style
-    //          diffuse scanning.
-    // RANGE: rate 0..5 births/s of film DEFAULT 0;
-    //        bias 0..1 (0=all base, 1=all emulsion) DEFAULT 0.5
-    // IMAGE: the tramline. One birth every few seconds is already heavy --
-    //        they never leave.
-    // PERF : sparse, <1%.
-    // AE   : PF_ADD_FLOAT_SLIDERX x2.
-    // -----------------------------------------------------------------------
-    float scratchRateHz;
-    float scratchEmulsionBias;
-
-    // -----------------------------------------------------------------------
-    // WHAT : SPLICES -- a cement/tape joint passes the gate: 1-2 frames of
-    //        horizontal band at the overlap, a vertical picture jump, a
-    //        density step, often a dirt burst trapped at the joint. Stage 15
-    //        reads the same event stream to kick the weave for one frame.
-    // RANGE: 0 = off, else mean interval 2..600 s of film   DEFAULT: 0
-    // UNITS: seconds of film between splices (Poisson about the mean)
-    // IMAGE: the reel-change hiccup of assembled prints.
-    // PERF : negligible.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..600, 0 decimals, 0 labelled "Off".
-    // -----------------------------------------------------------------------
-    float spliceIntervalS;
-
-    // -----------------------------------------------------------------------
-    // WHAT : LUMA BLINK -- exposure flicker as a 2^x multiplier BEFORE the
-    //        curve (stage 3c). 1/f spectrum from octave-spaced sinusoids,
-    //        phases keyed on damageSeed ONLY (keying on frame whitens it).
-    //        flickerColourSpread de-phases the three channels slightly for
-    //        the colour breathing of badly processed colour stock.
-    // WHY THIS IS PHYSICS: hand-crank speed variation, printer-lamp drift and
-    //        development unevenness are all multiplicative on EXPOSURE.
-    //        Before the curve, the shoulder compresses the bright swings and
-    //        the image BREATHES; after the curve (the cheap route) it pumps
-    //        like an opacity keyframe. The placement is the entire
-    //        difference.
-    // RANGE: amount 0..1 stops DEFAULT 0;  base 0.05..8 Hz film-time
-    //        DEFAULT 0.5;  colourSpread 0..1 DEFAULT 0.15
-    // IMAGE: 0.05-0.1 archival shimmer; 0.3+ silent-era pulse.
-    // PERF : free (per-frame scalars, not per-pixel).
-    // AE   : PF_ADD_FLOAT_SLIDERX x3.
-    // -----------------------------------------------------------------------
-    float flickerStops;
-    float flickerBaseHz;
-    float flickerColourSpread;
-
-    // --------------------------- GATE-SIDE CLASSES -------------------------
-    // Stages 15/16: AFTER everything film-side. Sharp (no downstream MTF),
-    // always DARK, composition-time rates.
-    // -----------------------------------------------------------------------
-
-    // -----------------------------------------------------------------------
-    // WHAT : GATE WEAVE -- the film moves in the gate; the image translates
-    //        on a 1/f path, sub-pixel, Catmull-Rom resampled (bilinear would
-    //        grind the grain down and partly undo stage 11). Runs BEFORE the
-    //        hair/dirt below: the PICTURE weaves while the HAIR stays put --
-    //        the single strongest projection tell.
-    // RANGE: x,y 0..200 um on film DEFAULT 0,0 (y ~2x x on real projectors:
-    //        perforation pitch dominates the vertical);
-    //        corner 0.1..12 Hz comp-time DEFAULT 2.0
-    // PERF : the ONLY expensive defect -- one full-frame separable resample
-    //        (~10-15% of frame). Zero amplitude skips it entirely.
-    // AE   : PF_ADD_FLOAT_SLIDERX x3 (x,y 0..200 slider 0..60 0dec).
-    // -----------------------------------------------------------------------
-    float weaveAmpXUm;
-    float weaveAmpYUm;
-    float weaveHzCorner;
-
-    // -----------------------------------------------------------------------
-    // WHAT : HAIR IN THE GATE. A fibre lodges at the aperture: enters from a
-    //        frame edge, lives 5-40 frames, jitters a few px/frame, leaves.
-    //        3-4 point Catmull-Rom spline with tapering width, AA-rasterised
-    //        -- a straight line never reads as hair. Own RNG stream, so it
-    //        never correlates with film-side damage.
-    // RANGE: 0 .. 4 births/s (comp time)   DEFAULT: 0
-    // IMAGE: the classic dancing hair -- razor sharp, pure dark.
-    // PERF : sparse, <1%.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..4, 2 decimals.
-    // -----------------------------------------------------------------------
-    float hairRateHz;
-
-    // -----------------------------------------------------------------------
-    // WHAT : GATE DUST & PROJECTION SCRATCHES -- platen dirt and scratches
-    //        inflicted at projection. Same geometry generators as the
-    //        film-side cousins, inserted at stage 16 instead: SHARP and DARK
-    //        on any stock -- exactly what visually separates them from 9b.
-    // RANGE: 0 .. 20 events/s (comp time)  DEFAULT: 0
-    // PERF : sparse, <1%.
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..20, slider 0..5, 1 decimal.
-    // -----------------------------------------------------------------------
-    float gateDefectRateHz;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Global strength/opacity multiplier for ALL damage classes
-    //        (scales each event's density delta, not the count).
-    // RANGE: 0.0 .. 2.0       DEFAULT: 1.0
-    // AE   : PF_ADD_FLOAT_SLIDERX 0..2, 2 decimals.
-    // -----------------------------------------------------------------------
-    float damageStrength;
-
-    // -----------------------------------------------------------------------
-    // WHAT : Master seed for ALL stochastic content: grain fields, flicker
-    //        phases, damage births, depth samples, weave path. Every random
-    //        value is a pure function of (damageSeed, frameIdx, stageId,
-    //        ordinal) via a counter-based RNG -- no state, so Premiere's
-    //        out-of-order, speculative, multi-instance rendering reproduces
-    //        exactly, and re-renders never re-roll the damage.
-    // RANGE: 0 .. 2^31-1      DEFAULT: 12345 (matches Python reference)
-    // IMAGE: layout changes; statistics do not. New seed = new roll of film.
-    // AE   : PF_ADD_SLIDER (integer) + optional PF_ADD_BUTTON "New Seed".
-    // -----------------------------------------------------------------------
+    /// Seed for every damage generator. Deliberately independent of
+    /// AlgoControls::seed so that re-rolling the grain does not also re-roll the
+    /// dirt, and vice versa.
+    ///
+    /// This is also the ROLL seed (level L1): holding it fixed while changing
+    /// frameIndex gives different frames OF THE SAME ROLL -- same stains, same
+    /// scratches, same fading, different dust.
+    /// DEFAULT 20250803.
     int32_t damageSeed;
 
     // =======================================================================
-    //  GROUP 6 -- OUTPUT                              (PF_ADD_TOPIC "Output")
+    //  PARTICULATE -- three separate classes
+    //
+    //  Split rather than merged because they differ by three orders of magnitude
+    //  in rate, fifty times in size, and need three different render primitives:
+    //
+    //    dust    0.5-3.4 /mm2    18-107 um            soft-edged blob
+    //    debris  0.0023-0.0069   0.3-1.5 mm           opaque polygon, 5-9 sides
+    //    fibres  0.0001-0.0035   20-80 um x 1-20 mm   stroked spline with a curl
+    //
+    //  All three are placed by the same clumped (Cox) spatial process, because
+    //  they share a deposition mechanism.
     // =======================================================================
 
-    // -----------------------------------------------------------------------
-    // WHAT : TPDF dither before the caller's bit-depth reduction (stage 17).
-    // WHY  : After all this physical modelling, 8/10-bit banding in a sky
-    //        gradient is what a viewer actually notices first.
-    // RANGE: false/true       DEFAULT: true
-    // IMAGE: invisible except as the ABSENCE of banding; adds ~0.5 LSB noise.
-    // PERF : free (fused into the final clamp pass).
-    // AE   : PF_ADD_CHECKBOXX. Hide entirely at 32-bpc project depth
-    //        (PF_OutFlag2_SUPPORTS_SMART_RENDER path knows the depth).
-    // -----------------------------------------------------------------------
-    bool ditherOutput;
+    /// Fine particulate. Scales the profile's era-typical areal density; the
+    /// measured central estimate for amateur hand-processed film is 2 /mm2, with
+    /// 0.1-0.5 /mm2 for professionally processed, well-stored material.
+    /// RANGE 0..4. DEFAULT 0.
+    /// AE control: slider.
+    double dustLevel;
+
+    /// Coarse opaque lint and chemistry fragments, 0.3-1.5 mm. Rare -- a few per
+    /// 35 mm still frame -- but individually conspicuous and fully opaque.
+    /// RANGE 0..4. DEFAULT 0.
+    double debrisLevel;
+
+    /// Hair and textile fibres. Distinguished from a scratch by near-constant
+    /// width, free ends and a curl; a fibre lies ON the film, a scratch is IN it.
+    /// RANGE 0..4. DEFAULT 0.
+    double fibreLevel;
+
+    /// Clumpiness of all three particulate classes: how much the LOCAL rate
+    /// varies across the frame, as a scale on the measured coefficient of
+    /// variation of 0.88.
+    ///
+    /// 0 gives a uniform Poisson scatter, which is the single most common and
+    /// most visible failure of existing film-emulation products -- real dirt
+    /// arrives in patches, some regions carrying five times the average. 1 is the
+    /// measured film behaviour. Above 1 exaggerates it.
+    /// RANGE 0..2. DEFAULT 1.
+    /// AE control: slider.
+    double dirtClumping;
+
+    // =======================================================================
+    //  SCRATCHES -- two classes with opposite geometry and opposite temporal
+    //  behaviour, which is why they are not one control
+    // =======================================================================
+
+    /// Longitudinal transport scratches: long, straight, parallel to film travel,
+    /// continuing across frame boundaries. The defining motion-picture defect
+    /// ("rain", "tramlines"), and machine-fixed -- it holds a fixed position on
+    /// screen for a whole reel while the image moves past it.
+    ///
+    /// Runs HORIZONTALLY on a still frame and VERTICALLY on every common cine
+    /// format, because film travels along the long axis of a still frame and the
+    /// short axis of a cine one. That rotation is derived from the format, not
+    /// authored.
+    /// RANGE 0..4. DEFAULT 0.
+    double scratchTransport;
+
+    /// Random handling scratches: short, curved, 0.3-4 mm, individually very
+    /// faint but numerous, and generated in bursts because a single wipe leaves
+    /// several roughly parallel marks. Locked to the film, not to the machine.
+    /// RANGE 0..4. DEFAULT 0.
+    double scratchHandling;
+
+    // =======================================================================
+    //  PROCESSING AND DRYING
+    // =======================================================================
+
+    /// Inverse quality of the development bath: 0 is a professional continuous
+    /// machine, 1 is a hand tank in a bathroom. Drives development mottle, air
+    /// bells, surge marks, chemical stains and reticulation together, because all
+    /// five express the same underlying variable -- agitation quality.
+    ///
+    /// Air bells, surge and reticulation should be near zero for machine-processed
+    /// professional cine stock; that follows from setting this low rather than
+    /// from separate switches.
+    /// RANGE 0..1. DEFAULT 0.
+    double processingQuality;
+
+    /// Drying-stage defects: water spots, tide lines and squeegee bands. A single
+    /// 5 mm drying mark covers 2.3 per cent of a 35 mm still frame and 25.6 per
+    /// cent of a 16 mm frame, so this control is far more aggressive on small
+    /// gauges -- which is correct and is derived, not authored.
+    /// RANGE 0..2. DEFAULT 0.
+    double dryingMarks;
+
+    // =======================================================================
+    //  AGE AND STORAGE
+    // =======================================================================
+
+    /// Storage severity: 0 is a cold vault, 1 is a warm attic for forty years.
+    /// Drives dye fading and colour crossover, age fog, fungal growth and base
+    /// deterioration together, scaling the profile's own AgingSpec figures.
+    /// RANGE 0..1. DEFAULT 0.
+    double storageSeverity;
+
+    /// Per-layer colour veil: a flat additive level shift in ONE dye record, with
+    /// no neutral point anywhere in the tonal range.
+    ///
+    /// SEPARATE from the crossover that storageSeverity drives, and deliberately
+    /// so. Crossover is tone dependent -- shadows lean one way, highlights the
+    /// other, mid tones pass through neutral. A veil has no neutral point at all.
+    /// Measurement on aged ORWOCOLOR found both on different parts of one roll,
+    /// and you cannot produce the second by turning up the first. Merging them
+    /// into one "fading" slider is the commonest error in colour-fade emulation.
+    ///
+    /// Level only: it does NOT reduce contrast in the affected layer. An earlier
+    /// analysis claimed it did and was withdrawn on re-measurement.
+    /// RANGE 0..2. DEFAULT 0.
+    double colourVeil;
+
+    // =======================================================================
+    //  MACHINE-SIDE -- motion picture
+    // =======================================================================
+
+    /// Gate dirt: the particulate population lodged in the projector or telecine
+    /// gate rather than riding on the film. It holds a FIXED SCREEN POSITION for
+    /// hundreds to hundreds of thousands of frames, while film-borne dust appears
+    /// for exactly one frame and vanishes.
+    ///
+    /// Separate from dustLevel because the same physical dust splits into two
+    /// behaviourally opposite populations, and a simulation implementing only one
+    /// of them is immediately identifiable. Still photography has no equivalent
+    /// of this distinction, which is why it is easy to miss.
+    ///
+    /// Uncalibrated: the reference scanner was measurably clean, so no gate-dirt
+    /// statistics could be derived. Treat the default as a starting point.
+    /// RANGE 0..2. DEFAULT 0.
+    double gateDirt;
+
+    /// Film weave: the small per-frame displacement of the image within the gate.
+    /// Scales the measured amplitude envelope.
+    ///
+    /// Weave is the CARRIER that makes every machine-fixed defect convincing.
+    /// Film-borne defects move with the image, so they do not move relative to
+    /// it; gate-borne defects do not move with the image, so they appear to shift
+    /// by exactly the weave amount. That inverse relationship is why a real gate
+    /// scratch shimmers instead of sitting still, and a mathematically static
+    /// line reads as a digital overlay.
+    /// RANGE 0..2. DEFAULT 0.
+    double weaveAmount;
+
+    /// Event-localised damage: splices, light leaks, static discharge marks and
+    /// cinch marks. These appear, evolve over a few frames to a few hundred, and
+    /// disappear -- as opposed to every other class here, which is either
+    /// per-frame or permanent.
+    ///
+    /// A light leak adds EXPOSURE, not brightness, so it passes through the
+    /// stock's characteristic curve and lifts shadows dramatically while barely
+    /// touching highlights. That is why the defect layer needs access to the
+    /// active stock model and cannot be a post-process.
+    /// RANGE 0..2. DEFAULT 0.
+    double damageEvents;
+
+    /// Temporal exposure flicker, RMS amplitude in stops. Hand-cranked cameras
+    /// and early intermittent mechanisms did not deliver equal exposure to
+    /// successive frames.
+    ///
+    /// Acts on EXPOSURE, before the characteristic curve: a brightness change
+    /// applied after development is a grade, and a grade does not move highlights
+    /// through the shoulder the way a real exposure change does.
+    /// RANGE 0..0.5. DEFAULT 0.
+    double flickerStops;
+
+    // =======================================================================
+    //  SCANNER -- a separate layer, not a film defect
+    // =======================================================================
+
+    /// Digitisation artefacts: illumination shading, fixed-pattern banding and
+    /// Newton's rings. Switchable independently of everything above, because
+    /// "clean scan of damaged film" and "good film, cheap scanner" are both
+    /// common requests and merging the two makes neither expressible.
+    ///
+    /// Worth keeping honest about: in the reference dataset, the strongest
+    /// high-frequency texture across 81 crops of damaged film was the SCANNER's
+    /// weave pattern, not any film defect. Effects that look like film damage
+    /// frequently are not.
+    /// RANGE 0..2. DEFAULT 0.
+    double scannerArtifacts;
 };
 
-constexpr size_t AlgoControlsSize = sizeof(AlgoControls);
 
-// Factory: defaults exactly as documented above (and identical to the Python
-// reference RenderSettings where a counterpart exists), so a fresh effect
-// instance renders any stock authentically with zero user configuration.
-AlgoControls getAlgoControlsDefault (void);
+// ===========================================================================
+// Live controls -- all 21 are consumed by the renderer
+// ===========================================================================
+struct AlgoControls
+{
+    // -- film selection -----------------------------------------------------
+
+    /// Which film stock to simulate. Index into the std::vector returned by
+    /// film::GetFilmDatabase(), and equivalently line (value + 1) of
+    /// film_names.txt.
+    ///
+    /// WARNING on persistence: profiles are stored alphabetically, so inserting a
+    /// stock renumbers every enumerator after it. A saved project must store the
+    /// NAME, never this number.
+    film::eFILM_PROFILE filmProfile;
+
+    /// Frames per second OF FILM, following any layer time stretch. Consumed by the
+    /// temporal stages - exposure flicker, negative-side defects, gate weave and
+    /// gate-side defects - all of which specify their rates per SECOND and divide by
+    /// this to reach a per-frame rate.
+    ///
+    /// It belongs here rather than in the call signature because it changes what the
+    /// algorithm computes: a defect rate tuned at 24 fps must not run twice as fast
+    /// on a 50 fps timeline.
+    double frameRate;
+
+    // -- film format --------------------------------------------------------
+    //
+    //  NOTHING IN THIS STRUCTURE DESCRIBES THE HOST'S PIXEL BUFFERS.
+    //
+    //  This structure and Algorithm_Main are a plain C++14 API with no knowledge
+    //  of any render infrastructure. They must compile and behave identically
+    //  when called from Premiere, After Effects, Photoshop, a command-line test
+    //  harness or a third-party application, and none of those may need to be
+    //  named or accommodated here.
+    //
+    //  So sample storage is NOT a control. The engine's boundary is planar
+    //  ImgType normalised to 0..1, chosen once in AlgoTypes.hpp; the host's own
+    //  unpack and repack decide what 8u, 16u, 10u, 32f or anything else means,
+    //  and the round trip is the host's to keep symmetric. An output-depth field
+    //  here could only ever disagree with the buffer the host actually supplied,
+    //  which is why the two that used to live below have been removed:
+    //
+    //      bitDepth   claimed to select 8 or 16 bit output, defaulted to 16, and
+    //                 was read by no stage. It offered no float option at all,
+    //                 so any host handing over 32f had no way to describe it. It
+    //                 also let the caller ask for an output width unrelated to
+    //                 the input width, which is exactly the coupling this API
+    //                 must not have.
+    //
+    //      maxDim     a debug downscale of the OUTPUT, likewise read by nothing.
+    //                 Render extent already arrives as the sizeX and sizeY
+    //                 arguments of Algorithm_Main, which is the authoritative
+    //                 geometry; a second, disagreeing extent in the controls
+    //                 would silently fight it. A caller wanting a cheap render
+    //                 passes smaller sizeX and sizeY.
+    //
+    //  Removing them changes the layout of this structure, so any caller that
+    //  assigned either field now fails to compile. That is intended: a silent
+    //  drop would leave host code believing it still selected an output depth.
+    //
+    //  What DOES stay here is the film gauge, and the distinction is worth being
+    //  precise about, because it looks superficially similar. The gauge is not a
+    //  buffer property - it is the physical width of the film in millimetres,
+    //  which together with the render width in pixels yields px_per_mm and makes
+    //  every spatial quantity in the simulation resolution independent. It
+    //  changes what the algorithm computes. A pixel format does not.
+
+    /// Film gauge key, e.g. "super35", "ff35", "16mm", "8mm", "imax15".
+    /// Selects frame width in millimetres, which with the render width in
+    /// pixels gives px_per_mm -- the mechanism that makes every spatial
+    /// quantity (grain, halation, MTF, registration) resolution independent.
+    /// Empty string = the stock's own default_format.
+    /// AE control: dropdown, populated from FORMAT_GEOM.
+    const char* filmFormat;
+
+    /// Print stock key, "" = the stock's own default_print. Nobody looks at a
+    /// negative; this second emulsion is what produces correct highlight
+    /// rolloff and shadow crush. AE control: dropdown.
+    const char* printStock;
+
+    /// Duplication stock for the generation chain. AE control: dropdown.
+    const char* dupeStock;
+
+    /// Intermediate interpositive/dupe-negative PAIRS. 0 = camera negative
+    /// straight to print. Each generation adds grain and softens detail; the
+    /// grain-to-detail ratio worsens monotonically, which is the measurable
+    /// signature of a dupe. RANGE 0..4. DEFAULT 0.
+    /// AE control: integer slider.
+    int32_t generations;
+
+    // -- exposure and tone --------------------------------------------------
+
+    /// Camera exposure offset in stops, applied before the characteristic
+    /// curve. This is the exposure the cinematographer chose, not a
+    /// brightness trim: it moves the scene along the curve, so the toe and
+    /// shoulder do the work. RANGE -4..+4. DEFAULT 0. AE: slider.
+    double exposureStops;
+
+    /// Colour temperature of the light on the subject, kelvin. Combined with
+    /// the stock's balance_kelvin this produces the per-layer exposure
+    /// mismatch -- daylight on tungsten stock goes blue because of Planck's
+    /// law, not because anything is tinted. RANGE 2000..12000. DEFAULT 5500.
+    /// AE: slider (or colour-temperature control).
+    double sceneKelvin;
+
+    /// How much of that mismatch to correct. 0 = record it exactly as the
+    /// stock would; 1 = as if the right conversion filter had been on the
+    /// lens. Intermediate values model a partial correction, which is what an
+    /// 80A on the wrong stock actually looks like. RANGE 0..1. DEFAULT 0.
+    double wbStrength;
+
+    /// Display-linear value that 18 % scene grey should land on. The printer-
+    /// light anchor solve hits this exactly, so it is the tone-scale contract
+    /// rather than a gain. RANGE 0.02..0.60. DEFAULT 0.18. AE: slider.
+    double greyTarget;
+
+    // -- effect scales: each multiplies a PROFILED value, never replaces it --
+
+    /// Grain amplitude multiplier. 0 disables grain entirely (useful for
+    /// isolating other stages). 1 = the stock's calibrated RMS granularity.
+    /// RANGE 0..4. DEFAULT 1. AE: slider.
+    double grainScale;
+
+    /// Halation multiplier. The stock's gains and three-lobe radii are
+    /// measured or datasheet-derived; this scales them. Raise toward 2 if a
+    /// render reads weaker than a reference scan -- the profiled gain rests
+    /// on an assumed highlight overshoot. RANGE 0..4. DEFAULT 1.
+    double halationScale;
+
+    /// DIR coupler multiplier -- the LATERAL half of the coupler chemistry
+    /// (edge effects, micro-contrast). The vertical half is interimage, which
+    /// is profile data with its own iteration count. RANGE 0..3. DEFAULT 1.
+    double couplerScale;
+
+    /// Channel misregistration multiplier. 0 = perfect registration.
+    /// Technicolor three-strip profiles carry tens of micrometres here, which
+    /// is why their edges fringe. RANGE 0..4. DEFAULT 1.
+    double misregScale;
+
+    /// Veiling flare fraction of the taking lens. <0 = use the stock's
+    /// era-appropriate default_flare. 0 = a perfect modern lens. Flare lifts
+    /// the black floor and compresses global contrast, and nothing in the
+    /// emulsion model substitutes for it. RANGE -1 (auto), else 0..0.5.
+    /// DEFAULT -1.
+    double flare;
+
+    /// Whether the print stock contributes its own (finer) grain.
+    /// DEFAULT true. AE: checkbox.
+    bool printGrain;
+
+    /// Allow the additive-mosaic path on reseau stocks (Dufaycolor, Lumiere).
+    /// Auto-disables and warns when the render is too small to represent the
+    /// grid -- below ~3 px per cell the output is aliasing noise, not a
+    /// mosaic. DEFAULT true. AE: checkbox.
+    bool reseau;
+
+    // -- schema v4 / v5 additions -------------------------------------------
+
+    /// Lens corner falloff in stops; <0 = the stock's era default_vignette.
+    /// A LENS property, not an emulsion one: cos^4(theta) is geometry and
+    /// applies in every era -- modern glass still loses 0.3-0.5 stop wide
+    /// open. Coating unevenness cannot produce a corner-locked defect at all,
+    /// because film is coated as a wide web and slit afterwards.
+    /// RANGE -1 (auto), else 0..4. DEFAULT -1. AE: slider.
+    double vignette;
+
+    /// Scales all three CoatingSpec defects together: the web-coherent
+    /// coating field, gate buckling, and narrow-gauge edge fog. 0 disables
+    /// them. RANGE 0..3. DEFAULT 1. AE: slider.
+    double coatingScale;
+
+    /// Frame number within the clip. Only the coating field uses it, to slide
+    /// its machine-direction structure by one frame pitch per frame. The
+    /// field is a pure function of (seed, absolute web position), so frames
+    /// render independently and out of order -- no state, no seams. Set it
+    /// from the layer time and the frame rate, NOT from a running counter.
+    /// RANGE >= 0. DEFAULT 0.
+    int32_t frameIndex;
+
+    // -- determinism --------------------------------------------------------
+
+    /// Master seed. Identical inputs and seed give a bit-identical render;
+    /// changing it changes the grain and coating realisation but nothing
+    /// physical. DEFAULT 12345. AE: integer field + randomise button.
+    int32_t seed;
+
+    // -- physical film damage -----------------------------------------------
+
+    /// Hard gate for the entire FilmDamage block below. false = every damage
+    /// generator is skipped at zero cost and `damage` is not read at all.
+    /// DEFAULT false: a clean render must be the default, and damage is opt-in.
+    /// Checked ONCE per frame, not per pixel.
+    /// AE control: checkbox that greys out the whole damage group.
+    bool filmDamageEnabled;
+
+    /// Physical damage parameters. Inert until filmDamageEnabled is true AND
+    /// the renderer stages that consume them exist. Nested rather than passed
+    /// separately so there is one object to hand around and one thing to
+    /// serialise with a preset.
+    FilmDamage damage;
+};
 
 
-PF_Err
-SetupControlElements
-(
-    const PF_InData*  in_data,
-          PF_OutData* out_data
-);
+/// Defaults mirroring film_sim.RenderSettings exactly, so a C++ render with
+/// these values is directly comparable against the Python reference.
+/// Includes damage defaults with filmDamageEnabled = false.
+AlgoControls getAlgoControlsDefault (void) noexcept;
 
-const AlgoControls
-GetControlElements
-(
-    PF_ParamDef* params[]
-);
-
-
+/// Damage sub-defaults on their own, for a "reset this group" button.
+FilmDamage   getFilmDamageDefault   (void) noexcept;

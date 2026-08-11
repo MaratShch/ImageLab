@@ -58,7 +58,10 @@ if _sec_on():
     # 2026-08-04: 89 -> 93 (AGFACOLOR_NEG_TYPE_B_1943, FUJICOLOR_A250,
     # GEVACHROME_902, GEVACOLOR_NEG_682); reversal 21 -> 22 -- Gevachrome 902 is
     # a reversal camera/duplicating stock, the other three are negatives.
-    chk("93 stocks load and validate", len(FILM_PROFILES) == 93, f"n={len(FILM_PROFILES)}")
+    # 2026-08-11: 93 -> 100 (Kodak Data Book 1952: VERICHROME_1952,
+    # PANATOMIC_X_SHEET_1952, TRI_X_SHEET_1952, ORTHO_X_SHEET_1952; Agfa
+    # 2003 brochure: OPTIMA_200, OPTIMA_400, PORTRAIT_160).
+    chk("100 stocks load and validate", len(FILM_PROFILES) == 100, f"n={len(FILM_PROFILES)}")
     rev = [p.name for p in FILM_PROFILES if p.is_reversal]
     chk("reversal stocks flagged", len(rev) == 22, ", ".join(rev))
 

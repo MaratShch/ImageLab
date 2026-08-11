@@ -67,6 +67,26 @@ themselves (halation gains, coupler strengths, reseau presence, ...), never
 on the flags. ``validate_all`` only *warns* about flag/numeric
 disagreements; it does not fail on them.
 
+Evidence classes and cross-applicability (2026-08-11, owner directive)
+----------------------------------------------------------------------
+Every parameter is one of four classes, and any transfer between stocks or
+formats must state its class in a comment and in ``_PROVENANCE_SOURCES``:
+
+  [C1] directly documented manufacturer / state-standard data for the mark;
+  [C2] documented equivalence between marks (e.g. Foto-65 = FN-64, owner
+       confirmed + Gurlev 1986 + GOST 24876-81; gauge variants of one
+       emulsion slit to width);
+  [C3] inferred from a related material (sibling emulsion, same family and
+       era) with no document tying the two;
+  [C4] theoretical estimate from era, speed class and written descriptions.
+
+SVEMA <-> TASMA: shared Soviet standards are NOT sufficient evidence of
+identity -- measured batches show TASMA_FN_64 at gamma 1.03 vs SVEMA_FN_64's
+0.83. Transfers are [C2] only with a tying document, otherwise [C3], always
+explicit, and never overwrite a measured value. Gauge variants share
+emulsion-level parameters; everything else derives from FORMAT_GEOM frame
+geometry at render time -- never rescale emulsion numbers per gauge.
+
 Requires Python 3.12+. Pure stdlib.
 """
 
@@ -2195,11 +2215,32 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         era="1938-1950s",
         is_monochrome=True,
+        # DOCUMENTED 2026-08-11 [C1]: the 1942 Kodak book "Eastman Motion
+        # Picture Films for Professional Use" carries the full specification
+        # sheet for this product under its 35 mm nitrate designation, EASTMAN
+        # SUPER-XX PANCHROMATIC NEGATIVE FILM, Type 1232 (book p45, PDF p49):
+        # Kodak Film Speed Sunlight 400 / Tungsten 250 (Weston 100/64,
+        # G.E. 160/100) for SD-21 development to gamma 0.65; recommended IIb
+        # control gamma 0.60-0.70; resolving power 55 lines/mm in SD-21;
+        # gray nitrate base; panchromatic; H&D curve and time-gamma family
+        # printed (digitisation queued). The 1942 Kodak speed scale predates
+        # ASA PH2.5-1960 and is NOT convertible by a constant, so
+        # exposure_index keeps the established period daylight rating of 100
+        # rather than the raw 400; both are recorded in the provenance.
         exposure_index=100,
         balance_kelvin=5500,  # EI 100 is the daylight rating
+        # Curve/grain/MTF values remain the earlier fit [T2 after the 1942
+        # corroboration]: the printed gamma aim 0.60-0.70 brackets the fitted
+        # gamma 0.610, and "medium graininess" for a 1942 emulsion is
+        # consistent with rms 12 next to Plus-X 1231's "fine grain".
         curves=_mono(ToneCurve(0.28, 0.610, -1.52, 0.34, 1.92, 0.52)),
         grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=1.30, fog_grain=0.32),
         mtf=MTFSpec(35.0, 35.0, 35.0, adjacency=0.04),
+        # The 1942 book states ALL Eastman picture negatives are coated on
+        # base carrying a gray dye "to prevent halation" -- so the halation
+        # here is the residual the gray base did not stop, and the moderate
+        # gains below are consistent with that; do not raise them to
+        # "period film" levels without a measured reason.
         halation=HalationSpec(
             radii_um=(20.0, 100.0, 460.0),
             gain_r=0.26, gain_g=0.26, gain_b=0.26,
@@ -3879,7 +3920,13 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
                         anisotropy=1.10,
                         sigma_shape_toe=0.65, sigma_shape_dmax=1.65),
-        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
+        # f50 35 [T2, raised from the 34 estimate 2026-08-11]: GOST 24876-81
+        # table 6 requires T(30 mm^-1) >= 0.60 for Foto-65 in BOTH quality
+        # grades; a Gaussian f50 of 34 gives T(30) = 0.583, i.e. the old
+        # estimate described a film that would have FAILED its own state
+        # standard. 35.0 is the norm floor exactly (T(30) = 0.601) -- the
+        # most conservative compliant value, not a typical-product claim.
+        mtf=MTFSpec(35.0, 35.0, 35.0, adjacency=0.03),
         spectral_weights=(0.26, 0.50, 0.24),
         misregistration_um=0.0,
         # [T2] halation: ENABLED from the 355-frame batch, 58 usable
@@ -4022,7 +4069,12 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(33.0, 21.5, 21.5, 21.5, clump_gain=1.70, fog_grain=0.38,
                         anisotropy=1.14,
                         sigma_shape_toe=0.67, sigma_shape_dmax=1.69),
-        mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.02, adjacency_um=26.0),
+        # f50 30 [T2, raised from the 26 estimate 2026-08-11]: GOST 24876-81
+        # table 6 requires T(30 mm^-1) >= 0.50 for Foto-250 (top grade); a
+        # Gaussian f50 of 26 gives T(30) = 0.397 -- the old estimate failed
+        # the state standard by a wide margin. 30.0 is the norm floor
+        # exactly (T(30) = 0.500), the most conservative compliant value.
+        mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.02, adjacency_um=26.0),
         spectral_weights=(0.25, 0.49, 0.26),
         misregistration_um=0.0,
         default_format="ff35",
@@ -5703,6 +5755,278 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         features=Feature.HALATION | Feature.STRONG_DIR_COUPLERS,
     ),
+
+    # ============ 2026-08-11 additions: Kodak Data Book 1952, Agfa 2003 =====
+    #
+    # KODAK SOURCE: "Kodak Films", Data Book, FIFTH EDITION, first printing
+    # 1952, Eastman Kodak Company (PDF/PROFILES/KODAK/kodak-films-5.pdf).
+    # Four stocks below come from its data sheets. Three shared caveats:
+    #
+    #   EXPOSURE INDEX CONVENTION. The printed indexes are pre-1960 American
+    #   Standard values, which embed a ~2.4x safety factor; the SAME emulsion
+    #   was renumbered roughly 2x higher when ASA PH2.5-1960 removed the
+    #   factor. exposure_index below stores the figure AS PRINTED in 1952,
+    #   because that is what a period light meter was set to -- consistent
+    #   with how EASTMAN_SUPER_XX_1938 stores its period rating. Do not
+    #   "correct" these to modern ISO; the anchor solve normalises mid-grey
+    #   anyway, so the field is documentary.
+    #
+    #   RESOLVING POWER CONTRAST. Kodak 1952 prints resolving power "for
+    #   subject contrast 30 to 1" -- neither the modern 1.6:1 nor the 1000:1
+    #   test-object contrast. Stored in _RESOLVING_POWER's high-contrast slot
+    #   AS PRINTED, with the caveat recorded there.
+    #
+    #   NO GRANULARITY FIGURES. The 1952 book gives only qualitative grain
+    #   classes ("very fine" / "fine" / "moderate enlargement"). rms values
+    #   below are [T2] interpolations anchored on the qualitative class, the
+    #   speed, and the measured neighbours in this database (SUPER_XX_1938,
+    #   EASTMAN_PLUS_X_5231). The characteristic curves in the book are
+    #   plotted per development time and are queued for digitisation --
+    #   see doc/DIGITIZATION_QUEUE.md; the ToneCurves below are [T2] reading
+    #   of the DK-50 recommended-time member of each family.
+    FilmProfile(
+        name="KODAK_VERICHROME_1952",
+        aliases=("verichrome", "kodak verichrome", "v120", "verichrome 1952"),
+        description=(
+            "[T2] The amateur roll film of mid-century America -- what the box "
+            "cameras and folders of the 1940s-50s were loaded with. "
+            "Orthochromatic, so skies print pale, lips and freckles print "
+            "dark, and red clothing goes near-black; generous latitude "
+            "because box cameras had one shutter speed and hope. Replaced by "
+            "the panchromatic Verichrome Pan in 1956."
+        ),
+        era="1931-1956",
+        is_monochrome=True,
+        # 1952 ASA with safety factor: Daylight 64 / Tungsten 32 as printed
+        # (kodak-films-5.pdf data sheet p33).
+        exposure_index=64,
+        balance_kelvin=5500,
+        # Roll-film contact-print era: developed to a higher gamma than sheet
+        # portrait films; dmin carries roll-film base grey plus period fog.
+        curves=_mono(ToneCurve(0.24, 0.780, -1.40, 0.30, 1.70, 0.44)),
+        # rms 10.5 [T2]: "fine grain" class at EI 64 between PANATOMIC_X
+        # (very fine, 7.5) and TRI_X_SHEET (moderate, 13.5); no figure printed.
+        grain=GrainSpec(10.5, 13.0, 13.0, 13.0, clump_gain=1.05, fog_grain=0.26),
+        # f50 44 [T2]: fitted so the rendered limiting resolution tracks the
+        # printed 95 lines/mm (30:1 TOC) relative to the 1952 siblings below.
+        mtf=MTFSpec(44.0, 44.0, 44.0, adjacency=0.03),
+        # The data sheet does NOT claim an antihalation layer (its sheet-film
+        # siblings all do), so halation is enabled at a period-moderate level.
+        halation=HalationSpec(
+            radii_um=(18.0, 90.0, 420.0),
+            gain_r=0.20, gain_g=0.20, gain_b=0.20,
+            threshold_stops=1.1,
+        ),
+        # Orthochromatic: essentially no red record; blue-heavy by design.
+        spectral_weights=(0.04, 0.54, 0.42),
+        misregistration_um=0.0,
+        default_flare=0.09,
+        default_format="medium645",
+        features=Feature.HALATION | Feature.ORTHO_RESPONSE,
+    ),
+    FilmProfile(
+        name="KODAK_PANATOMIC_X_SHEET_1952",
+        aliases=("panatomic-x", "panatomic x", "panatomic", "pan-x sheet"),
+        description=(
+            "[T2] Kodak's slow very-fine-grain sheet film -- the copying and "
+            "commercial stock chosen when the negative was going to be "
+            "enlarged hard. Panchromatic Type B, moderate contrast, and grain "
+            "fine enough that the 1952 book promises 'great enlargement "
+            "without noticeable grain even without special fine-grain "
+            "processing'."
+        ),
+        era="1933-1950s",
+        is_monochrome=True,
+        # 1952 ASA as printed: Daylight 32 / Tungsten 25 (p57).
+        exposure_index=32,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.18, 0.700, -1.50, 0.30, 1.80, 0.42)),
+        # rms 7.5 [T2]: "very fine grain" at EI 32; scaled against APX_25
+        # (rms 7.0) allowing for two decades older crystal technology.
+        grain=GrainSpec(7.5, 8.0, 8.0, 8.0, clump_gain=0.70, fog_grain=0.18),
+        # f50 58 [T2] from the printed 100 lines/mm (30:1), the best of the
+        # four 1952 stocks here.
+        mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.06, adjacency_um=16.0),
+        # "antihalation film" printed on the sheet: halation left disabled.
+        # Panchromatic Type B: red present but restrained next to Type C.
+        spectral_weights=(0.24, 0.52, 0.24),
+        misregistration_um=0.0,
+        default_format="large4x5",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KODAK_TRI_X_SHEET_1952",
+        aliases=("tri-x sheet", "tri x sheet", "tri-x pan 1952",
+                 "tri-x 200"),
+        description=(
+            "[T2] Tri-X as it existed BEFORE the famous 1954 roll film: the "
+            "extremely fast panchromatic SHEET film of the late 1940s press "
+            "and portrait world. Panchromatic Type C -- fuller red sensitivity "
+            "than the Type B films, which is why it was pushed for available- "
+            "light work under tungsten. Coarser and softer than everything "
+            "else on this page, and that was the price of the speed. NOT the "
+            "same emulsion as KODAK_TRI_X_REVERSAL_200 (the cine reversal) or "
+            "the 1954+ Tri-X roll film."
+        ),
+        era="1940s-1954",
+        is_monochrome=True,
+        # 1952 ASA as printed: Daylight 200 / Tungsten 160 (p49).
+        exposure_index=200,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.20, 0.680, -1.46, 0.32, 1.86, 0.46)),
+        # rms 13.5 [T2]: fastest of the set; slightly coarser than
+        # SUPER_XX_1938 (12.0) at twice the printed speed, in line with the
+        # book's "moderate enlargement without objectionable grain".
+        grain=GrainSpec(13.5, 15.0, 15.0, 15.0, clump_gain=1.20, fog_grain=0.30),
+        # f50 34 [T2] from the printed 65 lines/mm (30:1) -- the softest of
+        # the four, and consistent with SUPER_XX_1938's 35.
+        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
+        # "antihalation film" printed on the sheet: halation left disabled.
+        # Panchromatic Type C: strongest red record of the 1952 set.
+        spectral_weights=(0.30, 0.46, 0.24),
+        misregistration_um=0.0,
+        default_flare=0.10,
+        default_format="large4x5",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KODAK_ORTHO_X_SHEET_1952",
+        aliases=("ortho-x", "ortho x", "orthox", "ortho-x sheet"),
+        description=(
+            "[T2] The fast orthochromatic sheet film -- 'particularly "
+            "suitable for portraits of men', as the 1952 book puts it, "
+            "because ortho rendering darkens skin texture and lips for the "
+            "craggy look the era wanted. The ortho signature is the point of "
+            "profiling it: red fabric and warm skin go dark in a way no "
+            "panchromatic stock reproduces."
+        ),
+        era="1940s-1950s",
+        is_monochrome=True,
+        # 1952 ASA as printed: Daylight 125 / Tungsten 64 (p59) -- the wide
+        # daylight/tungsten split is the missing red sensitivity, not a
+        # different emulsion speed.
+        exposure_index=125,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.19, 0.720, -1.46, 0.30, 1.78, 0.44)),
+        # rms 11.5 [T2]: "moderate enlargement" class at EI 125, between
+        # VERICHROME (10.5) and TRI_X_SHEET (13.5).
+        grain=GrainSpec(11.5, 13.5, 13.5, 13.5, clump_gain=1.10, fog_grain=0.27),
+        # f50 42 [T2] from the printed 85 lines/mm (30:1).
+        mtf=MTFSpec(42.0, 42.0, 42.0, adjacency=0.03),
+        # "antihalation film" printed on the sheet: halation left disabled.
+        spectral_weights=(0.04, 0.54, 0.42),
+        misregistration_um=0.0,
+        default_format="large4x5",
+        features=Feature.ORTHO_RESPONSE,
+    ),
+
+    # AGFA SOURCE: "Technical Data -- Agfa Professional Films" brochure,
+    # ~2003 (PDF/PROFILES/AGFA/AGFA stocks.pdf). Published per stock: ISO
+    # speed, RMS granularity (x1000), resolving power at BOTH 1.6:1 and
+    # 1000:1, emulsion layer thickness, base thickness. Granularity and
+    # resolving power below are transcriptions [T1]; curve shapes, couplers
+    # and dye purity are carried over from the measured AGFA_OPTIMA_100
+    # family fit, scaled by the published deltas. Per-channel rms derived by
+    # the same tier-2 stack rule Optima 100 uses (b ~1.3x, r ~1.1x of green);
+    # Agfa publishes no per-layer granularity.
+    FilmProfile(
+        name="AGFA_OPTIMA_200",
+        aliases=("optima 200", "agfa optima 200", "agfacolor optima 200"),
+        description=(
+            "[T1] The 200-speed member of the Optima family: the same warm, "
+            "restrained Agfa palette as Optima 100 with one stop more speed "
+            "and almost no published grain penalty -- RMS 4.3 against the "
+            "100's 4.0, on the strength of the late-90s SXM crystal work."
+        ),
+        era="1990s-2000s",
+        exposure_index=200,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.605),
+            g=_neg(0.62, 0.615),
+            b=_neg(1.02, 0.625),
+        ),
+        # rms 4.3: published (AGFA stocks.pdf p6: "Granularity (x 1000):
+        # RMS 4.3"). Per-channel values: stack rule from the green figure.
+        grain=GrainSpec(4.3, 11.8, 12.9, 15.0, clump_gain=0.86, fog_grain=0.18),
+        # f50 [T2] one notch below Optima 100 (62/70/76): the published
+        # resolving power drops 140 -> 130 lines/mm at 1000:1. Agfa prints
+        # sharpness only as a plotted transfer-factor curve, never numeric.
+        mtf=MTFSpec(58.0, 66.0, 72.0, adjacency=0.09, adjacency_um=17.0),
+        couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
+        dye_matrix=_dye(0.07),
+        base_tint=(1.0, 0.985, 0.955),
+        misregistration_um=5.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="AGFA_OPTIMA_400",
+        aliases=("optima 400", "agfa optima 400", "agfacolor optima 400"),
+        description=(
+            "[T1] The fast Optima. Same family palette, one more stop, and "
+            "still RMS 4.5 published grain -- Agfa's quietest 400 ever, "
+            "though the transfer-factor curve gives back some sharpness for "
+            "that quietness."
+        ),
+        era="1990s-2000s",
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.610),
+            g=_neg(0.63, 0.620),
+            b=_neg(1.04, 0.630),
+        ),
+        # rms 4.5: published (AGFA stocks.pdf p6: "Granularity (x 1000):
+        # RMS 4.5"). Per-channel values: stack rule from the green figure.
+        grain=GrainSpec(4.5, 12.4, 13.5, 15.8, clump_gain=0.95, fog_grain=0.19),
+        # f50 [T2]: published resolving power equals Optima 200 (50/130) but
+        # a 400-speed emulsion of this era gives up mid-frequency contrast;
+        # placed between Optima 200 and Vista 200.
+        mtf=MTFSpec(54.0, 62.0, 68.0, adjacency=0.08, adjacency_um=18.0),
+        couplers=CouplerSpec(0.24, 52.0, 0.11, 12.0),
+        dye_matrix=_dye(0.07),
+        base_tint=(1.0, 0.985, 0.955),
+        misregistration_um=5.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="AGFA_PORTRAIT_160",
+        aliases=("portrait 160", "agfa portrait", "agfacolor portrait 160",
+                 "agfa portrait 160"),
+        description=(
+            "[T1] Agfa's dedicated portrait negative: the finest published "
+            "grain of the whole Agfa colour line (RMS 3.5) and the highest "
+            "resolving power (150 lines/mm), tuned for low contrast and "
+            "muted saturation so skin carries the frame. The Agfa warmth is "
+            "still there, just quieter than Optima's."
+        ),
+        era="1990s-2000s",
+        exposure_index=160,
+        balance_kelvin=5500,
+        # Portrait tuning: visibly flatter gamma than the Optima family, so
+        # highlight skin rolls gently instead of blocking.
+        curves=RGBCurves(
+            r=_neg(0.20, 0.565),
+            g=_neg(0.62, 0.575),
+            b=_neg(1.02, 0.585),
+        ),
+        # rms 3.5: published (AGFA stocks.pdf p5: "Granularity (x 1000):
+        # RMS 3.5"). Per-channel values: stack rule from the green figure.
+        grain=GrainSpec(3.5, 9.6, 10.5, 12.3, clump_gain=0.78, fog_grain=0.17),
+        # f50 [T2] one notch above Optima 100: published resolving power is
+        # 150 lines/mm at 1000:1 and 60 at 1.6:1, the best of the family.
+        mtf=MTFSpec(66.0, 74.0, 80.0, adjacency=0.09, adjacency_um=16.0),
+        # Weaker couplers and slightly stronger positive dye blend than
+        # Optima: less edge snap, less saturation -- the portrait trade.
+        couplers=CouplerSpec(0.18, 52.0, 0.08, 12.0),
+        dye_matrix=_dye(0.12),
+        base_tint=(1.0, 0.985, 0.955),
+        misregistration_um=5.5,
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
 )
 
 # Presented in alphabetical order by name. The literal above is grouped by
@@ -5868,9 +6192,33 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     "EASTMAN_PLUS_X_5231": (
         "EASTMAN PLUS-X 5231/7231 Technical Data, Eastman Kodak Company",
+        # Added 2026-08-11 [C3, family-adjacent -- NOT product data for 5231].
+        # The 1942 book documents the PREDECESSOR of this stock: PLUS-X
+        # Type 1231, the 35 mm GRAY NITRATE original (5231 is the post-1949
+        # safety-base successor, emulsion revised over the years). Recorded
+        # for era context, not fitted into any field: Kodak Film Speed
+        # Sunlight 240 / Tungsten 160 (Weston 64/40), SD-21 to gamma 0.65,
+        # IIb control gamma 0.60-0.70, resolving power 55 lines/mm in SD-21.
+        "Eastman Motion Picture Films for Professional Use, Eastman Kodak "
+        "Company, 1942, PLUS-X Type 1231 specification sheet "
+        "(PDF/PROFILES/KODAK/Kodak - [1942] - Eastman Motion Picture Films "
+        "for Professional Use.pdf, PDF p48)",
     ),
     "KODAK_TRI_X_REVERSAL_200": (
         "KODAK TRI-X Reversal Film 7266 Technical Data, Eastman Kodak Company",
+    ),
+    # Added 2026-08-11 [C1]: same product, period-correct 35 mm nitrate
+    # designation Type 1232. First manufacturer document for this stock.
+    "EASTMAN_SUPER_XX_1938": (
+        "Eastman Motion Picture Films for Professional Use, Eastman Kodak "
+        "Company, 1942, SUPER-XX Type 1232 specification sheet "
+        "(PDF/PROFILES/KODAK/Kodak - [1942] - Eastman Motion Picture Films "
+        "for Professional Use.pdf, PDF p49): Kodak Film Speed Sun 400 / "
+        "Tung 250 (Weston 100/64) at SD-21 gamma 0.65, IIb control gamma "
+        "0.60-0.70, R 55 lines/mm (SD-21), gray nitrate base with "
+        "anti-halation gray dye, panchromatic; H&D curve and time-gamma "
+        "family printed on the sheet, combined picture-negative curve "
+        "figure on PDF p44",
     ),
     "KODACHROME_64": (
         "KODACHROME 25/64/200 Films, Kodak publication E-55, "
@@ -5907,6 +6255,21 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "red-sensitive layer. RECORDED, NOT ADOPTED for grain: the "
         "profile's rms 13.0 is pipeline-calibrated; cross-era metric "
         "equivalence of the printed sigma_D figure is unverified",
+        # Added 2026-08-11, owner-supplied SMPTE paper by four Kodak
+        # engineers. NOTE the file name says 1983; the printed running head
+        # says SMPTE Journal, July 1985. The paper's EI-125 rating is the
+        # improved late 5247 ("5247/II", 1979+); this profile targets the
+        # 1974-1982 era at EI 100, so the speed difference is a version
+        # difference, recorded rather than adopted. Measured figures are
+        # PLOTS, not text -- digitisation queued (granularity vs exposure
+        # Figs 7/11a, MTF vs exposure Fig 12).
+        "Sehlin R. C., Kennel G. L., Ortman E. F., Reinking F. R., "
+        "'Choosing Eastman Color Negative Film 5247 or Eastman Color "
+        "High-Speed Negative Film 5294', SMPTE Journal, July 1985 "
+        "(PDF/PROFILES/KODAK/Sehlin_Kennel_etal_1983_ChoosingECN5247or"
+        "52941.pdf): green-layer RMS granularity vs exposure (Figs 7, "
+        "11a), MTF vs exposure (Fig 12), exposure-latitude behaviour at "
+        "100:1 and 10:1 brightness ratios (Figs 8-10, Tables 1-2)",
     ),
     "EASTMAN_5294_1983": (
         "Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», "
@@ -5918,6 +6281,21 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Profile MTF f50_g 38 c/mm reproduces the printed green MTF@30 "
         "(0.65) exactly; grain figure recorded, not adopted (see 5247 "
         "note)",
+        # Added 2026-08-11, owner-supplied SMPTE paper (see the 5247 entry
+        # for the file-name/date note). First MANUFACTURER-AUTHORED document
+        # for this stock: confirms EI 400 and carries the measured green
+        # granularity-vs-exposure curve (Fig 11b), MTF vs exposure (Fig 12)
+        # and green sensitometric curves at three exposures (Fig 14) --
+        # all plots, digitisation queued; Fig 11b is the direct measured
+        # replacement for this profile's estimated sigma_shape_toe/dmax.
+        "Sehlin R. C., Kennel G. L., Ortman E. F., Reinking F. R., "
+        "'Choosing Eastman Color Negative Film 5247 or Eastman Color "
+        "High-Speed Negative Film 5294', SMPTE Journal, July 1985 "
+        "(PDF/PROFILES/KODAK/Sehlin_Kennel_etal_1983_ChoosingECN5247or"
+        "52941.pdf): EI 400 confirmed; green-layer RMS granularity vs "
+        "exposure (Fig 11b), MTF vs exposure (Fig 12), green "
+        "sensitometric curves normal/over/under (Fig 14), latitude "
+        "behaviour (Figs 8-10, 15-18, Tables 1-2)",
     ),
     "KODAK_PORTRA_400": (
         "KODAK PROFESSIONAL PORTRA 400, Kodak publication E-4050, "
@@ -6005,6 +6383,42 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     # -- Soviet reference books (added 2026-08-02). Russian titles kept
     # verbatim per owner instruction, English translation in brackets. ------
+    # -- Kodak Data Book 1952 / Agfa 2003 (added 2026-08-11) ----------------
+    "KODAK_VERICHROME_1952": (
+        "Kodak Films, Data Book, Fifth Edition, Eastman Kodak Company, "
+        "1952, Verichrome data sheet "
+        "(PDF/PROFILES/KODAK/kodak-films-5.pdf p33-34)",
+    ),
+    "KODAK_PANATOMIC_X_SHEET_1952": (
+        "Kodak Films, Data Book, Fifth Edition, Eastman Kodak Company, "
+        "1952, Panatomic-X Sheet Film data sheet "
+        "(PDF/PROFILES/KODAK/kodak-films-5.pdf p57-58)",
+    ),
+    "KODAK_TRI_X_SHEET_1952": (
+        "Kodak Films, Data Book, Fifth Edition, Eastman Kodak Company, "
+        "1952, Tri-X Panchromatic Sheet Film data sheet "
+        "(PDF/PROFILES/KODAK/kodak-films-5.pdf p49-50)",
+    ),
+    "KODAK_ORTHO_X_SHEET_1952": (
+        "Kodak Films, Data Book, Fifth Edition, Eastman Kodak Company, "
+        "1952, Ortho-X Sheet Film data sheet "
+        "(PDF/PROFILES/KODAK/kodak-films-5.pdf p59-60)",
+    ),
+    "AGFA_OPTIMA_200": (
+        "Technical Data - Agfa Professional Films, Agfa-Gevaert, ~2003 "
+        "(PDF/PROFILES/AGFA/AGFA stocks.pdf p6): ISO 200/24, RMS 4.3, "
+        "R 130/50 lines/mm, layer 18 um",
+    ),
+    "AGFA_OPTIMA_400": (
+        "Technical Data - Agfa Professional Films, Agfa-Gevaert, ~2003 "
+        "(PDF/PROFILES/AGFA/AGFA stocks.pdf p6): ISO 400/27, RMS 4.5, "
+        "R 130/50 lines/mm, layer 19 um",
+    ),
+    "AGFA_PORTRAIT_160": (
+        "Technical Data - Agfa Professional Films, Agfa-Gevaert, ~2003 "
+        "(PDF/PROFILES/AGFA/AGFA stocks.pdf p5): ISO 160/23, RMS 3.5, "
+        "R 150/60 lines/mm, layer 18 um",
+    ),
     "SVEMA_FN_64": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
         "материалы)», Киев: Техніка, 1986, с. 296 [Gurlev D. S., 'Handbook "
@@ -6019,6 +6433,17 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Nauka, 1988, Appendix Table I, p. 157] -- Foto-65: S 65, gamma "
         "0.8 (max 1.4), D0 0.1-0.16, L 1.5; prints R 92 mm^-1 against "
         "Gurlev's 110 (test conditions unstated in both; Gurlev kept)",
+        # Added 2026-08-11, owner-supplied state standard. Corroborates the
+        # Gurlev figures for the Foto-65 sibling (owner confirms Foto-65 and
+        # FN-64 are the same emulsion): R >= 110 lin/mm, gamma 0.8-1.1,
+        # latitude >= 1.5 logH, fog D0 <= 0.04/0.06 (top/first grade). The
+        # GOST granularity limit (sigma_D x1000 <= 45, GOST aperture) is NOT
+        # comparable to the 48 um diffuse-RMS convention this database uses
+        # and is deliberately not imported as an rms value.
+        "ГОСТ 24876-81 «Пленки фотографические черно-белые негативные. "
+        "Технические условия», табл. 6 [GOST 24876-81 'Black-and-white "
+        "negative photographic films. Specifications', Table 6] "
+        "(PDF/PROFILES/SOVIET STANDARDS/ГОСТ 24876-81.pdf)",
     ),
     "SVEMA_FOTO_250": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -6049,6 +6474,15 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Nauka, 1988, Appendix Table I, p. 157] -- Foto-32: S 32, gamma "
         "0.8 (max 1.4), D0 0.05-0.1, L 1.5; prints R 116 mm^-1 against "
         "Gurlev's 135 (Gurlev kept, discrepancy recorded)",
+        # Added 2026-08-11, owner-supplied state standard.
+        "ГОСТ 24876-81 «Пленки фотографические черно-белые негативные. "
+        "Технические условия», табл. 6 [GOST 24876-81, Table 6] "
+        "(PDF/PROFILES/SOVIET STANDARDS/ГОСТ 24876-81.pdf) -- Foto-32 "
+        "norms: fog D0 <= 0.02/0.04 (top/first grade), mean gradient "
+        "0.8-1.1, latitude >= 1.5 logH, MTF T(30 mm^-1) >= 0.60 "
+        "(profile f50 42 gives 0.70 -- compliant), R >= 135/110 lin/mm; "
+        "GOST granularity limit (sigma_D x1000 <= 40, GOST aperture) not "
+        "comparable to the 48 um diffuse-RMS convention, not imported",
     ),
     "SVEMA_FOTO_130": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -6063,6 +6497,14 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Nauka, 1988, Appendix Table I, p. 157] -- Foto-130: S 130, gamma "
         "0.8 (max 1.4), D0 0.16-0.25, L 1.5; prints R 75 mm^-1 against "
         "Gurlev's 100 (Gurlev kept, discrepancy recorded)",
+        # Added 2026-08-11, owner-supplied state standard.
+        "ГОСТ 24876-81 «Пленки фотографические черно-белые негативные. "
+        "Технические условия», табл. 6 [GOST 24876-81, Table 6] "
+        "(PDF/PROFILES/SOVIET STANDARDS/ГОСТ 24876-81.pdf) -- Foto-130 "
+        "norms (top grade): fog D0 <= 0.06, mean gradient 0.8-1.1, "
+        "latitude >= 1.5 logH, MTF T(30 mm^-1) >= 0.50 (profile f50 31 "
+        "gives 0.52 -- compliant), R >= 100 lin/mm; GOST granularity "
+        "limit (<= 50, GOST aperture) not comparable, not imported",
     ),
     "SVEMA_DS_4": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -6089,6 +6531,32 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "S 65 GOST, masked, gamma 0.7+/-0.1 (top layer +0.1-0.2), L 1.5, "
         "Dmax 2.4, contrast balance 0.1, mask densities blue/green/red "
         "0.75-1.1 / 0.4-0.6 / 0.3, R 63 lin/mm, H&D curve family fig. 197",
+        # Added 2026-08-11, owner-supplied state standard. GOST 25120-82
+        # governs the still-photo colour negative marks TsND-32 (daylight)
+        # and TsNL-65 (tungsten); this profile is the TsNL-65. Norms
+        # corroborate the Gurlev fit: fog-plus-mask density behind
+        # blue/green/red filters <= 0.90/0.50/0.27 top grade, 1.10/0.60/0.30
+        # first grade -- the profile's dmin ladder 0.92/0.50/0.30 sits
+        # inside the first-grade limits; latitude >= 1.50 (first grade)
+        # matches Gurlev's 1.5; speed range 45-90 GOST units brackets
+        # EI 65. RECORDED, NOT ADOPTED: recommended per-layer contrast
+        # gamma bottom/middle/top 0.55/0.60/0.65 (+/-0.05 top grade)
+        # against Gurlev's 0.7 +/- 0.1 (top +0.1-0.2) used by the curves --
+        # the two conflict, the GOST densitometry convention for masked
+        # negatives is not stated in the excerpt on file, and the curves
+        # were fitted jointly with Gurlev's Dmax/latitude, so swapping in
+        # the GOST gammas alone would mix conventions. The LADDER DIRECTION
+        # (top > middle > bottom) is confirmed by both sources.
+        "ГОСТ 25120-82 «Пленки фотографические цветные негативные. "
+        "Технические условия», табл. 6 [GOST 25120-82 'Photographic "
+        "colour negative films. Specifications', Table 6] "
+        "(PDF/PROFILES/SOVIET STANDARDS/ГОСТ 25120-82.pdf) -- TsNL-65 "
+        "norms: S 65 (range 45-90) GOST 9160-82 units, recommended "
+        "per-layer gamma 0.55/0.60/0.65 bottom/middle/top, development "
+        "5-8 min, contrast balance <= 0.13, fog+mask behind B/G/R "
+        "filters <= 0.90/0.50/0.27 (top) 1.10/0.60/0.30 (first grade), "
+        "latitude >= 1.65/1.50, R >= 63 lin/mm (first grade), colourless "
+        "triacetate base D <= 0.05, base 0.11-0.15 mm (35 mm)",
     ),
     "TASMA_OCH_45": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -6143,7 +6611,10 @@ _UNTAGGED_TIER: dict[str, int] = {
     "EASTMAN_DOUBLE_X_5222": 1,
     "EASTMAN_EXR_500T_5296": 2,
     "EASTMAN_ORTHO_1930": 3,
-    "EASTMAN_SUPER_XX_1938": 3,
+    # Raised 3 -> 2 on 2026-08-11: the 1942 Kodak book's Type 1232 sheet is
+    # a true manufacturer document (speed, gamma aims, resolving power, base,
+    # curves). Stays 2 not 1: no granularity figure, curves not yet digitised.
+    "EASTMAN_SUPER_XX_1938": 2,
     "FOMAPAN_400_ACTION": 1,
     "FUJICOLOR_SUPER_F500_8572": 2,
     "FUJI_ETERNA_VIVID_500T_8547": 2,
@@ -6302,6 +6773,33 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     "SVEMA_TSNL_32": (0.0, 58.0),
     "SVEMA_TSNL_65": (0.0, 63.0),
     "TASMA_OCH_45": (0.0, 110.0),       # Chibisov 1988 Table I, product row
+    # -- Kodak Data Book, Fifth Edition, 1952 (added 2026-08-11) -------------
+    # UNIT CAVEAT, third convention in this table: Kodak 1952 prints
+    # "Resolving Power: N lines per mm. For optimum exposure, subject
+    # contrast 30 to 1" -- a 30:1 test-object contrast, which is neither the
+    # 1.6:1 nor the 1000:1 modern column. Stored AS PRINTED in the
+    # high-contrast slot, following the Foma precedent above: the printed
+    # figure goes in the only slot for "the published number" and this
+    # comment records what it actually is. A 30:1 figure sits systematically
+    # BELOW what the same emulsion would score at 1000:1.
+    "KODAK_VERICHROME_1952": (0.0, 95.0),        # kodak-films-5.pdf p34
+    "KODAK_PANATOMIC_X_SHEET_1952": (0.0, 100.0),# kodak-films-5.pdf p58
+    "KODAK_TRI_X_SHEET_1952": (0.0, 65.0),       # kodak-films-5.pdf p50
+    "KODAK_ORTHO_X_SHEET_1952": (0.0, 85.0),     # kodak-films-5.pdf p60
+    # -- Agfa "Professional Films" brochure, ~2003 (added 2026-08-11) --------
+    # Both contrasts published, same source style as AGFA_OPTIMA_100 above.
+    "AGFA_OPTIMA_200": (50.0, 130.0),            # AGFA stocks.pdf p6
+    "AGFA_OPTIMA_400": (50.0, 130.0),            # AGFA stocks.pdf p6
+    "AGFA_PORTRAIT_160": (60.0, 150.0),          # AGFA stocks.pdf p5
+    # -- Eastman 1942 MP book (added 2026-08-11) -----------------------------
+    # UNIT CAVEAT, fourth convention in this table: the 1942 book prints
+    # "Resolving Power: N lines per mm. in Kodak SD-21" -- development
+    # condition stated, TEST-OBJECT CONTRAST NOT STATED, and period Kodak
+    # resolvometry is not the modern 1.6:1/1000:1 pair. Stored AS PRINTED in
+    # the high-contrast slot per the Foma precedent. Do not compare against
+    # modern figures; the same emulsion class scores very differently under
+    # the two regimes.
+    "EASTMAN_SUPER_XX_1938": (0.0, 55.0),        # 1942 book, Type 1232, PDF p49
 }
 
 

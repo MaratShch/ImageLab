@@ -43,6 +43,12 @@ OFFICIAL_NAME_OVERRIDES: dict[str, str] = {
     "TASMA_OCH_45": "TASMA OCH-45",
     # ORWO, Wolfen: leaflet W 746 prints "ORWO CHROM-FILM UT 18".
     "ORWO_CHROM_UT18": "ORWO CHROM UT18",
+    # Kodak Data Book 1952: official spellings are hyphenated
+    # (Panatomic-X, Tri-X, Ortho-X). Added 2026-08-11.
+    "KODAK_VERICHROME_1952": "KODAK VERICHROME (1952)",
+    "KODAK_PANATOMIC_X_SHEET_1952": "KODAK PANATOMIC-X SHEET (1952)",
+    "KODAK_TRI_X_SHEET_1952": "KODAK TRI-X SHEET (1952)",
+    "KODAK_ORTHO_X_SHEET_1952": "KODAK ORTHO-X SHEET (1952)",
 }
 
 

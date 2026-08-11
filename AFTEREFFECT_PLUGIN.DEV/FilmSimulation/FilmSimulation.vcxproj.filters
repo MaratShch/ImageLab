@@ -105,9 +105,6 @@
     <ClInclude Include="include\AlgoMemHandler.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\Algo_02_Exposure.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgoTypes.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -121,6 +118,93 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\film_enum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCharacteristicCurve.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCoatingField.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCornerDefocus.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCounterRng.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDefectField.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDirCoupler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDuplication.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDyeImpurity.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoEdgeFog.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoEmulsionMtf.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoEmulsionRecord.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoFilmCoord.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoFinalClamp.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoGateDefects.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoGateWeave.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoGrain.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoHalation.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoInterimage.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoNegativeDefects.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoRelativeExposure.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoReseauReconstruct.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoScanMtf.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoSeparableBlur.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoSilverTone.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoStockColourBalance.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTakingFilters.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTemporalFlicker.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTransmittance.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoVeilingFlare.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -143,9 +227,6 @@
     <ClCompile Include="src\AlgorithmMain.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\Algo_02_Exposure.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\AlgoControl.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -156,6 +237,60 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_02_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_03_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_04_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_05_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_06_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_07_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_08_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_09_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_10_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_11_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_12_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_13_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_14_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_15_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_16_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_17_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoDefectField.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoSeparableBlur.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
