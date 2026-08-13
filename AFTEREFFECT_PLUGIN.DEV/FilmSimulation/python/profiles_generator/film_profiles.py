@@ -6526,6 +6526,576 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         default_format="ff35",
         features=Feature.NONE,
     ),
+
+    # =======================================================================
+    # 2026-08-13 batch -- Cheltsov & Bongard 1958 (Soviet monograph on colour
+    # development of three-layer materials). Ten stocks whose BALANCE COLOUR
+    # TEMPERATURE, speed and in some cases gamma and per-layer spectral peaks
+    # are stated outright by a contemporaneous technical source. These are the
+    # fields the live spectral balance path actually reads, which is why this
+    # batch was prioritised over the thinner entries in the same book.
+    #
+    # SOURCE, for every profile below:
+    #   Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных
+    #   светочувствительных материалов», М.: Искусство, 1958, 250 с.
+    #   [Cheltsov V. S., Bongard S. A., "Colour Development of Three-Layer
+    #   Light-Sensitive Materials", Moscow: Iskusstvo, 1958]
+    #   PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf
+    #
+    # EVIDENCE DISCIPLINE. Balance temperature, speed, gamma, resolving power
+    # and spectral peaks below are quoted from the page cited on each field
+    # [C1 for that field]. Curve SHAPE, grain, halation, dye impurity and
+    # coupler behaviour are NOT in this book for any of these stocks and are
+    # period estimates [C3/C4], set by analogy to the nearest already-modelled
+    # stock of the same process family and marked EST. Nothing is propagated
+    # sideways silently: where a value came from a sibling stock the sibling is
+    # named in the comment.
+    #
+    # A NOTE ON THE DIN FIGURES. The book quotes speeds in the pre-1957 DIN
+    # scale, usually paired with an ASA figure. Those pairs are internally
+    # consistent with the standard 10*log10 relation anchored at 12 DIN = 10
+    # ASA: 13 DIN -> 12, 15 DIN -> 20, 16 DIN -> 20-25, 17 DIN -> 32 ASA, all
+    # of which the book prints explicitly. The conversion is therefore checked
+    # against the source rather than assumed [C2]. ASA values of this period
+    # carry the old safety factor; no attempt is made to restate them as
+    # modern ISO, so exposure_index here means "the number the manufacturer
+    # printed", which is what a period look wants anyway.
+    # =======================================================================
+
+    FilmProfile(
+        name="KODACHROME_1938",
+        aliases=("kodachrome 1938", "kodachrome ordinary", "kodachrome daylight 12"),
+        description=(
+            "[T1] Kodachrome as it actually was in the 1938-1950s three-layer "
+            "form -- NOT the KODACHROME_64 of 1974. Balanced for a 5900 K "
+            "source, which is the highest balance point anywhere in this "
+            "database and noticeably above the 5500 K daylight convention: "
+            "rendered against a 5500 K scene it therefore runs slightly warm "
+            "rather than neutral, and that is the documented design point, not "
+            "a modelling choice. ASA 12 (about 13 DIN). Resolving power 40 "
+            "lines/mm -- the highest of any reversal stock the source measures, "
+            "and the reason is structural: Kodachrome's couplers arrive in the "
+            "developer instead of sitting in the emulsion, so the layers carry "
+            "no coupler bulk and stay thin. Three emulsion layers plus a "
+            "colloidal-silver yellow filter layer, no gelatin interlayers, "
+            "carbon-black antihalation on the back of the base. Processed by "
+            "selective re-exposure and successive colour development -- cyan "
+            "through the base under red light, then yellow from the top under "
+            "blue, then magenta chemically fogged."
+        ),
+        era="1938-1950s",
+        exposure_index=12,       # ASA 12, ~13 DIN -- p144 item 1 [C1]
+        kind=StockKind.REVERSAL,   # Kodachrome is a reversal film
+        balance_kelvin=5900,     # 5900 K, stated outright -- p144 item 1 [C1]
+        curves=RGBCurves(
+            # EST [C4]. No characteristic curve is published for this stock in
+            # the source. Shape follows KODACHROME_64's family behaviour --
+            # steep, short throw, hard shoulder -- because both are Kodachrome
+            # process reversal; gamma is set slightly lower than the modern
+            # stock's since 1938 dye yields were poorer.
+            r=_rev(0.22, 1.66, toe_x=-0.66, shoulder_x=0.76),
+            g=_rev(0.21, 1.72, toe_x=-0.68, shoulder_x=0.74),
+            b=_rev(0.24, 1.78, toe_x=-0.64, shoulder_x=0.72),
+        ),
+        # EST [C3]. Grain scaled coarser than KODACHROME_64 for the era; the
+        # source says only that Kodachrome images are notably sharp, which the
+        # MTF below carries rather than the grain.
+        grain=GrainSpec(9.0, 11.5, 11.0, 14.0, clump_gain=1.15, fog_grain=0.24),
+        # 40 lines/mm limiting resolution (p152) is the best in the source's
+        # own comparison set. MTF f50 is NOT that number: limiting resolution
+        # and 50 %-modulation frequency are different measurements. The triple
+        # is anchored to GEVACOLOR_1952's existing MTFSpec and scaled by the
+        # source's own 40:24 ratio between Kodachrome and Gevacolor reversal,
+        # so the RELATIVE ordering is documented [C2] and the absolute level
+        # follows established database practice [C3].
+        mtf=MTFSpec(48.0, 53.0, 58.0, adjacency=0.02),
+        halation=HalationSpec(
+            radii_um=(18.0, 90.0, 420.0),
+            gain_r=0.16, gain_g=0.08, gain_b=0.05,
+            threshold_stops=1.1,
+        ),
+        # No incorporated couplers at all -- they are in the developer. This is
+        # the one stock where an empty CouplerSpec is a documented fact (p144)
+        # rather than an absence of data.
+        couplers=CouplerSpec(),
+        # EST [C3]. The source praises Kodachrome's dye selectivity explicitly
+        # (p150 item b), so off-diagonals are clean and negative -- saturation
+        # gaining, unlike the Agfacolor family.
+        dye_matrix=_dye(-0.14),
+        base_tint=(0.990, 1.000, 0.975),
+        misregistration_um=7.0,
+        default_flare=0.07,
+        default_format="ff35",
+        features=Feature.HALATION | Feature.NITRATE_BASE,
+    ),
+
+    FilmProfile(
+        name="KODACHROME_TYPE_A_1938",
+        aliases=("kodachrome type a", "kodachrome a", "kodachrome 3450"),
+        description=(
+            "[T1] Kodachrome Type A, the tungsten-balanced sibling of "
+            "KODACHROME_1938. Balanced for 3450 K and rated ASA 20 -- both "
+            "unusual: 3450 K sits between the 3200 K studio standard and the "
+            "3400 K photoflood, and Type A is the FASTER of the two "
+            "Kodachromes despite being the tungsten stock, which is the "
+            "opposite of the usual arrangement and follows from rating it "
+            "against a source its red layer is well matched to. Structure, "
+            "process and 40 lines/mm resolving power are those of the daylight "
+            "stock; only the sensitisation balance differs."
+        ),
+        era="1938-1950s",
+        exposure_index=20,       # ASA 20 -- p144 item 2 [C1]
+        kind=StockKind.REVERSAL,   # Kodachrome is a reversal film
+        balance_kelvin=3450,     # 3450 K, stated outright -- p144 item 2 [C1]
+        curves=RGBCurves(
+            # EST [C4]. Deliberately the same shape as KODACHROME_1938: the
+            # source gives no separate curve, and the two stocks differ in
+            # sensitisation balance, not in the development that sets curve
+            # shape. This is a NAMED propagation from a sibling, not a silent
+            # one -- the justification is shared process and shared structure.
+            r=_rev(0.22, 1.66, toe_x=-0.66, shoulder_x=0.76),
+            g=_rev(0.21, 1.72, toe_x=-0.68, shoulder_x=0.74),
+            b=_rev(0.24, 1.78, toe_x=-0.64, shoulder_x=0.72),
+        ),
+        grain=GrainSpec(9.6, 12.2, 11.7, 14.8, clump_gain=1.15, fog_grain=0.24),
+        mtf=MTFSpec(48.0, 53.0, 58.0, adjacency=0.02),
+        halation=HalationSpec(
+            radii_um=(18.0, 90.0, 420.0),
+            gain_r=0.17, gain_g=0.08, gain_b=0.05,
+            threshold_stops=1.1,
+        ),
+        couplers=CouplerSpec(),
+        dye_matrix=_dye(-0.14),
+        base_tint=(0.990, 1.000, 0.975),
+        misregistration_um=7.0,
+        default_flare=0.07,
+        default_format="ff35",
+        features=Feature.HALATION | Feature.NITRATE_BASE,
+    ),
+
+    FilmProfile(
+        name="AGFACOLOR_NEG_TYPE_3",
+        aliases=("agfacolor type 3", "agfacolor 3", "agfacolor universal"),
+        description=(
+            "[T1] Agfacolor negative Type 3 -- the first UNIVERSAL colour "
+            "negative, and the reason it matters here is its balance point: "
+            "4000 K, chosen deliberately as the midpoint between arc/daylight "
+            "and incandescent so the film could be shot under either without a "
+            "compensating filter. No other stock in this database is balanced "
+            "there. The source is explicit that under real light (2800-3000 K "
+            "tungsten, or 5000-6000 K daylight) the three layer curves do NOT "
+            "coincide -- the film works anyway because its gradation is soft "
+            "enough that a normally exposed negative still prints correctly "
+            "with only a small change of correction filter. Also documented: a "
+            "markedly NARROWER green sensitisation than earlier Agfacolor, "
+            "little overlap between sensitisation bands, and a colloidal-silver "
+            "antihalation underlayer of the kind used on reversal stocks rather "
+            "than the usual dyed lacquer."
+        ),
+        era="1950s",
+        # 16/10 DIN tungsten = 20-25 ASA is what the source prints for the
+        # Agfacolor negative family (p172); Type 3 is the universal member of
+        # that family and no separate figure is given for it, so the low end of
+        # the family range is used and labelled as such [C3 for this stock,
+        # C1 for the family].
+        exposure_index=20,
+        balance_kelvin=4000,     # 4000 K, stated outright -- p174 [C1]
+        curves=RGBCurves(
+            # Gamma EST [C3], but constrained by documented behaviour: the
+            # source calls the gradation soft ("мягкая градация", p174) and
+            # makes that softness the mechanism by which one positive stock
+            # can print negatives shot under either illuminant. Values sit
+            # below the Agfacolor family's usual 0.60-0.65 for that reason.
+            r=_neg(0.24, 0.560, toe_x=-1.52, shoulder_x=1.66),
+            g=_neg(0.62, 0.570, toe_x=-1.54, shoulder_x=1.64),
+            b=_neg(1.00, 0.545, toe_x=-1.58, shoulder_x=1.60),
+        ),
+        grain=GrainSpec(12.5, 15.0, 16.0, 19.0, clump_gain=1.38, fog_grain=0.27),
+        # EST [C3] but pushed above the Agfacolor family baseline because the
+        # source credits Type 3 with strict zonal separation and narrow bands.
+        mtf=MTFSpec(34.0, 37.0, 40.0, adjacency=0.03, adjacency_um=22.0),
+        halation=HalationSpec(
+            radii_um=(16.0, 78.0, 360.0),
+            gain_r=0.09, gain_g=0.035, gain_b=0.011,
+            threshold_stops=1.3,
+        ),
+        couplers=CouplerSpec(0.10, 58.0, 0.04, 14.0),
+        # Lower cross-contamination than AGFACOLOR_NEG_TYPE_B_1943's, following
+        # the documented reduction in sensitisation overlap. Still positive:
+        # this is an unmasked Agfacolor negative and it still bleeds.
+        dye_matrix=_dye(0.14),
+        base_tint=(1.0, 0.970, 0.915),
+        misregistration_um=10.0,
+        default_flare=0.030,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+
+    FilmProfile(
+        name="ANSCOCOLOR_NEG_843",
+        aliases=("anscocolor 843", "ansco 843", "anscocolor negative"),
+        description=(
+            "[T1] Anscocolor negative Type 843, the US Agfacolor-derived cine "
+            "negative. The one stock in this batch with MEASURED per-layer "
+            "spectral peaks: 440 nm blue / 555 nm green / 655 nm red (p177). "
+            "Those are stated as sensitivity maxima, not as full curves, so "
+            "they are recorded in the description and NOT synthesised into a "
+            "spectral_sensitivity block -- three peak wavelengths do not "
+            "constitute a curve, and inventing Gaussians through them would "
+            "manufacture a shape the source never measured. Balanced for "
+            "5400 K, another non-standard point. Resolving power 48 lines/mm. "
+            "No antihalation layer at all: it is coated on a GREY base instead, "
+            "which suppresses halation differently -- broadly rather than "
+            "spectrally -- and slightly reduces effective speed."
+        ),
+        era="1947-1950s",
+        # The source gives 5400 K and 48 lp/mm for 843 but prints no speed for
+        # it; 13/10 DIN = 12 ASA is documented for the Anscocolor REVERSAL
+        # stock (p160) and Plenacolor at 16/10 DIN. Neither is this film. The
+        # value below is therefore an era estimate for an Agfacolor-class
+        # negative [C4] and is the weakest number in this profile.
+        exposure_index=16,
+        balance_kelvin=5400,     # 5400 K, stated outright -- p177 [C1]
+        curves=RGBCurves(
+            # EST [C4]. Structure is stated to follow Agfacolor practice, so
+            # shape is taken from the Agfacolor negative family and named as
+            # such rather than transferred silently.
+            r=_neg(0.25, 0.600, toe_x=-1.46, shoulder_x=1.56),
+            g=_neg(0.64, 0.615, toe_x=-1.48, shoulder_x=1.54),
+            b=_neg(1.02, 0.585, toe_x=-1.52, shoulder_x=1.50),
+        ),
+        grain=GrainSpec(13.0, 15.8, 16.6, 19.8, clump_gain=1.42, fog_grain=0.28),
+        # Scaled from the documented 48 lp/mm against Agfacolor negative's own
+        # figures in the same source; relative ordering documented [C2].
+        mtf=MTFSpec(36.0, 39.0, 42.0, adjacency=0.03, adjacency_um=23.0),
+        # Grey base rather than a dyed or colloidal-silver antihalation layer
+        # (p177). Modelled as low, spectrally FLAT halation gains -- a neutral
+        # absorber cannot preferentially pass red the way a dyed layer does.
+        halation=HalationSpec(
+            radii_um=(18.0, 88.0, 400.0),
+            gain_r=0.07, gain_g=0.06, gain_b=0.05,
+            threshold_stops=1.25,
+        ),
+        couplers=CouplerSpec(0.10, 60.0, 0.04, 14.0),
+        dye_matrix=_dye(0.18),
+        base_tint=(0.955, 0.950, 0.945),   # grey base, near-neutral
+        misregistration_um=10.5,
+        default_flare=0.030,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+
+    FilmProfile(
+        name="GEVACOLOR_NEG_652",
+        aliases=("gevacolor 652", "geva 652", "gevacolor negative 652"),
+        description=(
+            "[T1] Gevacolor negative Type 652 -- the 1950s Gevaert cine "
+            "negative, and NOT the GEVACOLOR_NEG_682 of 1979/80. Unusually "
+            "well specified for its date: ASA 32 (17/10 DIN) at 3200 K with a "
+            "PUBLISHED gamma of 0.65, and no yellow filter layer at all. The "
+            "source also prints its full exposure-index ladder by illuminant, "
+            "which is rare period data: ASA 32 nominal, then 16 in direct "
+            "tungsten at 3200 K, 12 in daylight behind a CTO-12, 10 under an "
+            "intense arc behind CTO-16, and 8 in daylight shade behind CTO-20. "
+            "Gevacolor's dye set is the outlier of the whole family: magenta "
+            "absorption sits at 550 nm, pushed long, giving it a bluish cast "
+            "and significant unwanted blue absorption, while cyan sits short at "
+            "660 nm -- which the source notes is the wrong direction for clean "
+            "printing selectivity, since it crowds the magenta band. Both "
+            "shifts are why the dye_matrix carries strong positive terms. "
+            "Compare GEVACOLOR_NEG_682: gamma 0.57 twenty years later, same "
+            "manufacturer, same 3200 K balance."
+        ),
+        era="1950s",
+        exposure_index=32,       # 32 ASA / 17/10 DIN -- p179 [C1]
+        balance_kelvin=3200,     # 3200 K, stated outright -- p179 [C1]
+        curves=RGBCurves(
+            # Gamma 0.65 is PUBLISHED (p179) [C1] and is used verbatim on all
+            # three records; the source gives one figure, not three, so no
+            # per-record spread is invented. Toe and shoulder positions are
+            # EST [C4].
+            r=_neg(0.26, 0.650, toe_x=-1.44, shoulder_x=1.54),
+            g=_neg(0.66, 0.650, toe_x=-1.44, shoulder_x=1.52),
+            b=_neg(1.06, 0.650, toe_x=-1.48, shoulder_x=1.48),
+        ),
+        grain=GrainSpec(12.8, 15.4, 16.2, 19.4, clump_gain=1.44, fog_grain=0.29),
+        # "Good resolving power" is asserted (p179) without a figure, and the
+        # absence of a yellow filter layer supports it. Set above
+        # GEVACOLOR_1952 but no number is claimed [C3].
+        mtf=MTFSpec(35.0, 38.0, 41.0, adjacency=0.03, adjacency_um=23.0),
+        halation=HalationSpec(
+            radii_um=(16.0, 80.0, 370.0),
+            gain_r=0.10, gain_g=0.04, gain_b=0.013,
+            threshold_stops=1.3,
+        ),
+        couplers=CouplerSpec(0.10, 60.0, 0.04, 14.0),
+        # Documented dye placement drives this: magenta long at 550 nm with
+        # heavy unwanted blue absorption, cyan short at 660 nm. Strong positive
+        # off-diagonals are a consequence of measured absorption bands [C2],
+        # not a taste decision.
+        dye_matrix=_dye(0.22),
+        base_tint=(1.0, 0.968, 0.910),
+        misregistration_um=11.0,
+        default_flare=0.030,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+
+    FilmProfile(
+        name="FERRANIACOLOR_NEG_82",
+        aliases=("ferraniacolor 82", "ferraniacolor negative", "ferrania 82"),
+        description=(
+            "[T1] Ferraniacolor negative Type 82, Ferrania's studio cine "
+            "negative (Turin/Milan). ASA 20 (15/10 DIN). The source states "
+            "outright that its structure, zonal sensitivity distribution and "
+            "dye absorption curves are ANALOGOUS TO THE AGFACOLOR NEGATIVE "
+            "(p181) -- that sentence is a documented equivalence assertion, "
+            "which is what licenses taking curve family, dye behaviour and "
+            "layer arrangement from the Agfacolor negative here instead of "
+            "guessing. Note this is a COLOUR CINE stock and has nothing to do "
+            "with FERRANIA_P30, which is the modern black-and-white revival: "
+            "same company, unrelated product lines, and no data crosses "
+            "between them. Balanced for tungsten, as the whole Ferraniacolor "
+            "negative line is."
+        ),
+        era="1950s",
+        exposure_index=20,       # 15/10 DIN = 20 ASA -- p180 [C1]
+        # The source gives 3200 K explicitly for the slower Type 51 and calls
+        # Type 82 the studio stock of the same set. Studio in this context is
+        # incandescent, so 3200 K [C2 -- documented for the sibling and for the
+        # stated application, not printed against Type 82 itself].
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            # Taken from the Agfacolor negative family under the explicit
+            # equivalence assertion at p181 [C2].
+            r=_neg(0.25, 0.600, toe_x=-1.46, shoulder_x=1.56),
+            g=_neg(0.64, 0.615, toe_x=-1.48, shoulder_x=1.54),
+            b=_neg(1.02, 0.585, toe_x=-1.52, shoulder_x=1.50),
+        ),
+        grain=GrainSpec(12.6, 15.2, 16.0, 19.2, clump_gain=1.40, fog_grain=0.28),
+        mtf=MTFSpec(34.0, 37.0, 40.0, adjacency=0.03, adjacency_um=23.0),
+        halation=HalationSpec(
+            radii_um=(16.0, 80.0, 370.0),
+            gain_r=0.10, gain_g=0.04, gain_b=0.012,
+            threshold_stops=1.3,
+        ),
+        couplers=CouplerSpec(0.10, 60.0, 0.04, 14.0),
+        dye_matrix=_dye(0.19),
+        base_tint=(1.0, 0.968, 0.912),
+        misregistration_um=10.5,
+        default_flare=0.030,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+
+    FilmProfile(
+        name="FERRANIACOLOR_REVERSAL_1950",
+        aliases=("ferraniacolor reversal", "ferraniacolor", "ferrania colour reversal"),
+        description=(
+            "[T1] Ferraniacolor reversal, daylight. ASA 20 (15/10 DIN) -- the "
+            "fastest of the incorporated-coupler reversal stocks the source "
+            "measures, and faster than either Anscocolor or Gevacolor "
+            "reversal at 12 ASA. Resolving power 30 lines/mm, measured by the "
+            "same method that gives Kodachrome 40, Ilfordcolor 36, Agfacolor "
+            "32 and Gevacolor 24, so that whole ladder is internally "
+            "comparable (p152). Dye placement is documented by comparison: the "
+            "magenta absorption curve is IDENTICAL to Agfacolor's middle "
+            "layer, while the cyan is close to Gevacolor's and Anscocolor's -- "
+            "i.e. short, near 660 nm. Again: unrelated to FERRANIA_P30, which "
+            "is the modern black-and-white stock."
+        ),
+        era="1950s",
+        exposure_index=20,       # 15/10 DIN = 20 ASA -- p166 [C1]
+        balance_kelvin=5500,     # daylight stock (p166); 5500 K is the
+                                 # database daylight convention [C3 -- the
+                                 # source says "for daylight", not a number]
+        kind=StockKind.REVERSAL,
+        curves=RGBCurves(
+            # EST [C4]. Reversal shape of the incorporated-coupler Agfacolor
+            # family, which the source groups this stock with; Ferraniacolor is
+            # noted to develop LESS yellow density and slightly excess magenta
+            # under the Agfacolor process (p167), reflected in the dmin spread.
+            r=_rev(0.28, 1.58, toe_x=-0.64, shoulder_x=0.74),
+            g=_rev(0.26, 1.66, toe_x=-0.66, shoulder_x=0.72),
+            b=_rev(0.32, 1.60, toe_x=-0.62, shoulder_x=0.70),
+        ),
+        grain=GrainSpec(10.6, 13.4, 12.8, 16.2, clump_gain=1.22, fog_grain=0.28),
+        # 30 lp/mm (p152), scaled on the same 40:24 Kodachrome:Gevacolor anchor
+        # used above so the whole reversal ladder stays consistent [C2].
+        mtf=MTFSpec(36.0, 40.0, 44.0, adjacency=0.02),
+        halation=HalationSpec(
+            radii_um=(20.0, 100.0, 460.0),
+            gain_r=0.22, gain_g=0.12, gain_b=0.07,
+            threshold_stops=1.05,
+        ),
+        couplers=CouplerSpec(),
+        # Magenta identical to Agfacolor's, cyan short like Gevacolor's [C1 for
+        # the placement]. Positive off-diagonals, between Agfacolor's and
+        # Gevacolor's in magnitude.
+        dye_matrix=_dye(0.30),
+        base_tint=(0.985, 1.000, 0.950),
+        misregistration_um=9.0,
+        default_flare=0.085,
+        default_format="ff35",
+        features=Feature.HALATION | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE,
+    ),
+
+    FilmProfile(
+        name="SVEMA_DS_2",
+        aliases=("ds-2", "ds2", "svema ds-2"),
+        description=(
+            "[T1] Soviet colour negative Type DS-2, for INTERIOR shooting "
+            "under carbon arc at 5000 K -- a balance point no other stock here "
+            "carries, and one worth having: Soviet studio arc practice was not "
+            "the 5800 K of German arc nor the 3200 K of Hollywood incandescent. "
+            "Speed 20-26 NIKFI units, gamma 0.60-0.85, resolving power 65 "
+            "lines/mm on the SR-13 resolvometer. Natural layer order with a "
+            "colloidal-silver yellow filter layer; triacetate or nitrate base "
+            "with a green-dyed antihalation lacquer on the back that BLEACHES "
+            "OUT during processing, so it affects the shot image but not the "
+            "finished negative's base colour. Unmasked -- no orange base -- "
+            "which is why the dye_matrix runs strongly positive, exactly as on "
+            "SVEMA_DS_4 and the ORWOCOLOR line."
+        ),
+        era="1950s",
+        # NIKFI colour units, S = 20/H at density 0.85 above maximum fog
+        # (p175). NIKFI is NOT GOST and NOT ASA, and the source gives no
+        # conversion. The midpoint of the printed 20-26 range is carried across
+        # as an exposure index because the database has no NIKFI field; that
+        # numeric identification is an ASSUMPTION [C4] and is the single
+        # weakest link in this profile. The RANGE and the CRITERION are [C1].
+        exposure_index=23,
+        balance_kelvin=5000,     # 5000 K arc, stated outright -- p175 [C1]
+        curves=RGBCurves(
+            # Gamma: the source prints 0.60-0.85 for the DS/LN negative family
+            # (p175) [C1 for the range]. 0.72, near the middle, is used; the
+            # spread across records is EST [C3]. Note SVEMA_DS_4 carries 0.8
+            # from Gurlev 1986, comfortably inside this same range -- two
+            # independent sources agreeing across three decades.
+            r=_neg(0.25, 0.700, toe_x=-1.42, shoulder_x=1.50),
+            g=_neg(0.64, 0.720, toe_x=-1.44, shoulder_x=1.48),
+            b=_neg(1.02, 0.690, toe_x=-1.48, shoulder_x=1.44),
+        ),
+        grain=GrainSpec(13.4, 16.2, 17.0, 20.4, clump_gain=1.46, fog_grain=0.30),
+        # 65 lp/mm on SR-13 (p175). Independently corroborated: Gurlev 1986
+        # gives 63 lin/mm for DS-4, the later member of the same family. Scaled
+        # onto the database's f50 convention [C2].
+        mtf=MTFSpec(38.0, 41.0, 44.0, adjacency=0.03, adjacency_um=23.0),
+        halation=HalationSpec(
+            radii_um=(17.0, 84.0, 390.0),
+            gain_r=0.11, gain_g=0.045, gain_b=0.014,
+            threshold_stops=1.28,
+        ),
+        couplers=CouplerSpec(0.09, 58.0, 0.035, 13.0),
+        dye_matrix=_dye(0.24),   # unmasked Soviet negative, as SVEMA_DS_4
+        base_tint=(1.0, 0.972, 0.918),
+        misregistration_um=11.5,
+        default_flare=0.032,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+
+    FilmProfile(
+        name="SVEMA_LN_3",
+        aliases=("ln-3", "ln3", "svema ln-3"),
+        description=(
+            "[T1] Soviet colour negative Type LN-3 (ЛН = лампы накаливания, "
+            "incandescent lamps), balanced for 3300 K -- again not the 3200 K "
+            "western studio standard but 100 K above it, and the difference is "
+            "documented rather than rounded away. Same family as SVEMA_DS_2: "
+            "speed 20-26 NIKFI, gamma 0.60-0.85, 65 lines/mm on SR-13, natural "
+            "layer order, colloidal-silver yellow filter layer, bleaching "
+            "green antihalation lacquer, and unmasked. The DS/LN pair is the "
+            "Soviet answer to Agfacolor T/K, and this is the K side of it."
+        ),
+        era="1950s",
+        exposure_index=23,       # 20-26 NIKFI, p175; see SVEMA_DS_2 on why
+                                 # calling that an exposure index is [C4]
+        balance_kelvin=3300,     # 3300 K, stated outright -- p175 [C1]
+        curves=RGBCurves(
+            # Same documented family range as DS-2 (p175). Identical shape to
+            # DS-2 is a NAMED propagation: the source describes one negative
+            # family with one gamma range and one resolving power, and
+            # distinguishes the members by sensitisation balance only.
+            r=_neg(0.25, 0.700, toe_x=-1.42, shoulder_x=1.50),
+            g=_neg(0.64, 0.720, toe_x=-1.44, shoulder_x=1.48),
+            b=_neg(1.02, 0.690, toe_x=-1.48, shoulder_x=1.44),
+        ),
+        grain=GrainSpec(13.4, 16.2, 17.0, 20.4, clump_gain=1.46, fog_grain=0.30),
+        mtf=MTFSpec(38.0, 41.0, 44.0, adjacency=0.03, adjacency_um=23.0),
+        halation=HalationSpec(
+            radii_um=(17.0, 84.0, 390.0),
+            gain_r=0.11, gain_g=0.045, gain_b=0.014,
+            threshold_stops=1.28,
+        ),
+        couplers=CouplerSpec(0.09, 58.0, 0.035, 13.0),
+        dye_matrix=_dye(0.24),
+        base_tint=(1.0, 0.972, 0.918),
+        misregistration_um=11.5,
+        default_flare=0.032,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+
+    FilmProfile(
+        name="EASTMANCOLOR_5248_1953",
+        aliases=("eastmancolor 5248", "eastmancolor negative 1953",
+                 "eastmancolor 1953"),
+        description=(
+            "[T1] Eastmancolor negative Type 5248 as specified in 1953 -- and "
+            "emphatically NOT EASTMAN_EXR_100T_5248, which is the 1989 EXR "
+            "stock. Kodak reused the number; these are different films thirty "
+            "six years apart and no data crosses between them. ASA 32 at "
+            "3200 K, dropping to ASA 24 in daylight behind a Wratten 85 or "
+            "85B. The source publishes EFFECTIVE SENSITISATION BANDS rather "
+            "than curves: 380-500 nm top, 490-580 nm middle, 580-680 nm "
+            "bottom. Those are band edges, not a curve, so they are recorded "
+            "here and NOT turned into a spectral_sensitivity block. Two "
+            "coloured masking couplers are documented -- a YELLOW-coloured "
+            "coupler in the green layer to mask the magenta dye's unwanted "
+            "blue absorption, and an ORANGE-coloured one in the red layer, "
+            "orange because the cyan dye absorbs unwanted in BOTH blue and "
+            "green. This is the origin of the orange negative base. The "
+            "coloured couplers occupy only the lower part of each layer. "
+            "Antihalation layer optical density is stated as 1.3. Per-layer "
+            "resolving power is published too: 110 lines/mm in the top yellow "
+            "record, 46 in the middle magenta, 30 in the bottom cyan -- a 3.7x "
+            "spread WITHIN one film, which this database's single-MTF schema "
+            "cannot represent and which is recorded here instead."
+        ),
+        era="1953-1950s",
+        exposure_index=32,       # 32 ASA at 3200 K -- p220 [C1]
+        balance_kelvin=3200,     # 3200 K, stated outright -- p220 [C1]
+        curves=RGBCurves(
+            # EST [C4]. No curve or gamma is published for 5248 in this source.
+            # Shape follows EASTMAN_5247_1974's masked-negative family, the
+            # nearest already-modelled Eastmancolor, at slightly higher gamma
+            # for the earlier generation.
+            r=_neg(0.28, 0.620, toe_x=-1.48, shoulder_x=1.58),
+            g=_neg(0.70, 0.630, toe_x=-1.50, shoulder_x=1.56),
+            b=_neg(1.08, 0.610, toe_x=-1.54, shoulder_x=1.52),
+        ),
+        grain=GrainSpec(12.0, 14.6, 15.4, 18.6, clump_gain=1.36, fog_grain=0.26),
+        # Anchored on the documented 46 lp/mm of the MIDDLE (magenta) record,
+        # since green carries most perceived sharpness; the 110/46/30 spread
+        # itself cannot be stored [C2 for the anchor, C3 for the level].
+        mtf=MTFSpec(37.0, 40.0, 43.0, adjacency=0.035, adjacency_um=22.0),
+        # Antihalation optical density 1.3, carbon black in acetyl-phthalate
+        # cellulose on the back of the base (p221) [C1]. A dense neutral
+        # absorber, hence low and fairly flat gains.
+        halation=HalationSpec(
+            radii_um=(15.0, 74.0, 340.0),
+            gain_r=0.07, gain_g=0.045, gain_b=0.020,
+            threshold_stops=1.35,
+        ),
+        couplers=CouplerSpec(0.13, 62.0, 0.05, 15.0),
+        # MASKED stock: the coloured couplers cancel the dyes' unwanted
+        # absorption, which is precisely what makes the off-diagonals small and
+        # NEGATIVE where the unmasked Agfacolor family runs positive. The
+        # source is explicit that the source of the correction is the residual
+        # coloured coupler acting as a positive image [C1 for the mechanism].
+        dye_matrix=_dye(-0.06),
+        mask_encoding="orange_masked",
+        base_tint=(1.0, 0.760, 0.520),   # documented orange mask
+        misregistration_um=9.5,
+        default_flare=0.028,
+        features=Feature.UNEVEN_EMULSION | Feature.HALATION,
+    ),
+
 )
 
 # Presented in NATURAL (numeric-aware) order by name: digit runs inside a name
@@ -6685,6 +7255,39 @@ _NO_DATASHEET: tuple[str, ...] = (
 #: could NOT be re-verified in this pass and were left untouched; see
 #: NotFound.md for the full list and the specific parameters still missing.
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
+    # ---- 2026-08-13 batch, Cheltsov & Bongard 1958 (Soviet monograph). Each
+    # entry names the page its documented values came from, so a later reader
+    # can check any single number without re-reading the book.
+    "KODACHROME_1938": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p144 (5900 K, ASA 12/13 DIN, five Kodachrome types), p143 (structure, 1941 three-layer form), p150 (dye selectivity), p152 (40 lines/mm)",),
+    "KODACHROME_TYPE_A_1938": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p144 (3450 K, ASA 20), p152 (40 lines/mm, shared with the daylight stock)",),
+    "AGFACOLOR_NEG_TYPE_3": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p173-174 (universal type 3, photographic balance 4000 K, soft gradation, narrowed green sensitisation, colloidal-silver antihalation underlayer), p172 (Agfacolor negative family speeds 14/16 DIN, 20-25 ASA)",),
+    "ANSCOCOLOR_NEG_843": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p177 (5400 K, layer sensitivity maxima 440/555/655 nm, 48 lines/mm, grey antihalation base, no antihalation layer)",),
+    "GEVACOLOR_NEG_652": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p179-180 (32 ASA / 17/10 DIN, gamma 0.65, 3200 K, no yellow filter layer, exposure-index ladder by illuminant with CTO filters), p179 (magenta absorption max 550 nm, cyan max 660 nm)",),
+    "FERRANIACOLOR_NEG_82": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p180-181 (type 82, studio, 15/10 DIN = 20 ASA; structure, zonal sensitivity and dye absorption stated ANALOGOUS to the Agfacolor negative), p180 (type 51 at 3200 K)",),
+    "FERRANIACOLOR_REVERSAL_1950": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p166 (15/10 DIN = 20 ASA, daylight; magenta absorption identical to Agfacolor, cyan close to Gevacolor/Anscocolor), p152 (30 lines/mm in the same measurement set as Kodachrome 40 / Ilfordcolor 36 / Agfacolor 32 / Gevacolor 24), p167 (behaviour under the Agfacolor process)",),
+    "SVEMA_DS_2": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p175 (DS-2 for interior arc at 5000 K; NIKFI speed 20-26 at S=20/H, density 0.85 above maximum fog; contrast coefficient 0.60-0.85; 65 lines/mm on resolvometer SR-13; natural layer order, colloidal-silver yellow filter layer, bleaching green antihalation lacquer)",),
+    "SVEMA_LN_3": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p175 (LN-3 for incandescent at 3300 K; NIKFI speed 20-26; contrast coefficient 0.60-0.85; 65 lines/mm on SR-13)",),
+    "EASTMANCOLOR_5248_1953": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p220-222 (type 5248, 3200 K, 32 ASA, 24 ASA in daylight behind Wratten 85/85B; effective sensitisation bands 380-500 / 490-580 / 580-680 nm; yellow and orange coloured masking couplers in the lower part of the green and red layers; antihalation optical density 1.3; developer CD-3), p200 and p234 (per-layer resolving power 110 / 46 / 30 lines/mm)",),
     # ---- 2026-08-13 batch (each stock's own sheet, PDF/PROFILES/) ----
     "KODAK_TMAX_100": ("KODAK PROFESSIONAL T-MAX Films, publication F-4016 (2018), Eastman Kodak Company",),
     "KODAK_TMAX_400": ("KODAK PROFESSIONAL T-MAX 400 Film, publication F-4043 (2016), Eastman Kodak Company",),
@@ -8012,6 +8615,142 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
         grain_rms=4.2,
         grain_clump_um=7.5,
     ),
+
+    # -----------------------------------------------------------------------
+    # 2026-08-13 -- Soviet and Eastmancolor colour POSITIVE stocks documented
+    # by Cheltsov & Bongard 1958. These are PrintStock and not FilmProfile for
+    # the reason already recorded on TASMA_POSITIVE_28: a positive film is not
+    # something you expose in a camera.
+    #
+    # What makes this set worth having is that the source publishes RESOLVING
+    # POWER for each, measured on one instrument (resolvometer SR-13 for the
+    # Soviet stocks), and the numbers differ by nearly 3x across three stocks
+    # from the same factory. The mechanism is documented, not guessed: TsP-1
+    # carries a colloidal-silver yellow filter layer, TsP-3 replaces it with a
+    # washing-out yellow dye, and TsP-6 both moves the blue-sensitive layer to
+    # the BOTTOM and stains the emulsion bluish-magenta. Less scatter in the
+    # layer that matters means a sharper print, and the ladder 70 -> 150 -> 200
+    # lines/mm is the measured consequence.
+    #
+    # SCHEMA LIMIT, stated rather than worked around: PrintStock carries ONE
+    # mtf_f50. The source's per-layer figures for Eastmancolor positive (200
+    # magenta / 97 cyan / 37 yellow) cannot be represented and are recorded in
+    # the descriptions instead. Nor can the inverted layer ORDER of TsP-6, the
+    # Eastmancolor positive and Duponcolor 275 be represented at all.
+    # -----------------------------------------------------------------------
+    PrintStock(
+        name="TSP_1_POSITIVE",
+        description=(
+            "[T1] Soviet colour positive cine film TsP-1 (ЦП-1), the first of "
+            "the family: natural layer order, colloidal-silver yellow filter "
+            "layer, resolving power 70 lines/mm on resolvometer SR-13. The "
+            "slowest and softest of the three -- speed not less than 1.0 NIKFI "
+            "unit, measured as S = 20/H at density 0.85 above fog. Pair with "
+            "SVEMA_DS_2, SVEMA_LN_3 or SVEMA_DS_4 for a period Soviet colour "
+            "release print. SOURCE Cheltsov & Bongard 1958, p175-176."
+        ),
+        curves=RGBCurves(
+            # EST [C4]. No curve is published. High print gamma per positive
+            # practice; slightly lower than TSP_3/TSP_6 is NOT claimed, the
+            # three carry the same curve and differ only in sharpness, which is
+            # the one property the source actually measures.
+            r=ToneCurve(0.09, 2.48, -0.76, 0.23, 0.80, 0.31),
+            g=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
+            b=ToneCurve(0.10, 2.56, -0.72, 0.23, 0.76, 0.31),
+        ),
+        mtf_f50=44.0,       # from 70 lp/mm on SR-13 [C2 for the ordering]
+        grain_rms=3.6,      # EST [C3]
+        grain_clump_um=6.8,
+        dye_matrix=_dye(0.12),   # unmasked Soviet dye set, impure
+    ),
+    PrintStock(
+        name="TSP_3_POSITIVE",
+        description=(
+            "[T1] Soviet colour positive cine film TsP-3 (ЦП-3). Same layer "
+            "order and same dye set as TSP_1_POSITIVE, with ONE documented "
+            "change: the colloidal-silver yellow filter layer is replaced by a "
+            "yellow dye that washes out during processing. That single "
+            "substitution more than doubles resolving power, 70 -> 150 "
+            "lines/mm on SR-13, because a dissolved dye scatters nothing once "
+            "it is gone whereas colloidal silver scatters throughout the "
+            "exposure. SOURCE Cheltsov & Bongard 1958, p175-176."
+        ),
+        curves=RGBCurves(
+            r=ToneCurve(0.09, 2.48, -0.76, 0.23, 0.80, 0.31),
+            g=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
+            b=ToneCurve(0.10, 2.56, -0.72, 0.23, 0.76, 0.31),
+        ),
+        mtf_f50=76.0,       # from 150 lp/mm on SR-13 [C2 for the ordering]
+        grain_rms=3.2,
+        grain_clump_um=6.2,
+        dye_matrix=_dye(0.12),
+    ),
+    PrintStock(
+        name="TSP_6_POSITIVE",
+        description=(
+            "[T1] Soviet colour positive cine film TsP-6 (ЦП-6), the sharpest "
+            "stock in this database: resolving power ABOVE 200 lines/mm on "
+            "resolvometer SR-13. Two documented departures earn it. First, the "
+            "layer order is inverted -- the blue-sensitive yellow-forming layer "
+            "is at the BOTTOM and the green-sensitive magenta-forming layer on "
+            "top, so the magenta record, which carries most of the sharpness "
+            "the eye perceives, is the layer light reaches first. Second, there "
+            "is no blue-absorbing filter layer at all: separation is achieved "
+            "purely by the differing blue sensitivity of two sensitised upper "
+            "layers and one unsensitised lower one, and the emulsion is stained "
+            "bluish-magenta to suppress scatter. The same trick appears on the "
+            "Eastmancolor, Gevacolor and Duponcolor positives. NOTE the layer "
+            "inversion itself is NOT modelled -- this schema has no layer-order "
+            "field -- so what is carried here is only its measured consequence. "
+            "SOURCE Cheltsov & Bongard 1958, p176, p199-200."
+        ),
+        curves=RGBCurves(
+            r=ToneCurve(0.09, 2.48, -0.76, 0.23, 0.80, 0.31),
+            g=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
+            b=ToneCurve(0.10, 2.56, -0.72, 0.23, 0.76, 0.31),
+        ),
+        mtf_f50=98.0,       # from >200 lp/mm on SR-13 [C2 for the ordering]
+        grain_rms=2.8,
+        grain_clump_um=5.6,
+        dye_matrix=_dye(0.12),
+    ),
+    PrintStock(
+        name="EASTMANCOLOR_5382_1953",
+        description=(
+            "[T1] Eastmancolor colour positive Type 5382 (35 mm; 7382 is the "
+            "16 mm version), the release-print half of the 1953 Eastmancolor "
+            "set whose negative is EASTMANCOLOR_5248_1953. Layer order is "
+            "rearranged exactly as on TSP_6_POSITIVE and for the same reason: "
+            "green-sensitive magenta-forming layer on top (510-570 nm), "
+            "red-sensitive cyan-forming in the middle (660-700 nm), and the "
+            "blue record at the BOTTOM on an unsensitised silver-bromide layer "
+            "using its natural 380-480 nm sensitivity. No yellow filter layer. "
+            "Published per-layer resolving power is 200 lines/mm magenta, 97 "
+            "cyan and 37 yellow -- the single mtf_f50 below cannot express that "
+            "spread and is anchored on the magenta record, which dominates "
+            "perceived sharpness. Speed is about 0.1x that of Kodak's "
+            "black-and-white positive 5302. Upper and middle layers are "
+            "slow chloride emulsions; a bluish-magenta filter dye is added to "
+            "cut green scatter. Kodak specified storage at 3 degrees C for this "
+            "stock, against 10 for the camera negatives. SOURCE Cheltsov & "
+            "Bongard 1958, p226-228, p234."
+        ),
+        curves=RGBCurves(
+            # EST [C4]; no curve published. Release-print gamma, close to
+            # KODAK_2383_RELEASE, which is the same role three decades later.
+            r=ToneCurve(0.08, 2.58, -0.74, 0.22, 0.76, 0.30),
+            g=ToneCurve(0.08, 2.66, -0.72, 0.21, 0.74, 0.29),
+            b=ToneCurve(0.09, 2.72, -0.70, 0.21, 0.72, 0.29),
+        ),
+        mtf_f50=96.0,       # anchored on the 200 lp/mm magenta record [C2]
+        grain_rms=2.6,
+        grain_clump_um=5.8,
+        # Positive dye set of 1953, less clean than 2383's; the source gives
+        # absorption curves but no matrix, so the sign is documented and the
+        # magnitude is EST [C3].
+        dye_matrix=_dye(-0.05),
+    ),
+
 )
 
 

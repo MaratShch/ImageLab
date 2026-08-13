@@ -177,7 +177,25 @@ def blocks_from_source(path: str = "film_profiles.py") -> dict[str, str]:
     hits = list(re.finditer(r'name="([A-Z0-9_]+)",', src))
     for i, m in enumerate(hits):
         end = hits[i + 1].start() if i + 1 < len(hits) else len(src)
-        out[m.group(1)] = src[m.start():end]
+        blk = src[m.start():end]
+        # BOUND THE BLOCK AT THE END OF ITS OWN LITERAL. Fixed 2026-08-13.
+        # A profile body is indented; anything starting in column 0 is the next
+        # module-level statement and belongs to nobody. Without this cut the
+        # textually LAST profile in each tuple swallowed everything up to the
+        # next name= match -- which for the last FilmProfile means the whole
+        # tail of the module, including _PROVENANCE_SOURCES. The citation
+        # scanner then harvested other stocks' document numbers and printed
+        # them as this stock's references. Observed concretely:
+        # EASTMANCOLOR_5248_1953 was credited with Kodak publications F-4016,
+        # F-4043 and F-4001, which are the T-MAX sheets and have nothing to do
+        # with a 1953 Eastmancolor negative. The bug predates this fix and
+        # simply moved from stock to stock as the last profile changed, so any
+        # earlier report may carry the same contamination on whichever stock
+        # happened to be last.
+        cut = re.search(r"\n(?=[A-Za-z_@#])", blk)
+        if cut:
+            blk = blk[:cut.start()]
+        out[m.group(1)] = blk
     return out
 
 

@@ -197,6 +197,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\AlgoSuperPixel.hpp" />
     <ClInclude Include="include\AlgoWhiteBalance.hpp" />
+    <ClInclude Include="include\ColorLocus.hpp" />
     <ClInclude Include="include\ColorTemperature.hpp" />
     <ClInclude Include="include\ColorTemperatureControls.hpp" />
     <ClInclude Include="include\ColorTemperatureControlsPresets.hpp" />

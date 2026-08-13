@@ -4,6 +4,7 @@
 #include "ImageLabMemInterface.hpp"
 #include "ColorTemperatureControls.hpp"
 #include "AlgorithmMain.hpp"
+#include "AlgoPrFormatIngest.hpp"
 
 // static link with ColorEngine static library
 #ifdef _DEBUG
@@ -13,6 +14,21 @@
 #endif
 
 
+// Create CCTHandle
+AlgoCCT::CctHandle<double> cctHdnl;
+
+// Build the locus-proximity gate ONCE (used by ingest_and_superpixel).
+// It replaces the former saturation gate: pixels are kept by DISTANCE
+// TO THE PLANCKIAN LOCUS, so illuminant-cast neutrals (sunset, blue
+// hour) are retained and object colors are rejected. Built from the
+// same observer locus table used for ComputeCct and the working-space
+// RGB->XYZ matrix; taper: full weight |Duv|<=0.010, zero at >=0.020.
+AlgoPrIngest::LocusGate locusGate1931;
+AlgoPrIngest::LocusGate locusGate1964;
+
+
+AlgoCCT::CctHandle<double>& getCctHndl(void) {return cctHdnl;}
+AlgoPrIngest::LocusGate& getLocusGate (bool is1931) {return (true == is1931 ? locusGate1931 : locusGate1964);}
 
 
 static PF_Err
@@ -44,6 +60,14 @@ GlobalSetup(
 
     if (false == LoadMemoryInterfaceProvider(in_data))
         return err;
+
+    {
+        const auto lut1931 = cctHdnl.getLut_CIE_1931();
+        AlgoPrIngest::build_locus_gate(lut1931.first, lut1931.second, sRGBtoXYZ_f64, 0.010, 0.020, locusGate1931);
+
+        const auto lut1964 = cctHdnl.getLut_CIE_1964();
+        AlgoPrIngest::build_locus_gate(lut1964.first, lut1964.second, sRGBtoXYZ_f64, 0.010, 0.020, locusGate1931);
+    }
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |

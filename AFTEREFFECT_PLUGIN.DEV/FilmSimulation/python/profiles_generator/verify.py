@@ -6,7 +6,8 @@ import numpy as np
 from PIL import Image
 
 import film_sim as fs
-from film_profiles import FILM_PROFILES, FORMATS, StockKind, get_profile, validate_all
+from film_profiles import (FILM_PROFILES, FORMATS, PRINT_STOCKS, StockKind,
+                           get_profile, validate_all)
 
 ok = True
 def chk(label, cond, extra=""):
@@ -66,10 +67,19 @@ if _sec_on():
     # TSNL renamed CNL; EIGHT_MM_* renamed GENERIC_*).
     # 2026-08-13 second batch: 98 -> 121 (Kodak still B&W + colour negative
     # lines and Agfa Scala 200x, from their own sheets in the landing).
-    chk("121 stocks load and validate", len(FILM_PROFILES) == 121, f"n={len(FILM_PROFILES)}")
+    # 2026-08-13 third batch: 121 -> 131 (Cheltsov & Bongard 1958 -- two
+    # Kodachromes, Agfacolor type 3, Anscocolor 843, Gevacolor 652, two
+    # Ferraniacolor, Svema DS-2 and LN-3, Eastmancolor 5248/1953). Four
+    # colour PrintStocks landed in the same batch: 5 -> 9.
+    chk("131 stocks load and validate", len(FILM_PROFILES) == 131, f"n={len(FILM_PROFILES)}")
+    chk("9 print stocks load", len(PRINT_STOCKS) == 9, f"n={len(PRINT_STOCKS)}")
     rev = [p.name for p in FILM_PROFILES if p.is_reversal]
     # 2026-08-13: 22 -> 23 (AGFA_SCALA_200X, B&W reversal, added).
-    chk("reversal stocks flagged", len(rev) == 23, ", ".join(rev))
+    # 2026-08-13: 23 -> 26. Cheltsov & Bongard 1958 added three reversal
+    # stocks: KODACHROME_1938, KODACHROME_TYPE_A_1938 (both Kodachrome-process
+    # reversal, diffusing couplers in the developer) and
+    # FERRANIACOLOR_REVERSAL_1950 (incorporated couplers).
+    chk("reversal stocks flagged", len(rev) == 26, ", ".join(rev))
 
     # alias resolution incl. the user's own phrasing
     cases = {

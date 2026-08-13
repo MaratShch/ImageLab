@@ -14,7 +14,7 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > `CURVE_RESOLUTION_ANALYSIS_2026-08-13.md`.
 >
 > **Status 2026-08-13 (fifth entry, CORRECTED):** the spectral-sensitivity gap
-> is **partly** closed. The digitised per-layer curves (53 of 121 stocks) were read by
+> is **partly** closed. The digitised per-layer curves (53 of 131 stocks) were read by
 > nothing; they now drive colour-temperature balance in both Python and C++.
 > The monochrome-collapse and taking-matrix derivations were also built, then
 > found to reproduce a failure a 2026-08-03 analysis had already quarantined
@@ -26,6 +26,20 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > matrix is computed and reported but deliberately NOT wired in — it would
 > double-count mixing already carried by `dye_matrix` and `InterimageSpec`. See
 > `CHANGES_2026-08-13_spectral_path.md`.
+>
+> **Status 2026-08-13 (fifth entry):** **131 film stocks, 9 print stocks** —
+> Cheltsov & Bongard 1958 (Soviet monograph on colour development of three-layer
+> materials) contributed ten camera stocks and four colour positives. Its value is
+> disproportionately *documented* rather than authored: **six balance colour
+> temperatures that existed nowhere in the corpus** (5900, 5400, 5000, 4000, 3450,
+> 3300 K), one published gamma, and one internally comparable five-stock
+> resolving-power ladder. Before this batch the whole database used four distinct
+> balance points. It also promotes `DUPE_FINE_GRAIN`'s unity gamma from a
+> first-principles argument to a manufacturer citation. Three schema gaps are now
+> exercised by real data and remain unimplementable: per-layer MTF, layer order,
+> and the processing axis. A generator bug was found and fixed in passing
+> (`gen_active_profiles` credited the textually-last stock with other stocks'
+> document numbers). Full record: `CHANGES_2026-08-13_cheltsov1958.md`.
 >
 > **Status 2026-08-13 (fourth entry):** **121 stocks** — owner-selected batch
 > from the landing: 9 Kodak still B&W (T-MAX 100/400/P3200, TRI-X 400/320,
@@ -350,7 +364,7 @@ structure is built to accept real data; only the numbers are provisional.
 
 | File | Purpose |
 |------|---------|
-| `film_profiles.py` | Physical parameters, 93 stocks, 5 print stocks, 14 gauges |
+| `film_profiles.py` | Physical parameters, 131 stocks, 9 print stocks, 14 gauges |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp`, then `film_names.txt` and `film_enum.hpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |

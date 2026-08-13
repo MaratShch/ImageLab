@@ -14,7 +14,7 @@ using CmdArgs = std::array<std::wstring, SIZE>;
 
 
 template <std::size_t SIZE_CMD_LINE_ARGS>
-inline PROCESS_INFORMATION ImageLabRunExecutable (const std::wstring& exe_full_path, const CmdArgs<SIZE_CMD_LINE_ARGS>& cmdLine)
+inline PROCESS_INFORMATION ImageLabRunExecutable (const std::wstring& exe_full_path, const CmdArgs<SIZE_CMD_LINE_ARGS>& cmdLine, DWORD* pErrorCode = nullptr)
 {
     CACHE_ALIGN STARTUPINFOW si{ 0 };
     PROCESS_INFORMATION pi{ 0 };
@@ -54,7 +54,12 @@ inline PROCESS_INFORMATION ImageLabRunExecutable (const std::wstring& exe_full_p
 
     // Optional: You might want to log GetLastError() if success == FALSE
     if (FALSE == success)
+    {
+        if (nullptr != pErrorCode)
+            *pErrorCode = GetLastError();
+
         pi = {};
+    }
 
     return pi;
 }

@@ -4,8 +4,8 @@
 #include "CompileTimeUtils.hpp"
 #include "CommonAuxPixFormat.hpp"
 #include "PrSDKAESupport.h"
-#include "AlgorithmMain.hpp"
-#include "AlgoPrFormatIngest.hpp"
+#include "ColorLocus.hpp"
+#include "AlgoSuperPixel.hpp"
 #include "LinearLut/LinearLut.hpp"
 
 
@@ -23,6 +23,7 @@ PF_Err ProcessImgInPR
     const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+    const A_long rowBytes = pfLayer->rowbytes;
 
     static const auto& lut8  = LinLut_srgb_8bit_double::LINEARIZE_LUT_SRGB_8BIT_F64;
     static const auto& lut16 = LinLut_srgb_16bit_double::LINEARIZE_LUT_SRGB_16BIT_F64;
@@ -48,13 +49,17 @@ PF_Err ProcessImgInPR
             {
                 case PrPixelFormat_BGRA_4444_8u:
                 {
-                    const A_long srcStride = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-                    const A_long dstStride = srcStride;
+                    const PF_Pixel_BGRA_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-//                    ingest_and_superpixel(imgInBuffer, sizeX, sizeY, srcPitch, fmt, lut8, lut16, lut10,
-//                        locusGate, srcRGB_f32, super, algoControls.confidenceMap);
+                    AlgoPrIngest::ingest_and_superpixel(localSrc, sizeX, sizeY, srcLinePitch, AlgoPrIngest::fmt_BGRA_4444_8u, lut8, lut16, lut10,
+                        getLocusGate(true), algoMemHandler.input_f32_interleaved, super, algoCtrl.confidenceMap);
 
-//                    AlgorithMain (pfLayer->data, output->data, algoMemHandler, algoCtrl, sizeX, sizeY, srcStride, dstStride, AlgoPrIngest::fmt_BGRA_4444_8u);
+                    compute_superpixel (algoMemHandler.input_f32_interleaved, sizeX, sizeY, super);
+
+//                    AlgorithMain (pfLayer->data, output->data, algoMemHandler, algoCtrl, sizeX, sizeY, srcLinePitch, dstLinePitch, AlgoPrIngest::fmt_BGRA_4444_8u);
                 }
                 break;
 

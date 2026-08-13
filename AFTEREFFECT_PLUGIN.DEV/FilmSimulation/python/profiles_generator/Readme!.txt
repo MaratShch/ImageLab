@@ -10,7 +10,7 @@ travels: the taking lens, exposure, halation, emulsion scatter, the
 characteristic curve, development couplers, silver-halide grain, scanning,
 duplication and printing.
 
-It supports 121 film stocks, covering colour negative, colour reversal, black and
+It supports 131 film stocks, covering colour negative, colour reversal, black and
 white, three-strip Technicolor, 1930s-40s period stocks, Soviet-era Svema and
 Tasma emulsions documented from printed USSR reference books, and additive
 colour via a physical filter grid (Dufaycolor).
@@ -138,7 +138,7 @@ Generated output, safe to delete and regenerate:
   film_profiles.hpp    C++ header. Contains the struct definitions AND the
                        reference formulae as comments, so a C++ port cannot
                        silently drift from the Python original.
-  film_profiles.cpp    C++ tables: all 93 stocks, 5 print stocks, 14 gauges.
+  film_profiles.cpp    C++ tables: all 131 stocks, 9 print stocks, 14 gauges.
                        Regenerate both with:  python cpp_codegen.py -o .
   film_names.txt       Official film names, quoted, one per line, ordered as
                        the C++ vector. Regenerate: python gen_film_names.py
