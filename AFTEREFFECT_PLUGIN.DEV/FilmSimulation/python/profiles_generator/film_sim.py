@@ -380,6 +380,393 @@ def _planck(lam_nm: float, kelvin: float) -> float:
     return c1 / (lam**5 * math.expm1(c2 / (lam * kelvin)))
 
 
+# ===========================================================================
+# MEASURED SPECTRAL SENSITIVITY — the consumer of SpectralSensitivity
+# ===========================================================================
+#
+# WHY THIS BLOCK EXISTS. The profile database carries digitised per-layer
+# spectral sensitivity curves (SpectralSensitivity.log_s_r/g/b/pan, sampled at
+# lambda_start_nm + k*lambda_step_nm). Until this block was written NOTHING
+# read them: the renderer approximated the same physics with three proxies --
+#
+#   * balance_gains()          three hard-coded "peak" wavelengths 600/550/450
+#   * profile.taking_matrix    a hand-fitted 3x3
+#   * profile.spectral_weights three hand-fitted monochrome weights
+#
+# Each proxy answers a question the measured curve answers exactly, so each is
+# replaced here BY DERIVATION FROM THE CURVE where the curve exists, and left
+# untouched where it does not. Nothing is invented: a stock with no spectral
+# data keeps exactly the numbers and the behaviour it had before.
+#
+# WHAT THIS IS AND IS NOT. This is the "illuminant-conditioned integration"
+# path: the layer sensitivities are integrated against a real illuminant SPD
+# and against the input's assumed primaries, producing a mixing matrix that is
+# DERIVED rather than fitted. It is exact for neutrals and for illuminant
+# changes, and it remains an approximation for saturated colours, because a
+# three-number RGB input no longer carries the spectral detail that would
+# distinguish two metamers. Removing that limit needs spectral input, not more
+# film data. Stated here so the improvement is not overclaimed.
+#
+# NUMERICAL NOTE. Everything in this block is setup-domain: it runs once per
+# render, never per pixel, so it computes in float64 and hands float32 to the
+# pixel path. That is the same split the engine's precision policy uses.
+
+#: Wavelength grid the INTEGRALS are evaluated on, nanometres.
+#:
+#: This is NOT the stored sampling of any curve and it does not claim to be. The
+#: stored curves are 10 nm for 49 of 53 stocks and 20-25 nm for four; they are
+#: interpolated up onto this grid so that the integral is not quantised to
+#: whatever sampling the source plot happened to have. Interpolating up for the
+#: purpose of integration invents no information -- it changes where the
+#: trapezoid rule places its nodes, nothing else.
+#:
+#: 2 nm rather than 5, measured 2026-08-13. Against a smooth blackbody the choice
+#: barely matters: 5 nm differs from a 1 nm reference by 1.1e-3 on the derived
+#: balance gains, 10 nm by 3.2e-3. Against a NARROW-LINE illuminant it matters
+#: enormously -- with 5 nm mercury lines the red/green layer ratio is wrong by
+#: 1.5 % at a 5 nm grid, 52.7 % at 10 nm and 231 % at 25 nm, while 2 nm matches
+#: the 1 nm reference exactly. Only blackbody SPDs are integrated today, so 5 nm
+#: was adequate by coincidence rather than by design; 2 nm removes the trap that
+#: adding a fluorescent or LED illuminant later would silently introduce a
+#: double-digit error. Cost measured at 0.129 -> 0.179 ms per full derivation,
+#: setup domain, roughly sixty integrals per frame: unmeasurable at frame scale.
+_SPECTRAL_LAMBDA_STEP = 2.0
+_SPECTRAL_LAMBDA_MIN = 360.0
+_SPECTRAL_LAMBDA_MAX = 730.0
+
+
+def spectral_grid() -> np.ndarray:
+    """The common wavelength grid, nanometres, float64."""
+    n = int(round((_SPECTRAL_LAMBDA_MAX - _SPECTRAL_LAMBDA_MIN)
+                  / _SPECTRAL_LAMBDA_STEP)) + 1
+    return (_SPECTRAL_LAMBDA_MIN
+            + _SPECTRAL_LAMBDA_STEP * np.arange(n, dtype=np.float64))
+
+
+def layer_sensitivities(profile) -> np.ndarray | None:
+    """Per-layer LINEAR spectral sensitivity on ``spectral_grid()``.
+
+    Returns an array of shape (3, n_lambda) for colour stocks, or (1, n_lambda)
+    for monochrome stocks that carry only ``log_s_pan``; ``None`` when the
+    profile has no digitised curves at all, which is the signal to every caller
+    below to fall back to the pre-existing hand-fitted proxy.
+
+    The stored values are LOG sensitivity, so they are exponentiated here. The
+    curve's own sampling is respected: values outside the measured wavelength
+    range are treated as zero sensitivity rather than extrapolated, because an
+    extrapolated sensitisation tail is an invention and would change the
+    integral in the direction that flatters the model.
+    """
+    sp = profile.spectral
+    if not sp.has_data:
+        return None
+
+    rows: list[tuple[float, ...]] = []
+    if sp.log_s_r and sp.log_s_g and sp.log_s_b:
+        rows = [sp.log_s_r, sp.log_s_g, sp.log_s_b]
+    elif sp.log_s_pan:
+        rows = [sp.log_s_pan]
+    else:
+        return None
+
+    grid = spectral_grid()
+    out = np.zeros((len(rows), grid.size), dtype=np.float64)
+    for i, row in enumerate(rows):
+        src_lam = (sp.lambda_start_nm
+                   + sp.lambda_step_nm * np.arange(len(row), dtype=np.float64))
+        src_val = np.asarray(row, dtype=np.float64)
+        # Interpolate in LOG space -- a sensitisation curve is smooth in log
+        # sensitivity and emphatically not in linear sensitivity, where a 4-decade
+        # span would make linear interpolation between samples grossly wrong.
+        interp = np.interp(grid, src_lam, src_val,
+                           left=-np.inf, right=-np.inf)
+        out[i] = np.where(np.isfinite(interp), np.power(10.0, interp), 0.0)
+    return out
+
+
+def planck_spd(kelvin: float) -> np.ndarray:
+    """Blackbody spectral power distribution on ``spectral_grid()``, float64.
+
+    Normalised to unit value at 560 nm so that integrals against it stay in a
+    numerically comfortable range; every use below forms a RATIO, so the
+    normalisation cancels and does not affect any result.
+    """
+    grid = spectral_grid()
+    spd = np.array([_planck(float(l), kelvin) for l in grid], dtype=np.float64)
+    ref = _planck(560.0, kelvin)
+    return spd / ref if ref > 0.0 else spd
+
+
+def spectral_layer_exposure(profile, spd: np.ndarray) -> np.ndarray | None:
+    """Integrate ``spd`` against each layer's measured sensitivity.
+
+    This is the core integral of the whole block:
+
+        E_layer = INTEGRAL S_layer(lambda) * E(lambda) d lambda
+
+    ``spd`` must already be sampled on ``spectral_grid()``. Returns one value
+    per layer (3 for colour, 1 for monochrome-pan), or ``None`` when the
+    profile carries no curves.
+    """
+    sens = layer_sensitivities(profile)
+    if sens is None:
+        return None
+    return np.trapezoid(sens * spd[None, :], spectral_grid(), axis=1) \
+        if hasattr(np, "trapezoid") else \
+        np.trapz(sens * spd[None, :], spectral_grid(), axis=1)
+
+
+def spectral_balance_gains(profile, scene_kelvin: float) -> tuple[float, ...] | None:
+    """Colour-temperature gains computed from the MEASURED curves.
+
+    Replaces ``balance_gains()`` for any stock that carries spectral data. The
+    quantity is the same ratio the proxy estimates:
+
+        gain_c = INTEGRAL S_c(l) P(l, T_scene) dl / INTEGRAL S_c(l) P(l, T_stock) dl
+
+    but evaluated over the whole measured sensitisation instead of at one
+    assumed peak wavelength. The difference is largest exactly where the proxy
+    is weakest: a broad or double-peaked sensitisation, an orthochromatic
+    emulsion whose "red peak" does not exist, and any stock whose real peak is
+    far from 600/550/450 nm.
+
+    Green is normalised to 1.0, as in the proxy, so overall exposure is
+    unchanged and only the colour balance moves.
+
+    Returns ``None`` for a stock with no curves, or for a monochrome stock,
+    where a per-channel balance has no meaning.
+    """
+    sens = layer_sensitivities(profile)
+    if sens is None or sens.shape[0] != 3:
+        return None
+
+    scene = spectral_layer_exposure(profile, planck_spd(scene_kelvin))
+    stock = spectral_layer_exposure(profile, planck_spd(profile.balance_kelvin))
+    if scene is None or stock is None:
+        return None
+    if not np.all(stock > 0.0):
+        return None
+
+    ratio = scene / stock
+    if ratio[1] <= 0.0:
+        return None
+    ratio = ratio / ratio[1]
+    return tuple(float(v) for v in ratio)
+
+
+#: Longest wavelength at which the three primary lobes still have usable
+#: amplitude. Beyond this a visible-primary basis cannot excite the emulsion at
+#: all, so projecting a curve that peaks out here onto that basis answers a
+#: different question than the one being asked. 700 nm is where the reddest
+#: lobe (600 nm centre, 55 nm width) has fallen to about 16 % of its peak.
+_SPECTRAL_BASIS_LAMBDA_MAX = 700.0
+
+
+#: Largest share of a curve's sensitivity-weighted energy that may lie beyond
+#: _SPECTRAL_BASIS_LAMBDA_MAX before a visible-primary projection stops being
+#: meaningful. A stock with a fifth of its response in the deep red or the
+#: infrared is not describable by three visible lobes, whatever its peak does.
+_SPECTRAL_OUT_OF_REACH_MAX = 0.15
+
+
+def spectral_out_of_reach(profile) -> float | None:
+    """Share of the stock's sensitivity lying beyond the basis's red limit.
+
+    Companion to :func:`spectral_peak_lambda`: the peak catches an emulsion
+    whose maximum is in the infrared, this catches one whose maximum is in the
+    visible but which carries a substantial infrared shoulder -- the case that
+    a peak test alone passes incorrectly.
+    """
+    sens = layer_sensitivities(profile)
+    if sens is None:
+        return None
+    grid = spectral_grid()
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    beyond = grid > _SPECTRAL_BASIS_LAMBDA_MAX
+    total = 0.0
+    out = 0.0
+    for row in sens:
+        total += float(trap(row, grid))
+        if beyond.any():
+            out += float(trap(row[beyond], grid[beyond]))
+    return (out / total) if total > 0.0 else None
+
+
+def spectral_peak_lambda(profile) -> float | None:
+    """Wavelength of peak sensitivity, nanometres, per layer maximum.
+
+    Returns the LONGEST per-layer peak, because it is the long-wavelength end
+    that a visible-primary basis fails to reach. ``None`` when the stock carries
+    no curves.
+    """
+    sens = layer_sensitivities(profile)
+    if sens is None:
+        return None
+    grid = spectral_grid()
+    peaks = [float(grid[int(np.argmax(row))]) for row in sens
+             if float(row.max()) > 0.0]
+    return max(peaks) if peaks else None
+
+
+def spectral_monochrome_weights(profile) -> tuple[float, ...] | None:
+    """Monochrome R/G/B weights derived from the measured pan curve.
+
+    Replaces the hand-fitted ``spectral_weights`` triple for a monochrome stock
+    that carries ``log_s_pan``. The input image has already been reduced to
+    three channels, so the honest derivation is: integrate the pan sensitivity
+    against each of the input's primaries and normalise the three integrals to
+    sum to one. That is the exact weight with which each input primary
+    contributes to the single silver record.
+
+    This is where an orthochromatic emulsion earns its near-zero red weight
+    from its own measured curve rather than from an authored constant.
+    """
+    sens = layer_sensitivities(profile)
+    if sens is None or sens.shape[0] != 1:
+        return None
+
+    # ------------------------------------------------------------------
+    # GAMUT-REACH GUARD. Refuse the derivation when the emulsion is
+    # sensitised substantially outside what three visible primaries can
+    # excite. Without this guard the function returns a confident wrong
+    # answer, and it was measured doing exactly that:
+    #
+    #   KONICA_INFRARED_750, sensitised 380-830 nm with a 750 nm peak,
+    #   derived to (0.161, 0.193, 0.646) -- BLUE-dominant -- because the
+    #   only part of that emulsion the primary lobes can see is its
+    #   intrinsic 380-500 nm lobe. The authored triple is (0.55, 0.15,
+    #   0.30), red-dominant, which is right for an infrared film. The
+    #   derived answer is a true statement about photographing a monitor
+    #   and a nonsense one about photographing the world.
+    #
+    # This reproduces, independently, the finding recorded on 2026-08-03
+    # against film_profiles.derived_spectral_response(), which was
+    # quarantined for the same reason. The prior decision was correct.
+    # ------------------------------------------------------------------
+    peak = spectral_peak_lambda(profile)
+    if peak is None or peak > _SPECTRAL_BASIS_LAMBDA_MAX:
+        return None
+    out = spectral_out_of_reach(profile)
+    if out is None or out > _SPECTRAL_OUT_OF_REACH_MAX:
+        return None
+
+    prim = _srgb_primary_spd()
+    grid = spectral_grid()
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    w = np.array([trap(sens[0] * prim[c], grid) for c in range(3)],
+                 dtype=np.float64)
+    total = float(w.sum())
+    if total <= 0.0:
+        return None
+    return tuple(float(v / total) for v in w)
+
+
+#: Smooth, strictly positive spectral basis standing in for the sRGB primaries.
+#: These are NOT the CIE primaries: sRGB primaries are defined by chromaticity,
+#: not by a spectrum, and any RGB triple corresponds to infinitely many spectra.
+#: Gaussian lobes centred on the primaries' dominant wavelengths are the
+#: standard smooth choice, and the choice is declared here rather than buried,
+#: because it is an ASSUMPTION of this path and one of the reasons saturated
+#: colour stays approximate (see the block header).
+_PRIMARY_CENTRES_NM = (600.0, 540.0, 460.0)
+_PRIMARY_WIDTH_NM = 55.0
+
+
+def _srgb_primary_spd() -> np.ndarray:
+    """Three smooth primary SPDs on ``spectral_grid()``, each unit-area."""
+    grid = spectral_grid()
+    out = np.zeros((3, grid.size), dtype=np.float64)
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    for c, centre in enumerate(_PRIMARY_CENTRES_NM):
+        lobe = np.exp(-0.5 * ((grid - centre) / _PRIMARY_WIDTH_NM) ** 2)
+        area = float(trap(lobe, grid))
+        out[c] = lobe / area if area > 0.0 else lobe
+    return out
+
+
+def spectral_taking_matrix(profile, scene_kelvin: float = 5500.0) -> np.ndarray | None:
+    """The exposure-mixing matrix DERIVED from the measured curves.
+
+    Element [layer][primary] is the response of that layer to that input
+    primary under the given illuminant:
+
+        M[l][p] = INTEGRAL S_l(lambda) * P_p(lambda) * I(lambda, T) d lambda
+
+    normalised so each ROW sums to one, which keeps a neutral input neutral and
+    confines the matrix's effect to cross-channel mixing -- the part that is
+    genuinely the film's spectral character.
+
+    This is the derived replacement for the authored ``taking_matrix``. It is
+    returned rather than applied, so the caller can compare the two: a large
+    disagreement is a finding about one of them, not something to average away.
+
+    Returns ``None`` for stocks without three-layer curves; a beam-splitter
+    stock whose authored matrix encodes real taking FILTERS (not sensitivities)
+    must keep its authored matrix, and the caller is responsible for that
+    distinction.
+    """
+    sens = layer_sensitivities(profile)
+    if sens is None or sens.shape[0] != 3:
+        return None
+
+    grid = spectral_grid()
+    illum = planck_spd(scene_kelvin)
+    prim = _srgb_primary_spd()
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+
+    m = np.zeros((3, 3), dtype=np.float64)
+    for l in range(3):
+        for p in range(3):
+            m[l][p] = trap(sens[l] * prim[p] * illum, grid)
+
+    rows = m.sum(axis=1, keepdims=True)
+    if not np.all(rows > 0.0):
+        return None
+    return (m / rows).astype(np.float32)
+
+
+def spectral_exposure_report(profile, scene_kelvin: float = 5500.0) -> dict:
+    """Everything this block derives, for one profile, in one call.
+
+    Diagnostic and provenance surface: it reports what was derived from
+    measurement, what fell back to an authored proxy, and by how much the two
+    disagree. Intended for the audit tooling and for regression tests, so that
+    "the spectral path is active" is a checkable statement rather than a claim.
+    """
+    sens = layer_sensitivities(profile)
+    out: dict = {
+        "name": profile.name,
+        "has_curves": sens is not None,
+        "n_layers": 0 if sens is None else int(sens.shape[0]),
+        "criterion": profile.spectral.criterion,
+        "lambda_step_nm": profile.spectral.lambda_step_nm,
+    }
+    if sens is None:
+        out["source"] = "authored proxy (no measured curves)"
+        return out
+    out["source"] = "measured curves"
+
+    if sens.shape[0] == 3:
+        derived = spectral_taking_matrix(profile, scene_kelvin)
+        authored = np.asarray(profile.taking_matrix, dtype=np.float64)
+        if derived is not None:
+            out["taking_matrix_derived"] = derived.tolist()
+            out["taking_matrix_max_abs_diff"] = float(
+                np.max(np.abs(derived.astype(np.float64) - authored)))
+        g = spectral_balance_gains(profile, scene_kelvin)
+        if g is not None:
+            out["balance_gains_derived"] = g
+            out["balance_gains_proxy"] = balance_gains(
+                scene_kelvin, profile.balance_kelvin)
+    else:
+        w = spectral_monochrome_weights(profile)
+        if w is not None:
+            out["mono_weights_derived"] = w
+            out["mono_weights_authored"] = tuple(
+                float(v) for v in profile.spectral_weights)
+    return out
+
+
 def balance_gains(scene_kelvin: float, stock_kelvin: float) -> tuple[float, ...]:
     """Per-channel exposure gains for a colour-temperature mismatch.
 
@@ -751,6 +1138,49 @@ class RenderSettings:
     halation_scale: float = 1.0
     coupler_scale: float = 1.0
     scanner_f50: float = 0.0        # 0 = take from print stock
+
+    # -- measured spectral sensitivity (see the SPECTRAL block above) --------
+    # Consumes SpectralSensitivity.log_s_* where the stock carries it. Each
+    # flag substitutes a DERIVED quantity for an authored proxy, and each falls
+    # back silently to the proxy for the 68 of 121 stocks that have no curves.
+    #
+    # spectral_balance: ON. Replaces the three assumed peak wavelengths of
+    #   balance_gains() with the full measured sensitisation. Safe by
+    #   construction -- it is a ratio of the same integral under two
+    #   illuminants, normalised to green, so it cannot change overall exposure
+    #   and cannot double-count anything downstream.
+    #
+    # spectral_mono: OFF, and the reason is a measured failure, not caution.
+    #   The derivation projects the pan curve onto three primary lobes, and a
+    #   stock sensitised outside those lobes therefore derives to nonsense:
+    #   KONICA_INFRARED_750 (peak 750 nm) comes out BLUE-dominant at
+    #   (0.161, 0.193, 0.646) against an authored, correct, red-dominant
+    #   (0.55, 0.15, 0.30). spectral_monochrome_weights() now refuses any
+    #   stock whose peak sensitisation lies beyond the basis's reach,
+    #   so enabling this flag is safe -- IR and extended-red stocks fall back
+    #   automatically. The guard is the peak sensitisation wavelength against
+    #   the basis's long-wavelength limit, which is an unambiguous physical
+    #   criterion rather than a tuned overlap threshold. It stays OFF by default because for the stocks that DO
+    #   pass the guard the derived triple still depends on the assumed primary
+    #   lobe width, which is an assumption and not a measurement, and because
+    #   an independent analysis on 2026-08-03 reached the same conclusion about
+    #   the same construction. The honest fix is a scene spectral model
+    #   (reflectance basis functions under a stated illuminant, Smits or
+    #   Jakob-Hanika class), built deliberately -- not a reprojection of data
+    #   the database already holds.
+    #
+    # spectral_taking: OFF, deliberately. The derived matrix is physically the
+    #   right object, but the pipeline already carries cross-channel mixing in
+    #   dye_matrix and in InterimageSpec, and substituting a strongly-mixing
+    #   taking matrix on top of those would apply the same physics twice --
+    #   the double-counting failure the requirements document warns about.
+    #   Enabling this is an experiment that must be validated against a
+    #   measured reference, not a default. The derived matrix is available
+    #   from spectral_taking_matrix() and reported by
+    #   spectral_exposure_report() so the disagreement stays visible.
+    spectral_balance: bool = True
+    spectral_mono: bool = False
+    spectral_taking: bool = False
     misreg_scale: float = 1.0       # multiplies the stock's own registration error
     print_grain: bool = True
     flare: float = -1.0             # <0 = use the stock's default_flare
@@ -1043,13 +1473,32 @@ def simulate(
     # be reproduced by a matrix applied later, because the characteristic curve
     # sits in between and is nonlinear.
     take = np.asarray(profile.taking_matrix, dtype=np.float32)
+    # MEASURED SPECTRAL PATH, opt-in only (settings.spectral_taking). See the
+    # field's comment in RenderSettings for why this is not a default: the
+    # derived matrix mixes channels strongly and the pipeline already carries
+    # mixing downstream, so switching it on without a measured reference
+    # applies the same physics twice.
+    if settings.spectral_taking:
+        derived = spectral_taking_matrix(profile, settings.scene_kelvin)
+        if derived is not None:
+            take = derived
     if not np.allclose(take, np.eye(3, dtype=np.float32)):
         exposure = (exposure.reshape(-1, 3) @ take.T).reshape(h, w, 3)
         exposure = np.ascontiguousarray(exposure, dtype=np.float32)
 
     # -- 3. stock colour balance --------------------------------------------
     if settings.wb_strength > 0.0 and not profile.is_monochrome:
-        gains = balance_gains(settings.scene_kelvin, profile.balance_kelvin)
+        # MEASURED SPECTRAL PATH: integrate the stock's own per-layer
+        # sensitivity against the two blackbody SPDs instead of sampling three
+        # assumed peak wavelengths. Falls back to the proxy when the stock
+        # carries no curves. Measured difference at 3200 K on a daylight
+        # stock: red gain 1.65-1.69 derived against 1.32 from the proxy, and
+        # it varies per stock, which a fixed-peak proxy cannot express.
+        gains = None
+        if settings.spectral_balance:
+            gains = spectral_balance_gains(profile, settings.scene_kelvin)
+        if gains is None:
+            gains = balance_gains(settings.scene_kelvin, profile.balance_kelvin)
         for c in range(3):
             g = 1.0 + (gains[c] - 1.0) * settings.wb_strength
             exposure[:, :, c] *= np.float32(g)
@@ -1189,7 +1638,18 @@ def simulate(
         # Weighted by the stock's own spectral sensitivity, not by video luma.
         # For the orthochromatic stock the red weight is 0.02, which is what
         # makes red render black and a blue sky render white.
-        sw = profile.spectral_weights
+        # MEASURED SPECTRAL PATH: the weight with which each input primary
+        # reaches the single silver record is the pan curve integrated against
+        # that primary. The authored triple it replaces is close to video luma
+        # (0.27/0.55/0.18), which is what the comment above says it must NOT
+        # be; the derived triple for a panchromatic emulsion is much flatter
+        # (~0.34/0.35/0.30), which is why panchromatic film renders a blue sky
+        # lighter than the eye does.
+        sw = None
+        if settings.spectral_mono:
+            sw = spectral_monochrome_weights(profile)
+        if sw is None:
+            sw = profile.spectral_weights
         mono = (
             np.float32(sw[0]) * exposure[:, :, 0]
             + np.float32(sw[1]) * exposure[:, :, 1]

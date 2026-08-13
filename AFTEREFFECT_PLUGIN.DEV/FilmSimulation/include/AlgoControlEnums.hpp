@@ -6,10 +6,12 @@ enum class FilmSimulationCtrl : int32_t
 {
     VIDEO_INPUT,
     SETUP_BUTTON, // button for run dialog control
+    GROUP_START_FILM_PROPERTIES,
     FILM_STOCK,
     PRINT_STOCK,
     FILM_FORMAT,
     GENERATIONS,
+    GROUP_STOP_FILM_PROPERTIES,
     EXPOSURE_STOPS,
     SCENE_KELVIN,
     WB_STRENGTH,
@@ -43,4 +45,10 @@ enum class FilmSimulationCtrl : int32_t
     DAMAGE_SEED,
     DITHER_OUTPUT,
     TOTAL_PARAMS
+};
+
+constexpr char itemNames[][32] = {
+    " ",
+    "Film Properties",
+    "Film Stock"
 };

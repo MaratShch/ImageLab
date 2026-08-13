@@ -1,4 +1,3 @@
-#if 0
 // ---------------------------------------------------------------------------
 //  Algo_07_Sim.cpp   --   AVX2
 //
@@ -82,6 +81,7 @@ namespace
     }
 }
 #include "AlgoSeparableBlur.hpp"   // AlgoCopyImage
+#include "AlgoSpectralSensitivity.hpp"
 
 
 // ---------------------------------------------------------------------------
@@ -171,9 +171,28 @@ void AlgoStage07_EmulsionRecord
         // The stock's own response to each third of the spectrum. For an
         // orthochromatic emulsion the red weight is near zero, which is the
         // whole reason red renders black on early film.
-        const AlgoType wR = static_cast<AlgoType>(profile.spectral_weights[0]);
-        const AlgoType wG = static_cast<AlgoType>(profile.spectral_weights[1]);
-        const AlgoType wB = static_cast<AlgoType>(profile.spectral_weights[2]);
+        // MEASURED SPECTRAL PATH. The weight with which each input primary
+        // reaches the single silver record is the stock's own pan sensitivity
+        // integrated against that primary. Falls back to the authored triple
+        // for stocks with no curve, so those render unchanged.
+        //
+        // NOTE: the authored triple is close to video luma (0.27/0.55/0.18),
+        // which is exactly what it must not be; the derived triple is much
+        // flatter for a panchromatic emulsion, which is why panchromatic film
+        // renders a blue sky lighter than the eye sees it. This is a
+        // correction, and it changes monochrome output visibly.
+        AVX2_ALIGN AlgoType specW[3];
+
+        if (!AlgoSpectralMonoWeights(profile, specW))
+        {
+            specW[0] = static_cast<AlgoType>(profile.spectral_weights[0]);
+            specW[1] = static_cast<AlgoType>(profile.spectral_weights[1]);
+            specW[2] = static_cast<AlgoType>(profile.spectral_weights[2]);
+        }
+
+        const AlgoType wR = specW[0];
+        const AlgoType wG = specW[1];
+        const AlgoType wB = specW[2];
 
         for (int32_t y = 0; y < sizeY; y++)
         {
@@ -351,4 +370,3 @@ void AlgoStage07_EmulsionRecord
 
     return;
 }
-#endif

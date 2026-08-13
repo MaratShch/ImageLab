@@ -1,4 +1,3 @@
-#if 0
 // ---------------------------------------------------------------------------
 //  Algo_09_Sim.cpp   --   AVX2
 //
@@ -153,7 +152,8 @@ namespace
         //  dye, so whatever colour the speck of lint actually was, what the film
         //  records is how much light it blocked - one number. Drawing three
         //  different channel weights put a measurably coloured particle on black
-        //  and white film: calibrating on SVEMA_FN_64, a monochrome negative, the
+        //  and white film: calibrating on SVEMA_FOTO_65 (then named SVEMA_FN_64;
+        //  renamed 2026-08-13), a monochrome negative, the
         //  detected min-over-max channel ratio came out at 0.58 when it must be
         //  exactly 1.
         //
@@ -1418,4 +1418,3 @@ void AlgoStage09b_NegativeDefects
 
     return;
 }
-#endif

@@ -1,4 +1,3 @@
-#if 0
 // ---------------------------------------------------------------------------
 //  AlgoDefectField.cpp
 //
@@ -309,4 +308,3 @@ HighPrecType AlgoDefectBeta23 (const uint64_t counter) noexcept
 
     return u[1];
 }
-#endif

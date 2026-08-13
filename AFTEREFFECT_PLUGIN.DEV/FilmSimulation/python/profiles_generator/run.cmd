@@ -1,1 +1,1 @@
-python film_sim.py Lady.png -p all
+python film_sim.py Lady.png -p all --emit-cpp

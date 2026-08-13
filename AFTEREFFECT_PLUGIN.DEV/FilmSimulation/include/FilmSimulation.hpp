@@ -2,7 +2,7 @@
 #define __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__
 
 #include "CommonAdobeAE.hpp"
-
+#include "AlgoControl.hpp"
 
 constexpr char strName[] = "Film Simulation";
 constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rFilm Simulation plugin.";
@@ -59,5 +59,10 @@ PF_Err DrawEvent
     PF_EventExtra	*event_extra
 );
 
+PF_Err SetupControlElements
+(
+    PF_InData* in_data, 
+    PF_OutData* out_data
+);
 
 #endif // __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__

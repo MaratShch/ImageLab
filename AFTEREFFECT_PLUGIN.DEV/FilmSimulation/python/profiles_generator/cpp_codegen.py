@@ -1074,7 +1074,8 @@ _ENTRY_RX = re.compile(r'^        // --- ([A-Z0-9_]+) -', re.M)
 _NAME_RX = re.compile(r'^            "([A-Z0-9_]+)",$', re.M)
 
 
-def write_film_names(cpp_path: Path, txt_path: Path) -> int:
+def write_film_names(cpp_path: Path, txt_path: Path,
+                     separator: bool = True) -> int:
     """Emit the film-name list consumed by the C++ effect-panel listbox.
 
     Order is taken by parsing the ALREADY-WRITTEN film_profiles.cpp rather than
@@ -1092,20 +1093,30 @@ def write_film_names(cpp_path: Path, txt_path: Path) -> int:
     upper-case tokens would NOT work -- other fields (StockKind, SCAN_DI, ...)
     are emitted in the same shape at the same indent.
 
-    Format matches the reference file exactly: display name (underscores turned
-    into spaces) in double quotes, one per line, LF endings, plain ASCII, no
-    comments and no separators.
+    Format: display name (underscores turned into spaces) in double quotes,
+    one per line, LF endings, plain ASCII, no comments.
+
+    Separator (2026-08-13, owner request): by DEFAULT every line except the
+    LAST carries a trailing "|" INSIDE the closing quote -- "NAME|". The file
+    is consumed as adjacent C++ string literals, and concatenation then
+    yields the single "A|B|...|Z" string an After Effects popup expects,
+    with no separator after the final item. ``separator=False`` (the
+    --no_separator command-line flag) restores the previous pipe-free
+    format. Line order is the GetFilmDatabase() vector order in BOTH modes;
+    only the trailing character differs.
     """
     names = parse_vector_names(cpp_path)
     out = []
-    for n in names:
+    for i, n in enumerate(names):
         disp = n.replace("_", " ")
         try:
             disp.encode("ascii")
         except UnicodeEncodeError:
             raise ValueError(f"{n}: name is not ASCII, cannot go in the "
                              f"plain-ASCII listbox file")
-        out.append('"%s"' % disp)
+        # "|" after the name, inside the quotes, on every line but the last.
+        sep = "|" if (separator and i < len(names) - 1) else ""
+        out.append('"%s%s"' % (disp, sep))
     txt_path.write_text("\n".join(out) + "\n", encoding="ascii", newline="\n")
     return len(out)
 
@@ -1193,7 +1204,8 @@ def write_film_enum(cpp_path: Path, hpp_path: Path, stamp: str) -> int:
     return len(names)
 
 
-def generate(outdir: Path | str = ".") -> tuple[Path, Path, Path, Path]:
+def generate(outdir: Path | str = ".",
+             names_separator: bool = True) -> tuple[Path, Path, Path, Path]:
     """Write film_profiles.hpp and film_profiles.cpp into ``outdir``.
 
     Returns:
@@ -1211,7 +1223,7 @@ def generate(outdir: Path | str = ".") -> tuple[Path, Path, Path, Path]:
     cpp.write_text(_cpp_source(stamp), encoding="utf-8", newline="\n")
     # names file last: it reads the .cpp back to lock listbox index == vector index
     names = d / "film_names.txt"
-    write_film_names(cpp, names)
+    write_film_names(cpp, names, separator=names_separator)
     enum = d / "film_enum.hpp"
     write_film_enum(cpp, enum, stamp)
     return hpp, cpp, names, enum
@@ -1222,6 +1234,9 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Emit C++ film profile tables.")
     ap.add_argument("-o", "--outdir", type=Path, default=Path("."))
+    ap.add_argument("--no_separator", action="store_true",
+                    help="emit film_names.txt WITHOUT the trailing '|' "
+                         "separators (the pre-2026-08-13 format)")
     ns = ap.parse_args()
-    for path in generate(ns.outdir):
+    for path in generate(ns.outdir, names_separator=not ns.no_separator):
         print(f"[INFO] wrote {path}")

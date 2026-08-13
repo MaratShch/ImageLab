@@ -81,7 +81,7 @@ formats must state its class in a comment and in ``_PROVENANCE_SOURCES``:
   [C4] theoretical estimate from era, speed class and written descriptions.
 
 SVEMA <-> TASMA: shared Soviet standards are NOT sufficient evidence of
-identity -- measured batches show TASMA_FN_64 at gamma 1.03 vs SVEMA_FN_64's
+identity -- measured batches show TASMA_FN_64 at gamma 1.03 vs SVEMA_FOTO_65's
 0.83. Transfers are [C2] only with a tying document, otherwise [C3], always
 explicit, and never overwrite a measured value. Gauge variants share
 emulsion-level parameters; everything else derives from FORMAT_GEOM frame
@@ -2020,7 +2020,12 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.20, 1.48, toe_x=-0.88, shoulder_x=1.02),
             b=_rev(0.23, 1.50, toe_x=-0.92, shoulder_x=0.98),
         ),
-        grain=GrainSpec(10.4, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
+        # rms 14.0 [C1, 2026-08-13]: Kodak H-1-5239 prints "Diffuse RMS
+        # Granularity 14" read at net diffuse visual density 1.0 through a
+        # 48-micrometer aperture -- exactly this field's convention. Replaces
+        # the 10.4 estimate, which predated the sheet and carried no source.
+        # Clump sizes remain estimates; the sheet publishes no grain size.
+        grain=GrainSpec(14.0, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
         mtf=MTFSpec(48.0, 54.0, 60.0, adjacency=0.08, adjacency_um=18.0),
         halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
                              threshold_stops=1.9),
@@ -2050,7 +2055,12 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.20, 1.48, toe_x=-0.88, shoulder_x=1.02),
             b=_rev(0.23, 1.50, toe_x=-0.92, shoulder_x=0.98),
         ),
-        grain=GrainSpec(10.4, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
+        # rms 14.0 [C1, 2026-08-13]: Kodak H-1-5239 prints "Diffuse RMS
+        # Granularity 14" read at net diffuse visual density 1.0 through a
+        # 48-micrometer aperture -- exactly this field's convention. Replaces
+        # the 10.4 estimate, which predated the sheet and carried no source.
+        # Clump sizes remain estimates; the sheet publishes no grain size.
+        grain=GrainSpec(14.0, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
         mtf=MTFSpec(48.0, 54.0, 60.0, adjacency=0.08, adjacency_um=18.0),
         halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
                              threshold_stops=1.9),
@@ -2271,10 +2281,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
     # like 8 mm' -- that double-counts the magnification the renderer already
     # applies.
     FilmProfile(
-        name="EIGHT_MM_BW",
-        aliases=("8mm bw", "8mm b&w", "8mm mono", "eight mm bw", "regular8 bw"),
+        name="GENERIC_BW",
+        aliases=("generic bw", "generic b&w", "8mm bw", "8mm b&w", "8mm mono",
+                 "eight mm bw", "regular8 bw"),
         description=(
-            "[T3] Representative 8 mm B&W reversal home-movie stock, EI 40, of "
+            "[T3] Generic B&W reversal home-movie stock, EI 40 (renamed from EIGHT_MM_BW 2026-08-13: the gauge is not a property of the emulsion and is selected by the format control), of "
             "the Plus-X / Tri-X reversal class. Reversal because home movies "
             "were projected directly -- there was no print stage and no "
             "negative to grade. Moderate contrast, chunky cubic grain, and a "
@@ -2306,10 +2317,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.UNEVEN_EMULSION,
     ),
     FilmProfile(
-        name="EIGHT_MM_COLOR",
-        aliases=("8mm color", "8mm colour", "eight mm color", "super8 color"),
+        name="GENERIC_COLOR",
+        aliases=("generic color", "generic colour", "8mm color", "8mm colour",
+                 "eight mm color", "super8 color"),
         description=(
-            "[T3] Representative 8 mm colour reversal home-movie stock, EI 40, "
+            "[T3] Generic colour reversal home-movie stock, EI 40 (renamed from EIGHT_MM_COLOR 2026-08-13: the gauge is not a property of the emulsion and is selected by the format control), "
             "of the Kodachrome II / Ektachrome 160 cartridge class. Warm, "
             "saturated, contrasty -- reversal film projected in a dark room "
             "could afford contrast that a print chain could not. The nostalgic "
@@ -2325,7 +2337,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.18, 1.68, toe_x=-0.80, shoulder_x=0.92),
             b=_rev(0.21, 1.64, toe_x=-0.84, shoulder_x=0.90),
         ),
-        # Same reversal reasoning as EIGHT_MM_BW: no print stage to amplify
+        # Same reversal reasoning as GENERIC_BW: no print stage to amplify
         # the grain, so the emulsion number has to carry it.
         grain=GrainSpec(12.0, 10.5, 11.5, 13.0, clump_gain=0.70, fog_grain=0.22,
                         anisotropy=1.06),
@@ -3869,7 +3881,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
     ),
     FilmProfile(
-        name="SVEMA_FN_64",
+        name="SVEMA_FOTO_65",
         aliases=("svema", "fn64", "fn-64", "svema fn64",
                  # Still-film designation of the same emulsion class per
                  # Gurlev 1986 (book p296): Svema "Foto-65", S 65 GOST.
@@ -3879,7 +3891,12 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             "Soviet B&W. High contrast, coarse and irregular crystals, weak "
             "red sensitivity, and visible large-scale coating unevenness from "
             "loose quality control. That unevenness reads as 'old film' far "
-            "more strongly than extra grain does. Also sold as still film "
+            "more strongly than extra grain does. RENAMED from SVEMA_FN_64 "
+            "2026-08-13 (owner: the USSR standard defines Foto-65 as the "
+            "same film); the separate _16MM/_8MM gauge entries were retired "
+            "the same day -- gauge comes from the format control, and their "
+            "transport data is preserved in _GAUGE_TRANSPORT_PRESERVED. "
+            "Cine designation FN-64 kept in the aliases. Also sold as still film "
             "'SVEMA FOTO-65' (S 65 GOST); Gurlev 1986 prints for Foto-65: "
             "gamma_rec 0.8 (CT-2), D0 0.05, latitude 1.5 logH, R 110 lin/mm, "
             "sensitization limit 665 nm -- consistent with the measured "
@@ -3956,67 +3973,6 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         silver_tone=0.40,
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
-    FilmProfile(
-        name="SVEMA_FN_64_16MM",
-        aliases=("fn64 16mm", "fn64-16", "svema 16mm"),
-        description=(
-            "SVEMA FN-64 in 16 mm. Same emulsion, same curve, same base -- "
-            "the coating line did not know what width the roll would be slit "
-            "to. Everything that differs on screen (coarser apparent grain, "
-            "lower resolved detail) comes from the ~2.1x higher magnification "
-            "of the smaller frame, which the pipeline derives from the format "
-            "via px_per_mm. Do not retune grain or density here."
-        ),
-        era="1980s-1990s",
-        is_monochrome=True,
-        exposure_index=64,
-        balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.830, -1.18, 0.24, 1.52, 0.34)),
-        grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
-                        anisotropy=1.10,
-                        sigma_shape_toe=0.65, sigma_shape_dmax=1.65),
-        halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
-                              weights=(0.30, 0.55, 0.15),
-                              gain_r=0.09, gain_g=0.09, gain_b=0.09),
-        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
-        spectral_weights=(0.26, 0.50, 0.24),
-        misregistration_um=0.0,
-        base_tint=(0.991, 1.000, 0.991),
-        silver_tone=0.40,
-        default_format="16mm",
-        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
-    ),
-    FilmProfile(
-        name="SVEMA_FN_64_8MM",
-        aliases=("fn64 8mm", "fn64-8", "svema 8mm"),
-        description=(
-            "SVEMA FN-64 slit for 8 mm home movie cameras. Emulsion identical "
-            "to the 35 mm entry; the ~5.4x magnification of the tiny frame "
-            "does all the damage, and the pipeline derives it from the "
-            "format. Temporal behaviour is the exception: weave and flicker "
-            "belong to the amateur camera and projector, not the emulsion, "
-            "so this entry carries home-gear transport numbers."
-        ),
-        era="1980s-1990s",
-        is_monochrome=True,
-        exposure_index=64,
-        balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.830, -1.18, 0.24, 1.52, 0.34)),
-        grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
-                        anisotropy=1.10,
-                        sigma_shape_toe=0.65, sigma_shape_dmax=1.65),
-        halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
-                              weights=(0.30, 0.55, 0.15),
-                              gain_r=0.09, gain_g=0.09, gain_b=0.09),
-        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
-        spectral_weights=(0.26, 0.50, 0.24),
-        misregistration_um=0.0,
-        base_tint=(0.991, 1.000, 0.991),
-        silver_tone=0.40,
-        default_format="8mm",
-        features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
-    ),
-
     # ------------------------------- USSR ----------------------------------
     FilmProfile(
         name="SVEMA_FOTO_250",
@@ -4045,7 +4001,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         curves=_mono(ToneCurve(0.19, 0.850, -1.24, 0.26, 1.46, 0.36)),
         # rms_granularity is [T1] -- FITTED TO MEASUREMENT, not estimated.
         # Flat-region sigma over 3 supplied scans at matched mid density gave
-        # FN250 0.0502 against SVEMA_FN_64's 0.0299, a ratio of 1.68x.
+        # FN250 0.0502 against SVEMA_FOTO_65's 0.0299, a ratio of 1.68x.
         # Tuned through the FULL PIPELINE, not by scaling RMS directly: a
         # naive 11.5*1.68=19.4 only gives 1.42x, because the coarser clump
         # (21.5 um vs 15.0) spreads spectral energy differently and the
@@ -5352,7 +5308,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.UNEVEN_EMULSION,
     ),
     FilmProfile(
-        name="SVEMA_TSNL_32",
+        name="SVEMA_CNL_32",
         aliases=("tsnl32", "tsnl-32", "tsnl 32", "cnl-32", "cnl 32",
                  "svema tsnl 32", "svema tsnl-32"),
         description=(
@@ -5396,7 +5352,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.UNEVEN_EMULSION,
     ),
     FilmProfile(
-        name="SVEMA_TSNL_65",
+        name="SVEMA_CNL_65",
         aliases=("tsnl65", "tsnl-65", "tsnl 65", "cnl-65", "cnl 65",
                  "svema tsnl 65", "svema tsnl-65"),
         description=(
@@ -6027,13 +5983,571 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         default_format="ff35",
         features=Feature.NONE,
     ),
+
+    # ======================================================================
+    # 2026-08-13 batch: Kodak still B&W line (infrared excluded per owner),
+    # Kodak still colour negative line, Agfa Scala 200x. Sources: each
+    # stock's own sheet in PDF/PROFILES/KODAK/ resp. AGFA/, located in the
+    # 2026-08-13 landing (see PDF_LANDING_2026-08-13.md and
+    # CHANGES_2026-08-13_new_stocks.md). Granularity convention: B&W sheets
+    # print diffuse rms x1000 at D=1.0 / 48 um -- adopted [C1]. Colour-neg
+    # sheets print Print Grain Index only, which Kodak states "cannot be
+    # compared to rms granularity" -- those rms values are [C4] engineering
+    # estimates anchored to the PGI ordering, same policy as KODAK_PORTRA_400.
+    # Curves are [T3] class-shaped estimates unless noted; the sheets carry
+    # plotted curves queued for digitisation.
+    # ======================================================================
+    FilmProfile(
+        name="KODAK_TMAX_100",
+        aliases=("tmax 100", "t-max 100", "100tmx", "tmx"),
+        description=(
+            "[T2] Kodak Professional T-MAX 100 (100TMX). Tabular-grain B&W; "
+            "the finest-grained conventional 100-speed B&W film of its era. "
+            "rms 8, RP 63/200 lp/mm [C1, F-4016 2018]. D-76 reference."
+        ),
+        era="1986-present",
+        is_monochrome=True,
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.15, 0.72, -1.40, 0.24, 1.80, 0.36)),
+        grain=GrainSpec(8.0, 14.0, 14.0, 14.0, clump_gain=0.30, fog_grain=0.14,
+                        anisotropy=1.0),
+        mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.10, adjacency_um=14.0),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_TMAX_400",
+        aliases=("tmax 400", "t-max 400", "400tmy", "tmy", "tmy-2"),
+        description=(
+            "[T2] Kodak Professional T-MAX 400 (TMY-2, 2007 reformulation "
+            "per the F-4043 2016 sheet). rms 10, RP 50/200 lp/mm [C1]. The "
+            "400-speed film with 100-speed grain; tabular crystals."
+        ),
+        era="1986-present",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.16, 0.70, -1.55, 0.26, 1.90, 0.38)),
+        grain=GrainSpec(10.0, 16.0, 16.0, 16.0, clump_gain=0.35, fog_grain=0.16,
+                        anisotropy=1.0),
+        mtf=MTFSpec(72.0, 72.0, 72.0, adjacency=0.10, adjacency_um=15.0),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_TMAX_P3200",
+        aliases=("p3200", "tmz", "tmax 3200", "t-max p3200"),
+        description=(
+            "[T2] Kodak Professional T-MAX P3200 (TMZ). Multi-speed tabular "
+            "B&W: native ~ISO 800-1000, DESIGNED to be push-processed and "
+            "sold rated 3200. rms 18, RP 40/125 lp/mm [C1, F-4001 2019]. "
+            "EI here is the native 1000; push rendering is a processing "
+            "decision the schema cannot express yet."
+        ),
+        era="1988-2012, 2018-present",
+        is_monochrome=True,
+        exposure_index=1000,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.22, 0.66, -1.70, 0.30, 1.85, 0.40)),
+        grain=GrainSpec(18.0, 22.0, 22.0, 22.0, clump_gain=0.55, fog_grain=0.24,
+                        anisotropy=1.0),
+        mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.08, adjacency_um=16.0),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_TRI_X_400TX",
+        aliases=("tri-x 400", "400tx", "trix 400"),
+        description=(
+            "[T2] Kodak Professional TRI-X 400 (400TX), the post-2007 "
+            "incarnation of the classic. Cubic grain, classic toe. rms 17 "
+            "[C1, F-4017 2016; sheet prints no resolving power]. Distinct "
+            "from KODAK_TRI_X_SHEET_1952, which is the 1952 sheet-film "
+            "formulation."
+        ),
+        era="1954-present",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.18, 0.68, -1.60, 0.30, 1.80, 0.36)),
+        grain=GrainSpec(17.0, 19.0, 19.0, 19.0, clump_gain=1.00, fog_grain=0.22),
+        mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KODAK_TRI_X_320TXP",
+        aliases=("tri-x 320", "320txp", "tri-x pan professional"),
+        description=(
+            "[T2] Kodak Professional TRI-X 320 (320TXP), the professional "
+            "sibling: lower speed, longer toe for controlled studio "
+            "lighting. rms 16 [C1, F-4017 2016]."
+        ),
+        era="1954-2010",
+        is_monochrome=True,
+        exposure_index=320,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.17, 0.66, -1.75, 0.34, 1.85, 0.36)),
+        grain=GrainSpec(16.0, 19.0, 19.0, 19.0, clump_gain=0.95, fog_grain=0.21),
+        mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
+        default_format="large4x5",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KODAK_PLUS_X_125",
+        aliases=("plus-x pan", "plus-x 125", "125px", "px125"),
+        description=(
+            "[T2] Kodak PLUS-X Pan (PX), ISO 125 still film. rms 10 "
+            "'Extremely Fine' [C1, F-8 1997 sheet; the same sheet prints "
+            "rms 14 for the PXE/PXT Professional variant, queued]. Distinct "
+            "from EASTMAN_PLUS_X_5231, the motion-picture stock."
+        ),
+        era="1954-2011",
+        is_monochrome=True,
+        exposure_index=125,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.15, 0.70, -1.50, 0.26, 1.80, 0.36)),
+        grain=GrainSpec(10.0, 15.0, 15.0, 15.0, clump_gain=0.80, fog_grain=0.16),
+        mtf=MTFSpec(62.0, 62.0, 62.0, adjacency=0.10, adjacency_um=15.0),
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KODAK_T400CN",
+        aliases=("t400cn", "t400 cn"),
+        description=(
+            "[T2] Kodak Professional T400 CN: chromogenic B&W -- a C-41 "
+            "colour-process film forming a monochrome DYE image, no silver "
+            "in the final negative. rms 9 [C1, F-2350]. Dye image means "
+            "grain reads as soft dye clouds, not silver: low clump_gain, "
+            "larger dye_cloud scale, silver_tone 0."
+        ),
+        era="1997-2004",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.18, 0.62, -1.80, 0.30, 2.00, 0.38)),
+        grain=GrainSpec(9.0, 13.0, 13.0, 13.0, clump_gain=0.20, fog_grain=0.14,
+                        dye_cloud_um=9.0),
+        mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.11, adjacency_um=16.0),
+        silver_tone=0.0,
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN | Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_BW400CN",
+        aliases=("bw400cn", "bw 400cn"),
+        description=(
+            "[T3] Kodak Professional BW400CN, T400CN's successor (2004+), "
+            "orange-masked base for printing on colour paper. Sheet (F-4036) "
+            "publishes Print Grain Index ONLY -- rms 9.5 is a [C4] estimate "
+            "anchored to T400CN's measured 9 plus the sheet's finer-grain "
+            "claim being offset by the mask. Chromogenic: dye image, no "
+            "silver."
+        ),
+        era="2004-2014",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.24, 0.62, -1.80, 0.30, 2.00, 0.38)),
+        grain=GrainSpec(9.5, 13.0, 13.0, 13.0, clump_gain=0.20, fog_grain=0.14,
+                        dye_cloud_um=9.0),
+        mtf=MTFSpec(64.0, 64.0, 64.0, adjacency=0.11, adjacency_um=16.0),
+        base_tint=(1.000, 0.930, 0.820),
+        silver_tone=0.0,
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN | Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_EKTAPAN_100",
+        aliases=("ektapan", "ektapan 4162"),
+        description=(
+            "[T2] Kodak EKTAPAN Film 4162, ISO 100 sheet/long-roll B&W for "
+            "portraiture. rms 12 'Extremely Fine' [C1, F-10; HC-110 Dil B "
+            "reference, time-gamma family printed on the sheet]."
+        ),
+        era="1960s-2002",
+        is_monochrome=True,
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.14, 0.64, -1.60, 0.30, 1.85, 0.36)),
+        grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=0.85, fog_grain=0.17),
+        mtf=MTFSpec(55.0, 55.0, 55.0, adjacency=0.08, adjacency_um=16.0),
+        default_format="large4x5",
+        features=Feature.NONE,
+    ),
+    FilmProfile(
+        name="KODAK_EKTAR_100",
+        aliases=("ektar", "ektar 100"),
+        description=(
+            "[T3] Kodak Professional EKTAR 100 (2008): the finest-grained "
+            "colour negative film made, saturated, near-slide contrast. "
+            "Sheet (E-4046) prints PGI only; rms is a [C4] estimate below "
+            "Portra 160's. Reciprocity: flat 1/10000-1 s [C1]."
+        ),
+        era="2008-present",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.640, toe_x=-1.60, toe_k=0.28, shoulder_x=2.00),
+            g=_neg(0.19, 0.655, toe_x=-1.56, toe_k=0.27, shoulder_x=1.95),
+            b=_neg(0.19, 0.670, toe_x=-1.50, toe_k=0.26, shoulder_x=1.88),
+        ),
+        grain=GrainSpec(3.4, 6.0, 6.6, 8.0, clump_gain=0.20, fog_grain=0.15),
+        mtf=MTFSpec(78.0, 84.0, 92.0, adjacency=0.13, adjacency_um=16.0),
+        couplers=CouplerSpec(0.20, 48.0, 0.10, 10.0),
+        dye_matrix=_dye(-0.13),
+        base_tint=(1.000, 0.990, 0.968),
+        misregistration_um=3.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_PORTRA_160",
+        aliases=("portra 160",),
+        description=(
+            "[T3] Kodak Professional PORTRA 160 (2011 generation, E-4051 "
+            "2016 sheet). Portra 400's slower, finer sibling; same design "
+            "brief. PGI only; rms [C4] below the 400's. Reciprocity flat "
+            "1/10000-1 s [C1]."
+        ),
+        era="2011-present",
+        exposure_index=160,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.556, toe_x=-1.82, toe_k=0.33, shoulder_x=2.20),
+            g=_neg(0.19, 0.574, toe_x=-1.76, toe_k=0.31, shoulder_x=2.14),
+            b=_neg(0.19, 0.592, toe_x=-1.66, toe_k=0.29, shoulder_x=2.04),
+        ),
+        grain=GrainSpec(3.6, 6.2, 6.8, 8.2, clump_gain=0.20, fog_grain=0.16),
+        mtf=MTFSpec(70.0, 78.0, 88.0, adjacency=0.12, adjacency_um=17.0),
+        couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
+        dye_matrix=_dye(-0.11),
+        base_tint=(1.000, 0.992, 0.972),
+        misregistration_um=3.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_PORTRA_800",
+        aliases=("portra 800",),
+        description=(
+            "[T3] Kodak Professional PORTRA 800. The high-speed Portra: "
+            "same skin-first colour design, visibly more grain. PGI only; "
+            "rms [C4]. Reciprocity flat 1/10000-1 s [C1, E-4040 2016]."
+        ),
+        era="1998-present",
+        exposure_index=800,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.560, toe_x=-1.88, toe_k=0.34, shoulder_x=2.24),
+            g=_neg(0.21, 0.578, toe_x=-1.82, toe_k=0.32, shoulder_x=2.18),
+            b=_neg(0.21, 0.596, toe_x=-1.72, toe_k=0.30, shoulder_x=2.08),
+        ),
+        grain=GrainSpec(5.6, 7.4, 8.0, 9.4, clump_gain=0.26, fog_grain=0.18),
+        mtf=MTFSpec(60.0, 68.0, 78.0, adjacency=0.12, adjacency_um=17.0),
+        couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
+        dye_matrix=_dye(-0.11),
+        base_tint=(1.000, 0.992, 0.972),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_PORTRA_100T",
+        aliases=("portra 100t", "100t"),
+        description=(
+            "[T3] Kodak Professional PORTRA 100T: the tungsten-balanced "
+            "Portra for hot lights, 3200 K. PGI only; rms [C4]."
+        ),
+        era="1998-2006",
+        exposure_index=100,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.558, toe_x=-1.84, toe_k=0.33, shoulder_x=2.22),
+            g=_neg(0.20, 0.576, toe_x=-1.78, toe_k=0.31, shoulder_x=2.16),
+            b=_neg(0.20, 0.594, toe_x=-1.68, toe_k=0.29, shoulder_x=2.06),
+        ),
+        grain=GrainSpec(4.0, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
+        mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
+        couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
+        dye_matrix=_dye(-0.11),
+        base_tint=(1.000, 0.992, 0.972),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_GOLD_100",
+        aliases=("gold 100", "kodak gold"),
+        description=(
+            "[T3] Kodak GOLD 100 consumer colour negative (E-7022 sheet "
+            "covers 100 and 200). Warm consumer rendering, generous "
+            "latitude. PGI only; rms [C4]. Reciprocity flat 1/10000-1 s."
+        ),
+        era="1986-2007",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.600, toe_x=-1.66, toe_k=0.30, shoulder_x=2.06),
+            g=_neg(0.20, 0.618, toe_x=-1.60, toe_k=0.29, shoulder_x=2.00),
+            b=_neg(0.20, 0.636, toe_x=-1.52, toe_k=0.27, shoulder_x=1.92),
+        ),
+        grain=GrainSpec(4.6, 6.8, 7.4, 8.8, clump_gain=0.24, fog_grain=0.17),
+        mtf=MTFSpec(62.0, 70.0, 80.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.990, 0.965),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_GOLD_200",
+        aliases=("gold 200",),
+        description=(
+            "[T3] Kodak GOLD 200. The default drugstore film of the 1990s. "
+            "PGI only; rms [C4]. Reciprocity flat 1/10000-1 s."
+        ),
+        era="1986-present",
+        exposure_index=200,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.598, toe_x=-1.68, toe_k=0.30, shoulder_x=2.08),
+            g=_neg(0.20, 0.616, toe_x=-1.62, toe_k=0.29, shoulder_x=2.02),
+            b=_neg(0.20, 0.634, toe_x=-1.54, toe_k=0.27, shoulder_x=1.94),
+        ),
+        grain=GrainSpec(5.2, 7.0, 7.6, 9.0, clump_gain=0.26, fog_grain=0.17),
+        mtf=MTFSpec(60.0, 68.0, 78.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.990, 0.965),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_ULTRAMAX_400",
+        aliases=("ultramax 400", "ultra max 400", "max 400"),
+        description=(
+            "[T3] Kodak ULTRA MAX 400 consumer colour negative (E-7023). "
+            "PGI only; rms [C4]. Reciprocity flat 1/10000-1 s [C1]."
+        ),
+        era="1997-present",
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.596, toe_x=-1.72, toe_k=0.31, shoulder_x=2.10),
+            g=_neg(0.21, 0.614, toe_x=-1.66, toe_k=0.30, shoulder_x=2.04),
+            b=_neg(0.21, 0.632, toe_x=-1.58, toe_k=0.28, shoulder_x=1.96),
+        ),
+        grain=GrainSpec(6.4, 7.6, 8.2, 9.6, clump_gain=0.30, fog_grain=0.18),
+        mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.990, 0.965),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_ULTRAMAX_800",
+        aliases=("ultramax 800", "ultra max 800", "max 800"),
+        description=(
+            "[T3] Kodak ULTRA MAX 800 (E-7024): zoom-camera high-speed "
+            "consumer film. PGI only; rms [C4]. Reciprocity flat "
+            "1/10000-1 s [C1]."
+        ),
+        era="1998-2012",
+        exposure_index=800,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.23, 0.592, toe_x=-1.76, toe_k=0.32, shoulder_x=2.12),
+            g=_neg(0.22, 0.610, toe_x=-1.70, toe_k=0.31, shoulder_x=2.06),
+            b=_neg(0.22, 0.628, toe_x=-1.62, toe_k=0.29, shoulder_x=1.98),
+        ),
+        grain=GrainSpec(7.6, 8.2, 8.8, 10.2, clump_gain=0.34, fog_grain=0.20),
+        mtf=MTFSpec(54.0, 62.0, 72.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.990, 0.965),
+        misregistration_um=5.0,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_VERICOLOR_III_160",
+        aliases=("vericolor iii", "vericolor 3", "vps", "vps 160"),
+        description=(
+            "[T3] Kodak VERICOLOR III Professional (VPS), ISO 160: THE "
+            "wedding/portrait film before Portra existed; Portra's direct "
+            "ancestor. Sheet (E-26) documents the deliberately soft toe and "
+            "the 1/10 s reciprocity limit -- an older emulsion that fails "
+            "a decade earlier than its successors [C1: onset 0.1 s]. "
+            "PGI-era sheet prints no rms; [C4]."
+        ),
+        era="1983-late 1990s",
+        exposure_index=160,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.540, toe_x=-1.90, toe_k=0.36, shoulder_x=2.20),
+            g=_neg(0.20, 0.556, toe_x=-1.84, toe_k=0.34, shoulder_x=2.14),
+            b=_neg(0.20, 0.572, toe_x=-1.74, toe_k=0.32, shoulder_x=2.04),
+        ),
+        grain=GrainSpec(5.0, 7.2, 7.8, 9.2, clump_gain=0.30, fog_grain=0.17),
+        mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.10, adjacency_um=18.0),
+        couplers=CouplerSpec(0.12, 52.0, 0.06, 11.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.991, 0.970),
+        misregistration_um=5.0,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_EKTAPRESS_PJ400",
+        aliases=("ektapress", "pj400", "ektapress 400"),
+        description=(
+            "[T3] Kodak Professional EKTAPRESS PJ400: the photojournalists' "
+            "C-41, built for push latitude to EI 1600 (E-116 covers the "
+            "PJ100/PJ400/PJ800 family; siblings queued). PGI only; rms "
+            "[C4]."
+        ),
+        era="1994-2001",
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.22, 0.586, toe_x=-1.78, toe_k=0.32, shoulder_x=2.14),
+            g=_neg(0.21, 0.604, toe_x=-1.72, toe_k=0.31, shoulder_x=2.08),
+            b=_neg(0.21, 0.622, toe_x=-1.64, toe_k=0.29, shoulder_x=2.00),
+        ),
+        grain=GrainSpec(6.0, 7.4, 8.0, 9.4, clump_gain=0.30, fog_grain=0.18),
+        mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.14, 50.0, 0.07, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.990, 0.968),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_PROFOTO_100",
+        aliases=("profoto 100", "pro foto 100"),
+        description=(
+            "[T3] Kodak PROFOTO 100: budget professional portrait film. "
+            "Notable documented property: reciprocity holds flat all the "
+            "way to 10 SECONDS [C1, E-2e] -- unusually good for its class. "
+            "PGI only; rms [C4]."
+        ),
+        era="late 1990s-2000s",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.570, toe_x=-1.80, toe_k=0.33, shoulder_x=2.16),
+            g=_neg(0.20, 0.588, toe_x=-1.74, toe_k=0.31, shoulder_x=2.10),
+            b=_neg(0.20, 0.606, toe_x=-1.66, toe_k=0.29, shoulder_x=2.00),
+        ),
+        grain=GrainSpec(4.6, 6.8, 7.4, 8.8, clump_gain=0.24, fog_grain=0.17),
+        mtf=MTFSpec(64.0, 72.0, 82.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.991, 0.970),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_ULTRA_COLOR_100UC",
+        aliases=("100uc", "ultra color 100"),
+        description=(
+            "[T3] Kodak Professional ULTRA COLOR 100UC (E-4035): the "
+            "saturated 'punch' professional negative, Ektar's immediate "
+            "ancestor. PGI only; rms [C4]."
+        ),
+        era="2003-2008",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.20, 0.620, toe_x=-1.64, toe_k=0.29, shoulder_x=2.02),
+            g=_neg(0.19, 0.636, toe_x=-1.58, toe_k=0.28, shoulder_x=1.96),
+            b=_neg(0.19, 0.652, toe_x=-1.52, toe_k=0.26, shoulder_x=1.90),
+        ),
+        grain=GrainSpec(4.4, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.16),
+        mtf=MTFSpec(68.0, 76.0, 86.0, adjacency=0.12, adjacency_um=16.0),
+        couplers=CouplerSpec(0.18, 48.0, 0.09, 10.0),
+        dye_matrix=_dye(-0.12),
+        base_tint=(1.000, 0.990, 0.968),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="KODAK_ULTRA_COLOR_400UC",
+        aliases=("400uc", "ultra color 400"),
+        description=(
+            "[T3] Kodak Professional ULTRA COLOR 400UC (E-4035). PGI only; "
+            "rms [C4]."
+        ),
+        era="2003-2008",
+        exposure_index=400,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            r=_neg(0.21, 0.616, toe_x=-1.68, toe_k=0.30, shoulder_x=2.06),
+            g=_neg(0.20, 0.632, toe_x=-1.62, toe_k=0.29, shoulder_x=2.00),
+            b=_neg(0.20, 0.648, toe_x=-1.56, toe_k=0.27, shoulder_x=1.94),
+        ),
+        grain=GrainSpec(6.2, 7.4, 8.0, 9.4, clump_gain=0.28, fog_grain=0.18),
+        mtf=MTFSpec(60.0, 68.0, 78.0, adjacency=0.12, adjacency_um=16.0),
+        couplers=CouplerSpec(0.18, 48.0, 0.09, 10.0),
+        dye_matrix=_dye(-0.12),
+        base_tint=(1.000, 0.990, 0.968),
+        misregistration_um=4.5,
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="AGFA_SCALA_200X",
+        aliases=("scala", "scala 200", "scala 200x"),
+        description=(
+            "[T2] Agfa SCALA 200x: THE dedicated B&W reversal film -- a "
+            "projected silver positive. rms 11 (x1000, D=1.0, 48 um, Vλ, "
+            "Scala process) and RP 50/120 lp/mm printed on the sheet [C1]. "
+            "Sheet documents push/pull ISO 100-1600 (processing axis, "
+            "queued) and contrast matched to Agfachrome RSX 100."
+        ),
+        era="1994-2005",
+        kind=StockKind.REVERSAL,
+        is_monochrome=True,
+        exposure_index=200,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.10, 1.55, -0.72, 0.20, 0.88, 0.30)),
+        grain=GrainSpec(11.0, 15.0, 15.0, 15.0, clump_gain=0.60, fog_grain=0.12),
+        mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08, adjacency_um=15.0),
+        default_format="ff35",
+        features=Feature.NONE,
+    ),
 )
 
-# Presented in alphabetical order by name. The literal above is grouped by
-# manufacturer and era because that is how it is maintained; this is how it is
-# consumed -- by --list, by the C++ table, and by `-p all`. Sorting here rather
-# than reordering the literal keeps related stocks editable side by side.
-FILM_PROFILES = tuple(sorted(FILM_PROFILES, key=lambda _p: _p.name))
+# Presented in NATURAL (numeric-aware) order by name: digit runs inside a name
+# compare as numbers, so SVEMA_FOTO_32 < FOTO_65 < FOTO_130 < FOTO_250 and
+# AGFA_APX_25 < APX_100 < APX_400 -- ISO-ascending within a family, which is
+# the order a user expects in a stock list (owner request 2026-08-13; plain
+# alphabetical put FOTO_130 before FOTO_32). The literal above stays grouped
+# by manufacturer and era because that is how it is maintained; this order is
+# how it is consumed -- by --list, by the C++ table, and by `-p all`.
+#
+# WARNING: this ordering DEFINES the eFILM_PROFILE enum values. Changing the
+# key -- or renaming a stock -- renumbers the enum and invalidates saved
+# projects. The planned ID-freeze (stable per-stock integers, display order
+# decoupled) removes that hazard; until then, renames are breaking.
+def _natural_key(name: str) -> tuple:
+    """Split a stock name into (text, number, text, ...) for numeric-aware
+    comparison. Digit runs become ints; case is ignored for the text parts."""
+    import re as _re
+    return tuple(int(t) if t.isdigit() else t.lower()
+                 for t in _re.split(r"(\d+)", name))
+
+FILM_PROFILES = tuple(sorted(FILM_PROFILES, key=lambda _p: _natural_key(_p.name)))
 
 
 # ===========================================================================
@@ -6082,9 +6596,7 @@ def _temporal_for_era(era: str, kind: StockKind) -> TemporalSpec:
 _TEMPORAL_OVERRIDES: dict[str, TemporalSpec] = {
     "TECHNICOLOR_THREE_STRIP": TemporalSpec(26.0, 18.0, 0.8, 3.0, 8.0, 0.0, 2.0, 12.0, 24.0),
     "SOVIET_PANCHROM_1939": TemporalSpec(28.0, 20.0, 0.9, 6.0, 8.0, 0.0, 4.0, 16.0, 24.0),
-    "SVEMA_FN_64": TemporalSpec(14.0, 10.0, 0.7, 2.5, 4.0, 0.0, 1.5, 10.0, 24.0),
-    "SVEMA_FN_64_16MM": TemporalSpec(16.0, 11.0, 0.8, 2.8, 4.5, 0.0, 1.8, 10.0, 24.0),
-    "SVEMA_FN_64_8MM": TemporalSpec(24.0, 16.0, 1.0, 4.0, 6.0, 0.0, 2.5, 10.0, 16.0),
+    "SVEMA_FOTO_65": TemporalSpec(14.0, 10.0, 0.7, 2.5, 4.0, 0.0, 1.5, 10.0, 24.0),
     "SVEMA_FOTO_250": TemporalSpec(16.0, 11.0, 0.7, 3.0, 4.0, 0.0, 2.0, 10.0, 24.0),
     "TASMA_FN_64": TemporalSpec(13.0, 9.0, 0.7, 2.2, 4.0, 0.0, 1.2, 10.0, 24.0),
     "ORWOCOLOR_NC21": TemporalSpec(10.0, 7.0, 0.6, 1.8, 4.0, 0.0, 1.0, 8.0, 24.0),
@@ -6093,8 +6605,31 @@ _TEMPORAL_OVERRIDES: dict[str, TemporalSpec] = {
     "KODAK_VISION3_250D_5207": TemporalSpec(2.0, 1.5, 0.4, 0.1, 1.0, 0.0, 0.05, 2.0, 24.0),
     "KODAK_VISION3_200T_5213": TemporalSpec(2.0, 1.5, 0.4, 0.1, 1.0, 0.0, 0.05, 2.0, 24.0),
     "KODAK_VISION3_500T_5219": TemporalSpec(2.0, 1.5, 0.4, 0.1, 1.0, 0.0, 0.05, 2.0, 24.0),
-    "EIGHT_MM_BW": TemporalSpec(24.0, 16.0, 1.0, 4.0, 6.0, 0.0, 2.5, 10.0, 16.0),
-    "EIGHT_MM_COLOR": TemporalSpec(24.0, 16.0, 1.0, 4.0, 6.0, 0.0, 2.5, 10.0, 18.0),
+    "GENERIC_BW": TemporalSpec(24.0, 16.0, 1.0, 4.0, 6.0, 0.0, 2.5, 10.0, 16.0),
+    "GENERIC_COLOR": TemporalSpec(24.0, 16.0, 1.0, 4.0, 6.0, 0.0, 2.5, 10.0, 18.0),
+}
+
+# ---------------------------------------------------------------------------
+# Gauge-dependent TRANSPORT data preserved from the retired FN-64 gauge
+# variants (SVEMA_FOTO_65_16MM / SVEMA_FOTO_65_8MM, removed 2026-08-13; the
+# emulsion itself is SVEMA_FOTO_65, one entry, gauge chosen by the format
+# control).
+#
+# The variants existed only because TemporalSpec lives on FilmProfile and
+# the schema has no per-gauge slot. Emulsion data was identical by design
+# ("the coating line did not know what width the roll would be slit to");
+# what genuinely differed was TRANSPORT: weave, flicker, dirt rate and
+# native fps belong to the camera/projector class, not to the emulsion,
+# and do NOT scale with gauge width (weave 14->24 um across a 5.2x width
+# change, ratio 1.71 vs 5.19 -- different mechanism).
+#
+# NOT CONSUMED by any generator yet. Awaiting the agreed design change
+# (owner decision 2026-08-12) that moves transport onto the format: these
+# rows then seed the 16 mm and 8 mm amateur-gear entries. Keyed by FORMAT
+# name, deliberately not by stock.
+_GAUGE_TRANSPORT_PRESERVED: dict[str, TemporalSpec] = {
+    "16mm": TemporalSpec(16.0, 11.0, 0.8, 2.8, 4.5, 0.0, 1.8, 10.0, 24.0),
+    "8mm": TemporalSpec(24.0, 16.0, 1.0, 4.0, 6.0, 0.0, 2.5, 10.0, 16.0),
 }
 
 
@@ -6150,6 +6685,30 @@ _NO_DATASHEET: tuple[str, ...] = (
 #: could NOT be re-verified in this pass and were left untouched; see
 #: NotFound.md for the full list and the specific parameters still missing.
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
+    # ---- 2026-08-13 batch (each stock's own sheet, PDF/PROFILES/) ----
+    "KODAK_TMAX_100": ("KODAK PROFESSIONAL T-MAX Films, publication F-4016 (2018), Eastman Kodak Company",),
+    "KODAK_TMAX_400": ("KODAK PROFESSIONAL T-MAX 400 Film, publication F-4043 (2016), Eastman Kodak Company",),
+    "KODAK_TMAX_P3200": ("KODAK PROFESSIONAL T-MAX P3200 Film, publication F-4001 (2019), Eastman Kodak Company",),
+    "KODAK_TRI_X_400TX": ("KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company",),
+    "KODAK_TRI_X_320TXP": ("KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company",),
+    "KODAK_PLUS_X_125": ("KODAK PLUS-X Pan and PLUS-X Pan Professional Films, publication F-8 (1997), Eastman Kodak Company",),
+    "KODAK_T400CN": ("KODAK PROFESSIONAL T400 CN Film, publication F-2350, Eastman Kodak Company",),
+    "KODAK_BW400CN": ("KODAK PROFESSIONAL BW400CN Film, publication F-4036, Eastman Kodak Company",),
+    "KODAK_EKTAPAN_100": ("KODAK EKTAPAN Film 4162, publication F-10, Eastman Kodak Company",),
+    "KODAK_EKTAR_100": ("KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company",),
+    "KODAK_PORTRA_160": ("KODAK PROFESSIONAL PORTRA 160 Film, publication E-4051 (2016), Eastman Kodak Company",),
+    "KODAK_PORTRA_800": ("KODAK PROFESSIONAL PORTRA 800 Film, publication E-4040 (2016), Eastman Kodak Company",),
+    "KODAK_PORTRA_100T": ("KODAK PROFESSIONAL PORTRA 100T Film, publication E-2468, Eastman Kodak Company",),
+    "KODAK_GOLD_100": ("KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company",),
+    "KODAK_GOLD_200": ("KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company",),
+    "KODAK_ULTRAMAX_400": ("KODAK ULTRA MAX 400 Film, publication E-7023, Eastman Kodak Company",),
+    "KODAK_ULTRAMAX_800": ("KODAK ULTRA MAX 800 Film, publication E-7024, Eastman Kodak Company",),
+    "KODAK_VERICOLOR_III_160": ("KODAK VERICOLOR III Professional Film, publication E-26, Eastman Kodak Company",),
+    "KODAK_EKTAPRESS_PJ400": ("KODAK PROFESSIONAL EKTAPRESS Films, publication E-116, Eastman Kodak Company",),
+    "KODAK_PROFOTO_100": ("KODAK PROFOTO 100 Film, publication E-2e, Eastman Kodak Company",),
+    "KODAK_ULTRA_COLOR_100UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
+    "KODAK_ULTRA_COLOR_400UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
+    "AGFA_SCALA_200X": ("Agfa SCALA 200x professional Technical Data, Agfa-Gevaert AG",),
     # 2026-08-04. Neu 1936 previously fell back to _NO_DATASHEET. It now has
     # real citations -- but they ground the PROCESS and DATE only, so the tier
     # stays 3 and fitted_from stays "analogy". See the PROVENANCE LIMIT note.
@@ -6238,6 +6797,13 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "KODAK_EKTACHROME_100D_5285": (
         "KODAK EKTACHROME 100D Color Reversal Film 5285, "
         "Kodak publication H-1-5285, Eastman Kodak Company",
+    ),
+    # Added 2026-08-13: the 7239 sheet is publication H-1-5239 -- the code
+    # IS the 5239 family code, so the sheet documents both gauge entries.
+    # Until now the 5239 entry claimed no manufacturer datasheet.
+    "EASTMAN_EKTACHROME_5239": (
+        "EASTMAN EKTACHROME Film (Daylight) 7239, "
+        "Kodak publication H-1-5239, Eastman Kodak Company",
     ),
     "EASTMAN_EKTACHROME_7239": (
         "EASTMAN EKTACHROME Film (Daylight) 7239, "
@@ -6419,7 +6985,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "(PDF/PROFILES/AGFA/AGFA stocks.pdf p5): ISO 160/23, RMS 3.5, "
         "R 150/60 lines/mm, layer 18 um",
     ),
-    "SVEMA_FN_64": (
+    "SVEMA_FOTO_65": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
         "материалы)», Киев: Техніка, 1986, с. 296 [Gurlev D. S., 'Handbook "
         "of Photography (Light Engineering and Materials)', Kyiv: "
@@ -6514,7 +7080,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "S 45 GOST, unmasked, gamma 0.8, L 1.2, Dmax 2, D0 0.25 per "
         "spectral zone, R 63 lin/mm, H&D curve family fig. 197",
     ),
-    "SVEMA_TSNL_32": (
+    "SVEMA_CNL_32": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
         "материалы)», Киев: Техніка, 1986, с. 354-355 [Gurlev D. S., "
         "'Handbook of Photography (Light Engineering and Materials)', "
@@ -6523,7 +7089,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Dmax 2.5, mask densities blue/green/red 0.75-1.1 / 0.25-0.5 / "
         "0.3, R 58 lin/mm, H&D curve family fig. 197",
     ),
-    "SVEMA_TSNL_65": (
+    "SVEMA_CNL_65": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
         "материалы)», Киев: Техніка, 1986, с. 354-355 [Gurlev D. S., "
         "'Handbook of Photography (Light Engineering and Materials)', "
@@ -6652,7 +7218,7 @@ _UNTAGGED_TIER: dict[str, int] = {
     # batch) AND now corroborated by a printed reference (Gurlev 1986
     # p296, Foto-65 column -- gamma 0.8, D0 0.05, R 110 lin/mm). Grain
     # size remains estimate-grade, so not tier 1.
-    "SVEMA_FN_64": 2,
+    "SVEMA_FOTO_65": 2,
     "TECHNICOLOR_THREE_STRIP": 3,
 }
 
@@ -6694,6 +7260,17 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
+    # 2026-08-13 batch additions, each from the stock's own sheet [C1]:
+    "KODAK_TMAX_100": (63.0, 200.0),      # F-4016 2018
+    "KODAK_TMAX_400": (50.0, 200.0),      # F-4043 2016 (TMY-2)
+    "KODAK_TMAX_P3200": (40.0, 125.0),    # F-4001 2019
+    "AGFA_SCALA_200X": (50.0, 120.0),     # Scala sheet, at ISO 200 process
+    # 2026-08-13, Kodak publication H-1-5239 (EASTMAN EKTACHROME Daylight
+    # 7239 sheet; the publication code itself is the 5239 family code, so it
+    # is C1 for both gauge entries): 40 lp/mm at 1.6:1, 100 at 1000:1,
+    # ISO 6328-1982 method, Process VNF-1.
+    "EASTMAN_EKTACHROME_5239": (40.0, 100.0),
+    "EASTMAN_EKTACHROME_7239": (40.0, 100.0),
     # 2026-08-04, from each stock's own sheet:
     "EASTMAN_PLUS_X_5231": (32.0, 100.0),
     # 2026-08-01 Kodak sheet additions (TI0835, TI1664, H-1 series):
@@ -6766,12 +7343,12 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     # reference, per-film TU data); the Chibisov figures live in the
     # _PROVENANCE_SOURCES citations so the discrepancy stays auditable.
     "SVEMA_FOTO_32": (0.0, 135.0),
-    "SVEMA_FN_64": (0.0, 110.0),        # printed for the Foto-65 sibling
+    "SVEMA_FOTO_65": (0.0, 110.0),        # printed for the Foto-65 sibling
     "SVEMA_FOTO_130": (0.0, 100.0),
     "SVEMA_FOTO_250": (0.0, 82.0),
     "SVEMA_DS_4": (0.0, 63.0),
-    "SVEMA_TSNL_32": (0.0, 58.0),
-    "SVEMA_TSNL_65": (0.0, 63.0),
+    "SVEMA_CNL_32": (0.0, 58.0),
+    "SVEMA_CNL_65": (0.0, 63.0),
     "TASMA_OCH_45": (0.0, 110.0),       # Chibisov 1988 Table I, product row
     # -- Kodak Data Book, Fifth Edition, 1952 (added 2026-08-11) -------------
     # UNIT CAVEAT, third convention in this table: Kodak 1952 prints
@@ -6830,6 +7407,42 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
 _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
     # 2026-07-31, fitted from datasheet correction tables (t_a^p * onset^(1-p)
     # = t_m solved at the printed correction points):
+    # ----------------------------------------------------------------------
+    # 2026-08-13, from the vendor-compiled reference book "Современные
+    # фотоматериалы и их обработка" (2002-2003 materials; Agfa/Fuji/Kodak/
+    # Konica), PDF/PROFILES/SOVIET STANDARDS/. C1: era matches these
+    # profiles. Same fitting convention as above.
+    "AGFA_SCALA_200X": ReciprocitySpec(0.80, 0.80, 0.80, onset_s=0.5),
+    #   Scala sheet: flat 1/10000-1/2 s; +1/2 @ 1 s, +1 @ 10 s, +2 @ 100 s.
+    #   Pairwise 0.84/0.77; 0.80 splits.
+    "KODAK_VERICOLOR_III_160": ReciprocitySpec(0.80, 0.80, 0.80, onset_s=0.1),
+    #   E-26: no compensation only 1/10000-1/10 s -- fails a decade before
+    #   its successors. No printed correction points beyond; slope is the
+    #   class-typical 0.80 [C3], the 0.1 s onset is the sheet's [C1].
+    "KODAK_PROFOTO_100": ReciprocitySpec(0.90, 0.90, 0.90, onset_s=10.0),
+    #   E-2e: flat all the way to 10 s [C1 onset]; slope beyond unprinted,
+    #   0.90 mild-failure estimate [C4].
+    "AGFA_OPTIMA_100": ReciprocitySpec(0.84, 0.84, 0.84, onset_s=1.0),
+    #   Table 2.5: flat 1/10000-1 s; +1/2 stop @ 10 s (p=0.87); +1 1/2 @
+    #   100 s (p=0.82). 0.84 splits the two printed points.
+    "AGFA_OPTIMA_200": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
+    "AGFA_OPTIMA_400": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
+    "AGFA_PORTRAIT_160": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
+    #   Table 2.5: +1 stop @ 10 s AND +2 @ 100 s -> both points give
+    #   p = ln10/ln20 = ln100/ln400 = 0.77 exactly. Onset 1 s printed.
+    "AGFA_VISTA_200": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
+    #   Table 2.3 (Vista family): flat to 1 s, +1 stop @ 10 s. Single
+    #   printed point; the family's 100/400/800 siblings print the same.
+    "AGFA_APX_100": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=0.5),
+    "AGFA_APX_400": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=0.5),
+    #   Table 2.57: flat 1/100000-1/2 s; +1 @ 1 s, +2 @ 10 s, +3 @ 100 s --
+    #   exactly one stop per decade (slope p = ln10/ln20 = 0.77) with an
+    #   unusually sharp 0.5 s onset. Pairwise fits spread 0.72-0.81 because
+    #   the first decade bites immediately; slope adopted, spread recorded.
+    #   Same table also prints DEVELOPMENT-TIME reductions for the pushed
+    #   exposures (-10 % at +1, -25 % at +2, -35 % at +3) -- processing-axis
+    #   data the schema cannot hold yet; noted for the future PRC group.
+    #   Replaces the 0.95/1.0 heuristic default on both APX entries.
     "KONICA_IMPRESA_50": ReciprocitySpec(0.87, 0.87, 0.87, onset_s=1.0),
     #   IMP50.pdf: +1/2 stop at 10 s, no CC -> p = ln10/ln14.1
     "KONICA_VX_100": ReciprocitySpec(0.77, 0.77, 0.77, onset_s=1.0),
@@ -6939,7 +7552,7 @@ _COATING_TIERS: dict[str, tuple[float, float, float]] = {
 #: or better. Everything not listed is derived from era in _coating_for().
 _COATING_OVERRIDE: dict[str, str] = {
     # Soviet / GDR plants: visible mottle regardless of decade.
-    "SVEMA_FN_64": "poor", "SVEMA_FN_64_16MM": "poor", "SVEMA_FN_64_8MM": "poor",
+    "SVEMA_FOTO_65": "poor",
     "SVEMA_FOTO_250": "poor", "TASMA_FN_64": "poor", "TASMA_POSITIVE_28": "poor",
     "SOVCOLOR_DS_4": "poor", "SOVIET_PANCHROM_1939": "trough",
     "ORWOCOLOR_NC21": "poor", "ORWOCOLOR_NC24": "poor", "ORWO_UT18": "poor",
@@ -6947,7 +7560,7 @@ _COATING_OVERRIDE: dict[str, str] = {
     "FOMAPAN_400_ACTION": "poor", "FERRANIA_P30": "fair",
     "MACO_CUBE_400C": "fair", "MACO_PO_100C": "fair",
     # Amateur reversal home-movie stock, doubly slit.
-    "EIGHT_MM_BW": "poor", "EIGHT_MM_COLOR": "poor",
+    "GENERIC_BW": "poor", "GENERIC_COLOR": "poor",
     # Additive-mosaic and three-strip era: coating was the hard part.
     "DUFAYCOLOR_1937": "trough", "AGFACOLOR_NEU_1936": "trough",
     "LUMIERE_LUMICHROME": "trough", "TECHNICOLOR_THREE_STRIP": "fair",
@@ -7383,7 +7996,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
             "is not something you expose in a camera, it is what a negative is "
             "printed onto, which is exactly the role PrintStock fills in this "
             "pipeline. Pair it with a Soviet negative for a period Soviet "
-            "release-print look: TASMA_FN_65 or SVEMA_FN_64 with "
+            "release-print look: TASMA_FN_65 or SVEMA_FOTO_65 with "
             "--print TASMA_POSITIVE_28. High print gamma gives the contrasty, "
             "crushed-shadow projected image; grain is fine, as positive stock "
             "always is, so nearly all visible grain still comes from the "

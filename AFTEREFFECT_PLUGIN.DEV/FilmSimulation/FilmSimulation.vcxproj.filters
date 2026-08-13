@@ -207,6 +207,9 @@
     <ClInclude Include="include\AlgoVeilingFlare.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoSpectralSensitivity.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -291,6 +294,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoSeparableBlur.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationControlPanel.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoSpectralSensitivity.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

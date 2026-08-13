@@ -185,6 +185,7 @@
     <ClInclude Include="include\AlgoScanMtf.hpp" />
     <ClInclude Include="include\AlgoSeparableBlur.hpp" />
     <ClInclude Include="include\AlgoSilverTone.hpp" />
+    <ClInclude Include="include\AlgoSpectralSensitivity.hpp" />
     <ClInclude Include="include\AlgoStockColourBalance.hpp" />
     <ClInclude Include="include\AlgoTakingFilters.hpp" />
     <ClInclude Include="include\AlgoTemporalFlicker.hpp" />
@@ -202,6 +203,7 @@
     <ClCompile Include="src\AlgoMemHandler.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\AlgoSeparableBlur.cpp" />
+    <ClCompile Include="src\AlgoSpectralSensitivity.cpp" />
     <ClCompile Include="src\Algo_02_Sim.cpp" />
     <ClCompile Include="src\Algo_03_Sim.cpp" />
     <ClCompile Include="src\Algo_04_Sim.cpp" />
@@ -220,6 +222,7 @@
     <ClCompile Include="src\Algo_17_Sim.cpp" />
     <ClCompile Include="src\FilmSimulation.cpp" />
     <ClCompile Include="src\FilmSimulationAE.cpp" />
+    <ClCompile Include="src\FilmSimulationControlPanel.cpp" />
     <ClCompile Include="src\FilmSimulationGUI.cpp" />
     <ClCompile Include="src\FilmSimulationPR.cpp" />
     <ClCompile Include="src\FilmSimulationSR.cpp" />

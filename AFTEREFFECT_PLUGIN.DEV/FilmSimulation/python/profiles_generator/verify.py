@@ -61,9 +61,15 @@ if _sec_on():
     # 2026-08-11: 93 -> 100 (Kodak Data Book 1952: VERICHROME_1952,
     # PANATOMIC_X_SHEET_1952, TRI_X_SHEET_1952, ORTHO_X_SHEET_1952; Agfa
     # 2003 brochure: OPTIMA_200, OPTIMA_400, PORTRAIT_160).
-    chk("100 stocks load and validate", len(FILM_PROFILES) == 100, f"n={len(FILM_PROFILES)}")
+    # 2026-08-13: 100 -> 98 (SVEMA_FN_64 renamed SVEMA_FOTO_65 and its two
+    # gauge-variant entries retired -- gauge now comes from the format control;
+    # TSNL renamed CNL; EIGHT_MM_* renamed GENERIC_*).
+    # 2026-08-13 second batch: 98 -> 121 (Kodak still B&W + colour negative
+    # lines and Agfa Scala 200x, from their own sheets in the landing).
+    chk("121 stocks load and validate", len(FILM_PROFILES) == 121, f"n={len(FILM_PROFILES)}")
     rev = [p.name for p in FILM_PROFILES if p.is_reversal]
-    chk("reversal stocks flagged", len(rev) == 22, ", ".join(rev))
+    # 2026-08-13: 22 -> 23 (AGFA_SCALA_200X, B&W reversal, added).
+    chk("reversal stocks flagged", len(rev) == 23, ", ".join(rev))
 
     # alias resolution incl. the user's own phrasing
     cases = {
@@ -567,7 +573,7 @@ if _sec_on():
         float(fs.vignette_field(64, 64, 0.0).min()) == 1.0)
 
     # coating field: mean 1, correct sigma, deterministic, web-coherent
-    _sv = get_profile("SVEMA_FN_64")
+    _sv = get_profile("SVEMA_FOTO_65")
     _cf = [fs.coating_field(180, 240, 24.89, 18.66, _sv.coating, i, 19.0, 4242)
            for i in range(12)]
     _ens = np.concatenate([f.ravel() for f in _cf])
@@ -584,9 +590,11 @@ if _sec_on():
     _cw = np.corrcoef(_cf[0].mean(axis=0), _cf[7].mean(axis=0))[0, 1]
     chk("cross-web streaks stay correlated frame to frame", _cw > 0.3,
         f"corr={_cw:.3f}")
-    # and a smaller gauge must drift more slowly: less web travel per frame
-    _s8 = get_profile("SVEMA_FN_64_8MM")
-    _f8 = [fs.coating_field(180, 240, 4.8, 3.5, _s8.coating, i, 3.81, 4242)
+    # and a smaller gauge must drift more slowly: less web travel per frame.
+    # 2026-08-13: the retired SVEMA_FN_64_8MM entry used to supply the coating
+    # spec here; its spec was identical to the 35 mm entry's by design (same
+    # emulsion), so the same _sv.coating with 8 mm geometry tests the same thing.
+    _f8 = [fs.coating_field(180, 240, 4.8, 3.5, _sv.coating, i, 3.81, 4242)
            for i in range(6)]
     _m35 = np.corrcoef(_cf[0].ravel(), _cf[1].ravel())[0, 1]
     _m8 = np.corrcoef(_f8[0].ravel(), _f8[1].ravel())[0, 1]
@@ -621,13 +629,21 @@ if _sec_on():
     chk("v4 defects on produces measurable structure", _on.std() > 3.0 * _off.std(),
         f"on={_on.std():.5f} off={_off.std():.5f}")
 
-    # edge fog lightens the positive (more negative density prints lighter)
-    _o8 = fs.simulate(_flat, _s8, fs.RenderSettings(
+    # edge fog lightens the positive (more negative density prints lighter).
+    # 2026-08-13: was the retired SVEMA_FN_64_8MM profile. Edge fog is decorated
+    # from a profile's DEFAULT format (a known limitation flagged in the
+    # FilmDatabase MD, Appendix B: gauge-derived properties should follow the
+    # RENDERED format), so the test needs a stock whose default gauge is 8 mm.
+    _g8 = get_profile("GENERIC_BW")
+    _o8 = fs.simulate(_flat, _g8, fs.RenderSettings(
         film_format="8mm", grain_scale=0.0, print_grain=False, vignette=0.0,
         flare=0.0))
     _h8, _w8, _ = _o8.shape
-    chk("narrow-gauge edge fog lightens the frame edge",
-        _o8[:, :6, 1].mean() > 1.05 * _o8[:, _w8 // 2 - 3:_w8 // 2 + 3, 1].mean(),
+    # GENERIC_BW is a REVERSAL stock: extra edge density darkens the projected
+    # image directly (no print inversion), so the expectation is the OPPOSITE
+    # of the retired negative-stock test -- the edge must come out DARKER.
+    chk("narrow-gauge edge fog darkens the frame edge (reversal stock)",
+        _o8[:, :6, 1].mean() < 0.95 * _o8[:, _w8 // 2 - 3:_w8 // 2 + 3, 1].mean(),
         f"edge/centre={_o8[:, :6, 1].mean() / _o8[:, _w8//2-3:_w8//2+3, 1].mean():.4f}")
 
 # ---- 13. schema v5: interimage effects -----------------------------------
@@ -722,8 +738,38 @@ if _sec_on():
         (lambda r: r is not None and r[2] > 0.5)(
             _fpm.derived_spectral_response(get_profile("KONICA_INFRARED_750"))),
         "display primaries cannot reach 750 nm -- documented, not wired in")
-    chk("renderer does not use the derived spectral response",
-        "derived_spectral_response" not in open("film_sim.py", encoding="utf-8").read())
+    # 2026-08-13: the original form of this check tested for one function NAME,
+    # which a differently-named spectral derivation passes vacuously -- and one
+    # was added that day. It now guards the INTENT: no basis-projected spectral
+    # derivation may drive the render by default. The balance-gain path IS
+    # enabled, and is deliberately excluded here because it projects onto no
+    # basis at all -- it is a ratio of one curve integrated against two
+    # blackbody SPDs, so the gamut-reach failure below cannot apply to it.
+    chk("no basis-projected spectral derivation is enabled by default",
+        fs.RenderSettings().spectral_mono is False
+        and fs.RenderSettings().spectral_taking is False,
+        "mono weights and taking matrix both need a scene spectral model first")
+    # The guard catches the EXTREME case and is honest about not catching all of
+    # them. KONICA_INFRARED_750 peaks at 730 nm and is refused. ROLLEI_INFRARED_400
+    # is NOT refused and should be: its curve sits at ~96 % of peak across
+    # 660-680 nm, which the 600 nm primary lobe reaches poorly, so the derived
+    # triple under-weights red (0.35 against an authored 0.52) -- yet only 2.7 %
+    # of its energy lies past 700 nm, so neither guard condition fires. That
+    # residual failure is not a threshold to tune; it is evidence that projecting
+    # onto three visible lobes is the wrong construction, which is why
+    # spectral_mono stays OFF by default and why the fix is a scene spectral
+    # model. Recorded rather than papered over.
+    chk("the basis-reach guard refuses an infrared-peaked stock",
+        fs.spectral_monochrome_weights(get_profile("KONICA_INFRARED_750")) is None,
+        "projecting an IR curve onto visible primaries derives blue-dominant nonsense")
+    chk("the guard's known blind spot is still present and documented",
+        fs.spectral_monochrome_weights(get_profile("ROLLEI_INFRARED_400")) is not None,
+        "deep-red sensitisation inside 700 nm passes both conditions -- see comment")
+    chk("the spectral balance path IS active and differs from the proxy",
+        (lambda d, q: d is not None and abs(d[0] - q[0]) > 0.05)(
+            fs.spectral_balance_gains(get_profile("KODAK_PORTRA_400"), 3200.0),
+            fs.balance_gains(3200.0, get_profile("KODAK_PORTRA_400").balance_kelvin)),
+        "derived red gain ~1.68 vs proxy ~1.32 at 3200 K")
 
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

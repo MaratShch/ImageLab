@@ -256,7 +256,8 @@ constexpr HighPrecType ALGO_DUST_SIZE_MAX_UM = 200.0;
 //
 //  HOW THEY WERE SOLVED
 //
-//  Numerically, on SVEMA_FN_64 - which is in the database at index 82 and is the
+//  Numerically, on SVEMA_FOTO_65 (named SVEMA_FN_64 at measurement time; renamed
+//  2026-08-13, same emulsion) - which is in the database and is the
 //  exact stock the amplitude measurements were made on, so the reference
 //  configuration is not a stand-in. Dust is rendered alone on a flat field, the
 //  population is detected with the same one-DN floor the original measurement used,

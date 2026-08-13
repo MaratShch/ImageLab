@@ -1,4 +1,3 @@
-#if 0
 // ---------------------------------------------------------------------------
 //  Algo_03_Sim.cpp   --   AVX2
 //
@@ -43,6 +42,7 @@
 #include "AlgoVeilingFlare.hpp"
 #include "AlgoTemporalFlicker.hpp"
 #include "AlgoSeparableBlur.hpp"   // AlgoCopyImage, AlgoPlaneMean, the blur passes
+#include "AlgoSpectralSensitivity.hpp"
 
 #include <immintrin.h>
 #include <cmath>   // std::expm1, six times per frame
@@ -216,9 +216,23 @@ void AlgoStage03_StockColourBalance
     // ----------------------------------------------------------------------
     AVX2_ALIGN AlgoType gain[3];
 
-    AlgoBalanceGains(static_cast<HighPrecType>(params.sceneKelvin),
-                     static_cast<HighPrecType>(profile.balance_kelvin),
-                     gain);
+    // MEASURED SPECTRAL PATH. Prefer the stock's own digitised per-layer
+    // sensitivity, integrated against the two blackbody SPDs, over the
+    // three-assumed-peak proxy below it. AlgoSpectralBalanceGains returns false
+    // for the stocks that carry no curves, and the proxy then runs exactly as
+    // it did before, so those stocks are unchanged bit for bit.
+    //
+    // The difference is not cosmetic: measured at 3200 K on daylight stock the
+    // derived red gain is 1.65-1.69 against the proxy's 1.32, and it varies by
+    // stock, which a fixed-wavelength proxy cannot express.
+    if (!AlgoSpectralBalanceGains(profile,
+                                  static_cast<HighPrecType>(params.sceneKelvin),
+                                  gain))
+    {
+        AlgoBalanceGains(static_cast<HighPrecType>(params.sceneKelvin),
+                         static_cast<HighPrecType>(profile.balance_kelvin),
+                         gain);
+    }
 
     // Blend towards unity by the user's strength: g = 1 + (gain - 1) * strength.
     // At 0 this is exactly 1.0, so a disabled effect is bit-exactly neutral.
@@ -514,4 +528,3 @@ void AlgoStage03c_TemporalFlicker
 
     return;
 }
-#endif

@@ -63,6 +63,16 @@ import re
 import film_profiles as fp
 from film_profiles import Feature
 
+# The spectral consumers, imported so this report can state what the RENDERER
+# actually does with each curve rather than only whether a curve exists. Added
+# 2026-08-13 when the curves stopped being inert; see
+# CHANGES_2026-08-13_spectral_path.md. Imported lazily-tolerantly because this
+# generator must still run if film_sim's optional dependencies are unavailable.
+try:
+    import film_sim as _fs
+except Exception:                                   # pragma: no cover
+    _fs = None
+
 PLACEHOLDER = "No official manufacturer datasheet available"
 
 MANUFACTURER = [
@@ -76,7 +86,7 @@ MANUFACTURER = [
     ("ROLLEI", "Maco / Rollei"), ("MACO", "Maco"), ("FOMA", "Foma Bohemia"),
     ("FERRANIA", "Film Ferrania"), ("POLAROID", "Polaroid"),
     ("DUFAY", "Dufay-Chromex"), ("LUMIERE", "Lumiere"),
-    ("CINESTILL", "CineStill"), ("EIGHT_MM", "generic amateur stock"),
+    ("CINESTILL", "CineStill"), ("GENERIC", "generic amateur stock"),
 ]
 
 
@@ -101,6 +111,7 @@ PROPS = [
     ("Spectral Sensitivity", "spec_any"),
     ("Characteristic (H&D) Curve", "hd"),
     ("Spectral Response Curves", "spec_curve"),
+    ("Spectral Curve Consumed By", "spec_used"),
     ("Film Grain Characteristics", "grain"),
     ("RMS Granularity", "rms"),
     ("MTF / Resolving Power", "mtf"),
@@ -273,6 +284,37 @@ def evaluate(p, block: str) -> dict[str, str]:
         or _documented_near(block, "hd")
     )
     res["spec_curve"] = mark(curves)
+
+    # -- what the RENDERER does with the curve, not whether one exists --------
+    # Until 2026-08-13 every one of these curves was stored and read by nothing,
+    # so "curve present" and "curve used" were the same cell. They are now
+    # different questions and this column answers the second one.
+    #
+    #   balance          the curve drives colour-temperature balance in both the
+    #                    Python reference and the C++ engine. True for every
+    #                    stock that carries curves: the balance derivation needs
+    #                    no primary basis, so nothing can disqualify it.
+    #   +mono            the monochrome-weight derivation additionally passes the
+    #                    basis-reach guard. Available but OFF by default.
+    #   mono refused     the guard refuses it: the emulsion is sensitised beyond
+    #                    what three visible primaries can excite, and projecting
+    #                    onto them would derive a confidently wrong answer.
+    if not curves:
+        res["spec_used"] = "-"
+    elif _fs is None:
+        res["spec_used"] = "balance"
+    else:
+        peak = _fs.spectral_peak_lambda(p)
+        out = _fs.spectral_out_of_reach(p)
+        if sp.log_s_pan and not (sp.log_s_r and sp.log_s_g and sp.log_s_b):
+            if _fs.spectral_monochrome_weights(p) is not None:
+                res["spec_used"] = "balance, +mono"
+            else:
+                res["spec_used"] = ("balance, mono refused (peak %g nm, %.0f%% "
+                                    "beyond reach)" % (peak or 0.0,
+                                                       100.0 * (out or 0.0)))
+        else:
+            res["spec_used"] = "balance"
     res["grain"] = mark(_documented_near(block, "grain"))
     res["rms"] = mark(_documented_near(block, "rms"))
     res["mtf"] = mark(
@@ -338,6 +380,13 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     else:
         c_curves = "none"
 
+    # What the RENDERER does with that curve. Before 2026-08-13 the answer was
+    # "nothing" for every stock, so this column did not need to exist; the curve
+    # column above answered both questions at once. It now reports the second
+    # question separately, which is the distinction this whole report is about:
+    # a field existing is not a field being used.
+    c_used = ev.get("spec_used", "-")
+
     c_grain = mk("grain", "clump %.1f/%.1f/%.1f um  gain %.2f  fog %.2f" % (
         g.clump_um_r, g.clump_um_g, g.clump_um_b, g.clump_gain, g.fog_grain))
 
@@ -395,8 +444,8 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
         phys += ", edge fog %.3f D" % co.edge_fog_density
     c_phys = mk("phys", phys)
 
-    return [c_spec, c_hd, c_curves, c_grain, c_rms, c_mtf, c_base, c_emul,
-            c_proc, c_lat, c_dr, c_col, c_phys]
+    return [c_spec, c_hd, c_curves, c_used, c_grain, c_rms, c_mtf, c_base,
+            c_emul, c_proc, c_lat, c_dr, c_col, c_phys]
 
 
 def _iie_pct(p):
@@ -423,8 +472,8 @@ def main() -> int:
     def evidence_block(p) -> str:
         """A gauge variant is the SAME EMULSION as its parent -- the coating
         line did not know what width the roll would be slit to -- so it
-        inherits the parent's documentation. Without this, SVEMA_FN_64_8MM
-        scored "-" on every property while SVEMA_FN_64 scored "+" on most,
+        inherits the parent's documentation. Without this, the retired SVEMA_FN_64_8MM
+        scored "-" on every property while the parent stock scored "+" on most,
         which would misreport identical emulsions as differently evidenced."""
         blk = blocks.get(p.name, "") + " " + p.description
         par = parent_of(p)
@@ -466,6 +515,12 @@ def main() -> int:
       "three values = per dye layer |")
     w("| Spectral Response Curves | digitised points x layers, wavelength range, "
       "sampling step |")
+    w("| Spectral Curve Consumed By | which render path actually reads the "
+      "curve. `balance` = colour-temperature balance, live in both builds. "
+      "`+mono` = the monochrome-weight derivation also passes the basis-reach "
+      "guard (available, OFF by default). `mono refused` = the guard rejects "
+      "it because the emulsion is sensitised beyond the reach of three visible "
+      "primaries. `-` = no curve on file |")
     w("| Film Grain Characteristics | grain correlation length (clump) per "
       "layer in um, clump gain, fog grain |")
     w("| RMS Granularity | sigma(D)x1000 through a 48 um aperture at D=1.0; "
@@ -503,7 +558,9 @@ def main() -> int:
     tier = {1: 0, 2: 0, 3: 0}
     for p, _, _ in rows:
         tier[p.provenance.tier] = tier.get(p.provenance.tier, 0) + 1
-    tot = {k: 0 for _, k in PROPS}
+    # spec_used carries free text, not a +/- mark, so it is excluded from the
+    # coverage tally -- counting it would make the percentages meaningless.
+    tot = {k: 0 for _, k in PROPS if k != "spec_used"}
     for _, ev, _ in rows:
         for _, k in PROPS:
             if ev[k] == "+":
@@ -565,7 +622,29 @@ def main() -> int:
     w("| Property | Documented values | of | % |")
     w("|---|---:|---:|---:|")
     for label, k in PROPS:
+        if k == "spec_used":
+            # Free-text column: reported separately below, not as a percentage.
+            continue
         w(f"| {label} | {tot[k]} | {len(rows)} | {100.0*tot[k]/len(rows):.0f}% |")
+    w("")
+    # Consumption tally. This is the number the project actually cares about:
+    # not how many curves EXIST but how many the renderer READS. Before
+    # 2026-08-13 the second number was zero for every stock.
+    _bal = sum(1 for p_, ev_, _ in rows if ev_.get("spec_used", "-") != "-")
+    _mono = sum(1 for p_, ev_, _ in rows
+                if "+mono" in ev_.get("spec_used", ""))
+    _ref = sum(1 for p_, ev_, _ in rows
+               if "refused" in ev_.get("spec_used", ""))
+    w(f"**Spectral curve consumption.** {_bal} of {len(rows)} stocks carry "
+      f"digitised sensitivity, and all {_bal} now drive colour-temperature "
+      f"balance in both the Python reference and the C++ engine — a path that "
+      f"projects onto no primary basis and so cannot be disqualified. Of the "
+      f"monochrome stocks among them, **{_mono}** additionally pass the "
+      f"basis-reach guard for the monochrome-weight derivation (available, OFF "
+      f"by default) and **{_ref}** are refused by it, because the emulsion is "
+      f"sensitised beyond what three visible primaries can excite. Until "
+      f"2026-08-13 every one of these curves was read by nothing. See "
+      f"`CHANGES_2026-08-13_spectral_path.md`.")
     w("")
     w(f"Confidence tiers as recorded in each profile: "
       f"**tier 1** {tier.get(1,0)}, **tier 2** {tier.get(2,0)}, "

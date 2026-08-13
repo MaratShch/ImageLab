@@ -4,6 +4,65 @@ A rewrite of the original grain-overlay script as an actual photochemical model.
 Python 3.12, 64-bit, Windows and Linux/WSL2. Dependencies: **numpy and Pillow only** —
 no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 
+> **Status 2026-08-13 (sixth entry):** spectral **integration grid 5 nm → 2 nm**
+> after measuring that 5 nm was adequate only because every illuminant in the
+> engine is a blackbody — against a narrow-line source a 5 nm grid is 1.5 % wrong
+> and a 10 nm grid 52.7 % wrong, while 2 nm matches a 1 nm reference exactly. No
+> stored curve was altered: resampling stored arrays would interpolate and destroy
+> the record of what was measured. A supervised re-trace campaign is queued
+> instead, priority-ordered by measured benefit. See
+> `CURVE_RESOLUTION_ANALYSIS_2026-08-13.md`.
+>
+> **Status 2026-08-13 (fifth entry, CORRECTED):** the spectral-sensitivity gap
+> is **partly** closed. The digitised per-layer curves (53 of 121 stocks) were read by
+> nothing; they now drive colour-temperature balance in both Python and C++.
+> The monochrome-collapse and taking-matrix derivations were also built, then
+> found to reproduce a failure a 2026-08-03 analysis had already quarantined
+> (projecting a sensitisation onto three visible primaries derives blue-dominant
+> nonsense for an IR stock), so both ship OFF by default with a guard and a
+> recorded blind spot. New: `AlgoSpectralSensitivity.hpp/.cpp` and a
+> standalone function block in `film_sim.py`. Python and C++ agree to four
+> decimals. Stocks without curves render bit-identically. The derived taking
+> matrix is computed and reported but deliberately NOT wired in — it would
+> double-count mixing already carried by `dye_matrix` and `InterimageSpec`. See
+> `CHANGES_2026-08-13_spectral_path.md`.
+>
+> **Status 2026-08-13 (fourth entry):** **121 stocks** — owner-selected batch
+> from the landing: 9 Kodak still B&W (T-MAX 100/400/P3200, TRI-X 400/320,
+> PLUS-X 125, T400CN, BW400CN, Ektapan; every rms and resolving-power figure
+> [C1] from its own sheet), 13 Kodak still colour negatives (Ektar, Portra
+> 160/800/100T, Gold, UltraMax, Vericolor III, Ektapress PJ400, Profoto,
+> 100UC/400UC — rms [C4] estimates, sheets print PGI only), and AGFA SCALA
+> 200x [C1]. Remaining families: `next_week_task.md`. BREAKING: enum
+> renumbered. See `CHANGES_2026-08-13_new_stocks.md`.
+>
+> **Status 2026-08-13 (third entry):** first extraction from the landing —
+> EASTMAN_EKTACHROME_5239/7239 upgraded from their own datasheet (H-1-5239:
+> rms 10.4→14.0 [C1], resolving power 40/100 added, "no datasheet" claim
+> retired); reciprocity for 7 Agfa profiles [C1] from «Современные
+> фотоматериалы» (2002-03); Kodak F-5 indexed and catalogued, extraction
+> queued (1970s formulations ≠ our 1952 profiles). See
+> `CHANGES_2026-08-13_extraction.md`.
+>
+> **Status 2026-08-13 (second entry):** large document landing in
+> PDF/PROFILES — ~447 files not previously registered, headlined by Kodak
+> Publication F-5 (88-page scan, curve families over development time for the
+> professional B&W line), ~200 true-text Kodak datasheets covering the entire
+> Vision line, 57 Polaroid sheets, measured spectral-density plates for
+> Dufaycolor and Agfacolor Neu, and the Wilhelm dye-fade reference. Inventory,
+> extractability and priorities: `PDF_LANDING_2026-08-13.md`. Nothing
+> extracted yet; scans queued in `DIGITIZATION_QUEUE.md`.
+>
+> **Status 2026-08-13:** **98 film stocks** after owner-requested renames —
+> `SVEMA_FN_64` is now `SVEMA_FOTO_65` (same film per the USSR standard; its
+> two gauge-variant entries retired, gauge is the format control's job, their
+> transport data preserved in `_GAUGE_TRANSPORT_PRESERVED`), `TSNL` → `CNL`,
+> `EIGHT_MM_*` → `GENERIC_*`, and the stock list is now in NATURAL numeric
+> order (FOTO-32 < 65 < 130 < 250). All old names remain as aliases. BREAKING:
+> `eFILM_PROFILE` values renumbered. See `CHANGES_2026-08-13_rename.md`.
+> Historical sections below keep the names in use at the time they were
+> written.
+>
 > **Status 2026-08-11:** the database has grown to **100 film stocks, 5 print
 > stocks, 14 gauges** — seven stocks added from owner-supplied documents
 > (Kodak Data Book 5th ed. 1952: Verichrome, Panatomic-X / Tri-X / Ortho-X
@@ -217,7 +276,7 @@ makes it the most extreme halation in production and a good stress test of that 
 `KODACHROME_64`, `KODAK_EKTACHROME_100D_5285`, `FUJI_VELVIA_50`.
 
 **Black and white negative**
-`ILFORD_HP5_PLUS_400`, `FOMAPAN_400_ACTION`, `SVEMA_FN_64`, plus
+`ILFORD_HP5_PLUS_400`, `FOMAPAN_400_ACTION`, `SVEMA_FOTO_65` (ex FN-64), plus
 `EASTMAN_DOUBLE_X_5222` (Manhattan, Raging Bull) and `ILFORD_DELTA_3200` — tabular
 crystals, so enormous grain that is nonetheless *even* rather than clumpy, which
 demonstrates that grain size and grain character are independent parameters.

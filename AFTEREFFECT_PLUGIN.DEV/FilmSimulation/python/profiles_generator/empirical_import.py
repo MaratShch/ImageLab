@@ -3,8 +3,8 @@
 turn it into vetted FilmProfile field changes.
 
 Usage:
-    python3 empirical_import.py MEASURED.txt --profile SVEMA_FN_64
-    python3 empirical_import.py MEASURED.txt --profile SVEMA_FN_64 --emit-patch
+    python3 empirical_import.py MEASURED.txt --profile SVEMA_FOTO_65
+    python3 empirical_import.py MEASURED.txt --profile SVEMA_FOTO_65 --emit-patch
 
 The point of this tool is NOT to copy numbers across. Scan-derived analyses
 mix three kinds of value and only one of them belongs in a profile:

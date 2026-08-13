@@ -10,10 +10,48 @@ travels: the taking lens, exposure, halation, emulsion scatter, the
 characteristic curve, development couplers, silver-halide grain, scanning,
 duplication and printing.
 
-It supports 100 film stocks, covering colour negative, colour reversal, black and
+It supports 121 film stocks, covering colour negative, colour reversal, black and
 white, three-strip Technicolor, 1930s-40s period stocks, Soviet-era Svema and
 Tasma emulsions documented from printed USSR reference books, and additive
-colour via a physical filter grid (Dufaycolor). It also models the taking lens's
+colour via a physical filter grid (Dufaycolor).
+
+2026-08-13, spectral sensitivity: the per-layer spectral sensitivity curves in
+the profile database are now actually used. Colour-temperature balance is
+computed by integrating each layer's own measured curve against the two
+blackbody spectra instead of sampling three assumed peak wavelengths. 53 of 121
+stocks carry curves; the other 68 render exactly as before, bit for bit.
+
+Curve resolution, measured 2026-08-13: the engine now integrates on a 2 nm grid
+(was 5 nm). This is the grid the integral is evaluated on, NOT the sampling of
+any stored curve. Against a blackbody illuminant the choice barely matters;
+against a narrow-line source a 5 nm grid is 1.5 % wrong and a 10 nm grid 52.7 %
+wrong on the red/green layer ratio, so 5 nm had been adequate only by
+coincidence. Stored curves are unchanged at their measured sampling (10 nm for
+49 of 53 stocks, 20-25 nm for four); resampling them finer would interpolate and
+destroy the record of which samples came from the plot. A supervised re-trace
+campaign from the source plots is queued in DIGITIZATION_QUEUE.md, led by
+FUJI NEOPAN ACROS 100 -- the one stock with a measured real gradient finer than
+its stored sampling.
+
+The monochrome RGB collapse and the taking matrix can also be derived from the
+same curves, and both are implemented, but both are OFF by default: projecting
+a sensitisation curve onto three visible primaries derives nonsense for
+extended-red and infrared stocks (KONICA_INFRARED_750 comes out blue-dominant
+against a correct red-dominant authored triple). An analysis on 2026-08-03 had
+already found and quarantined this; rebuilding it reproduced the failure. The
+real fix is a scene spectral model, not a reprojection of existing data. New Python functions live in film_sim.py (the spectral_*
+block); the C++ side is AlgoSpectralSensitivity.hpp/.cpp, consumed by stages 03
+and 07 in both the scalar and AVX2 builds.
+
+2026-08-13 renames (owner request): SVEMA_FN_64 -> SVEMA_FOTO_65 (same film
+per the USSR standard; the _16MM/_8MM gauge entries are retired -- gauge is
+selected by the format control, their transport numbers preserved in
+film_profiles.py), SVEMA_TSNL_* -> SVEMA_CNL_*, EIGHT_MM_* -> GENERIC_*.
+Old names still resolve through aliases. The stock list is now in natural
+numeric order (FOTO-32 < FOTO-65 < FOTO-130 < FOTO-250), which together with
+the renames RENUMBERS eFILM_PROFILE -- saved projects that store the enum
+value must be re-saved. Historical sections below keep the names that were
+current when they were written. It also models the taking lens's
 veiling flare and multi-generation dupe printing, which is what makes the period
 stocks actually look period rather than merely soft.
 
@@ -780,7 +818,7 @@ sold on. The renderer uses it whenever --format is not given. --format still
 works and now means "override every stock", which is what it should mean.
 
   gauge pairs        7239 -> 16mm, 8630 -> 16mm, TRI_X_REVERSAL_200 -> 16mm
-  8 mm               EIGHT_MM_BW, EIGHT_MM_COLOR -> 8mm
+  8 mm               GENERIC_BW, GENERIC_COLOR (ex EIGHT_MM_*) -> 8mm
   instant film       SX-70 -> polaroid_sx70 (79 mm), 664/667 ->
                      polaroid_pack (95 mm); both are new FORMATS entries
   35 mm STILL films  -> ff35 (36.00 mm). A still frame is wider than a
@@ -917,7 +955,7 @@ Lomography indexes the Tasma stock as "Tasma FN64", not FN-65. Both
 designations circulate -- 65 matches the GOST speed step, 64 the ISO
 equivalent. Renamed TASMA_FN_65 -> TASMA_FN_64, exposure_index 65 -> 64. The
 fn65 / fn-65 / "tasma fn 65" aliases all still resolve to it, so nothing
-breaks. Note "fn64" alone still resolves to SVEMA_FN_64; use "tasma" or
+breaks. Note "fn64" alone still resolves to SVEMA_FOTO_65 (ex SVEMA_FN_64); use "tasma" or
 "fn64t" for the Tasma one.
 
 WHAT WOULD ACTUALLY CALIBRATE THESE
