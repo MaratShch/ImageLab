@@ -36,6 +36,9 @@
     <ClCompile Include="src\ImageLabIPC.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ImageLabProcess.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\ImageLabUtils.hpp">
@@ -130,6 +133,9 @@
     </ClInclude>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
       <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabProcess.hpp">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

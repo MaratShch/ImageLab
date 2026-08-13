@@ -100,3 +100,29 @@ inline HANDLE SafeConvertInt64ToHandle (const int64_t i) noexcept
 {
     return reinterpret_cast<HANDLE>(static_cast<intptr_t>(i));
 }
+
+
+constexpr std::uint64_t Magic
+(
+    const char a,
+    const char b,
+    const char c,
+    const char d,
+    const char e,
+    const char f,
+    const char g,
+    const char h
+) noexcept
+{
+    return (
+        (static_cast<uint64_t>(a) << 56) |
+        (static_cast<uint64_t>(b) << 48) |
+        (static_cast<uint64_t>(c) << 40) |
+        (static_cast<uint64_t>(d) << 32) |
+        (static_cast<uint64_t>(e) << 24) |
+        (static_cast<uint64_t>(f) << 16) |
+        (static_cast<uint64_t>(g) <<  8) |
+        (static_cast<uint64_t>(h) <<  0)
+    );
+}
+

@@ -138,6 +138,7 @@
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="src\ImageLabIPC.cpp" />
+    <ClCompile Include="src\ImageLabProcess.cpp" />
     <ClCompile Include="src\ImageLabUtils.cpp" />
     <ClCompile Include="src\MemoryBlock.cpp" />
     <ClCompile Include="src\MemoryHolder.cpp" />
@@ -167,6 +168,7 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\ImageLabCommonUtils.hpp" />
     <ClInclude Include="include\ImageLabIPC.hpp" />
+    <ClInclude Include="include\ImageLabProcess.hpp" />
     <ClInclude Include="include\ImageLabUtils.hpp" />
     <ClInclude Include="include\MemoryBlock.hpp" />
     <ClInclude Include="include\MemoryHolder.hpp" />
