@@ -7,5 +7,6 @@
 
 
 AlgoPrIngest::LocusGate& getLocusGate (bool is1931);
+AlgoCCT::CctHandle<double>& getCctHndl(void);
 
 #endif // __IMAGELAB2_COLOR_TEMPERATURE_COLOR_LOCUS__

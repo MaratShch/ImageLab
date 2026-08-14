@@ -59,7 +59,7 @@ PF_Err ProcessImgInPR
 
                     compute_superpixel (algoMemHandler.input_f32_interleaved, sizeX, sizeY, super);
 
-//                    AlgorithMain (pfLayer->data, output->data, algoMemHandler, algoCtrl, sizeX, sizeY, srcLinePitch, dstLinePitch, AlgoPrIngest::fmt_BGRA_4444_8u);
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
                 }
                 break;
 

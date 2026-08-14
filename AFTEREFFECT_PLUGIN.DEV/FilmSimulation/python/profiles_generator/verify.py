@@ -1026,6 +1026,41 @@ if _sec_on():
         "; ".join("%s %s" % (_k, _v) for _k, _v in _dups.items())
         or "all dict literals in film_profiles.py have unique keys")
 
+
+    # -----------------------------------------------------------------------
+    # 2026-08-15: FUJI_NEOPAN_1600 must keep reproducing the two numbers its
+    # datasheet actually prints (AF3-608E, PDF p3 and p4).
+    #
+    # Its curve was fitted to 487 points traced off the manufacturer's plotted
+    # characteristic curve, deliberately anchored so the AVERAGE GRADIENT matches
+    # Fuji's printed Gbar = 0.77 for the EI 1600 condition (SPD, 20 C, 4 1/4 min).
+    # The parameterisation is degenerate, so anyone retuning gamma or the toe by
+    # eye can keep a plausible-looking curve while silently losing the published
+    # statistic. This asserts the statistic, not the parameters.
+    _np1600 = get_profile("FUJI_NEOPAN_1600")
+    _c = _np1600.curves.r
+    _base = _c.dmin
+    # Gbar: slope from 0.1 above base+fog across 1.5 log-exposure units
+    _lo = None
+    for _t in np.linspace(-4.0, 6.0, 4001):
+        if fs.density_scalar(float(_t), _c) >= _base + 0.10:
+            _lo = float(_t)
+            break
+    _gbar = ((fs.density_scalar(_lo + 1.5, _c) - fs.density_scalar(_lo, _c)) / 1.5
+             if _lo is not None else 0.0)
+    chk("FUJI_NEOPAN_1600 reproduces its published average gradient Gbar 0.77",
+        _lo is not None and abs(_gbar - 0.77) <= 0.03 and abs(_base - 0.211) <= 0.002,
+        "Gbar=%.3f (printed 0.77), base+fog=%.3f (traced 0.211)" % (_gbar, _base))
+
+    # The spectral curve was re-traced at 5 nm because the source supports it and
+    # because a 613/630 nm dip-peak pair 17 nm apart is under-sampled at 10 nm.
+    # If a later pass coarsens it back, that structure is lost silently.
+    _sp = _np1600.spectral
+    chk("FUJI_NEOPAN_1600 spectral curve retains its 5 nm sampling",
+        _sp.lambda_step_nm == 5.0 and len(_sp.log_s_pan) >= 50
+        and "AF3-608E" in (_sp.source or ""),
+        "step=%s n=%d" % (_sp.lambda_step_nm, len(_sp.log_s_pan)))
+
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")
     sys.exit(0 if ok else 1)

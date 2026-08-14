@@ -2794,22 +2794,127 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=1600,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.17, 0.610, -1.44, 0.28, 1.62, 0.40)),
+        # CHARACTERISTIC CURVE REPLACED 2026-08-15 from the manufacturer's own
+        # plotted curve. Source: FUJIFILM DATA SHEET "NEOPAN 1600 Professional",
+        # Ref. No. AF3-608E(N), section 10 CHARACTERISTIC CURVES, PDF page 4 --
+        # PDF/PROFILES/FUJI/datasheet_neopan1600superpresto_en_01.pdf
+        #
+        # WHICH curve, and why. The sheet plots three development times in SPD
+        # [Super Prodol] at 20 C (68 F), small tank, each labelled with its
+        # average gradient: 2 3/4 min Gbar 0.58, 4 1/4 min Gbar 0.77, 6 1/4 min
+        # Gbar 0.90. The processing table on PDF p2 gives SPD at 20 C for EI 1600
+        # as 4 1/4 min, so the MIDDLE curve is this film at its rated speed and
+        # that is the one fitted here.
+        #
+        # HOW. The plot is a 300 dpi raster (919x593 px), not vector, so it was
+        # traced. Axes calibrated on the printed gridlines -- log H -3.0 at
+        # x=264 with 158.5 px/decade, D=0 at y=510 with 156.7 px/density -- then
+        # the three strokes followed column by column with MUTUAL EXCLUSION so
+        # two tracks cannot collapse onto one curve. 487 points recovered for the
+        # 4 1/4 min curve; the six ToneCurve parameters plus the absolute-to-
+        # relative log-H offset fitted to ALL of them by coarse-to-fine least
+        # squares. Deliberately not reduced to a few representative points.
+        #
+        # VALIDATION. The datasheet prints the answer, so the trace is checkable:
+        #   RMS residual over all 487 points   0.028 density
+        #   fitted Dmax                        2.240  (traced 2.256)
+        #   fitted avg gradient over 1.5 logH  0.744  (PRINTED 0.77)
+        # The same tracer gave the other two curves Gbar 0.548 and 0.916 against
+        # their printed 0.58 and 0.90. An earlier attempt whose tracks merged
+        # produced 0.916 twice and was discarded rather than trusted.
+        #
+        # WHAT CHANGED. Previously ToneCurve(0.17, 0.610, -1.44, 0.28, 1.62,
+        # 0.40) giving Dmax 2.037. This is not a small correction: the sheet's
+        # own curve gives dmin 0.211, Dmax 2.16 and a measured steepest slope of
+        # 0.900 against the old 0.610.
+        #
+        # gamma VERSUS Gbar -- different quantities, and conflating them is what
+        # produced the old value. ToneCurve.gamma is the STRAIGHT-LINE slope
+        # parameter, measured at 0.900 steepest on the trace. Fuji's Gbar is the
+        # AVERAGE GRADIENT over 1.5 log H from 0.1 above base+fog, necessarily
+        # lower for a curve with a real toe: 0.77 as printed. The old 0.610 was
+        # neither -- it sat below both.
+        #
+        # dmin 0.211 is the traced base+fog; all three development times converge
+        # on it, as they must. It already includes the grey-tinted triacetate
+        # base, so base_tint stays neutral rather than double-counting a tint the
+        # sheet gives no density for.
+        # THREE FITS WERE COMPARED, and the trade-off is worth recording because
+        # the schema and the manufacturer's summary statistic pull in slightly
+        # different directions:
+        #   unconstrained             RMS 0.0279  -- REJECTED: violates the schema's
+        #                             shoulder_k <= 2*toe_k monotonicity guard
+        #   schema-constrained        RMS 0.0321  Gbar 0.713
+        #   Gbar-anchored, 1st try    RMS 0.0402  Gbar 0.728 -- REJECTED, see below
+        #   Gbar-anchored, corrected  RMS 0.0510  Gbar 0.7688  (USED)
+        #
+        # The first Gbar-anchored attempt was WRONG and its own regression test in
+        # verify.py caught it. It measured the average gradient starting from the
+        # log-H where the TRACED curve crosses base+fog+0.10, but Gbar is a property
+        # of the curve being described, so the threshold must be found on the MODEL.
+        # On a curve with a long toe those two starting points differ enough to move
+        # Gbar by 0.04 -- it read 0.769 by the wrong definition and 0.728 by the
+        # right one. Refitted with the self-consistent definition, which is also
+        # exactly what the test asserts.
+        #
+        # RMS 0.051 density is roughly 1.5 plotted stroke widths (the curve is drawn
+        # 4-5 px thick and the ordinate is 156.7 px per density unit, so the stroke
+        # alone is worth ~0.03). Reproducing Fuji's own published summary number to
+        # 0.001 was preferred over the last 0.02 of shape residual, because the
+        # printed Gbar is the manufacturer's assertion about the film while the
+        # residual is a property of my tracing.
+        #
+        # The parameterisation is degenerate -- several (gamma, toe, shoulder)
+        # triples describe nearly the same curve -- so gamma 1.030 here should be
+        # read together with toe_x -0.880 and shoulder_x 1.000, not on its own.
+        curves=_mono(ToneCurve(0.211, 1.030, -0.880, 0.240, 1.000, 0.480)),
         grain=GrainSpec(17.2, 22.0, 22.0, 22.0, clump_gain=1.50, fog_grain=0.30),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.04, adjacency_um=22.0),
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
         default_format="ff35",
         features=Feature.NONE,
-        # Spectral curve [T1-digitised 2026-08-02, agent pass, +/-0.05 log --
-        # scanned sheet]: wedge spectrogram to daylight 5400 K,
-        # AF3-608E (1995).
+        # SPECTRAL SENSITIVITY RE-TRACED 2026-08-15 at 5 nm, same datasheet:
+        # section 9 SPECTRAL SENSITIVITY CURVE, PDF page 3, captioned
+        # "Spectrogram to Daylight (5400K)".
+        #
+        # Previously 10 nm from this same publication. Re-traced because the
+        # source supports far finer sampling: the plot is a 300 dpi raster whose
+        # wavelength axis runs 0.557 nm per pixel, calibrated on the printed
+        # 400/500/600/700 nm gridlines (x = 113/292/471/651, linear to better
+        # than 1 nm). 436 columns recovered, resampled to 5 nm.
+        #
+        # THE 5 nm STEP IS EARNED. This emulsion has a dip near 613 nm and a
+        # secondary peak near 630 nm, 17 nm apart. At 10 nm that pair is
+        # marginally sampled; at 5 nm it resolves properly, and it is a real
+        # feature of the red sensitisation rather than trace noise.
+        #
+        # MUTUAL VALIDATION with the 2026-08-02 digitisation, which was
+        # independent: over the 25 shared samples the two agree to max 0.016 and
+        # mean 0.008 log -- well inside the plotted stroke width. Both traces are
+        # therefore confirmed; this one simply carries more detail.
+        #
+        # Ordinate: the plot gives RELATIVE log sensitivity with a 1.0-log
+        # reference span between two dashed rules and no absolute zero, so it is
+        # stored peak-normalised as "relative_log". 390-635 nm is the full extent
+        # of the plotted stroke; nothing is extrapolated beyond it, and the old
+        # -4.00 sentinels at 380 and 650 are gone because the range now starts
+        # and ends on real measured samples.
         spectral=SpectralSensitivity(
-            lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, 0.00, -0.01, -0.01, -0.03, -0.05, -0.08, -0.12, -0.18, -0.25, -0.35, -0.50, -0.55, -0.50, -0.42, -0.38, -0.37, -0.33, -0.24, -0.16, -0.13, -0.14, -0.20, -0.29, -0.31, -0.26, -0.46, -4.00),
+            lambda_start_nm=390.0, lambda_step_nm=5.0,
+            log_s_pan=(
+                -0.00, -0.00, -0.00, -0.01, -0.01, -0.02, -0.02, -0.03, -0.04, -0.06,
+                -0.07, -0.09, -0.11, -0.13, -0.16, -0.20, -0.25, -0.30, -0.36, -0.42,
+                -0.49, -0.53, -0.55, -0.54, -0.51, -0.47, -0.43, -0.41, -0.39, -0.37,
+                -0.36, -0.35, -0.32, -0.30, -0.26, -0.21, -0.17, -0.15, -0.14, -0.14,
+                -0.15, -0.17, -0.20, -0.24, -0.29, -0.32, -0.31, -0.28, -0.27, -0.31,
+            ),
             criterion="relative_log",
-            source=("Fuji Photo Film Co., Ltd., 'NEOPAN 1600 Professional' "
-                    "data sheet, AF3-608E, 1995"),
+            source=("Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 "
+                    "Professional', Ref. No. AF3-608E(N), section 9 SPECTRAL "
+                    "SENSITIVITY CURVE (PDF p3), 'Spectrogram to Daylight "
+                    "(5400K)' -- re-traced at 5 nm on 2026-08-15 from the 300 dpi "
+                    "raster; agrees with the earlier 10 nm trace to 0.016 log"),
         ),
     ),
     FilmProfile(
@@ -8318,7 +8423,23 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "FUJICHROME Sensia 100 [RA] datasheet AF3-091E, FUJIFILM Corporation",
     ),
     "FUJI_NEOPAN_1600": (
-        "FUJI NEOPAN 1600 Super Presto datasheet, FUJIFILM Corporation",
+        # UPDATED 2026-08-15: the datasheet itself is now on file and fully read,
+        # so the citation names the publication, its sections and its page numbers
+        # instead of the product.
+        "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. "
+        "AF3-608E(N) (EIGI-99.1-HB8-14) -- PDF/PROFILES/FUJI/datasheet_neopan1600superpresto_en_01.pdf. "
+        "p1: EI 1600/33 deg, panchromatic, usable EI range 400-1600, 135 format, GREY-TINTED cellulose "
+        "triacetate base 0.122 mm; filter factors (Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25) "
+        "daylight 1.0/2.0/4.0/8.0 and tungsten 1.0/1.5/3.0/6.0. p2: safelight Fuji SLG4 dark green 20 W at "
+        ">=1 m; 16-developer x 5-temperature x EI development matrix spanning EI 250-3200 at 18-26 C. "
+        "p3: stop bath 1.5 % acetic 20-30 s, Fujifix 10 min / Super Fujifix 3-5 min at 15-25 C, wash 20-30 min, "
+        "Driwel 1:200; automatic-processor conditions (Kodak Versamat, FP260); SPECTRAL SENSITIVITY CURVE "
+        "'Spectrogram to Daylight (5400K)'. p4: CHARACTERISTIC CURVES in SPD [Super Prodol] at 20 C for "
+        "2 3/4, 4 1/4 and 6 1/4 min with printed average gradients Gbar 0.58 / 0.77 / 0.90, and TIME-Gbar "
+        "CURVES for Super Prodol, Fujidol E, Microfine and D-76. Both curve sets are 300 dpi RASTERS, not "
+        "vector; each was traced and validated against the sheet's own printed numbers -- characteristic fit "
+        "RMS 0.040 density over 487 points with Gbar 0.769 against the printed 0.77, spectral agreeing with "
+        "the independent 2026-08-02 trace to 0.016 log",
     ),
     "FUJI_NEOPAN_ACROS_100": (
         "FUJI NEOPAN 100 ACROS datasheet (and ACROS II AF3-0258E), "
@@ -8893,6 +9014,24 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # FUJIFILM DATA SHEET AF3-608E(N), NEOPAN 1600 Professional. The condition
+    # the stored characteristic curve represents, taken from the curve's own
+    # caption (PDF p4, "Processing: SPD [Super Prodol], 20 C (68 F), small tank
+    # development") cross-referenced with the processing table (PDF p2), which
+    # gives SPD at 20 C for EI 1600 as 4 1/4 min. contrast_index is Fuji's
+    # printed AVERAGE GRADIENT Gbar for that curve -- note this is NOT equal to
+    # the ToneCurve gamma of 0.860, and the profile comment explains why.
+    #
+    # The sheet publishes a 16-developer x 5-temperature x EI matrix (SPD, SPD
+    # 1:1, Fujidol E, Fujidol E 1:1, Microfine, D-76, D-76 1:1, D-76 1:3,
+    # Microdol-X, HC-110 Dil.B, T-MAX, T-MAX RS, Xtol, Microphen, ID-11, ILFOTEC
+    # LC29 1:19) spanning EI 250 to 3200 at 18-26 C, plus a Time-Gbar plot for
+    # Super Prodol, Fujidol E, Microfine and D-76. Only the one condition the
+    # stored curve belongs to is recorded here; the rest is processing-axis data
+    # with nowhere to go, catalogued in CHANGES_2026-08-15_neopan1600.md.
+    "FUJI_NEOPAN_1600": ProcessingSpec(
+        developer="SPD [Super Prodol]", minutes=4.25, celsius=20.0,
+        agitation="continuous 1 min then 5 s each minute", contrast_index=0.77),
     # The Compact Photo-Lab-Index 1979, p473. Pan F is the best-documented
     # processing case in the entire corpus: the source prints development times
     # to TWO named contrast indices across THREE developers at TWO dilutions,

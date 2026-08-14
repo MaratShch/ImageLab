@@ -27,6 +27,23 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > double-count mixing already carried by `dye_matrix` and `InterimageSpec`. See
 > `CHANGES_2026-08-13_spectral_path.md`.
 >
+> **Status 2026-08-15 (ninth entry):** FUJI NEOPAN 1600's own manufacturer
+> datasheet (AF3-608E, true digital PDF) extracted in full. Its curves are 300 dpi
+> **rasters** despite the digital origin — the vector paths on those pages are the
+> footer logo. Both were traced: the spectral curve **re-traced at 5 nm**, the
+> finest sampling in the corpus, justified because a 613/630 nm dip-peak pair sits
+> 17 nm apart and is under-sampled at 10 nm; it agrees with the independent 2026-08-02
+> trace to 0.016 log. The characteristic curve was **refitted to 487 traced points**
+> and this was a real correction: base+fog 0.170 → **0.211**, and the curve now
+> reproduces Fuji's printed average gradient **Ḡ 0.77 to 0.001** where the old
+> gamma 0.610 matched neither the straight-line slope nor the published Ḡ.
+>
+> Two lessons landed in `DIGITIZATION_QUEUE.md`: tracks sharing a plot need **mutual
+> exclusion** or two will collapse onto one stroke (it produced identical Ḡ for two
+> development times), and a fitted statistic must be measured **on the model, not on
+> the trace** — taking the threshold from the traced points shifted Ḡ by 0.04 and the
+> new regression test caught it. Full record: `CHANGES_2026-08-15_neopan1600.md`.
+>
 > **Status 2026-08-14 (eighth entry):** two vendor documents extracted; corpus
 > unchanged at **142 stocks** because this pass corrected and verified rather than
 > added. **Method finding worth acting on: check for PDF vector paths before
