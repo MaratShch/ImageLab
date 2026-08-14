@@ -1278,6 +1278,21 @@ class FilmProfile:
     #: monochrome stocks that will never have a traced sensitisation curve
     #: this pair is the only spectral information on file.
     #:
+    #: UNFILTERED PAIRS ONLY -- clarified 2026-08-14 after reading two colour
+    #: sources. A monochrome film needs no conversion filter, so its
+    #: daylight/tungsten pair is a pure statement about the emulsion. A
+    #: COLOUR film's second index is almost always quoted WITH a conversion
+    #: filter, and then the number is dominated by the filter's transmission
+    #: loss rather than by the film: KODAK EKTACHROME 100D is 100 daylight and
+    #: 25 tungsten *with an 80A*, and 100/25 is two stops, which is simply what
+    #: an 80A costs. Every Fujicolor cine stock is quoted the same way (a
+    #: No. 85 for tungsten-type films used in daylight, an 80A for daylight-type
+    #: films used under tungsten). Those figures are FILTER FACTORS and must not
+    #: be stored here -- doing so would make a filter look like a sensitisation
+    #: difference. Consequently every entry in _EXPOSURE_INDEX_TUNGSTEN is a
+    #: monochrome stock, and that is a property of the definition, not an
+    #: accident of which sources have been read.
+    #:
     #: Nothing in the render reads it yet. It is stored because it is
     #: documented and because a future spectral or filter-factor path is the
     #: obvious consumer.
@@ -3355,19 +3370,50 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.22),
         misregistration_um=3.5,
         features=Feature.STRONG_DIR_COUPLERS,
-        # Spectral curves [T1-digitised 2026-08-02, agent batch 3]: from
-        # the 5294/7294 technical sheet -- same EKTACHROME 100D emulsion
-        # family as 5285 (format/base numbering differs); H-1-5294
-        # rev. March 2026; no exposure criterion printed on that plot.
+        # Spectral curves REPLACED 2026-08-14. They previously came from the
+        # 5294/7294 sheet -- a DIFFERENT product (the 2018 Ektachrome
+        # reintroduction) borrowed under a declared same-family assumption,
+        # because no 5285 sheet was on file. H-1-5285 landed 2026-08-14, so
+        # these are now 5285's OWN published curves and the cross-product
+        # borrow is gone.
+        #
+        # EXTRACTED FROM VECTOR PATHS, NOT TRACED. The Kodak sheet draws its
+        # curves as PDF vector polylines, not as a raster figure, so the
+        # coordinates are exact and the only estimated step is the axis
+        # calibration -- which was fitted by least squares to the printed tick
+        # centres and closes to 0.63 nm on wavelength and 0.009 log on
+        # sensitivity. This is the first curve in this database that did not
+        # need digitize_plot.py at all.
+        #
+        # THE OLD BORROW WAS VALIDATED, NOT MERELY REPLACED. Comparing the two
+        # peak-normalised on the same 10 nm grid: peaks agree to one sample or
+        # better (B 420 vs 430, G 550 vs 570 on a flat-topped lobe where argmax
+        # is noise, R 650 vs 650) and values agree within 0.1-0.3 log through
+        # every main lobe. The declared 5294 -> 5285 family equivalence was
+        # therefore sound. What 5285's own plot adds is measured SKIRTS: 16/15/13
+        # active samples against the borrow's 13/13/13, i.e. real low-sensitivity
+        # tails on the red and green layers that the earlier digitisation had
+        # truncated to the -4.0 floor.
+        #
+        # Render effect, measured: derived balance gains at 3200 K move from
+        # 1.5886/1.0/0.4380 to 1.5731/1.0/0.4256 -- about -1 % red and -2.8 %
+        # blue. Zero change at 5500 K, the film's own balance, by construction.
+        #
+        # Criterion on the plot: log sensitivity = reciprocal of the exposure in
+        # ergs/cm^2 needed to reach density 1.0, effective exposure 0.1 second,
+        # Status A densitometry, Process E-6. Stored peak-normalised as
+        # "relative_log", the database convention.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.37, -2.18, -1.52, -0.94, -0.65, -0.53, -0.38, -0.24, -0.07, 0.00, -0.54, -1.38, -2.08),
-            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.27, -0.86, -0.63, -0.49, -0.34, -0.20, -0.05, -0.01, -0.01, 0.00, -0.27, -1.15, -1.92, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-4.00, -4.00, -0.52, -0.22, -0.04, 0.00, -0.13, -0.12, -0.12, -0.37, -0.98, -1.38, -1.64, -1.86, -2.18, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.36, -2.28, -2.18, -2.07, -1.97, -1.69, -1.33, -0.92, -0.54, -0.38, -0.25, -0.11, 0.00, 0.00, -0.64, -1.35, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.11, -1.90, -1.60, -1.29, -0.99, -0.76, -0.58, -0.39, -0.22, -0.06, 0.00, -0.02, -0.07, -0.34, -1.38, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.50, -1.02, -0.47, -0.13, 0.00, -0.02, -0.04, -0.02, -0.13, -0.56, -1.03, -1.49, -1.95, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="relative_log",
             source=("Eastman Kodak Company, 'KODAK EKTACHROME 100D Color "
-                    "Reversal Film 5294/7294 Technical Information', "
-                    "publication H-1-5294, revised March 2026"),
+                    "Reversal Film 5285 / 7285', publication H-1-5285, "
+                    "February 2010 -- Spectral Sensitivity Curves, extracted "
+                    "from the PDF vector paths (exact), axes calibrated to the "
+                    "printed tick centres"),
         ),
     ),
     # -----------------------------------------------------------------------
@@ -3837,7 +3883,15 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         curves=_mono(ToneCurve(0.14, 1.30, -0.65, 0.24, 0.74, 0.32)),
         grain=GrainSpec(8.6, 13.0, 13.0, 13.0, clump_gain=0.85, fog_grain=0.20),
         # Published resolution 20-25 lp/mm at 1000:1 -> _RESOLVING_POWER.
-        mtf=MTFSpec(40.0, 40.0, 40.0, adjacency=0.05, adjacency_um=20.0),
+        # CORRECTED 2026-08-14 (systematic re-analysis). Was mtf=MTFSpec(40.0, 40.0, 40.0, adjacency=0.05, adjacency_um=20.0),.
+        # Polaroid's own sheet (664fds.pdf p2) gives a limiting resolution of
+        # 20 lp/mm at 1000:1, and f50 CANNOT equal or exceed limiting
+        # resolution: f50 is the 50 %-modulation frequency while limiting
+        # resolution is where modulation falls to the few-per-cent visual
+        # threshold, so f50 must sit well below it. One line pair is one
+        # cycle, so the two figures are directly comparable and the old
+        # value was physically impossible.
+        mtf=MTFSpec(9.0, 9.0, 9.0, adjacency=0.0),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="polaroid_pack",
@@ -3898,7 +3952,15 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(19.4, 26.0, 26.0, 26.0, clump_gain=1.35, fog_grain=0.34),
         # f50 stays an estimate: Polaroid prints an MTF graph with no tabulated
         # values. Published resolution 14-20 lp/mm at 1000:1 -> _RESOLVING_POWER.
-        mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.03, adjacency_um=24.0),
+        # CORRECTED 2026-08-14 (systematic re-analysis). Was mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.03, adjacency_um=24.0),.
+        # Polaroid's own sheet (667fds.pdf p2) gives a limiting resolution of
+        # 14 lp/mm at 1000:1, and f50 CANNOT equal or exceed limiting
+        # resolution: f50 is the 50 %-modulation frequency while limiting
+        # resolution is where modulation falls to the few-per-cent visual
+        # threshold, so f50 must sit well below it. One line pair is one
+        # cycle, so the two figures are directly comparable and the old
+        # value was physically impossible.
+        mtf=MTFSpec(6.0, 6.0, 6.0, adjacency=0.0),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="polaroid_pack",
@@ -7338,7 +7400,15 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             b=ToneCurve(0.02, 1.35, -0.50, 0.24, 0.782, 0.32),
         ),
         grain=GrainSpec(7.5, 7.5, 7.5, 7.5, clump_gain=1.02, fog_grain=0.12),
-        mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.0),   # from 35-40 lp/mm
+        # CORRECTED 2026-08-14 (second pass). Was MTFSpec(38,38,38), set from
+        # the 1979 Photo-Lab-Index figure of "35-40 lines/mm". Polaroid's OWN
+        # data sheet 52fds.pdf p1 states "Resolution (1000:1) 12 - 15 line
+        # pairs/mm" -- roughly a THIRD of the trade-book number, and unlike the
+        # book it states the test-object contrast. An f50 of 38 cycles/mm on a
+        # film whose limiting resolution is 12-15 lp/mm is not merely optimistic,
+        # it is impossible: f50 must sit well BELOW limiting resolution. 8 c/mm
+        # is a defensible fraction of a 13.5 lp/mm limit.
+        mtf=MTFSpec(8.0, 8.0, 8.0, adjacency=0.0),
         halation=HalationSpec(
             radii_um=(12.0, 48.0, 180.0),
             gain_r=0.03, gain_g=0.03, gain_b=0.03,
@@ -7504,7 +7574,12 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # entered in _RESOLVING_POWER because the test-object contrast is not
         # stated. f50 is set well below the limiting resolution, as the
         # relationship between the two requires.
-        mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.01),
+        # UPDATED 2026-08-14 (second pass) to Polaroid's own figure. 55fds.pdf
+        # p1 gives "Resolution (1000:1) 160 - 180 line pairs/mm (negative)" and
+        # "20 - 25 line pairs/mm (print)" -- slightly HIGHER than the 150-160 the
+        # 1979 trade book printed, and with the test-object contrast stated, which
+        # is what finally allows a _RESOLVING_POWER entry for this stock.
+        mtf=MTFSpec(100.0, 100.0, 100.0, adjacency=0.01),
         halation=HalationSpec(
             radii_um=(8.0, 30.0, 110.0),
             gain_r=0.02, gain_g=0.02, gain_b=0.02,
@@ -8618,7 +8693,13 @@ _DMIN_LADDER = {
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     # 2026-08-13 batch additions, each from the stock's own sheet [C1]:
     "KODAK_TMAX_100": (63.0, 200.0),      # F-4016 2018
-    "KODAK_TMAX_400": (50.0, 200.0),      # F-4043 2016 (TMY-2)
+    "KODAK_TMAX_400": (50.0, 125.0),   # CORRECTED 2026-08-14: was (50.0, 200.0),
+    # which is T-MAX 100's high-contrast figure copied onto the 400. Verified by
+    # word coordinates on KODAK/f32-TMAX.pdf p13, which prints two adjacent
+    # blocks 60 pt apart: T-MAX 100 "TOC 1.6:1 63 lines/mm / TOC 1000:1 200
+    # lines/mm", then T-MAX 400 "TOC 1.6:1 50 lines/mm / TOC 1000:1 125
+    # lines/mm". Interleaved layout is exactly how that transcription error
+    # happens. Method: similar to ISO 6328.      # F-4043 2016 (TMY-2)
     "KODAK_TMAX_P3200": (40.0, 125.0),    # F-4001 2019
     "AGFA_SCALA_200X": (50.0, 120.0),     # Scala sheet, at ISO 200 process
     # 2026-08-13, Kodak publication H-1-5239 (EASTMAN EKTACHROME Daylight
@@ -8842,6 +8923,15 @@ _PROCESSING: dict[str, ProcessingSpec] = {
     # having per-field absence.
     "ILFORD_FP4": ProcessingSpec(
         developer="ID-11", celsius=20.0, agitation="intermittent"),
+    # H-1-5285, February 2010. A colour reversal film has no developer CHOICE --
+    # E-6 is a standardised process, so naming it fully specifies the condition
+    # in a way no black-and-white curve ever can. The sheet states the process
+    # and the densitometry but prints no time or temperature (they are fixed by
+    # the E-6 specification, not by the film), so those stay 0.0 = not stated
+    # rather than being copied in from the process standard, which is a
+    # different document.
+    "KODAK_EKTACHROME_100D_5285": ProcessingSpec(
+        developer="Process E-6", agitation="cine machine only"),
 }
 
 
@@ -8888,6 +8978,35 @@ _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
     # documented [C1]. Green is held at the fitted value and the flagged
     # channel is moved down by 0.03, the same spread the surrounding
     # estimated entries in this file already use.
+    # ----------------------------------------------------------------------
+    # 2026-08-14, FUJIFILM MOTION PICTURE FILM MANUAL, ref. KB-1101E, 2011
+    # (PDF/PROFILES/FUJI/fujifilm_motion_picture_film_manual.pdf).
+    #
+    # All nine Fujicolor cine stocks in that manual carry the SAME statement,
+    # verbatim per film: "requires no filter corrections or exposure adjustments
+    # for shutter speeds of 1/1000 to 1/10 second. For exposures of 1 second,
+    # open the lens 1/3 of a stop."
+    #
+    # Two things follow, and the second is the interesting one.
+    #
+    # onset_s = 0.1 is DOCUMENTED, not inferred: the no-correction range is
+    # stated to end at 1/10 s.
+    #
+    # THE FAILURE IS ACHROMATIC. "No FILTER corrections" is an explicit
+    # statement that the three records lose speed together -- there is no colour
+    # shift to correct at 1 s. That is the opposite of every Kodak colour film
+    # in the H-1 reciprocity master table, each of which needs a CC filter
+    # (CC10R, CC10M, CC15B...). So the per-channel spread here is set to exactly
+    # ZERO, and that zero is evidence rather than a default.
+    #
+    # The exponent is NOT well determined: one non-zero point (+1/3 stop at 1 s)
+    # with onset only bracketed in (0.1, 1]. Taking onset at the documented
+    # 0.1 s gives 1-p = (1/3)*ln2/ln(10) = 0.100, so p = 0.90, and that is what
+    # is used -- but it is the value implied by the loosest reading, and a
+    # shorter true onset would make it milder still. Recorded as [C2]: the
+    # inputs are documented, the single-point fit is not.
+    "FUJI_ETERNA_VIVID_500T_8547": ReciprocitySpec(0.90, 0.90, 0.90, onset_s=0.1),
+    #
     "EKTACHROME_64": ReciprocitySpec(0.85, 0.85, 0.82, onset_s=0.1),
     #   p174: none 1/1000-1/10; +1 stop CC15B @ 1 s; +1.5 stops CC20B @ 10 s;
     #   Not Recommended @ 100 s. Also +1/2 stop at 1/10000 s -- a SHORT-time

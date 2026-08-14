@@ -314,6 +314,34 @@ struct TemporalSpec {
     float fps_native;       ///< native shooting/projection frame rate
 };
 
+/// Which development condition the stored curve represents (schema v6,
+/// 2026-08-14). DESCRIPTIVE ONLY -- nothing in the renderer reads this.
+///
+/// Every characteristic curve in this database is the curve for ONE processing
+/// condition, and until schema v6 nothing recorded which. The size of that
+/// ambiguity is measurable: for Ilford Pan F the manufacturer publishes six
+/// development conditions spanning ASA 32 to ASA 80 and contrast index 0.55 to
+/// 0.70 -- 1 1/3 stops of speed and 27 percent of contrast, all of them correct
+/// for the same film. A curve with no processing statement is therefore
+/// ambiguous by more than a stop.
+///
+/// Empty strings and zeros mean NOT STATED BY THE SOURCE, which is the honest
+/// value for most stocks: datasheets usually print a curve without naming the
+/// developer, and inventing one would be fabrication.
+struct ProcessingSpec
+{
+    std::string developer;      ///< as printed, e.g. "ID-11"; "" = not stated
+    std::string dilution;       ///< as printed, e.g. "1+1"; "" = not stated
+    float       minutes;        ///< 0.0 = not stated
+    float       celsius;        ///< 0.0 = not stated
+    std::string agitation;      ///< e.g. "intermittent"; "" = not stated
+    /// Contrast-index aim the time targets. 0.0 = not stated. NOT automatically
+    /// equal to the curve's gamma: contrast index is an average gradient over a
+    /// stated log-exposure interval, gamma is a straight-line slope.
+    float       contrast_index;
+};
+
+
 /// Schwarzschild reciprocity failure (schema v2, DM-07). Effective exposure
 /// past onset: E_eff = I * t^p, p <= 1. p = 1.0 means no failure (correct for
 /// normal cine exposure times and the v1 behaviour). Tier-2/3 estimates
@@ -585,6 +613,15 @@ struct FilmProfile {
     TemporalSpec    temporal;     ///< gate weave / flicker / dirt (tier 3)
     ReciprocitySpec reciprocity;  ///< Schwarzschild failure (tier 2/3)
     AgingSpec       aging;        ///< storage damage hooks; all zeros = fresh
+    // -- schema v6 (2026-08-14) ----------------------------------------------
+    /// Manufacturer exposure index under TUNGSTEN where the source prints one
+    /// alongside the daylight figure; 0 = not stated. NOT redundant with
+    /// exposure_index: for a monochrome film the pair states the emulsion's
+    /// spectral weighting. Measured across this database, ordinary
+    /// panchromatic stocks sit at a ratio near 1.25, ILFORD_HP4 is flat at
+    /// 1.00, and the blue-sensitive-only POLAROID_51 is 3.2.
+    int32_t         exposure_index_tungsten;
+    ProcessingSpec  processing;   ///< development condition of the curve
     Provenance      provenance;   ///< sources and confidence tier
     /// Static reversal exposure trim in x = -log10(E) - trim. 0.0 for every
     /// stock: the reference renderer solves per-channel trims per render.
@@ -866,6 +903,24 @@ def _reciprocity(r) -> str:
     )
 
 
+def _processing(x) -> str:
+    """ProcessingSpec initialiser. Strings are quoted; absent = empty/zero."""
+    return (
+        "{ "
+        + ", ".join(
+            [
+                f'"{_escape(x.developer)}"',
+                f'"{_escape(x.dilution)}"',
+                _f(x.minutes),
+                _f(x.celsius),
+                f'"{_escape(x.agitation)}"',
+                _f(x.contrast_index),
+            ]
+        )
+        + " }"
+    )
+
+
 def _aging(a) -> str:
     return (
         "{ "
@@ -997,6 +1052,8 @@ def _profile_block(p: FilmProfile) -> str:
             {_temporal(p.temporal)},
             {_reciprocity(p.reciprocity)},
             {_aging(p.aging)},
+            {p.exposure_index_tungsten},
+            {_processing(p.processing)},
             {_provenance(p.provenance)},
             {_f(p.trim)},
             "{_escape(p.density_metric)}",

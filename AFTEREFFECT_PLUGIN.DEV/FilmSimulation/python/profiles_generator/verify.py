@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 
 import film_sim as fs
+import film_profiles
 from film_profiles import (FILM_PROFILES, FORMATS, PRINT_STOCKS, StockKind,
                            get_profile, validate_all)
 
@@ -912,6 +913,118 @@ if _sec_on():
     chk("GEVACOLOR_1952 is tungsten-balanced per Cheltsov 1958 p178",
         get_profile("GEVACOLOR_1952").balance_kelvin == 2850,
         f"{get_profile('GEVACOLOR_1952').balance_kelvin} K")
+
+
+    # -----------------------------------------------------------------------
+    # 2026-08-14: the two vendor documents that landed this session.
+    # -----------------------------------------------------------------------
+    # EKTACHROME 100D's spectral curves now come from H-1-5285 -- the sheet
+    # whose product number the profile actually bears -- instead of being
+    # borrowed from the 5294/7294 reintroduction. They were extracted from PDF
+    # VECTOR paths, so they are exact rather than traced. The check is that the
+    # red and green layers carry more measured samples than the old borrow did
+    # (16 and 15 against 13 and 13): that is the whole gain, real low-sensitivity
+    # skirts instead of a -4.0 floor, and it is what a regression would undo.
+    _sp = get_profile("KODAK_EKTACHROME_100D_5285").spectral
+    _act = lambda v: sum(1 for x in v if x > -3.9)
+    chk("EKTACHROME 100D spectral curves are 5285's own, with measured skirts",
+        _act(_sp.log_s_r) >= 16 and _act(_sp.log_s_g) >= 15
+        and "H-1-5285" in _sp.source,
+        "active r/g/b = %d/%d/%d, source %s"
+        % (_act(_sp.log_s_r), _act(_sp.log_s_g), _act(_sp.log_s_b),
+           "H-1-5285" if "H-1-5285" in _sp.source else _sp.source[:40]))
+
+    # The Fujicolor cine manual states "no FILTER corrections" at 1 s, which is
+    # an explicit statement that the three records lose speed together. That
+    # zero spread is evidence, not a default, so it is asserted -- and it is the
+    # one colour stock in the database where the spread SHOULD be zero, against
+    # the Kodak films that all need a CC filter.
+    _fr = get_profile("FUJI_ETERNA_VIVID_500T_8547").reciprocity
+    chk("Fuji ETERNA reciprocity failure is achromatic, as the manual states",
+        _fr.schwarzschild_p_r == _fr.schwarzschild_p_g == _fr.schwarzschild_p_b
+        and _fr.onset_s == 0.1,
+        "p=%.2f/%.2f/%.2f onset=%.2f"
+        % (_fr.schwarzschild_p_r, _fr.schwarzschild_p_g, _fr.schwarzschild_p_b,
+           _fr.onset_s))
+
+    # exposure_index_tungsten is defined as UNFILTERED pairs only. A colour
+    # film's second index is quoted through a conversion filter and is therefore
+    # a filter factor, not a film property -- so every entry must be monochrome.
+    # If a later batch adds a colour stock here, this fails and the definition
+    # in the field docstring has been violated.
+    _tw = [p.name for p in FILM_PROFILES
+           if p.exposure_index_tungsten and not p.is_monochrome]
+    chk("every tungsten exposure index is a monochrome stock (unfiltered pairs)",
+        not _tw, ", ".join(_tw) or
+        "%d entries, all monochrome"
+        % sum(1 for p in FILM_PROFILES if p.exposure_index_tungsten))
+
+
+    # -----------------------------------------------------------------------
+    # 2026-08-14 (systematic re-analysis): PHYSICAL CONSISTENCY between the two
+    # sharpness fields. f50 is the frequency at which modulation falls to 50 %;
+    # limiting resolution is where it falls to the few-per-cent visual
+    # threshold. One line pair is one cycle, so the figures are directly
+    # comparable, and f50 must sit WELL BELOW the limiting resolution. A stock
+    # whose f50 exceeds its own published limiting resolution is not optimistic,
+    # it is impossible.
+    #
+    # This caught two real errors on stocks whose resolving power had been taken
+    # from Polaroid data sheets while their MTF was left at an unrelated
+    # estimate: POLAROID_664 had f50 40 against a 20 lp/mm limit, POLAROID_667
+    # f50 26 against 14. Both are fixed; this test stops the class recurring,
+    # which matters because the two numbers are entered from different places
+    # (MTFSpec in the profile, _RESOLVING_POWER in a separate dict) and nothing
+    # else ties them together.
+    _mtf_bad = []
+    for _p in FILM_PROFILES:
+        _rp = film_profiles._RESOLVING_POWER.get(_p.name)
+        if not _rp or not _rp[1]:
+            continue
+        _f50 = max(_p.mtf.f50_r, _p.mtf.f50_g, _p.mtf.f50_b)
+        if _f50 >= _rp[1]:
+            _mtf_bad.append("%s f50=%.0f >= limit=%.0f" % (_p.name, _f50, _rp[1]))
+    chk("f50 stays below published limiting resolution on every stock with both",
+        not _mtf_bad, "; ".join(_mtf_bad) or
+        "%d stocks carry both figures, all consistent"
+        % sum(1 for _p in FILM_PROFILES
+              if film_profiles._RESOLVING_POWER.get(_p.name, (0, 0))[1]))
+
+
+    # -----------------------------------------------------------------------
+    # 2026-08-14: DUPLICATE KEYS IN THE DECORATION DICTS.
+    #
+    # Python takes the LAST value for a repeated dict key and says nothing. On
+    # 2026-08-14 a re-analysis pass appended 22 keys that already existed
+    # further down these dicts, so every one of those "additions" was a silent
+    # no-op -- including two that carried an arithmetic error, which is the only
+    # reason the error never reached a render. That is a bad way to be lucky.
+    #
+    # The dicts are long, hand-maintained and appended-to by date, so this will
+    # recur without a test. Parsing the source with ast is the only way to see
+    # it: by the time the module is imported the duplicates are already gone.
+    import ast as _ast
+    import collections as _coll
+    _tree = _ast.parse(Path("film_profiles.py").read_text(encoding="utf-8"))
+    _dups = {}
+    for _n in _ast.walk(_tree):
+        _v = getattr(_n, "value", None)
+        if not isinstance(_v, _ast.Dict):
+            continue
+        _nm = getattr(getattr(_n, "target", None), "id", None)
+        if _nm is None and isinstance(_n, _ast.Assign) and _n.targets:
+            _nm = getattr(_n.targets[0], "id", None)
+        if not _nm:
+            continue
+        _keys = [_k.value for _k in _v.keys
+                 if isinstance(_k, _ast.Constant) and isinstance(_k.value, str)]
+        _d = {_a: _c for _a, _c in _coll.Counter(_keys).items() if _c > 1}
+        if _d:
+            _dups[_nm] = _d
+    chk("no duplicate keys in any decoration dict",
+        not _dups,
+        "; ".join("%s %s" % (_k, _v) for _k, _v in _dups.items())
+        or "all dict literals in film_profiles.py have unique keys")
 
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

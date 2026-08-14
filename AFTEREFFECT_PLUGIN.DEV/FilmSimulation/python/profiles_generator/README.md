@@ -27,6 +27,31 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > double-count mixing already carried by `dye_matrix` and `InterimageSpec`. See
 > `CHANGES_2026-08-13_spectral_path.md`.
 >
+> **Status 2026-08-14 (eighth entry):** two vendor documents extracted; corpus
+> unchanged at **142 stocks** because this pass corrected and verified rather than
+> added. **Method finding worth acting on: check for PDF vector paths before
+> tracing.** Kodak H-1-5285 draws its curves as vector polylines, so they were
+> extracted EXACTLY — axes calibrated to 0.63 nm and 0.009 log, an order of
+> magnitude better than any trace, and `digitize_plot.py` was not needed at all. A
+> two-line check now heads `DIGITIZATION_QUEUE.md`. The Fujifilm cine manual, by
+> contrast, is raster.
+>
+> `KODAK_EKTACHROME_100D_5285`'s spectral curves had been borrowed from the
+> **5294/7294** sheet (a different product) under a declared same-family
+> assumption. Replaced with 5285's own — and the borrow was **validated** on the
+> way out: peaks agree to one sample, values within 0.1-0.3 log through every lobe.
+> The gain is real measured skirts, 13/13/13 → 16/15/13 active samples. Fuji's
+> ETERNA line gave the corpus its **first documented achromatic reciprocity
+> failure** ("no filter corrections" at 1 s), so its per-channel spread is zero as
+> evidence rather than as a default. `exposure_index_tungsten` was tightened to
+> **unfiltered pairs only** — a colour film's second index is a filter factor
+> (100→25 through an 80A is just what an 80A costs), not a film property.
+>
+> Two websites on Fujifilm "Film Simulations" assessed, **nothing entered**: those
+> are in-camera JPEG presets, not emulsions. Only three map to a real film, and
+> **Classic Chrome matches no emulsion at all** — modelling it as Kodachrome would
+> be a category error. Full record: `CHANGES_2026-08-14b_fuji_kodak_websites.md`.
+>
 > **Status 2026-08-14 (seventh entry):** **schema v6.** Acted on the three gaps the
 > Photo-Lab-Index pass identified instead of deferring them. Two new fields, the
 > first the PRC axis has ever had: `exposure_index_tungsten` (7 stocks — the RATIO
