@@ -162,7 +162,7 @@ namespace
         //  made on ORWO colour frames. Two different stocks, two different correct
         //  answers, and the wrong one is not obviously wrong.
         //
-        //  Thirty-six of the 93 stocks in the database are monochrome, so this is
+        //  Fifty-nine of the 142 stocks in the database are monochrome, so this is
         //  not an edge case.
         // ------------------------------------------------------------------
         if (monochrome)
@@ -1372,7 +1372,7 @@ void AlgoStage09b_NegativeDefects
     //  A monochrome emulsion holds one silver image and prints through one dye, so
     //  it cannot record what colour a particle was - only how much light it
     //  blocked. Particles on such a stock must therefore be exactly neutral, and
-    //  36 of the 93 stocks in the database are monochrome, so this is the common
+    //  59 of the 142 stocks in the database are monochrome, so this is the common
     //  case rather than an exception.
     // ----------------------------------------------------------------------
     const bool monochrome = profile.is_monochrome;
@@ -1402,7 +1402,7 @@ void AlgoStage09b_NegativeDefects
     //  profile IS read now, for is_monochrome, but its AgingSpec is not. That
     //  structure's dust_area_ppm, mottle_amplitude and
     //  scratch rates are the era baseline these levels were meant to multiply -
-    //  but every one of the 93 stocks currently ships that structure all zero,
+    //  but every one of the 142 stocks currently ships that structure all zero,
     //  documented as "fresh". Multiplying by it would therefore silence the whole
     //  defect layer on every stock, so the levels are absolute for now: dustLevel
     //  1.0 means the measured central density, whatever the stock. When AgingSpec

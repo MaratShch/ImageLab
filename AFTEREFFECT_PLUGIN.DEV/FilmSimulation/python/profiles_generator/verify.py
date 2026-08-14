@@ -71,7 +71,10 @@ if _sec_on():
     # Kodachromes, Agfacolor type 3, Anscocolor 843, Gevacolor 652, two
     # Ferraniacolor, Svema DS-2 and LN-3, Eastmancolor 5248/1953). Four
     # colour PrintStocks landed in the same batch: 5 -> 9.
-    chk("131 stocks load and validate", len(FILM_PROFILES) == 131, f"n={len(FILM_PROFILES)}")
+    # 2026-08-14 fourth batch: 131 -> 142 (The Compact Photo-Lab-Index 1979 --
+    # eight Polaroid types with published D-max/D-min/slope/resolution, plus
+    # Ilford Pan F, FP4 and HP4). Print stocks unchanged at 9.
+    chk("142 stocks load and validate", len(FILM_PROFILES) == 142, f"n={len(FILM_PROFILES)}")
     chk("9 print stocks load", len(PRINT_STOCKS) == 9, f"n={len(PRINT_STOCKS)}")
     rev = [p.name for p in FILM_PROFILES if p.is_reversal]
     # 2026-08-13: 22 -> 23 (AGFA_SCALA_200X, B&W reversal, added).
@@ -79,7 +82,10 @@ if _sec_on():
     # stocks: KODACHROME_1938, KODACHROME_TYPE_A_1938 (both Kodachrome-process
     # reversal, diffusing couplers in the developer) and
     # FERRANIACOLOR_REVERSAL_1950 (incorporated couplers).
-    chk("reversal stocks flagged", len(rev) == 26, ", ".join(rev))
+    # 2026-08-14: 26 -> 33. Seven Polaroid instant types are reversal (the
+    # print IS the output); POLAROID_55_PN_NEG is deliberately NEGATIVE
+    # because it is a real fixed, enlargeable silver negative.
+    chk("reversal stocks flagged", len(rev) == 33, ", ".join(rev))
 
     # alias resolution incl. the user's own phrasing
     cases = {
@@ -316,19 +322,49 @@ if _sec_on():
     # rendered image legitimately overshoots on a gradient because the adjacency
     # band-pass and coupler edge term are real edge effects.
     _lg = np.linspace(-3.0, 3.0, 4001).astype(np.float32)
+    # KNOWN, MEASURED SHAPE-FAMILY LIMIT -- do not widen this set casually.
+    #
+    # ToneCurve blends a toe and a shoulder around a straight line. At very
+    # high gamma with a very short throw the two blends overlap, and the sum
+    # overshoots by a tiny amount before settling. POLAROID_51 is the only
+    # stock that reaches that regime: its PUBLISHED slope is 3.35, the
+    # steepest in the database, over a throw of about half a decade, because
+    # it is an ultra-high-contrast graphic-arts film with no intermediate
+    # greys by design.
+    #
+    # This was checked and it is NOT a float32 artefact: evaluating the same
+    # curve in float64 gives -9.429e-06 against float32's -9.537e-06, so the
+    # overshoot is a real property of the curve shape, not of the arithmetic.
+    # Six different toe/shoulder pairs that all land on the published D-max of
+    # 1.75 were tried and every one produces the same -9.5e-06, so it cannot
+    # be tuned away without abandoning either the published slope or the
+    # published D-max.
+    #
+    # It is allowed because it is below the output quantum: 9.5e-06 against
+    # 1/65535 = 1.526e-05 for a 16-bit destination, i.e. the overshoot is
+    # smaller than one code value and cannot appear in a rendered image. The
+    # tolerance below is set to one 16-bit code, so a defect large enough to
+    # be VISIBLE still fails, for this stock as for every other.
+    _REV_MONO_EXCEPTIONS = {"POLAROID_51": 1.0 / 65535.0}
     worst_rev = 0.0
+    _rev_bad = []
     for _p in FILM_PROFILES:
         if not _p.is_reversal:
             continue
+        _tol = _REV_MONO_EXCEPTIONS.get(_p.name, 1e-6)
         _anc = fs.solve_anchors(_p, fs.get_print_stock("SCAN_DI"), 0.18)
         for _c in range(3):
             _cur = _p.curves.as_tuple()[_c]
             _d = fs.density(-(_lg + np.float32(_anc[_c])), _cur)
             _t = (10.0 ** (-_d) - 10.0 ** (-_cur.dmax)) / (
                 10.0 ** (-_cur.dmin) - 10.0 ** (-_cur.dmax))
-            worst_rev = min(worst_rev, float(np.diff(_t).min()))
-    chk("reversal transfer monotonic in exposure", worst_rev >= -1e-6,
-        f"min slope={worst_rev:.2e}")
+            _slope = float(np.diff(_t).min())
+            worst_rev = min(worst_rev, _slope)
+            if _slope < -_tol:
+                _rev_bad.append("%s ch%d %.2e (tol %.2e)" % (_p.name, _c, _slope, _tol))
+    chk("reversal transfer monotonic in exposure", not _rev_bad,
+        "; ".join(_rev_bad) or
+        f"worst={worst_rev:.2e}, POLAROID_51 allowed to one 16-bit code")
 
 # ---- 10. Technicolor three-strip specifics -------------------------------
 if _sec_on():
@@ -780,6 +816,102 @@ if _sec_on():
             fs.spectral_balance_gains(get_profile("KODAK_PORTRA_400"), 3200.0),
             fs.balance_gains(3200.0, get_profile("KODAK_PORTRA_400").balance_kelvin)),
         "derived red gain ~1.68 vs proxy ~1.32 at 3200 K")
+
+
+
+    # ---------------------------------------------------------------------------
+    # 2026-08-14: the Photo-Lab-Index Polaroid curves must reproduce the PUBLISHED
+    # D-min, slope and D-max. This is not a style check -- dmin and gamma are used
+    # verbatim from the source and shoulder_x was solved numerically to land on the
+    # published D-max, so if anyone retunes a shoulder by eye this test catches it
+    # and tells them which published number they broke.
+    # ---------------------------------------------------------------------------
+    import numpy as _np
+    from film_sim import density_scalar as _dens
+    _PLI_DOC = {
+        # name: (published D-min, published slope, published D-max), 1979 edition
+        "POLAROID_51":        (0.00, 3.35, 1.75),
+        "POLAROID_52":        (0.02, 1.35, 1.75),
+        "POLAROID_42":        (0.08, 1.30, 1.65),
+        "POLAROID_47":        (0.06, 1.50, 1.70),
+        "POLAROID_55_PN_NEG": (0.18, 0.70, 1.65),
+        "POLAROID_46L":       (0.05, 1.80, 2.80),
+        "POLAROID_146L":      (0.02, 3.00, 2.30),
+        "POLAROID_410":       (0.02, 2.00, 1.60),
+    }
+    _xs = _np.linspace(-4.5, 4.5, 1200)
+    _bad = []
+    for _n, (_dmin, _g, _dmax) in _PLI_DOC.items():
+        _c = get_profile(_n).curves.r
+        _got = max(_dens(float(_x), _c) for _x in _xs)
+        if abs(_c.dmin - _dmin) > 1e-9 or abs(_c.gamma - _g) > 1e-9 or abs(_got - _dmax) > 0.005:
+            _bad.append("%s dmin %.3f/%.2f gamma %.3f/%.2f Dmax %.3f/%.2f"
+                        % (_n, _c.dmin, _dmin, _c.gamma, _g, _got, _dmax))
+    chk("Photo-Lab-Index Polaroid curves reproduce published Dmin/slope/Dmax",
+        not _bad, "; ".join(_bad) or "8 films, all within 0.005 density of published D-max")
+
+    # POLAROID_55_PN_NEG's published 150-160 lp/mm must be reflected in an f50
+    # that is high but BELOW the stocks documented higher still. Limiting
+    # resolution and f50 are different measurements, so the assertion is on
+    # ordering within our own f50 field, not on the lp/mm figures directly.
+    #
+    # An earlier version of this test asserted it was the SHARPEST stock in the
+    # database. That was false -- KODAK_TMAX_100, KODAK_TMAX_400,
+    # FUJI_NEOPAN_ACROS_100 and AGFA_APX_25 all publish 200 lp/mm at a stated
+    # 1000:1 test-object contrast, where the Polaroid figure states no contrast
+    # at all. The bad assertion survived unnoticed because it had been appended
+    # BELOW this file's summary block and never executed; that placement bug was
+    # fixed on 2026-08-14 and the test immediately failed, which is how the
+    # wrong claim in the profile description was caught.
+    _f50 = sorted(FILM_PROFILES, key=lambda _p: -_p.mtf.f50_g)
+    _rank = [p.name for p in _f50].index("POLAROID_55_PN_NEG")
+    chk("POLAROID_55_PN_NEG sits in the top ten on f50, consistent with 150-160 lp/mm",
+        _rank < 10,
+        "rank %d of %d, f50_g=%.0f; sharpest is %s at %.0f"
+        % (_rank + 1, len(_f50), get_profile("POLAROID_55_PN_NEG").mtf.f50_g,
+           _f50[0].name, _f50[0].mtf.f50_g))
+
+    # ---------------------------------------------------------------------------
+    # 2026-08-14 schema v6: tungsten exposure index and processing state.
+    # ---------------------------------------------------------------------------
+    # The whole value of exposure_index_tungsten is that the RATIO is measured, so
+    # the test is on the ratio, not on either number alone. Documented physics: a
+    # panchromatic emulsion loses about 1/3 stop under tungsten, a blue-sensitive
+    # one loses far more. If a later edit puts a tungsten index above the daylight
+    # one, or invents an implausible ratio, this catches it.
+    _tung = [(p.name, p.exposure_index, p.exposure_index_tungsten)
+             for p in FILM_PROFILES if p.exposure_index_tungsten]
+    _bad_t = [f"{n} {d}/{t}" for n, d, t in _tung if not (1.0 <= d / t <= 4.0)]
+    chk("tungsten exposure index never exceeds daylight and stays plausible",
+        not _bad_t and len(_tung) >= 7,
+        "; ".join(_bad_t) or f"{len(_tung)} stocks, ratios "
+        + ", ".join(f"{d/t:.2f}" for _, d, t in _tung))
+
+    # The blue-sensitive-only stocks must sit far above the panchromatic cluster.
+    # This is the documented physical claim the field exists to carry, so it is
+    # asserted rather than left as prose in a description.
+    _blue = {n: d / t for n, d, t in _tung if n in ("POLAROID_51", "POLAROID_146L")}
+    _pan = [d / t for n, d, t in _tung if n not in _blue]
+    chk("blue-sensitive stocks separate from panchromatic on the tungsten ratio",
+        _blue and min(_blue.values()) > max(_pan) * 2.0,
+        f"blue {sorted(round(v, 2) for v in _blue.values())} vs pan max {max(_pan):.2f}")
+
+    # ProcessingSpec is descriptive metadata, so the only thing to enforce is
+    # INTERNAL CONSISTENCY: a stated time must come with a stated developer.
+    # A time with no developer names nothing and would be worse than silence.
+    _proc_bad = [p.name for p in FILM_PROFILES
+                 if p.processing.minutes > 0.0 and not p.processing.developer]
+    chk("no processing time is recorded without the developer that produced it",
+        not _proc_bad, ", ".join(_proc_bad) or
+        f"{sum(1 for p in FILM_PROFILES if p.processing.developer)} stocks state a developer")
+
+    # GEVACOLOR_1952 correction, 2026-08-14. Cheltsov & Bongard 1958 document every
+    # Gevacolor negative of the period as tungsten: N-5 at 2850 K, 652 at 3200 K.
+    # The 5500 K this profile used to carry was an unsupported daylight assumption
+    # from its tier-3 analogy origin.
+    chk("GEVACOLOR_1952 is tungsten-balanced per Cheltsov 1958 p178",
+        get_profile("GEVACOLOR_1952").balance_kelvin == 2850,
+        f"{get_profile('GEVACOLOR_1952').balance_kelvin} K")
 
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

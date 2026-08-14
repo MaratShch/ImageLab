@@ -72,7 +72,7 @@ namespace
     // ----------------------------------------------------------------------
     //  Is this matrix the identity, to within single-precision noise?
     //
-    //  A VERBATIM copy of the scalar predicate, deliberately. 92 of the 93 stocks
+    //  A VERBATIM copy of the scalar predicate, deliberately. 141 of the 142 stocks
     //  take the identity fast path, so if the two builds ever disagreed about which
     //  matrices qualify they would diverge on exactly one stock - and that would
     //  present as a vectorisation bug rather than as the predicate mismatch it
@@ -258,7 +258,7 @@ void AlgoStage02b_TakingFilters
     // ----------------------------------------------------------------------
     //  Identity fast path, and the test must match the scalar build EXACTLY.
     //
-    //  92 of the 93 stocks have an identity taking matrix, so this is the common
+    //  141 of the 142 stocks have an identity taking matrix, so this is the common
     //  case rather than an optimisation for a corner. The data is COPIED rather
     //  than the pass skipped: every stage owns its destination and leaving it
     //  unwritten would put stale contents into the chain.

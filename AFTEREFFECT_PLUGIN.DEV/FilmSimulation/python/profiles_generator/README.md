@@ -14,7 +14,7 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > `CURVE_RESOLUTION_ANALYSIS_2026-08-13.md`.
 >
 > **Status 2026-08-13 (fifth entry, CORRECTED):** the spectral-sensitivity gap
-> is **partly** closed. The digitised per-layer curves (53 of 131 stocks) were read by
+> is **partly** closed. The digitised per-layer curves (53 of 142 stocks) were read by
 > nothing; they now drive colour-temperature balance in both Python and C++.
 > The monochrome-collapse and taking-matrix derivations were also built, then
 > found to reproduce a failure a 2026-08-03 analysis had already quarantined
@@ -26,6 +26,44 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > matrix is computed and reported but deliberately NOT wired in — it would
 > double-count mixing already carried by `dye_matrix` and `InterimageSpec`. See
 > `CHANGES_2026-08-13_spectral_path.md`.
+>
+> **Status 2026-08-14 (seventh entry):** **schema v6.** Acted on the three gaps the
+> Photo-Lab-Index pass identified instead of deferring them. Two new fields, the
+> first the PRC axis has ever had: `exposure_index_tungsten` (7 stocks — the RATIO
+> is the datum, and it separates panchromatic 1.25 from blue-sensitive 3.2/3.3 on
+> documented physics) and `processing` / `ProcessingSpec` (2 of 142 — that count IS
+> the measurement: almost no datasheet names the developer behind its curve).
+> Two corrections: `GEVACOLOR_1952` balance 5500 → **2850 K** (Cheltsov 1958 shows
+> every period Gevacolor negative is tungsten; changes the render at
+> `wb_strength > 0`), and `FERRANIA_P30` era narrowed to what its 2017-only data
+> covers.
+>
+> **`verify.py` had six dead tests.** They sat below the file's summary block and
+> `sys.exit`, so they never ran. Moving them up took the pass count 108 → **114**
+> with no new work — and one resurrected test failed at once, catching a **false
+> claim** that `POLAROID_55_PN_NEG` was the sharpest stock. It is not: TMAX 100/400,
+> ACROS and APX 25 are documented at 200 lp/mm *with* a stated 1000:1 test-object
+> contrast, where the Polaroid figure states none. Claim corrected in four
+> documents. A test that cannot fail is worse than no test.
+>
+> **Status 2026-08-14 (sixth entry):** **142 film stocks, 9 print stocks** — The
+> Compact Photo-Lab-Index (Pittaro, ed., 2nd Compact Edition 1979) contributed
+> eight Polaroid types whose D-max, D-min, curve slope, speed and resolving power
+> are printed as numerals, plus Ilford Pan F, FP4 and HP4. `POLAROID_55_PN_NEG` —
+> the peel-apart negative at a **published 150-160 lines/mm**, gamma 0.70 — is now
+> sixth of 142 on `f50` and exceptional for an instant material (it is NOT the
+> sharpest stock — TMAX 100/400, ACROS and APX 25 are documented at 200 lp/mm;
+> an earlier draft claimed otherwise and the claim was caught when a dead
+> `verify.py` block was made live). Reciprocity for
+> `EKTACHROME_64`, `EKTACHROME_160T` and `KODACHROME_64` moved from a shared family
+> default to documented onset and channel ordering, rebuilt from a table that does
+> not survive flat text extraction. Two findings worth reading: the published Kodak
+> data **prove a single Schwarzschild exponent cannot fit** three of four measured
+> films (the exponent steepens 0.85 -> 0.70 per decade), and `ToneCurve` cannot stay
+> strictly monotonic at the gamma 3.35 of `POLAROID_51` — verified in float64, so a
+> shape-family limit, not a precision artefact. Full record:
+> `CHANGES_2026-08-14_photo_lab_index.md`; survey in
+> `SURVEY_2026-08-14_photo_lab_index.md`.
 >
 > **Status 2026-08-13 (fifth entry):** **131 film stocks, 9 print stocks** —
 > Cheltsov & Bongard 1958 (Soviet monograph on colour development of three-layer
@@ -364,7 +402,7 @@ structure is built to accept real data; only the numbers are provisional.
 
 | File | Purpose |
 |------|---------|
-| `film_profiles.py` | Physical parameters, 131 stocks, 9 print stocks, 14 gauges |
+| `film_profiles.py` | Physical parameters, 142 stocks, 9 print stocks, 14 gauges |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp`, then `film_names.txt` and `film_enum.hpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |

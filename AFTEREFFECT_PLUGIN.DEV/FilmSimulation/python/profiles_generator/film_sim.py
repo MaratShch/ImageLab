@@ -1142,7 +1142,7 @@ class RenderSettings:
     # -- measured spectral sensitivity (see the SPECTRAL block above) --------
     # Consumes SpectralSensitivity.log_s_* where the stock carries it. Each
     # flag substitutes a DERIVED quantity for an authored proxy, and each falls
-    # back silently to the proxy for the 68 of 121 stocks that have no curves.
+    # back silently to the proxy for the 89 of 142 stocks that have no curves.
     #
     # spectral_balance: ON. Replaces the three assumed peak wavelengths of
     #   balance_gains() with the full measured sensitisation. Safe by

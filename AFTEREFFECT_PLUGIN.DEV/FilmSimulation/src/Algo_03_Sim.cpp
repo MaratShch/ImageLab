@@ -192,7 +192,7 @@ void AlgoStage03_StockColourBalance
     //     covered it.
     //
     //  The monochrome half is not optional and not a micro-optimisation. THIRTY-SIX
-    //  of the 93 stocks are monochrome. When this same segment was prototyped as a
+    //  of the 142 stocks are monochrome. When this same segment was prototyped as a
     //  fused scalar pass and this test was left out, AGFA_APX_100 came out wrong by
     //  1.468 - and the error was exactly zero at the default wbStrength of 0, so it
     //  passed every casual check.
@@ -330,7 +330,7 @@ void AlgoStage03b_VeilingFlare
                          ? static_cast<AlgoType>(profile.default_flare)
                          : static_cast<AlgoType>(params.flare);
 
-    // Inactive on 82 of the 93 stocks, so this is the common path.
+    // Inactive on 108 of the 142 stocks, so this is the common path.
     if (flare <= ALGO_ZERO)
     {
         AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);

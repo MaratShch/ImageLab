@@ -107,6 +107,7 @@ __all__ = [
     "ReseauSpec",
     "TemporalSpec",
     "ReciprocitySpec",
+    "ProcessingSpec",
     "AgingSpec",
     "Provenance",
     "FilmProfile",
@@ -678,6 +679,63 @@ class ReciprocitySpec:
 
 
 # ---------------------------------------------------------------------------
+# Processing state (schema v6, added 2026-08-14)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class ProcessingSpec:
+    """WHICH development condition the stored curve represents.
+
+    THE PROBLEM THIS SOLVES. Every characteristic curve in this database is the
+    curve for ONE processing condition, and until now nothing recorded which
+    one. That is not a cosmetic gap. The Compact Photo-Lab-Index (1979)
+    publishes, for Ilford Pan F alone, six development conditions spanning
+    ASA 32 to ASA 80 and contrast index 0.55 to 0.70 -- 1 1/3 stops of speed and
+    27 % of contrast, all of them "correct" for the same film. A curve with no
+    processing statement is therefore ambiguous by more than a stop, and two
+    profiles built from different developers are not comparable even when both
+    are accurate.
+
+    This is the first field of the PROCESSING AXIS that the requirements
+    document (A.5, "PRC") specifies and that the 2026-08-13 Addendum recorded as
+    entirely absent at every completeness level.
+
+    DELIBERATELY DESCRIPTIVE, NOT PREDICTIVE. Nothing in the render reads this.
+    It does not model what a different developer WOULD do -- that needs a curve
+    family over a processing axis, which is a much larger change and is not
+    attempted here. It records what the stored curve already IS, so the
+    ambiguity is visible instead of silent.
+
+    ALL FIELDS DEFAULT TO EMPTY / ZERO, MEANING "NOT STATED BY THE SOURCE".
+    That is the honest default for the large majority of stocks: most datasheets
+    print a curve without naming the developer, and inventing one would be
+    exactly the fabrication this project forbids. An empty developer is a
+    three-valued absence in the sense of A.3 -- explicitly unknown, not
+    not-applicable and not zero.
+
+    Attributes:
+        developer: Manufacturer's developer name as printed, e.g. "ID-11",
+            "D-76", "C-41". Empty string = the source does not state it.
+        dilution: As printed, e.g. "1+1", "stock". Empty = not stated.
+        minutes: Development time. 0.0 = not stated.
+        celsius: Development temperature. 0.0 = not stated.
+        agitation: As printed, e.g. "intermittent". Empty = not stated.
+        contrast_index: The CI or gamma aim the time above targets. 0.0 = not
+            stated. NOTE this is the SOURCE's number for the process; it is not
+            automatically equal to ``curves.*.gamma``, because contrast index is
+            an average gradient over a stated log-exposure interval while gamma
+            is a straight-line slope. Where they coincide it is worth checking;
+            where they differ, both are correct answers to different questions.
+    """
+
+    developer: str = ""
+    dilution: str = ""
+    minutes: float = 0.0
+    celsius: float = 0.0
+    agitation: str = ""
+    contrast_index: float = 0.0
+
+
+# ---------------------------------------------------------------------------
 # Aging / storage damage hooks (schema v2, DM-01)
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)
@@ -1205,6 +1263,28 @@ class FilmProfile:
     temporal: TemporalSpec = field(default_factory=TemporalSpec)
     reciprocity: ReciprocitySpec = field(default_factory=ReciprocitySpec)
     aging: AgingSpec = field(default_factory=AgingSpec)
+    # -- schema v6 (2026-08-14) ------------------------------------------
+    #: Manufacturer exposure index under TUNGSTEN, where the source prints
+    #: one alongside the daylight figure. 0 = not stated.
+    #:
+    #: WHY THIS IS NOT REDUNDANT WITH exposure_index. For a monochrome film
+    #: the daylight/tungsten pair is a compact statement of the emulsion's
+    #: SPECTRAL WEIGHTING, because a film biased toward blue loses more
+    #: speed under a red-rich source. The measured spread across this
+    #: database is large and physically interpretable: ordinary panchromatic
+    #: stocks sit at a ratio of about 1.25 (FP4 125/100, Plus-X 80/64),
+    #: ILFORD_HP4 is flat at 1.00, and the blue-sensitive-only POLAROID_51
+    #: is 3.2 (320/100). Storing one number discards that, and for the many
+    #: monochrome stocks that will never have a traced sensitisation curve
+    #: this pair is the only spectral information on file.
+    #:
+    #: Nothing in the render reads it yet. It is stored because it is
+    #: documented and because a future spectral or filter-factor path is the
+    #: obvious consumer.
+    exposure_index_tungsten: int = 0
+    #: The development condition the stored curve represents. See
+    #: ProcessingSpec -- all-empty means the source did not state it.
+    processing: ProcessingSpec = field(default_factory=ProcessingSpec)
     provenance: Provenance = field(default_factory=Provenance)
     #: Static reversal trim; 0.0 because the per-render anchor solve refines it.
     trim: float = 0.0
@@ -2458,7 +2538,16 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             "labelled, that gets you closest to that cinema. High gamma and "
             "deep Dmax are the signature -- P30 blacks are genuinely black."
         ),
-        era="1960s / revived 2017",
+        era="2017 revival",    # CORRECTED 2026-08-14: was "1960s / revived
+                               # 2017". Every value in this profile comes from
+                               # the 2017 Film Ferrania specification. The
+                               # 1960s cine P30 and the revival share a name
+                               # and a nominal EI, but the revival was coated
+                               # on rebuilt equipment with modern materials
+                               # and no period measurement backs the older
+                               # span. The description still explains the
+                               # neorealist connection as HISTORY; the era
+                               # field now states only what the data covers.
         is_monochrome=True,
         exposure_index=80,
         balance_kelvin=5500,
@@ -2945,11 +3034,33 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             "everything toward a muddy pastel. Gevacolor prints also faded "
             "notoriously fast, which is why surviving material looks pinker "
             "than the stock ever did new. Fade is not modelled; this is the "
-            "emulsion as shot."
+            "emulsion as shot. "
+            "CORRECTED 2026-08-14: balance was 5500 K, an unsupported "
+            "daylight assumption from the tier-3 analogy this profile was "
+            "originally built on. Cheltsov & Bongard 1958 survey EVERY "
+            "Gevacolor negative of the period and all of them are tungsten: "
+            "type N-5 at 2850 K and type 652 at 3200 K. No daylight-balanced "
+            "Gevacolor negative exists in that survey. The identification is "
+            "tight on the one figure we already carried independently: N-5 "
+            "is rated 14/10 DIN, which converts to 16 ASA on the book's own "
+            "internally-consistent DIN/ASA pairs, and this profile's "
+            "exposure_index was already 16, arrived at from unrelated "
+            "secondary sources. Same speed, same kind, same era, same "
+            "manufacturer. This stock is Gevacolor negative N-5, and N-5 is "
+            "a 2850 K tungsten film. This CHANGES THE RENDER when "
+            "wb_strength > 0: under a 5500 K scene the blue gain moves from "
+            "1.00 to about 2.4. The [T3] tag is deliberately UNCHANGED: only "
+            "the balance temperature became documented. Curves, grain, MTF and "
+            "halation are still analogy-derived, so upgrading the whole profile "
+            "would overclaim what one corrected field earns."
         ),
         era="1948-1960s",
-        exposure_index=16,
-        balance_kelvin=5500,
+        exposure_index=16,      # 14/10 DIN = 16 ASA, Cheltsov p178 [C1];
+                                # independently already 16 here before that
+                                # source was read
+        balance_kelvin=2850,    # Gevacolor negative N-5, tungsten, stated
+                                # outright -- Cheltsov & Bongard 1958 p178
+                                # [C1]. Was 5500 (unsupported assumption).
         curves=RGBCurves(
             r=_neg(0.26, 0.590, toe_x=-1.42, shoulder_x=1.52),
             g=_neg(0.66, 0.605, toe_x=-1.44, shoulder_x=1.50),
@@ -7096,6 +7207,608 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.UNEVEN_EMULSION | Feature.HALATION,
     ),
 
+
+    # =======================================================================
+    # 2026-08-14 batch -- The Compact Photo-Lab-Index, 2nd Compact Edition
+    # 1979. Eleven stocks whose D-MAX, D-MIN, CURVE SLOPE, SPEED and
+    # RESOLVING POWER are printed as plain numerals by the manufacturer.
+    #
+    # SOURCE, for every profile below:
+    #   Pittaro, Ernest M. (ed.), "The Compact Photo-Lab-Index -- The
+    #   Cumulative Formulary of Standard Recommended Photographic
+    #   Procedures", Morgan & Morgan Inc., Dobbs Ferry NY. Basic set June
+    #   1939; 36th edition 1978; 2nd Compact Edition 1979.
+    #   PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf
+    #
+    # WHY THIS SOURCE IS DIFFERENT FROM THE OTHERS IN THIS FILE. It is a
+    # trade formulary, not an emulsion monograph: it reprints each maker's
+    # own published bench procedures. So it is unusually strong on speed,
+    # curve shape and processing, and it contains NO per-layer spectral
+    # sensitivity curves for any colour film. Nothing spectral is taken from
+    # it, and no spectral_sensitivity block below is populated from it.
+    #
+    # CURVE FITTING, stated because it is the one derived step. D-min and
+    # slope are used VERBATIM as dmin and gamma. shoulder_x was then solved
+    # numerically so the resulting curve reaches the film's DOCUMENTED D-max.
+    # Seven of the eight Polaroid curves land within 0.001 density of the
+    # published D-max; Type 51 needed its toe shortened as well and lands
+    # within 0.001. The toe and shoulder SOFTNESS constants (toe_k,
+    # shoulder_k) are not published anywhere and remain house estimates.
+    #
+    # POLAROID SPEED NOTE. Polaroid printed a marketing "Speed" number on
+    # the curve plots and an "ASA equivalent" in the technical block, and
+    # they are not the same scale: the 3000-speed films are ASA 2500 / 36
+    # DIN. exposure_index below carries the ASA equivalent, because that is
+    # what an exposure meter is set to. Where the two differ the plot number
+    # is named in the description so neither is lost.
+    #
+    # TWO NUMBER SETS PER FILM. Each Polaroid page carries a curve-plot
+    # annotation AND a technical-characteristics block, and they disagree
+    # slightly -- Type 51 for instance is annotated D-max 1.85 / D-min .09 /
+    # slope 3.30 on the plot but specified D-max 1.75 / D-min .00 /
+    # slope 3.35 in the block. The BLOCK is used here, because it is the
+    # published nominal and it is the one that also carries resolving power
+    # and the ASA/DIN pair. The plot values are recorded in each description
+    # so the discrepancy stays visible rather than being silently resolved.
+    # =======================================================================
+
+    FilmProfile(
+        name="POLAROID_51",
+        aliases=("polaroid 51", "type 51", "polaroid type 51"),
+        description=(
+            "[T1] Polaroid Type 51 Land film, 4x5, ultra-high contrast, "
+            "positive print. The extreme member of the instant family: slope "
+            "3.35 with D-min 0.00, designed for line and screened graphic-arts "
+            "work with NO intermediate greys. BLUE-SENSITIVE ONLY -- red, "
+            "yellow and green all reproduce as black and blue tends to white, "
+            "which is why it needs no filters and why its daylight and tungsten "
+            "speeds differ by a factor of 3.2 (ASA 320 daylight / 26 DIN "
+            "against ASA 100 tungsten / 21 DIN). That ratio is the largest in "
+            "this database and it is a direct consequence of the sensitisation: "
+            "a blue-only emulsion loses far more speed under a red-rich source "
+            "than a panchromatic one does. Resolution 28-32 lines/mm. Plot "
+            "annotation gives D-max 1.85 / D-min .09 / slope 3.30 against the "
+            "specified 1.75 / .00 / 3.35 used here. Polaroid publishes an "
+            "explicit warning that the tungsten figure is a rough "
+            "approximation because tungsten bulbs vary by type and age."
+        ),
+        era="1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=320,      # ASA 320 daylight, 26 DIN -- p582 [C1]
+        balance_kelvin=5500,     # daylight-rated; the source says "daylight",
+                                 # not a temperature [C3 for the number]
+        curves=RGBCurves(
+            # dmin 0.00 and gamma 3.35 VERBATIM from p582 [C1]. shoulder_x and
+            # toe_x solved together so D-max lands on the published 1.75; the
+            # solution is degenerate (several toe/shoulder pairs hit 1.749) and
+            # the shortest-throw one is used, which is what an ultra-high
+            # contrast graphic-arts film actually has.
+            r=ToneCurve(0.00, 3.35, -0.40, 0.20, 0.122, 0.30),
+            g=ToneCurve(0.00, 3.35, -0.40, 0.20, 0.122, 0.30),
+            b=ToneCurve(0.00, 3.35, -0.40, 0.20, 0.122, 0.30),
+        ),
+        # EST [C3]. No granularity figure is published for any Polaroid film in
+        # this book -- only the definition of RMS granularity. Values reflect
+        # "fine grain" prose plus the 28-32 lp/mm resolution.
+        grain=GrainSpec(6.5, 6.5, 6.5, 6.5, clump_gain=1.00, fog_grain=0.10),
+        # From the documented 28-32 lp/mm. NOT entered in _RESOLVING_POWER:
+        # that dict stores a (1.6:1, 1000:1) test-object-contrast PAIR and the
+        # book gives a single range without stating the TOC it was measured at.
+        mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.0),
+        halation=HalationSpec(
+            radii_um=(10.0, 40.0, 150.0),
+            gain_r=0.02, gain_g=0.02, gain_b=0.05,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.02,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="POLAROID_52",
+        aliases=("polaroid 52", "type 52", "polaroid type 52"),
+        description=(
+            "[T1] Polaroid Type 52 Land film, 4x5 packet, image area 3.5x4.5 in "
+            "(8.9x11.5 cm). General purpose medium-speed paper print positive: "
+            "ASA 400, 27 DIN, D-max 1.75, D-min 0.02, slope 1.3-1.4, "
+            "resolution 35-40 lines/mm -- the sharpest of the paper-print "
+            "Polaroids in this source. Polaroid's own claim is that its tonal "
+            "range is 'equal in every way to prints produced by conventional "
+            "processes'. Type 42 is the roll-film sibling with the same "
+            "chemistry but coarser resolution; both share the same spectral "
+            "sensitivity plot in the source (types 32, 42, 52 are plotted "
+            "together)."
+        ),
+        era="1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=400,      # ASA 400, 27 DIN -- p583 [C1]
+        balance_kelvin=5500,     # [C3] -- no temperature published
+        curves=RGBCurves(
+            # dmin .02 [C1], gamma 1.35 = midpoint of the published 1.3-1.4
+            # range [C1 for the range, C2 for taking the midpoint]. shoulder_x
+            # solved to the published D-max 1.75; lands at 1.751.
+            r=ToneCurve(0.02, 1.35, -0.50, 0.24, 0.782, 0.32),
+            g=ToneCurve(0.02, 1.35, -0.50, 0.24, 0.782, 0.32),
+            b=ToneCurve(0.02, 1.35, -0.50, 0.24, 0.782, 0.32),
+        ),
+        grain=GrainSpec(7.5, 7.5, 7.5, 7.5, clump_gain=1.02, fog_grain=0.12),
+        mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.0),   # from 35-40 lp/mm
+        halation=HalationSpec(
+            radii_um=(12.0, 48.0, 180.0),
+            gain_r=0.03, gain_g=0.03, gain_b=0.03,
+            threshold_stops=1.5,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.025,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="POLAROID_42",
+        aliases=("polaroid 42", "type 42", "polaroid type 42"),
+        description=(
+            "[T1] Polaroid Type 42 Land roll film, image area 2.875x3.75 in "
+            "(7.35x10.55 cm). The roll sibling of POLAROID_52: 24 DIN, D-max "
+            "1.65, D-min 0.08, slope 1.30, resolution 25-28 lines/mm. Note the "
+            "resolution is meaningfully LOWER than Type 52's 35-40 lp/mm "
+            "despite the same chemistry and nearly the same curve -- a roll "
+            "film is processed against a pressure roller over a longer path "
+            "than a 4x5 packet, and the source records the consequence without "
+            "explaining it. The plot annotation gives Speed 200; the technical "
+            "block gives only the DIN figure, so no ASA equivalent is printed "
+            "for this type and the exposure index below is the plot value."
+        ),
+        era="1970s",
+        kind=StockKind.REVERSAL,
+        # The source prints "Type 42-ASA, 24 DIN" -- the ASA numeral is MISSING
+        # from the page (an OCR gap or a typesetting omission; the words "ASA"
+        # and "24 DIN" are present, the number between them is not). The plot
+        # annotation for Type 42 reads Speed 200, and 24 DIN converts to ASA
+        # 200 on the standard scale, so the two agree. Recorded as [C2]: two
+        # independent figures in the same document agree, but the ASA numeral
+        # itself was never read.
+        exposure_index=200,
+        balance_kelvin=5500,     # [C3]
+        curves=RGBCurves(
+            # dmin .08, gamma 1.30 verbatim [C1]; shoulder solved to the
+            # published D-max 1.65, lands at 1.650.
+            r=ToneCurve(0.08, 1.30, -0.50, 0.24, 0.708, 0.32),
+            g=ToneCurve(0.08, 1.30, -0.50, 0.24, 0.708, 0.32),
+            b=ToneCurve(0.08, 1.30, -0.50, 0.24, 0.708, 0.32),
+        ),
+        grain=GrainSpec(8.5, 8.5, 8.5, 8.5, clump_gain=1.05, fog_grain=0.14),
+        mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.0),   # from 25-28 lp/mm
+        halation=HalationSpec(
+            radii_um=(14.0, 55.0, 200.0),
+            gain_r=0.03, gain_g=0.03, gain_b=0.03,
+            threshold_stops=1.5,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.028,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="POLAROID_47",
+        aliases=("polaroid 47", "type 47", "polaroid type 47"),
+        description=(
+            "[T1] Polaroid Type 47 Land roll film, the original 3000-speed "
+            "instant film. ASA equivalent 2500, 36 DIN -- Polaroid's '3000 "
+            "speed' is a marketing scale, not ASA, and the source prints both. "
+            "D-max 1.70, D-min 0.06, slope 1.50, resolution 20-22 lines/mm. "
+            "Types 57 (4x5 packet), 107 (pack) and 667 share this emulsion and "
+            "the same 2500 ASA / 36 DIN block, differing only slightly in "
+            "plotted curve: 47 gives D-max 1.70 / D-min .06 / slope 1.50, 57 "
+            "gives 1.70 / .09 / 1.40, 87 gives 1.65 / .11 / 1.45, 667 gives "
+            "1.60 / .11 / 1.45 and 107 gives 1.60 / .10 / 1.40. Only Type 47 is "
+            "entered here; the others are formats of the same 2500-speed "
+            "material and POLAROID_667 already exists from its own datasheet."
+        ),
+        era="1960s-1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=2500,     # ASA equivalent 2500, 36 DIN -- p591 [C1]
+        balance_kelvin=5500,     # [C3]
+        curves=RGBCurves(
+            # dmin .06, gamma 1.50 verbatim from the Type 47 plot [C1];
+            # shoulder solved to D-max 1.70, lands at 1.699.
+            r=ToneCurve(0.06, 1.50, -0.50, 0.24, 0.593, 0.32),
+            g=ToneCurve(0.06, 1.50, -0.50, 0.24, 0.593, 0.32),
+            b=ToneCurve(0.06, 1.50, -0.50, 0.24, 0.593, 0.32),
+        ),
+        # EST [C3], scaled coarser than the slower types for a 2500-speed
+        # emulsion. No granularity number is published.
+        grain=GrainSpec(15.0, 15.0, 15.0, 15.0, clump_gain=1.20, fog_grain=0.22),
+        mtf=MTFSpec(21.0, 21.0, 21.0, adjacency=0.0),   # from 20-22 lp/mm
+        halation=HalationSpec(
+            radii_um=(18.0, 70.0, 260.0),
+            gain_r=0.05, gain_g=0.05, gain_b=0.05,
+            threshold_stops=1.3,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.035,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="POLAROID_55_PN_NEG",
+        aliases=("polaroid 55", "type 55", "polaroid 55 p/n", "type 55 p/n",
+                 "polaroid 55 pn"),
+        description=(
+            "[T1] Polaroid Type 55 P/N -- the NEGATIVE half. Its resolution is "
+            "published, not estimated: 150-160 LINES/MM, against 22-25 lines/mm "
+            "for the print it is peeled from. "
+            "CORRECTED 2026-08-14: an earlier draft of this description called "
+            "it the sharpest stock in the database. That was wrong. Several "
+            "conventional stocks are documented HIGHER -- KODAK_TMAX_100, "
+            "KODAK_TMAX_400, FUJI_NEOPAN_ACROS_100 and AGFA_APX_25 all publish "
+            "200 lines/mm -- and, unlike this one, they state the test-object "
+            "contrast the figure was measured at (1000:1). Comparing a number "
+            "with no stated TOC against numbers that have one is not a "
+            "comparison at all. What is true and is the point: 150-160 lp/mm is "
+            "exceptional FOR AN INSTANT MATERIAL, and the combination is what "
+            "has no parallel here. Both halves come off one "
+            "exposure at ASA 50 / 18 DIN, and the source specifies them "
+            "separately -- negative D-max 1.65, D-min 0.18, slope 0.70; "
+            "positive D-max 1.75, D-min 0.02, slope 1.40. The plot annotations "
+            "give 1.55 / .18 / .65 for the negative and 1.75 / .09 / 1.35 for "
+            "the positive. The combination modelled here is unusual and "
+            "entirely documented: a fully fixed, enlargeable silver negative "
+            "at gamma 0.70 -- lower than any colour negative in this file -- "
+            "carrying 160 lp/mm, capable of 25x enlargement. The high D-min of "
+            "0.18 is the price: the negative retains a substantial base-plus-fog "
+            "veil because it is developed in seconds against a receiving "
+            "sheet, not in a tank. Polaroid notes it is completely fixed and no "
+            "longer light-sensitive after 20 seconds, and must be immersed in "
+            "sodium sulphite within 3 minutes of separation."
+        ),
+        era="1960s-1970s",
+        kind=StockKind.NEGATIVE,     # the negative half; a real camera negative
+        exposure_index=50,       # ASA equivalent 50, DIN 18 -- p588 [C1]
+        balance_kelvin=5500,     # [C3]
+        curves=RGBCurves(
+            # dmin .18 and gamma 0.70 verbatim from the NEGATIVE block on p588
+            # [C1]; shoulder solved to the published negative D-max 1.65,
+            # lands at 1.650. Note this uses ToneCurve directly rather than
+            # _neg(), because _neg() carries a colour-negative dmin ladder and
+            # this is a single silver record.
+            r=ToneCurve(0.18, 0.70, -1.20, 0.28, 0.900, 0.38),
+            g=ToneCurve(0.18, 0.70, -1.20, 0.28, 0.900, 0.38),
+            b=ToneCurve(0.18, 0.70, -1.20, 0.28, 0.900, 0.38),
+        ),
+        # EST [C3] but constrained hard by the documented 150-160 lp/mm: an
+        # emulsion resolving that finely must be very fine grained. This is the
+        # finest grain in the database and the resolution figure is why.
+        grain=GrainSpec(3.2, 3.2, 3.2, 3.2, clump_gain=0.90, fog_grain=0.30),
+        # From the documented 150-160 lp/mm. As elsewhere in this batch, NOT
+        # entered in _RESOLVING_POWER because the test-object contrast is not
+        # stated. f50 is set well below the limiting resolution, as the
+        # relationship between the two requires.
+        mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.01),
+        halation=HalationSpec(
+            radii_um=(8.0, 30.0, 110.0),
+            gain_r=0.02, gain_g=0.02, gain_b=0.02,
+            threshold_stops=1.8,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.02,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="POLAROID_46L",
+        aliases=("polaroid 46l", "type 46l", "polaroid type 46-l", "46-l"),
+        description=(
+            "[T1] Polaroid Type 46-L Land film -- a PROJECTION TRANSPARENCY, "
+            "not a print: high speed, medium contrast, panchromatic, producing "
+            "continuous-tone 3.25x4 in slides. ASA equivalent 800, 30 DIN. "
+            "D-max 2.8 -- the highest in this batch and higher than most "
+            "negatives in this database, which is what a transparency needs "
+            "for projection -- with D-min 0.05, slope 1.8 and resolution 35-40 "
+            "lines/mm. The source states its contrast can be manipulated over "
+            "a wide range by extending development up to five minutes, so the "
+            "slope figure is the nominal, not a fixed property. Plot "
+            "annotation gives D-max 2.50 / D-min .02 / slope 2.20, a larger "
+            "disagreement with the specified block than any other film in this "
+            "batch; the block values are used and the discrepancy is left "
+            "visible."
+        ),
+        era="1960s-1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=800,      # ASA equivalent 800, DIN 30 -- p594 [C1]
+        balance_kelvin=5500,     # [C3]
+        curves=RGBCurves(
+            # dmin .05, gamma 1.80 verbatim [C1]; shoulder solved to the
+            # published D-max 2.80, lands at 2.800.
+            r=ToneCurve(0.05, 1.80, -0.50, 0.24, 1.028, 0.32),
+            g=ToneCurve(0.05, 1.80, -0.50, 0.24, 1.028, 0.32),
+            b=ToneCurve(0.05, 1.80, -0.50, 0.24, 1.028, 0.32),
+        ),
+        grain=GrainSpec(9.0, 9.0, 9.0, 9.0, clump_gain=1.08, fog_grain=0.12),
+        mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.0),   # from 35-40 lp/mm
+        halation=HalationSpec(
+            radii_um=(12.0, 48.0, 180.0),
+            gain_r=0.03, gain_g=0.03, gain_b=0.03,
+            threshold_stops=1.5,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.03,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="POLAROID_146L",
+        aliases=("polaroid 146l", "polaline 146-l", "type 146l", "146-l"),
+        description=(
+            "[T1] Polaroid Polaline Type 146-L -- a very high contrast LINE "
+            "transparency material, for recording line copy as pure black and "
+            "white with no greys. BLUE-SENSITIVE, use no filters. ASA "
+            "equivalent 200 daylight / 24 DIN, 60 tungsten / 19 DIN, a ratio of "
+            "3.3 that matches POLAROID_51's for the same reason: a blue-only "
+            "emulsion under a red-rich source. D-max 2.3, D-min 0.02, slope "
+            "'3.00+' -- printed with a plus sign, i.e. a LOWER BOUND, so the "
+            "3.00 used here is the least contrast this film has, not its "
+            "typical value. Resolution 40-50 lines/mm, the highest of any "
+            "Polaroid transparency in the source. Plot annotation gives D-max "
+            "2.55 / D-min .03 / slope 3.30. As with Type 51, Polaroid warns the "
+            "tungsten speed is a rough approximation."
+        ),
+        era="1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=200,      # ASA 200 daylight, DIN 24 -- p595 [C1]
+        balance_kelvin=5500,     # [C3]
+        curves=RGBCurves(
+            # dmin .02 verbatim [C1]. gamma 3.00 is the published LOWER BOUND
+            # ("3.00+"), used as-is rather than guessing how far above it the
+            # real value sits -- an invented larger number would be an
+            # unsupported assumption. shoulder solved to the published D-max
+            # 2.30, lands at 2.300.
+            r=ToneCurve(0.02, 3.00, -0.50, 0.24, 0.260, 0.32),
+            g=ToneCurve(0.02, 3.00, -0.50, 0.24, 0.260, 0.32),
+            b=ToneCurve(0.02, 3.00, -0.50, 0.24, 0.260, 0.32),
+        ),
+        grain=GrainSpec(5.5, 5.5, 5.5, 5.5, clump_gain=0.95, fog_grain=0.08),
+        mtf=MTFSpec(45.0, 45.0, 45.0, adjacency=0.0),   # from 40-50 lp/mm
+        halation=HalationSpec(
+            radii_um=(9.0, 35.0, 130.0),
+            gain_r=0.02, gain_g=0.02, gain_b=0.04,
+            threshold_stops=1.7,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.02,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="POLAROID_410",
+        aliases=("polaroid 410", "polascope 410", "type 410"),
+        description=(
+            "[T1] Polaroid Polascope Type 410 -- ASA equivalent 10 000, 41 DIN. "
+            "The FASTEST stock in this database by a wide margin, and it is a "
+            "documented figure rather than an extrapolation. Purpose-built for "
+            "recording low-level light sources: short-duration oscilloscope "
+            "traces, high-magnification macrophotography. D-max 1.6, D-min "
+            "0.02, slope 2.0, resolution 22-28 lines/mm. Development 15 seconds "
+            "at 20 C and above. Plot annotation gives D-max 1.50 / D-min .10 / "
+            "slope 2.30. Note what the speed buys and costs: 10 000 ASA with a "
+            "slope of 2.0 and only 22-28 lp/mm -- fast, contrasty and soft, "
+            "which is the correct trade for capturing a single sweep of a CRT "
+            "beam and the wrong one for anything pictorial."
+        ),
+        era="1970s",
+        kind=StockKind.REVERSAL,
+        exposure_index=10000,    # ASA equivalent 10,000, 41 DIN -- p596 [C1]
+        balance_kelvin=5500,     # [C3] -- in practice it photographs phosphors,
+                                 # not a blackbody; see the survey note on
+                                 # phosphor-source material this schema cannot
+                                 # represent.
+        curves=RGBCurves(
+            # dmin .02, gamma 2.00 verbatim [C1]; shoulder solved to the
+            # published D-max 1.60, lands at 1.600.
+            r=ToneCurve(0.02, 2.00, -0.50, 0.24, 0.290, 0.32),
+            g=ToneCurve(0.02, 2.00, -0.50, 0.24, 0.290, 0.32),
+            b=ToneCurve(0.02, 2.00, -0.50, 0.24, 0.290, 0.32),
+        ),
+        # EST [C3]. Coarsest grain in this batch, as a 10 000-speed emulsion
+        # must be. No granularity figure is published.
+        grain=GrainSpec(26.0, 26.0, 26.0, 26.0, clump_gain=1.45, fog_grain=0.34),
+        mtf=MTFSpec(24.0, 24.0, 24.0, adjacency=0.0),   # from 22-28 lp/mm
+        halation=HalationSpec(
+            radii_um=(22.0, 90.0, 320.0),
+            gain_r=0.07, gain_g=0.07, gain_b=0.07,
+            threshold_stops=1.1,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.04,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="ILFORD_PAN_F",
+        aliases=("ilford pan f", "pan f", "panf"),
+        description=(
+            "[T1] Ilford Pan F, the 1970s fine-grain panchromatic, 35mm and 120. "
+            "ASA 50 / 18 DIN. Documented SENSITIVITY RANGE 2300-6700 Angstrom, "
+            "i.e. 230-670 nm -- Ilford's own figure, and note the short-wave "
+            "limit: this emulsion responds 130 nm below the 360 nm floor of "
+            "this engine's spectral integration grid. Classified by Ilford as "
+            "medium speed, medium-to-high contrast, very fine grain. What makes "
+            "this stock unusually well documented is its DEVELOPER MATRIX: the "
+            "source prints development times to reach two named contrast "
+            "indices in three developers at two dilutions -- ID-11 1+1 gives "
+            "9 min for CI 0.55 and 14 min for 0.70; ID-11 1+3 gives 14 and 21; "
+            "Microphen 1+1 gives 5 and 8; Microphen 1+3 gives 9 and 14; "
+            "Perceptol 1+1 gives 12 and 17; Perceptol 1+3 gives 15 and 24. "
+            "Speed itself is developer-dependent: unchanged at ASA 50 in ID-11, "
+            "but DIN 20 in Microphen and ASA 32 / DIN 16 in Perceptol. The "
+            "curves below are the ID-11 CI 0.55 condition, which is the "
+            "reference the characteristic curve is plotted for."
+        ),
+        era="1960s-1980s",
+        exposure_index=50,       # ASA 50, DIN 18 in ID-11 -- p471 [C1]
+        balance_kelvin=5500,     # [C3]; the wedge spectrogram is to tungsten
+                                 # 2850 K but that is the MEASUREMENT source,
+                                 # not the film's balance
+        curves=RGBCurves(
+            # gamma 0.55 is the DOCUMENTED contrast index for the ID-11 1+1
+            # 9-minute condition [C1]. Contrast index is the average gradient
+            # over 1.5 log-exposure units from 0.1 above fog, which the source
+            # states explicitly -- it is not identical to classical gamma, and
+            # using it as gamma here is an approximation [C2] recorded rather
+            # than hidden. dmin, toe and shoulder are EST [C4].
+            r=_neg(0.14, 0.550, toe_x=-1.36, shoulder_x=1.72),
+            g=_neg(0.14, 0.550, toe_x=-1.36, shoulder_x=1.72),
+            b=_neg(0.14, 0.550, toe_x=-1.36, shoulder_x=1.72),
+        ),
+        # EST [C3] from "very fine grain" in Ilford's own classification and
+        # from Edwal's independent class-I ("thin emulsion") rating for Pan-F.
+        grain=GrainSpec(5.0, 5.0, 5.0, 5.0, clump_gain=0.92, fog_grain=0.16),
+        mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.02, adjacency_um=16.0),
+        halation=HalationSpec(
+            radii_um=(9.0, 36.0, 150.0),
+            gain_r=0.03, gain_g=0.03, gain_b=0.02,
+            threshold_stops=1.7,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.03,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="ILFORD_FP4",
+        aliases=("ilford fp4", "fp4", "fp-4"),
+        description=(
+            "[T1] Ilford FP4, fine-grain medium-contrast panchromatic -- the "
+            "1970s stock, NOT the FP4 Plus of 1990. ASA 125 / 22 DIN daylight "
+            "and ASA 100 / 21 DIN tungsten; that daylight-to-tungsten ratio of "
+            "1.25 is the panchromatic norm and sits at the opposite end of the "
+            "range from POLAROID_51's 3.2. Documented sensitivity range "
+            "2300-6700 Angstrom (230-670 nm). Ilford classifies it as medium "
+            "speed, medium contrast, very fine grain; Edwal independently rates "
+            "it class II, the same class as Kodak Plus-X. The source records an "
+            "unusually wide exposure latitude claim -- usable results at up to "
+            "SIX stops over and two stops under -- which is a latitude "
+            "statement, not a curve, and is why the shoulder below is placed "
+            "far out."
+        ),
+        era="1960s-1980s",
+        exposure_index=125,      # ASA 125 daylight, DIN 22 -- p474 [C1]
+        balance_kelvin=5500,     # [C3]
+        curves=RGBCurves(
+            # EST [C4] for gamma: unlike Pan F, no contrast-index table was
+            # read for FP4 in this pass, so 0.60 is the house medium-contrast
+            # value and is NOT documented. The +6/-2 stop latitude claim [C1]
+            # is what places the shoulder.
+            r=_neg(0.15, 0.600, toe_x=-1.50, shoulder_x=2.05),
+            g=_neg(0.15, 0.600, toe_x=-1.50, shoulder_x=2.05),
+            b=_neg(0.15, 0.600, toe_x=-1.50, shoulder_x=2.05),
+        ),
+        grain=GrainSpec(7.5, 7.5, 7.5, 7.5, clump_gain=0.98, fog_grain=0.18),
+        mtf=MTFSpec(52.0, 52.0, 52.0, adjacency=0.02, adjacency_um=18.0),
+        halation=HalationSpec(
+            radii_um=(11.0, 44.0, 180.0),
+            gain_r=0.04, gain_g=0.04, gain_b=0.03,
+            threshold_stops=1.6,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.03,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="ILFORD_HP4",
+        aliases=("ilford hp4", "hp4", "hp-4"),
+        description=(
+            "[T1] Ilford HP4, the fast panchromatic of the 1970s -- the "
+            "predecessor of HP5 and the successor to ILFORD_HP3. ASA 400 / 27 "
+            "DIN. Documented sensitivity range 2300-6700 Angstrom "
+            "(230-670 nm). Ilford's own classification is 'very fast, medium "
+            "contrast, medium grain', and Edwal independently rates it class "
+            "III alongside Kodak Tri-X, which is the useful cross-check: two "
+            "unrelated 1979 sources place HP4 and Tri-X in the same speed and "
+            "grain class. The source's cross-manufacturer development tables "
+            "list HP4 at 400 in the roll-film tables, corroborating the block "
+            "figure."
+        ),
+        era="1960s-1980s",
+        exposure_index=400,      # ASA 400, DIN 27 -- p478 [C1]
+        balance_kelvin=5500,     # [C3]
+        curves=RGBCurves(
+            # EST [C4]. No contrast index or curve figure was read for HP4 in
+            # this pass; 0.65 is the house fast-panchromatic value. Ilford's
+            # "medium contrast" classification is consistent with it but is a
+            # word, not a number.
+            r=_neg(0.18, 0.650, toe_x=-1.44, shoulder_x=1.86),
+            g=_neg(0.18, 0.650, toe_x=-1.44, shoulder_x=1.86),
+            b=_neg(0.18, 0.650, toe_x=-1.44, shoulder_x=1.86),
+        ),
+        grain=GrainSpec(13.5, 13.5, 13.5, 13.5, clump_gain=1.18, fog_grain=0.22),
+        mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.03, adjacency_um=22.0),
+        halation=HalationSpec(
+            radii_um=(16.0, 64.0, 240.0),
+            gain_r=0.05, gain_g=0.05, gain_b=0.04,
+            threshold_stops=1.4,
+        ),
+        couplers=CouplerSpec(),
+        is_monochrome=True,
+        silver_tone=0.0,        # neutral developed silver; the source
+                                # publishes no image-tone figure
+        base_tint=(1.0, 1.0, 1.0),
+        misregistration_um=0.0,
+        default_flare=0.035,
+        features=Feature.NONE,
+    ),
+
 )
 
 # Presented in NATURAL (numeric-aware) order by name: digit runs inside a name
@@ -7255,6 +7968,46 @@ _NO_DATASHEET: tuple[str, ...] = (
 #: could NOT be re-verified in this pass and were left untouched; see
 #: NotFound.md for the full list and the specific parameters still missing.
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
+    # ---- 2026-08-14: GEVACOLOR_1952 upgraded tier 3 -> 1. The profile was
+    # built by analogy with no citation; Cheltsov & Bongard 1958 documents
+    # the film directly and is what fixes its balance temperature.
+    "GEVACOLOR_1952": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf -- p178 (Gevacolor negative type N-5, 14/10 DIN, balanced for incandescent lamps at 2850 K; gelatin interlayers distinguishing it from Agfacolor; magenta dye absorption max 550 nm, cyan max 660 nm), p152 (Gevacolor reversal 24 lines/mm in the five-stock comparison set), p179 (type 652 successor at 3200 K, 32 ASA, published gamma 0.65)",),
+    # ---- 2026-08-14 batch, The Compact Photo-Lab-Index 1979 (Pittaro, ed.).
+    # Each entry names the PDF page its documented values came from.
+    "POLAROID_51": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p582 (ASA 320 daylight / 26 DIN, ASA 100 tungsten / 21 DIN; D-max 1.75, D-min .00, slope 3.35, resolution 28-32 lines/mm; blue-sensitive only; plot annotation D-max 1.85 / D-min .09 / slope 3.30; reciprocity compensation table; filter factors)",),
+    "POLAROID_52": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p583 (ASA 400, 27 DIN; D-max 1.75, D-min .02, slope 1.3-1.4, resolution 35-40 lines/mm; filter factor table)",),
+    "POLAROID_42": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p583 and p586 (24 DIN, plot annotation Speed 200; D-max 1.65, D-min .08, slope 1.30, resolution 25-28 lines/mm)",),
+    "POLAROID_47": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p589 and p591 (ASA equivalent 2500, 36 DIN, plot Speed 3000; D-max 1.70, D-min .06, slope 1.50, resolution 20-22 lines/mm; formats 47 roll / 107 pack / 57 packet share the block)",),
+    "POLAROID_55_PN_NEG": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p588 (ASA equivalent 50, DIN 18; NEGATIVE D-max 1.65, D-min .18, slope .7, resolution 150-160 lines/mm; POSITIVE D-max 1.75, D-min .02, slope 1.4, resolution 22-25 lines/mm; plot annotations 1.55/.18/.65 negative and 1.75/.09/1.35 positive; fixed after 20 s, sulphite bath within 3 min, enlargeable to 25x)",),
+    "POLAROID_46L": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p593-594 (ASA equivalent 800, DIN 30; D-max 2.8, D-min .05, slope 1.8, resolution 35-40 lines/mm; panchromatic projection transparency; contrast manipulable by development to five minutes; plot annotation D-max 2.50 / D-min .02 / slope 2.20)",),
+    "POLAROID_146L": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p594-595 (Polaline; ASA equivalent 200 daylight / DIN 24, 60 tungsten / DIN 19; D-max 2.3, D-min .02, slope 3.00+ i.e. a lower bound, resolution 40-50 lines/mm; blue-sensitive, no filters; plot annotation D-max 2.55 / D-min .03 / slope 3.30)",),
+    "POLAROID_410": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p595-596 (Polascope; ASA equivalent 10,000, 41 DIN; D-max 1.6, D-min .02, slope 2.0, resolution 22-28 lines/mm; development 15 s at 20 C and above; for oscilloscope traces and high-magnification macrophotography; plot annotation D-max 1.50 / D-min .10 / slope 2.30)",),
+    "ILFORD_PAN_F": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p471-474 (ASA 50, DIN 18; wedge spectrogram to tungsten 2850 K; reciprocity chart; filter factors daylight and tungsten; development times to contrast index G0.55 / G0.70 in ID-11, Microphen and Perceptol at 1+1 and 1+3; speed becomes DIN 20 in Microphen and ASA 32 / DIN 16 in Perceptol) and p559 (Ilford sensitivity range 2300-6700 Angstrom, medium speed, medium-to-high contrast, very fine grain)",),
+    "ILFORD_FP4": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p474-477 (ASA 125 / DIN 22 daylight, ASA 100 / DIN 21 tungsten; wedge spectrogram to tungsten 2850 K; latitude claim +6 / -2 stops) and p559 (sensitivity range 2300-6700 Angstrom, medium speed, medium contrast, very fine grain)",),
+    "ILFORD_HP4": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p478-480 (ASA 400, DIN 27; wedge spectrogram to tungsten 2850 K) and p559 (sensitivity range 2300-6700 Angstrom, very fast, medium contrast, medium grain); corroborated at 400 in the roll-film development tables p704",),
     # ---- 2026-08-13 batch, Cheltsov & Bongard 1958 (Soviet monograph). Each
     # entry names the page its documented values came from, so a later reader
     # can check any single number without re-reading the book.
@@ -8007,7 +8760,151 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
 #: relation above it. Nothing in film_sim.py consumes ReciprocitySpec yet, so
 #: this is latent rather than a live bug; any renderer that starts using these
 #: fields must use the normalised form.
+# ---------------------------------------------------------------------------
+# Tungsten exposure index (schema v6, 2026-08-14)
+#
+# ONLY stocks whose source prints BOTH a daylight and a tungsten figure appear
+# here. Absence means the source gave one number, not that the film has no
+# tungsten speed -- an inferred tungsten index would be fabrication, and the
+# whole value of this field is that the RATIO is measured.
+#
+# Every figure below is [C1], read from the page cited.
+# ---------------------------------------------------------------------------
+_EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
+    # The Compact Photo-Lab-Index 1979 (Pittaro, ed.).
+    "POLAROID_51":   100,   # p582: ASA 320 daylight / 100 tungsten -> ratio 3.2
+                            # the largest in this database. Type 51 is
+                            # BLUE-SENSITIVE ONLY, and that is exactly why: a
+                            # blue-only emulsion loses 1 2/3 stops under a
+                            # red-rich source where a panchromatic one loses 1/3.
+    "POLAROID_146L":  60,   # p595: ASA 200 daylight / 60 tungsten -> ratio 3.3.
+                            # Also blue-sensitive, and it lands in the same place
+                            # as Type 51 independently, which is the corroboration
+                            # that the ratio really is tracking sensitisation.
+    "ILFORD_FP4":    100,   # p474: ASA 125 daylight / 100 tungsten -> 1.25,
+                            # the ordinary panchromatic value.
+    "ILFORD_HP4":    400,   # p478: ASA 400 for both -> ratio 1.00. Flat response
+                            # is itself a documented result, not a missing value.
+    "EASTMAN_PLUS_X_5231":   64,   # p285: daylight 80 / tungsten 64 -> 1.25
+    "EASTMAN_DOUBLE_X_5222": 200,  # p285: daylight 250 / tungsten 200 -> 1.25
+    "KODAK_TRI_X_REVERSAL_200": 160,  # p289: daylight 200 / tungsten 160 -> 1.25
+    # DELIBERATELY ABSENT: GEVACOLOR_NEG_652. Its exposure_index of 32 ASA
+    # ALREADY IS the tungsten rating -- the stock is balanced for 3200 K -- so
+    # writing 32 here too would produce a daylight/tungsten ratio of 1.00 that
+    # looks identical to ILFORD_HP4's genuinely flat response and means something
+    # completely different. The source's other figures for 652 are a
+    # daylight-WITH-FILTER ladder (12 ASA behind a CTO-12, 10 under an arc behind
+    # a CTO-16, 8 in daylight shade behind a CTO-20), which is filter-factor data,
+    # not an unfiltered daylight speed, and it lives in that profile's
+    # description. This field means "the tungsten figure where the source prints
+    # an unfiltered pair"; 652 has no such pair.
+}
+
+
+# ---------------------------------------------------------------------------
+# Processing state (schema v6, 2026-08-14)
+#
+# WHICH development condition each stored curve represents. Populated ONLY
+# where the source states it. The database is 142 stocks and this dict has 2
+# entries, which is not an oversight -- it is the measurement. Almost every
+# datasheet in this corpus prints a characteristic curve without naming the
+# developer that produced it, and that is precisely the ambiguity the field
+# exists to expose rather than to paper over.
+# ---------------------------------------------------------------------------
+_PROCESSING: dict[str, ProcessingSpec] = {
+    # The Compact Photo-Lab-Index 1979, p473. Pan F is the best-documented
+    # processing case in the entire corpus: the source prints development times
+    # to TWO named contrast indices across THREE developers at TWO dilutions,
+    # and the speed each developer yields. The curve stored in this profile is
+    # the ID-11 1+1 / 9 min / CI 0.55 condition, which is the reference the
+    # published characteristic curve is plotted for (p474, "Developed in ID-11
+    # at 20 C with intermittent agitation").
+    #
+    # The full published matrix, for the record and for any future curve-family
+    # work -- minutes to reach CI 0.55 / CI 0.70:
+    #     ID-11     1+1   9 / 14      speed ASA 50 (unchanged)
+    #     ID-11     1+3  14 / 21      speed ASA 50
+    #     Microphen 1+1   5 /  8      speed DIN 20 (about ASA 80)
+    #     Microphen 1+3   9 / 14      speed DIN 20
+    #     Perceptol 1+1  12 / 17      speed ASA 32 / DIN 16
+    #     Perceptol 1+3  15 / 24      speed ASA 32 / DIN 16
+    # That is 1 1/3 stops of speed and 27 % of contrast across one film's own
+    # published options, which is the size of the ambiguity a curve carries when
+    # nothing states its processing.
+    "ILFORD_PAN_F": ProcessingSpec(
+        developer="ID-11", dilution="1+1", minutes=9.0, celsius=20.0,
+        agitation="intermittent", contrast_index=0.55),
+    # Same source and same page family (p474). FP4's characteristic curve is
+    # likewise plotted for ID-11 at 20 C with intermittent agitation, but the
+    # source does NOT print FP4's own time-to-contrast-index table in the pages
+    # read, so minutes and contrast_index stay 0.0 = not stated. Recording the
+    # developer and temperature without inventing the time is the point of
+    # having per-field absence.
+    "ILFORD_FP4": ProcessingSpec(
+        developer="ID-11", celsius=20.0, agitation="intermittent"),
+}
+
+
 _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
+    # ----------------------------------------------------------------------
+    # 2026-08-14, from The Compact Photo-Lab-Index (Pittaro, ed.), 2nd Compact
+    # Edition 1979, "EXPOSURE AND FILTER COMPENSATION FOR THE RECIPROCITY
+    # CHARACTERISTICS OF KODAK COLOR FILMS", pp. 174-175 of the PDF.
+    #
+    # THE TABLE WAS REBUILT FROM WORD COORDINATES, not from flat OCR text.
+    # It is a 12 x 7 grid whose cells do not survive linear text extraction;
+    # each cell was assigned to a column by comparing its x-centre against the
+    # x-centres of the seven printed time headings. Cells that span several
+    # columns (a single "None / No Filter" covering four decades) were
+    # identified by their centre falling midway between headings. The
+    # reconstruction is monotonic for every film, which is the check that it
+    # is right.
+    #
+    # WHAT IS DOCUMENTED AND WHAT IS NOT. The table gives, per film, the
+    # exposure increase in STOPS and the colour-correction FILTER, at seven
+    # times from 1/10000 s to 100 s, rounded to the nearest half stop. From
+    # that:
+    #   * onset_s is well determined -- it is bracketed by the last "None"
+    #     column and the first non-zero column.
+    #   * the CHANNEL ORDERING is documented outright by the filter colour: a
+    #     CC10R recommendation means the RED record lost the most speed and
+    #     needs the most compensation, so p_r must be the lowest.
+    #   * a single Schwarzschild exponent CANNOT fit the three-point films.
+    #     Measured on this table: Kodachrome 40 and Kodachrome 25 both need
+    #     1-p = 0.1505 over the 1-10 s decade and 0.3010 over 10-100 s, i.e.
+    #     the exponent steepens from 0.85 to 0.70. Kodacolor 400 does the
+    #     same. Only Kodacolor II is consistent, at a flat p = 0.699 across
+    #     both decades. Our ReciprocitySpec is a single power law and cannot
+    #     represent a steepening exponent; this is recorded as a schema
+    #     limitation rather than papered over by averaging.
+    #
+    # The two entries below are the films where a SINGLE decade of data
+    # exists, so a two-point fit is well posed within it, and where the stock
+    # is already in this database. Kodachrome 64 is deliberately NOT given a
+    # fitted exponent: it has exactly one non-zero point (+1 stop at 1 s,
+    # then "Not Recommended"), which determines nothing.
+    #
+    # The channel spread magnitude is EST [C3]; only its DIRECTION is
+    # documented [C1]. Green is held at the fitted value and the flagged
+    # channel is moved down by 0.03, the same spread the surrounding
+    # estimated entries in this file already use.
+    "EKTACHROME_64": ReciprocitySpec(0.85, 0.85, 0.82, onset_s=0.1),
+    #   p174: none 1/1000-1/10; +1 stop CC15B @ 1 s; +1.5 stops CC20B @ 10 s;
+    #   Not Recommended @ 100 s. Also +1/2 stop at 1/10000 s -- a SHORT-time
+    #   failure, which this schema has no term for at all (onset_s is a
+    #   lower bound only). Blue is flagged: the correction is blue and it
+    #   grows 15B -> 20B, so the blue record is losing the most.
+    "EKTACHROME_160T": ReciprocitySpec(0.82, 0.85, 0.85, onset_s=0.1),
+    #   p175: none 1/1000-1/10; +1/2 stop CC10R @ 1 s; +1 stop CC15R @ 10 s;
+    #   Not Recommended @ 100 s. Red is flagged, 10R -> 15R.
+    #
+    # KODACHROME_64 -- onset only, exponent left at the family estimate.
+    #   p175: none 1/10000-1/10; +1 stop CC10R @ 1 s; Not Recommended beyond.
+    #   One point cannot determine an exponent: depending on whether onset is
+    #   taken as 0.1 s or 0.5 s the fit returns p = 0.70 or a physically
+    #   impossible p <= 0. The onset bracket IS documented, so only that is
+    #   taken, and the red flag is applied because the filter is CC10R.
+    "KODACHROME_64": ReciprocitySpec(0.90, 0.92, 0.94, onset_s=0.1),
     # 2026-07-31, fitted from datasheet correction tables (t_a^p * onset^(1-p)
     # = t_m solved at the printed correction points):
     # ----------------------------------------------------------------------
@@ -8506,6 +9403,11 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
         ),
         reciprocity=_reciprocity_for(p),
         aging=AgingSpec(),  # every profile ships fresh; hooks only (DM-01)
+        # schema v6. Both default to "not stated" and are filled only where a
+        # source prints the value; see the two dicts above for why the
+        # populated counts are small on purpose.
+        exposure_index_tungsten=_EXPOSURE_INDEX_TUNGSTEN.get(p.name, 0),
+        processing=_PROCESSING.get(p.name, ProcessingSpec()),
         provenance=_provenance_for(p),
         trim=0.0,  # static trim; the per-render anchor solve refines it
         density_metric=density_metric,
