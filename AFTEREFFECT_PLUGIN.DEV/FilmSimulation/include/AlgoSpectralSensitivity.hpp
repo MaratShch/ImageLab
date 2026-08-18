@@ -80,7 +80,9 @@
 //
 //  This is the grid the INTEGRALS are evaluated on. It is NOT the stored
 //  sampling of any curve and does not claim to be. Stored curves are 10 nm for
-//  49 of 53 stocks and 20-25 nm for four; they are interpolated up onto this
+//  48 of the 53 stocks that have one, 5 nm for one (FUJI_NEOPAN_1600, re-traced
+//  2026-08-15 from its manufacturer datasheet at 0.557 nm per pixel), and
+//  20-25 nm for four; they are interpolated up onto this
 //  grid so the integral is not quantised to whatever sampling the source plot
 //  happened to have. Interpolating up for the purpose of integration invents no
 //  information - it moves the trapezoid rule's nodes and nothing else.

@@ -1,6 +1,7 @@
 #include "FilmSimulation.hpp"
 #include "AlgoControl.hpp"
 #include "ImageLabMemInterface.hpp"
+#include "LoadFilmDataBase.h"
 #include "PrSDKAESupport.h"
 
 
@@ -31,10 +32,15 @@ GlobalSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-    PF_Err	err = PF_Err_INTERNAL_STRUCT_DAMAGED;
+    PF_Err	err = PF_Err_NONE;
+
+    // Builds all 155 profiles exactly once. Thread-safe; repeat calls
+    // (AE can call GlobalSetup more than once) return true immediately.
+    if (false == film::LoadFilmDataBase())
+        return PF_Err_OUT_OF_MEMORY;   // only failure cause; a later call retries
 
     if (false == LoadMemoryInterfaceProvider(in_data))
-        return err;
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT       |
@@ -108,8 +114,6 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f_Linear);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
     }
-
-    err = PF_Err_NONE;
 
 	return err;
 }

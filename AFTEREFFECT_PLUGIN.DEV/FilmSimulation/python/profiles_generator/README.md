@@ -4,6 +4,141 @@ A rewrite of the original grain-overlay script as an actual photochemical model.
 Python 3.12, 64-bit, Windows and Linux/WSL2. Dependencies: **numpy and Pillow only** —
 no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 
+> **Status 2026-08-18b (a build entry point, and σ(D) is read by nothing):** two
+> findings, and the second one reprioritises the queue.
+>
+> **`sigma_shape_toe/mid/dmax` is consumed by NO renderer.** Not `film_sim.py`, not
+> `Algo_11_Sim.cpp`, not the AVX2 port — all three hardcode
+> `amp = sqrt(max(D − dmin, 0) + fog_grain)`. The field is populated, validated,
+> emitted into the generated C++ and printed in the reports, and never read. So the
+> queue's largest item by stock count ("σ(D) heuristic sign, 103 stocks") would change
+> **zero pixels**, and the VISION3 adoption above is likewise inert at render time: the
+> stored data is correct, the rendering benefit is still pending. The useful unit of
+> work is to **wire σ(D) into stage 11 and then set the defaults** — one change, once,
+> in three implementations. Awaiting a decision; nothing has been wired.
+>
+> Quantified while checking: because the √ law is applied to every stock, grain
+> amplitude at the dense end is **1.48× too high against the B&W measurement** and
+> **2.54× too high against the VISION3 colour-negative measurement**. On a negative,
+> dense is a scene *highlight*, so renders carry too much grain exactly where real film
+> reads clean. That is an algorithm defect across all 154 stocks, not a data one. What
+> the √ law gets *right* is the toe: it gives 0.420 at D = dmin against a measured
+> 0.41–0.55, for the right reason.
+>
+> **The B&W evidence the queue said did not exist.** Mees, *The Theory of the
+> Photographic Process*, **Figure 302** (printed p866, in `PROFILES/RETRO/`) plots
+> granularity against density for **four B&W negative emulsions**, data from Goetz and
+> Gould. Digitised: toe/mid **0.41–0.55** at D ≈ 0.07–0.14, peak at D ≈ 0.59–1.17, and
+> **0.87–1.01** at D = 1.0–1.5 — flat to gently falling, never rising. dmax (D ≈ 2.0–2.5)
+> is **not measured**; the curves stop at 1.02–1.51. Three checks were load-bearing: the
+> ordinate is in *relative transparency*, so G ∝ σ_D (Mees states the 10⁻ᴰ conversion
+> explicitly on p863) — absolute units would have inverted the conclusion; calibration
+> is fitted per panel because gridline spacing is non-uniform and one assumed scale
+> missed a line by 3.4 px; and families are separated by **marker style**, which
+> overturned a first pass that split them by position — the two curves in a panel are
+> plotted against *different* abscissae. New tool `mees_granularity.py`. See
+> `RESULT_2026-08-18b_bw_sigma_d.md`.
+>
+> **`build.py` — the entry point that did not exist.** `run.cmd` was one line that
+> rendered an image and regenerated nothing; the regeneration sequence lived only as a
+> command list in this README, and that list ran the **deprecated**
+> `gen_film_names.py` last, which silently rewrites 19 of 154 names in the
+> `film_names.txt` the effect panel loads. Both extraction scripts were orphans,
+> referenced in prose and executed by nothing. `build.py` runs audit → verify →
+> codegen → sync → docs → compile, gated: the verify gate compares the FAIL **set**
+> against a baseline rather than trusting an exit code that is always 1, and the
+> compile gate demands exit 0 **and** zero bytes of output. All five gates were tested
+> by fault injection, and one of those tests found a bug in the gate itself — the
+> `film_names.txt` check was vacuous in build mode because codegen had already repaired
+> the file before it ran.
+>
+> **Status 2026-08-18 (SVEMA_FOTO_65 — three adopted values WITHDRAWN after a
+> provenance correction):** the owner's scan batch that four parameters here were
+> derived from is **not one emulsion**. The analyzer was pointed at a folder named
+> `SVEMA-FN64` and analysed all **509 frames as one film**; the owner confirms only
+> frames `PICT0001–PICT0067` are certainly Foto-65, and frames 68+ mix in **Foto-32**,
+> which was chosen at the time precisely for finer grain and higher resolution. The
+> contamination is therefore **one-directional**: the mixed batch reads finer and
+> sharper than Foto-65 alone. A confirmed-subset re-run (same `analyze_film_scans.py`
+> v2.1, the 67 frames, `--px-per-mm 122.7`) settles what survives.
+>
+> **The measurement that decides most of it takes one line to state: over all 67
+> confirmed frames, `max |R−G| = max |B−G| = 0`.** Those frames are exactly
+> greyscale. So every per-channel quantity in the 509-frame output — `base_tint`,
+> `tone_slope_r/_b`, all twelve crossover bins, the 0.806/0.834/0.850 gamma spread —
+> originates entirely in the contaminated tail and cannot be attributed to this
+> emulsion. `base_tint` (0.991, 1.000, 0.991) → **identity**; `silver_tone`
+> **+0.40 → 0.0**, because the sign reversal that produced +0.40 rested specifically
+> on `tone_slope_r −0.0205`, which is 0.0000 on the confirmed frames. Neutral rather
+> than restored to the earlier −0.10: that figure came from the same rig and the same
+> class of artefact, so restoring it would swap one unsupported number for another.
+> This is the *absence of an admissible measurement*, not a claim that Foto-65 is
+> neutral.
+>
+> `sigma_shape` **0.65/1.00/1.65 → withdrawn to the schema default.** The two runs
+> disagree in **sign**, not just size: mixed 509 gives 0.0191/0.0292/0.0482 (rising),
+> the confirmed 67 give 0.0479/0.0425/0.0435 (flat, mildly toe-peaked). Bin edges are
+> absolute offsets from `d_base` and the two `d_base` values differ by 0.024 D, so it
+> is not a binning artefact — and the toe disagreement is a factor of **2.5** and is
+> **unexplained**. Conflict recorded, neither adopted. The fallback 0.4/1.0/1.2 is the
+> defensible one here — but for a narrower reason than first written. σ ∝ √D is the
+> correct *low-density* limit (sparse non-overlapping grains are Poisson), and the
+> falling Vision3 triples are measured on *chromogenic* stock, a different mechanism.
+> ⚠ CORRECTED 2026-08-18b: the claim that √D is "the textbook result" for a B&W silver
+> negative **over the whole range** is wrong. Mees Fig. 302 measures four B&W negative
+> emulsions and they are flat-to-falling above D = 1.0. See the entry below.
+>
+> **Kept, with the caveat stated:** gamma 0.830, now re-based on a **printed** source
+> (Gurlev 1986 p296, γ_rec 0.8 for Foto-65) per method rule 14 — the batch statistics
+> are demoted to a consistency bracket, and that bracket is wide (0.677 confirmed vs
+> 0.834 mixed, both resting on an *assumed* 1.90 logE scene span). clump 23 µm
+> (confirmed subset gives 3.63 px → ~24.7 µm deconvolved, inside the stated
+> uncertainty). Halation, at 0.166 D vs 0.199 D — 17 % lower, far inside the 4-to-7-stop
+> overshoot assumption that already sets its T2 tier, and a single-channel scalar, so
+> unlike the two withdrawals it never depended on the per-channel structure.
+>
+> **A second documentation error, corrected in four places:** the scanner was
+> described throughout as a "Bayer-demosaiced DSLR" rig. EXIF reads `Make=GCMC`,
+> `Model=Scanner`, `Software=UF15 16/08/20 v0.69` (3116 dpi, 8.15 µm/px). That
+> invalidates the stated *reason* for rejecting `anisotropy` 0.62–0.66 as a sensor
+> mosaic — and the value is **reproducible**, 0.658 mixed and 0.634 confirmed. Still
+> not adopted, but now logged as an open question rather than a settled rejection.
+> `verify.py` gains 4 checks that keep the withdrawals withdrawn (169 PASS / 2 FAIL;
+> the 2 are the long-standing saturation-hierarchy and neighbour-pair ones).
+> See `RESULT_2026-08-18_svema_clean67.md`.
+>
+> **Status 2026-08-17 (VISION3 granularity σ(D) — adopted at the fourth attempt):**
+> the four KODAK VISION3 stocks (5203/5207/5213/5219) now carry a **traced**
+> `sigma_shape_toe/mid/dmax` instead of a tier-3 estimate: 0.39/1.00/0.63,
+> 0.59/1.00/0.57, 0.41/1.00/0.58, 0.67/1.00/0.55, read off the "Diffuse rms
+> Granularity Curves" plot on page 3 of each sheet. Four independent sheets agree on
+> the dmax anchor within ±7 %, against the mutually contradictory 2.56 / 0.70 / 0.67
+> that the third attempt produced.
+>
+> Two findings matter more than the numbers. **First, the plots' two curve families
+> are distinguished by DRAWING STYLE, not position** — dashed on 5207/5219, bold on
+> 5203/5213, and 5219 prints a legend saying exactly that. Splitting on style before
+> tracing makes a cross-family swap *impossible* rather than merely detectable, which
+> is what three earlier passes needed and lacked. **Second, the physics premise used
+> to reject the third attempt was itself wrong.** That premise — colour-negative
+> granularity rises with density — is contradicted by these four sheets and, in
+> print, by Kodak's own SMPTE Journal paper of July 1985 (Sehlin/Kennel, p 728,
+> Figs 8–9: "overexposing either film significantly decreases granularity").
+> Granularity *falls* toward Dmax on a colour negative.
+>
+> Consequence deliberately NOT acted on: `_grain_v2`'s heuristic still fills
+> 0.4/1.0/**1.2** (rising) for 103 non-reversal stocks, so its sign is now known to
+> be wrong for the colour negatives among them. It was left alone and queued —
+> the approval covered four stocks, and every source is a chromogenic negative while
+> that branch also fills B&W silver negatives. ⚠ The second half of that reasoning did
+> not survive checking — see the 2026-08-18b entry: the B&W measurement went the same
+> way as the colour one, and the field turned out to be read by nothing.
+> Known limitation of the schema, recorded with the values: σ peaks at D ≈ 0.78,
+> *below* the mid anchor, at 1.24–1.32× the D = 1.0 value, and three anchors cannot
+> represent an interior peak. New tool `vision3_granularity.py` re-derives all of it
+> from the PDFs and fails loudly if it stops reproducing. See
+> `RESULT_2026-08-17f_vision3_granularity.md`.
+>
 > **Status 2026-08-13 (sixth entry):** spectral **integration grid 5 nm → 2 nm**
 > after measuring that 5 nm was adequate only because every illuminant in the
 > engine is a blackbody — against a narrow-line source a 5 nm grid is 1.5 % wrong
@@ -26,6 +161,18 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > matrix is computed and reported but deliberately NOT wired in — it would
 > double-count mixing already carried by `dye_matrix` and `InterimageSpec`. See
 > `CHANGES_2026-08-13_spectral_path.md`.
+>
+> **Status 2026-08-15 (tenth entry): 143 stocks.** Fifteen new references processed
+> plus the 1495-page KODAK DATA BOOK (vol 5 FILMS located, pp 1150–1495, queued) and
+> Zhurba 1984 (rotated tables read visually; zero ORWO content). New stock:
+> `KODAK_TECHNICAL_PAN` (P-255) — CI 0.50–2.50 from one emulsion, the widest
+> documented processing envelope in the corpus. Two "genuinely absent" gaps settled
+> by their own sheets, both with ~2× RMS-granularity corrections: 8572 (7.4→4.0)
+> and Vista 200 (9.4→4.3); the ETERNA Vivid sheet gave a third (6.8→3.5). That
+> consistent 2× bias matters when reading remaining [C3] grain estimates. Portra
+> E-190 documents the 2006 NC/VC generation — recorded, NOT merged into our 2010s
+> stocks. Online Zhurba 1990 pp 44–131 unreachable (webp page images); local copy
+> requested. Full record: `CHANGES_2026-08-15b_new_references.md`.
 >
 > **Status 2026-08-15 (ninth entry):** FUJI NEOPAN 1600's own manufacturer
 > datasheet (AF3-608E, true digital PDF) extracted in full. Its curves are 300 dpi
@@ -204,9 +351,52 @@ python film_sim.py photo.jpg -p "super xx" -g 3      # 1938 stock, 3 dupe genera
 python film_sim.py photo.jpg -p dufaycolor           # additive mosaic (render big!)
 python film_sim.py photo.jpg -p 5219 --flare 0.10    # force period lens flare
 python film_sim.py photo.jpg -p technicolor --emit-cpp
-python verify.py                                    # 67-check test suite
-python cpp_codegen.py -o .                          # regenerate the C++ tables
-python gen_film_names.py                            # official-name list, C++ order
+```
+
+### Regenerating the database
+
+**Use `build.py`. Do not run the generators by hand in the order this README
+used to list.** That list ended with `python gen_film_names.py`, *after*
+`cpp_codegen.py` — and that script is deprecated (see the file table below).
+Running it last silently replaces `film_names.txt`, the list the effect control
+panel loads, with a different set of display names: 19 of 154 differ
+(`KODAK T-MAX 100` against `KODAK TMAX 100`, `SVEMA FOTO-65` against
+`SVEMA FOTO 65`, and so on). The in-service file is `cpp_codegen`'s.
+
+```bash
+python build.py                 # audit + regenerate everything, in order, gated
+python build.py --check         # READ-ONLY: audit and report drift, write nothing
+python build.py --list          # the stages, and which sources each audit needs
+python build.py --only verify   # one stage
+run.cmd  |  run.cmd check  |  run.cmd build  |  run.cmd render     (Windows)
+```
+
+Stages run in a load-bearing order: **audit** (re-derive adopted numbers from
+the source documents) → **verify** → **codegen** → **sync** (assert the
+project-root copy of the generated C++ is identical) → **docs** → **compile**.
+
+Two gates are deliberately stricter than they look:
+
+* **`verify.py`'s exit code is not the gate.** It exits 1 whenever any check
+  fails, and two fail *by design*. `build.py` compares the FAIL **set** against
+  a baseline, so a new failure fails the build and a baseline entry that starts
+  passing is also reported, rather than quietly absorbed.
+* **The compile gate requires exit 0 AND zero bytes of output.** A warning with
+  a zero exit code once reported "clean" while a string literal was broken;
+  `build.py` fails on 216 bytes of `-Wunused-variable` even though `g++`
+  returns 0.
+
+An audit whose source document is absent **SKIPs with the reason** and does not
+fail the build, so the sequence still works on a machine without the 449-PDF
+corpus.
+
+Individual generators, for reference — `build.py` runs these for you:
+
+```bash
+python verify.py                                    # 176-check suite (174 PASS / 2 FAIL by design)
+python cpp_codegen.py -o .                          # the four C++ artefacts
+python vision3_granularity.py --overlay out         # re-derive the VISION3 sigma(D)
+python mees_granularity.py --root ../.. --overlay out   # re-derive the B&W sigma(D)
 ```
 
 ## Why the original script could not get there
@@ -444,6 +634,8 @@ structure is built to accept real data; only the numbers are provisional.
 
 | File | Purpose |
 |------|---------|
+| `build.py` | **The entry point.** Ordered, gated regeneration + audit: audit → verify → codegen → sync → docs → compile. `--check` is read-only. Registers the audit scripts, so a new extraction script becomes part of the build instead of an orphan. Stdlib only |
+| `run.cmd` | Windows wrapper: `run.cmd` / `check` / `build` / `render` |
 | `film_profiles.py` | Physical parameters, 142 stocks, 9 print stocks, 14 gauges |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp`, then `film_names.txt` and `film_enum.hpp` for a C++ port |
@@ -451,7 +643,9 @@ structure is built to accept real data; only the numbers are provisional.
 | `film_names.txt` | Generated. One display name per line, quoted, spaces not underscores, ASCII, no comments — feeds the effect-panel listbox. Line *N* is vector element *N−1* |
 | `film_enum.hpp` | Generated. `enum class eFILM_PROFILE : int32_t`, from 0, ending `eTOTAL_FILMS_PROFILES`. **Values shift when a stock is inserted** — see the compatibility warning in `CHANGES_2026-08-04_stocks93.md` |
 | `test_film_enum.cpp` | C++14 cross-check that enum values, vector order and `film_names.txt` lines all agree |
-| `gen_film_names.py` | **Deprecated.** Superseded by `cpp_codegen.write_film_names()`, which derives order from the emitted `.cpp` instead of from `FILM_PROFILES`. Kept only for reference |
+| `gen_film_names.py` | **Deprecated, and actively harmful if run.** Superseded by `cpp_codegen.write_film_names()`, which derives order from the emitted `.cpp` instead of from `FILM_PROFILES`. Running it after `cpp_codegen.py` rewrites 19 of 154 display names in `film_names.txt`. `build.py` never invokes it and reports if the file on disk was not `cpp_codegen`'s. Kept only for reference |
+| `vision3_granularity.py` | Audit: re-derives the four VISION3 σ(D) triples from the Kodak TI sheets, exits non-zero if it stops reproducing. Run by `build.py`'s audit stage |
+| `mees_granularity.py` | Audit: re-derives the B&W silver-negative σ(D) shape from Mees Fig. 302 (printed p866), four negative emulsions. Run by `build.py`'s audit stage. See `RESULT_2026-08-18b_bw_sigma_d.md` |
 | `verify.py` | ~100-check suite: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, edge cases. Render-heavy — run in parts with `VERIFY_SLICE=1-8`, `9-14`, `15-17`, `18-19` |
 | `make_test_chart.py` | Synthetic chart (ramp, patches, MTF bars, specular discs) |
 | `make_period_chart.py` | Larger chart for the period stocks and the réseau |

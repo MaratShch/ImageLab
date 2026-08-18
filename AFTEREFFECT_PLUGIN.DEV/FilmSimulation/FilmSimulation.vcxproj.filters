@@ -93,9 +93,6 @@
     <ClInclude Include="include\FilmSimulation.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\film_profiles.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgorithmMain.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -115,9 +112,6 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ImageLabMemInterface.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\film_enum.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AlgoCharacteristicCurve.hpp">
@@ -210,6 +204,18 @@
     <ClInclude Include="include\AlgoSpectralSensitivity.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\film_enum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_profiles.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_profiles_detail.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LoadFilmDataBase.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -222,9 +228,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\FilmSimulationSR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgorithmMain.cpp">
@@ -302,6 +305,60 @@
     <ClCompile Include="src\AlgoSpectralSensitivity.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\film_profiles.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_01.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_02.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_03.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_04.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_05.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_06.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_07.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_08.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_09.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_10.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_11.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_12.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_13.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_14.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_15.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_16.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LoadFilmDataBase.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">
@@ -370,6 +427,27 @@
     </None>
     <None Include="python\old_films_analyzing\README_v21.md">
       <Filter>python\old_films_analyzing</Filter>
+    </None>
+    <None Include="python\profiles_generator\build.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\dashtrace.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\dye_density.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\mees_granularity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\plot_inventory.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\render.cmd">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\vision3_granularity.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

@@ -98,6 +98,7 @@
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -126,8 +127,9 @@
       <PreprocessorDefinitions>MSWindows;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
       <RecognizeRestrictKeyword>true</RecognizeRestrictKeyword>
-      <InterproceduralOptimization>NoIPO</InterproceduralOptimization>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -195,7 +197,9 @@
     <ClInclude Include="include\FilmSimulation.hpp" />
     <ClInclude Include="include\film_enum.hpp" />
     <ClInclude Include="include\film_profiles.hpp" />
+    <ClInclude Include="include\film_profiles_detail.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
+    <ClInclude Include="include\LoadFilmDataBase.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AlgoControl.cpp" />
@@ -227,7 +231,24 @@
     <ClCompile Include="src\FilmSimulationPR.cpp" />
     <ClCompile Include="src\FilmSimulationSR.cpp" />
     <ClCompile Include="src\film_profiles.cpp" />
+    <ClCompile Include="src\film_profiles_data_01.cpp" />
+    <ClCompile Include="src\film_profiles_data_02.cpp" />
+    <ClCompile Include="src\film_profiles_data_03.cpp" />
+    <ClCompile Include="src\film_profiles_data_04.cpp" />
+    <ClCompile Include="src\film_profiles_data_05.cpp" />
+    <ClCompile Include="src\film_profiles_data_06.cpp" />
+    <ClCompile Include="src\film_profiles_data_07.cpp" />
+    <ClCompile Include="src\film_profiles_data_08.cpp" />
+    <ClCompile Include="src\film_profiles_data_09.cpp" />
+    <ClCompile Include="src\film_profiles_data_10.cpp" />
+    <ClCompile Include="src\film_profiles_data_11.cpp" />
+    <ClCompile Include="src\film_profiles_data_12.cpp" />
+    <ClCompile Include="src\film_profiles_data_13.cpp" />
+    <ClCompile Include="src\film_profiles_data_14.cpp" />
+    <ClCompile Include="src\film_profiles_data_15.cpp" />
+    <ClCompile Include="src\film_profiles_data_16.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
+    <ClCompile Include="src\LoadFilmDataBase.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FilmSimulation.r">
@@ -256,8 +277,11 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
     <None Include="python\old_films_analyzing\README_v21.md" />
+    <None Include="python\profiles_generator\build.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
+    <None Include="python\profiles_generator\dashtrace.py" />
     <None Include="python\profiles_generator\digitize_plot.py" />
+    <None Include="python\profiles_generator\dye_density.py" />
     <None Include="python\profiles_generator\empirical_import.py" />
     <None Include="python\profiles_generator\film_profiles.py" />
     <None Include="python\profiles_generator\film_sim.py" />
@@ -268,11 +292,15 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\iso5_3_density.py" />
     <None Include="python\profiles_generator\make_period_chart.py" />
     <None Include="python\profiles_generator\make_test_chart.py" />
+    <None Include="python\profiles_generator\mees_granularity.py" />
+    <None Include="python\profiles_generator\plot_inventory.py" />
     <None Include="python\profiles_generator\README.md" />
+    <None Include="python\profiles_generator\render.cmd" />
     <None Include="python\profiles_generator\run.cmd" />
     <None Include="python\profiles_generator\sheet.py" />
     <None Include="python\profiles_generator\sort_profiles.py" />
     <None Include="python\profiles_generator\verify.py" />
+    <None Include="python\profiles_generator\vision3_granularity.py" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="include\film_names.txt" />

@@ -114,6 +114,7 @@ PROPS = [
     ("Spectral Curve Consumed By", "spec_used"),
     ("Film Grain Characteristics", "grain"),
     ("RMS Granularity", "rms"),
+    ("Grain sigma(D) Shape", "sigma_shape"),
     ("MTF / Resolving Power", "mtf"),
     ("Film Base Properties", "base"),
     ("Emulsion Properties", "emul"),
@@ -137,6 +138,14 @@ RX = {
     "rms": re.compile(r"(rms|granularity)[^.]{0,120}?"
                       r"(publish|confirm|printed|sheet|SOURCE|diffuse|"
                       r"datasheet|measured)", re.I | re.S),
+    # Added 2026-08-17 with the VISION3 sigma(D) adoption. Deliberately narrow:
+    # it matches the provenance wording used when a triple is TRACED from a
+    # vendor plot, so a tier-3 estimated triple does not pick up a "+".
+    "sigma_shape": re.compile(r"sigma\(D\)[^.]{0,160}?"
+                              r"(TRACED|traced|published plot|vendor plot|"
+                              r"Granularity Curves)|"
+                              r"sigma_shape[^.]{0,160}?"
+                              r"(TRACED|traced|published plot)", re.I | re.S),
     "mtf": re.compile(r"lp/mm|lines/mm|lin/mm|MTF|resolving power", re.I),
     "base": re.compile(r"polyester|\bPET\b|acetate|triacetate|nitrate|"
                        r"Estar|clear base|base thickness|remjet|\bum base\b|"
@@ -335,6 +344,13 @@ def evaluate(p, block: str) -> dict[str, str]:
             res["spec_used"] = "balance"
     res["grain"] = mark(_documented_near(block, "grain"))
     res["rms"] = mark(_documented_near(block, "rms"))
+    # A default triple is not a property at all, so it cannot be "documented":
+    # report "-" rather than letting a stock with (0,1,0) inherit a "+" from
+    # neighbouring granularity prose.
+    _shape = (p.grain.sigma_shape_toe, p.grain.sigma_shape_mid,
+              p.grain.sigma_shape_dmax)
+    res["sigma_shape"] = mark(_shape != (0.0, 1.0, 0.0)
+                              and _documented_near(block, "sigma_shape"))
     res["mtf"] = mark(
         p.mtf.resolving_power_lp_mm_highc > 0.0
         or _documented_near(block, "mtf")
@@ -348,6 +364,21 @@ def evaluate(p, block: str) -> dict[str, str]:
 
 
 
+
+# ---------------------------------------------------------------------------
+# Stocks whose numbers come from a Soviet TU (технические условия) -- a state
+# MANUFACTURING SPECIFICATION. Those figures are ACCEPTANCE LIMITS, not
+# measurements of a sample: "RMS <= 22" means no batch was allowed to be
+# grainier than 22, and real stock generally sat inside the limit. Presenting
+# them as measured values would overstate what is known and would bias the
+# whole Soviet section pessimistically -- worst permitted grain, minimum
+# permitted sharpness, minimum permitted latitude. They are therefore marked
+# as a THIRD class, distinct from both "documented measurement" and "model
+# estimate", and the legend says so.
+_SPEC_LIMIT_STOCKS = {
+    "SVEMA_DS_4", "SVEMA_DS_5M", "SVEMA_LN_8", "SVEMA_LN_9", "SVEMA_LN_9S",
+    "SVEMA_CO_32D",
+}
 
 def _f(v, nd=2):
     return ("%%.%df" % nd) % v
@@ -365,7 +396,21 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     carried over so no precision is implied where none exists.
     """
     def mk(key, text):
-        return text + ("" if ev[key] == "+" else "*")
+        # THREE classes, not two:
+        #   plain            -- documented measurement
+        #   blue + dagger    -- a SPECIFICATION LIMIT from a Soviet TU: the
+        #                       real film was no worse than this, but the
+        #                       measured value is unknown and generally better
+        #   red + asterisk   -- the model's own estimate, nothing documented
+        # The middle class was added 2026-08-17: without it a TU ceiling reads
+        # as a measurement, which silently converts "no batch was allowed to
+        # exceed 22" into "this film measures 22".
+        if ev[key] == "+":
+            if p.name in _SPEC_LIMIT_STOCKS:
+                return ('<span style="color:#1560bd" title="specification '
+                        'limit, not a measurement">%s\u2020</span>' % text)
+            return text
+        return '<span style="color:red">%s*</span>' % text
 
     cv = p.curves
     mono = p.is_monochrome
@@ -411,6 +456,16 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     rms = g.rms_rgb()
     c_rms = mk("rms", "%.1f" % g.rms_granularity if rms[0] == rms[1] == rms[2]
                else "%.1f (%.1f/%.1f/%.1f)" % ((g.rms_granularity,) + rms))
+    # sigma(D) SHAPE, added 2026-08-17. Before that date no stock had a traced
+    # triple, so a column reporting it would have been (0,1,0) for all 154 and
+    # this report would have been right to omit it. The four VISION3 stocks now
+    # carry one read off the vendor plot, and a traceability report that omitted
+    # a newly documented [T1] property would be exactly the drift this file
+    # exists to prevent. The tier is decided by the same evidence scan as every
+    # other cell, so an estimated triple still prints red.
+    _shape = (g.sigma_shape_toe, g.sigma_shape_mid, g.sigma_shape_dmax)
+    c_shape = ("-" if _shape == (0.0, 1.0, 0.0)
+               else mk("sigma_shape", "%.2f/%.2f/%.2f" % _shape))
 
     rp = ""
     if m.resolving_power_lp_mm_highc > 0:
@@ -462,8 +517,10 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
         phys += ", edge fog %.3f D" % co.edge_fog_density
     c_phys = mk("phys", phys)
 
-    return [c_spec, c_hd, c_curves, c_used, c_grain, c_rms, c_mtf, c_base,
-            c_emul, c_proc, c_lat, c_dr, c_col, c_phys]
+    # Cell order MUST match PROPS, or the per-stock table silently misaligns:
+    # the header is built from PROPS and the rows from this list.
+    return [c_spec, c_hd, c_curves, c_used, c_grain, c_rms, c_shape, c_mtf,
+            c_base, c_emul, c_proc, c_lat, c_dr, c_col, c_phys]
 
 
 def _iie_pct(p):
@@ -519,10 +576,26 @@ def main() -> int:
     w("")
     w("## How to read this")
     w("")
-    w("Every cell carries the **actual value the simulator uses**. A trailing "
-      "**`*`** marks a number that is the model's own estimate rather than a "
-      "documented figure -- the same evidence test that produced the earlier "
-      "+/- table, kept so no precision is implied where none exists.")
+    w("Every cell carries the **actual value the simulator uses**, in one of "
+      "**three** classes:")
+    w("")
+    w("| Marking | Meaning |")
+    w("|---|---|")
+    w("| plain | a **documented measurement** from a manufacturer datasheet, "
+      "standard or measured curve |")
+    w("| <span style=\"color:#1560bd\">blue with a dagger \u2020</span> | a "
+      "**specification limit** from a Soviet TU (технические условия) -- a state "
+      "manufacturing specification. `RMS <= 22` means no batch was permitted to be "
+      "grainier than 22; the real film generally sat **inside** the limit and its "
+      "measured value is unknown. Reading these as measurements would bias the "
+      "affected stocks pessimistically: worst permitted grain, minimum permitted "
+      "sharpness, minimum permitted latitude |")
+    w("| <span style=\"color:red\">red with an asterisk `*`</span> | the model's "
+      "own **estimate** -- nothing documented, no precision implied |")
+    w("")
+    w("The evidence test behind the second and third classes is the same one that "
+      "produced the earlier +/- table; only the presentation distinguishes a "
+      "specification ceiling from a measured value.")
     w("")
     w("### Units and meaning, column by column")
     w("")
@@ -543,6 +616,14 @@ def main() -> int:
       "layer in um, clump gain, fog grain |")
     w("| RMS Granularity | sigma(D)x1000 through a 48 um aperture at D=1.0; "
       "brackets = per-layer |")
+    w("| Grain sigma(D) Shape | sigma multipliers at D=dmin / D=1.0 / D=dmax, "
+      "describing how granularity varies with density. `-` = the legacy "
+      "sqrt(D-dmin) law. Only the four KODAK VISION3 stocks carry a TRACED "
+      "triple (H-1 sheets p3 and the 5219 Technical Data, 2026-08-17); the "
+      "others are estimates or the default. NOTE the three anchors cannot "
+      "represent an interior peak, and every measured curve has one, at D~0.78 "
+      "at 1.24-1.32x the D=1.0 value -- so a traced triple understates the "
+      "maximum by about a quarter |")
     w("| MTF / Resolving Power | f50 in cycles/mm per layer; RP = resolving "
       "power at 1.6:1 / 1000:1 contrast |")
     w("| Film Base Properties | base transmittance tint R/G/B, base material "

@@ -209,9 +209,24 @@ struct GrainSpec {
     float rms_g;            ///< 0 = use rms_granularity
     float rms_b;            ///< 0 = use rms_granularity
     float sigma_shape_toe;  ///< sigma multiplier at D = dmin. The triple
-                            ///< (0,1,0) means "legacy sqrt(D-dmin) law";
-                            ///< negatives ~0.4/1.0/1.2 monotone, reversal
-                            ///< ~0.7/1.0/0.5 turning over past mid. [tier 3]
+                            ///< (0,1,0) means "legacy sqrt(D-dmin) law".
+                            ///< CORRECTED 2026-08-17: colour NEGATIVES turn
+                            ///< over too -- the four KODAK VISION3 sheets trace
+                            ///< to 0.39-0.67 / 1.00 / 0.55-0.63, i.e. sigma
+                            ///< FALLS to ~0.58 of its D=1.0 value by dmax, four
+                            ///< sheets agreeing within +/-7 %. Kodak's SMPTE
+                            ///< Journal July 1985 paper (Sehlin, Kennel et al.,
+                            ///< p 728, Figs 8-9) prints the same: "overexposing
+                            ///< either film significantly decreases
+                            ///< granularity". So a turning-over triple is NOT a
+                            ///< reversal signature; reversal (~0.7/1.0/0.5)
+                            ///< differs in the REASON, not the direction.
+                            ///< Those four stocks are [tier 1], traced from the
+                            ///< vendor plot; all other triples stay [tier 3].
+                            ///< Known limit: sigma peaks at D ~ 0.78, BELOW the
+                            ///< mid anchor, at 1.24-1.32x the D=1.0 value, and
+                            ///< three anchors cannot carry an interior peak --
+                            ///< the triple understates the maximum by ~1/4.
     float sigma_shape_mid;  ///< sigma multiplier at D = 1.0
     float sigma_shape_dmax; ///< sigma multiplier at D = dmax
     float size_sigma_log;   ///< log-normal grain-size dispersion: 0.35 typical
@@ -542,6 +557,105 @@ struct Provenance {
     std::string last_reviewed; ///< ISO date of the last data review
 };
 
+/// -- schema v7 (2026-08-16): four INERT data carriers -----------------------
+///
+/// STORAGE ONLY. Nothing in the renderer reads any of these, by design: the
+/// risk in this data was never in carrying it but in wiring it in, where dye
+/// density curves in particular would change every colour image. Wiring is a
+/// separate, individually reviewed stage. Populating these fields must leave
+/// rendered output bit-identical, and a verify.py guard asserts exactly that.
+
+/// Spectral density of the developed image dyes. Printed on every Kodak and
+/// Fuji colour sheet; currently approximated project-wide by the 3x3
+/// dye_matrix, which cannot express an off-band unwanted absorption.
+/// Densities are as printed, NOT normalised -- absolute level is meaningful.
+struct SpectralDyeDensity {
+    double lambda_start_nm;
+    double lambda_step_nm;
+    std::vector<double> d_cyan;
+    std::vector<double> d_magenta;
+    std::vector<double> d_yellow;
+    std::vector<double> d_neutral;
+    std::string normalisation;  ///< "peak_1.0"|"midscale_neutral"|"as_printed_status_a"
+    std::string source;
+
+    bool hasData() const {
+        return !d_cyan.empty() && !d_magenta.empty() && !d_yellow.empty();
+    }
+};
+
+/// Physical coating order and per-LAYER resolving power. Distinct from the
+/// R/G/B records in MTFSpec: several 1950s films stack their layers
+/// unconventionally, so a per-layer measurement is meaningless without the
+/// order stored beside it. `order` is top-to-bottom by sensitisation.
+struct LayerStack {
+    std::vector<std::string> order;   ///< permutation of "blue","green","red"
+    double resolving_top;             ///< lines/mm, layers in `order`
+    double resolving_mid;
+    double resolving_bot;
+    std::string test_object_contrast;
+    std::string source;
+
+    bool hasData() const { return !order.empty(); }
+};
+
+/// One (developer, dilution, time, temperature) -> contrast measurement.
+struct DevelopmentPoint {
+    std::string developer;
+    std::string dilution;
+    double minutes;
+    double celsius;
+    double contrast_index;
+    double gamma;
+    int    exposure_index;
+};
+
+/// The whole published processing axis, not the single condition recorded in
+/// ProcessingSpec. Flat array so no developer name needs to become an enum.
+struct ProcessingFamily {
+    std::vector<DevelopmentPoint> points;
+    std::string source;
+
+    bool hasData() const { return !points.empty(); }
+};
+
+/// Measured reciprocity correction against exposure time. ReciprocitySpec
+/// holds one Schwarzschild exponent, which is exact for Ilford (they publish
+/// Ta = Tm^k) but provably insufficient for Kodak, whose effective exponent
+/// walks from ~0.85 to ~0.70 across successive decades. A populated
+/// cc_filters entry documents CHROMATIC failure; its absence, achromatic.
+struct ReciprocityTable {
+    std::vector<double> times_s;
+    std::vector<double> stops_correction;
+    std::vector<std::string> cc_filters;
+    std::string source;
+
+    bool hasData() const { return !times_s.empty(); }
+};
+
+/// One measured unwanted/useful density ratio. Soviet TU specifications print
+/// these as K with a superscript naming the DYE and a subscript naming the
+/// MEASURING BAND, i.e. the off-diagonal structure of a dye-crosstalk matrix,
+/// measured rather than assumed. NEGATIVE VALUES ARE LEGAL: LN-8 prints
+/// "minus 0.05-0.10" for magenta in blue, an interlayer effect, not an error.
+struct DyeImpurityRatio {
+    std::string dye;        ///< "y"|"m"|"c"
+    std::string band;       ///< "b"|"g"|"r"
+    double lo;
+    double hi;
+    std::string criterion;  ///< distinguishes two criteria for one dye/band pair
+};
+
+/// Measured dye crosstalk as named ratios. The renderer's dye_matrix is built
+/// from a single saturation scalar and cannot express independent measured
+/// terms; this carries them losslessly. INERT -- nothing reads it.
+struct DyeImpurity {
+    std::vector<DyeImpurityRatio> ratios;
+    std::string source;
+
+    bool hasData() const { return !ratios.empty(); }
+};
+
 /// Complete film stock.
 struct FilmProfile {
     std::string name;
@@ -656,6 +770,14 @@ struct FilmProfile {
     // -- schema v5 (2026-08-03) ----------------------------------------------
     /// Cross-layer interimage effects. All zeros = the v4 behaviour exactly.
     InterimageSpec interimage;
+    // -- schema v7 (2026-08-16), ALL INERT -----------------------------------
+    /// Carried, validated and reported; never read by the renderer. Empty on
+    /// every stock until the extraction batches fill them.
+    SpectralDyeDensity dye_density;
+    LayerStack         layer_stack;
+    ProcessingFamily   processing_family;
+    ReciprocityTable   reciprocity_table;
+    DyeImpurity        dye_impurity;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -677,6 +799,10 @@ struct PrintStock {
     float printer_light_b;
     float log_e_per_point;   ///< logE per printer point (0.025 = 1/12 stop)
     std::string density_metric;  ///< print stocks are read in Status A
+    // -- schema v7 (2026-08-17), INERT ------------------------------------
+    /// Spectral dye density of the print dyes. Carried, never read.
+    SpectralDyeDensity dye_density;
+
 };
 
 /// Film gauge geometry (schema v2, DM-17). width_mm is the v1 field; grain,
@@ -704,14 +830,30 @@ struct FilmFormat {
     }
 };
 
-/// @return All supported film stocks.
-std::vector<FilmProfile> GetFilmDatabase();
+/// @return The complete film-stock table, by const reference.
+///
+/// SIGNATURE CHANGED 2026-08-18 (owner decision): was by value, which forced
+/// a deep copy of every profile -- strings, spectral vectors, everything --
+/// on every call. The table is immutable after construction, so callers now
+/// share one instance. Existing call sites keep compiling: copy-initialising
+/// a vector from this reference (AlgoMemHandler.cpp's static tables) still
+/// works and still takes its own copy; binding a const reference is now free.
+///
+/// Ensures the database is built (thread-safe, idempotent) before returning
+/// -- a lazy safety net for call sites that run before GlobalSetup. The
+/// EXPLICIT initialisation point is film::LoadFilmDataBase() in
+/// LoadFilmDataBase.h; render code wanting one stock should use
+/// film::GetFilmProfile(filmId) -- O(1), no lock, no allocation.
+/// Returns a reference to an EMPTY vector if the build failed (bad_alloc).
+const std::vector<FilmProfile>& GetFilmDatabase();
 
-/// @return All supported print stocks / print transforms.
-std::vector<PrintStock> GetPrintStocks();
+/// @return All print stocks, by const reference (was by value; same
+/// reasoning as GetFilmDatabase). Built on first call as a function-local
+/// static; pre-warmed by LoadFilmDataBase().
+const std::vector<PrintStock>& GetPrintStocks();
 
-/// @return All supported film gauges.
-std::vector<FilmFormat> GetFilmFormats();
+/// @return All film gauges, by const reference. Same pattern.
+const std::vector<FilmFormat>& GetFilmFormats();
 
 }  // namespace film
 """
@@ -785,6 +927,68 @@ def _spectral(sp) -> str:
         + f"{_dvec(sp.log_s_r)}, {_dvec(sp.log_s_g)}, "
         + f"{_dvec(sp.log_s_b)}, {_dvec(sp.log_s_pan)}, "
         + f'"{_escape(sp.criterion)}", "{_escape(sp.source)}"'
+        + " }"
+    )
+
+
+def _svec(vals) -> str:
+    """A ``std::vector<std::string>`` initialiser; ``{}`` when empty."""
+    if not vals:
+        return "{}"
+    return "{ " + ", ".join(f'"{_escape(v)}"' for v in vals) + " }"
+
+
+def _dye_impurity(di) -> str:
+    if not di.ratios:
+        return '{ {}, "" }'
+    rs = ", ".join(
+        "{ "
+        + f'"{_escape(r.dye)}", "{_escape(r.band)}", {_d(r.lo)}, {_d(r.hi)}, '
+        + f'"{_escape(r.criterion)}"'
+        + " }"
+        for r in di.ratios)
+    return "{ { " + rs + f' }}, "{_escape(di.source)}"' + " }"
+
+
+def _dye_density(dd) -> str:
+    return (
+        "{ "
+        + f"{_d(dd.lambda_start_nm)}, {_d(dd.lambda_step_nm)}, "
+        + f"{_dvec(dd.d_cyan)}, {_dvec(dd.d_magenta)}, "
+        + f"{_dvec(dd.d_yellow)}, {_dvec(dd.d_neutral)}, "
+        + f'"{_escape(dd.normalisation)}", "{_escape(dd.source)}"'
+        + " }"
+    )
+
+
+def _layer_stack(ls) -> str:
+    return (
+        "{ "
+        + f"{_svec(ls.order)}, {_d(ls.resolving_top)}, "
+        + f"{_d(ls.resolving_mid)}, {_d(ls.resolving_bot)}, "
+        + f'"{_escape(ls.test_object_contrast)}", "{_escape(ls.source)}"'
+        + " }"
+    )
+
+
+def _processing_family(pf) -> str:
+    if not pf.points:
+        return '{ {}, "" }'
+    pts = ", ".join(
+        "{ "
+        + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
+        + f"{_d(q.minutes)}, {_d(q.celsius)}, "
+        + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}"
+        + " }"
+        for q in pf.points)
+    return "{ { " + pts + f' }}, "{_escape(pf.source)}"' + " }"
+
+
+def _reciprocity_table(rt) -> str:
+    return (
+        "{ "
+        + f"{_dvec(rt.times_s)}, {_dvec(rt.stops_correction)}, "
+        + f'{_svec(rt.cc_filters)}, "{_escape(rt.source)}"'
         + " }"
     )
 
@@ -1064,7 +1268,12 @@ def _profile_block(p: FilmProfile) -> str:
             {_f(p.callier_q)},
             {_spectral(p.spectral)},
             {_coating(p.coating)},
-            {_interimage(p.interimage)}
+            {_interimage(p.interimage)},
+            {_dye_density(p.dye_density)},
+            {_layer_stack(p.layer_stack)},
+            {_processing_family(p.processing_family)},
+            {_reciprocity_table(p.reciprocity_table)},
+            {_dye_impurity(p.dye_impurity)}
         }},
 """
 
@@ -1078,8 +1287,323 @@ def _print_block(s: PrintStock) -> str:
             {_matrix(s.dye_matrix)},
             {_f(s.printer_light_r)}, {_f(s.printer_light_g)}, {_f(s.printer_light_b)},
             {_f(s.log_e_per_point)},
-            "{_escape(s.density_metric)}"
+            "{_escape(s.density_metric)}",
+            {_dye_density(s.dye_density)}
         }},
+"""
+
+
+
+
+# ===========================================================================
+# Split emission (2026-08-18, owner-approved "Option C")
+#
+# WHY. film_profiles.cpp had grown to 676 KB of which 656 KB (97%) was ONE
+# function: GetFilmDatabase() returning a std::vector<FilmProfile> built from
+# a single braced-init-list of 155 elements. FilmProfile holds std::string and
+# std::vector members, so that list is not constant data -- the compiler must
+# emit constructor code and EH cleanup states for every element inside one
+# function, PLUS a const std::initializer_list backing array of 155 full
+# FilmProfile temporaries on that function's stack, PLUS a deep COPY of every
+# element (initializer_list gives only const access, so the vector cannot
+# move from it). MSVC 2015's hard limits (C1060 out of heap, C1026 parser
+# stack, pathological optimiser time) are all PER-FUNCTION, and the Intel
+# compiler's optimiser degrades the same way, so the owner's VS2015 SP3 + ICC
+# environment could not reliably compile it. The primary axis to bound is
+# bytes-per-function; bytes-per-TU is secondary (memory headroom, /MP).
+#
+# WHAT. The database is emitted as:
+#   film_profiles_data_01.cpp .. _NN.cpp   consecutive, size-balanced slices
+#                                          of FILM_PROFILES; each defines
+#                                          detail::AppendProfiles_NN(v) doing
+#                                          one v.push_back(FilmProfile{...})
+#                                          per profile. push_back of an rvalue
+#                                          MOVES -- no init-list backing array,
+#                                          no element copies, bounded function
+#                                          size.
+#   film_profiles_detail.hpp               declares the NN append functions.
+#   LoadFilmDataBase.h / .cpp              the explicit-initialisation API the
+#                                          owner calls from the effect's
+#                                          GlobalSetup (see the .h docstring).
+#   film_profiles.cpp                      now small: print stocks, formats,
+#                                          and the legacy GetFilmDatabase()
+#                                          copy-returning wrapper kept for
+#                                          AlgoMemHandler.cpp compatibility.
+#
+# THE SLOT COUNT IS FIXED at N_DATA_SLOTS and every slot file is ALWAYS
+# emitted, empty ones as a no-op function. That is deliberate: the owner's
+# VS2015 .vcxproj lists a fixed set of filenames ONCE and never changes as
+# the database grows. If the database outgrows the slots, generation FAILS
+# LOUDLY telling the owner to raise N_DATA_SLOTS and add the new file to the
+# project -- a deliberate manual step, never a silent regression back into
+# one giant translation unit.
+#
+# Enum order is preserved by construction: slots are consecutive slices of
+# the emission order, the loader calls the slots in fixed numeric order, and
+# film_names.txt / film_enum.hpp are derived by parsing the emitted slot
+# files back in that same order (parse_vector_names), so vector index ==
+# enum value == names-file line, exactly as before the split.
+# ===========================================================================
+
+N_DATA_SLOTS = 16          #: fixed; the .vcxproj lists these files once
+SLOT_SOURCE_LIMIT = 112_000  #: bytes of emitted source per slot, hard error
+
+
+def _wrap_push_back(block: str) -> str:
+    """One _profile_block() entry -> a v.push_back(FilmProfile{...}) statement.
+
+    The aggregate literal itself is untouched; only the frame changes:
+        "        {"    (the entry's opening line)  -> "        v.push_back(FilmProfile{"
+        "        },"   (the entry's closing line)  -> "        });"
+    Statement-per-profile is the load-bearing property: a sequence of
+    independent full-expressions compiles in bounded memory where one
+    676 KB braced-init-list expression does not, and each temporary is an
+    rvalue so the vector MOVES it (strings and spectral vectors transfer
+    their heap blocks instead of duplicating them).
+    """
+    open_key = "\n        {\n"
+    if not block.startswith("        {"):
+        i = block.index(open_key)
+        block = (block[:i] + "\n        v.push_back(FilmProfile{\n"
+                 + block[i + len(open_key):])
+    else:
+        block = "        v.push_back(FilmProfile{\n" + block[len("        {\n"):]
+    if not block.endswith("        },\n"):
+        raise ValueError("profile block does not end with '},' -- emitter "
+                         "layout changed, update _wrap_push_back")
+    return block[:-len("        },\n")] + "        });\n"
+
+
+def _distribute(blocks: list) -> list:
+    """Assign consecutive blocks to N_DATA_SLOTS size-balanced slots.
+
+    Cumulative-size partitioning: block i goes to slot
+    floor(bytes_before_i / total * N). Order is preserved (consecutive
+    slices), balance is near-optimal, and the mapping is deterministic --
+    the same database always produces the same files.
+    """
+    sizes = [len(b.encode("utf-8")) for b in blocks]
+    total = sum(sizes) or 1
+    slots = [[] for _ in range(N_DATA_SLOTS)]
+    cum = 0
+    for b, sz in zip(blocks, sizes):
+        idx = min(cum * N_DATA_SLOTS // total, N_DATA_SLOTS - 1)
+        slots[idx].append(b)
+        cum += sz
+    return slots
+
+
+def _data_slot_source(nn: int, blocks: list, stamp: str) -> str:
+    head = (
+        f"// Generated by cpp_codegen.py -- do not edit by hand.\n"
+        f"// generated: {stamp}\n"
+        f"// schema_version {SCHEMA_VERSION}\n"
+        f"// Data slot {nn:02d} of {N_DATA_SLOTS:02d} -- a consecutive slice of the film-profile\n"
+        f"// table. Called exactly once, in slot order, by LoadFilmDataBase();\n"
+        f"// see film_profiles_detail.hpp for why the table is split.\n"
+        f'#include "film_profiles_detail.hpp"\n\n'
+        f"namespace film {{\nnamespace detail {{\n\n"
+        f"void AppendProfiles_{nn:02d}(std::vector<FilmProfile>& v)\n{{\n"
+    )
+    if not blocks:
+        body = ("    // Empty slot, reserved capacity. The file exists so the\n"
+                "    // VS project file never has to change as the database grows.\n"
+                "    (void)v;\n")
+    else:
+        body = "".join(blocks)
+    return head + body + "}\n\n}  // namespace detail\n}  // namespace film\n"
+
+
+def _detail_hpp_source(stamp: str) -> str:
+    decls = "\n".join(
+        f"void AppendProfiles_{i:02d}(std::vector<FilmProfile>& v);"
+        for i in range(1, N_DATA_SLOTS + 1))
+    return f"""\
+// Generated by cpp_codegen.py -- do not edit by hand.
+// generated: {stamp}
+// schema_version {SCHEMA_VERSION}
+//
+// INTERNAL header for the split film-profile table. The table is emitted as
+// {N_DATA_SLOTS} translation units (film_profiles_data_01.cpp ..) because a single
+// 676 KB braced-init-list function was beyond what VS2015 SP3 / ICC compile
+// reliably -- their limits are per-function. Each slot appends a consecutive
+// slice of the table; LoadFilmDataBase() calls them in numeric order, so
+// vector index == eFILM_PROFILE value == film_names.txt line, unchanged.
+//
+// Nothing outside LoadFilmDataBase.cpp should include this header.
+#pragma once
+#include "film_profiles.hpp"
+
+namespace film {{
+namespace detail {{
+
+{decls}
+
+}}  // namespace detail
+}}  // namespace film
+"""
+
+
+def _loader_h_source(stamp: str) -> str:
+    return f"""\
+// Generated by cpp_codegen.py -- do not edit by hand.
+// generated: {stamp}
+// schema_version {SCHEMA_VERSION}
+//
+// Explicit film-database initialisation for the AE/PR plugin (owner request,
+// 2026-08-18). Design constraints this file satisfies, in the owner's order:
+//
+//   * NOTHING happens at DLL load. No namespace-scope object in the generated
+//     code has a dynamic initialiser that does work: the storage vector is a
+//     function-local static (touched first inside the loader), the once-flag
+//     and the loaded-flag are constant-initialised. Host startup cost: zero.
+//   * The plugin calls LoadFilmDataBase() from the effect's GlobalSetup. It
+//     builds the COMPLETE table exactly once and reports success/failure.
+//   * Initialise-exactly-once and concurrent-GlobalSetup safety come from
+//     std::call_once (supported by VS2015's runtime; the Intel compiler uses
+//     the same MSVC standard library). A FAILED load (bad_alloc) does NOT
+//     latch: the once-flag is only consumed by a successful run, so a later
+//     call retries instead of wedging the plugin permanently unloaded.
+//   * Rendering accesses ONE profile at a time, so the access API is
+//     GetFilmProfile(id): O(1) index into the built table, no allocation,
+//     no lock, noexcept, nullptr on not-loaded or bad id. The engine already
+//     passes const film::FilmProfile& into its stages, so this is the shape
+//     it actually consumes.
+//   * Storage: one std::vector sized with reserve(eTOTAL_FILMS_PROFILES) --
+//     a single allocation for the element array, no growth reallocation.
+//     Fully static allocation is IMPOSSIBLE with the current schema, stated
+//     rather than fudged: FilmProfile owns std::string / std::vector members,
+//     which heap-allocate by nature. Eliminating those allocations would
+//     need a parallel POD schema (const char* + pointer/count spans) -- a
+//     much larger change, kept as a recorded option if ever justified.
+//   * Deliberately NO UnloadFilmDataBase(): GetFilmProfile() hands out raw
+//     pointers into the storage, so an unload API would be a dangling-pointer
+//     factory. Lifetime is process lifetime, same as the engine's existing
+//     static tables in AlgoMemHandler.cpp.
+//
+// Threading note for the curious: g_loaded uses release/acquire so that even
+// a reader that skips call_once's own synchronisation (GetFilmProfile on a
+// render thread) observes a fully-built table or nullptr, never a torn one.
+#pragma once
+#include "film_profiles.hpp"
+#include "film_enum.hpp"
+
+namespace film {{
+
+/// Build the complete film-profile table. Idempotent, thread-safe, callable
+/// from GlobalSetup. Returns true when the table is (already) fully built;
+/// false on failure (out of memory), in which case a later call retries.
+bool LoadFilmDataBase(void);
+
+/// True once LoadFilmDataBase() has completed successfully.
+bool IsFilmDataBaseLoaded(void) noexcept;
+
+/// O(1) access to one profile. No allocation, no lock, noexcept.
+/// Returns nullptr when the database is not loaded or filmId is out of
+/// range -- the caller decides the failure policy (skip effect, error UI).
+const FilmProfile* GetFilmProfile(eFILM_PROFILE filmId) noexcept;
+
+// The whole-table accessor is film::GetFilmDatabase() -- declared in
+// film_profiles.hpp, now returning const std::vector<FilmProfile>& and
+// defined next to the storage in LoadFilmDataBase.cpp. Prefer
+// GetFilmProfile() in render code.
+
+}}  // namespace film
+"""
+
+
+def _loader_cpp_source(stamp: str) -> str:
+    calls = "\n".join(
+        f"        detail::AppendProfiles_{i:02d}(v);"
+        for i in range(1, N_DATA_SLOTS + 1))
+    return f"""\
+// Generated by cpp_codegen.py -- do not edit by hand.
+// generated: {stamp}
+// schema_version {SCHEMA_VERSION}
+// See LoadFilmDataBase.h for the design constraints this implements.
+#include "LoadFilmDataBase.h"
+#include "film_profiles_detail.hpp"
+
+#include <atomic>
+#include <cstdint>
+#include <mutex>
+#include <new>
+
+namespace film {{
+namespace {{
+
+std::vector<FilmProfile>& storage()
+{{
+    // Function-local magic static: constructed (empty, trivial) on first
+    // touch inside the loader -- NOT at DLL load. C++11 semantics make the
+    // construction race-free; VS2015 implements this ("magic statics") and
+    // AlgoMemHandler.cpp already relies on the same guarantee.
+    // Requires /Zc:threadSafeInit (the default) -- do not disable it.
+    static std::vector<FilmProfile> s;
+    return s;
+}}
+
+std::once_flag g_once;                     // constant-initialised
+std::atomic<bool> g_loaded{{false}};        // constant-initialised
+
+}}  // namespace
+
+bool LoadFilmDataBase(void)
+{{
+    if (g_loaded.load(std::memory_order_acquire))
+        return true;                        // fast path for repeat calls
+    try
+    {{
+        std::call_once(g_once, []
+        {{
+            const std::size_t kCount = static_cast<std::size_t>(
+                eFILM_PROFILE::eTOTAL_FILMS_PROFILES);
+            std::vector<FilmProfile> v;
+            v.reserve(kCount);
+{calls}
+            if (v.size() != kCount)
+                throw std::bad_alloc();     // slot/count mismatch: fail, retry
+            storage().swap(v);
+            // Pre-warm the two small magic-static tables too, so GlobalSetup
+            // pays ALL one-time construction and the render path never does.
+            (void)GetPrintStocks();
+            (void)GetFilmFormats();
+            g_loaded.store(true, std::memory_order_release);
+        }});
+    }}
+    catch (...)
+    {{
+        // bad_alloc (or the count guard). call_once does NOT consume the
+        // flag on an exceptional run, so the next call retries the build
+        // instead of leaving the plugin permanently without its database.
+        return false;
+    }}
+    return g_loaded.load(std::memory_order_acquire);
+}}
+
+bool IsFilmDataBaseLoaded(void) noexcept
+{{
+    return g_loaded.load(std::memory_order_acquire);
+}}
+
+const FilmProfile* GetFilmProfile(eFILM_PROFILE filmId) noexcept
+{{
+    if (!g_loaded.load(std::memory_order_acquire))
+        return nullptr;
+    const std::int32_t idx = static_cast<std::int32_t>(filmId);
+    if (idx < 0 || idx >= static_cast<std::int32_t>(
+            eFILM_PROFILE::eTOTAL_FILMS_PROFILES))
+        return nullptr;
+    return &storage()[static_cast<std::size_t>(idx)];
+}}
+
+const std::vector<FilmProfile>& GetFilmDatabase()
+{{
+    LoadFilmDataBase();                    // idempotent lazy safety net
+    return storage();                      // empty vector if load failed
+}}
+
+}}  // namespace film
 """
 
 
@@ -1105,22 +1629,32 @@ def _cpp_source(stamp: str) -> str:
         f"// generated: {stamp}\n",
         f"// schema_version {SCHEMA_VERSION}\n",
         '#include "film_profiles.hpp"\n\nnamespace film {\n\n',
-        "std::vector<FilmProfile> GetFilmDatabase() {\n    return {\n",
+        "// GetFilmDatabase() is defined in LoadFilmDataBase.cpp -- it returns a\n"
+        "// const reference into the storage that LoadFilmDataBase() builds. The\n"
+        "// 155-profile data lives in the film_profiles_data_NN.cpp slots; see\n"
+        "// film_profiles_detail.hpp for why the table is split.\n"
+        "// This file carries only the two small tables below.\n\n",
     ]
-    out.extend(_profile_block(p) for p in FILM_PROFILES)
-    out.append("    };\n}\n\n")
 
-    out.append("std::vector<PrintStock> GetPrintStocks() {\n    return {\n")
+    out.append(
+        "// Function-local magic static: built on FIRST CALL, not at DLL load\n"
+        "// (owner requirement: no substantial work in static initialisers).\n"
+        "// LoadFilmDataBase() pre-warms it from GlobalSetup so the render path\n"
+        "// never pays the construction.\n"
+        "const std::vector<PrintStock>& GetPrintStocks() {\n"
+        "    static const std::vector<PrintStock> table = {\n")
     out.extend(_print_block(s) for s in PRINT_STOCKS)
-    out.append("    };\n}\n\n")
+    out.append("    };\n    return table;\n}\n\n")
 
-    out.append("std::vector<FilmFormat> GetFilmFormats() {\n    return {\n")
+    out.append(
+        "const std::vector<FilmFormat>& GetFilmFormats() {\n"
+        "    static const std::vector<FilmFormat> table = {\n")
     out.extend(
         f'        {{ "{name}", {_f(w)}, {_f(h)}, {_f(sq)}, {_f(pp)}, '
         f'{PERFS_PER_FRAME.get(name, 0)} }},\n'
         for name, (w, h, sq, pp) in sorted(FORMAT_GEOM.items())
     )
-    out.append("    };\n}\n\n")
+    out.append("    };\n    return table;\n}\n\n")
 
     out.append("}  // namespace film\n")
     return "".join(out)
@@ -1185,10 +1719,18 @@ def parse_vector_names(cpp_path: Path) -> list:
     film_enum.hpp), read back out of the emitted .cpp so their indices cannot
     drift from the database.
     """
-    body = cpp_path.read_text(encoding="utf-8")
-    start = body.index("std::vector<FilmProfile> GetFilmDatabase()")
-    end = body.index("std::vector<PrintStock> GetPrintStocks()")
-    table = body[start:end]
+    # The table now lives in the fixed data-slot files; read them back in
+    # slot order. Concatenating in that order IS the vector order, because
+    # the loader calls AppendProfiles_01..NN in the same fixed sequence.
+    d = Path(cpp_path).parent
+    parts = []
+    for i in range(1, N_DATA_SLOTS + 1):
+        p = d / f"film_profiles_data_{i:02d}.cpp"
+        if not p.is_file():
+            raise FileNotFoundError(f"data slot missing: {p.name} -- "
+                                    f"generate() must write all slots first")
+        parts.append(p.read_text(encoding="utf-8"))
+    table = "".join(parts)
 
     bounds = [(m.start(), m.group(1)) for m in _ENTRY_RX.finditer(table)]
     offsets = [b[0] for b in bounds] + [len(table)]
@@ -1266,8 +1808,9 @@ def generate(outdir: Path | str = ".",
     """Write film_profiles.hpp and film_profiles.cpp into ``outdir``.
 
     Returns:
-        Paths of the header, the source, the listbox name list, and the
-        index enum header.
+        Paths of every emitted file: header, legacy source, listbox name
+        list, enum header, the detail header, the LoadFilmDataBase pair,
+        and the N_DATA_SLOTS data-slot sources.
     """
     d = Path(outdir)
     d.mkdir(parents=True, exist_ok=True)
@@ -1277,13 +1820,42 @@ def generate(outdir: Path | str = ".",
     hpp_text = HPP_TEMPLATE.replace("@GENERATED@", stamp).replace(
         "@SCHEMA_VERSION@", str(SCHEMA_VERSION))
     hpp.write_text(hpp_text, encoding="utf-8", newline="\n")
+
+    # -- the data slots: consecutive, size-balanced slices ------------------
+    blocks = [_wrap_push_back(_profile_block(p)) for p in FILM_PROFILES]
+    slots = _distribute(blocks)
+    slot_paths = []
+    for i, slot_blocks in enumerate(slots, 1):
+        src = _data_slot_source(i, slot_blocks, stamp)
+        n = len(src.encode("utf-8"))
+        if n > SLOT_SOURCE_LIMIT:
+            raise RuntimeError(
+                f"data slot {i:02d} is {n} bytes (> {SLOT_SOURCE_LIMIT}). The "
+                f"database has outgrown {N_DATA_SLOTS} slots. Raise "
+                f"N_DATA_SLOTS in cpp_codegen.py AND add the new "
+                f"film_profiles_data_NN.cpp file(s) to the VS project -- a "
+                f"deliberate manual step, never a silent regression.")
+        p = d / f"film_profiles_data_{i:02d}.cpp"
+        p.write_text(src, encoding="utf-8", newline="\n")
+        slot_paths.append(p)
+
+    detail = d / "film_profiles_detail.hpp"
+    detail.write_text(_detail_hpp_source(stamp), encoding="utf-8", newline="\n")
+    loader_h = d / "LoadFilmDataBase.h"
+    loader_h.write_text(_loader_h_source(stamp), encoding="utf-8", newline="\n")
+    loader_cpp = d / "LoadFilmDataBase.cpp"
+    loader_cpp.write_text(_loader_cpp_source(stamp), encoding="utf-8",
+                          newline="\n")
     cpp.write_text(_cpp_source(stamp), encoding="utf-8", newline="\n")
-    # names file last: it reads the .cpp back to lock listbox index == vector index
+
+    # names file last: it reads the emitted slots back to lock
+    # listbox index == vector index == enum value
     names = d / "film_names.txt"
     write_film_names(cpp, names, separator=names_separator)
     enum = d / "film_enum.hpp"
     write_film_enum(cpp, enum, stamp)
-    return hpp, cpp, names, enum
+    return (hpp, cpp, names, enum, detail, loader_h, loader_cpp,
+            *slot_paths)
 
 
 if __name__ == "__main__":

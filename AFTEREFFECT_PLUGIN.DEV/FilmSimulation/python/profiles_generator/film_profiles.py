@@ -81,8 +81,10 @@ formats must state its class in a comment and in ``_PROVENANCE_SOURCES``:
   [C4] theoretical estimate from era, speed class and written descriptions.
 
 SVEMA <-> TASMA: shared Soviet standards are NOT sufficient evidence of
-identity -- measured batches show TASMA_FN_64 at gamma 1.03 vs SVEMA_FOTO_65's
-0.83. Transfers are [C2] only with a tying document, otherwise [C3], always
+identity -- TASMA_FN_64 measures gamma 1.03 while SVEMA_FOTO_65 sits at 0.83
+(printed: Gurlev 1986 p296 gives gamma_rec 0.8 for Foto-65; the Svema scan
+batches bracket 0.68-0.83 and are no longer the primary basis -- see the
+provenance correction at SVEMA_FOTO_65). Transfers are [C2] only with a tying document, otherwise [C3], always
 explicit, and never overwrite a measured value. Gauge variants share
 emulsion-level parameters; everything else derives from FORMAT_GEOM frame
 geometry at render time -- never rescale emulsion numbers per gauge.
@@ -119,6 +121,13 @@ __all__ = [
     "IDENTITY3",
     "SCHEMA_VERSION",
     "CoatingSpec",
+    "SpectralDyeDensity",
+    "DyeImpurityRatio",
+    "DyeImpurity",
+    "LayerStack",
+    "DevelopmentPoint",
+    "ProcessingFamily",
+    "ReciprocityTable",
     "InterimageSpec",
     "PERFS_PER_FRAME",
     "get_profile",
@@ -153,7 +162,13 @@ IDENTITY3: Matrix3 = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 # development inhibition -- the other half of the DIR-coupler chemistry whose
 # lateral half was already modelled in CouplerSpec. Appended after every v4
 # field, so the v1..v4 aggregate-initialiser prefix is unchanged.
-SCHEMA_VERSION = 5
+# v6 (2026-08-14): exposure_index_tungsten and ProcessingSpec appended.
+# v7 (2026-08-16): four INERT data carriers appended -- SpectralDyeDensity,
+# LayerStack, ProcessingFamily and ReciprocityTable. STORAGE ONLY: nothing on
+# the render path reads them, and verify.py asserts renders stay bit-identical
+# while they fill. Appended after every v6 field, so the v1..v6
+# aggregate-initialiser prefix is unchanged, exactly as each earlier bump was.
+SCHEMA_VERSION = 7
 
 
 # ---------------------------------------------------------------------------
@@ -329,10 +344,26 @@ class GrainSpec:
         sigma_shape_toe/mid/dmax: Grain-sigma multipliers at D = dmin (toe),
             D = 1.0 (mid) and D = dmax. The triple (0, 1, 0) -- the default --
             means "legacy sqrt(D - dmin) law"; anything else describes a
-            piecewise sigma(D) profile through those three anchors. Negatives
-            are monotone (~0.4 / 1.0 / 1.2); reversal stocks turn over past
-            mid-scale (~0.7 / 1.0 / 0.5) because a slide's densest regions
-            received the least exposure. Tier-3 estimates.
+            piecewise sigma(D) profile through those three anchors.
+            CORRECTED 2026-08-17. This docstring used to say "negatives are
+            monotone (~0.4 / 1.0 / 1.2)". That was an assumption, and it is
+            wrong. Colour negatives turn over too: the four KODAK VISION3 sheets
+            trace to 0.39-0.67 / 1.00 / 0.55-0.63, i.e. sigma FALLS to about
+            0.58 of its D = 1.0 value by dmax, on four independent sheets whose
+            dmax/mid ratios agree within +/-7 %. Kodak's own SMPTE Journal paper
+            of July 1985 (Sehlin, Kennel et al., "Choosing between ECN 5247 and
+            5294", p 728, Figs 8 and 9) states the same in print: "overexposing
+            either film significantly decreases granularity". So a turning-over
+            triple is NOT a reversal signature. What distinguishes reversal
+            stocks (~0.7 / 1.0 / 0.5) is the REASON -- a slide's densest regions
+            received the least exposure -- not the direction of the turn.
+            Tier: the four VISION3 stocks are tier-1, traced from the vendor
+            plot; every other populated triple remains a tier-3 estimate.
+            Known limitation of the three-anchor form: on all four measured
+            sheets sigma peaks at D ~ 0.78, BELOW the mid anchor, at 1.24-1.32x
+            the D = 1.0 value. Interpolating through (dmin, 1.0, dmax) rises
+            then falls and understates that maximum by about a quarter. A fourth
+            anchor, or a short sigma(D) array, would be needed to carry it.
         size_sigma_log: Log-normal dispersion of developed grain size. 0.35
             is typical of conventional cubic emulsions; fast pushed stocks
             run ~0.55, modern T-grain ~0.25. Tier-3.
@@ -855,6 +886,326 @@ class SpectralSensitivity:
                 f"{label}: spectral data requires criterion and source")
 
 
+# ---------------------------------------------------------------------------
+# Schema v7 (2026-08-16): four INERT data carriers.
+#
+# READ THIS BEFORE USING ANY OF THEM. Every field added in v7 is STORAGE ONLY.
+# Nothing in film_sim.py or the generated C++ reads them, and a permanent
+# verify.py guard asserts that renders stay bit-identical while they are
+# populated. That separation is deliberate: the risk in this data was never in
+# carrying it, it was in wiring it into the renderer, where (for example) dye
+# density curves would change every colour image. Wiring is a later, separately
+# reviewed stage, one feature at a time, each with its own before/after render
+# comparison.
+#
+# Until then these fields exist so that measured data stops being lost -- typed,
+# validated, versioned with the database and visible in the reports, which a
+# sidecar file would not be.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class SpectralDyeDensity:
+    """Spectral density of the developed image dyes (schema v7, INERT).
+
+    Every Kodak and Fuji colour sheet plots this: diffuse spectral density of
+    the cyan, magenta and yellow dyes plus a visual-neutral trace, typically
+    400-700 nm. The database currently approximates the whole of it with a
+    3x3 ``dye_matrix``, which is a gross reduction -- a matrix cannot express
+    an unwanted absorption that peaks off-band, which is exactly what makes
+    Gevacolor's 550 nm magenta look different from Agfacolor's 540 nm one.
+
+    Sampling follows the SpectralSensitivity convention: ``lambda_start_nm``
+    plus ``lambda_step_nm`` per element, all populated traces sharing one grid.
+    Densities are as printed, NOT normalised -- unlike sensitivity, the
+    absolute level is meaningful here.
+
+    ``normalisation`` records what the sheet's ordinate means, because the
+    sheets differ: "peak_1.0" (each dye scaled to unit peak), "midscale_neutral"
+    (the set that together makes a neutral of the stated density), or
+    "as_printed_status_a" / "as_printed_status_m" for absolute densitometry.
+    """
+
+    lambda_start_nm: float = 400.0
+    lambda_step_nm: float = 10.0
+    d_cyan: tuple[float, ...] = ()
+    d_magenta: tuple[float, ...] = ()
+    d_yellow: tuple[float, ...] = ()
+    d_neutral: tuple[float, ...] = ()
+    normalisation: str = ""
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.d_cyan and self.d_magenta and self.d_yellow)
+
+    def validate(self, label: str = "") -> None:
+        filled = {k: v for k, v in (("cyan", self.d_cyan),
+                                    ("magenta", self.d_magenta),
+                                    ("yellow", self.d_yellow),
+                                    ("neutral", self.d_neutral)) if v}
+        if not filled:
+            return  # inert default
+        if not self.has_data:
+            raise ValueError(
+                f"{label}: dye density needs all three of cyan/magenta/yellow")
+        if len({len(v) for v in filled.values()}) != 1:
+            raise ValueError(f"{label}: dye density traces must share one grid")
+        if self.lambda_step_nm <= 0:
+            raise ValueError(f"{label}: lambda_step_nm must be > 0")
+        for k, v in filled.items():
+            if min(v) < -0.05:
+                raise ValueError(
+                    f"{label}: dye density {k} is negative ({min(v)}) -- "
+                    f"densities cannot be, so the trace or its baseline is wrong")
+            if max(v) > 6.0:
+                raise ValueError(f"{label}: dye density {k} exceeds 6.0")
+        if not self.normalisation or not self.source:
+            raise ValueError(
+                f"{label}: dye density requires normalisation and source")
+
+
+@dataclass(frozen=True, slots=True)
+class DyeImpurityRatio:
+    """One measured unwanted/useful density ratio (schema v7, INERT).
+
+    Soviet TU specifications print these as K with a superscript naming the DYE
+    and a subscript naming the MEASURING BAND -- e.g. K^zh_z is the density the
+    YELLOW dye contributes in the GREEN measuring band, divided by the density
+    it contributes in its own (blue) band. That is exactly the off-diagonal
+    structure of a dye-crosstalk matrix, measured rather than assumed.
+
+    ``dye`` and ``band`` use the English initial of the colour: "y"/"m"/"c" for
+    yellow, magenta and cyan dyes, and "b"/"g"/"r" for the blue, green and red
+    measuring bands. ``lo`` and ``hi`` bracket the specified range; a single
+    stated value sets both equal. ``criterion`` distinguishes the several
+    measuring conventions a specification may use for the same dye/band pair
+    (LN-8 and DS-5M each print two different blue-band criteria for magenta).
+
+    NEGATIVE VALUES ARE LEGAL AND MEANINGFUL. LN-8's specification prints
+    "minus 0.05-0.10" for magenta in blue, meaning that dye REDUCES density in
+    that band relative to the reference -- an interlayer effect, not an error.
+    A validator that rejected negatives would have thrown away a real figure.
+    """
+
+    dye: str = ""
+    band: str = ""
+    lo: float = 0.0
+    hi: float = 0.0
+    criterion: str = ""
+
+    @property
+    def mid(self) -> float:
+        return 0.5 * (self.lo + self.hi)
+
+    def validate(self, label: str = "") -> None:
+        if self.dye not in ("y", "m", "c"):
+            raise ValueError(f"{label}: dye must be y/m/c, got {self.dye!r}")
+        if self.band not in ("b", "g", "r"):
+            raise ValueError(f"{label}: band must be b/g/r, got {self.band!r}")
+        if self.hi < self.lo:
+            raise ValueError(f"{label}: ratio range inverted ({self.lo}..{self.hi})")
+        # No lower bound: negatives are real (see the class docstring). An
+        # upper bound is imposed because a ratio above 1.0 would mean the dye
+        # is denser outside its own band than inside it, which is not a dye.
+        if self.hi > 1.0:
+            raise ValueError(f"{label}: ratio {self.hi} exceeds 1.0 -- an "
+                             f"unwanted density cannot exceed the useful one")
+
+
+@dataclass(frozen=True, slots=True)
+class DyeImpurity:
+    """Measured dye crosstalk as named ratios (schema v7, INERT).
+
+    Why this exists: the renderer's ``dye_matrix`` is built by ``_dye()`` from a
+    SINGLE saturation scalar, so a set of independent measured ratios cannot be
+    expressed there -- fitting the scalar to one term silently discards the
+    rest. Four Soviet stocks now carry seven, seven, six and six measured
+    ratios respectively from their manufacturing specifications, and until this
+    carrier existed those figures survived only as prose inside provenance
+    strings. Storage is not use: nothing on the render path reads this.
+    """
+
+    ratios: tuple[DyeImpurityRatio, ...] = ()
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.ratios)
+
+    def validate(self, label: str = "") -> None:
+        if not self.ratios:
+            return  # inert default
+        for i, r in enumerate(self.ratios):
+            r.validate(f"{label} dye impurity ratio {i}")
+        seen: set[tuple[str, str, str]] = set()
+        for r in self.ratios:
+            key = (r.dye, r.band, r.criterion)
+            if key in seen:
+                raise ValueError(
+                    f"{label}: duplicate dye/band/criterion {key} -- two "
+                    f"different values for one measurement cannot both hold")
+            seen.add(key)
+        for r in self.ratios:
+            if r.dye == {"b": "y", "g": "m", "r": "c"}[r.band]:
+                raise ValueError(
+                    f"{label}: {r.dye} in band {r.band} is the dye's OWN band, "
+                    f"which is the useful density, not an unwanted one")
+        if not self.source:
+            raise ValueError(f"{label}: dye impurity requires a source")
+
+
+@dataclass(frozen=True, slots=True)
+class LayerStack:
+    """Physical coating order and per-LAYER resolving power (schema v7, INERT).
+
+    ``MTFSpec`` already carries three records, but they are the R/G/B
+    *records*, and Cheltsov & Bongard 1958 Table 24 measures three *physical
+    layers* -- which is not the same thing, because the coating order is not
+    always the natural one. Six films in that source stack their layers
+    unconventionally (Duponcolor positive 275 and Telcolor negative are
+    blue / red / green from the top; Eastmancolor positive 5382 puts blue at
+    the bottom). Entering those measurements as R/G/B records would silently
+    assert an order the film does not have, so the order must be stored with
+    them or not at all.
+
+    ``order`` is top-to-bottom as coated, using the SENSITISATION of each
+    layer: e.g. ("blue", "green", "red") for a conventional stack, or
+    ("blue", "red", "green") for Duponcolor 275. ``resolving_top/mid/bot`` are
+    lines per millimetre for those layers IN THAT ORDER, so the mapping is
+    unambiguous whatever the stack.
+    """
+
+    order: tuple[str, ...] = ()
+    resolving_top: float = 0.0
+    resolving_mid: float = 0.0
+    resolving_bot: float = 0.0
+    test_object_contrast: str = ""
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.order)
+
+    def validate(self, label: str = "") -> None:
+        if not self.order:
+            if any((self.resolving_top, self.resolving_mid, self.resolving_bot)):
+                raise ValueError(
+                    f"{label}: per-layer resolving power without a layer order "
+                    f"would assert a stacking this film may not have")
+            return  # inert default
+        if len(self.order) != 3 or set(self.order) != {"blue", "green", "red"}:
+            raise ValueError(
+                f"{label}: layer order must be a permutation of "
+                f"blue/green/red, got {self.order}")
+        for nm, v in (("top", self.resolving_top), ("mid", self.resolving_mid),
+                      ("bot", self.resolving_bot)):
+            if v < 0.0 or v > 1000.0:
+                raise ValueError(f"{label}: resolving_{nm} out of range ({v})")
+        if not self.source:
+            raise ValueError(f"{label}: layer stack requires a source")
+
+
+@dataclass(frozen=True, slots=True)
+class DevelopmentPoint:
+    """One (developer, dilution, time, temperature) -> contrast measurement."""
+
+    developer: str = ""
+    dilution: str = ""
+    minutes: float = 0.0
+    celsius: float = 20.0
+    contrast_index: float = 0.0
+    gamma: float = 0.0
+    exposure_index: int = 0
+
+    def validate(self, label: str = "") -> None:
+        if not self.developer:
+            raise ValueError(f"{label}: development point needs a developer")
+        if self.minutes <= 0.0:
+            raise ValueError(f"{label}: development time must be > 0")
+        if self.contrast_index <= 0.0 and self.gamma <= 0.0:
+            raise ValueError(
+                f"{label}: a development point must state contrast index or "
+                f"gamma -- a time with no measured contrast says nothing")
+
+
+@dataclass(frozen=True, slots=True)
+class ProcessingFamily:
+    """The whole processing axis, not one condition (schema v7, INERT).
+
+    ``ProcessingSpec`` records the single condition the stored curve
+    represents. That was always a stopgap: the sheets publish FAMILIES --
+    NEOPAN 1600 prints a 16-developer x 5-temperature x EI matrix, the Kodak
+    F-5 data sheets print contrast-index against time for six developers, and
+    Ilford prints time-to-CI tables. Reducing that to one row throws away the
+    only published description of how the stock behaves when pushed or pulled.
+
+    Stored as a flat tuple of points rather than a nested structure so that
+    the C++ emitter stays a plain array and no developer name needs to become
+    an enum.
+    """
+
+    points: tuple[DevelopmentPoint, ...] = ()
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.points)
+
+    def validate(self, label: str = "") -> None:
+        if not self.points:
+            return  # inert default
+        for i, pt in enumerate(self.points):
+            pt.validate(f"{label} development point {i}")
+        if not self.source:
+            raise ValueError(f"{label}: processing family requires a source")
+
+
+@dataclass(frozen=True, slots=True)
+class ReciprocityTable:
+    """Measured reciprocity correction against exposure time (schema v7, INERT).
+
+    ``ReciprocitySpec`` holds ONE Schwarzschild exponent per channel. For
+    Ilford that is exact -- they publish Ta = Tm^k, so p = 1/k with no
+    residual. For Kodak it is provably insufficient: their own tables walk the
+    effective exponent from about 0.85 to 0.70 across successive decades of
+    exposure time, which a single exponent cannot express at both ends.
+
+    ``times_s`` and ``stops_correction`` are parallel arrays as printed: the
+    metered time and the additional exposure the manufacturer specifies, in
+    stops. ``cc_filters`` optionally records the colour-compensating filter the
+    sheet prescribes at each time -- its PRESENCE documents chromatic failure,
+    and its absence documents achromatic failure, which is a real distinction
+    the single-exponent form cannot carry either.
+    """
+
+    times_s: tuple[float, ...] = ()
+    stops_correction: tuple[float, ...] = ()
+    cc_filters: tuple[str, ...] = ()
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.times_s)
+
+    def validate(self, label: str = "") -> None:
+        if not self.times_s:
+            if self.stops_correction or self.cc_filters:
+                raise ValueError(f"{label}: reciprocity table without times")
+            return  # inert default
+        if len(self.times_s) != len(self.stops_correction):
+            raise ValueError(
+                f"{label}: reciprocity times and corrections differ in length")
+        if self.cc_filters and len(self.cc_filters) != len(self.times_s):
+            raise ValueError(f"{label}: cc_filters must match times_s in length")
+        if any(t <= 0.0 for t in self.times_s):
+            raise ValueError(f"{label}: reciprocity times must be > 0")
+        if list(self.times_s) != sorted(self.times_s):
+            raise ValueError(f"{label}: reciprocity times must ascend")
+        if not self.source:
+            raise ValueError(f"{label}: reciprocity table requires a source")
+
+
 @dataclass(frozen=True, slots=True)
 class Provenance:
     """Where a profile's numbers come from, machine-readable.
@@ -1320,6 +1671,14 @@ class FilmProfile:
     # -- schema v5: cross-layer interimage effects. Inert default = the v4
     # behaviour exactly; the decoration pass fills per-stock values.
     interimage: InterimageSpec = field(default_factory=InterimageSpec)
+    # -- schema v7 (2026-08-16), ALL INERT: carried, validated and reported,
+    # but never read by film_sim.py or the generated C++. See the block comment
+    # above SpectralDyeDensity for why storage and use are separated.
+    dye_density: SpectralDyeDensity = field(default_factory=SpectralDyeDensity)
+    layer_stack: LayerStack = field(default_factory=LayerStack)
+    processing_family: ProcessingFamily = field(default_factory=ProcessingFamily)
+    reciprocity_table: ReciprocityTable = field(default_factory=ReciprocityTable)
+    dye_impurity: DyeImpurity = field(default_factory=DyeImpurity)
 
     @property
     def is_reversal(self) -> bool:
@@ -1332,6 +1691,12 @@ class FilmProfile:
     def validate(self) -> None:
         self.curves.validate(self.name)
         self.spectral.validate(self.name)
+        # schema v7 -- inert carriers, but validated so bad data cannot enter
+        self.dye_density.validate(self.name)
+        self.layer_stack.validate(self.name)
+        self.processing_family.validate(self.name)
+        self.reciprocity_table.validate(self.name)
+        self.dye_impurity.validate(self.name)
         if self.spectral.has_data:
             if self.is_monochrome and not self.spectral.log_s_pan:
                 raise ValueError(
@@ -1406,8 +1771,15 @@ class PrintStock:
     log_e_per_point: float = 0.025
     #: Densitometry of the curve data. Print stocks are read in Status A.
     density_metric: str = "status_a"
+    # -- schema v7 (2026-08-17), INERT ---------------------------------------
+    #: Spectral dye density of the print dyes. Added when the 2383 extraction
+    #: produced validated curves and there was nowhere to put them: PrintStock
+    #: had none of the v7 carriers, which was a real gap rather than a decision.
+    #: Nothing on the render path reads it, exactly as for FilmProfile.
+    dye_density: SpectralDyeDensity = field(default_factory=SpectralDyeDensity)
 
     def validate(self) -> None:
+        self.dye_density.validate(self.name)
         self.curves.validate(self.name)
 
 
@@ -1728,12 +2100,36 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.NONE,
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]:
         # Agfa 'Datenblatt APX 100' (08/1995, 1st ed.), 'lg Sensitivity'.
+        # [T1] SPECTRAL SENSITIVITY RE-EXTRACTED FROM THE VECTOR PATH
+        # (2026-08-17). apx100.pdf p2, "Spektrale Empfindlichkeit / Spectral
+        # sensitivity": the curve is a single STROKED PDF path, so its
+        # coordinates are EXACT and only the axis calibration is fitted --
+        # against the sheet's own printed 400/500/600/700 nm and lg-sensitivity
+        # labels, closing to 0.50 nm and 0.0034 log. 312 sampled points over
+        # 380-661 nm, resampled to the 10 nm grid, peak-normalised.
+        # SUPERSEDES the 2026-08-02 visual transcription, and validates it: over
+        # the 29 comparable samples the two agree to mean -0.016 and max 0.140
+        # log, well inside the +/-0.05-0.1 that visual reading claimed. Every
+        # largest discrepancy sits at the RED CUT-OFF (650-660 nm) where the
+        # curve is steepest and an eye is least reliable -- which is exactly
+        # where the exact path is worth having.
+        # WHY THIS SAT IN THE QUEUE AS "needs a hand frame": the plot FRAME is
+        # drawn as filled quads, not stroked lines, so the automatic frame
+        # finder returned nothing. It never needed a frame -- the axis TEXT
+        # gives the calibration directly.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(0.00, -0.06, -0.16, -0.24, -0.30, -0.34, -0.37, -0.41, -0.48, -0.56, -0.65, -0.72, -0.69, -0.59, -0.53, -0.52, -0.44, -0.34, -0.21, -0.24, -0.50, -0.64, -0.63, -0.63, -0.65, -0.67, -0.78, -1.35, -2.13, -4.00),
+            log_s_pan=(0.00, -0.07, -0.16, -0.25, -0.31, -0.35, -0.38, 
+                     -0.42, -0.49, -0.57, -0.66, -0.73, -0.69, -0.59, 
+                     -0.54, -0.52, -0.43, -0.32, -0.20, -0.27, -0.54, 
+                     -0.65, -0.64, -0.63, -0.66, -0.69, -0.82, -1.49, 
+                     -2.22, -4.00, -4.00, -4.00, -4.00),
             criterion="relative_log",
-            source=("Agfa-Gevaert AG, 'Datenblatt APX 100', August 1995 "
-                    "(1st edition)"),
+            source=(
+                "Agfa-Gevaert, AGFAPAN APX 100 data sheet (apx100.pdf), p2, "
+                "'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF "
+                "vector-path extraction 2026-08-17, superseding the 2026-08-02 "
+                "visual transcription of the same plot"),
         ),
     ),
 
@@ -1788,12 +2184,36 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.NONE,
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]:
         # Agfa 'Datenblatt APX 25' (08/1995, 1st ed.), 'lg Sensitivity'.
+        # [T1] SPECTRAL SENSITIVITY RE-EXTRACTED FROM THE VECTOR PATH
+        # (2026-08-17). agfapanapx25.pdf p2, "Spektrale Empfindlichkeit / Spectral
+        # sensitivity": the curve is a single STROKED PDF path, so its
+        # coordinates are EXACT and only the axis calibration is fitted --
+        # against the sheet's own printed 400/500/600/700 nm and lg-sensitivity
+        # labels, closing to 0.50 nm and 0.0036 log. 264 sampled points over
+        # 380-663 nm, resampled to the 10 nm grid, peak-normalised.
+        # SUPERSEDES the 2026-08-02 visual transcription, and validates it: over
+        # the 29 comparable samples the two agree to mean -0.021 and max 0.160
+        # log, well inside the +/-0.05-0.1 that visual reading claimed. Every
+        # largest discrepancy sits at the RED CUT-OFF (650-660 nm) where the
+        # curve is steepest and an eye is least reliable -- which is exactly
+        # where the exact path is worth having.
+        # WHY THIS SAT IN THE QUEUE AS "needs a hand frame": the plot FRAME is
+        # drawn as filled quads, not stroked lines, so the automatic frame
+        # finder returned nothing. It never needed a frame -- the axis TEXT
+        # gives the calibration directly.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(0.00, -0.16, -0.31, -0.40, -0.45, -0.49, -0.56, -0.66, -0.73, -0.80, -0.94, -1.04, -0.97, -0.88, -0.76, -0.68, -0.66, -0.62, -0.43, -0.22, -0.29, -0.55, -0.68, -0.66, -0.62, -0.62, -0.73, -1.04, -1.63, -4.00),
+            log_s_pan=(0.00, -0.18, -0.32, -0.42, -0.46, -0.51, -0.58, 
+                     -0.68, -0.75, -0.82, -0.97, -1.06, -0.98, -0.88, 
+                     -0.76, -0.69, -0.67, -0.61, -0.40, -0.22, -0.34, 
+                     -0.59, -0.69, -0.67, -0.63, -0.65, -0.76, -1.12, 
+                     -1.79, -4.00, -4.00, -4.00, -4.00),
             criterion="relative_log",
-            source=("Agfa-Gevaert AG, 'Datenblatt APX 25', 170 71 91, "
-                    "August 1995 (1st edition)"),
+            source=(
+                "Agfa-Gevaert, AGFAPAN APX 25 data sheet (agfapanapx25.pdf), p2, "
+                "'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF "
+                "vector-path extraction 2026-08-17, superseding the 2026-08-02 "
+                "visual transcription of the same plot"),
         ),
     ),
     FilmProfile(
@@ -1821,12 +2241,36 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.NONE,
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]:
         # Agfa 'Datenblatt APX 400' (08/1995, 1st ed.), 'lg Sensitivity'.
+        # [T1] SPECTRAL SENSITIVITY RE-EXTRACTED FROM THE VECTOR PATH
+        # (2026-08-17). apx400.pdf p2, "Spektrale Empfindlichkeit / Spectral
+        # sensitivity": the curve is a single STROKED PDF path, so its
+        # coordinates are EXACT and only the axis calibration is fitted --
+        # against the sheet's own printed 400/500/600/700 nm and lg-sensitivity
+        # labels, closing to 0.50 nm and 0.0034 log. 192 sampled points over
+        # 379-663 nm, resampled to the 10 nm grid, peak-normalised.
+        # SUPERSEDES the 2026-08-02 visual transcription, and validates it: over
+        # the 29 comparable samples the two agree to mean -0.014 and max 0.100
+        # log, well inside the +/-0.05-0.1 that visual reading claimed. Every
+        # largest discrepancy sits at the RED CUT-OFF (650-660 nm) where the
+        # curve is steepest and an eye is least reliable -- which is exactly
+        # where the exact path is worth having.
+        # WHY THIS SAT IN THE QUEUE AS "needs a hand frame": the plot FRAME is
+        # drawn as filled quads, not stroked lines, so the automatic frame
+        # finder returned nothing. It never needed a frame -- the axis TEXT
+        # gives the calibration directly.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(0.00, -0.09, -0.23, -0.36, -0.50, -0.62, -0.69, -0.75, -0.80, -0.86, -0.89, -0.86, -0.80, -0.74, -0.67, -0.62, -0.59, -0.58, -0.59, -0.61, -0.64, -0.68, -0.70, -0.71, -0.84, -1.10, -1.44, -1.92, -2.47, -4.00),
+            log_s_pan=(0.00, -0.09, -0.23, -0.37, -0.51, -0.62, -0.69, 
+                     -0.75, -0.81, -0.87, -0.89, -0.86, -0.80, -0.73, 
+                     -0.67, -0.62, -0.59, -0.58, -0.59, -0.61, -0.65, 
+                     -0.69, -0.71, -0.72, -0.88, -1.16, -1.50, -2.01, 
+                     -2.57, -4.00, -4.00, -4.00, -4.00),
             criterion="relative_log",
-            source=("Agfa-Gevaert AG, 'Datenblatt APX 400', August 1995 "
-                    "(1st edition)"),
+            source=(
+                "Agfa-Gevaert, AGFAPAN APX 400 data sheet (apx400.pdf), p2, "
+                "'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF "
+                "vector-path extraction 2026-08-17, superseding the 2026-08-02 "
+                "visual transcription of the same plot"),
         ),
     ),
 
@@ -1900,7 +2344,8 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.64, 0.635),
             b=_neg(1.05, 0.640),
         ),
-        grain=GrainSpec(9.4, 13.0, 14.0, 16.5, clump_gain=0.92, fog_grain=0.19),
+        # rms_granularity CORRECTED 9.4 -> 4.3 on 2026-08-15: AGFA/'AGFACOLOR Vista 100, 200, 400, 800.pdf' (Technical Data AF, 06/2000) prints RMS 4.3 (48 um, D=1.0); old value was an estimate
+        grain=GrainSpec(4.3, 13.0, 14.0, 16.5, clump_gain=0.92, fog_grain=0.19),
         mtf=MTFSpec(56.0, 63.0, 69.0, adjacency=0.08, adjacency_um=18.0),
         couplers=CouplerSpec(0.30, 50.0, 0.13, 12.0),
         dye_matrix=_dye(-0.05),
@@ -2011,9 +2456,16 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         name="EASTMAN_5247_1974",
         aliases=("5247", "eastman 5247"),
         description=(
-            "The 1970s. Low saturation, heavy clustered grain, soft everywhere "
-            "and prone to a warm cast. If you want the look of a film shot "
-            "between 1974 and 1982, this is closer than any grain plugin."
+            "[T3] PERIOD RECONSTRUCTION of the ORIGINAL 1974 coating of "
+            "EASTMAN Color Negative Film 5247, EI 100T -- the first ECN-2 "
+            "stock. The 1970s: low saturation, heavy clustered grain, soft "
+            "everywhere and prone to a warm cast. If you want the look of a "
+            "film shot between 1974 and 1982, this is closer than any grain "
+            "plugin. \u26a0 NOT DOCUMENTED: Kodak reused the number 5247 "
+            "across a coating change, and every sheet, standard and book "
+            "figure in this corpus describes the LATER EI 125T film, which "
+            "is EASTMAN_5247_1983. Nothing here is a measurement of the "
+            "1974 emulsion."
         ),
         era="1974-1982",
         exposure_index=100,
@@ -2037,6 +2489,92 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.968, 0.918),
         misregistration_um=10.0,
         features=Feature.HALATION | Feature.UNEVEN_EMULSION,
+        # ####################################################################
+        # GENERATION SPLIT 2026-08-18. Kodak kept the designation 5247 across a
+        # coating change, and this entry had been carrying BOTH generations at
+        # once. Every documentary source formerly cited here describes the
+        # LATER, EI 125T film, not this one:
+        #   * TI0835 (rev. 6-93) prints "Tungsten (3200K) - 125/22";
+        #   * Chibisov 1988 table VIII p165 prints "Kodak 5247: S 125 GOST";
+        #   * Sehlin/Kennel SMPTE July 1985 compares 5247 against 5294, which
+        #     Kodak launched in 1983.
+        # The stored exposure_index here is 100, which none of those supports.
+        # So the documented film is now EASTMAN_5247_1983 and the spectral
+        # sensitivity curves have MOVED there, where their own source note
+        # already said they belonged ("improved EI 125T generation ... not the
+        # original 1974 EI 100T").
+        #
+        # WHAT THIS ENTRY IS NOW, stated plainly: a [T3] PERIOD RECONSTRUCTION
+        # of the ORIGINAL 1974 EI 100T coating, for which this corpus holds no
+        # manufacturer sheet, no standard and no book figure of any kind. Its
+        # curves, grain, MTF and halation are era estimates and an analogy from
+        # the 1983 entry; they are NOT measurements of the 1974 emulsion. Do
+        # not cite this entry as documented, and do not copy values back into
+        # it from EASTMAN_5247_1983 without a source that ties the two.
+        # Logged in NotFound.md section 1 and DIGITIZATION_QUEUE.md.
+        # NO SPECTRAL DATA EXISTS for this generation in the corpus.
+        # ####################################################################
+    ),
+    FilmProfile(
+        name="EASTMAN_5247_1983",
+        aliases=("5247-125t", "5247 125t", "5247ii", "5247-ii", "5247 ii",
+                 "eastman 5247 125t"),
+        description=(
+            "EASTMAN Color Negative Film 5247 as documented -- the improved "
+            "EI 125T coating that carried the 5247 designation after the "
+            "original EI 100T version, and the film every 5247 source in this "
+            "corpus actually describes. ECN-2, clear acetate base with rem-jet "
+            "backing, balanced for 3200 K. SPLIT OUT 2026-08-18: these sources "
+            "were previously attached to EASTMAN_5247_1974, whose stored EI of "
+            "100 none of them supports. \u26a0 THE NAME'S YEAR IS THE EARLIEST "
+            "DOCUMENTED DATE, NOT A PROVEN INTRODUCTION DATE: the oldest hard "
+            "date for this coating in the corpus is the spectral plate TI0835C "
+            "of June 1983; Sehlin/Kennel 1985 and Chibisov 1988 follow it, and "
+            "the sheet itself is a June 1993 revision. The corpus contains no "
+            "statement of when the change happened, so 1983 is a floor. The "
+            "existing comment's 'post-1979' and the '5247-II' designation are "
+            "prior knowledge with no source in this corpus and are recorded "
+            "here as unverified rather than adopted into the name."
+        ),
+        era="1983-1990s",
+        exposure_index=125,
+        balance_kelvin=3200,
+        curves=RGBCurves(
+            r=_neg(0.30, 0.545, toe_x=-1.24, toe_k=0.40, shoulder_x=1.46),
+            g=_neg(0.28, 0.560, toe_x=-1.18, toe_k=0.38, shoulder_x=1.40),
+            b=_neg(0.29, 0.580, toe_x=-1.08, toe_k=0.36, shoulder_x=1.30),
+        ),
+        grain=GrainSpec(13.0, 18.5, 20.0, 24.0, clump_gain=1.40, fog_grain=0.30,
+                        anisotropy=1.04),
+        mtf=MTFSpec(24.0, 28.0, 33.0, adjacency=0.03, adjacency_um=34.0),
+        halation=HalationSpec(
+            radii_um=(22.0, 110.0, 520.0),
+            weights=(0.50, 0.32, 0.18),
+            gain_r=0.52, gain_g=0.22, gain_b=0.09,
+            threshold_stops=1.0,
+        ),
+        couplers=CouplerSpec(0.02, 80.0),
+        dye_matrix=_dye(0.22),
+        base_tint=(1.000, 0.968, 0.918),
+        misregistration_um=10.0,
+        features=Feature.HALATION | Feature.UNEVEN_EMULSION,
+        # ####################################################################
+        # PARAMETER PROVENANCE, and the honest allocation of it.
+        # The physical parameter set here is the one that stood in
+        # EASTMAN_5247_1974 until 2026-08-18. That is deliberate and it is the
+        # conservative direction: those values were fitted against sources that
+        # describe THIS generation (TI0835's EI 125, Chibisov's S 125 GOST /
+        # mean gradient 0.50 / RMS 5 / MTF 0.65-0.32 at 30 mm^-1, and
+        # Sehlin/Kennel 1985's granularity-and-MTF-versus-exposure figures), so
+        # leaving them on the 1974 entry would have been the actual error.
+        # NOT re-fitted here: no value was changed while moving. Chibisov's
+        # printed RMS 5 remains RECORDED, NOT ADOPTED for grain, for the reason
+        # already on file -- rms 13.0 is pipeline-calibrated and cross-era
+        # metric equivalence of the printed sigma_D figure is unverified.
+        # Spectral sensitivity below is the T1 vector digitisation of TI0835's
+        # own plate, moved here from the 1974 entry where its own source note
+        # already recorded that it belonged to this generation.
+        # ####################################################################
         # Spectral curves [T1-digitised 2026-08-02, batch 4]: TI0835
         # (rev. 6-93, spectral plate TI0835C dated 6-83). GENERATION NOTE:
         # the sheet documents the improved EI 125T post-1979 coating
@@ -2477,6 +3015,17 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.14),
         misregistration_um=4.0,
         default_format="ff35",
+        # -- schema v7 carrier, INERT -- measured reciprocity vs TIME ----------
+        # Kodak master table row for Ektachrome 160T: none to 1/10 s, +1/2 stop with
+        # CC10R at 1 s, +1 with CC15R at 10 s, 100 s Not Recommended. RED filters, so
+        # the red record is the one losing speed -- the opposite channel ordering from
+        # Ektachrome 64 above, which is why the direction must be stored, not assumed.
+        reciprocity_table=ReciprocityTable(
+            times_s=(0.1, 1.0, 10.0),
+            stops_correction=(0.0, 0.5, 1.0),
+            cc_filters=("", "CC10R", "CC15R"),
+            source=("Pittaro, ed., «The Compact Photo-Lab-Index», Morgan & Morgan, 2nd Compact Edition 1979, Kodak reciprocity master table, PDF pp 174-175 -- a 12 x 7 grid that does NOT survive flat text extraction; rebuilt from word coordinates by assigning each cell to a column from its x-centre against the seven printed time headings, the reconstruction verified by being monotonic for every film. Reproduced here as printed, including the CC filter each row prescribes"),
+        ),
         features=Feature.NONE,
         # Spectral curves [T1-digitised 2026-08-02, agent batch 3]: Kodak
         # publication E-144 (May 2007), E.N.D. D 1.0, E-6, 1.4 s.
@@ -2524,6 +3073,19 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.18),
         misregistration_um=3.5,
         default_format="ff35",
+        # -- schema v7 carrier, INERT -- measured reciprocity vs TIME ----------
+        # Kodak master table row for Ektachrome 64: no correction through 1/10 s but
+        # +1/2 stop already at 1/10 000 s (the SHORT-exposure end, which the single
+        # Schwarzschild exponent cannot express at all); +1 stop with CC15B at 1 s;
+        # +1 1/2 with CC20B at 10 s; 100 s Not Recommended, so the table stops there.
+        # The CC filters are BLUE, which documents that the BLUE record lost the most
+        # speed -- chromatic failure, and its direction, from the filter colour alone.
+        reciprocity_table=ReciprocityTable(
+            times_s=(0.0001, 0.1, 1.0, 10.0),
+            stops_correction=(0.5, 0.0, 1.0, 1.5),
+            cc_filters=("", "", "CC15B", "CC20B"),
+            source=("Pittaro, ed., «The Compact Photo-Lab-Index», Morgan & Morgan, 2nd Compact Edition 1979, Kodak reciprocity master table, PDF pp 174-175 -- a 12 x 7 grid that does NOT survive flat text extraction; rebuilt from word coordinates by assigning each cell to a column from its x-centre against the seven printed time headings, the reconstruction verified by being monotonic for every film. Reproduced here as printed, including the CC filter each row prescribes"),
+        ),
         features=Feature.NONE,
         # Spectral curves [T1-digitised 2026-08-02, agent batch 3]: Kodak
         # publication E-8 (September 2005), E.N.D. D 1.0, E-6, 1.4 s.
@@ -2670,7 +3232,8 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.22, 0.615, toe_x=-1.56, toe_k=0.30, shoulder_x=1.80),
             b=_neg(0.21, 0.640, toe_x=-1.66, toe_k=0.28, shoulder_x=1.76),
         ),
-        grain=GrainSpec(7.4, 10.0, 9.2, 12.6, clump_gain=0.62, fog_grain=0.22),
+        # rms_granularity CORRECTED 7.4 -> 4.0 on 2026-08-15: manufacturer sheet FUJI/'F500 - 8572.pdf' p2 prints RMS 4.0 (x1000, 48 um, D=1.0 above Dmin); the old value was an estimate
+        grain=GrainSpec(4.0, 10.0, 9.2, 12.6, clump_gain=0.62, fog_grain=0.22),
         mtf=MTFSpec(46.0, 56.0, 62.0, adjacency=0.08, adjacency_um=20.0),
         halation=HalationSpec(
             radii_um=(12.0, 62.0, 300.0),
@@ -2699,7 +3262,8 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.21, 0.638, toe_x=-1.58, shoulder_x=1.86),
             b=_neg(0.20, 0.660, toe_x=-1.64, shoulder_x=1.80),
         ),
-        grain=GrainSpec(6.8, 9.6, 9.0, 11.8, clump_gain=0.34, fog_grain=0.20),
+        # rms_granularity CORRECTED 6.8 -> 3.5 on 2026-08-15: FUJI/eterna_vivid500.pdf prints RMS 3.5 (48 um, D=1.0), previously unread on that sheet
+        grain=GrainSpec(3.5, 9.6, 9.0, 11.8, clump_gain=0.34, fog_grain=0.20),
         mtf=MTFSpec(50.0, 58.0, 66.0, adjacency=0.10, adjacency_um=19.0),
         halation=HalationSpec(
             radii_um=(11.0, 56.0, 270.0),
@@ -2873,6 +3437,28 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
         default_format="ff35",
+        # -- schema v7 carrier, INERT -- the PROCESSING FAMILY -----------------
+        # Only the three points whose average gradient is PRINTED on the sheet.
+        # The sheet's full matrix runs to 16 developers x 5 temperatures x several EIs,
+        # but those cells give TIMES ONLY -- no contrast -- and a development point with
+        # no measured contrast says nothing, so the validator refuses it. Entering the
+        # times with a guessed contrast would have manufactured data.
+        # These three are also the trace's own validation: retracing them reproduced
+        # 0.548 / 0.769 / 0.916 against the printed 0.58 / 0.77 / 0.90.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="SPD [Super Prodol]", dilution="stock",
+                                 minutes=2.75, celsius=20.0,
+                                 contrast_index=0.58, exposure_index=1600),  # printed Gbar 0.58
+                DevelopmentPoint(developer="SPD [Super Prodol]", dilution="stock",
+                                 minutes=4.25, celsius=20.0,
+                                 contrast_index=0.77, exposure_index=1600),  # the box-speed condition; the stored curve
+                DevelopmentPoint(developer="SPD [Super Prodol]", dilution="stock",
+                                 minutes=6.25, celsius=20.0,
+                                 contrast_index=0.90, exposure_index=1600),  # printed Gbar 0.90
+            ),
+            source=("Fuji Photo Film Co., 'FUJIFILM DATA SHEET -- NEOPAN 1600 Professional', Ref. AF3-608E(N), characteristic-curve page: three development times in SPD at 20 C, EACH LABELLED WITH ITS OWN AVERAGE GRADIENT -- 2 3/4 min Gbar 0.58, 4 1/4 min Gbar 0.77, 6 1/4 min Gbar 0.90. The sheet also prints a 16-developer x 5-temperature x EI development matrix and Time-Gbar curves for four developers; only the three points whose CONTRAST IS PRINTED are entered here, because a DevelopmentPoint without a measured contrast asserts nothing and the validator rejects it"),
+        ),
         features=Feature.NONE,
         # SPECTRAL SENSITIVITY RE-TRACED 2026-08-15 at 5 nm, same datasheet:
         # section 9 SPECTRAL SENSITIVITY CURVE, PDF page 3, captioned
@@ -3364,21 +3950,35 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         name="ILFORD_HPS",
         aliases=("hps", "ilford hps", "nouvelle vague", "hps 800"),
         description=(
-            "[T2] Ilford HPS, EI 800 -- for a decade the fastest B&W film "
-            "generally available anywhere. British emulsion, but its fame is "
-            "French: Raoul Coutard shot Breathless in 1960 on HPS 35 mm still "
-            "stock, bulk-spliced into hundred-foot rolls, because nothing else "
-            "was fast enough to shoot Paris interiors and streets with "
-            "available light. Push-processed beyond box speed on top of that. "
-            "The result -- enormous open grain, a flat curve, grey rather than "
-            "black blacks, heavy base fog -- became the visual signature of the "
-            "Nouvelle Vague and, second-hand, of every low-budget film that "
-            "wanted to look urgent. The high dmin and fog_grain here are "
-            "deliberate: clean shadows would be wrong."
+            "[T2] Ilford HPS, ASA 400 daylight / 320 tungsten -- for a decade "
+            "the fastest B&W film generally available anywhere. British "
+            "emulsion, but its fame is French: Raoul Coutard shot Breathless in "
+            "1960 on HPS 35 mm still stock, bulk-spliced into hundred-foot "
+            "rolls, because nothing else was fast enough to shoot Paris "
+            "interiors and streets with available light. Push-processed beyond "
+            "box speed on top of that. The result -- enormous open grain, a flat "
+            "curve, grey rather than black blacks, heavy base fog -- became the "
+            "visual signature of the Nouvelle Vague and, second-hand, of every "
+            "low-budget film that wanted to look urgent. The high dmin and "
+            "fog_grain here are deliberate: clean shadows would be wrong. "
+            "SPEED CORRECTED 2026-08-17, 800 -> 400: the previous figure was "
+            "self-declared as 'estimated from secondary/historical sources' and "
+            "was internally inconsistent with this very description, which says "
+            "the film was pushed BEYOND box speed -- 800 reads as a push "
+            "rating, not as box speed. Иофис 1964 table 7 p 79 prints ASA "
+            "400/320 for HP-S from the 1963-64 catalogues. Note the emulsion is "
+            "unchanged: this is a relabelling of which rating the profile "
+            "claims, and the grain and curve were always those of a pushed-"
+            "capable ASA 400 stock. ⚠ Иофис is a SOVIET source describing a "
+            "BRITISH film; no Ilford figure for HP-S exists in this corpus (the "
+            "1942 Ilford Manual predates the product -- its 'Hypersensitive "
+            "Panchromatic' is a separate, SLOWER emulsion, listed beside H.P.3 "
+            "in its own development table). Method rule 14 applies: if an "
+            "Ilford sheet ever surfaces, it outranks this."
         ),
         era="1954-1960s",
         is_monochrome=True,
-        exposure_index=800,
+        exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.21, 0.620, -1.38, 0.32, 1.54, 0.42)),
         grain=GrainSpec(19.0, 26.0, 26.0, 26.0, clump_gain=1.65, fog_grain=0.40,
@@ -3433,6 +4033,19 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.0, 1.0, 1.0),
         misregistration_um=3.0,
         default_format="ff35",
+        # -- schema v7 carrier, INERT -- measured reciprocity vs TIME ----------
+        # Kodak master table row for Kodachrome 64: none to 1/10 s, +1 stop with CC10R
+        # at 1 s, then NOT RECOMMENDED -- so the table has exactly ONE non-zero point.
+        # That is why no Schwarzschild exponent was ever fitted for this stock: with a
+        # single point the fit returns p = 0.70 or a physically impossible p <= 0
+        # depending on whether onset is read as 0.1 s or 0.5 s. The table itself is
+        # recorded here in full; the exponent deliberately is not.
+        reciprocity_table=ReciprocityTable(
+            times_s=(0.1, 1.0),
+            stops_correction=(0.0, 1.0),
+            cc_filters=("", "CC10R"),
+            source=("Pittaro, ed., «The Compact Photo-Lab-Index», Morgan & Morgan, 2nd Compact Edition 1979, Kodak reciprocity master table, PDF pp 174-175 -- a 12 x 7 grid that does NOT survive flat text extraction; rebuilt from word coordinates by assigning each cell to a column from its x-centre against the seven printed time headings, the reconstruction verified by being monotonic for every film. Reproduced here as printed, including the CC filter each row prescribes"),
+        ),
         features=Feature.NONE,
         # Spectral curves [T1-digitised 2026-08-02, agent batch 3]: the
         # K64-specific plot of Kodak publication E-55 p6 (December 1996),
@@ -3459,10 +4072,26 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         kind=StockKind.REVERSAL,
         exposure_index=100,
         balance_kelvin=5500,
+        # [T1] CURVES VECTOR-EXTRACTED (2026-08-16, queue P1): Kodak
+        # publication H-1-5285 (Ektachrome_100d.pdf) p3 "Characteristic
+        # Curves" (Daylight 1/100 s, process E-6 as printed, Status A) are
+        # PDF VECTOR paths (3 x 13 bezier segments) -- coordinates exact,
+        # only axis calibration fitted (label residual <=0.018 D/0.05 stop).
+        # Reversal convention: model x = -(camera stops)*0.30103, stop N=0.
+        # Fit RMS 0.024/0.028/0.028 D (b/g/r), 312 samples/layer, fitted
+        # under a NUMERICAL MONOTONICITY constraint (toe_k <= shoulder_k):
+        # the unconstrained best fit (RMS 0.011-0.015) had shoulder_k <
+        # toe_k, which makes the sigmoid difference non-monotone past the
+        # shoulder -- a renderer defect worth 0.013 D of residual to avoid.
+        # PARAMETERISATION NOTE: gamma 11-15 is the softplus straight-line
+        # slope of a model whose toe and shoulder nearly coincide; it reads
+        # only together with toe_x/shoulder_x. The printed curve's actual
+        # mid slope is ~1.8-2.2, normal for reversal. Below the printed
+        # range (x < -0.9) treat the tail as [T3], same caveat as ACROS.
         curves=RGBCurves(
-            r=_rev(0.14, 1.62, toe_x=-0.80, shoulder_x=1.00),
-            g=_rev(0.14, 1.66, toe_x=-0.82, shoulder_x=0.98),
-            b=_rev(0.15, 1.72, toe_x=-0.86, shoulder_x=0.95),
+            r=ToneCurve(0.1821, 11.6352, 0.2674, 0.3525, 0.5364, 0.3524),
+            g=ToneCurve(0.1749, 15.4299, 0.3503, 0.3605, 0.5782, 0.3605),
+            b=ToneCurve(0.1152, 13.0085, 0.4732, 0.4075, 0.7751, 0.4075),
         ),
         grain=GrainSpec(3.0, 5.0, 5.4, 6.2, clump_gain=0.24, fog_grain=0.14),
         mtf=MTFSpec(74.0, 82.0, 90.0, adjacency=0.12, adjacency_um=15.0),
@@ -3474,6 +4103,50 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         couplers=CouplerSpec(0.09, 46.0, 0.06, 10.0),
         dye_matrix=_dye(-0.22),
         misregistration_um=3.5,
+        # -- schema v7 carrier, INERT -- SPECTRAL DYE DENSITY ------------------
+        # [T1] VECTOR-EXTRACTED (2026-08-17) from H-1-5285 p4, "Spectral Dye
+        # Density Curves". The traces are PDF vector paths, so coordinates are
+        # exact; only the axis calibration is fitted against the printed tick
+        # labels, closing to 1.56 nm and 0.0013 D.
+        # Ektachrome 100D, process E-6, plotted as DIFFUSE SPECTRAL DENSITY. The sheet
+        # prints no normalisation statement, so the values are stored AS PRINTED.
+        # VALIDATION -- the sheet's own 'Visual Neutral' trace was extracted alongside
+        # the three dyes and equals their SUM to mean -0.009 D and max 0.013 D across
+        # 31 samples. That single check confirms three things at once: the curves were
+        # identified correctly, the axis calibration is right, and the vector sampling
+        # is exact. Nothing else in this database validates this cleanly.
+        # Peaks land where they must: yellow 443 nm, magenta 548 nm, cyan
+        # 656 nm -- absorbing blue, green and red respectively.
+        # STILL INERT: the renderer uses the single-scalar dye_matrix above.
+        # These curves are what that scalar cannot express.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.142, 0.114, 0.088, 0.067, 0.054, 0.045, 0.038, 0.034, 
+                     0.033, 0.037, 0.045, 0.059, 0.079, 0.105, 0.140, 
+                     0.184, 0.240, 0.309, 0.390, 0.483, 0.582, 0.676, 
+                     0.764, 0.837, 0.888, 0.916, 0.921, 0.902, 0.861, 
+                     0.803, 0.738),
+            d_magenta=(0.066, 0.085, 0.106, 0.127, 0.134, 0.133, 0.156, 
+                     0.200, 0.264, 0.351, 0.460, 0.584, 0.707, 0.809, 
+                     0.876, 0.895, 0.861, 0.776, 0.652, 0.507, 0.368, 
+                     0.256, 0.173, 0.114, 0.074, 0.048, 0.030, 0.018, 
+                     0.010, 0.004, -0.001),
+            d_yellow=(0.498, 0.627, 0.750, 0.848, 0.907, 0.897, 0.833, 
+                     0.725, 0.591, 0.451, 0.321, 0.212, 0.130, 0.072, 
+                     0.035, 0.014, 0.003, -0.003, -0.004, -0.004, -0.005, 
+                     -0.005, -0.004, -0.004, -0.003, -0.002, -0.001, 
+                     -0.001, -0.000, 0.001, 0.002),
+            d_neutral=(0.715, 0.836, 0.953, 1.052, 1.106, 1.088, 1.037, 
+                     0.967, 0.898, 0.849, 0.835, 0.864, 0.924, 0.995, 
+                     1.060, 1.102, 1.114, 1.091, 1.045, 0.994, 0.953, 
+                     0.937, 0.942, 0.956, 0.969, 0.972, 0.959, 0.929, 
+                     0.880, 0.817, 0.749),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "Eastman Kodak Company, H-1-5285, Spectral Dye Density Curves, "
+                "p4; PDF vector-path extraction 2026-08-17. Neutral trace "
+                "equals the sum of the three dyes to mean -0.009 D, max 0.013 D"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS,
         # Spectral curves REPLACED 2026-08-14. They previously came from the
         # 5294/7294 sheet -- a DIFFERENT product (the 2018 Ektachrome
@@ -3603,7 +4276,19 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=200,
         balance_kelvin=5500,  # EI 200 is the daylight rating (160 tungsten)
-        curves=_mono(ToneCurve(0.16, 1.50, -0.86, 0.22, 1.04, 0.34)),
+        # [T1] CURVE MACHINE-TRACED (2026-08-16, queue P1): Kodak sheet
+        # "KODAK TRI-X Reversal Film 7266" (technical-information PDF) p3
+        # "Characteristic Curve" (Daylight 1/50 s, reversal process 60 s
+        # at 76F/24C, diffuse visual densitometry), 300 dpi raster,
+        # 296 traced points over log H -3.13..-0.13, calibrated on the
+        # printed decade ticks. Reversal convention x = -(logH - logH_mid);
+        # mid-grey anchored at the previous hand-fit density 1.433 (speed
+        # unchanged, ACROS precedent), anchor log H = -1.581.
+        # Fit RMS 0.0167 D, max 0.030, under the numerical-monotonicity
+        # constraint toe_k <= shoulder_k (the free fit, RMS 0.0035, had a
+        # sharper shoulder than toe and went non-monotone past Dmin).
+        # Traced Dmax 2.584, Dmin 0.213.
+        curves=_mono(ToneCurve(0.2325, 3.0578, -0.4082, 0.2073, 0.3659, 0.2072)),
         grain=GrainSpec(10.0, 14.0, 14.0, 14.0, clump_gain=1.20, fog_grain=0.26),
         mtf=MTFSpec(46.0, 46.0, 46.0, adjacency=0.07),
         spectral_weights=(0.32, 0.47, 0.21),
@@ -3636,12 +4321,32 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # sensitometric curves (3200 K 1/50 s, ECN-2, Status M),
         # 1380 samples/layer. Fit RMS 0.006/0.004/0.003 D, max 0.016.
         # Status M dmins are the orange mask ladder (0.17/0.58/0.85).
+        # RE-VALIDATED 2026-08-16: independent re-trace, 563 pts/layer,
+        # RMS 0.003-0.005 D -- parameters reproduced. No change adopted.
         curves=RGBCurves(
             r=ToneCurve(0.1681, 0.4914, -1.3967, 0.2651, 2.1077, 0.3712),
             g=ToneCurve(0.5813, 0.5621, -1.3844, 0.1960, 2.1439, 0.2743),
             b=ToneCurve(0.8510, 0.5360, -1.3957, 0.1801, 2.1044, 0.2522),
         ),
-        grain=GrainSpec(4.6, 7.6, 8.2, 9.8, clump_gain=0.22, fog_grain=0.19),
+        # [T1] sigma(D) SHAPE TRACED FROM THE PUBLISHED PLOT (2026-08-17).
+        # SOURCE Kodak publication H-1-5213 p3 "Diffuse rms Granularity
+        # Curves" (Technical Data, process ECN-2), raster image
+        # (587x538 px, read at its native resolution -- the page carries no
+        # vector path for this plot). Density axis 145.00 px/D from the frame,
+        # granularity axis 139.00 px/decade from the right-hand tick comb with
+        # sigma = 0.001 at the frame bottom. sigma*1000 = 3.04 at dmin(0.614),
+        # 7.48 at D = 1.0, 4.37 at D = 2.663 -> ratios 0.41 / 1.00 / 0.58.
+        # POOLED, NOT PER-LAYER: on this sheet the three granularity curves are
+        # drawn as one overlapping bold band along the whole plot, so the trace
+        # is the band CENTRE and the band half-width of +/-4 px gives +/-7 % on
+        # sigma. Per-layer separation is not available from this sheet.
+        # Caveat carried from the trace: sigma PEAKS at D = 0.77 at 1.24x the
+        # D = 1.0 value, and three anchors through (dmin, 1.0, dmax) cannot
+        # represent an interior peak -- the triple understates the maximum by
+        # about a quarter. See doc/RESULT_2026-08-17f_vision3_granularity.md.
+        grain=GrainSpec(4.6, 7.6, 8.2, 9.8, clump_gain=0.22, fog_grain=0.19,
+                        sigma_shape_toe=0.41, sigma_shape_mid=1.00,
+                        sigma_shape_dmax=0.58),
         mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=20.0),
         halation=HalationSpec(
             radii_um=(12.0, 60.0, 290.0),
@@ -3698,7 +4403,32 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=ToneCurve(0.5708, 0.5675, -1.4523, 0.2525, 2.1792, 0.3535),
             b=ToneCurve(0.8392, 0.5464, -1.4536, 0.2216, 2.0745, 0.2953),
         ),
-        grain=GrainSpec(4.2, 7.0, 7.6, 9.0, clump_gain=0.20, fog_grain=0.18),
+        # [T1] sigma(D) SHAPE TRACED FROM THE PUBLISHED PLOT (2026-08-17).
+        # SOURCE Kodak publication H-1-5207 p3 "Diffuse rms Granularity
+        # Curves" (Technical Data, process ECN-2), raster image
+        # (587x557 px, native resolution). Density axis 147.67 px/D from the
+        # frame, cross-checked at 147.9 px/D against the 0.2 D minor-tick comb
+        # (0.16 % agreement); granularity axis 139.75 px/decade from the
+        # right-hand tick comb, the two decades agreeing to 0.5 px, sigma =
+        # 0.001 at the frame bottom. GREEN RECORD: sigma*1000 = 4.95 at
+        # dmin(0.593), 8.35 at D = 1.0, 4.71 at D = 2.695 -> 0.59 / 1.00 / 0.57.
+        # The green curve is the separable one on all four VISION3 sheets; the
+        # blue anchor is ill-conditioned (dmin 1.00, so D = 1.0 sits inside the
+        # steep rise) and the red granularity curve is traced only above
+        # log E 2.7 here.
+        # Identity check that the trace passes: this plot's own density plateaus
+        # are 0.226 / 0.593 / 1.002 (r/g/b) against the [T1] H&D ladder above of
+        # 0.154 / 0.571 / 0.839 -- offsets +0.07 / +0.02 / +0.16 D, all of one
+        # sign, which is the signature of the different densitometer the sheet's
+        # own footnote warns about, not of a swapped track.
+        # sigma PEAKS at D = 0.78 at 1.30x the D = 1.0 value; three anchors
+        # cannot carry an interior peak. Only the SHAPE is adopted here --
+        # rms_granularity above is unchanged, and at D = dmin+1.0 the traced
+        # sigma*1000 of 6.32 against that stored 4.2 is recorded as a conflict,
+        # not averaged. See doc/RESULT_2026-08-17f_vision3_granularity.md.
+        grain=GrainSpec(4.2, 7.0, 7.6, 9.0, clump_gain=0.20, fog_grain=0.18,
+                        sigma_shape_toe=0.59, sigma_shape_mid=1.00,
+                        sigma_shape_dmax=0.57),
         mtf=MTFSpec(62.0, 70.0, 80.0, adjacency=0.11, adjacency_um=19.0),
         halation=HalationSpec(
             radii_um=(11.0, 55.0, 260.0),
@@ -3767,12 +4497,32 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # (TI2647F, March 2022) p3 sensitometric curves (3200 K tungsten
         # 1/50 s, ECN-2), 1467 samples/layer. Fit RMS 0.002/0.004/0.005 D,
         # max 0.015. Status M dmins are the mask ladder (0.19/0.58/0.84).
+        # RE-VALIDATED 2026-08-16: independent re-trace reproduced the r
+        # layer to 3 decimals on all six parameters. No change adopted.
         curves=RGBCurves(
             r=ToneCurve(0.1867, 0.4834, -1.4780, 0.2698, 2.1294, 0.3778),
             g=ToneCurve(0.5811, 0.5631, -1.4748, 0.2522, 2.1744, 0.3531),
             b=ToneCurve(0.8374, 0.5505, -1.4570, 0.2431, 2.1104, 0.3403),
         ),
-        grain=GrainSpec(6.6, 10.5, 11.5, 13.5, clump_gain=0.28, fog_grain=0.20),
+        # [T1] sigma(D) SHAPE TRACED FROM THE PUBLISHED PLOT (2026-08-17).
+        # SOURCE Kodak VISION3 5219/7219 Technical Data p3 "Diffuse rms
+        # Granularity Curves" (process ECN-2), raster image (587x574 px, native resolution). Density axis
+        # 148.67 px/D from the frame; granularity axis 140.25 px/decade from the
+        # right-hand tick comb, sigma = 0.001 at the frame bottom.
+        # GREEN RECORD: sigma*1000 = 7.11 at dmin(0.595), 10.60 at D = 1.0,
+        # 5.84 at D = 2.712 -> ratios 0.67 / 1.00 / 0.55.
+        # THIS SHEET IS THE FAMILY-ASSIGNMENT WITNESS for all four: it prints an
+        # in-plot legend naming the six tracks in words -- "Blue Density /
+        # Green Density / Red Density / Blue Grain / Green Grain / Red Grain" --
+        # which is vendor confirmation of the two-family reading rather than an
+        # inference from stroke style. Its six tracks also separate cleanly at
+        # every column, so it is the cleanest of the four.
+        # sigma PEAKS at D = 0.79 at 1.32x the D = 1.0 value; three anchors
+        # cannot carry an interior peak.
+        # See doc/RESULT_2026-08-17f_vision3_granularity.md.
+        grain=GrainSpec(6.6, 10.5, 11.5, 13.5, clump_gain=0.28, fog_grain=0.20,
+                        sigma_shape_toe=0.67, sigma_shape_mid=1.00,
+                        sigma_shape_dmax=0.55),
         mtf=MTFSpec(44.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -3784,6 +4534,46 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.115),
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
+        # [T1-vector] Spectral dye density, extracted from PDF vector paths
+        # 2026-08-18 by dye_density.py, NOT traced from a raster.
+        # NORMALISATION IS "peak_1.0" AND THAT MATTERS: this sheet plots each
+        # dye scaled to unit peak, so what is captured is the SHAPE of each
+        # dye's absorption -- including the off-band unwanted absorption a 3x3
+        # dye_matrix cannot express -- and NOT the absolute density level.
+        # Do not read these as densities. The sheet carries no visual-neutral
+        # trace, so the neutral = C+M+Y identity that validated 5285 is not
+        # available here; the peak-normalisation residual (0.0047 max
+        # deviation from 1.000 across the three dyes) stands in for it.
+        # Peaks land where the physics requires: yellow 450 nm, magenta
+        # 540 nm, cyan 680 nm -- absorbing blue, green and red.
+        # STILL INERT: the renderer uses the scalar dye_matrix above.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.217, 0.173, 0.133, 0.083, 0.061, 0.036, 0.041,
+                     0.030, 0.029, 0.027, 0.033, 0.039, 0.041, 0.069,
+                     0.087, 0.138, 0.172, 0.219, 0.254, 0.363, 0.465,
+                     0.564, 0.657, 0.742, 0.819, 0.881, 0.938, 0.986,
+                     1.003, 0.995, 0.976),
+            d_magenta=(0.005, 0.000, 0.020, 0.033, 0.008, 0.026, 0.080,
+                     0.144, 0.262, 0.417, 0.580, 0.743, 0.881, 0.991,
+                     0.999, 0.950, 0.782, 0.595, 0.398, 0.259, 0.200,
+                     0.121, 0.097, 0.060, 0.055, 0.049, 0.028, 0.023,
+                     0.022, 0.021, 0.019),
+            d_yellow=(0.491, 0.655, 0.805, 0.929, 1.004, 1.005, 0.937,
+                     0.792, 0.613, 0.441, 0.293, 0.175, 0.120, 0.059,
+                     0.037, 0.029, 0.016, 0.001, -0.007, -0.008, -0.009,
+                     -0.012, -0.009, -0.009, -0.009, -0.010, -0.010, -0.003,
+                     -0.007, -0.009, -0.007),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, KODAK-VISION3-500T-5219-7219-brochure.pdf, "
+                "Spectral Dye Density / DIFFUSE SPECTRAL DENSITY, p3; PDF "
+                "vector-path extraction 2026-08-18. Each dye normalised to "
+                "unit peak by the sheet; max deviation from 1.000 = 0.0047. "
+                "Method validated by re-deriving the adopted 5285 curves to "
+                "RMS 0.003 D and the 2383 curves to 0.135 D, matching that "
+                "sheet's own recorded base-absorber offset of 0.128 D"),
+        ),
         features=Feature.HALATION | Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
         # Spectral curves [T1-digitised 2026-08-02, batch 4 -- owner-supplied
         # H-1-5219 sheet]: 1/25 s, ECN-2, Status M, D 0.2 > D-min.
@@ -3819,12 +4609,36 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # digitize_plot.py, 856-1372 samples/layer, camera stop 0 = model
         # x 0 (1 stop = 0.30103). Fit RMS 0.011/0.005/0.005 D, max 0.031.
         # Status M dmins are the orange mask ladder (0.13/0.57/0.84).
+        # RE-VALIDATED 2026-08-16: independent re-trace of the same plot
+        # reproduced all six parameters per layer (g/b within 0.01-0.08;
+        # dotted R within its line style's noise). No change adopted.
         curves=RGBCurves(
             r=ToneCurve(0.1341, 0.5031, -1.5861, 0.2486, 1.9463, 0.3480),
             g=ToneCurve(0.5688, 0.5793, -1.5053, 0.1706, 2.0071, 0.2389),
             b=ToneCurve(0.8434, 0.5595, -1.5049, 0.1910, 1.9924, 0.2316),
         ),
-        grain=GrainSpec(2.6, 4.2, 4.6, 5.4, clump_gain=0.14, fog_grain=0.16),
+        # [T1] sigma(D) SHAPE TRACED FROM THE PUBLISHED PLOT (2026-08-17).
+        # SOURCE Kodak publication H-1-5203 p3 "Diffuse rms Granularity
+        # Curves" (Technical Data, process ECN-2), raster image
+        # (587x562 px, native resolution). Density axis 147.33 px/D from the
+        # frame; granularity axis 139.00 px/decade from the right-hand tick comb
+        # (its two decades agree to 0.0 px), sigma = 0.001 at the frame bottom.
+        # GREEN RECORD: sigma*1000 = 1.97 at dmin(0.614), 5.01 at D = 1.0,
+        # 3.16 at D = 2.630 -> ratios 0.39 / 1.00 / 0.63.
+        # TOE ANCHOR IS THE WEAKEST OF THE FOUR: at the left edge this sheet's
+        # G and R granularity curves share one 8 px ink run, so sigma(dmin)
+        # carries +/-7 % from the merged run plus an unresolved G/R assignment.
+        # The dmax and mid anchors are clean. The green density trace also has a
+        # 0.6-decade gap (log E 1.01-1.64) where the bold granularity curve
+        # overdraws it; nothing was interpolated across it and no anchor needs
+        # it -- the two branches join at 0.50 D/decade, matching this film's own
+        # gamma of 0.579.
+        # sigma PEAKS at D = 0.80 at 1.32x the D = 1.0 value; three anchors
+        # cannot carry an interior peak.
+        # See doc/RESULT_2026-08-17f_vision3_granularity.md.
+        grain=GrainSpec(2.6, 4.2, 4.6, 5.4, clump_gain=0.14, fog_grain=0.16,
+                        sigma_shape_toe=0.39, sigma_shape_mid=1.00,
+                        sigma_shape_dmax=0.63),
         mtf=MTFSpec(78.0, 88.0, 98.0, adjacency=0.12, adjacency_um=16.0),
         halation=HalationSpec(
             radii_um=(9.0, 45.0, 200.0),
@@ -4184,37 +4998,102 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=64,
         balance_kelvin=5500,
+        # ####################################################################
+        # PROVENANCE CORRECTION 2026-08-18 -- read before trusting any number
+        # below that cites a "355-frame" or "509-frame batch".
+        #
+        # (a) BATCH IS NOT SINGLE-EMULSION. The analyzer was pointed at a
+        #     folder named SVEMA-FN64 and analysed all 509 frames as one
+        #     film. The owner confirms (2026-08-18) that only frames
+        #     PICT0001-PICT0067 are certainly Foto-65; frames 68+ are a
+        #     MIXTURE of Foto-32 and Foto-65 that cannot be separated
+        #     frame-by-frame. Foto-32 was chosen deliberately for finer
+        #     grain and higher resolution, so the contamination is
+        #     ONE-DIRECTIONAL: the mixed batch reads FINER and SHARPER than
+        #     Foto-65 alone.
+        # (b) SCANNER IDENTITY. Earlier comments here called this a
+        #     "Bayer-demosaiced DSLR scan". That is wrong. EXIF on the
+        #     owner's frames reads Make=GCMC, Model=Scanner,
+        #     Software=UF15 16/08/20 v0.69; 4416 px / 36 mm = 122.7 px/mm
+        #     = 3116 dpi, 1 px = 8.15 um. No Bayer mosaic is established.
+        # (c) FRAMES 1-67 ARE EXACTLY GREYSCALE. Measured 2026-08-18 over
+        #     all 67 confirmed frames: max |R-G| = max |B-G| = 0. Therefore
+        #     EVERY per-channel quantity in the 509-frame output (base_tint,
+        #     tone_slope_r/_b, all 12 crossover bins, the 0.806/0.834/0.850
+        #     gamma spread) originates entirely in the contaminated 68+
+        #     tail. None of it is attributable to Foto-65. The analyzer's
+        #     own [SpectralResponse] note says a B&W negative scan carries
+        #     no channel information in any case.
+        # A confirmed-subset re-run (analyze_film_scans.py v2.1, the same
+        # 67 frames, --px-per-mm 122.7) is recorded in
+        # doc/RESULT_2026-08-18_svema_clean67.md.
+        # ####################################################################
         # dmin 0.16 [T3]: REVERTED to the estimate. The 0.174 briefly adopted
         # here came from misreading the v1 analyzer's output (its "dmin" was a
         # raw pixel value of the DENSE end, not a base density). The owner's
-        # 355-frame v2 batch (native 4416x2944, sRGB-decoded, density space)
-        # reports base at 0.008-0.013 D RELATIVE to scanner white -- the DSLR
-        # rig auto-exposes the base to white, so ABSOLUTE base+fog is
-        # unknowable without an --empty-gate calibration frame. Estimate
-        # stands until that frame exists.
-        # gamma 0.83 [T2]: 509-frame batch (supersedes the 355-frame run on
-        # the same rig, which gave 0.787; per-channel now 0.806/0.834/0.850,
-        # green adopted). Same stated assumption: 1.90 logE interdecile
-        # scene span. Still in the plausible FN-64 development range.
+        # scan batches (native 4416x2944, sRGB-decoded, density space) report
+        # base at 0.008-0.028 D RELATIVE to scanner white -- the scanner
+        # auto-exposes the base to white, so ABSOLUTE base+fog is unknowable
+        # without an --empty-gate calibration frame. Estimate stands until
+        # that frame exists.
+        # gamma 0.83 [T2]: PRIMARY BASIS IS NOW A PRINTED SOURCE, not the
+        # scan batch -- Gurlev 1986 (book p296) prints gamma_rec 0.8 (CT-2)
+        # for Svema Foto-65. Method rule 14: an official/printed source
+        # outranks a derived estimate. The batch statistics are recorded as
+        # a consistency bracket only, and they are wide: the mixed 509-frame
+        # run estimates 0.834 (green) while the confirmed 67-frame subset
+        # estimates 0.677, both on the same stated assumption of a 1.90 logE
+        # interdecile scene span -- which is an assumption, not a
+        # measurement. 0.830 is kept because it is the value nearest Gurlev
+        # inside that bracket. A +-4 EV grey-card bracket with --wedge would
+        # replace the whole bracket with one MEASURED gamma.
         curves=_mono(ToneCurve(0.16, 0.830, -1.18, 0.24, 1.52, 0.34)),
-        # Grain, same batch, 56800 flat blocks at native resolution [T2]:
-        #   sigma(D) toe/mid/dense = 0.021/0.028/0.037 -> shape 0.70/1.0/1.35
-        #   after removing a ~0.01 scanner noise floor in quadrature
-        #   (previous 0.4/1.0/1.2 was T3).
-        #   grain correlation length 3.48 px at 122.7 px/mm = 28 um raw,
-        #   ~23 um after deconvolving a ~2 px scanner PSF -> clump 23 um
-        #   (previous 15 um was T3; the RMS calibration integral keeps the
-        #   rendered amplitude pinned, so only the grain SCALE shifts).
-        #   rms 11.5 kept: still [T1], and the new batch's native-res mid
-        #   sigma 0.028 agrees with the 0.030 that fit produced.
-        #   anisotropy 0.62 REJECTED: grain is physically isotropic; a value
-        #   that far from 1 on a Bayer-demosaiced DSLR scan is the sensor
-        #   pattern, not the film. 1.10 (transport smear estimate) stands.
-        #   sigma shape 0.65/1.0/1.65 [T2]: 509-frame batch green channel
-        #   0.0191/0.0292/0.0482; mid sigma re-confirms the rms 11.5 fit.
+        # Grain [see PROVENANCE CORRECTION above]:
+        #   rms 11.5 kept: still [T1] (fitted through the full pipeline), and
+        #   both scan runs' native-res mid sigma agree with the 0.030 that fit
+        #   produced -- mixed 509 gives 0.0292, confirmed 67 gives 0.0425.
+        #   clump 23 um [T2]: mixed 509-frame correlation length 3.48 px at
+        #   122.7 px/mm = 28 um raw, ~23 um after deconvolving a ~2 px scanner
+        #   PSF. The confirmed 67-frame subset measures 3.63 px = 29.6 um raw,
+        #   ~24.7 um deconvolved -- i.e. the contamination bias is visible and
+        #   in the predicted direction (Foto-32 finer), but the shift is
+        #   inside the stated uncertainty of this figure, so 23 um stands.
+        #   (Previous 15 um was T3; the RMS calibration integral keeps the
+        #   rendered amplitude pinned, so only the grain SCALE shifts.)
+        #   anisotropy 0.62-0.66 STILL NOT ADOPTED, but the previously stated
+        #   REASON WAS WRONG. It was rejected as a "Bayer mosaic on a DSLR
+        #   scan"; the device is a GCMC/UF15 scanner (see above), so there is
+        #   no established Bayer pattern to blame. The measurement is also
+        #   REPRODUCIBLE, not noise: 0.658 on the mixed 509 frames and 0.634
+        #   on the confirmed 67. Something anisotropic is real in these scans
+        #   -- candidates are scanner line/transport structure and film
+        #   transport smear -- but nothing distinguishes them from these files
+        #   alone. 1.10 (transport-smear estimate) stands as [T3], and the
+        #   question is logged in DIGITIZATION_QUEUE.md as OPEN, not settled.
+        #   sigma(D) shape WITHDRAWN 2026-08-18 -> schema default. The
+        #   0.65/1.0/1.65 adopted here came from the mixed 509-frame green
+        #   channel (0.0191/0.0292/0.0482). The confirmed 67-frame subset does
+        #   NOT reproduce it and does not merely differ in size -- the SIGN
+        #   changes: 0.0479/0.0425/0.0435, i.e. shape 1.13/1.00/1.02, flat to
+        #   slightly toe-peaked instead of strongly rising. Bin edges are
+        #   absolute offsets from d_base (+0.05/+0.35/+0.95) and the two
+        #   d_base values differ by only 0.024 D, so this is NOT a binning
+        #   artefact. Neither run is adopted: the toe disagreement is a factor
+        #   of 2.5 and is UNEXPLAINED (adding 442 frames should not move a
+        #   toe-bin statistic that far), and the estimator is scanner-noise
+        #   dominated by the analyzer's own admission ("treat as upper
+        #   bounds"). Per method rule: the conflict is RECORDED, never
+        #   averaged. Blocker for re-adoption: a step-wedge scan on this
+        #   scanner, or an --empty-gate frame plus a Foto-65-only batch.
+        #   The default this falls back to is _grain_v2's 0.4/1.0/1.2 [T3],
+        #   which for a B&W SILVER negative is the defensible fallback rather
+        #   than an embarrassment: sigma proportional to sqrt(D) is the
+        #   textbook Poisson-counting result for silver, and it rises. (The
+        #   FALLING triples adopted for the four Vision3 stocks are measured
+        #   on CHROMOGENIC colour negatives, a different mechanism -- see the
+        #   GrainSpec docstring. Do not transfer that sign to this stock.)
         grain=GrainSpec(11.5, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
-                        anisotropy=1.10,
-                        sigma_shape_toe=0.65, sigma_shape_dmax=1.65),
+                        anisotropy=1.10),
         # f50 35 [T2, raised from the 34 estimate 2026-08-11]: GOST 24876-81
         # table 6 requires T(30 mm^-1) >= 0.60 for Foto-65 in BOTH quality
         # grades; a Gaussian f50 of 34 gives T(30) = 0.583, i.e. the old
@@ -4233,22 +5112,44 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # at an assumed 5 stops highlight overshoot -> 0.09; the assumption
         # spans 0.04 (7 stops) to 0.19 (4 stops), hence T2. Radii: middle
         # lobe moved to the measured 69 um, weights biased onto it.
+        # 2026-08-18: KEPT, with the mixed-batch caveat noted. The confirmed
+        # 67-frame subset (19 usable highlight frames) measures 0.166 D
+        # excess against 0.199 on the mixed 509 -- 17 % lower, one direction,
+        # far inside the 4-to-7-stop overshoot assumption that already sets
+        # this parameter's T2 tier. Halation is a single-channel scalar here,
+        # so unlike base_tint and silver_tone it does not depend on the
+        # per-channel structure that turned out to be scanner artefact.
         halation=HalationSpec(radii_um=(12.0, 69.0, 320.0),
                               weights=(0.30, 0.55, 0.15),
                               gain_r=0.09, gain_g=0.09, gain_b=0.09),
-        # [T2] base_tint: 509-frame batch, (0.991, 1.000, 0.991) -- green
-        # fractionally strong, R and B symmetric. CONTAMINATED tier as
-        # always: scanner illuminant + WB folded in.
-        base_tint=(0.991, 1.000, 0.991),
-        # silver_tone +0.40 [T2] -- SIGN REVERSAL; the evidence trail
-        # matters: one frame said cold (-0.25); the 355-frame batch said
-        # near neutral (-0.10 kept); the 509-frame batch measures
-        # tone_slope_r -0.0205 / _b +0.0079: dense areas transmit MORE red
-        # and LESS blue, so the image's bright regions print WARM. The
-        # crow-wing cold shadows survive as the relative complement.
-        # Magnitude by inverting stage 14c at w~0.9 against the measured
-        # dense-end r/g transmission ratio 1.10 -> tone ~0.40.
-        silver_tone=0.40,
+        # base_tint WITHDRAWN 2026-08-18 -> identity (no base tint modelled).
+        # The (0.991, 1.000, 0.991) adopted here came from the mixed
+        # 509-frame batch. The 67 confirmed Foto-65 frames are EXACTLY
+        # greyscale (max |R-G| = max |B-G| = 0), so that 0.9 % asymmetry
+        # cannot have come from this emulsion; it is scanner white-balance
+        # drift across the contaminated tail. For a B&W silver negative a
+        # measured base tint would in any case be a base/antihalation dye
+        # property, and nothing in these scans can separate it from the
+        # scanner illuminant. Identity until an --empty-gate frame exists.
+        base_tint=(1.0, 1.0, 1.0),
+        # silver_tone 0.0 [T3] -- EVIDENCE WITHDRAWN 2026-08-18. The whole
+        # trail (-0.25 from one frame, -0.10 from the 355-frame batch, then
+        # +0.40 from the 509-frame batch) rests on per-channel density drift
+        # in these scans, and the sign reversal to +0.40 rested specifically
+        # on tone_slope_r -0.0205 / _b +0.0079. On the 67 confirmed Foto-65
+        # frames both slopes are identically 0.0000, and every crossover bin
+        # is 0.0000, because those frames are exactly greyscale. So the
+        # measurement that reversed the sign came entirely from the mixed
+        # Foto-32/Foto-65 tail and cannot be attributed to this emulsion.
+        # Set NEUTRAL rather than restored to -0.10: -0.10 came from the same
+        # rig and the same class of artefact, so restoring it would swap one
+        # unsupported number for another. Image tone of a developed silver
+        # negative is a real physical effect (developer, grain size,
+        # sulphiding) and this is NOT a claim that Foto-65 is neutral -- it
+        # is the absence of any admissible measurement. Blocker: a scan of
+        # this film against a neutral reference with a characterised
+        # illuminant, or a printed Svema/GOST figure for image tone.
+        silver_tone=0.0,
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
     ),
     # ------------------------------- USSR ----------------------------------
@@ -4271,7 +5172,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         exposure_index=250,
         balance_kelvin=5500,
         # gamma 0.85 [T2]: 26-frame v2 batch estimates 0.844 -- essentially
-        # the same slope as FN-64's 0.834, NOT higher. This contradicts the
+        # the same slope as the Svema mixed batch's 0.834, NOT higher.
+        # (2026-08-18: that 0.834 comparator is from the mixed Foto-32/Foto-65
+        # folder; the Foto-65-only subset estimates 0.677. The "same slope,
+        # not higher" conclusion therefore rests on a comparator with a known
+        # one-directional bias. It is not re-derived here because 26 frames is
+        # thin evidence either way and the adoption already rounded toward the
+        # prior value rather than past it -- but the comparison is weaker than
+        # it reads. Logged in DIGITIZATION_QUEUE.md.) This contradicts the
         # remembered "more contrast than FN-64" (which had set 0.95); the
         # memory may reflect development practice rather than the emulsion,
         # and expired stock loses contrast besides. 26 frames is thin
@@ -4280,6 +5188,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # rms_granularity is [T1] -- FITTED TO MEASUREMENT, not estimated.
         # Flat-region sigma over 3 supplied scans at matched mid density gave
         # FN250 0.0502 against SVEMA_FOTO_65's 0.0299, a ratio of 1.68x.
+        # 2026-08-18 caveat: the Foto-65 side of that ratio (0.0299) came from
+        # the owner's Svema scans, and the folder is now known to mix Foto-32
+        # with Foto-65. Which 3 frames were used is not recorded, so the
+        # denominator may be biased LOW (Foto-32 is finer), which would make
+        # the true FN250/Foto-65 ratio SMALLER than 1.68x, not larger. Not
+        # re-fitted: the value that ships (rms 25.0) was already capped well
+        # below what a literal fit demanded, so this bias pushes in the
+        # direction the cap already went. Logged in DIGITIZATION_QUEUE.md.
         # Tuned through the FULL PIPELINE, not by scaling RMS directly: a
         # naive 11.5*1.68=19.4 only gives 1.42x, because the coarser clump
         # (21.5 um vs 15.0) spreads spectral energy differently and the
@@ -4371,6 +5287,36 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # brown-black Tasma look is real but gentler than the guess; the
         # measured dense-end r/g ratio 1.07 inverts to ~0.30 by the same
         # stage-14c mapping used for Svema.
+        # ⚠ FLAGGED 2026-08-18, NOT CHANGED -- awaiting owner approval. The
+        # Svema comparator named above (-0.0205) was withdrawn on 2026-08-18
+        # as a scanner artefact, and this value rests on the SAME estimator on
+        # the SAME rig, so the flag is about method, not about the comparator.
+        # Three specific reasons to distrust +0.30, all readable from the
+        # analyzer's own output (PDF/PROFILES/TASMA/TASMA-FN64_generated_
+        # film_profile.txt, 132 frames):
+        #   (1) That file reports tint_r = tint_g = tint_b = 1.000 exactly and
+        #       dmin 0.0088 / 0.0088 / 0.0087 -- the channels are essentially
+        #       DEGENERATE, so a tone slope of -0.0156 is being read out of
+        #       differences at the edge of the encoding's resolution.
+        #   (2) All 12 crossover bins are <= 0.0005 in magnitude.
+        #   (3) Both Soviet batches land on the same signature -- Svema
+        #       tone_slope_r -0.0205 / _b +0.0079, Tasma -0.0156 / +0.0011.
+        #       Two different factories' emulsions agreeing on the sign AND
+        #       rough magnitude of a warm-dense drift is better explained by a
+        #       shared property of the scanner/JPEG pipeline (this is 4:2:2
+        #       chroma-subsampled JPEG, so the chroma planes are half
+        #       horizontal resolution) than by photochemistry.
+        # DIFFERENCE FROM THE SVEMA CASE, stated so this is not overclaimed:
+        # there is no disclosure that the Tasma folder mixes emulsions, and
+        # no greyscale test has been run on those frames because they are not
+        # in SAMPLES/. So this is "the method is suspect", not "the frames are
+        # proven greyscale". The one-line test that settled Svema --
+        # max |R-G| over the batch -- would settle this too. Recommendation:
+        # run it before either keeping or dropping +0.30. Logged in
+        # DIGITIZATION_QUEUE.md. Note the earlier line above cites +8.6 and
+        # +15.6 out of 255 from three user-supplied scans, which is a
+        # DIFFERENT and much larger observation; if those three scans are
+        # locatable they are the better evidence and may rescue this value.
         silver_tone=0.30,
         # [T2] halation ENABLED: 132-frame batch, 0.24 D excess (~0.29
         # bias-corrected), radius 8.3 px at 28.9 px/mm = 287 um -- but one
@@ -4466,7 +5412,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         era="1960s-1980s",
         kind=StockKind.REVERSAL,
         exposure_index=50,
-        balance_kelvin=4500,
+        balance_kelvin=5500,    # CORRECTED 2026-08-16: was 4500 (an estimate).
+                                # Zhurba 1990 Table 66 (p124, owner-supplied
+                                # page scans) lists ORWOCHROM UT-18 balanced
+                                # to 5500 K, with the note that a BLUE filter
+                                # is needed under incandescent lamps -- i.e. a
+                                # daylight reversal film. The first ORWO
+                                # balance figure documented anywhere in this
+                                # corpus.
         # Aged-dye signature from the batch's crossover table (medians per
         # density bin -- robust to scene colour): blue-dense at BOTH ends
         # relative to mid (toe_b +0.45, dense_b +0.29) = yellowed highlights
@@ -4614,6 +5567,18 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(0.99, 0.995, 1.0),
         misregistration_um=5.0,
         default_format="ff35",
+        # -- schema v7 carrier, INERT -- measured reciprocity vs TIME ----------
+        # The sheet prints a CC-filter row and fills it with 'None' at every time.
+        # That EMPTY-BY-STATEMENT case is different from a sheet that simply omits the
+        # row: it documents ACHROMATIC failure positively, on a COLOUR film, which is
+        # the distinction the single-exponent ReciprocitySpec cannot carry. The two
+        # empty strings below are therefore data, not missing values.
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0),
+            stops_correction=(0.0, 1.0),
+            cc_filters=("", ""),
+            source=("Konica Corporation, 'Konica Color VX 100 Film (IMPROVED) -- Technical Data Sheet', RECIPROCITY FAILURE COMPENSATION GUIDE: 1/10000-1 s none, 10 s +1 stop, and the 'Color Compensating Filters' row reads 'None' at BOTH times"),
+        ),
         features=Feature.NONE,
         # Spectral curves [T1-digitised 2026-08-02, agent batch 3,
         # overlay-verified]: Konica VX 100 TDS p2, D 1.0 above D-min,
@@ -4921,6 +5886,16 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         mtf=MTFSpec(56.0, 56.0, 56.0, adjacency=0.06),
         spectral_weights=(0.28, 0.46, 0.26),
         misregistration_um=0.0,
+        # -- schema v7 carrier, INERT -- measured reciprocity vs TIME ----------
+        # CALCULATED FROM THE PUBLISHED FORMULA, not digitised from the graph.
+        # Ta = Tm^1.26 gives an added exposure of 0.26*log2(Tm) stops, hence 0 at 1 s,
+        # 0.517 at 10 s and 1.591 at 100 s. No CC filters: this is a monochrome film,
+        # so failure is achromatic by construction and cc_filters stays empty.
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 0.517, 1.591),
+            source=("HARMAN technology Limited, 'KENTMERE PAN 100 -- Technical Information', July 2022, p1: 'The graph is based on the formulae Ta = Tm^1.26', with no correction required between 1 s and 1/10 000 s. The corrections tabulated here are CALCULATED from that published formula, not read off the graph: stops = log2(Tm^1.26 / Tm) = 0.26 * log2(Tm)"),
+        ),
         features=Feature.NONE,
     ),
     FilmProfile(
@@ -4942,6 +5917,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.05),
         spectral_weights=(0.28, 0.46, 0.26),
         misregistration_um=0.0,
+        # -- schema v7 carrier, INERT -- measured reciprocity vs TIME ----------
+        # CALCULATED from the published Ta = Tm^1.30: 0.30*log2(Tm) stops.
+        # Monochrome, so no CC filters -- achromatic failure.
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 0.599, 1.845),
+            source=("HARMAN technology Limited, 'KENTMERE PAN 400 -- Technical Information', July 2022, p1: 'The graph is based on the formulae Ta = Tm^1.30'. Corrections CALCULATED as 0.30 * log2(Tm), not digitised"),
+        ),
         features=Feature.NONE,
     ),
     FilmProfile(
@@ -5075,6 +6058,46 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.06),
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
+        # [T1-vector] Spectral dye density, extracted from PDF vector paths
+        # 2026-08-18 by dye_density.py, NOT traced from a raster.
+        # NORMALISATION IS "peak_1.0" AND THAT MATTERS: this sheet plots each
+        # dye scaled to unit peak, so what is captured is the SHAPE of each
+        # dye's absorption -- including the off-band unwanted absorption a 3x3
+        # dye_matrix cannot express -- and NOT the absolute density level.
+        # Do not read these as densities. The sheet carries no visual-neutral
+        # trace, so the neutral = C+M+Y identity that validated 5285 is not
+        # available here; the peak-normalisation residual (0.0081 max
+        # deviation from 1.000 across the three dyes) stands in for it.
+        # Peaks land where the physics requires: yellow 450 nm, magenta
+        # 550 nm, cyan 690 nm -- absorbing blue, green and red.
+        # STILL INERT: the renderer uses the scalar dye_matrix above.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.232, 0.182, 0.136, 0.096, 0.065, 0.043, 0.028,
+                     0.017, 0.004, -0.012, -0.022, -0.030, -0.038, -0.036,
+                     -0.019, 0.019, 0.066, 0.113, 0.171, 0.265, 0.386,
+                     0.497, 0.599, 0.697, 0.784, 0.864, 0.924, 0.970,
+                     1.000, 1.007, 0.984),
+            d_magenta=(0.024, 0.010, -0.002, -0.002, -0.019, -0.027, 0.005,
+                     0.070, 0.168, 0.304, 0.459, 0.634, 0.800, 0.933,
+                     1.003, 1.006, 0.936, 0.806, 0.641, 0.474, 0.346,
+                     0.258, 0.201, 0.166, 0.144, 0.131, 0.122, 0.116,
+                     0.112, 0.109, 0.104),
+            d_yellow=(0.345, 0.598, 0.744, 0.882, 0.970, 1.008, 0.967,
+                     0.846, 0.678, 0.513, 0.376, 0.269, 0.204, 0.162,
+                     0.135, 0.120, 0.106, 0.091, 0.072, 0.056, 0.043,
+                     0.037, 0.031, 0.029, 0.028, 0.027, 0.025, 0.025,
+                     0.024, 0.024, 0.022),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, H-1-5245t / 5245.pdf, "
+                "Spectral Dye Density / DIFFUSE SPECTRAL DENSITY, p4; PDF "
+                "vector-path extraction 2026-08-18. Each dye normalised to "
+                "unit peak by the sheet; max deviation from 1.000 = 0.0081. "
+                "Method validated by re-deriving the adopted 5285 curves to "
+                "RMS 0.003 D and the 2383 curves to 0.135 D, matching that "
+                "sheet's own recorded base-absorber offset of 0.128 D"),
+        ),
         features=Feature.HALATION,
         # Spectral curves [T1-digitised 2026-08-02, batch 4]: H-1-5245t
         # (May 2003), 0.15 s, ECN-2, Status M, D 0.40 above D-min.
@@ -5162,6 +6185,46 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.06),
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
+        # [T1-vector] Spectral dye density, extracted from PDF vector paths
+        # 2026-08-18 by dye_density.py, NOT traced from a raster.
+        # NORMALISATION IS "peak_1.0" AND THAT MATTERS: this sheet plots each
+        # dye scaled to unit peak, so what is captured is the SHAPE of each
+        # dye's absorption -- including the off-band unwanted absorption a 3x3
+        # dye_matrix cannot express -- and NOT the absolute density level.
+        # Do not read these as densities. The sheet carries no visual-neutral
+        # trace, so the neutral = C+M+Y identity that validated 5285 is not
+        # available here; the peak-normalisation residual (0.0050 max
+        # deviation from 1.000 across the three dyes) stands in for it.
+        # Peaks land where the physics requires: yellow 450 nm, magenta
+        # 540 nm, cyan 690 nm -- absorbing blue, green and red.
+        # STILL INERT: the renderer uses the scalar dye_matrix above.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.204, 0.149, 0.102, 0.066, 0.047, 0.027, 0.023,
+                     0.015, 0.011, 0.010, 0.011, 0.018, 0.027, 0.046,
+                     0.075, 0.112, 0.149, 0.191, 0.252, 0.340, 0.439,
+                     0.531, 0.622, 0.710, 0.790, 0.862, 0.923, 0.968,
+                     0.995, 0.997, 0.972),
+            d_magenta=(0.074, 0.076, 0.090, 0.110, 0.089, 0.088, 0.114,
+                     0.181, 0.274, 0.394, 0.542, 0.698, 0.839, 0.952,
+                     1.000, 0.965, 0.851, 0.693, 0.535, 0.408, 0.316,
+                     0.260, 0.223, 0.203, 0.193, 0.189, 0.186, 0.186,
+                     0.185, 0.182, 0.175),
+            d_yellow=(0.517, 0.654, 0.795, 0.916, 0.989, 0.995, 0.927,
+                     0.776, 0.602, 0.446, 0.320, 0.231, 0.178, 0.140,
+                     0.117, 0.099, 0.081, 0.066, 0.056, 0.050, 0.048,
+                     0.048, 0.051, 0.053, 0.056, 0.059, 0.061, 0.062,
+                     0.063, 0.063, 0.060),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, 5293.pdf, "
+                "Spectral Dye Density / DIFFUSE SPECTRAL DENSITY, p4; PDF "
+                "vector-path extraction 2026-08-18. Each dye normalised to "
+                "unit peak by the sheet; max deviation from 1.000 = 0.0050. "
+                "Method validated by re-deriving the adopted 5285 curves to "
+                "RMS 0.003 D and the 2383 curves to 0.135 D, matching that "
+                "sheet's own recorded base-absorber offset of 0.128 D"),
+        ),
         features=Feature.HALATION,
         # Spectral curves [T1-digitised 2026-08-02, batch 4]: H-1-5293t
         # (August 2003), 0.013 s, ECN-2, Status M, D 0.4 > D-min. Kodak
@@ -5207,6 +6270,46 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.08),
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
+        # [T1-vector] Spectral dye density, extracted from PDF vector paths
+        # 2026-08-18 by dye_density.py, NOT traced from a raster.
+        # NORMALISATION IS "peak_1.0" AND THAT MATTERS: this sheet plots each
+        # dye scaled to unit peak, so what is captured is the SHAPE of each
+        # dye's absorption -- including the off-band unwanted absorption a 3x3
+        # dye_matrix cannot express -- and NOT the absolute density level.
+        # Do not read these as densities. The sheet carries no visual-neutral
+        # trace, so the neutral = C+M+Y identity that validated 5285 is not
+        # available here; the peak-normalisation residual (0.0137 max
+        # deviation from 1.000 across the three dyes) stands in for it.
+        # Peaks land where the physics requires: yellow 450 nm, magenta
+        # 540 nm, cyan 670 nm -- absorbing blue, green and red.
+        # STILL INERT: the renderer uses the scalar dye_matrix above.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.199, 0.161, 0.125, 0.091, 0.057, 0.027, 0.003,
+                     -0.012, -0.022, -0.029, -0.032, -0.032, -0.027, -0.017,
+                     0.001, 0.035, 0.096, 0.184, 0.277, 0.369, 0.462,
+                     0.556, 0.651, 0.745, 0.837, 0.919, 0.968, 0.986,
+                     0.980, 0.943, 0.881),
+            d_magenta=(0.016, 0.019, 0.014, 0.015, 0.012, 0.015, 0.085,
+                     0.205, 0.332, 0.455, 0.584, 0.711, 0.822, 0.919,
+                     0.994, 0.955, 0.866, 0.774, 0.685, 0.601, 0.522,
+                     0.448, 0.376, 0.304, 0.232, 0.162, 0.110, 0.069,
+                     0.051, 0.047, 0.043),
+            d_yellow=(0.521, 0.636, 0.748, 0.855, 0.954, 0.988, 0.905,
+                     0.797, 0.688, 0.576, 0.467, 0.365, 0.272, 0.188,
+                     0.117, 0.063, 0.038, 0.029, 0.025, 0.022, 0.019,
+                     0.017, 0.016, 0.014, 0.013, 0.012, 0.011, 0.010,
+                     0.009, 0.008, 0.008),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, 5279.pdf, "
+                "Spectral Dye Density / DIFFUSE SPECTRAL DENSITY, p3; PDF "
+                "vector-path extraction 2026-08-18. Each dye normalised to "
+                "unit peak by the sheet; max deviation from 1.000 = 0.0137. "
+                "Method validated by re-deriving the adopted 5285 curves to "
+                "RMS 0.003 D and the 2383 curves to 0.135 D, matching that "
+                "sheet's own recorded base-absorber offset of 0.128 D"),
+        ),
         features=Feature.HALATION,
         # Spectral curves [T1-digitised 2026-08-02, batch 4]: H-1-5279
         # (March 1996); plotted on a -2..+2 log axis, offset removed by
@@ -5252,6 +6355,46 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.08),
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
+        # [T1-vector] Spectral dye density, extracted from PDF vector paths
+        # 2026-08-18 by dye_density.py, NOT traced from a raster.
+        # NORMALISATION IS "peak_1.0" AND THAT MATTERS: this sheet plots each
+        # dye scaled to unit peak, so what is captured is the SHAPE of each
+        # dye's absorption -- including the off-band unwanted absorption a 3x3
+        # dye_matrix cannot express -- and NOT the absolute density level.
+        # Do not read these as densities. The sheet carries no visual-neutral
+        # trace, so the neutral = C+M+Y identity that validated 5285 is not
+        # available here; the peak-normalisation residual (0.0074 max
+        # deviation from 1.000 across the three dyes) stands in for it.
+        # Peaks land where the physics requires: yellow 450 nm, magenta
+        # 540 nm, cyan 690 nm -- absorbing blue, green and red.
+        # STILL INERT: the renderer uses the scalar dye_matrix above.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.205, 0.149, 0.109, 0.071, 0.052, 0.036, 0.024,
+                     0.013, 0.004, 0.003, 0.006, 0.014, 0.024, 0.036,
+                     0.057, 0.092, 0.133, 0.178, 0.229, 0.308, 0.409,
+                     0.510, 0.607, 0.696, 0.777, 0.840, 0.896, 0.946,
+                     0.980, 0.995, 0.979),
+            d_magenta=(0.044, 0.033, 0.034, 0.042, 0.010, -0.006, 0.036,
+                     0.116, 0.216, 0.362, 0.521, 0.676, 0.822, 0.940,
+                     0.993, 0.960, 0.881, 0.748, 0.591, 0.456, 0.370,
+                     0.297, 0.239, 0.205, 0.186, 0.175, 0.168, 0.165,
+                     0.166, 0.157, 0.144),
+            d_yellow=(0.507, 0.653, 0.796, 0.903, 0.963, 0.993, 0.935,
+                     0.803, 0.639, 0.476, 0.324, 0.201, 0.122, 0.068,
+                     0.044, 0.027, 0.016, 0.010, 0.006, 0.005, 0.005,
+                     0.005, 0.005, 0.005, 0.005, 0.004, 0.004, 0.004,
+                     0.004, 0.004, 0.004),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, 5274.pdf, "
+                "Spectral Dye Density / DIFFUSE SPECTRAL DENSITY, p4; PDF "
+                "vector-path extraction 2026-08-18. Each dye normalised to "
+                "unit peak by the sheet; max deviation from 1.000 = 0.0074. "
+                "Method validated by re-deriving the adopted 5285 curves to "
+                "RMS 0.003 D and the 2383 curves to 0.135 D, matching that "
+                "sheet's own recorded base-absorber offset of 0.128 D"),
+        ),
         features=Feature.HALATION,
         # Spectral curves [T1-digitised 2026-08-02, batch 4]: H-1-5274
         # (April 1997), 0.013 s, ECN-2, Status M, D 0.4 above D-min.
@@ -5426,6 +6569,46 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(-0.1),
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
+        # [T1-vector] Spectral dye density, extracted from PDF vector paths
+        # 2026-08-18 by dye_density.py, NOT traced from a raster.
+        # NORMALISATION IS "peak_1.0" AND THAT MATTERS: this sheet plots each
+        # dye scaled to unit peak, so what is captured is the SHAPE of each
+        # dye's absorption -- including the off-band unwanted absorption a 3x3
+        # dye_matrix cannot express -- and NOT the absolute density level.
+        # Do not read these as densities. The sheet carries no visual-neutral
+        # trace, so the neutral = C+M+Y identity that validated 5285 is not
+        # available here; the peak-normalisation residual (0.0127 max
+        # deviation from 1.000 across the three dyes) stands in for it.
+        # Peaks land where the physics requires: yellow 440 nm, magenta
+        # 530 nm, cyan 680 nm -- absorbing blue, green and red.
+        # STILL INERT: the renderer uses the scalar dye_matrix above.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.182, 0.150, 0.115, 0.083, 0.057, 0.040, 0.032,
+                     0.028, 0.024, 0.024, 0.025, 0.028, 0.034, 0.049,
+                     0.070, 0.092, 0.147, 0.207, 0.283, 0.387, 0.495,
+                     0.595, 0.684, 0.768, 0.842, 0.904, 0.951, 0.981,
+                     0.990, 0.975, 0.936),
+            d_magenta=(0.041, 0.051, 0.069, 0.079, 0.064, 0.084, 0.135,
+                     0.215, 0.334, 0.485, 0.648, 0.795, 0.916, 0.987,
+                     0.980, 0.882, 0.714, 0.533, 0.380, 0.259, 0.182,
+                     0.133, 0.105, 0.088, 0.078, 0.069, 0.063, 0.059,
+                     0.055, 0.051, 0.046),
+            d_yellow=(0.538, 0.691, 0.838, 0.943, 0.996, 0.979, 0.880,
+                     0.720, 0.542, 0.380, 0.253, 0.164, 0.104, 0.062,
+                     0.039, 0.022, 0.014, 0.008, 0.002, -0.007, -0.012,
+                     -0.013, -0.011, -0.008, -0.007, -0.009, -0.010, -0.010,
+                     -0.012, -0.012, -0.013),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, H-1-5205t / 5205t.pdf, "
+                "Spectral Dye Density / DIFFUSE SPECTRAL DENSITY, p4; PDF "
+                "vector-path extraction 2026-08-18. Each dye normalised to "
+                "unit peak by the sheet; max deviation from 1.000 = 0.0127. "
+                "Method validated by re-deriving the adopted 5285 curves to "
+                "RMS 0.003 D and the 2383 curves to 0.135 D, matching that "
+                "sheet's own recorded base-absorber offset of 0.128 D"),
+        ),
         features=Feature.HALATION,
         # Spectral curves [T1-digitised 2026-08-02, batch 4]: H-1-5205t
         # (August 2004), 1/25 s, ECN-2, Status M, D 0.2 > D-min.
@@ -5489,6 +6672,16 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         spectral_weights=(0.24, 0.51, 0.25),
         misregistration_um=0.0,
         default_format="ff35",
+        # ⚠ FLAGGED 2026-08-18, NOT CHANGED -- awaiting owner approval.
+        # silver_tone +0.30 and base_tint (0.991, 1.000, 0.991) below are
+        # undocumented [T3] TRANSFERS from SVEMA_FOTO_65, whose measured
+        # base_tint and silver_tone were WITHDRAWN on 2026-08-18 (the source
+        # frames are exactly greyscale; see the provenance correction there).
+        # Neither value carries a source of its own. They are left in place
+        # because changing them was not in the approved scope, but they now
+        # inherit from a parent that no longer holds the values they came
+        # from. Recommendation: base_tint -> identity, silver_tone -> 0.0,
+        # for the same reason as the parent. Logged in DIGITIZATION_QUEUE.md.
         silver_tone=0.30,
         # Halation [T3]: FN-64's measured geometry, gain reduced for the
         # thinner slow emulsion.
@@ -5530,6 +6723,11 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         spectral_weights=(0.30, 0.55, 0.15),
         misregistration_um=0.0,
         default_format="ff35",
+        # ⚠ FLAGGED 2026-08-18, NOT CHANGED -- same defect as SVEMA_FOTO_32
+        # above. silver_tone +0.35 and base_tint (0.991, 1.000, 0.991) are
+        # undocumented [T3] transfers from SVEMA_FOTO_65's now-WITHDRAWN
+        # measured values. Recommendation: identity and 0.0. Awaiting
+        # approval; logged in DIGITIZATION_QUEUE.md.
         silver_tone=0.35,
         halation=HalationSpec(radii_um=(13.0, 90.0, 360.0),
                               weights=(0.28, 0.55, 0.17),
@@ -5542,8 +6740,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         aliases=("ds4", "ds-4", "ds 4", "svema ds4", "svema ds 4",
                  "svema ds-4"),
         description=(
-            "[T2] Soviet UNMASKED colour negative still film for daylight, "
-            "S 45 GOST (TU 6-17-622-74). Gurlev 1986 p354-355: overall "
+            "[T1] Soviet UNMASKED colour negative still film for daylight, "
+            "S 45 GOST. Now grounded in its own primary specification "
+            "ТУ 6-17-622-84 (Svema, Shostka; in force 1985-1990, superseding "
+            "ТУ 6-17-622-74): recommended contrast coefficient 0.70 upper and "
+            "middle layers / 0.60 lower, development 6-8 min, fog <= 0.28 in "
+            "every spectral zone, latitude >= 1.2, resolving power >= 68 lin/mm "
+            "per ГОСТ 2819-84, Status M densitometry, deformation temperature "
+            ">= 33 C. Gurlev 1986 p354-355 (citing the earlier 1974 edition): overall "
             "gamma 0.8 (well above western colour-neg practice), latitude "
             "1.2 logH, Dmax 2.0, contrast balance 0.12, D0 0.25 per "
             "spectral zone, R 63 lin/mm. No coupler mask -> no orange base, "
@@ -5554,16 +6758,32 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         era="1970s-1980s",
         exposure_index=45,
         balance_kelvin=5500,
-        # gamma 0.80 overall [T1] (Gurlev p355); per-layer spread [T3]
-        # small, blue a touch steeper (Soviet practice, top layer). dmin
-        # 0.25 [T1]: documented D0 per spectral zone -- unmasked, so the
-        # three channels sit together instead of on an orange ladder.
-        # Straight-line span sized to the documented L 1.2 logH; Dmax
-        # lands at 0.25 + 0.8*2.2 = 2.01 against the documented 2.0.
+        # [T1] PER-LAYER GAMMA FROM THE PRIMARY SPECIFICATION, 2026-08-17.
+        # ТУ 6-17-622-84 table 4 (sheet 4) states the RECOMMENDED contrast
+        # coefficient per layer: upper and middle 0.70 +/- 0.05, LOWER
+        # 0.60 +/- 0.05. In a colour negative the upper layer is
+        # blue-sensitive, middle green, lower red, so b = g = 0.70 and
+        # r = 0.60 -- and the red record is the SHALLOWEST, which is the
+        # opposite of the spread previously stored (0.82/0.80/0.79 with
+        # blue steepest, a [T3] guess at "Soviet practice").
+        # ON THE APPARENT CONFLICT WITH GURLEV: Gurlev 1986 p355 gives
+        # "gamma 0.8" citing the EARLIER edition ТУ 6-17-622-74. Two things
+        # differ, and both are recorded rather than reconciled by fiat --
+        # the edition (1974 vs 1984, same designation) and the quantity
+        # (Gurlev prints one overall figure; the TU specifies the
+        # recommended DEVELOPMENT AIM per layer, which is what our curves
+        # represent). The TU is preferred here because it is the primary
+        # specification and it is per-layer.
+        # dmin 0.25 retained: Gurlev's typical D0 per spectral zone. The
+        # TU sets a CEILING of 0.28 in every spectral zone (table 4 item 5),
+        # so 0.25 is consistent with it and is not overwritten by a limit.
+        # Unmasked, so the three channels sit together rather than on an
+        # orange ladder -- the equal-across-zones fog ceiling confirms it.
+        # Straight-line span sized to the documented L >= 1.2 logH.
         curves=RGBCurves(
-            r=_neg(0.25, 0.790, toe_x=-1.00, toe_k=0.34, shoulder_x=1.20),
-            g=_neg(0.25, 0.800, toe_x=-1.02, toe_k=0.34, shoulder_x=1.20),
-            b=_neg(0.26, 0.820, toe_x=-0.96, toe_k=0.32, shoulder_x=1.16),
+            r=_neg(0.25, 0.600, toe_x=-1.30, toe_k=0.32, shoulder_x=1.30),
+            g=_neg(0.25, 0.700, toe_x=-1.28, toe_k=0.32, shoulder_x=1.28),
+            b=_neg(0.26, 0.700, toe_x=-1.26, toe_k=0.32, shoulder_x=1.26),
         ),
         # Grain [T3]: slow (EI 45) 1970s colour negative, Soviet coating:
         # coarser than western contemporaries of the same speed.
@@ -5630,6 +6850,422 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         features=Feature.UNEVEN_EMULSION,
     ),
     FilmProfile(
+        name="SVEMA_DS_5M",
+        aliases=("ds-5m", "ds5m", "ds 5m", "svema ds-5m", "tasma ds-5m",
+                 "ds-5", "ds5"),
+        description=(
+            "[T1] Soviet MASKED colour negative CINE film for daylight or "
+            "carbon-arc, S >= 50 GOST 9160-82. The best-documented Soviet "
+            "stock in this database: every number below is a norm printed in "
+            "the manufacturing specification TU 6-17-691-88 (1988, superseding "
+            "TU 6-17-661-82), issued jointly by the Shostka 'Svema' and Kazan "
+            "'Tasma' works. Mean gradient behind blue/green/red 0.60/0.54/0.50 "
+            "(+0.06/-0.04), Dmin 0.70-1.05 / 0.25-0.50 / <=0.25 -- that ladder "
+            "IS the orange mask, stated numerically. Latitude >= 1.2, MTF at "
+            "30 mm^-1 >= 0.30 green and 0.15 red, RMS granularity (1000*sigma) "
+            "<= 22 green and <= 30 red, yellow filter-layer efficiency >= 0.8. "
+            "Grain shape, halation and coupler diffusion remain [T3] class "
+            "estimates -- the specification sets limits, not shapes."
+        ),
+        era="1982-1991",
+        exposure_index=50,
+        balance_kelvin=5500,
+        # [T1] CURVES FROM THE SPECIFICATION, not from a plot. TU 6-17-691-88
+        # table 2 (p3) prints mean gradient and Dmin per filter as NORMS with
+        # tolerances; the nominal value of each is used.
+        #   gamma  b 0.60 (+0.06/-0.04), g 0.54, r 0.50
+        #   Dmin   b 0.70-1.05 -> 0.88 mid, g 0.25-0.50 -> 0.38 mid,
+        #          r <= 0.25 -> 0.25 taken as the stated ceiling
+        # The blue > green > red Dmin ordering is the coloured-coupler mask
+        # itself, and this is the FIRST numerically documented orange mask in
+        # the corpus -- NotFound.md section 3 had recorded it as absent
+        # everywhere. Straight section sized to the specified latitude >= 1.2
+        # logH (note 1 of the table allows <= 25 % of batches at >= 1.05).
+        curves=RGBCurves(
+            r=_neg(0.25, 0.500, toe_x=-1.10, toe_k=0.32, shoulder_x=1.15),
+            g=_neg(0.38, 0.540, toe_x=-1.12, toe_k=0.32, shoulder_x=1.15),
+            b=_neg(0.88, 0.600, toe_x=-1.08, toe_k=0.30, shoulder_x=1.12),
+        ),
+        # [T1] RMS granularity: the specification caps 1000*sigma_D at 22 for
+        # the green and 30 for the red record; blue is NOT specified, so the
+        # pooled figure carries the green ceiling and the per-channel red is
+        # entered as printed. These are CEILINGS, not typical values -- real
+        # stock sat below them, so treating them as measurements would
+        # overstate the grain.
+        grain=GrainSpec(22.0, 15.0, 16.0, 19.0, clump_gain=1.30, fog_grain=0.28,
+                        anisotropy=1.05, rms_r=30.0, rms_g=22.0,
+                        # rms_b deliberately left 0.0: the specification sets no
+                        # blue ceiling, so the v1 pooled fallback applies rather
+                        # than an invented figure.
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
+        # [T1] MTF at 30 mm^-1 >= 0.30 (green) and >= 0.15 (red). Converting a
+        # single MTF point to f50 under the engine's Gaussian core:
+        # f50 = 30 / sqrt(log2(1/T)) gives 24.9 (green) and 15.9 (red). Blue is
+        # unspecified; it takes the green figure rather than an invented one.
+        # Again these are minima, so the real stock was no softer than this.
+        mtf=MTFSpec(15.9, 24.9, 24.9, adjacency=0.02),
+        halation=HalationSpec(radii_um=(18.0, 100.0, 420.0),
+                              gain_r=0.18, gain_g=0.12, gain_b=0.10,
+                              threshold_stops=1.4),
+        couplers=CouplerSpec(0.04, 75.0),
+        # [T1] DYE IMPURITY FROM MEASURED UNWANTED/USEFUL DENSITY RATIOS.
+        # Table 2 item 6 prints seven ratios D_unwanted/D_useful (superscript =
+        # dye, subscript = measuring band; zh = yellow, p = magenta, g = cyan;
+        # s = blue, z = green, k = red):
+        #   K^zh_z 0.06-0.18   yellow dye seen in green
+        #   K^zh_k 0.00-0.06   yellow dye seen in red
+        #   K^p_s1 0.15-0.25   magenta seen in blue (first criterion)
+        #   K^p_s2 0.05-0.15   magenta seen in blue (second criterion)
+        #   K^p_k  0.00-0.10   magenta seen in red
+        #   K^g_s  0.00-0.08   cyan seen in blue
+        #   K^g_z  0.00-0.08   cyan seen in green
+        # This is a genuine measured impurity matrix -- the class NotFound.md
+        # section 3 lists as absent corpus-wide. The engine's _dye() helper
+        # takes ONE saturation scalar, so it cannot yet express seven
+        # independent terms; the full set is carried verbatim in the schema-v7
+        # dye_density/provenance record and the scalar below is fitted to the
+        # mid-range magenta-in-blue term, the largest of them.
+        dye_matrix=_dye(0.20),
+        base_tint=(1.000, 0.985, 0.960),
+        misregistration_um=9.0,
+        default_format="ff35",
+        # -- schema v7 carrier, INERT (nothing on the render path reads it) --
+        # ТУ 6-17-691-88 p14 prints the full wet schedule, which ProcessingSpec
+        # can only represent one row of. Each stage is entered with its own
+        # temperature as specified; the two development stages carry the mean
+        # gradient the schedule is defined to reach (green record, 0.54), and
+        # the purely mechanical stages carry gamma 0.0 -- they set no contrast,
+        # which the DevelopmentPoint validator would reject, so only the stages
+        # that DO define a contrast are recorded here. The rinse, bleach and
+        # two fixing stages are named in the provenance string instead.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(
+                    developer="ЦПВ-1", dilution="working strength",
+                    minutes=5.0, celsius=20.0, contrast_index=0.54,
+                    exposure_index=50),
+                DevelopmentPoint(
+                    developer="ЦПВ-1", dilution="working strength",
+                    minutes=7.0, celsius=20.0, contrast_index=0.54,
+                    exposure_index=50),
+            ),
+            source=("ТУ 6-17-691-88 p14, table of processing stages: soak 2-4 min "
+                    "at 18+/-3 C; COLOUR DEVELOPMENT 5-7 min at 20.0+/-0.3 C; "
+                    "continued development <=5 min at 20.0+/-0.3 C; first fix 4-7 "
+                    "min at 19+/-3 C; wash 6-8 min; bleach 4 min at 19+/-3 C; wash "
+                    "4-5 min; second fix 4 min at 19+/-3 C; final wash 9-15 min. "
+                    "After the first fix the remaining stages may be run in "
+                    "daylight"),
+        ),
+        # -- schema v7 carrier, INERT -- measured dye crosstalk ---------------
+        # ТУ 6-17-691-88 table 2 item 6 (sheet 3). Superscript = DYE, subscript = MEASURING BAND, exactly as
+        # printed; these are the off-diagonal terms of a real crosstalk matrix.
+        # The renderer still uses the single-scalar dye_matrix above, which can
+        # carry only one of them -- that is why this carrier exists.
+        dye_impurity=DyeImpurity(
+            ratios=(
+                DyeImpurityRatio(dye="m", band="b", lo=0.15, hi=0.25, criterion="s1"),  # K^p_s1
+                DyeImpurityRatio(dye="m", band="b", lo=0.05, hi=0.15, criterion="s2"),  # K^p_s2 -- a SECOND blue criterion for the same dye
+                DyeImpurityRatio(dye="m", band="r", lo=0.00, hi=0.10),  # K^p_k
+                DyeImpurityRatio(dye="c", band="b", lo=0.00, hi=0.08),  # K^g_s
+                DyeImpurityRatio(dye="c", band="g", lo=0.00, hi=0.08),  # K^g_z
+                DyeImpurityRatio(dye="y", band="g", lo=0.06, hi=0.18),  # K^zh_z
+                DyeImpurityRatio(dye="y", band="r", lo=0.00, hi=0.06),  # K^zh_k
+            ),
+            source="ТУ 6-17-691-88 table 2 item 6 (sheet 3)",
+        ),
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="SVEMA_LN_8",
+        aliases=("ln-8", "ln8", "ln 8", "svema ln-8", "tasma ln-8"),
+        description=(
+            "[T1-limits] Soviet MASKED colour negative CINE film for professional "
+            "cinematography, S >= 100 GOST 9160-82. Every number comes from the "
+            "manufacturing specification ТУ 6-17-1109-88 (superseding ТУ 6-17-1109-80), "
+            "and every number is an ACCEPTANCE LIMIT rather than a measurement: mean "
+            "gradient 0.60/0.54/0.50 behind blue/green/red (+0.06 -0.04), Dmin "
+            "0.70-1.05 / 0.25-0.60 / <=0.25, latitude >= 1.5, RMS granularity <= 19 "
+            "green and <= 21 red, MTF >= 0.30 green and >= 0.15 red, yellow "
+            "filter-layer efficiency >= 1.0, RED-LAYER SENSITISATION LIMIT <= 690 nm, "
+            "any single layer >= 80 GOST. Real stock sat inside these limits, so the "
+            "rendered film is the worst permitted example of itself."
+        ),
+        era="1988-1991",
+        exposure_index=100,
+        balance_kelvin=5500,
+        # [T1] TU 6-17-1109-88 table 2 items 3 and 4, read visually from the
+        # page image (the OCR of this typewritten scan detaches values from
+        # their row labels). Mean gradient per filter: blue 0.60, green 0.54,
+        # red 0.50, all +0.06/-0.04. Dmin: blue 0.70-1.05 -> 0.88 mid,
+        # green 0.25-0.60 -> 0.42 mid, red <= 0.25 taken at the stated
+        # ceiling. Blue > green > red is the coloured-coupler mask.
+        # Straight section sized to the specified latitude >= 1.5 logH.
+        # CURVE SHAPE IS NOT IN THE DOCUMENT: toe_x/toe_k/shoulder_* are [T3]
+        # and follow the DS-5M family shape, because the TU specifies three
+        # scalars and says nothing about the curve.
+        curves=RGBCurves(
+            r=_neg(0.25, 0.500, toe_x=-1.30, toe_k=0.32, shoulder_x=1.45),
+            g=_neg(0.42, 0.540, toe_x=-1.32, toe_k=0.32, shoulder_x=1.45),
+            b=_neg(0.88, 0.600, toe_x=-1.28, toe_k=0.30, shoulder_x=1.42),
+        ),
+        # [T1-limit] RMS ceilings 19 green / 21 red (table 2 item 9). Blue is
+        # NOT specified, so it takes the pooled fallback rather than a guess.
+        grain=GrainSpec(19.0, 14.0, 15.0, 18.0, clump_gain=1.28, fog_grain=0.26,
+                        anisotropy=1.05, rms_r=21.0, rms_g=19.0,
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
+        # [T1-limit] MTF >= 0.30 green, >= 0.15 red (table 2 item 8).
+        # ⚠ THE SPATIAL FREQUENCY IS NOT PRINTED ON THAT LINE -- the row reads
+        # "на пространственной частоте v за светофильтрами" with no value. 30
+        # mm^-1 is used because every other TU in this family states 30
+        # explicitly (DS-5M, LN-9, TsND-64); that assumption is recorded here
+        # rather than hidden. Under the Gaussian core f50 = 30/sqrt(log2(1/T)):
+        # green 22.8, red 18.1. Blue unspecified -> green value.
+        mtf=MTFSpec(18.1, 22.8, 22.8, adjacency=0.02),
+        halation=HalationSpec(radii_um=(18.0, 100.0, 420.0),
+                              gain_r=0.18, gain_g=0.12, gain_b=0.10,
+                              threshold_stops=1.4),
+        couplers=CouplerSpec(0.04, 75.0),
+        # [T1] Seven measured unwanted/useful density ratios are printed
+        # (table 2 item 6), including a NEGATIVE term: K^p_s2 = minus
+        # 0.05-0.10. _dye() takes one scalar, so it is fitted to the largest
+        # positive term (K^p_s1 0.15-0.25); the full set is in provenance.
+        dye_matrix=_dye(0.20),
+        base_tint=(1.000, 0.985, 0.960),
+        misregistration_um=9.0,
+        default_format="ff35",
+        # -- schema v7 carrier, INERT -- measured dye crosstalk ---------------
+        # ТУ 6-17-1109-88 table 2 item 6 (sheet 3). Superscript = DYE, subscript = MEASURING BAND, exactly as
+        # printed; these are the off-diagonal terms of a real crosstalk matrix.
+        # The renderer still uses the single-scalar dye_matrix above, which can
+        # carry only one of them -- that is why this carrier exists.
+        # NOTE the negative term below: the specification prints "minus 0.05-0.10"
+        # for the second magenta-in-blue criterion. It is an interlayer effect and
+        # the validator deliberately permits negatives so it cannot be lost.
+        dye_impurity=DyeImpurity(
+            ratios=(
+                DyeImpurityRatio(dye="m", band="b", lo=0.15, hi=0.25, criterion="s1"),  # K^p_s1
+                DyeImpurityRatio(dye="m", band="b", lo=-0.10, hi=-0.05, criterion="s2"),  # K^p_s2 = MINUS 0.05-0.10 as printed -- negative
+                DyeImpurityRatio(dye="m", band="r", lo=0.00, hi=0.10),  # K^p_k
+                DyeImpurityRatio(dye="c", band="b", lo=0.00, hi=0.10),  # K^g_s
+                DyeImpurityRatio(dye="c", band="g", lo=0.00, hi=0.10),  # K^g_z
+                DyeImpurityRatio(dye="y", band="g", lo=0.05, hi=0.15),  # K^zh_z
+                DyeImpurityRatio(dye="y", band="r", lo=0.00, hi=0.06),  # K^zh_k
+            ),
+            source="ТУ 6-17-1109-88 table 2 item 6 (sheet 3)",
+        ),
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="SVEMA_LN_9",
+        aliases=("ln-9", "ln9", "ln 9", "svema ln-9", "tasma ln-9"),
+        description=(
+            "[T1-limits] Soviet MASKED colour negative CINE film, professional, "
+            "S >= 100 GOST 9160-82, from ТУ 6-17-1443-88. Markedly better than LN-8 "
+            "on the two structural figures: RMS granularity <= 11 in BOTH green and "
+            "red (against 19/21), and MTF at 30 mm^-1 specified as 0.40 +/- 0.05 "
+            "green and 0.22 +/- 0.03 red -- stated as a TOLERANCE rather than a "
+            "minimum, the only TU in this batch to do so. Distinguished from LN-9S "
+            "ONLY by antihalation construction: LN-9 carries a colloidal-silver "
+            "undercoat beneath the emulsion, removed during processing. All figures "
+            "are specification limits, not measurements."
+        ),
+        era="1988-1991",
+        exposure_index=100,
+        balance_kelvin=5500,
+        # [T1] TU 6-17-1443-88 table 2, read visually. Items 1-3 are shared by
+        # both marks: S >= 100, balance <= 1.5, mean gradient blue 0.60 /
+        # green 0.54 / red 0.50 (+0.06/-0.04). Item 4 differs BY MARK and is
+        # a CEILING: LN-9 blue 1.10, green 0.60, red 0.30.
+        # Latitude >= 1.5 (item 5). Curve SHAPE is not in the document [T3].
+        curves=RGBCurves(
+            r=_neg(0.30, 0.500, toe_x=-1.30, toe_k=0.32, shoulder_x=1.45),
+            g=_neg(0.60, 0.540, toe_x=-1.32, toe_k=0.32, shoulder_x=1.45),
+            b=_neg(1.10, 0.600, toe_x=-1.28, toe_k=0.30, shoulder_x=1.42),
+        ),
+        # [T1-limit] RMS <= 11 in both green and red (item 8) -- the finest
+        # grain of any Soviet colour stock in this database.
+        grain=GrainSpec(11.0, 11.0, 12.0, 14.0, clump_gain=1.10, fog_grain=0.22,
+                        anisotropy=1.04, rms_r=11.0, rms_g=11.0,
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
+        # [T1] MTF AT AN EXPLICITLY STATED 30 mm^-1 (item 7): green 0.40 +/-
+        # 0.05, red 0.22 +/- 0.03. f50 = 30/sqrt(log2(1/T)) -> green 26.1,
+        # red 20.3. Blue unspecified -> green value.
+        mtf=MTFSpec(20.3, 26.1, 26.1, adjacency=0.02),
+        halation=HalationSpec(radii_um=(18.0, 100.0, 420.0),
+                              gain_r=0.18, gain_g=0.12, gain_b=0.10,
+                              threshold_stops=1.4),
+        couplers=CouplerSpec(0.04, 75.0),
+        dye_matrix=_dye(0.15),
+        base_tint=(1.000, 0.985, 0.960),
+        misregistration_um=9.0,
+        default_format="ff35",
+        # -- schema v7 carrier, INERT -- measured dye crosstalk ---------------
+        # ТУ 6-17-1443-88 table 2 item 9 (sheet 4). Superscript = DYE, subscript = MEASURING BAND, exactly as
+        # printed; these are the off-diagonal terms of a real crosstalk matrix.
+        # The renderer still uses the single-scalar dye_matrix above, which can
+        # carry only one of them -- that is why this carrier exists.
+        # Six terms, printed in ONE shared column for both LN-9 and LN-9S.
+        dye_impurity=DyeImpurity(
+            ratios=(
+                DyeImpurityRatio(dye="m", band="b", lo=0.00, hi=0.15),  # K^p_s
+                DyeImpurityRatio(dye="m", band="r", lo=0.05, hi=0.15),  # K^p_k
+                DyeImpurityRatio(dye="c", band="b", lo=0.00, hi=0.10),  # K^g_s
+                DyeImpurityRatio(dye="c", band="g", lo=0.00, hi=0.10),  # K^g_z
+                DyeImpurityRatio(dye="y", band="g", lo=0.05, hi=0.15),  # K^zh_z
+                DyeImpurityRatio(dye="y", band="r", lo=0.00, hi=0.06),  # K^zh_k
+            ),
+            source="ТУ 6-17-1443-88 table 2 item 9 (sheet 4)",
+        ),
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="SVEMA_LN_9S",
+        aliases=("ln-9s", "ln9s", "ln 9s", "svema ln-9s", "tasma ln-9s"),
+        description=(
+            "[T1-limits] The LN-9 emulsion on a different antihalation "
+            "construction: a carbon-black LACQUER COUNTER-LAYER on the back of the "
+            "base instead of LN-9's colloidal-silver undercoat, per ТУ 6-17-1443-88. "
+            "Everything photographic is shared with LN-9 -- S >= 100, gradients "
+            "0.60/0.54/0.50, latitude >= 1.5, RMS <= 11 both channels, MTF 0.40/0.22 "
+            "at 30 mm^-1 -- and ONLY the Dmin ceilings differ: 1.00/0.55/0.25 against "
+            "LN-9's 1.10/0.60/0.30. A rear carbon layer suppresses halation without "
+            "adding density to the image-bearing side, which is why the whole ladder "
+            "sits 0.05-0.10 D lower. That makes the pair a controlled A/B on "
+            "antihalation construction from a single specification."
+        ),
+        era="1988-1991",
+        exposure_index=100,
+        balance_kelvin=5500,
+        # [T1] Same TU, same table, the OTHER mark column: Dmin ceilings blue
+        # 1.00, green 0.55, red 0.25 (item 4). Everything else identical to
+        # LN-9 by the document's own layout -- items 1-3 and 5-10 are printed
+        # in a single shared column for both marks.
+        curves=RGBCurves(
+            r=_neg(0.25, 0.500, toe_x=-1.30, toe_k=0.32, shoulder_x=1.45),
+            g=_neg(0.55, 0.540, toe_x=-1.32, toe_k=0.32, shoulder_x=1.45),
+            b=_neg(1.00, 0.600, toe_x=-1.28, toe_k=0.30, shoulder_x=1.42),
+        ),
+        grain=GrainSpec(11.0, 11.0, 12.0, 14.0, clump_gain=1.10, fog_grain=0.22,
+                        anisotropy=1.04, rms_r=11.0, rms_g=11.0,
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
+        mtf=MTFSpec(20.3, 26.1, 26.1, adjacency=0.02),
+        # The rear carbon-black layer is the more effective antihalation
+        # construction of the two, so halation gain is set lower than LN-9's.
+        # [T3]: the TU quantifies the CONSEQUENCE (a lower Dmin ladder) but
+        # not the halation itself.
+        halation=HalationSpec(radii_um=(16.0, 90.0, 380.0),
+                              gain_r=0.13, gain_g=0.09, gain_b=0.07,
+                              threshold_stops=1.5),
+        couplers=CouplerSpec(0.04, 75.0),
+        dye_matrix=_dye(0.15),
+        base_tint=(1.000, 0.985, 0.960),
+        misregistration_um=9.0,
+        default_format="ff35",
+        # -- schema v7 carrier, INERT -- measured dye crosstalk ---------------
+        # ТУ 6-17-1443-88 table 2 item 9 (sheet 4). Superscript = DYE, subscript = MEASURING BAND, exactly as
+        # printed; these are the off-diagonal terms of a real crosstalk matrix.
+        # The renderer still uses the single-scalar dye_matrix above, which can
+        # carry only one of them -- that is why this carrier exists.
+        # Six terms, printed in ONE shared column for both LN-9 and LN-9S.
+        dye_impurity=DyeImpurity(
+            ratios=(
+                DyeImpurityRatio(dye="m", band="b", lo=0.00, hi=0.15),  # K^p_s
+                DyeImpurityRatio(dye="m", band="r", lo=0.05, hi=0.15),  # K^p_k
+                DyeImpurityRatio(dye="c", band="b", lo=0.00, hi=0.10),  # K^g_s
+                DyeImpurityRatio(dye="c", band="g", lo=0.00, hi=0.10),  # K^g_z
+                DyeImpurityRatio(dye="y", band="g", lo=0.05, hi=0.15),  # K^zh_z
+                DyeImpurityRatio(dye="y", band="r", lo=0.00, hi=0.06),  # K^zh_k
+            ),
+            source="ТУ 6-17-1443-88 table 2 item 9 (sheet 4)",
+        ),
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="SVEMA_CO_32D",
+        aliases=("co-32d", "co32d", "tso-32d", "tso32d", "ЦО-32Д",
+                 "svema co-32d", "tasma co-32d"),
+        description=(
+            "[T1-limits] Soviet COLOUR REVERSAL cine and photo film for amateur use, "
+            "nominal S 32 GOST 9160-82, from ТУ 6-17-912-87. The Soviet amateur slide "
+            "film. Specified: general sensitivity by the REVERSED image 32-63; "
+            "contrast coefficient 2.2-2.6 upper layer and 1.8-2.2 middle and lower; "
+            "contrast balance between lower and middle <= 0.3; Dmax >= 2.2 and Dmin "
+            "<= 0.25 in every layer; useful exposure interval >= 1.2 measured between "
+            "densities 0.3 and 2.1; resolving power >= 68 lin/mm. Its colloidal-silver "
+            "antihalation layer is specified to DECOLOURISE during processing. Note "
+            "the contrast figures are RANGES 0.4 wide, so the stored gammas are "
+            "range midpoints -- a coarser commitment than the negative stocks above."
+        ),
+        era="1987-1991",
+        exposure_index=32,
+        balance_kelvin=5500,
+        kind=StockKind.REVERSAL,
+        # [T1-limits] TU 6-17-912-87 table 5, read visually from the page.
+        # Contrast: upper layer 2.2-2.6, middle and lower 1.8-2.2. In a
+        # reversal stack the upper layer is blue-sensitive, so b takes the
+        # 2.4 midpoint and g/r the 2.0 midpoint. Dmin <= 0.25 per layer
+        # (ceiling, used as stated); Dmax >= 2.2 per layer.
+        # ⚠ MIDPOINTS OF 0.4-WIDE RANGES. That is a weaker commitment than
+        # the +/-0.04 tolerances the negative TUs give, and it is the reason
+        # this stock was initially argued against; it is entered at the
+        # owner's request with the coarseness stated rather than smoothed over.
+        # The useful exposure interval >= 1.2 between D 0.3 and 2.1 sizes the
+        # throw. Curve shape beyond that is [T3].
+        #
+        # WHY THIS FILM LOOKS WARM WITH PALE BLUES -- an asymmetry in the TU
+        # itself, not a processing fault and not an artefact of our fit.
+        # Table 5 item 5 constrains the contrast balance "между нижним и
+        # средним слоями" (lower-to-middle, i.e. red-to-green) to <= 0.3 and
+        # says NOTHING about the upper layer, while item 4 specifies that same
+        # upper layer STEEPER than the other two (2.2-2.6 vs 1.8-2.2). So the
+        # yellow-forming layer is both the steepest and the only one untied
+        # from its neighbours: the worst legal spread is 2.6 vs 1.8 = 0.8 in
+        # gamma, where green and red must agree within 0.3. Two visible
+        # consequences follow arithmetically:
+        #   1. Warm cast. Yellow density outruns magenta/cyan away from the
+        #      point where the three coincide -- on the stored curves
+        #      Dy - Dg is +0.24 at mid-scale and +0.44 in the shadows, and
+        #      0.1 D is already visible.
+        #   2. Blues clip early and wash out pale. Over item 8's 1.8 D window
+        #      the blue record gets 1.8/2.4 = 0.75 logH of latitude against
+        #      0.90 for green and red -- about 0.8 stop less. A saturated blue
+        #      subject drives the yellow layer onto its Dmin floor while the
+        #      other two still hold density.
+        # ⚠ The DIRECTION is documented; the MAGNITUDE is bracketed, since the
+        # gammas above are range midpoints. Where the three layers coincide is
+        # [T3]: ours coincide at the highlight end, which puts all divergence
+        # into midtones and shadows. A lab balancing at mid-grey instead would
+        # get yellow shadows PLUS cool highlights -- a cross rather than a
+        # cast. The early blue clipping is gamma-driven and happens either way.
+        curves=RGBCurves(
+            r=_rev(0.25, 2.000, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+            g=_rev(0.25, 2.000, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+            b=_rev(0.25, 2.400, toe_x=-0.74, toe_k=0.17, shoulder_x=0.86),
+        ),
+        # [T3] The TU specifies NO granularity and NO MTF for this film --
+        # unlike every negative TU in the batch. Grain is a class estimate for
+        # a 1980s amateur reversal stock at S 32; only the resolving power
+        # below is documented.
+        grain=GrainSpec(13.0, 12.0, 13.0, 15.0, clump_gain=1.15, fog_grain=0.20,
+                        anisotropy=1.04,
+                        sigma_shape_toe=0.70, sigma_shape_mid=1.0,
+                        sigma_shape_dmax=0.50),
+        # f50 [T2] from the documented resolving power >= 68 lin/mm; the TU
+        # prints no MTF value to convert, so this is inferred from resolving
+        # power the same way as the other Soviet stocks, not measured.
+        mtf=MTFSpec(30.0, 34.0, 38.0, adjacency=0.02),
+        halation=HalationSpec(radii_um=(16.0, 90.0, 380.0),
+                              gain_r=0.14, gain_g=0.10, gain_b=0.08,
+                              threshold_stops=1.5),
+        couplers=CouplerSpec(0.03, 70.0),
+        dye_matrix=_dye(0.22),
+        base_tint=(1.000, 0.990, 0.975),
+        misregistration_um=8.0,
+        default_format="ff35",
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
         name="SVEMA_CNL_65",
         aliases=("tsnl65", "tsnl-65", "tsnl 65", "cnl-65", "cnl 65",
                  "svema tsnl 65", "svema tsnl-65"),
@@ -5674,10 +7310,31 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
     FilmProfile(
         name="TASMA_OCH_45",
         aliases=("och45", "och-45", "och 45", "tasma och45",
-                 "tasma och 45", "tasma och-45", "oc-45", "obrashchaemaya"),
+                 "tasma och 45", "tasma och-45", "oc-45", "obrashchaemaya",
+                 # OCH-50 aliases -- the SAME FILM under its post-1987
+                 # designation, see the identity note in the description:
+                 "och50", "och-50", "och 50", "tasma och-50"),
         description=(
             "[T2] Soviet B&W reversal, S 45 GOST (TU 6-17-646-74), the "
             "amateur cine/still slide stock of the OCh line (Tasma, Kazan). "
+            "IDENTITY, SETTLED 2026-08-16 from the standard itself: "
+            "OCH-45 and OCH-50 ARE THE SAME FILM. GOST 20945-80 carries a "
+            "reference appendix (Prilozhenie, p8, added by Amendment No. 1): "
+            "'Correspondence of cine-film types to those previously adopted' "
+            "-- before 1987-01-01: OCH-45, OCH-180; from 1987-01-01: OCH-50, "
+            "OCH-200. The rename tracks the sensitivity-scale transition: "
+            "speeds in that standard's Table 4 are cited in units of GOST "
+            "10691.4-84, the ISO-aligned scale whose nominal series runs "
+            "25/50/100/200 where the old GOST series ran 22/45/90/180. So the "
+            "'45 to 50' is the SAME emulsion's speed restated on the new "
+            "scale, not a reformulation -- and any post-1987 Soviet source "
+            "(e.g. Chibisov 1988 still using OCH-45, or catalogues using "
+            "OCH-50) refers to this one stock. Table 4 norms under the new "
+            "designation: nominal S 50 (range 50-80), contrast coefficient "
+            "1.2-1.6, Dmax >= 2.2/2.0 (top/first quality), Dmin <= 0.10 "
+            "colourless base / 0.15 tinted, latitude >= 1.05, resolving "
+            ">= 110/100 lin/mm; guarantee allows -30 percent speed and "
+            "-0.2 Dmax over storage life. "
             "Gurlev 1986 p298: first development 12 min, gamma_rec 1.1-1.6, "
             "latitude 1.05 logH, Dmax 1.9, Dmin 0.08, S behind yellow "
             "filter 16 GOST. Iofis 1980 p146: medium-speed reversal class, "
@@ -6292,6 +7949,39 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                         anisotropy=1.0),
         mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.10, adjacency_um=14.0),
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): F-4016 page 8 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.269 nm rms / 0.733 nm max on
+        # wavelength and 0.0082 rms / 0.0123 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: D-76, 20 °C, diffuse visual densitometry; criteria D = 0.3 and D = 1.0 above D-min..
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as 1.500 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: 400-690 nm.
+        # The printed curve is DASHED; dash gaps are bridged by linear
+        # interpolation between exact vector endpoints (per-gap list in the
+        # extraction report).
+        # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
+        # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_pan +0.01 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-4.00, -4.00, 0.00, -0.05, -0.12, -0.18, -0.23, 
+                     -0.29, -0.34, -0.40, -0.47, -0.52, -0.52, -0.48, 
+                     -0.43, -0.39, -0.39, -0.39, -0.39, -0.31, -0.34, 
+                     -0.38, -0.44, -0.50, -0.52, -0.50, -0.60, -1.13, 
+                     -1.81, -2.15, -2.54, -2.95, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
+            source=(
+                "Eastman Kodak Company, publication F-4016 (f4016_tmax_100-2018.pdf), Spectral "
+                "Sensitivity Curves, p8; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.TABULAR_GRAIN,
     ),
     FilmProfile(
@@ -6311,6 +8001,38 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                         anisotropy=1.0),
         mtf=MTFSpec(72.0, 72.0, 72.0, adjacency=0.10, adjacency_um=15.0),
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, batch 11):
+        # publication F-4043 (2016 edition) p7 "Spectral-Sensitivity Curves"
+        # (KODAK PROFESSIONAL Developer D-76, 20 C, diffuse visual densitometry).
+        # The plot is PDF VECTOR line art -- coordinates exact, only the axis
+        # calibration fitted against the printed tick labels: 0.85 nm max residual
+        # on wavelength, 0.009 log on sensitivity. 1216 sampled points over
+        # 359-648 nm, resampled to the 10 nm project grid.
+        # QUEUE NOTE, resolved: an earlier pass flagged this sheet as "the two
+        # criterion curves extract with inconsistent shapes (peaks 528 vs 570 nm,
+        # ranges 0.57 and 1.5 log) -- do not enter without visual confirmation".
+        # The page was rendered and inspected on 2026-08-16: the two curves are
+        # cleanly separated, never cross, and the difference is REAL -- they are
+        # different density criteria. The solid D = 0.3 curve peaks at 571 nm and
+        # carries the steep red cliff past 630 nm; the dashed D = 1.0 curve peaks
+        # at 529 nm and is flatter (log 1.35-1.92). Nothing was mis-traced; the
+        # earlier reading merged them. Stored curve is D = 0.3, the speed-defining
+        # criterion, matching TRI_X_400TX / TMAX_100 / TMAX_P3200.
+        # Absolute ordinate: peak log sensitivity 3.111 at 571 nm; add it back to
+        # recover the sheet's erg/cm2 scale. -4.00 means the sheet does not plot
+        # the curve there (measured span 380-650 nm on this grid).
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.16, -0.17, -0.18, -0.21, -0.22, -0.23, -0.26, 
+                     -0.27, -0.30, -0.34, -0.39, -0.38, -0.34, -0.28, 
+                     -0.19, -0.15, -0.21, -0.15, -0.12, 0.00, -0.05, -0.17, 
+                     -0.31, -0.39, -0.36, -0.33, -0.75, -1.52, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication F-4043 (f4043_TMax_400-2016.pdf), "
+                "Spectral-Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.TABULAR_GRAIN,
     ),
     FilmProfile(
@@ -6332,7 +8054,319 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                         anisotropy=1.0),
         mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.08, adjacency_um=16.0),
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): F-4001 page 7 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.272 nm rms / 0.740 nm max on
+        # wavelength and 0.0043 rms / 0.0073 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: as printed.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as 2.205 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: 420-700 nm.
+        # The printed curve is DASHED; dash gaps are bridged by linear
+        # interpolation between exact vector endpoints (per-gap list in the
+        # extraction report).
+        # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
+        # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-4.00, -4.00, -4.00, -4.00, -0.00, -0.02, -0.05, 
+                     -0.09, -0.14, -0.22, -0.28, -0.29, -0.30, -0.29, 
+                     -0.25, -0.21, -0.19, -0.21, -0.22, -0.18, -0.14, 
+                     -0.18, -0.25, -0.32, -0.35, -0.36, -0.37, -0.71, 
+                     -1.39, -1.80, -2.21, -2.68, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
+            source=(
+                "Eastman Kodak Company, publication F-4001 (f4001-P3200TMZ-2019.pdf), Spectral "
+                "Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.TABULAR_GRAIN,
+    ),
+    # =====================================================================
+    # KODAK F-5 "Technical Information -- KODAK Professional Black-and-White
+    # Films", AUGUST 1979, (c) Eastman Kodak Company 1979. Six stocks added
+    # 2026-08-17 from the DS data sheets, read visually from the 88-page JPG
+    # scan set (JPG n = DS n-32; the scans are JPG, so method rule 1 is moot --
+    # there are no vector paths to prefer).
+    #
+    # PROVENANCE CLASS, stated once for all six. F-5's own front matter (DS 1):
+    # the curves and data "are averages of a number of production coatings and,
+    # therefore, do not apply directly to a particular box or roll of film.
+    # THEY DO NOT REPRESENT STANDARDS OR SPECIFICATIONS which must be met by
+    # Eastman Kodak Company." So this is VENDOR-MEASURED TYPICAL data -- a
+    # third class again distinct from the Soviet ТУ acceptance limits and from
+    # a handbook paraphrase. DS 1 also states that for black-and-white films
+    # "the ISO speeds are identical to the ANSI speeds", so ISO/ASA here carry
+    # no conversion ambiguity of the kind Иофис warns about.
+    #
+    # WHAT IS DOCUMENTED vs ESTIMATED in every entry below:
+    #   documented -- ISO/ASA speed, resolving power at BOTH test-object
+    #     contrasts, the verbal grain class, colour sensitivity, curve-shape
+    #     descriptor (long/medium/short toe), and any printed contrast index.
+    #   estimated [T3] -- the rms granularity NUMBER and the ToneCurve
+    #     parameters. F-5 gives grain only as a WORD ("Extremely Fine",
+    #     "Fine", "coarse-grain"); it prints no rms figure for any of these
+    #     films, so the rms values are class estimates and are marked as such.
+    #     The characteristic curves are raster and are NOT yet traced -- gamma
+    #     is a class estimate ANCHORED BY the printed contrast index where one
+    #     exists, and the toe is shaped by the sheet's own printed descriptor.
+    #     ⚠ CI IS NOT GAMMA: contrast index is an average gradient over a
+    #     defined log-E interval and runs below the straight-line slope, so no
+    #     CI value has been copied into a gamma field. The CI values live in
+    #     ProcessingSpec.contrast_index, which is the field that actually means
+    #     contrast index. Curve traces are queued.
+    # =====================================================================
+    FilmProfile(
+        name="KODAK_PANATOMIC_X",
+        # Bare "panatomic-x" deliberately NOT claimed here: it belongs to
+        # KODAK_PANATOMIC_X_SHEET_1952, which was in the database first. The
+        # 1979 stock takes era-qualified aliases so neither shadows the other.
+        aliases=("panatomic-x 1979", "panatomic x 1979",
+                 "panatomic-x professional", "panx", "fx"),
+        description=(
+            "[T2] Kodak PANATOMIC-X and PANATOMIC-X Professional, ISO 32/16 "
+            "degrees, 1979. The slowest and finest-grained Kodak "
+            "general-purpose panchromatic film: F-5 DS 10 classes its grain "
+            "'Extremely Fine' with 'Degree of Enlargement: Very High' and gives "
+            "resolving power 200 lines/mm at high test-object contrast (the "
+            "sheet's own class word is 'Very High') and 80 lines/mm at low -- "
+            "the highest resolving figures anywhere in this database. Printed "
+            "curve shape: 'medium-toe'. The sheet notes PANATOMIC-X Film "
+            "'can be processed by reversal to produce black-and-white "
+            "transparencies', which is why it survived as a copy stock. "
+            "Distinct from KODAK_PANATOMIC_X_SHEET_1952, which is the 1952 "
+            "Data Book SHEET film at ASA 32/25 -- same product line, different "
+            "generation and form, entered separately rather than grafted."
+        ),
+        era="1979",
+        is_monochrome=True,
+        exposure_index=32,
+        balance_kelvin=5500,
+        # [T3] gamma and toe estimated; no trace yet. Toe from the sheet's
+        # printed 'medium-toe'. The high gamma reflects a slow fine-grain
+        # emulsion, not a measurement.
+        curves=_mono(ToneCurve(0.13, 0.72, -1.25, 0.30, 1.95, 0.38)),
+        # [T3] rms 7 is a CLASS ESTIMATE for 'Extremely Fine' at ISO 32.
+        # F-5 prints no rms for this film.
+        grain=GrainSpec(7.0, 11.0, 11.0, 11.0, clump_gain=0.70, fog_grain=0.12),
+        default_format="ff35",
+        # [T3] MTF f50 ESTIMATED, RP 200 high-contrast x 0.50. The 0.50 ratio is not
+        # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
+        # high-contrast resolving power and a stored f50 of 62.0, a ratio
+        # of 0.496, so the same ratio is applied here for consistency with
+        # an already-validated profile. F-5 DS 24 prints real MTF curves
+        # for these films; they are raster and are queued, and they
+        # supersede this estimate when traced.
+        mtf=MTFSpec(100.0, 100.0, 100.0, adjacency=0.09, adjacency_um=14.0),
+    ),
+    FilmProfile(
+        name="KODAK_VERICHROME_PAN",
+        aliases=("verichrome pan", "verichrome-pan", "vp", "vp120"),
+        description=(
+            "[T2] Kodak VERICHROME Pan, ISO 125/22 degrees, 1979. F-5 DS 22: "
+            "'A medium-speed, panchromatic film with extremely fine grain, its "
+            "excellent gradation and wide exposure latitude, combined with a "
+            "MEDIUM-TOED characteristic curve shape, make it an excellent "
+            "general purpose roll film.' Resolving power 100 lines/mm high "
+            "contrast (class 'High') and 50 low. The sheet states it has "
+            "'similar characteristics to KODAK PLUS-X Pan Professional Film, "
+            "but does not have retouching surfaces', and that it was 'the only "
+            "Kodak black-and-white film available in size 110 and 126 "
+            "cartridges'. "
+            "⚠ NOT the same film as KODAK_VERICHROME_1952, and deliberately not "
+            "grafted onto it: that stock is VERICHROME, an ORTHOCHROMATIC film "
+            "at ASA 64/32, whereas VERICHROME PAN is PANCHROMATIC at ISO 125. "
+            "The names differ by one word and the emulsions differ by a whole "
+            "sensitisation class."
+        ),
+        era="1979",
+        is_monochrome=True,
+        exposure_index=125,
+        balance_kelvin=5500,
+        # [T3] gamma and toe estimated; toe from the printed 'medium-toed'.
+        curves=_mono(ToneCurve(0.14, 0.66, -1.60, 0.32, 1.85, 0.40)),
+        # [T3] rms 10 is a CLASS ESTIMATE for 'Extremely Fine' at ISO 125, set
+        # equal to KODAK_PLUS_X_125 because DS 22 itself says the two films
+        # have similar characteristics. That is a documented similarity used to
+        # place an estimate -- not a documented rms.
+        grain=GrainSpec(10.0, 15.0, 15.0, 15.0, clump_gain=0.80, fog_grain=0.16),
+        default_format="ff35",
+        # [T3] MTF f50 ESTIMATED, RP 100 high-contrast x 0.50. The 0.50 ratio is not
+        # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
+        # high-contrast resolving power and a stored f50 of 62.0, a ratio
+        # of 0.496, so the same ratio is applied here for consistency with
+        # an already-validated profile. F-5 DS 24 prints real MTF curves
+        # for these films; they are raster and are queued, and they
+        # supersede this estimate when traced.
+        mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.1, adjacency_um=15.0),
+    ),
+    FilmProfile(
+        name="KODAK_SUPER_XX_PAN_4142",
+        # Bare "super xx"/"superxx" belong to EASTMAN_SUPER_XX_1938, already
+        # in the database -- this 1979 sheet film takes qualified aliases only.
+        aliases=("super-xx pan", "super-xx pan 4142", "super-xx 4142", "4142"),
+        description=(
+            "[T2] Kodak SUPER-XX Pan Film 4142 (ESTAR Thick Base), ISO 200/24 "
+            "degrees, 1979. Sheets only. F-5 DS 17: 'A moderately high speed, "
+            "panchromatic film for general purposes in portrait, commercial, "
+            "and industrial photography. It is an excellent material for making "
+            "COLOR-SEPARATION NEGATIVES and for black-and-white negatives from "
+            "color transparencies.' That separation-negative role is the reason "
+            "for its unusually long straight line, and is why it stayed in "
+            "catalogue long after faster films existed. Grain 'Fine'; resolving "
+            "power 100 lines/mm at high test-object contrast -- classed 'High' "
+            "by the sheet -- and 40 at low."
+        ),
+        era="1979",
+        is_monochrome=True,
+        exposure_index=200,
+        balance_kelvin=5500,
+        # [T3] gamma and toe estimated. The long straight line is the one shape
+        # feature the sheet's separation-negative role does imply, so
+        # shoulder_x sits high; the numbers are still not a trace.
+        curves=_mono(ToneCurve(0.16, 0.66, -1.70, 0.30, 1.95, 0.40)),
+        # [T3] rms 13 is a CLASS ESTIMATE for 'Fine' at ISO 200.
+        grain=GrainSpec(13.0, 19.0, 19.0, 19.0, clump_gain=0.95, fog_grain=0.16),
+        default_format="large4x5",
+        # [T3] MTF f50 ESTIMATED, RP 100 high-contrast x 0.50. The 0.50 ratio is not
+        # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
+        # high-contrast resolving power and a stored f50 of 62.0, a ratio
+        # of 0.496, so the same ratio is applied here for consistency with
+        # an already-validated profile. F-5 DS 24 prints real MTF curves
+        # for these films; they are raster and are queued, and they
+        # supersede this estimate when traced.
+        mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.11, adjacency_um=16.0),
+    ),
+    FilmProfile(
+        name="KODAK_ROYAL_PAN_4141",
+        aliases=("royal pan", "royal-pan", "royal pan 4141", "4141"),
+        description=(
+            "[T2] Kodak ROYAL Pan Film 4141 (ESTAR Thick Base), ISO 400/27 "
+            "degrees, 1979. Sheets and 3.5-inch long rolls. F-5 DS 16: 'This "
+            "fast, fine-grain, panchromatic film is suitable for many purposes "
+            "in commercial and industrial photography. Its LONG-TOED CURVE "
+            "makes it especially suitable for studio use and provides brilliant "
+            "highlight separation. It is particularly useful when a sheet film "
+            "is needed in candid wedding photography.' Grain 'Fine'; resolving "
+            "power 80 lines/mm high contrast (class 'Medium') and 40 low; "
+            "Degree of Enlargement 'Moderately Low'. The long toe is the "
+            "characteristic worth modelling -- it is what separates this from "
+            "TRI-X Pan at the same ISO 400."
+        ),
+        era="1979",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        # [T3] gamma estimated. toe_k 0.42 is DELIBERATELY the longest toe of
+        # the six, because DS 16 explicitly prints 'long-toed curve' and
+        # contrasts it with the medium-toed TRI-X Pan on DS 18. The ordering of
+        # the toes across these stocks is documented; the values are not.
+        curves=_mono(ToneCurve(0.16, 0.62, -1.85, 0.42, 1.75, 0.50)),
+        # [T3] rms 14 is a CLASS ESTIMATE for 'Fine' at ISO 400.
+        grain=GrainSpec(14.0, 20.0, 20.0, 20.0, clump_gain=1.00, fog_grain=0.17),
+        default_format="large4x5",
+        # [T3] MTF f50 ESTIMATED, RP 80 high-contrast x 0.50. The 0.50 ratio is not
+        # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
+        # high-contrast resolving power and a stored f50 of 62.0, a ratio
+        # of 0.496, so the same ratio is applied here for consistency with
+        # an already-validated profile. F-5 DS 24 prints real MTF curves
+        # for these films; they are raster and are queued, and they
+        # supersede this estimate when traced.
+        mtf=MTFSpec(40.0, 40.0, 40.0, adjacency=0.12, adjacency_um=17.0),
+    ),
+    FilmProfile(
+        name="KODAK_ROYAL_X_PAN_4166",
+        aliases=("royal-x pan", "royal x pan", "royalx", "royal-x 4166", "4166"),
+        description=(
+            "[T2] Kodak ROYAL-X Pan Film 4166 (ESTAR Thick Base), ISO 1250/32 "
+            "degrees, 1979. F-5 DS 15: 'An extremely fast, medium-grain, "
+            "panchromatic film recommended for photography in low levels of "
+            "existing light... particularly useful for indoor sports "
+            "photography and in situations where flash illumination cannot be "
+            "used.' Resolving power 100 lines/mm high contrast (class 'Medium') "
+            "and 40 low; Degree of Enlargement 'Moderately Low'. "
+            "DOCUMENTED PUSH LADDER, which is unusual for a 1979 sheet and is "
+            "recorded because it is rare: 'In flat lighting, good negatives can "
+            "be obtained with meter settings up to ASA 2000 and NORMAL "
+            "development. A meter setting of ASA 4000 can be used if the "
+            "recommended developing times are increased by about 50 percent.' "
+            "⚠ INTERNAL CONTRADICTION IN THE SOURCE, recorded not resolved: the "
+            "prose calls the film 'medium-grain' while the Emulsion "
+            "Characteristics block prints 'Grain: Fine'. Both readings are as "
+            "printed on DS 15. The rms estimate below follows the PROSE and the "
+            "ISO 1250 speed rather than the table word, because a genuinely "
+            "'Fine' grain at ISO 1250 would be inconsistent with every other "
+            "stock in this database -- that choice is an interpretation and is "
+            "flagged as one."
+        ),
+        era="1979",
+        is_monochrome=True,
+        exposure_index=1250,
+        balance_kelvin=5500,
+        # [T3] gamma and toe estimated; no printed curve-shape descriptor on
+        # this sheet, so the toe is a class value for a fast sheet film.
+        curves=_mono(ToneCurve(0.20, 0.58, -2.30, 0.36, 1.60, 0.45)),
+        # [T3] rms 22 is a CLASS ESTIMATE at ISO 1250, following the sheet's
+        # PROSE ('medium-grain'), not its table word ('Fine'). See the
+        # contradiction noted in the description.
+        grain=GrainSpec(22.0, 30.0, 30.0, 30.0, clump_gain=1.40, fog_grain=0.26),
+        default_format="large4x5",
+        # [T3] MTF f50 ESTIMATED, RP 100 high-contrast x 0.50 -- see caveat. The 0.50 ratio is not
+        # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
+        # high-contrast resolving power and a stored f50 of 62.0, a ratio
+        # of 0.496, so the same ratio is applied here for consistency with
+        # an already-validated profile. F-5 DS 24 prints real MTF curves
+        # for these films; they are raster and are queued, and they
+        # supersede this estimate when traced.
+        mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.14, adjacency_um=19.0),
+    ),
+    FilmProfile(
+        name="KODAK_RECORDING_2475",
+        aliases=("recording 2475", "recording film 2475", "2475", "kodak 2475"),
+        description=(
+            "[T2] Kodak Recording Film 2475 (ESTAR-AH Base), 1979, 35 mm only. "
+            "F-5 DS 14: 'An extremely fast, COARSE-GRAIN panchromatic film with "
+            "EXTENDED RED SENSITIVITY for use in 35 mm cameras... recommended "
+            "for photography in low levels of existing light... available-light "
+            "press photography, SURVEILLANCE photography.' "
+            "⚠ THIS FILM HAS NO ISO/ASA RATING AND THAT IS NOT AN OMISSION. "
+            "Where every other DS sheet prints a boxed 'Speed: ISO x/y degrees', "
+            "DS 14 prints a RANGE instead: 'EI 1000 to 4000, for exposure meters "
+            "marked for ANSI film speeds. For low-contrast scenes, an exposure "
+            "index of 1600 can be used with normal development, and up to EI "
+            "4000 can be used if the extended development shown below is "
+            "given.' exposure_index carries 1600, the sheet's own figure for "
+            "NORMAL development, and the 1000-4000 envelope is documented here "
+            "rather than being averaged into a single invented ISO. "
+            "The extended red sensitivity is also documented: DS 14 prints a "
+            "filter-factor table specifically because 'some factors are "
+            "different for this film than those given in the Color Filter "
+            "Circle in the text pages'."
+        ),
+        era="1979",
+        is_monochrome=True,
+        exposure_index=1600,
+        balance_kelvin=5500,
+        # [T3] gamma and toe estimated. Low gamma and high dmin/fog reflect the
+        # sheet's 'extremely fast, coarse-grain' description; no trace yet.
+        curves=_mono(ToneCurve(0.26, 0.55, -2.55, 0.40, 1.50, 0.50)),
+        # [T3] rms 30 is a CLASS ESTIMATE for the sheet's 'coarse-grain' word --
+        # the only F-5 film in this batch given that class, and the coarsest
+        # B&W grain in this database. F-5 prints no rms figure.
+        grain=GrainSpec(30.0, 40.0, 40.0, 40.0, clump_gain=1.70, fog_grain=0.34,
+                        anisotropy=1.06),
+        default_format="ff35",
+        # [T3] MTF f50 ESTIMATED, NO RP printed on DS 14; pure class estimate. The 0.50 ratio is not
+        # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
+        # high-contrast resolving power and a stored f50 of 62.0, a ratio
+        # of 0.496, so the same ratio is applied here for consistency with
+        # an already-validated profile. F-5 DS 24 prints real MTF curves
+        # for these films; they are raster and are queued, and they
+        # supersede this estimate when traced.
+        mtf=MTFSpec(28.0, 28.0, 28.0, adjacency=0.18, adjacency_um=24.0),
     ),
     FilmProfile(
         name="KODAK_TRI_X_400TX",
@@ -6352,6 +8386,35 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(17.0, 19.0, 19.0, 19.0, clump_gain=1.00, fog_grain=0.22),
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): F-4017 page 7 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.738 nm max on
+        # wavelength and 0.0049 rms / 0.0089 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: 0.5 s effective exposure, diffuse visual densitometry; criteria printed on the plot are.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as 2.744 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: 380-660 nm; the curve continues below 380 to 298 nm.
+        # The printed curve is DASHED; dash gaps are bridged by linear
+        # interpolation between exact vector endpoints (per-gap list in the
+        # extraction report).
+        # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
+        # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.00, -0.01, -0.02, -0.03, -0.04, -0.07, -0.11, 
+                     -0.15, -0.19, -0.29, -0.37, -0.45, -0.51, -0.50, 
+                     -0.44, -0.40, -0.35, -0.31, -0.28, -0.27, -0.27, 
+                     -0.31, -0.37, -0.32, -0.31, -0.42, -0.84, -1.81, 
+                     -2.46, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
+            source=(
+                "Eastman Kodak Company, publication F-4017 (f4017_TriX.pdf), Spectral "
+                "Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.NONE,
     ),
     FilmProfile(
@@ -6389,6 +8452,36 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         grain=GrainSpec(10.0, 15.0, 15.0, 15.0, clump_gain=0.80, fog_grain=0.16),
         mtf=MTFSpec(62.0, 62.0, 62.0, adjacency=0.10, adjacency_um=15.0),
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): F-4018 page 9 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.739 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: as printed.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as 1.921 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: 380-650 nm.
+        # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
+        # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_pan +0.01 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-2.24, -0.84, -0.11, 0.00, -0.06, -0.11, -0.19, 
+                     -0.29, -0.37, -0.45, -0.54, -0.64, -0.72, -0.78, 
+                     -0.79, -0.75, -0.71, -0.69, -0.64, -0.60, -0.60, 
+                     -0.64, -0.69, -0.71, -0.69, -0.71, -0.96, -1.47, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
+            source=(
+                "Eastman Kodak Company, publication F-4018 (f4018-125PX-2007.pdf), Spectral "
+                "Sensitivity Curves, p9; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.NONE,
     ),
     FilmProfile(
@@ -6411,6 +8504,32 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.11, adjacency_um=16.0),
         silver_tone=0.0,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): F-2350 page 6 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.739 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: daylight, 1/100 s, process C-41, Status M, density 0.2 above D-min.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as 2.366 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: 400-640 nm.
+        # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
+        # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-4.00, -4.00, -1.13, -0.56, -0.42, -0.42, -0.49, 
+                     -0.52, -0.55, -0.58, -0.56, -0.50, -0.47, -0.38, 
+                     -0.24, -0.21, -0.25, -0.19, -0.15, -0.00, -0.05, 
+                     -0.17, -0.29, -0.33, -0.29, -0.30, -0.89, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
+            source=(
+                "Eastman Kodak Company, publication F-2350 (f2350-T400CN.pdf), Spectral "
+                "Sensitivity Curves, p6; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.TABULAR_GRAIN | Feature.STRONG_DIR_COUPLERS,
     ),
     FilmProfile(
@@ -6435,6 +8554,36 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.930, 0.820),
         silver_tone=0.0,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): F-4036 page 5 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 1.872 nm rms / 3.356 nm max on
+        # wavelength and 0.0204 rms / 0.0293 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: as printed.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as 2.346 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: 390-650 nm.
+        # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
+        # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_pan +0.01 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-4.00, -1.71, -1.15, -0.56, -0.41, -0.41, -0.48, 
+                     -0.51, -0.53, -0.56, -0.55, -0.49, -0.45, -0.38, 
+                     -0.25, -0.19, -0.25, -0.18, -0.15, 0.00, -0.03, -0.13, 
+                     -0.27, -0.31, -0.28, -0.27, -0.80, -1.74, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
+            source=(
+                "Eastman Kodak Company, publication F-4036 (f4036-BW400CN.pdf), Spectral "
+                "Sensitivity Curves, p5; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.TABULAR_GRAIN | Feature.STRONG_DIR_COUPLERS,
     ),
     FilmProfile(
@@ -6479,6 +8628,44 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.990, 0.968),
         misregistration_um=3.5,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-4046 page 4 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.738 nm max on
+        # wavelength and 0.0038 rms / 0.0045 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: daylight, 1/25 s, Status M, 0.2 > D-min.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.190  g=1.838  r=2.059 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-490, g 400-580, r 560-690 nm.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_b +0.05, log_s_g +0.03 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -1.73, -1.61, -0.82, 
+                     -0.50, -0.35, -0.30, -0.27, -0.20, -0.09, -0.00, 
+                     -0.12, -0.75, -1.07, -1.56, -4.00),
+            log_s_g=(-4.00, -4.00, -0.85, -0.88, -0.97, -1.06, -1.21, 
+                     -1.21, -1.21, -1.20, -0.92, -0.56, -0.42, -0.34, 
+                     -0.23, -0.09, 0.00, -0.02, -0.04, -0.15, -0.50, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.98, -0.49, -0.15, -0.09, -0.12, -0.09, -0.06, 
+                     -0.14, -0.06, 0.00, -0.41, -1.54, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-4046 (e4046_ektar_100.pdf), Spectral "
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
     FilmProfile(
@@ -6505,6 +8692,44 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=3.5,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-4051 page 4 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.270 nm rms / 0.735 nm max on
+        # wavelength and 0.0014 rms / 0.0024 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: daylight, 1/50 s, Status M, 0.2 > D-min.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.096  g=1.876  r=2.030 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-500, g 390-580, r 490-660 nm.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_b +0.06, log_s_r +0.04 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -1.94, -1.89, -1.78, 
+                     -1.69, -1.67, -1.68, -1.55, -1.31, -1.07, -0.63, 
+                     -0.36, -0.19, -0.07, -0.01, 0.00, -0.23, -0.86, -1.08, 
+                     -4.00, -4.00, -4.00, -4.00),
+            log_s_g=(-4.00, -1.13, -0.79, -0.86, -0.90, -1.01, -1.02, 
+                     -1.08, -1.05, -1.00, -0.80, -0.63, -0.48, -0.41, 
+                     -0.32, -0.22, -0.09, -0.00, -0.11, -0.25, -0.63, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.93, -0.51, -0.10, -0.11, -0.10, -0.13, -0.07, 
+                     -0.13, -0.04, 0.00, -0.42, -1.29, -1.73, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-4051 (e4051_Portra_160.pdf), Spectral "
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
     FilmProfile(
@@ -6530,6 +8755,44 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=4.0,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-4040 page 4 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.738 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: daylight, 1/200 s, Status M, 0.2 > D-min.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.730  g=2.849  r=2.967 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-520, g 390-600, r 490-700 nm.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_g +0.01, log_s_r +0.05 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -2.64, -2.52, -2.32, 
+                     -2.16, -2.13, -2.11, -1.98, -1.74, -1.57, -0.97, 
+                     -0.57, -0.43, -0.35, -0.28, -0.19, -0.06, 0.00, -0.03, 
+                     -0.54, -0.94, -1.41, -2.43),
+            log_s_g=(-4.00, -1.80, -1.46, -1.48, -1.54, -1.58, -1.66, 
+                     -1.63, -1.56, -1.57, -1.07, -0.68, -0.49, -0.41, 
+                     -0.31, -0.17, -0.04, 0.00, -0.06, -0.22, -0.48, -1.32, 
+                     -2.39, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.99, -0.50, -0.06, -0.00, -0.06, -0.08, -0.14, 
+                     -0.17, -0.13, -0.04, -0.36, -0.88, -1.46, -2.09, 
+                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-4040 (e4040_portra_800-2016.pdf), Spectral "
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
     FilmProfile(
@@ -6554,6 +8817,44 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=4.0,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-2468 page 5 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.739 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: as printed.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.404  g=2.197  r=2.171 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-500, g 440-580, r 540-680 nm.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_b +0.01 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -1.76, -1.59, -1.40, -1.14, -0.65, 
+                     -0.29, -0.12, -0.03, -0.00, -0.12, -0.39, -0.77, 
+                     -1.07, -1.09, -1.00, -4.00, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.73, 
+                     -1.68, -1.61, -1.48, -1.13, -0.72, -0.47, -0.34, 
+                     -0.23, -0.08, -0.00, -0.01, -0.05, -0.21, -0.76, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.71, -1.37, -0.76, -0.30, -0.16, -0.08, -0.02, 
+                     -0.11, -0.07, 0.00, -0.55, -1.19, -1.66, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-2468 (e2468-Portra_100T.pdf), Spectral "
+                "Sensitivity Curves, p5; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS,
     ),
     FilmProfile(
@@ -6579,6 +8880,47 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.990, 0.965),
         misregistration_um=4.5,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-7022 page 4 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.737 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: as printed.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.375  g=2.252  r=2.230 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-500, g 380-590 (gap at 420.
+        # NOTE: publication E-7022 plots ONE curve set for the GOLD 100/200
+        # family; both stocks therefore carry the same measured curve. That is
+        # the sheet's own assertion, not an assumption of ours.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_b +0.03 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -1.85, -1.61, -1.72, -1.87, -2.02, -2.16, 
+                     -2.23, -2.25, -2.25, -2.25, -2.14, -2.03, -1.93, 
+                     -1.83, -1.77, -1.69, -1.59, -1.44, -1.30, -1.01, 
+                     -0.81, -0.68, -0.57, -0.43, -0.31, -0.13, -0.00, 
+                     -0.13, -0.68, -1.14, -4.00, -4.00),
+            log_s_g=(-1.66, -1.30, -1.00, -1.05, -1.14, -1.24, -1.33, 
+                     -1.34, -1.33, -1.29, -1.04, -0.73, -0.56, -0.47, 
+                     -0.35, -0.18, -0.03, -0.00, -0.11, -0.38, -0.85, 
+                     -1.69, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.09, -0.70, -0.30, -0.21, -0.25, -0.23, -0.17, 
+                     -0.21, -0.12, 0.00, -0.44, -1.52, -2.06, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-7022 (E7022-Gold_100_200.pdf), Spectral "
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS,
     ),
     FilmProfile(
@@ -6603,6 +8945,47 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.990, 0.965),
         misregistration_um=4.5,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-7022 page 4 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.737 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: as printed.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.375  g=2.252  r=2.230 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-500, g 380-590 (gap at 420.
+        # NOTE: publication E-7022 plots ONE curve set for the GOLD 100/200
+        # family; both stocks therefore carry the same measured curve. That is
+        # the sheet's own assertion, not an assumption of ours.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_b +0.03 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -1.85, -1.61, -1.72, -1.87, -2.02, -2.16, 
+                     -2.23, -2.25, -2.25, -2.25, -2.14, -2.03, -1.93, 
+                     -1.83, -1.77, -1.69, -1.59, -1.44, -1.30, -1.01, 
+                     -0.81, -0.68, -0.57, -0.43, -0.31, -0.13, -0.00, 
+                     -0.13, -0.68, -1.14, -4.00, -4.00),
+            log_s_g=(-1.66, -1.30, -1.00, -1.05, -1.14, -1.24, -1.33, 
+                     -1.34, -1.33, -1.29, -1.04, -0.73, -0.56, -0.47, 
+                     -0.35, -0.18, -0.03, -0.00, -0.11, -0.38, -0.85, 
+                     -1.69, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.09, -0.70, -0.30, -0.21, -0.25, -0.23, -0.17, 
+                     -0.21, -0.12, 0.00, -0.44, -1.52, -2.06, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-7022 (E7022-Gold_100_200.pdf), Spectral "
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS,
     ),
     FilmProfile(
@@ -6627,6 +9010,40 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.990, 0.965),
         misregistration_um=4.5,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-7023 page 4 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.737 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: daylight, 1/100 s, C-41, Status M, 0.2 > D-min.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.726  g=2.719  r=2.742 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-520, g 390-590, r 490-690 nm.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -2.44, -2.30, -2.13, 
+                     -1.98, -1.93, -1.90, -1.78, -1.56, -1.42, -0.98, 
+                     -0.69, -0.58, -0.48, -0.37, -0.27, -0.10, -0.00, 
+                     -0.11, -0.57, -1.01, -1.43, -4.00),
+            log_s_g=(-4.00, -1.86, -1.56, -1.61, -1.68, -1.76, -1.84, 
+                     -1.82, -1.77, -1.73, -1.30, -0.79, -0.58, -0.48, 
+                     -0.35, -0.20, -0.06, -0.00, -0.08, -0.26, -0.56, 
+                     -1.54, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.92, -0.51, -0.10, -0.02, -0.06, -0.06, -0.05, 
+                     -0.13, -0.11, -0.00, -0.38, -1.01, -1.67, -2.14, 
+                     -2.58, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-7023 (E7023_max_400.pdf), Spectral "
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS,
     ),
     FilmProfile(
@@ -6652,6 +9069,44 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.000, 0.990, 0.965),
         misregistration_um=5.0,
         default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
+        # section 4 sweep): E-7024 page 3 -- the plot is drawn as PDF VECTOR
+        # polylines, so the sampled coordinates are EXACT and only the axis
+        # calibration is fitted. Calibration residual 0.271 nm rms / 0.738 nm max on
+        # wavelength and 0.0049 rms / 0.0088 max in log sensitivity, against the sheet's
+        # own printed tick labels. Plot conditions: daylight, effective exposure 1/200 s, process C-41, Status M, density 0.2 > D-min.
+        # Sampling 10 nm -- the project convention, and COARSER than the source
+        # everywhere (vector points every 0.65-3.3 nm), so this decimates the data
+        # rather than inventing any. Stored peak-normalised per layer; the absolute
+        # ordinate is preserved as b=2.733  g=2.851  r=2.970 -- add it back for erg/cm2 sensitivity.
+        # -4.00 entries are NOT measurements: the sheet does not plot the curve
+        # there. Measured spans: b 380-520, g 390-600, r 490-700 nm.
+        # Grid renormalisation: the true plotted peak falls BETWEEN 10 nm grid
+        # points, so the decimated array was shifted by log_s_g +0.01, log_s_r +0.05 to satisfy the
+        # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
+        # above before converting back to absolute sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -2.63, -2.51, -2.31, 
+                     -2.15, -2.13, -2.11, -1.97, -1.73, -1.54, -0.94, 
+                     -0.57, -0.42, -0.35, -0.27, -0.18, -0.05, 0.00, -0.08, 
+                     -0.56, -0.96, -1.46, -2.47),
+            log_s_g=(-4.00, -1.78, -1.45, -1.48, -1.54, -1.58, -1.66, 
+                     -1.63, -1.56, -1.56, -1.03, -0.67, -0.48, -0.41, 
+                     -0.31, -0.17, -0.03, 0.00, -0.07, -0.22, -0.50, -1.38, 
+                     -2.40, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.99, -0.49, -0.06, -0.00, -0.06, -0.08, -0.14, 
+                     -0.17, -0.13, -0.04, -0.38, -0.89, -1.48, -2.09, 
+                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=(
+                "Eastman Kodak Company, publication E-7024 (E7024-Ultra_Max_800.pdf), Spectral "
+                "Sensitivity Curves, p3; PDF vector-path extraction 2026-08-16"),
+        ),
         features=Feature.STRONG_DIR_COUPLERS,
     ),
     FilmProfile(
@@ -7371,6 +9826,31 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.0, 0.760, 0.520),   # documented orange mask
         misregistration_um=9.5,
         default_flare=0.028,
+        # -- schema v7 carrier, INERT -- per-LAYER resolving power ------------
+        # Cheltsov & Bongard 1958 table 24 (p200) measures resolving power per
+        # PHYSICAL LAYER, not per R/G/B record: Eastmancolor negative 5248 gives
+        # 110 (top) / 46 (middle) / 30 (bottom) shtrikh/mm. Those figures were
+        # rebuilt from word coordinates in an earlier pass because the flat OCR
+        # scrambled the cyan column and had wrongly assigned Agfacolor's 27 to
+        # this film; 30 is the correct bottom-layer value.
+        # WHY THE ORDER IS blue/green/red: the same source separately lists the
+        # films whose stacking is UNCONVENTIONAL (Duponcolor positive 275 and
+        # Telcolor negative run blue/red/green; Eastmancolor POSITIVE 5382 puts
+        # blue at the bottom). Eastmancolor NEGATIVE 5248 is absent from that
+        # list, so its stack is the conventional one. That is an argument from
+        # the source's own exclusion rather than a printed statement, and it is
+        # recorded as such -- the carrier refuses per-layer figures without an
+        # order precisely so this reasoning cannot be skipped.
+        layer_stack=LayerStack(
+            order=("blue", "green", "red"),
+            resolving_top=110.0, resolving_mid=46.0, resolving_bot=30.0,
+            test_object_contrast="not stated in the source",
+            source=("Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных "
+                    "светочувствительных материалов», М.: Искусство, 1958, табл. 24, "
+                    "с. 200 -- per-layer resolving power in shtrikh/mm, layer tags "
+                    "в./с./н. (top/middle/bottom); rebuilt from word coordinates "
+                    "because the flat OCR scrambled the cyan column"),
+        ),
         features=Feature.UNEVEN_EMULSION | Feature.HALATION,
     ),
 
@@ -7896,6 +10376,66 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.0, 1.0, 1.0),
         misregistration_um=0.0,
         default_flare=0.03,
+        # -- schema v7 carrier, INERT -- the PROCESSING FAMILY -----------------
+        # The richest processing family in the corpus, and the reason this carrier
+        # was worth building: three developers x two dilutions x TWO CONTRAST AIMS,
+        # all twelve cells with a MEASURED contrast index rather than a bare time.
+        # ProcessingSpec can hold exactly one of these twelve rows.
+        # The source also states the SPEED each developer yields, which is why the
+        # exposure_index differs by developer: ID-11 ASA 50 unchanged, Microphen
+        # DIN 20 (~ASA 80), Perceptol ASA 32 / DIN 16 -- a full stop and a half
+        # between the fastest and slowest way of developing one emulsion.
+        # Contrast index is defined in the source as the average gradient over
+        # 1.5 log-exposure units from a point 0.1 above fog -- the same quantity as
+        # Fuji's Gbar, NOT the straight-line gamma.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="ID-11 (D-76 type)", dilution="1+1",
+                                 minutes=9.0, celsius=20.0,
+                                 contrast_index=0.55, exposure_index=50),
+                DevelopmentPoint(developer="ID-11 (D-76 type)", dilution="1+1",
+                                 minutes=14.0, celsius=20.0,
+                                 contrast_index=0.70, exposure_index=50),
+                DevelopmentPoint(developer="ID-11 (D-76 type)", dilution="1+3",
+                                 minutes=14.0, celsius=20.0,
+                                 contrast_index=0.55, exposure_index=50),
+                DevelopmentPoint(developer="ID-11 (D-76 type)", dilution="1+3",
+                                 minutes=21.0, celsius=20.0,
+                                 contrast_index=0.70, exposure_index=50),
+                DevelopmentPoint(developer="Microphen", dilution="1+1",
+                                 minutes=5.0, celsius=20.0,
+                                 contrast_index=0.55, exposure_index=80),
+                DevelopmentPoint(developer="Microphen", dilution="1+1",
+                                 minutes=8.0, celsius=20.0,
+                                 contrast_index=0.70, exposure_index=80),
+                DevelopmentPoint(developer="Microphen", dilution="1+3",
+                                 minutes=9.0, celsius=20.0,
+                                 contrast_index=0.55, exposure_index=80),
+                DevelopmentPoint(developer="Microphen", dilution="1+3",
+                                 minutes=14.0, celsius=20.0,
+                                 contrast_index=0.70, exposure_index=80),
+                DevelopmentPoint(developer="Perceptol", dilution="1+1",
+                                 minutes=12.0, celsius=20.0,
+                                 contrast_index=0.55, exposure_index=32),
+                DevelopmentPoint(developer="Perceptol", dilution="1+1",
+                                 minutes=17.0, celsius=20.0,
+                                 contrast_index=0.70, exposure_index=32),
+                DevelopmentPoint(developer="Perceptol", dilution="1+3",
+                                 minutes=15.0, celsius=20.0,
+                                 contrast_index=0.55, exposure_index=32),
+                DevelopmentPoint(developer="Perceptol", dilution="1+3",
+                                 minutes=24.0, celsius=20.0,
+                                 contrast_index=0.70, exposure_index=32),
+            ),
+            source=("Pittaro, ed., «The Compact Photo-Lab-Index», Morgan & "
+                    "Morgan, 2nd Compact Edition 1979, Ilford Pan F development table "
+                    "(PDF p473): minutes to reach contrast index 0.55 and 0.70 for "
+                    "ID-11, Microphen and Perceptol at 1+1 and 1+3, plus the speed "
+                    "each developer yields (ID-11 ASA 50, Microphen DIN 20 ~ ASA 80, "
+                    "Perceptol ASA 32 / DIN 16). Contrast index defined in the source "
+                    "as the average gradient over 1.5 log-exposure units from 0.1 "
+                    "above fog"),
+        ),
         features=Feature.NONE,
     ),
 
@@ -7986,6 +10526,64 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         base_tint=(1.0, 1.0, 1.0),
         misregistration_um=0.0,
         default_flare=0.035,
+        features=Feature.NONE,
+    ),
+
+
+    # =======================================================================
+    # 2026-08-15 -- KODAK PROFESSIONAL Technical Pan Film, publication P-255
+    # (PDF/PROFILES/KODAK/"KODAK PROFESSIONAL Technical Pan Film.pdf", 12 pp,
+    # true text). One stock, entered at its PICTORIAL condition, with the full
+    # documented processing envelope recorded because no other film in this
+    # database comes close to it.
+    # =======================================================================
+    FilmProfile(
+        name="KODAK_TECHNICAL_PAN",
+        aliases=("technical pan", "tech pan", "TP", "kodak 2415", "6415"),
+        description=(
+            "[T1] KODAK PROFESSIONAL Technical Pan -- the most extreme "
+            "processing-dependent film Kodak ever sold, and the reason the "
+            "PRC axis exists as a requirement. Publication P-255 documents a "
+            "contrast index range of 0.50 TO 2.50 FROM ONE EMULSION: CI 0.50 "
+            "at EI 16-25 in Technidol LC (the pictorial condition modelled "
+            "here), rising through intermediate developers to CI 2.50 at "
+            "EI 200 in Dektol -- a 5x contrast span and a 3-stop speed span "
+            "set entirely in the darkroom. Granularity is the finest of any "
+            "pictorial negative in this database and is developer-dependent "
+            "too: diffuse RMS 5 in Technidol LC, 8 in HC-110 D. EXTENDED RED "
+            "sensitisation to 690 nm -- beyond every conventional pan stock "
+            "here (typically 650-660) though short of true infrared -- which "
+            "is why skies darken and skin glows slightly on this film with no "
+            "filter at all. Base is 4-mil ESTAR-AH with a 0.1 neutral-density "
+            "tint. CAVEAT recorded honestly: P-255 prints NO numeric resolving "
+            "power; the famous 320+ lp/mm figure circulates from other Kodak "
+            "literature not in this corpus, so the MTF here is set from the "
+            "RMS-5 granularity class and marked EST rather than from a "
+            "documented lp/mm value."
+        ),
+        era="1977-2004",
+        is_monochrome=True,
+        exposure_index=25,      # EI 25 in Technidol LC, the pictorial condition
+                                # -- P-255 (EI 16-25 stated as the range) [C1]
+        balance_kelvin=5500,    # daylight-rated; no temperature printed [C3]
+        # Pictorial condition: Technidol LC, CI 0.50 aim [C1 for the CI].
+        # dmin includes the 0.1 ND ESTAR-AH base tint [C1 for the 0.1 figure].
+        # Toe/shoulder are EST [C4]; the sheet's curves are per-developer
+        # families and remain queued for tracing.
+        curves=_mono(ToneCurve(0.12, 0.500, -1.30, 0.24, 1.90, 0.40)),
+        # RMS 5 documented (Technidol LC) [C1]. Finest pictorial grain in the
+        # database; clump EST [C3] scaled below ACROS (RMS 7).
+        grain=GrainSpec(5.0, 4.0, 4.0, 4.0, clump_gain=0.85, fog_grain=0.10),
+        # EST [C3] -- see the resolving-power caveat in the description. Set
+        # high (above ACROS at f50 104) but NOT entered in _RESOLVING_POWER,
+        # which is reserved for documented TOC pairs.
+        mtf=MTFSpec(110.0, 110.0, 110.0, adjacency=0.01, adjacency_um=12.0),
+        spectral_weights=(0.40, 0.35, 0.25),   # red-weighted collapse: the
+                                # documented 690 nm extended-red sensitisation
+                                # pulls the single record toward red [C3
+                                # magnitude, C1 direction]
+        misregistration_um=0.0,
+        default_format="ff35",
         features=Feature.NONE,
     ),
 
@@ -8148,127 +10746,57 @@ _NO_DATASHEET: tuple[str, ...] = (
 #: could NOT be re-verified in this pass and were left untouched; see
 #: NotFound.md for the full list and the specific parameters still missing.
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
-    # ---- 2026-08-14: GEVACOLOR_1952 upgraded tier 3 -> 1. The profile was
-    # built by analogy with no citation; Cheltsov & Bongard 1958 documents
-    # the film directly and is what fixes its balance temperature.
-    "GEVACOLOR_1952": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf -- p178 (Gevacolor negative type N-5, 14/10 DIN, balanced for incandescent lamps at 2850 K; gelatin interlayers distinguishing it from Agfacolor; magenta dye absorption max 550 nm, cyan max 660 nm), p152 (Gevacolor reversal 24 lines/mm in the five-stock comparison set), p179 (type 652 successor at 3200 K, 32 ASA, published gamma 0.65)",),
-    # ---- 2026-08-14 batch, The Compact Photo-Lab-Index 1979 (Pittaro, ed.).
-    # Each entry names the PDF page its documented values came from.
-    "POLAROID_51": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p582 (ASA 320 daylight / 26 DIN, ASA 100 tungsten / 21 DIN; D-max 1.75, D-min .00, slope 3.35, resolution 28-32 lines/mm; blue-sensitive only; plot annotation D-max 1.85 / D-min .09 / slope 3.30; reciprocity compensation table; filter factors)",),
-    "POLAROID_52": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p583 (ASA 400, 27 DIN; D-max 1.75, D-min .02, slope 1.3-1.4, resolution 35-40 lines/mm; filter factor table)",),
-    "POLAROID_42": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p583 and p586 (24 DIN, plot annotation Speed 200; D-max 1.65, D-min .08, slope 1.30, resolution 25-28 lines/mm)",),
-    "POLAROID_47": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p589 and p591 (ASA equivalent 2500, 36 DIN, plot Speed 3000; D-max 1.70, D-min .06, slope 1.50, resolution 20-22 lines/mm; formats 47 roll / 107 pack / 57 packet share the block)",),
-    "POLAROID_55_PN_NEG": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p588 (ASA equivalent 50, DIN 18; NEGATIVE D-max 1.65, D-min .18, slope .7, resolution 150-160 lines/mm; POSITIVE D-max 1.75, D-min .02, slope 1.4, resolution 22-25 lines/mm; plot annotations 1.55/.18/.65 negative and 1.75/.09/1.35 positive; fixed after 20 s, sulphite bath within 3 min, enlargeable to 25x)",),
-    "POLAROID_46L": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p593-594 (ASA equivalent 800, DIN 30; D-max 2.8, D-min .05, slope 1.8, resolution 35-40 lines/mm; panchromatic projection transparency; contrast manipulable by development to five minutes; plot annotation D-max 2.50 / D-min .02 / slope 2.20)",),
-    "POLAROID_146L": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p594-595 (Polaline; ASA equivalent 200 daylight / DIN 24, 60 tungsten / DIN 19; D-max 2.3, D-min .02, slope 3.00+ i.e. a lower bound, resolution 40-50 lines/mm; blue-sensitive, no filters; plot annotation D-max 2.55 / D-min .03 / slope 3.30)",),
-    "POLAROID_410": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p595-596 (Polascope; ASA equivalent 10,000, 41 DIN; D-max 1.6, D-min .02, slope 2.0, resolution 22-28 lines/mm; development 15 s at 20 C and above; for oscilloscope traces and high-magnification macrophotography; plot annotation D-max 1.50 / D-min .10 / slope 2.30)",),
-    "ILFORD_PAN_F": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p471-474 (ASA 50, DIN 18; wedge spectrogram to tungsten 2850 K; reciprocity chart; filter factors daylight and tungsten; development times to contrast index G0.55 / G0.70 in ID-11, Microphen and Perceptol at 1+1 and 1+3; speed becomes DIN 20 in Microphen and ASA 32 / DIN 16 in Perceptol) and p559 (Ilford sensitivity range 2300-6700 Angstrom, medium speed, medium-to-high contrast, very fine grain)",),
-    "ILFORD_FP4": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p474-477 (ASA 125 / DIN 22 daylight, ASA 100 / DIN 21 tungsten; wedge spectrogram to tungsten 2850 K; latitude claim +6 / -2 stops) and p559 (sensitivity range 2300-6700 Angstrom, medium speed, medium contrast, very fine grain)",),
-    "ILFORD_HP4": (
-        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
-        " -- p478-480 (ASA 400, DIN 27; wedge spectrogram to tungsten 2850 K) and p559 (sensitivity range 2300-6700 Angstrom, very fast, medium contrast, medium grain); corroborated at 400 in the roll-film development tables p704",),
-    # ---- 2026-08-13 batch, Cheltsov & Bongard 1958 (Soviet monograph). Each
-    # entry names the page its documented values came from, so a later reader
-    # can check any single number without re-reading the book.
-    "KODACHROME_1938": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p144 (5900 K, ASA 12/13 DIN, five Kodachrome types), p143 (structure, 1941 three-layer form), p150 (dye selectivity), p152 (40 lines/mm)",),
-    "KODACHROME_TYPE_A_1938": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p144 (3450 K, ASA 20), p152 (40 lines/mm, shared with the daylight stock)",),
-    "AGFACOLOR_NEG_TYPE_3": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p173-174 (universal type 3, photographic balance 4000 K, soft gradation, narrowed green sensitisation, colloidal-silver antihalation underlayer), p172 (Agfacolor negative family speeds 14/16 DIN, 20-25 ASA)",),
-    "ANSCOCOLOR_NEG_843": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p177 (5400 K, layer sensitivity maxima 440/555/655 nm, 48 lines/mm, grey antihalation base, no antihalation layer)",),
-    "GEVACOLOR_NEG_652": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p179-180 (32 ASA / 17/10 DIN, gamma 0.65, 3200 K, no yellow filter layer, exposure-index ladder by illuminant with CTO filters), p179 (magenta absorption max 550 nm, cyan max 660 nm)",),
-    "FERRANIACOLOR_NEG_82": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p180-181 (type 82, studio, 15/10 DIN = 20 ASA; structure, zonal sensitivity and dye absorption stated ANALOGOUS to the Agfacolor negative), p180 (type 51 at 3200 K)",),
-    "FERRANIACOLOR_REVERSAL_1950": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p166 (15/10 DIN = 20 ASA, daylight; magenta absorption identical to Agfacolor, cyan close to Gevacolor/Anscocolor), p152 (30 lines/mm in the same measurement set as Kodachrome 40 / Ilfordcolor 36 / Agfacolor 32 / Gevacolor 24), p167 (behaviour under the Agfacolor process)",),
-    "SVEMA_DS_2": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p175 (DS-2 for interior arc at 5000 K; NIKFI speed 20-26 at S=20/H, density 0.85 above maximum fog; contrast coefficient 0.60-0.85; 65 lines/mm on resolvometer SR-13; natural layer order, colloidal-silver yellow filter layer, bleaching green antihalation lacquer)",),
-    "SVEMA_LN_3": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p175 (LN-3 for incandescent at 3300 K; NIKFI speed 20-26; contrast coefficient 0.60-0.85; 65 lines/mm on SR-13)",),
-    "EASTMANCOLOR_5248_1953": (
-        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
-        " -- p220-222 (type 5248, 3200 K, 32 ASA, 24 ASA in daylight behind Wratten 85/85B; effective sensitisation bands 380-500 / 490-580 / 580-680 nm; yellow and orange coloured masking couplers in the lower part of the green and red layers; antihalation optical density 1.3; developer CD-3), p200 and p234 (per-layer resolving power 110 / 46 / 30 lines/mm)",),
-    # ---- 2026-08-13 batch (each stock's own sheet, PDF/PROFILES/) ----
-    "KODAK_TMAX_100": ("KODAK PROFESSIONAL T-MAX Films, publication F-4016 (2018), Eastman Kodak Company",),
-    "KODAK_TMAX_400": ("KODAK PROFESSIONAL T-MAX 400 Film, publication F-4043 (2016), Eastman Kodak Company",),
-    "KODAK_TMAX_P3200": ("KODAK PROFESSIONAL T-MAX P3200 Film, publication F-4001 (2019), Eastman Kodak Company",),
-    "KODAK_TRI_X_400TX": ("KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company",),
-    "KODAK_TRI_X_320TXP": ("KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company",),
-    "KODAK_PLUS_X_125": ("KODAK PLUS-X Pan and PLUS-X Pan Professional Films, publication F-8 (1997), Eastman Kodak Company",),
-    "KODAK_T400CN": ("KODAK PROFESSIONAL T400 CN Film, publication F-2350, Eastman Kodak Company",),
-    "KODAK_BW400CN": ("KODAK PROFESSIONAL BW400CN Film, publication F-4036, Eastman Kodak Company",),
-    "KODAK_EKTAPAN_100": ("KODAK EKTAPAN Film 4162, publication F-10, Eastman Kodak Company",),
-    "KODAK_EKTAR_100": ("KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company",),
-    "KODAK_PORTRA_160": ("KODAK PROFESSIONAL PORTRA 160 Film, publication E-4051 (2016), Eastman Kodak Company",),
-    "KODAK_PORTRA_800": ("KODAK PROFESSIONAL PORTRA 800 Film, publication E-4040 (2016), Eastman Kodak Company",),
-    "KODAK_PORTRA_100T": ("KODAK PROFESSIONAL PORTRA 100T Film, publication E-2468, Eastman Kodak Company",),
-    "KODAK_GOLD_100": ("KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company",),
-    "KODAK_GOLD_200": ("KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company",),
-    "KODAK_ULTRAMAX_400": ("KODAK ULTRA MAX 400 Film, publication E-7023, Eastman Kodak Company",),
-    "KODAK_ULTRAMAX_800": ("KODAK ULTRA MAX 800 Film, publication E-7024, Eastman Kodak Company",),
-    "KODAK_VERICOLOR_III_160": ("KODAK VERICOLOR III Professional Film, publication E-26, Eastman Kodak Company",),
-    "KODAK_EKTAPRESS_PJ400": ("KODAK PROFESSIONAL EKTAPRESS Films, publication E-116, Eastman Kodak Company",),
-    "KODAK_PROFOTO_100": ("KODAK PROFOTO 100 Film, publication E-2e, Eastman Kodak Company",),
-    "KODAK_ULTRA_COLOR_100UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
-    "KODAK_ULTRA_COLOR_400UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
-    "AGFA_SCALA_200X": ("Agfa SCALA 200x professional Technical Data, Agfa-Gevaert AG",),
-    # 2026-08-04. Neu 1936 previously fell back to _NO_DATASHEET. It now has
-    # real citations -- but they ground the PROCESS and DATE only, so the tier
-    # stays 3 and fitted_from stays "analogy". See the PROVENANCE LIMIT note.
-    "AGFACOLOR_NEU_1936": (
-        "Color Committee (1937): 'The New Agfacolor Process'. Journal of the "
-        "Society of Motion Picture Engineers, May 1937, pp. 561-562 -- via "
-        "PDF/PROFILES/AGFA/Agfacolor 01.mhtml (Timeline of Historical Colors "
-        "in Photography and Film, page 'Agfacolor Neu / Agfacolor')",
-        "Hatschek, Paul (1936): 'Der neue deutsche Agfa-Farbenfilm'. Die "
-        "Kinotechnik 18(21), 5 Nov. 1936, pp. 345-346 (in German)",
-        "PROVENANCE LIMIT: these two citations establish the process and the "
-        "date only -- subtractive three-colour chromogenic monopack, reversal "
-        "from 1936, colour formers incorporated in the superposed emulsion "
-        "layers instead of added to the developer, silver later dissolved out "
-        "leaving pure dye images. Neither carries a photometric figure: no "
-        "speed, no gamma, no spectral sensitisation, no dmin or dmax. Every "
-        "numeric value in this profile is therefore still an analogy, which is "
-        "why the tier remains 3. Do NOT borrow the quantitative Agfacolor "
-        "data printed on that same page (15/10 Din, the Type B / Type G "
-        "red-sensitivity trade, the Abb. 58-59 layer sensitisation curves): "
-        "all of it describes the 1939+ NEGATIVE/POSITIVE system, a different "
-        "film with a different process, and it is carried by "
-        "AGFACOLOR_NEG_TYPE_B_1943 instead",
-    ),
+    "KODAK_RECORDING_2475": (
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 14: 35 mm only; NO ISO/ASA rating is printed -- the sheet gives 'EI 1000 to 4000', with EI 1600 on normal development and up to EI 4000 with extended development; 'extremely fast, coarse-grain panchromatic film with extended red sensitivity'; carries its own Wratten filter-factor table because the extended red sensitivity changes the factors",),
+    "KODAK_ROYAL_X_PAN_4166": (
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 15: ISO 1250/32 deg; resolving 100 high (class 'Medium') / 40 low; Degree of Enlargement 'Moderately Low'; documented push ladder -- ASA 2000 on normal development, ASA 4000 with development increased about 50 percent. NOTE the sheet contradicts itself on grain: prose says 'medium-grain', the Emulsion Characteristics block says 'Grain: Fine'. Both recorded; the stored rms estimate follows the prose",),
+    "KODAK_ROYAL_PAN_4141": (
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 16: ISO 400/27 deg; grain 'Fine'; resolving 80 high (class 'Medium') / 40 low; Degree of Enlargement 'Moderately Low'; 'long-toed curve ... provides brilliant highlight separation'",),
+    "KODAK_VERICHROME_PAN": (
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 22: ISO 125/22 deg; grain 'Extremely Fine'; resolving 100 high (class 'High') / 50 low; 'medium-toed characteristic curve shape'; stated to have characteristics similar to PLUS-X Pan Professional but without retouching surfaces; only Kodak B&W film in 110 and 126 cartridges",),
+    "KODAK_PANATOMIC_X": (
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 10: ISO 32/16 deg; grain class 'Extremely Fine'; Degree of Enlargement 'Very High'; resolving power 200 lines/mm high contrast (class 'Very High') and 80 low; 'medium-toe curve shape'; can be reversal-processed to B&W transparencies",),
+    # ---- 2026-08-17: four Soviet stocks from their own TU specifications ----
+    "SVEMA_LN_8": (
+        "«Кинопленка цветная негативная ЛН-8. Технические условия», ТУ 6-17-1109-88, 21 pp, superseding ТУ 6-17-1109-80 [state manufacturing specification]. read VISUALLY from the page image; the OCR of this typewritten scan detaches values from their row labels and was not trusted. Masked colour negative for professional cinematography; triacetate base ОТБ-14 per ОСТ 6-17-451-83. TABLE 2, sheets 3-4, ALL VALUES ARE ACCEPTANCE LIMITS: (1) general sensitivity >= 100 ед. ГОСТ 9160-82; (2) sensitivity balance <= 2.0; (3) mean gradient behind blue/green/red 0.60 / 0.54 / 0.50, each +0.06 -0.04; (4) Dmin behind blue 0.70-1.05, green 0.25-0.60, red <= 0.25; (5) latitude >= 1.5; (6) seven unwanted/useful density ratios Dвр/Dпол -- K^п_с1 0.15-0.25, K^п_с2 MINUS 0.05-0.10 (the only negative term in this batch), K^п_к 0.00-0.10, K^г_с 0.00-0.10, K^г_з 0.00-0.10, K^ж_з 0.05-0.15, K^ж_к 0.00-0.06; (7) yellow filter-layer efficiency ΔD^ж_с >= 1.0; (8) MTF >= 0.30 green and >= 0.15 red -- ⚠ THE SPATIAL FREQUENCY IS NOT PRINTED ON THIS LINE, 30 mm^-1 assumed from the family convention and flagged in the profile; (9) RMS granularity (1000*sigma) <= 19 green, <= 21 red; (10) RED-LAYER SENSITISATION LIMIT <= 690 nm; (11) colour-separation characteristics 75/40/20, 10/80/30, minus 5/10/135 (±10, ±20 on the last), norms marked for refinement before 1988-10-01. Notes: any single layer >= 80 ед. ГОСТ (⚠ the OCR read this as 60 -- the page says 80); photographic uniformity within an axis <= 20 %; over the shelf life sensitivity may fall <= 40 % and each layer's Dmin rise <= 0.15 B. TABLE 3: deformation temperature >= 40 C, impact strength 490 (50) N*cm/cm3, thermostatic shrinkage <= 0.3 %. NOT SPECIFIED: spectral sensitivity curves, characteristic-curve shape, Dmax, reciprocity, resolving power",),
+    "SVEMA_LN_9": (
+        "«Кинопленки цветные негативные ЛН-9 и ЛН-9С. Технические условия», ТУ 6-17-1443-88, 23 pp [state manufacturing specification]. read VISUALLY from the page image; the OCR of this typewritten scan detaches values from their row labels and was not trusted. Masked colour negative for professional cinematography; triacetate base ОТБ-14. ЛН-9 carries a COLLOIDAL-SILVER antihalation undercoat beneath the emulsion (ЛН-9С instead has a carbon-black lacquer counter-layer); both are removed during processing. TABLE 2, sheets 3-4, ALL VALUES ACCEPTANCE LIMITS, items 1-3 and 5-10 printed in ONE SHARED COLUMN for both marks: (1) S >= 100 ед. ГОСТ 9160-82; (2) sensitivity balance <= 1.5; (3) mean gradient blue 0.60 / green 0.54 / red 0.50, each +0.06 -0.04; (4) Dmin CEILINGS, PER MARK -- ЛН-9 blue 1.10, green 0.60, red 0.30; (5) latitude >= 1.5; (6) filter-layer efficiency >= 1.0; (7) MTF AT AN EXPLICITLY STATED 30 mm^-1: green 0.40 +/- 0.05, red 0.22 +/- 0.03 -- given as TOLERANCES, not minima, uniquely in this batch; (8) RMS granularity <= 11 in BOTH green and red; (9) six unwanted/useful density ratios K^п_с 0.00-0.15, K^п_к 0.05-0.15, K^г_с 0.00-0.10, K^г_з 0.00-0.10, K^ж_з 0.05-0.15, K^ж_к 0.00-0.06; (10) colour separation 85/35/20, 15/80/25, 0/15/115 all ±5. Notes: any single layer >= 80 ед. ГОСТ; uniformity <= 15 %; shelf allowance sensitivity -30 %, Dmin +0.15 B. NOT SPECIFIED: spectral curves, curve shape, Dmax, reciprocity, resolving power",),
+    "SVEMA_LN_9S": (
+        "«Кинопленки цветные негативные ЛН-9 и ЛН-9С. Технические условия», ТУ 6-17-1443-88, 23 pp [state manufacturing specification]. read VISUALLY from the page image; the OCR of this typewritten scan detaches values from their row labels and was not trusted. Masked colour negative for professional cinematography; triacetate base ОТБ-14. ЛН-9С carries a CARBON-BLACK LACQUER counter-layer on the back of the base (ЛН-9 instead has a colloidal-silver undercoat); both are removed during processing. TABLE 2, sheets 3-4, ALL VALUES ACCEPTANCE LIMITS, items 1-3 and 5-10 printed in ONE SHARED COLUMN for both marks: (1) S >= 100 ед. ГОСТ 9160-82; (2) sensitivity balance <= 1.5; (3) mean gradient blue 0.60 / green 0.54 / red 0.50, each +0.06 -0.04; (4) Dmin CEILINGS, PER MARK -- ЛН-9С blue 1.00, green 0.55, red 0.25; (5) latitude >= 1.5; (6) filter-layer efficiency >= 1.0; (7) MTF AT AN EXPLICITLY STATED 30 mm^-1: green 0.40 +/- 0.05, red 0.22 +/- 0.03 -- given as TOLERANCES, not minima, uniquely in this batch; (8) RMS granularity <= 11 in BOTH green and red; (9) six unwanted/useful density ratios K^п_с 0.00-0.15, K^п_к 0.05-0.15, K^г_с 0.00-0.10, K^г_з 0.00-0.10, K^ж_з 0.05-0.15, K^ж_к 0.00-0.06; (10) colour separation 85/35/20, 15/80/25, 0/15/115 all ±5. Notes: any single layer >= 80 ед. ГОСТ; uniformity <= 15 %; shelf allowance sensitivity -30 %, Dmin +0.15 B. NOT SPECIFIED: spectral curves, curve shape, Dmax, reciprocity, resolving power",),
+    "SVEMA_CO_32D": (
+        "«Кинофотопленки цветные обращаемые ЦО-32Д. Технические условия», ТУ 6-17-912-87, 23 pp [state manufacturing specification]. read VISUALLY from the page image; the OCR of this typewritten scan detaches values from their row labels and was not trusted. Colour reversal cine and photo film for amateur use. TABLE 5, sheet 7, ALL VALUES ACCEPTANCE LIMITS: (1) nominal sensitivity 32 ед. ГОСТ 9160-82; (2) general sensitivity by the REVERSED image 32-63; (3) sensitivity balance 1.3-1.8; (4) contrast coefficient UPPER layer 2.2-2.6, MIDDLE AND LOWER 1.8-2.2; (5) contrast balance between lower and middle <= 0.3; (6) maximum optical density of each layer >= 2.2 B; (7) minimum optical density of each layer <= 0.25 B; (8) useful exposure interval, measured on the characteristic curves BETWEEN DENSITIES 0.3 AND 2.1, >= 1.2; (9) resolving power >= 68 lin/mm. Clause 2.4: over the shelf life sensitivity may fall <= 40 % and MAXIMUM density fall <= 0.2 B. Clause 2.6: the colloidal-silver antihalation layer must DECOLOURISE during processing. ⚠ The contrast figures are RANGES 0.4 wide and the stored gammas are their midpoints -- a coarser commitment than the +/-0.04 tolerances the negative TUs give. NOT SPECIFIED: granularity, MTF, spectral sensitivity, curve shape, reciprocity",),
+    "SVEMA_DS_5M": (
+        "«Кинопленка цветная негативная ДС-5М. Технические условия», ТУ 6-17-691-88, 22 pp, registered 1988, superseding ТУ 6-17-661-82; issued by Союзхимфото with НИКФИ, the Shostka 'Свема' and Kazan 'Тасма' production associations [State manufacturing specification for DS-5M masked colour negative cine film]. A PRIMARY SPECIFICATION, so every figure below is a binding NORM, not a typical measurement -- values at a limit must be read as 'no worse than'. p2: masked colour negative for daylight or carbon-arc; triacetate base ОТБ-14 per ОСТ 6-17-451-83, thickness 0.150 mm; widths 16/35/70 mm. p3 table 2: general sensitivity >= 50 ед. ГОСТ 9160-82; sensitivity balance <= 1.9; MEAN GRADIENT behind blue/green/red 0.60/0.54/0.50 each +0.06/-0.04; MINIMUM DENSITY behind blue 0.70-1.05, green 0.25-0.50, red <= 0.25 (this ladder is the coloured-coupler mask stated numerically); total photographic latitude >= 1.2 (note 1: up to 25 % of batches may be >= 1.05); UNWANTED/USEFUL DENSITY RATIOS Dвр/Dпол -- K^ж_з 0.06-0.18, K^ж_к 0.00-0.06, K^п_с1 0.15-0.25, K^п_с2 0.05-0.15, K^п_к 0.00-0.10, K^г_с 0.00-0.08, K^г_з 0.00-0.08; MTF at 30 mm^-1 >= 0.30 green and >= 0.15 red; RMS granularity (1000*sigma) <= 22 green and <= 30 red. p4: colour-separation characteristics 85/35/15, 7/105/20, -5/15/112 all +/-10 (norms marked as subject to refinement before 1988-10-01); yellow filter-layer efficiency ΔD^ж_с >= 0.8; photographic uniformity within an axis <= 20 %; over the guaranteed shelf life sensitivity may fall <= 40 % and each layer's Dmin rise <= 0.15 D. p4 table 3: deformation temperature >= 33 C, impact strength 490 (50) N*cm/cm3 at 40 C, thermostatic shrinkage <= 0.3 %, curl <= 4 mm at 30 % RH. p14-15: process stages and the ЦПВ-1 colour developer composition. p13: sensitometric exposure at 5500 K per ГОСТ 9160-82. NOT SPECIFIED anywhere in the document: resolving power, spectral sensitivity curves, reciprocity, Dmax, characteristic-curve shape",),
+    # ---- 2026-08-16, section-4 sweep: OCR of the image-only files ----------
+    "GEVACOLOR_NEG_682_OCR_NOTE": (
+        "R. Vervoort and J. Stappaerts, 'A New Gevacolor Negative Film Type 682', "
+        "SMPTE Journal 89(9), September 1980, pp 650-652 -- the image-only PDF was OCRed "
+        "and every load-bearing figure re-read visually on 2026-08-16. CONFIRMS: 100 ASA, "
+        "3200 K, process ECN-2, gamma 0.57 (annotated on Fig. 10), Status M, triacetate "
+        "base with a removable carbon-black antihalation/antistatic backing, DIR couplers "
+        "in the green- and red-sensitive layers only, full 12-element layer stack (Fig. 6). "
+        "Table I gives RMS granularity only as a RELATIVE model (sigma_D ~ 1/sqrt(n)) with "
+        "NO aperture and NO magnification printed, so it cannot be converted to the 48 um "
+        "convention. NOT PRINTED anywhere: resolving power at either contrast, reciprocity, "
+        "Dmax, base thickness, numeric spectral limits. Figs. 7/8/10/11/12 are raster "
+        "curves -- a digitisation item, not an OCR item. The file "
+        "Verpoort_Stapp1980_NewGevacolNeg682.pdf is byte-identical (duplicate)",),
+    "KONICA_VX_100": (
+        "Konica Corporation, 'Konica Color VX 100 Film (IMPROVED) -- TECHNICAL DATA SHEET', retrieved 2026-08-16 from the 125px.com datasheet mirror (125px.com/docs/film/konica/VX100Improved.pdf). Documented: ISO 100/21 daylight; triacetate base; process CNK-4 / C-41; DIFFUSE RMS GRANULARITY 4 (48 um aperture, 12x, D-min+1.0, Status M); RESOLVING POWER 63 lines/mm at 1.6:1 and 125 lines/mm at 1000:1; reciprocity -- no correction 1/10000..1 s, +1 stop at 10 s with NO colour-compensating filter (achromatic failure); full nine-layer structure listed; characteristic, spectral sensitivity, spectral dye density and MTF curves plotted. CONFIRMS the stored RMS 4.0 and resolving 63/125 EXACTLY, and the achromatic reciprocity model. The 3400 K / 3200 K entries (32 and 25) are FILTER-DERIVED indices (Wratten 80B / 80A) -- filter factors, not film properties, so not stored as tungsten EI",),
+    "KONICA_CENTURIA_SUPER_400": (
+        "Konica Corporation, 'Konica Color VX SUPER 400 Film -- TECHNICAL DATA SHEET', retrieved 2026-08-16 from 125px.com/docs/film/konica/VX-S400.pdf. ADJACENT PRODUCT, recorded for traceability and NOT back-applied: ISO 400/27, triacetate, CNK-4, RMS granularity 4 (48 um), resolving 50 lines/mm at 1.6:1 and 100 at 1000:1, reciprocity none 1/10000..1 s and +1 stop at 10 s achromatic. The VX SUPER and CENTURIA SUPER lines are different Konica families; the CENTURIA SUPER 400 sheet (125px.com/docs/film/konica/csuper400.pdf) WAS located and its front matter read (ISO 400/27, triacetate, DX 26-5, emulsion #400-#499, MCC/UCC crystal technology, CNK-4), but its data-table page did not survive text extraction -- the stored RMS/resolving for this stock therefore remain [C3] pending a full read of that sheet",),
+    # ---- 2026-08-16, official HARMAN sheets fetched from ilfordphoto.com -----
+    "KENTMERE_PAN_100": (
+        "HARMAN technology Limited, 'KENTMERE PAN 100 -- Technical Information', 4 pp, July 2022 edition (KENTMERE-PAN-100_04_07_22.pdf), retrieved from the manufacturer's own site www.ilfordphoto.com on 2026-08-16. p1: ISO 100/21 to daylight, speed measured in ILFORD ID-11 at 20 C, intermittent agitation, spiral tank; base 0.125 mm / 5-mil ACETATE; reciprocity 'Ta = Tm^1.26' beyond 1 s, no correction 1 s..1/10000 s -- CONFIRMS the stored Schwarzschild p 0.794 = 1/1.26 and onset 1.0 s exactly. p2: development matrix, 11 developers x EI 50/100/200. p3-4: chemistry; handle in TOTAL DARKNESS. NOT PRINTED in the sheet: RMS granularity, resolving power, MTF, characteristic curve, spectral sensitivity",),
+    "KENTMERE_PAN_400": (
+        "HARMAN technology Limited, 'KENTMERE PAN 400 -- Technical Information', 4 pp, July 2022 edition (KENTMERE-PAN-400_04_07_22.pdf), retrieved from the manufacturer's own site www.ilfordphoto.com on 2026-08-16. p1: ISO 400/27 to daylight, ID-11 at 20 C, intermittent agitation, spiral tank; base 0.125 mm / 5-mil ACETATE; reciprocity 'Ta = Tm^1.30' beyond 1 s -- CONFIRMS the stored p 0.769 = 1/1.30 and onset 1.0 s exactly. p2: development matrix, 11 developers x EI 320/400/800. p3-4: chemistry; TOTAL DARKNESS. NOT PRINTED: RMS granularity, resolving power, MTF, characteristic curve, spectral",),
+    # ---- 2026-08-16, Zhurba 1990 via owner-supplied page scans -----------
+    "ORWOCOLOR_NC21": (
+        "Журба Ю. И., «Краткий справочник по фотографическим процессам и материалам», 3-е изд., М., 1990 [Zhurba Yu. I., 'Concise Handbook of Photographic Processes and Materials', 3rd ed., Moscow 1990] -- section «Фотографические материалы», OWNER-SUPPLIED PAGE SCANS (the online copy's pp 44-131 are unreachable webp images; eight spreads were provided as screenshots on 2026-08-16 and read visually)"
+        " -- Table 66, book p124: Orwocolor NC21, sensitivity 100 ed. GOST / 21 DIN / 100 ASA, balanced to "
+        "5500 K. THE FIRST DOCUMENTED ORWO VALUES IN THIS CORPUS (all 9 ORWO PDFs and both Zhurba books had "
+        "none); confirms the stored EI 100 and 5500 K exactly. Same table lists NC19 (64, 4200 K!) and "
+        "'Professional Typ L' (40, 3200 K) -- not held",),
     # -- Kodak motion picture and still stocks ------------------------------
     "KODAK_VISION3_50D_5203": (
         "KODAK VISION3 50D 5203 Technical Data, Eastman Kodak Company",
@@ -8284,6 +10812,14 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     "EASTMAN_DOUBLE_X_5222": (
         "EASTMAN DOUBLE-X 5222/7222 Technical Data, Eastman Kodak Company",
+        "Иофис Е. А., «Кинопленки и их обработка», М.: Искусство, 1964 [Iofis E. A., 'Cine Films and "
+        "Their Processing', Moscow: Iskusstvo, 1964] -- PDF/PROFILES/SOVIET/Киноплёнки и их обработка.pdf, "
+        "book p 80 (table 7, «Негативные черно-белые кинопленки»), read visually at 300 dpi. "
+        "INDEPENDENT CONFIRMATION of the stored speeds: «Double-X Panchromatic 5222/7222», ASA 250 "
+        "дневной свет / 200 лампы накаливания -- exactly the stored pair, from a 1963-64 manufacturer "
+        "catalogue rather than from Kodak's modern sheet. Also recommended gamma 0,6-0,7 (the stored "
+        "ToneCurve gamma 0.648 falls inside it) and D-76 at 6,5 min machine processing, now in "
+        "_PROCESSING. Table footnote p 81: «Таблица составлена по каталогам 1963-1964 гг.»",
     ),
     "EASTMAN_PLUS_X_5231": (
         "EASTMAN PLUS-X 5231/7231 Technical Data, Eastman Kodak Company",
@@ -8562,6 +11098,8 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Технические условия», табл. 6 [GOST 24876-81 'Black-and-white "
         "negative photographic films. Specifications', Table 6] "
         "(PDF/PROFILES/SOVIET STANDARDS/ГОСТ 24876-81.pdf)",
+        "Журба Ю. И., «Краткий справочник по фотографическим процессам и материалам», 3-е изд., М., 1990, табл. 2, с. 46 [Zhurba 1990, Table 2, p46] -- norms for Фото-32/64/125/250 per ГОСТ 10691.2-84. CONFLICT INVESTIGATED AND RESOLVED 2026-08-16 against the primary standard held on disk, ГОСТ 24876-81 (PDF/PROFILES/SOVIET STANDARDS): Table 6 of that standard, as amended, carries THREE successive norm sets, and its own note reads «Нормы, указанные в скобках, вводятся с 01.01.90» -- the parenthetical norms take effect 1990-01-01. Original 1981 table (p8): R >= 135/110 lin/mm (high/first quality category) for Фото-32. Amended table (p23): R >= 145 with (200) from 1990, MTF at 30 mm^-1 >= 0.60 with (0.80) from 1990, RMS (1000*sigma_D) <= 35 with (20) from 1990. Later amendment (p27, renamed ФН-32/64/125/250): R >= 195, MTF >= 0.80, RMS <= 20. Zhurba 1990 prints the 1990-01-01 set exactly (200/150/110/100; MTF 0.80/0.80/0.80/0.70; RMS 20/25/25/35) because the book is that year. Our stored R 135 and f50 42 (MTF 0.70 at 30 mm^-1) are the ORIGINAL 1981 top-category norms -- correct for the generation this profile models, and NOT in conflict with Zhurba. Both norm sets use the SAME measurement method, ГОСТ 2819-84 (named on p14 of 24876-81), so the figures are like-for-like: the norm was raised for a new emulsion generation, it is not a test-object-contrast difference. NO STORED VALUE WAS CHANGED from this table",
+        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25130-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. The ГОСТ 25130-82 pointer for ЦНЛ-65 is a lead: that standard is NOT in this corpus and would be the primary source for the TsNL line",
     ),
     "SVEMA_FOTO_250": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -8578,6 +11116,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Gurlev's 82 (Gurlev kept, discrepancy recorded). NOTE both books "
         "print design gamma 0.8; the profile's 0.95 is a deliberate "
         "field-experience override, documented in Readme!.txt",
+        "Журба Ю. И., «Краткий справочник по фотографическим процессам и материалам», 3-е изд., М., 1990, табл. 2, с. 46 [Zhurba 1990, Table 2, p46] -- norms for Фото-32/64/125/250 per ГОСТ 10691.2-84. CONFLICT INVESTIGATED AND RESOLVED 2026-08-16 against the primary standard held on disk, ГОСТ 24876-81 (PDF/PROFILES/SOVIET STANDARDS): Table 6 of that standard, as amended, carries THREE successive norm sets, and its own note reads «Нормы, указанные в скобках, вводятся с 01.01.90» -- the parenthetical norms take effect 1990-01-01. Original 1981 table (p8): R >= 135/110 lin/mm (high/first quality category) for Фото-32. Amended table (p23): R >= 145 with (200) from 1990, MTF at 30 mm^-1 >= 0.60 with (0.80) from 1990, RMS (1000*sigma_D) <= 35 with (20) from 1990. Later amendment (p27, renamed ФН-32/64/125/250): R >= 195, MTF >= 0.80, RMS <= 20. Zhurba 1990 prints the 1990-01-01 set exactly (200/150/110/100; MTF 0.80/0.80/0.80/0.70; RMS 20/25/25/35) because the book is that year. Our stored R 135 and f50 42 (MTF 0.70 at 30 mm^-1) are the ORIGINAL 1981 top-category norms -- correct for the generation this profile models, and NOT in conflict with Zhurba. Both norm sets use the SAME measurement method, ГОСТ 2819-84 (named on p14 of 24876-81), so the figures are like-for-like: the norm was raised for a new emulsion generation, it is not a test-object-contrast difference. NO STORED VALUE WAS CHANGED from this table",
     ),
     "SVEMA_FOTO_32": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -8601,6 +11140,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "(profile f50 42 gives 0.70 -- compliant), R >= 135/110 lin/mm; "
         "GOST granularity limit (sigma_D x1000 <= 40, GOST aperture) not "
         "comparable to the 48 um diffuse-RMS convention, not imported",
+        "Журба Ю. И., «Краткий справочник по фотографическим процессам и материалам», 3-е изд., М., 1990, табл. 2, с. 46 [Zhurba 1990, Table 2, p46] -- norms for Фото-32/64/125/250 per ГОСТ 10691.2-84. CONFLICT INVESTIGATED AND RESOLVED 2026-08-16 against the primary standard held on disk, ГОСТ 24876-81 (PDF/PROFILES/SOVIET STANDARDS): Table 6 of that standard, as amended, carries THREE successive norm sets, and its own note reads «Нормы, указанные в скобках, вводятся с 01.01.90» -- the parenthetical norms take effect 1990-01-01. Original 1981 table (p8): R >= 135/110 lin/mm (high/first quality category) for Фото-32. Amended table (p23): R >= 145 with (200) from 1990, MTF at 30 mm^-1 >= 0.60 with (0.80) from 1990, RMS (1000*sigma_D) <= 35 with (20) from 1990. Later amendment (p27, renamed ФН-32/64/125/250): R >= 195, MTF >= 0.80, RMS <= 20. Zhurba 1990 prints the 1990-01-01 set exactly (200/150/110/100; MTF 0.80/0.80/0.80/0.70; RMS 20/25/25/35) because the book is that year. Our stored R 135 and f50 42 (MTF 0.70 at 30 mm^-1) are the ORIGINAL 1981 top-category norms -- correct for the generation this profile models, and NOT in conflict with Zhurba. Both norm sets use the SAME measurement method, ГОСТ 2819-84 (named on p14 of 24876-81), so the figures are like-for-like: the norm was raised for a new emulsion generation, it is not a test-object-contrast difference. NO STORED VALUE WAS CHANGED from this table",
     ),
     "SVEMA_FOTO_130": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -8623,6 +11163,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "latitude >= 1.5 logH, MTF T(30 mm^-1) >= 0.50 (profile f50 31 "
         "gives 0.52 -- compliant), R >= 100 lin/mm; GOST granularity "
         "limit (<= 50, GOST aperture) not comparable, not imported",
+        "Журба Ю. И., «Краткий справочник по фотографическим процессам и материалам», 3-е изд., М., 1990, табл. 2, с. 46 [Zhurba 1990, Table 2, p46] -- norms for Фото-32/64/125/250 per ГОСТ 10691.2-84. CONFLICT INVESTIGATED AND RESOLVED 2026-08-16 against the primary standard held on disk, ГОСТ 24876-81 (PDF/PROFILES/SOVIET STANDARDS): Table 6 of that standard, as amended, carries THREE successive norm sets, and its own note reads «Нормы, указанные в скобках, вводятся с 01.01.90» -- the parenthetical norms take effect 1990-01-01. Original 1981 table (p8): R >= 135/110 lin/mm (high/first quality category) for Фото-32. Amended table (p23): R >= 145 with (200) from 1990, MTF at 30 mm^-1 >= 0.60 with (0.80) from 1990, RMS (1000*sigma_D) <= 35 with (20) from 1990. Later amendment (p27, renamed ФН-32/64/125/250): R >= 195, MTF >= 0.80, RMS <= 20. Zhurba 1990 prints the 1990-01-01 set exactly (200/150/110/100; MTF 0.80/0.80/0.80/0.70; RMS 20/25/25/35) because the book is that year. Our stored R 135 and f50 42 (MTF 0.70 at 30 mm^-1) are the ORIGINAL 1981 top-category norms -- correct for the generation this profile models, and NOT in conflict with Zhurba. Both norm sets use the SAME measurement method, ГОСТ 2819-84 (named on p14 of 24876-81), so the figures are like-for-like: the norm was raised for a new emulsion generation, it is not a test-object-contrast difference. NO STORED VALUE WAS CHANGED from this table",
     ),
     "SVEMA_DS_4": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -8631,6 +11172,9 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Kyiv: Tekhnika, 1986, pp. 354-355] -- DS-4 (TU 6-17-622-74): "
         "S 45 GOST, unmasked, gamma 0.8, L 1.2, Dmax 2, D0 0.25 per "
         "spectral zone, R 63 lin/mm, H&D curve family fig. 197",
+        # ---- 2026-08-17: the film's own primary specification ----
+        "«Пленка фотографическая цветная негативная ДС-4. Технические условия», ТУ 6-17-622-84, 9 sheets, Шосткинское ПО «Свема», in force 04.02.1985 to 1990, superseding ТУ 6-17-622-74 [primary state manufacturing specification]. Poor typewritten scan with NO text layer -- every figure below was read visually from the page images. Sheet 2: colour negative photographic film ДС-4 for daylight shooting in art, reportage and amateur photography; two forms, perforated and unperforated roll. TABLE 4 (sheet 4), all values NORMS: general sensitivity >= 45 ед. ГОСТ 9160-82; sensitivity balance <= 2.2; RECOMMENDED CONTRAST COEFFICIENT upper and middle layers 0.70 +/- 0.05, LOWER layer 0.60 +/- 0.05; development time to reach it 6-8 min; fog optical density <= 0.28 IN EVERY SPECTRAL ZONE (equal across zones -- confirms the film is unmasked); total photographic latitude >= 1.2; RESOLVING POWER >= 68 lin/mm. Sheet 4 also: deformation temperature >= 33 C; over the guaranteed shelf life sensitivity may fall <= 40 % and fog density rise <= 50 %. TEST METHODS (sheets 7-8): sensitometer ЦС-2М and densitometer «Макбет» in STATUS M plus ДП-1, both per ГОСТ 9160-82; resolving power on resolvometer РП-2М per ГОСТ 2819-84 -- the same method standard as ГОСТ 24876-81 uses, so this figure is like-for-like with the other Soviet resolving values in this database. Developer (table 5, pH 10.5-10.7): EDTA disodium salt 2-hydrate 2.0 g, hydroxylamine sulfate 1.2 g, p-aminodiethylaniline sulfate (ЦПВ-1) 2.3 g, anhydrous sodium sulfite 2.0 g, potassium carbonate 60.0 g per litre. NOT SPECIFIED in the document: Dmax, spectral sensitivity, RMS granularity, MTF, reciprocity, dye impurity ratios, characteristic-curve shape",
+        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25130-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. The ГОСТ 25130-82 pointer for ЦНЛ-65 is a lead: that standard is NOT in this corpus and would be the primary source for the TsNL line",
     ),
     "SVEMA_CNL_32": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -8675,6 +11219,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "filters <= 0.90/0.50/0.27 (top) 1.10/0.60/0.30 (first grade), "
         "latitude >= 1.65/1.50, R >= 63 lin/mm (first grade), colourless "
         "triacetate base D <= 0.05, base 0.11-0.15 mm (35 mm)",
+        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25130-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. The ГОСТ 25130-82 pointer for ЦНЛ-65 is a lead: that standard is NOT in this corpus and would be the primary source for the TsNL line",
     ),
     "TASMA_OCH_45": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -8696,6 +11241,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "gamma_rec 1.6 (max 2.2), D0 0.06, L 1.05, R 110 mm^-1, "
         "sensitization limit 660 nm; also OCh-180 / OCh-T-45 / OCh-T-180 "
         "/ OCh-T-45M rows",
+        "ГОСТ 20945-80 «Кинопленки черно-белые обращаемые. Технические условия» [GOST 20945-80, B&W reversal cine films] -- PDF/PROFILES/SOVIET STANDARDS/ГОСТ 20945-80.pdf. Table 4 (p3, as amended): type OCH-50 nominal S 50 (range 50-80) in units of GOST 10691.4-84, contrast coefficient 1.2-1.6, Dmax >= 2.2/2.0, Dmin <= 0.10/0.15, latitude >= 1.05, resolving >= 110/100 lin/mm. APPENDIX p8 (added by Amendment No. 1): correspondence table -- before 1987-01-01 the type designations were OCH-45 and OCH-180, from 1987-01-01 OCH-50 and OCH-200. SETTLES THE OCH-45/OCH-50 QUESTION: same film, renamed when speeds moved to the ISO-aligned GOST 10691.4-84 scale (old series 22/45/90/180 -> new 25/50/100/200); not a reformulation",
     ),
     "DUFAYCOLOR_1937": (
         "Measured optical densities of the dyed reseau, National Science "
@@ -8711,6 +11257,294 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "official name, REVERSIBLE, 18 DIN / 50 ASA / 45 GOST, daylight "
         "balance (ORWO filter No. 13 [B12] factor 6 for tungsten), "
         "storage < 18 C at 50-60 % RH",
+        "Журба Ю. И., «Краткий справочник по фотографическим процессам и материалам», 3-е изд., М., 1990 [Zhurba Yu. I., 'Concise Handbook of Photographic Processes and Materials', 3rd ed., Moscow 1990] -- section «Фотографические материалы», OWNER-SUPPLIED PAGE SCANS (the online copy's pp 44-131 are unreachable webp images; eight spreads were provided as screenshots on 2026-08-16 and read visually)"
+        " -- Table 66, book p124: ORWOCHROM UT-18, sensitivity 50 ed. GOST / 18 DIN / 50 ASA, balanced to "
+        "5500 K (blue filter required under incandescent lamps). Confirms EI 50; CORRECTED the stored "
+        "balance from an estimated 4500 K to the documented 5500 K. Same table: UT-15 (25), UT-20 (80), "
+        "UT-21 (100), UT-23 (160), UK-17 (40, 3200 K) -- not held",),
+    # ---- 2026-08-16: stocks documented in earlier passes whose sources dict
+    # was never updated (the citations lived only in description comments).
+    "ILFORD_HP3": (
+        "Mitchell, J. (ed.), 'The Ilford Manual of Photography', Ilford Ltd., 1942 -- "
+        "PDF/PROFILES/ILFORD/mitchell_j_ed_the_ilford_manual_of_photography.pdf. Printed pp 74-76 (speeds: "
+        "H.P.3 Plate 6000 H&D / 34 deg Scheiner group G; H.P.3 Flat Film 5000 / 32 / F; Selo H.P.3 Roll Film "
+        "and 35mm 5000 / 32 / F), pp 79-80 (per-product characteristic curves: roll/35mm gamma 1.19 at ID-2 "
+        "8 min, 1.04 at 4 min, gamma 1.0 reached at 3.9 min; gamma-time curves for ID-2 and ID-11), p 195 "
+        "(development times dish 7.5/5/3.5 and tank 15/10/7 min at 55/65/75 F). Also 'The Compact "
+        "Photo-Lab-Index' 1979 pp 703-711: HP3 at ASA 400 in the cross-manufacturer tables, Edwal class III. "
+        "PERIOD DISCIPLINE: 1942 speeds are H&D/Scheiner and are NOT converted; the curve is the 1942 "
+        "emulsion; no spectral, granularity or resolving data exists for HP3 in the corpus",),
+    "ROLLEI_INFRARED_400": (
+        "Rollei Infrared 400 technical sheet -- PDF/PROFILES/ROLLEI/TARIRe.pdf: ISO 400/27, RMS granularity "
+        "11.0 (Refinal 5 min 20 C), resolving power 160 l/mm at 1000:1, polyester base 100 um, LE 500, full "
+        "developer matrix. Plus PDF/PROFILES/ROLLEI/'Development_Rollei films.pdf' developer/time tables",),
+    "ROLLEI_R3": (
+        "Rollei R3 rows in PDF/PROFILES/ROLLEI/'Development_Rollei films.pdf': developer/time/temperature "
+        "matrix at ISO 50 / 800 / 1600 across 7 developers at 20 C (24 C entries marked). No RMS, resolving, "
+        "curve or spectral data in the corpus",),
+    "ROLLEI_RETRO_400": (
+        "Rollei Retro 400 rows in PDF/PROFILES/ROLLEI/'Development_Rollei films.pdf': developer/time matrix "
+        "at ISO 200 and 400, 7 developers. No RMS, resolving, curve or spectral data in the corpus",),
+    "GEVACOLOR_NEG_682": (
+        "Vervoort, A. / Stappaerts, H., 'A New Gevacolor Negative Film Type 682', SMPTE Journal 89(9), 1980, "
+        "pp. 650-652: published gamma 0.57, per-layer RMS granularity curves, DIR couplers in green- and "
+        "red-sensitive layers, double-layer coating technique. NOTE PDF/PROFILES/AGFA/NewGevacol_Neg_682.pdf "
+        "is on file but image-only (OCR completed 2026-08-16)",),
+    "AGFACOLOR_NEG_TYPE_B_1943": (
+        "Schmidt, Richard / Kochs, Adolf, 'Farbfilmtechnik. Eine Einfuehrung fuer Filmschaffende', Berlin: "
+        "Hesse 1943 (Schriftenreihe der Reichsfilmkammer 10), pp. 54-125, Abb. 57-59 -- via "
+        "PDF/PROFILES/AGFA/'Agfacolor 01.mhtml'. Layer sensitisation figure (schematic, +/-10 nm), balance "
+        "4200 K Schneeweisskohle arc, EI and process context. Cheltsov & Bongard 1958 p172 documents the "
+        "post-war B-333/C-334 siblings at 5800/3200 K",),
+    # ---- 2026-08-16: the 12 stocks whose "no manufacturer datasheet" claim
+    # was falsified by the 2026-08-14 re-analysis (verified pairings, see
+    # doc/reanalysis_2026-08-14/RESULT_REPAIR.md). Each cites the sheet that
+    # was on disk all along. This closes the C.6 follow-up in NotFound.md.
+    "EASTMAN_EXR_50D_5245": (
+        "EASTMAN EXR 50D Film 5245/7245, Kodak publication H-1-5245t, May 2003 -- PDF/PROFILES/KODAK/5245.pdf. "
+        "EI 50 daylight (tungsten 12 with 80A = filter factor); 5500 K; ECN-2 Status M; clear acetate + rem-jet; "
+        "reciprocity none 1/1000-1 s with no CC filter (achromatic). RMS as curve only; no resolving power printed. "
+        "WARNING: p1 carries a duplicated misprinted row 'Tungsten (3200 K) | None | 50' -- do not use. "
+        "Vector curve pages: p3 (characteristic + MTF), p4 (granularity, spectral sensitivity, dye density)",),
+    "EASTMAN_EXR_100T_5248": (
+        "EASTMAN EXR 100T Color Negative Film 5248/7248, Kodak publication H-1-7248, March 1999 -- PDF/PROFILES/KODAK/5248.pdf. "
+        "EI 100 tungsten 3200 K +/-150 K (daylight 64 with No.85 = filter factor); RMS <5 at 48 um, net diffuse D 1.0; "
+        "resolving power 80 (1.6:1) / 160 (1000:1) lines/mm; ECN-2 Status M; acetate + rem-jet; reciprocity none "
+        "1/1000-1/10 s, +1/3 stop at 1 s. Vector curves p3 (all five graphs)",),
+    "EASTMAN_EXR_200T_5293": (
+        "EASTMAN EXR 200T Film 5293/7293, Kodak publication H-1-5293t, August 2003 -- PDF/PROFILES/KODAK/5293.pdf. "
+        "EI 200 tungsten 3200 K +/-150 K (daylight 125 with No.85 = filter factor); ECN-2 Status M; clear acetate + "
+        "rem-jet; reciprocity none 1/1000-1 s, no CC (achromatic). RMS as curve only. Vector curves p3-p4",),
+    "EASTMAN_EXR_500T_5296": (
+        "EASTMAN EXR 500T Film 5296, Kodak MPTVI data sheet TI1664, reissued 6-92 -- PDF/PROFILES/KODAK/'eastman 500t 5296 exr - Kodak.pdf'. "
+        "EI 500 tungsten / 28 DIN (daylight 320/26 with No.85 = filter factor); 3200 K +/-150 K; resolving power ISO RPL 50 / "
+        "ISO RP 100 lines/mm (1.6:1 / 1000:1); ECN-2; clear acetate + rem-jet; reciprocity none 1/1000-1 s (achromatic). "
+        "Text-only sheet: no curves at all",),
+    "KODAK_VISION2_200T_5217": (
+        "KODAK VISION2 200T Color Negative Film 5217/7217, Kodak publication H-1-5217, (c)2004 rev. 10-2005 -- "
+        "PDF/PROFILES/KODAK/5217-Vision2-200T.pdf. EI 200 tungsten 3200 K +/-150 K (daylight 125 with No.85); ECN-2; "
+        "acetate + rem-jet; reciprocity none 1/1000-1/10 s, +2/3 stop CC10R at 1 s, +1 stop CC10R at 10 s (CHROMATIC, "
+        "red weakest). Vector curve page p3 (all five graphs -- the richest of the VISION2 set)",),
+    "KODAK_VISION2_250D_5205": (
+        "KODAK VISION2 250D Color Negative Film 5205/7205, Kodak publication H-1-5205t, August 2004 -- "
+        "PDF/PROFILES/KODAK/H-1-5205t.pdf (identical copy: 5205t.pdf; 2004 6pp edition also on file as "
+        "'KODAK VISION2 250D Color Negative Film 5205.pdf'). EI 250 daylight 5500 K (tungsten 64 with 80A); ECN-2 "
+        "Status M; acetate + rem-jet; reciprocity none 1/1000-1/10 s, +2/3 CC10R at 1 s, +1 stop CC10R at 10 s "
+        "(chromatic, red weakest -- entered in _RECIPROCITY_OVERRIDES). RMS as curve only. Vector curves p3-p4",),
+    "KODAK_VISION2_500T_5218": (
+        "KODAK VISION2 500T Color Negative Film 5218/7218, Kodak publication H-1-5218t, March 2006 -- "
+        "PDF/PROFILES/KODAK/5218-Vision2-500T-H-1-5218t.pdf (inferior 2002 brochure '500T - 5218.pdf' also on file). "
+        "EI 500 tungsten 3200 K +/-150 K (daylight 320 with No.85); ECN-2 Status M; 5218/7218 acetate + rem-jet, "
+        "SO-218 ESTAR + rem-jet; reciprocity none 1/1000-1/10 s, +2/3 CC10R at 1 s, +1 stop CC10R at 10 s (chromatic). "
+        "Full vector curve set p3-p4 including spectral sensitivity and dye density",),
+    "KODAK_VISION_200T_5274": (
+        "KODAK VISION 200T Color Negative Film 5274/7274, Kodak publication H-1-5274, April 1997 -- PDF/PROFILES/KODAK/5274.pdf. "
+        "EI 200 tungsten 3200 K +/-150 K (daylight 125 with No.85); ECN-2 Status M; acetate + rem-jet; reciprocity none "
+        "1/1000-1 s, +2/3 stop CC10Y at 10 s (chromatic at 10 s). Vector curves p3-p4 (spectral sensitivity 240/232/168-node paths)",),
+    "KODAK_VISION_250D_5246": (
+        "KODAK VISION 250D Color Negative Film 5246/7246, Kodak publication H-1-5246t, March 2003 -- PDF/PROFILES/KODAK/5246.pdf. "
+        "EI 250 daylight 5500 K (tungsten 64 with 80A); ECN-2 Status M; acetate + rem-jet; reciprocity none 1/1000-1 s, "
+        "+2/3 stop CC10Y at 10 s. RMS as curve only. Vector curves p4-p5",),
+    "KODAK_VISION_500T_5279": (
+        "KODAK VISION 500T Color Negative Film 5279/7279, Kodak publication H-1-5279, March 1996 -- PDF/PROFILES/KODAK/5279.pdf. "
+        "EI 500 tungsten 3200 K +/-150 K (daylight 320 with No.85); ECN-2; acetate + rem-jet; reciprocity none 1/1000-1 s, "
+        "+2/3 stop CC10Y at 10 s; qualitative magenta-masking-coupler statement p3 (no numeric mask density). "
+        "Vector curves p2-p3 (spectral sensitivity 368/272/224-node paths)",),
+    "KONICA_CENTURIA_SUPER_1600": (
+        "Konica Color CENTURIA SUPER 1600 technical data sheet (undated, post-Feb-2002) -- PDF/PROFILES/KONICA/csuper1600.pdf. "
+        "ISO 1600/33 daylight/flash (photolamp 520 with 80B, tungsten 400 with 80A = filter factors); RMS 6 at 48 um; "
+        "resolving power 50 (1.6:1) / 100 (1000:1) lines/mm; process CNK-4 / C-41, Status M; triacetate base; reciprocity "
+        "1/10000-1 s none, +1 stop at 10 s with CC 'None' (ACHROMATIC -- entered). Curves vector but fragmented; layer "
+        "schematic on p1 is not data",),
+    "KONICA_IMPRESA_50": (
+        "Konica Color IMPRESA 50 Professional Film, PUB. No. TDSN-501 (undated) -- PDF/PROFILES/KONICA/IMP50.pdf. "
+        "ISO 50/18 daylight/flash (photolamp 16 with 80B, tungsten 12 with 80A = filter factors); resolving power 63 "
+        "(1.6:1) / 160 (1000:1) lines/mm; CNK-4 / C-41; triacetate; reciprocity 1/10000-1 s none, +1/2 stop at 10 s, "
+        "CC 'None' (ACHROMATIC -- entered, the mildest documented failure in this database). No RMS printed (confirmed "
+        "by OCR of the page rasters). Curves are RASTER images, not vector",),
+    "KONICA_INFRARED_750": (
+        "Konica Infrared 750 Black & White film, PUB. No. TDSB-701 (undated) -- PDF/PROFILES/KONICA/INF750.pdf "
+        "(identical copy konica_inf750.pdf). SPECTRAL: IR band 640-820 nm with PEAK AT 750 nm plus intrinsic AgBr "
+        "400-500 nm sensitivity; graph axis spans 400-800 nm. ISO 32 unfiltered; standard exposure f/5.6 at 1/60 s "
+        "with a Kenko R-1 red filter; developers Konicadol DP 6 min / Fine 7 min / Super 6 min at 20 C; COLOURED "
+        "anti-halation triacetate base (dyed AHU type, not rem-jet). NO reciprocity data printed at all. Curves are "
+        "RASTER images (spectral sensitivity p1 1440x276, characteristic p3 1976x1432) -- bitmap tracing queued",),
+    "KODAK_TECHNICAL_PAN": (
+        "KODAK PROFESSIONAL Technical Pan Film, publication P-255, Eastman Kodak Company -- "
+        "PDF/PROFILES/KODAK/'KODAK PROFESSIONAL Technical Pan Film.pdf' (12 pp). Variable-contrast matrix: "
+        "CI 0.50 at EI 16-25 in Technidol LC through CI 2.50 at EI 200 in Dektol; diffuse RMS granularity 5 "
+        "(Technidol LC) and 8 (HC-110 Dilution D) at 48 um; extended red sensitisation to 690 nm; base 4-mil "
+        "ESTAR-AH with 0.1 neutral-density tint. NO numeric resolving power printed anywhere in P-255 -- the "
+        "circulating 320+ lp/mm figure is from other Kodak literature not in this corpus and is NOT used here",),
+    # ---- 2026-08-15 batch: new vendor sheets landed under PDF/PROFILES ----
+    "FUJICOLOR_SUPER_F500_8572": (
+        "FUJICOLOR SUPER F-500 datasheet (35mm Type 8572 / 16mm Type 8672), FUJIFILM -- PDF/PROFILES/FUJI/'F500 - 8572.pdf'. "
+        "p1: EI 500 tungsten 3200 K; daylight 320 with LBA-12 or Wratten No.85 (filter factor, not stored); seven-row "
+        "illuminant/filter EI table (HMI 320; white fluorescent CC-30R at 250; 3-band 5000 K CC-30R at 250; 6700 K CC-40R at 200); "
+        "all four curve sets VECTOR. p2: RMS granularity 4.0 (x1000, 48 um aperture, D = 1.0 above Dmin); reciprocity none "
+        "1/1000-1/10 s, +1/3 stop at 1 s with NO CC filter (achromatic); CTF graph 1-100 c/mm (no numeric resolving power); "
+        "NOTE the 2-page sheet states neither process nor base",),
+    "AGFA_VISTA_200": (
+        "AGFACOLOR Vista 100, 200, 400, 800 -- Technical Data AF, Agfa-Gevaert, 06/2000 -- "
+        "PDF/PROFILES/AGFA/'AGFACOLOR Vista 100, 200, 400, 800.pdf'. Per-film table: Vista 200 ISO 200/24 deg; RMS granularity "
+        "4.3 (48 um, D = 1.0); resolving power 130 l/mm at 1000:1 and 50 at 1.6:1; emulsion layer 18 um; base acetyl cellulose "
+        "120 um; latitude -2..+3 stops; process AP 70 / C-41; reciprocity flat 1/10000-1 s, +1/2 to +1 stop at 10 s, no CC "
+        "filter; all curves VECTOR. Siblings documented on the same sheet: Vista 100/400/800 RMS 4.0/4.5/5.0, resolving "
+        "130/130/110, layer 16/19/22 um",),
+    # ---- 2026-08-14: GEVACOLOR_1952 upgraded tier 3 -> 1. The profile was
+    # built by analogy with no citation; Cheltsov & Bongard 1958 documents
+    # the film directly and is what fixes its balance temperature.
+    "GEVACOLOR_1952": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf -- p178 (Gevacolor negative type N-5, 14/10 DIN, balanced for incandescent lamps at 2850 K; gelatin interlayers distinguishing it from Agfacolor; magenta dye absorption max 550 nm, cyan max 660 nm), p152 (Gevacolor reversal 24 lines/mm in the five-stock comparison set), p179 (type 652 successor at 3200 K, 32 ASA, published gamma 0.65)",),
+    # ---- 2026-08-14 batch, The Compact Photo-Lab-Index 1979 (Pittaro, ed.).
+    # Each entry names the PDF page its documented values came from.
+    "POLAROID_51": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p582 (ASA 320 daylight / 26 DIN, ASA 100 tungsten / 21 DIN; D-max 1.75, D-min .00, slope 3.35, resolution 28-32 lines/mm; blue-sensitive only; plot annotation D-max 1.85 / D-min .09 / slope 3.30; reciprocity compensation table; filter factors)",),
+    "POLAROID_52": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p583 (ASA 400, 27 DIN; D-max 1.75, D-min .02, slope 1.3-1.4, resolution 35-40 lines/mm; filter factor table)",),
+    "POLAROID_42": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p583 and p586 (24 DIN, plot annotation Speed 200; D-max 1.65, D-min .08, slope 1.30, resolution 25-28 lines/mm)",),
+    "POLAROID_47": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p589 and p591 (ASA equivalent 2500, 36 DIN, plot Speed 3000; D-max 1.70, D-min .06, slope 1.50, resolution 20-22 lines/mm; formats 47 roll / 107 pack / 57 packet share the block)",),
+    "POLAROID_55_PN_NEG": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p588 (ASA equivalent 50, DIN 18; NEGATIVE D-max 1.65, D-min .18, slope .7, resolution 150-160 lines/mm; POSITIVE D-max 1.75, D-min .02, slope 1.4, resolution 22-25 lines/mm; plot annotations 1.55/.18/.65 negative and 1.75/.09/1.35 positive; fixed after 20 s, sulphite bath within 3 min, enlargeable to 25x)",),
+    "POLAROID_46L": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p593-594 (ASA equivalent 800, DIN 30; D-max 2.8, D-min .05, slope 1.8, resolution 35-40 lines/mm; panchromatic projection transparency; contrast manipulable by development to five minutes; plot annotation D-max 2.50 / D-min .02 / slope 2.20)",),
+    "POLAROID_146L": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p594-595 (Polaline; ASA equivalent 200 daylight / DIN 24, 60 tungsten / DIN 19; D-max 2.3, D-min .02, slope 3.00+ i.e. a lower bound, resolution 40-50 lines/mm; blue-sensitive, no filters; plot annotation D-max 2.55 / D-min .03 / slope 3.30)",),
+    "POLAROID_410": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p595-596 (Polascope; ASA equivalent 10,000, 41 DIN; D-max 1.6, D-min .02, slope 2.0, resolution 22-28 lines/mm; development 15 s at 20 C and above; for oscilloscope traces and high-magnification macrophotography; plot annotation D-max 1.50 / D-min .10 / slope 2.30)",),
+    "ILFORD_PAN_F": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p471-474 (ASA 50, DIN 18; wedge spectrogram to tungsten 2850 K; reciprocity chart; filter factors daylight and tungsten; development times to contrast index G0.55 / G0.70 in ID-11, Microphen and Perceptol at 1+1 and 1+3; speed becomes DIN 20 in Microphen and ASA 32 / DIN 16 in Perceptol) and p559 (Ilford sensitivity range 2300-6700 Angstrom, medium speed, medium-to-high contrast, very fine grain)",),
+    "ILFORD_FP4": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p474-477 (ASA 125 / DIN 22 daylight, ASA 100 / DIN 21 tungsten; wedge spectrogram to tungsten 2850 K; latitude claim +6 / -2 stops) and p559 (sensitivity range 2300-6700 Angstrom, medium speed, medium contrast, very fine grain)",),
+    "ILFORD_HP4": (
+        "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
+        " -- p478-480 (ASA 400, DIN 27; wedge spectrogram to tungsten 2850 K) and p559 (sensitivity range 2300-6700 Angstrom, very fast, medium contrast, medium grain); corroborated at 400 in the roll-film development tables p704",),
+    # ---- 2026-08-13 batch, Cheltsov & Bongard 1958 (Soviet monograph). Each
+    # entry names the page its documented values came from, so a later reader
+    # can check any single number without re-reading the book.
+    "KODACHROME_1938": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p144 (5900 K, ASA 12/13 DIN, five Kodachrome types), p143 (structure, 1941 three-layer form), p150 (dye selectivity), p152 (40 lines/mm)",),
+    "KODACHROME_TYPE_A_1938": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p144 (3450 K, ASA 20), p152 (40 lines/mm, shared with the daylight stock)",),
+    "AGFACOLOR_NEG_TYPE_3": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p173-174 (universal type 3, photographic balance 4000 K, soft gradation, narrowed green sensitisation, colloidal-silver antihalation underlayer), p172 (Agfacolor negative family speeds 14/16 DIN, 20-25 ASA)",
+        "⚠ UNRESOLVED SPEED CONFLICT, recorded 2026-08-17, deliberately NOT acted on. "
+        "Иофис Е. А., «Кинопленки и их обработка», М.: Искусство, 1964 -- "
+        "PDF/PROFILES/SOVIET/Киноплёнки и их обработка.pdf, book p 83 (table 8, «Негативные "
+        "цветные кинопленки»), read visually at 300 dpi -- prints «Agfacolor Negativ Typ 3», "
+        "35 и 16 мм, DIN 17 in BOTH the daylight and tungsten columns, ASA 40 in both, "
+        "recommended gamma 0,60, remark «Универсальная, пригодная для съемки при дневном "
+        "освещении и при лампах накаливания». That is a full stop faster than the stored EI 20, "
+        "and the DIN differs too (17 vs Чельцов's 14/16), so it is NOT a units-conversion "
+        "artefact. "
+        "WHY THE STORED VALUE STANDS: method rule 14. BOTH figures come from SOVIET books "
+        "describing a WEST GERMAN film, and no Agfa or German-language source for Typ 3 exists "
+        "in this corpus (AGFA stocks.pdf is modern Optima/Vista; Meyer 1953 has no text layer). "
+        "Rule 14 ranks an official source above a third-party book, but it cannot arbitrate "
+        "between two third-party books of the same provenance class -- so the incumbent is kept "
+        "and both readings are recorded rather than one being promoted. Note the arguments that "
+        "do favour Иофис, so they are not lost: he names Typ 3 SPECIFICALLY where Чельцов gives "
+        "a figure for the three-film Agfacolor negative FAMILY, and on the one foreign stock "
+        "where his table can be checked against a vendor sheet (Double-X 5222) he matches Kodak "
+        "exactly. Иофис also INDEPENDENTLY CORROBORATES the stored 4000 K universal balance. "
+        "TO SETTLE THIS: find a 1960s Agfa Kinofilm catalogue or datasheet for Negativ Typ 3/4",),
+    "ANSCOCOLOR_NEG_843": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p177 (5400 K, layer sensitivity maxima 440/555/655 nm, 48 lines/mm, grey antihalation base, no antihalation layer)",),
+    "GEVACOLOR_NEG_652": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p179-180 (32 ASA / 17/10 DIN, gamma 0.65, 3200 K, no yellow filter layer, exposure-index ladder by illuminant with CTO filters), p179 (magenta absorption max 550 nm, cyan max 660 nm)",),
+    "FERRANIACOLOR_NEG_82": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p180-181 (type 82, studio, 15/10 DIN = 20 ASA; structure, zonal sensitivity and dye absorption stated ANALOGOUS to the Agfacolor negative), p180 (type 51 at 3200 K)",
+        "Иофис Е. А., «Кинопленки и их обработка», М.: Искусство, 1964 [Iofis E. A., 'Cine Films and "
+        "Their Processing', Moscow: Iskusstvo, 1964] -- PDF/PROFILES/SOVIET/Киноплёнки и их обработка.pdf, "
+        "book p 83 (table 8, «Негативные цветные кинопленки»), read visually at 300 dpi. "
+        "INDEPENDENT CONFIRMATION: «Ferraniacolor Tipo 82», 35 mm, DIN 15 / ASA 20 in the ЛАМПЫ "
+        "НАКАЛИВАНИЯ columns only, with the daylight columns empty and the remark «Для съемки при "
+        "лампах накаливания; во время съемки при дневном освещении нужен светофильтр». That matches "
+        "the stored EI 20 and independently confirms the stored 3200 K tungsten balance, from a "
+        "different author six years later. No recommended gamma is printed for this row",),
+    "FERRANIACOLOR_REVERSAL_1950": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p166 (15/10 DIN = 20 ASA, daylight; magenta absorption identical to Agfacolor, cyan close to Gevacolor/Anscocolor), p152 (30 lines/mm in the same measurement set as Kodachrome 40 / Ilfordcolor 36 / Agfacolor 32 / Gevacolor 24), p167 (behaviour under the Agfacolor process)",),
+    "SVEMA_DS_2": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p175 (DS-2 for interior arc at 5000 K; NIKFI speed 20-26 at S=20/H, density 0.85 above maximum fog; contrast coefficient 0.60-0.85; 65 lines/mm on resolvometer SR-13; natural layer order, colloidal-silver yellow filter layer, bleaching green antihalation lacquer)",),
+    "SVEMA_LN_3": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p175 (LN-3 for incandescent at 3300 K; NIKFI speed 20-26; contrast coefficient 0.60-0.85; 65 lines/mm on SR-13)",),
+    "EASTMANCOLOR_5248_1953": (
+        "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
+        " -- p220-222 (type 5248, 3200 K, 32 ASA, 24 ASA in daylight behind Wratten 85/85B; effective sensitisation bands 380-500 / 490-580 / 580-680 nm; yellow and orange coloured masking couplers in the lower part of the green and red layers; antihalation optical density 1.3; developer CD-3), p200 and p234 (per-layer resolving power 110 / 46 / 30 lines/mm)",),
+    # ---- 2026-08-13 batch (each stock's own sheet, PDF/PROFILES/) ----
+    "KODAK_TMAX_100": ("KODAK PROFESSIONAL T-MAX Films, publication F-4016 (2018), Eastman Kodak Company",),
+    "KODAK_TMAX_400": ("KODAK PROFESSIONAL T-MAX 400 Film, publication F-4043 (2016), Eastman Kodak Company",),
+    "KODAK_TMAX_P3200": ("KODAK PROFESSIONAL T-MAX P3200 Film, publication F-4001 (2019), Eastman Kodak Company",),
+    "KODAK_TRI_X_400TX": ("KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company",
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 18: ISO 400/27 deg; 'fast, wide-latitude panchromatic film with a MEDIUM-TOED curve'; grain 'Fine'; resolving 100 high (class 'High') / 50 low. Speed matches the held profile exactly -- resolving power gap fill",
+    ),
+    "KODAK_TRI_X_320TXP": ("KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company",),
+    "KODAK_PLUS_X_125": ("KODAK PLUS-X Pan and PLUS-X Pan Professional Films, publication F-8 (1997), Eastman Kodak Company",
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 11: ISO 125/22 deg; grain 'Extremely Fine'; resolving 125 high (class 'High') / 50 low; 'short-toed, long-straight-line-curve' films; PLUS-X Pan has a grey dye in the base for antihalation. Speed matches the held profile exactly -- resolving power gap fill",
+    ),
+    "KODAK_T400CN": ("KODAK PROFESSIONAL T400 CN Film, publication F-2350, Eastman Kodak Company",),
+    "KODAK_BW400CN": ("KODAK PROFESSIONAL BW400CN Film, publication F-4036, Eastman Kodak Company",),
+    "KODAK_EKTAPAN_100": ("KODAK EKTAPAN Film 4162, publication F-10, Eastman Kodak Company",
+        "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 5: ISO 100/21 deg; 'long toe' panchromatic antihalation film; grain 'Fine'; resolving 80 high (class 'Medium') / 40 low; development table of 6 developers x 5 temperatures x 2 agitation regimes; characteristic curves for HC-110 Dilution B carrying PRINTED contrast indices 5 min CI .54, 7 min .62, 8 min .68, 12 min .80; CI-vs-time curves for DK-50 (1:1), HC-110 (Dil B), D-76, POLYDOL, MICRODOL-X. Speed matches the held profile exactly, so resolving power is a gap fill, not a graft",
+    ),
+    "KODAK_EKTAR_100": ("KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company",),
+    "KODAK_PORTRA_160": ("KODAK PROFESSIONAL PORTRA 160 Film, publication E-4051 (2016), Eastman Kodak Company",),
+    "KODAK_PORTRA_800": ("KODAK PROFESSIONAL PORTRA 800 Film, publication E-4040 (2016), Eastman Kodak Company",),
+    "KODAK_PORTRA_100T": ("KODAK PROFESSIONAL PORTRA 100T Film, publication E-2468, Eastman Kodak Company",),
+    "KODAK_GOLD_100": ("KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company",),
+    "KODAK_GOLD_200": ("KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company",),
+    "KODAK_ULTRAMAX_400": ("KODAK ULTRA MAX 400 Film, publication E-7023, Eastman Kodak Company",),
+    "KODAK_ULTRAMAX_800": ("KODAK ULTRA MAX 800 Film, publication E-7024, Eastman Kodak Company",),
+    "KODAK_VERICOLOR_III_160": ("KODAK VERICOLOR III Professional Film, publication E-26, Eastman Kodak Company",),
+    "KODAK_EKTAPRESS_PJ400": ("KODAK PROFESSIONAL EKTAPRESS Films, publication E-116, Eastman Kodak Company",),
+    "KODAK_PROFOTO_100": ("KODAK PROFOTO 100 Film, publication E-2e, Eastman Kodak Company",),
+    "KODAK_ULTRA_COLOR_100UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
+    "KODAK_ULTRA_COLOR_400UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
+    "AGFA_SCALA_200X": ("Agfa SCALA 200x professional Technical Data, Agfa-Gevaert AG",),
+    # 2026-08-04. Neu 1936 previously fell back to _NO_DATASHEET. It now has
+    # real citations -- but they ground the PROCESS and DATE only, so the tier
+    # stays 3 and fitted_from stays "analogy". See the PROVENANCE LIMIT note.
+    "AGFACOLOR_NEU_1936": (
+        "Color Committee (1937): 'The New Agfacolor Process'. Journal of the "
+        "Society of Motion Picture Engineers, May 1937, pp. 561-562 -- via "
+        "PDF/PROFILES/AGFA/Agfacolor 01.mhtml (Timeline of Historical Colors "
+        "in Photography and Film, page 'Agfacolor Neu / Agfacolor')",
+        "Hatschek, Paul (1936): 'Der neue deutsche Agfa-Farbenfilm'. Die "
+        "Kinotechnik 18(21), 5 Nov. 1936, pp. 345-346 (in German)",
+        "PROVENANCE LIMIT: these two citations establish the process and the "
+        "date only -- subtractive three-colour chromogenic monopack, reversal "
+        "from 1936, colour formers incorporated in the superposed emulsion "
+        "layers instead of added to the developer, silver later dissolved out "
+        "leaving pure dye images. Neither carries a photometric figure: no "
+        "speed, no gamma, no spectral sensitisation, no dmin or dmax. Every "
+        "numeric value in this profile is therefore still an analogy, which is "
+        "why the tier remains 3. Do NOT borrow the quantitative Agfacolor "
+        "data printed on that same page (15/10 Din, the Type B / Type G "
+        "red-sensitivity trade, the Abb. 58-59 layer sensitisation curves): "
+        "all of it describes the 1939+ NEGATIVE/POSITIVE system, a different "
+        "film with a different process, and it is carried by "
+        "AGFACOLOR_NEG_TYPE_B_1943 instead",
     ),
 }
 
@@ -8766,10 +11600,15 @@ _UNTAGGED_TIER: dict[str, int] = {
     "KODAK_VISION3_50D_5203": 1,
     "ORWOCOLOR_NC21": 3,
     "SOVIET_PANCHROM_1939": 3,
-    # Raised 3 -> 2 on 2026-08-02: curve family is measured (509-frame
-    # batch) AND now corroborated by a printed reference (Gurlev 1986
-    # p296, Foto-65 column -- gamma 0.8, D0 0.05, R 110 lin/mm). Grain
-    # size remains estimate-grade, so not tier 1.
+    # Raised 3 -> 2 on 2026-08-02, and tier 2 SURVIVES the 2026-08-18
+    # provenance correction -- but the load-bearing evidence has changed.
+    # It was "curve family is measured (509-frame batch) AND corroborated
+    # by a printed reference". The 509-frame batch is now known to be a
+    # mixed Foto-32/Foto-65 folder, so it is demoted to a consistency
+    # bracket; the printed reference (Gurlev 1986 p296, Foto-65 column --
+    # gamma 0.8, D0 0.05, R 110 lin/mm) is now the primary basis and is
+    # sufficient on its own for tier 2. Grain size remains estimate-grade,
+    # so not tier 1.
     "SVEMA_FOTO_65": 2,
     "TECHNICOLOR_THREE_STRIP": 3,
 }
@@ -8812,6 +11651,44 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
+    # ---- 2026-08-17: KODAK F-5, August 1979, DS data sheets ----
+    # Every F-5 DS sheet prints resolving power at BOTH test-object contrasts in
+    # its "Emulsion Characteristics" block, which is exactly the (low, high)
+    # shape this dict wants -- no interpretation, no single-figure guessing.
+    # The parenthetical class word Kodak prints beside the high-contrast figure
+    # is recorded in each profile's description.
+    # ⚠ ONE ODDITY, INHERITED FROM THE SOURCE, NOT INTRODUCED HERE: Kodak gives
+    # ROYAL-X Pan (ISO 1250) and VERICHROME Pan (ISO 125) the SAME 100 lines/mm
+    # at high contrast, and even classes Royal-X's as "Medium" while SUPER-XX's
+    # identical 100 is classed "High". Kodak's high-contrast resolving figures
+    # are evidently coarsely quantised. The numbers are stored as printed; the
+    # place to resolve it is DS 24's MTF curves, which are queued.
+    #
+    # Gap fills on stocks ALREADY HELD -- all three had resolving_power None,
+    # and in each case the F-5 designation and speed match the held profile
+    # exactly (PLUS-X Pan ISO 125 = stored EI 125; TRI-X Pan ISO 400 = stored
+    # EI 400; EKTAPAN 4162 ISO 100 = stored EI 100), so these are not grafts:
+    "KODAK_PLUS_X_125":        (50.0, 125.0),   # DS 11, high classed "High"
+    "KODAK_TRI_X_400TX":       (50.0, 100.0),   # DS 18, high classed "High"
+    "KODAK_EKTAPAN_100":       (40.0,  80.0),   # DS 5,  high classed "Medium"
+    # New 1979 stocks added in the same pass:
+    "KODAK_PANATOMIC_X":       (80.0, 200.0),   # DS 10, classed "Very High" --
+                                                # the highest pair in this file
+    "KODAK_VERICHROME_PAN":    (50.0, 100.0),   # DS 22, classed "High"
+    "KODAK_SUPER_XX_PAN_4142": (40.0, 100.0),   # DS 17, classed "High"
+    "KODAK_ROYAL_PAN_4141":    (40.0,  80.0),   # DS 16, classed "Medium"
+    "KODAK_ROYAL_X_PAN_4166":  (40.0, 100.0),   # DS 15, classed "Medium"
+    # KODAK_RECORDING_2475 is deliberately ABSENT: DS 14 prints no resolving
+    # power for it at all. An absent key is the honest representation.
+    # ТУ 6-17-912-87 table 5 item 9: >= 68 lin/mm. Test-object contrast is not
+    # stated in the table, so the high-contrast slot carries it, matching the
+    # convention used for the other Soviet single-figure sources.
+    "SVEMA_CO_32D": (0.0, 68.0),
+    # 2026-08-15 batch -- new manufacturer sheets, both TOCs printed:
+    "AGFA_VISTA_200": (50.0, 130.0),   # AGFACOLOR Vista brochure (AF 06/2000),
+                                       # per-film table: 50 at 1.6:1, 130 at
+                                       # 1000:1 l/mm. Siblings 100/400/800 =
+                                       # 60/130, 50/130, 40/110 (films not held).
     # 2026-08-13 batch additions, each from the stock's own sheet [C1]:
     "KODAK_TMAX_100": (63.0, 200.0),      # F-4016 2018
     "KODAK_TMAX_400": (50.0, 125.0),   # CORRECTED 2026-08-14: was (50.0, 200.0),
@@ -8904,7 +11781,10 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     "SVEMA_FOTO_65": (0.0, 110.0),        # printed for the Foto-65 sibling
     "SVEMA_FOTO_130": (0.0, 100.0),
     "SVEMA_FOTO_250": (0.0, 82.0),
-    "SVEMA_DS_4": (0.0, 63.0),
+    # ТУ 6-17-622-84 table 4 item 7: >= 68 lin/mm, measured per ГОСТ 2819-84
+    # (resolvometer РП-2М, named in the TU's own test-methods section).
+    # Was 63.0 from Gurlev 1986, which cites the earlier ТУ 6-17-622-74.
+    "SVEMA_DS_4": (0.0, 68.0),
     "SVEMA_CNL_32": (0.0, 58.0),
     "SVEMA_CNL_65": (0.0, 63.0),
     "TASMA_OCH_45": (0.0, 110.0),       # Chibisov 1988 Table I, product row
@@ -8973,6 +11853,14 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
 # Every figure below is [C1], read from the page cited.
 # ---------------------------------------------------------------------------
 _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
+    # Иофис 1964 table 7 p 79, «Негативные черно-белые кинопленки», read
+    # visually at 300 dpi. HP-S: ASA 400 дневной свет / 320 лампы накаливания,
+    # a 1/3-stop drop -- the normal panchromatic figure, and the reason the
+    # PAIR had to be taken from one source. Filling 320 in beside the old
+    # estimated 800 would have encoded a 1 1/3-stop drop. See method rule 14:
+    # this is a Soviet source for a British film, and it is used only because
+    # the value it replaces was self-declared as an estimate.
+    "ILFORD_HPS":    320,
     # The Compact Photo-Lab-Index 1979 (Pittaro, ed.).
     "POLAROID_51":   100,   # p582: ASA 320 daylight / 100 tungsten -> ratio 3.2
                             # the largest in this database. Type 51 is
@@ -9014,6 +11902,107 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # ТУ 6-17-622-84 table 4 item 4: 6-8 min to reach the recommended
+    # contrast coefficient; the midpoint is stored. contrast_index carries
+    # the specification's own recommended figure for the upper and middle
+    # layers (0.70); the lower layer's aim is 0.60, which the per-layer
+    # curves express and a single scalar cannot.
+    "SVEMA_DS_4": ProcessingSpec(
+        developer="Soviet colour negative developer per ТУ 6-17-622-84 table 5 (ЦПВ-1 2.3 g/l, sodium sulfite 2.0 g/l, potassium carbonate 60.0 g/l, hydroxylamine sulfate 1.2 g/l, EDTA disodium 2.0 g/l, pH 10.5-10.7)",
+        dilution="working strength", minutes=7.0, celsius=20.0,
+        agitation="machine processing per ГОСТ 9160-82",
+        contrast_index=0.70),
+    # ТУ 6-17-691-88 p14: the specification's own processing schedule. The
+    # colour-development stage is 5-7 min at 20.0 +/- 0.3 C; the midpoint is
+    # stored. contrast_index carries the specification's mean gradient for the
+    # GREEN record (0.54), which is the aim this schedule is defined to hit.
+    "SVEMA_DS_5M": ProcessingSpec(
+        developer="ЦПВ-1 colour developer (p-aminodiethylaniline sulfate 2.3 g/l, sodium sulfite 2.0 g/l, potassium carbonate 60.0 g/l, potassium bromide 2.00 g/l)",
+        dilution="working strength", minutes=6.0, celsius=20.0,
+        agitation="continuous, processing machine per ГОСТ 9160-82",
+        contrast_index=0.54),
+    # ---- 2026-08-17: KODAK F-5, August 1979, DS 5 (EKTAPAN 4162) ----
+    # All four fields come from ONE printed caption, which is why this entry is
+    # worth having: DS 5's characteristic-curve plot is captioned "Exposed to
+    # Daylight 1/50 second, Developed with Intermittent Agitation at 20 C
+    # (68 F)", the curve family is labelled "Characteristic Curves for HC-110
+    # Developer (Dilution B)", and the four curves carry PRINTED CONTRAST INDEX
+    # values: 5 min CI = .54, 7 min CI = .62, 8 min CI = .68, 12 min CI = .80.
+    # The 5-minute point is stored because DS 5's own development table gives
+    # 4 1/2 min for HC-110 Dilution B in a tray at 20 C, making 5 min the
+    # nearest documented normal-development condition.
+    # contrast_index here is a GENUINE contrast index, unlike the Иофис case
+    # below where the source printed a recommended GAMMA and the field was
+    # therefore left at 0.0.
+    # The other three CI points, and the CI-vs-time curves for DK-50 (1:1),
+    # HC-110 (Dil B), D-76, POLYDOL and MICRODOL-X, are a ProcessingFamily
+    # candidate and are queued -- ProcessingSpec holds one row.
+    "KODAK_EKTAPAN_100": ProcessingSpec(
+        developer="KODAK HC-110 (Dilution B)", dilution="Dilution B",
+        minutes=5.0, celsius=20.0,
+        agitation="intermittent (tray); DS 5 table gives 4 1/2 min tray at 20 C",
+        contrast_index=0.54),
+    # ---- 2026-08-17: Иофис 1964 «Кинопленки и их обработка» §12, tables 7-8 ----
+    # Book pp 73-81 (table 7, negative B&W) and pp 82-83 (table 8, negative
+    # colour), read visually at 300 dpi; the book has no text layer. Each row
+    # prints a recommended developer and a MACHINE processing time, which is
+    # what lands here. Two things are deliberately NOT stored:
+    #
+    #   1. contrast_index stays 0.0. The table's column is «Рекомендованная
+    #      гамма» -- a recommended GAMMA aim, not a contrast index, and this
+    #      file already keeps those distinct (see the NEOPAN 1600 note below,
+    #      where Gbar 0.77 and ToneCurve gamma 0.860 are different numbers for
+    #      the same curve). Putting a gamma into a CI field would silently
+    #      convert one quantity into another. The aims are recorded in the
+    #      comments instead, and in every case below the stock's existing
+    #      ToneCurve gamma already falls inside the printed range.
+    #   2. No SPEED is touched here. Table 7/8 speeds conflict with several
+    #      stored values and that is a separate, owner-visible decision --
+    #      see doc/RESULT_2026-08-17d_iofis_section12.md.
+    #
+    # The table's own footnote (p 81, p 83) dates it: «Таблица составлена по
+    # каталогам 1963-1964 гг.», and warns that ГОСТ/DIN/ASA columns do not
+    # inter-convert because the assessment methodology differs. So these rows
+    # are 1963-64 manufacturer-catalogue practice, not measurements.
+    #
+    # 5222: table 7 p 80, «Double-X Panchromatic 5222/7222», D-76, 6,5 min,
+    # recommended gamma 0,6-0,7. This row also INDEPENDENTLY CONFIRMS the
+    # stored ASA 250 daylight / 200 tungsten pair, which came from Kodak's own
+    # technical data -- a 1963-64 catalogue and the modern sheet agreeing
+    # exactly. The stored ToneCurve gamma 0.648 sits inside 0,6-0,7.
+    "EASTMAN_DOUBLE_X_5222": ProcessingSpec(
+        developer="Kodak D-76", dilution="stock", minutes=6.5,
+        agitation="machine processing (Иофис 1964 table 7, «время обработки в машине»)"),
+    # HP-3 and HP-S: table 7 p 79, both ID-11, recommended gamma 0,6-0,7.
+    # Times are the machine figures: HP-3 13 min; HP-S 12-14 min, midpoint
+    # stored. celsius is left 0.0 because the table prints no temperature.
+    # ⚠ The same rows give ASA 200/160 (HP-3) and 400/320 (HP-S) against our
+    # stored 400 and 800. NOT resolved here -- our HP-3 figure is a conversion
+    # from 1942 H&D/Scheiner units and our HP-S figure is self-declared as an
+    # estimate, so Iofis is arguably the better source for both, but changing a
+    # speed is an owner decision and a daylight/tungsten PAIR must come from
+    # one source or neither.
+    "ILFORD_HP3": ProcessingSpec(
+        developer="ILFORD ID-11", minutes=13.0,
+        agitation="machine processing (Иофис 1964 table 7, «время обработки в машине»)"),
+    "ILFORD_HPS": ProcessingSpec(
+        developer="ILFORD ID-11", minutes=13.0,
+        agitation="machine processing (Иофис 1964 table 7, «время обработки в машине»); printed range 12-14 min, midpoint stored"),
+    # ---- 2026-08-16, official HARMAN sheets (ilfordphoto.com, July 2022) ----
+    # Box-speed row of the sheet's own development matrix. The sheets print no
+    # CI or gamma figure at all, so contrast_index stays 0.0 rather than
+    # carrying an invented value.
+    "KENTMERE_PAN_100": ProcessingSpec(
+        developer="ILFORD ID-11", dilution="stock", minutes=9.0, celsius=20.0,
+        agitation="intermittent: 4 inversions in the first 10 s, then 4 in the first 10 s of each minute"),
+    "KENTMERE_PAN_400": ProcessingSpec(
+        developer="ILFORD ID-11", dilution="stock", minutes=9.5, celsius=20.0,
+        agitation="intermittent: 4 inversions in the first 10 s, then 4 in the first 10 s of each minute"),
+    # P-255: the stored curve is the PICTORIAL condition. The same sheet
+    # documents CI 0.50-2.50 across developers -- the widest documented
+    # processing envelope in this corpus, catalogued in the profile comment.
+    "KODAK_TECHNICAL_PAN": ProcessingSpec(
+        developer="Technidol LC", contrast_index=0.50),
     # FUJIFILM DATA SHEET AF3-608E(N), NEOPAN 1600 Professional. The condition
     # the stored characteristic curve represents, taken from the curve's own
     # caption (PDF p4, "Processing: SPD [Super Prodol], 20 C (68 F), small tank
@@ -9075,6 +12064,18 @@ _PROCESSING: dict[str, ProcessingSpec] = {
 
 
 _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
+    # 2026-08-15, from the film's own sheet FUJI/"F500 - 8572.pdf" p2: no
+    # correction 1/1000-1/10 s, +1/3 stop at 1 s, NO CC filter = achromatic.
+    # Same single-point construction as FUJI_ETERNA_VIVID_500T_8547 (documented
+    # onset 0.1 s; exponent from one point, 1-p = (1/3)*log10(2) = 0.100) [C2].
+    "FUJICOLOR_SUPER_F500_8572": ReciprocitySpec(0.90, 0.90, 0.90, onset_s=0.1),
+    # 2026-08-15, KODAK/"KODAK VISION2 250D Color Negative Film 5205.pdf"
+    # (H-1-5205t) p2: none 1/1000-1/10 s; +2/3 stop CC10R at 1 s; +1 stop CC10R
+    # at 10 s. TWO points, so the exponent is a real two-point fit within the
+    # 1-10 s decade: dC = 1/3 stop -> 1-p = (1/3)*log10(2) = 0.100, p = 0.90.
+    # CC10R documents the CHANNEL ORDERING: the red record loses most, so p_r
+    # sits 0.03 below (the magnitude of the spread is [C3], its sign [C1]).
+    "KODAK_VISION2_250D_5205": ReciprocitySpec(0.87, 0.90, 0.90, onset_s=0.1),
     # ----------------------------------------------------------------------
     # 2026-08-14, from The Compact Photo-Lab-Index (Pittaro, ed.), 2nd Compact
     # Edition 1979, "EXPOSURE AND FILTER COMPENSATION FOR THE RECIPROCITY
@@ -9246,9 +12247,20 @@ def _grain_v2(p: FilmProfile) -> GrainSpec:
         and p.reseau is None
         and p.name != "TECHNICOLOR_THREE_STRIP"  # three silver B&W records
     )
-    if is_colour_neg:
+    # A literal that carries its own MEASURED per-channel RMS is
+    # authoritative and must not be overwritten by the heuristic below --
+    # the same rule already stated for the sigma(D) shape a few lines down.
+    # Until 2026-08-17 this test was missing and the heuristic clobbered
+    # every explicit value: GEVACOLOR_NEG_682 carries 23/16/34 read off
+    # Fig. 12 of the SMPTE paper, whose whole point is that the ordering
+    # blue >> red > green is the OPPOSITE of the heuristic (the DIR
+    # couplers act on green and red only) -- and it was silently rendering
+    # as 17.6/16.0/20.8, i.e. with the documented inversion erased.
+    _rms_set = (g.rms_r > 0.0) or (g.rms_g > 0.0) or (g.rms_b > 0.0)
+    if is_colour_neg and not _rms_set:
         # Blue record noisiest (top, fastest layer), red slightly above
-        # green: b ~1.3x, r ~1.1x of green = rms_granularity. Tier-2.
+        # green: b ~1.3x, r ~1.1x of green = rms_granularity. Tier-2, and
+        # only ever a fallback for stocks with no measured per-layer data.
         kw.update(
             rms_r=round(1.1 * g.rms_granularity, 2),
             rms_g=g.rms_granularity,
@@ -9262,6 +12274,34 @@ def _grain_v2(p: FilmProfile) -> GrainSpec:
     # shape (measured stocks: the Soviet scan batches) is authoritative and
     # must never be silently overwritten here. This exact bug ate two
     # rounds of measured FN-64 shape adoptions before being caught.
+    #
+    # ⚠ KNOWN WRONG IN DIRECTION FOR COLOUR NEGATIVE, 2026-08-17, LEFT IN PLACE
+    # DELIBERATELY. The 0.4/1.0/1.2 branch below says granularity RISES with
+    # density. For colour negative that is now contradicted by measurement:
+    #   * the four KODAK VISION3 TI sheets trace to dmax/mid = 0.55-0.63, i.e.
+    #     sigma FALLS by roughly a third from D = 1.0 to dmax, on four
+    #     independent sheets agreeing within +/-7 %;
+    #   * Kodak's own SMPTE Journal paper of July 1985 (Sehlin, Kennel et al.,
+    #     "Choosing between ECN 5247 and 5294", p 728) prints the same for two
+    #     more colour negatives: Fig. 9's five granularity curves all DECREASE
+    #     with exposure, and the text reads "overexposing either film
+    #     significantly decreases granularity".
+    # So this heuristic currently gives the wrong SIGN to the 103 non-reversal
+    # stocks it fills. It is NOT corrected here for two reasons, both deliberate:
+    #   1. SCOPE. Flipping it would change the grain behaviour of 103 stocks on
+    #      the strength of an owner approval that covered four. That is exactly
+    #      the "plausible therefore adopted" move this project forbids.
+    #   2. THE EVIDENCE IS NARROWER THAN THE BRANCH. Every source above is a
+    #      CHROMOGENIC colour negative, where the image is dye clouds. This
+    #      branch also fills B&W SILVER negatives, for which the classical
+    #      sigma ~ sqrt(D) rise is the textbook result and nothing in the corpus
+    #      contradicts it. Splitting the branch by is_monochrome is the likely
+    #      fix, but it needs its own evidence pass for the B&W half rather than
+    #      an assumption that the colour result generalises.
+    # Queued in DIGITIZATION_QUEUE.md as the follow-on task. Until then a stock
+    # that needs the measured direction must set its own triple in the literal,
+    # as the four VISION3 profiles now do -- and the guard immediately below is
+    # what makes that possible.
     if (g.sigma_shape_toe, g.sigma_shape_mid, g.sigma_shape_dmax) == (0.0, 1.0, 0.0):
         # untouched dataclass defaults -> fill from the heuristic
         if p.is_reversal:
@@ -9703,14 +12743,77 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
             "contrasty, crushed-shadow projected look and the characteristic "
             "highlight shoulder."
         ),
+        # [T1] CURVES VECTOR-EXTRACTED (2026-08-16, queue P1): "KODAK
+        # VISION Color Print Film 2383" sheet (2015 ECP-2D edition) p5
+        # "Sensitometric Curves" (tungsten + heat-absorbing glass No. 2043
+        # + Series 1700 filter, ECP-2D, Status A) -- PDF VECTOR paths
+        # (65-71 beziers/layer), ~800 exact samples per layer, axis label
+        # residual <=0.03 D / 0.045 logH. x = 0 anchored per layer at the
+        # sheet's own LAD aims 1.09/1.06/1.03 (R/G/B, same publication).
+        # Layer speeds differ (LAD at absolute logH 1.097/0.754/0.445);
+        # printer lights realign them, so relative-x storage is correct.
+        # gamma capped at 6.0 during the fit: uncapped it runs to 24-33 in
+        # a degenerate corner (toe_x ~ shoulder_x) for +0.01 D RMS at
+        # most. Refit 2026-08-16 under toe_k <= shoulder_k numerical
+        # monotonicity; RMS 0.018/0.010/0.031 D over the full 0..4.1 range.
+        # Traced Dmax 4.09-4.10 all layers.
         curves=RGBCurves(
-            r=ToneCurve(0.08, 2.62, -0.72, 0.22, 0.74, 0.30),
-            g=ToneCurve(0.08, 2.70, -0.70, 0.21, 0.72, 0.29),
-            b=ToneCurve(0.09, 2.78, -0.68, 0.21, 0.70, 0.29),
+            r=ToneCurve(0.0633, 6.0000, -0.1125, 0.1641, 0.5591, 0.1717),
+            g=ToneCurve(0.0451, 6.0000, -0.0737, 0.2021, 0.6039, 0.2021),
+            b=ToneCurve(0.1434, 6.0000, -0.0702, 0.1683, 0.5861, 0.1682),
         ),
         mtf_f50=80.0,
         grain_rms=3.4,
         grain_clump_um=6.0,
+        # -- schema v7 carrier, INERT -- SPECTRAL DYE DENSITY ------------------
+        # [T1] VECTOR-EXTRACTED (2026-08-17) from 2383 sheet (2015) p6, "Spectral Dye
+        # Density Curves". The traces are PDF vector paths, so coordinates are
+        # exact; only the axis calibration is fitted against the printed tick
+        # labels, closing to 3.93 nm and 0.0046 D.
+        # Release print film, process CP-2D. The sheet states the normalisation
+        # explicitly: 'Normalized dyes to form a visual neutral density of 1.0 for a
+        # xenon-arc viewing illuminant' -- and the extracted neutral trace averages
+        # 1.017, which confirms it.
+        # VALIDATION AND ITS ONE CAVEAT: neutral vs sum(C+M+Y) agrees to mean -0.096 D,
+        # max 0.128 D -- an order worse than the 5285 sheet, and the discrepancy is
+        # SYSTEMATIC AND CONFINED TO THE BLUE END (400-440 nm, sum below neutral).
+        # That is physically expected for a PRINT stock: the visual neutral includes
+        # the base and its UV/blue absorber, which the three dye traces do not. It is
+        # recorded rather than tuned away. The x calibration is also looser here
+        # (3.93 nm against 1.56), which contributes at the blue end where the yellow
+        # curve is steepest.
+        # Peaks land where they must: yellow 443 nm, magenta 539 nm, cyan
+        # 656 nm -- absorbing blue, green and red respectively.
+        # STILL INERT: the renderer uses the single-scalar dye_matrix above.
+        # These curves are what that scalar cannot express.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.273, 0.233, 0.177, 0.121, 0.079, 0.051, 0.034, 0.025, 
+                     0.022, 0.022, 0.024, 0.031, 0.047, 0.072, 0.111, 
+                     0.161, 0.229, 0.315, 0.418, 0.536, 0.659, 0.780, 
+                     0.892, 0.983, 1.046, 1.080, 1.086, 1.064, 1.008, 
+                     0.926, 0.822),
+            d_magenta=(0.054, 0.064, 0.074, 0.084, 0.062, 0.072, 0.113, 
+                     0.179, 0.274, 0.400, 0.548, 0.684, 0.782, 0.850, 
+                     0.877, 0.835, 0.719, 0.553, 0.388, 0.255, 0.166, 
+                     0.108, 0.072, 0.049, 0.035, 0.025, 0.018, 0.012, 
+                     0.007, 0.003, 0.001),
+            d_yellow=(0.405, 0.537, 0.667, 0.767, 0.807, 0.801, 0.742, 
+                     0.627, 0.485, 0.344, 0.228, 0.143, 0.088, 0.057, 
+                     0.040, 0.031, 0.023, 0.016, 0.011, 0.007, 0.003, 
+                     0.002, 0.002, 0.002, 0.004, 0.005, 0.005, 0.005, 
+                     0.005, 0.004, 0.003),
+            d_neutral=(0.860, 0.959, 1.043, 1.094, 1.074, 1.034, 0.987, 
+                     0.925, 0.873, 0.860, 0.896, 0.955, 1.014, 1.074, 
+                     1.119, 1.118, 1.059, 0.969, 0.898, 0.880, 0.913, 
+                     0.977, 1.054, 1.125, 1.177, 1.203, 1.200, 1.171, 
+                     1.106, 1.015, 0.906),
+            normalisation="visual_neutral_1.0_xenon_arc",
+            source=(
+                "Eastman Kodak Company, 2383 sheet (2015), Spectral Dye Density Curves, "
+                "p6; PDF vector-path extraction 2026-08-17. Neutral trace "
+                "equals the sum of the three dyes to mean -0.096 D, max 0.128 D"),
+        ),
         dye_matrix=_dye(-0.09),
     ),
     PrintStock(
@@ -9753,23 +12856,142 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     PrintStock(
         name="TASMA_POSITIVE_28",
         description=(
-            "[T3] Soviet B&W cine positive film, Tasma (Kazan), GOST 2.8 -- the "
-            "release-print stock, sold in the yellow boxes. Note this is "
-            "deliberately a PrintStock and not a FilmProfile: a positive film "
-            "is not something you expose in a camera, it is what a negative is "
-            "printed onto, which is exactly the role PrintStock fills in this "
-            "pipeline. Pair it with a Soviet negative for a period Soviet "
-            "release-print look: TASMA_FN_65 or SVEMA_FOTO_65 with "
-            "--print TASMA_POSITIVE_28. High print gamma gives the contrasty, "
+            "[T1] Soviet B&W cine POSITIVE film, designation «Позитивная "
+            "МЗ-3» (Cyrillic З, so it appears as МЗ-З in OCR of the sources). "
+            "МЗ = мелкозернистая, fine-grain. The amateur B&W-slide stock: a "
+            "negative was contact-printed onto this to make projectable "
+            "positives, which is the workflow it is here for. "
+            "**НЕСЕНСИБИЛИЗИРОВАННАЯ — unsensitized, i.e. BLUE-SENSITIVE ONLY, "
+            "not panchromatic.** Журба's spectral-limit column is empty for it, "
+            "consistent with that. This matters for rendering: it responds to "
+            "the blue end of the printer lamp only. "
+            "DOCUMENTED, two independent Soviet sources on a Soviet film that "
+            "AGREE (the strong case under method rule 14): "
+            "  * ТУ 6-17-647-80 handbook entry item 278 (owner-supplied page "
+            "scan, PDF/PROFILES/SOVIET/«TASMA POSITIVE МЗ-3Л.jpg»): "
+            "«несенсибилизированная, предназначена для массовой и текущей "
+            "печати кинокопий с черно-белых негативов и контратипов. "
+            "Обеспечивает нейтрально-серый тон с глубокими тенями и обладает "
+            "хорошей резкостью и мелкозернистостью». S 2,8-5,5 ед. ГОСТ, "
+            "гамма_рек 3, R 108 lin/mm, D_0 0,04, widths 16 / 16(2x8) / 32(4x8) "
+            "/ 35 / 35(4x8 Супер) mm in 300 m rolls, 70 mm in 375 m rolls. "
+            "Fig. 189 prints a CURVE FAMILY with gammas 2,6 at 2 min, 2,7 at "
+            "3 min and 3,1 at 4 min development. "
+            "  * Журба 1984 table 2 (book p 12, read visually at 300 dpi): "
+            "S **2,8-5,5** ед. ГОСТ, minimum optical density **0,04**, "
+            "resolving power **110** lin/mm, no spectral-sensitisation limit, "
+            "governed by **ГОСТ 10691.4-73**, development **2-4 min**, contrast "
+            "2,6 and recommended **2,8-3,2**.  "
+            "  * ГОСТ 26569-85 (official, in PDF/PROFILES/SOVIET STANDARDS/) "
+            "confirms the designations «МЗ-З, МЗ-ЗМ и ЦП-КР», that positives "
+            "are «на триацетатной основе», and that МЗ-ЗМ is the variant «с "
+            "магнитной дорожкой». It carries marking and packaging rules only, "
+            "no sensitometry -- but two of those rules are substantive here. "
+            "(a) LABEL COLOUR, p 7: «черно-белых позитивных — желтый». The label for "
+            "black-and-white POSITIVE cine film is YELLOW. This UPGRADES the owner's "
+            "'sold in the yellow boxes' recollection from testimony to DOCUMENTED, by "
+            "an official standard, and it is the one part of the owner's account the "
+            "corpus can corroborate. The same list gives colour negative red, colour "
+            "positive blue, sound-track orange, B&W reversal grey, colour reversal "
+            "brown, contratype red, hydrotype black. "
+            "(b) SAFELIGHT, consistent on pp 6, 15 and 20: «Вскрывать и обрабатывать "
+            "при ЖЕЛТО-ЗЕЛЕНОМ свете» — для черно-белых позитивных кинопленок. The "
+            "prescribed safelight is YELLOW-GREEN. Dark red («темно-красный») is "
+            "prescribed for ФОНОГРАММНАЯ sound-track film, NOT for B&W positive. "
+            "⚠ The owner reports handling this film under RED light, like photographic "
+            "paper. That is physically SAFE and consistent with the emulsion data -- an "
+            "unsensitized blue-only emulsion is even less sensitive to red than to "
+            "yellow-green -- but it is NOT what the standard prescribes, and the "
+            "standard is what is recorded as documentation. Yellow-green was specified "
+            "because at equal safety it is far brighter to the dark-adapted eye. Both "
+            "are noted so neither is mistaken for the other. The yellow-green rule also "
+            "independently CROSS-CONFIRMS «несенсибилизированная»: a panchromatic stock "
+            "could not be handled under a yellow-green lamp at all. "
+            "Minor disagreement, both recorded rather than averaged: resolving "
+            "power 108 (ТУ handbook) vs 110 (Журба); _RESOLVING_POWER carries "
+            "108 as the ТУ-derived figure. "
+            "SIBLINGS documented, not held: **МЗ-3М** (16 mm, ТУ 6-17-891-77, "
+            "for prints with a combined magnetic soundtrack, developer СТ-4 / "
+            "СТ-6, curve family 3,2 / 2,9 / 2,6 at 4 / 3 / 2 min), and from "
+            "Иофис table 11 МЗ-5 and МЗ-6 (both 3,0 +/- 0,2) plus the colour "
+            "positives ЦП-3 (2,1-2,6, for UNmasked negatives) and ЦП-7 "
+            "(2,7-3,3, for MASKED negatives). "
+            "SUPERSEDED READING, kept deliberately: Иофис 1964 table 11 (p 96) "
+            "gives МЗ-3 as gamma **2,5 +/- 0,2** with developer **П-М**, sizes "
+            "70/35/32/16 mm, «Для печатания любых позитивов». That is the EARLY "
+            "МЗ-3; the 1980s ТУ 6-17-647-80 stock is 0.5 harder. Same "
+            "designation, different generation -- so the two are not "
+            "reconciled, both are cited, and the stored value follows the "
+            "later ТУ because that is the film the owner actually used. "
+            "Иофис §13 p 93 also documents the intended pairing, «для "
+            "черно-белых кинопленок КН -- позитивная кинопленка МЗ-3», and the "
+            "class norms for Soviet positive stock: contrast 2,0-3,0, fog not "
+            "above 0,04, maximum density not less than 3,0, resolving not less "
+            "than 100 lines/mm. The stored gamma 3.00 and dmin 0.04 sit inside "
+            "every one of those. "
+            "Section 13 (p 93) adds the general Soviet print-film norms: "
+            "contrast coefficient 2,0-3,0, fog density not above 0,04, maximum "
+            "optical density not less than 3,0, resolving power not less than "
+            "100 lines/mm -- and documents the intended pairing, «для "
+            "черно-белых кинопленок КН -- позитивная кинопленка МЗ-3», i.e. "
+            "this is the stock the КН camera negatives were printed onto. "
+            "Siblings documented in the same table, not yet held: МЗ-5 and МЗ-6 "
+            "(both gamma 3,0 +/- 0,2, finer grained), and the colour positives "
+            "ЦП-3 (2,1-2,6, for UNmasked negatives) and ЦП-7 (2,7-3,3, for "
+            "MASKED negatives). "
+            "⚠ TWO CLAIMS IN THIS ENTRY ARE NOT DOCUMENTARY EVIDENCE, and are "
+            "labelled rather than quietly carried: "
+            "(1) MANUFACTURER. Иофис lists МЗ-3 only under «Отечественное» "
+            "(domestic) and never names a factory. The Tasma (Kazan) "
+            "attribution, and the yellow boxes, are the OWNER'S PERSONAL "
+            "RECOLLECTION of buying and using this film -- recorded at the "
+            "owner's own request as historical testimony, NOT as verified "
+            "technical evidence. The owner further notes Svema may have made an "
+            "equivalent, but recalls seeing only the Tasma version in shops -- "
+            "also testimony, also unverified. NONE of the three documents cited "
+            "above names a factory for МЗ-3. "
+            "⚠ (3) THE «Л» SUFFIX. The owner's page scan is filed as «МЗ-3Л», "
+            "but the page itself is headed МЗ-3, and neither Журба 1984, Иофис "
+            "1964 nor ГОСТ 26569-85 knows any Л variant -- they list only МЗ-3, "
+            "МЗ-3М, МЗ-5 and МЗ-6. This profile is therefore МЗ-3. What «Л» "
+            "denoted is NOT guessed here; the plausible reading (лавсан, a "
+            "polyester base, against ГОСТ 26569-85's «на триацетатной основе») "
+            "is left as an open question rather than recorded as fact. "
+            "The stock identifier still begins TASMA_ for backward "
+            "compatibility; that prefix therefore overstates what is proven, "
+            "and a rename to SOVIET_POSITIVE_MZ_3 is queued for a decision. "
+            "(2) THE FIGURE 2.8. Table 11 has NO sensitivity column at all -- "
+            "Soviet positive stocks were catalogued by gamma, developer and "
+            "gauge only. So «GOST 2.8» has no source in this corpus; it came "
+            "in with the original [T3] entry and remains unverified. "
+            "Note this is deliberately a PrintStock and not a FilmProfile: a "
+            "positive film is not something you expose in a camera, it is what "
+            "a negative is printed onto, which is exactly the role PrintStock "
+            "fills in this pipeline. Pair it with a Soviet negative for a "
+            "period Soviet release-print look: TASMA_FN_65 or SVEMA_FOTO_65 "
+            "with --print TASMA_POSITIVE_28. It is also the stock for the "
+            "amateur workflow of contact-printing a negative onto positive film "
+            "to make B&W slides. High print gamma gives the contrasty, "
             "crushed-shadow projected image; grain is fine, as positive stock "
             "always is, so nearly all visible grain still comes from the "
-            "negative. GOST 2.8 is roughly ISO 3 -- print stock is slow because "
-            "it only ever sees a printer lamp."
+            "negative."
         ),
+        # [T1] SUPERSEDES the Иофис 1964 figure, same day. gamma 3.00 is the
+        # centre of the RECOMMENDED contrast range 2,8-3,2 given by Журба 1984
+        # table 2 col 7, and agrees with the ТУ-citing handbook's «гамма_рек 3».
+        # dmin 0.04 is now DOCUMENTED, not estimated: Журба col 8 («Минимальная
+        # оптическая плотность») and the handbook's D_0 both print 0,04.
+        # Why 2.50 was wrong: Иофис 1964 table 11 describes the EARLY МЗ-3 at
+        # 2,5 +/- 0,2. The stock actually sold in the 1980s is governed by
+        # ТУ 6-17-647-80 / ГОСТ 10691.4-73 and is a full 0.5 harder. Same
+        # designation, different generation -- the ДС-4 1974-vs-1984 pattern
+        # again, and the reason both readings are kept in the description.
+        # toe/shoulder remain [T3]: the handbook prints a curve FAMILY (fig 189)
+        # which is traceable and queued, but has not been traced.
         curves=RGBCurves(
-            r=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
-            g=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
-            b=ToneCurve(0.09, 2.52, -0.74, 0.23, 0.78, 0.31),
+            r=ToneCurve(0.04, 3.00, -0.74, 0.23, 0.78, 0.31),
+            g=ToneCurve(0.04, 3.00, -0.74, 0.23, 0.78, 0.31),
+            b=ToneCurve(0.04, 3.00, -0.74, 0.23, 0.78, 0.31),
         ),
         mtf_f50=62.0,
         grain_rms=4.2,
