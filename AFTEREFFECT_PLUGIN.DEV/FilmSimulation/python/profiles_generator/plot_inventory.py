@@ -212,7 +212,23 @@ def main() -> int:
         return 1
     topics = {k: TOPICS[k] for k in (ns.topic or sorted(TOPICS))}
 
+    # ⚠ THE PAGE COUNTS BELOW ARE CORPUS-WIDE, so they can only be asserted
+    # against the WHOLE corpus. Measured 2026-08-18: 450 PDFs under
+    # PDF/PROFILES. A partial mirror -- a staged subset in a sandbox, a
+    # half-synced folder -- reproduces every per-sheet result in this file
+    # correctly and fails all four count assertions, which is the worst possible
+    # signal: four red lines that mean "you copied fewer files", indistinguishable
+    # at a glance from "the classifier broke". So the corpus is SIZED first and
+    # the count assertions are skipped, loudly, on a partial one. The ground-truth
+    # classification check still runs, because it is per-page and does not care
+    # how many other files exist.
+    CORPUS_PDFS = 450
+    n_pdf = sum(1 for _ in root.rglob("*.pdf"))
+    partial = n_pdf < CORPUS_PDFS
     print(f"[i] corpus {root}")
+    if partial:
+        print(f"[i] PARTIAL CORPUS: {n_pdf} of {CORPUS_PDFS} PDFs present -- the "
+              f"corpus-wide page counts are reported but NOT asserted")
     hits = scan_text(root, topics)
     allpages = set().union(*hits.values()) if hits else set()
     print(f"[i] {len(allpages)} candidate plot pages; classifying")
@@ -244,8 +260,11 @@ def main() -> int:
             ev, er = EXPECTED_PAGES[k]
             if (len(vec), len(ras)) != (ev, er):
                 print(f"    [!] expected {ev} vector / {er} raster "
-                      f"(recorded 2026-08-18)")
-                bad += 1
+                      f"(recorded 2026-08-18)"
+                      + ("  -- partial corpus, not counted as a failure"
+                         if partial else ""))
+                if not partial:
+                    bad += 1
         stock = collections.defaultdict(set)
         for rel, page in vec:
             fc = catalogue_codes(Path(rel).name)

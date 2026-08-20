@@ -277,8 +277,10 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
     <None Include="python\old_films_analyzing\README_v21.md" />
+    <None Include="python\profiles_generator\agfa_vista.py" />
     <None Include="python\profiles_generator\build.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
+    <None Include="python\profiles_generator\cpp_parity.py" />
     <None Include="python\profiles_generator\dashtrace.py" />
     <None Include="python\profiles_generator\digitize_plot.py" />
     <None Include="python\profiles_generator\dye_density.py" />
@@ -289,10 +291,15 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\gen_film_curves_md.py" />
     <None Include="python\profiles_generator\gen_film_names.py" />
     <None Include="python\profiles_generator\gen_ref.py" />
+    <None Include="python\profiles_generator\gevaert_curves.py" />
+    <None Include="python\profiles_generator\granularity_vector.py" />
+    <None Include="python\profiles_generator\interimage_parity.py" />
     <None Include="python\profiles_generator\iso5_3_density.py" />
+    <None Include="python\profiles_generator\kodak_sensitometry.py" />
     <None Include="python\profiles_generator\make_period_chart.py" />
     <None Include="python\profiles_generator\make_test_chart.py" />
     <None Include="python\profiles_generator\mees_granularity.py" />
+    <None Include="python\profiles_generator\mtf_vector.py" />
     <None Include="python\profiles_generator\plot_inventory.py" />
     <None Include="python\profiles_generator\README.md" />
     <None Include="python\profiles_generator\render.cmd" />

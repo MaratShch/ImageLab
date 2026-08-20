@@ -574,6 +574,57 @@ def main() -> int:
       f"Regenerate after any profile edit — this file is derived, never "
       f"hand-edited.")
     w("")
+    # ⚠ A LIVE COVERAGE SUMMARY, added 2026-08-19 at the owner's request: this file
+    # is the thing that should say, at a glance, WHAT STILL NEEDS SEARCHING. Every
+    # number below is counted from the live database at generation time, so it
+    # cannot go stale the way a hand-written summary does.
+    _n = len(fp.FILM_PROFILES)
+    _sig = sum(1 for q in fp.FILM_PROFILES if q.grain.sigma_shape_measured)
+    _mtfm = sum(1 for q in fp.FILM_PROFILES if q.mtf.mtf_measured)
+    _spec = sum(1 for q in fp.FILM_PROFILES
+                if getattr(q, "spectral", None) and q.spectral.has_data)
+    _dye = sum(1 for q in fp.FILM_PROFILES
+               if getattr(q, "dye_density", None) and q.dye_density.has_data)
+    _rp = sum(1 for q in fp.FILM_PROFILES
+              if q.mtf.resolving_power_lp_mm_lowc > 0
+              or q.mtf.resolving_power_lp_mm_highc > 0)
+    _stack = sum(1 for q in fp.FILM_PROFILES
+                 if getattr(q, "layer_stack", None) and q.layer_stack.has_data)
+    _recip = sum(1 for q in fp.FILM_PROFILES
+                 if getattr(q, "reciprocity_table", None)
+                 and q.reciprocity_table.has_data)
+    _PLACE = "No official manufacturer datasheet available"
+    _nosrc = sorted(q.name for q in fp.FILM_PROFILES
+                    if q.provenance.sources
+                    and all(_PLACE in x for x in q.provenance.sources))
+    w("## Measured coverage, counted live at generation time")
+    w("")
+    w("This is the answer to \"what still needs searching\". Each row counts the "
+      "stocks whose value for that property comes from a **document or a traced "
+      "curve**, against the %d in the database." % _n)
+    w("")
+    w("| Property | Measured | Remaining | What would close the gap |")
+    w("|---|---|---|---|")
+    w(f"| Grain sigma(D) shape | **{_sig}** | {_n - _sig} | 39 raster granularity "
+      f"pages are on disk and unread; every non-Kodak sigma(D) is unmeasured |")
+    w(f"| MTF rolloff shape | **{_mtfm}** | {_n - _mtfm} | 199 vector MTF pages "
+      f"inventoried, 7 curves on 3 sheets traced (queue C2b) |")
+    w(f"| Resolving power (printed pair) | **{_rp}** | {_n - _rp} | only sheets "
+      f"that print a TOC pair; many never did |")
+    w(f"| Spectral sensitivity curve | **{_spec}** | {_n - _spec} | mostly a "
+      f"tracing job on pages already held |")
+    w(f"| Spectral dye density curve | **{_dye}** | {_n - _dye} | 191 vector "
+      f"dye-density pages inventoried (queue B1, G7) |")
+    w(f"| Layer stack (coating order) | **{_stack}** | {_n - _stack} | printed as "
+      f"a diagram on some sheets; Cheltsov & Bongard 1958 Table 24 for the rest |")
+    w(f"| Reciprocity table | **{_recip}** | {_n - _recip} | almost never printed "
+      f"as a table; `ReciprocitySpec` is also still read by no renderer (queue C8) |")
+    w("")
+    w("**%d stocks carry no source at all** beyond the `_NO_DATASHEET` placeholder: "
+      "%s. `GENERIC_BW` and `GENERIC_COLOR` are in that list by design -- they are "
+      "generic classes, not gaps. See `NotFound.md` section 1 for a per-stock "
+      "acquisition plan." % (len(_nosrc), ", ".join("`%s`" % n for n in _nosrc)))
+    w("")
     w("## How to read this")
     w("")
     w("Every cell carries the **actual value the simulator uses**, in one of "
@@ -614,18 +665,31 @@ def main() -> int:
       "primaries. `-` = no curve on file |")
     w("| Film Grain Characteristics | grain correlation length (clump) per "
       "layer in um, clump gain, fog grain |")
-    w("| RMS Granularity | sigma(D)x1000 through a 48 um aperture at D=1.0; "
-      "brackets = per-layer |")
-    w("| Grain sigma(D) Shape | sigma multipliers at D=dmin / D=1.0 / D=dmax, "
-      "describing how granularity varies with density. `-` = the legacy "
-      "sqrt(D-dmin) law. Only the four KODAK VISION3 stocks carry a TRACED "
-      "triple (H-1 sheets p3 and the 5219 Technical Data, 2026-08-17); the "
-      "others are estimates or the default. NOTE the three anchors cannot "
-      "represent an interior peak, and every measured curve has one, at D~0.78 "
-      "at 1.24-1.32x the D=1.0 value -- so a traced triple understates the "
-      "maximum by about a quarter |")
+    w("| RMS Granularity | sigma(D)x1000 through a 48 um aperture at **NET "
+      "density 1.0** (i.e. dmin + 1.0), which is the convention Kodak prints "
+      "-- '*Read at a net diffuse visual density of 1.0, using a 48-micrometre "
+      "aperture' (5248 p1, 5222 p1). Schema v9 pinned this: the renderer "
+      "reproduces the stored figure at exactly that density. Brackets = "
+      "per-layer |")
+    w("| Grain sigma(D) Shape | sigma multipliers at D=dmin / D=1.0 / D=dmax "
+      "describing how granularity varies with density, plus the stored INTERIOR "
+      "PEAK where one is measured. `-` = the legacy sqrt(D-dmin) law, which is "
+      "what the renderer uses for every stock without the `sigma_shape_measured` "
+      "flag. **%d stocks carry a traced shape** -- the four VISION3 stocks from "
+      "raster plots (2026-08-17) and seven more from vector plots (2026-08-18, "
+      "queue items C1c/E0b). The other 146 hold either the default or a "
+      "heuristic triple that is INERT because both branches of that heuristic "
+      "are wrong in sign. Schema v8 added `sigma_shape_peak`, so an interior "
+      "maximum IS now representable and is stored where measured (1.23-3.13x the "
+      "D=1.0 value, at D 0.65-3.34) |"
+      % sum(1 for q in fp.FILM_PROFILES if q.grain.sigma_shape_measured))
     w("| MTF / Resolving Power | f50 in cycles/mm per layer; RP = resolving "
-      "power at 1.6:1 / 1000:1 contrast |")
+      "power at 1.6:1 / 1000:1 contrast. Since schema v10 the ROLLOFF SHAPE is "
+      "also stored and read, as 1/(1+(f/f50)^q) behind an `mtf_measured` flag "
+      "-- **%d stock(s) measured**, the rest keep the legacy Gaussian "
+      "bit-for-bit. Both laws pass through 0.5 at f50 exactly, so a measured "
+      "rolloff changes shape and never level |"
+      % sum(1 for q in fp.FILM_PROFILES if q.mtf.mtf_measured))
     w("| Film Base Properties | base transmittance tint R/G/B, base material "
       "when notable |")
     w("| Emulsion Properties | layer architecture, dye cloud size, channel "
@@ -791,14 +855,60 @@ def main() -> int:
       "`-` for Film Base although its sheet states 0.125 mm acetate. Both are "
       "the negation guard being too eager on nearby words.")
     w("")
-    w("**A registry gap upstream.** 27 stocks cite documents in their profile "
-      "comments but still carry the `_NO_DATASHEET` placeholder in "
-      "`Provenance.sources`, because they were added without being registered "
-      "in `_PROVENANCE_SOURCES`. This generator recovers their citations by "
-      "parsing the source blocks, so the Reference Documents column is "
-      "correct -- but the structured field is not, and any other consumer of "
-      "`Provenance` will see the placeholder. Fixing that registry is the "
-      "recommended next step.")
+    # 2026-08-18: this count was hardcoded at 27 and went stale the moment the
+    # placeholder closure registered six citations. It is now MEASURED from the
+    # same two facts the cell rendering already uses -- placeholder-only
+    # `Provenance.sources`, and a citation this generator can recover from the
+    # block -- so the sentence cannot drift from the table above it again.
+    _gap = sorted(p.name for p, _ev, cite in rows
+                  if all(PLACEHOLDER in s for s in p.provenance.sources)
+                  and cite != "-")
+    # Split by tier, because the two halves mean different things: a tier<=2
+    # profile with no registered source contradicts its own tier claim (that
+    # class was closed on 2026-08-18 and verify.py now guards it), whereas a
+    # tier 3 profile is only mis-described by the placeholder's wording.
+    _gap_lo = [n for n in _gap if by_name[n].provenance.tier <= 2]
+    # Also measured: profiles where the placeholder is the TRUE answer. Stating
+    # this number beside the gap stops the closed state from reading as though
+    # every profile now has a citation -- 13 legitimately do not.
+    _true_ph = sorted(p.name for p in fp.FILM_PROFILES
+                      if all(PLACEHOLDER in s for s in p.provenance.sources)
+                      and p.name not in _gap)
+    if not _gap:
+        w(f"**The upstream registry gap is CLOSED (measured, not hardcoded).** "
+          f"Zero stocks now cite a document in their profile comments while "
+          f"still carrying the `_NO_DATASHEET` placeholder in "
+          f"`Provenance.sources`. That gap stood at 27 by the previous "
+          f"hardcoded count and was closed on 2026-08-18 by lifting seven "
+          f"citations out of profile prose into `_PROVENANCE_SOURCES`; "
+          f"`verify.py` now fails if a tier-1 profile, or an undocumented "
+          f"tier-2 profile outside a named allowlist, carries the placeholder "
+          f"again. **The count above is now derived from the same two facts "
+          f"this table's cells use**, so it cannot go stale the way the "
+          f"hardcoded 27 did. {len(_true_ph)} stocks still carry the "
+          f"placeholder and SHOULD: no document for them exists in the corpus "
+          f"or anywhere this project has looked. Two of those, "
+          f"`FUJI_F125_8530` and `FUJI_F125_8630`, are the only profiles whose "
+          f"tier claim has nothing behind it -- see `NotFound.md` §0.2.1 and "
+          f"§1.5.")
+    else:
+        w(f"**A registry gap upstream, {len(_gap)} "
+          f"stock{'' if len(_gap) == 1 else 's'} (measured, not hardcoded).** "
+          f"{'This stock cites a document' if len(_gap) == 1 else 'These cite documents'} "
+          f"in {'its' if len(_gap) == 1 else 'their'} profile comments but "
+          f"still carr{'ies' if len(_gap) == 1 else 'y'} the `_NO_DATASHEET` "
+          f"placeholder in `Provenance.sources`, having been added without "
+          f"being registered in `_PROVENANCE_SOURCES`. This generator recovers "
+          f"the citation by parsing the source block, so the Reference "
+          f"Documents column is correct -- but the structured field is not, "
+          f"and any other consumer of `Provenance` sees the placeholder. "
+          + ", ".join(f"`{n}`" for n in _gap) + ". "
+          + (f"⚠ **{len(_gap_lo)} of these claim tier <= 2**, which the "
+             f"placeholder directly contradicts: "
+             + ", ".join(f"`{n}`" for n in _gap_lo) + ". "
+             if _gap_lo else "")
+          + "Registering them is bookkeeping with no research in it; see "
+            "`DIGITIZATION_QUEUE.md`.")
     w("")
     w("**The definitive fix** is per-field provenance in the schema -- a "
       "small `srcs` marker beside each adopted number -- which would replace "
@@ -813,10 +923,22 @@ def main() -> int:
     w("* Grain **size** (clump dimensions) is the weakest across the whole "
       "library: sheets print RMS granularity but never clump geometry, and it "
       "cannot be recovered from a scan below the scanner's own resolution.")
-    w("* Interimage effects are tier 3 for every stock without exception. All "
-      "395 documents in `PDF/PROFILES` were searched: none publishes them, "
-      "because camera negative is characterised with a single white-light "
-      "exposure series. See "
+    # ⚠ THIS LINE SAID "tier 3 for every stock without exception" until
+    # 2026-08-20, contradicting InterimageSpec's own docstring, which has said
+    # "Tier 2, upgraded from tier 3 on 2026-08-03" since that upgrade. The
+    # coefficients are solved per stock against published patent measurements
+    # (US5273870A's IIE percentages, converted with each stock's own gamma), so
+    # tier 2 is right and this generator was stale.
+    w("* Interimage effects are **tier 2**: no manufacturer DATASHEET publishes "
+      "them -- all 395 documents in `PDF/PROFILES` were searched, and the "
+      "omission is systematic because camera negative is characterised with a "
+      "single white-light exposure series -- but the PATENT literature does, and "
+      "the stored coefficients are solved per stock against US5273870A's "
+      "published IIE percentages using each stock's own curve gamma. The one "
+      "estimated input in that chain is the red white-light gamma (0.55), which "
+      "is why it is tier 2 and not tier 1. `density_weighting` for reversal "
+      "stocks remains tier 3 -- the mechanism split is documented (US4729943A), "
+      "the 0.65 magnitude is not. See "
       "`doc/CHANGES_2026-08-03_v5_interimage.md`.")
     w("* Pre-1960 and Soviet stocks depend most on reconstruction. Where the "
       "owner supplied real scan batches (Svema, Tasma, ORWO) the profiles "

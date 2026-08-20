@@ -15,7 +15,9 @@ once in this project:
     the DEPRECATED one last, silently replacing the file the effect panel loads;
   * `sigma_shape_toe/mid/dmax` sat in the schema for weeks, populated and
     validated, while no renderer read it;
-  * a delivery was reported as applied when the files had not in fact changed.
+  * a delivery was reported as applied when the files had not in fact changed;
+  * the hand-written status docs fell behind the data, so the owner had to read a
+    sweep of twenty-two files to work out where things stood.
 
 None of those is a coding mistake. They are all the same missing thing: no
 single command that regenerates everything in the right order and fails loudly
@@ -44,7 +46,12 @@ STAGE ORDER IS NOT COSMETIC
   sync     copy the four generated artefacts to the project root and assert
            both copies are byte-identical. Closes the drift trap.
   docs     FilmActiveProfiles.md, FilmCurves.md -- regenerated from the data,
-           so they cannot describe a database that no longer exists.
+           so they cannot describe a database that no longer exists. Also gates
+           doc/PROGRESS.md, the hand-written status board: it carries a
+           build-facts stamp (schema version, stock count, film_names digest) and
+           the stage FAILS if the stamp disagrees with the live database. The
+           generated docs cannot go stale; a hand-written one silently can, and
+           the owner reads it to see where the project stands.
   compile  g++ -std=c++14 -Wall -Wextra on the generated table. Gated on the
            compiler's own exit code AND an empty stderr, not on a piped head:
            that mistake once reported "clean" while a string literal was broken.
@@ -117,8 +124,74 @@ def audits(root: Path):
         ("dye_density.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "KODAK",
-         "the 8 adopted spectral dye density sets, re-derived from the "
-         "sheets' vector paths (5285 and 2383 are the validation pair)"),
+         "the 11 adopted spectral dye density sets, re-derived from the "
+         "sheets' vector paths (5285 and 2383 are the validation pair; 7239, "
+         "5217 and 5218 were recovered on 2026-08-18 from the FAILED list)"),
+        ("granularity_vector.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "Ektachrome_100d.pdf",
+         "the EKTACHROME 100D 5285 sigma(D) triple -- the only MEASURED "
+         "granularity shape for a colour REVERSAL stock in the database, and the "
+         "one that contradicts _grain_v2's reversal heuristic in sign"),
+        ("mtf_vector.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "5231-PLUS-X.pdf",
+         "PLUS-X 5231's f50 and adjacency overshoot, read off the sheet's own "
+         "vector MTF path (41.3 cycles/mm and +0.034, against a stored estimate "
+         "of 60.0 and 0.08)"),
+        ("kodak_sensitometry.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "Kodak VISION2 50D 5201.pdf",
+         "KODAK_VISION2_50D_5201's three characteristic curves, least-squares "
+         "fitted to the DENSE curves inside the sheet's granularity panel (100 / "
+         "125 / 121 samples, rms 0.005-0.007 D) rather than to the six-vertex "
+         "polylines the sensitometric panel actually draws -- plus the abscissa "
+         "origin (+1.9932 decades) that only the coarse panel states, and the "
+         "cross-check that the sheet's two printed abscissae agree"),
+        ("agfa_vista.py",
+         ["--root", str(root / "PDF" / "PROFILES"), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA"
+              / "AGFACOLOR Vista 100, 200, 400, 800.pdf",
+         "AGFA_VISTA_200's spectral sensitivity, and the dash-pattern legend "
+         "it depends on: the extractor re-checks the solid/dashed/dash-dot to "
+         "green/blue/red mapping against Agfa's own printed labels and against "
+         "the per-layer absorption bands, for all three films on the page"),
+        ("gevaert_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "GEVAERT"
+              / "Verpoort_Stapp1980_NewGevacolNeg682.pdf",
+         "GEVACOLOR_NEG_682's three characteristic curves, re-traced from the "
+         "1980 SMPTE paper's Fig. 10 at native scan resolution (589/513/437 "
+         "samples, fit rms 0.004-0.011 D) -- and re-checked against the gamma "
+         "0.57 the figure itself prints, which the trace reproduces at 0.5677"),
+        # ⚠ NOT A DOCUMENT AUDIT -- a CODE audit, and it belongs in this stage
+        # anyway. Its "source" is the GENERATED header rather than a PDF, and what
+        # it re-derives is that the Python reference law and the emitted C++ law
+        # still agree. Added 2026-08-18 (C1b): that convention change had to be
+        # made twice, in two languages, and the previous cross-check was a manual
+        # one-off from a finished session -- i.e. it guarded nothing.
+        ("cpp_parity.py",
+         ["--assert"],
+         HERE / "film_profiles.hpp",
+         "Python grain_sigma() vs the generated FilmGrainSigma(): 4650 probes "
+         "over 155 stocks x 3 channels x 10 densities, including net 1.0 and "
+         "absolute 1.0 (equal only for an unmasked stock), with a coverage "
+         "assertion that all 11 measured shapes really differ from the legacy law"),
+        # ⚠ NOT A DOCUMENT AUDIT EITHER, and it probes the PLUGIN'S OWN C++ rather
+        # than generated code -- the only audit that does. Added 2026-08-20: the
+        # two DIR-coupler stages are the largest COLOUR effect in the chain
+        # (disabling them moves Velvia's saturated patches by up to 143/255) and
+        # they exist twice, in two languages, with nothing comparing them.
+        # cpp_parity covers the grain and MTF laws only.
+        ("interimage_parity.py",
+         ["--root", str(root), "--assert"],
+         root / "Algo_08_Sim.cpp",
+         "Python apply_interimage()/apply_dir_couplers() vs the plugin's own "
+         "AlgoStage08b_Interimage()/AlgoStage09_DirCoupler(): 5 stocks covering "
+         "both interimage mechanisms plus a monochrome control, flat and ramp "
+         "fields, at two pixel scales. Reads sizeof(AlgoType) from the compiled "
+         "probe and picks its tolerance from it, so the switchable double/float "
+         "typedef stays switchable"),
         ("plot_inventory.py",
          ["--root", str(root / "PDF" / "PROFILES"), "--assert"],
          root / "PDF" / "PROFILES",
@@ -133,9 +206,17 @@ def audits(root: Path):
 #: instead: a new failure fails the build, and a baseline entry that starts
 #: passing also reports, so the baseline is shrunk deliberately rather than by
 #: accident.
+#: ⚠ WAS TWO ENTRIES UNTIL 2026-08-20, AND ONE OF THEM WAS NOT A DATA PROBLEM.
+#: "neighbour pairs couple harder than the far red-blue pair" asserted a
+#: PER-DISTANCE interimage asymmetry that the database deliberately does not
+#: store, because the evidence (US4725529A Table 1 -- inhibitor in the developer,
+#: three separate single-layer coatings, no layer stack, asymmetry persists) says
+#: the asymmetry is per RECEIVER. So it was unpassable by construction: a stale
+#: assertion parked in the baseline as "known, leave alone", which is how it
+#: survived. Replaced in verify.py with the assertion the evidence supports, and
+#: this mechanism is what reported the change rather than swallowing it.
 VERIFY_BASELINE = {
     "saturation hierarchy is ordered clean -> impure dyes",
-    "neighbour pairs couple harder than the far red-blue pair",
 }
 
 
@@ -367,7 +448,61 @@ def stage_docs(opts) -> list:
             res.append(Result(script, "OK", produced))
         else:
             res.append(Result(script, "FAIL", (se or so).strip()[-200:]))
+    res.extend(_progress_doc_check())
     return res
+
+
+def _progress_doc_check() -> list:
+    """Fail if doc/PROGRESS.md no longer states the live facts.
+
+    WHY THIS IS A BUILD GATE AND NOT A GOOD INTENTION. The owner reads the
+    markdown to see where the project stands, and the failure mode is silent: a
+    document that was true last week reads exactly like one that is true now.
+
+    ⚠ IT READS A MACHINE STAMP, NOT THE PROSE, and the first version of this
+    check is why. Searching the body text for "v8" passed even after the status
+    line was edited to say v7, because the string "v8" also occurs in a sentence
+    about the struct layout. A gate that can be satisfied by an unrelated
+    sentence is worse than no gate: it reports OK on a stale document. So
+    PROGRESS.md carries one HTML-comment stamp line and this parses it:
+
+        <!-- build-facts: schema=v8 stocks=155 names_md5=<32 hex> -->
+
+    Formatting-independent, unambiguous, and trivially satisfiable -- update the
+    stamp when the facts move. Fault-injected against all three fields.
+    """
+    doc = HERE / "doc" / "PROGRESS.md"
+    if not doc.is_file():
+        return [Result("doc/PROGRESS.md", "FAIL",
+                       "missing -- the status board every task must update")]
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    import re as _re
+    m = _re.search(r"<!--\s*build-facts:\s*schema=v(\d+)\s+stocks=(\d+)\s+"
+                   r"names_md5=([0-9a-fA-F]{32})\s*-->", text)
+    if not m:
+        return [Result("doc/PROGRESS.md", "FAIL",
+                       "no build-facts stamp line (see _progress_doc_check)")]
+    try:
+        sys.path.insert(0, str(HERE))
+        import film_profiles as _fp
+        live_schema, live_stocks = _fp.SCHEMA_VERSION, len(_fp.FILM_PROFILES)
+    except Exception as exc:                                # pragma: no cover
+        return [Result("doc/PROGRESS.md", "SKIP", f"cannot import: {exc}")]
+    names = HERE / "film_names.txt"
+    live_md5 = (hashlib.md5(names.read_bytes()).hexdigest()
+                if names.is_file() else "")
+    bad = []
+    if int(m.group(1)) != live_schema:
+        bad.append(f"schema v{m.group(1)} != live v{live_schema}")
+    if int(m.group(2)) != live_stocks:
+        bad.append(f"stocks {m.group(2)} != live {live_stocks}")
+    if live_md5 and m.group(3).lower() != live_md5:
+        bad.append(f"names_md5 {m.group(3)[:8]}... != live {live_md5[:8]}...")
+    if bad:
+        return [Result("doc/PROGRESS.md", "FAIL", "STALE: " + "; ".join(bad))]
+    return [Result("doc/PROGRESS.md", "OK",
+                   f"stamp matches live: schema v{live_schema}, "
+                   f"{live_stocks} stocks, names {live_md5[:8]}...")]
 
 
 def stage_compile(opts) -> list:

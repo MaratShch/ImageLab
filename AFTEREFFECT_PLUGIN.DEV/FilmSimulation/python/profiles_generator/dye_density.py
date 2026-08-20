@@ -52,9 +52,20 @@ KNOWN LIMITS, stated rather than discovered later
     layer, so nothing anchors the search. It needs a visual pass.
   * "No raster image on the page" is what plot_inventory.py calls vector, and
     that is NOT the same as "a vector plot is present" -- 5247 p4 proves it.
-  * Sheets not yet handled: 5246, 5248, 5217, 5218, 7239 (5248/5217/7239 find
-    no ticks against the frame; 5246/5218 find curves but no set matches
-    either family).
+  * Sheets not yet handled: 5246 and 5248 ONLY. Three of the original five
+    failures -- 7239, 5217, 5218 -- were recovered on 2026-08-18 and NONE of
+    them needed anything from the source; all three were defects in this script:
+    a y-axis caption anchor that merged two stacked plots into one band, a
+    two-point tick calibration with nothing checking it, and a stroke-width
+    filter referenced to the thickest path in the frame rather than to the
+    curves. See LABEL_STACK_GAP, _fit_axis and the note in extract().
+    The two that remain, with their measured near-misses rather than a shrug:
+      5246 p5 -- 9 curves inside the frame; the best peak_1.0 triple has maxima
+        1.008 / 0.997 / 0.926, and the 0.926 is 0.074 off unit peak, well past
+        the 0.04 tolerance. Widening the tolerance to admit it would also admit
+        false sets, so it stays out until the extra traces are identified.
+      5248 p3 -- only 2 curves survive inside the frame even after the width
+        filter was relaxed, so the other traces are being lost before selection.
 
 Run:  python dye_density.py [--assert] [--sheet 5219]
 Needs numpy + PyMuPDF. --assert exits non-zero if the adopted sets move.
@@ -87,18 +98,60 @@ SHEETS = {
     "5274": ("5274.pdf", 4, "KODAK_VISION_200T_5274"),
     "5279": ("5279.pdf", 3, "KODAK_VISION_500T_5279"),
     "5293": ("5293.pdf", 4, "EASTMAN_EXR_200T_5293"),
+    # ADDED 2026-08-18 (queue item E0b). This sheet was on the FAILED list from
+    # 2026-08-18 until the LABEL_STACK_GAP fix in rot_labels() -- the source was
+    # always vector and always fine; the anchor picked the wrong plot. Its dye
+    # panel prints its own normalisation statement, "Normalized dyes to form a
+    # visual neutral density of 1.0 for a viewing illuminant of 5400 K", and
+    # LABELS each curve Yellow / Magenta / Cyan, so the peak-based assignment can
+    # be checked against Kodak's own words: 440 / 550 / 670 nm respectively.
+    "7239": ("Kodak Eastman EKTACHROME Film (Daylight) 7239.pdf", 3,
+             "EASTMAN_EKTACHROME_7239"),
+    # ALSO RECOVERED 2026-08-18 by the same two fixes (LABEL_STACK_GAP in
+    # rot_labels, the least-squares tick fit in _fit_axis, and the stroke-width
+    # filter change in extract). Both were on the FAILED list and neither needed
+    # anything from the source. 5218's failure was the most instructive: with the
+    # old two-point calibration its curves came out at 2.14-2.24 D inside a frame
+    # whose axis stops at 1.8 D, which is impossible and was the clue that a tick
+    # label had been misassigned.
+    "5217": ("5217-Vision2-200T.pdf", 3, "KODAK_VISION2_200T_5217"),
+    "5218": ("5218-Vision2-500T-H-1-5218t.pdf", 4, "KODAK_VISION2_500T_5218"),
+    # ⚠ 5201 IS DELIBERATELY NOT HERE, and this is the record of why. H-1-5201 p3
+    # draws FIVE traces in its dye panel -- Midscale Neutral, Cyan, Magenta,
+    # Yellow and Minimum Density -- and prints "Cyan, Magenta, and Yellow Dye
+    # Curves are peak-normalized", i.e. a peak_1.0 dye set PLUS two as-printed
+    # traces on one pair of axes. Registering it returns "no curve set matched
+    # either normalisation family": the family classifier is built for 3 dye
+    # traces or 3 dyes + neutral, not 3 dyes + neutral + dmin, and widening it
+    # blind would put the 11 sheets above at risk. Queue item C9 does it properly.
 }
 
 #: Recorded 2026-08-18. --assert fails if an extraction stops reproducing.
+#: ⚠ ALL RESIDUALS RE-RECORDED 2026-08-18 when the calibration changed from a
+#: two-point span to a least-squares fit (see _fit_axis). The extracted CURVES
+#: barely moved -- peak wavelengths are identical on every sheet, and the two
+#: calibrations agree to <= 0.015 D on the peak-normalised family, which is a
+#: useful error bar to have measured. The change was ADOPTED rather than reverted
+#: because of an independent check: on the two sheets whose arrays were adopted
+#: by a SEPARATE earlier extraction (2383 and 5285), the new fit reproduces the
+#: stored arrays to RMS 0.0005 and 0.0003 D against the old fit's 0.0185 and
+#: 0.0029 -- 10x to 40x closer to numbers it did not derive.
+#: The stored peak_1.0 arrays were NOT re-adopted: they came from the old
+#: calibration, the independent |max - 1.0| test is a wash between the two
+#: methods (new better on 3 sheets, old better on 3, all within 0.003), and
+#: re-adopting on a wash would be churn dressed as progress.
 EXPECTED = {
-    "5285": ("as_printed_plus_neutral", 0.0154),
-    "2383": ("as_printed_plus_neutral", 0.1350),
-    "5205": ("peak_1.0", 0.0127),
-    "5219": ("peak_1.0", 0.0047),
-    "5245": ("peak_1.0", 0.0081),
-    "5274": ("peak_1.0", 0.0074),
-    "5279": ("peak_1.0", 0.0137),
-    "5293": ("peak_1.0", 0.0050),
+    "5285": ("as_printed_plus_neutral", 0.0132),
+    "2383": ("as_printed_plus_neutral", 0.1287),
+    "5205": ("peak_1.0", 0.0092),
+    "5217": ("peak_1.0", 0.0097),
+    "5218": ("peak_1.0", 0.0195),
+    "5219": ("peak_1.0", 0.0090),
+    "5245": ("peak_1.0", 0.0034),
+    "5274": ("peak_1.0", 0.0097),
+    "5279": ("peak_1.0", 0.0162),
+    "5293": ("peak_1.0", 0.0011),
+    "7239": ("as_printed_plus_neutral", 0.0398),
 }
 
 
@@ -128,7 +181,29 @@ def resample(pts, cal, grid):
     keep=np.concatenate(([True], np.diff(lam)>1e-9))
     return np.interp(grid, lam[keep], den[keep])
 
+#: Vertical gap, in points, above which two rotated axis words in the SAME
+#: column belong to DIFFERENT plots. Kodak stacks two or three plots in one
+#: column and gives each a rotated y-axis caption, so a pure x-centre grouping
+#: merges them. Set from the measured geometry: within one caption the words sit
+#: 0-3 pt apart ("DIFFUSE"/"SPECTRAL"/"DENSITY" are contiguous), while the gap
+#: to the next plot's caption is 180 pt on the 7239 sheet. 24 pt is far outside
+#: the first and far inside the second.
+LABEL_STACK_GAP = 24.0
+
+
 def rot_labels(pg):
+    """Rotated y-axis captions containing SPECTRAL + DENSITY, one per plot.
+
+    ⚠ WHY THE Y-GAP SPLIT EXISTS -- this was the bug that made the 7239 sheet
+    "fail" and it was never a problem with the source. Grouping the rotated words
+    by x-centre ALONE merges every caption in a column into one band: on
+    Kodak's H-1-5239 p3 that produced a single pseudo-label spanning y 127-440,
+    made of the SPECTRAL SENSITIVITY plot's "DENSITY" plus the DIFFUSE SPECTRAL
+    DENSITY plot's three words. `pick()` then chose the frame nearest the top of
+    that band -- the SENSITIVITY plot -- and the dye-density curves were never
+    looked at. The sheet was recorded as a failed extraction for a fortnight on
+    the strength of it.
+    """
     rot=[]
     for x0,y0,x1,y1,t,*_ in pg.get_text("words"):
         if (y1-y0)>1.6*(x1-x0) and t.upper().strip(",.:") in AXIS_WORDS:
@@ -137,10 +212,18 @@ def rot_labels(pg):
     for x0,y0,x1,y1,t in rot: g.setdefault(round((x0+x1)/2/6)*6,[]).append((x0,y0,x1,y1,t))
     out=[]
     for cx,it in g.items():
-        w={t for *_,t in it}
-        if {"SPECTRAL","DENSITY"} <= w:
-            out.append((max(i[2] for i in it), min(i[1] for i in it),
-                        max(i[3] for i in it), " ".join(sorted(w))))
+        # split the column into runs of vertically adjacent words = one caption
+        runs=[]
+        for w in sorted(it, key=lambda w: w[1]):
+            if runs and w[1] - max(v[3] for v in runs[-1]) <= LABEL_STACK_GAP:
+                runs[-1].append(w)
+            else:
+                runs.append([w])
+        for run in runs:
+            words={t for *_,t in run}
+            if {"SPECTRAL","DENSITY"} <= words:
+                out.append((max(i[2] for i in run), min(i[1] for i in run),
+                            max(i[3] for i in run), " ".join(sorted(words))))
     return out
 
 def frames(pg):
@@ -175,23 +258,84 @@ def ticks(pg, fr):
             ys.setdefault(v,cy)
     return xs, ys
 
+#: An axis calibration is only trusted if EVERY harvested tick sits this close
+#: to the fitted line. Both axes on these sheets are exactly linear, so a real
+#: residual is a fraction of a point; anything larger means a label was assigned
+#: to the wrong axis or the wrong plot.
+TICK_RESID_PT = 1.5
+
+
+def _fit_axis(pairs):
+    """value -> pixel dict  ->  (slope, intercept, worst residual, n_used).
+
+    ⚠ WHY THIS IS A FIT AND NOT A TWO-POINT SPAN. The original code calibrated
+    from the LOWEST and HIGHEST tick only. That is exact when every label is
+    right and silently wrong when one is not, because two points always define a
+    line and nothing checks it. Measured consequence on the 5218 sheet: the
+    two-point span produced curve maxima of 2.14-2.24 D inside a frame whose own
+    axis topped out at 1.8 D -- physically impossible, since the curves are
+    clipped to the frame, and therefore proof that a tick had been misread. A
+    least-squares fit over all ticks plus a residual test catches that instead of
+    propagating it into an adopted density.
+    """
+    import numpy as _np
+    v=_np.array(sorted(pairs), dtype=float)
+    px=_np.array([pairs[k] for k in sorted(pairs)], dtype=float)
+    if len(v) < 3:
+        return None
+    # iteratively drop the worst outlier while it exceeds the tolerance and at
+    # least three ticks would remain -- one stray label must not veto a good axis
+    keep=_np.ones(len(v), bool)
+    while keep.sum() >= 3:
+        A=_np.vstack([v[keep], _np.ones(keep.sum())]).T
+        m,c = _np.linalg.lstsq(A, px[keep], rcond=None)[0]
+        res=_np.abs(m*v + c - px)
+        worst=int(_np.argmax(_np.where(keep, res, -1.0)))
+        if res[worst] <= TICK_RESID_PT or keep.sum() == 3:
+            return m, c, float(res[keep].max()), int(keep.sum())
+        keep[worst]=False
+    return None
+
+
 def extract(pg, ax, grid):
     fr=pick(pg,ax)
     if fr is None: return None,"no frame right of the axis label"
     xs,ys=ticks(pg,fr)
     if len(xs)<3: return None,f"only {len(xs)} x ticks against the frame"
     if len(ys)<3: return None,f"only {len(ys)} y ticks against the frame"
+    fx=_fit_axis(xs); fy=_fit_axis(ys)
+    if fx is None or fy is None:
+        return None,"axis fit failed"
+    if fx[2] > TICK_RESID_PT:
+        return None,f"x ticks not collinear ({fx[2]:.2f} pt worst residual)"
+    if fy[2] > TICK_RESID_PT:
+        return None,f"y ticks not collinear ({fy[2]:.2f} pt worst residual)"
+    # cal keeps the two-point form the resampler expects, but the two points are
+    # now taken FROM THE FIT rather than from two possibly-bad labels.
     vx=sorted(xs); vy=sorted(ys)
-    cal=(xs[vx[0]],vx[0], xs[vx[-1]],vx[-1], ys[vy[0]],vy[0], ys[vy[-1]],vy[-1])
+    cal=(fx[0]*vx[0]+fx[1], vx[0], fx[0]*vx[-1]+fx[1], vx[-1],
+         fy[0]*vy[0]+fy[1], vy[0], fy[0]*vy[-1]+fy[1], vy[-1])
     inside=[p for p in pg.get_drawings()
             if p["rect"].x0>=fr.x0-6 and p["rect"].x1<=fr.x1+6
             and p["rect"].y0>=fr.y0-6 and p["rect"].y1<=fr.y1+6]
     if not inside: return None,"no paths inside the frame"
-    thick=max((p.get("width") or 0) for p in inside)
+    # ⚠ STROKE-WIDTH FILTER RELAXED 2026-08-18. It was
+    # `width < 0.6*max(width inside)`, which is a filter against the THICKEST
+    # thing in the frame -- and on the 5248 sheet the thickest thing is a rule,
+    # not a curve, so four of the six dye traces were discarded and only two
+    # survived. The MEDIAN width of the long paths is the right reference: the
+    # curves are the population, the rule is the outlier. Non-curves that get
+    # through are rejected downstream on physics (a gridline is flat, so it fails
+    # both the sum identity and the "must fall away from its peak" test), which
+    # is a safer place to reject them than on stroke weight.
+    import statistics as _st
+    longw=[(p.get("width") or 0.0) for p in inside
+           if sum(1 for it in p["items"] if it[0] in ("l","c")) >= 8]
+    ref=_st.median(longw) if longw else 0.0
     cs=[]
     for p in inside:
         n=sum(1 for it in p["items"] if it[0] in ("l","c"))
-        if n<8 or (p.get("width") or 0) < 0.6*thick: continue
+        if n<8 or (p.get("width") or 0) < 0.4*ref: continue
         y=resample(flatten(p["items"]),cal,grid)
         if np.isfinite(y).all(): cs.append(y)
     return (cal,fr,vx,vy,cs), None

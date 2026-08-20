@@ -4,8 +4,405 @@ A rewrite of the original grain-overlay script as an actual photochemical model.
 Python 3.12, 64-bit, Windows and Linux/WSL2. Dependencies: **numpy and Pillow only** —
 no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 
+> ## → For current status, read **`PROGRESS.md`** first
+>
+> One screen: build state, what is done, what is open and ranked, and the short list of
+> things waiting on an owner decision. It is updated at the end of every task. The dated
+> status entries below are the **history** — they are kept verbatim, including where a later
+> entry supersedes an earlier one, because the reasoning is the audit trail.
+
+> ⚠ **HOW TO READ THIS SECTION.** Every `Status <date>` entry below is a **snapshot of that
+> day** and is left as written, including its counts and its wrong turns -- the reasoning is the
+> audit trail. **Nothing in a dated entry should be read as current state.** For current state use,
+> in order: `PROGRESS.md` (one screen), `FilmActiveProfiles.md` (per-stock coverage, regenerated
+> from the database on every build), `NotFound.md` (what is still missing), and the **Files** and
+> **Known limits** sections at the bottom of this README, which ARE maintained as current.
+>
+> **Status 2026-08-20b (the DIR-coupler stages get a parity test):** no profile data
+> changed -- **159 stocks, schema v10, `film_names.txt` unchanged**, so no ListBox shift and
+> no plugin rebuild. `verify.py` **279 PASS / 1 FAIL**: the FAIL baseline is **down from 2
+> to 1**. 11 audits green.
+>
+> **The question that started it was "are we modelling inter-image effects?" and the answer
+> was yes** -- both halves, live in both renderers: `InterimageSpec` / stage 8b /
+> `AlgoStage08b_Interimage` for the vertical (cross-layer) half, `CouplerSpec` / stage 9 /
+> `AlgoStage09_DirCoupler` for the lateral (adjacency) half, called from `AlgorithmMain.cpp`.
+> The coefficients are not guessed from stock generation: they are solved per stock against
+> published patent measurements and `verify.py` re-derives the published IIE percentages to
+> < 1 pp. Measured contribution, by disabling the stages and re-rendering: up to **143/255**
+> on Velvia's saturated patches, 23/255 on Portra's reds.
+>
+> **What was actually missing was a cross-check.** `cpp_parity.py` covers the grain and MTF
+> laws only, so the largest COLOUR effect in the chain existed twice, in two languages, with
+> nothing comparing the two. That is the configuration that produced the C1b bug.
+> **`interimage_parity.py`** now compiles a probe against the plugin's OWN
+> `Algo_08_Sim.cpp` / `Algo_09_Sim.cpp` -- the only audit that tests shipped C++ rather than
+> generated code -- and it found two real defects on its first run.
+>
+> ⚠ **Defect 1, FIXED: the density floor was on the wrong side of the function boundary.**
+> C++ stage 9 ends with `MAX_VALUE(rO[x], ALGO_ZERO)`; Python clamped one line later, inside
+> `simulate()`. The two PIPELINES agreed and the two FUNCTIONS did not -- a **0.26 D**
+> disagreement on Velvia, a reversal stock whose ramp drives density negative. The floor now
+> lives inside `apply_dir_couplers`. Rendering unchanged: max(max(x,0),0) is max(x,0).
+>
+> ⚠ **Defect 2, OPEN: the adjacency term is not the same effect in the two renderers at
+> ordinary render sizes.** Python blurs by the analytic Gaussian transfer, C++ by a truncated
+> separable kernel. Measured across sigma: they agree to 6e-5 above ~1.2 px and diverge to
+> **1.5e-1 at 0.4 px**. Stored `edge_um` is 9-13 um, so at 40 px/mm -- a 35 mm frame about
+> 960 px wide -- the edge sigma is **0.36-0.60 px** and the outputs differ by up to 2.6e-2 D.
+> Queue **C16**. Separately, C++ disables both coupler terms below 0.25 px and Python does
+> not, which parts the two renderers below **27.8 px/mm** on the edge term (queue **C17**).
+>
+> **The stale guard was CONVERTED, not deleted.** "neighbour pairs couple harder than the far
+> red-blue pair" asserted a PER-DISTANCE asymmetry the database deliberately does not store,
+> because US4725529A Table 1 -- inhibitor in the developer, three separate single-layer
+> coatings, no layer stack, asymmetry persists -- says it is per RECEIVER. It was unpassable by
+> construction and had been parked in the FAIL baseline as "known". Deleting it would have
+> changed zero pixels; it now asserts the property the evidence supports.
+>
+> **Also closed:** `doc/CHANGES_2026-08-03_v5_interimage.md` **was cited from four places and
+> was not on disk** -- written, reconstructed from the code of record, with a section stating
+> plainly what could not be recovered. And the interimage tier contradiction: the generator
+> said "tier 3 for every stock without exception" while `InterimageSpec` had said tier 2 since
+> 2026-08-03. Generator corrected.
+>
+> **State:** **279 PASS / 1 known FAIL**, **11 audits green**, compile clean on 18 TUs, schema
+> v10, 159 stocks. `RESULT_2026-08-20b_dir_parity.md`.
+>
+> **Status 2026-08-20 (the KODAK folder review: one stock measured end to end, C5, C6, and three
+> answered queue items):** database **157 -> 159 stocks**, so `film_names.txt` MD5 moved
+> `c37a188b...` -> **`e8dc2cb9...`**; **schema v10 is UNCHANGED**, so no sampler or calling-convention
+> change rides along this time.
+>
+> ⚠ **The four PDFs the owner named were not on disk at the start of the session, and when they were
+> re-uploaded, THREE OF THE FIVE turned out to be documents this database had already mined** --
+> `V200T.pdf` is byte-identical to `5274.pdf`, and the 5201 and 5247 files are the same publications
+> as the copies already held (identical text layers; for 5201, identical vector geometry to 0.01 pt).
+> Re-reading a sheet the database was built from would have "confirmed" its own numbers. **Check
+> identity before treating a file as a new source.**
+>
+> **Added: `KODAK_VISION2_50D_5201`** from Kodak H-1-5201 (New 10-2005) -- and it is the **first stock
+> in this database whose characteristic curves, sigma(D) shape, grain level AND per-record MTF are all
+> traced from one sheet**. The sheet prints no scalar for grain, sharpness or gamma; on grain it says
+> only "the measured granularity is exceptionally low". Measured: rms r/g/b **4.36 / 4.51 / 9.63** at
+> net 1.0; sigma(D) **0.54 / 1.00 / 0.89** peaking at only **1.20x** (the flattest in the corpus, where
+> the other six colour negatives run 1.38-1.62x); f50 **32.1 / 49.7 / 55.5 cycles/mm** -- the first
+> per-record MTF in the file and the first direct confirmation of the blue-sharpest layer order.
+>
+> ⚠ **And the panel titled "SENSITOMETRIC CURVES" was refused** (now method rule 22). At brochure
+> scale it draws the red and green records as **six-vertex polylines** over +-1.8 decades with neither
+> dmin nor dmax on the plot; six free parameters fitted those six points at **rms 0.0004 D**, an
+> interpolation wearing a measurement's error bar. The curves used are the dense ones inside the
+> *granularity* panel on the same page (100-125 samples over 4.1 decades); the coarse panel is asked
+> only for the abscissa origin, which is one parameter and which only it states.
+>
+> **Added: `FUJI_SUPER_F125_8532`** (queue C6), tier 2: printed scalars are `[T1]` -- EI 125 at 3200 K,
+> **rms 3.0 with its net-1.0 convention printed on the sheet**, achromatic reciprocity as stated -- while
+> the curves and f50 are a **flagged `[T2]` transfer from 8530**. ⚠ Its sharpness panel is a **contrast
+> transfer function against a rectangular wave chart, not an MTF**, and was not read.
+>
+> **`EASTMAN_5247_1983` re-tiered 3 -> 1** (queue C5). ⚠ Doing it surfaced a latent bug class: a mixed
+> `[T1/T2]` tag does not match the tier regex, so it falls to 3 unless listed explicitly -- which is
+> why `KODAK_VISION2_500T_5218` and `_200T_5217` (`[T1/T3]`) have been sitting at tier 3 while owning
+> their own sheets. Queue C12.
+>
+> **Three queue items moved on their own evidence.** **C1e** is answered in the direction opposite to
+> the one it was opened in: the 5219 brochure's net-1.0 green reads **6.37 against a stored 6.6**
+> (0.97x) where the raster sheet implied 8.98 (1.36x), so the raster extractor does read ~1.3x high
+> and **the four VISION3 rms values should NOT be re-levelled** -- but the same reading puts 5219's
+> blue at 15.45 against a stored 8.58, so the per-layer ladder is 1.8x low and that needs a decision.
+> **C2b** went from 1 traced MTF curve to 7: the power law wins on all seven, q spans 1.84-3.42, and
+> it clusters by **layer depth** rather than by film (both reds 1.84-1.89, both blues 3.38-3.42).
+> **C13 (new)**: 5274's MTF panel, never traced before, says its stored **red f50 is 1.58x too sharp**
+> -- a defect in the estimating rule rather than in one profile, since it affects every colour stock
+> whose triple is an estimate. Measured and pinned, **not adopted**: it needs one owner yes/no.
+>
+> **Also reviewed, nothing adopted:** `Kodak Ektar 125 - Jack and Sue Drafahl.pdf` is *PHOTOgraphic*,
+> September 1989 -- a **magazine review with no sensitometry at all**, though it documents the
+> eleven-layer construction in full (queue C14, and Ektar 125 remains unrepresented); and a VISION3
+> **DI 2254/5254** 2-pager whose Arrhenius table is the **first source-backed `AgingSpec` data in the
+> project** (queue C15). ⚠ `EASTMAN_5254_1968` in the database is a 1968 camera negative -- VISION3
+> 5254 is a different film with a reused number.
+>
+> **State:** **275 PASS / 2 known FAIL**, **10 audits green**, compile clean on 18 TUs, schema v10,
+> 159 stocks. `RESULT_2026-08-20_kodak_5201_c5_c6.md`.
+>
+> **Status 2026-08-19 (GEVAERT: two stocks added, one curve set re-traced):** queue items G1 and
+> G3, owner-approved. Database **155 -> 157 stocks**, so `film_names.txt` MD5 moved
+> `ae9e4be3...` -> **`c37a188b...`** and **every ListBox line index after `GEVACHROME_600` shifted**.
+>
+> **Added: `GEVACHROME_600` and `GEVACHROME_605`** -- Agfa-Gevaert's 1968 colour REVERSAL *camera*
+> films for television, from Rens & Van Bets, *Kino-Technik* 1968 Nr. 10, printed pp. 260/262/264/266
+> (German, image-only scan, read from the page images). Printed and adopted: **18 DIN (50 ASA)** and
+> **23 DIN (160 ASA)** tungsten at 3200-3400 K; per-layer gammas **1.25 / 1.25 / 1.45** and
+> **1.25 / 1.25 / 1.35** (yellow/magenta/cyan -> blue/green/red records); the nine-layer stack with
+> both a yellow *and* a magenta filter layer; the documented push to **26 DIN (320 ASA)** on +45 s of
+> first development. The daylight indices (25 / 80 ASA with CTO 12) are **filter-derived and
+> deliberately not stored**, the same treatment already applied to the Kodak and Konica stocks.
+> ⚠ The paper prints **no granularity figure of any kind**, no resolving power, no Dmax and no
+> reciprocity -- those fields are `[T3]` estimates, their comments say so, and `verify.py` asserts the
+> provenance still records the absence so the estimate cannot later read as a measurement.
+>
+> **Re-traced: `GEVACOLOR_NEG_682`'s three characteristic curves** from Vervoort & Stappaerts,
+> *SMPTE Journal* 89(9) September 1980, printed p652, Fig. 10. Digitised at **one sample per pixel
+> column** off the native-resolution embedded scan (`pdfimages`, not a re-render -- re-rendering at
+> 200 dpi throws away 40 % of the columns): **589 / 513 / 437 samples** for B / G / R, then the
+> 6-parameter ToneCurve fitted to all of them at **rms 0.0063 / 0.0040 / 0.0055 D**. dmin is pinned to
+> the measured plateau median rather than fitted. **The figure prints "gamma = 0.57" and the trace
+> reproduces it at 0.5677** -- an external check on a number the extractor never saw, now pinned in
+> `verify.py`. The old entry carried the printed 0.57 for all three layers; the plot shows a spread
+> (0.506-0.568), and dmax moves from 2.08/2.51/2.75 to **1.48 / 2.01 / 2.26**.
+>
+> ⚠ **These are paper scans and the pixels are the only truth, which cost three axis-finding rules
+> before one worked.** The 1980 page is skewed **1.40 deg**, so both axes are fitted as *lines*; taking
+> "the darkest column" would have cost 0.05 D. *Maximum ink mass* picked the figure's right frame;
+> *leftmost tall ink column* picked the rotated "DENSITY" caption; **leftmost near-full-height stroke
+> whose per-row positions fit a line to <1.5 px** is the axis. Horizontally, "lowest band with ink
+> across the width" locked onto the printed x-label row and fed the tracer the axis as a curve.
+>
+> ⚠ **Two self-referential loops were found and closed** -- both would have produced plausible numbers
+> that could not be reproduced. (1) The curve fit was seeded with the stored profile, i.e. with its
+> own previous output; the red record then jumped to a different local minimum on the next run
+> (gamma 0.5446 at rms 0.0109 -> **0.5056 at rms 0.0055**, the better fit, now stored). Start points are
+> now data-derived with a fixed multi-start grid. (2) The inherited abscissa origin was read live from
+> the profile it feeds and drifted 0.002 D after adoption; it is now a frozen constant.
+>
+> ⚠ **What the 150 ppi 1968 scan could NOT give.** Its three layer curves lie within **1-2 px** of
+> each other and coincide at the right end -- consistent with the paper printing the same gamma 1.25 for
+> two of them -- so no three-way separation was attempted. Dmax is a measured **lower bound** (2.2);
+> toe/shoulder softness is a declared `[T2]` transfer from `GEVACHROME_902`. **Acquisition ask G5: a
+> 300+ ppi grayscale re-scan of printed pages 260/262/264** unblocks the MTF and spectral traces (G2)
+> and would upgrade both new profiles.
+>
+> **`cpp_parity.py` corrected on its first real test.** It reported a 1.5e-02 disagreement the first
+> time a curve was re-traced -- and the law was innocent: audits run *before* codegen, so the C++ copy
+> still held the previous dmax. It now passes **identical GrainSpec fields, dmin, dmax and density as
+> literals** into the C++ side, so it tests the function rather than codegen freshness (worst
+> disagreement over **4710** probes: 2.67e-07), needs no database TUs to compile, and guards the
+> positional initialiser against an upstream field insertion.
+>
+> **Also reviewed, nothing adopted:** Webers & Westendorp, *FKT* 33(7) 1979 pp. 245-247 -- the
+> Gevachrome II process in 15 steps with formulae and pH, plus four type numbers, but **no
+> sensitometry at all**; Enticknap 2013 -- **no Gevaert stock data anywhere** in the body text;
+> `Gevachrome902.pdf` -- a **byte-identical duplicate** of the AGFA copy already cited.
+>
+> **State:** **255 PASS / 2 known FAIL**, **9 audits green**, compile clean on 18 TUs, schema v9,
+> 157 stocks. `RESULT_2026-08-19_gevaert.md`.
+>
+> **Status 2026-08-18h (the grain LEVEL, and a wrong finding corrected):** queue items **C1b +
+> C1d**, both approved by the owner. `rms_granularity` now means what the manufacturer's footnote
+> says it means, and the sampler normalises there.
+>
+> **The convention is printed, and it is NET density 1.0.** Kodak 5248 p1: *"Diffuse RMS
+> Granularity\* Less than 5 / \* Read at a **net** diffuse visual density of 1.0, using a
+> 48-micrometre aperture"*; identical footnote on DOUBLE-X 5222 p1. `grain_sigma()` and the generated
+> `FilmGrainSigma()` now normalise at `dmin + 1.0`, and `film_sim.py` stage 11 multiplies by the rms
+> field alone. **Schema v8 → v9: a change of MEANING with no change of layout** — v9 data paired with
+> a v8 sampler compiles clean, runs clean and renders the wrong level, which is exactly what a
+> version number is for. ⚠ The generated header's calling convention is now the **opposite** of v8's:
+> multiply by rms and nothing else; the old "multiply by your own `sqrt(D − dmin + fog)` at D = 1.0"
+> double-counts.
+>
+> ⚠ **A finding reported in the 2026-08-18g entry below was WRONG, and this is the correction.** That
+> entry (and the C1b queue item) described a per-channel grain factor spanning **2.8× on 43 stocks**
+> as a channel-balance defect. It was an artefact of assuming *absolute* density 1.0. At **net** 1.0
+> the legacy law is `sqrt(1 + fog)` — dmin cancels — so the factor is **identical in all three
+> channels** and there was never an imbalance:
+>
+> | stock | factor at net 1.0 (r/g/b) | factor at absolute 1.0 (r/g/b) |
+> |---|---|---|
+> | 5246 | 1.086 / 1.086 / 1.086 | 0.985 / 0.728 / 0.424 |
+> | KONICA_IMPRESA_50 | 1.058 / 1.058 / 1.058 | 0.959 / 0.707 / 0.346 |
+>
+> **What C1b actually costs: a uniform 4–8 % amplitude drop** (`1/sqrt(1+fog)`) on the 149 stocks
+> without a render-fitted rms, shape and channel balance untouched.
+>
+> **C1d, also smaller than claimed.** Re-levelling the six vector-traced negatives at net 1.0 gives
+> **0.91–1.28×** (median 1.05) — 5245 4.2→4.10, 5246 5.3→6.78, 5248 5.6→5.87, 5274 5.8→6.68,
+> 5279 8.3→8.74, 5218 7.3→6.65. The earlier "1.3–1.6× understated" was the same error. **The real
+> data change is per-layer:** measured r/g/b triples give **blue 1.9–2.8× green**, where the
+> `GrainSpec` docstring's tier-2 ladder assumed 1.3× for every colour negative. ⚠ One conflict is on
+> file and was not averaged: 5248 is the only one of the six printing a scalar — "Less than 5" — and
+> traces to 5.87 green / 4.42 red at that same net density.
+>
+> **Policy (a) for the render-fitted values.** The audit C1b required found exactly one family:
+> `SVEMA_FOTO_65` ("still [T1] (fitted through the full pipeline)") and `SVEMA_FOTO_250` ("Tuned
+> through the FULL PIPELINE … swept against rendered output"), plus `_32` and `_130` which are
+> sqrt-speed scalings of those fits. All four had their rms multiplied by their own `sqrt(1+fog)`
+> (8.5→9.617, 11.5→13.212, 18.0→20.680, 33.0→38.766) and **render identically to before** — asserted
+> to < 0.2 % over D 0–3. Two stale claims were cleaned up in passing: the profile comment *and* the
+> provenance citation for `EASTMAN_5247_1983` still defended "rms 13.0 is pipeline-calibrated", a
+> value queue item E0 had replaced with 5.0 the day before.
+>
+> **Deferred on evidence:** the four VISION3 rms values. Their implied corrections (1.36–1.70×) sit
+> ~1.5× above their vector-traced siblings', and the 5219 brochure reads a uniform 1.32× below the
+> 5219 raster trace — two independent signs that `vision3_granularity.py`'s σ axis, not the film, is
+> off. Queue item **C1e** re-derives it first.
+>
+> **New audit: `cpp_parity.py`,** registered in the build. C1b had to change one law in two
+> languages — numpy `interp` on one side, a hand-rolled four-anchor insertion sort on the other —
+> and the only previous cross-check was a manual one-off from a finished session. It now compiles
+> a probe against the generated header, walks the real `GetFilmDatabase()`, and compares 4650
+> values: **worst disagreement 2.7e-07**. It also asserts the measured branch is genuinely
+> exercised, so the check cannot pass by both sides falling back to the legacy law. ⚠ Its first
+> version expected 11 stocks to differ from the legacy law at their stored interior peak and got
+> 10 — not a bug: 5285 is a reversal stock whose σ(D) rises monotonically, so its maximum IS the
+> dmax anchor and `sigma_shape_peak` is legitimately 0. The probe moved to the traced dmax anchor.
+>
+> **Verify: 240 PASS / 2 known FAIL.** The bit-for-bit legacy guard was **replaced, not repaired** —
+> it asserted an identity C1b makes false by design on all 155 stocks. In its place: the shape-only
+> form (legacy law ÷ one constant, no dmin term), **the level contract** (amplitude is exactly 1.0 at
+> net 1.0 for all 465 stock-channels), its converse (a masked stock must *not* be normalised at
+> absolute 1.0, so re-introducing the old reference fails loudly), and an **empirical end-to-end**
+> measurement — grain field × amplitude, aperture-integrated at 48 µm, reproducing 5246's stored
+> 7.03 / 6.78 / 12.56 within 5 %. `RESULT_2026-08-18g_C1b_C1d_level.md`.
+>
+> **Status 2026-08-18g (the σ(D) HARVEST is COMPLETE — every vector granularity plot in the
+> corpus is now read):** queue item C1c. `granularity_vector.py` went from **one sheet to
+> eight**, all eight green under `--assert`, and **six colour negatives** gained a measured
+> σ(D) shape: `EASTMAN_EXR_50D_5245`, `KODAK_VISION_250D_5246`, `EASTMAN_EXR_100T_5248`,
+> `KODAK_VISION_200T_5274`, `KODAK_VISION_500T_5279`, `KODAK_VISION2_500T_5218`. Eleven
+> stocks now carry `sigma_shape_measured=True`; the other 144 keep the legacy law bit-for-bit.
+>
+> | stock | toe (at D) | mid | dmax (at D) | interior peak | traced σ×1000 at D 1.0 (stored rms) |
+> |---|---|---|---|---|---|
+> | 5245 | 1.19 (0.572) | 1.00 | 0.72 (2.091) | 1.47× at D 0.73 | 6.04 (4.2) |
+> | 5246 | 0.94 (0.582) | 1.00 | 0.90 (2.201) | 1.62× at D 0.66 | 8.28 (5.3) |
+> | 5248 | 1.19 (0.612) | 1.00 | 0.84 (2.051) | 1.58× at D 0.74 | 7.32 (5.6) |
+> | 5274 | 0.80 (0.582) | 1.00 | 0.61 (2.211) | 1.38× at D 0.68 | 9.18 (5.8) |
+> | 5279 | 0.96 (0.576) | 1.00 | 0.50 (2.210) | 1.42× at D 0.65 | 13.23 (8.3) |
+> | 5218 | 1.17 (0.592) | 1.00 | 0.70 (2.309) | 1.56× at D 0.74 | 9.58 (7.3) |
+>
+> **Render effect on those six:** grain amplitude ×2.1–2.6 at dmin, ×2.0–2.4 at D 0.7,
+> **×1.00 at D 1.0 by construction**, ×0.34–0.54 at D 2.0, ×0.25–0.45 at dmax. All six turn
+> OVER — σ peaks between D 0.65 and 0.74 and falls by half or more to dmax — so the
+> heuristic's colour-negative branch (0.40/1.00/1.20, *rising*) is now measured wrong in sign
+> on **ten** sheets rather than four.
+>
+> **An independent cross-check, and one conflict recorded.** `5219`'s shape had been traced in
+> August from the **raster** plot on its technical sheet. The VISION3 500T brochure prints the
+> same plot as **vector** art, so it was re-read here by a different extractor from a different
+> document: shape **confirmed** (dmax/mid 0.55 vs 0.57, peak 1.32× at D 0.79 vs 1.24× at
+> D 0.76), absolute σ **conflicts by a near-uniform 1.3×** (mid 10.60 vs 8.03). Conflict
+> recorded, not averaged; nothing in the database moved on the brochure's authority.
+> ⚠ The apparent third disagreement — toe/mid 0.67 vs 0.40 — is **not a document conflict**:
+> below the toe the characteristic curve is FLAT, so σ(D) is genuinely multivalued at the toe
+> anchor's density and the two traces landed on different points of one plateau. The extractor
+> now prints `[plateau] … toe anchor is not unique` where the span exceeds 15 %.
+>
+> **Six extractor defects, every one of which had been producing plausible numbers:** groups of
+> ≤ 4 points discarded before any filter saw them (flat dashes are 2-point segments — this
+> truncated a 5245 curve at 52 % of frame width); a per-path item floor of 8 that dropped two
+> of a curve's three pieces on 5279; a `>= 0.0` x-step test that refused to join pieces which
+> abut (measured step −0.1 pt); an early return that accepted five whole curves **plus one
+> curve's right-hand third** as "six curves"; nearest-label-wins losing letters on four sheets
+> of eight, replaced by an exhaustive bijection under the two-family partition; and chaining
+> across a curve crossing, now constrained by the chain's own local slope. New **method rules
+> 19 and 20**: a count test must be paired with a coverage test, and an assertion that can only
+> mean "your copy is incomplete" must not fail (`plot_inventory.py` now sizes the corpus and
+> skips its corpus-wide counts loudly on a partial mirror).
+>
+> **NOT done, deliberately:** `rms_granularity` was **not** re-levelled, though all ten traced
+> stocks store a family-ladder estimate 1.3–1.6× below their own plot's value. ⚠ **That 1.3–1.6×
+> figure is SUPERSEDED and was wrong** — it compared the stored values against σ at *absolute*
+> density 1.0, and the manufacturer's convention is *net* 1.0. The corrected range is 0.91–1.28×;
+> see the 2026-08-18h entry above. That is a level
+> change across whole families and it interacts with C1b, so it is queued as **C1d** to be
+> decided together with C1b — grain level should move once, not twice.
+>
+> **State:** **235 PASS / 2 known-baseline FAIL**, `build.py --root <corpus>` OK with all
+> **7 audits green**, compile clean on 18 TUs, `film_names.txt` MD5 unchanged (`ae9e4be3…`),
+> schema still v8 — but the DATA moved on six stocks, so **rebuild the plugin**.
+> `RESULT_2026-08-18f_C1c_sigma_harvest.md`.
+>
+> **Status 2026-08-18f (σ(D) WIRED — schema v8 — and the sharpness/grain corrections that
+> came with it):** ⚠ **its "five vendor-traced stocks" is superseded by the 2026-08-18g entry
+> above: there are now eleven.** The reasoning below stands as written.
+> the field group that the 2026-08-18b entry below reports as "read by
+> nothing" is now **read**, and the entry below is superseded on exactly that point.
+>
+> **C1 closed.** Carrier chosen by measurement, not by preference: scored against the seven
+> measured σ(D) samples per VISION3 sheet, the legacy `sqrt(D − dmin + fog)` law errs by
+> **245 % max / 127 % rms**, three anchors by 41 % / 18 %, and **three anchors plus one
+> interior peak by 20 % / 8.6 %** — the form adopted (5 floats). A 12-sample array scores
+> 3.8 % / 2.0 % and was **rejected as over-parameterised against seven measured points**.
+> The 4th anchor's density was tested too, not assumed: 0.80 wins over 0.70/0.75/0.90.
+> **Wired into `film_sim.py` stage 11 and mirrored in the generated C++** as
+> `FilmGrainSigma()`, cross-checked against Python to 5.4e-07 by compiling the emitted
+> header. **Honoured for the FIVE vendor-traced stocks only**, gated by a new
+> `sigma_shape_measured` flag: `_grain_v2` fills the anchors for 137 profiles and **both
+> branches are wrong in sign**, so wiring wholesale would have replaced one wrong law with
+> another on 137 stocks to fix 5. **150 stocks verified bit-for-bit unchanged** (36-point
+> density sweep, float32, max deviation < 2e-6). Level preserved, shape changed: amplitude
+> at D = 1.0 is identical, so this is not a global grain edit.
+> ⚠ **The dense-end figure is bigger than the 1.48×/2.54× quoted below.** Measured with the
+> legacy law normalised at D = 1.0, it runs **3.2–3.6× too grainy at dmax** on the four
+> VISION3 sheets, and **~1.6× too quiet at D ≈ 0.8**, where the real maximum sits.
+> ⚠ **NOT done, and it is a decision (C1b):** the legacy law's value at D = 1.0 is
+> `sqrt(1 − dmin + fog)` ≈ 0.77–0.95, so `rms_granularity` has never meant "rms at D = 1.0"
+> in the renderer. Normalising that is a **level** change of up to +30 % on every stock and
+> collides with the rms values self-described as "pipeline-calibrated".
+> `RESULT_2026-08-18e_C1_sigma_wiring.md`.
+>
+> **The same day, upstream of C1 — E0 and E0b.** The LOCAL-ARCHIVE CAVEAT claimed twelve
+> documents were not on file; **eleven of the twelve are**, including the file
+> `dye_density.py` already opens and the TI0835 sheet the 5247 split turned on. Re-reading
+> all eleven changed five values and produced three digit-for-digit agreements; three of the
+> sheets then turned out to carry **unread vector plots**. Net data changes across the day:
+>
+> | Stock | Field | Was | Now | Source |
+> |---|---|---|---|---|
+> | `EASTMAN_5247_1983` | rms | 13.0 | **5.0** | TI0835 prints "less than 5" |
+> | `EASTMAN_5247_1983` | resolving | (0, 0) | **(50, 100)** | printed ISO pair |
+> | `EASTMAN_PLUS_X_5231` | dmin | 0.120 | **0.210** | printed base 0.19 + fog 0.02 |
+> | `EASTMAN_PLUS_X_5231` | f50 | 60.0 | **41.3** | traced from the vector MTF path |
+> | `EASTMAN_PLUS_X_5231` | adjacency | 0.08 | **0.034** | peak response 103.4 % |
+> | `KODAK_EKTACHROME_100D_5285` | rms | 3.0 | **13.1** | traced; siblings print 14.0 and 10.0 |
+> | `KODAK_EKTACHROME_100D_5285` | σ(D) | heuristic | **0.15/1.00/3.10** | first measured REVERSAL shape |
+> | `FUJI_F125_8530` / `_8630` | f50 | 78.0 | **42.0** | Honjo 1989 Table 1.2, ν₅₀ = 42 c/mm |
+> | `AGFA_VISTA_200` | spectral | none | **adopted** | dash-pattern legend, 0.00 nm residual |
+> | `SVEMA_FOTO_32` / `_130` | tint, silver_tone | inherited | **withdrawn** | parent measurement was void |
+>
+> **Three more dye-density sets** (7239, 5217, 5218) — 7 → 10 profiles — recovered by fixing
+> **three defects in our own extractor**, not by finding better sources. Five verify guards
+> plus 13 more from E0/E0b. **Two new audit scripts** registered in `build.py`:
+> `granularity_vector.py`, `mtf_vector.py`; plus `agfa_vista.py`.
+> `RESULT_2026-08-18c_E0_reverify.md`, `RESULT_2026-08-18d_E0b_vector.md`.
+>
+> **Provenance: zero profiles now claim tier ≤ 2 with no source** (was 8). Seven citations
+> registered, and `verify.py` guard 3 fired on its first real test when the owner supplied a
+> document for the last two. `NotFound.md` §0.2–0.3.
+>
+> **State:** 231 PASS / 2 known-baseline FAIL, compile clean on 18 TUs, `film_names.txt`
+> MD5 unchanged (`ae9e4be3…`). **Schema v7 → v8: `GrainSpec` gained five fields, so the
+> generated struct changed size — rebuild the plugin.**
+>
+> **Status 2026-08-18c (C++ database split + explicit initialisation):** the generated
+> `film_profiles.cpp` — 676 KB, 97 % of it ONE function — could not be compiled reliably
+> by the owner's VS2015 SP3 + ICC toolchain, whose hard limits are per-function. The
+> table is now emitted as **16 size-balanced data-slot TUs** (one
+> `v.push_back(FilmProfile{...})` statement per profile — bounded functions, moves not
+> copies, no initializer_list stack array), plus an explicit-initialisation API:
+> `film::LoadFilmDataBase()` (called from the effect's GlobalSetup; `std::call_once`;
+> failure does not latch) and `film::GetFilmProfile(id)` (O(1), noexcept, no lock) for
+> the render path. `GetFilmDatabase()` and the print/format accessors now return
+> **const&** (owner decision). `film_names.txt` is **byte-identical** — order still
+> equals database order, guarded by construction, by verify.py and by a runtime
+> enum==index test over all 155 entries. Slot count is fixed so the `.vcxproj` never
+> changes as the database grows; outgrowing it fails generation loudly. Measured: the
+> monolith compiled in 18.9 s on g++, the worst slot in 0.6 s. One-time owner actions
+> (add files to the project, call LoadFilmDataBase in GlobalSetup):
+> `CHANGES_2026-08-18_cpp_split.md`.
+>
 > **Status 2026-08-18b (a build entry point, and σ(D) is read by nothing):** two
 > findings, and the second one reprioritises the queue.
+>
+> ⚠ **THE σ(D) HALF OF THIS ENTRY IS SUPERSEDED by the 2026-08-18f entry above: it was
+> wired on 2026-08-18 (queue item C1).** What still stands is the diagnosis — the field
+> really was inert, the "103 stocks" item really would have changed zero pixels, and the
+> useful unit of work really was the wiring. What changed is the answer to "then set the
+> defaults": the defaults were NOT set, because both heuristic branches turned out to be
+> wrong in sign, so they are now explicitly inert behind a `measured` flag instead.
 >
 > **`sigma_shape_toe/mid/dmax` is consumed by NO renderer.** Not `film_sim.py`, not
 > `Algo_11_Sim.cpp`, not the AVX2 port — all three hardcode
@@ -393,10 +790,15 @@ corpus.
 Individual generators, for reference — `build.py` runs these for you:
 
 ```bash
-python verify.py                                    # 176-check suite (174 PASS / 2 FAIL by design)
-python cpp_codegen.py -o .                          # the four C++ artefacts
-python vision3_granularity.py --overlay out         # re-derive the VISION3 sigma(D)
+python verify.py                                    # 280-check suite (279 PASS / 1 FAIL by design)
+python cpp_codegen.py -o .                          # the 23 C++ artefacts
+python vision3_granularity.py --overlay out         # re-derive the VISION3 sigma(D)  [raster]
 python mees_granularity.py --root ../.. --overlay out   # re-derive the B&W sigma(D)
+python granularity_vector.py --root ../.. --assert  # 5285 sigma(D)                   [vector]
+python mtf_vector.py --root ../.. --assert          # PLUS-X 5231 f50 + overshoot
+python dye_density.py --root ../.. --assert         # the 11 dye-density sets
+python agfa_vista.py --root ../../PDF/PROFILES --assert   # Vista 200 spectral + legend
+python plot_inventory.py --root ../../PDF/PROFILES --assert
 ```
 
 ## Why the original script could not get there
@@ -432,7 +834,7 @@ Order is not cosmetic; several steps give visibly wrong results if moved.
 | 8 | Characteristic curve → density | density |
 | 9 | DIR coupler inter-image effects | density |
 | 10 | Scan: MTF + per-channel misregistration (pre-sampling filter) | density |
-| 11 | Grain, variance ∝ √density, spectrally shaped, RMS-calibrated | density |
+| 11 | Grain: per-channel RMS, spectrally shaped, amplitude from **`grain_sigma()`** — the MEASURED σ(D) shape where a vendor plot was traced (5 stocks), otherwise the legacy √density law, bit-for-bit as before (150 stocks) | density |
 | 12 | Dye impurity / scanner crosstalk matrix | density |
 | 13 | **Duplication generations**, then print | density |
 | 14 | Print grain, transmittance → display linear, réseau reconstruction | — |
@@ -636,7 +1038,7 @@ structure is built to accept real data; only the numbers are provisional.
 |------|---------|
 | `build.py` | **The entry point.** Ordered, gated regeneration + audit: audit → verify → codegen → sync → docs → compile. `--check` is read-only. Registers the audit scripts, so a new extraction script becomes part of the build instead of an orphan. Stdlib only |
 | `run.cmd` | Windows wrapper: `run.cmd` / `check` / `build` / `render` |
-| `film_profiles.py` | Physical parameters, 142 stocks, 9 print stocks, 14 gauges |
+| `film_profiles.py` | Physical parameters, **159 film stocks, 9 print stocks**, 14 gauges. **Schema v10** (v8 added `GrainSpec.sigma_shape_peak`/`_peak_at`/`_toe_at`/`_dmax_at`/`_measured`; **v9 redefined `rms_granularity` as the rms at NET density 1.0** — same layout, different meaning; **v10 added `MTFSpec.mtf_rolloff_q` / `mtf_measured`, so the MTF rolloff shape is stored and read**). Holds the ONE definition of both the grain-σ law (`grain_sigma`) and the MTF law (`mtf_response`), mirrored in the generated C++ as `FilmGrainSigma` / `FilmMtfResponse` |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp`, then `film_names.txt` and `film_enum.hpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |
@@ -646,7 +1048,16 @@ structure is built to accept real data; only the numbers are provisional.
 | `gen_film_names.py` | **Deprecated, and actively harmful if run.** Superseded by `cpp_codegen.write_film_names()`, which derives order from the emitted `.cpp` instead of from `FILM_PROFILES`. Running it after `cpp_codegen.py` rewrites 19 of 154 display names in `film_names.txt`. `build.py` never invokes it and reports if the file on disk was not `cpp_codegen`'s. Kept only for reference |
 | `vision3_granularity.py` | Audit: re-derives the four VISION3 σ(D) triples from the Kodak TI sheets, exits non-zero if it stops reproducing. Run by `build.py`'s audit stage |
 | `mees_granularity.py` | Audit: re-derives the B&W silver-negative σ(D) shape from Mees Fig. 302 (printed p866), four negative emulsions. Run by `build.py`'s audit stage. See `RESULT_2026-08-18b_bw_sigma_d.md` |
-| `verify.py` | ~100-check suite: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, edge cases. Render-heavy — run in parts with `VERIFY_SLICE=1-8`, `9-14`, `15-17`, `18-19` |
+| `dye_density.py` | Audit: re-derives all **11 adopted spectral dye-density sets** from the sheets' vector paths; 5285 and 2383 are the validation pair. ⚠ Its docstring records the three defects that had put 7239/5217/5218 on a "failed" list when the sources were fine |
+| `granularity_vector.py` | Audit: σ(D) from a **vector** granularity plot — **9 sheets**: EKTACHROME 100D 5285 (the only measured σ(D) for a colour **reversal** stock), the six colour negatives adopted 2026-08-18 (5245, 5246, 5248, 5274, 5279, 5218), **VISION2 50D 5201 added 2026-08-20**, and the VISION3 500T brochure as an independent cross-check of 5219's raster trace. Also reports each sheet's **net-1.0 rms triple**, which reproduces all six values adopted under C1d to within 0.7 % — and which answered queue C1e as a by-product. Composes the characteristic and granularity curves at shared abscissa, so the log-exposure axis cancels; `--overlay` draws every traced point back onto the panel and is the adoption gate. See `RESULT_2026-08-18f_C1c_sigma_harvest.md` |
+| `gevaert_curves.py` | Audit: characteristic curves from the **paper scans** of the Agfa-Gevaert journal articles -- `GEVACOLOR_NEG_682`'s Fig. 10 at one sample per pixel column off the native 340 ppi 1-bit scan, validated against the gamma 0.57 the figure prints. Fits both axes as LINES because the page is skewed 1.40 deg, and re-verifies its pinned tick anchors against the pixels on every run |
+| `interimage_parity.py` | Audit: **the Python vs C++ DIR-coupler stages — the only audit that probes the PLUGIN'S OWN translation units** rather than generated code. Compiles against `Algo_08_Sim.cpp` / `Algo_09_Sim.cpp` and compares `apply_interimage()` / `apply_dir_couplers()` against `AlgoStage08b_Interimage()` / `AlgoStage09_DirCoupler()` over 5 stocks × 2 fields × 2 pixel scales. Reads `sizeof(AlgoType)` from the compiled probe and picks its tolerance from it, so the deliberately switchable double/float typedef stays switchable. ⚠ Asserts only where the blur is resolved; the sub-pixel scale is probed and reported, because below ~1 px the two blur implementations are not the same operator |
+| `cpp_parity.py` | Audit: **the Python reference laws vs the generated C++ ones — grain AND MTF**, 8478 probes over every stock × 3 channels × 10 densities, walking the real `GetFilmDatabase()`. Worst disagreement 2.7e-07 against a 2e-5 tolerance. Carries a coverage assertion so the check cannot pass by both sides silently falling back to the legacy law. ⚠ Written because C1b changed one law in two languages and the previous cross-check was a manual one-off |
+| `mtf_vector.py` | Audit: `f50`, the adjacency overshoot and the **rolloff exponent** from a vector log-log MTF plot — **3 sheets, 7 curves**: PLUS-X 5231 (41.3 cycles/mm, +0.034), VISION2 50D 5201 per record (32.1/49.7/55.5) and VISION 200T 5274 per record (35.4/68.8/74.0, measured but NOT yet adopted — queue C13). Reads record identity from **ink** on the brochures and from **printed R/G/B letters** on the technical sheets |
+| `kodak_sensitometry.py` | Audit: `ToneCurve` parameters least-squares fitted to a Kodak sheet's **vector** characteristic curves, sharing `digitize_plot.fit_tonecurve` so the model has one definition. ⚠ Takes the SHAPE from the dense curves inside the *granularity* panel and asks the panel titled "Sensitometric" only for the abscissa origin — see method rule 22 |
+| `agfa_vista.py` | Audit: `AGFA_VISTA_200`'s spectral sensitivity, and the **dash-pattern legend** it depends on — solid = green, dashed = blue, dash-dot = red, cross-checked against Agfa's own printed labels |
+| `plot_inventory.py` | Audit: the corpus plot inventory (191 vector dye-density pages, 199 MTF, 101 granularity, 294 characteristic), with three known-answer pages as the classifier's ground truth. ⚠ Those counts are **corpus-wide (450 PDFs)**, so they are reported but NOT asserted when fewer PDFs are present — a partial mirror used to fail all four (method rule 20) |
+| `verify.py` | **280-check suite (279 PASS / 1 FAIL by design)**: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, provenance guards, the grain LEVEL contract (amplitude = stored rms at net density 1.0, all 465 stock-channels, plus an empirical aperture-integrated end-to-end check), edge cases. Render-heavy. ⚠ **Slicing is currently broken for any slice that does not start at 1** — a later section references a name bound in an earlier one (`NameError: _fpm`). Full runs are unaffected |
 | `make_test_chart.py` | Synthetic chart (ramp, patches, MTF bars, specular discs) |
 | `make_period_chart.py` | Larger chart for the period stocks and the réseau |
 | `contact_sheet.png` | All stocks on the small chart |
@@ -686,8 +1097,69 @@ against the Python implementation.
   camera, so the film's shoulder has nothing to roll off. Feed scene-referred data (EXR,
   or a raw file developed to linear) for a real improvement — this is the biggest
   remaining quality lever after datasheet calibration.
-- **Gaussian MTF.** `exp(-ln2·(f/f50)²)` is a fair mid-band fit but a real MTF curve is
-  not Gaussian. Digitised curves would be better.
+- **MTF rolloff is measured on TWO stocks** (⚠ was one until 2026-08-20). Since 2026-08-19 (queue
+  item C2) the shape is stored and read as `1/(1+(f/f50)^q)` behind an `mtf_measured` flag; the other
+  157 stocks keep the legacy Gaussian `exp(-ln2·(f/f50)²)` bit-for-bit. The Gaussian is a fair mid-band
+  fit and badly wrong in the tail — on PLUS-X 5231 it gives 0.020 at 98 cycles/mm where the
+  sheet's own curve reads 0.245. ⚠ The adopted power law is better (0.169) but still short:
+  real emulsion tails are fatter than any two-parameter analytic form, and a sampled array
+  scored 30× better but was rejected as over-parameterised against a single traced curve.
+  **199 vector MTF pages are inventoried and 7 curves on 3 sheets are traced** (2026-08-20) — the
+  power law wins on all seven, but **q is not a family constant**: 1.84 (PLUS-X), 2.77/3.23/3.42
+  (5201 r/g/b), 1.89/2.94/3.38 (5274 r/g/b). ⚠ It clusters by **layer depth**, not by film — both
+  red records at 1.84–1.89 and both blue at 3.38–3.42, on stocks a decade apart. Queue C2b now has
+  a sharper question than it started with, and the sampled array's case is stronger, not weaker. `mtf_tail_a` / `mtf_tail_f_exp` are the
+  form C2 *rejected* on evidence (rms 0.0583 against the power law's 0.0375) and are inert.
+  ⚠ Separately unresolved: `adjacency_um` disagrees with the measured overshoot frequency on
+  **all four** stocks where it has been checked — PLUS-X 5231 peaks at 4.7 cycles/mm against a stored
+  16.0 µm, FUJI F-125 at ~9 cycles/mm against 13.0 µm, 5201 at 10.7 against 16.0, 5274 at 16.1
+  against 18.0. Systematic, same direction every time — queue C2c.
+- ⚠ **NEW 2026-08-20: every colour stock whose f50 triple is an ESTIMATE is too sharp in the red
+  record.** The estimating rule scales one measured number by a fixed layer-order ratio. Both stocks
+  measured per-record contradict it: 5274 measures red 35.4 against a stored 56.0 (**1.58× too
+  sharp**) while its green and blue confirm to 7 %, and 5201's measured red:blue is 0.58 where the
+  rule assumes ~0.78. This is a defect in the rule, not in one profile. Measured and pinned in
+  `mtf_vector.EXPECTED`, **not applied** — queue C13 needs one owner decision.
+- **Grain σ(D) is measured for twelve stocks only** (all Kodak). The other 147 use the legacy √density law, normalised at **net** density
+  1.0 since schema v9. The heuristic that fills the shape for 137 profiles is **wrong in sign
+  in both branches** and is deliberately inert; fixing its signs needs its own evidence pass,
+  per-class, not an assumption that one measurement generalises. 39 raster granularity pages
+  remain unread.
+  ⚠ **"The vector corpus is exhausted" was WRONG, and the correction is instructive.** C1c claimed
+  it at 8 sheets on 2026-08-18; a **ninth** was found on 2026-08-20 in the same folder — H-1-5201,
+  whose 89 × 90 pt panels sat below the extractor's frame floor, whose density labels are jittered by
+  0.17 D, and which draws its red record twice so the panel presented 8 curves where the physics says
+  6. Four guards refused it correctly and **none of them said "there is a panel here I cannot
+  read"**. "Exhausted" is a claim about a tool, not a corpus, until the tool refuses loudly. Re-run
+  the sweep with the fixed extractor before reaching for raster tracing — see `NotFound.md` §0.4.
+- **Grain level is now pinned to the printed convention** (net density 1.0), and the six
+  vector-traced negatives carry rms values and per-layer triples read off their own curves.
+  ⚠ The four VISION3 stocks are **not** re-levelled, and as of 2026-08-20 that is settled rather than
+  pending: the 5219 brochure's own net-1.0 green reads **6.37 against a stored 6.6** where the raster
+  sheet implied 8.98, confirming both that the raster extractor reads ~1.3× high **and** that the
+  stored green levels are about right. ⚠ Their **per-layer** ladder is a different matter — the same
+  brochure puts 5219's blue at 15.45 against a stored 8.58 (1.8× low), which is the 1.3×-ladder error
+  again and which needs an owner decision (C1e). Any future rms work
+  must state its reference density before comparing anything (method rule 21).
+- **The toe anchor of any σ(D) trace is ill-posed.** Below the toe the characteristic curve
+  is flat, so density holds at dmin while σ keeps changing and σ(D) is multivalued there.
+  Measured consequence: two traces of 5219 from two documents disagree 1.7× on the toe while
+  agreeing to 0.02 on dmax. The extractor flags it; the affected entries say so.
+- ⚠ **The DIR-coupler chemistry is modelled in both halves, and one half has no provenance.**
+  `InterimageSpec` (vertical, stage 8b) is patent-derived, solved per stock against
+  US5273870A's published IIE percentages using each stock's own gamma, and `verify.py`
+  re-derives those percentages to < 1 pp. `CouplerSpec` (lateral, stage 9) is **87 hand-typed
+  literals** with no registry, no citation and no tier — and its `adjacency_um` is contradicted
+  by the traced MTF overshoot on all four stocks measured. Queue **C19**, merged with C2c.
+- ⚠ **The adjacency term is implementation-dependent at ordinary render sizes.** The two
+  renderers' blurs agree to 6e-5 above ~1.2 px sigma and diverge to 1.5e-1 below 1 px, and the
+  stored 9–13 µm edge scale puts them at 0.36–0.60 px at 40 px/mm. Queue **C16**/**C17**.
+- ⚠ **`density_weighting` is unbounded and its 0.65 is tier 3.** On Velvia the per-donor weight
+  reaches 1.82 at D 3.2, a worst-case −0.58 logE ≈ 1.9 stops. 36 reversal stocks ride on it.
+  Queue **C18**.
+- **`ReciprocitySpec` is stored and read by nothing.** Emitted to C++, consumed by no
+  renderer. Two datasheet-derived entries were added on 2026-08-18 and neither changes a
+  rendered frame.
 - **No temporal behaviour or physical damage.** Single frames only: no gate weave, no
   processing flicker, no frame-to-frame grain animation, no dust or scratches. For the
   period stocks this is the largest remaining gap — flare and dupe generations cover
