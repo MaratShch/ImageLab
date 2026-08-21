@@ -76,7 +76,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -115,7 +115,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -154,7 +154,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -193,7 +193,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -232,7 +232,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -271,7 +271,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -310,7 +310,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -349,7 +349,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -388,7 +388,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -427,7 +427,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -466,7 +466,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -505,7 +505,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -545,7 +545,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -585,7 +585,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -625,7 +625,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -665,7 +665,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -705,7 +705,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -745,7 +745,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -784,7 +784,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -823,7 +823,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -862,7 +862,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -901,7 +901,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -940,7 +940,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -979,7 +979,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1018,7 +1018,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1057,7 +1057,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1096,7 +1096,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1135,7 +1135,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1174,7 +1174,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1213,7 +1213,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1252,7 +1252,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        algoMemHandler.output_f32_interleaved,
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
                         sizeX,
                         sizeY,
                         localDst,
