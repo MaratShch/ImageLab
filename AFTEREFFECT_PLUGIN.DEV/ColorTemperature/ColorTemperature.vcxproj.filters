@@ -128,6 +128,9 @@
     <ClInclude Include="include\ColorLocus.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoMeasureAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorTemperature.cpp">

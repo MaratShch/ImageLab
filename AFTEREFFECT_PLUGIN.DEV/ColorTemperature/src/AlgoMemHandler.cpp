@@ -12,23 +12,28 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
     if (sizeX <= 0 || sizeY <= 0)
         return h;
 
-    size_t memOffset = 0u;
+    size_t totalBytes = 0ull;
+    size_t srcBufOffset = 0ull;
+    size_t dstBufOffset = 0ull;
+
     const size_t frameSize = static_cast<int64_t>(sizeX) * static_cast<int64_t>(sizeY);
-    const size_t frameMemSize = frameSize * sizeof(float) * 3; // RGB - f32 per every channel
+    const size_t frameMemSize = frameSize * sizeof(float) * 3ull; // RGB - f32 per every channel
     const size_t frameMemSizeAligned = CreateAlignment (frameMemSize, static_cast<size_t>(CACHE_LINE));     
 
-    memOffset += frameMemSizeAligned;
- 
+    dstBufOffset += frameMemSizeAligned;
+    totalBytes = dstBufOffset + frameMemSizeAligned;
+        
     void* ptr = nullptr;
-    const int32_t blockId = ::GetMemoryBlock(static_cast<int32_t>(memOffset), 0, &ptr);
+    const int32_t blockId = ::GetMemoryBlock(static_cast<int32_t>(totalBytes), 0, &ptr);
 
     if (nullptr != ptr && blockId >= 0)
     {
         h.SuperBufferHead = static_cast<uint8_t*>(ptr);
-        h.totalMemory = memOffset;
+        h.totalMemory = totalBytes;
         h.memBlockId = blockId;
 
-        h.input_f32_interleaved = reinterpret_cast<float*>(h.SuperBufferHead);
+        h.input_f32_interleaved  = reinterpret_cast<float*>(h.SuperBufferHead);
+        h.output_f32_interleaved = reinterpret_cast<float*>(h.SuperBufferHead + dstBufOffset);
     }
 
     return h;

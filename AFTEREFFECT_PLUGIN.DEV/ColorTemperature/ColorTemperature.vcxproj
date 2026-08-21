@@ -191,6 +191,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\AlgoControl.hpp" />
     <ClInclude Include="include\AlgoFormatIngest.hpp" />
     <ClInclude Include="include\AlgoIngestAVX2.hpp" />
+    <ClInclude Include="include\AlgoMeasureAVX2.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoPrFormatEgress.hpp" />
     <ClInclude Include="include\AlgoPrFormatIngest.hpp" />

@@ -70,9 +70,15 @@ namespace AlgoPrIngest
         fmt_VUYA_4444_32f_709,     fmt_VUYA_4444_32f,
         fmt_VUYP_4444_8u_709,      fmt_VUYP_4444_8u,
         fmt_VUYP_4444_32f_709,     fmt_VUYP_4444_32f,
+        fmt_VUYX_4444_8u_709,      fmt_VUYX_4444_8u,
+        fmt_VUYX_4444_32f_709,     fmt_VUYX_4444_32f,
         fmt_RGB_444_10u,
         fmt_ARGB_4444_8u,          fmt_ARGB_4444_16u,
-        fmt_ARGB_4444_32f,         fmt_ARGB_4444_32f_Linear
+        fmt_ARGB_4444_32f,         fmt_ARGB_4444_32f_Linear,
+        fmt_PRGB_4444_8u,          fmt_PRGB_4444_16u,
+        fmt_PRGB_4444_32f,         fmt_PRGB_4444_32f_Linear,
+        fmt_XRGB_4444_8u,          fmt_XRGB_4444_16u,
+        fmt_XRGB_4444_32f,         fmt_XRGB_4444_32f_Linear
     };
 
     // ---- exact YCbCr -> R'G'B' coefficients (Cb,Cr signed in [-0.5,+0.5]) ----
@@ -390,12 +396,16 @@ namespace AlgoPrIngest
             case fmt_BGRA_4444_8u:
             case fmt_BGRX_4444_8u:         f(ReadInt8 <PF_Pixel_BGRA_8u , false>{}); break;
             case fmt_BGRP_4444_8u:         f(ReadInt8 <PF_Pixel_BGRA_8u , true >{}); break;
-            case fmt_ARGB_4444_8u:         f(ReadInt8 <PF_Pixel_ARGB_8u , false>{}); break;
+            case fmt_ARGB_4444_8u:
+            case fmt_XRGB_4444_8u:         f(ReadInt8 <PF_Pixel_ARGB_8u , false>{}); break;
+            case fmt_PRGB_4444_8u:         f(ReadInt8 <PF_Pixel_ARGB_8u , true >{}); break;
 
             case fmt_BGRA_4444_16u:
             case fmt_BGRX_4444_16u:        f(ReadInt16<PF_Pixel_BGRA_16u, false>{}); break;
             case fmt_BGRP_4444_16u:        f(ReadInt16<PF_Pixel_BGRA_16u, true >{}); break;
-            case fmt_ARGB_4444_16u:        f(ReadInt16<PF_Pixel_ARGB_16u, false>{}); break;
+            case fmt_ARGB_4444_16u:
+            case fmt_XRGB_4444_16u:        f(ReadInt16<PF_Pixel_ARGB_16u, false>{}); break;
+            case fmt_PRGB_4444_16u:        f(ReadInt16<PF_Pixel_ARGB_16u, true >{}); break;
 
             case fmt_BGRA_4444_32f:
             case fmt_BGRX_4444_32f:        f(ReadF32<PF_Pixel_BGRA_32f, false, false>{}); break;
@@ -403,8 +413,12 @@ namespace AlgoPrIngest
             case fmt_BGRA_4444_32f_Linear:
             case fmt_BGRX_4444_32f_Linear: f(ReadF32<PF_Pixel_BGRA_32f, false, true >{}); break;
             case fmt_BGRP_4444_32f_Linear: f(ReadF32<PF_Pixel_BGRA_32f, true , true >{}); break;
-            case fmt_ARGB_4444_32f:        f(ReadF32<PF_Pixel_ARGB_32f, false, false>{}); break;
-            case fmt_ARGB_4444_32f_Linear: f(ReadF32<PF_Pixel_ARGB_32f, false, true >{}); break;
+            case fmt_ARGB_4444_32f:
+            case fmt_XRGB_4444_32f:        f(ReadF32<PF_Pixel_ARGB_32f, false, false>{}); break;
+            case fmt_ARGB_4444_32f_Linear:
+            case fmt_XRGB_4444_32f_Linear: f(ReadF32<PF_Pixel_ARGB_32f, false, true >{}); break;
+            case fmt_PRGB_4444_32f:        f(ReadF32<PF_Pixel_ARGB_32f, true , false>{}); break;
+            case fmt_PRGB_4444_32f_Linear: f(ReadF32<PF_Pixel_ARGB_32f, true , true >{}); break;
 
             case fmt_VUYA_4444_8u_709:
             case fmt_VUYA_4444_8u:         f(ReadVUYA8 <false>{}); break;
@@ -414,6 +428,10 @@ namespace AlgoPrIngest
             case fmt_VUYA_4444_32f:        f(ReadVUYA32<false>{}); break;
             case fmt_VUYP_4444_32f_709:
             case fmt_VUYP_4444_32f:        f(ReadVUYA32<true >{}); break;
+            case fmt_VUYX_4444_8u_709:
+            case fmt_VUYX_4444_8u:         f(ReadVUYA8 <false>{}); break;
+            case fmt_VUYX_4444_32f_709:
+            case fmt_VUYX_4444_32f:        f(ReadVUYA32<false>{}); break;
 
             case fmt_RGB_444_10u:          f(ReadRGB10{}); break;
             default: break;
@@ -424,7 +442,8 @@ namespace AlgoPrIngest
     inline YCbCrToRGB pick_matrix(ePrPixelFormat fmt)
     {
         const bool is709 = (fmt == fmt_VUYA_4444_8u_709 || fmt == fmt_VUYA_4444_32f_709 ||
-                            fmt == fmt_VUYP_4444_8u_709 || fmt == fmt_VUYP_4444_32f_709);
+                            fmt == fmt_VUYP_4444_8u_709 || fmt == fmt_VUYP_4444_32f_709 ||
+                            fmt == fmt_VUYX_4444_8u_709 || fmt == fmt_VUYX_4444_32f_709);
         return is709 ? kRec709 : kRec601;
     }
 

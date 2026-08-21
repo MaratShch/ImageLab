@@ -280,12 +280,16 @@ namespace AlgoPrIngest
             case fmt_BGRA_4444_8u:
             case fmt_BGRX_4444_8u:         f(WriteInt8 <PF_Pixel_BGRA_8u , false>{}); break;
             case fmt_BGRP_4444_8u:         f(WriteInt8 <PF_Pixel_BGRA_8u , true >{}); break;
-            case fmt_ARGB_4444_8u:         f(WriteInt8 <PF_Pixel_ARGB_8u , false>{}); break;
+            case fmt_ARGB_4444_8u:
+            case fmt_XRGB_4444_8u:         f(WriteInt8 <PF_Pixel_ARGB_8u , false>{}); break;
+            case fmt_PRGB_4444_8u:         f(WriteInt8 <PF_Pixel_ARGB_8u , true >{}); break;
 
             case fmt_BGRA_4444_16u:
             case fmt_BGRX_4444_16u:        f(WriteInt16<PF_Pixel_BGRA_16u, false>{}); break;
             case fmt_BGRP_4444_16u:        f(WriteInt16<PF_Pixel_BGRA_16u, true >{}); break;
-            case fmt_ARGB_4444_16u:        f(WriteInt16<PF_Pixel_ARGB_16u, false>{}); break;
+            case fmt_ARGB_4444_16u:
+            case fmt_XRGB_4444_16u:        f(WriteInt16<PF_Pixel_ARGB_16u, false>{}); break;
+            case fmt_PRGB_4444_16u:        f(WriteInt16<PF_Pixel_ARGB_16u, true >{}); break;
 
             case fmt_BGRA_4444_32f:
             case fmt_BGRX_4444_32f:        f(WriteF32<PF_Pixel_BGRA_32f, false, false>{}); break;
@@ -293,8 +297,12 @@ namespace AlgoPrIngest
             case fmt_BGRA_4444_32f_Linear:
             case fmt_BGRX_4444_32f_Linear: f(WriteF32<PF_Pixel_BGRA_32f, false, true >{}); break;
             case fmt_BGRP_4444_32f_Linear: f(WriteF32<PF_Pixel_BGRA_32f, true , true >{}); break;
-            case fmt_ARGB_4444_32f:        f(WriteF32<PF_Pixel_ARGB_32f, false, false>{}); break;
-            case fmt_ARGB_4444_32f_Linear: f(WriteF32<PF_Pixel_ARGB_32f, false, true >{}); break;
+            case fmt_ARGB_4444_32f:
+            case fmt_XRGB_4444_32f:        f(WriteF32<PF_Pixel_ARGB_32f, false, false>{}); break;
+            case fmt_ARGB_4444_32f_Linear:
+            case fmt_XRGB_4444_32f_Linear: f(WriteF32<PF_Pixel_ARGB_32f, false, true >{}); break;
+            case fmt_PRGB_4444_32f:        f(WriteF32<PF_Pixel_ARGB_32f, true , false>{}); break;
+            case fmt_PRGB_4444_32f_Linear: f(WriteF32<PF_Pixel_ARGB_32f, true , true >{}); break;
 
             case fmt_VUYA_4444_8u_709:
             case fmt_VUYA_4444_8u:         f(WriteVUYA8 <false>{}); break;
@@ -304,6 +312,10 @@ namespace AlgoPrIngest
             case fmt_VUYA_4444_32f:        f(WriteVUYA32<false>{}); break;
             case fmt_VUYP_4444_32f_709:
             case fmt_VUYP_4444_32f:        f(WriteVUYA32<true >{}); break;
+            case fmt_VUYX_4444_8u_709:
+            case fmt_VUYX_4444_8u:         f(WriteVUYA8 <false>{}); break;
+            case fmt_VUYX_4444_32f_709:
+            case fmt_VUYX_4444_32f:        f(WriteVUYA32<false>{}); break;
 
             case fmt_RGB_444_10u:          f(WriteRGB10{}); break;
             default: break;

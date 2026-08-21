@@ -27,6 +27,7 @@ struct MemHandler
     uint8_t* SuperBufferHead;   // single backing allocation for all planes below
 
     float* input_f32_interleaved;
+    float* output_f32_interleaved;
 };
 
 MemHandler alloc_memory_buffers (int32_t sizeX, int32_t sizeY) noexcept;
