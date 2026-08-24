@@ -351,8 +351,17 @@ def evaluate(p, block: str) -> dict[str, str]:
               p.grain.sigma_shape_dmax)
     res["sigma_shape"] = mark(_shape != (0.0, 1.0, 0.0)
                               and _documented_near(block, "sigma_shape"))
+    # ⚠ `mtf_measured` IS EVIDENCE AND USED NOT TO COUNT, 2026-08-23. The rule
+    # was keyword-only, so a stock whose curve had actually been traced off its
+    # sheet could still be printed in red as "the model's own estimate" -- which
+    # is what happened to KODAK_VISION_500T_5279 and to the two Fuji Super-F
+    # stocks: their prose says "contrast transfer function" and "Coltman", never
+    # the literal token the regex wants. The flag is set only by an audit that
+    # re-derives the curve from the sheet on every build, so it is STRONGER
+    # evidence of documentation than any keyword match, and it short-circuits.
     res["mtf"] = mark(
-        p.mtf.resolving_power_lp_mm_highc > 0.0
+        p.mtf.mtf_measured
+        or p.mtf.resolving_power_lp_mm_highc > 0.0
         or _documented_near(block, "mtf")
     )
     for key in ("base", "emul", "proc", "lat", "dr", "phys"):
@@ -887,10 +896,13 @@ def main() -> int:
           f"this table's cells use**, so it cannot go stale the way the "
           f"hardcoded 27 did. {len(_true_ph)} stocks still carry the "
           f"placeholder and SHOULD: no document for them exists in the corpus "
-          f"or anywhere this project has looked. Two of those, "
-          f"`FUJI_F125_8530` and `FUJI_F125_8630`, are the only profiles whose "
-          f"tier claim has nothing behind it -- see `NotFound.md` §0.2.1 and "
-          f"§1.5.")
+          f"or anywhere this project has looked. ⚠ THIS SENTENCE USED TO NAME "
+          f"`FUJI_F125_8530` and `FUJI_F125_8630` as the only profiles whose "
+          f"tier claim had nothing behind it. Both halves went stale: 8530 "
+          f"carries three citations as of 2026-08-24 (Honjo 1989 plus two "
+          f"issues of «Техника кино и телевидения»), and 8630 no longer "
+          f"exists -- it was a gauge clone and was removed. See "
+          f"`NotFound.md` §1.5.")
     else:
         w(f"**A registry gap upstream, {len(_gap)} "
           f"stock{'' if len(_gap) == 1 else 's'} (measured, not hardcoded).** "

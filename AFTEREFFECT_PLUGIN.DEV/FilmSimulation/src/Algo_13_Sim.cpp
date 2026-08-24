@@ -315,8 +315,11 @@ void AlgoStage13_Duplication
     // ----------------------------------------------------------------------
     HighPrecType dMid[3];
 
+    // ⚠ AND THIS REFERENCE MUST SEE THE READER'S OPTICS TOO (C22) -- see the
+    // scalar Algo_13_Sim.cpp for why the two mid-grey references have to agree.
     AlgoNeutralMidDensity(profile,
                           static_cast<HighPrecType>(params.couplerScale),
+                          static_cast<HighPrecType>(params.scannerSpecular),
                           dMid);
 
     // ----------------------------------------------------------------------

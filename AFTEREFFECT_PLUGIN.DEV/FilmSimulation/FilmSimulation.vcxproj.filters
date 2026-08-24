@@ -216,6 +216,12 @@
     <ClInclude Include="include\LoadFilmDataBase.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoCallier.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoReciprocity.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">

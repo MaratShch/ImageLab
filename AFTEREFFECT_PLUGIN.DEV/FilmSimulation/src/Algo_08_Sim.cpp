@@ -83,6 +83,8 @@
 // ---------------------------------------------------------------------------
 
 #include "AlgoCharacteristicCurve.hpp"
+
+#include "AlgoCallier.hpp"   // C22: the reader-optics density factor
 #include "AlgoInterimage.hpp"
 #include "AlgoHalation.hpp"   // AlgoSoftplus, ALGO_SOFTPLUS_LINEAR_LIMIT
 
@@ -631,9 +633,17 @@ void AlgoSolveAnchors
     const film::PrintStock*  pPrintStock,
     const HighPrecType       greyTarget,
     const HighPrecType       couplerScale,
+    const HighPrecType       scannerSpecular,
     HighPrecType             anchorOut[3]
 ) noexcept
 {
+    // ⚠ THE SOLVE HAS TO SEE THE READER'S OPTICS (C22). A lab switching to a
+    // condenser head RE-TIMES the print; if this solve stays blind to Callier the
+    // render shifts mid grey as well as steepening, and the shift is the larger
+    // error. Exactly 1.0 unless the caller asked for a directional reader.
+    // Kept identical to the scalar TU: this file is the AVX2 variant of the same
+    // stage, and the two must not drift.
+    const HighPrecType callierFactor = AlgoCallierFactor(profile, scannerSpecular);
     const film::RGBCurves& curves = profile.curves;
     const film::Matrix3&   negM   = profile.dye_matrix;
 
@@ -698,7 +708,16 @@ void AlgoSolveAnchors
                       + static_cast<HighPrecType>(negM[c][1]) * d[1]
                       + static_cast<HighPrecType>(negM[c][2]) * d[2];
 
-                    return normalisedTransmittance(mixed, curveOf(curves, c));
+                    // C22: a slide is read by the same kind of optics as a print,
+                    // so the projector's or scanner's directionality applies here
+                    // too -- and the trim solve must see it for the same reason the
+                    // print offset must.
+                    const HighPrecType read = AlgoCallierApplyScalar(
+                        mixed,
+                        static_cast<HighPrecType>(curveOf(curves, c).dmin),
+                        callierFactor);
+
+                    return normalisedTransmittance(read, curveOf(curves, c));
                 };
 
                 // More exposure on a slide means less density means a brighter
@@ -739,6 +758,15 @@ void AlgoSolveAnchors
                 + static_cast<HighPrecType>(negM[c][1]) * dNeg[1]
                 + static_cast<HighPrecType>(negM[c][2]) * dNeg[2];
 
+    // C22: what the PRINTER's optics read, which is what its curve responds to.
+    // Referenced to each record's own dmin, because the scattering is silver and
+    // clear base has none of it.
+    for (int32_t c = 0; c < 3; c++)
+        dMid[c] = AlgoCallierApplyScalar(
+            dMid[c],
+            static_cast<HighPrecType>(curveOf(curves, c).dmin),
+            callierFactor);
+
     // Without a print stock there is nothing to print onto and no offset to
     // solve. The negative densities are handed back so the caller still has a
     // defined, meaningful value rather than an uninitialised one.
@@ -768,6 +796,7 @@ void AlgoNeutralMidDensity
 (
     const film::FilmProfile& profile,
     const HighPrecType       couplerScale,
+    const HighPrecType       scannerSpecular,
     HighPrecType             dMidOut[3]
 ) noexcept
 {
@@ -800,6 +829,19 @@ void AlgoNeutralMidDensity
         dMidOut[c] = static_cast<HighPrecType>(negM[c][0]) * d[0]
                    + static_cast<HighPrecType>(negM[c][1]) * d[1]
                    + static_cast<HighPrecType>(negM[c][2]) * d[2];
+
+    // ⚠ C22, THE SECOND OF THE THREE PLACES THE FACTOR IS NEEDED. This is the
+    // print chain's OWN mid-grey reference, used by the dupe generations and the
+    // final print. Leaving it out while the anchor solve had it is what left mid
+    // grey +54/255 out on DOUBLE-X in the reference implementation: the two
+    // references disagreed and the print re-timed against the wrong one.
+    const HighPrecType callierFactor = AlgoCallierFactor(profile, scannerSpecular);
+
+    for (int32_t c = 0; c < 3; c++)
+        dMidOut[c] = AlgoCallierApplyScalar(
+            dMidOut[c],
+            static_cast<HighPrecType>(curveOf(curves, c).dmin),
+            callierFactor);
 
     return;
 }
@@ -936,7 +978,8 @@ void AlgoStage08_CharacteristicCurve
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const HighPrecType       anchor[3]
+    const HighPrecType       anchor[3],
+    const HighPrecType       logEShift[3]
 ) noexcept
 {
     const film::RGBCurves& curves = profile.curves;
@@ -989,6 +1032,12 @@ void AlgoStage08_CharacteristicCurve
         const __m256 vFloor = _mm256_set1_ps(ALGO_CURVE_EXPOSURE_FLOOR);
         const __m256 vInvLn10 = _mm256_set1_ps(ALGO_AVX2_INV_LN10);
         const __m256 vTrim  = _mm256_set1_ps(trim);
+
+        // Reciprocity failure, in decades, from AlgoReciprocityLogShift and
+        // broadcast once per channel. Exactly zero unless the caller stated an
+        // exposure time, so the default path adds a zero vector and every
+        // earlier render is reproduced.
+        const __m256 vRecip = _mm256_set1_ps(static_cast<AlgoType>(logEShift[c]));
 
         // ------------------------------------------------------------------
         //  The curve, tabulated once for this channel.
@@ -1043,8 +1092,12 @@ void AlgoStage08_CharacteristicCurve
                 // decades of exposure and density is itself a base-ten quantity.
                 // There is no vector log10, so the natural log is scaled - which is
                 // exactly what a scalar log10 does internally anyway.
-                const __m256 logE =
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10);
+                // The reciprocity shift is added to the LOGARITHM rather than
+                // applied to the exposure: same arithmetic, one vector operation
+                // instead of a vector power, and it is the point in the pipeline
+                // where the emulsion rather than the lens starts responding.
+                const __m256 logE = _mm256_add_ps(
+                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
 
                 // RETAINED. The interimage stage reads this rather than recovering
                 // it from the density, which is not invertible through the shoulder.
@@ -1071,8 +1124,8 @@ void AlgoStage08_CharacteristicCurve
                 const __m256 e =
                     _mm256_max_ps(_mm256_maskload_ps(pE + x, vTail), vFloor);
 
-                const __m256 logE =
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10);
+                const __m256 logE = _mm256_add_ps(
+                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
 
                 _mm256_maskstore_ps(pL + x, vTail, logE);
 

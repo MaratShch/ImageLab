@@ -62,7 +62,7 @@
 using ImgType = float;
 
 /// Arithmetic type of every algorithmic computation inside the engine.
-using AlgoType = float;//double;
+using AlgoType = float;
 
 
 // ---------------------------------------------------------------------------

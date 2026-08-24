@@ -158,6 +158,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoCallier.hpp" />
     <ClInclude Include="include\AlgoCharacteristicCurve.hpp" />
     <ClInclude Include="include\AlgoCoatingField.hpp" />
     <ClInclude Include="include\AlgoControl.hpp" />
@@ -181,6 +182,7 @@
     <ClInclude Include="include\AlgoInterimage.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoNegativeDefects.hpp" />
+    <ClInclude Include="include\AlgoReciprocity.hpp" />
     <ClInclude Include="include\AlgoRelativeExposure.hpp" />
     <ClInclude Include="include\AlgoReseauReconstruct.hpp" />
     <ClInclude Include="include\AlgorithmMain.hpp" />

@@ -82,15 +82,62 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
+#: What identifies a directory as the project root: it holds the PDF corpus the
+#: audits are pointed at. Cheap, and true on every layout this has run on.
+_ROOT_SENTINEL = "PDF"
+
+
 def _default_root() -> Path:
     """Project root, which holds the second copy of the generated C++.
 
     On the owner's layout HERE is <root>\\PYTHON\\profile_generator, so the root
     is two levels up. Overridable with --root (or FILMSIM_ROOT) so the driver
     can be exercised against a staged copy of the corpus.
+
+    ⚠ THE ARITHMETIC ALONE IS NOT SAFE, AND THIS COST A DAY ON 2026-08-23.
+    `HERE` is `Path(__file__).resolve().parent`, and `.resolve()` follows
+    symlinks. Where `PYTHON/profile_generator` is a symlink -- which is how the
+    tree was laid out in one working copy -- two-levels-up lands somewhere else
+    entirely. The sync stage then wrote the generated C++ into a directory nobody
+    compiles and reported "both copies identical" about files that did not
+    matter, while the real root kept a schema-v10 `film_profiles.hpp` for five
+    days. The plugin failed to compile with "HalationSpec has no member named
+    radius_scale_r" and the header looked correct in the generator directory.
+        So: try the candidates in order of trust and take the first that actually
+    looks like the root. If none does, return the arithmetic answer anyway and
+    let `stage_sync` say so loudly -- guessing silently is what caused the bug.
     """
     env = os.environ.get("FILMSIM_ROOT")
-    return Path(env).resolve() if env else HERE.parent.parent
+    if env:
+        return Path(env).resolve()
+    # ⚠ abspath, NOT resolve: abspath makes the path absolute against the CWD
+    # without following symlinks, so a symlinked checkout keeps its own path.
+    # ⚠ AND NOT `Path(__file__).parent.parent.parent` EITHER -- invoked as a bare
+    # `python3 build.py` that degenerates, because Path('.').parent is Path('.'),
+    # which is how the first version of this fix still landed on the wrong root
+    # and tripped its own warning.
+    here_unresolved = Path(os.path.abspath(__file__)).parent
+    candidates = [here_unresolved.parent.parent,      # as invoked, symlink kept
+                  HERE.parent.parent]                 # resolved, symlink followed
+    # Last resort: walk up from the file's own directory looking for the corpus.
+    for up in list(here_unresolved.parents):
+        if up not in candidates:
+            candidates.append(up)
+    # ⚠ AND IT CAN STILL FAIL, LEGITIMATELY. If the generator directory lives
+    # OUTSIDE the project tree -- a symlinked working copy, which is how this has
+    # actually been run -- no arithmetic on __file__ can reach the root, because
+    # Linux getcwd() returns the physical path and the symlink is already gone by
+    # the time this code runs. That case is not solvable here and is not supposed
+    # to be: FILMSIM_ROOT (or --root) is the answer, and stage_sync WARNS loudly
+    # when the root it was handed has no corpus in it. A visible wrong answer is
+    # the whole design goal; the silent one cost five days.
+    for c in candidates:
+        try:
+            if (c / _ROOT_SENTINEL).is_dir():
+                return c
+        except OSError:                              # pragma: no cover
+            continue
+    return candidates[0]
 
 ROOT = _default_root()
 
@@ -171,12 +218,18 @@ def audits(root: Path):
         # made twice, in two languages, and the previous cross-check was a manual
         # one-off from a finished session -- i.e. it guarded nothing.
         ("cpp_parity.py",
-         ["--assert"],
+         ["--assert", "--root", str(root)],
          HERE / "film_profiles.hpp",
-         "Python grain_sigma() vs the generated FilmGrainSigma(): 4650 probes "
-         "over 155 stocks x 3 channels x 10 densities, including net 1.0 and "
+         "Python grain_sigma() vs the generated FilmGrainSigma(): 4770 probes "
+         "over 159 stocks x 3 channels x 10 densities, including net 1.0 and "
          "absolute 1.0 (equal only for an unmasked stock), with a coverage "
-         "assertion that all 11 measured shapes really differ from the legacy law"),
+         "assertion that all 11 measured shapes really differ from the legacy "
+         "law. SINCE 2026-08-23 (C8) also the RECIPROCITY law: "
+         "film_sim.reciprocity_log_shift() against the plugin's own "
+         "AlgoReciprocityLogShift, 159 stocks x 12 exposure times from 1e-5 s "
+         "to 3600 s -- the inertness of exposure_time_s = 0, the held-flat ends "
+         "outside every measured table, and the CC-filter chromatic branch. "
+         "That third family SKIPS when the plugin tree is not on disk"),
         # ⚠ NOT A DOCUMENT AUDIT EITHER, and it probes the PLUGIN'S OWN C++ rather
         # than generated code -- the only audit that does. Added 2026-08-20: the
         # two DIR-coupler stages are the largest COLOUR effect in the chain
@@ -388,6 +441,15 @@ def stage_codegen(opts) -> list:
 def stage_sync(opts) -> list:
     """Keep the project-root copy of the generated C++ identical."""
     res = []
+    # ⚠ SAY IT OUT LOUD IF THE ROOT LOOKS WRONG. See _default_root: a root that
+    # is not the project root makes every line below a lie -- the copies it
+    # reports on are not the ones anybody compiles.
+    if not (opts.root / _ROOT_SENTINEL).is_dir():
+        res.append(Result("project root", "WARN",
+                          f"{opts.root} has no {_ROOT_SENTINEL}/ -- this may not "
+                          f"be the project root; the C++ copies below would go "
+                          f"somewhere nothing compiles. Set FILMSIM_ROOT or pass "
+                          f"--root."))
     for name in GENERATED:
         src, dst = HERE / name, opts.root / name
         if not src.is_file():
@@ -539,11 +601,26 @@ def stage_compile(opts) -> list:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ⚠ STAGE ORDER IS LOAD-BEARING AND WAS WRONG UNTIL 2026-08-24.
+#
+# It used to run audit first. Two of the audits (`cpp_parity`, `interimage_parity`)
+# compile probes against the PLUGIN'S OWN C++ under `--root`, so on the first run
+# after any schema change they compiled against the PREVIOUS schema and failed --
+# a failure with nothing wrong in it, which passed on the next run and therefore
+# taught everyone to re-run rather than to read. Worse, it hid a real one: the
+# 2026-08-23 v11 bump reported `interimage_parity` "probe did not compile" while
+# the actual problem was a stale root the sync stage had never corrected.
+#
+# Now: verify gates everything (it reads only the Python database, so it needs no
+# artefacts), then codegen writes the C++, then sync places it, and only THEN do
+# the audits compile against it. `docs` and `compile` are unchanged at the end.
+#
+# The one thing that must NOT move back above codegen/sync is `audit`.
 STAGES = (
-    ("audit",   stage_audit,   "re-derive adopted numbers from source documents"),
     ("verify",  stage_verify,  "verify.py, FAIL set compared to the baseline"),
     ("codegen", stage_codegen, "regenerate the four C++ artefacts"),
     ("sync",    stage_sync,    "keep the project-root C++ copy identical"),
+    ("audit",   stage_audit,   "re-derive adopted numbers from source documents"),
     ("docs",    stage_docs,    "regenerate FilmActiveProfiles.md, FilmCurves.md"),
     ("compile", stage_compile, "g++ -std=c++14 -Wall -Wextra, gated strictly"),
 )

@@ -189,6 +189,7 @@ void AlgoSolveAnchors
     const film::PrintStock*  pPrintStock,
     const HighPrecType       greyTarget,
     const HighPrecType       couplerScale,
+    const HighPrecType       scannerSpecular,
     HighPrecType             anchorOut[3]
 ) noexcept;
 
@@ -204,6 +205,13 @@ void AlgoSolveAnchors
 //  profile       stock being simulated
 //  anchor        the three values returned by AlgoSolveAnchors; applied here for
 //                a reversal stock, carried to the print stage for a negative
+//  logEShift     per-channel reciprocity shift from AlgoReciprocityLogShift, in
+//                DECADES, added to log10(exposure) before the curve sees it. All
+//                zeros when the caller stated no exposure time, which is the
+//                default and reproduces every earlier render bit for bit.
+//                It lands on the RETAINED log-exposure plane too, so the
+//                interimage stage at 8b sees the same effective exposure the
+//                curve did - a real layer cannot tell the difference either.
 //
 //  The three log-exposure planes must be distinct from the source and from the
 //  destination.
@@ -223,7 +231,8 @@ void AlgoStage08_CharacteristicCurve
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const HighPrecType       anchor[3]
+    const HighPrecType       anchor[3],
+    const HighPrecType       logEShift[3]
 ) noexcept;
 
 
@@ -253,6 +262,7 @@ void AlgoNeutralMidDensity
 (
     const film::FilmProfile& profile,
     const HighPrecType       couplerScale,
+    const HighPrecType       scannerSpecular,
     HighPrecType             dMidOut[3]
 ) noexcept;
 

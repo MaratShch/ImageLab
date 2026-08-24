@@ -27,6 +27,8 @@
 
 #include "AlgoDyeImpurity.hpp"
 
+#include "AlgoCallier.hpp"   // C22: the reader-optics density factor
+
 #include "FastAriphmeticsAVX.hpp"
 #include <immintrin.h>
 
@@ -275,6 +277,88 @@ void AlgoStage12_DyeImpurity
                 if (nt > 0)
                     _mm256_maskstore_ps(pRow + x, mt,
                         _mm256_max_ps(_mm256_maskload_ps(pRow + x, mt), vZero));
+            }
+        }
+    }
+
+    return;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Stage 12b: Callier's coefficient   --   AVX2
+//
+//      D_read = dmin + (D - dmin) * factor
+//
+//  Pointwise and per channel, so it vectorises without conditionals. Unaligned
+//  loads and stores throughout, for the reason given in the file header.
+//
+//  ⚠ REFERENCED TO dmin, NOT TO ZERO -- the scattering is silver, and clear base
+//  carries none of it. Written as (D - dmin) * k + dmin rather than as a branch
+//  on D < dmin, so a density below dmin (which grain can produce in the base)
+//  scales by the same law. Same arithmetic as the scalar TU and as
+//  film_sim.callier_density().
+// ---------------------------------------------------------------------------
+void AlgoStage12b_Callier
+(
+    AlgoType* RESTRICT       pR,
+    AlgoType* RESTRICT       pG,
+    AlgoType* RESTRICT       pB,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const film::FilmProfile& profile,
+    const HighPrecType       scannerSpecular
+) noexcept
+{
+    const HighPrecType factor = AlgoCallierFactor(profile, scannerSpecular);
+
+    // The inert case, and it must stay EXACTLY inert: every render made before
+    // this stage existed has to be reproduced bit for bit.
+    if (1.0 == factor)
+        return;
+
+    const AlgoType k = static_cast<AlgoType>(factor);
+
+    AlgoType* RESTRICT plane[3] = { pR, pG, pB };
+
+    const film::ToneCurve* curve[3] =
+    {
+        &profile.curves.r,
+        &profile.curves.g,
+        &profile.curves.b
+    };
+
+    const __m256 vZero = _mm256_setzero_ps();
+    const __m256 vK    = _mm256_set1_ps(static_cast<float>(k));
+
+    for (int32_t c = 0; c < 3; c++)
+    {
+        const AlgoType dmin  = static_cast<AlgoType>(curve[c]->dmin);
+        const __m256    vDmin = _mm256_set1_ps(static_cast<float>(dmin));
+
+        for (int32_t y = 0; y < sizeY; y++)
+        {
+            AlgoType* RESTRICT pRow =
+                plane[c] + static_cast<std::ptrdiff_t>(y) * pitch;
+
+            int32_t x = 0;
+
+            for (; x + 8 <= sizeX; x += 8)
+            {
+                const __m256 v = _mm256_loadu_ps(pRow + x);
+                __m256 d = _mm256_add_ps(
+                    _mm256_mul_ps(_mm256_sub_ps(v, vDmin), vK), vDmin);
+                d = _mm256_max_ps(d, vZero);
+                _mm256_storeu_ps(pRow + x, d);
+            }
+
+            // Scalar tail, bit-identical to the vector body: the same
+            // multiply-add order and the same floor.
+            for (; x < sizeX; x++)
+            {
+                const AlgoType d = ((pRow[x] - dmin) * k) + dmin;
+                pRow[x] = MAX_VALUE(d, ALGO_ZERO);
             }
         }
     }

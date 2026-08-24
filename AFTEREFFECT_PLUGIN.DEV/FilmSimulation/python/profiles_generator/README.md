@@ -18,6 +18,295 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > from the database on every build), `NotFound.md` (what is still missing), and the **Files** and
 > **Known limits** sections at the bottom of this README, which ARE maintained as current.
 >
+> **Status 2026-08-24b (F-125 family restructured, queue C27):** `verify.py` **331 PASS / 1 FAIL**,
+> 11 audits green, schema **v11 unchanged**, database **161 -> 160 film stocks** (10 print stocks),
+> so `film_names.txt` changed again and **the ListBox shifts a second time today** -- rebuild once,
+> after both passes.
+>
+> **`FUJI_F125_8630` REMOVED. `FUJI_F125_8530` and `FUJI_SUPER_F125_8532` kept as independent
+> profiles.** The deciding evidence is a sentence, not a curve: two issues of «Техника кино и
+> телевидения» (1989 No.4, 1990 No.1 -- the latter a translation of Fuji's own 1988 symposium
+> paper) print **Fuji's four-digit code rule in words** -- first digit 8 = colour negative, SECOND
+> DIGIT = GAUGE (5 = 35 mm, 6 = 16 mm), last two digits = the film -- applied consistently in three
+> tables across all five F-series stocks and matched by Fuji's own Super F-125 sheet ("35mm Type
+> 8532 / 16mm Type 8632"). So 8530/8630 were one emulsion slit two ways; a gauge is
+> `default_format`, and `8630` is now an alias. ⚠ The SAME rule keeps 8530 and 8532 apart: they
+> differ in the LAST TWO digits, the part that names the film, and they measure differently --
+> **rms 4.0 against 3.0 at identical speed** (125 tungsten / 80 daylight).
+>
+> **Adopted:** 8530 `rms_granularity` 5.4 (estimate) -> **4.0**, printed in 1989 No.4 Table 1 p70
+> and verified against the page image; the convention is confirmed on the plate as 48 um at visual
+> diffuse D 1.0, which is how the 8532 sheet defines its own 3.0.
+>
+> ⚠ **A third MTF measurement arrived and nothing was changed.** 1990 Fig. 3 traces to f50 ~33
+> mm^-1, against the 1989 table's 0.60 at 30 mm^-1 and Honjo's nu_50 = 42. The other two traces on
+> that plate agree with the table to 2-3 %, so the 8 % disagreement is specific to this stock.
+> Method rule 4. It does reframe the conflict already recorded on 8532: that profile's
+> Coltman-converted 32.07 looked like a regression against 42.0, and this third figure lands at 33
+> -- two of three sources now cluster at 32-33 and Honjo's 42 is the outlier.
+>
+> ⚠ **Three figures left UNHARVESTED with stated reasons**, so a later pass does not re-litigate
+> them: sigma(D) (1990 Fig. 4 -- F-125 and F-64 converge inside the drawn line width exactly where
+> the only validating anchor sits), gammas (Fig. 1 draws F-125 SUPERIMPOSED on type A at matched
+> speed, and the abscissa carries a 0.5-decade span bar and no numbers at all), spectral
+> sensitivity (Fig. 6 states no density criterion). `NotFound.md` §1.5 carries the full account.
+>
+> **Status 2026-08-24 (T-101 Fig. 18 + the grain-size column, queue C25/C26):** `verify.py`
+> **331 PASS / 1 FAIL**, 11 audits green, schema **v11 unchanged**, but the database moved
+> **159 -> 161 film stocks and 9 -> 10 print stocks**, so `film_names.txt` MD5 changed to
+> `c2b9e17e…` and **the ListBox shifts** -- rebuild.
+>
+> **The headline is a correction, not a harvest: `clump_um` was wrong by an order of magnitude on
+> every stock that could be checked.** BBC Report T-101 measures six 1963 emulsions; four already
+> had profiles here. Their stored grain-clump sizes were 1.90 / 11.0 / 5.0 / 19.0 µm against
+> measured 1.43 / 0.83 / 0.86 / 1.26. Since `f_hi = 500/clump_um`, a stored 19 µm puts the grain
+> rolloff at **26 c/mm** -- Fig. 18 shows Tri-X still at half power at **290**. The stored column
+> was making grain low-frequency and blobby on stocks whose real spectra are broadband.
+>
+> **And the method lesson is the expensive one: READ EVERY TABLE BEFORE TRACING ANY CURVE.**
+> Fig. 18 was digitised properly -- six dashed curves separated by **dash period**, a page that is
+> **bowed rather than skewed** (97 px of movement on the W=0 line, so no rotation fixes it), two
+> gridlines that are untrackable because one of them *runs along the 8374 curve* and its removal
+> band deleted that emulsion, and an arc-length walker with a turn-rate limit because without one
+> Pan F and 5302 dive down gridline stubs to W=0. It validates three independent ways. **Then
+> Table 2 on p28 turned out to print the measured equivalent grain diameter of all six emulsions
+> outright** -- the quantity the trace was for -- in a table already cited on four profiles since
+> 2026-08-23 for its other columns. Stored values are the printed ones, through
+> `D_eq = 1.7473 · clump_um`; the traces are what validate them and what proves `clump_gain` fits
+> to **exactly 0.000 on all six** independently.
+>
+> ⚠ **Three limits recorded rather than papered over.** (1) Every adopted value is an **upper
+> bound** -- p38 says the printed diameters are "expected to be greater than the true values",
+> instrumental weighting uncorrected. (2) **The other 155 stocks were not touched:** six 1963 B&W
+> emulsions do not license rewriting the colour negative and reversal column, so only the error's
+> direction is on record. (3) The carrier **shape** is wrong in a second way -- a free exponent
+> fits n = 1.80 (HPS), 2.01 (Tri-X), 2.43 (Plus-X), 2.4-4.1 (fine grain) against the file's fixed
+> n = 2. That is a **renderer** change and was not attempted.
+>
+> **New profiles, all from the same document:** `EASTMAN_TRI_X_5223` (tier 2, the 35 mm cine
+> negative whose numbers had been parked in `KODAK_TRI_X_320TXP`'s citation with a note that they
+> belonged to a profile that did not exist), `KODAK_8374` (tier 3, 16 mm TV recording film, blue
+> and U.V. sensitive) and `KODAK_5302` (tier 2, **a PrintStock**, so no ListBox shift -- and it is
+> the *unity* of Table 4's granularity ladder that every T-101 grain number is anchored on).
+> ⚠ `KODAK_TRI_X_400TX` deliberately did **not** move: T-101 measured the cine 5223 at 250/320
+> A.S.A., not the ASA 400 still film. `verify.py` pins that non-move so a later pass cannot
+> "finish the job". Renders change **texture only** -- `grain_reference_energy` renormalises, so
+> `rms_granularity` still means what it meant. `NotFound.md` carries the full account.
+>
+> **Status 2026-08-23e (F-125 harvest + C21/C22, schema v11):** `verify.py` **316 PASS / 1 FAIL**,
+> 11 audits green, schema **v10 -> v11** (`HalationSpec` grew three fields, all shipping 1.0, so
+> renders are bit-identical but **a v10 reader would walk off the end of every HalationSpec** --
+> rebuild), `film_names.txt` **unchanged**, so no ListBox shift.
+>
+> **The F-125 item came from the owner catching a wrong sentence in `NotFound.md`** -- "no Fuji
+> F-125 document exists in this corpus", when a complete Fuji sheet (**Ref. No. KB-913E, (C)1999**,
+> titled *FUJICOLOR NEGATIVE FILM F-125*) had been on disk all along. The root cause generalises and
+> is now a rule: that sheet's footer, product name and logotype are **outlined vector art**, so
+> `get_text()` returns neither the product name nor the date, and a text-layer reading of the file
+> looks like it has neither. **"Not in the text layer" is not "not printed" -- render the page.**
+>
+> **Harvested from it, all traced from the sheet's own vector panels:** three characteristic curves
+> (rms 0.005-0.009 D), spectral sensitivity (peaks 469/553/645 nm), and **f50_g 32.07 c/mm by
+> Coltman's square-to-sine conversion** of the contrast transfer function -- an item this project had
+> previously recorded as unusable "without the chart's duty cycle", which a rectangular wave chart
+> does not require. `FUJI_SUPER_F125_8532` moves tier 2 -> **1**; queue **C11 closed for it**.
+> The same method was applied in the same pass to the sister sheet `FUJICOLOR_SUPER_F500_8572`
+> (f50_g 56 -> **20.21** c/mm; its "cyan shadows" description **retracted as unsupported**).
+>
+> **Two hazards recorded rather than smoothed:** both Super-F sheets carry a **mis-labelled,
+> non-monotonic exposure axis** (`-4.5 -3.0 -3.5 -2.0 ...`), settled at first-gridline -4.5 by
+> physics and cross-checked between the two sheets to 0.08 stop; and the converted 32.1 c/mm
+> **contradicts** Honjo's 42.0 for the 8530 it replaced, while Fuji sells 8532 on "dramatically
+> increased sharpness". Both figures stay on record.
+>
+> **C21/C22:** per-channel halation radii (all 1.0, pinned by guard -- the geometry bounds the real
+> ratio near 1.1, so derived values would look measured while moving a render ~1 %) and Callier's
+> coefficient as **film x scanner geometry**, `D_read = dmin + (D - dmin)*(1 + specular*(Q - 1))`,
+> inert at the shipped `scanner_specular = 0` and inert on colour at any setting. ⚠ The factor has
+> to reach the anchor solve, the print chain's mid-grey reference AND the pixel pass: with only two
+> of the three, mid grey moved **+54/255** on DOUBLE-X instead of contrast changing.
+>
+> **Status 2026-08-23c (C24 adopted: the f50 estimating rule is replaced where the
+> measurements reach):** `verify.py` **303 PASS / 1 FAIL**, 11 audits green, schema **v10
+> unchanged**, `film_names.txt` **unchanged** -- data-only rebuild, no ListBox shift.
+>
+> **Five measured triples adopted** -- 5217 `33.9/58.1/67.4`, 5218 `37.6/54.6/69.7`,
+> 5245 `37.2/83.8/100.5`, 5248 `37.4/75.1/111.2`, 5279 `41.1/73.1/76.1` -- each with its
+> measured adjacency overshoot and, except on 5279, its measured rolloff exponent.
+> **mtf_measured stocks: 3 -> 8.**
+>
+> **Two stocks take a MIXED triple, and it is labelled as such:** 5205 and 5293 have a
+> measured green and blue but a red their sheets emit in fragments, so their red carries the
+> family anchor and `mtf_measured` stays unset -- two measured records and one class estimate
+> is not a measured stock.
+>
+> **Five modern Kodak cine stocks had their RED re-anchored to 36.0 cycles/mm** (5203, 5207,
+> 5213, 5219, 5246), replacing the fixed-ratio rule. Green and blue were left alone
+> deliberately: the measured blues run 0.96-1.43x their stored values with no consistent
+> factor, so only red is a constant to anchor on. ⚠ **Scope is narrow on purpose** -- modern
+> Kodak cine colour negatives whose stored blue lies inside the measured 55-111 cycles/mm
+> range. `EASTMAN_EXR_500T_5296` (blue 42) and every pre-1990 stock are excluded, as is every
+> other manufacturer, and `verify.py` now asserts 5296 keeps its own 30.0 so a later
+> "finish the family" pass fails instead of guessing. **63 colour stocks still carry an
+> estimated triple.**
+>
+> ⚠ **RENDER IMPACT IS LARGE, and larger than C13's, because red moves by up to 2.2x.**
+> Bar-sweep target, grain and flare off, worst channel delta: **5203 45.7/255**,
+> 5248 22.9-26.8, 5217 21.8-26.1, 5219 7.8-8.8 -- measured at both 48 and 193 px/mm, and
+> unlike C13 the effect is visible at preview size because red now differs by tens of
+> cycles/mm, not a few.
+>
+> ⚠ **A CONFLICT SURFACED AND IS RECORDED, NOT PAPERED OVER.** 5245's and 5293's measured
+> BLUE records reach 50 % modulation at 100.5 and 114.6 cycles/mm against a stored limiting
+> resolution of 100 lines/mm. ISO resolving power is a COMPOSITE three-layer reading while
+> f50 is per record, so a sharp blue record above the composite limit is not impossible -- and
+> the stored pair is the weaker number of the two: 5248's sheet prints "TOC 1.6:1 / TOC
+> 1000:1 ... 80 / 160 lines/mm" and matches what is stored, while a text search of the 5245
+> and 5293 sheets finds no "lines/mm" at all. `verify.py` now compares the GREEN record and
+> reports the blue exceedances as information. `RESULT_2026-08-23b_c2b.md`.
+>
+> **Status 2026-08-23b (C2b: nine more colour MTF sheets, and the extractor that had to be
+> repaired to read them):** `verify.py` **300 PASS / 1 FAIL**, 11 audits green, **no profile
+> data changed** — schema v10 and `film_names.txt` untouched.
+>
+> **3 traced sheets / 7 curves became 12 / 26**, and Agfa joined Kodak. ⚠ **Most of this pass
+> was four defects in `mtf_vector.py`, and every one of them returned numbers that looked like
+> MTF measurements:** (1) the 1990s technical sheets emit all three records as ONE path
+> object, so H-1-5218 reported f50 69.7 off a trace running along blue, jumping to green and
+> finishing on red; (2) the log GRID passed for a curve and was handed back as 5245's GREEN
+> record at f50 236.8 with response to 190 %; (3) label matching by nearest curve
+> double-claimed on 5245, and ranking by height instead swapped red and green on 5248 -- whose
+> red STOPS at 115 c/mm while green runs to 191 -- producing a red record sharper than green,
+> which no colour negative can be; (4) a fragment has an f50 and it is meaningless, 5293's red
+> arc starting at 53 % response reporting 32.0. **All four were found on the new `--overlay`
+> render and none by reading the numbers** -- the other two plot readers in this project
+> already had that gate and this one did not.
+>
+> **C13's layer-depth hypothesis: the ORDERING is real, the MAGNITUDES are not.** `q_R <= q_G
+> <= q_B` holds on 8 of 8 stocks with two or more records, but red spans 1.89-2.77 and blue
+> 2.38-3.42 (sd 0.32-0.37), so C13's "both reds cluster at 1.84-1.89" was a two-sample
+> illusion. **q therefore cannot be derived for the 156 unmeasured stocks and stays per-stock
+> measured**, which confirms the `mtf_measured` design rather than replacing it. The power law
+> still beats the Gaussian on all 26 curves (1.1x-5.8x, rms 0.0095-0.132).
+>
+> **C24 is answered, and not the way it was framed.** Seven stocks now have a complete
+> per-record measurement. Red f50 reads **32.1 33.9 35.4 37.2 37.4 37.6 41.1** -- mean 36.4,
+> spread +-13 % -- against green spreading 52 % and blue 70 %. **Red f50 is effectively a
+> CONSTANT ~36 cycles/mm across 1989-2005 and three product families**, so it does not scale
+> with the stock's sharpness and no rule of the form `f50_r = k * f50_b` can express it at any
+> k. The estimates were 1.12-1.72x too sharp in red AND 0.70-0.83x too soft in blue.
+>
+> ⚠ **The cross-maker check C24 asked for cannot be made from this corpus.** The Agfa Vista
+> sheet is the only non-Kodak MTF on file and it prints ONE visual-weighted curve
+> ("Densitometry: visual filter (V-lambda)"), not three records: f50 50.0, q 2.63 at rms
+> 0.039, +11.7 % overshoot -- itself 1.26x softer than that stock's own estimate.
+>
+> **Five measured triples (5217, 5218, 5245, 5248, 5279) are traced, pinned and NOT adopted**
+> -- that is one owner decision, with the rule question beside it. `RESULT_2026-08-23b_c2b.md`.
+>
+> **Status 2026-08-23 (C1e per-layer grain, and C8 wires the last inert data family):**
+> `verify.py` **300 PASS / 1 FAIL**, 11 audits green, schema **v10 unchanged**, `film_names.txt`
+> unchanged -- no ListBox shift. ⚠ **But the plugin DOES need a rebuild: stage 8's signature
+> changed** (see below).
+>
+> **C1e was unlocked by disproving its own premise.** The item existed because the raster
+> granularity extractor was suspected of reading ~1.32x high on the sigma axis. It is not: the
+> 5219 panel's own right-hand tick comb, fitted on the stored calibration, reproduces
+> **0.001-0.100 at all 15 ticks within 1 %** (5203 within 1.3 %). The 1.32x was an ABSOLUTE-D
+> comparison; read at NET 1.0 the two documents differ by 1.12x in green and 1.25x in blue --
+> real, a third the size, and not an axis error. So the raster family's per-layer RATIOS are
+> usable, and **three stocks were adopted rather than one**: 5219 r/g/b **5.92 / 6.60 / 17.84**,
+> 5207 **rms_b 8.92**, 5203 **rms_b 4.71**, every green frozen as agreed. 5219's blue grain rises
+> **x1.52 on screen** (sigma 2.33 -> 3.60 per 255); red falls slightly; green does not move.
+>
+> ⚠ **5213 stays on the heuristic and a guard pins it there** -- its sheet prints the three
+> granularity curves as one bold band, so there is no blue track to read. And the corpus-wide
+> ladder (`b = 1.30x`, `r = 1.10x` of green, still filling **54** colour negatives) is
+> **measured to be wrong in magnitude for blue and in SIGN for red on all nine sheets that carry
+> a per-layer read** (b/g 1.81-2.79, r/g 0.75-1.05) -- and deliberately NOT rescaled, because all
+> nine are Kodak cine negatives and the blue ratio tracks stock SPEED, not any constant.
+> Recorded as a settled refusal with its numbers, not as an open item.
+>
+> **C8: reciprocity now renders.** `RenderSettings.exposure_time_s` and
+> `AlgoControls::exposureTimeS`, both **0.0 = not stated and inert**, so every earlier render is
+> bit-identical (asserted over 159 stocks x 3 channels). New `film_sim.reciprocity_log_shift()`
+> and its C++ twin **`AlgoReciprocity.hpp`**, applied **inside stage 8 on the log exposure** --
+> after everything optical, before the curve, and onto the RETAINED log-E plane so stage 8b sees
+> the same effective exposure. `cpp_parity.py` gains a **third family** (5724 probes, 159 stocks
+> x 12 times from 1e-5 s to 3600 s, worst 1.0e-07 decades) and it probes the plugin's own header.
+>
+> **Seconds, not shutter angle, and that was decided on evidence:** angle / frame rate spans only
+> 1/1000-1/24 s, and every sheet in the corpus prints *no correction needed* across exactly that
+> span -- an angle control would provably never do anything.
+>
+> ⚠ **The data was the bigger half. 15 measured `ReciprocityTable` entries** were read from the
+> stocks' own sheets here (5205, 5217, 5218, 5219-**brochure**, 5201, 5246, 5274, 5279, 5248,
+> 5231, 5247, F-125 8532, F-500 8572, ETERNA Vivid 8547, VISTA 200), taking the total **6 -> 21**.
+> The reason it mattered: **seven of them carried `p = 1.0` and rendered NO reciprocity while
+> their own sheets print a correction**, and the rest rendered about half of theirs -- a single
+> Schwarzschild exponent has nowhere to put an offset the film has already lost by 1 s (5205's
+> sheet prints +2/3 stop at 1 s; its exponent delivered +1/3).
+>
+> ⚠ **An error of mine that the 5205 sheet caught.** The CC-filter arithmetic first ADDED the
+> filter's density to the worst-losing record, giving 1 stop where the sheet says 2/3: right
+> channel ordering, wrong level, entirely plausible in a frame. Both instructions act on one
+> frame -- the lens opens by the printed stops on all three records and the filter takes part of
+> it back -- so the record the filter does NOT attenuate loses exactly the printed stops. A guard
+> now asserts that over all 21 tables.
+>
+> ⚠ **Two defects recorded and NOT patched, because the documents are not in this corpus copy.**
+> (1) The Agfa/Konica exponents were fitted under a different reading of a printed correction
+> ("the film needs a longer exposure" rather than "the loss at the stated time"), which delivers
+> **0.766 stop where the source prints 1.0 -- 24 % light**; the corrected values are written out
+> next to `_RECIPROCITY_TABLES`, and `PDF/PROFILES/KONICA/*` and `SOVIET STANDARDS/*` are absent
+> here. (2) Kentmere's stored stops (0.517 / 0.599 at 10 s) do not reproduce the formula their own
+> source string quotes (0.864 / 0.997). AGFA_VISTA_200 is the one that COULD be fixed and was --
+> its printed point is on file in English and it now carries a measured table.
+>
+> ⚠ **REBUILD NOTE.** `AlgoStage08_CharacteristicCurve` gained a trailing
+> `const HighPrecType logEShift[3]`. Declaration, both definitions and both call sites are
+> updated; any other caller fails to compile, which is intended. The **AVX2 TU could not be
+> compiled here** (`FastAriphmeticsAVX.hpp` is not in the uploaded set), so that three-line edit
+> is verified by inspection against its scalar twin.
+>
+> **State:** **300 PASS / 1 known FAIL**, 11 audits green, compile clean on 18 TUs, schema v10,
+> 159 stocks. `RESULT_2026-08-23_c1e_c8.md`.
+>
+> **Status 2026-08-20c (C13: 5274's MTF adopted, and the finding is bigger than the profile):**
+> `verify.py` **284 PASS / 1 FAIL**, 11 audits green, schema **v10 unchanged**, `film_names.txt`
+> unchanged -- **no ListBox shift, data-only rebuild**.
+>
+> **`KODAK_VISION_200T_5274` now carries its measured MTF** from H-1-5274 p3 (plot F010_0006AC),
+> a panel that had never been traced: **f50 35.4 / 68.8 / 74.0 cycles/mm** against the stored
+> estimate 56.0 / 64.0 / 72.0, adjacency **0.162** (was 0.09), rolloff **q = 2.94**. Third stock
+> with a traced MTF.
+>
+> **Green and blue confirmed the estimate to 7 %. Red was 1.58x too sharp** -- and that is a defect
+> in the ESTIMATING RULE, not in this profile. The rule puts `f50_r / f50_b` near **0.78**; across
+> the 92 colour stocks that still carry an estimate the stored ratios sit **72 in 0.75-0.85**, while
+> both stocks measured per-record land at **0.478** (5274) and **0.578** (5201). New queue item
+> **C24**, and it explicitly refuses to rescale 92 profiles from two measurements of one Kodak
+> family -- that is the method-rule-18 error. It becomes answerable if C2b's next sheets agree on
+> the layer-depth pattern, in which case the ratio can be DERIVED from the layer stack.
+>
+> ⚠ **RENDER IMPACT IS SCALE-DEPENDENT, and smaller than 1.58x sounds.** Measured on a bar-sweep
+> target: worst **3.9/255 at 48 px/mm** (a 2K-ish 35 mm frame), **7.1/255 at 96 px/mm**,
+> **11.1/255 at 193 px/mm**. f50 lives at 35-74 cycles/mm and a 2K render never reaches those
+> frequencies, so at normal preview sizes most of the visible change comes from the ADJACENCY term,
+> not from f50. **The f50 correction earns its keep at scan resolution.** Worth saying before anyone
+> judges the change on a 1080p preview and concludes it did nothing.
+>
+> ⚠ **And a measurement error of my own, recorded because it is the instructive part:** the first
+> impact test reported 0.1/255 and I nearly published it. The test image was 96 px wide for a
+> 24.9 mm frame -- about 3.9 px/mm -- where a 35-versus-56 cycles/mm difference cannot show at all.
+> A null result from a target that cannot resolve the effect is not a null result.
+>
+> **C2b's remit is now narrower on purpose:** trace COLOUR sheets. A monochrome sheet has one
+> record and therefore cannot test a per-record ratio, which is what C24 needs.
+>
+> **State:** **284 PASS / 1 known FAIL**, 11 audits green, compile clean on 18 TUs, schema v10,
+> 159 stocks. `RESULT_2026-08-20c_c13_mtf.md`.
+>
 > **Status 2026-08-20b (the DIR-coupler stages get a parity test):** no profile data
 > changed -- **159 stocks, schema v10, `film_names.txt` unchanged**, so no ListBox shift and
 > no plugin rebuild. `verify.py` **279 PASS / 1 FAIL**: the FAIL baseline is **down from 2
@@ -790,7 +1079,7 @@ corpus.
 Individual generators, for reference — `build.py` runs these for you:
 
 ```bash
-python verify.py                                    # 280-check suite (279 PASS / 1 FAIL by design)
+python verify.py                                    # 304-check suite (303 PASS / 1 FAIL by design)
 python cpp_codegen.py -o .                          # the 23 C++ artefacts
 python vision3_granularity.py --overlay out         # re-derive the VISION3 sigma(D)  [raster]
 python mees_granularity.py --root ../.. --overlay out   # re-derive the B&W sigma(D)
@@ -1039,7 +1328,7 @@ structure is built to accept real data; only the numbers are provisional.
 | `build.py` | **The entry point.** Ordered, gated regeneration + audit: audit → verify → codegen → sync → docs → compile. `--check` is read-only. Registers the audit scripts, so a new extraction script becomes part of the build instead of an orphan. Stdlib only |
 | `run.cmd` | Windows wrapper: `run.cmd` / `check` / `build` / `render` |
 | `film_profiles.py` | Physical parameters, **159 film stocks, 9 print stocks**, 14 gauges. **Schema v10** (v8 added `GrainSpec.sigma_shape_peak`/`_peak_at`/`_toe_at`/`_dmax_at`/`_measured`; **v9 redefined `rms_granularity` as the rms at NET density 1.0** — same layout, different meaning; **v10 added `MTFSpec.mtf_rolloff_q` / `mtf_measured`, so the MTF rolloff shape is stored and read**). Holds the ONE definition of both the grain-σ law (`grain_sigma`) and the MTF law (`mtf_response`), mirrored in the generated C++ as `FilmGrainSigma` / `FilmMtfResponse` |
-| `film_sim.py` | The pipeline, 16-bit PNG writer, CLI |
+| `film_sim.py` | The pipeline, 16-bit PNG writer, CLI. Holds the ONE definition of the reciprocity law (`reciprocity_log_shift`, `_cc_filter_shift`) and of the two DIR-coupler stages (`apply_interimage`, `apply_dir_couplers`), each mirrored in the plugin's own C++ and covered by a parity audit |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp`, then `film_names.txt` and `film_enum.hpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |
 | `film_names.txt` | Generated. One display name per line, quoted, spaces not underscores, ASCII, no comments — feeds the effect-panel listbox. Line *N* is vector element *N−1* |
@@ -1052,12 +1341,13 @@ structure is built to accept real data; only the numbers are provisional.
 | `granularity_vector.py` | Audit: σ(D) from a **vector** granularity plot — **9 sheets**: EKTACHROME 100D 5285 (the only measured σ(D) for a colour **reversal** stock), the six colour negatives adopted 2026-08-18 (5245, 5246, 5248, 5274, 5279, 5218), **VISION2 50D 5201 added 2026-08-20**, and the VISION3 500T brochure as an independent cross-check of 5219's raster trace. Also reports each sheet's **net-1.0 rms triple**, which reproduces all six values adopted under C1d to within 0.7 % — and which answered queue C1e as a by-product. Composes the characteristic and granularity curves at shared abscissa, so the log-exposure axis cancels; `--overlay` draws every traced point back onto the panel and is the adoption gate. See `RESULT_2026-08-18f_C1c_sigma_harvest.md` |
 | `gevaert_curves.py` | Audit: characteristic curves from the **paper scans** of the Agfa-Gevaert journal articles -- `GEVACOLOR_NEG_682`'s Fig. 10 at one sample per pixel column off the native 340 ppi 1-bit scan, validated against the gamma 0.57 the figure prints. Fits both axes as LINES because the page is skewed 1.40 deg, and re-verifies its pinned tick anchors against the pixels on every run |
 | `interimage_parity.py` | Audit: **the Python vs C++ DIR-coupler stages — the only audit that probes the PLUGIN'S OWN translation units** rather than generated code. Compiles against `Algo_08_Sim.cpp` / `Algo_09_Sim.cpp` and compares `apply_interimage()` / `apply_dir_couplers()` against `AlgoStage08b_Interimage()` / `AlgoStage09_DirCoupler()` over 5 stocks × 2 fields × 2 pixel scales. Reads `sizeof(AlgoType)` from the compiled probe and picks its tolerance from it, so the deliberately switchable double/float typedef stays switchable. ⚠ Asserts only where the blur is resolved; the sub-pixel scale is probed and reported, because below ~1 px the two blur implementations are not the same operator |
-| `cpp_parity.py` | Audit: **the Python reference laws vs the generated C++ ones — grain AND MTF**, 8478 probes over every stock × 3 channels × 10 densities, walking the real `GetFilmDatabase()`. Worst disagreement 2.7e-07 against a 2e-5 tolerance. Carries a coverage assertion so the check cannot pass by both sides silently falling back to the legacy law. ⚠ Written because C1b changed one law in two languages and the previous cross-check was a manual one-off |
-| `mtf_vector.py` | Audit: `f50`, the adjacency overshoot and the **rolloff exponent** from a vector log-log MTF plot — **3 sheets, 7 curves**: PLUS-X 5231 (41.3 cycles/mm, +0.034), VISION2 50D 5201 per record (32.1/49.7/55.5) and VISION 200T 5274 per record (35.4/68.8/74.0, measured but NOT yet adopted — queue C13). Reads record identity from **ink** on the brochures and from **printed R/G/B letters** on the technical sheets |
+| `AlgoReciprocity.hpp` | **Plugin C++, NEW 2026-08-23 (C8).** The reciprocity law: the per-channel shift of log exposure a stated shutter time implies. Header only, computed once per frame, consumed by stage 8 as three constants added to the logarithm. Mirrors `film_sim.reciprocity_log_shift()`; `cpp_parity.py` compares the two |
+| `cpp_parity.py` | Audit: **the Python reference laws vs the C++ ones — grain, MTF and (since 2026-08-23) RECIPROCITY**, 8586 + 5724 probes over every stock × 3 channels × 10 densities, walking the real `GetFilmDatabase()`. Worst disagreement 2.7e-07 against a 2e-5 tolerance. Carries a coverage assertion so the check cannot pass by both sides silently falling back to the legacy law. ⚠ Written because C1b changed one law in two languages and the previous cross-check was a manual one-off |
+| `mtf_vector.py` | Audit: `f50`, the adjacency overshoot and the **rolloff exponent** from a vector log-log MTF plot — **12 sheets, 26 curves** (2026-08-23): PLUS-X 5231 mono, seven Kodak colour negatives with a complete per-record triple (5201, 5274, 5217, 5218, 5245, 5248, 5279), two with green and blue only and a **refused** red (5205, 5293), and the **Agfa Vista 200** panel — the only non-Kodak MTF in the corpus, and a single visual-weighted curve rather than three records. Record identity comes from **ink** on the brochures and from **printed R/G/B letters** on the technical sheets, solved as a minimum-cost bijection rather than nearest-neighbour; the single path the 1990s sheets use for all three records is split; a fragment is refused rather than measured. **`--overlay` is the gate** — it found all four extractor defects fixed under C2b |
 | `kodak_sensitometry.py` | Audit: `ToneCurve` parameters least-squares fitted to a Kodak sheet's **vector** characteristic curves, sharing `digitize_plot.fit_tonecurve` so the model has one definition. ⚠ Takes the SHAPE from the dense curves inside the *granularity* panel and asks the panel titled "Sensitometric" only for the abscissa origin — see method rule 22 |
 | `agfa_vista.py` | Audit: `AGFA_VISTA_200`'s spectral sensitivity, and the **dash-pattern legend** it depends on — solid = green, dashed = blue, dash-dot = red, cross-checked against Agfa's own printed labels |
 | `plot_inventory.py` | Audit: the corpus plot inventory (191 vector dye-density pages, 199 MTF, 101 granularity, 294 characteristic), with three known-answer pages as the classifier's ground truth. ⚠ Those counts are **corpus-wide (450 PDFs)**, so they are reported but NOT asserted when fewer PDFs are present — a partial mirror used to fail all four (method rule 20) |
-| `verify.py` | **280-check suite (279 PASS / 1 FAIL by design)**: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, provenance guards, the grain LEVEL contract (amplitude = stored rms at net density 1.0, all 465 stock-channels, plus an empirical aperture-integrated end-to-end check), edge cases. Render-heavy. ⚠ **Slicing is currently broken for any slice that does not start at 1** — a later section references a name bound in an earlier one (`NameError: _fpm`). Full runs are unaffected |
+| `verify.py` | **304-check suite (303 PASS / 1 FAIL by design)**: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, provenance guards, the grain LEVEL contract (amplitude = stored rms at net density 1.0, all 465 stock-channels, plus an empirical aperture-integrated end-to-end check), edge cases. Render-heavy. ⚠ **Slicing is currently broken for any slice that does not start at 1** — a later section references a name bound in an earlier one (`NameError: _fpm`). Full runs are unaffected |
 | `make_test_chart.py` | Synthetic chart (ramp, patches, MTF bars, specular discs) |
 | `make_period_chart.py` | Larger chart for the period stocks and the réseau |
 | `contact_sheet.png` | All stocks on the small chart |
@@ -1067,14 +1357,20 @@ structure is built to accept real data; only the numbers are provisional.
 
 ## Verification
 
-`python verify.py` → 70 checks, all passing (67 original + 3 schema-v3
-spectral checks). It confirms, among other things:
+⚠ **THIS SECTION WAS BADLY STALE AND IS REWRITTEN AS OF 2026-08-23.** It said "70 checks,
+all passing (67 original + 3 schema-v3 spectral checks)", which described the suite as it
+stood before schema v4. `python verify.py` runs a **304-check suite: 303 PASS and 1 FAIL by
+design** — the saturation-hierarchy ordering, which the owner instructed to leave alone.
+`build.py` compares the FAIL *set* against a baseline, so a NEW failure fails the build while
+the known one does not.
+
+The list below says what the suite asserts in kind; the file itself is the specification:
 
 - every characteristic curve is monotonic
 - grain reproduces the datasheet RMS granularity to within 1.3%
 - granularity rises monotonically with scan resolution and never exceeds the figure
 - 500T renders 2.54× grainier than 50D — the datasheet ratio is 2.54
-- 18% grey anchors to 18% display for all 93 stocks and all 5 print stocks
+- 18 % grey anchors to 18 % display for **all 159 stocks and all 9 print stocks**
 - red is softest and blue sharpest through a 25 c/mm target
 - halation is red-dominant and CineStill halates far more than a remjet stock
 - reversal stocks clip a wide ramp far sooner than negative stocks
@@ -1088,38 +1384,70 @@ spectral checks). It confirms, among other things:
 - deterministic for a fixed seed; survives pure black and 16 stops of overexposure
 - the emitted C++ reproduces the Python characteristic curve to 6 decimals
 
-The C++ tables were compiled with `g++ -std=c++20 -Wall -Wextra` and cross-checked
-against the Python implementation.
+The generated C++ tables are compiled by `build.py`'s last stage with `g++ -std=c++14
+-Wall -Wextra` over all 18 translation units, gated on exit 0 **and** zero bytes of compiler
+output. Four laws are cross-checked against the Python reference on every build: grain and
+MTF against the generated header and **reciprocity against the plugin's own
+`AlgoReciprocity.hpp`** (`cpp_parity.py`), plus the two DIR-coupler stages against the
+plugin's own `Algo_08_Sim.cpp` / `Algo_09_Sim.cpp` (`interimage_parity.py`).
 
 ## Known limits
+
+- **Reciprocity is a per-channel GLOBAL shift, not a per-pixel effect** (C8, 2026-08-23). Wired and
+  live, inert until `exposure_time_s` / `exposureTimeS` is set. 21 stocks carry a measured table
+  and 105 a Schwarzschild exponent. ⚠ **Real reciprocity failure is intensity dependent** -- the
+  darkest parts of a frame fail first, which is why a long exposure loses shadow separation as well
+  as speed -- and **no source in the corpus carries an intensity axis**: all 21 measured tables are
+  functions of time alone. The intensity term is therefore absent rather than estimated. ⚠ Outside a
+  table's measured range the correction is **held flat, not extrapolated**, because Kodak's own
+  tables walk the effective exponent from ~0.85 to ~0.70 across successive decades. ⚠ Only ONE
+  stock (EKTACHROME 64, from 1e-4 s) measures the high-intensity branch at all, so a flash duration
+  lands on the held-flat first entry everywhere else.
+- **The per-layer grain ladder is measured on 11 stocks and estimated on 54** (C1e, 2026-08-23).
+  Where measured, blue is **1.81-2.79x** green and red **0.75-1.05x**; `_grain_v2`'s estimate says
+  1.30x and 1.10x, i.e. wrong in magnitude for blue and in sign for red. It is deliberately not
+  rescaled: all nine measured sheets are Kodak cine negatives, and the blue ratio tracks stock
+  SPEED (500T 2.70x, 250D 2.12x, 50D 1.81x) rather than any constant a class estimate could carry.
 
 - **Display-referred input.** A JPEG or PNG has already had its highlights clipped by the
   camera, so the film's shoulder has nothing to roll off. Feed scene-referred data (EXR,
   or a raw file developed to linear) for a real improvement — this is the biggest
   remaining quality lever after datasheet calibration.
-- **MTF rolloff is measured on TWO stocks** (⚠ was one until 2026-08-20). Since 2026-08-19 (queue
-  item C2) the shape is stored and read as `1/(1+(f/f50)^q)` behind an `mtf_measured` flag; the other
-  157 stocks keep the legacy Gaussian `exp(-ln2·(f/f50)²)` bit-for-bit. The Gaussian is a fair mid-band
-  fit and badly wrong in the tail — on PLUS-X 5231 it gives 0.020 at 98 cycles/mm where the
-  sheet's own curve reads 0.245. ⚠ The adopted power law is better (0.169) but still short:
-  real emulsion tails are fatter than any two-parameter analytic form, and a sampled array
-  scored 30× better but was rejected as over-parameterised against a single traced curve.
-  **199 vector MTF pages are inventoried and 7 curves on 3 sheets are traced** (2026-08-20) — the
-  power law wins on all seven, but **q is not a family constant**: 1.84 (PLUS-X), 2.77/3.23/3.42
-  (5201 r/g/b), 1.89/2.94/3.38 (5274 r/g/b). ⚠ It clusters by **layer depth**, not by film — both
-  red records at 1.84–1.89 and both blue at 3.38–3.42, on stocks a decade apart. Queue C2b now has
-  a sharper question than it started with, and the sampled array's case is stronger, not weaker. `mtf_tail_a` / `mtf_tail_f_exp` are the
-  form C2 *rejected* on evidence (rms 0.0583 against the power law's 0.0375) and are inert.
-  ⚠ Separately unresolved: `adjacency_um` disagrees with the measured overshoot frequency on
-  **all four** stocks where it has been checked — PLUS-X 5231 peaks at 4.7 cycles/mm against a stored
-  16.0 µm, FUJI F-125 at ~9 cycles/mm against 13.0 µm, 5201 at 10.7 against 16.0, 5274 at 16.1
-  against 18.0. Systematic, same direction every time — queue C2c.
-- ⚠ **NEW 2026-08-20: every colour stock whose f50 triple is an ESTIMATE is too sharp in the red
-  record.** The estimating rule scales one measured number by a fixed layer-order ratio. Both stocks
+- **MTF is measured on EIGHT stocks and estimated on the rest, and the estimating RULE was
+  measured wrong** (C2b/C24, 2026-08-23). Eight stocks carry `mtf_measured`: PLUS-X 5231
+  (mono) and seven Kodak colour negatives with a complete traced triple. Two more (5205,
+  5293) have a measured green and blue and a refused red, so they stay on the legacy law.
+  ⚠ **The old estimating rule scaled all three records from one number by a fixed layer
+  ratio (`f50_r ≈ 0.78 × f50_b`), and seven measurements say that FORM is wrong:** red f50
+  reads 32.1 33.9 35.4 37.2 37.4 37.6 41.1 — mean **36.4, spread ±13 %** — while green
+  spreads 52 % and blue 70 %. Red does not scale with the stock's sharpness at all, which
+  reads as the bottom record being limited by scatter through the two layers above it. The
+  estimates were **1.12–1.72× too sharp in red and 0.70–0.83× too soft in blue**.
+  Five modern Kodak cine stocks (5203, 5207, 5213, 5219, 5246) had their **red re-anchored
+  to the family's 36.0 cycles/mm**; green and blue were left alone because the measured blues
+  run 0.96–1.43× their estimates with no consistent factor. ⚠ **Every other maker and every
+  pre-1990 stock keeps the old rule** — the corpus holds no per-record MTF outside Kodak
+  cine, so there is nothing to re-derive from. **63 colour stocks still carry an estimated
+  triple.**
+- **The rolloff exponent `q` is per-stock and cannot be derived.** The power law
+  `1/(1+(f/f50)^q)` beats the legacy Gaussian `exp(-ln2·(f/f50)²)` on **all 26 traced
+  curves** (1.1×–5.8×, rms 0.0095–0.132), and both are exactly 0.5 at f50 so the choice
+  carries no level change. ⚠ **C13's layer-depth hypothesis is half refuted:** the ORDERING
+  `q_R ≤ q_G ≤ q_B` holds on 8 of 8 sheets, but the magnitudes are not per-layer constants
+  (red 1.89–2.77, blue 2.38–3.42, sd 0.32–0.37) and q correlates only weakly with f50
+  (Pearson 0.39 over 23 curves). The two-stock clustering that suggested a derivation was a
+  two-sample illusion. ⚠ One stock's exponent is deliberately **not** fitted: 5279's sheet
+  prints a +42 %/+55 % adjacency overshoot and the carrier is 1.0 at zero frequency by
+  construction, so it cannot represent a curve that starts at 1.42.
+  `mtf_tail_a` / `mtf_tail_f_exp` remain the form C2 rejected on evidence and are inert.
+- ⚠ **Every colour stock whose f50 triple is an ESTIMATE is too sharp in the red record** (queue
+  **C24**, confirmed twice as of 2026-08-20c). The estimating rule scales one measured number by a fixed layer-order ratio. Both stocks
   measured per-record contradict it: 5274 measures red 35.4 against a stored 56.0 (**1.58× too
   sharp**) while its green and blue confirm to 7 %, and 5201's measured red:blue is 0.58 where the
   rule assumes ~0.78. This is a defect in the rule, not in one profile. Measured and pinned in
-  `mtf_vector.EXPECTED`, **not applied** — queue C13 needs one owner decision.
+  `mtf_vector.EXPECTED`. 5274 was **adopted** under C13 on 2026-08-20c; the remaining **92**
+  estimated triples are queue **C24**, deliberately NOT rescaled from two measurements of one Kodak
+  family.
 - **Grain σ(D) is measured for twelve stocks only** (all Kodak). The other 147 use the legacy √density law, normalised at **net** density
   1.0 since schema v9. The heuristic that fills the shape for 137 profiles is **wrong in sign
   in both branches** and is deliberately inert; fixing its signs needs its own evidence pass,

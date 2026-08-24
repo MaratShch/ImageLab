@@ -435,6 +435,21 @@ struct HalationSpec {
     float gain_g;
     float gain_b;
     float threshold_stops;   ///< soft knee position above mid grey
+    // -- schema v11 (C21, 2026-08-23): PER-CHANNEL RADIUS SCALES ---------------
+    // The gains already say how MUCH each record scatters; these say how FAR.
+    // Every stock in the file ships 1.0, so a v11 database renders bit-identically
+    // to a v10 one -- but the struct GREW, so a v10 reader would walk off the end
+    // of every HalationSpec, which is why kSchemaVersion moved with it.
+    // ⚠ WHY THEY ARE ALL 1.0 AND NOT "DERIVED FROM GEOMETRY": the base is
+    // 100-150 um thick against an 11-16 um pack, so the path-length ratio between
+    // the record nearest the base and the one furthest from it is about 1.1. A
+    // geometry-derived set would therefore LOOK measured while moving a render by
+    // roughly 1 %. What would fill these honestly is a per-channel edge trace
+    // across a specular highlight; until then the renderer takes the shared-radius
+    // fast path whenever all three are equal.
+    float radius_scale_r;
+    float radius_scale_g;
+    float radius_scale_b;
 };
 
 /// Development-Inhibitor-Releasing coupler behaviour: raises saturation without
@@ -1406,7 +1421,7 @@ def _profile_block(p: FilmProfile) -> str:
             {_curves(p.curves)},
             {{ {_f(g.rms_granularity)}, {_f(g.clump_um_r)}, {_f(g.clump_um_g)}, {_f(g.clump_um_b)}, {_f(g.clump_gain)}, {_f(g.fog_grain)}, {_f(g.anisotropy)}, {_f(g.rms_r)}, {_f(g.rms_g)}, {_f(g.rms_b)}, {_f(g.sigma_shape_toe)}, {_f(g.sigma_shape_mid)}, {_f(g.sigma_shape_dmax)}, {_f(g.sigma_shape_peak)}, {_f(g.sigma_shape_peak_at)}, {_f(g.sigma_shape_toe_at)}, {_f(g.sigma_shape_dmax_at)}, {"true" if g.sigma_shape_measured else "false"}, {_f(g.size_sigma_log)}, {_f(g.cluster_um)}, {_f(g.dye_cloud_um)} }},
             {{ {_f(m.f50_r)}, {_f(m.f50_g)}, {_f(m.f50_b)}, {_f(m.adjacency)}, {_f(m.adjacency_um)}, {_f(m.resolving_power_lp_mm_lowc)}, {_f(m.resolving_power_lp_mm_highc)}, {_f(m.mtf_rolloff_q)}, {"true" if m.mtf_measured else "false"}, {_f(m.mtf_tail_a)}, {_f(m.mtf_tail_f_exp)} }},
-            {{ {_vec3(hal.radii_um)}, {_vec3(hal.weights)}, {_f(hal.gain_r)}, {_f(hal.gain_g)}, {_f(hal.gain_b)}, {_f(hal.threshold_stops)} }},
+            {{ {_vec3(hal.radii_um)}, {_vec3(hal.weights)}, {_f(hal.gain_r)}, {_f(hal.gain_g)}, {_f(hal.gain_b)}, {_f(hal.threshold_stops)}, {_f(hal.radius_scale_r)}, {_f(hal.radius_scale_g)}, {_f(hal.radius_scale_b)} }},
             {{ {_f(cp.strength)}, {_f(cp.radius_um)}, {_f(cp.edge_strength)}, {_f(cp.edge_um)} }},
             {_matrix(p.taking_matrix)},
             {_matrix(p.dye_matrix)},

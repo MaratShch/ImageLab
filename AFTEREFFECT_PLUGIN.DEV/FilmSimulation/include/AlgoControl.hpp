@@ -422,6 +422,56 @@ struct AlgoControls
     /// shoulder do the work. RANGE -4..+4. DEFAULT 0. AE: slider.
     double exposureStops;
 
+    /// Shutter open time in SECONDS, for reciprocity failure. 0 = NOT STATED,
+    /// which disables the correction entirely and reproduces every render made
+    /// before this field existed, bit for bit. RANGE 0 (off), else 1e-5..3600.
+    /// DEFAULT 0. AE: slider, or a text field, since the useful range spans
+    /// eight decades.
+    ///
+    /// NOT a duplicate of exposureStops. That one says how much light the
+    /// cinematographer let in and moves the scene along the curve; this one says
+    /// over how long, which changes how the EMULSION RESPONDS to the same amount
+    /// of light. Beyond a stock's onset the film loses speed (low-intensity
+    /// reciprocity failure) and, on colour stock, loses it unequally per layer,
+    /// which is why a 10 s frame goes blue on EKTACHROME rather than merely
+    /// dark. Below about 1e-4 s the high-intensity branch does the same thing
+    /// from the other end.
+    ///
+    /// SECONDS RATHER THAN SHUTTER ANGLE, deliberately. Angle divided by frame
+    /// rate can only ever produce 1/1000 s to 1/24 s, and every sheet in the
+    /// corpus prints "no correction needed" across exactly that span -- so an
+    /// angle control would be a knob that provably never does anything. The
+    /// corrections live where a still photographer works (multi-second
+    /// exposures) or where a strobe does (tens of microseconds), and only a time
+    /// in seconds reaches either. A shutter-angle convenience that WRITES this
+    /// field is a reasonable thing to add on top; it is not a substitute for it.
+    ///
+    /// WHAT IT DOES NOT MODEL, stated because the limit is a data limit and not
+    /// an implementation one: the correction is per CHANNEL and GLOBAL, not per
+    /// pixel. Real reciprocity failure is intensity dependent -- the darkest
+    /// parts of a frame fail first, so a long exposure loses shadow separation
+    /// as well as speed -- but all six measured tables in the database are
+    /// functions of time alone, and no source on file carries an intensity axis
+    /// to calibrate against. See AlgoReciprocity.hpp.
+    double exposureTimeS;
+
+    /// How DIRECTIONAL the reader's optics are, for Callier's coefficient.
+    /// 0 = a diffuse integrating sphere; 1 = a condenser or point source, which
+    /// sees the stock's full Callier Q. RANGE 0..1. DEFAULT 0, which reproduces
+    /// every render made before this field existed, bit for bit.
+    ///
+    /// ⚠ IT DOES NOTHING ON COLOUR STOCK, BY CONSTRUCTION rather than by
+    /// omission: Callier is silver scattering and a chromogenic dye image has
+    /// essentially none, so all 93 colour profiles carry Q = 1.0. It moves the
+    /// 66 monochrome ones, where a condenser steepens the tone scale by up to
+    /// 22 % while mid grey stays put (the print re-times itself, as a lab would).
+    ///
+    /// ⚠ THE FILM HALF OF THE PRODUCT IS A CLASS ESTIMATE: the two monochrome Q
+    /// values are a generator rule, not a document. The geometry half is exact.
+    /// That is why the default is 0 rather than some "typical scanner" value.
+    /// See AlgoCallier.hpp. AE control: slider.
+    double scannerSpecular;
+
     /// Colour temperature of the light on the subject, kelvin. Combined with
     /// the stock's balance_kelvin this produces the per-layer exposure
     /// mismatch -- daylight on tungsten stock goes blue because of Planck's

@@ -88,8 +88,66 @@ if _sec_on():
     # vector granularity sheet and the first carrying a stock not already held)
     # and FUJI_SUPER_F125_8532 (queue item C6). Both owner-approved in one batch
     # precisely so the ListBox shifts ONCE.
-    chk("159 stocks load and validate", len(FILM_PROFILES) == 159, f"n={len(FILM_PROFILES)}")
-    chk("9 print stocks load", len(PRINT_STOCKS) == 9, f"n={len(PRINT_STOCKS)}")
+    # ⚠ 159 -> 161 on 2026-08-24: EASTMAN_TRI_X_5223 and KODAK_8374, the two BBC
+    # T-101 emulsions this file had been carrying as footnotes on other stocks
+    # (queue item #30). Owner-approved in one batch, again so the ListBox shifts
+    # ONCE. KODAK_5302 went in the same pass but is a PrintStock, so it does not
+    # appear in film_names.txt and moves no index.
+    # ⚠ 161 -> 160 on 2026-08-24, LATER THE SAME DAY: FUJI_F125_8630 removed
+    # (owner-approved). It was a gauge clone of FUJI_F125_8530, and Fuji's own
+    # four-digit code rule -- printed in «Техника кино и телевидения» 1989 No.4
+    # p70 -- makes the second digit the GAUGE, so the two were never separate
+    # emulsions. That is a SECOND ListBox shift in one day; both were signed off
+    # individually and the file_names digest moved twice.
+    # ⚠ `default_format` IS A KEY INTO FORMAT_GEOM AND NOTHING CHECKED IT until
+    # 2026-08-20. Two profiles added that day carried "35mm" -- a human-readable
+    # string, not a key -- and film_sim.py died with KeyError: '35mm' on the
+    # px/mm calculation. It got through the whole build because the field is a
+    # free-form `str`, `FilmProfile.validate()` never looked at it, and every
+    # audit and every render-based check either names its own format explicitly
+    # or happens to test a stock whose key is valid. A typo in a string field
+    # that indexes another dict is exactly what a cheap guard is for.
+    _fmt_bad = sorted("%s=%r" % (p.name, p.default_format)
+                      for p in FILM_PROFILES
+                      if p.default_format not in film_profiles.FORMAT_GEOM)
+    chk("every default_format is a real FORMAT_GEOM key",
+        not _fmt_bad, ", ".join(_fmt_bad[:5]) if _fmt_bad
+        else "%d stocks, %d distinct keys, all valid"
+             % (len(FILM_PROFILES),
+                len({p.default_format for p in FILM_PROFILES})))
+
+    # And the converse property that makes the guard above sufficient: every
+    # stored key must resolve through the same lookups the renderer uses. The
+    # KeyError was thrown on film_sim's CLI path, which no check exercised.
+    # ⚠ ZERO FRAME PITCH IS CORRECT for a still format -- sheet film and
+    # Polaroid have no cine frame advance, so `frame_pitch_mm` returns 0.0 for
+    # large4x5 / medium645 / polaroid_pack / polaroid_sx70. The first version of
+    # this guard demanded a positive pitch everywhere and failed on all four:
+    # the guard was wrong, not the data. Width must be positive for every
+    # format; pitch must be non-negative, and positive for the cine keys, which
+    # is where the renderer actually advances the coating field frame to frame.
+    _CINE = {"ff35", "super35", "academy35", "anamorphic35", "techni35",
+             "16mm", "super16", "8mm", "super8", "imax15"}
+    _fmt_fail = []
+    for _k in sorted({p.default_format for p in FILM_PROFILES}):
+        try:
+            _w = film_profiles.FORMATS[_k]
+            _p = film_profiles.frame_pitch_mm(_k)
+            if not _w > 0.0:
+                _fmt_fail.append("%s width %.3f" % (_k, _w))
+            if _p < 0.0:
+                _fmt_fail.append("%s pitch %.3f" % (_k, _p))
+            if _k in _CINE and not _p > 0.0:
+                _fmt_fail.append("%s is cine but pitch %.3f" % (_k, _p))
+        except Exception as _e:
+            _fmt_fail.append("%s -> %s" % (_k, _e))
+    chk("every stored format resolves; cine keys carry a frame pitch",
+        not _fmt_fail, "; ".join(_fmt_fail) if _fmt_fail
+        else "%d distinct keys resolve, stills correctly pitch 0"
+             % len({p.default_format for p in FILM_PROFILES}))
+
+    chk("160 stocks load and validate", len(FILM_PROFILES) == 160, f"n={len(FILM_PROFILES)}")
+    chk("10 print stocks load", len(PRINT_STOCKS) == 10, f"n={len(PRINT_STOCKS)}")
     rev = [p.name for p in FILM_PROFILES if p.is_reversal]
     # 2026-08-13: 22 -> 23 (AGFA_SCALA_200X, B&W reversal, added).
     # 2026-08-13: 23 -> 26. Cheltsov & Bongard 1958 added three reversal
@@ -755,7 +813,12 @@ if _sec_on():
     # sigma_shape_measured flag, and the sigma(D) shape is now READ by the
     # renderer for the profiles that set the flag. Bumping the version is what
     # tells a consumer of the generated C++ that the struct layout moved.
-    chk("schema version is 10", _fpm.SCHEMA_VERSION == 10, f"v={_fpm.SCHEMA_VERSION}")
+    # v11, 2026-08-23 (queue item C21): HalationSpec gained radius_scale_r/g/b.
+    # All 160 stocks ship them at 1.0, so a v11 database renders bit-identically
+    # to v10 -- but the STRUCT GREW, so a v10 consumer reading v11 data would
+    # walk off the end of every HalationSpec. That is the whole reason this
+    # constant exists and the reason it moves even when no pixel does.
+    chk("schema version is 11", _fpm.SCHEMA_VERSION == 11, f"v={_fpm.SCHEMA_VERSION}")
     _iact = [p for p in FILM_PROFILES if p.interimage.active]
     chk("interimage active only on colour tripacks",
         all(not p.is_monochrome and p.reseau is None
@@ -795,6 +858,72 @@ if _sec_on():
          and abs(_pp.a_br - _pp.a_bg) < 1e-12),
         "US4725529A Table 1: no layer stack, asymmetry persists -- "
         "so donor identity carries no weighting")
+
+    # ---- C21, 2026-08-23: schema v11, per-channel halation radii ------------
+    # ⚠ THE POINT OF THESE GUARDS IS THAT THE FIELDS ARE ALL 1.0 AND MUST STAY
+    # THERE UNTIL SOMETHING IS MEASURED. The path-length argument bounds the real
+    # per-channel ratio at about 1.1 (base 100-150 um against an 11-16 um pack),
+    # so a geometry-derived set would look measured while moving a render ~1 %.
+    # The temptation to "finish the feature" by filling them from the layer order
+    # is exactly what this catches.
+    _rs = [(p.name, p.halation.radius_scales()) for p in FILM_PROFILES]
+    _rs_bad = [n for n, t in _rs if t != (1.0, 1.0, 1.0)]
+    chk("every stock still ships halation radius scales of exactly 1.0",
+        not _rs_bad, ", ".join(_rs_bad[:4]) if _rs_bad
+        else "%d stocks, v11 renders bit-identically to v10" % len(_rs))
+    chk("the shared-radius fast path is taken on every stock",
+        all(p.halation.radii_are_shared for p in FILM_PROFILES),
+        "160 of 160 -- one kernel per frame, not three")
+    # And the accessor must actually multiply, or the field would be inert by
+    # accident rather than by data. Probed off-database so no stock changes.
+    _hs = film_profiles.HalationSpec(radii_um=(10.0, 50.0, 200.0),
+                                     radius_scale_r=0.5, radius_scale_b=2.0)
+    chk("radii_for() scales the physical radius per record",
+        (_hs.radii_for(0) == (5.0, 25.0, 100.0)
+         and _hs.radii_for(1) == (10.0, 50.0, 200.0)
+         and _hs.radii_for(2) == (20.0, 100.0, 400.0)
+         and not _hs.radii_are_shared),
+        "0.5x / 1.0x / 2.0x, and the fast path correctly refused")
+
+    # ---- C22, 2026-08-23: Callier's coefficient -----------------------------
+    # 1. Inert by default, EXACTLY, on every stock. This is the assertion that
+    # every render made before the stage existed is still reproducible.
+    chk("Callier is exactly inert at scanner_specular = 0",
+        all(fs._callier_factor(p, 0.0) == 1.0 for p in FILM_PROFILES),
+        "160 of 160, factor exactly 1.0")
+    # 2. ⚠ AND INERT AT *ANY* SETTING ON COLOUR. Q is silver scattering; a
+    # chromogenic dye image does not scatter, which is why all 93 colour stocks
+    # carry Q = 1.0. If a future edit gave one of them a Q, colour renders would
+    # start responding to a scanner control that has no business touching them.
+    _col = [p for p in FILM_PROFILES if not p.is_monochrome]
+    _col_moved = [p.name for p in _col
+                  if any(fs._callier_factor(p, s) != 1.0
+                         for s in (0.25, 0.6, 1.0))]
+    chk("no colour stock responds to Callier at any specular setting",
+        not _col_moved, ", ".join(_col_moved[:4]) if _col_moved
+        else "%d colour stocks, Q = 1.0 on all of them" % len(_col))
+    # 3. The monochrome stocks DO respond, or the stage models nothing.
+    _mono_moved = sum(1 for p in FILM_PROFILES
+                      if p.is_monochrome and fs._callier_factor(p, 1.0) != 1.0)
+    chk("the monochrome stocks are the ones Callier moves",
+        _mono_moved >= 60, "%d stocks move at specular 1.0" % _mono_moved)
+    # 4. ⚠ THE dmin REFERENCE, which is the part that is easy to get wrong and
+    # invisible when it is: `dmin + (D - dmin) * k` and `D * k` agree only at
+    # D = dmin. Referenced to zero, a condenser would darken CLEAR FILM BASE,
+    # which no densitometer measures. Probed on a stock with Q != 1.
+    _dx = get_profile("EASTMAN_DOUBLE_X_5222")
+    _kf = fs._callier_factor(_dx, 1.0)
+    _dmn = _dx.curves.g.dmin
+    _at_base = _dmn + (_dmn - _dmn) * _kf
+    chk("Callier is the identity at dmin -- clear base carries no silver",
+        abs(_at_base - _dmn) < 1e-12 and _kf > 1.0,
+        "factor %.3f, base density unmoved" % _kf)
+    # 5. It must STEEPEN, never lighten: Q >= 1 for every stock in the file,
+    # because scattering can only send light out of the acceptance angle.
+    _q_bad = [p.name for p in FILM_PROFILES if p.callier_q < 1.0]
+    chk("no stock carries a Callier Q below 1.0",
+        not _q_bad, ", ".join(_q_bad[:4]) if _q_bad
+        else "min Q %.2f" % min(p.callier_q for p in FILM_PROFILES))
 
     # the load-bearing property: neutrals untouched, saturated colour separates
     _stI = fs.RenderSettings(film_format="ff35", grain_scale=0.0, print_grain=False,
@@ -1087,19 +1216,41 @@ if _sec_on():
     # which matters because the two numbers are entered from different places
     # (MTFSpec in the profile, _RESOLVING_POWER in a separate dict) and nothing
     # else ties them together.
+    # ⚠ COMPARED ON THE GREEN RECORD SINCE 2026-08-23 (C2b), AND THE REASON IS A
+    # REAL CONFLICT THIS TEST SURFACED. The first measured per-record triples put
+    # 5245's BLUE f50 at 100.5 and 5293's at 114.6 against a stored limiting
+    # resolution of 100 lines/mm for both, so the max-of-three form failed.
+    # The two quantities are not the same measurement: ISO 6328 resolving power is
+    # read off a developed bar target as ONE number for the composite three-layer
+    # image, while f50 is per record. A blue record individually sharper than the
+    # composite limit is ordinary -- the composite is dragged down by the red
+    # record, which every measurement now puts near 36 cycles/mm. Green is the
+    # visually weighted record and the defensible single-number comparison.
+    # ⚠ AND THE STORED LIMIT IS THE WEAKER NUMBER OF THE TWO HERE: 5248's sheet
+    # prints its pair in text ("TOC 1.6:1 / TOC 1000:1 -- 80 lines/mm /
+    # 160 lines/mm") and agrees with the stored (80, 160); 5245's and 5293's
+    # sheets print no "lines/mm" text at all, so their stored (50, 100) cannot be
+    # confirmed from the documents on file. Recorded rather than deleted.
     _mtf_bad = []
+    _mtf_note = []
     for _p in FILM_PROFILES:
         _rp = film_profiles._RESOLVING_POWER.get(_p.name)
         if not _rp or not _rp[1]:
             continue
-        _f50 = max(_p.mtf.f50_r, _p.mtf.f50_g, _p.mtf.f50_b)
-        if _f50 >= _rp[1]:
-            _mtf_bad.append("%s f50=%.0f >= limit=%.0f" % (_p.name, _f50, _rp[1]))
-    chk("f50 stays below published limiting resolution on every stock with both",
+        if _p.mtf.f50_g >= _rp[1]:
+            _mtf_bad.append("%s green f50=%.0f >= limit=%.0f"
+                            % (_p.name, _p.mtf.f50_g, _rp[1]))
+        elif _p.mtf.f50_b >= _rp[1]:
+            _mtf_note.append("%s blue %.0f vs limit %.0f"
+                             % (_p.name.split("_")[-1], _p.mtf.f50_b, _rp[1]))
+    chk("green f50 stays below published limiting resolution on every stock "
+        "with both",
         not _mtf_bad, "; ".join(_mtf_bad) or
-        "%d stocks carry both figures, all consistent"
-        % sum(1 for _p in FILM_PROFILES
-              if film_profiles._RESOLVING_POWER.get(_p.name, (0, 0))[1]))
+        ("%d stocks carry both figures, all consistent"
+         % sum(1 for _p in FILM_PROFILES
+               if film_profiles._RESOLVING_POWER.get(_p.name, (0, 0))[1])
+         + ("; blue exceeds the composite limit on " + ", ".join(_mtf_note)
+            + " -- per-record vs composite metric, recorded" if _mtf_note else "")))
 
 
     # -----------------------------------------------------------------------
@@ -1297,7 +1448,7 @@ if _sec_on():
         all(hasattr(get_profile("KODAK_PORTRA_400"), _n) for _n in
             ("dye_density", "layer_stack", "processing_family",
              "reciprocity_table"))
-        and film_profiles.SCHEMA_VERSION == 10,
+        and film_profiles.SCHEMA_VERSION == 11,
         "SCHEMA_VERSION=%d" % film_profiles.SCHEMA_VERSION)
 
     # ---- 2026-08-17: measured per-channel grain must survive _grain_v2 ----
@@ -1923,13 +2074,16 @@ if _sec_on():
 
     # 4. ⚠ q IS NOT A FAMILY CONSTANT, and this is the evidence. C2 adopted the
     # power-law rolloff on ONE curve at q = 1.84 and C2b asks whether several
-    # curves agree. 5201's three measure 2.77 / 3.23 / 3.42, so they do not. The
-    # guard pins the DISAGREEMENT so that a future "let's just use 1.84
-    # everywhere" simplification fails loudly instead of looking tidy.
-    chk("the two measured rolloff exponents disagree, as measured",
-        abs(_p01.mtf.mtf_rolloff_q
-            - get_profile("EASTMAN_PLUS_X_5231").mtf.mtf_rolloff_q) > 1.0,
-        "5231 q = 1.84 vs 5201 q = 3.23 -- queue C2b has its answer forming")
+    # curves agree. They do not: 5201's three records measure 2.77 / 3.23 / 3.42
+    # and 5274's 1.89 / 2.94 / 3.38. The guard pins the SPREAD so that a future
+    # "let's just use 1.84 everywhere" simplification fails loudly rather than
+    # looking tidy. Stated as a spread over every measured stock so it does not go
+    # stale the next time one is added -- it said "the two" until 2026-08-20c and
+    # there are now three.
+    _qs = sorted(p.mtf.mtf_rolloff_q for p in FILM_PROFILES if p.mtf.mtf_measured)
+    chk("the measured rolloff exponents span more than 1.0, as measured",
+        len(_qs) >= 2 and (_qs[-1] - _qs[0]) > 1.0,
+        "q = " + " / ".join("%.2f" % q for q in _qs))
 
     # 5. Blue grain is 2.14x green here. The finding that mattered under C1d was
     # that the old tier-2 ladder's 1.3x understated the top layer badly; 5201 is
@@ -1968,17 +2122,54 @@ if _sec_on():
         "rms 3.0 at net 1.0, EI 125 at 3200 K")
 
     # 8. ⚠ 8532's SHARPNESS PANEL IS A CONTRAST TRANSFER FUNCTION measured
-    # against a RECTANGULAR wave chart, not a sine-wave MTF -- it runs above the
-    # MTF by up to 4/pi at low frequency. Reading f50 off it would overstate
-    # sharpness, so the f50 triple is an explicit transfer from 8530 and the
-    # stock must NOT be flagged mtf_measured. This is the unit hazard from G6 in
-    # a different guise, and the guard is what stops someone "finishing the job"
-    # by flagging it.
-    chk("8532 is not flagged mtf_measured -- its panel is a CTF, not an MTF",
-        not _f32.mtf.mtf_measured
-        and abs(_f32.mtf.f50_g - get_profile("FUJI_F125_8530").mtf.f50_g) < 1e-9
-        and "rectangular" in _f32.provenance.sources[0].lower(),
-        "f50 transferred from 8530, CTF hazard recorded")
+    # against a RECTANGULAR wave chart, not a sine-wave MTF -- it runs ABOVE the
+    # MTF, so reading f50 straight off it would overstate sharpness. Until
+    # 2026-08-23 this guard therefore demanded the opposite of what it demands
+    # now: it required NOT mtf_measured and required f50_g to equal 8530's, and
+    # it existed to stop someone "finishing the job" by flagging a square-wave
+    # curve as an MTF.
+    #   THE JOB IS NOW FINISHED PROPERLY, so the guard is inverted rather than
+    # deleted, and it keeps guarding the same hazard from the other side: the
+    # panel is converted by Coltman's square-to-sine inversion, f50_g is the
+    # SINE 32.07 c/mm, and the stock must now be flagged -- but it must NOT have
+    # simply inherited the printed 37.78 CTF crossing, and it must no longer
+    # equal 8530's transferred 42.0. Both of those are what this checks. The
+    # citation must still carry the word "rectangular", because that word is the
+    # reason a conversion was needed at all.
+    _f72 = get_profile("FUJICOLOR_SUPER_F500_8572")
+    chk("8532's f50 is the Coltman SINE conversion, not the printed CTF crossing",
+        _f32.mtf.mtf_measured
+        and abs(_f32.mtf.f50_g - 32.07) < 1e-9
+        and abs(_f32.mtf.f50_g - 37.78) > 1.0
+        and abs(_f32.mtf.f50_g - get_profile("FUJI_F125_8530").mtf.f50_g) > 1.0
+        and "rectangular" in _f32.provenance.sources[0].lower()
+        and "coltman" in _f32.provenance.sources[0].lower(),
+        "sine f50 32.07 vs printed CTF 37.78, conversion cited")
+    # The sister sheet gets the same treatment and the same guard. Its printed
+    # CTF crosses at 24.79 and the converted sine f50 is 20.21; if either stock
+    # were ever "corrected" back to its printed crossing, this catches it.
+    chk("8572's f50 is the Coltman SINE conversion too",
+        _f72.mtf.mtf_measured
+        and abs(_f72.mtf.f50_g - 20.21) < 1e-9
+        and abs(_f72.mtf.f50_g - 24.79) > 1.0
+        and "coltman" in _f72.provenance.sources[0].lower(),
+        "sine f50 20.21 vs printed CTF 24.79")
+    # A converted CTF must land BELOW its own printed crossing -- that is the
+    # direction of the whole correction, and getting the sign backwards is the
+    # single most likely way to misapply Coltman. Both stocks, both directions.
+    chk("both converted stocks are softer than their printed CTF says",
+        _f32.mtf.f50_g < 37.78 and _f72.mtf.f50_g < 24.79,
+        "32.07 < 37.78 and 20.21 < 24.79")
+    # ⚠ THE MEASURED 8532 IS SOFTER THAN THE 8530 IT SUPERSEDES (32.07 against
+    # Honjo's 42.0) WHILE FUJI'S OWN PAGE SELLS IT ON "dramatically increased
+    # sharpness". Method rule 4 says record the conflict, never average, so the
+    # guard PINS the contradiction: if some later pass quietly nudges 8532 up
+    # toward 42 to make the marketing copy come true, this fails.
+    chk("the 8532-vs-8530 sharpness conflict is preserved, not averaged",
+        _f32.mtf.f50_g < get_profile("FUJI_F125_8530").mtf.f50_g
+        and abs(get_profile("FUJI_F125_8530").mtf.f50_g - 42.0) < 1e-9
+        and "contradicts" in "".join(_f32.provenance.sources).lower(),
+        "8532 32.07 < 8530 42.0, contradiction recorded in the citation")
 
     # 9. Fuji states the failure is achromatic -- "does not need lens opening
     # adjustment nor filtration" -- so unlike the Kodak entries this one must
@@ -1996,10 +2187,14 @@ if _sec_on():
     # `_UNTAGGED_TIER` -- and if that entry is ever dropped the profile silently
     # falls back to 3, which is the bug this closes. 8532 is checked alongside it
     # for the same reason.
+    # 8532 MOVED 2 -> 1 ON 2026-08-23 when its curves and green f50 stopped
+    # being transfers from 8530 and became traces of its own sheet. The guard
+    # keeps checking that the mixed-tag regex does not silently drop either
+    # profile to 3; only the expected tier changed.
     chk("the C5 re-tier and 8532's tier survive the mixed-tag regex",
         get_profile("EASTMAN_5247_1983").provenance.tier == 1
-        and _f32.provenance.tier == 2,
-        "5247_1983 -> tier 1, 8532 -> tier 2")
+        and _f32.provenance.tier == 1,
+        "5247_1983 -> tier 1, 8532 -> tier 1")
 
     # ⚠ THE SHAPE IS NOT THE HEURISTIC'S SHAPE -- the same check that mattered for
     # 5285. _grain_v2 gives colour negative 0.40 / 1.00 / 1.20 (rising to dmax);
@@ -2088,19 +2283,150 @@ if _sec_on():
 
     # 3. Exactly the traced stock may use the measured law.
     _mmeas = sorted(p.name for p in FILM_PROFILES if p.mtf.mtf_measured)
-    # ⚠ 1 -> 2 on 2026-08-20, which is queue item C2b starting to move.
-    # KODAK_VISION2_50D_5201 is the first COLOUR stock with a traced MTF, so it
-    # is also the first whose f50_r / f50_g / f50_b are three measurements rather
-    # than one estimate scaled by a stored layer-order ratio.
-    chk("only the 2 vector-traced stocks are flagged mtf_measured",
-        _mmeas == ["EASTMAN_PLUS_X_5231", "KODAK_VISION2_50D_5201"],
+    # ⚠ 1 -> 2 -> 3. 5201 arrived on 2026-08-20 (first COLOUR stock with a traced
+    # MTF, so the first whose three f50 values are three measurements rather than
+    # one estimate scaled by a stored ratio); 5274 on 2026-08-20c under C13.
+    # ⚠ 1 -> 2 -> 3 -> 8. C2b added five colour sheets on 2026-08-23 (5217, 5218,
+    # 5245, 5248, 5279). This list MIRRORS mtf_vector.SHEETS: a stock may carry the
+    # flag only if that audit re-derives its curve from the sheet on every build.
+    # Two stocks measured in the same pass are deliberately NOT here -- 5205 and
+    # 5293 have a measured green and blue but a REFUSED red, so their triple is
+    # mixed provenance and they keep the legacy Gaussian.
+    # ⚠ 8 -> 10, 2026-08-23 (F-125 pass). The two Fuji Super-F stocks join on a
+    # DIFFERENT footing and the distinction is load-bearing, so it is named here
+    # rather than left to the field comments: the eight Kodak stocks are traced
+    # from SINE-WAVE MTF panels that carry three labelled records, so all three
+    # of their f50 values are measurements. The Fuji sheets print ONE unlabelled
+    # CONTRAST TRANSFER FUNCTION each, so only green is measured (after Coltman
+    # conversion) and red/blue are flanking transfers. Every guard below that
+    # reasons about MEASURED RED must therefore exclude them -- see
+    # _GREEN_ONLY_MEASURED.
+    chk("exactly the 10 vector-traced stocks are flagged mtf_measured",
+        _mmeas == ["EASTMAN_EXR_100T_5248", "EASTMAN_EXR_50D_5245",
+                   "EASTMAN_PLUS_X_5231", "FUJICOLOR_SUPER_F500_8572",
+                   "FUJI_SUPER_F125_8532", "KODAK_VISION2_200T_5217",
+                   "KODAK_VISION2_500T_5218", "KODAK_VISION2_50D_5201",
+                   "KODAK_VISION_200T_5274", "KODAK_VISION_500T_5279"],
         ", ".join(_mmeas))
-    # And a flagged stock must actually carry a usable exponent, or the flag is a
-    # lie that silently falls back to the Gaussian.
+
+    # The two green-only stocks, and the assertion that their red and blue really
+    # are the flanking ratios their comments claim -- if someone ever "measures"
+    # those, they must remove the name from this set, and this guard is what
+    # forces that edit to be deliberate.
+    _GREEN_ONLY_MEASURED = {"FUJI_SUPER_F125_8532", "FUJICOLOR_SUPER_F500_8572"}
+    _flank_bad = []
+    for _n, _rr, _rb in (("FUJI_SUPER_F125_8532", 0.8976, 1.0762),
+                         ("FUJICOLOR_SUPER_F500_8572", 0.8214, 1.1071)):
+        _m = get_profile(_n).mtf
+        if (abs(_m.f50_r / _m.f50_g - _rr) > 0.005
+                or abs(_m.f50_b / _m.f50_g - _rb) > 0.005):
+            _flank_bad.append("%s r/g=%.4f b/g=%.4f" % (
+                _n, _m.f50_r / _m.f50_g, _m.f50_b / _m.f50_g))
+    chk("the two green-only stocks keep their declared flanking ratios",
+        not _flank_bad, "; ".join(_flank_bad) if _flank_bad
+        else "8532 0.8976/1.0762, 8572 0.8214/1.1071")
+    chk("every green-only stock is flagged measured and keeps r < g < b",
+        all(get_profile(n).mtf.mtf_measured
+            and get_profile(n).mtf.f50_r < get_profile(n).mtf.f50_g
+            < get_profile(n).mtf.f50_b for n in _GREEN_ONLY_MEASURED),
+        "2 of 2, layer order intact")
+
+    # ---- C13, 2026-08-20c: what the 5274 adoption must not lose ---------------
+    _p74 = get_profile("KODAK_VISION_200T_5274")
+    # 1. the measured triple itself, and the ordering it confirms
+    chk("5274 carries its measured f50 triple, red softest",
+        (abs(_p74.mtf.f50_r - 35.4) < 1e-9
+         and abs(_p74.mtf.f50_g - 68.8) < 1e-9
+         and abs(_p74.mtf.f50_b - 74.0) < 1e-9
+         and _p74.mtf.f50_r < _p74.mtf.f50_g < _p74.mtf.f50_b),
+        "35.4 < 68.8 < 74.0 cycles/mm")
+
+    # 2. ⚠ THE FINDING THAT OUTLIVES THIS PROFILE. The estimating rule puts
+    # f50_r/f50_b near 0.78; both measured stocks land far below it. If a future
+    # edit "tidies" 5274 back toward the family ratio this fails, and it is the
+    # only place that comparison is recorded as an assertion rather than prose.
+    # ⚠ EXCLUDES _GREEN_ONLY_MEASURED. The two Fuji stocks' red and blue ARE the
+    # estimating-ratio family (they were derived from a stored ratio), so leaving
+    # them in would make this guard test its own input and it would pass or fail
+    # for the wrong reason.
+    _meas_ratio = [(p.name, p.mtf.f50_r / p.mtf.f50_b)
+                   for p in FILM_PROFILES
+                   if p.mtf.mtf_measured and not p.is_monochrome
+                   and p.mtf.f50_b > 0 and p.name not in _GREEN_ONLY_MEASURED]
+    chk("every measured colour stock is softer in red than the estimating rule",
+        all(r < 0.65 for _, r in _meas_ratio) and len(_meas_ratio) >= 7,
+        "; ".join("%s %.3f" % (n.split("_")[-1], r) for n, r in _meas_ratio)
+        + " vs the rule's ~0.78")
+
+    # ⚠ C2b/C24, 2026-08-23: THE FINDING THAT REPLACED THE RATIO. Seven measured
+    # red records span 32.1-41.1 cycles/mm -- mean 36.4, +-13 % -- while green
+    # spreads 52 % and blue 70 %. So red is a CONSTANT of the family and not a
+    # fraction of blue, which is why no value of k in `f50_r = k * f50_b` fits and
+    # why the five re-anchored profiles carry exactly 36.0. This asserts the
+    # constancy itself, because that is the claim the re-anchoring rests on.
+    # ⚠ EXCLUDES _GREEN_ONLY_MEASURED for the same reason, and the exclusion is
+    # not a convenience: 8572's transferred red is 16.6 c/mm, which would drag
+    # the "clustered near 36" claim to a 73 % spread and destroy a finding that
+    # is about MEASURED reds. It is also a Fuji family, and C24's anchor was
+    # derived from Kodak cine negatives -- mixing them is exactly the
+    # class-estimate error C24 refused.
+    _mr = [p.mtf.f50_r for p in FILM_PROFILES
+           if p.mtf.mtf_measured and not p.is_monochrome
+           and p.name not in _GREEN_ONLY_MEASURED]
+    chk("the measured red records stay clustered near 36 cycles/mm",
+        len(_mr) >= 7 and (max(_mr) - min(_mr)) / (sum(_mr) / len(_mr)) < 0.30,
+        "red f50 %s, mean %.1f, spread %.0f %%"
+        % ("/".join("%.1f" % v for v in sorted(_mr)), sum(_mr) / len(_mr),
+           100.0 * (max(_mr) - min(_mr)) / (sum(_mr) / len(_mr))))
+
+    # And the five stocks that took the family anchor must carry it EXACTLY, so a
+    # later edit cannot drift them back toward a ratio without failing here.
+    _anch = {"KODAK_VISION3_50D_5203", "KODAK_VISION3_250D_5207",
+             "KODAK_VISION3_200T_5213", "KODAK_VISION3_500T_5219",
+             "KODAK_VISION_250D_5246"}
+    _mixed = {"KODAK_VISION2_250D_5205", "EASTMAN_EXR_200T_5293"}
+    _bad_anchor = [n for n in sorted(_anch | _mixed)
+                   if abs(get_profile(n).mtf.f50_r - 36.0) > 1e-9]
+    chk("the 7 family-anchored red records are exactly 36.0 cycles/mm",
+        not _bad_anchor, ", ".join(_bad_anchor) if _bad_anchor
+        else "5 re-anchored + 2 mixed-provenance stocks")
+
+    # ⚠ AND THE ANCHOR MUST NOT ESCAPE ITS FAMILY. It was derived from Kodak cine
+    # colour negatives whose blue sits inside the measured 55-111 range; applying
+    # it to a softer or older stock would be the class-estimate error C24 refused.
+    # EASTMAN_EXR_500T_5296 (blue 42) is the nearest excluded neighbour and is
+    # named here so a future "finish the family" pass fails instead of guessing.
+    chk("the family anchor stayed out of the excluded stocks",
+        abs(get_profile("EASTMAN_EXR_500T_5296").mtf.f50_r - 30.0) < 1e-9,
+        "5296 keeps its own 30.0 -- blue 42 is below the measured range")
+
+    # 3. ⚠ THE LAYER-DEPTH CLAIM, CORRECTED BY C2b ON 2026-08-23. Off two stocks
+    # this suite recorded that "both red records cluster at 1.84-1.89 and both
+    # blues at 3.38-3.42", and C13 asked whether q could therefore be DERIVED from
+    # the layer stack. With seven stocks the ORDERING survives -- q_R <= q_G <= q_B
+    # on 8 of 8 sheets that yield two or more records -- but the magnitudes do not:
+    # red spans 1.89-2.77 and blue 2.38-3.42 (sd 0.32-0.37), and q correlates only
+    # weakly with f50 (Pearson 0.39 over 23 curves). So q is NOT derivable and
+    # stays per-stock measured. What is asserted here is the spread: no two stocks
+    # may have been collapsed onto a shared constant.
+    _qs = sorted(round(p.mtf.mtf_rolloff_q, 4) for p in FILM_PROFILES
+                 if p.mtf.mtf_measured and p.mtf.mtf_rolloff_q > 0.0)
+    chk("the measured rolloff exponents are distinct and spread over 1.0",
+        len(set(_qs)) == len(_qs) and (_qs[-1] - _qs[0]) > 1.0,
+        "q = " + " / ".join("%.2f" % q for q in _qs))
+    # And a flagged stock must carry a usable exponent OR be the one documented
+    # exception, because the flag otherwise silently falls back to the Gaussian.
+    # ⚠ 5279 IS THAT EXCEPTION AND IT IS PHYSICS, NOT AN OVERSIGHT: its sheet
+    # prints a +42 %/+55 % adjacency overshoot, and the carrier 1/(1+(f/f50)^q) is
+    # 1.0 at zero frequency by construction, so it cannot represent a curve that
+    # starts at 1.42 -- the fit returns rms 0.25 against 0.0095-0.132 elsewhere.
+    # Its measured f50 triple and measured overshoot are used; its rolloff is not.
     _mq = [p.name for p in FILM_PROFILES
            if p.mtf.mtf_measured and not p.mtf.mtf_rolloff_q > 0.0]
-    chk("every mtf_measured stock carries a rolloff exponent",
-        not _mq, ", ".join(_mq) if _mq else "q > 0 where the flag is set")
+    chk("every mtf_measured stock carries a rolloff exponent, bar the one "
+        "documented exception",
+        _mq == ["KODAK_VISION_500T_5279"],
+        ", ".join(_mq) if _mq else "q > 0 where the flag is set")
 
     # 4. The measured law must beat the Gaussian ON THE TRACED CURVE, which is the
     # only reason it was adopted. Three points read off H-1-5231 p3 by
@@ -2352,8 +2678,30 @@ if _sec_on():
         any(r.lo < 0.0 for r in _ln8.ratios),
         "min lo = %.2f" % min(r.lo for r in _ln8.ratios))
     _rt = [p for p in FILM_PROFILES if p.reciprocity_table.has_data]
-    chk("6 reciprocity tables carry the Kodak/Kentmere/Konica time series",
-        len(_rt) == 6, ", ".join(p.name for p in _rt))
+    # ⚠ WAS "len == 6" UNTIL 2026-08-23 AND WENT STALE THE MOMENT C8 ADDED THE
+    # FIFTEEN VENDOR-SHEET TABLES -- the same count-versus-property failure this
+    # suite has now hit three times (the interimage per-distance guard, the "two
+    # measured exponents" guard, this one). Stated as properties every table must
+    # have, plus the six originals as a SUBSET that must not vanish.
+    _rt_bad = []
+    for _p in _rt:
+        _t = _p.reciprocity_table
+        if len(_t.times_s) != len(_t.stops_correction):
+            _rt_bad.append("%s ragged" % _p.name)
+        if list(_t.times_s) != sorted(_t.times_s):
+            _rt_bad.append("%s times not ascending" % _p.name)
+        if _t.cc_filters and len(_t.cc_filters) != len(_t.times_s):
+            _rt_bad.append("%s cc length" % _p.name)
+        if len(_t.source) < 40:
+            _rt_bad.append("%s source too thin to trace" % _p.name)
+    _orig6 = {"EKTACHROME_64", "EKTACHROME_160T", "KODACHROME_64", "KONICA_VX_100",
+              "KENTMERE_PAN_100", "KENTMERE_PAN_400"}
+    _have = {p.name for p in _rt}
+    chk("every reciprocity table is well formed and cites a document",
+        not _rt_bad and _orig6 <= _have,
+        "; ".join(_rt_bad[:3]) if _rt_bad
+        else "%d tables, all ascending and sourced, original 6 present"
+             % len(_rt))
     # The CC-filter column is what makes chromatic and achromatic failure
     # distinguishable at all: Ektachrome 64 prescribes BLUE filters, 160T RED.
     # If those swap, the channel that loses speed swaps with them.
@@ -2540,16 +2888,43 @@ if _sec_on():
         not _gone, "now cited, remove from allowlist + NotFound.md: "
         + ", ".join(_gone) if _gone else "allowlist empty, as intended")
 
-    # The two F-125 gauges must keep the citation that emptied that allowlist,
-    # and must keep the measured f50 that citation grounds. 42.0 c/mm is the
-    # printed number; a regression to the old estimate of 78 would be a 1.86x
-    # sharpness error in a stock the renderer treats as fine-grained.
-    for _n in ("FUJI_F125_8530", "FUJI_F125_8630"):
+    # F-125 must keep the citation that emptied that allowlist, and must keep
+    # the measured f50 that citation grounds. 42.0 c/mm is the printed number;
+    # a regression to the old estimate of 78 would be a 1.86x sharpness error
+    # in a stock the renderer treats as fine-grained.
+    # ⚠ WAS A TWO-STOCK LOOP UNTIL 2026-08-24. FUJI_F125_8630 was a gauge clone
+    # of 8530 and was removed that day: «Техника кино и телевидения» 1989 No.4
+    # p70 prints Fuji's own code rule, in which the SECOND digit is the gauge
+    # (5 = 35 mm, 6 = 16 mm), so 8530/8630 were never two emulsions. The guard
+    # below asserts the removal stayed done, because re-adding the clone is the
+    # obvious way for a later pass to "fix" a missing 16 mm entry.
+    for _n in ("FUJI_F125_8530",):
         _p = get_profile(_n)
         chk(f"{_n} cites Honjo 1989 for its MTF",
             "52_509.pdf" in " ".join(_p.provenance.sources), "cited")
         chk(f"{_n} keeps the measured f50_g = 42.0 c/mm",
             abs(_p.mtf.f50_g - 42.0) < 1e-9, "f50_g %.1f" % _p.mtf.f50_g)
+    _f125 = get_profile("FUJI_F125_8530")
+    _f125src = " ".join(_f125.provenance.sources)
+    chk("the F-125 16 mm gauge clone stays removed",
+        not any(p.name == "FUJI_F125_8630" for p in FILM_PROFILES)
+        and "8630" in _f125.aliases,
+        "8630 resolves to 8530 as an alias, not as a second profile")
+    # rms 4.0 is PRINTED (1989 No.4 Table 1 p70), replacing an estimated 5.4.
+    # The pin also guards the generation gap: 8532 prints 3.0 at the same speed,
+    # so 8530 > 8532 must stay true or the two profiles have been crossed over.
+    chk("F-125 8530 carries the printed rms 4.0, and 8532 stays finer",
+        abs(_f125.grain.rms_granularity - 4.0) < 1e-9
+        and get_profile("FUJI_SUPER_F125_8532").grain.rms_granularity < 4.0
+        and "Техника кино и телевидения" in _f125src,
+        "8530 rms 4.0 printed, 8532 rms 3.0, both cited")
+    # ⚠ AND THE THINGS THOSE DOCUMENTS COULD HAVE GROUNDED BUT DID NOT must stay
+    # unadopted, each for a stated reason -- a later pass that "finishes" any of
+    # them without re-reading the plate would be repeating a recorded failure.
+    chk("the F-125 sigma(D) figure stays unharvested and says why",
+        not _f125.grain.sigma_shape_measured
+        and "converge inside the line width" in _f125src,
+        "Fig. 4 cited, F-125 and F-64 merge at the validating anchor")
     # The R/B values are an interpolation, not a measurement -- but the layer
     # order they encode is physical and must survive (red softest, blue
     # sharpest, per the MTFSpec docstring).
@@ -2582,10 +2957,360 @@ if _sec_on():
         "hazard recorded")
     # HPS is a Soviet source for a British film -- method rule 14 says an
     # Ilford sheet outranks it. Losing that note would promote it to parity.
+    # ---- 2026-08-23: the two BBC documents, items A and B -------------------
+    # ⚠ WHAT THESE GUARDS PROTECT IS A DISTINCTION, NOT A NUMBER. Both documents
+    # are third-party BBC research reports, so method rule 14 still applies and
+    # the Soviet caveat must survive; what they add is (a) an independent
+    # confirmation of the two speeds, (b) ONE measured value adopted (gamma), and
+    # (c) three measured values deliberately NOT adopted. A later pass that
+    # "finishes the harvest" by adopting (c) is what these catch.
+    _hps = get_profile("ILFORD_HPS")
+    chk("HPS carries the measured BBC development gamma 0.63",
+        abs(_hps.curves.g.gamma - 0.630) < 1e-9
+        and _hps.curves.r.gamma == _hps.curves.g.gamma == _hps.curves.b.gamma,
+        "gamma 0.630, monochrome so all three records agree")
+    _hsrc = " ".join(_hps.provenance.sources)
+    chk("HPS cites both BBC documents alongside Иофис",
+        len(_hps.provenance.sources) == 3
+        and "Monograph No. 54" in _hsrc and "T-101" in _hsrc
+        and "Иофис" in _hsrc,
+        "3 citations: Иофис 1964, BBC M54 1964, BBC T-101 1963")
+    # rms 19.0 is KEPT, not replaced by the 18.5 the Wiener spectrum converts to,
+    # because the BBC measurement sits at D 0.48 above base and this field is
+    # defined at NET 1.0. The guard pins the decision so nobody "corrects" it.
+    chk("HPS keeps rms 19.0 rather than the D-0.48 conversion 18.5",
+        abs(_hps.grain.rms_granularity - 19.0) < 1e-9
+        and "0.62 square microns" in _hsrc
+        and "0.48 ABOVE BASE" in _hsrc,
+        "19.0 at net 1.0; the 0.48-above-base conversion is cited, not stored")
+    # ⚠ THE CONFLICT MUST STAY VISIBLE AND UNRESOLVED. clump_um 26.0 against a
+    # measured 2.5 um: correcting one stock while 158 others keep the same
+    # convention would make this profile inconsistent rather than correct, so the
+    # decision is the owner's. If someone changes it, this fails and they have to
+    # read the comment explaining why the whole field is in question.
+    # ⚠ THE SET EMPTIED ON 2026-08-24. First HPS left it (fitted to Monograph 54
+    # Fig. 8, 268 traced points), then the same day T-101 Fig. 18 AND Table 2
+    # were read and the whole family moved. What decided it: Table 2 (p28) PRINTS
+    # the measured equivalent grain diameter of all six emulsions, and Table 4
+    # (p38) prints their granularity ladder with 5302 as unity -- so the clump
+    # column for these stocks no longer needs a traced curve at all.
+    _hpsg = get_profile("ILFORD_HPS").grain
+    chk("HPS carries the PRINTED equivalent grain diameter, not the trace",
+        abs(_hpsg.clump_um_g - 1.431) < 1e-9
+        and _hpsg.clump_um_r == _hpsg.clump_um_g == _hpsg.clump_um_b
+        and _hpsg.clump_gain == 0.0
+        and abs(_hpsg.rms_granularity - 19.0) < 1e-9,
+        "clump 1.431 um = 2.5/1.7473 on all three records, gain 0.000, "
+        "rms 19.0 untouched")
+    # THE CONVERSION IS PINNED NUMERICALLY, not just described in prose. T-101
+    # defines equivalent grain diameter as the full width of the normalised
+    # autocorrelation at ordinate 0.39, so for this file's Gaussian carrier
+    # D_eq = 2*sqrt(2*ln(1/0.39))/(pi*f_hi) = 1.746*clump_um. If someone changes
+    # `grain_shape`'s carrier, this fails and the six adopted numbers have to be
+    # re-derived rather than silently meaning something else.
+    _DEQ = 4.0 * math.sqrt(2.0 * math.log(1.0 / 0.39)) / math.pi
+    chk("the D_eq <-> clump_um conversion is still 1.7473",
+        abs(_DEQ - 1.74727) < 1e-4,
+        "D_eq = %.4f * clump_um, from the 0.39 autocorrelation width" % _DEQ)
+    _T2_DEQ = {"ILFORD_HPS": 2.5, "EASTMAN_TRI_X_5223": 2.2,
+               "EASTMAN_PLUS_X_5231": 1.45, "ILFORD_PAN_F": 1.5,
+               "KODAK_8374": 1.2}
+    _t2_bad = [n for n, d in _T2_DEQ.items()
+               if abs(get_profile(n).grain.clump_um_g - d / _DEQ) > 6e-4]
+    chk("all 5 T-101 camera stocks store Table 2's printed diameter / 1.7473",
+        not _t2_bad, ", ".join(_t2_bad) if _t2_bad
+        else "2.5/2.2/1.45/1.5/1.2 um -> 1.431/1.259/0.830/0.859/0.687")
+    # 5302 is a PrintStock, so it is checked separately -- and it is the anchor
+    # of Table 4's whole granularity ladder, which is why it earns its own guard.
+    _p5302 = [p for p in PRINT_STOCKS if p.name == "KODAK_5302"]
+    chk("KODAK_5302 exists as a print stock and anchors the T-101 ladder",
+        len(_p5302) == 1
+        and abs(_p5302[0].grain_clump_um - 0.589) < 1e-9
+        and abs(_p5302[0].grain_rms - 4.7) < 1e-9
+        and abs(_p5302[0].curves.g.gamma - 2.40) < 1e-9,
+        "clump 0.589 = 1.03/1.7473, rms 4.7 = HPS 0.62/3.9^2 through the "
+        "48 um aperture, printed gamma 2.4")
+    # ⚠ clump_gain 0.000 ON ALL OF THEM IS A MEASUREMENT. A free two-parameter
+    # fit to every one of the six Fig. 18 spectra drove the low-frequency lobe
+    # to zero, and T-101 p38 states it in words. This guard stops a later pass
+    # reinstating a clumping lobe on any of them because a render looks odd.
+    _gain_bad = [n for n in list(_T2_DEQ)
+                 if get_profile(n).grain.clump_gain != 0.0]
+    chk("no T-101 stock reinstates a low-frequency clumping lobe",
+        not _gain_bad, ", ".join(_gain_bad) if _gain_bad
+        else "clump_gain exactly 0.0 on all 5")
+    # ⚠ clump_gain 0.0 IS THE MEASUREMENT AND MUST NOT BE "RESTORED". A free
+    # two-parameter fit drove it to zero and T-101 p38 says the same in words.
+    # This is the guard that stops a later pass reinstating a clumping lobe
+    # because the render looks unfamiliar.
+    chk("HPS clump_gain stays exactly 0.0 -- the fit refused the lobe",
+        _hpsg.clump_gain == 0.0 and "clump_gain 0.000" in
+        " ".join(get_profile("ILFORD_HPS").provenance.sources),
+        "gain 0.000, cited")
+    # And the level must be unchanged: this edit was texture, not loudness.
+    # grain_reference_energy renormalises the field, so rms is independent of
+    # clump_um -- assert that the two really are decoupled, off-database.
+    _e_old = fs.grain_reference_energy(26.0, 1.65)
+    _e_new = fs.grain_reference_energy(1.431, 0.0)
+    chk("the grain level is renormalised, so clump_um moves texture only",
+        _e_old > 0 and _e_new > 0 and abs(_e_new / _e_old - 1.31) < 0.06,
+        "aperture-weighted energy ratio %.2f, amplitude rescaled by %.2f"
+        % (_e_new / _e_old, (_e_old / _e_new) ** 0.5))
+    # ⚠ THE STOCK THAT DID *NOT* MOVE, AND WHY IT MUST NOT. T-101 measured
+    # "Tri-X Type 5223", the 35 mm CINE negative at 250/320 A.S.A. This is the
+    # ASA 400 STILL film. Same trade name, different product, so pushing 5223's
+    # 1.260 um onto it would be a class estimate from one sample -- method rule
+    # 18. 5223 got its own profile on 2026-08-24 instead; this one keeps 19.0
+    # with the conflict cited, and that is deliberate, not an oversight.
+    _txs = get_profile("KODAK_TRI_X_400TX")
+    chk("the STILL Tri-X keeps clump_um 19.0 -- 5223 is a different product",
+        abs(_txs.grain.clump_um_g - 19.0) < 1e-9
+        and any(p.name == "EASTMAN_TRI_X_5223" for p in FILM_PROFILES),
+        "19.0 kept on 400TX; EASTMAN_TRI_X_5223 owns the measured 1.259")
+    # And the two new profiles must keep saying which of their numbers are real.
+    _new_est = {"EASTMAN_TRI_X_5223": "NOT GROUNDED",
+                "KODAK_8374": "SPEED CELLS LEFT BLANK"}
+    _ne_bad = [n for n, tok in _new_est.items()
+               if tok not in " ".join(get_profile(n).provenance.sources).upper()]
+    chk("the 2 new T-101 profiles still flag what is estimate-grade",
+        not _ne_bad, ", ".join(_ne_bad) if _ne_bad
+        else "5223 lists its estimates; 8374 records that T-101 prints no speed")
+    # The measured Callier quotient (Tri-X, 2.0-2.34 at 0.0016 sr) does NOT
+    # replace the 1.3 class value: that angle is nearly collimated and 1.3
+    # corresponds to a real condenser cone. Both numbers must stay findable.
+    _tx = get_profile("KODAK_TRI_X_400TX")
+    chk("Tri-X records the measured Callier quotient without adopting it",
+        abs(_tx.callier_q - 1.3) < 1e-9
+        and "0.0016 steradian" in " ".join(_tx.provenance.sources),
+        "callier_q 1.3 kept, measured 2.0-2.34 cited with its collection angle")
+    # And the two figures that are NOT in either document must not appear as
+    # stored values on HPS: no resolving power was printed for any film.
+    chk("HPS f50 is still the unsourced estimate, not 40 lp/mm",
+        abs(_hps.mtf.f50_g - 26.0) < 1e-9,
+        "f50 26.0 estimate; neither BBC document prints a film resolving power")
+
     chk("HPS keeps the method-rule-14 Soviet-source caveat",
         "OUTRANKS this citation"
         in " ".join(get_profile("ILFORD_HPS").provenance.sources),
         "rule 14 recorded")
+
+
+# ---- 24. C1e per-layer VISION3 grain, and C8 reciprocity -----------------
+if _sec_on():
+    # ---------------------------------------------------------------- C1e ----
+    # The three VISION3 stocks whose own TI sheet separates all the granularity
+    # curves it needs. Values are RATIOS off that sheet multiplied onto the
+    # stored pooled rms, so what is pinned here is the ratio, to the cent.
+    _C1E = {
+        "KODAK_VISION3_50D_5203":  (2.60, 2.60,  4.71),
+        "KODAK_VISION3_250D_5207": (4.20, 4.20,  8.92),
+        "KODAK_VISION3_500T_5219": (5.92, 6.60, 17.84),
+    }
+    _bad = []
+    for _n, _want in _C1E.items():
+        _got = get_profile(_n).grain.rms_rgb()
+        if max(abs(_got[_i] - _want[_i]) for _i in range(3)) > 5e-3:
+            _bad.append("%s %s" % (_n, tuple(round(v, 2) for v in _got)))
+    chk("the 3 VISION3 stocks carry their measured per-layer rms",
+        not _bad, "; ".join(_bad) if _bad else "3 of 3")
+
+    # ⚠ THE GUARD THAT MATTERS, and it is deliberately a floor on EVERY measured
+    # stock rather than a value on one. Nine sheets now measure blue against
+    # green and the lowest is 1.81x; the schema's discarded tier-2 ladder said
+    # 1.30x. So any future "tidy-up" back toward that ladder -- or a paste of the
+    # heuristic over a measured literal, which has happened once already
+    # (GEVACOLOR_NEG_682, 2026-08-17) -- fails here instead of rendering quietly.
+    # ⚠ STATED AS A FORBIDDEN BAND RATHER THAN A LIST OF STOCKS, so it cannot go
+    # stale the way a count can. Every colour negative's blue/green ratio must be
+    # one of exactly three things, and the gap between them is the point:
+    #   ~1.00  the document prints ONE pooled figure for the whole film (Svema TU
+    #          specifications), so r = g = b is what the source says;
+    #   ~1.30  _grain_v2's tier-2 ladder, untouched, on the stocks with no
+    #          per-layer measurement of their own;
+    #   >=1.75 measured off a sheet -- nine of them, spanning 1.81 to 2.79.
+    # A value INSIDE the 1.31-1.75 gap means someone split the difference: either
+    # a measured value diluted toward the ladder or the ladder nudged toward the
+    # measurements. Both are the "average two sources" move method rule 4
+    # forbids, and neither would look wrong in a render.
+    _band = []
+    for _p in FILM_PROFILES:
+        if _p.is_monochrome or _p.is_reversal or _p.reseau is not None:
+            continue
+        if _p.name == "TECHNICOLOR_THREE_STRIP":
+            continue
+        _r, _gg, _b = _p.grain.rms_rgb()
+        _ratio = _b / _gg
+        if not (abs(_ratio - 1.00) < 0.01 or abs(_ratio - 1.30) < 0.01
+                or _ratio >= 1.75):
+            _band.append("%s b/g %.2f" % (_p.name, _ratio))
+    chk("no colour negative's blue/green ratio sits between the ladder and the "
+        "measurements",
+        not _band, "; ".join(_band[:3]) if _band
+        else "pooled 1.00, ladder 1.30, measured 1.81-2.79, nothing between")
+
+    # The four Svema colour negatives excluded above are excluded for a stated
+    # reason and not silently: their TU specifications print ONE granularity
+    # figure for the whole film, so r = g = b is what the document says. If one
+    # of them ever gains a per-layer read this list must shrink.
+    _flat = [_n for _n in ("SVEMA_DS_5M", "SVEMA_LN_8", "SVEMA_LN_9",
+                           "SVEMA_LN_9S")
+             if get_profile(_n).grain.rms_rgb()[2]
+             != get_profile(_n).grain.rms_rgb()[1]]
+    chk("the 4 Svema negatives still carry one pooled figure per document",
+        not _flat, ", ".join(_flat) if _flat else "4 of 4 flat, as printed")
+
+    # 5213 is the one VISION3 stock left on the heuristic, because its sheet
+    # draws the three granularity curves as a single bold band. Pinned so that
+    # "finish the family" cannot happen quietly: filling it would need a
+    # document, and this fails the moment a number appears without one.
+    # ⚠ TESTED THROUGH THE RATIOS, NOT THE LITERAL. `_grain_v2` runs at module
+    # build time, so by the time anything can read a profile the heuristic has
+    # already filled these fields and "is the literal empty" is unanswerable.
+    # The ladder's own ratios are the observable: exactly 1.10 and 1.30.
+    _r13, _g13, _b13 = get_profile("KODAK_VISION3_200T_5213").grain.rms_rgb()
+    chk("5213 stays on the heuristic until a per-layer sheet exists",
+        abs(_b13 / _g13 - 1.30) < 0.01 and abs(_r13 / _g13 - 1.10) < 0.01,
+        "b/g %.2f r/g %.2f -- band-only sheet, nothing to read"
+        % (_b13 / _g13, _r13 / _g13))
+
+    # ----------------------------------------------------------------- C8 ----
+    # INERTNESS IS THE WHOLE CONTRACT. Zero time = zero shift, for every stock,
+    # exactly -- not "small". A render made before the field existed must be
+    # reproducible bit for bit, and that is only true if the shift is 0.0.
+    _live = [p.name for p in FILM_PROFILES
+             if any(v != 0.0 for v in fs.reciprocity_log_shift(p, 0.0))]
+    chk("reciprocity is exactly inert at exposure_time_s = 0",
+        not _live, ", ".join(_live[:3]) if _live else "160 of 160 stocks")
+
+    # Below its own onset a stock must also be inert: 1/48 s is the shutter of a
+    # 24 fps camera at 180 degrees, i.e. the commonest exposure in the corpus's
+    # whole subject matter, and nothing should happen there.
+    _cine = [p.name for p in FILM_PROFILES
+             if p.reciprocity.onset_s >= 0.02
+             and not p.reciprocity_table.has_data
+             and any(v != 0.0 for v in fs.reciprocity_log_shift(p, 1.0 / 48.0))]
+    chk("a 1/48 s exposure moves nothing on a spec-only stock",
+        not _cine, ", ".join(_cine[:3]) if _cine else "no correction at 1/48 s")
+
+    # Direction: a longer exposure can only ever LOSE speed, never gain it. A
+    # sign error here would brighten long exposures, which is the one outcome no
+    # sensitometry supports -- and it would look like a plausible "lift".
+    _sign = []
+    for _p in FILM_PROFILES:
+        for _t in (2.0, 10.0, 60.0, 600.0):
+            if any(v > 0.0 for v in fs.reciprocity_log_shift(_p, _t)):
+                _sign.append("%s at %.0fs" % (_p.name, _t))
+    chk("reciprocity never increases effective exposure",
+        not _sign, "; ".join(_sign[:3]) if _sign else "loss only, 4 times x 160")
+
+    # The measured tables must BEAT the Schwarzschild spec where both exist, or
+    # the six documents on file are decoration. EKTACHROME 64 is the case that
+    # proves it: its table is U-shaped in time (0.5 stop at 1e-4 s, zero at
+    # 0.1 s, 1.5 stops at 10 s) and no single exponent can express both ends.
+    _e64 = get_profile("EKTACHROME_64")
+    _hi = fs.reciprocity_log_shift(_e64, 1.0e-4)     # high-intensity branch
+    _lo = fs.reciprocity_log_shift(_e64, 10.0)       # low-intensity branch
+    # Read on BLUE at the long end, because blue is the record its CC20B says
+    # loses the most and therefore the one carrying the printed 1.5 stops; green
+    # is credited 0.20 decades back by that filter.
+    chk("EKTACHROME 64's table drives both reciprocity branches",
+        _hi[1] < -0.14 and _lo[2] < -0.44 and _e64.reciprocity_table.has_data,
+        "1e-4 s %.3f dec (achromatic), 10 s blue %.3f dec" % (_hi[1], _lo[2]))
+
+    # Held flat outside the measured range, NOT extrapolated. Kodak's own
+    # tables walk the effective exponent by 0.15 per decade, so extrapolating
+    # one decade past the last entry is a quarter-stop error at least.
+    chk("a measured table holds flat past its last entry",
+        fs.reciprocity_log_shift(_e64, 10.0)
+        == fs.reciprocity_log_shift(_e64, 3600.0),
+        "10 s and 3600 s agree exactly")
+
+    # CHROMATIC failure is the part a single exponent cannot carry at all, and
+    # the CC filter is the only place the corpus states it. CC20B at 10 s must
+    # make blue lose MORE than green -- that is what "add a blue filter to fix
+    # it" means. If this ever equalises, the cast is gone and long exposures go
+    # merely dark.
+    chk("EKTACHROME 64 loses more blue than green at 10 s, as its CC20B says",
+        _lo[2] < _lo[1] - 0.15, "blue %.3f vs green %.3f dec" % (_lo[2], _lo[1]))
+
+    # ⚠ THE CONVENTION GUARD, AND IT IS THE ONE THAT CAUGHT A REAL ERROR. A
+    # printed "increase exposure 2/3 stop and use a CC10R" is TWO instructions
+    # acting on one frame: the lens opens 2/3 stop on all three records, then the
+    # filter takes 0.10 density back off green and blue. So the film's WORST
+    # record loses exactly the printed stops -- 2/3 here -- and the filtered ones
+    # lose less. The first implementation added the filter's density to the worst
+    # record instead, giving 1 stop where the sheet says 2/3: right ordering,
+    # wrong level, and invisible in a frame. Pinned on the general form so it
+    # holds for all 21 tables rather than for one example.
+    _conv = []
+    for _p in FILM_PROFILES:
+        _t = _p.reciprocity_table
+        if not _t.has_data:
+            continue
+        _last_t = _t.times_s[-1]
+        _last_s = _t.stops_correction[-1]
+        _sh = fs.reciprocity_log_shift(_p, _last_t)
+        _worst = -min(_sh) / 0.30102999566398120      # loss in stops
+        if abs(_worst - _last_s) > 1e-6:
+            _conv.append("%s %.3f vs printed %.3f" % (_p.name, _worst, _last_s))
+    chk("every measured table's worst record loses exactly the printed stops",
+        not _conv, "; ".join(_conv[:3]) if _conv
+        else "21 tables, worst record == printed correction")
+
+    # 5205 is the worked example of the above, kept as a named case because its
+    # sheet is the one that exposed the error: "+2/3 stop and a CC10R" at 1 s.
+    _05 = fs.reciprocity_log_shift(get_profile("KODAK_VISION2_250D_5205"), 1.0)
+    # ⚠ AND NOTE WHAT GREEN IS NOT: it is 2/3 stop MINUS the filter's 0.10
+    # DENSITY, i.e. 0.3345 stops -- not 1/3. The filter is specified in density
+    # and 0.10 density is 0.332 of a stop, so the two never land on a round
+    # fraction together. Asserting the round number here would be asserting the
+    # stops-and-back conversion the law deliberately avoids.
+    _S = 0.30102999566398120
+    chk("5205 at 1 s: red loses the printed 2/3 stop, green/blue 0.10 D less",
+        abs(-_05[0] / _S - 2.0 / 3.0) < 1e-9
+        and abs(-_05[1] / _S - (2.0 / 3.0 - 0.10 / _S)) < 1e-9,
+        "r %.4f g %.4f stops" % (-_05[0] / _S, -_05[1] / _S))
+
+    # ⚠ SEVEN STOCKS HELD A PRINTED CORRECTION AND RENDERED NOTHING before C8,
+    # because a single Schwarzschild exponent had nowhere to put an absolute
+    # offset and the fit had left them at p = 1.0. If any of them goes inert
+    # again, its sheet has been disconnected from the renderer.
+    _mute = [_n for _n in ("KODAK_VISION3_500T_5219", "KODAK_VISION2_200T_5217",
+                           "KODAK_VISION2_500T_5218", "KODAK_VISION_250D_5246",
+                           "KODAK_VISION_200T_5274", "KODAK_VISION_500T_5279",
+                           "EASTMAN_EXR_100T_5248")
+             if all(v == 0.0 for v in
+                    fs.reciprocity_log_shift(get_profile(_n), 10.0))]
+    chk("the 7 stocks whose sheets print a correction are no longer silent",
+        not _mute, ", ".join(_mute) if _mute else "7 of 7 now respond at 10 s")
+
+    # And the achromatic case must stay achromatic: Kentmere prints stops with
+    # no filter at all, which is a statement, not a gap.
+    _k = fs.reciprocity_log_shift(get_profile("KENTMERE_PAN_100"), 100.0)
+    chk("an achromatic table stays achromatic",
+        _k[0] == _k[1] == _k[2] and _k[1] < -0.4,
+        "%.3f dec on all three" % _k[1])
+
+    # ⚠ AND IT MUST ACTUALLY REACH THE RENDER. The three checks above test the
+    # law; this one tests the wiring, because a stage computed and then not
+    # applied is the exact failure the sigma(D) shape sat in for weeks.
+    _sett0 = fs.RenderSettings(grain_scale=0.0, print_grain=False,
+                              misreg_scale=0.0, flare=0.0)
+    _sett1 = dataclasses.replace(_sett0, exposure_time_s=10.0)
+    _patch = np.full((16, 16, 3), 0.18, dtype=np.float32)
+    _a = fs.simulate(_patch, _e64, _sett0)
+    _b = fs.simulate(_patch, _e64, _sett1)
+    _d = float(np.max(np.abs(_a - _b)))
+    chk("a 10 s exposure changes the render on a stock with a table",
+        _d > 0.01, "max channel delta %.4f linear" % _d)
+    # ... and changes NOTHING on a stock whose sheet says no correction applies.
+    _acr = get_profile("FUJI_NEOPAN_ACROS_100")
+    _c = fs.simulate(_patch, _acr, _sett0)
+    _e = fs.simulate(_patch, _acr, dataclasses.replace(_sett0,
+                                                       exposure_time_s=120.0))
+    chk("ACROS is unchanged at 120 s, as its own sheet states",
+        np.array_equal(_c, _e), "bit identical")
+
 
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

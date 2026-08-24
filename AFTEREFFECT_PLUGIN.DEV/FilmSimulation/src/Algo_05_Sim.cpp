@@ -174,36 +174,59 @@ void AlgoStage05_Halation
     //  submitted to the blur: its kernel would collapse to a single tap, which
     //  is an identity operation costing a full separable pass.
     // ----------------------------------------------------------------------
-    AlgoType sigmaPx[ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO, ALGO_ZERO,
-                                              ALGO_ZERO, ALGO_ZERO };
-    AlgoType weight [ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO, ALGO_ZERO,
-                                              ALGO_ZERO, ALGO_ZERO };
+    // ----------------------------------------------------------------------
+    //  ⚠ AND SINCE SCHEMA v11 (queue C21) THE RADII ARE PER CHANNEL, here as in
+    //  the scalar TU. The struct carries radius_scale_r/g/b, so the kernel is
+    //  built once PER RECORD rather than once per frame: the red record sits at
+    //  the bottom of the pack, nearest the base and its anti-halation backing, so
+    //  its return path is short and its halo tight, while blue sits on top and
+    //  spreads further. Every stock in the database ships at 1.0, so all three
+    //  kernels are identical today and the arithmetic is unchanged from v10 --
+    //  the scaling is a multiply by exactly 1.0, exact in every float format.
+    // ----------------------------------------------------------------------
+    AlgoType sigmaPx[3][ALGO_BLUR_MAX_LOBES] = {};
+    AlgoType weight [3][ALGO_BLUR_MAX_LOBES] = {};
 
-    int32_t lobes = 0;
+    int32_t lobes[3] = { 0, 0, 0 };
 
-    for (int32_t k = 0; k < ALGO_HALATION_LOBES; k++)
+    const AlgoType radiusScale[3] =
     {
-        // Micrometres to millimetres to pixels, in one expression so there is no
-        // intermediate to get the units wrong in.
-        const AlgoType s = static_cast<AlgoType>(hal.radii_um[k])
-                         * static_cast<AlgoType>(0.001) * pxPerMm;
+        static_cast<AlgoType>(hal.radius_scale_r),
+        static_cast<AlgoType>(hal.radius_scale_g),
+        static_cast<AlgoType>(hal.radius_scale_b)
+    };
 
-        const AlgoType w = static_cast<AlgoType>(hal.weights[k]);
-
-        // A quarter pixel: below this the discrete kernel has one significant
-        // tap and the pass does nothing but cost time.
-        if ((s >= static_cast<AlgoType>(0.25)) && (w > ALGO_ZERO))
+    for (int32_t c = 0; c < 3; c++)
+    {
+        for (int32_t k = 0; k < ALGO_HALATION_LOBES; k++)
         {
-            sigmaPx[lobes] = s;
-            weight [lobes] = w;
-            lobes++;
+            // Micrometres to millimetres to pixels, in one expression so there is
+            // no intermediate to get the units wrong in. The per-record scale
+            // multiplies the physical radius, not the pixel count, so it stays
+            // resolution independent like everything else in this stage.
+            const AlgoType s = static_cast<AlgoType>(hal.radii_um[k])
+                             * radiusScale[c]
+                             * static_cast<AlgoType>(0.001) * pxPerMm;
+
+            const AlgoType w = static_cast<AlgoType>(hal.weights[k]);
+
+            // A quarter pixel: below this the discrete kernel has one significant
+            // tap and the pass does nothing but cost time.
+            if ((s >= static_cast<AlgoType>(0.25)) && (w > ALGO_ZERO))
+            {
+                sigmaPx[c][lobes[c]] = s;
+                weight [c][lobes[c]] = w;
+                lobes[c]++;
+            }
         }
     }
 
-    // Every lobe fell below the representable radius. The physical effect exists
-    // but this render cannot show it, so pass the exposure through unchanged
-    // rather than fabricating a one-pixel halo.
-    if (0 == lobes)
+    // Every lobe of every record fell below the representable radius. The
+    // physical effect exists but this render cannot show it, so pass the exposure
+    // through unchanged rather than fabricating a one-pixel halo.
+    // ⚠ TESTED PER RECORD BELOW AS WELL, because with per-channel scales one
+    // record can be resolvable while a tighter one is not.
+    if ((0 == lobes[0]) && (0 == lobes[1]) && (0 == lobes[2]))
     {
         AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
         return;
@@ -288,7 +311,9 @@ void AlgoStage05_Halation
         // effective for the shorter wavelengths only.
         const AlgoType g = chanGain[c] * scale;
 
-        if (g <= ALGO_ZERO)
+        // ⚠ PER-RECORD SKIP, v11: a record with no resolvable lobe is passed
+        // through even when another record still has one.
+        if ((g <= ALGO_ZERO) || (0 == lobes[c]))
         {
             // Still a copy, for the reason given above.
             AlgoCopyPlane(pIn, pOut, sizeX, sizeY, pitch);
@@ -335,7 +360,7 @@ void AlgoStage05_Halation
         AlgoMultiGaussianBlurPlaneWrap(pScrAbove, pScrBlur,
                                        pScrBlurA, pScrBlurB,
                                        sizeX, sizeY, pitch,
-                                       sigmaPx, weight, lobes);
+                                       sigmaPx[c], weight[c], lobes[c]);
 
         // ------------------------------------------------------------------
         //  Deposit, conserving energy, and clamp at zero.
