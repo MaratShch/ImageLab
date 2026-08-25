@@ -337,6 +337,27 @@ class GrainSpec:
         clump_um_r/g/b: Mean developed clump diameter per layer, micrometres.
             In colour negative the fast blue-sensitive layer usually has the
             coarsest grain; the red layer sits at the bottom of the stack.
+            ⚠ THIS QUANTITY IS NOT A PROPERTY OF THE EMULSION ALONE. It depends
+            on how the film was DEVELOPED, and the dependence is measured, not
+            supposed: BBC Report T-101 Table 3 (journal p35) tabulates equivalent
+            grain diameter against point gamma at two densities for each of two
+            emulsions, and refitting its eight rows gives
+                D_eq  ~  gamma ** n     n = 0.452 (Pan F), 0.396 (Tri-X),
+                                        0.425 (all rows, per-group constants)
+            The table's own last column normalises by sqrt(gamma), so the
+            printed claim is n = 0.5; the measured rows put it slightly below.
+            The renderer has no gamma input to this parameter, so a stored
+            clump_um means "at the development gamma this profile's tone curve
+            represents" -- and if a source measured it at a DIFFERENT gamma, the
+            value must be moved before storing. ILFORD_PAN_F is the worked
+            example: 0.859 um measured at gamma 1.0 became 0.655 at the stored
+            gamma 0.55. Conversion at 100 % gamma error is a 27 % size error, so
+            this is not a rounding-level concern.
+            ⚠ It also depends on DENSITY, more weakly: T-101 Fig. 21 measures
+            Pan F falling 1.73 -> 1.38 um (D_eq) as D rises 0.13 -> 1.16, i.e.
+            about -20 % across the tone scale. The schema has no density
+            dependence for it either, so a stored value is a mid-scale
+            representative and nothing finer.
         clump_gain: Extra low-frequency energy = clumpiness. Classic cubic
             crystals cluster strongly (0.8-1.6); modern tabular "T-grain"
             crystals lie flat and pack evenly (0.1-0.4). This one number is
@@ -396,6 +417,26 @@ class GrainSpec:
             then falls and understates that maximum by about a quarter. A fourth
             anchor, or a short sigma(D) array, would be needed to carry it.
             RESOLVED 2026-08-18 (queue item C1) -- see sigma_shape_peak below.
+        ⚠ sigma_shape_* IS MEASURED ON 13 STOCKS AND ESTIMATED ON THE REST, AND
+            THE REVERSAL ESTIMATE IS NOW KNOWN TO HAVE THE WRONG SIGN. The
+            estimate 0.7/1.0/0.5 is carried by 35 of the 36 reversal stocks here
+            and says grain FALLS to half at dmax. The one reversal stock with a
+            measured curve -- KODAK_TRI_X_REVERSAL_200, from its own Kodak 7266
+            sheet -- gives 0.262/1.0/2.829, i.e. grain RISES to 2.83x, very
+            nearly linear in density (sigma_D ~ D^1.08). The estimate's reasoning
+            was that a slide's densest regions received the least EXPOSURE; that
+            is true and irrelevant, because density is developed silver either
+            way and sigma tracks the silver. Treat every unmeasured reversal
+            triple as suspect in DIRECTION, not just in magnitude.
+        ⚠ AND THE PAIRING IS ILL-CONDITIONED WHERE THE CHARACTERISTIC CURVE IS
+            FLAT. sigma(D) is obtained by pairing two curves against a shared
+            log-exposure axis, so wherever |dD/dlogE| is small, D barely moves
+            while sigma keeps changing and the same density maps to many sigmas.
+            On negatives this bites at the TOE; on reversal stocks it bites at
+            DMAX. Anchors taken from such a region are not measurements -- the
+            7266 trace discards 22 of its 52 paired points for this reason, and
+            an apparent interior peak of 2.93x turned out to lie inside the
+            discarded zone.
         sigma_shape_peak / sigma_shape_peak_at: the INTERIOR MAXIMUM, as a
             multiplier and the absolute density it occurs at. 0.0 = none, and
             the shape is then read through the three anchors alone.
@@ -1489,10 +1530,18 @@ class InterimageSpec:
       at the mid-grey anchor. Off-diagonal terms are NEGATIVE (inhibition);
       the diagonal is structurally zero because a layer's effect on itself is
       already inside its own curve. Referencing to the mid-grey density is
-      what keeps a neutral scene unchanged: on a neutral, every (D_j - d_ref)
-      is ~0, so the correction vanishes and only non-neutral colour is
-      affected. That is exactly the observed behaviour of real interimage
-      effects, and it is why this cannot be folded into the curves.
+      what keeps a neutral scene unchanged AT THE ANCHOR: there every
+      (D_j - d_ref) is ~0, so the correction vanishes identically.
+
+      ⚠ QUALIFIED 2026-08-25d (queue item C20). This paragraph used to say the
+      correction "vanishes on a neutral" without the "at the anchor", and that
+      is not true of neutrals in general -- it is true of ONE neutral. Measured
+      on KODAK_PORTRA_400 with the stage disabled: mid-grey 0.18 (the anchor)
+      moves 0.0000, grey 0.45 moves 15.9/255 and grey 0.06 moves 6.5/255. The
+      movement is CORRECT and is the mechanism, not a leak -- white-light gamma
+      coming out lower than separation gamma is the patent's own metric for
+      interimage effect -- but the unqualified wording invited the reader to
+      expect a neutral AXIS to be invariant, which no real emulsion's is.
 
       The equation is implicit -- D_j depends on logE_j', which depends on
       D_i. Solved by fixed-point iteration seeded with the uncorrected
@@ -5493,7 +5542,80 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # sharper shoulder than toe and went non-monotone past Dmin).
         # Traced Dmax 2.584, Dmin 0.213.
         curves=_mono(ToneCurve(0.2325, 3.0578, -0.4082, 0.2073, 0.3659, 0.2072)),
-        grain=GrainSpec(10.0, 14.0, 14.0, 14.0, clump_gain=1.20, fog_grain=0.26),
+        # [T1] sigma(D) SHAPE MEASURED 2026-08-25, owner-approved -- THE FIRST
+        # MEASURED B&W sigma(D) IN THIS FILE, and it reverses the sign of what
+        # was stored. Source: the same Kodak 7266 technical-information sheet
+        # this profile's curve came from, page 3, panel "rms Granularity Curve",
+        # traced off the EMBEDDED IMAGE at its native 770x748 (re-rendering the
+        # page adds nothing -- the source raster caps at about 246 ppi).
+        #
+        # WHY THE PANEL IS USABLE AT ALL: it plots DENSITY and GRAIN against the
+        # SAME log exposure axis, with a logarithmic "Granularity SIGMA D" scale
+        # on the right, so sigma_D(D) is obtained by pairing the two curves
+        # INSIDE this one panel. That matters, because the sheet's other panel
+        # disagrees with it about the same film -- the Characteristic Curve runs
+        # log E -4.0..+2.0 and tops out at D 2.57 where this one runs 0.0..3.0
+        # and reaches 3.20 -- and the sheet itself warns "Sensitometric and
+        # Diffuse RMS Granularity curves are produced on different equipment.
+        # A slight variation in curve shape may be noticed." Pairing across the
+        # two panels would have silently mixed two calibrations.
+        #
+        # CALIBRATION IS OVER-DETERMINED. The log sigma_D axis was fixed from
+        # its 0.10 and 0.001 labels alone (163.5 px/decade), and then all TEN
+        # intermediate printed labels reproduce to <= 1.5 px: 0.05 390/391.2,
+        # 0.04 407/407.1, 0.03 426/427.5, 0.02 455/456.3, 0.01 504/505.5,
+        # 0.006 540/541.8, 0.005 554/554.7, 0.004 570/570.6, 0.003 590/591.0,
+        # 0.002 619/619.8. Density: 18 inward ticks, 3.4..0.0 in steps of 0.2.
+        # log E: inward ticks at exactly 0.0/1.0/2.0/3.0.
+        #
+        # ⚠ THE TWO CURVES CROSS AND SWAP ORDER at log E 1.65, so no
+        # upper/lower rule works. They are separated by the one asymmetry that
+        # holds everywhere: density is SOLID (present in every column, smooth)
+        # and grain is DASHED, so density is walked with slope prediction and
+        # whatever run is left over in a column is grain. Verified by coloured
+        # overlay -- both curves are followed correctly through the crossing.
+        #
+        # ⚠ ONLY THE WELL-CONDITIONED RANGE IS USED, 30 of 52 paired points,
+        # D 0.352-3.089. The density curve is FLAT at both ends (|dD/dlogE| <
+        # 0.5), so there D barely moves while sigma keeps changing -- the same
+        # multivalued trap this file already recorded at the toe of the VISION3
+        # sheets, mirrored to the dense end because this is a reversal stock.
+        # An apparent interior peak at D 3.16 (2.93x mid) lies inside that flat
+        # zone and is NOT stored; over the usable range sigma rises monotonically.
+        #
+        #     ANCHOR              value   at D     was (estimate)
+        #     sigma_shape_toe     0.262   0.352        0.70
+        #     sigma_shape_mid     1.000   1.000        1.00
+        #     sigma_shape_dmax    2.829   3.089        0.50
+        #
+        # ⚠ THIS REVERSES THE STORED DIRECTION. The estimate said grain FALLS to
+        # half at dmax; the measurement says it RISES to 2.83x -- a factor 5.7 at
+        # the dense end, and the toe is 2.7x lower than assumed. Over the usable
+        # range sigma_D ~ D^1.078 (rms 0.038 decades), i.e. very nearly linear
+        # in density. Physically the measurement is the sensible one: density is
+        # developed silver either way, so sigma tracks it. The old triple came
+        # from the docstring's reasoning that a slide's densest regions received
+        # the LEAST exposure -- true about exposure, but it does not follow that
+        # grain falls there.
+        #
+        # ⚠ SCOPE HELD TO THIS STOCK (method rule 18). 35 of the 36 reversal
+        # stocks in this file carry the identical 0.7/1.0/0.5 estimate, 13 of
+        # them monochrome, including eight Polaroid peel-apart films whose
+        # process is not this one at all. One measured sample is not a class.
+        # What would settle it: a second reversal sheet carrying this same
+        # granularity-vs-density panel.
+        #
+        # ⚠ rms_granularity 10.0 IS DELIBERATELY UNCHANGED. This panel's own
+        # level reads sigma_D 0.0177 at D 1.0 and 0.0223 at this file's NET-1.0
+        # convention (D = dmin + 1 = 1.25), i.e. 22.3 against the stored 10.0 --
+        # but the sheet prints "Note: This curve represents granularity based on
+        # modified measuring techniques", so its ABSOLUTE level is not the
+        # standard diffuse RMS. The SHAPE is what this plate grounds.
+        grain=GrainSpec(10.0, 14.0, 14.0, 14.0, clump_gain=1.20, fog_grain=0.26,
+                        sigma_shape_toe=0.262, sigma_shape_mid=1.0,
+                        sigma_shape_dmax=2.829,
+                        sigma_shape_toe_at=0.352, sigma_shape_dmax_at=3.089,
+                        sigma_shape_measured=True),
         mtf=MTFSpec(46.0, 46.0, 46.0, adjacency=0.07),
         spectral_weights=(0.32, 0.47, 0.21),
         misregistration_um=0.0,
@@ -8328,20 +8450,135 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
         features=Feature.HALATION,
-        # ⚠ NO SPECTRAL SENSITIVITY AND NO DYE DENSITY SET, deliberately, and
-        # both panels ARE on the sheet as vector art. Neither is guessed and
-        # neither is transferred from a sibling:
-        #   * the dye panel draws FIVE traces -- Midscale Neutral, Cyan,
-        #     Magenta, Yellow, Minimum Density -- and states "Cyan, Magenta, and
-        #     Yellow Dye Curves are peak-normalized". dye_density.py's family
-        #     classifier handles 3 dyes, or 3 dyes + neutral, not 3 + neutral +
-        #     dmin, and returns "no curve set matched either normalisation
-        #     family". Widening it blind would risk the 11 sheets it already
-        #     reproduces. Queue item C9.
-        #   * the spectral-sensitivity panel is three curves in R/G/B ink over
-        #     250-750 nm with the criterion printed ("Sensitivity = reciprocal
-        #     of exposure (erg/cm2) required to produce specified density"), but
-        #     no vector extractor for that panel type exists yet. Queue item C10.
+        # [T1] SPECTRAL SENSITIVITY, traced 2026-08-25 by spectral_vector.py from
+        # this sheet's own vector paths (H-1-5201 p3, "SPECTRAL-SENSITIVITY
+        # CURVES"), queue item C10. THE FIRST VECTOR-TRACED spectral set in the
+        # file -- every earlier one came from the 2026-08-02 raster batch or from
+        # agfa_vista.py's dash-legend reader.
+        # LAYER IDENTITY IS KODAK'S INK CONVENTION, and it is physical: each
+        # trace is drawn in the colour of light it responds to. Blue ink = the
+        # blue-sensitive (yellow-forming) layer, green ink = green-sensitive
+        # (magenta-forming), and the red-sensitive (cyan-forming) layer is drawn
+        # in RED -- which is not one of the four process inks, so Kodak makes it
+        # by overprinting YELLOW UNDER MAGENTA. The two paths are bit-identical
+        # (checked, max difference 0.0), i.e. one curve drawn twice.
+        # Checked three ways, none of them the ink: the legend swatches put green
+        # on "magenta dye forming layer" and amber on "cyan dye forming layer";
+        # the peaks land at 470 / 540 / 650 nm, each in its own band and in
+        # ascending order; and red and green agree with the independently-adopted
+        # 5217/5218 sets to rms 0.05-0.14 decades.
+        # THE BLUE LAYER PEAKS AT 470 nm, AND THAT IS THE MAJORITY CASE IN THIS
+        # FAMILY, not an anomaly. ⚠ CORRECTED 2026-08-25d: the adoption pass
+        # recorded "470, not 420 like its siblings" on the strength of a
+        # cross-check against 5218 alone. A sweep of every 31-sample Kodak cine
+        # stock shows the family splits 6/4 -- 470 nm on 5201, 5217, 5205, 5203,
+        # 5274 and 5246; 410-440 on 5218 (420), 5279 (420), 5219 (410) and 5213
+        # (440). 5201 agrees with 5217 EXACTLY. The larger blue residual in the
+        # cross-check is in the 480-500 nm cliff, not the peak.
+        # The plate does draw a distinct narrow cusp just above log S 2.0 at 470,
+        # higher than the 445 nm bump, then a cliff to zero by 500 -- confirmed
+        # on a 26x render before adoption. The peak normalisation anchors on that
+        # cusp, which is why the 400-460 plateau sits at -0.21 to -0.11 here.
+        # ⚠ ABSOLUTE PEAKS 1.99 / 1.78 / 1.76 decades (b / g / r): the blue layer
+        # is 0.22 decades MORE sensitive than the other two. The schema
+        # normalises each layer to 0.0 separately, so that inter-layer offset
+        # cannot be stored and survives only in this comment and the source
+        # string. Absolute speed stays in exposure_index, as the docstring says.
+        # ⚠ CRITERION: the sheet prints "specified density" WITHOUT SAYING WHICH.
+        # The three sets already in the file (5218, 5217, 5219) all carry
+        # "log_reciprocal_erg_cm2_D0.2_above_dmin", and their sources do NOT
+        # print the 0.2 either -- 5218 and 5217 use this same unspecified wording
+        # and 5219's footnote is not in its text layer at all. Owner decision:
+        # store what this sheet prints, leave those three alone, record the
+        # discrepancy (method rule 4). See NotFound.md 2026-08-25c.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.71, -1.38, -0.89, -0.52, -0.31, -0.23, -0.20, -0.12, -0.01, 0.00, -0.27, -4.00, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.57, -1.19, -0.80, -0.54, -0.42, -0.28, -0.13, 0.00, -0.01, -0.05, -0.18, -0.63, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.60, -0.52, -0.35, -0.22, -0.21, -0.17, -0.11, -0.21, -0.14, 0.00, -0.65, -1.52, -1.89, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_erg_cm2_specified_density",
+            source=("Eastman Kodak Company, 'KODAK VISION2 50D Color Negative "
+                    "Film 5201 / 7201', publication H-1-5201, CAT 122 9749, "
+                    "New 10-2005, p3 SPECTRAL-SENSITIVITY CURVES panel; "
+                    "vector-path extraction 2026-08-25 by spectral_vector.py. "
+                    "Criterion AS PRINTED: 'Sensitivity = reciprocal of "
+                    "exposure (erg/cm2) required to produce specified density' "
+                    "-- the density is NOT stated on the sheet, and the "
+                    "'D 0.2 above dmin' carried by the 5218/5217/5219 entries "
+                    "is not printed on their sheets either. Layers assigned by "
+                    "Kodak's ink convention (blue ink = blue-sensitive, green = "
+                    "green-sensitive, yellow-under-magenta overprint = "
+                    "red-sensitive), cross-checked against the legend swatches, "
+                    "the absorption bands and the 5217/5218 sets -- the "
+                    "5217 comparison being the strongest available, since that "
+                    "sheet's own set was adopted from a RASTER batch by a "
+                    "different method and the two agree to rms 0.109 / 0.091 / "
+                    "0.049 decades (r/g/b) with peaks within one 10 nm step. "
+                    "Traced "
+                    "extents 371-500 / 391-590 / 560-669 nm; outside them the "
+                    "arrays carry the -4.0 floor rather than an extrapolated "
+                    "tail. Absolute peaks, which the normalisation discards: "
+                    "log S 1.99 at 470 nm (blue), 1.78 at 540 (green), 1.76 at "
+                    "650 (red)"),
+        ),
+        # [T1] SPECTRAL DYE DENSITY, extracted 2026-08-25 by dye_density.py
+        # (H-1-5201 p3), queue item C9. Peak-normalised, exactly as the panel
+        # states: "NOTE: Cyan, Magenta, and Yellow Dye Curves are
+        # peak-normalized." Peaks 450 / 540 / 680 nm -- identical to 5217 and
+        # 5218, which is a family-level consistency check the extractor never saw.
+        # ⚠ THE QUEUE ENTRY'S DIAGNOSIS OF WHY THIS FAILED FOR WEEKS WAS WRONG,
+        # and the real cause is the useful part. C9 recorded it as a
+        # family-classifier limit -- "3 dyes, or 3 dyes + neutral, not 3 +
+        # neutral + dmin". It never was: family B takes any three of however many
+        # curves it is offered. What actually happened is that the CYAN trace
+        # never reached the classifier at all. It is drawn as the yellow +
+        # magenta overprint, 7 segments per path, and the extractor's `n < 8`
+        # segment filter dropped both -- leaving no curve in the 615-700 nm band,
+        # so no triple could pass the band test. The fix is not a lower segment
+        # threshold (that admits gridline stubs everywhere else) but identifying
+        # traces by INK, which this sheet makes unambiguous.
+        # THE VALIDATOR IS NEW AND IS THE REASON THIS IS TIER 1. Family A's test
+        # (neutral = C+M+Y) cannot hold when the dyes are peak-normalised and the
+        # neutral is not. The generalisation that does hold is
+        #     Neutral - Dmin = k_c*C + k_m*M + k_y*Y  with k_c = k_m = k_y,
+        # because equal contributions are what MAKE it a visual neutral. The
+        # unconstrained least-squares solution comes out 0.628 / 0.604 / 0.595 --
+        # a 5.4 % spread on three numbers that were free to be anything -- at rms
+        # 0.019 D. Dropping the Dmin term makes it 4.5x worse (rms 0.085) and
+        # scatters the coefficients over 0.86-1.61, which is what identifies
+        # which of the two dark traces is the neutral and which the dmin.
+        # ⚠ THE NEUTRAL AND DMIN TRACES ARE NOT STORED, the same decision as on
+        # 5217 and 5218: they are AS-PRINTED while the dyes are peak-normalised,
+        # and one record cannot carry two conventions.
+        # ⚠ 400-430 nm IN d_cyan IS A HELD VALUE, NOT A MEASUREMENT: the cyan
+        # trace begins at 430.4 nm on the plate, so the three samples below it
+        # carry its first value (0.099) rather than a fitted continuation.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.099, 0.099, 0.099, 0.099, 0.073, 0.056, 0.046, 0.041, 0.038, 0.036, 0.040, 0.044, 0.050, 0.064, 0.087, 0.120, 0.161, 0.208, 0.267, 0.347, 0.443, 0.537, 0.628, 0.714, 0.794, 0.869, 0.931, 0.977, 1.000, 0.995, 0.959),
+            d_magenta=(0.038, 0.040, 0.054, 0.068, 0.046, 0.056, 0.100, 0.176, 0.283, 0.420, 0.580, 0.732, 0.868, 0.970, 1.000, 0.942, 0.790, 0.604, 0.435, 0.307, 0.220, 0.161, 0.121, 0.093, 0.074, 0.059, 0.048, 0.040, 0.034, 0.029, 0.025),
+            d_yellow=(0.509, 0.664, 0.812, 0.931, 0.999, 1.000, 0.925, 0.783, 0.610, 0.445, 0.300, 0.189, 0.118, 0.075, 0.048, 0.031, 0.020, 0.013, 0.010, 0.009, 0.004, -0.001, -0.005, -0.009, -0.013, -0.017, -0.019, -0.022, -0.023, -0.023, -0.020),
+            normalisation="peak_1.0",
+            source=("Eastman Kodak Company, 'KODAK VISION2 50D Color Negative "
+                    "Film 5201 / 7201', publication H-1-5201, CAT 122 9749, "
+                    "New 10-2005, p3 SPECTRAL DYE-DENSITY CURVES panel; "
+                    "vector-path extraction 2026-08-25 by dye_density.py "
+                    "(family C, the peak-normalised + neutral + dmin case added "
+                    "for this sheet). Normalisation AS PRINTED: 'NOTE: Cyan, "
+                    "Magenta, and Yellow Dye Curves are peak-normalized' -- "
+                    "shape, not level. Peaks 450 / 540 / 680 nm, matching 5217 "
+                    "and 5218. Traces identified by Kodak's ink convention, the "
+                    "cyan one being a yellow-under-magenta overprint of two "
+                    "bit-identical 7-segment paths. VALIDATION: the sheet's own "
+                    "Midscale Neutral and Minimum Density traces satisfy "
+                    "Neutral - Dmin = k*(C + M + Y) with k = 0.628 / 0.604 / "
+                    "0.595 per dye -- a 5.4 % spread on an unconstrained fit -- "
+                    "at rms 0.019 D; without the Dmin term rms is 0.085 and the "
+                    "coefficients scatter over 0.86-1.61. Those two traces are "
+                    "as-printed and are NOT stored. d_cyan below 430 nm holds "
+                    "the trace's first value: the plate's cyan curve starts at "
+                    "430.4 nm"),
+        ),
         # RECIPROCITY, printed on p2 and stored below: "No filter corrections or
         # exposure adjustments for exposure times from 1/1000 of a second to
         # 1 second. In the 10-second range, increase exposure 1/3 stop and use a
@@ -12718,7 +12955,53 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # BBC granularity gives 0.40 where this file stores 0.26. Grain SIZE is
         # now measured; grain LEVEL (rms 5.0) is not, and the 1.5x level gap
         # remains a possible re-engineering of the emulsion.
-        grain=GrainSpec(5.0, 0.859, 0.859, 0.859, clump_gain=0.0,
+        # [T1] clump_um 0.859 -> 0.655, 2026-08-25, owner-approved. NOT a new
+        # measurement -- a CONDITION CORRECTION to yesterday's, and the reason
+        # it was needed is a mismatch this file shipped without noticing.
+        #
+        # 0.859 came from T-101 Table 2's printed equivalent grain diameter
+        # (1.5 um / 1.7473). That sample was developed by the BBC's laboratory
+        # to a PROCESS CONTROL GAMMA OF 1.0. This profile's stored curve is
+        # gamma 0.550 -- Ilford's documented contrast index for ID-11 1+1 at
+        # 9 minutes. Grain size is not independent of development, so a diameter
+        # measured at gamma 1.0 does not describe a gamma 0.55 negative.
+        #
+        # THE LAW IS MEASURED IN THE SAME DOCUMENT, ON THIS SAME EMULSION.
+        # T-101 Table 3 (journal p35, PDF p40) tabulates equivalent grain
+        # diameter against point gamma at two densities for Pan F and Tri-X, and
+        # its own last column is the ratio of diameter to sqrt(point gamma) --
+        # i.e. the table exists to demonstrate exactly this dependence. Read off
+        # the page image and refitted:
+        #
+        #     D_eq  ~  gamma ** n      n = 0.452 (Pan F rows, rms 0.0035 um)
+        #                              n = 0.396 (Tri-X rows)
+        #                              n = 0.425 (all 8 rows, 4 group constants)
+        #
+        # so the printed sqrt is very slightly steep; 0.5 over-predicts the four
+        # measured pairs by 1-6 %. Using the Pan F figure:
+        #     0.859 * (0.55 / 1.00) ** 0.452 = 0.655 um
+        # The alternatives bracket it narrowly: 0.666 on the global exponent,
+        # 0.637 on a strict sqrt. 0.655 is stored.
+        #
+        # ⚠ VALIDATED AGAINST A NUMBER THE FIT NEVER SAW: the same law applied to
+        # Pan F at gamma 1.0 and D 0.43 predicts D_eq 1.47 um against Table 2's
+        # printed 1.5 -- 2 %.
+        #
+        # ⚠ THE ONE SOFT SPOT, STATED RATHER THAN HIDDEN. Table 3 distinguishes
+        # DEVELOPMENT gamma from POINT gamma and they diverge (Pan F developed to
+        # 1.1 has point gamma 0.88 at D 0.3 but 1.1 at D 0.7). This profile's
+        # `gamma` is a whole-curve figure, so it is being matched to development
+        # gamma, which is the closer of the two but not identical. The
+        # correction's DIRECTION and rough SIZE are solid; its third digit is not.
+        #
+        # ⚠ AND THE OTHER FIVE T-101 STOCKS WERE CHECKED AND LEFT ALONE. Their
+        # stored gammas already match the BBC's: HPS 0.630 vs 0.63,
+        # EASTMAN_TRI_X_5223 0.640 vs 0.64, KODAK_8374 1.000 vs 1.00, KODAK_5302
+        # 2.400 vs 2.40. Only EASTMAN_PLUS_X_5231 differs at all (0.680 vs 0.64,
+        # a +2.5 % correction to 0.851) and it is NOT applied: that is far inside
+        # the upper-bound caveat those diameters already carry, and moving a
+        # number by less than its own stated uncertainty is false precision.
+        grain=GrainSpec(5.0, 0.655, 0.655, 0.655, clump_gain=0.0,
                         fog_grain=0.16),
         mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.02, adjacency_um=16.0),
         halation=HalationSpec(
@@ -13194,8 +13477,17 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "sigma(D) shape and level (granularity_vector.py, ninth vector sheet, green ratios "
         "0.54/1.00/0.89 peaking 1.20x at D 0.80, net-1.0 rms r/g/b 4.36/4.51/9.63); per-record "
         "MTF (mtf_vector.py, f50 32.1/49.7/55.5 cycles/mm, overshoot +0.108/+0.157/+0.142, "
-        "rolloff q 2.77/3.23/3.42). NOT extracted and NOT invented: the spectral-sensitivity and "
-        "spectral-dye-density panels, both present as vector art -- queue items C10 and C9. The "
+        "rolloff q 2.77/3.23/3.42). COMPLETED 2026-08-25 (queue C9 and C10), from the same p3 "
+        "vector art: spectral dye density (dye_density.py family C, peak_1.0, peaks 450/540/680 "
+        "nm, validated by Neutral - Dmin = k*(C+M+Y) with k = 0.628/0.604/0.595 at rms 0.019 D) "
+        "and spectral sensitivity (spectral_vector.py, the file's first vector-traced spectral "
+        "set, peaks 470/540/650 nm, layers assigned by Kodak's ink convention with the red record "
+        "drawn as a yellow-under-magenta overprint). ⚠ THE SENSITIVITY CRITERION IS INCOMPLETE ON "
+        "THE SHEET: it prints 'reciprocal of exposure (erg/cm2) required to produce specified "
+        "density' and never names the density; stored as printed rather than borrowing the "
+        "'D 0.2 above dmin' the 5218/5217/5219 entries carry, which is printed on none of their "
+        "sheets either. ⚠ The spectral adoption MOVES THIS STOCK'S RENDER (+0.28 stop of red gain "
+        "at 3200 K against the 600/550/450 nm proxy, green unchanged); the dye set is inert. The "
         "sheet's own caveat is recorded rather than smoothed over: 'Sensitometric and Diffuse RMS "
         "Granularity curves are produced on different equipment. A slight variation in curve "
         "shape may be noticed.' -- measured here as 0.022-0.055 D between the two panels, which "
@@ -13385,7 +13677,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "book p 79 (table 7, «Негативные черно-белые кинопленки»), read visually at 300 dpi. GROUNDS EXACTLY ONE THING: the speed pair. «HP-S», ASA 400 дневной свет / 320 лампы накаливания, from the 1963-64 catalogues -- a 1/3-stop drop, the normal panchromatic figure, and the reason the PAIR had to be taken from a single source. SPEED CORRECTED 2026-08-17, 800 -> 400: the previous 800 was self-declared as estimated from secondary/historical sources and was internally inconsistent with this profile's own description, which says the film was pushed BEYOND box speed -- 800 reads as a push rating. The emulsion is unchanged; this is a relabelling of which rating the profile claims. "
         "⚠ METHOD RULE 14 APPLIES: this is a SOVIET source describing a BRITISH film, used only because the value it replaces was an admitted estimate. If an Ilford sheet for HP-S ever surfaces it OUTRANKS this citation. ⚠ AND IT IS NO LONGER THE ONLY SOURCE: two contemporaneous BBC measurements were added 2026-08-23 (below), which confirm the 320/400 speeds independently and supply a measured development gamma. No ILFORD figure for HP-S exists in this corpus -- and the 1942 Ilford Manual does not count: it predates the product, and its 'Hypersensitive Panchromatic', listed beside H.P.3 in its own development table, is a separate and SLOWER emulsion. NOT GROUNDED BY THIS SOURCE, i.e. still estimate-grade: rms 19.0, clump 26 um, gamma 0.62, dmin 0.21, fog_grain 0.40, f50 26 lp/mm and the reciprocity exponent. The deliberately high dmin and fog_grain encode the pushed Nouvelle-Vague look (Coutard, «A bout de souffle», 1960, HPS 35 mm still stock bulk-spliced into 100-ft rolls) and are a rendering intent, not a measurement -- and note that the BBC gamma below now supersedes the 0.62 listed here",
         "K. Hacking, «An Analysis of Film Granularity in Television Reproduction», BBC Engineering Division Monograph No. 54, August 1964 -- PDF/PROFILES/ILFORD/«AN ANALYSIS OF FILM GRANULARITY.pdf». ⚠ THIRD-PARTY MEASUREMENT, method rule 14: a BBC research report, not an Ilford sheet, so an Ilford document outranks it. But it is a PRIMARY measurement rather than a compilation, it is contemporaneous with the film, and its speed table is headed \"Rated film-speed (Tungsten illumination)\" taken from the makers, so the ASA figures are Ilford's own relayed. ⚠ IMAGE-ONLY SCAN WITH AN OCR LAYER; every value here was read from the PAGE IMAGE at 170 dpi, the OCR being used only to find the pages. GROUNDS, Table I printed p12: Ilford H.P.S. 320 A.S.A. / 36 deg B.S. tungsten with a measured grain Wiener spectrum of 0.62 square microns, mean level over 0-20 cycles/mm. Companion rows, which are what make the figure checkable: Ilford Pan.F 16 / 23 deg / 0.10, Kodak Plus-X 64 / 29 deg / 0.14, Kodak Tri-X 250 / 35 deg / 0.555. CONDITIONS as printed: uniformly exposed samples, standard negative developer, all developed to approximately the same gamma (Eastman TIB control gamma = 0.65), mean optical density approximately 0.48 ABOVE BASE on an E.E.L. densitometer, 35 mm gauge. ⚠ NOT AT THIS FILE'S NET-1.0 CONVENTION, which is why the derived 18.5 does not replace the stored rms 19.0 -- see the profile comment. Fig. 8 p13 plots the four measured spectra 0-150 cycles/mm and IS NOW ADOPTED: traced 2026-08-24 off the page image, 268 points over 1.9-116 cycles/mm, fitting clump_um 1.900 um and clump_gain 0.000 at rms 0.0018 um^2, against the 26.0 / 1.65 estimate it replaces whose own rms is 0.862. THE TRACE VALIDATES ITSELF THREE WAYS, none of which set a parameter: the 13 horizontal gridlines land on a uniform ladder ending at exactly 0.000 and 0.701; W(60)/W(0) comes out 0.900 against T-101 p38's printed statement that the spectrum falls by only about 10 % over 0-60 cycles/mm; and the traced W(0) is 0.610 um^2 against this table's printed 0.62. THE PAGE IS A 1-BIT SCAN WITH ABOUT 0.8 DEGREES OF SKEW and broken gridlines, so neither pixel-count nor run-length frame detection works -- the frame was recovered by fitting the bottom axis per column and the y scale was checked against the gridline ladder. TRI-X AND PLUS-X WERE ATTEMPTED FROM THE SAME FIGURE AND REJECTED: the Tri-X tracker re-followed the HPS curve, caught because its fitted W(0) returned 0.611 against the printed 0.555, and Plus-X retained only 28 points after gridline masking. Neither is stored; Fig. 9 p13 is the same four points as a graph and adds nothing to Table I. ⚠ TABLE I'S OWN FOOTNOTE READS \"Earlier speed ratings (prior to the revised indices)\", which is the most likely origin of any later 800 A.S.A. figure for HPS and is a reason NOT to treat 320/400 and 800 as contradictory. ⚠ DELIBERATELY NOT USED: Figs. 12-16, the displayed-granularity curves. The author states at 7.1.1 p16 that they are COMPUTED from Fig. 8 plus six declared assumptions -- printing onto Kodak 5302, Lamberts' printing response for that stock, the print development curve of Fig. 10, 5302's own 0.04 square micron grain, a 13 cycles/mm video bandwidth and a Gaussian system aperture -- so they describe a 1964 telecine chain, not an emulsion, and their tone dependence is equation (4)'s ASSUMED D^-0.6 law rather than a measurement. Neither document states a resolving power for any film: the \"resolving power\" axes belong to the scanner beam (Fig. 4 p8), and T-101's \"0 to 40 cycles/mm\" is an assumed system bandwidth",
-        "«Photographic film grain: a study with the aid of an optical correlator», BBC Research Department Report No. T-101, 1963/5 -- PDF/PROFILES/ILFORD/1963-05.pdf. ⚠ THIRD-PARTY MEASUREMENT (method rule 14) and an IMAGE-ONLY SCAN with an OCR layer; all values read from the page images. METHOD, which is why these numbers are film properties and not system ones: a strip is exposed frame by frame, developed at a commercial cine laboratory, a blemish-free area photomicrographed at x400, and the autocorrelation function measured on an optical correlator from a mirror-image plate pair, then Fourier transformed in two dimensions to the Wiener spectrum. Nothing but the measuring aperture stands between the emulsion and the number. GROUNDS for HPS -- Table 1 printed p27, headed MANUFACTURERS' DATA: \"HPS (ILFORD), 35 mm, Panchromatic film of extreme speed, 320 A.S.A. tungsten / 400 A.S.A. daylight, special cine-camera work\". That is an independent confirmation of both stored speeds from a contemporaneous source, replacing sole reliance on Иофис. Table 2 printed p28, all six emulsions at mean transmission t ~= 0.33 (D ~= 0.5 above base): HPS PROCESS CONTROL GAMMA 0.63 (adopted, replacing the 0.62 estimate), mean transmission 0.31, mean-signal-to-r.m.s.-noise 0.96, EQUIVALENT GRAIN DIAMETER 2.5 um. Table 4 printed p38: relative granularity 3.9 with Kodak 5302 as unity, over a 0-40 cycles/mm bandwidth. p38 also states the HPS Wiener spectrum falls only about 10 % over 0-60 cycles/mm and that grain correlation is \"substantially confined to about plus or minus one equivalent grain diameter\". ⚠ TWO CAVEATS ON TABLE 2 THAT MUST TRAVEL WITH IT. First, the t/sigma column is APERTURE-DEPENDENT (Selwyn: sigma*sqrt(A) is the invariant) and was measured through a grain-resolving microscope whose effective aperture the report does not state, so it CANNOT be converted into rms_granularity and is usable only as ratios between the six films. Second, the equivalent grain diameters are stated by the report to be upper bounds -- p38, \"expected to be greater than the true values\" because the instrumental weighting is uncorrected. ⚠ AN ERROR IN THE ORIGINAL, recorded so it cannot be copied: p38 calls HPS \"the HPS emulsion (No. 6)\" where its own Table 1 numbers HPS as No. 1 and 5302 as No. 6. ⚠ FIG. 18 (p30) WAS DIGITISED ON 2026-08-24 AND IS NOW CLOSED, and the method is recorded because the plate defeated three earlier attempts. It plots the Wiener spectra of all six emulsions, ordinate in square microns, abscissa 0-800 cycles/mm, as SIX DASHED CURVES that converge into one bundle above about 450 c/mm. What made it hard, and what each fix was: (1) the page is BOWED, not skewed -- one gridline sits at y 325 near the left frame and 310 near the right, and the W=0 line moves 97 px across the plate -- so a whole-row fill test cannot remove the grid at all, and a single global y->W map carries up to 0.0024 of W error, which is 6 % of the 5302 curve's own W(0). Fixed by tracking all 29 horizontal and 17 vertical lines independently. (2) TWO of the 29 lines are untrackable: W=0.075 is nearly coincident with the 8374 curve, so the tracker followed the CURVE, wandered 83 px, and its removal band deleted 8374 while leaving the real gridline behind -- which is why 8374 looked absent from the plate; W=0.000 merges with the bundle. A trimmed quadratic fit in the line index repairs both and reproduces every clean line to 1.7 px. (3) column tracing is impossible here because HPS and Tri-X reach 11 y-px per x-px, so an arc-length tangent walker with a 0.57 deg/px turn limit was used instead; without the turn limit PAN F and 5302 both dive down residual vertical gridline stubs to W=0, which is exactly the shape of the earlier plausible-but-wrong results. (4) the curves are SEPARATED BY DASH PERIOD, measured off the six legend swatches at 600 dpi: HPS even 38-52 px ink / 8-14 gap, TRI.X long 132-142 alternating with short 14-18, PLUS X short 22-30, PAN F long 80-124, 8374 long ~133 with TWO shorts between, 5302 solid. Grid removal cuts dashes, so a run touching a gridline is discarded before classifying. ⚠ HPS AND TRI.X CROSS, at about f=130, and the crossing is decided by TWO INDEPENDENT METHODS THAT AGREE: the dash signature on each branch above f=155 (the lower branch runs 42,39,42,43,52,56,53,61,44,55 = HPS; the upper runs 95,131,84,58,79,154,93 with 13-16 px shorts between = TRI.X) and extrapolation of the f<105 fits (HPS predicts 0.114 at f=270, TRI.X 0.176; observed 0.132 and 0.165). f in [105,160] is DROPPED for both rather than interpolated. WHAT FIG. 18 YIELDS: W(0) in square microns per emulsion -- HPS 0.617, TRI.X 0.552, PLUS X 0.138, PAN F 0.156, 8374 0.073, 5302 0.039 -- against Monograph 54 Table I's printed 0.62 for HPS, which is 0.5 %, and that agreement is the calibration check. Fitted clump_um over signature-verified ranges only: HPS 1.638, TRI.X 1.454, PLUS X 0.867, and PAN F 0.613 / 8374 0.606 / 5302 0.543 all UNDER-DETERMINED (those three fall less than 30 % over their resolvable range, so clump and shape trade off; PAN F fits 0.613 at a Gaussian carrier and 1.168 at a free exponent, equal residual). clump_gain fits to 0.000 on ALL SIX independently. ⚠ NONE OF THOSE FITTED NUMBERS IS STORED. Table 2's printed equivalent grain diameters are, through D_eq = 1.7473 * clump_um; the traces sit 4-15 % above the printed values on the three well-determined stocks, and since p38 states the printed diameters are already UPPER BOUNDS (instrumental weighting uncorrected), so are the stored clump_um values, and the traces are looser bounds still. ⚠ A SHAPE FINDING THAT IS RECORDED AND NOT ACTED ON: fitting a free exponent, W = W0 exp(-2 (f/f_hi)^n), gives n = 1.80 for HPS, 2.01 for TRI.X, 2.43 for PLUS X and 2.4-4.1 for the three fine-grain stocks. This file's carrier is fixed at n = 2, which is exactly right for TRI.X, slightly too thin-tailed for HPS and too soft-shouldered for the fine-grain emulsions. Changing the carrier is a renderer change, not a data change, and is not attempted here. NOT GROUNDED BY THIS DOCUMENT, i.e. still estimate-grade on this profile: f50, dmin, fog_grain, the toe and shoulder, spectral weights and the reciprocity exponent. Neither document prints a characteristic curve, a spectral sensitivity or a resolving power for HPS",),
+        "«Photographic film grain: a study with the aid of an optical correlator», BBC Research Department Report No. T-101, 1963/5 -- PDF/PROFILES/ILFORD/1963-05.pdf. ⚠ THIRD-PARTY MEASUREMENT (method rule 14) and an IMAGE-ONLY SCAN with an OCR layer; all values read from the page images. METHOD, which is why these numbers are film properties and not system ones: a strip is exposed frame by frame, developed at a commercial cine laboratory, a blemish-free area photomicrographed at x400, and the autocorrelation function measured on an optical correlator from a mirror-image plate pair, then Fourier transformed in two dimensions to the Wiener spectrum. Nothing but the measuring aperture stands between the emulsion and the number. GROUNDS for HPS -- Table 1 printed p27, headed MANUFACTURERS' DATA: \"HPS (ILFORD), 35 mm, Panchromatic film of extreme speed, 320 A.S.A. tungsten / 400 A.S.A. daylight, special cine-camera work\". That is an independent confirmation of both stored speeds from a contemporaneous source, replacing sole reliance on Иофис. Table 2 printed p28, all six emulsions at mean transmission t ~= 0.33 (D ~= 0.5 above base): HPS PROCESS CONTROL GAMMA 0.63 (adopted, replacing the 0.62 estimate), mean transmission 0.31, mean-signal-to-r.m.s.-noise 0.96, EQUIVALENT GRAIN DIAMETER 2.5 um. Table 4 printed p38: relative granularity 3.9 with Kodak 5302 as unity, over a 0-40 cycles/mm bandwidth. p38 also states the HPS Wiener spectrum falls only about 10 % over 0-60 cycles/mm and that grain correlation is \"substantially confined to about plus or minus one equivalent grain diameter\". ⚠ TWO CAVEATS ON TABLE 2 THAT MUST TRAVEL WITH IT. First, the t/sigma column is APERTURE-DEPENDENT (Selwyn: sigma*sqrt(A) is the invariant) and was measured through a grain-resolving microscope whose effective aperture the report does not state, so it CANNOT be converted into rms_granularity and is usable only as ratios between the six films. Second, the equivalent grain diameters are stated by the report to be upper bounds -- p38, \"expected to be greater than the true values\" because the instrumental weighting is uncorrected. ⚠ AN ERROR IN THE ORIGINAL, recorded so it cannot be copied: p38 calls HPS \"the HPS emulsion (No. 6)\" where its own Table 1 numbers HPS as No. 1 and 5302 as No. 6. ⚠ FIG. 18 (p30) WAS DIGITISED ON 2026-08-24 AND IS NOW CLOSED, and the method is recorded because the plate defeated three earlier attempts. It plots the Wiener spectra of all six emulsions, ordinate in square microns, abscissa 0-800 cycles/mm, as SIX DASHED CURVES that converge into one bundle above about 450 c/mm. What made it hard, and what each fix was: (1) the page is BOWED, not skewed -- one gridline sits at y 325 near the left frame and 310 near the right, and the W=0 line moves 97 px across the plate -- so a whole-row fill test cannot remove the grid at all, and a single global y->W map carries up to 0.0024 of W error, which is 6 % of the 5302 curve's own W(0). Fixed by tracking all 29 horizontal and 17 vertical lines independently. (2) TWO of the 29 lines are untrackable: W=0.075 is nearly coincident with the 8374 curve, so the tracker followed the CURVE, wandered 83 px, and its removal band deleted 8374 while leaving the real gridline behind -- which is why 8374 looked absent from the plate; W=0.000 merges with the bundle. A trimmed quadratic fit in the line index repairs both and reproduces every clean line to 1.7 px. (3) column tracing is impossible here because HPS and Tri-X reach 11 y-px per x-px, so an arc-length tangent walker with a 0.57 deg/px turn limit was used instead; without the turn limit PAN F and 5302 both dive down residual vertical gridline stubs to W=0, which is exactly the shape of the earlier plausible-but-wrong results. (4) the curves are SEPARATED BY DASH PERIOD, measured off the six legend swatches at 600 dpi: HPS even 38-52 px ink / 8-14 gap, TRI.X long 132-142 alternating with short 14-18, PLUS X short 22-30, PAN F long 80-124, 8374 long ~133 with TWO shorts between, 5302 solid. Grid removal cuts dashes, so a run touching a gridline is discarded before classifying. ⚠ HPS AND TRI.X CROSS, at about f=130, and the crossing is decided by TWO INDEPENDENT METHODS THAT AGREE: the dash signature on each branch above f=155 (the lower branch runs 42,39,42,43,52,56,53,61,44,55 = HPS; the upper runs 95,131,84,58,79,154,93 with 13-16 px shorts between = TRI.X) and extrapolation of the f<105 fits (HPS predicts 0.114 at f=270, TRI.X 0.176; observed 0.132 and 0.165). f in [105,160] is DROPPED for both rather than interpolated. WHAT FIG. 18 YIELDS: W(0) in square microns per emulsion -- HPS 0.617, TRI.X 0.552, PLUS X 0.138, PAN F 0.156, 8374 0.073, 5302 0.039 -- against Monograph 54 Table I's printed 0.62 for HPS, which is 0.5 %, and that agreement is the calibration check. Fitted clump_um over signature-verified ranges only: HPS 1.638, TRI.X 1.454, PLUS X 0.867, and PAN F 0.613 / 8374 0.606 / 5302 0.543 all UNDER-DETERMINED (those three fall less than 30 % over their resolvable range, so clump and shape trade off; PAN F fits 0.613 at a Gaussian carrier and 1.168 at a free exponent, equal residual). clump_gain fits to 0.000 on ALL SIX independently. ⚠ NONE OF THOSE FITTED NUMBERS IS STORED. Table 2's printed equivalent grain diameters are, through D_eq = 1.7473 * clump_um; the traces sit 4-15 % above the printed values on the three well-determined stocks, and since p38 states the printed diameters are already UPPER BOUNDS (instrumental weighting uncorrected), so are the stored clump_um values, and the traces are looser bounds still. ⚠ A SHAPE FINDING THAT IS RECORDED AND NOT ACTED ON: fitting a free exponent, W = W0 exp(-2 (f/f_hi)^n), gives n = 1.80 for HPS, 2.01 for TRI.X, 2.43 for PLUS X and 2.4-4.1 for the three fine-grain stocks. This file's carrier is fixed at n = 2, which is exactly right for TRI.X, slightly too thin-tailed for HPS and too soft-shouldered for the fine-grain emulsions. Changing the carrier is a renderer change, not a data change, and is not attempted here. ⚠ FIG. 26 (p39) WAS EXTRACTED ON 2026-08-25 AND IS DELIBERATELY NOT STORED, AND THE REASON IS THE MOST USEFUL THING THIS DOCUMENT TAUGHT THIS PROJECT ABOUT ITS OWN CONVENTIONS. The plate is the best-conditioned in the report: log-log, a full labelled grid, and the measured curve carries five explicit X data markers. Extraction gives log10(t/sigma) = -0.6648*log10(D) - 0.1738 over 1039 columns at rms 0.0063 decades, and it self-validates twice -- sec. B.2 prints the five samples' mean transmissions (0.74, 0.59, 0.37, 0.22, 0.07), so their densities are known before anything is traced, and four of the five markers land within 2.2 % of them (the fifth is clipped by a gridline); Fig. 21 plots the SAME quantity on linear axes and its five markers give exponent 0.668 against the log-log fit's 0.665. ⚠ AND YET IT CANNOT BE CONVERTED TO sigma_D, WHICH IS WHAT THIS FILE STORES. T-101 sec. 2 defines its sigma from a two-level model -- grains \"uniformly opaque\" with \"infinitely sharp edges\", so t(x,y) takes only the eigenvalues 0 and 1, giving sigma = sqrt(t(1-t)) (eq. 3) and t/sigma = sqrt(t/(1-t)) (eq. 4), the dashed LOWER LIMIT drawn on Fig. 26 itself. The report states that limit is approached \"as the scanning aperture becomes vanishingly small\" and is \"independent of the size and distribution of the grains\". That is PINHOLE, RESOLVED-GRAIN COVERAGE STATISTICS. The measured sigma_t/t runs 0.39 at t=0.74 to 1.64 at t=0.07 -- fractional fluctuations of 39 % to 164 % -- so the small-signal linearisation sigma_D = 0.4343*sigma_t/t, which needs sigma_t/t << 1, is invalid across the whole plate. An earlier reading of this figure that reported \"sigma_D = 0.648*D^0.665\" was withdrawn for exactly this reason and is recorded here so it is not re-derived. ⚠ CONSEQUENCE FOR THE MEES CONFLICT: THERE IS NO CONFLICT. Mees Fig. 302 (Goetz-Gould G on a trace evaluator, a fixed densitometer aperture, grains unresolved, Selwyn regime) and T-101 Fig. 26 are different regimes of the same physics and are not commensurable; this file's rms_granularity is defined at a 48 um aperture, which is Mees's regime and not this one. The apparent disagreement about whether B&W silver-negative grain turns over at high density was an artefact of the bad conversion, not a disagreement between two measurements. WHAT DOES SURVIVE from Fig. 26, as a finite-aperture result rather than a film property: the measurement sits a near-constant 1.48-1.62x above the pinhole limit across four of the five samples and breaks to 2.22x at the densest. NOT GROUNDED BY THIS DOCUMENT, i.e. still estimate-grade on this profile: f50, dmin, fog_grain, the toe and shoulder, spectral weights and the reciprocity exponent. Neither document prints a characteristic curve, a spectral sensitivity or a resolving power for HPS",),
     "KODAK_SUPER_XX_PAN_4142": (
         "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 17: KODAK SUPER-XX Pan Film 4142 on ESTAR Thick Base, ISO 200/24 deg, SHEETS ONLY; grain 'Fine'; resolving power 100 lines/mm at high test-object contrast (classed 'High' by the sheet) and 40 at low, which is the stored (40.0, 100.0) pair; 'A moderately high speed, panchromatic film for general purposes in portrait, commercial, and industrial photography. It is an excellent material for making COLOR-SEPARATION NEGATIVES and for black-and-white negatives from color transparencies.' That separation-negative role is the documented reason for the unusually long straight line carried in the stored curve, and is why the stock stayed in catalogue long after faster films existed. "
         "⚠ WHY THIS ENTRY IS LATE: it was MISSED by the 2026-08-17 F-5 pass. The same pass entered this stock into _RESOLVING_POWER ('DS 17, high classed High') but not here, leaving it the only one of the ten F-5 stocks in this database whose F-5 citation was absent while its description named DS 17. Found 2026-08-18 by the placeholder-source audit; no value changed, only the citation was supplied",),
@@ -13740,9 +14032,10 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "ILFORD_PAN_F": (
         "Pittaro, Ernest M. (ed.), 'The Compact Photo-Lab-Index -- The Cumulative Formulary of Standard Recommended Photographic Procedures', Morgan & Morgan Inc., Dobbs Ferry NY; basic set June 1939, 36th edition 1978, 2nd Compact Edition 1979 -- PDF/PROFILES/pittaro_em_the_compact_photolabindex.pdf"
         " -- p471-474 (ASA 50, DIN 18; wedge spectrogram to tungsten 2850 K; reciprocity chart; filter factors daylight and tungsten; development times to contrast index G0.55 / G0.70 in ID-11, Microphen and Perceptol at 1+1 and 1+3; speed becomes DIN 20 in Microphen and ASA 32 / DIN 16 in Perceptol) and p559 (Ilford sensitivity range 2300-6700 Angstrom, medium speed, medium-to-high contrast, very fine grain)",
-        "BBC Research Department Report No. T-101, 1963/5, and BBC Engineering Division Monograph No. 54, August 1964 -- PDF/PROFILES/ILFORD/1963-05.pdf and «AN ANALYSIS OF FILM GRANULARITY.pdf». ⚠ THIRD-PARTY (method rule 14), image-only scans read from the page images. ADDED 2026-08-23 in the same pass as ILFORD_HPS, which carries the full reading of both documents. WHAT THEY PRINT FOR PAN F: T-101 Table 1 p27, from manufacturers' data -- \"Pan F (ILFORD), 35 mm, Panchromatic film of superlatively fine grain, 16 A.S.A. tungsten / 25 A.S.A. daylight\"; Table 2 p28 -- process control gamma 1.0, mean transmission 0.37, mean-signal-to-r.m.s.-noise 1.22, equivalent grain diameter 1.5 um; Table 3 p35 -- at mean density 0.3 and 0.7, equivalent grain diameter 1.23/1.44 and 1.10/1.41 um at development gamma 0.63/1.1, giving diameter / sqrt(point gamma) constant to 2 % per density. Monograph 54 Table I p12 -- 16 A.S.A. / 23 deg B.S. tungsten, grain Wiener spectrum 0.10 square microns at D 0.48 above base, which converts through the 48 um aperture to sigma*1000 = 7.4. ⚠ NOT ADOPTED AS A CORRECTION, AND THE REASON IS AN EMULSION-IDENTITY QUESTION, NOT A MEASUREMENT ONE: this profile carries era 1960s-1980s with rms 5.0, while the samples measured here are 1963 Pan F. Relative to HPS the measurement gives 0.40 and this file stores 0.26, a 1.5x gap -- consistent with Ilford having re-engineered the emulsion, and NOT resolvable from these documents. Recorded as a conflict; what would settle it is an Ilford sheet for either generation. T-101 Figs. 19, 20 and 23 also measure this emulsion's Wiener spectrum at FIVE mean transmissions and at two development gammas out to 600 cycles/mm, which is a measured sigma(D) shape and a measured spectrum shape -- still untraced. ⚠ clump_um WAS CORRECTED 5.0 -> 0.859 um ON 2026-08-24 from Table 2's printed 1.5 um equivalent grain diameter, with clump_gain 0.92 -> 0.000; see the profile comment for why the Fig. 18 trace of this particular emulsion was rejected as under-determined and the printed number used instead. GRAIN LEVEL IS UNTOUCHED and the emulsion-identity conflict above still stands: size is measured, rms 5.0 is not",
+        "BBC Research Department Report No. T-101, 1963/5, and BBC Engineering Division Monograph No. 54, August 1964 -- PDF/PROFILES/ILFORD/1963-05.pdf and «AN ANALYSIS OF FILM GRANULARITY.pdf». ⚠ THIRD-PARTY (method rule 14), image-only scans read from the page images. ADDED 2026-08-23 in the same pass as ILFORD_HPS, which carries the full reading of both documents. WHAT THEY PRINT FOR PAN F: T-101 Table 1 p27, from manufacturers' data -- \"Pan F (ILFORD), 35 mm, Panchromatic film of superlatively fine grain, 16 A.S.A. tungsten / 25 A.S.A. daylight\"; Table 2 p28 -- process control gamma 1.0, mean transmission 0.37, mean-signal-to-r.m.s.-noise 1.22, equivalent grain diameter 1.5 um; Table 3 p35 -- at mean density 0.3 and 0.7, equivalent grain diameter 1.23/1.44 and 1.10/1.41 um at development gamma 0.63/1.1, giving diameter / sqrt(point gamma) constant to 2 % per density. Monograph 54 Table I p12 -- 16 A.S.A. / 23 deg B.S. tungsten, grain Wiener spectrum 0.10 square microns at D 0.48 above base, which converts through the 48 um aperture to sigma*1000 = 7.4. ⚠ NOT ADOPTED AS A CORRECTION, AND THE REASON IS AN EMULSION-IDENTITY QUESTION, NOT A MEASUREMENT ONE: this profile carries era 1960s-1980s with rms 5.0, while the samples measured here are 1963 Pan F. Relative to HPS the measurement gives 0.40 and this file stores 0.26, a 1.5x gap -- consistent with Ilford having re-engineered the emulsion, and NOT resolvable from these documents. Recorded as a conflict; what would settle it is an Ilford sheet for either generation. T-101 Figs. 19, 20 and 23 also measure this emulsion's Wiener spectrum at FIVE mean transmissions and at two development gammas out to 600 cycles/mm, which is a measured sigma(D) shape and a measured spectrum shape -- still untraced -- EXCEPT Figs. 20, 21, 23 and 26, read on 2026-08-25 (below). ⚠ clump_um WAS CORRECTED 5.0 -> 0.859 um ON 2026-08-24 from Table 2's printed 1.5 um equivalent grain diameter, with clump_gain 0.92 -> 0.000, AND CORRECTED AGAIN TO 0.655 ON 2026-08-25 for a development-condition mismatch: Table 2's sample was developed to process control gamma 1.0 while this profile's curve is gamma 0.55, and T-101 TABLE 3 (journal p35, PDF p40) MEASURES THAT DEPENDENCE ON THIS VERY EMULSION -- equivalent grain diameter against point gamma at two densities, its own last column normalising by sqrt(point gamma). Refitting the eight printed rows gives D_eq ~ gamma**n with n = 0.452 for the Pan F rows (rms 0.0035 um), 0.396 for Tri-X and 0.425 pooled, so the printed sqrt is marginally steep. 0.859 * (0.55/1.00)**0.452 = 0.655 um. VALIDATED against a number the fit never saw: the same law at gamma 1.0 and D 0.43 predicts 1.47 um against Table 2's printed 1.5. ⚠ Table 3 distinguishes DEVELOPMENT from POINT gamma and they diverge, so the correction's direction and size are solid but its third digit is not. ⚠ AND FIG. 21 (journal p34) MEASURES THE DENSITY DEPENDENCE TOO, on this emulsion: equivalent grain diameter 1.726 / 1.572 / 1.484 / 1.402 / 1.384 um at the five printed mean transmissions 0.74 / 0.59 / 0.37 / 0.22 / 0.07, i.e. -20 % across the tone scale, with the t=0.37 point reading 1.484 against Table 2's printed 1.5 (1.1 %). The schema stores one scalar, so the stored value is a mid-scale representative; Fig. 20 shows the same change in the frequency domain as a visibly narrower spectrum at low density. ⚠ FIG. 26 (journal p39) WAS EXTRACTED AND IS DELIBERATELY NOT USED FOR sigma(D) -- see the ILFORD_HPS citation for why it is not commensurable with this file's granularity convention; see the profile comment for why the Fig. 18 trace of this particular emulsion was rejected as under-determined and the printed number used instead. GRAIN LEVEL IS UNTOUCHED and the emulsion-identity conflict above still stands: size is measured, rms 5.0 is not",
     ),
     "KODAK_TRI_X_REVERSAL_200": (
+        "⚠ THE SAME SHEET'S rms GRANULARITY CURVE PANEL WAS TRACED 2026-08-25 AND GROUNDS THE sigma(D) SHAPE -- the first measured B&W sigma(D) in this database, and it reverses the sign of the estimate it replaces. PDF/PROFILES/KODAK/KODAK-TRI-X-7266-technical-information.pdf page 3, panel titled \"rms Granularity Curve\", subtitled \"Granularity vs. Density (0-3 scale) / Reversal Process\", read with a microdensitometer at a 48-micrometre aperture as the sheet states. Traced off the EMBEDDED IMAGE at its native 770x748; re-rendering the page is pointless because the source raster caps at about 246 ppi. WHY THIS PANEL AND NOT THE OTHER: it carries DENSITY and GRAIN against ONE shared log-exposure axis with a logarithmic Granularity SIGMA D scale on the right, so the pairing happens inside a single calibration. The sheet's Characteristic Curve panel disagrees with it about the same film -- log E -4.0..+2.0 against 0.0..3.0, Dmax 2.57 against 3.20 -- and the sheet itself warns \"Sensitometric and Diffuse RMS Granularity curves are produced on different equipment. A slight variation in curve shape may be noticed\", so pairing ACROSS the two panels would have mixed two calibrations silently. CALIBRATION OVER-DETERMINED: the log sigma_D axis fixed from its 0.10 and 0.001 labels alone, then all ten intermediate printed labels reproduce to <= 1.5 px; density from 18 inward ticks 3.4..0.0 by 0.2; log E from inward ticks at exactly 0.0/1.0/2.0/3.0. THE TWO CURVES CROSS AND SWAP ORDER at log E 1.65, so they are separated by solid-versus-dashed rather than by position, and the result was verified by coloured overlay. WHAT IS STORED, from the 30 of 52 paired points where |dD/dlogE| > 0.5: sigma_shape 0.262 at D 0.352 / 1.000 at D 1.000 / 2.829 at D 3.089, replacing the 0.70/1.00/0.50 estimate -- so grain RISES to 2.83x at the dense end where the estimate had it FALLING to 0.50x, and over the usable range sigma_D ~ D^1.078 at rms 0.038 decades, very nearly linear in density. ⚠ THE OTHER 22 POINTS ARE DISCARDED BECAUSE THE PAIRING IS ILL-CONDITIONED THERE: the density curve is flat at both ends, so D barely moves while sigma keeps changing -- the multivalued-toe trap this project already recorded on the VISION3 sheets, mirrored to the dense end because this is a reversal stock. An apparent interior peak of 2.93x at D 3.16 lies inside that discarded zone and is NOT stored. ⚠ rms_granularity 10.0 IS NOT REPLACED although this panel reads sigma_D 0.0177 at D 1.0 and 0.0223 at this file's NET-1.0 convention (22.3 against the stored 10.0): the sheet prints \"Note: This curve represents granularity based on modified measuring techniques\", so its absolute level is not the standard diffuse RMS. The shape is grounded; the level is not. ⚠ SCOPE HELD TO THIS STOCK (method rule 18) -- 35 of the 36 reversal stocks in this file share the identical 0.7/1.0/0.5 estimate, 13 of them monochrome and eight of those Polaroid peel-apart films whose process is not this one; one measured sample is not a class. ⚠ AND IT IS REVERSAL, NOT NEGATIVE, so it does NOT close the sigma(D) question for the 68 monochrome NEGATIVE stocks -- that still needs a granularity-versus-density curve for a named B&W negative, which no document in this corpus carries. ⚠ A TYPO IN THE SOURCE, recorded so it is not propagated: the MTF panel prints the process as 60 s at 68F (24C) while the Characteristic Curve panel prints 60 s at 76F (24C); 68F and 76F are not both 24C",
         "Eastman Kodak Company, «KODAK TRI-X Reversal Film 7266 -- Technical Data», KODAK Publication No. H-1-7266, Revised 3-26 (header MARCH 2026), (c) 2026 -- PDF/PROFILES/KODAK/KODAK-TRI-X-7266-technical-information.pdf, text layer present. ⚠ RE-VERIFIED 2026-08-18 (queue item E0). PRINTED AND CONFIRMED: 'Daylight - 200' = the stored EI 200, and 'Tungsten (3200K) - 160' = the stored tungsten index 160, which came from the Photo-Lab-Index p289 and is now manufacturer-confirmed. Base: 'a grey acetate safety base with an additional anti-halation undercoat', plus 'a process surviving anti-static layer with a carnauba wax lubricant' on the back -- richer than anything stored. Full reversal process printed: First Developer D-94A 60 s, Bleach R-10 60 s, Clearing Bath 30 s, re-exposure at 800 footcandle-seconds, Second Developer D-95 30 s, Fixer 30 s, all at 24.4 C (76 F). ⚠ RECIPROCITY -- READ THIS BEFORE CHANGING onset_s. The sheet prints TWO statements and only one is about long exposures: 'You do not need to make any filter corrections or exposure adjustments for exposure times from 1/1,000 of a second to 1 second' (long-exposure failure therefore begins at or after 1 s, which CONFIRMS the stored onset_s = 1.0) and 'If your exposure is in the 1/10,000 second range, it is recommended that you increase your exposure by 1/2 stop' -- that second one is HIGH-INTENSITY SHORT-EXPOSURE failure, the opposite end of the reciprocity curve, and ReciprocitySpec cannot express it at all: it has one exponent and one onset, both for the long-exposure branch. Recorded as a schema limitation rather than mis-encoded as a long-exposure figure. The stored exponent 0.95 remains an estimate. ⚠ NOT PRINTED AS NUMBERS ANYWHERE ON THIS SHEET: gamma or average gradient (stored 3.058 is an estimate), rms granularity (only the graphical method is given -- 'follow horizontally to the Granularity Sigma D scale on the right ... multiply by 1000 for the rms value'), resolving power (no TOC block at all, unlike 5222 and 5231, so the stored 0.0/0.0 is the correct state), MTF, Dmin, base thickness, densitometry status letter. All plots are RASTER: p3 carries MTF, sensitometric and granularity, p4 the spectral sensitivity. Everything numeric in this profile except the two exposure indices is therefore estimate-grade or traced, not read.",
     ),
     # Added 2026-08-11 [C1]: same product, period-correct 35 mm nitrate
@@ -14341,6 +14634,25 @@ _UNTAGGED_TIER: dict[str, int] = {
     # ---- has to state its resolved tier here or it silently falls to 3, which
     # ---- is exactly what happened to KODAK_VISION2_500T_5218 and _200T_5217
     # ---- ("[T1/T3]", both resolving to 3 to this day).
+    # ---- ⚠ CLOSED 2026-08-25 (queue item C12) -- AND THE CLASS WAS THREE TIMES
+    # ---- THE SIZE THE QUEUE ENTRY CLAIMED. C12 was written against two
+    # ---- profiles; a sweep for `\[T[123]/T[123]\]` found SIX resolving to
+    # ---- tier 3 with fitted_from="analogy": the three VISION2 camera negatives
+    # ---- (5218, 5217, 5205) and the three VISION negatives (5279, 5274, 5246).
+    # ---- Every one of them owns its own Kodak H-1 sheet, four of the six carry
+    # ---- a sigma(D) shape TRACED from that sheet, and in all six cases the
+    # ---- description says the T3 half is the SAME single scalar:
+    # ---- `rms_granularity`, because from VISION onward Kodak prints granularity
+    # ---- CURVES and no rms number at all. "analogy" was simply false for them.
+    # ---- Owner-approved resolution: all six to tier 1, matching the two
+    # ---- precedents already in this dict -- EASTMAN_5247_1983 is tier 1 with
+    # ---- HAND-FITTED tone curves and FUJI_SUPER_F125_8532 is tier 1 with a
+    # ---- transferred red/blue f50, both larger residuals than one flagged grain
+    # ---- scalar on a profile carrying a manufacturer sheet.
+    # ---- The MECHANISM is closed too, and deliberately not by loosening the
+    # ---- regex: a mixed tag now has to appear here or `verify.py` fails. The
+    # ---- regex staying strict is the feature -- it forces a human decision on
+    # ---- every future mixed tag instead of quietly picking a number.
     # EASTMAN_5247_1983 is queue item C5, owner-approved: it owns Kodak TI0835
     # outright -- printed EI 125/22, base, ECN-2, "rms Granularity: less than 5",
     # a digitised spectral plate and a printed reciprocity table -- while its
@@ -14356,6 +14668,18 @@ _UNTAGGED_TIER: dict[str, int] = {
     # adjacency_um -- is flagged at the field and is the same class of residual
     # every tier-1 traced stock in this file carries.
     "FUJI_SUPER_F125_8532": 1,
+    # The six [T1/T3] Kodak camera negatives, resolved 2026-08-25 (queue C12).
+    # Each owns its own H-1 / TI sheet; the T3 residual is `rms_granularity`
+    # alone, flagged at the field and in the description, because these sheets
+    # print granularity CURVES only. The four marked TRACED have that curve
+    # digitised and adopted as a measured sigma(D) shape, so their granularity is
+    # measured from the sheet -- just as a shape with a ladder-set level.
+    "KODAK_VISION2_500T_5218": 1,   # TRACED (granularity_vector.py)
+    "KODAK_VISION2_200T_5217": 1,
+    "KODAK_VISION2_250D_5205": 1,
+    "KODAK_VISION_500T_5279": 1,    # TRACED
+    "KODAK_VISION_200T_5274": 1,    # TRACED
+    "KODAK_VISION_250D_5246": 1,    # TRACED
     "AGFACOLOR_NEU_1936": 3,
     "CINESTILL_800T": 2,
     # Raised 3 -> 2 on 2026-08-02: the reseau filter_matrix is now derived

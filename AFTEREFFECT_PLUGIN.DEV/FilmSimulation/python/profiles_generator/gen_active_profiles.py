@@ -614,10 +614,12 @@ def main() -> int:
     w("")
     w("| Property | Measured | Remaining | What would close the gap |")
     w("|---|---|---|---|")
-    w(f"| Grain sigma(D) shape | **{_sig}** | {_n - _sig} | 39 raster granularity "
-      f"pages are on disk and unread; every non-Kodak sigma(D) is unmeasured |")
+    w(f"| Grain sigma(D) shape | **{_sig}** | {_n - _sig} | raster granularity "
+      f"pages remain on disk; four were read by vision3_granularity.py and one "
+      f"by the 7266 pass (2026-08-25b). Every measured shape is still Kodak, so "
+      f"every non-Kodak sigma(D) is unmeasured |")
     w(f"| MTF rolloff shape | **{_mtfm}** | {_n - _mtfm} | 199 vector MTF pages "
-      f"inventoried, 7 curves on 3 sheets traced (queue C2b) |")
+      f"inventoried, 26 curves on 12 sheets traced (queue C2b) |")
     w(f"| Resolving power (printed pair) | **{_rp}** | {_n - _rp} | only sheets "
       f"that print a TOC pair; many never did |")
     w(f"| Spectral sensitivity curve | **{_spec}** | {_n - _spec} | mostly a "
@@ -627,7 +629,11 @@ def main() -> int:
     w(f"| Layer stack (coating order) | **{_stack}** | {_n - _stack} | printed as "
       f"a diagram on some sheets; Cheltsov & Bongard 1958 Table 24 for the rest |")
     w(f"| Reciprocity table | **{_recip}** | {_n - _recip} | almost never printed "
-      f"as a table; `ReciprocitySpec` is also still read by no renderer (queue C8) |")
+      f"as a table. ⚠ THE PARENTHETICAL HERE WAS STALE UNTIL 2026-08-25: it read "
+      f"\"`ReciprocitySpec` is also still read by no renderer (queue C8)\", but C8 "
+      f"closed 2026-08-23 -- reciprocity is wired into both renderers through "
+      f"`RenderSettings.exposure_time_s` / `AlgoControls::exposureTimeS` and is "
+      f"parity-audited |")
     w("")
     w("**%d stocks carry no source at all** beyond the `_NO_DATASHEET` placeholder: "
       "%s. `GENERIC_BW` and `GENERIC_COLOR` are in that list by design -- they are "
@@ -684,14 +690,19 @@ def main() -> int:
       "describing how granularity varies with density, plus the stored INTERIOR "
       "PEAK where one is measured. `-` = the legacy sqrt(D-dmin) law, which is "
       "what the renderer uses for every stock without the `sigma_shape_measured` "
-      "flag. **%d stocks carry a traced shape** -- the four VISION3 stocks from "
-      "raster plots (2026-08-17) and seven more from vector plots (2026-08-18, "
-      "queue items C1c/E0b). The other 146 hold either the default or a "
+      "flag. **%d stocks carry a traced shape** -- four VISION3 stocks from "
+      "raster plots (2026-08-17), seven more from vector plots (2026-08-18, "
+      "queue items C1c/E0b), KODAK_EKTACHROME_100D_5285, and "
+      "KODAK_TRI_X_REVERSAL_200 (2026-08-25b, queue C29 -- the first B&W stock "
+      "and the only one whose sigma RISES toward dmax). The other %d hold "
+      "either the default or a "
       "heuristic triple that is INERT because both branches of that heuristic "
       "are wrong in sign. Schema v8 added `sigma_shape_peak`, so an interior "
       "maximum IS now representable and is stored where measured (1.23-3.13x the "
       "D=1.0 value, at D 0.65-3.34) |"
-      % sum(1 for q in fp.FILM_PROFILES if q.grain.sigma_shape_measured))
+      % (sum(1 for q in fp.FILM_PROFILES if q.grain.sigma_shape_measured),
+         sum(1 for q in fp.FILM_PROFILES
+             if not q.grain.sigma_shape_measured)))
     w("| MTF / Resolving Power | f50 in cycles/mm per layer; RP = resolving "
       "power at 1.6:1 / 1000:1 contrast. Since schema v10 the ROLLOFF SHAPE is "
       "also stored and read, as 1/(1+(f/f50)^q) behind an `mtf_measured` flag "
@@ -750,12 +761,19 @@ def main() -> int:
     w("| **ISO 5-3** | spectral conditions for density: Status M, Status A, "
       "visual diffuse | Processing column; sets what every Dmin/Dmax/gamma "
       "figure means |")
+    # ⚠ THESE FOUR COUNTS WERE HARDCODED AND ALL FOUR WERE WRONG BY 2026-08-25
+    # (27/34/13/15 against a live 51/58/17/34). Derived from the database now, for
+    # the same reason the placeholder count was: a hand-typed census goes stale
+    # the next time a stock is added and nothing notices.
+    _spd = {}
+    for _q in fp.FILM_PROFILES:
+        _spd[_q.speed_criterion] = _spd.get(_q.speed_criterion, 0) + 1
     w("| **ISO 6** | black-and-white negative film speed | Processing "
-      "column, 27 stocks |")
+      "column, %d stocks |" % _spd.get("iso6", 0))
     w("| **ISO 5800** | colour negative film speed | Processing column, "
-      "34 stocks |")
+      "%d stocks |" % _spd.get("iso5800", 0))
     w("| **ISO 2240** | colour reversal film speed | Processing column, "
-      "13 stocks |")
+      "%d stocks |" % _spd.get("iso2240", 0))
     w("| **ISO 6328** | photographic resolving power | the RP figures in the "
       "MTF column. Kodak TI0835 states its 50/100 lp/mm for 5247 were "
       "measured by the *ISO 6328-1982* method |")
@@ -778,7 +796,8 @@ def main() -> int:
       "datasheet states about its own measurement conditions. ISO 6328 and "
       "ANSI PH2.39 are different -- those two are cited *by Kodak TI0835 "
       "itself*, so their attribution is documented rather than inferred.")
-    w("* `manufacturer EI` on 15 stocks means no standard applies: mostly "
+    w("* `manufacturer EI` on %d stocks means no standard applies: mostly "
+      % _spd.get("manufacturer_ei", 0) + 
       "pre-1960 stocks rated before the modern speed standards existed, plus "
       "the generic amateur-gauge entries. Their ISO/ASA column is a "
       "manufacturer or historical figure, not a standardised speed.")
@@ -942,7 +961,9 @@ def main() -> int:
     # (US5273870A's IIE percentages, converted with each stock's own gamma), so
     # tier 2 is right and this generator was stale.
     w("* Interimage effects are **tier 2**: no manufacturer DATASHEET publishes "
-      "them -- all 395 documents in `PDF/PROFILES` were searched, and the "
+      "them -- the whole of `PDF/PROFILES` was searched (measured at 448 PDFs / "
+      "559 files on 2026-08-18; the earlier \"395 documents\" here was a "
+      "stale hand count, corrected 2026-08-25), and the "
       "omission is systematic because camera negative is characterised with a "
       "single white-light exposure series -- but the PATENT literature does, and "
       "the stored coefficients are solved per stock against US5273870A's "

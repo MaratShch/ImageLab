@@ -53,14 +53,24 @@ density negative, already floored on one side and not yet on the other. The
 floor now lives inside `apply_dir_couplers`, where its twin has it. Rendering is
 unchanged: max(max(x,0),0) is max(x,0).
 
-⚠ ONE KNOWN BEHAVIOURAL DIFFERENCE, FOUND BY WRITING THIS AND NOT FIXED HERE.
-C++ gates BOTH coupler components on `radiusPx >= ALGO_COUPLER_MIN_SIGMA_PX`
-(0.25 px, `AlgoDirCoupler.hpp:70`); Python has no such gate. Below that pixel
-scale the C++ renderer silently disables the term the Python reference still
-applies. It is a real divergence, it only bites at very low px/mm, and which
-side is right is a decision (the gate is defensible -- a sub-quarter-pixel blur
-is not resolvable -- but then the reference should carry it too). Probed and
-reported as a separate line rather than folded into the parity number.
+✅ THE ONE-SIDED GATE IS CLOSED (2026-08-25d, queue item C17). This file used to
+record it as an open divergence: C++ gates BOTH coupler components on
+`radiusPx >= ALGO_COUPLER_MIN_SIGMA_PX` (0.25 px, `AlgoDirCoupler.hpp:70`) and
+the Python reference had no gate, so below that scale one renderer ran the stage
+and the other did not. `apply_dir_couplers` now carries the SAME gate at the SAME
+0.25 px. The threshold was adopted from the shipped C++ constant rather than
+chosen, which keeps this a pure parity fix: no fidelity judgement is folded in.
+The crossover line below is still printed, because the SCALE at which the stage
+switches off is worth having as a number -- it is now a shared property of both
+renderers instead of a divergence.
+
+⚠ WHAT REMAINS OPEN IS QUEUE ITEM C16, AND IT IS A DIFFERENT QUESTION. The two
+blurs are still different FORMS -- an analytic Gaussian transfer here, a
+truncated separable spatial kernel there -- agreeing to 6e-5 only above about
+1.2 px and diverging to 1.5e-1 at 0.4 px. Stored `edge_um` of 9-13 um is
+0.36-0.60 px at 40 px/mm: inside that divergent band and ABOVE the gate. So the
+shared threshold's VALUE (0.25 px, versus the ~1.0 px where the two forms
+converge) is the open decision, and it changes every render.
 
 Run:
     python interimage_parity.py
@@ -414,11 +424,11 @@ def main() -> int:
                           f"{'flat' if flat else 'ramp'}  worst {d:.3e} "
                           f"(limit {lim:g})")
 
-    # ---- the known behavioural difference, probed separately ---------------
-    # C++ disables both coupler components below ALGO_COUPLER_MIN_SIGMA_PX
-    # (0.25 px); Python has no such gate. Report the px/mm at which each stored
-    # radius crosses it, so the scale where the two renderers part company is a
-    # number rather than a worry.
+    # ---- the shared sub-pixel gate, reported as a scale ---------------------
+    # BOTH sides now disable each coupler component below 0.25 px (C17, closed
+    # 2026-08-25d: the gate was C++-only until then). The crossover px/mm is
+    # still printed, because the scale at which a stored radius stops being
+    # rendered is worth stating -- it is a shared property now, not a divergence.
     act = [q for q in fp.FILM_PROFILES if q.couplers.active]
     if act:
         worst = max(act, key=lambda q: q.couplers.radius_um)
@@ -426,13 +436,14 @@ def main() -> int:
                                           q.couplers.radius_um))
         def crossover(um):
             return 0.25 / (um * 0.001) if um > 0 else float("inf")
-        print(f"[i] C++-only gate ALGO_COUPLER_MIN_SIGMA_PX = 0.25 px: the long "
+        print(f"[i] SHARED gate ALGO_COUPLER_MIN_SIGMA_PX = 0.25 px: the long "
               f"term switches off below {crossover(worst.couplers.radius_um):.1f} "
               f"px/mm ({worst.name}, radius {worst.couplers.radius_um:.0f} um) and "
               f"the edge term below "
               f"{crossover(thin.couplers.edge_um):.1f} px/mm "
-              f"({thin.name}, edge {thin.couplers.edge_um:.0f} um). Python applies "
-              f"both at any scale -- divergence by design, not measured here")
+              f"({thin.name}, edge {thin.couplers.edge_um:.0f} um). BOTH renderers "
+              f"now gate at this threshold (C17); the remaining C16 question is "
+              f"the threshold's value, not its one-sidedness")
 
     print()
     if bad:

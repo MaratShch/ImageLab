@@ -171,9 +171,19 @@ def audits(root: Path):
         ("dye_density.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "KODAK",
-         "the 11 adopted spectral dye density sets, re-derived from the "
+         "the 12 adopted spectral dye density sets, re-derived from the "
          "sheets' vector paths (5285 and 2383 are the validation pair; 7239, "
-         "5217 and 5218 were recovered on 2026-08-18 from the FAILED list)"),
+         "5217 and 5218 were recovered on 2026-08-18 from the FAILED list; "
+         "5201 on 2026-08-25 by the ink-based family C)"),
+        ("spectral_vector.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "Kodak VISION2 50D 5201.pdf",
+         "KODAK_VISION2_50D_5201's three spectral sensitivity curves, the "
+         "first VECTOR-traced spectral set in the database -- layers assigned "
+         "by Kodak's ink convention (the red record being a yellow-under-"
+         "magenta overprint), peaks pinned at 470 / 540 / 650 nm and the "
+         "absolute peak sensitivities the schema's per-layer normalisation "
+         "throws away"),
         ("granularity_vector.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "KODAK" / "Ektachrome_100d.pdf",

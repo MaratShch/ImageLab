@@ -36,6 +36,28 @@ anticipates it (SpectralDyeDensity.normalisation lists "peak_1.0"):
      the off-band unwanted absorption a 3x3 dye_matrix cannot express -- and
      NOT the absolute density level. Adopted values are tagged "peak_1.0" so
      that limitation travels with the data.
+  C. PEAK-NORMALISED + NEUTRAL + DMIN (5201), added 2026-08-25, queue item C9.
+     FIVE traces: the three unit-peak dyes plus an as-printed Midscale Neutral
+     and an as-printed Minimum Density on the same axes. Only the three dyes are
+     returned and stored -- mixing an as-printed trace into a peak_1.0 record
+     would make the record mean two different things at once, which is the same
+     reason 5217 and 5218 do not store theirs.
+
+     ⚠ THE QUEUE ENTRY'S DIAGNOSIS WAS WRONG, and the real cause is worth having
+     written down. C9 recorded this sheet as a FAMILY CLASSIFIER limitation --
+     "built for 3 dye traces or 3 dyes + neutral, not 3 + neutral + dmin". It is
+     not: family B takes combinations of THREE out of however many curves are
+     offered, so two extra traces cost it nothing. What actually happened is that
+     the CYAN trace never reached the classifier. Kodak draws it as TWO
+     overprinted paths (yellow under magenta, making red on the page) of 7
+     segments each, and `extract`'s `n < 8` segment filter dropped both. With no
+     curve left in the 615-700 nm band, no triple could pass `_bands_ok` and the
+     sheet reported "no curve set matched either normalisation family" -- a true
+     statement about a curve list that was missing the curve.
+
+     The fix is not a lower segment threshold, which would let gridline stubs in
+     on every other sheet. It is to identify the traces by their INK, which this
+     sheet makes unambiguous.
 
 PLOT LOCATION: these pages carry four or five plots and their tick labels share
 the page, so a purely numeric detector merges them (it gave 5285 y[0-4.0]
@@ -52,20 +74,43 @@ KNOWN LIMITS, stated rather than discovered later
     layer, so nothing anchors the search. It needs a visual pass.
   * "No raster image on the page" is what plot_inventory.py calls vector, and
     that is NOT the same as "a vector plot is present" -- 5247 p4 proves it.
-  * Sheets not yet handled: 5246 and 5248 ONLY. Three of the original five
-    failures -- 7239, 5217, 5218 -- were recovered on 2026-08-18 and NONE of
-    them needed anything from the source; all three were defects in this script:
-    a y-axis caption anchor that merged two stacked plots into one band, a
-    two-point tick calibration with nothing checking it, and a stroke-width
-    filter referenced to the thickest path in the frame rather than to the
-    curves. See LABEL_STACK_GAP, _fit_axis and the note in extract().
-    The two that remain, with their measured near-misses rather than a shrug:
-      5246 p5 -- 9 curves inside the frame; the best peak_1.0 triple has maxima
-        1.008 / 0.997 / 0.926, and the 0.926 is 0.074 off unit peak, well past
-        the 0.04 tolerance. Widening the tolerance to admit it would also admit
-        false sets, so it stays out until the extra traces are identified.
-      5248 p3 -- only 2 curves survive inside the frame even after the width
-        filter was relaxed, so the other traces are being lost before selection.
+  * Sheets not yet handled: 5246 ONLY. Three of the original five failures --
+    7239, 5217, 5218 -- were recovered on 2026-08-18 and NONE of them needed
+    anything from the source; all three were defects in this script: a y-axis
+    caption anchor that merged two stacked plots into one band, a two-point tick
+    calibration with nothing checking it, and a stroke-width filter referenced to
+    the thickest path in the frame rather than to the curves. See
+    LABEL_STACK_GAP, _fit_axis and the note in extract().
+
+    ⚠ 5248 WAS NEVER A FAILED EXTRACTION AND HAS BEEN RECLASSIFIED (2026-08-25d).
+    The recorded symptom -- "only 2 curves survive inside the frame, so the other
+    traces are being lost before selection" -- assumed traces that do not exist.
+    5248 p3 prints, in words: "Typical densities for a midscale neutral subject
+    and D-min.", and draws exactly TWO labelled traces, Midscale Neutral and
+    Minimum Density. There are no separate dye curves on that sheet at all, so
+    `SpectralDyeDensity.validate()` (which requires cyan AND magenta AND yellow)
+    can never be satisfied from it. This is the SAME schema-shape mismatch
+    already recorded for FUJI_SUPER_F125_8532, and 5248 is now its second
+    instance -- which is the evidence the pending schema decision needs (whether
+    to carry an as-printed neutral+Dmin pair), not an extractor bug.
+
+    5246 p5 remains out, with a sharper reason than the one recorded before:
+      * The panel draws SEVEN traces and labels FIVE. Nearest-label assignment
+        resolves Yellow -> a trace peaking 1.008 at 446 nm and Magenta -> 1.006
+        at 542 nm, both unit-peak as the panel's own note requires ("Cyan,
+        Magenta, and Yellow Dye Curves are peak-normalized"), so those two are
+        not in doubt.
+      * THE CYAN IS. The trace nearest the "Cyan" label peaks at **0.943** at
+        660 nm -- 0.057 short of the unit peak the sheet claims -- and there is a
+        SECOND unlabelled trace in the same band peaking 0.660 at 683 nm, plus a
+        second unlabelled high trace (1.303 at 435) beside the labelled Midscale
+        Neutral (1.270 at 451). Two traces on this plate are unaccounted for.
+      * So the blocker is not a tolerance. Widening the peak tolerance to admit
+        0.943 would also admit false sets on other sheets, and picking the
+        labelled trace anyway would be adopting a curve that fails the sheet's
+        own stated normalisation. What would close it: any statement of what the
+        two extra traces are -- H-1-5246t names 5246 AND 7246 in its header, so
+        a second gauge or a second process condition are both live candidates.
 
 Run:  python dye_density.py [--assert] [--sheet 5219]
 Needs numpy + PyMuPDF. --assert exits non-zero if the adopted sets move.
@@ -116,14 +161,12 @@ SHEETS = {
     # label had been misassigned.
     "5217": ("5217-Vision2-200T.pdf", 3, "KODAK_VISION2_200T_5217"),
     "5218": ("5218-Vision2-500T-H-1-5218t.pdf", 4, "KODAK_VISION2_500T_5218"),
-    # ⚠ 5201 IS DELIBERATELY NOT HERE, and this is the record of why. H-1-5201 p3
-    # draws FIVE traces in its dye panel -- Midscale Neutral, Cyan, Magenta,
-    # Yellow and Minimum Density -- and prints "Cyan, Magenta, and Yellow Dye
-    # Curves are peak-normalized", i.e. a peak_1.0 dye set PLUS two as-printed
-    # traces on one pair of axes. Registering it returns "no curve set matched
-    # either normalisation family": the family classifier is built for 3 dye
-    # traces or 3 dyes + neutral, not 3 dyes + neutral + dmin, and widening it
-    # blind would put the 11 sheets above at risk. Queue item C9 does it properly.
+    # ADDED 2026-08-25 (queue item C9), and it took a THIRD family plus an
+    # ink-based reader -- see family C in the module docstring for why the
+    # originally recorded cause (a family-classifier limitation) was wrong. The
+    # panel is H-1-5201 p3, five traces, and it prints its own normalisation:
+    # "NOTE: Cyan, Magenta, and Yellow Dye Curves are peak-normalized."
+    "5201": ("Kodak VISION2 50D 5201.pdf", 3, "KODAK_VISION2_50D_5201"),
 }
 
 #: Recorded 2026-08-18. --assert fails if an extraction stops reproducing.
@@ -141,6 +184,10 @@ SHEETS = {
 #: methods (new better on 3 sheets, old better on 3, all within 0.003), and
 #: re-adopting on a wash would be churn dressed as progress.
 EXPECTED = {
+    # 5201's residual is the family-C identity rms (neutral - dmin against the
+    # three dyes), not a sum-identity max or a unit-peak spread, so it is not
+    # comparable with the other rows -- the mode column says which test ran.
+    "5201": ("peak_1.0", 0.0188),
     "5285": ("as_printed_plus_neutral", 0.0132),
     "2383": ("as_printed_plus_neutral", 0.1287),
     "5205": ("peak_1.0", 0.0092),
@@ -403,6 +450,157 @@ def pick_dye_set(curves, grid, tol_sum=0.14, tol_peak=0.04):
     r,mode,c,m,y,neu=best
     return c,m,y,neu,mode,r
 
+# ---------------------------------------------------------------------------
+# FAMILY C: identify the traces by INK, not by segment count (queue item C9).
+#
+# Kodak's H-1 brochures draw every plot on this page in a fixed four-ink
+# palette, and the rule behind it is physical rather than decorative: EACH TRACE
+# IS DRAWN IN THE COLOUR OF THE LIGHT IT CONCERNS. On the dye panel the yellow
+# dye -- which absorbs blue -- is drawn in BLUE ink; the magenta dye, which
+# absorbs green, in GREEN ink; the cyan dye, which absorbs red, in RED, and red
+# is not one of the four inks, so Kodak makes it by overprinting YELLOW UNDER
+# MAGENTA. That last detail is the whole reason this sheet failed for weeks.
+#
+# The mapping was read off the panel's own legend swatches -- 1 pt horizontal
+# lines at the left of each legend line -- and then confirmed twice over:
+#   * the green swatch sits on "Magenta Dye" and the amber one on "Cyan Dye",
+#     which is the complementary rule stated outright by the sheet;
+#   * the resulting traces peak at 450 / 540 / 680 nm, i.e. each in its own
+#     absorption band, so the ink assignment and the physics agree.
+# The neutral and dmin traces are the two DARK ones, told apart by their dash
+# pattern: Midscale Neutral solid, Minimum Density dashed (drawn as a solid line
+# with white rectangles punched over it, which is why `dashes` carries the
+# pattern on the path itself).
+INK_BLUE = (0.0, 0.455, 0.737)
+INK_GREEN = (0.0, 0.459, 0.204)
+INK_YELLOW = (0.969, 0.765, 0.141)
+INK_MAGENTA = (0.925, 0.0, 0.549)
+INK_DARK = (0.137, 0.122, 0.125)
+#: Per-channel tolerance for matching a stroke colour to the palette above.
+#: The inks are process primaries and come out of the PDF bit-identical across
+#: paths and across panels; 0.02 is slack for a re-exported sheet, not a fudge.
+INK_TOL = 0.02
+
+
+def _ink(path) -> str | None:
+    """Palette name of a stroke colour, or None if it is not in the palette."""
+    col = path.get("color")
+    if not col:
+        return None
+    for name, ref in (("blue", INK_BLUE), ("green", INK_GREEN),
+                      ("yellow", INK_YELLOW), ("magenta", INK_MAGENTA),
+                      ("dark", INK_DARK)):
+        if all(abs(a - b) <= INK_TOL for a, b in zip(col, ref)):
+            return name
+    return None
+
+
+def _is_dashed(path) -> bool:
+    d = (path.get("dashes") or "").strip()
+    return bool(d) and not d.startswith("[]")
+
+
+#: Minimum segments for an INKED trace. Much lower than `extract`'s 8, and safe
+#: only because the ink already identified the path: the cyan trace really is 7
+#: segments. Applying 4 in `extract` would admit gridline stubs on every sheet.
+INK_MIN_SEG = 4
+
+
+def extract_inked(pg, cal, fr, grid):
+    """{palette name: [curve, ...]} for the paths inside one plot frame.
+
+    Overprinted duplicates are collapsed: Kodak's red is a yellow path and a
+    magenta path with IDENTICAL geometry, so the pair is one curve, not two. The
+    collapse is asserted rather than assumed -- if the two ever stop coinciding
+    they are different traces and must not be merged.
+    """
+    out: dict[str, list] = {}
+    for p in pg.get_drawings():
+        r = p["rect"]
+        if not (r.x0 >= fr.x0 - 6 and r.x1 <= fr.x1 + 6
+                and r.y0 >= fr.y0 - 6 and r.y1 <= fr.y1 + 6):
+            continue
+        name = _ink(p)
+        if name is None:
+            continue
+        if sum(1 for it in p["items"] if it[0] in ("l", "c")) < INK_MIN_SEG:
+            continue
+        # the plot frame itself is a dark path spanning the whole rect
+        if (r.width > 0.98 * fr.width and r.height > 0.98 * fr.height):
+            continue
+        y = resample(flatten(p["items"]), cal, grid)
+        if not np.isfinite(y).all():
+            continue
+        key = name + ("_dashed" if _is_dashed(p) else "")
+        out.setdefault(key, []).append(y)
+    return out
+
+
+#: The three unit-peak dyes must each reach 1.0 this closely, and the neutral
+#: identity below must close this well. Both are measured on the 5201 sheet
+#: (0.005 and 0.019) with room to spare, not fitted to it.
+FAMILY_C_PEAK_TOL = 0.04
+FAMILY_C_IDENTITY_RMS = 0.05
+
+
+def pick_dye_set_inked(inked, grid):
+    """Family C: peak_1.0 dyes + as-printed neutral + as-printed dmin.
+
+    Returns (cyan, magenta, yellow, None, "peak_1.0", rms) or None. The neutral
+    is NOT returned: it is as-printed while the dyes are not, and one record
+    cannot carry both conventions.
+
+    THE VALIDATOR IS THE POINT OF THIS FAMILY. Family A identifies its quartet
+    by neutral = C+M+Y, which cannot hold when the dyes are peak-normalised and
+    the neutral is not. The generalisation that DOES hold, and which nothing here
+    is fitted to produce, is
+
+        Neutral - Dmin  =  k_c*C + k_m*M + k_y*Y
+
+    with the three coefficients EQUAL, because that is what makes the result a
+    visual NEUTRAL. On 5201 the unconstrained least-squares solution comes out
+    0.628 / 0.604 / 0.595 -- a 5 % spread on numbers that were free to be
+    anything -- at rms 0.019 D. Dropping the Dmin term makes the fit 4.5x worse
+    (rms 0.085) and scatters the coefficients over 0.86-1.61, which is what
+    identifies which dark trace is which.
+    """
+    dyes = {}
+    for key, want in (("blue", Y_BAND), ("green", M_BAND)):
+        for c in inked.get(key, []):
+            if abs(float(c.max()) - 1.0) > FAMILY_C_PEAK_TOL:
+                continue
+            lam = float(grid[c.argmax()])
+            if want[0] <= lam <= want[1]:
+                dyes[key] = c
+    # red = the overprinted pair; either member will do once they are known equal
+    reds = []
+    for key in ("yellow", "magenta"):
+        reds += inked.get(key, [])
+    for c in reds:
+        if abs(float(c.max()) - 1.0) > FAMILY_C_PEAK_TOL:
+            continue
+        if C_BAND[0] <= float(grid[c.argmax()]) <= C_BAND[1]:
+            dyes["red"] = c
+    if len(dyes) != 3:
+        return None
+    if len(reds) == 2 and float(np.abs(reds[0] - reds[1]).max()) > 1e-9:
+        return None     # not an overprint after all -- two different traces
+    neutrals = inked.get("dark", [])
+    dmins = inked.get("dark_dashed", [])
+    if len(neutrals) != 1 or len(dmins) != 1:
+        return None
+    y, m, c = dyes["blue"], dyes["green"], dyes["red"]
+    A = np.vstack([c, m, y]).T
+    b = neutrals[0] - dmins[0]
+    coef, *_ = np.linalg.lstsq(A, b, rcond=None)
+    rms = float(np.sqrt(((A @ coef - b) ** 2).mean()))
+    if rms > FAMILY_C_IDENTITY_RMS:
+        return None
+    if coef.min() <= 0.0 or (coef.max() - coef.min()) / coef.mean() > 0.15:
+        return None     # not a neutral: the three dyes do not contribute equally
+    return c, m, y, None, "peak_1.0", rms
+
+
 def extract_sheet(root: Path, tag: str):
     import pymupdf
     fn, pgno, prof = SHEETS[tag]
@@ -415,12 +613,17 @@ def extract_sheet(root: Path, tag: str):
         if not r:
             continue
         sel = pick_dye_set(r[4], GRID)
+        if sel is None:
+            # FAMILY C, tried only after A and B have failed on this frame, so
+            # the 11 sheets that already work never reach it and cannot be
+            # disturbed by it. --assert proves that claim on every run.
+            sel = pick_dye_set_inked(extract_inked(pg, r[0], r[1], GRID), GRID)
         if sel:
             c, m, y, neu, mode, res = sel
             return dict(tag=tag, profile=prof, file=fn, page=pgno, mode=mode,
                         residual=res, cyan=c, magenta=m, yellow=y,
                         neutral=neu), None
-    return None, "no curve set matched either normalisation family"
+    return None, "no curve set matched any of the three normalisation families"
 
 
 def main() -> int:

@@ -1261,6 +1261,36 @@ def apply_dir_couplers(dens, cp, grid, coupler_scale, is_monochrome):
         return dens
     s = cp.strength * coupler_scale
     e = cp.edge_strength * coupler_scale
+    # ---- THE SUB-PIXEL GATE, ADDED 2026-08-25d (queue item C17) -------------
+    # ⚠ THIS GATE EXISTED ON THE C++ SIDE ONLY, AND THAT WAS THE WHOLE DEFECT.
+    # `AlgoDirCoupler.hpp` has carried ALGO_COUPLER_MIN_SIGMA_PX = 0.25 since it
+    # was written, gating BOTH components (Algo_09_Sim.cpp:1018 and :1023); this
+    # reference had no gate at all, so below the threshold the two renderers were
+    # not approximating each other -- one ran the stage and the other did not.
+    # The crossovers `interimage_parity.py` prints are not exotic scales: the
+    # long term switches off below 3.1 px/mm (EASTMAN_5247_1974, radius 80 um)
+    # and the edge term below 27.8 px/mm (KODACHROME_64, edge 9 um), and
+    # 27.8 px/mm is a 35 mm frame about 670 px wide.
+    # THE THRESHOLD IS ADOPTED, NOT CHOSEN. 0.25 px is what the shipped and
+    # reviewed C++ constant says, and its stated reason holds identically here:
+    # below a quarter pixel the discrete kernel has one significant tap, so the
+    # pass is an identity. Taking the existing value makes this a pure PARITY
+    # fix with no fidelity judgement folded into it.
+    # ⚠ WHAT THIS DOES NOT SETTLE IS QUEUE ITEM C16. The two blurs are still
+    # different FORMS -- analytic Gaussian transfer here, truncated separable
+    # spatial kernel there -- and they agree to 6e-5 only above about 1.2 px,
+    # diverging to 1.5e-1 at 0.4 px. Stored edge_um is 9-13 um, i.e. 0.36-0.60 px
+    # at 40 px/mm, which is INSIDE that divergent band and ABOVE this gate. So
+    # the gate removes the one-sided-stage defect and leaves the shared-threshold
+    # VALUE (0.25 vs ~1.0 px, where the two forms converge) as C16's open
+    # decision. Raising it here would change every render and is the owner's.
+    _min_px = 0.25
+    _radius_px = (cp.radius_um / 1000.0) * grid.px_per_mm
+    _edge_px = (cp.edge_um / 1000.0) * grid.px_per_mm
+    if _radius_px < _min_px:
+        s = 0.0
+    if _edge_px < _min_px:
+        e = 0.0
     if s > 0.0 and not is_monochrome:
         dbar = dens.mean(axis=2)
         dbar_blur = apply_transfer(dbar, grid.gaussian(cp.radius_um))

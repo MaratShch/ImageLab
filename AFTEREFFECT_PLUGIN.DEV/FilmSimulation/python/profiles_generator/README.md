@@ -18,6 +18,253 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > from the database on every build), `NotFound.md` (what is still missing), and the **Files** and
 > **Known limits** sections at the bottom of this README, which ARE maintained as current.
 >
+> **Status 2026-08-25d (validation pass + renderer parity + documentation audit, queue
+> C17/C20/B1-part):** `verify.py` **349 PASS / 1 FAIL**, 12 audits green, schema **v11 unchanged**,
+> **160 stocks unchanged**, `film_names.txt` unchanged -- no ListBox shift. One renderer behaviour
+> changed; no stored value moved.
+>
+> **THE VALIDATION PASS CORRECTED WORK DONE EARLIER THE SAME DAY, which is what it was for.**
+> `KODAK_VISION2_200T_5217` already carried a spectral set from the 2026-08-02 RASTER batch -- a
+> different image, a different method, a different author -- and it is the only stock in the corpus
+> with both an adopted set and a vector panel the new reader can reach. Re-deriving it agrees to rms
+> **0.109 / 0.091 / 0.049** decades (r/g/b) with peaks within one 10 nm grid step. Inside the reading
+> error of a printed plot, so **neither side was corrected**: a wash is not a reason to churn adopted
+> data. Both methods are now credible on evidence rather than on assertion.
+>
+> ⚠ **AND IT IMMEDIATELY FALSIFIED A CLAIM FROM THE 2026-08-25c ENTRY BELOW.** That entry says
+> 5201's blue layer "peaks at 470 nm where its siblings peak at 410-420" -- written after comparing
+> exactly **one** sibling. Sweeping every 31-sample Kodak cine stock shows the blue peak splits
+> **6 / 4**: 470 nm on 5201, **5217**, 5205, 5203, 5274 and 5246; 410-440 nm on 5218 (420), 5279
+> (420), 5219 (410) and 5213 (440). **470 is the majority and 5201 matches 5217 exactly.** Corrected
+> in the profile comment, the source string and the guard, which now asserts the split itself so
+> neither group can be "harmonised" toward the other.
+>
+> ⚠ **THE SPECTRAL CRITERION IS NOW CONTRADICTED IN VALUE, NOT MERELY UNSOURCED -- AND IT IS THE ONE
+> DECISION WAITING.** A sweep of every short Kodak sheet for a printed density criterion found five
+> that print one: **`5246.pdf` p5 ("Density: 0.4 above D-min", Status M, .013 sec), `5274.pdf` p4 and
+> `V200T.pdf` p4 all say 0.4**; the VISION3 DI sheet and the digital-workflow sheet say 1.0 (a
+> different product class). **No sheet in the corpus prints 0.2.** Yet **16 profiles store
+> `log_reciprocal_erg_cm2_D0.2_above_dmin`** while **10 store a printed D0.4 variant** -- and the
+> split follows the sheets exactly: the profiles whose sheets print a number carry 0.4, the profiles
+> whose sheets say only "specified density" carry the 0.2 that appears nowhere. The 0.2 was supplied
+> for precisely the cases with no evidence for it, then propagated by each new adoption matching its
+> siblings. **Nothing was changed** -- rewriting a provenance claim on 16 profiles is the owner's
+> call -- and the counts are pinned so the inconsistency cannot be absorbed.
+>
+> **QUEUE C17 CLOSED: a gate that existed on one side only.** `AlgoDirCoupler.hpp` has always
+> disabled both coupler components below `ALGO_COUPLER_MIN_SIGMA_PX` = 0.25 px; the Python reference
+> had **no gate at all**, so below that scale the two renderers were not approximating each other --
+> one ran the stage and the other did not. `apply_dir_couplers` now carries the same gate at the same
+> threshold. **The threshold was ADOPTED, not chosen:** taking the shipped and reviewed C++ constant
+> is what keeps a fidelity judgement out of a parity fix. The crossovers are not exotic scales -- the
+> long term switches off below **3.1 px/mm** (`EASTMAN_5247_1974`, radius 80 um) and the edge term
+> below **27.8 px/mm** (`KODACHROME_64`, edge 9 um), a 35 mm frame about 670 px wide.
+> `interimage_parity.py` unchanged at worst **5.335e-05**.
+>
+> ⚠ **C16 IS NARROWED, NOT CLOSED, AND IT IS NOW A ONE-NUMBER DECISION.** The two blurs are still
+> different FORMS -- analytic Gaussian transfer in Python, truncated separable spatial kernel in C++
+> -- agreeing to 6e-5 only above ~1.2 px and diverging to **1.5e-1 at 0.4 px**, while stored
+> `edge_um` of 9-13 um is 0.36-0.60 px at 40 px/mm: inside that band and above the gate. C17 removed
+> the question of WHETHER the stage runs; what remains is HOW, i.e. the shared threshold's value.
+> Recommendation on file: **raise it to ~1.0 px**, where the forms converge -- which is also the
+> honest model statement, since a 9-13 um feature at 25 um/px is below the sampling limit and
+> rendering it anyway aliases a sub-pixel feature. It changes every render, so it is the owner's.
+>
+> **QUEUE C20 CLOSED: a guard that could not fail.** `verify.py`'s "interimage leaves a neutral
+> untouched" rendered **0.18** -- the mid-grey ANCHOR the correction is referenced to, the one point
+> where every (D_j - d_ref) is zero. It was true by construction for **any** value of the interimage
+> matrix while reading like a strong invariant. Renamed to what it tests, and a second guard now pins
+> the off-anchor movement as intended behaviour: on `KODAK_PORTRA_400` with the stage disabled, grey
+> 0.45 moves **15.9/255** and grey 0.06 moves **6.5/255**. That is the mechanism, not a leak --
+> white-light gamma below separation gamma is the patent's own metric. `InterimageSpec`'s docstring is
+> qualified to match: the correction vanishes **at the anchor**, not on neutrals in general.
+>
+> **B1: 5248 WAS NEVER A FAILED EXTRACTION.** Its recorded symptom -- "only 2 curves survive inside
+> the frame, so the other traces are being lost" -- assumed traces that do not exist. The sheet
+> prints "Typical densities for a midscale neutral subject and D-min." and draws exactly those two.
+> There are no separate dye curves on it, so `SpectralDyeDensity.validate()` (cyan AND magenta AND
+> yellow) can never be satisfied from it. That is the **same schema-shape mismatch already recorded
+> for `FUJI_SUPER_F125_8532`**, and 5248 is its second instance -- which is the evidence the pending
+> schema decision needs, not an extractor bug. **5246 stays open with a sharper reason:** 7 traces
+> for 5 labels; nearest-label assignment resolves Yellow (peak 1.008 at 446 nm) and Magenta (1.006 at
+> 542) cleanly, but the trace nearest "Cyan" peaks at **0.943** against the sheet's own
+> "peak-normalized" claim, and two unlabelled traces are unaccounted for.
+>
+> **A DOCUMENTATION AUDIT, because two of today's errors were in prose rather than in data.** Four
+> hardcoded counts in `gen_active_profiles.py` were checked against the live database and all four
+> were wrong: **ISO 6 27 -> 51, ISO 5800 34 -> 58, ISO 2240 13 -> 17, manufacturer EI 15 -> 34.** All
+> four are now derived from the database. Also corrected there: "7 curves on 3 sheets traced" -> 26 on
+> 12; a claim that `ReciprocitySpec` "is still read by no renderer (queue C8)" when C8 closed
+> 2026-08-23; "39 raster granularity pages are on disk and unread"; and "all 395 documents in
+> `PDF/PROFILES`" against a measured 448 PDFs / 559 files. `NotFound.md` lost nine stale claims,
+> including three rows still reading "no profile" for stocks added on 2026-08-24 and a row listing
+> four already-closed dye sheets as failures. ⚠ `gen_film_curves_md.py`'s `QUEUED_PLOT_ON_FILE` set
+> had been **empty since 2026-08-02**, which made the report print "no plot in archive (text/table
+> data)" for five stocks whose plots are in the archive *with page numbers listed in `NotFound.md`
+> section 4.1* -- an empty hand-maintained set means nobody refilled it, not that the world is empty.
+>
+> **Status 2026-08-25c (H-1-5201's last two panels + the tier bug, queue C9/C10/C12):**
+> `verify.py` **347 PASS / 1 FAIL**, 12 audits green (one new), schema **v11 unchanged**,
+> **160 stocks unchanged**, `film_names.txt` unchanged -- no ListBox shift. One stock gained two
+> measured data sets and six changed the tier they report.
+>
+> **TWO THINGS THIS PROJECT HAD WRITTEN DOWN TURNED OUT TO BE WRONG, and both were wrong in the
+> same way: a plausible note went unchecked.**
+>
+> ⚠ **QUEUE ITEM C9 CARRIED THE WRONG DIAGNOSIS FOR A FORTNIGHT.** It recorded that H-1-5201's dye
+> panel could not be read because `dye_density.py`'s family classifier "handles 3 dyes, or 3 dyes +
+> neutral, not 3 + neutral + dmin". It never was that -- family B takes any three of however many
+> curves it is offered, so two extra traces cost it nothing. **The cyan trace never reached the
+> classifier.** Kodak draws it as a yellow-under-magenta overprint, two bit-identical paths of
+> **7 segments each**, and `extract`'s `n < 8` segment filter dropped both, leaving nothing in the
+> 615-700 nm band for any triple to pass the band test on. The recorded reason was a true statement
+> about a curve list that was missing the curve.
+>
+> **THE FIX IS TO IDENTIFY A TRACE BY THE INK IT IS DRAWN IN**, and Kodak's rule is physical rather
+> than decorative: each trace is drawn in the colour of light it concerns. The yellow dye, which
+> absorbs blue, is drawn in BLUE ink; magenta in GREEN; and cyan, which absorbs red, in RED -- not
+> one of the four process inks, so Kodak overprints yellow under magenta. Read off the panel's own
+> legend swatches (green sits on "Magenta Dye", amber on "Cyan Dye"). A lower segment threshold was
+> rejected: it would admit gridline stubs on every other sheet, whereas the ink already knows what
+> it is looking at.
+>
+> **AND A NEW VALIDATOR, which is why the set is tier 1 rather than three plausible curves.** With
+> the dyes peak-normalised and the neutral as-printed, family A's `neutral = C+M+Y` cannot hold. The
+> generalisation that must hold is `Neutral - Dmin = k_c*C + k_m*M + k_y*Y` with the three
+> coefficients **EQUAL**, because equal contributions are what make the result a *visual* neutral.
+> Unconstrained least squares returns **0.628 / 0.604 / 0.595** -- a 5.4 % spread on three numbers
+> that were free to be anything -- at rms **0.019 D**. Drop the Dmin term and the fit is 4.5x worse
+> (rms 0.085) with the coefficients scattered over 0.86-1.61, which is what identifies which of the
+> two dark traces is the neutral and which the minimum density. Adopted peaks **450 / 540 / 680 nm,
+> identical to 5217 and 5218** -- a family check the extractor never saw.
+>
+> **QUEUE ITEM C10: the FIRST VECTOR-TRACED SPECTRAL SENSITIVITY SET in the database**, by a new
+> script `spectral_vector.py` now in `build.py`'s audit stage. Every earlier spectral set came from
+> the 2026-08-02 raster batch or `agfa_vista.py`'s dash-legend reader. Same ink rule -- and C10's own
+> prediction that Kodak draws the red record as yellow under magenta was right, the two paths
+> bit-identical. Assignment checked three ways, **none of them the ink**: the legend swatches, the
+> absorption bands (peaks 470 / 540 / 650 nm, ascending), and the independently-adopted 5217/5218
+> sets, which agree in red and green to rms 0.05-0.14 decades.
+>
+> ⚠ **5201's BLUE LAYER PEAKS AT 470 nm WHERE ITS SIBLINGS PEAK AT 410-420.** That is the whole of
+> the cross-check disagreement (blue rms 0.24-0.42 decades) and it is **printed**: a narrow cusp
+> above log S 2.0 at 470, higher than the 445 nm bump, then a cliff to zero by 500 -- confirmed on a
+> 26x render before adoption. It is pinned by a guard, because a later "correction" toward the family
+> shape would be undoing a measurement.
+>
+> ⚠ **THE SENSITIVITY CRITERION IS PRINTED ON NO SHEET IN THIS FAMILY.** 5201's footnote says only
+> "Sensitivity = reciprocal of exposure (erg/cm2) required to produce **specified density**" -- it
+> never names the density. The three sets already stored (5218, 5217, 5219) carry
+> `log_reciprocal_erg_cm2_D0.2_above_dmin`, and checking their sources: 5218 and 5217 print the same
+> unspecified wording, and 5219's footnote is not in its text layer at all. So the "D 0.2 above
+> dmin" half is printed on none of them. 5201 stores what its sheet prints; the other three are
+> **left alone** and the conflict is recorded with a two-way guard (method rule 4). Best next move
+> for it: Kodak publication **H-1** *Image Structure*, cited by name on the sheet, absent from the
+> corpus.
+>
+> ⚠ **AND THIS ADOPTION MOVES A RENDER**, unlike the dye set, which is inert schema-v7 storage. A
+> stock carrying spectral data takes `spectral_balance_gains()` instead of the 600/550/450 nm proxy,
+> and 5201's measured red layer peaks at **650** nm rather than the assumed 600, so tungsten light
+> drives it harder: **+0.28 stop of red gain at 3200 K**, -0.17 at 10000 K, green the unchanged
+> anchor. Both size and direction are asserted, so the change stays deliberate.
+>
+> **QUEUE ITEM C12 WAS FILED AGAINST TWO PROFILES AND THERE WERE SIX.** A sweep for mixed
+> `[T1/T3]`-style tags found `KODAK_VISION2_500T_5218`, `_200T_5217`, `_250D_5205`,
+> `KODAK_VISION_500T_5279`, `_200T_5274` and `_250D_5246` all resolving to **tier 3 with
+> `fitted_from="analogy"`** -- every one owning its own Kodak sheet, **four with a sigma(D) shape
+> traced from it**, and in all six the T3 half is one flagged scalar: `rms_granularity`, because from
+> VISION onward Kodak prints granularity CURVES and no rms number. All six moved to **tier 1**
+> (owner-approved), matching the two precedents already in `_UNTAGGED_TIER` -- `EASTMAN_5247_1983`
+> is tier 1 with hand-fitted tone curves and `FUJI_SUPER_F125_8532` is tier 1 with a transferred
+> red/blue f50, both larger residuals. ⚠ **The mechanism was closed by a CLASS guard, not by
+> loosening the regex:** a mixed tag must now be listed in `_UNTAGGED_TIER` and may not resolve to 3
+> (3 being exactly the value the regex falls back to, so an entry resolving there is
+> indistinguishable from the bug). The strict regex is the feature -- it forces a decision on every
+> future mixed tag instead of quietly picking a number.
+>
+> **Status 2026-08-25b (Kodak 7266 granularity panel, queue C29):** `verify.py` **338 PASS / 1
+> FAIL**, 11 audits green, schema **v11 unchanged**, **160 stocks unchanged**, `film_names.txt`
+> unchanged -- no ListBox shift. One stock gained a measured grain shape.
+>
+> **THE FIRST MEASURED sigma(D) ON A BLACK-AND-WHITE STOCK IN THIS FILE -- AND IT POINTS THE
+> OPPOSITE WAY FROM WHAT WAS STORED.** Kodak TRI-X Reversal 7266's sheet draws its granularity panel
+> and its characteristic curve against the SAME log-exposure abscissa, which is what makes the
+> pairing possible without transferring a calibration between documents. 52 columns paired; **30
+> kept.** The restriction is |dD/dlogE| > 0.5: where the characteristic curve is flat, one density
+> maps to many sigma values and the inversion is ill-conditioned. On a reversal stock the flat zone
+> is **dmax**, not the toe -- the opposite end from a negative.
+>
+> **ADOPTED on `KODAK_TRI_X_REVERSAL_200` and nothing else:** `sigma_shape_toe` **0.262** (at D
+> 0.352), `sigma_shape_mid` 1.000, `sigma_shape_dmax` **2.829** (at D 3.089),
+> `sigma_shape_measured=True`. The law is `sigma_D ~ D**1.078`, rms 0.038 decades.
+>
+> ⚠ **THE ESTIMATE IT REPLACES WAS WRONG IN DIRECTION, NOT MERELY IN SIZE.** The stored triple was
+> 0.70 / 1.00 / 0.50 -- granularity FALLING 2x toward dmax. The sheet shows it RISING 2.8x. On
+> reversal film dmax is the unexposed, fully developed silver, so rising is the physical direction;
+> the estimate was a negative film's shape applied to a positive film. Nothing in the file recorded
+> which direction to expect, so no existing check could have caught it.
+>
+> ⚠ **THE LEVEL IS DELIBERATELY NOT ADOPTED.** The same panel implies **22.3** at this file's
+> NET-density-1.0 convention against the stored **10.0**. The sheet states the curve was obtained
+> with "modified measuring techniques" and never defines them, so the level rests on an undefined
+> convention while the SHAPE does not. `rms_granularity` stays 10.0 and the 22.3 is cited in the
+> profile with that caveat as the reason.
+>
+> ⚠ **AN APPARENT 2.93x INTERIOR PEAK AT D 3.16 IS DISCARDED.** It appears in the raw pairing, it is
+> smooth, and it lies entirely inside the ill-conditioned flat zone. Storing it would be storing an
+> artefact of the inversion.
+>
+> ⚠ **SCOPE HELD.** The other **34** reversal stocks keep the contradicted 0.7/1.0/0.5 estimate --
+> one measured sample is not a class (method rule 18) -- and the contradiction is now written into
+> the `GrainSpec` docstring, `NotFound.md` and a counted `verify.py` guard instead of being
+> "harmonised" away. The 68 monochrome NEGATIVE stocks are untouched for a stronger reason: 7266 is
+> a reversal emulsion, and its rising shape is precisely what must not be transferred to negatives.
+> Four new guards pin the shape, the absent peak, the kept rms and that 34-stock count.
+>
+> **Status 2026-08-25 (T-101 sigma(D) figures, queue C28):** `verify.py` **334 PASS / 1 FAIL**,
+> 11 audits green, schema **v11 unchanged**, **160 stocks unchanged**, `film_names.txt` unchanged --
+> no ListBox shift. One stored value moved.
+>
+> **THE MAIN RESULT IS A RETRACTION, AND IT IS RECORDED RATHER THAN QUIETLY FIXED.** T-101 Fig. 26
+> (mean-signal-to-r.m.s.-noise ratio against mean optical density, log-log) was extracted cleanly:
+> `log10(t/sigma) = -0.6648*log10(D) - 0.1738`, 1039 columns, rms 0.0063 decades. It self-validates
+> twice on quantities the fit never sees -- sec. B.2 prints the five samples' mean transmissions, so
+> their densities are known before tracing and four of five markers land within 2.2 %, and Fig. 21
+> plots the same quantity on linear axes giving exponent 0.668 against 0.665. **And it still cannot
+> be converted to sigma_D.** T-101 sec. 2 builds its sigma from a two-level model -- grains
+> "uniformly opaque" with "infinitely sharp edges", t taking only the eigenvalues 0 and 1, giving
+> sigma = sqrt(t(1-t)) and the eq. (4) lower limit drawn on the figure itself, approached "as the
+> scanning aperture becomes vanishingly small". The measured sigma_t/t runs 0.39 to **1.64**, so the
+> small-signal linearisation sigma_D = 0.4343*sigma_t/t is invalid across the whole plate. A
+> mid-session result of "sigma_D = 0.648*D^0.665" is **withdrawn**.
+>
+> ✅ **A CONFLICT THIS PROJECT WAS ABOUT TO RECORD DOES NOT EXIST.** Mees Fig. 302 (Goetz-Gould G on
+> a trace evaluator at a fixed densitometer aperture -- grains unresolved, Selwyn regime, which is
+> where this file's 48 um `rms_granularity` lives) and T-101 Fig. 26 (the pinhole limit) are
+> different regimes of the same physics. The apparent disagreement about whether B&W silver-negative
+> grain turns over at high density was an artefact of the bad conversion. Method rule 4 is for real
+> disagreements; asking "are these commensurable?" first is now a step in the method.
+>
+> **WHAT WAS ADOPTED, from PRINTED Table 3 (p35) with no tracing at all: grain size depends on
+> DEVELOPMENT.** The table gives equivalent grain diameter against point gamma at two densities for
+> two emulsions, and its own last column normalises by sqrt(point gamma). Refitting its eight rows:
+> `D_eq ~ gamma**n`, n = **0.452** (Pan F, rms 0.0035 um), 0.396 (Tri-X), 0.425 pooled -- so the
+> printed sqrt is marginally steep. Validated at 2 % against a number the fit never saw (Table 2's
+> printed 1.5 um at gamma 1.0, D 0.43).
+>
+> ⚠ **That exposed a condition mismatch shipped the previous day.** `clump_um` was taken from Table
+> 2's diameters, which were measured at the BBC's OWN development gamma. Five of six stocks happen
+> to match their stored gamma; `ILFORD_PAN_F` does not -- stored 0.55 (Ilford's ID-11 contrast
+> index) against the BBC's 1.0. **0.859 -> 0.655 um.** `EASTMAN_PLUS_X_5231` (0.68 vs 0.64) is
+> deliberately NOT corrected: +2.5 % is far inside the upper-bound caveat those printed diameters
+> already carry, and moving a number by less than its own stated uncertainty is false precision.
+>
+> ⚠ **Two dependences are now recorded in the `GrainSpec` docstring, neither of which the schema can
+> express:** `clump_um` varies with development gamma (above) AND with density -- T-101 Fig. 21
+> measures Pan F falling 1.726 -> 1.384 um across the tone scale, -20 %, with its t = 0.37 point
+> reading 1.484 against Table 2's printed 1.5. Every stored `clump_um` is therefore a MID-SCALE
+> REPRESENTATIVE AT ONE DEVELOPMENT CONDITION, and that is now written down where it will be read.
+>
 > **Status 2026-08-24b (F-125 family restructured, queue C27):** `verify.py` **331 PASS / 1 FAIL**,
 > 11 audits green, schema **v11 unchanged**, database **161 -> 160 film stocks** (10 print stocks),
 > so `film_names.txt` changed again and **the ListBox shifts a second time today** -- rebuild once,

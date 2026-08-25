@@ -23,6 +23,18 @@ QUEUED_PLOT_ON_FILE = {
     # (empty 2026-08-02 evening: H-1-5219 supplied by owner and digitised;
     # KODAK/5239.pdf turned out to be a mislabeled processing manual --
     # a real 5239 sheet would go here.)
+    # ⚠ REFILLED 2026-08-25 AFTER A DOCUMENTATION AUDIT. Leaving this set empty
+    # made the generator print "no plot in archive (text/table data)" for every
+    # stock -- including five whose plots ARE in the archive, with page numbers,
+    # in NotFound.md section 4.1. An empty hand-maintained set does not mean "no
+    # queue", it means "nobody refilled it", and the report was stating the
+    # stronger claim on its behalf. These five are the ones NotFound.md 4.1 lists
+    # with a located, un-digitised spectral plot:
+    "KODAK_TECHNICAL_PAN",
+    "ILFORD_FP4",
+    "ILFORD_PAN_F",
+    "POLAROID_52",
+    "POLAROID_55_PN_NEG",
 }
 
 
@@ -87,7 +99,12 @@ def generate(outdir: Path | str = "doc") -> Path:
         "and refitted for the full KODAK VISION3 family (5203/5207/5213/5219, "
         "856-1467 samples/layer), EASTMAN DOUBLE-X 5222 and "
         "FUJI NEOPAN ACROS 100 (1092 samples), stored as the fitted "
-        "6-parameter model with residuals quoted in the profile comments.",
+        "6-parameter model with residuals quoted in the profile comments. "
+        "\u26a0 THIS LIST WAS STALE UNTIL 2026-08-25 and read as though it were "
+        "complete: KODAK_VISION2_50D_5201 (2026-08-20), FUJI_SUPER_F125_8532 and "
+        "FUJICOLOR_SUPER_F500_8572 (2026-08-23), GEVACOLOR_NEG_682 (2026-08-19) "
+        "and KODAK_EKTACHROME_100D_5285 also carry traced curves. The per-stock "
+        "residuals in the profile comments are the authority, not this sentence.",
         "- 'no plot in archive' stocks follow the owner rule: printed "
         "text/table values are used instead (e.g. the Soviet stocks use "
         "Gurlev/Chibisov sensitization limits: FOTO-32 645 nm, FN-64 "
