@@ -171,6 +171,7 @@
     <ClInclude Include="include\AlgoDuplication.hpp" />
     <ClInclude Include="include\AlgoDyeImpurity.hpp" />
     <ClInclude Include="include\AlgoEdgeFog.hpp" />
+    <ClInclude Include="include\AlgoEgressAVX2.hpp" />
     <ClInclude Include="include\AlgoEmulsionMtf.hpp" />
     <ClInclude Include="include\AlgoEmulsionRecord.hpp" />
     <ClInclude Include="include\AlgoFilmCoord.hpp" />
@@ -179,9 +180,11 @@
     <ClInclude Include="include\AlgoGateWeave.hpp" />
     <ClInclude Include="include\AlgoGrain.hpp" />
     <ClInclude Include="include\AlgoHalation.hpp" />
+    <ClInclude Include="include\AlgoIngestAVX2.hpp" />
     <ClInclude Include="include\AlgoInterimage.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoNegativeDefects.hpp" />
+    <ClInclude Include="include\AlgoPrFormatAVX2.hpp" />
     <ClInclude Include="include\AlgoReciprocity.hpp" />
     <ClInclude Include="include\AlgoRelativeExposure.hpp" />
     <ClInclude Include="include\AlgoReseauReconstruct.hpp" />

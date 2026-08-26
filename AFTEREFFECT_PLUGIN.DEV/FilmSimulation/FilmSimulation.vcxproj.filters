@@ -222,6 +222,15 @@
     <ClInclude Include="include\AlgoReciprocity.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoEgressAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoIngestAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
