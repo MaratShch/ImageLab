@@ -231,6 +231,12 @@
     <ClInclude Include="include\AlgoPrFormatAVX2.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatEgress.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatIngest.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">

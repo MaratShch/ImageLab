@@ -185,6 +185,8 @@
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoNegativeDefects.hpp" />
     <ClInclude Include="include\AlgoPrFormatAVX2.hpp" />
+    <ClInclude Include="include\AlgoPrFormatEgress.hpp" />
+    <ClInclude Include="include\AlgoPrFormatIngest.hpp" />
     <ClInclude Include="include\AlgoReciprocity.hpp" />
     <ClInclude Include="include\AlgoRelativeExposure.hpp" />
     <ClInclude Include="include\AlgoReseauReconstruct.hpp" />
