@@ -59,46 +59,656 @@ PF_Err ProcessImgInPR
                 break;
 
                 case PrPixelFormat_BGRA_4444_16u:
+                {
+                    const PF_Pixel_BGRA_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRA_4444_16u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRA_4444_16u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRA_4444_32f:
+                {
+                    const PF_Pixel_BGRA_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRA_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRA_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRA_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRA_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRA_4444_32f_Linear, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRA_4444_32f_Linear, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRP_4444_8u:
+                {
+                    const PF_Pixel_BGRP_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRP_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRP_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRP_4444_16u:
+                {
+                    const PF_Pixel_BGRP_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRP_4444_16u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRP_4444_16u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRP_4444_32f:
+                {
+                    const PF_Pixel_BGRP_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRP_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRP_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRP_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRP_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRP_4444_32f_Linear, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRP_4444_32f_Linear, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRX_4444_8u:
+                {
+                    const PF_Pixel_BGRX_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRX_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRX_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRX_4444_16u:
+                {
+                    const PF_Pixel_BGRX_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32(localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRX_4444_16u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main(memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32(memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRX_4444_16u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRX_4444_32f:
+                {
+                    const PF_Pixel_BGRX_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRX_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRX_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRX_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRX_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRX_4444_32f_Linear, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRX_4444_32f_Linear, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYA_4444_8u_709:
+                {
+                    const PF_Pixel_VUYA_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYA_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYA_4444_8u_709, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYA_4444_8u_709, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYA_4444_8u:
+                {
+                    const PF_Pixel_VUYA_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYA_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYA_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYA_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYA_4444_32f_709:
+                {
+                    const PF_Pixel_VUYA_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYA_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYA_4444_32f_709, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYA_4444_32f_709, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYA_4444_32f:
+                {
+                    const PF_Pixel_VUYA_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYA_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYA_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYA_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYP_4444_8u_709:
+                {
+                    const PF_Pixel_VUYP_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYP_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYP_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYP_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYP_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYP_4444_8u_709, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYP_4444_8u_709, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYP_4444_8u:
+                {
+                    const PF_Pixel_VUYP_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYP_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYP_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYP_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYP_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYP_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYP_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYP_4444_32f_709:
+                {
+                    const PF_Pixel_VUYP_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYP_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYP_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYP_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYP_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYP_4444_32f_709, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYP_4444_32f_709, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYP_4444_32f:
+                {
+                    const PF_Pixel_VUYP_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYP_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYP_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYP_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYP_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYP_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYP_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYX_4444_8u_709:
+                {
+                    const PF_Pixel_VUYX_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYX_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYX_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYX_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYX_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYX_4444_8u_709, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYX_4444_8u_709, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYX_4444_8u:
+                {
+                    const PF_Pixel_VUYX_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYX_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYX_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYX_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYX_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYX_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYX_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYX_4444_32f_709:
+                {
+                    const PF_Pixel_VUYX_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYX_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYX_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYX_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYX_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYX_4444_32f_709, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYX_4444_32f_709, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_VUYX_4444_32f:
+                {
+                    const PF_Pixel_VUYX_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYX_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYX_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYX_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYX_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_VUYX_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_VUYX_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_ARGB_4444_8u:
+                {
+                    const PF_Pixel_ARGB_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_ARGB_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_ARGB_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_PRGB_4444_8u:
+                {
+                    const PF_Pixel_PRGB_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_PRGB_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_PRGB_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_XRGB_4444_8u:
+                {
+                    const PF_Pixel_XRGB_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_XRGB_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_XRGB_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_ARGB_4444_16u:
+                {
+                    const PF_Pixel_ARGB_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_ARGB_4444_16u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_ARGB_4444_16u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_PRGB_4444_16u:
+                {
+                    const PF_Pixel_PRGB_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_PRGB_4444_16u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_PRGB_4444_16u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_XRGB_4444_16u:
+                {
+                    const PF_Pixel_XRGB_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_XRGB_4444_16u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_XRGB_4444_16u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_ARGB_4444_32f:
+                {
+                    const PF_Pixel_ARGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_ARGB_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_ARGB_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_PRGB_4444_32f:
+                {
+                    const PF_Pixel_PRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_PRGB_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_PRGB_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_XRGB_4444_32f:
+                {
+                    const PF_Pixel_XRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_XRGB_4444_32f, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_XRGB_4444_32f, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_ARGB_4444_32f_Linear:
+                {
+                    const PF_Pixel_ARGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_ARGB_4444_32f_Linear, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_ARGB_4444_32f_Linear, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_PRGB_4444_32f_Linear:
+                {
+                    const PF_Pixel_PRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32(localSrc, sizeX, sizeY, srcLinePitch, fmt_PRGB_4444_32f_Linear, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main(memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32(memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_PRGB_4444_32f_Linear, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_XRGB_4444_32f_Linear:
+                {
+                    const PF_Pixel_XRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32(localSrc, sizeX, sizeY, srcLinePitch, fmt_XRGB_4444_32f_Linear, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main(memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32(memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_XRGB_4444_32f_Linear, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_RGB_444_10u:
+                {
+                    const PF_Pixel_RGB_10u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_RGB_10u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_RGB_10u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_RGB_444_10u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_RGB_444_10u, localSrc, sizeX, srcLinePitch);
+                }
                 break;
 
                 default:
                     err = PF_Err_INTERNAL_STRUCT_DAMAGED;
-                    break;
+                break;
             } /* switch (destinationPixelFormat) */
 
         } /* if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat))) */
