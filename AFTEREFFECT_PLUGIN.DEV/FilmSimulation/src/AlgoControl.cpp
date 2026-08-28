@@ -360,7 +360,7 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     //  cannot, because the reference has nothing to mirror. The verification
     //  harness therefore clears the flag before comparing, and must keep doing so.
     // ----------------------------------------------------------------------
-    controls.filmDamageEnabled = true;
+    controls.filmDamageEnabled = false;
     controls.damage            = getFilmDamageDefault();
 
     return controls;

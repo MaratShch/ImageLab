@@ -130,6 +130,7 @@
       <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -187,6 +188,7 @@
     <ClInclude Include="include\AlgoPrFormatAVX2.hpp" />
     <ClInclude Include="include\AlgoPrFormatEgress.hpp" />
     <ClInclude Include="include\AlgoPrFormatIngest.hpp" />
+    <ClInclude Include="include\AlgoPrFormatMath.hpp" />
     <ClInclude Include="include\AlgoReciprocity.hpp" />
     <ClInclude Include="include\AlgoRelativeExposure.hpp" />
     <ClInclude Include="include\AlgoReseauReconstruct.hpp" />

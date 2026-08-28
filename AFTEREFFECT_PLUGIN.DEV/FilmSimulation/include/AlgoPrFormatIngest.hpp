@@ -116,11 +116,6 @@
 #include "CommonPixFormat.hpp"   // authoritative Adobe pixel layouts
 #include "AlgoPrFormatMath.hpp"  // fast_log2/fast_exp2, transfer_decode/encode
 
-// The owner's instruction names CACHE_ALIGNED; the project defines CACHE_ALIGN.
-// Alias rather than introduce a second alignment mechanism.
-#ifndef CACHE_ALIGNED
-  #define CACHE_ALIGNED CACHE_ALIGN
-#endif
 
 namespace AlgoPrIngest
 {

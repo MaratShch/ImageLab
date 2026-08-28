@@ -2,7 +2,11 @@
 #include "AlgoControlEnums.hpp"
 #include "AlgoMemHandler.hpp"
 #include "PrSDKAESupport.h"
+#include "AlgoPrFormatIngest.hpp"
+#include "AlgoPrFormatEgress.hpp"
+#include "AlgorithmMain.hpp"
 
+using namespace AlgoPrIngest;
 
 PF_Err ProcessImgInPR
 (
@@ -32,10 +36,28 @@ PF_Err ProcessImgInPR
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
             const double fpsRate = image_lab_get_fps(in_data);
+            const AlgoControls algoControls = getAlgoControlsDefault();
 
             switch (destinationPixelFormat)
             {
                 case PrPixelFormat_BGRA_4444_8u:
+                {
+                    const PF_Pixel_BGRA_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    // convert from Adobe buffer format to planar 
+                    ingest_to_planar_f32 (localSrc, sizeX, sizeY, srcLinePitch, fmt_BGRA_4444_8u, memHndl.Src_R, memHndl.Src_G, memHndl.Src_B, sizeX);
+
+                    // perform film simulations
+                    Algorithm_Main (memHndl, sizeX, sizeY, algoControls);
+
+                    // back convert from planar format to Adobe buffer format
+                    egress_from_planar_f32 (memHndl.Dst_R, memHndl.Dst_G, memHndl.Dst_B, sizeX, sizeX, sizeY, localDst, dstLinePitch, fmt_BGRA_4444_8u, localSrc, sizeX, srcLinePitch);
+                }
+                break;
+
                 case PrPixelFormat_BGRA_4444_16u:
                 case PrPixelFormat_BGRA_4444_32f:
                 case PrPixelFormat_BGRA_4444_32f_Linear:
@@ -72,8 +94,7 @@ PF_Err ProcessImgInPR
                 case PrPixelFormat_PRGB_4444_32f_Linear:
                 case PrPixelFormat_XRGB_4444_32f_Linear:
                 case PrPixelFormat_RGB_444_10u:
-                err = PF_Err_NONE;
-                    break;
+                break;
 
                 default:
                     err = PF_Err_INTERNAL_STRUCT_DAMAGED;
