@@ -3777,10 +3777,35 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         era="1990s-2000s",
         exposure_index=100,
         balance_kelvin=5500,
+        # ⚠ TRACED 2026-08-29 (queue E1), REPLACING SYNTHESISED `_neg()`
+        # SHAPES -- and replacing an overclaim as much as a number. This
+        # profile's derived provenance already said `fitted_from =
+        # 'datasheet_curve'`, i.e. "the softplus parameters were fitted to a
+        # published characteristic curve". They had not been: the previous
+        # values were the Agfa family's default toe and shoulder with a dmin
+        # and a gamma written beside them. Now they have been.
+        # Vector paths off the sheet's own Colour density curves panel,
+        # separated by DASH ARRAY and checked against its printed Blue/Green/
+        # Red labels; six-parameter softplus fit by `agfa_2004_curves.py`,
+        # fit rms 0.0051 / 0.0056 / 0.0066 D for r/g/b.
+        # ⚠ THE ABSCISSA WAS RE-ANCHORED AND THAT PART IS CONVENTION, NOT
+        # MEASUREMENT. Agfa plot ABSOLUTE exposure, lg (Lx*s) from -4.0 to
+        # +1.0; ToneCurve.x is relative to this corpus's mid-grey anchor and
+        # no document connects the two. So dmin, gamma, the toe-to-shoulder
+        # SPAN and both softnesses are measured, and only the origin is
+        # carried -- the straight line's midpoint is placed at +0.10, where
+        # the `_neg` family defaults put it.
+        # ⚠ shoulder_k IS AT ITS PERMITTED BOUND, 1.40 x toe_k, on all three
+        # records. The unconstrained fit wanted a softer shoulder than
+        # ToneCurve's monotonicity rule allows and was held; the cost shows
+        # in the fit rms above and nowhere else. Left free it also broke the
+        # gamma: Portrait 160's red came back at gamma 1.018 with the two
+        # ramps overlapping so heavily that the parameter was no longer the
+        # slope it is defined as.
         curves=RGBCurves(
-            r=_neg(0.20, 0.600),
-            g=_neg(0.62, 0.610),
-            b=_neg(1.02, 0.620),
+            r=ToneCurve(0.265, 0.640, -1.461, 0.219, +1.661, 0.307),
+            g=ToneCurve(0.676, 0.645, -1.468, 0.220, +1.668, 0.309),
+            b=ToneCurve(0.918, 0.691, -1.502, 0.216, +1.702, 0.302),
         ),
         # rms 4.0: published diffuse RMS granularity (x1000) for AGFACOLOR
         # OPTIMA II 100. SOURCE: Agfa "Professional Films" brochure
@@ -3794,26 +3819,65 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # only as a plotted transfer-factor curve (agfa_films.pdf p7), never as
         # a numeric MTF. The published resolving power (50 lp/mm at 1.6:1,
         # 140 lp/mm at 1000:1, same page) is recorded in _RESOLVING_POWER.
-        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.09, adjacency_um=17.0),
+        # ⚠ adjacency 0.135 MEASURED 2026-08-29 (queue E1) and f50
+        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
+        # (%)" against "Lines per mm" and the curve PEAKS AT 114 %, above the
+        # 100 % a true MTF cannot exceed -- so what it draws is an
+        # adjacency-enhanced response, and the overshoot is a direct reading of
+        # the adjacency effect. That number is a RATIO and carries no unit, so
+        # it can be adopted whatever the abscissa means.
+        # f50 reads 46.2 on the panel's own axis and is NOT stored, because
+        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
+        # pairs is an open question in this corpus -- queue item G6, raised
+        # against Gevacolor 682's identically worded axis. A factor of two is
+        # not a rounding difference. The f50 values below stay estimates until
+        # G6 settles; the reading is filed there as evidence.
+        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.135, adjacency_um=17.0),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
         default_format="ff35",
         features=Feature.NONE,
-        # Spectral curves [T1-digitised 2026-08-02, agent batch 3]:
-        # Agfa 'Range of Films - Technical Data' p7 (undated print, PDF
-        # 10/1998); each layer normalised to its own peak (printed peak
-        # spread <= 0.06 lg); overlap regions +/-0.1 lg (dashed marks).
+        # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
+        # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
+        # panel. The three layers are separated by DASH ARRAY -- solid green,
+        # dashed blue, dash-dot-dot red -- which is a machine-readable legend,
+        # not a guess from position; the keying is then checked twice over,
+        # against the panel's printed Blue/Green/Red words and against the
+        # physical requirement that the peaks ascend b < g < r.
+        # Axis fit residual 0.00 nm / <=0.0003 lg -- the labels are real text
+        # on a Distiller PDF, so the calibration is exact rather than traced.
+        # Each layer is normalised to its own peak; -4.00 is the corpus's
+        # off-scale sentinel and marks wavelengths the curve is not drawn at,
+        # NOT a measured sensitivity of 1e-4.
+        # ⚠ THIS REPLACES THE 2026-08-02 RASTER SET, AND THE TWO DISAGREE ON
+        # RED BY ~35 nm -- which is the finding, not a footnote. The stored
+        # set came from a raster page of the older 1998 'Range of Films'
+        # brochure and put the red peak at 650 nm. The 2004 vector page draws
+        # the red record peaking at 615-620 nm with a distinct SHOULDER at
+        # 645, and 650 is that shoulder. Blue (470) and green (550) agree
+        # EXACTLY between the two readings.
+        # ⚠ The alternative explanation cannot be excluded from the
+        # documents and is recorded rather than dismissed: the 1998 sheet
+        # names the film OPTIMA II 100 and the 2004 sheet Agfacolor Optima
+        # 100, so they could be different emulsions. Two layers agreeing to
+        # the grid step while the third moves 35 nm is the signature of a
+        # reading error, not of a reformulation -- a new emulsion moves more
+        # than one layer -- so the vector set is adopted, from the better
+        # source, and the disagreement is left visible here.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.21, -1.71, -1.29, -0.84, -0.63, -0.49, -0.35, -0.20, -0.08, 0.00, -0.09, -0.94, -1.69, -2.12, -4.00),
-            log_s_g=(-4.00, -2.16, -1.84, -1.55, -1.64, -1.81, -1.94, -2.02, -2.04, -1.91, -1.58, -1.25, -0.82, -0.64, -0.52, -0.32, -0.09, 0.00, -0.14, -0.60, -1.35, -2.10, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-1.32, -1.04, -0.59, -0.18, -0.02, -0.04, -0.09, -0.10, -0.02, 0.00, -0.34, -0.89, -1.59, -1.99, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
-            criterion="relative_log",
-            source=("Agfa, 'AGFA Range of Films - Technical Data "
-                    "(Professional)', OPTIMA II 100 pages, undated "
-                    "(PDF October 1998)"),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.66, -2.47, -2.28, -2.11, -2.09, -1.74, -1.43, -1.05, -0.72, -0.31, -0.02, 0.00, -0.16, -0.29, -0.50, -1.51, -2.43, -4.00, -4.00, -4.00),
+            log_s_g=(-1.76, -1.59, -1.39, -1.44, -1.63, -1.76, -1.88, -1.95, -1.95, -1.87, -1.57, -1.08, -0.84, -0.72, -0.64, -0.47, -0.14, 0.00, -0.18, -0.45, -1.13, -2.23, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.04, -0.70, -0.35, -0.20, -0.22, -0.26, -0.29, -0.31, -0.19, 0.00, -0.55, -1.23, -1.66, -2.00, -2.49, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),criterion="relative_log",
+            source=("Agfa-Gevaert, 'Technical Data: Agfa Professional "
+                    "Films', publication F-PF-E4, 4th edition 08/2004, "
+                    "printed p7, Spectral sensitivity panel -- "
+                    "PDF/PROFILES/AGFA/AGFA stocks.pdf. Vector paths, dash-"
+                    "keyed by layer. Measurement conditions as the sheet "
+                    "states them on p5: equal-energy spectrum, reading "
+                    "density 1.0 above minimum density"),
         ),
     ),
     FilmProfile(
@@ -12534,7 +12598,20 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         balance_kelvin=5500,
         # Roll-film contact-print era: developed to a higher gamma than sheet
         # portrait films; dmin carries roll-film base grey plus period fog.
-        curves=_mono(ToneCurve(0.24, 0.780, -1.40, 0.30, 1.70, 0.44)),
+        # ⚠ GAMMA 0.744 REPLACES THE ESTIMATE 0.780 (2026-08-29, queue E1),
+        # and it is PRINTED rather than traced. The sheet's curve family is
+        # drawn for D-76 and labels 14 min y=.70 and 19 min y=.80; the first
+        # developer row of its own processing table is D-76, 16 min with
+        # intermittent agitation (tank) at 68 F. Interpolating between those
+        # two adjacent labels gives 0.740 linear in time and 0.744 linear in
+        # log time -- a 0.004 bracket, so the interpolation MODEL cannot
+        # matter and neither reading is being preferred over the other.
+        # ⚠ dmin IS UNCHANGED AND STAYS AN ESTIMATE. The plot draws a
+        # separate 'Base Density' line, traced at D 0.064, but that is the
+        # SUPPORT ALONE -- base without fog -- so it bounds dmin from below
+        # and does not measure it. The curves never flatten, so base+fog is
+        # not readable from this engraving at any development time.
+        curves=_mono(ToneCurve(0.24, 0.744, -1.40, 0.30, 1.70, 0.44)),
         # rms 10.5 [T2]: "fine grain" class at EI 64 between PANATOMIC_X
         # (very fine, 7.5) and TRI_X_SHEET (moderate, 13.5); no figure printed.
         grain=GrainSpec(10.5, 13.0, 13.0, 13.0, clump_gain=1.05, fog_grain=0.26),
@@ -12554,6 +12631,43 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         default_flare=0.09,
         default_format="medium645",
         features=Feature.HALATION | Feature.ORTHO_RESPONSE,
+        # -- schema v7 carrier, INERT -- the PROCESSING FAMILY ----------------
+        # ⚠ THESE FIVE GAMMAS ARE PRINTED, NOT TRACED. Each curve of the
+        # sensitometric panel carries its own text label, "N min" beside
+        # "y = .NN", so this is Kodak's own statement about D-76 and needs
+        # no extraction. `kodak_1952_curves.py` re-derives all five from the
+        # DRAWN curves as a check and reproduces them; the per-sheet figures
+        # are in that script and in RESULT_2026-08-29_E1_kodak1952_agfa2004.md.
+        # ⚠ base_fog IS LEFT AT ZERO ON EVERY POINT, and that is a reading of
+        # the source rather than an omission. Schema v13 added the field
+        # because H-1-5222's curves reach a flat left plateau. These do not --
+        # at the leftmost drawn column the family is still climbing and still
+        # separated -- so there is no plateau to measure and 0 is the
+        # schema's "not stated by the source".
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="KODAK D-76", dilution="stock",
+                                 minutes=10.0, celsius=20.0, gamma=0.60),
+                DevelopmentPoint(developer="KODAK D-76", dilution="stock",
+                                 minutes=14.0, celsius=20.0, gamma=0.70),
+                DevelopmentPoint(developer="KODAK D-76", dilution="stock",
+                                 minutes=19.0, celsius=20.0, gamma=0.80),
+                DevelopmentPoint(developer="KODAK D-76", dilution="stock",
+                                 minutes=27.0, celsius=20.0, gamma=0.90),
+                DevelopmentPoint(developer="KODAK D-76", dilution="stock",
+                                 minutes=36.0, celsius=20.0, gamma=1.00),
+            ),
+            source=(
+                "Eastman Kodak Company, «Kodak Films», Data Book, Fifth Edition, 1952 -- PDF/PROFILES/KODAK/kodak-films-5.pdf "
+                "-- the five characteristic curves of the D-76 family, each "
+                "labelled in text with its development time and its gamma. "
+                "\u26a0 IMAGE-ONLY PAGE: the plot is a 150 dpi JPEG-2000 "
+                "raster, not vector; the labels come from the Acrobat Paper "
+                "Capture OCR layer and were re-read by eye off the page "
+                "image. celsius is 20.0 because the sheet prints 68 F. "
+                "\u26a0 NO CONTRAST INDEX IS PRINTED anywhere in this book, so "
+                "contrast_index stays 0.0 and only gamma is claimed"),
+        ),
     ),
     FilmProfile(
         name="KODAK_PANATOMIC_X_SHEET_1952",
@@ -12571,7 +12685,15 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # 1952 ASA as printed: Daylight 32 / Tungsten 25 (p57).
         exposure_index=32,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.18, 0.700, -1.50, 0.30, 1.80, 0.42)),
+        # ⚠ GAMMA 0.852 REPLACES THE ESTIMATE 0.700 (2026-08-29, queue E1):
+        # a 22 % correction, and the largest of the four 1952 stocks. The
+        # sheet's family is drawn for DK-50 and labels 5 min y=.80 and 6 min
+        # y=.90; its processing table gives DK-50 5 1/2 min intermittent
+        # (tank) at 68 F, the exact midpoint. Linear and log-time
+        # interpolation differ by 0.002 here.
+        # ⚠ dmin unchanged: the traced 'Base Density' line reads 0.050, which
+        # is support without fog and therefore a lower bound only.
+        curves=_mono(ToneCurve(0.18, 0.852, -1.50, 0.30, 1.80, 0.42)),
         # rms 7.5 [T2]: "very fine grain" at EI 32; scaled against APX_25
         # (rms 7.0) allowing for two decades older crystal technology.
         grain=GrainSpec(7.5, 8.0, 8.0, 8.0, clump_gain=0.70, fog_grain=0.18),
@@ -12584,6 +12706,43 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         misregistration_um=0.0,
         default_format="large4x5",
         features=Feature.NONE,
+        # -- schema v7 carrier, INERT -- the PROCESSING FAMILY ----------------
+        # ⚠ THESE FIVE GAMMAS ARE PRINTED, NOT TRACED. Each curve of the
+        # sensitometric panel carries its own text label, "N min" beside
+        # "y = .NN", so this is Kodak's own statement about DK-50 and needs
+        # no extraction. `kodak_1952_curves.py` re-derives all five from the
+        # DRAWN curves as a check and reproduces them; the per-sheet figures
+        # are in that script and in RESULT_2026-08-29_E1_kodak1952_agfa2004.md.
+        # ⚠ base_fog IS LEFT AT ZERO ON EVERY POINT, and that is a reading of
+        # the source rather than an omission. Schema v13 added the field
+        # because H-1-5222's curves reach a flat left plateau. These do not --
+        # at the leftmost drawn column the family is still climbing and still
+        # separated -- so there is no plateau to measure and 0 is the
+        # schema's "not stated by the source".
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=3.0, celsius=20.0, gamma=0.60),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=4.0, celsius=20.0, gamma=0.70),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=5.0, celsius=20.0, gamma=0.80),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=6.0, celsius=20.0, gamma=0.90),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=7.0, celsius=20.0, gamma=1.00),
+            ),
+            source=(
+                "Eastman Kodak Company, «Kodak Films», Data Book, Fifth Edition, 1952 -- PDF/PROFILES/KODAK/kodak-films-5.pdf "
+                "-- the five characteristic curves of the DK-50 family, each "
+                "labelled in text with its development time and its gamma. "
+                "\u26a0 IMAGE-ONLY PAGE: the plot is a 150 dpi JPEG-2000 "
+                "raster, not vector; the labels come from the Acrobat Paper "
+                "Capture OCR layer and were re-read by eye off the page "
+                "image. celsius is 20.0 because the sheet prints 68 F. "
+                "\u26a0 NO CONTRAST INDEX IS PRINTED anywhere in this book, so "
+                "contrast_index stays 0.0 and only gamma is claimed"),
+        ),
     ),
     FilmProfile(
         name="KODAK_TRI_X_SHEET_1952",
@@ -12604,7 +12763,17 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # 1952 ASA as printed: Daylight 200 / Tungsten 160 (p49).
         exposure_index=200,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.20, 0.680, -1.46, 0.32, 1.86, 0.46)),
+        # ⚠ GAMMA 0.832 REPLACES THE ESTIMATE 0.680 (2026-08-29, queue E1) --
+        # a 22 % correction. DK-50 family, labels 8 1/2 min y=.80 and 12 min
+        # y=.90; the sheet's Commercial Photography row is DK-50 9 1/2 min
+        # intermittent (tank) at 68 F. Bracket 0.829-0.832.
+        # ⚠ AND THE SHEET OFFERS A SECOND, EQUALLY OFFICIAL CONDITION: the
+        # Portrait Photography row is DK-50 7 min, gamma ~0.73. Commercial is
+        # stored because it is the first row and the harder-working one for a
+        # press and portrait sheet film; the portrait alternative is not
+        # hidden, it is one of the five points in processing_family below.
+        # ⚠ dmin unchanged: 'Base Density' traces to 0.080, support only.
+        curves=_mono(ToneCurve(0.20, 0.832, -1.46, 0.32, 1.86, 0.46)),
         # rms 13.5 [T2]: fastest of the set; slightly coarser than
         # SUPER_XX_1938 (12.0) at twice the printed speed, in line with the
         # book's "moderate enlargement without objectionable grain".
@@ -12619,6 +12788,43 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         default_flare=0.10,
         default_format="large4x5",
         features=Feature.NONE,
+        # -- schema v7 carrier, INERT -- the PROCESSING FAMILY ----------------
+        # ⚠ THESE FIVE GAMMAS ARE PRINTED, NOT TRACED. Each curve of the
+        # sensitometric panel carries its own text label, "N min" beside
+        # "y = .NN", so this is Kodak's own statement about DK-50 and needs
+        # no extraction. `kodak_1952_curves.py` re-derives all five from the
+        # DRAWN curves as a check and reproduces them; the per-sheet figures
+        # are in that script and in RESULT_2026-08-29_E1_kodak1952_agfa2004.md.
+        # ⚠ base_fog IS LEFT AT ZERO ON EVERY POINT, and that is a reading of
+        # the source rather than an omission. Schema v13 added the field
+        # because H-1-5222's curves reach a flat left plateau. These do not --
+        # at the leftmost drawn column the family is still climbing and still
+        # separated -- so there is no plateau to measure and 0 is the
+        # schema's "not stated by the source".
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=4.0, celsius=20.0, gamma=0.60),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=6.0, celsius=20.0, gamma=0.70),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=8.5, celsius=20.0, gamma=0.80),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=12.0, celsius=20.0, gamma=0.90),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=19.0, celsius=20.0, gamma=1.00),
+            ),
+            source=(
+                "Eastman Kodak Company, «Kodak Films», Data Book, Fifth Edition, 1952 -- PDF/PROFILES/KODAK/kodak-films-5.pdf "
+                "-- the five characteristic curves of the DK-50 family, each "
+                "labelled in text with its development time and its gamma. "
+                "\u26a0 IMAGE-ONLY PAGE: the plot is a 150 dpi JPEG-2000 "
+                "raster, not vector; the labels come from the Acrobat Paper "
+                "Capture OCR layer and were re-read by eye off the page "
+                "image. celsius is 20.0 because the sheet prints 68 F. "
+                "\u26a0 NO CONTRAST INDEX IS PRINTED anywhere in this book, so "
+                "contrast_index stays 0.0 and only gamma is claimed"),
+        ),
     ),
     FilmProfile(
         name="KODAK_ORTHO_X_SHEET_1952",
@@ -12638,7 +12844,16 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # different emulsion speed.
         exposure_index=125,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.19, 0.720, -1.46, 0.30, 1.78, 0.44)),
+        # ⚠ GAMMA 0.800 REPLACES THE ESTIMATE 0.720 (2026-08-29, queue E1),
+        # and this one needs NO interpolation at all: the sheet's Commercial
+        # Photography row is DK-50 9 min intermittent (tank) at 68 F, and
+        # 9 min is one of the five PRINTED curve labels -- y = .80 exactly.
+        # It is the only recommended time on any of these four 1952 sheets
+        # that lands on a drawn curve. (The Portrait row is 6 min, ~0.69.)
+        # ⚠ dmin unchanged: 'Base Density' traces to 0.109, support only --
+        # the highest base of the four, which is consistent with this being
+        # the fastest of them.
+        curves=_mono(ToneCurve(0.19, 0.800, -1.46, 0.30, 1.78, 0.44)),
         # rms 11.5 [T2]: "moderate enlargement" class at EI 125, between
         # VERICHROME (10.5) and TRI_X_SHEET (13.5).
         grain=GrainSpec(11.5, 13.5, 13.5, 13.5, clump_gain=1.10, fog_grain=0.27),
@@ -12649,6 +12864,43 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         misregistration_um=0.0,
         default_format="large4x5",
         features=Feature.ORTHO_RESPONSE,
+        # -- schema v7 carrier, INERT -- the PROCESSING FAMILY ----------------
+        # ⚠ THESE FIVE GAMMAS ARE PRINTED, NOT TRACED. Each curve of the
+        # sensitometric panel carries its own text label, "N min" beside
+        # "y = .NN", so this is Kodak's own statement about DK-50 and needs
+        # no extraction. `kodak_1952_curves.py` re-derives all five from the
+        # DRAWN curves as a check and reproduces them; the per-sheet figures
+        # are in that script and in RESULT_2026-08-29_E1_kodak1952_agfa2004.md.
+        # ⚠ base_fog IS LEFT AT ZERO ON EVERY POINT, and that is a reading of
+        # the source rather than an omission. Schema v13 added the field
+        # because H-1-5222's curves reach a flat left plateau. These do not --
+        # at the leftmost drawn column the family is still climbing and still
+        # separated -- so there is no plateau to measure and 0 is the
+        # schema's "not stated by the source".
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=4.5, celsius=20.0, gamma=0.60),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=6.5, celsius=20.0, gamma=0.70),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=9.0, celsius=20.0, gamma=0.80),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=12.0, celsius=20.0, gamma=0.90),
+                DevelopmentPoint(developer="KODAK DK-50", dilution="stock",
+                                 minutes=16.0, celsius=20.0, gamma=1.00),
+            ),
+            source=(
+                "Eastman Kodak Company, «Kodak Films», Data Book, Fifth Edition, 1952 -- PDF/PROFILES/KODAK/kodak-films-5.pdf "
+                "-- the five characteristic curves of the DK-50 family, each "
+                "labelled in text with its development time and its gamma. "
+                "\u26a0 IMAGE-ONLY PAGE: the plot is a 150 dpi JPEG-2000 "
+                "raster, not vector; the labels come from the Acrobat Paper "
+                "Capture OCR layer and were re-read by eye off the page "
+                "image. celsius is 20.0 because the sheet prints 68 F. "
+                "\u26a0 NO CONTRAST INDEX IS PRINTED anywhere in this book, so "
+                "contrast_index stays 0.0 and only gamma is claimed"),
+        ),
     ),
 
     # AGFA SOURCE: "Technical Data -- Agfa Professional Films" brochure,
@@ -12672,10 +12924,35 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         era="1990s-2000s",
         exposure_index=200,
         balance_kelvin=5500,
+        # ⚠ TRACED 2026-08-29 (queue E1), REPLACING SYNTHESISED `_neg()`
+        # SHAPES -- and replacing an overclaim as much as a number. This
+        # profile's derived provenance already said `fitted_from =
+        # 'datasheet_curve'`, i.e. "the softplus parameters were fitted to a
+        # published characteristic curve". They had not been: the previous
+        # values were the Agfa family's default toe and shoulder with a dmin
+        # and a gamma written beside them. Now they have been.
+        # Vector paths off the sheet's own Colour density curves panel,
+        # separated by DASH ARRAY and checked against its printed Blue/Green/
+        # Red labels; six-parameter softplus fit by `agfa_2004_curves.py`,
+        # fit rms 0.0057 / 0.0098 / 0.0072 D for r/g/b.
+        # ⚠ THE ABSCISSA WAS RE-ANCHORED AND THAT PART IS CONVENTION, NOT
+        # MEASUREMENT. Agfa plot ABSOLUTE exposure, lg (Lx*s) from -4.0 to
+        # +1.0; ToneCurve.x is relative to this corpus's mid-grey anchor and
+        # no document connects the two. So dmin, gamma, the toe-to-shoulder
+        # SPAN and both softnesses are measured, and only the origin is
+        # carried -- the straight line's midpoint is placed at +0.10, where
+        # the `_neg` family defaults put it.
+        # ⚠ shoulder_k IS AT ITS PERMITTED BOUND, 1.40 x toe_k, on all three
+        # records. The unconstrained fit wanted a softer shoulder than
+        # ToneCurve's monotonicity rule allows and was held; the cost shows
+        # in the fit rms above and nowhere else. Left free it also broke the
+        # gamma: Portrait 160's red came back at gamma 1.018 with the two
+        # ramps overlapping so heavily that the parameter was no longer the
+        # slope it is defined as.
         curves=RGBCurves(
-            r=_neg(0.20, 0.605),
-            g=_neg(0.62, 0.615),
-            b=_neg(1.02, 0.625),
+            r=ToneCurve(0.250, 0.576, -1.485, 0.260, +1.685, 0.364),
+            g=ToneCurve(0.644, 0.571, -1.492, 0.219, +1.692, 0.307),
+            b=ToneCurve(0.815, 0.614, -1.586, 0.246, +1.786, 0.345),
         ),
         # rms 4.3: published (AGFA stocks.pdf p6: "Granularity (x 1000):
         # RMS 4.3"). Per-channel values: stack rule from the green figure.
@@ -12683,13 +12960,51 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # f50 [T2] one notch below Optima 100 (62/70/76): the published
         # resolving power drops 140 -> 130 lines/mm at 1000:1. Agfa prints
         # sharpness only as a plotted transfer-factor curve, never numeric.
-        mtf=MTFSpec(58.0, 66.0, 72.0, adjacency=0.09, adjacency_um=17.0),
+        # ⚠ adjacency 0.128 MEASURED 2026-08-29 (queue E1) and f50
+        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
+        # (%)" against "Lines per mm" and the curve PEAKS AT 113 %, above the
+        # 100 % a true MTF cannot exceed -- so what it draws is an
+        # adjacency-enhanced response, and the overshoot is a direct reading of
+        # the adjacency effect. That number is a RATIO and carries no unit, so
+        # it can be adopted whatever the abscissa means.
+        # f50 reads 50.8 on the panel's own axis and is NOT stored, because
+        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
+        # pairs is an open question in this corpus -- queue item G6, raised
+        # against Gevacolor 682's identically worded axis. A factor of two is
+        # not a rounding difference. The f50 values below stay estimates until
+        # G6 settles; the reading is filed there as evidence.
+        mtf=MTFSpec(58.0, 66.0, 72.0, adjacency=0.128, adjacency_um=17.0),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
         default_format="ff35",
         features=Feature.NONE,
+        # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
+        # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
+        # panel. The three layers are separated by DASH ARRAY -- solid green,
+        # dashed blue, dash-dot-dot red -- which is a machine-readable legend,
+        # not a guess from position; the keying is then checked twice over,
+        # against the panel's printed Blue/Green/Red words and against the
+        # physical requirement that the peaks ascend b < g < r.
+        # Axis fit residual 0.00 nm / <=0.0003 lg -- the labels are real text
+        # on a Distiller PDF, so the calibration is exact rather than traced.
+        # Each layer is normalised to its own peak; -4.00 is the corpus's
+        # off-scale sentinel and marks wavelengths the curve is not drawn at,
+        # NOT a measured sensitivity of 1e-4.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.74, -2.68, -2.59, -2.47, -2.34, -2.24, -2.21, -1.81, -1.57, -1.18, -0.71, -0.38, -0.06, 0.00, -0.17, -0.28, -0.51, -1.36, -2.39, -4.00, -4.00, -4.00),
+            log_s_g=(-2.18, -1.76, -1.41, -1.50, -1.67, -1.88, -2.00, -2.07, -2.05, -1.95, -1.55, -1.15, -0.83, -0.68, -0.59, -0.41, -0.15, 0.00, -0.14, -0.33, -0.93, -2.12, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.98, -0.59, -0.25, -0.05, -0.05, -0.10, -0.15, -0.17, -0.11, 0.00, -0.43, -1.06, -1.47, -1.87, -2.32, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),criterion="relative_log",
+            source=("Agfa-Gevaert, 'Technical Data: Agfa Professional "
+                    "Films', publication F-PF-E4, 4th edition 08/2004, "
+                    "printed p7, Spectral sensitivity panel -- "
+                    "PDF/PROFILES/AGFA/AGFA stocks.pdf. Vector paths, dash-"
+                    "keyed by layer. Measurement conditions as the sheet "
+                    "states them on p5: equal-energy spectrum, reading "
+                    "density 1.0 above minimum density"),
+        ),
     ),
     FilmProfile(
         name="AGFA_OPTIMA_400",
@@ -12703,10 +13018,35 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         era="1990s-2000s",
         exposure_index=400,
         balance_kelvin=5500,
+        # ⚠ TRACED 2026-08-29 (queue E1), REPLACING SYNTHESISED `_neg()`
+        # SHAPES -- and replacing an overclaim as much as a number. This
+        # profile's derived provenance already said `fitted_from =
+        # 'datasheet_curve'`, i.e. "the softplus parameters were fitted to a
+        # published characteristic curve". They had not been: the previous
+        # values were the Agfa family's default toe and shoulder with a dmin
+        # and a gamma written beside them. Now they have been.
+        # Vector paths off the sheet's own Colour density curves panel,
+        # separated by DASH ARRAY and checked against its printed Blue/Green/
+        # Red labels; six-parameter softplus fit by `agfa_2004_curves.py`,
+        # fit rms 0.0107 / 0.0106 / 0.0091 D for r/g/b.
+        # ⚠ THE ABSCISSA WAS RE-ANCHORED AND THAT PART IS CONVENTION, NOT
+        # MEASUREMENT. Agfa plot ABSOLUTE exposure, lg (Lx*s) from -4.0 to
+        # +1.0; ToneCurve.x is relative to this corpus's mid-grey anchor and
+        # no document connects the two. So dmin, gamma, the toe-to-shoulder
+        # SPAN and both softnesses are measured, and only the origin is
+        # carried -- the straight line's midpoint is placed at +0.10, where
+        # the `_neg` family defaults put it.
+        # ⚠ shoulder_k IS AT ITS PERMITTED BOUND, 1.40 x toe_k, on all three
+        # records. The unconstrained fit wanted a softer shoulder than
+        # ToneCurve's monotonicity rule allows and was held; the cost shows
+        # in the fit rms above and nowhere else. Left free it also broke the
+        # gamma: Portrait 160's red came back at gamma 1.018 with the two
+        # ramps overlapping so heavily that the parameter was no longer the
+        # slope it is defined as.
         curves=RGBCurves(
-            r=_neg(0.21, 0.610),
-            g=_neg(0.63, 0.620),
-            b=_neg(1.04, 0.630),
+            r=ToneCurve(0.406, 0.633, -1.516, 0.232, +1.716, 0.324),
+            g=ToneCurve(0.796, 0.652, -1.503, 0.247, +1.703, 0.346),
+            b=ToneCurve(1.073, 0.701, -1.551, 0.254, +1.751, 0.356),
         ),
         # rms 4.5: published (AGFA stocks.pdf p6: "Granularity (x 1000):
         # RMS 4.5"). Per-channel values: stack rule from the green figure.
@@ -12714,13 +13054,51 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # f50 [T2]: published resolving power equals Optima 200 (50/130) but
         # a 400-speed emulsion of this era gives up mid-frequency contrast;
         # placed between Optima 200 and Vista 200.
-        mtf=MTFSpec(54.0, 62.0, 68.0, adjacency=0.08, adjacency_um=18.0),
+        # ⚠ adjacency 0.094 MEASURED 2026-08-29 (queue E1) and f50
+        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
+        # (%)" against "Lines per mm" and the curve PEAKS AT 109 %, above the
+        # 100 % a true MTF cannot exceed -- so what it draws is an
+        # adjacency-enhanced response, and the overshoot is a direct reading of
+        # the adjacency effect. That number is a RATIO and carries no unit, so
+        # it can be adopted whatever the abscissa means.
+        # f50 reads 50.3 on the panel's own axis and is NOT stored, because
+        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
+        # pairs is an open question in this corpus -- queue item G6, raised
+        # against Gevacolor 682's identically worded axis. A factor of two is
+        # not a rounding difference. The f50 values below stay estimates until
+        # G6 settles; the reading is filed there as evidence.
+        mtf=MTFSpec(54.0, 62.0, 68.0, adjacency=0.094, adjacency_um=18.0),
         couplers=CouplerSpec(0.24, 52.0, 0.11, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
         default_format="ff35",
         features=Feature.NONE,
+        # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
+        # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
+        # panel. The three layers are separated by DASH ARRAY -- solid green,
+        # dashed blue, dash-dot-dot red -- which is a machine-readable legend,
+        # not a guess from position; the keying is then checked twice over,
+        # against the panel's printed Blue/Green/Red words and against the
+        # physical requirement that the peaks ascend b < g < r.
+        # Axis fit residual 0.00 nm / <=0.0003 lg -- the labels are real text
+        # on a Distiller PDF, so the calibration is exact rather than traced.
+        # Each layer is normalised to its own peak; -4.00 is the corpus's
+        # off-scale sentinel and marks wavelengths the curve is not drawn at,
+        # NOT a measured sensitivity of 1e-4.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -2.30, -2.26, -2.37, -2.45, -2.52, -2.59, -2.66, -2.72, -2.66, -2.57, -2.48, -2.37, -2.24, -2.10, -1.94, -1.90, -1.70, -1.54, -1.18, -0.69, -0.33, 0.00, -0.10, -0.21, -0.15, -0.32, -1.17, -2.15, -4.00, -4.00, -4.00),
+            log_s_g=(-1.82, -1.61, -1.35, -1.33, -1.44, -1.53, -1.60, -1.62, -1.62, -1.61, -1.32, -0.99, -0.74, -0.59, -0.47, -0.37, -0.16, -0.06, 0.00, -0.05, -0.55, -1.60, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.21, -0.84, -0.50, -0.30, -0.29, -0.31, -0.31, -0.31, -0.20, 0.00, -0.34, -1.36, -1.91, -2.39, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),criterion="relative_log",
+            source=("Agfa-Gevaert, 'Technical Data: Agfa Professional "
+                    "Films', publication F-PF-E4, 4th edition 08/2004, "
+                    "printed p7, Spectral sensitivity panel -- "
+                    "PDF/PROFILES/AGFA/AGFA stocks.pdf. Vector paths, dash-"
+                    "keyed by layer. Measurement conditions as the sheet "
+                    "states them on p5: equal-energy spectrum, reading "
+                    "density 1.0 above minimum density"),
+        ),
     ),
     FilmProfile(
         name="AGFA_PORTRAIT_160",
@@ -12738,17 +13116,55 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         balance_kelvin=5500,
         # Portrait tuning: visibly flatter gamma than the Optima family, so
         # highlight skin rolls gently instead of blocking.
+        # ⚠ TRACED 2026-08-29 (queue E1), REPLACING SYNTHESISED `_neg()`
+        # SHAPES -- and replacing an overclaim as much as a number. This
+        # profile's derived provenance already said `fitted_from =
+        # 'datasheet_curve'`, i.e. "the softplus parameters were fitted to a
+        # published characteristic curve". They had not been: the previous
+        # values were the Agfa family's default toe and shoulder with a dmin
+        # and a gamma written beside them. Now they have been.
+        # Vector paths off the sheet's own Colour density curves panel,
+        # separated by DASH ARRAY and checked against its printed Blue/Green/
+        # Red labels; six-parameter softplus fit by `agfa_2004_curves.py`,
+        # fit rms 0.0156 / 0.0099 / 0.0101 D for r/g/b.
+        # ⚠ THE ABSCISSA WAS RE-ANCHORED AND THAT PART IS CONVENTION, NOT
+        # MEASUREMENT. Agfa plot ABSOLUTE exposure, lg (Lx*s) from -4.0 to
+        # +1.0; ToneCurve.x is relative to this corpus's mid-grey anchor and
+        # no document connects the two. So dmin, gamma, the toe-to-shoulder
+        # SPAN and both softnesses are measured, and only the origin is
+        # carried -- the straight line's midpoint is placed at +0.10, where
+        # the `_neg` family defaults put it.
+        # ⚠ shoulder_k IS AT ITS PERMITTED BOUND, 1.40 x toe_k, on all three
+        # records. The unconstrained fit wanted a softer shoulder than
+        # ToneCurve's monotonicity rule allows and was held; the cost shows
+        # in the fit rms above and nowhere else. Left free it also broke the
+        # gamma: Portrait 160's red came back at gamma 1.018 with the two
+        # ramps overlapping so heavily that the parameter was no longer the
+        # slope it is defined as.
         curves=RGBCurves(
-            r=_neg(0.20, 0.565),
-            g=_neg(0.62, 0.575),
-            b=_neg(1.02, 0.585),
+            r=ToneCurve(0.232, 0.593, -1.289, 0.363, +1.489, 0.508),
+            g=ToneCurve(0.574, 0.647, -1.276, 0.337, +1.476, 0.472),
+            b=ToneCurve(0.724, 0.744, -1.224, 0.364, +1.424, 0.510),
         ),
         # rms 3.5: published (AGFA stocks.pdf p5: "Granularity (x 1000):
         # RMS 3.5"). Per-channel values: stack rule from the green figure.
         grain=GrainSpec(3.5, 9.6, 10.5, 12.3, clump_gain=0.78, fog_grain=0.17),
         # f50 [T2] one notch above Optima 100: published resolving power is
         # 150 lines/mm at 1000:1 and 60 at 1.6:1, the best of the family.
-        mtf=MTFSpec(66.0, 74.0, 80.0, adjacency=0.09, adjacency_um=16.0),
+        # ⚠ adjacency 0.090 MEASURED 2026-08-29 (queue E1) and f50
+        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
+        # (%)" against "Lines per mm" and the curve PEAKS AT 109 %, above the
+        # 100 % a true MTF cannot exceed -- so what it draws is an
+        # adjacency-enhanced response, and the overshoot is a direct reading of
+        # the adjacency effect. That number is a RATIO and carries no unit, so
+        # it can be adopted whatever the abscissa means.
+        # f50 reads 38.4 on the panel's own axis and is NOT stored, because
+        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
+        # pairs is an open question in this corpus -- queue item G6, raised
+        # against Gevacolor 682's identically worded axis. A factor of two is
+        # not a rounding difference. The f50 values below stay estimates until
+        # G6 settles; the reading is filed there as evidence.
+        mtf=MTFSpec(66.0, 74.0, 80.0, adjacency=0.090, adjacency_um=16.0),
         # Weaker couplers and slightly stronger positive dye blend than
         # Optima: less edge snap, less saturation -- the portrait trade.
         couplers=CouplerSpec(0.18, 52.0, 0.08, 12.0),
@@ -12757,6 +13173,31 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         misregistration_um=5.5,
         default_format="ff35",
         features=Feature.NONE,
+        # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
+        # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
+        # panel. The three layers are separated by DASH ARRAY -- solid green,
+        # dashed blue, dash-dot-dot red -- which is a machine-readable legend,
+        # not a guess from position; the keying is then checked twice over,
+        # against the panel's printed Blue/Green/Red words and against the
+        # physical requirement that the peaks ascend b < g < r.
+        # Axis fit residual 0.00 nm / <=0.0003 lg -- the labels are real text
+        # on a Distiller PDF, so the calibration is exact rather than traced.
+        # Each layer is normalised to its own peak; -4.00 is the corpus's
+        # off-scale sentinel and marks wavelengths the curve is not drawn at,
+        # NOT a measured sensitivity of 1e-4.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.28, -0.75, -0.44, -0.27, -0.20, -0.10, 0.00, -0.11, -0.48, -1.08, -4.00, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.86, -1.75, -1.58, -1.34, -1.09, -0.84, -0.61, -0.35, -0.14, 0.00, -0.02, -0.08, -0.47, -1.24, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-4.00, -4.00, -0.45, -0.10, 0.00, -0.06, -0.09, -0.08, -0.06, -0.20, -0.48, -0.93, -1.42, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),criterion="relative_log",
+            source=("Agfa-Gevaert, 'Technical Data: Agfa Professional "
+                    "Films', publication F-PF-E4, 4th edition 08/2004, "
+                    "printed p6, Spectral sensitivity panel -- "
+                    "PDF/PROFILES/AGFA/AGFA stocks.pdf. Vector paths, dash-"
+                    "keyed by layer. Measurement conditions as the sheet "
+                    "states them on p5: equal-energy spectrum, reading "
+                    "density 1.0 above minimum density"),
+        ),
     ),
 
     # ======================================================================
@@ -16181,12 +16622,78 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
 # decoupled) removes that hazard; until then, renames are breaking.
 def _natural_key(name: str) -> tuple:
     """Split a stock name into (text, number, text, ...) for numeric-aware
-    comparison. Digit runs become ints; case is ignored for the text parts."""
+    comparison. Digit runs become ints; case is ignored for the text parts.
+
+    STILL USED, but no longer for storage order: it now decides only the
+    PRESENTATION order written to film_display_order.txt, and the order in
+    which brand-new stocks are handed their frozen ids."""
     import re as _re
     return tuple(int(t) if t.isdigit() else t.lower()
                  for t in _re.split(r"(\d+)", name))
 
-FILM_PROFILES = tuple(sorted(FILM_PROFILES, key=lambda _p: _natural_key(_p.name)))
+
+# ===========================================================================
+#  FROZEN IDENTIFIER ORDER -- replaces the natural-name sort, 2026-08-28
+#
+#  THE DEFECT THIS FIXES. Sorting the profile literal into natural name order
+#  made every stored identifier a function of which stock names happen to
+#  exist. eFILM_PROFILE values, film::GetFilmDatabase() subscripts and
+#  film_names.txt line numbers all moved when a stock was added: a new
+#  "AGFA APX 50" would take index 1 and shift all 160 stocks after it, so every
+#  saved After Effects or Premiere project would silently render a DIFFERENT
+#  FILM after a database update. film_enum.hpp's own advice -- "add at the end"
+#  -- could not be followed, because the sort chose the position, not the
+#  author.
+#
+#  THE FIX. Storage identity comes from film_ids.lock and nothing else.
+#  Presentation order is a separate, generated artefact
+#  (film_display_order.txt), so the panel can still show stocks alphabetically
+#  while STORING the frozen id.
+#
+#  A stock missing from the lock sorts AFTER every frozen one, in natural-name
+#  order, and cpp_codegen.sync_ids_lock() then appends it at max(id)+1. That
+#  keeps "add a stock" a one-step operation -- the earlier draft refused to run
+#  until the author hand-edited the lock, which guarded nothing that
+#  append-only assignment does not already guarantee.
+#
+#  Reading the lock here, at import, is deliberate: ordering must not depend on
+#  the generator having run. Importing NEVER writes.
+# ===========================================================================
+def _load_frozen_ids() -> dict:
+    """Read film_ids.lock next to this module. Returns {name: id}.
+
+    A RETIRED line consumes its id and contributes no name, which is what stops
+    a withdrawn stock's identifier ever being handed to a different emulsion.
+    Absent file returns {} -- ordering then falls back to natural-name, which is
+    the pre-freeze behaviour and is only correct before the lock is seeded.
+    """
+    import os as _os
+    path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                         "film_ids.lock")
+    out = {}
+    if not _os.path.exists(path):
+        return out
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if not line or line.startswith("#"):
+                continue
+            sid, _, nm = line.partition("\t")
+            if not nm or nm.startswith("RETIRED "):
+                continue
+            out[nm] = int(sid)
+    return out
+
+
+FILM_IDS = _load_frozen_ids()
+
+# Frozen stocks first, in id order; anything not yet in the lock after them, in
+# natural-name order, awaiting an id from sync_ids_lock().
+_UNFROZEN = 1 << 30
+
+FILM_PROFILES = tuple(sorted(
+    FILM_PROFILES,
+    key=lambda _p: (FILM_IDS.get(_p.name, _UNFROZEN), _natural_key(_p.name))))
 
 
 # ===========================================================================
@@ -28075,6 +28582,38 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # ---- 2026-08-29, queue E1: the four KODAK 1952 Data Book stocks --------
+    # Every field here is PRINTED on the stock's own data sheet, in two places
+    # that have to be read together: the "Develop at 68 F for approximate times
+    # given below" table names the developer and the time, and the
+    # characteristic-curve caption names the agitation -- "Exposed to Sunlight,
+    # Developed with Intermittent Agitation at 68 F". The stored condition is
+    # the INTERMITTENT (tank) column, because that is the column the curve
+    # family was drawn under; the tray column exists and is a different,
+    # shorter time for the same gamma.
+    # ⚠ contrast_index STAYS 0.0 ON ALL FOUR. The 1952 book prints GAMMA and
+    # never a contrast index -- the two are different quantities (an average
+    # gradient over a stated interval against a straight-line slope) and the
+    # gamma lives in ToneCurve and in processing_family where it belongs. The
+    # same distinction the Иофис entry further down turns on.
+    # ⚠ 20.0 C is 68 F converted, not a second source.
+    "KODAK_VERICHROME_1952": ProcessingSpec(
+        developer="KODAK D-76", dilution="stock", minutes=16.0, celsius=20.0,
+        agitation="intermittent, at one-minute intervals (tank)"),
+    # Tri-X Sheet and Ortho-X print TWO recommended rows, Commercial and
+    # Portrait. The Commercial row is stored; the Portrait time is one of the
+    # five points in each profile's processing_family, so nothing is lost.
+    "KODAK_TRI_X_SHEET_1952": ProcessingSpec(
+        developer="KODAK DK-50", dilution="stock", minutes=9.5, celsius=20.0,
+        agitation="intermittent, at one-minute intervals (tank); Commercial "
+                  "Photography row -- the Portrait row is 7 min"),
+    "KODAK_PANATOMIC_X_SHEET_1952": ProcessingSpec(
+        developer="KODAK DK-50", dilution="stock", minutes=5.5, celsius=20.0,
+        agitation="intermittent, at one-minute intervals (tank)"),
+    "KODAK_ORTHO_X_SHEET_1952": ProcessingSpec(
+        developer="KODAK DK-50", dilution="stock", minutes=9.0, celsius=20.0,
+        agitation="intermittent, at one-minute intervals (tank); Commercial "
+                  "Photography row -- the Portrait row is 6 min"),
     # ТУ 6-17-622-84 table 4 item 4: 6-8 min to reach the recommended
     # contrast coefficient; the midpoint is stored. contrast_index carries
     # the specification's own recommended figure for the upper and middle

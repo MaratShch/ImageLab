@@ -167,6 +167,7 @@
     <ClInclude Include="include\AlgoControlValues.hpp" />
     <ClInclude Include="include\AlgoCornerDefocus.hpp" />
     <ClInclude Include="include\AlgoCounterRng.hpp" />
+    <ClInclude Include="include\AlgoCurveLut.hpp" />
     <ClInclude Include="include\AlgoDefectField.hpp" />
     <ClInclude Include="include\AlgoDirCoupler.hpp" />
     <ClInclude Include="include\AlgoDuplication.hpp" />
@@ -203,6 +204,8 @@
     <ClInclude Include="include\AlgoTransmittance.hpp" />
     <ClInclude Include="include\AlgoTypes.hpp" />
     <ClInclude Include="include\AlgoVeilingFlare.hpp" />
+    <ClInclude Include="include\Common.hpp" />
+    <ClInclude Include="include\CommonPixFormat.hpp" />
     <ClInclude Include="include\FilmSimulation.hpp" />
     <ClInclude Include="include\film_enum.hpp" />
     <ClInclude Include="include\film_profiles.hpp" />
@@ -286,14 +289,18 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
     <None Include="python\old_films_analyzing\README_v21.md" />
+    <None Include="python\profiles_generator\agfa_2004_curves.py" />
     <None Include="python\profiles_generator\agfa_vista.py" />
     <None Include="python\profiles_generator\build.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
     <None Include="python\profiles_generator\cpp_parity.py" />
     <None Include="python\profiles_generator\dashtrace.py" />
     <None Include="python\profiles_generator\digitize_plot.py" />
+    <None Include="python\profiles_generator\di_2254.py" />
+    <None Include="python\profiles_generator\doc_consistency.py" />
     <None Include="python\profiles_generator\dye_density.py" />
     <None Include="python\profiles_generator\empirical_import.py" />
+    <None Include="python\profiles_generator\film_ids.lock" />
     <None Include="python\profiles_generator\film_profiles.py" />
     <None Include="python\profiles_generator\film_sim.py" />
     <None Include="python\profiles_generator\gen_active_profiles.py" />
@@ -304,7 +311,10 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\granularity_vector.py" />
     <None Include="python\profiles_generator\interimage_parity.py" />
     <None Include="python\profiles_generator\iso5_3_density.py" />
+    <None Include="python\profiles_generator\kodak_1952_curves.py" />
     <None Include="python\profiles_generator\kodak_sensitometry.py" />
+    <None Include="python\profiles_generator\kodak_still_curves.py" />
+    <None Include="python\profiles_generator\kodak_time_gamma.py" />
     <None Include="python\profiles_generator\make_period_chart.py" />
     <None Include="python\profiles_generator\make_test_chart.py" />
     <None Include="python\profiles_generator\mees_granularity.py" />

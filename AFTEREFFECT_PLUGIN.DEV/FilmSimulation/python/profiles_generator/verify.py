@@ -3958,8 +3958,14 @@ if _sec_on():
     # times. These carry `gamma` rather than `contrast_index`, which the
     # validator accepts and the guard below tests for explicitly -- Kodak prints
     # a gamma on each curve, and a gamma is not a contrast index.
-    chk("22 development points across 4 stocks, every one with a measured contrast",
-        _n_pts == 22
+    # ⚠ 22/4 -> 42/8 on 2026-08-29 (queue E1): the four KODAK 1952 Data Book
+    # stocks, five printed (time, gamma) pairs each. Same shape as 5222 -- a
+    # printed gamma per drawn curve, no contrast index anywhere in the book --
+    # and the same re-derivation from the drawn curves, by
+    # `kodak_1952_curves.py`. DOUBLING the population of this carrier in one
+    # item is why the count is worth pinning rather than bounding.
+    chk("42 development points across 8 stocks, every one with a measured contrast",
+        _n_pts == 42
         and all(q.contrast_index > 0.0 or q.gamma > 0.0
                 for p in _pf for q in p.processing_family.points),
         "%d stocks, %d points" % (len(_pf), _n_pts))
@@ -4674,6 +4680,109 @@ if _sec_on():
                                                        exposure_time_s=120.0))
     chk("ACROS is unchanged at 120 s, as its own sheet states",
         np.array_equal(_c, _e), "bit identical")
+
+
+    # =======================================================================
+    #  G-FILMID -- the frozen film identifiers, 2026-08-28
+    #
+    #  WHAT THIS PROTECTS. Before the freeze, database order was the natural
+    #  name sort, so every eFILM_PROFILE value, every GetFilmDatabase()
+    #  subscript and every film_names.txt line number was a function of which
+    #  stock names happened to exist. Adding one stock renumbered the rest, and
+    #  every saved After Effects or Premiere project would then have rendered a
+    #  DIFFERENT FILM. These five checks are what make that unrepeatable.
+    #
+    #  Each is a distinct failure mode, which is why they are five and not one.
+    # =======================================================================
+    import os as _os
+    _lockp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                           "film_ids.lock")
+
+    chk("G-FILMID  film_ids.lock exists", _os.path.exists(_lockp), _lockp)
+
+    if _os.path.exists(_lockp):
+        _ids, _retired, _dupes = {}, set(), []
+        with open(_lockp, "r", encoding="utf-8") as _fh:
+            for _line in _fh:
+                _line = _line.rstrip("\n")
+                if not _line or _line.startswith("#"):
+                    continue
+                _sid, _, _nm = _line.partition("\t")
+                _sid = int(_sid)
+                if _sid in _ids.values() or _sid in _retired:
+                    _dupes.append(_sid)
+                if _nm.startswith("RETIRED "):
+                    _retired.add(_sid)
+                else:
+                    _ids[_nm] = _sid
+
+        _dbnames = [_p.name for _p in FILM_PROFILES]
+
+        # 1. every stock in the database has a frozen id. A stock without one
+        #    has no stable identity at all.
+        _missing = [_n for _n in _dbnames if _n not in _ids]
+        chk("G-FILMID  every stock carries a frozen id",
+            not _missing, f"{len(_missing)} without: {_missing[:4]}")
+
+        # 2. no id is shared. Two stocks on one id is two emulsions behind one
+        #    saved-project reference.
+        chk("G-FILMID  no id is issued twice", not _dupes, f"dupes {_dupes[:4]}")
+
+        # 3. database order is ASCENDING id. This is what makes the C++ index
+        #    equal the id, which is what film_names.txt line numbers rely on.
+        _seq = [_ids[_n] for _n in _dbnames if _n in _ids]
+        chk("G-FILMID  database order is ascending id",
+            _seq == sorted(_seq), f"first inversion near index "
+            f"{next((i for i in range(1, len(_seq)) if _seq[i] < _seq[i-1]), -1)}")
+
+        # 4. a retired id is never reissued to a live stock. Reissue is the one
+        #    failure that silently points a project at the WRONG emulsion,
+        #    rather than at nothing.
+        _reissued = sorted(set(_ids.values()) & _retired)
+        chk("G-FILMID  no retired id has been reissued",
+            not _reissued, f"reissued {_reissued[:4]}")
+
+        # 5. the 161 stocks that predate the freeze still sit at id == index.
+        #    This is the no-op proof, kept as a live assertion: if it ever
+        #    fails, the seeding was disturbed and every pre-freeze project is
+        #    affected.
+        _shift = [(_i, _n) for _i, _n in enumerate(_dbnames[:161])
+                  if _ids.get(_n) != _i]
+        chk("G-FILMID  the 161 pre-freeze stocks are still at id == index",
+            not _shift, f"{len(_shift)} moved: {_shift[:3]}")
+
+        # 6. THE PRE-FREEZE BLOCK IS PINNED BY DIGEST, and this check exists
+        #    because fault injection found the hole the other five leave.
+        #
+        #    SWAPPING TWO NAMES between two ids in the lock is invisible to
+        #    every check above. The database re-sorts from the lock, so after
+        #    the swap the order still ascends, every stock still has an id, no
+        #    id repeats, and id still equals index -- the corruption is
+        #    SELF-CONSISTENT. What it actually did was hand two saved projects
+        #    each other's emulsion, which is precisely the failure the freeze
+        #    exists to prevent.
+        #
+        #    The only way to catch an edit to an EXISTING row is to compare
+        #    against something outside the file. So the seeded 161 rows are
+        #    pinned here by digest. Adding stocks does not disturb it -- new
+        #    rows land after row 161 and are not hashed.
+        #
+        #    If this fails and the change was DELIBERATE (a retirement, a
+        #    correction agreed with the owner), re-pin the constant in the same
+        #    commit and say why in the message. Do not re-pin to make it green.
+        _PREFREEZE_SHA256 = (
+            "ee9314d74eb280817c2621d3acef3b11bf184fa1889328addc3a1f2d4be847c6")
+
+        import hashlib as _hashlib
+        with open(_lockp, "r", encoding="utf-8") as _fh:
+            _rows_raw = [_l.rstrip("\n") for _l in _fh if "\t" in _l]
+
+        _pre = _rows_raw[:161]
+        _got = _hashlib.sha256("\n".join(_pre).encode("utf-8")).hexdigest()
+
+        chk("G-FILMID  the pre-freeze block matches its pinned digest",
+            _got == _PREFREEZE_SHA256,
+            f"got {_got[:16]}... expected {_PREFREEZE_SHA256[:16]}...")
 
 
     print()

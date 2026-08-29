@@ -146,8 +146,13 @@ ROOT = _default_root()
 #: explicit-initialisation API (LoadFilmDataBase), because a single 676 KB
 #: init-list function was beyond VS2015 SP3 / ICC -- see cpp_codegen.py's
 #: "Split emission" banner. film_names.txt is unchanged in format and order.
+#: film_display_order.txt joined this list on 2026-08-28, with the identifier
+#: freeze. It is GENERATED presentation order -- database indices sorted by
+#: natural name -- and the panel needs it beside film_names.txt, so it has to
+#: reach the project root like every other artefact. Leaving it out of this
+#: tuple would have made it the one generated file that silently went stale.
 GENERATED = ("film_profiles.hpp", "film_profiles.cpp",
-             "film_enum.hpp", "film_names.txt",
+             "film_enum.hpp", "film_names.txt", "film_display_order.txt",
              "film_profiles_detail.hpp",
              "LoadFilmDataBase.h", "LoadFilmDataBase.cpp") + tuple(
     f"film_profiles_data_{i:02d}.cpp" for i in range(1, 17))
@@ -234,6 +239,31 @@ def audits(root: Path):
          "other curve fails instead of hiding inside a loose tolerance. Also "
          "measures base+fog per development time (0.231 / 0.233 / 0.233 / "
          "0.275 / 0.296), which is what corrected the profile's dmin"),
+        ("agfa_2004_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "AGFA stocks.pdf",
+         "Agfa F-PF-E4 (4th edition, 08/2004) read as VECTOR: 12 spectral "
+         "curves and 12 colour-density curves across four film columns, with "
+         "the three layers separated by DASH ARRAY and the keying checked "
+         "against the sheet's own printed Blue/Green/Red words. Fits the "
+         "corpus's six-parameter ToneCurve to each density curve at rms "
+         "0.005-0.016 D and cross-checks every fitted gamma against an "
+         "independent steepest-chord slope. ⚠ Reports the Sharpness panel's "
+         "overshoot (109-114 %) as adoptable adjacency but REFUSES its f50: "
+         "the abscissa says 'Lines per mm' and whether that is line pairs is "
+         "open queue item G6"),
+        ("kodak_1952_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "kodak-films-5.pdf",
+         "All FOUR 1952 Data Book curve families -- VERICHROME, TRI-X SHEET, "
+         "PANATOMIC-X SHEET, ORTHO-X SHEET -- re-derived from the page "
+         "RASTER, because these plots are not vector: queue E1 said they were "
+         "and the 30 'drawing objects' on the Tri-X page are all zero-height "
+         "table rules left by the Acrobat Paper Capture OCR. Traces all 20 "
+         "curves at 150 dpi scan grade and reproduces every printed gamma, 18 "
+         "of 20 within 2 %. ⚠ Also pins the ESTIMATOR: gamma is the steepest "
+         "0.6-decade chord, and the fixed net-density window that works on "
+         "H-1-5222 reads 5 % low here because the 1952 toes are far longer"),
         ("di_2254.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "KODAK"

@@ -240,6 +240,15 @@
     <ClInclude Include="include\AlgoPrFormatMath.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoCurveLut.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Common.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CommonPixFormat.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -495,6 +504,27 @@
       <Filter>python\profiles_generator</Filter>
     </None>
     <None Include="python\profiles_generator\spectral_vector.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_2004_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\di_2254.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\doc_consistency.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\film_ids.lock">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1952_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_still_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_time_gamma.py">
       <Filter>python\profiles_generator</Filter>
     </None>
   </ItemGroup>

@@ -82,11 +82,15 @@
 //  the allocator.
 // ---------------------------------------------------------------------------
 
+// Common.hpp -- AVX2_ALIGN / CACHE_ALIGN are defined here. Included
+// DIRECTLY rather than relied on transitively: this file declares an
+// aligned buffer, so the macro must not depend on another header's
+// include order to be in scope.
+#include "Common.hpp"
 #include "AlgoCharacteristicCurve.hpp"
-
-#include "AlgoCallier.hpp"   // C22: the reader-optics density factor
 #include "AlgoInterimage.hpp"
-#include "AlgoHalation.hpp"   // AlgoSoftplus, ALGO_SOFTPLUS_LINEAR_LIMIT
+#include "AlgoHalation.hpp"
+#include "AlgoCurveLut.hpp"   // the shared tabulated characteristic curve   // AlgoSoftplus, ALGO_SOFTPLUS_LINEAR_LIMIT
 
 #include "FastAriphmeticsAVX.hpp"
 #include <immintrin.h>
@@ -178,122 +182,9 @@ namespace
     //  the transition. The padding below is ten knee widths, where a softplus
     //  is within k*exp(-10) = 4.5e-05*k of its asymptote.
     // ----------------------------------------------------------------------
-    constexpr int32_t ALGO_CURVE_LUT_SIZE = 2048;
-
-    // Knee widths of padding either side of the transition region. Ten is where
-    // the softplus tail falls below the density resolution of the table itself.
-    constexpr HighPrecType ALGO_CURVE_LUT_PAD_KNEES = 10.0;
-
-
-    // ----------------------------------------------------------------------
-    //  One tabulated curve.
-    //
-    //  STACK-LOCAL BY CONSTRUCTION - the caller declares it, so there is no
-    //  static, no allocation and no shared mutable state. The engine's
-    //  reentrancy guarantee (arbitrary concurrent frames, any order) survives.
-    //  Three of these is 24 KB, which sits in L2 and is gone when the stage
-    //  returns.
-    //
-    //  SIZE+1 entries, not SIZE: the interpolation reads d[i] and d[i+1], and
-    //  the last valid index must still have a partner. The extra entry holds the
-    //  asymptote, so an argument exactly at the top of the domain interpolates
-    //  against the right value rather than off the end of the array.
-    // ----------------------------------------------------------------------
-    struct AlgoCurveLut
-    {
-        AVX2_ALIGN float d[ALGO_CURVE_LUT_SIZE + 1];
-
-        float lo;        // argument at entry 0
-        float invStep;   // entries per unit argument
-        float maxIdx;    // SIZE-1 as a float, for the clamp
-    };
-
-
-    // ----------------------------------------------------------------------
-    //  Softplus, scalar, VERBATIM in behaviour with the scalar translation unit.
-    //
-    //  Used only to fill the table - once per entry, 2048 times per channel per
-    //  frame, which is under 0.1 ms - so it is written for exactness rather than
-    //  speed and stays in HighPrecType. log1p rather than log(1+exp) because for
-    //  large negative arguments the addition would discard every significant
-    //  digit the exponential has, and that is the region governing the toe.
-    // ----------------------------------------------------------------------
-    inline HighPrecType curveSoftplusExact
-    (
-        const HighPrecType x,
-        const HighPrecType k
-    ) noexcept
-    {
-        if (k <= 0.0)
-            return MAX_VALUE(x, static_cast<HighPrecType>(0.0));
-
-        const HighPrecType z = x / k;
-
-        // Far up the ramp the function IS its asymptote to the last bit.
-        if (z > static_cast<HighPrecType>(ALGO_SOFTPLUS_LINEAR_LIMIT))
-            return x;
-
-        return k * std::log1p(std::exp(z));
-    }
-
-
-    // ----------------------------------------------------------------------
-    //  Fill a table for one channel's curve.
-    //
-    //  The table is a function of the CURVE ARGUMENT, not of exposure: the
-    //  reversal negation, the anchor trim and the interimage correction are all
-    //  applied to the argument by the caller before the lookup, so one table
-    //  serves the negative and reversal paths and every iteration of 8b.
-    // ----------------------------------------------------------------------
-    inline void buildCurveLut
-    (
-        const film::ToneCurve& curve,
-        AlgoCurveLut&          lut
-    ) noexcept
-    {
-        const HighPrecType dmin  = static_cast<HighPrecType>(curve.dmin);
-        const HighPrecType gamma = static_cast<HighPrecType>(curve.gamma);
-        const HighPrecType toeX  = static_cast<HighPrecType>(curve.toe_x);
-        const HighPrecType toeK  = static_cast<HighPrecType>(curve.toe_k);
-        const HighPrecType shX   = static_cast<HighPrecType>(curve.shoulder_x);
-        const HighPrecType shK   = static_cast<HighPrecType>(curve.shoulder_k);
-
-        // Domain: the transition region plus ten knee widths either side. The
-        // knees are floored at a small positive value so a malformed profile with
-        // a zero knee still produces a finite, ordered domain rather than a
-        // zero-width one that would divide by zero below.
-        const HighPrecType pad =
-            ALGO_CURVE_LUT_PAD_KNEES * MAX_VALUE(MAX_VALUE(toeK, shK),
-                                                 static_cast<HighPrecType>(0.05));
-
-        const HighPrecType lo = MIN_VALUE(toeX, shX) - pad;
-        const HighPrecType hi = MAX_VALUE(toeX, shX) + pad;
-
-        const HighPrecType span = MAX_VALUE(hi - lo,
-                                            static_cast<HighPrecType>(1.0e-6));
-
-        const HighPrecType step = span / static_cast<HighPrecType>(
-                                             ALGO_CURVE_LUT_SIZE - 1);
-
-        for (int32_t i = 0; i <= ALGO_CURVE_LUT_SIZE; i++)
-        {
-            // Entry SIZE is one step past the domain, holding the asymptote so
-            // the interpolation at the very top of the range has a partner.
-            const HighPrecType a = lo + step * static_cast<HighPrecType>(i);
-
-            const HighPrecType rise = curveSoftplusExact(a - toeX, toeK);
-            const HighPrecType fall = curveSoftplusExact(a - shX,  shK);
-
-            lut.d[i] = static_cast<float>(dmin + gamma * (rise - fall));
-        }
-
-        lut.lo      = static_cast<float>(lo);
-        lut.invStep = static_cast<float>(1.0 / step);
-        lut.maxIdx  = static_cast<float>(ALGO_CURVE_LUT_SIZE - 1);
-
-        return;
-    }
-
+        // The curve table, its construction and the scalar lookup now live in
+    // AlgoCurveLut.hpp, shared with the scalar build and with stage 13. Only the
+    // VECTOR lookup below is path-specific, and it reads that same table.
 
     // ----------------------------------------------------------------------
     //  Eight densities from eight curve arguments.
@@ -309,35 +200,8 @@ namespace
     //  table footprint and the second gather hits the same cache lines the first
     //  just pulled in.
     // ----------------------------------------------------------------------
-    inline __m256 algoCurveLutV
-    (
-        const __m256        arg,
-        const AlgoCurveLut& lut
-    ) noexcept
-    {
-        // Position in table units, clamped into [0, SIZE-1].
-        const __m256 pos = _mm256_mul_ps(_mm256_sub_ps(arg,
-                                                       _mm256_set1_ps(lut.lo)),
-                                         _mm256_set1_ps(lut.invStep));
-
-        const __m256 posC = _mm256_min_ps(_mm256_max_ps(pos,
-                                                        _mm256_setzero_ps()),
-                                          _mm256_set1_ps(lut.maxIdx));
-
-        // Truncation is floor here because the value is already non-negative.
-        const __m256i idx = _mm256_cvttps_epi32(posC);
-
-        // Fractional part, from the integer part converted back - cheaper than a
-        // separate floor and exact, since both come from the same value.
-        const __m256 frac = _mm256_sub_ps(posC, _mm256_cvtepi32_ps(idx));
-
-        const __m256 d0 = _mm256_i32gather_ps(lut.d, idx, 4);
-        const __m256 d1 = _mm256_i32gather_ps(lut.d + 1, idx, 4);
-
-        // Linear interpolation as one FMA on the difference: d0 + frac*(d1-d0).
-        return _mm256_fmadd_ps(frac, _mm256_sub_ps(d1, d0), d0);
-    }
-
+    // algoCurveLutV moved to AlgoCurveLut.hpp so stage 13 can use the same
+    // vector lookup against the same table. Called below as AlgoCurveLutEvalV.
 
     // ----------------------------------------------------------------------
     //  Vector softplus:  k * log(1 + exp(x/k))
@@ -633,17 +497,9 @@ void AlgoSolveAnchors
     const film::PrintStock*  pPrintStock,
     const HighPrecType       greyTarget,
     const HighPrecType       couplerScale,
-    const HighPrecType       scannerSpecular,
     HighPrecType             anchorOut[3]
 ) noexcept
 {
-    // ⚠ THE SOLVE HAS TO SEE THE READER'S OPTICS (C22). A lab switching to a
-    // condenser head RE-TIMES the print; if this solve stays blind to Callier the
-    // render shifts mid grey as well as steepening, and the shift is the larger
-    // error. Exactly 1.0 unless the caller asked for a directional reader.
-    // Kept identical to the scalar TU: this file is the AVX2 variant of the same
-    // stage, and the two must not drift.
-    const HighPrecType callierFactor = AlgoCallierFactor(profile, scannerSpecular);
     const film::RGBCurves& curves = profile.curves;
     const film::Matrix3&   negM   = profile.dye_matrix;
 
@@ -708,16 +564,7 @@ void AlgoSolveAnchors
                       + static_cast<HighPrecType>(negM[c][1]) * d[1]
                       + static_cast<HighPrecType>(negM[c][2]) * d[2];
 
-                    // C22: a slide is read by the same kind of optics as a print,
-                    // so the projector's or scanner's directionality applies here
-                    // too -- and the trim solve must see it for the same reason the
-                    // print offset must.
-                    const HighPrecType read = AlgoCallierApplyScalar(
-                        mixed,
-                        static_cast<HighPrecType>(curveOf(curves, c).dmin),
-                        callierFactor);
-
-                    return normalisedTransmittance(read, curveOf(curves, c));
+                    return normalisedTransmittance(mixed, curveOf(curves, c));
                 };
 
                 // More exposure on a slide means less density means a brighter
@@ -758,15 +605,6 @@ void AlgoSolveAnchors
                 + static_cast<HighPrecType>(negM[c][1]) * dNeg[1]
                 + static_cast<HighPrecType>(negM[c][2]) * dNeg[2];
 
-    // C22: what the PRINTER's optics read, which is what its curve responds to.
-    // Referenced to each record's own dmin, because the scattering is silver and
-    // clear base has none of it.
-    for (int32_t c = 0; c < 3; c++)
-        dMid[c] = AlgoCallierApplyScalar(
-            dMid[c],
-            static_cast<HighPrecType>(curveOf(curves, c).dmin),
-            callierFactor);
-
     // Without a print stock there is nothing to print onto and no offset to
     // solve. The negative densities are handed back so the caller still has a
     // defined, meaningful value rather than an uninitialised one.
@@ -796,7 +634,6 @@ void AlgoNeutralMidDensity
 (
     const film::FilmProfile& profile,
     const HighPrecType       couplerScale,
-    const HighPrecType       scannerSpecular,
     HighPrecType             dMidOut[3]
 ) noexcept
 {
@@ -829,19 +666,6 @@ void AlgoNeutralMidDensity
         dMidOut[c] = static_cast<HighPrecType>(negM[c][0]) * d[0]
                    + static_cast<HighPrecType>(negM[c][1]) * d[1]
                    + static_cast<HighPrecType>(negM[c][2]) * d[2];
-
-    // ⚠ C22, THE SECOND OF THE THREE PLACES THE FACTOR IS NEEDED. This is the
-    // print chain's OWN mid-grey reference, used by the dupe generations and the
-    // final print. Leaving it out while the anchor solve had it is what left mid
-    // grey +54/255 out on DOUBLE-X in the reference implementation: the two
-    // references disagreed and the print re-timed against the wrong one.
-    const HighPrecType callierFactor = AlgoCallierFactor(profile, scannerSpecular);
-
-    for (int32_t c = 0; c < 3; c++)
-        dMidOut[c] = AlgoCallierApplyScalar(
-            dMidOut[c],
-            static_cast<HighPrecType>(curveOf(curves, c).dmin),
-            callierFactor);
 
     return;
 }
@@ -978,8 +802,7 @@ void AlgoStage08_CharacteristicCurve
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const HighPrecType       anchor[3],
-    const HighPrecType       logEShift[3]
+    const HighPrecType       anchor[3]
 ) noexcept
 {
     const film::RGBCurves& curves = profile.curves;
@@ -1033,12 +856,6 @@ void AlgoStage08_CharacteristicCurve
         const __m256 vInvLn10 = _mm256_set1_ps(ALGO_AVX2_INV_LN10);
         const __m256 vTrim  = _mm256_set1_ps(trim);
 
-        // Reciprocity failure, in decades, from AlgoReciprocityLogShift and
-        // broadcast once per channel. Exactly zero unless the caller stated an
-        // exposure time, so the default path adds a zero vector and every
-        // earlier render is reproduced.
-        const __m256 vRecip = _mm256_set1_ps(static_cast<AlgoType>(logEShift[c]));
-
         // ------------------------------------------------------------------
         //  The curve, tabulated once for this channel.
         //
@@ -1058,7 +875,7 @@ void AlgoStage08_CharacteristicCurve
         // ------------------------------------------------------------------
         AlgoCurveLut lut;
 
-        buildCurveLut(curve, lut);
+        AlgoBuildCurveLut(curve, lut);
 
         // Unused now that the curve is tabulated, but retained deliberately:
         // dmin/gamma/knees are what the table was BUILT from, and silently
@@ -1092,12 +909,8 @@ void AlgoStage08_CharacteristicCurve
                 // decades of exposure and density is itself a base-ten quantity.
                 // There is no vector log10, so the natural log is scaled - which is
                 // exactly what a scalar log10 does internally anyway.
-                // The reciprocity shift is added to the LOGARITHM rather than
-                // applied to the exposure: same arithmetic, one vector operation
-                // instead of a vector power, and it is the point in the pipeline
-                // where the emulsion rather than the lens starts responding.
-                const __m256 logE = _mm256_add_ps(
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
+                const __m256 logE =
+                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10);
 
                 // RETAINED. The interimage stage reads this rather than recovering
                 // it from the density, which is not invertible through the shoulder.
@@ -1116,7 +929,7 @@ void AlgoStage08_CharacteristicCurve
                 // shoulder, Dmax. Monotonic by construction - the table inherits
                 // that from the expression it was built from, so no shoulder can
                 // fold back and solarise a highlight.
-                _mm256_storeu_ps(pD + x, algoCurveLutV(arg, lut));
+                _mm256_storeu_ps(pD + x, AlgoCurveLutEvalV(arg, lut));
             }
 
             if (tailN > 0)
@@ -1124,8 +937,8 @@ void AlgoStage08_CharacteristicCurve
                 const __m256 e =
                     _mm256_max_ps(_mm256_maskload_ps(pE + x, vTail), vFloor);
 
-                const __m256 logE = _mm256_add_ps(
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
+                const __m256 logE =
+                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10);
 
                 _mm256_maskstore_ps(pL + x, vTail, logE);
 
@@ -1134,7 +947,7 @@ void AlgoStage08_CharacteristicCurve
                                     _mm256_add_ps(logE, vTrim))
                     : logE;
 
-                _mm256_maskstore_ps(pD + x, vTail, algoCurveLutV(arg, lut));
+                _mm256_maskstore_ps(pD + x, vTail, AlgoCurveLutEvalV(arg, lut));
             }
         }
     }
@@ -1292,7 +1105,7 @@ void AlgoStage08b_Interimage
     AlgoCurveLut lut[3];
 
     for (int32_t c = 0; c < 3; c++)
-        buildCurveLut(curveOf(curves, c), lut[c]);
+        AlgoBuildCurveLut(curveOf(curves, c), lut[c]);
 
     // Row geometry for the vector loops, computed once. The active width is not
     // generally a multiple of eight, so a masked tail follows every full pass.
@@ -1404,12 +1217,9 @@ void AlgoStage08b_Interimage
 
             AlgoType* RESTRICT pO = dstPlane[c];
 
-            const AlgoType dm = dmin[c];
-            const AlgoType gm = gamma[c];
-            const AlgoType tx = toeX[c];
-            const AlgoType tk = toeK[c];
-            const AlgoType sx = shX[c];
-            const AlgoType sk = shK[c];
+            // Only the reversal trim survives as a per-channel scalar: the six
+            // curve parameters that used to sit beside it are consumed by
+            // AlgoBuildCurveLut in HighPrecType and never reach the pixel loop.
             const AlgoType tr = trim[c];
 
             // Vector frame constants for this channel's coupling row.
@@ -1459,7 +1269,7 @@ void AlgoStage08b_Interimage
                     // The whole reason this stage is now affordable: one gather in
                     // place of two softplus evaluations, on every channel of every
                     // iteration.
-                    _mm256_storeu_ps(rO + x, algoCurveLutV(arg, lutC));
+                    _mm256_storeu_ps(rO + x, AlgoCurveLutEvalV(arg, lutC));
                 }
 
                 if (tailN > 0)
@@ -1480,7 +1290,7 @@ void AlgoStage08b_Interimage
                         : _mm256_add_ps(le, adj);
 
                     _mm256_maskstore_ps(rO + x, vTail,
-                                        algoCurveLutV(arg, lutC));
+                                        AlgoCurveLutEvalV(arg, lutC));
                 }
             }
         }

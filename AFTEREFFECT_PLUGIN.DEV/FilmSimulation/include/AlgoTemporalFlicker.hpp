@@ -37,12 +37,21 @@
 //  WHAT IT NEEDS BEFORE IT CAN BE WRITTEN
 //
 //    - RMS amplitude in stops, by era and by mechanism. TemporalSpec carries
-//      flicker_pct and flicker_hz, and AlgoControls carries flickerStops,
-//      flickerBaseHz and flickerColourSpread, so the plumbing exists.
+//      flicker_pct and flicker_hz, and AlgoControls carries
+//      damage.flickerStops.
+//      !! CORRECTED 2026-08-28: this list previously claimed AlgoControls also
+//      carried flickerBaseHz and flickerColourSpread. NEITHER FIELD EXISTS,
+//      anywhere in either instruction-set tree. The plumbing is therefore ONE
+//      control, not three, and the two missing axes below have nowhere to be
+//      set from. Whoever implements this stage must either add those fields --
+//      APPENDED LAST, per the layout rule -- or derive both from the profile's
+//      TemporalSpec and drop them from the control surface. Recorded rather
+//      than silently invented.
 //    - The spectral shape. A corner frequency alone does not say whether the
 //      spectrum rolls off at 1/f or 1/f^2, and the two look quite different.
 //    - How much of the variation is common to all three channels and how much is
-//      per-channel. flickerColourSpread is the placeholder for that split.
+//      per-channel. There is NO control for that split today; see the
+//      correction above.
 //
 //  Frame index and frame rate are already in the parameter list because the
 //  quantity is a function of TIME, and the counter-based generator will make it a
@@ -78,7 +87,8 @@
 //  sizeX/sizeY   active pixel extent
 //  pitch         row stride in ELEMENTS
 //  profile       stock being simulated; TemporalSpec carries the era figures
-//  params        user controls; flickerStops, flickerBaseHz, flickerColourSpread
+//  params        user controls; damage.flickerStops is the only one that
+//                exists -- see the correction in the header block above
 //  frameIndex    clip-relative frame number; the quantity varies with TIME
 //  frameRate     frames per second of FILM, following layer time stretch
 //  seed          per-call seed, combined with params.seed by the generator

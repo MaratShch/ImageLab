@@ -52,6 +52,11 @@
 //  the allocator.
 // ---------------------------------------------------------------------------
 
+// Common.hpp -- AVX2_ALIGN / CACHE_ALIGN are defined here. Included
+// DIRECTLY rather than relied on transitively: this file declares an
+// aligned buffer, so the macro must not depend on another header's
+// include order to be in scope.
+#include "Common.hpp"
 #include "AlgoSeparableBlur.hpp"
 
 #include <immintrin.h>
@@ -184,28 +189,24 @@ namespace
     //  too soft on every stock at once.
     // ----------------------------------------------------------------------
 
-    // Smallest sigma worth taking to a pyramid. Below this the direct kernel is short
-    // anyway and the two resamples would cost more than they save.
-    //  LOWERED 6.0 -> 3.5 (2026-08-11), which only became correct once the
-    //  decimation above stopped being scalar. Measured at HD before the change,
-    //  the sigma 4-to-6 band cost 28.7 Mcycles per call on the direct path -
-    //  MORE THAN TWICE the 12.3 Mcycles a sigma-27 pyramid call cost - because a
-    //  41-tap separable kernel is 82 multiply-adds per pixel while the pyramid is
-    //  a fixed handful. The old threshold existed to avoid a scalar downsample
-    //  that cost more than it saved; with that gone, the crossover moves down to
-    //  where the arithmetic says it belongs. Below 3.5 the decimated plane's own
-    //  sigma falls under 2 samples and a discrete Gaussian stops resembling one,
-    //  so the direct path keeps that region.
-    constexpr AlgoType ALGO_BLUR_PYRAMID_MIN_SIGMA = static_cast<AlgoType>(3.5);
-
-    // Sigma aimed for at reduced resolution. 4 px keeps the low-resolution kernel
-    // complete at the 4.0 cutoff - 17 taps - while staying well above the two-sample
-    // limit where a discrete Gaussian stops resembling one.
-    constexpr AlgoType ALGO_BLUR_PYRAMID_TARGET_SIGMA = static_cast<AlgoType>(4.0);
-
-    // Hard ceiling on the decimation factor, so a pathological sigma cannot reduce the
-    // plane to a handful of samples and lose the shape entirely.
-    constexpr int32_t ALGO_BLUR_PYRAMID_MAX_K = 8;
+    // ----------------------------------------------------------------------
+    //  ENGAGEMENT THRESHOLD, DECIMATION TARGET AND CEILING NOW LIVE IN THE
+    //  SHARED HEADER -- AlgoSeparableBlur.hpp, namespace AlgoBlurDetail.
+    //
+    //  They were duplicated here, and that duplication WAS the last measured
+    //  scalar/AVX2 blur divergence. Two copies of a threshold drift; one copy
+    //  cannot. The planner AlgoBlurDetail::planBlur now decides for both paths,
+    //  so they choose the same k, the same reduced extent and the same sigmaLo
+    //  by construction rather than by agreement.
+    //
+    //  The threshold this path uses is ALGO_BLUR_SIGMA_EXACT_MAX, not the old
+    //  local 3.5. The reasoning changed: 3.5 was a PERFORMANCE crossover, valid
+    //  once the decimation was vectorised. But at or below sigma 16 the direct
+    //  kernel is EXACT, and an exact method is preferred to an approximate one
+    //  wherever it is available, whatever the cost. The old 3.5 figure survives
+    //  as ALGO_BLUR_PYRAMID_MIN_SIGMA_PREVIEW for the Preview quality preset,
+    //  where trading that exactness for speed is the whole point.
+    // ----------------------------------------------------------------------
 
 
     // ----------------------------------------------------------------------
@@ -460,118 +461,127 @@ namespace
         const int32_t            sizeX,
         const int32_t            sizeY,
         const int32_t            pitch,
+        AlgoType* RESTRICT       pWide,      // loH rows x pitch, vertical result
         AlgoType* RESTRICT       pLo,
         const int32_t            loW,
         const int32_t            loH,
-        const int32_t            loPitch,
-        const int32_t            k
+        const int32_t            loPitch
     ) noexcept
     {
-        const AlgoType inv = ALGO_ONE / static_cast<AlgoType>(k * k);
+        // ------------------------------------------------------------------
+        //  RATIONAL AREA DECIMATION -- 2026-08-28, and it replaces exact k x k
+        //  blocks.
+        //
+        //  WHAT WAS WRONG WITH THE BLOCKS. The previous form averaged exact
+        //  k x k blocks with inv = 1/(k*k) and wrapped on the row index. When k
+        //  does not divide the extent that draws more samples than the period
+        //  holds: k = 5 on 512 gives loW = 103, and 103 * 5 = 515 samples over a
+        //  512 period, so three columns are counted twice and a seam appears at
+        //  the wrap. Measured, that seam was the entire remaining scalar/AVX2
+        //  blur divergence -- 1.235e-2 at sigma ~ 20, against 5.6e-7 - 1.0e-6
+        //  everywhere else.
+        //
+        //  THE FIX. Cell width is the rational R = n / loN, so the loN cells
+        //  tile exactly one period for any extent. The weights come from
+        //  AlgoBlurDetail::cellWeights -- the SAME function the scalar path
+        //  calls, which is what makes the two paths agree by construction
+        //  instead of by inspection.
+        //
+        //  WHAT IS PRESERVED. The two-pass structure, and deliberately so: the
+        //  original restructuring from a k x k gather to
+        //  accumulate-rows-then-decimate was a large MEASURED win (the whole
+        //  blur was 314 Mcycles of a ~400 Mcycle HD frame before it), and it is
+        //  not undone here. Only the weights change -- from a uniform 1/k to a
+        //  per-cell area weight -- and the vertical pass keeps its contiguous,
+        //  fully vectorised FMA form.
+        //
+        //  TWO SIMPLIFICATIONS THAT FALL OUT. Because the cells tile the period
+        //  exactly, neither pass ever wraps: cell loN-1 ends exactly at n. The
+        //  wrapIndex calls the block form needed on every row and every tail
+        //  sample are simply gone.
+        //
+        //  PRECISION. Accumulation is AlgoType -- float here, double in the
+        //  scalar twin. That is the precision rule working as intended, not an
+        //  inconsistency: each path accumulates in its own arithmetic type. The
+        //  weights sum to exactly 1 over at most ten terms, so float rounding
+        //  contributes about 1e-7 relative, two orders below the 1e-5 the two
+        //  paths are required to agree to. Introducing double here to close that
+        //  last 1e-7 would be exactly the "new unnecessary double in the AVX2
+        //  path" the precision rule forbids.
+        // ------------------------------------------------------------------
+        int32_t      idxY[AlgoBlurDetail::ALGO_BLUR_CELL_MAX_TAPS];
+        HighPrecType wY  [AlgoBlurDetail::ALGO_BLUR_CELL_MAX_TAPS];
 
-        // ------------------------------------------------------------------
-        //  TWO PASSES PER OUTPUT ROW, NOT ONE k*k GATHER PER OUTPUT PIXEL.
-        //
-        //  The original form walked k*k source samples per output pixel and called
-        //  wrapIndex on every one of them - two branches per sample, and no
-        //  vectorisation possible because consecutive output pixels read
-        //  non-overlapping strided blocks.
-        //
-        //  Measured consequence: the whole blur was 314 Mcycles of a ~400 Mcycle
-        //  HD frame, and this function was the reason the pyramid threshold had to
-        //  sit at sigma 6 - below that, decimating cost more than it saved, which
-        //  left the expensive 4-to-6 sigma band on the direct path with a 41-tap
-        //  kernel.
-        //
-        //  Restructured as: accumulate k source rows into the output row (fully
-        //  contiguous, vectorised, wrap only on the row index), then decimate that
-        //  accumulation horizontally (one contiguous sweep, 1/k of the samples).
-        //  Same arithmetic, same box average, same circular boundary - the result
-        //  is unchanged, which is why this is a pure win and not a trade.
-        //
-        //  The vertical accumulation writes into the DESTINATION row and reads it
-        //  back, using it as the accumulator: loW*k <= sizeX + k, and the row is
-        //  loPitch wide, so there is room. That avoids needing a scratch row this
-        //  function has no way to allocate.
-        // ------------------------------------------------------------------
-        const int32_t accW = loW * k;   // samples the horizontal pass will consume
+        int32_t      idxX[AlgoBlurDetail::ALGO_BLUR_CELL_MAX_TAPS];
+        HighPrecType wX  [AlgoBlurDetail::ALGO_BLUR_CELL_MAX_TAPS];
+
+        const int32_t vecEnd = (sizeX / ALGO_AVX2_LANES) * ALGO_AVX2_LANES;
 
         for (int32_t ly = 0; ly < loH; ly++)
         {
-            AlgoType* RESTRICT pOut =
-                pLo + static_cast<std::ptrdiff_t>(ly) * loPitch;
+            const int32_t nY =
+                AlgoBlurDetail::cellWeights(ly, sizeY, loH, idxY, wY);
+
+            AlgoType* RESTRICT pAcc =
+                pWide + static_cast<std::ptrdiff_t>(ly) * pitch;
 
             // --------------------------------------------------------------
-            //  Pass 1: sum k source rows.
-            //
-            //  Only the FIRST accW samples are needed, and the last block may run
-            //  past the plane, so the tail is handled scalar with the wrap. The
-            //  interior - which is all but at most k samples - is contiguous and
-            //  vectorises.
+            //  Pass 1: weighted sum of the source rows this cell covers.
+            //  Contiguous in x, so it vectorises whole.
             // --------------------------------------------------------------
-            const int32_t inner = MIN_VALUE(accW, sizeX);
-
-            const int32_t vecEnd = (inner / ALGO_AVX2_LANES) * ALGO_AVX2_LANES;
-
-            for (int32_t dy = 0; dy < k; dy++)
+            for (int32_t t = 0; t < nY; t++)
             {
-                // Wrapped, to match the circular convolution the direct path uses.
-                const int32_t sy = wrapIndex(ly * k + dy, sizeY);
-
                 const AlgoType* RESTRICT pRow =
-                    pSrc + static_cast<std::ptrdiff_t>(sy) * pitch;
+                    pSrc + static_cast<std::ptrdiff_t>(idxY[t]) * pitch;
 
-                if (0 == dy)
+                const AlgoType w  = static_cast<AlgoType>(wY[t]);
+                const __m256   vW = _mm256_set1_ps(w);
+
+                int32_t x = 0;
+
+                if (0 == t)
                 {
-                    // First row initialises rather than accumulates, so the row does
-                    // not have to be zeroed first.
-                    int32_t x = 0;
-
+                    // First contribution initialises, so the row needs no zeroing.
                     for (; x < vecEnd; x += ALGO_AVX2_LANES)
-                        _mm256_storeu_ps(pOut + x, _mm256_loadu_ps(pRow + x));
+                        _mm256_storeu_ps(pAcc + x,
+                            _mm256_mul_ps(_mm256_loadu_ps(pRow + x), vW));
 
-                    for (; x < inner; x++)
-                        pOut[x] = pRow[x];
-
-                    // Samples past the right edge wrap round.
-                    for (int32_t x2 = inner; x2 < accW; x2++)
-                        pOut[x2] = pRow[wrapIndex(x2, sizeX)];
+                    for (; x < sizeX; x++)
+                        pAcc[x] = pRow[x] * w;
                 }
                 else
                 {
-                    int32_t x = 0;
-
                     for (; x < vecEnd; x += ALGO_AVX2_LANES)
-                        _mm256_storeu_ps(pOut + x,
-                            _mm256_add_ps(_mm256_loadu_ps(pOut + x),
-                                          _mm256_loadu_ps(pRow + x)));
+                        _mm256_storeu_ps(pAcc + x,
+                            _mm256_fmadd_ps(_mm256_loadu_ps(pRow + x), vW,
+                                            _mm256_loadu_ps(pAcc + x)));
 
-                    for (; x < inner; x++)
-                        pOut[x] += pRow[x];
-
-                    for (int32_t x2 = inner; x2 < accW; x2++)
-                        pOut[x2] += pRow[wrapIndex(x2, sizeX)];
+                    for (; x < sizeX; x++)
+                        pAcc[x] += pRow[x] * w;
                 }
             }
 
             // --------------------------------------------------------------
-            //  Pass 2: decimate horizontally, in place, front to back.
+            //  Pass 2: weighted horizontal reduction into the reduced plane.
             //
-            //  Output lx reads samples [lx*k, lx*k+k) and writes index lx, and
-            //  lx <= lx*k for every k >= 1, so the write never clobbers a sample a
-            //  later output still needs. In place is therefore safe and no second
-            //  buffer is required.
+            //  Written to a separate destination rather than in place: the
+            //  reduced plane has its own pitch, and the two are no longer the
+            //  same buffer now that the vertical pass needs full width.
             // --------------------------------------------------------------
+            AlgoType* RESTRICT pOutLo =
+                pLo + static_cast<std::ptrdiff_t>(ly) * loPitch;
+
             for (int32_t lx = 0; lx < loW; lx++)
             {
-                const AlgoType* RESTRICT pBlk = pOut + lx * k;
+                const int32_t nX =
+                    AlgoBlurDetail::cellWeights(lx, sizeX, loW, idxX, wX);
 
                 AlgoType acc = ALGO_ZERO;
 
-                for (int32_t dx = 0; dx < k; dx++)
-                    acc += pBlk[dx];
+                for (int32_t t = 0; t < nX; t++)
+                    acc += static_cast<AlgoType>(wX[t]) * pAcc[idxX[t]];
 
-                pOut[lx] = acc * inv;
+                pOutLo[lx] = acc;
             }
         }
 
@@ -602,7 +612,6 @@ namespace
         const int32_t            sizeX,
         const int32_t            sizeY,
         const int32_t            pitch,
-        const int32_t            k,
         const AlgoType           w
     ) noexcept
     {
@@ -629,8 +638,25 @@ namespace
         //  Left in the simple form deliberately, with the numbers recorded so nobody
         //  repeats the experiment expecting a different answer.
         // ------------------------------------------------------------------
-        const AlgoType invK   = ALGO_ONE / static_cast<AlgoType>(k);
-        const AlgoType centre = static_cast<AlgoType>(k - 1) * static_cast<AlgoType>(0.5);
+        //  RATIONAL CELL WIDTH -- 2026-08-28. The mapping is algebraically the
+        //  one that was here, with the integer k replaced by the rational
+        //  R = n / loN, PER AXIS. Coarse sample j represents the value at
+        //  (j + 0.5) * R, so output x at x + 0.5 lands at
+        //      t = (x + 0.5) / R - 0.5 = (x - (R - 1)/2) / R
+        //  which is the same "centre" form below with R for k. The two axes get
+        //  their own R whenever the extents are not both exact multiples of k,
+        //  which is precisely the case the integer form got wrong.
+        const AlgoType Rx = static_cast<AlgoType>(sizeX) / static_cast<AlgoType>(loW);
+        const AlgoType Ry = static_cast<AlgoType>(sizeY) / static_cast<AlgoType>(loH);
+
+        const AlgoType invRx   = ALGO_ONE / Rx;
+        const AlgoType invRy   = ALGO_ONE / Ry;
+        const AlgoType centreX = (Rx - ALGO_ONE) * static_cast<AlgoType>(0.5);
+        const AlgoType centreY = (Ry - ALGO_ONE) * static_cast<AlgoType>(0.5);
+
+        // Kept so the interior-bound arithmetic below reads unchanged.
+        const AlgoType invK   = invRx;
+        const AlgoType centre = centreX;
 
         // ------------------------------------------------------------------
         //  Interior bounds, HOISTED out of the row loop - 2026-08-11.
@@ -658,14 +684,14 @@ namespace
         const int32_t xHiRaw = static_cast<int32_t>(
             std::floor(static_cast<HighPrecType>(centre)
                        + static_cast<HighPrecType>(loW - 2)
-                         * static_cast<HighPrecType>(k)));
+                         * static_cast<HighPrecType>(Rx)));
 
         const int32_t xHiHoist = CLAMP_VALUE(xHiRaw + 1, xLoHoist, sizeX);
 
         for (int32_t y = 0; y < sizeY; y++)
         {
             const AlgoType fy =
-                (static_cast<AlgoType>(y) - centre) * invK;
+                (static_cast<AlgoType>(y) - centreY) * invRy;
 
             const int32_t y0i = static_cast<int32_t>(std::floor(fy));
 
@@ -938,86 +964,87 @@ namespace
     }
 
     // ----------------------------------------------------------------------
-    //  Wide lobe: do it at reduced resolution.
+    //  WIDE LOBE: resample, blur at reduced resolution, reconstruct.
     //
-    //  Everything below this block is the direct path, unchanged. The decision is made
-    //  once per call on a frame constant, so the pyramid costs nothing when it does not
-    //  apply - and it applies to exactly the lobes the direct path serves worst.
+    //  THE DECISION IS NO LONGER MADE HERE. AlgoBlurDetail::planBlur makes it,
+    //  and the scalar twin calls the same function with the same threshold, so
+    //  the two paths cannot pick different decimation factors or different
+    //  reduced extents for the same sigma. That divergence -- two copies of one
+    //  rule -- was the defect this convergence removes.
+    //
+    //  The threshold is ALGO_BLUR_SIGMA_EXACT_MAX, not the old local 3.5:
+    //  at or below sigma 16 the direct kernel is EXACT, and exact beats fast.
+    //
+    //  Everything below this block is the direct path, unchanged. The decision
+    //  is made once per call on a frame constant, so the resample costs nothing
+    //  when it does not apply.
+    //
+    //  SCRATCH BUDGET, checked rather than trusted:
+    //      pWide  loH rows x pitch     the vertical decimation result
+    //      loSrc, loTmp, loOut         loH rows x loPitch each
+    //  At the k >= 4 this threshold always produces that is about 0.44 of the
+    //  plane. If it does not fit, fall through -- the direct path is merely
+    //  wrong-shaped at this sigma, whereas an arena overrun corrupts another
+    //  stage's buffer.
+    //
+    //  (The previous form used the destination row itself as the vertical
+    //  accumulator and wrote loW*k samples into a loPitch-wide row, which
+    //  overran into the next reduced plane and worked only because that plane
+    //  was rewritten later. The full-width pWide region replaces that.)
     // ----------------------------------------------------------------------
-    if (sigmaPx >= ALGO_BLUR_PYRAMID_MIN_SIGMA)
     {
-        // Decimation factor from the requested sigma, so the reduced-resolution sigma
-        // lands near the target whatever was asked for.
-        int32_t k = static_cast<int32_t>(
-            sigmaPx / ALGO_BLUR_PYRAMID_TARGET_SIGMA + static_cast<AlgoType>(0.5));
+        const AlgoBlurDetail::BlurPlan plan =
+            AlgoBlurDetail::planBlur(sigmaPx, sizeX, sizeY,
+                                     ALGO_BLUR_SIGMA_EXACT_MAX);
 
-        // Clamped to at least 2: a k of 1 would decimate by nothing and simply pay
-        // for two extra full-resolution passes. With the threshold at 3.5 the
-        // computed k IS 1 for the bottom of the band, so this clamp is now load
-        // bearing rather than defensive - k=2 on a sigma-3.5 lobe leaves a
-        // reduced-resolution sigma of 1.7, which the compensation below corrects
-        // for exactly and which is still above the two-sample floor.
-        k = CLAMP_VALUE(k, 2, ALGO_BLUR_PYRAMID_MAX_K);
-
-        const int32_t loW = (sizeX + k - 1) / k;
-        const int32_t loH = (sizeY + k - 1) / k;
-
-        // Reduced-resolution rows padded to the vector width, so the low-resolution
-        // blur gets the same aligned row starts the full-resolution one has.
-        const int32_t loPitch =
-            ((loW + ALGO_AVX2_LANES - 1) / ALGO_AVX2_LANES) * ALGO_AVX2_LANES;
-
-        // THREE reduced planes are carved out of the single full-resolution scratch:
-        // the decimated source, the separable intermediate, and the blurred result.
-        // They fit whenever 3/k^2 <= 1, which holds for every k this path allows - but
-        // it is CHECKED rather than trusted, because the fallback is merely slower
-        // while an overrun would corrupt the arena.
-        const std::ptrdiff_t loPlane =
-            static_cast<std::ptrdiff_t>(loPitch) * static_cast<std::ptrdiff_t>(loH);
-
-        const std::ptrdiff_t haveScratch =
-            static_cast<std::ptrdiff_t>(pitch) * static_cast<std::ptrdiff_t>(sizeY);
-
-        if ((3 * loPlane) <= haveScratch && loW >= 4 && loH >= 4)
+        if (plan.usePyramid)
         {
-            // Variance compensation. The box decimation is itself a low-pass of
-            // variance (k^2 - 1)/12 in full-resolution pixels, so the reduced-
-            // resolution Gaussian must be narrower by exactly that much.
-            const AlgoType boxVar =
-                static_cast<AlgoType>(k * k - 1) / static_cast<AlgoType>(12);
+            const int32_t loW = plan.loW;
+            const int32_t loH = plan.loH;
 
-            const AlgoType targetVar = sigmaPx * sigmaPx - boxVar;
+            // Reduced-resolution rows padded to the vector width, so the
+            // low-resolution blur gets the same aligned row starts the
+            // full-resolution one has.
+            const int32_t loPitch =
+                ((loW + ALGO_AVX2_LANES - 1) / ALGO_AVX2_LANES) * ALGO_AVX2_LANES;
 
-            const AlgoType sigmaLo = (targetVar > ALGO_ZERO)
-                ? (static_cast<AlgoType>(std::sqrt(
-                       static_cast<HighPrecType>(targetVar)))
-                   / static_cast<AlgoType>(k))
-                : ALGO_ZERO;
+            const std::ptrdiff_t widePlane =
+                static_cast<std::ptrdiff_t>(pitch) * static_cast<std::ptrdiff_t>(loH);
 
-            AlgoType* RESTRICT loSrc = pScratch;
-            AlgoType* RESTRICT loTmp = pScratch + loPlane;
-            AlgoType* RESTRICT loOut = pScratch + 2 * loPlane;
+            const std::ptrdiff_t loPlane =
+                static_cast<std::ptrdiff_t>(loPitch) * static_cast<std::ptrdiff_t>(loH);
 
-            pyramidDownsample(pSrc, sizeX, sizeY, pitch,
-                              loSrc, loW, loH, loPitch, k);
+            const std::ptrdiff_t haveScratch =
+                static_cast<std::ptrdiff_t>(pitch) * static_cast<std::ptrdiff_t>(sizeY);
 
-            // The reduced-resolution blur is the DIRECT path, recursively - and at this
-            // sigma its kernel is complete, which is the whole point.
-            // The reduced-resolution blur NEVER accumulates: it produces the
-            // low-resolution lobe in its own plane, and the accumulation happens
-            // once, in the upsample that writes the full-resolution destination.
-            blurPlaneWrapT<false>(loSrc, loOut, loTmp,
-                                  loW, loH, loPitch, sigmaLo, ALGO_ONE);
+            if ((widePlane + 3 * loPlane) <= haveScratch)
+            {
+                AlgoType* RESTRICT pWide = pScratch;
+                AlgoType* RESTRICT loSrc = pScratch + widePlane;
+                AlgoType* RESTRICT loTmp = loSrc + loPlane;
+                AlgoType* RESTRICT loOut = loTmp + loPlane;
 
-            pyramidUpsample<ACC>(loOut, loW, loH, loPitch,
-                                 pDst, sizeX, sizeY, pitch, k, wAcc);
+                pyramidDownsample(pSrc, sizeX, sizeY, pitch,
+                                  pWide, loSrc, loW, loH, loPitch);
 
-            return;
+                // The reduced-resolution blur is the DIRECT path, recursively -
+                // and at this sigma its kernel is complete, which is the whole
+                // point. It NEVER accumulates: it produces the low-resolution
+                // lobe in its own plane, and the accumulation happens once, in
+                // the upsample that writes the full-resolution destination.
+                blurPlaneWrapT<false>(loSrc, loOut, loTmp,
+                                      loW, loH, loPitch, plan.sigmaLo, ALGO_ONE);
+
+                pyramidUpsample<ACC>(loOut, loW, loH, loPitch,
+                                     pDst, sizeX, sizeY, pitch, wAcc);
+
+                return;
+            }
         }
 
-        // Fell through: the scratch could not hold three reduced planes, or the plane
-        // is too small to decimate meaningfully. The direct path below is correct in
-        // every case, only slower.
+        // Fell through: the scratch could not hold the four regions, or the
+        // plane is too small to decimate meaningfully. The direct path below is
+        // correct in every case, only slower.
     }
 
     AVX2_ALIGN AlgoType taps[ALGO_BLUR_MAX_TAPS];

@@ -23,6 +23,11 @@
 //  of inputs.
 // ---------------------------------------------------------------------------
 
+// Common.hpp -- AVX2_ALIGN / CACHE_ALIGN are defined here. Included
+// DIRECTLY rather than relied on transitively: this file declares an
+// aligned buffer, so the macro must not depend on another header's
+// include order to be in scope.
+#include "Common.hpp"
 #include "AlgoDuplication.hpp"
 
 #include "FastAriphmeticsAVX.hpp"
@@ -133,9 +138,51 @@ namespace
         const AlgoType           offset
     ) noexcept
     {
-        // Curve parameters hoisted into frame constants: they are stored as float
-        // while the arithmetic runs in AlgoType, and the compiler cannot prove the
-        // profile is unchanged by the stores into the destination.
+        // ------------------------------------------------------------------
+        //  THE FAST APPROXIMATE SOFTPLUS IS RETAINED HERE, DELIBERATELY, AND
+        //  THE DECISION WAS MEASURED RATHER THAN ASSUMED (2026-08-28).
+        //
+        //  The scalar twin of this stage now evaluates the print curve from a
+        //  4096-entry table (AlgoCurveLut.hpp), because in the double path a
+        //  table replaces two genuine log1p/exp calls per sample and is a large
+        //  win. The obvious move was to do the same here.
+        //
+        //  It was tried, and it is SLOWER. Measured at 1024 px, best of three,
+        //  stage 13 alone:
+        //
+        //      stock                fast softplus      table      verdict
+        //      CINESTILL_800T          13.37 ms      16.72 ms   fast +20.0 %
+        //      VISION3 500T 5219       14.27 ms      16.91 ms   fast +15.6 %
+        //      AGFA_APX_25             13.95 ms      18.09 ms   fast +22.9 %
+        //
+        //  The reason is the gather. Stage 08's own notes already record the
+        //  per-call figures -- a table lookup with its gather costs about
+        //  0.54 ns per sample against roughly 0.22 ns for the fast exponential
+        //  -- so a table only wins where it replaces SEVERAL transcendentals at
+        //  once. Stage 08 evaluates the curve repeatedly through the interimage
+        //  fixed point, so it wins there. This stage evaluates it once per
+        //  sample, so it loses here.
+        //
+        //  WHAT THAT COSTS IN FIDELITY, measured on the deterministic chain at
+        //  128 px: the scalar and vector paths differ at this stage by about
+        //  2.4e-03 to 3.2e-03 in plane mean. That is below one part in 255, so
+        //  it is under the quantisation of eight-bit output and cannot be seen.
+        //  The vector path stays monotonic and produces no discontinuity or
+        //  invalid value -- the approximation is well behaved across the whole
+        //  operating range of the curve argument.
+        //
+        //  This is therefore a DOCUMENTED MODE DIFFERENCE, not an accidental
+        //  divergence: the scalar path is the higher-precision reference, and
+        //  the vector path trades an invisible amount of precision for a
+        //  measured 15-23 per cent on this stage. The project's earlier lesson
+        //  stands -- an optimisation applied to one path is a correctness
+        //  divergence UNLESS it is applied to both or explicitly documented as
+        //  a mode difference. This is the second case, and this comment is the
+        //  documentation.
+        // ------------------------------------------------------------------
+        //  Curve parameters hoisted into frame constants: they are stored as
+        //  float while the arithmetic runs in AlgoType, and the compiler cannot
+        //  prove the profile is unchanged by the stores into the destination.
         const AlgoType dmin  = static_cast<AlgoType>(curve.dmin);
         const AlgoType gamma = static_cast<AlgoType>(curve.gamma);
         const AlgoType toeX  = static_cast<AlgoType>(curve.toe_x);
@@ -315,11 +362,8 @@ void AlgoStage13_Duplication
     // ----------------------------------------------------------------------
     HighPrecType dMid[3];
 
-    // ⚠ AND THIS REFERENCE MUST SEE THE READER'S OPTICS TOO (C22) -- see the
-    // scalar Algo_13_Sim.cpp for why the two mid-grey references have to agree.
     AlgoNeutralMidDensity(profile,
                           static_cast<HighPrecType>(params.couplerScale),
-                          static_cast<HighPrecType>(params.scannerSpecular),
                           dMid);
 
     // ----------------------------------------------------------------------

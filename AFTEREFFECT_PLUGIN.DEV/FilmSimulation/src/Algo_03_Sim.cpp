@@ -38,6 +38,11 @@
 //  the allocator.
 // ---------------------------------------------------------------------------
 
+// Common.hpp -- AVX2_ALIGN / CACHE_ALIGN are defined here. Included
+// DIRECTLY rather than relied on transitively: this file declares an
+// aligned buffer, so the macro must not depend on another header's
+// include order to be in scope.
+#include "Common.hpp"
 #include "AlgoStockColourBalance.hpp"
 #include "AlgoVeilingFlare.hpp"
 #include "AlgoTemporalFlicker.hpp"

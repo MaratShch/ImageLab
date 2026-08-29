@@ -73,39 +73,78 @@ the assignment then rests on the band test, the ordering test and Kodak's own
 in-frame captions -- one fewer independent check than an inked panel gets, which
 is stated in the adopted profile rather than left to be inferred.
 
-WHAT THE 2026-08-26 CROSS-CHECK SWEEP FOUND, INCLUDING THAT IT FOUND NO DEFECT
------------------------------------------------------------------------------
+WHAT THE 2026-08-26 SWEEP FOUND, AND WHAT 2026-08-29 CORRECTED IN IT
+--------------------------------------------------------------------
 Eleven of the fifteen panels the writing-direction fix made reachable were
-re-derived from their vector paths and compared against the sets adopted from
-the 2026-08-02 RASTER batch. ⚠ **NONE OF THEM ARE NEW DATA** -- every one of the
-eleven stocks already carried a spectral set, which is worth saying because this
-task was scoped on the assumption that they were.
+re-derived from their vector paths on 2026-08-26 and compared against the sets
+adopted from the 2026-08-02 RASTER batch. ⚠ **NONE OF THEM ARE NEW DATA** --
+every one of those stocks already carried a spectral set, which is worth saying
+because queue item C37 was written on the assumption that they did not.
 
-⚠ AND THE APPARENT DISAGREEMENTS WERE ARTEFACTS OF THE COMPARISON, NOT DEFECTS
-IN THE ADOPTED DATA. Two kinds turned up and both were chased to the ground:
+⚠ **AND THAT SWEEP WAS PROSE, NOT AN AUDIT.** It was run by hand, its numbers
+lived in this docstring, and NOT ONE of the sheets was in `SHEETS`, so nothing
+re-ran it and nothing would have noticed if a reader change moved a curve. Queue
+C37 closed on 2026-08-29 by registering them: the registry went from 4 sheets to
+**11**, every agreement is pinned in `EXPECTED_VS_STORED` / `MONO_EXPECTED`, and
+`--assert` now fails on drift. That is the whole deliverable -- no stock gained
+data, and the guard is the point.
 
-  * LEVEL differences (5245 blue "rms 0.340 decades") come from comparing a
-    TRUNCATED trace against a complete one after per-layer peak normalisation.
-    Normalising two curves that stop at different wavelengths to their own
-    maxima makes them disagree by construction.
-  * PEAK differences (5246 blue traced 430 nm against a stored 470) are ARGMAX
-    NOISE ON A PLATEAU. Measured plateau width, samples within 0.05 decades of
-    the maximum: 5274 0 nm, 5245 10 nm, 5205 40 nm, 5246 40 nm. On 5246 BOTH
-    readings agree the plateau runs 430-470; they differ only in which sample
-    argmax lands on.
+⚠ **THE COMPARISON ITSELF WAS ALSO WRONG, AND FIXING IT CHANGED THE ANSWERS.**
+The old rule compared every sample both readings called measured, including the
+one or two where the shorter trace is diving into its own floor. That measures
+where each reader stopped drawing, not the film. `_core_rms` guards one sample
+in from whichever measured run ends first; on 5218's red record the number goes
+from 0.367 to 0.241, and 5217's pinned triple moved 0.109/0.091/0.049 ->
+0.077/0.086/0.047 with no reading changed on either side.
 
-The traces themselves were verified the way this project verifies traces --
-by rendering the points back onto the page. On both 5245 and 5246 they lie on
-the printed curves. So the readers are sound, the adopted data is sound, and
-nothing was re-adopted: a wash is not a reason to churn adopted data, which is
-the same rule that left 5217 alone on 2026-08-25.
+**Eight of eleven agree, at core rms <= 0.086 decades** -- 5201 0.002/0.002/0.003
+(that one is the profile compared with itself, so it measures the literal's
+rounding), 5205 0.030/0.047/0.047, 5217 0.077/0.086/0.047, 5222 0.003,
+5246 0.029/0.050/0.064, 5274 0.041/0.070/0.065, 5279 0.056/0.073/0.034, and
+7239 which has no independent set to compare against.
 
-⚠ THE SWEEP DID PRODUCE TWO REAL RESULTS, neither of them a new curve:
+⚠ **THREE DO NOT AGREE, AND THE PREVIOUSLY RECORDED EXPLANATION FOR ONE OF THEM
+DOES NOT SURVIVE INSPECTION:**
+
+  * **5245 blue, core rms 0.335.** This docstring used to say the cause was
+    "comparing a TRUNCATED trace against a complete one after per-layer peak
+    normalisation". It is not: re-normalising both sides on their shared span
+    changes the number by nothing, because both maxima already lie inside it.
+    Read sample by sample, the two agree to **+/-0.06 decades from 400 to 480
+    nm** -- the entire peak -- and diverge only on the 490-520 nm tail. And the
+    STORED tail is the suspect half: -0.60, -1.15, -1.80, -2.45, -3.10 at
+    490/500/510/520/530, i.e. steps of 0.55, 0.65, 0.65, 0.65. That is a
+    STRAIGHT LINE, which a dye sensitivity tail is not, and the drawn curve
+    rolls off faster and stops at 520. The stored tail below 490 nm looks
+    extrapolated rather than read.
+  * **5218, core rms 0.241/0.210/0.138.** Not recorded before at all. It is not
+    truncation: over the core the traced curve is systematically HIGHER on each
+    rising flank (+0.13 to +0.26) and LOWER on each falling one, on all three
+    layers -- the trace is NARROWER than the stored reading. A consistent
+    narrowing on every layer is a wavelength-scale difference or a genuinely
+    different reading, not noise.
+  * **5231 pan, core rms 0.213.** A panchromatic curve has two maxima, blue
+    near 400 nm and red near 590, and this emulsion's are a quarter of a decade
+    apart. The raster reading makes the 400 hump the peak; the vector trace
+    makes them equal and puts argmax at 590. Both agree on the shape; they
+    disagree on which hump normalisation hangs off.
+
+⚠ **NOTHING WAS RE-ADOPTED ON THE STRENGTH OF ANY OF THAT.** A cross-check
+audit is not the place to choose between a vector trace and an adopted raster
+reading -- XX1 made that kind of call deliberately, with the evidence set out,
+and the same is owed here. The three disagreements are pinned at their measured
+values so they cannot drift silently, and they are raised as their own queue
+item instead.
+
+⚠ THE 2026-08-26 SWEEP DID PRODUCE TWO REAL RESULTS, neither of them a new curve:
   1. The DENSITY CRITERION question moved from a decision to a measurement. The
      panels print their criteria, and reading all of them showed that the "0.2
-     above D-min" carried by 16 profiles IS printed -- on 5205 (both editions)
-     and 5218 -- which contradicts what this project asserted from 2026-08-25 to
-     2026-08-26. See the corrected note in verify.py.
+     above D-min" carried by 16 profiles IS printed -- on 5205 and 5218 --
+     which contradicts what this project asserted from 2026-08-25 to
+     2026-08-26. See the corrected note in verify.py. ⚠ The sweep called 5205
+     "both editions"; `5205t.pdf` and `H-1-5205t.pdf` are BYTE-IDENTICAL
+     (md5 edd35d27f840c0803f5b957c18dd9561), so that is one document under two
+     names and the queue's "both 5205 sheets" is one panel, not two.
   2. A GUARD WAS FOUND TO BE FRAGILE. The blue-peak 6/4 split pins an argmax on
      stocks whose maximum is a 40 nm plateau, so a re-trace by any reader could
      move 5246 and 5205 between its two groups with no data change. A second
@@ -211,7 +250,43 @@ SHEETS = {
     # signs drawn as overbars that are not in the text layer).
     "7239": ("Kodak Eastman EKTACHROME Film (Daylight) 7239.pdf", 3,
              "EASTMAN_EKTACHROME_7239"),
+    # ---- queue C37, 2026-08-29: the rest of the reachable colour panels ----
+    # ⚠ EVERY ONE OF THESE IS A CROSS-CHECK, NOT NEW DATA, and that is the
+    # finding C37 was written without. All five stocks already carry a
+    # spectral set from the 2026-08-02 RASTER batch. The 2026-08-26 sweep
+    # noted this in prose and then left the sheets unregistered, so eleven
+    # hand-run comparisons were pinned by nothing. They are pinned now.
+    # ⚠ 5218's PAGE IS 3, NOT THE 4 THE QUEUE ROW GIVES. Read from the page
+    # itself: p4 has no sensitivity caption and the extraction fails there.
+    "5205": ("5205t.pdf", 4, "KODAK_VISION2_250D_5205"),
+    "5218": ("5218.pdf", 3, "KODAK_VISION2_500T_5218"),
+    "5245": ("5245.pdf", 4, "EASTMAN_EXR_50D_5245"),
+    "5246": ("5246.pdf", 5, "KODAK_VISION_250D_5246"),
+    "5274": ("5274.pdf", 4, "KODAK_VISION_200T_5274"),
+    "5279": ("5279.pdf", 3, "KODAK_VISION_500T_5279"),
 }
+
+#: ⚠ FINDABLE BUT NOT EXTRACTABLE, with the cause measured rather than guessed.
+#: These five carry a rotated LOG SENSITIVITY caption -- the writing-direction
+#: finder sees them -- and still yield no three-layer set. Recorded here so the
+#: next reader does not re-derive the diagnosis, in the same spirit as the
+#: 5285 and 2383 entries in this module's header.
+#:
+#:   5248 p3, 5293 p4  17 long paths each and NOT ONE COLOURED. These sheets
+#:                     draw all three sensitivity curves in BLACK, so the ink
+#:                     convention says nothing about them -- the 7239 problem,
+#:                     but with three curves instead of one. `extract_mono`
+#:                     reads a single black trace and cannot separate three.
+#:                     Blocked on METHOD (a three-black-curve separator), not
+#:                     on the source. This is the closest thing to reachable
+#:                     new work on the C37 list.
+#:   5219 p3           no path with 8 or more segments at all: the curves are
+#:                     drawn as many short strokes or as outlined art.
+#:   8532 p1           Fuji layout, 3 page images and only 5 long black paths.
+#:   8547 p1           24 page images and no long paths -- the panel is RASTER.
+#:                     Its stored set came from a raster reading anyway, so
+#:                     there is nothing here a vector reader could improve.
+UNREACHABLE = ("5248", "5293", "5219", "8532", "8547")
 
 #: Recorded 2026-08-25. --assert fails if an extraction stops reproducing.
 #: (peak nm per layer r/g/b, absolute peak LOG SENSITIVITY per layer r/g/b).
@@ -232,6 +307,13 @@ EXPECTED = {
     # is what a daylight-balanced reversal stock should show and what the stored
     # per-layer normalisation throws away.
     "7239": ((660.0, 560.0, 410.0), (1.25, 1.10, 1.70)),
+    # Measured 2026-08-29 (queue C37).
+    "5205": ((650.0, 550.0, 440.0), (2.53, 2.46, 2.58)),
+    "5218": ((640.0, 540.0, 420.0), (2.60, 2.78, 3.16)),
+    "5245": ((640.0, 550.0, 460.0), (1.09, 1.30, 1.23)),
+    "5246": ((650.0, 540.0, 430.0), (2.53, 2.59, 2.48)),
+    "5274": ((650.0, 540.0, 470.0), (2.29, 2.51, 2.82)),
+    "5279": ((650.0, 540.0, 410.0), (1.16, 1.41, 1.69)),
 }
 
 #: For sheets whose profile ALREADY carries an independently-adopted set: the
@@ -239,9 +321,70 @@ EXPECTED = {
 #: measured. Asserted, so a later change to either side shows up as a drift in
 #: the agreement rather than silently replacing one method's numbers.
 #: ⚠ THE STORED ARRAYS ARE NOT TOUCHED. This is a check, not an adoption.
+#:
+#: ⚠ THE ESTIMATOR CHANGED ON 2026-08-29 AND 5217'S TRIPLE MOVED WITH IT --
+#: 0.109/0.091/0.049 became 0.077/0.086/0.047. Nothing about either reading
+#: changed; the COMPARISON did. The old rule compared every sample both sides
+#: called measured, which includes the one or two samples where the shorter
+#: trace is diving into its own floor. Those samples are not a disagreement
+#: about the film, they are a disagreement about where each reader stopped
+#: drawing, and on 5218 they were most of the number: red reads 0.367 with
+#: them and 0.241 without. `_core_rms` now guards one sample in from
+#: whichever measured run ends first, at each end.
 EXPECTED_VS_STORED = {
-    "5217": (0.109, 0.091, 0.049),
+    "5201": (0.002, 0.002, 0.003),   # the profile HOLDS this trace: rounding only
+    "5205": (0.030, 0.047, 0.047),
+    "5217": (0.077, 0.086, 0.047),
+    # ⚠ 5218 AND 5245 DO NOT AGREE THE WAY THE OTHER SIX DO, and both are
+    # pinned at their measured disagreement rather than waved through. See
+    # the header for what each one is; neither is re-adopted here, because
+    # choosing between a vector trace and an adopted raster reading is the
+    # kind of decision XX1 took deliberately and not a side effect of an
+    # audit that was scoped as a cross-check.
+    "5218": (0.241, 0.210, 0.138),
+    "5245": (0.064, 0.155, 0.335),
+    "5246": (0.029, 0.050, 0.064),
+    "5274": (0.041, 0.070, 0.065),
+    "5279": (0.056, 0.073, 0.034),
 }
+
+#: How far a pinned agreement may move before the audit calls it drift.
+#: 0.015 decades: larger than the float noise of a re-run, far smaller than
+#: any of the differences above that mean something.
+RMS_TOL = 0.015
+
+
+def _core_rms(stored, traced):
+    """rms between two readings of one layer, over the span BOTH measure.
+
+    ⚠ THE GUARD BAND IS THE WHOLE POINT. Two readers of the same printed curve
+    stop at different wavelengths, and the last sample before a reader's floor
+    is pulled toward it. Including those samples measures the truncation, not
+    the film: on 5218's red record they take the rms from 0.241 to 0.367.
+    One sample is dropped at each end of the shared measured span.
+
+    Returns (rms, n) with n = 0 when the overlap is too short to mean anything.
+    """
+    a = np.asarray(stored, dtype=float)
+    b = np.asarray(traced, dtype=float)
+    n = min(len(a), len(b))
+    if n == 0:
+        return float("nan"), 0
+    # ⚠ The two grids can differ in LENGTH -- the raster batch stored 33
+    # samples (380-700 nm) on some stocks, this reader emits 31 (380-680) --
+    # and they share an origin and a step, so truncating to the shorter one
+    # aligns them. Asserted rather than assumed by the caller.
+    a, b = a[:n], b[:n]
+    ia = np.where(a > FLOOR + 0.01)[0]
+    ib = np.where(b > FLOOR + 0.01)[0]
+    if len(ia) < 3 or len(ib) < 3:
+        return float("nan"), 0
+    lo = max(ia.min(), ib.min()) + 1
+    hi = min(ia.max(), ib.max()) - 1
+    if hi - lo < 3:
+        return float("nan"), 0
+    seg = slice(lo, hi + 1)
+    return float(np.sqrt(((a[seg] - b[seg]) ** 2).mean())), hi - lo + 1
 
 
 def rot_lines(pg, words):
@@ -583,7 +726,9 @@ def normalise(raw, extent):
 def extract_sheet(root: Path, tag: str):
     import pymupdf
     fn, pgno, prof = SHEETS[tag]
-    pdf = root / "PDF" / "PROFILES" / "KODAK" / fn
+    # A registry name may carry a folder ("FUJI/x.pdf"); a bare name means
+    # KODAK, which is where every sheet lived when this reader was written.
+    pdf = root / "PDF" / "PROFILES" / (fn if "/" in fn else "KODAK/" + fn)
     if not pdf.is_file():
         return None, f"source not present: {fn}"
     pg = pymupdf.open(pdf)[pgno - 1]
@@ -700,6 +845,17 @@ def extract_sheet(root: Path, tag: str):
 MONO_SHEETS = {
     "5222": ("EASTMAN DOUBLE-X Negative Film 5222.pdf", 3,
              "EASTMAN_DOUBLE_X_5222", "D = 1.0 Above Gross Fog"),
+    # ---- queue C37, 2026-08-29 ---------------------------------------------
+    # ⚠ 5231 PRINTS THE SAME TWO CRITERIA AS 5222 AND THE PROFILE STORES THE
+    # OTHER ONE. H-1-5231 draws "D=0.3 Above gross fog" and "D=1.0 Above gross
+    # fog"; the adopted set's criterion string is
+    # `log_reciprocal_erg_cm2_D0.3_above_gross_fog`, so the cross-check has to
+    # read the 0.3 curve or it is comparing two different measurements of the
+    # same film and calling the difference an error. Note the sheet's own
+    # spelling differs from 5222's ("gross" lower case, no spaces around "="),
+    # which is why the caption is matched per sheet and not by one constant.
+    "5231": ("5231-PLUS-X.pdf", 3,
+             "EASTMAN_PLUS_X_5231", "D=0.3 Above gross fog"),
 }
 
 #: Recorded 2026-08-26. (peak nm, absolute peak log sensitivity, measured
@@ -729,6 +885,34 @@ MONO_SHEETS = {
 #: where it stays true, and this number now guards the rounding instead.
 MONO_EXPECTED = {
     "5222": (430.0, 0.904, 24, 0.003),
+    # ⚠ 5231 IS THE ONE MONO CROSS-CHECK THAT DOES NOT AGREE, and the way it
+    # disagrees is specific: core rms 0.213 decades, worst sample 0.295, and
+    # THE ARGMAX IS ON A DIFFERENT HUMP. A panchromatic sensitivity curve has
+    # two maxima -- a blue one near 400 nm and a red one near 590 -- and this
+    # emulsion's are within a quarter of a decade of each other. The adopted
+    # raster reading makes the 400 nm hump the peak; the vector trace makes
+    # them equal and lands argmax on 590. Both agree the curve is double-
+    # humped and nearly flat between; they disagree about which hump wins,
+    # which is the `argmax on a plateau` failure the 2026-08-26 sweep found on
+    # 5246's blue record, in a harsher form because normalisation hangs off it.
+    # NOT re-adopted here: see the header.
+    "5231": (590.0, 0.276, 26, 0.213),
+}
+
+
+#: What each mono sheet's agreement number actually measures. ⚠ THEY MEASURE
+#: DIFFERENT THINGS and printing one sentence for both would be wrong: 5222's
+#: profile HOLDS this trace, so the comparison is against itself and only sees
+#: the literal's 2-decimal rounding, while 5231's profile holds an independent
+#: raster reading and the comparison is a genuine cross-method one.
+MONO_NOTE = {
+    "5222": ("this is the storage rounding, NOT the cross-method agreement; "
+             "that was 0.037 against the hand reading this replaced, and it "
+             "is recorded in the profile's source string"),
+    "5231": ("a GENUINE cross-method comparison against the 2026-08-02 raster "
+             "reading, and it does not agree -- the two put the argmax on "
+             "different humps of a double-humped curve. Recorded, not "
+             "re-adopted"),
 }
 
 
@@ -869,19 +1053,18 @@ def main() -> int:
             # 4-decade "disagreement" out of two different trace extents.
             from film_profiles import get_profile
             st = get_profile(got["profile"]).spectral
-            got_rms, drift = [], False
+            got_rms, got_n = [], []
             for key, stored in (("log_s_r", st.log_s_r), ("log_s_g", st.log_s_g),
                                 ("log_s_b", st.log_s_b)):
-                a = np.asarray(stored, dtype=float)
-                b = got[key]
-                m = (a > FLOOR + 0.01) & (b > FLOOR + 0.01)
-                got_rms.append(float(np.sqrt(((a[m] - b[m]) ** 2).mean()))
-                               if m.any() else float("nan"))
+                v, nn = _core_rms(stored, got[key])
+                got_rms.append(v)
+                got_n.append(nn)
             want_rms = EXPECTED_VS_STORED[tag]
-            drift = any(not (abs(a - b) < 0.01)
+            drift = any(not (abs(a - b) < RMS_TOL)
                         for a, b in zip(got_rms, want_rms))
-            print(f"         vs the ADOPTED set: rms r {got_rms[0]:.3f} "
-                  f"g {got_rms[1]:.3f} b {got_rms[2]:.3f} decades "
+            print(f"         vs the ADOPTED set: core rms r {got_rms[0]:.3f} "
+                  f"g {got_rms[1]:.3f} b {got_rms[2]:.3f} decades over "
+                  f"{got_n[0]}/{got_n[1]}/{got_n[2]} samples "
                   f"({'DRIFTED' if drift else 'as recorded'}) -- "
                   f"cross-check only, nothing re-adopted")
             if drift:
@@ -909,14 +1092,11 @@ def main() -> int:
                         dtype=float)
         rms = float("nan")
         if st.size:
-            b = got["log_s_pan"][:st.size]
-            m = (st > FLOOR + 0.01) & (b > FLOOR + 0.01)
-            if m.any():
-                rms = float(np.sqrt(((st[m] - b[m]) ** 2).mean()))
+            rms, _n = _core_rms(st, got["log_s_pan"])
         ok = (got["lam"] == want_lam
               and abs(got["peak"] - want_peak) < 0.03
               and got["n_meas"] == want_n
-              and (rms != rms or abs(rms - want_rms) < 0.01))
+              and (rms != rms or abs(rms - want_rms) < RMS_TOL))
         print(f"  [{'OK  ' if ok else 'FAIL'}] {tag} {got['profile']:24s} "
               f"pan peak {got['peak']:.2f} @ {got['lam']:.0f} nm, "
               f"{got['n_meas']} measured samples  "
@@ -925,10 +1105,8 @@ def main() -> int:
         print(f"         criterion adopted from the panel's own caption "
               f"{got['caption']!r} (the sheet also prints "
               f"{[c for c in got['captions'] if c != got['caption']]})")
-        print(f"         vs the set the profile now holds: rms {rms:.3f} "
-              f"decades -- this is the storage rounding, NOT the cross-method "
-              f"agreement; that was 0.037 against the hand reading this "
-              f"replaced, and it is recorded in the profile's source string")
+        print(f"         vs the set the profile holds: core rms {rms:.3f} "
+              f"decades -- {MONO_NOTE[tag]}")
         if not ok:
             print(f"         expected peak {want_peak:.2f} @ {want_lam:.0f} nm, "
                   f"{want_n} samples, rms {want_rms:.3f}")

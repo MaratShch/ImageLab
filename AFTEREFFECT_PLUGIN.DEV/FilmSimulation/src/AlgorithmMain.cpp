@@ -108,11 +108,10 @@
 #include "AlgoEmulsionMtf.hpp"           // stage 6
 #include "AlgoCornerDefocus.hpp"         // stage 6b
 #include "AlgoEmulsionRecord.hpp"        // stage 7
-#include "AlgoReciprocity.hpp"          // stage 8, the log-exposure shift
 #include "AlgoCharacteristicCurve.hpp"   // stage 8
 #include "AlgoInterimage.hpp"            // stage 8b
 #include "AlgoDirCoupler.hpp"            // stage 9
-#include "AlgoNegativeDefects.hpp"       // stage 9b   STUB
+#include "AlgoNegativeDefects.hpp"       // stage 9b   IMPLEMENTED
 #include "AlgoScanMtf.hpp"               // stage 10
 #include "AlgoEdgeFog.hpp"               // stage 10b
 #include "AlgoGrain.hpp"                 // stage 11
@@ -121,8 +120,8 @@
 #include "AlgoTransmittance.hpp"         // stage 14
 #include "AlgoReseauReconstruct.hpp"     // stage 14b
 #include "AlgoSilverTone.hpp"            // stage 14c
-#include "AlgoGateWeave.hpp"             // stage 15   STUB
-#include "AlgoGateDefects.hpp"           // stage 16   STUB
+#include "AlgoGateWeave.hpp"             // stage 15   IMPLEMENTED
+#include "AlgoGateDefects.hpp"           // stage 16   IMPLEMENTED
 #include "AlgoFinalClamp.hpp"            // stage 17
 
 
@@ -807,7 +806,10 @@ void Algorithm_Main
     //     Hand-cranked cameras and early intermittent mechanisms did not deliver
     //     equal exposure to successive frames.
     //
-    //     NOT YET MODELLED - passes through. It sits here rather than later because
+    //     NOT YET MODELLED - passes through. GENUINELY a stub: the stage voids
+    //     all five of its arguments and copies input to output, and the control
+    //     it would read (damage.flickerStops) has no consumer anywhere. It sits
+    //     here rather than later because
     //     it must act on EXPOSURE, before the curve: a brightness change applied
     //     after development is a grade, and a grade does not move highlights through
     //     the shoulder the way a genuine exposure change does.
@@ -936,7 +938,6 @@ void Algorithm_Main
     AlgoSolveAnchors(profile, pPrint,
                      static_cast<HighPrecType>(algoCtrl.greyTarget),
                      static_cast<HighPrecType>(algoCtrl.couplerScale),
-                     static_cast<HighPrecType>(algoCtrl.scannerSpecular),
                      anchor);
 
     // -----------------------------------------------------------------------
@@ -950,25 +951,12 @@ void Algorithm_Main
     //
     //    Everything from here on is in the DENSITY domain.
     // -----------------------------------------------------------------------
-    //    RECIPROCITY FAILURE enters here as three constants, and here is the only
-    //    place it can honestly enter: it is the EMULSION's response to the light
-    //    that reached it, so it must follow everything optical (flare, halation,
-    //    the emulsion MTF, the record collapse) and precede the curve. Zero unless
-    //    the caller stated an exposure time, in which case this call is arithmetic
-    //    identical to every render made before the field existed.
-    // -----------------------------------------------------------------------
-    HighPrecType recipShift[3] = { 0.0, 0.0, 0.0 };
-
-    AlgoReciprocityLogShift(profile,
-                            static_cast<HighPrecType>(algoCtrl.exposureTimeS),
-                            recipShift);
-
     ALGO_PROF_MARK("08   characteristic curve");
     AlgoStage08_CharacteristicCurve(s07R, s07G, s07B,
                                     s08R, s08G, s08B,
                                     logER, logEG, logEB,
                                     sizeX, sizeY, pitch,
-                                    profile, anchor, recipShift);
+                                    profile, anchor);
 
     // -----------------------------------------------------------------------
     // 8b. INTERIMAGE EFFECTS                               S08 -> S08b
@@ -1115,30 +1103,6 @@ void Algorithm_Main
                             sizeX, sizeY, pitch, profile);
 
     // -----------------------------------------------------------------------
-    // 12b. CALLIER'S COEFFICIENT                           S12 -> S12 in place
-    //
-    //      The density a DIRECTIONAL reader sees, as against the diffuse density
-    //      every curve in the database is expressed in. Developed SILVER scatters
-    //      the measuring beam out of a condenser's acceptance angle, so a directed
-    //      source reads higher and the whole tone scale steepens - which is why a
-    //      silver negative printed on a condenser enlarger is contrastier than the
-    //      same negative on a diffusion enlarger at the same paper grade.
-    //
-    //      Here, at the boundary between the developed negative and everything that
-    //      reads it, because BOTH readers downstream are affected: the optical
-    //      printer at stage 13 and the scanner the output stands for. Before
-    //      stage 13, never after.
-    //
-    //      In place: a per-channel scaling with no cross-channel mixing needs no
-    //      second plane. Inert at scannerSpecular <= 0, and inert at any setting on
-    //      a chromogenic dye image, which does not scatter.
-    // -----------------------------------------------------------------------
-    ALGO_PROF_MARK("12b  callier");
-    AlgoStage12b_Callier(s12R, s12G, s12B,
-                         sizeX, sizeY, pitch, profile,
-                         static_cast<HighPrecType>(algoCtrl.scannerSpecular));
-
-    // -----------------------------------------------------------------------
     // 13. DUPLICATION GENERATIONS, THEN THE PRINT          S12 -> S13
     //
     //     Nobody ever projected a camera negative. A release print is three or four
@@ -1228,14 +1192,17 @@ void Algorithm_Main
                             sizeX, sizeY, pitch, profile);
 
     // -----------------------------------------------------------------------
-    // 15. GATE WEAVE                                       S14c -> S15   STUB
+    // 15. GATE WEAVE                                       S14c -> S15
     //
     //     Successive frames do not sit in exactly the same place in the gate. A
     //     sub-pixel whole-frame translation, and one of the strongest cues that
     //     something was shot and projected on film - stronger than grain, because the
     //     eye tracks motion better than it judges texture.
     //
-    //     NOT YET MODELLED - passes through. It is here rather than with the
+    //     !! STATUS CORRECTED 2026-08-28: this stage IS implemented and active.
+    //     It was labelled a stub here long after it stopped being one. Skipping
+    //     is decided INSIDE the stage, by AlgoControls::filmDamageEnabled and
+    //     then by its own class levels -- the call site is unconditional. It is here rather than with the
     //     negative-side stages because weave happens at PROJECTION, to the finished
     //     positive, and its time base is the projection rate.
     // -----------------------------------------------------------------------
@@ -1249,7 +1216,7 @@ void Algorithm_Main
                           frameIndex, frameRate, ALGO_SALT_WEAVE);
 
     // -----------------------------------------------------------------------
-    // 16. GATE-SIDE DEFECTS                                S15 -> S16   STUB
+    // 16. GATE-SIDE DEFECTS                                S15 -> S16
     //
     //     Dirt on the gate, a hair in the light path, a projector scratch, a splice
     //     in the release print. Applied to the finished POSITIVE, so it passes through
@@ -1257,7 +1224,10 @@ void Algorithm_Main
     //     on every count, including polarity, which is why they are two stages either
     //     side of the print.
     //
-    //     NOT YET MODELLED - passes through.
+    //     !! STATUS CORRECTED 2026-08-28: this stage IS implemented and active.
+    //     It was labelled a stub here long after it stopped being one. Skipping
+    //     is decided INSIDE the stage, by AlgoControls::filmDamageEnabled and
+    //     then by its own class levels -- the call site is unconditional.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("16   gate defects");
     AlgoStage16_GateDefects(s15R, s15G, s15B,

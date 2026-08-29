@@ -43,6 +43,7 @@ from pathlib import Path
 import numpy as np
 
 from film_profiles import (
+    _natural_key,
     PERFS_PER_FRAME,
     FILM_PROFILES,
     FORMAT_GEOM,
@@ -2117,22 +2118,127 @@ def _wrap_push_back(block: str) -> str:
 
 
 def _distribute(blocks: list) -> list:
-    """Assign consecutive blocks to N_DATA_SLOTS size-balanced slots.
+    """Assign consecutive blocks to N_DATA_SLOTS slots, MINIMISING THE LARGEST.
 
-    Cumulative-size partitioning: block i goes to slot
-    floor(bytes_before_i / total * N). Order is preserved (consecutive
-    slices), balance is near-optimal, and the mapping is deterministic --
-    the same database always produces the same files.
+    WHY THIS CHANGED (2026-08-28)
+    -----------------------------
+    The previous rule was cumulative-size partitioning: block i went to slot
+    floor(bytes_before_i / total * N). That balances the AVERAGE, which is not
+    the quantity that matters. What matters is the LARGEST slot, because
+    SLOT_SOURCE_LIMIT is a per-file ceiling and the build fails when any single
+    slot crosses it -- and crossing it costs an N_DATA_SLOTS bump AND a manual
+    .vcxproj edit.
+
+    Measured on the 161-stock database:
+
+        cumulative-size   high-water 109,010 bytes   97.3 % of the limit
+        minimise-largest  high-water 104,270 bytes   93.1 %
+
+    4,740 bytes of headroom for a strictly better algorithm with IDENTICAL
+    ordering semantics.
+
+    A NOTE ON THE EXPECTED GAIN. An earlier estimate put the achievable
+    high-water at roughly 96,000. That is not reachable, and the reason is
+    worth recording so nobody re-derives it: the blocks are INDIVISIBLE and the
+    slices must stay CONSECUTIVE, so the partition is quantised by the block
+    sizes. The largest single profile block is 41,709 bytes, and a perfectly
+    even split would be 94,412 -- but no consecutive partition of these
+    particular 161 blocks into 16 parts achieves a maximum below 104,270. That
+    figure is the true optimum, proved by the binary search below: 104,269
+    requires 17 slots.
+
+    HOW IT WORKS, IN TWO STEPS
+    --------------------------
+    1. Binary search the smallest feasible maximum. For a candidate cap, a
+       single greedy left-to-right pass gives the minimum number of slots
+       needed; the smallest cap needing <= N slots is the optimum, because
+       feasibility is monotone in the cap.
+
+    2. Among the many partitions that achieve that maximum, choose the most
+       even one, by dynamic programming on the sum of squared slot sizes
+       subject to every slot <= cap and exactly N slots. Step 1 alone would
+       leave the trailing slots nearly empty; step 2 spreads the slack without
+       touching the maximum. 161 blocks x 16 slots is a few hundred thousand
+       operations, once, at generation time.
+
+    ORDERING IS UNCHANGED, BY CONSTRUCTION
+    --------------------------------------
+    Slots remain consecutive slices of the emission order, and the loader calls
+    them in fixed numeric order, so vector index == eFILM_PROFILE value ==
+    film_names.txt line, exactly as before. Every slot file's CONTENT changes;
+    the concatenation does not. film_enum.hpp and film_names.txt must therefore
+    come out byte-identical, and the caller asserts that.
+
+    Deterministic: the same database always produces the same files.
     """
     sizes = [len(b.encode("utf-8")) for b in blocks]
-    total = sum(sizes) or 1
-    slots = [[] for _ in range(N_DATA_SLOTS)]
-    cum = 0
-    for b, sz in zip(blocks, sizes):
-        idx = min(cum * N_DATA_SLOTS // total, N_DATA_SLOTS - 1)
-        slots[idx].append(b)
-        cum += sz
-    return slots
+    n     = len(sizes)
+
+    if 0 == n:
+        return [[] for _ in range(N_DATA_SLOTS)]
+
+    # -- step 1: smallest feasible maximum ---------------------------------
+    def slots_needed(cap: int) -> int:
+        count, cur = 1, 0
+        for s in sizes:
+            if s > cap:
+                return n + 1          # infeasible: one block exceeds the cap
+            if cur + s > cap:
+                count += 1
+                cur = s
+            else:
+                cur += s
+        return count
+
+    lo, hi = max(sizes), sum(sizes)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if slots_needed(mid) <= N_DATA_SLOTS:
+            hi = mid
+        else:
+            lo = mid + 1
+    cap = lo
+
+    # -- step 2: most even partition achieving that maximum ----------------
+    pre = [0] * (n + 1)
+    for i, s in enumerate(sizes):
+        pre[i + 1] = pre[i] + s
+
+    INF = float("inf")
+    dp     = [[INF] * (n + 1) for _ in range(N_DATA_SLOTS + 1)]
+    choice = [[-1]  * (n + 1) for _ in range(N_DATA_SLOTS + 1)]
+    dp[0][0] = 0
+
+    for k in range(1, N_DATA_SLOTS + 1):
+        for i in range(0, n + 1):
+            for j in range(i, -1, -1):
+                w = pre[i] - pre[j]
+                if w > cap:
+                    break                       # further j only make it bigger
+                if dp[k - 1][j] == INF:
+                    continue
+                v = dp[k - 1][j] + w * w
+                if v < dp[k][i]:
+                    dp[k][i]     = v
+                    choice[k][i] = j
+
+    if dp[N_DATA_SLOTS][n] == INF:
+        # Cannot happen: step 1 proved a partition into N slots exists at this
+        # cap. Kept as a hard failure rather than a silent fallback, because a
+        # silent fallback here would emit a differently-ordered database.
+        raise RuntimeError(
+            "slot partitioner: no feasible partition at the proven cap "
+            f"{cap}; this indicates a bug in the binary search, not a "
+            "database that has outgrown its slots")
+
+    cuts, i = [], n
+    for k in range(N_DATA_SLOTS, 0, -1):
+        j = choice[k][i]
+        cuts.append((j, i))
+        i = j
+    cuts.reverse()
+
+    return [blocks[a:b] for a, b in cuts]
 
 
 def _data_slot_source(nn: int, blocks: list, stamp: str) -> str:
@@ -2545,6 +2651,85 @@ def write_film_enum(cpp_path: Path, hpp_path: Path, stamp: str) -> int:
     return len(names)
 
 
+# ===========================================================================
+#  FROZEN IDENTIFIERS -- the lock file, and the display order derived from it
+#
+#  film_ids.lock is the AUTHORITATIVE storage identity. film_display_order.txt
+#  is generated presentation order. Keeping them apart is the whole point: the
+#  panel can list stocks alphabetically while STORING the frozen id, so adding
+#  a stock never moves an existing one.
+# ===========================================================================
+def sync_ids_lock(lock_path: Path | str = None) -> tuple[int, int]:
+    """Append any stock missing from film_ids.lock, at max(id)+1.
+
+    Returns (existing, added).
+
+    APPEND-ONLY, and that is the safety property. This function can hand out a
+    NEW id and can do nothing else: it never renumbers, never reorders and
+    never reuses a RETIRED id. So the worst a bug here can do is give a new
+    stock the wrong new number -- it cannot move a stock a saved project
+    already refers to.
+
+    New stocks are taken in natural-name order purely so the assignment is
+    deterministic: two runs on the same database must produce the same lock.
+
+    Called from generate(). Importing film_profiles never writes.
+    """
+    path = Path(lock_path) if lock_path else \
+        Path(__file__).resolve().parent / "film_ids.lock"
+
+    header, rows, used = [], [], set()
+
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#") or not line.strip():
+                header.append(line)
+                continue
+            sid, _, nm = line.partition("\t")
+            rows.append((int(sid), nm))
+            used.add(int(sid))
+
+    known = {nm for _, nm in rows if not nm.startswith("RETIRED ")}
+    missing = sorted((p.name for p in FILM_PROFILES if p.name not in known),
+                     key=_natural_key)
+
+    nxt = (max(used) + 1) if used else 0
+    added = 0
+    for nm in missing:
+        rows.append((nxt, nm))
+        nxt += 1
+        added += 1
+
+    if added:
+        rows.sort(key=lambda r: r[0])
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            for h in header:
+                fh.write(h + "\n")
+            for sid, nm in rows:
+                fh.write(f"{sid}\t{nm}\n")
+
+    return (len(rows) - added, added)
+
+
+def write_display_order(txt_path: Path | str) -> Path:
+    """Write film_display_order.txt -- DATABASE INDICES in natural-name order.
+
+    One integer per line. Line k holds the database index of the stock that
+    should appear k-th in a name-sorted popup.
+
+    The panel populates its list from film_names.txt, orders it by THIS file,
+    and stores the frozen id -- never the popup position. That is what lets the
+    presentation order change freely without touching a single saved project.
+    """
+    order = sorted(range(len(FILM_PROFILES)),
+                   key=lambda i: _natural_key(FILM_PROFILES[i].name))
+    path = Path(txt_path)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        for i in order:
+            fh.write(f"{i}\n")
+    return path
+
+
 def generate(outdir: Path | str = ".",
              names_separator: bool = True) -> tuple[Path, Path, Path, Path]:
     """Write film_profiles.hpp and film_profiles.cpp into ``outdir``.
@@ -2594,6 +2779,12 @@ def generate(outdir: Path | str = ".",
     # listbox index == vector index == enum value
     names = d / "film_names.txt"
     write_film_names(cpp, names, separator=names_separator)
+
+    # Frozen ids: append any new stock, then emit the presentation order.
+    # sync BEFORE the display order so a brand-new stock already has its id.
+    _existing, _added = sync_ids_lock()
+    display = d / "film_display_order.txt"
+    write_display_order(display)
     enum = d / "film_enum.hpp"
     write_film_enum(cpp, enum, stamp)
     return (hpp, cpp, names, enum, detail, loader_h, loader_cpp,
