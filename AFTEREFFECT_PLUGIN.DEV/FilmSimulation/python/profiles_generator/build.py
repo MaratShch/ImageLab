@@ -221,6 +221,50 @@ def audits(root: Path):
          "1980 SMPTE paper's Fig. 10 at native scan resolution (589/513/437 "
          "samples, fit rms 0.004-0.011 D) -- and re-checked against the gamma "
          "0.57 the figure itself prints, which the trace reproduces at 0.5677"),
+        ("kodak_time_gamma.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "EASTMAN DOUBLE-X Negative Film 5222.pdf",
+         "EASTMAN DOUBLE-X's printed five-point time-gamma family, re-derived "
+         "from the five DRAWN curves on H-1-5222 p2 rather than from the text "
+         "labels that state it. Reproduces 0.500 / 0.558 / 0.652 / 1.060 "
+         "against the printed 0.50 / 0.56 / 0.66 / 1.05, and records the one "
+         "that does NOT reproduce -- 9 minutes, measured 0.798 against a "
+         "printed 0.84 -- as a named exemption, so a NEW disagreement on any "
+         "other curve fails instead of hiding inside a loose tolerance. Also "
+         "measures base+fog per development time (0.231 / 0.233 / 0.233 / "
+         "0.275 / 0.296), which is what corrected the profile's dmin"),
+        ("di_2254.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "KODAK-VISION3-2254-technical-information.pdf",
+         "KODAK_VISION3_DI_2254's three characteristic curves, traced from the "
+         "RASTER sensitometric figure on H-1-2254 p3 (474 samples per record, "
+         "fit rms 0.006-0.012 D) -- and the physical check that comes free with "
+         "an INTERMEDIATE film: nothing in the trace was told that this stock "
+         "exists to change nothing, and the fitted gammas come out 1.05 / 0.96 "
+         "/ 1.04. It also re-checks the origin placement (the exposure at which "
+         "the green record reaches D-min + 1.0, which is the reference the "
+         "sheet's own dye-stability table is quoted at)"),
+        ("kodak_still_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "KODAK PROFESSIONAL PORTRA - 2003 year.pdf",
+         "The 2026-08-26 KODAK still-film harvest, re-derived from all eleven "
+         "E-series sheets: 30 characteristic dmin/gamma pairs, 12 MTF f50 "
+         "readings and 10 dye-pair peaks. Three things in it are audits of the "
+         "READER rather than of one number. (1) PORTRA 160NC is read from BOTH "
+         "E-190 vintages -- two files, different md5 -- and must return the "
+         "same six values from each, which exercises the tick fitting, the "
+         "subpath splitting and the letter matching together. (2) E-2468's "
+         "characteristic panel is pinned to PORTRA 160VC's figure "
+         "F009_0154AC, because it IS that figure: the defect stays visible, and "
+         "the day a corrected edition appears the assertion fires. (3) The two "
+         "dye-pair REFUSALS are asserted as refusals, so a change that starts "
+         "accepting a crossing pair has to say so rather than adopt it quietly. "
+         "One f50 is asserted to remain CENSORED (E-190 2003 p9 blue is still "
+         "at 55 % where the plot stops), which keeps 'never reaches 50 %' "
+         "distinguishable from a number"),
         # ⚠ NOT A DOCUMENT AUDIT -- a CODE audit, and it belongs in this stage
         # anyway. Its "source" is the GENERATED header rather than a PDF, and what
         # it re-derives is that the Python reference law and the emitted C++ law
@@ -255,6 +299,15 @@ def audits(root: Path):
          "fields, at two pixel scales. Reads sizeof(AlgoType) from the compiled "
          "probe and picks its tolerance from it, so the switchable double/float "
          "typedef stays switchable"),
+        ("doc_consistency.py",
+         ["--root", str(root / "PYTHON" / "profile_generator"), "--assert"],
+         root / "PYTHON" / "profile_generator" / "doc",
+         "every COUNT asserted in the documentation against the live database "
+         "-- added 2026-08-25 after an audit found four hardcoded counts in the "
+         "report generator wrong by up to 2.3x, a struct described as unread two "
+         "days after it was wired, and queue rows still saying 'no profile' for "
+         "stocks added the day before. A pattern that stops matching FAILS, "
+         "because an unmatched pattern silently stops checking"),
         ("plot_inventory.py",
          ["--root", str(root / "PDF" / "PROFILES"), "--assert"],
          root / "PDF" / "PROFILES",

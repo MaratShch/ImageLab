@@ -107,6 +107,44 @@ SPEED_STD = {
     "manufacturer_ei": "manufacturer EI (no standard)",
 }
 
+#: HALATION EVIDENCE, 2026-08-27. Deliberately an EXPLICIT LIST and not a
+#: keyword heuristic. The word "halation" appears in the prose of most stocks
+#: that model it, usually beside a citation, so a proximity test would mark
+#: nearly every halation cell as documented -- which is the opposite of the
+#: truth. Only these five carry a halation figure derived from an actual
+#: MEASUREMENT (owner frame batches: measured excess density next to blown
+#: highlights, plus a 1/e radius). Each is [T2], not [T1], because the gain
+#: inversion assumes a highlight overshoot in stops; see the field comments.
+_HALATION_MEASURED = frozenset({
+    "ORWOCOLOR_NC21",
+    "ORWO_CHROM_UT18",
+    "SVEMA_FOTO_65",
+    "SVEMA_FOTO_250",
+    "TASMA_FN_64",
+})
+
+#: Stocks whose halation gain and threshold were IMPORTED FROM A THIRD PARTY on
+#: 2026-08-27 -- the FilmLab Pro published-data engine, tier 3, hand-authored
+#: rather than measured (NotFound.md 7.1a). They were previously at the schema
+#: default with the effect switched OFF, so this is a filled gap, not a
+#: replacement. They print as ESTIMATES like any other unmeasured cell, with an
+#: added tag so the source class is visible in the cell rather than only in the
+#: citation column -- the same reasoning as the PGI bracket in the rms cell.
+#: ⚠ CINESTILL_800T is NOT in this set. It appears in
+#: `film_profiles._FILMLABPRO_HALATION_IMPORT` only so its `last_reviewed`
+#: moved; no halation number on it came from that source.
+_HALATION_THIRDPARTY = frozenset({
+    "AGFA_VISTA_200",
+    "FUJI_NEOPAN_ACROS_100",
+    "ILFORD_HP5_PLUS_400",
+    "KODAK_EKTAR_100",
+    "KODAK_GOLD_200",
+    "KODAK_PORTRA_800",
+    "KODAK_TMAX_P3200",
+    "KODAK_TRI_X_400TX",
+    "KODAK_ULTRAMAX_400",
+})
+
 PROPS = [
     ("Spectral Sensitivity", "spec_any"),
     ("Characteristic (H&D) Curve", "hd"),
@@ -116,6 +154,7 @@ PROPS = [
     ("RMS Granularity", "rms"),
     ("Grain sigma(D) Shape", "sigma_shape"),
     ("MTF / Resolving Power", "mtf"),
+    ("Halation", "halation"),
     ("Film Base Properties", "base"),
     ("Emulsion Properties", "emul"),
     ("Processing Characteristics", "proc"),
@@ -147,8 +186,14 @@ RX = {
                               r"sigma_shape[^.]{0,160}?"
                               r"(TRACED|traced|published plot)", re.I | re.S),
     "mtf": re.compile(r"lp/mm|lines/mm|lin/mm|MTF|resolving power", re.I),
+    # ⚠ `remjet` REMOVED 2026-08-27 (owner-reported). A rem-jet backing is an
+    # ANTI-HALATION LAYER; its existence says nothing about base material,
+    # thickness or tint, which is what this cell prints. It was crediting
+    # CINESTILL_800T's `base_tint` -- a pure estimate -- as documented, on the
+    # strength of the word "remjet" in that profile's prose. Real base
+    # statements are still caught by acetate/triacetate/clear base/um base.
     "base": re.compile(r"polyester|\bPET\b|acetate|triacetate|nitrate|"
-                       r"Estar|clear base|base thickness|remjet|\bum base\b|"
+                       r"Estar|clear base|base thickness|\bum base\b|"
                        r"grey base|gray base", re.I),
     "emul": re.compile(r"layer thickness|emulsion thickness|multilayer|"
                        r"three-emulsion|supercoat|single thin emulsion|"
@@ -163,8 +208,16 @@ RX = {
     "colour": re.compile(r"\bdye\b|dyes\b|mask|saturation|colour balance|"
                          r"color balance|Status M|Status A|imbibition|"
                          r"interimage|inter-image", re.I),
+    # ⚠ `remjet` and `anti-halation` REMOVED 2026-08-27 (owner-reported). This
+    # cell prints RECIPROCITY, vignette, coating field, buckle and edge fog.
+    # None of those is documented by the existence of an anti-halation layer,
+    # and both words were crediting estimates as measurements: CINESTILL_800T
+    # (reciprocity is the colour-negative UNITY DEFAULT -- "no documented
+    # figure on file" -- with era-derived vignette and buckle) and
+    # GEVACHROME_600 (reciprocity is the generic colour-reversal 0.93/0.92/0.94
+    # that `_reciprocity_for` itself labels "Tier-2/3 estimate").
     "phys": re.compile(r"reciprocity|Schwarzschild|shrinkage|curl|"
-                       r"anti-halation|remjet|\bDX\b|Wratten|filter factor|"
+                       r"\bDX\b|Wratten|filter factor|"
                        r"AURA", re.I),
 }
 
@@ -276,6 +329,59 @@ RX_NEG = re.compile(
     r"rejected|estimate[sd]?|assumed|unverified|only)\b", re.I)
 
 
+#: Prose that DESCRIBES evidence is not itself evidence -- and this bit the
+#: report on 2026-08-27. Nine profiles took a third-party halation gain from the
+#: FilmLab Pro engine, and the inline comment recording that import explains why
+#: the source was rejected for everything else: "The site claims its numbers are
+#: digitized from manufacturer publications but names NO instrument...". The
+#: words "digitized" and "manufacturer publications" sit inches apart, so the
+#: keyword scan read that sentence as evidence that the stock's CHARACTERISTIC
+#: CURVE was traced, and flipped the H&D cell of AGFA_VISTA_200,
+#: ILFORD_HP5_PLUS_400, KODAK_EKTAR_100, KODAK_TMAX_P3200 and KODAK_TRI_X_400TX
+#: from estimate to DOCUMENTED. Every one of those five curves is an estimate.
+#: The negation window could not catch it: the negation is about the SITE, not
+#: about the curve, and it sits after the keyword rather than before it.
+#:
+#: So the block builder now DELETES any contiguous comment run that declares
+#: itself non-grounding. The text still prints in full in the citations column
+#: and in the source file -- it is removed only from the evidence SCAN. Add a
+#: marker below rather than rewording provenance prose to please a regex.
+#: ⚠ THIS WAS A PHRASE MATCH FIRST, AND THE PHRASE MATCH WAS WRONG. Matching
+#: "NOT A MEASUREMENT" / "THIRD-PARTY" deleted two load-bearing runs on
+#: KODAK_VISION3_50D_5203 -- a [T1] sigma(D) traced from H-1-5203 and a
+#: seven-record measured red-f50 re-anchor -- because careful hedging inside
+#: real evidence uses those words too. It demoted a traced measurement to an
+#: estimate, which is the same class of error it was written to prevent, in the
+#: opposite direction. So the marker is now an EXPLICIT SENTINEL that an author
+#: has to place deliberately. Nothing is excluded by accident.
+RX_NONEVIDENCE = re.compile(r"\[NON-EVIDENCE\]")
+
+
+def strip_nonevidence(block: str) -> str:
+    """Drop contiguous comment runs that declare themselves non-grounding.
+
+    Whole runs, not single lines: these notes span twenty lines and the keyword
+    and the disclaimer are rarely on the same one.
+    """
+    lines = block.split("\n")
+    out: list[str] = []
+    run: list[str] = []
+
+    def flush() -> None:
+        if run and not RX_NONEVIDENCE.search(" ".join(run)):
+            out.extend(run)
+        run.clear()
+
+    for ln in lines:
+        if ln.lstrip().startswith("#"):
+            run.append(ln)
+        else:
+            flush()
+            out.append(ln)
+    flush()
+    return "\n".join(out)
+
+
 def _documented_near(block: str, key: str) -> bool:
     """True when a property keyword sits close to a document marker AND is not
     inside a sentence that denies the property."""
@@ -293,6 +399,59 @@ def _documented_near(block: str, key: str) -> bool:
             continue
         return True
     return False
+
+
+#: WHICH PARAMETER EACH COLUMN ACTUALLY PRINTS. Schema v18 gave the database
+#: per-parameter provenance (`FilmProfile.param_sources`), and where an entry
+#: exists it is AUTHORITATIVE -- it beats the text-proximity scan outright,
+#: because it is a stated fact about the value rather than an inference from
+#: prose near it. This map is what connects the two.
+#:
+#: ⚠ IT IS ALSO THE HONEST FIX FOR THE 2026-08-27 AUDIT. That audit found 22
+#: cells reporting "documented" for a value that was an estimate, every one of
+#: them because the scan read a sentence ABOUT evidence as evidence. A recorded
+#: ParamSource cannot be misread that way.
+#: ⚠ ONLY THE FIRST MATCHING PATH IS CONSULTED, and only paths that name what
+#: the cell PRINTS. `lat` and `dr` are deliberately absent: they print figures
+#: DERIVED from the curve, so their marking is already tied to `hd`.
+_COLUMN_PARAM = {
+    "rms": ("grain.rms_granularity",),
+    "mtf": ("mtf.f50_g", "mtf.f50_r"),
+    "hd": ("curves.g.gamma", "curves.g.dmin"),
+    "halation": ("halation.gain_r",),
+    "spec_any": ("spectral_weights",),
+    "grain": ("grain.clump_um_g",),
+    "proc": ("processing.developer",),
+}
+
+#: `ParamSource.status` -> the marking this report uses. The three classes the
+#: file's own legend defines, mapped from the six the database records.
+_STATUS_MARK = {
+    "measured": "+",
+    "traced": "+",
+    "derived": "+",
+    # ⚠ "stated" is a fact the source prints IN WORDS (a developer name, a
+    # process name). It is evidence -- ParamSource.validate demands a source
+    # for it -- so it marks as documented, exactly like a traced number.
+    "stated": "+",
+    "spec_limit": "TU",
+    "estimated": "-",
+    "assumed": "-",
+}
+
+
+def _provenance_mark(p, key: str) -> str | None:
+    """The marking demanded by a recorded ParamSource, or None if none exists.
+
+    ⚠ None means NO ENTRY, which is NOT "estimated" -- it means the parameter's
+    provenance has not been recorded separately from the profile's, so the
+    caller must fall back to the evidence scan.
+    """
+    for path in _COLUMN_PARAM.get(key, ()):
+        ps = p.source_for(path)
+        if ps is not None:
+            return _STATUS_MARK[ps.status]
+    return None
 
 
 def evaluate(p, block: str) -> dict[str, str]:
@@ -366,6 +525,7 @@ def evaluate(p, block: str) -> dict[str, str]:
     )
     for key in ("base", "emul", "proc", "lat", "dr", "phys"):
         res[key] = mark(_documented_near(block, key))
+    res["halation"] = mark(p.name in _HALATION_MEASURED)
     res["colour"] = mark(
         (not p.is_monochrome) and _documented_near(block, "colour")
     )
@@ -405,6 +565,24 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     carried over so no precision is implied where none exists.
     """
     def mk(key, text):
+        # ⚠ SCHEMA v18: A RECORDED ParamSource WINS. Checked before anything
+        # else, including the specification-limit branch, because a stated fact
+        # about this value outranks both an inference from nearby prose and a
+        # per-stock list.
+        _pm = _provenance_mark(p, key)
+        if _pm == "-":
+            return '<span style="color:red">%s*</span>' % text
+        if _pm == "TU":
+            return ('<span style="color:#1560bd" title="specification limit, '
+                    'not a measurement">%s\u2020</span>' % text)
+        if _pm == "+":
+            return text
+        # "_never" is a pseudo-key meaning "this cell can never be plain",
+        # used where the printed number is provably a default or is derived
+        # from a value that is itself unevidenced. See the notes at c_lat,
+        # c_dr and c_phys.
+        if key == "_never":
+            return '<span style="color:red">%s*</span>' % text
         # THREE classes, not two:
         #   plain            -- documented measurement
         #   blue + dagger    -- a SPECIFICATION LIMIT from a Soviet TU: the
@@ -465,6 +643,23 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     rms = g.rms_rgb()
     c_rms = mk("rms", "%.1f" % g.rms_granularity if rms[0] == rms[1] == rms[2]
                else "%.1f (%.1f/%.1f/%.1f)" % ((g.rms_granularity,) + rms))
+    # ⚠ PRINT GRAIN INDEX IS APPENDED HERE, IN THE rms CELL, AND ON PURPOSE.
+    # Seven KODAK still-film stocks have an rms figure that is an ESTIMATE and
+    # will stay one, because their manufacturer published PGI *instead of* rms
+    # and said the two "cannot be compared". A reader who sees only a red
+    # asterisk in this cell concludes nobody looked; the truth is that the
+    # manufacturer's own image-structure number is known, published, and not
+    # convertible. Putting it beside the estimate rather than in a column of its
+    # own keeps that adjacency visible -- the estimate and the reason it cannot
+    # be replaced sit in the same cell. It is deliberately NOT run through
+    # `mk()`: PGI is measured, the rms next to it is not, and one cell cannot
+    # carry two tiers, so the bracket is plain text that names its own scale.
+    if p.print_grain_index.has_data:
+        _pg = p.print_grain_index
+        _row = _pg.fmt_135 or _pg.fmt_120 or _pg.fmt_sheet
+        _fmt = ("135" if _pg.fmt_135 else "120" if _pg.fmt_120 else "sheet")
+        c_rms += " [PGI %s %s]" % (_fmt, "/".join(
+            "<25" if v == 0.0 else "%.0f" % v for v in _row))
     # sigma(D) SHAPE, added 2026-08-17. Before that date no stock had a traced
     # triple, so a column reporting it would have been (0,1,0) for all 154 and
     # this report would have been right to omit it. The four VISION3 stocks now
@@ -486,6 +681,28 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
             rp = "  RP %.0f lp/mm @1000:1" % m.resolving_power_lp_mm_highc
     c_mtf = mk("mtf", "f50 %.0f/%.0f/%.0f c/mm%s" % (m.f50_r, m.f50_g, m.f50_b, rp))
 
+    # HALATION, added 2026-08-27 at the owner's request. It had no column at
+    # all, which for a rendered, plainly visible effect made this report
+    # incomplete in exactly the way it exists to prevent -- and it was the
+    # parameter that moved on ten profiles that day. Evidence is decided by an
+    # EXPLICIT LIST (see _HALATION_MEASURED), not by the keyword scan: the word
+    # "halation" sits beside a citation in most of these profiles, so a
+    # proximity test would mark nearly all of them documented. 60 of 161 stocks
+    # have the effect switched off entirely, which prints "off" -- a fact, not a
+    # gap, for a stock nobody has measured and whose era had a good backing.
+    ha = p.halation
+    if (ha.gain_r, ha.gain_g, ha.gain_b) == (0.0, 0.0, 0.0):
+        c_hal = "off"
+    else:
+        c_hal = mk("halation", "gain %.3f/%.3f/%.3f  radii %.0f/%.0f/%.0f um"
+                   "  thr %.2f st" % (ha.gain_r, ha.gain_g, ha.gain_b,
+                                      ha.radii_um[0], ha.radii_um[1],
+                                      ha.radii_um[2], ha.threshold_stops))
+        # NOT run through mk(): the tag names a source class, the cell body
+        # names a tier, and one cell cannot carry two markings.
+        if p.name in _HALATION_THIRDPARTY:
+            c_hal += " [3rd-party T3, gain+thr only]"
+
     base = "tint %s" % _tri(p.base_tint)
     if Feature.NITRATE_BASE in p.features:
         base += ", nitrate"
@@ -506,8 +723,20 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
         DENSITY_STD.get(p.density_metric, p.density_metric),
         SPEED_STD.get(p.speed_criterion, p.speed_criterion),
         p.callier_q))
-    c_lat = mk("lat", "%.1f stops" % cv.g.latitude_stops)
-    c_dr = mk("dr", "Dmax %.2f, range %.2f" % (cv.g.dmax, cv.g.dmax - cv.g.dmin))
+    # ⚠ TIGHTENED 2026-08-27 (owner asked whether this file can be trusted).
+    # These two cells print numbers DERIVED FROM THE STORED CURVE --
+    # `ToneCurve.latitude_stops` is (shoulder_x - toe_x) * 3.3219 and
+    # `ToneCurve.dmax` is dmin + gamma * (shoulder_x - toe_x). The evidence keys
+    # `lat` and `dr` fire on a source printing a latitude RANGE or a density
+    # range, which is a DIFFERENT NUMBER measured a different way. Six stocks
+    # each were printing a curve-derived figure in plain type because their
+    # sheet quoted an unrelated latitude or Dmax. A derived number can be no
+    # better evidenced than the curve it comes from, so both now require the
+    # H&D cell to be documented as well.
+    c_lat = mk("lat" if ev["hd"] == "+" else "_never", "%.1f stops"
+               % cv.g.latitude_stops)
+    c_dr = mk("dr" if ev["hd"] == "+" else "_never", "Dmax %.2f, range %.2f"
+              % (cv.g.dmax, cv.g.dmax - cv.g.dmin))
 
     if mono or not ii.active:
         c_col = mk("colour", "silver tone %+.2f" % p.silver_tone if mono else "none")
@@ -524,12 +753,27 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
         phys += ", buckle %.0f%%" % (co.buckle_mtf_loss * 100.0)
     if co.has_edge_fog:
         phys += ", edge fog %.3f D" % co.edge_fog_density
-    c_phys = mk("phys", phys)
+    # ⚠ TIGHTENED 2026-08-27, same reason. This cell prints RECIPROCITY,
+    # vignette, coating field and buckle. The `phys` key also fires on
+    # "Wratten", "filter factor", "shrinkage" and "curl" -- real documented
+    # properties that say nothing about any number in this cell. Measured:
+    # EASTMANCOLOR_5248_1953 printed a UNITY reciprocity default in plain type
+    # because its source documents a Wratten 85 filter factor. The mark now
+    # additionally requires that the reciprocity actually came from somewhere:
+    # a datasheet override, a measured table, or Acros' documented 120 s onset.
+    _rc_generic = (
+        (rc.schwarzschild_p_r, rc.schwarzschild_p_g, rc.schwarzschild_p_b,
+         rc.onset_s) in {(1.0, 1.0, 1.0, 1.0),          # colour-negative default
+                         (0.95, 0.95, 0.95, 1.0),       # generic B&W estimate
+                         (0.93, 0.92, 0.94, 1.0)}       # generic reversal estimate
+        and not p.reciprocity_table.has_data
+        and p.name not in fp._RECIPROCITY_OVERRIDES)
+    c_phys = mk("_never" if _rc_generic else "phys", phys)
 
     # Cell order MUST match PROPS, or the per-stock table silently misaligns:
     # the header is built from PROPS and the rows from this list.
     return [c_spec, c_hd, c_curves, c_used, c_grain, c_rms, c_shape, c_mtf,
-            c_base, c_emul, c_proc, c_lat, c_dr, c_col, c_phys]
+            c_hal, c_base, c_emul, c_proc, c_lat, c_dr, c_col, c_phys]
 
 
 def _iie_pct(p):
@@ -559,10 +803,10 @@ def main() -> int:
         inherits the parent's documentation. Without this, the retired SVEMA_FN_64_8MM
         scored "-" on every property while the parent stock scored "+" on most,
         which would misreport identical emulsions as differently evidenced."""
-        blk = blocks.get(p.name, "") + " " + p.description
+        blk = strip_nonevidence(blocks.get(p.name, "")) + " " + p.description
         par = parent_of(p)
         if par:
-            blk += " " + blocks.get(par, "")
+            blk += " " + strip_nonevidence(blocks.get(par, ""))
         return blk
 
     by_name = {p.name: p for p in fp.FILM_PROFILES}
@@ -574,6 +818,7 @@ def main() -> int:
         ev = evaluate(p, blk)
         rows.append((p, ev, citations(p, blk, extra)))
 
+    _evs = {q.name: e for q, e, _c in rows}
     L: list[str] = []
     w = L.append
     w("# FilmActiveProfiles.md — coverage and traceability report")
@@ -602,6 +847,12 @@ def main() -> int:
     _recip = sum(1 for q in fp.FILM_PROFILES
                  if getattr(q, "reciprocity_table", None)
                  and q.reciprocity_table.has_data)
+    _halm = sum(1 for q in fp.FILM_PROFILES if q.name in _HALATION_MEASURED)
+    _haloff = sum(1 for q in fp.FILM_PROFILES
+                  if (q.halation.gain_r, q.halation.gain_g,
+                      q.halation.gain_b) == (0.0, 0.0, 0.0))
+    _push = sum(1 for q in fp.FILM_PROFILES
+                if getattr(q, "push", None) and q.push.has_data)
     _PLACE = "No official manufacturer datasheet available"
     _nosrc = sorted(q.name for q in fp.FILM_PROFILES
                     if q.provenance.sources
@@ -634,6 +885,22 @@ def main() -> int:
       f"closed 2026-08-23 -- reciprocity is wired into both renderers through "
       f"`RenderSettings.exposure_time_s` / `AlgoControls::exposureTimeS` and is "
       f"parity-audited |")
+    w(f"| Halation (measured) | **{_halm}** | {_n - _halm} | five owner frame "
+      f"batches, each measuring excess density beside blown highlights plus a "
+      f"1/e radius. Nothing else in the corpus measures halation: no "
+      f"manufacturer sheet in this archive prints a halation radius or "
+      f"strength for any stock. {_haloff} of the {_n} stocks have the effect "
+      f"switched off; the remaining {_n - _halm - _haloff} are estimates, nine "
+      f"of them third-party gain/threshold imports (`NotFound.md` S7.1a). "
+      f"⚠ CINESTILL_800T is the biggest single gap here -- its halation is the "
+      f"whole point of the stock and remains an estimate |")
+    w(f"| Push / pull latitude (schema v16) | **{_push}** | {_n - _push} | almost "
+      f"nobody publishes one. Datasheets print a development condition, not a "
+      f"tolerance around it. The only entry so far is CINESTILL_800T, from a "
+      f"vendor product-page sentence (`NotFound.md` S7.2b) -- and note that a "
+      f"push RANGE is all it gives: the gamma and true-speed gain per pushed "
+      f"stop are unpublished on every stock in this database, so those PushSpec "
+      f"fields are zero everywhere |")
     w("")
     w("**%d stocks carry no source at all** beyond the `_NO_DATASHEET` placeholder: "
       "%s. `GENERIC_BW` and `GENERIC_COLOR` are in that list by design -- they are "
@@ -663,6 +930,101 @@ def main() -> int:
       "produced the earlier +/- table; only the presentation distinguishes a "
       "specification ceiling from a measured value.")
     w("")
+    # ⚠ ADDED 2026-08-27 AT THE OWNER'S REQUEST, after five H&D cells in this
+    # file were found claiming to be documented when the curves were estimates.
+    # The point of this section is that the reader should know exactly HOW MUCH
+    # to trust each marking, including where it is still known to over-claim.
+    _pcount = sum(len(_q.param_sources) for _q in fp.FILM_PROFILES)
+    _pstocks = sum(1 for _q in fp.FILM_PROFILES if _q.param_sources)
+    w("### ✅ Where the marking is a STATED FACT, not an inference (schema v18)")
+    w("")
+    w(f"**{_pcount} parameters across {_pstocks} profiles now carry "
+      f"`ParamSource` provenance**, and for those cells the marking is read "
+      f"straight from the record — tier, status, unit, measurement conditions "
+      f"and confidence, all stated per parameter. Those cells are not subject "
+      f"to any of the limitations in the next section.")
+    w("")
+    w("The six recorded statuses collapse onto this file's three markings: "
+      "`measured` / `traced` / `derived` print plain, `spec_limit` prints blue, "
+      "`estimated` / `assumed` print red.")
+    w("")
+    w("⚠ **Absence of a `ParamSource` is not a claim.** It means the "
+      "parameter's provenance has not been recorded separately from the "
+      "profile's tier — which is a *different statement* from \"estimated\". "
+      "Those cells still fall back to the text scan below, with all of its "
+      "limits.")
+    w("")
+    w("### ⚠ How far to trust the markings — the known limits of this test")
+    w("")
+    w("The plain / blue / red marking is **not a per-number provenance "
+      "record**. It is a text-proximity test: a property keyword must appear "
+      "within %d characters of a document marker in that profile's own prose, "
+      "with a %d-character backward scan for a negation. That has two "
+      "consequences a reader must know about." % (PROX_CHARS, NEG_WINDOW))
+    w("")
+    w("**1. A marking can be right about the PROPERTY CLASS and wrong about "
+      "the PRINTED NUMBER.** Three columns were tightened on 2026-08-27 for "
+      "exactly this, after the report was audited:")
+    w("")
+    w("| Column | What went wrong | Fix applied |")
+    w("|---|---|---|")
+    w("| Exposure Latitude, Dynamic Range | Both print figures **derived from "
+      "the stored curve** (`(shoulder_x-toe_x)*3.3219` and "
+      "`dmin+gamma*(shoulder_x-toe_x)`). Twelve cells read as documented "
+      "because a sheet quoted a latitude range or a Dmax — a different number, "
+      "measured a different way | both now require the H&D cell to be "
+      "documented too |")
+    w("| Additional Physical Properties | The key fires on \"Wratten\", "
+      "\"filter factor\", \"shrinkage\", \"curl\" — real documented "
+      "properties that say nothing about the reciprocity, vignette and buckle "
+      "this cell actually prints. `EASTMANCOLOR_5248_1953` printed a **unity "
+      "reciprocity default** in plain type on the strength of a documented "
+      "Wratten 85 factor | now also requires the reciprocity to come from a "
+      "datasheet override, a measured table, or a documented onset |")
+    w("| Film Base Properties, Additional Physical | `remjet` and "
+      "`anti-halation` were keywords for both. A rem-jet backing says nothing "
+      "about base tint or reciprocity; it was crediting `CINESTILL_800T`'s "
+      "estimated `base_tint` and unity reciprocity, and `GEVACHROME_600`'s "
+      "generic reversal reciprocity, as measurements | both keywords removed |")
+    w("")
+    w("**⚠ ONE CASE OF THIS IS KNOWN AND NOT YET FIXED.** *Film Grain "
+      "Characteristics* prints **clump diameter in micrometres, clump gain and "
+      "fog grain**, but its evidence key fires on QUALITATIVE structure words "
+      "— \"cubic\", \"tabular\", \"T-grain\", \"crystal\". Datasheets "
+      "print the grain TYPE routinely and the clump DIAMETER essentially "
+      "never: the `GrainSpec` docstring states that clump diameter depends on "
+      "development gamma and gives `ILFORD_PAN_F` as the one worked conversion "
+      "from a real measurement. So of the %d stocks whose grain cell prints "
+      "plain, the documented fact is generally the grain type, not the "
+      "micrometre figures beside it. **Read that column as "
+      "\"structure documented\", not \"these micrometres measured\"** until "
+      "it is split." % sum(1 for _q in fp.FILM_PROFILES
+                           if _evs[_q.name]["grain"] == "+"))
+    w("")
+    w("**2. The proximity window makes some marks distance-luck.** Two grain "
+      "cells (`KODAK_PORTRA_800`, `KODAK_TRI_X_400TX`) changed from plain to "
+      "estimate on 2026-08-27 for no evidential reason at all: inserting a "
+      "`HalationSpec` literal into those profiles pushed their description "
+      "further than %d characters from the nearest document marker. The new "
+      "value is the correct one — no sheet prints their clump diameters — but "
+      "the mechanism was luck, not judgement. A marking near the window edge "
+      "is weaker than one deep inside it, and this file cannot show you "
+      "which is which." % PROX_CHARS)
+    w("")
+    w("**3. Prose that DESCRIBES evidence is not evidence, and is now excluded "
+      "explicitly.** Nine profiles carry a comment explaining why the FilmLab "
+      "Pro published-data engine was rejected for everything except one "
+      "halation scalar. That comment contains the words \"digitized\" and "
+      "\"manufacturer publications\", and the scan read them as proof that "
+      "those stocks' characteristic curves had been traced — printing **five "
+      "estimated H&D curves as documented measurements** "
+      "(`AGFA_VISTA_200`, `ILFORD_HP5_PLUS_400`, `KODAK_EKTAR_100`, "
+      "`KODAK_TMAX_P3200`, `KODAK_TRI_X_400TX`). Such runs now carry a "
+      "`[NON-EVIDENCE]` sentinel and are deleted from the scan. ⚠ The first "
+      "attempt matched the PHRASES instead of a sentinel and deleted a "
+      "genuine `[T1]` traced sigma(D) on `KODAK_VISION3_50D_5203`, because "
+      "real evidence hedges with the same words — hence the explicit marker.")
+    w("")
     w("### Units and meaning, column by column")
     w("")
     w("| Column | Contents |")
@@ -685,7 +1047,17 @@ def main() -> int:
       "-- '*Read at a net diffuse visual density of 1.0, using a 48-micrometre "
       "aperture' (5248 p1, 5222 p1). Schema v9 pinned this: the renderer "
       "reproduces the stored figure at exactly that density. Brackets = "
-      "per-layer |")
+      "per-layer. A trailing **`[PGI ...]`** is KODAK **Print Grain Index**, "
+      "which the E-series STILL-film sheets publish *instead of* rms: 25 is the "
+      "visual threshold, 4 units is a just-noticeable difference to 90 % of "
+      "observers, higher is grainier, and the three values are the 4x6 / 8x10 / "
+      "16x20 inch print sizes at the magnifications the method fixes for that "
+      "negative format. `<25` is the sheet's own published bound, not a zero. "
+      "⚠ PGI is NOT an rms figure in other units and this report does not "
+      "convert it -- Kodak states it \"cannot be compared to rms granularity\" "
+      "and KODAK E-58, which defines the method, declines to publish the "
+      "transformation. That is why the rms value beside a PGI bracket is still "
+      "marked as an estimate |")
     w("| Grain sigma(D) Shape | sigma multipliers at D=dmin / D=1.0 / D=dmax "
       "describing how granularity varies with density, plus the stored INTERIOR "
       "PEAK where one is measured. `-` = the legacy sqrt(D-dmin) law, which is "
@@ -710,6 +1082,18 @@ def main() -> int:
       "bit-for-bit. Both laws pass through 0.5 at f50 exactly, so a measured "
       "rolloff changes shape and never level |"
       % sum(1 for q in fp.FILM_PROFILES if q.mtf.mtf_measured))
+    w("| Halation | per-channel gain, the three Gaussian lobe radii in "
+      "micrometres, and the threshold in stops above mid-grey at which the "
+      "effect starts. `off` means the effect is switched off for this stock "
+      "(`Feature.HALATION` unset and all three gains 0.0) -- that is a "
+      "modelling decision, not a missing measurement. A `[3rd-party T3]` tag "
+      "marks a gain and threshold imported from the FilmLab Pro published-data "
+      "engine on 2026-08-27 (hand-authored, not measured -- `NotFound.md` "
+      "S7.1a); the radii on those nine stocks are the schema default, because "
+      "that source's radius is a fraction of image dimension and is not "
+      "convertible to micrometres. ⚠ ONLY FIVE STOCKS HAVE A MEASURED "
+      "HALATION FIGURE and they are the only ones that print plain; every "
+      "other populated cell is the model's own estimate |")
     w("| Film Base Properties | base transmittance tint R/G/B, base material "
       "when notable |")
     w("| Emulsion Properties | layer architecture, dye cloud size, channel "

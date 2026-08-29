@@ -94,7 +94,42 @@ KNOWN LIMITS, stated rather than discovered later
     instance -- which is the evidence the pending schema decision needs (whether
     to carry an as-printed neutral+Dmin pair), not an extractor bug.
 
-    5246 p5 remains out, with a sharper reason than the one recorded before:
+    5246 p5 IS REFUSED, AND AS OF 2026-08-26 THE ALTERNATIVES ARE EXCLUDED BY
+    MEASUREMENT RATHER THAN LEFT OPEN. Three explanations were on the table and
+    all three are now dead:
+      1. "A tolerance problem" -- no; see the peak detail kept below.
+      2. "A label-matching problem" -- no, and this was tested with the tool
+         built for exactly it. The MONO reader and geometric caption matcher
+         written on 2026-08-25/26 for the 7239 and 5222 panels -- which associate
+         a caption with the curve directly beneath it -- were pointed at this
+         panel and do not resolve it either. THE LABELS ARE PLACED IN WHITESPACE,
+         NOT ON CURVES: "Cyan" sits at 558 nm, where the cyan dye is at 0.37 and
+         four other traces lie within 0.2 D of it; "Magenta" sits at 681 nm, on
+         the magenta tail rather than near its 542 nm peak. No positional rule
+         can work on a legend laid out this way, and that is a property of the
+         SHEET, not of the reader.
+      3. "Two products on one plate" -- the most attractive explanation, since
+         this sheet's header names 5246 AND 7246, and it is now EXCLUDED. Two
+         products would pair the traces into near-parallel couples. They do not:
+         over every shared span the closest pair has standard deviation 0.103 D
+         and a range of 0.330 D across 451-670 nm, and the next closest has mean
+         difference -0.016 D with sd 0.120 -- a CROSSING, not an offset. There is
+         no pairing structure to find.
+    ⚠ WHAT THE PANEL ACTUALLY CONTAINS, counted at one sample per 20 nm: SEVEN
+    solid traces coexist between 480 and 580 nm, plus one dashed, against FIVE
+    legend entries (Yellow, Magenta, Cyan, Midscale Neutral, Minimum Density).
+    Two solid traces are unaccounted for by the legend, and the family-C identity
+    `Neutral - Dmin = k(C+M+Y)` fails in every assignment tried: the best
+    combination returns coefficients spread 136 % where 5201 gave 5.4 %.
+    ⚠ The dashed trace IS identifiable and is the only one that is: Minimum
+    Density, by shape (0.97 at 450 nm falling to 0.15 at 700 -- a masked
+    negative's mask) and by being the one label whose nearest trace is
+    unambiguous, 0.077 D against 0.512 for the runner-up.
+    ⚠ SO THIS SHEET IS NOT BLOCKED ON THIS EXTRACTOR. It needs a statement of
+    what its two extra traces are, which no amount of tracing can supply. Queue
+    B1 listed it as "path proven, no dependency"; that was wrong and is corrected.
+
+    The earlier record, kept because the peak detail is still true:
       * The panel draws SEVEN traces and labels FIVE. Nearest-label assignment
         resolves Yellow -> a trace peaking 1.008 at 446 nm and Magenta -> 1.006
         at 542 nm, both unit-peak as the panel's own note requires ("Cyan,

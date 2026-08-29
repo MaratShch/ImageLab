@@ -134,6 +134,61 @@ FIGURES = {
     ),
 }
 
+#: The DYE-DENSITY figures, kept in their own table because they are read by a
+#: different procedure end to end: no tone-curve fit, no inherited abscissa, no
+#: B/G/R ordering rule (these three curves cross five times), and a wavelength
+#: axis instead of a log-exposure one. Sharing FIGURES' loop would have meant a
+#: branch at every step of it.
+#:
+#: ⚠ ALL PIXEL COORDINATES ARE REGION-RELATIVE and were located with the same
+#: detectors that re-verify them on every run (`fig8_ticks`). They are pinned for
+#: the reason `fig10`'s are: an unaided detector on a 1-bit scan also finds the
+#: rule above the figure and the axis captions, and a silently-wrong anchor
+#: rescales a curve with nothing to disagree with it.
+DYE_FIGURES = {
+    "fig8": dict(
+        doc="n682", page=1, region=(1450, 1880, 2250, 2420),
+        profile="GEVACOLOR_NEG_682",
+        title='Fig. 8 "Spectral density curves of the three dyes formed in '
+              'the emulsions"',
+        printed_page=651,
+        # the plot frame's interior, region-relative
+        frame=(143, 22, 718, 421),
+        # WAVELENGTH ticks: the frame edges at 350 and 700 plus six interior
+        # ticks at 50 nm. Only 400 / 500 / 600 / 700 are printed as numbers; the
+        # rest are unlabelled ticks whose VALUES follow from the even 50 nm
+        # spacing, and the calibration residual is what tests that reading.
+        lam_ticks={350: 139.5, 400: 221.0, 450: 304.0, 500: 389.0,
+                   550: 471.0, 600: 553.5, 650: 638.0, 700: 722.0},
+        # DENSITY ticks: 2.0 is the top frame edge. 0.0 is NOT pinned -- the "0"
+        # tick sits within 2 px of the bottom frame line and the two cannot be
+        # told apart, so the axis is fitted from the four unambiguous anchors and
+        # zero is where that fit puts it (row 423.8 against a frame line at
+        # 425.5, i.e. 0.008 D apart -- recorded, not corrected).
+        d_ticks={2.0: 17.0, 1.5: 120.0, 1.0: 221.5, 0.5: 321.5},
+        # Seeded at the leftmost column clear of the tick stubs, where the three
+        # curves are 0.11 D and 0.29 D apart. See `merge_px` in dashtrace for why
+        # the crossings do not need to be seeded around.
+        seed_x=152, merge_px=9.0,
+    ),
+}
+
+#: Measured 2026-08-25. Peaks are the whole validation: the paper PRINTS its dye
+#: peaks, so this is an external check in the same class as fig10's printed gamma.
+EXPECTED_DYE = {
+    "fig8": dict(
+        # traced, in (cyan, magenta, yellow) order
+        peaks_nm=(683.1, 522.1, 445.9),
+        peaks_d=(1.459, 1.474, 1.462),
+        # PRINTED in the paper, read 2026-08-19 (queue item G3/G7)
+        printed_nm=(687.0, 525.0, 448.0),
+        printed_d=(1.46, 1.48, 1.46),
+        tol_nm=6.0, tol_d=0.03,
+        # the in-figure glyph labels C / M / Y, by position only
+        labels_nm=(683.0, 528.0, 448.0), tol_label_nm=8.0,
+    ),
+}
+
 #: Measured 2026-08-19. --assert fails if a figure stops reproducing these.
 EXPECTED = {
     "fig10": dict(
@@ -411,6 +466,152 @@ def trace_three(gray, ink, region, axis, seed_gap, top_rule=None):
     return {k: {**rev[k], **fwd[k]} for k in names}, seed
 
 
+#: The stored dye-density grid. `SpectralDyeDensity` defaults to 400 nm / 10 nm
+#: and every adopted set in the database uses 31 samples to 700 nm.
+DYE_GRID = np.arange(400.0, 701.0, 10.0)
+
+
+def fig8_ticks(ink, spec):
+    """Re-detect the pinned tick pixels and report how far each one moved.
+
+    Same contract as `verify_anchor` on the characteristic figures: the anchors
+    are pinned so the calibration is reproducible, and re-detected every run so a
+    pinned anchor that no longer sits on ink fails loudly instead of quietly
+    rescaling a curve. Returns (worst wavelength drift, worst density drift) in
+    pixels, or raises if a tick cannot be found at all.
+    """
+    x0, y0, x1, y1 = spec["frame"]
+
+    def _groups(mask, axis):
+        s = mask.sum(axis)
+        idx = np.where(s >= 4)[0]
+        out, cur = [], []
+        for i in idx:
+            if cur and i - cur[-1] <= 3:
+                cur.append(i)
+            else:
+                if cur:
+                    out.append(float(np.mean(cur)))
+                cur = [i]
+        if cur:
+            out.append(float(np.mean(cur)))
+        return out
+
+    lam_found = _groups(ink[y0 - 3:y0 + 10, :], 0)
+    d_found = _groups(ink[:, x1 - 12:x1 + 4], 1) + _groups(ink[:, x0 - 3:x0 + 12], 1)
+    worst_lam = worst_d = 0.0
+    for val, px in spec["lam_ticks"].items():
+        if not lam_found:
+            raise SystemExit("[!] fig8: no wavelength ticks detected at all")
+        near = min(lam_found, key=lambda f: abs(f - px))
+        if abs(near - px) > 4.0:
+            raise SystemExit(f"[!] fig8: pinned wavelength tick {val} nm at col "
+                             f"{px} has no ink within 4 px (nearest {near:.1f})")
+        worst_lam = max(worst_lam, abs(near - px))
+    for val, px in spec["d_ticks"].items():
+        near = min(d_found, key=lambda f: abs(f - px))
+        if abs(near - px) > 4.0:
+            raise SystemExit(f"[!] fig8: pinned density tick {val} at row {px} "
+                             f"has no ink within 4 px (nearest {near:.1f})")
+        worst_d = max(worst_d, abs(near - px))
+    return worst_lam, worst_d
+
+
+def fig8_label_glyphs(ink, spec, lam_of):
+    """Wavelengths of the printed C / M / Y letters, ascending.
+
+    ⚠ THIS IS AN INDEPENDENT CHECK AND NOT AN OCR. Which letter is which is never
+    read; only WHERE the three letters are. The figure prints one letter above
+    each peak, so three glyphs at three wavelengths that coincide with the three
+    traced peaks is a statement by the paper that those peaks are the three dyes
+    -- in the same class as the in-frame captions on the Kodak 7239 panel, and
+    for the same reason: it is the source's own words about its own curves.
+    """
+    x0, y0, x1, y1 = spec["frame"]
+    band = np.zeros_like(ink)
+    band[y0 + 68:y0 + 103, x0:x1] = ink[y0 + 68:y0 + 103, x0:x1]
+    lab, info = dt._components(band)
+    out = []
+    for i, (w, h, _c) in info.items():
+        if w < 30 and h >= 8:
+            ys, xs = np.where(lab == i)
+            out.append(lam_of(float(xs.mean())))
+    return sorted(out)
+
+
+def extract_fig8(gray, spec):
+    """The three dye-density curves of Gevacolor 682, on `DYE_GRID`.
+
+    Returns (curves, diagnostics). `curves` is {"c"/"m"/"y": array on DYE_GRID}.
+
+    ⚠ THE LAYER NAMES COME FROM THE PEAKS, NOT FROM THE SEED ORDER. The three
+    tracks are seeded left to right by position and are then named by which
+    absorption band their peak falls in -- cyan reddest, yellow bluest. That is
+    the same rule the vector readers use, it is checked against the paper's own
+    printed peak wavelengths, and it is checked again against the position of the
+    printed C / M / Y letters. Naming by seed order would have been wrong here:
+    at the left edge the CYAN curve is the top one and the MAGENTA the bottom.
+    """
+    region = spec["region"]
+    sub = gray[region[1]:region[3], region[0]:region[2]]
+    ink = sub < DARK
+    x0, y0, x1, y1 = spec["frame"]
+
+    drift_lam, drift_d = fig8_ticks(ink, spec)
+    lm, lc, lres = calibrate(list(spec["lam_ticks"].values()),
+                             list(spec["lam_ticks"].keys()), "wavelength axis")
+    dm, dc, dres = calibrate(list(spec["d_ticks"].values()),
+                             list(spec["d_ticks"].keys()), "density axis")
+    lam_of = lambda px: lm * px + lc          # noqa: E731
+    d_of = lambda px: dm * px + dc            # noqa: E731
+
+    seed_x = spec["seed_x"]
+    runs = sorted(c for c, _t in
+                  dt.column_runs_weighted(ink, sub, seed_x, y0, y1 + 3))
+    if len(runs) != 3:
+        raise SystemExit(f"[!] fig8: the seed column {seed_x} shows {len(runs)} "
+                         f"ink runs, not 3")
+    tracks = dt.trace_predictive(ink, sub, (seed_x, x1 + 3), y0, y1 + 3, seed_x,
+                                 {"t0": runs[0], "t1": runs[1], "t2": runs[2]},
+                                 direction=+1, tol0=3.5, tol_grow=0.9,
+                                 max_bridge=34, hist=16, slope_cap=2.5,
+                                 merge_px=spec["merge_px"])
+    traced = {}
+    for k, t in tracks.items():
+        if not t:
+            raise SystemExit(f"[!] fig8: track {k} died at the seed")
+        px = np.array(sorted(t), float)
+        traced[k] = (lam_of(px), d_of(np.array([t[q] for q in px], float)))
+    order = sorted(traced, key=lambda k: traced[k][0][int(np.argmax(traced[k][1]))])
+    names = dict(zip(order, ("y", "m", "c")))     # ascending peak wavelength
+
+    curves, peaks = {}, {}
+    for k, (lam, d) in traced.items():
+        n = names[k]
+        i = int(np.argmax(d))
+        peaks[n] = (float(lam[i]), float(d[i]))
+        # ⚠ OUTSIDE THE TRACED SPAN, HOLD AT ZERO -- AND ONLY THE YELLOW NEEDS IT.
+        # The yellow curve reaches the axis at about 583 nm and is thereafter
+        # indistinguishable from the axis line itself, so the trace stops at 572.
+        # The figure does show what happens next -- the curve runs along zero --
+        # so 0.0 is a reading of the plot rather than an extrapolation of the
+        # trace. Beyond 699 nm all three are extended by 1 nm to reach the grid's
+        # last sample, which is inside the line width.
+        v = np.interp(DYE_GRID, lam, d, left=float(d[0]), right=0.0)
+        v[DYE_GRID > lam[-1] + 2.0] = 0.0
+        if DYE_GRID[-1] - lam[-1] <= 2.0:
+            v[-1] = float(d[-1])
+        curves[n] = np.clip(v, 0.0, None)
+
+    labels = fig8_label_glyphs(ink, spec, lam_of)
+    diag = dict(lam_resid=lres, d_resid=dres, drift_lam=drift_lam,
+                drift_d=drift_d, peaks=peaks, labels=labels,
+                zero_row=float((0.0 - dc) / dm),
+                n=(len(traced["t0"][0]), len(traced["t1"][0]),
+                   len(traced["t2"][0])))
+    return curves, diag
+
+
 def fit_layer(x, d, *_ignored):
     """5-parameter fit with dmin PINNED to the measured plateau. See module head.
 
@@ -473,6 +674,8 @@ def main() -> int:
     ap.add_argument("--root", default="../..")
     ap.add_argument("--assert", dest="do_assert", action="store_true")
     ap.add_argument("--overlay", metavar="PNG")
+    ap.add_argument("--dump", action="store_true",
+                    help="print the dye arrays in film_profiles.py form")
     ns = ap.parse_args()
 
     root = Path(ns.root).resolve() / "PDF" / "PROFILES"
@@ -602,6 +805,62 @@ def main() -> int:
                             rgb[max(0, yi-1):yi+2, max(0, xi-1):xi+2] = cols[k]
                 Image.fromarray(rgb).save(out)
                 print(f"    overlay written to {out} (B blue, G green, R red)")
+
+        # ---- the dye-density figures ------------------------------------
+        for tag, spec in DYE_FIGURES.items():
+            pdf = root / DOCS[spec["doc"]][0]
+            if not pdf.is_file():
+                print(f"  [SKIP] {tag}: source not present: {pdf.name}")
+                continue
+            if spec["doc"] not in cache:
+                cache[spec["doc"]] = native_pages(pdf, tmp, spec["doc"])
+            gray = cache[spec["doc"]][spec["page"]]
+            print(f"[i] {tag}: {spec['title']}, printed p{spec['printed_page']}")
+            curves, diag = extract_fig8(gray, spec)
+            print(f"    wavelength {len(spec['lam_ticks'])} anchors re-verified "
+                  f"(worst drift {diag['drift_lam']:.1f} px), fit residual "
+                  f"{diag['lam_resid']:.2f} nm")
+            print(f"    density    {len(spec['d_ticks'])} anchors re-verified "
+                  f"(worst drift {diag['drift_d']:.1f} px), fit residual "
+                  f"{diag['d_resid']:.4f} D; zero falls on row "
+                  f"{diag['zero_row']:.1f}")
+            print(f"    samples per track: {diag['n']} (one per pixel column)")
+            want = EXPECTED_DYE.get(tag)
+            for i, n in enumerate(("c", "m", "y")):
+                lam, d = diag["peaks"][n]
+                print(f"    {n}: peak {d:.3f} D at {lam:.1f} nm", end="")
+                if want:
+                    plam, pd = want["printed_nm"][i], want["printed_d"][i]
+                    ok = (abs(lam - plam) <= want["tol_nm"]
+                          and abs(d - pd) <= want["tol_d"])
+                    print(f"   vs the paper's printed {pd:.2f} D at "
+                          f"{plam:.0f} nm -- {'OK' if ok else 'FAIL'}")
+                    if not ok:
+                        bad += 1
+                    if abs(lam - want["peaks_nm"][i]) > 1.0 or \
+                       abs(d - want["peaks_d"][i]) > 0.01:
+                        print(f"    [FAIL] {n} moved from the recorded "
+                              f"{want['peaks_d'][i]:.3f} D at "
+                              f"{want['peaks_nm'][i]:.1f} nm")
+                        bad += 1
+                else:
+                    print()
+            if want:
+                got = diag["labels"]
+                exp = sorted(want["labels_nm"])
+                ok = (len(got) == 3 and
+                      all(abs(a - b) <= want["tol_label_nm"]
+                          for a, b in zip(got, exp)))
+                print(f"    the printed C/M/Y letters sit at "
+                      f"{' / '.join(f'{v:.0f}' for v in got)} nm -- "
+                      f"{'OK' if ok else 'FAIL'}, one above each traced peak")
+                if not ok:
+                    bad += 1
+            if ns.dump:
+                for n, key in (("c", "d_cyan"), ("m", "d_magenta"),
+                               ("y", "d_yellow")):
+                    vals = ", ".join(f"{v:.3f}" for v in curves[n])
+                    print(f"            {key}=({vals}),")
 
     print()
     if bad:

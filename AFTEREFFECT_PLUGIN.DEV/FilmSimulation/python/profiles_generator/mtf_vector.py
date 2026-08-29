@@ -86,7 +86,19 @@ import granularity_vector as gv
 #: tag -> (pdf under PDF/PROFILES -- bare name = KODAK, else "MAKER/name.pdf",
 #: page, profile, frame hint x0,x1,y0,y1)
 SHEETS = {
+    # 2026-08-25, queue E0b-orig: the only colour REVERSAL sheet in the corpus
+    # whose MTF panel is vector art. Frame read off the page rather than guessed;
+    # the tuple order is (x0, x1, y0, y1), which is not the order PyMuPDF's Rect
+    # prints in and is worth stating because getting it wrong finds no curves.
+    "5285": ("Ektachrome_100d.pdf", 3, "KODAK_EKTACHROME_100D_5285",
+             (362.6, 565.1, 348.3, 501.3)),
     "5231": ("5231-PLUS-X.pdf", 3, "EASTMAN_PLUS_X_5231", (87, 289, 293, 446)),
+    # 2026-08-26, owner-supplied. H-1-5222 (July 2015) -- the FULL Kodak sheet
+    # for EASTMAN DOUBLE-X, where the corpus previously held only the short
+    # "technical information" extract. Black-and-white, so ONE curve, like its
+    # sister sheet 5231. The stored f50 triple was the flat estimate 56/56/56.
+    "5222": ("EASTMAN DOUBLE-X Negative Film 5222.pdf", 3,
+             "EASTMAN_DOUBLE_X_5222", (72.7, 275.3, 189.9, 342.9)),
     # 2026-08-20, queue C2b's first addition. H-1-5201 p3 prints the same plot
     # type for a COLOUR negative, so it carries THREE curves -- one per record --
     # where 5231 (a black-and-white stock) carries one. That is the whole point:
@@ -153,7 +165,38 @@ SHEETS = {
 #: A colour sheet pins one entry per record; a mono sheet pins the single curve
 #: under the key "-".
 EXPECTED = {
+    # ✅ ADOPTED 2026-08-25 (queue E0b-orig). The FIRST measured MTF for a colour
+    # REVERSAL stock in this database -- every other traced sheet is a negative.
+    # ⚠ AND IT IS THE LARGEST MTF CORRECTION THE PROJECT HAS MADE: the stored
+    # f50_g was the estimate 82.0 and the sheet measures 42.1, i.e. the estimate
+    # was 1.95x TOO SHARP. Red and blue had no stored value of their own at all.
+    # The layer order comes out R < G < B (27.2 / 42.1 / 60.9), which is the
+    # order MTFSpec's docstring predicts -- blue on top, red at the bottom under
+    # the most scattered light -- and is the second independent confirmation of
+    # it, after 5201.
+    # The power law beats the legacy Gaussian on all three records (3.5x, 1.9x
+    # and 1.4x better in rms), so q is stored and mtf_measured is set.
+    "5285": {
+        "R": dict(f50=27.2, peak=1.040, peak_at=2.4),
+        "G": dict(f50=42.1, peak=1.030, peak_at=7.8),
+        "B": dict(f50=60.9, peak=1.022, peak_at=8.8),
+    },
     "5231": {"-": dict(f50=41.3, peak=1.034, peak_at=4.6)},
+    # ✅ ADOPTED 2026-08-26. EASTMAN DOUBLE-X, off the full H-1-5222 sheet the
+    # owner supplied; the corpus had only a short extract before.
+    # ⚠ THE STORED TRIPLE WAS THE FLAT ESTIMATE 56.0 / 56.0 / 56.0 -- 1.33x TOO
+    # SHARP. The measurement also lands within 2 % of its SISTER STOCK: PLUS-X
+    # 5231, the other Kodak black-and-white cine negative in this corpus, reads
+    # 41.3 off its own sheet against DOUBLE-X's 42.2. Two independent sheets,
+    # two independent traces, and the two films are two speeds of one design
+    # family -- which is the sort of agreement that was NOT available while both
+    # numbers were estimates (the old pair read 56.0 and 60.0).
+    # ⚠ ITS OVERSHOOT IS +25 %, the third largest traced, and it is PRINTED --
+    # verified on the --overlay render, where the traced points sit on the
+    # printed curve over its whole 2.4-98.5 cycles/mm extent. q is still adopted
+    # here, unlike 5279's +42 %: the power law fits at rms 0.076, inside the
+    # 0.0095-0.132 band of every accepted curve, where 5279 returned 0.25-0.34.
+    "5222": {"-": dict(f50=42.2, peak=1.250, peak_at=4.1)},
     "5201": {
         "R": dict(f50=32.1, peak=1.108, peak_at=2.5),
         "G": dict(f50=49.7, peak=1.157, peak_at=10.7),

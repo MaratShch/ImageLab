@@ -53,6 +53,7 @@ from film_profiles import (
     PrintStock,
     StockKind,
     ToneCurve,
+    RGBCurves,
 )
 
 __all__ = ["generate"]
@@ -526,6 +527,30 @@ struct TemporalSpec {
 /// Empty strings and zeros mean NOT STATED BY THE SOURCE, which is the honest
 /// value for most stocks: datasheets usually print a curve without naming the
 /// developer, and inventing one would be fabrication.
+/// Which of the two extreme development progress types a developer shows
+/// (schema v18, 2026-08-27, INERT). TRACED, not assumed -- see the field notes
+/// on ProcessingSpec.
+///
+///   Parallel (type A): developed silver is proportional to the PROPORTION of
+///     silver developed WITHIN EACH GRAIN. Worked example: colour developer
+///     CP-20 (a 4-amino-N-dialkylaniline).
+///   Granular (type B): developed silver is proportional to the NUMBER of
+///     FULLY DEVELOPED GRAINS. Worked example: D72 (metol-hydroquinone).
+///
+/// The distinction is quantified. Traced off Tani 1995 Figs. 7.8/7.9:
+/// for D72, density/fully-developed-fraction is 0.0160 at 3 min and 0.0152 at
+/// 9 min -- constant to 5 %, so D is proportional to the count. For CP-20 the
+/// same ratio moves 0.12 -> 0.043 over 2 -> 3 min, a factor of three, so it is
+/// not. This is the only source-supported reason two stocks with equal rms
+/// granularity can look different in their grain.
+enum class DevelopmentProgress : int32_t
+{
+    Unknown  = 0,   ///< default; changes nothing
+    Parallel = 1,   ///< type A
+    Granular = 2    ///< type B
+};
+
+
 struct ProcessingSpec
 {
     std::string developer;      ///< as printed, e.g. "ID-11"; "" = not stated
@@ -537,6 +562,189 @@ struct ProcessingSpec
     /// equal to the curve's gamma: contrast index is an average gradient over a
     /// stated log-exposure interval, gamma is a straight-line slope.
     float       contrast_index;
+    // -- schema v18 (2026-08-27), INERT --------------------------------------
+    /// Which progress type this developer shows. See DevelopmentProgress.
+    DevelopmentProgress progress;
+    /// Mean fraction of grains caught MID-DEVELOPMENT at any moment, 0..1.
+    /// Traced: ~0.45 for CP-20 (parallel), ~0.04 for D72 (granular)
+    /// [Tani Figs. 7.8/7.9]. 0 = not stated. THIS is the number a
+    /// developer-aware grain-noise model needs: it says how far the statistics
+    /// sit from a pure per-grain binary count.
+    float partial_fill_fraction;
+    /// Rate law coefficient in micrometres per minute, such that development
+    /// rate r (min^-1) = coeff / d (um), for PARALLEL development only.
+    /// 0.591 um/min, through-origin least squares on the three octahedral-AgBr
+    /// points of Tani Fig. 7.12. ⚠ MEANINGLESS FOR GRANULAR development, whose
+    /// rate is nearly INDEPENDENT of grain size -- 0 there, never a number.
+    float rate_size_coeff_um_min;
+};
+
+
+/// Provenance of ONE parameter, not of a whole profile (schema v18, INERT).
+///
+/// Until v18 provenance was per-PROFILE plus a source string on a few
+/// sub-structs, which is a lie whenever one scalar differs from the rest -- and
+/// it does: FUJI_NEOPAN_ACROS_100 is tier 1 and carries a tier-3 halation gain;
+/// KODAK_PORTRA_400 is tier 1 and its rms granularity is not a Kodak figure at
+/// all, because Kodak publish Print Grain Index for that film and no rms.
+///
+/// ⚠ SPARSE ON PURPOSE. An entry means "this parameter's provenance is KNOWN
+/// AND STATED". ABSENCE MEANS the profile-level tier is the best statement
+/// available -- which is a DIFFERENT CLAIM from "estimated" and must not be
+/// read as one.
+struct ParamSource
+{
+    /// Dotted path to the parameter, e.g. "grain.rms_granularity". Validated
+    /// against the live object on the Python side, so it cannot point at a
+    /// field that no longer exists.
+    std::string param;
+    int32_t     tier;        ///< 1|2|3 for THIS parameter; may differ from the profile's
+    /// "measured" | "traced" | "derived" | "spec_limit" | "estimated" | "assumed"
+    std::string status;
+    std::string unit;
+    /// The conditions the number is only valid under. ⚠ A granularity figure
+    /// without its aperture and density is not a number, it is a rumour.
+    std::string conditions;
+    std::string source;
+    std::string confidence;  ///< "high" | "medium" | "low"
+    std::string note;        ///< known bias, suspected error direction, what supersedes it
+};
+
+
+/// The SAME emulsion under a DIFFERENT process (schema v18, INERT).
+///
+/// NOT ProcessingFamily, which carries time-gamma POINTS inside ONE process.
+/// This is a different chemistry: CINESTILL 800T is KODAK VISION3 500T 5219,
+/// native process ECN-2, deliberately run in C-41 with the remjet stripped.
+/// That is not "5219 developed longer".
+///
+/// NOT a separate profile either: a second profile would duplicate the grain,
+/// MTF, spectral and layer data -- the same coating -- need its own enum slot,
+/// and lose the statement that the two ARE one emulsion.
+struct ProcessVariant
+{
+    std::string name;
+    std::string process;      ///< "ECN-2" | "C-41" | "E-6" | ...
+    /// True on the variant the profile's own stored `curves` represent. ⚠ THE
+    /// FIELD THAT MAKES THE RECORD HONEST: without it a reader cannot tell
+    /// which process the stored curves belong to.
+    bool        is_default;
+    bool        has_curves;   ///< false = inherit the profile's curves
+    RGBCurves   curves;       ///< meaningful only when has_curves
+    int32_t     exposure_index;   ///< 0 = inherit
+    float       gamma_scale;      ///< 1.0 = unchanged; ignored when has_curves
+    float       dmin_shift;
+    ProcessingSpec processing;
+    std::string source;
+};
+
+
+/// Crystal-level emulsion structure (schema v17, 2026-08-27, INERT).
+///
+/// The CAUSAL layer, not an observable. NOTHING IN EITHER RENDERER READS IT,
+/// and nothing should: a causal field that can move a pixel directly competes
+/// with the observable already describing the same thing, and the two will
+/// disagree. Its purpose is to let an offline generator step DERIVE or CHECK
+/// the observables in GrainSpec / MTFSpec / ToneCurve.
+///
+/// ⚠ grain_um IS A MEAN CRYSTAL DIAMETER AND IS NOT GrainSpec::clump_um_*.
+/// That is the mean DEVELOPED CLUMP diameter, which depends on development
+/// gamma (BBC T-101 refit: D_eq ~ gamma^0.425) and on density (-20 % across
+/// the tone scale). The two are different physical quantities.
+///
+/// All zeros with empty strings = no crystal data on file (144 of 161 stocks).
+struct EmulsionSpec
+{
+    float       grain_um;        ///< mean CRYSTAL diameter, um; 0 = not stated
+    float       size_sigma_log;  ///< crystal size-distribution width, log10; 0 = not stated
+    std::string habit;           ///< "cubic" | "octahedral" | "tabular" | ""
+    float       aspect_ratio;    ///< tabular only; 0 = n/a or not stated
+    float       iodide_mol_pct;  ///< AgI content; 0 = NOT STATED, not "pure AgBr"
+    std::string sensitization;   ///< "S" | "S+Au" | "reduction" | ""
+    float       coated_um;       ///< emulsion layer thickness, um; 0 = not stated
+    std::string source;
+};
+
+
+/// Values harvested from a NON-MANUFACTURER source, stored VERBATIM in that
+/// source's own units (schema v17, 2026-08-27, INERT).
+///
+/// ⚠ EVERY VALUE HERE IS TIER 3. A populated field is NOT evidence for the
+/// matching observable and must never be cited as one.
+///
+/// Why the record exists: some stocks have no manufacturer data and never will
+/// (CINESTILL_800T is the worked case -- proprietary emulsion, no data sheet).
+/// For those, a third-party number with a stated basis beats an in-house
+/// analogy. But what such a source publishes often CANNOT enter an observable
+/// field: halation_radius_norm is a fraction of the IMAGE DIMENSION rather than
+/// a length on film; dmax and latitude_stops are DERIVED here from the stored
+/// ToneCurve, so a second settable copy could contradict its own curve; and
+/// color_matrix / layer_curve_* are artifacts of the source's engine, applied
+/// at its own 0.18 and 35 % weights. Keeping them here loses nothing and
+/// misrepresents nothing.
+///
+/// NOTHING IN EITHER RENDERER READS THIS.
+struct ThirdPartyObservations
+{
+    float dmax;                     ///< published Dmax; compare ToneCurve-derived
+    float latitude_stops;           ///< published latitude; compare ToneCurve-derived
+    float speed_offset;             ///< source's own speed trim; semantics not stated
+    float saturation;               ///< source's own scalar; semantics not stated
+    float vignette;                 ///< source's own scale -- NOT stops
+    float halation_intensity;
+    /// ⚠ A FRACTION OF THE IMAGE DIMENSION, not micrometres. This field exists
+    /// so the number never reaches HalationSpec::radii_um.
+    float halation_radius_norm;
+    float halation_threshold_norm;  ///< source's 0-1 scale, not stops
+    std::array<float, 3> halation_tint;
+    std::array<float, 3> orange_mask;
+    /// 3x3 row-major "unwanted dye absorptions weighted by local density".
+    /// A DIFFERENT quantity from InterimageSpec, which is derived through the
+    /// US5273870A measurement protocol.
+    std::array<std::array<float, 3>, 3> crosstalk;
+    std::array<std::array<float, 3>, 3> color_matrix;
+    /// (speed_shift, curve_gamma, toe_gamma, shoulder_gamma) -- RELATIVE
+    /// multipliers in the source's parameterisation, applied at 35 % strength.
+    /// NOT our toe_x / toe_k / shoulder_x / shoulder_k.
+    std::array<float, 4> layer_curve_r;
+    std::array<float, 4> layer_curve_g;
+    std::array<float, 4> layer_curve_b;
+    /// (shadow_bias, midtone, highlight_bias). The source states no definition,
+    /// units or measurement basis for any of the three.
+    std::array<float, 3> grain_bias;
+    std::string source;
+};
+
+
+/// Published push / pull processing latitude (schema v16, 2026-08-27, INERT).
+///
+/// WHY THIS IS NOT A FIELD ON ProcessingSpec. ProcessingSpec describes the ONE
+/// development condition the stored characteristic curve represents -- one
+/// developer, one dilution, one time, one temperature. Push latitude is a claim
+/// about a FAMILY of other conditions the film tolerates. Written next to a
+/// single time it would read as applying to that time, which no source means.
+/// ProcessingFamily is also wrong: it carries measured time-gamma POINTS, and a
+/// vendor sentence is not a point on that curve.
+///
+/// NOTHING IN EITHER RENDERER READS THIS. Carried, validated and reported, as
+/// schema v7 introduced dye_density and friends.
+///
+/// ⚠ base_fog_penalty_per_stop == 0.0f IS AMBIGUOUS ON ITS OWN. It means either
+/// "no source states one" or "a source states there is none", and those are
+/// different facts. fog_penalty_stated is what separates them. The distinction
+/// is not hypothetical: the one stock carrying this record, CINESTILL_800T,
+/// exists here BECAUSE its vendor makes the negative claim -- "push processed
+/// up to 3 stops further without any base fog issues". Same class of problem as
+/// the v15 PrintGrainIndex censoring sentinel, solved the same way.
+struct PushSpec
+{
+    float max_push_stops;             ///< stated max OVERdevelopment, stops; 0 = not stated
+    float max_pull_stops;             ///< stated max UNDERdevelopment, positive stops; 0 = not stated
+    float base_fog_penalty_per_stop;  ///< D added to base+fog per pushed stop; see the note above
+    bool  fog_penalty_stated;         ///< true only if a source spoke about the penalty at all
+    float gamma_gain_per_stop;        ///< fractional gamma rise per pushed stop; 0 = not stated
+    float speed_gain_per_stop;        ///< fraction of each pushed stop realised as true speed, 1.0 = all
+    std::string source;               ///< required as soon as any number above is non-zero
 };
 
 
@@ -566,6 +774,35 @@ struct AgingSpec {
     float dust_area_ppm;       ///< dust coverage, ppm of frame area
     float mottle_amplitude;    ///< storage mottle amplitude, density fraction
     float mottle_scale_mm;     ///< storage mottle spatial scale, millimetres
+};
+
+/// Published Arrhenius dark-fade predictions (schema v12, INERT).
+///
+/// A RATE, NOT A STATE, which is why this is separate from AgingSpec: that
+/// struct records how much fade a piece of film has already suffered, this one
+/// how long a given loss takes at a stated storage temperature. Converting
+/// between them needs an elapsed-time input no renderer here has.
+///
+/// THE PUBLISHED FIGURES ARE CENSORED. Manufacturers print ">100" for every
+/// record that outlives the test, which is a lower bound, not a measurement:
+///     censor_years > 0   this struct holds data, and that is the bound
+///     a field == 0.0f    "greater than censor_years", i.e. censored
+///     a field  > 0.0f    the published figure, in years
+/// Storing 100 for a ">100" would let later arithmetic average a bound as if
+/// it were a measurement, which is the one mistake this encoding prevents.
+struct DyeStabilitySpec {
+    float reference_temp_c;  ///< storage temperature the years below refer to
+    float censor_years;      ///< the ">" bound printed; 0 = no data at all
+    float loss_c;            ///< years to 0.10 D loss, COLOUR SEPARATION cyan
+    float loss_m;            ///< ... magenta
+    float loss_y;            ///< ... yellow
+    float loss_r;            ///< years to 0.10 D loss on a NEUTRAL, red record
+    float loss_g;            ///< ... green
+    float loss_b;            ///< ... blue
+    float dmin_gain_r;       ///< years to 0.10 D GAIN at D-min (staining), red
+    float dmin_gain_g;       ///< ... green
+    float dmin_gain_b;       ///< ... blue
+    std::string source;      ///< full citation, including the censoring note
 };
 
 /// Sampled spectral sensitivity curves digitised from manufacturer datasheet
@@ -761,9 +998,26 @@ struct SpectralDyeDensity {
     std::vector<double> d_neutral;
     std::string normalisation;  ///< "peak_1.0"|"midscale_neutral"|"as_printed_status_a"
     std::string source;
+    // -- schema v14 (2026-08-26) --------------------------------------------
+    /// The MINIMUM-DENSITY trace: on a masked colour negative, the orange mask
+    /// -- high in blue, falling to near nothing in red.
+    ///
+    /// Some sheets never plotted the three dyes. H-1-5248 p3 draws exactly two
+    /// traces and says so in words ("Typical densities for a midscale neutral
+    /// subject and D-min."); Fuji's Super-F 8532 sheet does the same. So there
+    /// are TWO legal shapes for this struct and nothing in between: the three
+    /// separated dyes, or a neutral + D-min pair with no dye curves.
+    ///
+    /// hasData() still means "the three dyes are present" and is deliberately
+    /// FALSE for a neutral pair -- use hasNeutralPair(). Any consumer counting
+    /// "stocks with spectral dye density" keeps the meaning it always had.
+    std::vector<double> d_dmin;
 
     bool hasData() const {
         return !d_cyan.empty() && !d_magenta.empty() && !d_yellow.empty();
+    }
+    bool hasNeutralPair() const {
+        return !d_neutral.empty() && !d_dmin.empty() && !hasData();
     }
 };
 
@@ -791,6 +1045,14 @@ struct DevelopmentPoint {
     double contrast_index;
     double gamma;
     int    exposure_index;
+    // -- schema v13 (2026-08-26), INERT --------------------------------------
+    /// Base+fog at THIS development condition; 0 = not stated by the source.
+    ///
+    /// ToneCurve::dmin is one number and therefore describes one development
+    /// condition. Nothing said which, or that fog moves with development at
+    /// all -- it does: DOUBLE-X 5222's five traced curves give 0.231 / 0.233 /
+    /// 0.233 / 0.275 / 0.296 at 4 / 5 / 6.5 / 9 / 12 minutes in D-96.
+    double base_fog;
 };
 
 /// The whole published processing axis, not the single condition recorded in
@@ -814,6 +1076,35 @@ struct ReciprocityTable {
     std::string source;
 
     bool hasData() const { return !times_s.empty(); }
+};
+
+/// KODAK Print Grain Index as published, per negative format. Rows are the
+/// three standard print sizes IN ORDER -- 4x6, 8x10, 16x20 inches -- at the
+/// magnifications the method fixes for that negative size.
+///
+/// PGI is what the KODAK still-film sheets print INSTEAD of rms granularity.
+/// 25 is the visual threshold, a 2-unit difference is a 50% just-noticeable
+/// difference and 4 units a 90% one, higher is grainier (KODAK E-58).
+///
+/// ⚠ NOT CONVERTIBLE TO rms GRANULARITY. Every sheet carrying it states that it
+/// "replaces rms granularity and has a different scale which cannot be compared
+/// to rms granularity", and E-58 declines to publish the transformation -- its
+/// first step alone depends on four properties of the PRINT PAPER that are
+/// nowhere in this schema. Do not build a conversion here.
+///
+/// ⚠ 0.0 IS THE CENSORING SENTINEL, NOT A VALUE. The sheets publish "Less than
+/// 25" wherever the method returns a sub-threshold number, so 0.0 means "the
+/// published figure is a bound, and the bound is 25". An EMPTY vector means the
+/// sheet prints nothing for that format at all, which is a different fact.
+struct PrintGrainIndex {
+    std::vector<double> fmt_135;
+    std::vector<double> fmt_120;
+    std::vector<double> fmt_sheet;
+    std::string source;
+
+    bool hasData() const {
+        return !fmt_135.empty() || !fmt_120.empty() || !fmt_sheet.empty();
+    }
 };
 
 /// One measured unwanted/useful density ratio. Soviet TU specifications print
@@ -961,6 +1252,26 @@ struct FilmProfile {
     ProcessingFamily   processing_family;
     ReciprocityTable   reciprocity_table;
     DyeImpurity        dye_impurity;
+    // -- schema v15 (2026-08-26), INERT --------------------------------------
+    /// Published Print Grain Index. See the struct note: this is NOT an rms
+    /// granularity in other units and must not be converted into one.
+    PrintGrainIndex    print_grain_index;
+    // -- schema v16 (2026-08-27), INERT --------------------------------------
+    /// Published push / pull processing latitude. All zeros with an empty
+    /// source on 160 of the 161 stocks: nobody has published one. See the
+    /// struct note for why this is not a ProcessingSpec field.
+    PushSpec           push;
+    // -- schema v17 (2026-08-27), BOTH INERT ---------------------------------
+    /// Crystal-level structure. CAUSAL layer -- never read by a renderer.
+    EmulsionSpec           emulsion;
+    /// Tier-3 values from a non-manufacturer source, verbatim in that source's
+    /// own units. Never evidence for the matching observable.
+    ThirdPartyObservations third_party;
+    // -- schema v18 (2026-08-27), BOTH INERT ---------------------------------
+    /// Per-parameter provenance. SPARSE -- absence is not a claim. See struct.
+    std::vector<ParamSource>    param_sources;
+    /// The same emulsion under a different chemistry. See struct.
+    std::vector<ProcessVariant> process_variants;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -985,6 +1296,34 @@ struct PrintStock {
     // -- schema v7 (2026-08-17), INERT ------------------------------------
     /// Spectral dye density of the print dyes. Carried, never read.
     SpectralDyeDensity dye_density;
+    // -- schema v12 (2026-08-25), INERT -----------------------------------
+    /// Storage damage. All zeros = fresh, as on FilmProfile. Added because
+    /// PrintStock had no aging carrier at all, which was a gap and not a
+    /// decision -- the same shape of gap the v7 bump closed for dye_density.
+    AgingSpec aging;
+    /// Published Arrhenius dark-fade predictions. See DyeStabilitySpec for
+    /// why this is not part of `aging`: that holds a state, this a rate.
+    DyeStabilitySpec dye_stability;
+    // -- schema v13 (2026-08-26), INERT -----------------------------------
+    /// PER-RECORD f50 in cycles/mm, when a sheet publishes three MTF curves.
+    ///
+    /// A 0.0 here means CENSORED -- "this sheet does not reach 50 % response
+    /// for that record" -- and mtf_f50_bound then carries the frequency the
+    /// record is known to exceed. It does NOT mean zero and does NOT mean
+    /// unknown. Same idiom as DyeStabilitySpec at v12, and for the same
+    /// reason: storing a bound as a value lets later arithmetic average it.
+    ///
+    /// Measured case, H-1-2254: green and red never reach 50 % (their curves
+    /// stop at 82.2 cycles/mm at 53.1 % and 50.6 %), blue crosses at 51.9.
+    /// The legacy `mtf_f50` scalar above is deliberately left as it was: it is
+    /// what the reference renderer reads, and no single number is right about
+    /// a set spanning a factor of 1.6. A consumer that finds this triple
+    /// populated should prefer it and fall back to the scalar on a 0.0.
+    float mtf_f50_r;
+    float mtf_f50_g;
+    float mtf_f50_b;
+    float mtf_f50_bound;   ///< frequency a censored record is known to exceed
+    bool  mtf_measured;    ///< at least one of the three is off a plot
 
 };
 
@@ -1139,7 +1478,8 @@ def _dye_density(dd) -> str:
         + f"{_d(dd.lambda_start_nm)}, {_d(dd.lambda_step_nm)}, "
         + f"{_dvec(dd.d_cyan)}, {_dvec(dd.d_magenta)}, "
         + f"{_dvec(dd.d_yellow)}, {_dvec(dd.d_neutral)}, "
-        + f'"{_escape(dd.normalisation)}", "{_escape(dd.source)}"'
+        + f'"{_escape(dd.normalisation)}", "{_escape(dd.source)}", '
+        + f"{_dvec(dd.d_dmin)}"
         + " }"
     )
 
@@ -1161,7 +1501,8 @@ def _processing_family(pf) -> str:
         "{ "
         + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
         + f"{_d(q.minutes)}, {_d(q.celsius)}, "
-        + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}"
+        + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}, "
+        + f"{_d(q.base_fog)}"
         + " }"
         for q in pf.points)
     return "{ { " + pts + f' }}, "{_escape(pf.source)}"' + " }"
@@ -1172,6 +1513,15 @@ def _reciprocity_table(rt) -> str:
         "{ "
         + f"{_dvec(rt.times_s)}, {_dvec(rt.stops_correction)}, "
         + f'{_svec(rt.cc_filters)}, "{_escape(rt.source)}"'
+        + " }"
+    )
+
+
+def _print_grain_index(g) -> str:
+    return (
+        "{ "
+        + f"{_dvec(g.fmt_135)}, {_dvec(g.fmt_120)}, {_dvec(g.fmt_sheet)}, "
+        + f'"{_escape(g.source)}"'
         + " }"
     )
 
@@ -1290,6 +1640,169 @@ def _reciprocity(r) -> str:
     )
 
 
+_PROGRESS_CPP = {0: "DevelopmentProgress::Unknown",
+                 1: "DevelopmentProgress::Parallel",
+                 2: "DevelopmentProgress::Granular"}
+
+
+def _param_sources(seq) -> str:
+    """std::vector<ParamSource> initialiser (schema v18).
+
+    ⚠ THE `note` FIELD IS EMITTED EMPTY, DELIBERATELY, AND THE STRUCT STILL
+    HAS IT. Changed 2026-08-27 (task EM-A6) when per-parameter provenance was
+    extended from 52 entries to 1463 and codegen hit its own capacity stop:
+    slot 01 reached 120 961 bytes against a 112 000 ceiling.
+
+    THE CEILING WAS RIGHT AND WAS NOT RAISED. Raising `N_DATA_SLOTS` is a
+    deliberate manual step because every new `film_profiles_data_NN.cpp` has to
+    be added to the Visual Studio project by hand, and it would have been the
+    wrong fix here: 642 KB of ParamSource text was heading into the runtime
+    database, 324 KB of it PROSE NOTES, and nothing in the plugin reads any of
+    it. A grep across the whole C++ tree finds `param_sources` in exactly one
+    place -- the generated header that declares it.
+
+    WHAT THE C++ KEEPS: the provenance CLASSIFICATION -- param, tier, status,
+    unit, conditions, source, confidence. Everything a consumer could branch on
+    survives, so a future reader of the database can still tell a measured
+    value from an assumed one and can still print the citation.
+
+    WHAT IT DROPS: the prose note, which is build-time documentation for a
+    human -- known biases, what would supersede the value, why a figure was
+    refused. That belongs in `film_profiles.py` and in
+    `doc/FilmActiveProfiles.md`, and both carry it in full.
+
+    ⚠ THE STRUCT FIELD IS KEPT ON PURPOSE so the aggregate-initialiser layout
+    does NOT move. Dropping it would be a schema bump and would force a plugin
+    rebuild for a field nothing reads. Empty string, same layout, same
+    `SCHEMA_VERSION`.
+    """
+    if not seq:
+        return "{}"
+    items = ", ".join(
+        "{ "
+        + ", ".join([
+            f'"{_escape(x.param)}"',
+            str(x.tier),
+            f'"{_escape(x.status)}"',
+            f'"{_escape(x.unit)}"',
+            f'"{_escape(x.conditions)}"',
+            f'"{_escape(x.source)}"',
+            f'"{_escape(x.confidence)}"',
+            '""',   # note: see the docstring above -- intentionally empty
+        ])
+        + " }"
+        for x in seq
+    )
+    return "{ " + items + " }"
+
+
+def _process_variants(seq) -> str:
+    """std::vector<ProcessVariant> initialiser (schema v18)."""
+    if not seq:
+        return "{}"
+    items = []
+    for v in seq:
+        cur = v.curves if v.curves is not None else None
+        # A variant with no curves of its own still has to emit SOMETHING for
+        # the aggregate initialiser. It emits a zeroed record and sets
+        # has_curves false; a consumer that reads curves without checking the
+        # flag gets an obviously-wrong all-zero curve rather than a plausible
+        # copy of the parent's, which is the safer failure.
+        _zero = ToneCurve(0.0, 1.0, -1.0, 0.5, 1.0, 0.5)
+        curves_txt = _curves(cur if cur is not None
+                             else RGBCurves(_zero, _zero, _zero))
+        items.append(
+            "{ "
+            + ", ".join([
+                f'"{_escape(v.name)}"',
+                f'"{_escape(v.process)}"',
+                "true" if v.is_default else "false",
+                "true" if cur is not None else "false",
+                curves_txt,
+                str(v.exposure_index),
+                _f(v.gamma_scale),
+                _f(v.dmin_shift),
+                _processing(v.processing),
+                f'"{_escape(v.source)}"',
+            ])
+            + " }"
+        )
+    return "{ " + ", ".join(items) + " }"
+
+
+def _emulsion(x) -> str:
+    """EmulsionSpec initialiser (schema v17)."""
+    return (
+        "{ "
+        + ", ".join([
+            _f(x.grain_um),
+            _f(x.size_sigma_log),
+            f'"{_escape(x.habit)}"',
+            _f(x.aspect_ratio),
+            _f(x.iodide_mol_pct),
+            f'"{_escape(x.sensitization)}"',
+            _f(x.coated_um),
+            f'"{_escape(x.source)}"',
+        ])
+        + " }"
+    )
+
+
+def _third_party(x) -> str:
+    """ThirdPartyObservations initialiser (schema v17). Verbatim tier-3."""
+    def t3(t):
+        return "{{ " + ", ".join(_f(v) for v in t) + " }}"
+
+    def t4(t):
+        return "{{ " + ", ".join(_f(v) for v in t) + " }}"
+
+    def m3(m):
+        return "{{ " + ", ".join(t3(r) for r in m) + " }}"
+
+    return (
+        "{ "
+        + ", ".join([
+            _f(x.dmax),
+            _f(x.latitude_stops),
+            _f(x.speed_offset),
+            _f(x.saturation),
+            _f(x.vignette),
+            _f(x.halation_intensity),
+            _f(x.halation_radius_norm),
+            _f(x.halation_threshold_norm),
+            t3(x.halation_tint),
+            t3(x.orange_mask),
+            m3(x.crosstalk),
+            m3(x.color_matrix),
+            t4(x.layer_curve_r),
+            t4(x.layer_curve_g),
+            t4(x.layer_curve_b),
+            t3(x.grain_bias),
+            f'"{_escape(x.source)}"',
+        ])
+        + " }"
+    )
+
+
+def _push(x) -> str:
+    """PushSpec initialiser (schema v16). All-zero + empty = nothing published."""
+    return (
+        "{ "
+        + ", ".join(
+            [
+                _f(x.max_push_stops),
+                _f(x.max_pull_stops),
+                _f(x.base_fog_penalty_per_stop),
+                "true" if x.fog_penalty_stated else "false",
+                _f(x.gamma_gain_per_stop),
+                _f(x.speed_gain_per_stop),
+                f'"{_escape(x.source)}"',
+            ]
+        )
+        + " }"
+    )
+
+
 def _processing(x) -> str:
     """ProcessingSpec initialiser. Strings are quoted; absent = empty/zero."""
     return (
@@ -1302,6 +1815,9 @@ def _processing(x) -> str:
                 _f(x.celsius),
                 f'"{_escape(x.agitation)}"',
                 _f(x.contrast_index),
+                _PROGRESS_CPP[x.progress.value],
+                _f(x.partial_fill_fraction),
+                _f(x.rate_size_coeff_um_min),
             ]
         )
         + " }"
@@ -1328,6 +1844,29 @@ def _aging(a) -> str:
             )
         )
         + " }"
+    )
+
+
+def _dye_stability(s) -> str:
+    return (
+        "{ "
+        + ", ".join(
+            _f(v)
+            for v in (
+                s.reference_temp_c,
+                s.censor_years,
+                s.loss_c,
+                s.loss_m,
+                s.loss_y,
+                s.loss_r,
+                s.loss_g,
+                s.loss_b,
+                s.dmin_gain_r,
+                s.dmin_gain_g,
+                s.dmin_gain_b,
+            )
+        )
+        + f', "{_escape(s.source)}" }}'
     )
 
 
@@ -1394,6 +1933,16 @@ def _print_stock_comment(s: PrintStock) -> str:
             "KODAK VISION Color Print Film 2383 Technical Data, "
             "Eastman Kodak Company"
         )
+    # ⚠ A [T*] STOCK MAY NOW HAVE A REAL DATASHEET, AND ONE DOES. The branch
+    # below was written when every historic print stock in the table came from
+    # secondary sources, and it hard-codes "no official manufacturer datasheet
+    # available". KODAK_VISION3_DI_2254 (2026-08-25) is [T1] and cited from
+    # KODAK Publication H-1-2254, so emitting that wording for it would put a
+    # false statement in the generated C++ -- the one place a reader looks when
+    # the Python side is not to hand. Any stock carrying a publication number
+    # in a source string is cited from it instead.
+    elif "KODAK Publication No." in (s.dye_stability.source or ""):
+        src = s.dye_stability.source.split(", p")[0]
     elif s.description.startswith("[T"):
         src = (
             "no official manufacturer datasheet available -- values "
@@ -1456,7 +2005,13 @@ def _profile_block(p: FilmProfile) -> str:
             {_layer_stack(p.layer_stack)},
             {_processing_family(p.processing_family)},
             {_reciprocity_table(p.reciprocity_table)},
-            {_dye_impurity(p.dye_impurity)}
+            {_dye_impurity(p.dye_impurity)},
+            {_print_grain_index(p.print_grain_index)},
+            {_push(p.push)},
+            {_emulsion(p.emulsion)},
+            {_third_party(p.third_party)},
+            {_param_sources(p.param_sources)},
+            {_process_variants(p.process_variants)}
         }},
 """
 
@@ -1471,7 +2026,11 @@ def _print_block(s: PrintStock) -> str:
             {_f(s.printer_light_r)}, {_f(s.printer_light_g)}, {_f(s.printer_light_b)},
             {_f(s.log_e_per_point)},
             "{_escape(s.density_metric)}",
-            {_dye_density(s.dye_density)}
+            {_dye_density(s.dye_density)},
+            {_aging(s.aging)},
+            {_dye_stability(s.dye_stability)},
+            {_f(s.mtf_f50_r)}, {_f(s.mtf_f50_g)}, {_f(s.mtf_f50_b)},
+            {_f(s.mtf_f50_bound)}, {"true" if s.mtf_measured else "false"}
         }},
 """
 

@@ -45,6 +45,7 @@ Needs g++ (C++14) and the generated film_profiles.hpp/.cpp next to this file.
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 import tempfile
@@ -448,6 +449,126 @@ int main()
 """
 
 
+# ===========================================================================
+#  STAGE-LEVEL GRAIN PROBE -- added 2026-08-25, and it is the whole point.
+#
+#  ⚠ EVERY OTHER FAMILY IN THIS FILE COMPARES A *LAW* AGAINST A *LAW*. That is
+#  how a real divergence survived for weeks: `FilmGrainSigma()` in the generated
+#  header is correct, this file evaluated it directly, the two sides agreed on
+#  every stock -- and NOTHING IN THE RENDERER CALLED IT. `AlgoAddGrain` inlined
+#  its own square root, without the net-1.0 normalisation, and shipped grain
+#  4-18 % loud on all 147 stocks that use the legacy branch (measured: the ratio
+#  was exactly sqrt(1 + fog_grain), reproduced to 3.0e-08).
+#
+#  A parity check must exercise the CODE THAT RENDERS. This probe therefore
+#  compiles and calls `AlgoAddGrain` itself, on a synthetic plane, and recovers
+#  the amplitude the stage actually applied.
+#
+#  THE EXTRACTION IS EXACT, NOT FITTED. The stage computes
+#      out = D + gain * field * amp
+#  so with `field` set to exactly 1.0 and `gain` to exactly 1.0, `amp` is
+#  `out - D` with no arithmetic in between and nothing to invert.
+# ===========================================================================
+
+GRAIN_STAGE_CPP = r"""
+#include "AlgoGrain.hpp"
+#include "film_profiles.hpp"
+#include <cstdio>
+
+struct SRow { const char* name; int ch; int k; double D; double dmin; double fog; };
+
+static const SRow SROWS[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    const int n = (int)(sizeof(SROWS)/sizeof(SROWS[0]));
+    for (int i = 0; i < n; ++i) {
+        const SRow& r = SROWS[i];
+        // One pixel is enough; four keeps the row loop honest.
+        const int W = 4, H = 1, P = 4;
+        AlgoType dR[4], dG[4], dB[4], fR[4], fG[4], fB[4];
+        const AlgoType D  = (AlgoType)r.D;
+        const AlgoType dm[3] = { (AlgoType)r.dmin, (AlgoType)r.dmin, (AlgoType)r.dmin };
+        for (int x = 0; x < 4; ++x) {
+            dR[x] = dG[x] = dB[x] = D;
+            fR[x] = fG[x] = fB[x] = (AlgoType)1.0;   // unit field: amp = out - D
+        }
+        AlgoAddGrain(dR, dG, dB, fR, fG, fB, W, H, P,
+                     dm, (AlgoType)r.fog, (AlgoType)1.0);
+        const AlgoType* plane = (r.ch == 0) ? dR : ((r.ch == 1) ? dG : dB);
+        printf("S\t%s\t%d\t%d\t%.9g\n", r.name, r.ch, r.k,
+               (double)(plane[0] - D));
+    }
+    return 0;
+}
+"""
+
+#: Densities probed, as NET density above dmin. 1.0 is the load-bearing one --
+#: it is the convention `rms_granularity` is stored at, so the stage MUST return
+#: exactly 1.0 there or the stored figure has stopped meaning what the sheet
+#: printed. The others check the shape either side of it.
+GRAIN_STAGE_NET = (0.2, 0.5, 1.0, 1.5, 2.5)
+
+
+def grain_stage_probe_table():
+    rows = []
+    for p in fp.FILM_PROFILES:
+        g = p.grain
+        for c, cur in enumerate(p.curves.as_tuple()):
+            dmin = float(cur.dmin)
+            for k, net in enumerate(GRAIN_STAGE_NET):
+                rows.append((p.name, c, k, dmin + net, dmin,
+                             float(g.fog_grain)))
+    return rows
+
+
+def grain_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
+    lines = ['    { "%s", %d, %d, %.17g, %.17g, %.17g },' % r for r in rows]
+    src = tmp / "grain_stage_parity.cpp"
+    src.write_text(GRAIN_STAGE_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "grain_stage_parity"
+    # ⚠ Algo_11_Sim.cpp pulls the separable blur in through AlgoMakeGrainField,
+    # so that translation unit has to be linked even though this probe never
+    # builds a field. Linking the real stage is the entire point -- a
+    # reimplementation here would recreate the bug this probe exists to catch.
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(root / "Algo_11_Sim.cpp"), str(root / "AlgoSeparableBlur.cpp")]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] grain stage probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] grain stage probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        fam, nm, c, k, v = line.split("\t")
+        out[(fam, nm, int(c), int(k))] = float(v)
+    return out
+
+
+def grain_stage_python_side(rows) -> dict:
+    """The same probes through `fp.grain_sigma`, which film_sim.py calls.
+
+    Deliberately the SAME entry point the Python renderer uses at
+    film_sim.py:2313 -- not a re-derivation of the law here, for exactly the
+    reason this probe family exists.
+    """
+    out = {}
+    for (nm, c, k, D, dmin, _fog) in rows:
+        p = fp.get_profile(nm)
+        cur = p.curves.as_tuple()[c]
+        out[("S", nm, c, k)] = float(
+            fp.grain_sigma(p.grain, dmin, float(cur.dmax), D))
+    return out
+
+
 def callier_probe_table():
     """One row per (stock, channel, specular, density offset)."""
     rows = []
@@ -520,6 +641,165 @@ def check_recip_field_order() -> None:
         raise SystemExit("[!] ReciprocitySpec field order changed in the "
                          f"generated header:\n    header: {got}\n"
                          f"    expected: {RECIP_FIELDS}")
+
+
+#: Laws the generated header publishes AND the value each must be reachable
+#: from. A law with no caller in the stage sources is not a law -- it is
+#: documentation that happens to compile.
+#:
+#: ⚠ WHY THIS CHECK EXISTS, AND WHY IT IS NOT PARANOIA. On 2026-08-25 a sweep of
+#: this exact surface found the bypass rate was **2 of 2**. `FilmGrainSigma()`
+#: had no caller and `AlgoAddGrain` inlined its own square root, shipping grain
+#: 4-18 % loud on 147 stocks for weeks. `FilmMtfResponse()` had no caller either
+#: and still has none. The Python renderer calls exactly two shared laws from
+#: `film_profiles` -- `grain_sigma` and `mtf_response` -- so these two functions
+#: ARE the entire shared-law surface between the implementations, and both sides
+#: of it were unreachable from the code that renders.
+#:
+#: The check is deliberately crude: it greps the stage sources for the symbol. A
+#: mention in a comment counts, which is a known weakness -- it is a REACHABILITY
+#: floor, not a proof of use. Something stronger (a link-time or AST check) would
+#: be better; something this cheap running from today is better than that
+#: arriving later.
+GENERATED_LAWS = {
+    "FilmGrainSigma": (
+        "grain amplitude vs density, including the net-1.0 normalisation and "
+        "the measured sigma(D) anchors"),
+    "FilmMtfResponse": (
+        "emulsion MTF, including the measured 1/(1+(f/f50)^q) rolloff"),
+}
+
+#: Laws known to be bypassed, with the reason, so the check reports honestly
+#: instead of failing on a state that is already recorded and scoped. ⚠ A law
+#: leaving this dict must leave because it gained a caller, never because the
+#: failure became inconvenient.
+LAW_BYPASS_BASELINE = {
+    "FilmGrainSigma":
+        "queue C30/C33: PARTIALLY closed 2026-08-25. The net-1.0 normalisation "
+        "-- the whole of the LEVEL error, measured at sqrt(1 + fog_grain), "
+        "1.0392-1.1832 -- is now applied inside AlgoAddGrain, hoisted out of "
+        "both loops because it depends only on fogGrain, which the stage "
+        "already receives. That took no shared signature change, so the AVX2 "
+        "twin was untouched. What is STILL bypassed is the measured-anchor "
+        "branch: reaching it needs the GrainSpec and dmax, i.e. a shared "
+        "signature change with the AVX2 twin moving in the same commit. Cost "
+        "of the remainder, measured: the 13 stocks with sigma_shape_measured "
+        "render the legacy SHAPE at the correct LEVEL -- worst relative error "
+        "1.73 at net density 2.5, exact at net 1.0. The 147 legacy-branch "
+        "stocks are exact (4.3e-09) and are pinned by the stage-level probe",
+    "FilmMtfResponse":
+        "queue C32: the measured rolloff is a frequency-domain form and the C++ "
+        "side has NO FFT -- AlgoEmulsionMtf convolves a separable spatial "
+        "Gaussian. Applying the power law needs an architecture decision "
+        "(numerical kernel, an FFT path, or a fitted separable equivalent), so "
+        "the 9 stocks with a measured q render on the legacy Gaussian: correct "
+        "at f50 by construction, up to 3.8x too much modulation at 2x f50",
+}
+
+
+#: Tokens that must appear in BOTH the scalar stage and its AVX2 twin, because
+#: they carry a law rather than an execution strategy. The two files are allowed
+#: to differ in everything about HOW they compute; they are not allowed to differ
+#: in WHAT they compute.
+#:
+#: ⚠ ADDED 2026-08-25 BECAUSE THE DIVERGENCE HAPPENED IMMEDIATELY. The net-1.0
+#: grain normalisation was applied to the scalar stage that day; the AVX2 twin
+#: was deliberately left to its owner, and the two paths were instantly 1.039x
+#: to 1.183x apart on grain amplitude -- a difference in the MODEL, not in the
+#: vectorisation. That is exactly what the project's own AVX2 rules forbid, and
+#: nothing would have reported it.
+TWIN_LAW_TOKENS = {
+    "Algo_11_Sim.cpp": ("ampScale",),
+}
+
+
+def check_twin_consistency(root: Path) -> int:
+    """Scalar and AVX2 twins must share the LAW, differing only in execution."""
+    bad = 0
+    for name, tokens in sorted(TWIN_LAW_TOKENS.items()):
+        a, b = root / name, root / "AVX2" / name
+        if not (a.is_file() and b.is_file()):
+            print(f"  [SKIP] twin consistency: {name} missing on one side")
+            continue
+        ta = _strip_cpp_comments(a.read_text(errors="ignore"))
+        tb = _strip_cpp_comments(b.read_text(errors="ignore"))
+        for tok in tokens:
+            in_a = re.search(r"\b%s\b" % re.escape(tok), ta) is not None
+            in_b = re.search(r"\b%s\b" % re.escape(tok), tb) is not None
+            if in_a and in_b:
+                print(f"[i] twin consistency: {name} and its AVX2 twin both "
+                      f"carry '{tok}'")
+            elif in_a and not in_b:
+                print(f"[FAIL] {name} carries '{tok}' and AVX2/{name} does NOT. "
+                      f"The two implementations are computing different models, "
+                      f"not the same model at different speeds. For the grain "
+                      f"normalisation this is worth 1.039x-1.183x on amplitude")
+                bad += 1
+            elif in_b and not in_a:
+                print(f"[FAIL] AVX2/{name} carries '{tok}' and the scalar "
+                      f"{name} does NOT -- the reference path is the one behind")
+                bad += 1
+            else:
+                print(f"[FAIL] neither {name} nor its AVX2 twin carries '{tok}' "
+                      f"-- the law it marks has been removed from both")
+                bad += 1
+    return bad
+
+
+def _strip_cpp_comments(text: str) -> str:
+    """Remove // and /* */ comments. String literals are not protected -- this
+    is a symbol-presence test, and a law name inside a string literal would not
+    be a call either."""
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    return re.sub(r"//[^\n]*", " ", text)
+
+
+def check_law_reachability(root: Path) -> int:
+    """Every law the generator publishes must be reachable from a stage."""
+    srcs = sorted(list(root.glob("Algo*.hpp")) + list(root.glob("Algo*.cpp"))
+                  + list((root / "AVX2").glob("*.cpp")))
+    if not srcs:
+        print(f"  [SKIP] law reachability: no stage sources under {root}")
+        return 0
+    blob = "\n".join(f.read_text(errors="ignore") for f in srcs)
+    hdr = (root / "film_profiles.hpp")
+    published = set(re.findall(r"^inline\s+\w+\s+(Film\w+)", hdr.read_text(
+        errors="ignore"), re.M)) if hdr.is_file() else set()
+    unknown = published - set(GENERATED_LAWS)
+    bad = 0
+    if unknown:
+        print(f"[FAIL] the header publishes {sorted(unknown)}, which this check "
+              f"does not know about -- add it to GENERATED_LAWS with the "
+              f"quantity it defines, so a new law cannot arrive unwatched")
+        bad += 1
+    for law, what in sorted(GENERATED_LAWS.items()):
+        # ⚠ COMMENTS ARE STRIPPED FIRST, AND THE FIRST RUN PROVED WHY. Without
+        # it this check reported FilmGrainSigma as "reached from 1 stage source"
+        # -- the source being a COMMENT in Algo_11_Sim.cpp explaining that the
+        # law is NOT called. A gate that passes on prose about its own failure is
+        # the same class of defect it exists to catch.
+        hits = [f.name for f in srcs
+                if re.search(r"\b%s\b" % law, _strip_cpp_comments(
+                    f.read_text(errors="ignore")))]
+        reachable = bool(hits)
+        if reachable and law not in LAW_BYPASS_BASELINE:
+            print(f"[i] law reachability: {law} reached from {len(hits)} stage "
+                  f"source(s) -- {what}")
+        elif law in LAW_BYPASS_BASELINE:
+            print(f"[i] law reachability: {law} is a RECORDED BYPASS -- "
+                  f"{LAW_BYPASS_BASELINE[law]}")
+            if reachable:
+                print(f"[FAIL] {law} is now reached from {hits} but is still "
+                      f"listed in LAW_BYPASS_BASELINE -- if the bypass is "
+                      f"closed, remove the baseline entry in the same change")
+                bad += 1
+        else:
+            print(f"[FAIL] {law} is published by the generator and called by NO "
+                  f"stage source. It defines {what}. Either a stage must call "
+                  f"it, or it must be recorded in LAW_BYPASS_BASELINE with the "
+                  f"reason and the measured cost")
+            bad += 1
+    return bad
 
 
 def check_field_order() -> None:
@@ -723,6 +1003,91 @@ def main() -> int:
             if moved < 300 or chrom < 3:
                 print(f"[FAIL] the reciprocity probe is not exercising its own "
                       f"branches: {moved} non-zero, {chrom} chromatic")
+                bad += 1
+
+    # ------------------------------------------------ LAW REACHABILITY ------
+    # Cheapest gate in the file and the one that would have caught C30 first:
+    # a law the generator publishes but no stage calls is not in the pipeline.
+    bad += check_law_reachability(root)
+    bad += check_twin_consistency(root)
+
+    # ------------------------------------------------- STAGE-LEVEL GRAIN -----
+    # The family that tests the renderer instead of a law beside it. Skip, not
+    # fail, when the stage sources are not present -- same policy as the others.
+    if not ((root / "Algo_11_Sim.cpp").is_file()
+            and (root / "AlgoSeparableBlur.cpp").is_file()):
+        print(f"  [SKIP] grain stage: Algo_11_Sim.cpp not present under {root}")
+    else:
+        srows = grain_stage_probe_table()
+        with tempfile.TemporaryDirectory() as td:
+            scpp = grain_stage_build_and_run(Path(td), root, srows)
+        spy = grain_stage_python_side(srows)
+        if set(scpp) != set(spy):
+            print(f"[FAIL] grain stage probe sets differ: "
+                  f"{len(set(spy) - set(scpp))} missing, "
+                  f"{len(set(scpp) - set(spy))} extra")
+            bad += 1
+        else:
+            # ⚠ TWO POPULATIONS, AND THEY MUST BE JUDGED SEPARATELY.
+            # The 147 stocks on the legacy branch are now EXACT -- the stage and
+            # the reference compute the same expression. The 13 carrying
+            # `sigma_shape_measured` are NOT, and knowingly so: the stage cannot
+            # reach the traced anchors without the GrainSpec and dmax, which
+            # means a shared signature change and the AVX2 twin moving in the
+            # same commit. Failing the whole family on a gap that is scoped,
+            # measured and deliberate would make this probe unusable as a gate;
+            # asserting the fixed half exactly, and pinning the size of the
+            # unfixed half, is what keeps it honest in both directions.
+            _shaped = {q.name for q in fp.FILM_PROFILES
+                       if q.grain.sigma_shape_measured}
+            sworst, sat = 0.0, None          # legacy branch: must be exact
+            hworst, hat = 0.0, None          # measured-shape: quantified gap
+            for k, want in spy.items():
+                got = scpp[k]
+                err = abs(got - want) / max(abs(want), 1e-9)
+                if k[1] in _shaped:
+                    if err > hworst:
+                        hworst, hat = err, k
+                elif err > sworst:
+                    sworst, sat = err, k
+            # ⚠ THE NET-1.0 IDENTITY IS THE LOAD-BEARING ASSERTION. Index 2 of
+            # GRAIN_STAGE_NET is net density 1.0, the convention the stored
+            # rms_granularity is quoted at. The stage must return EXACTLY 1.0
+            # there for every stock and channel, or the stored figure no longer
+            # means the number the manufacturer printed. This is the check that
+            # would have caught the missing normalisation on day one.
+            k_net1 = GRAIN_STAGE_NET.index(1.0)
+            net1 = [v for (fam, nm, c, k), v in scpp.items() if k == k_net1]
+            worst_net1 = max(abs(v - 1.0) for v in net1) if net1 else 1.0
+            print(f"[i] grain STAGE: {len(spy)} probes over "
+                  f"{len(fp.FILM_PROFILES)} stocks x 3 channels x "
+                  f"{len(GRAIN_STAGE_NET)} densities, driving AlgoAddGrain itself")
+            print(f"[i] grain STAGE: worst relative disagreement {sworst:.2e} "
+                  f"at {sat}; worst |amp - 1| at NET density 1.0 = "
+                  f"{worst_net1:.2e}")
+            print(f"[i] grain STAGE: {len(_shaped)} stocks carry a measured "
+                  f"sigma(D) SHAPE the stage cannot reach yet -- worst relative "
+                  f"gap {hworst:.2f} at {hat} (level correct, shape legacy)")
+            if sworst > TOL:
+                print(f"[FAIL] the RENDERED grain amplitude disagrees with the "
+                      f"reference by {sworst:.2e} (tolerance {TOL:.0e}) at "
+                      f"{sat} -- the stage, not the law")
+                bad += 1
+            # The scoped gap must not GROW, and must not silently close either:
+            # if it reaches zero the shape landed and this guard should be
+            # retired in the same change, not left asserting a fixed defect.
+            if hworst > 2.5:
+                print(f"[FAIL] the measured-shape gap has grown to {hworst:.2f} "
+                      f"at {hat} -- it was 1.73 when recorded on 2026-08-25")
+                bad += 1
+            if len(_shaped) != 13:
+                print(f"[FAIL] {len(_shaped)} stocks carry a measured sigma(D) "
+                      f"shape, not the 13 this gap was measured over")
+                bad += 1
+            if worst_net1 > 1e-6:
+                print(f"[FAIL] the grain stage does not return exactly 1.0 at "
+                      f"NET density 1.0 (worst {worst_net1:.2e}) -- the stored "
+                      f"rms_granularity has stopped meaning the printed figure")
                 bad += 1
 
     # --------------------------------------------------------------- C22 -----

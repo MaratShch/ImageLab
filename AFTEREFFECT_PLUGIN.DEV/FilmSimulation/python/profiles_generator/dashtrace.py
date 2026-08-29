@@ -350,7 +350,7 @@ def column_runs_weighted(ink, gray, x, y0, y1):
 
 def trace_predictive(ink, gray, x_range, y0, y1, seed_x, seeds, direction=+1,
                      tol0=3.0, tol_grow=0.7, max_bridge=26, hist=16,
-                     slope_cap=2.5):
+                     slope_cap=2.5, merge_px=0.0):
     """Follow N tracks from `seeds` in ONE direction, slope-predictively.
 
     Same exclusion guarantee as `trace_tracks` -- one ink run may be claimed by
@@ -370,6 +370,35 @@ def trace_predictive(ink, gray, x_range, y0, y1, seed_x, seeds, direction=+1,
     decidable rightward from the left plateau and undecidable leftward, so a
     caller that traces "both ways from a mid seed" gets a hybrid curve back and
     no check will notice.
+
+    ⚠ merge_px -- COAST THROUGH A CROSSING INSTEAD OF GUESSING AT IT. Default 0.0
+    keeps the original behaviour exactly, so no existing caller changes. Set it
+    and, at any column where two live tracks predict positions within merge_px of
+    each other, NEITHER is allowed to claim ink: both count a miss and continue on
+    their own fitted slope until they separate again.
+
+    This exists because of a measured failure on Gevacolor 682 Fig. 8, where the
+    dotted cyan curve descends through the dash-dot magenta curve at about 425 nm.
+    For roughly twelve columns the two traces are one ink run. Greedy nearest
+    assignment gives that run to whichever track predicts closer -- fine in itself
+    -- but the run is then ACCEPTED INTO THAT TRACK'S SLOPE HISTORY, and the
+    merged ink is nearly flat, so the descending track's fitted slope collapses
+    from +0.75 px/column to +0.3. When the curves separate again the flattened
+    prediction lands on the WRONG branch, and both curves swap identity with every
+    residual still small and no ordering check able to see it: the traced pair
+    still looks like two smooth curves, just not the two that were printed.
+
+    Refusing to decide is the correct answer at a crossing -- the ink genuinely
+    does not say which curve it belongs to -- and coasting on the slope measured
+    BEFORE the merge is the only information that does. Measured on that figure:
+    with merge_px = 0 the two low curves come back swapped (peak assignment 522 nm
+    to the track seeded on the 683 nm curve); with merge_px anywhere in 6-12 px
+    all three peaks land on the right tracks and agree with the printed values.
+
+    The cost is a gap: the crossing columns carry no sample for either track. On
+    682 Fig. 8 that is about 14 columns, 8 nm, less than one grid step of the
+    stored 10 nm sampling, and it is filled by interpolation between measured
+    points rather than by a guessed assignment.
 
     seeds -- {name: y} at column `seed_x`.
     Returns {name: {x: y}}.
@@ -394,7 +423,16 @@ def trace_predictive(ink, gray, x_range, y0, y1, seed_x, seeds, direction=+1,
                 sl = 0.0
             x_last, y_last = s['pts'][-1]
             pred[k] = y_last + sl * (x - x_last)
-        pairs = sorted(((abs(c - pred[k]), k, c) for k in pred for c in cands),
+        merged = set()
+        if merge_px > 0.0:
+            live = list(pred)
+            for i in range(len(live)):
+                for j in range(i + 1, len(live)):
+                    if abs(pred[live[i]] - pred[live[j]]) <= merge_px:
+                        merged.add(live[i])
+                        merged.add(live[j])
+        pairs = sorted(((abs(c - pred[k]), k, c)
+                        for k in pred if k not in merged for c in cands),
                        key=lambda t: t[0])
         claimed, taken = set(), set()
         for dist, k, c in pairs:
