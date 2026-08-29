@@ -1554,31 +1554,62 @@ if _sec_on():
         "display primaries cannot reach 750 nm -- documented, not wired in")
     # 2026-08-13: the original form of this check tested for one function NAME,
     # which a differently-named spectral derivation passes vacuously -- and one
-    # was added that day. It now guards the INTENT: no basis-projected spectral
-    # derivation may drive the render by default. The balance-gain path IS
-    # enabled, and is deliberately excluded here because it projects onto no
-    # basis at all -- it is a ratio of one curve integrated against two
-    # blackbody SPDs, so the gamut-reach failure below cannot apply to it.
-    chk("no basis-projected spectral derivation is enabled by default",
-        fs.RenderSettings().spectral_mono is False
-        and fs.RenderSettings().spectral_taking is False,
-        "mono weights and taking matrix both need a scene spectral model first")
+    # was added that day. It then guarded the INTENT: no basis-projected
+    # spectral derivation may drive the render by default.
+    #
+    # ⚠ REWRITTEN 2026-08-29, AND THE PREMISE IS WHAT CHANGED, NOT THE ETHIC.
+    # That check asserted `spectral_mono is False`. What it was actually
+    # pinning, unknowingly, was a PYTHON/C++ SPLIT: Algo_07_Sim.cpp calls
+    # AlgoSpectralMonoWeights() unconditionally and always has, so the plugin
+    # derived while this side did not, and the 24 monochrome stocks carrying a
+    # traced pan curve rendered differently in the two engines. Worst case
+    # KODAK_PLUS_X_125, blue 0.110 stored against 0.502 derived. A guard that
+    # holds one engine to a decision the other never implemented is not
+    # caution; it is an unnoticed divergence with a test defending it.
+    #
+    # The invariant now asserted is the one that survives: the MONO collapse
+    # derives in BOTH engines, and the TAKING MATRIX -- the basis projection
+    # that would stack a third mixing stage on top of dye_matrix and
+    # InterimageSpec -- stays out of the pipeline. spectral_mono_parity.py
+    # holds the two engines together numerically; this holds the intent.
+    chk("the mono spectral derivation is enabled, matching the C++ engine",
+        fs.RenderSettings().spectral_mono is True,
+        "Algo_07_Sim.cpp derives unconditionally; a False here is a silent split")
+    chk("the basis-projected TAKING MATRIX is still out of the pipeline",
+        fs.RenderSettings().spectral_taking is False,
+        "dye_matrix and InterimageSpec already carry cross-channel mixing")
     # The guard catches the EXTREME case and is honest about not catching all of
-    # them. KONICA_INFRARED_750 peaks at 730 nm and is refused. ROLLEI_INFRARED_400
-    # is NOT refused and should be: its curve sits at ~96 % of peak across
-    # 660-680 nm, which the 600 nm primary lobe reaches poorly, so the derived
-    # triple under-weights red (0.35 against an authored 0.52) -- yet only 2.7 %
-    # of its energy lies past 700 nm, so neither guard condition fires. That
-    # residual failure is not a threshold to tune; it is evidence that projecting
-    # onto three visible lobes is the wrong construction, which is why
-    # spectral_mono stays OFF by default and why the fix is a scene spectral
-    # model. Recorded rather than papered over.
+    # them. KONICA_INFRARED_750 peaks at 750 nm with 0.437 of its energy beyond
+    # the basis limit, and is refused.
+    #
+    # ⚠ THOSE TWO FIGURES WERE 730 nm AND 0.203 UNTIL 2026-08-29, AND BOTH WERE
+    # ARTEFACTS OF THE GUARD MEASURING ITSELF ON THE WRONG GRID -- the
+    # renderer's, which stops at 730 nm, rather than the curve's own samples,
+    # which run to 830. The guard refused this stock either way, so nothing
+    # rendered wrong; but a threshold compared against a quantity that cannot
+    # reach it is a guard that only appears to work. See
+    # film_sim.stored_layer_sensitivities.
+    #
+    # ROLLEI_INFRARED_400 is NOT refused, and the reason is now understood well
+    # enough to say it is not a threshold problem. Its stored curve is the
+    # UNFILTERED sensitisation: peak 410 nm, 0.028 of its energy past 700 nm.
+    # By the data on file it is an ordinary panchromatic emulsion and no
+    # honest out-of-reach test can call it otherwise. Its authored red-dominant
+    # (0.52, 0.20, 0.28) encodes an assumed deep-red/IR TAKING FILTER that no
+    # field in the profile records, so the database cannot presently tell the
+    # filtered question from the unfiltered one. Queue row C39; lowering the
+    # threshold to catch it would start refusing ordinary pan stocks.
     chk("the basis-reach guard refuses an infrared-peaked stock",
         fs.spectral_monochrome_weights(get_profile("KONICA_INFRARED_750")) is None,
         "projecting an IR curve onto visible primaries derives blue-dominant nonsense")
+    chk("the guard measures reach on the CURVE's samples, not the render grid",
+        (lambda p: fs.spectral_peak_lambda(p) == 750.0
+         and fs.spectral_out_of_reach(p) > 0.40)(
+            get_profile("KONICA_INFRARED_750")),
+        "clipped at 730 nm these read 730 / 0.203 -- low by a factor of two")
     chk("the guard's known blind spot is still present and documented",
         fs.spectral_monochrome_weights(get_profile("ROLLEI_INFRARED_400")) is not None,
-        "deep-red sensitisation inside 700 nm passes both conditions -- see comment")
+        "an unfiltered pan curve passes both conditions honestly -- see C39")
     chk("the spectral balance path IS active and differs from the proxy",
         (lambda d, q: d is not None and abs(d[0] - q[0]) > 0.05)(
             fs.spectral_balance_gains(get_profile("KODAK_PORTRA_400"), 3200.0),

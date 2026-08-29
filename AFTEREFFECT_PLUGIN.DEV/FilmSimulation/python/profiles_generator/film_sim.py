@@ -603,6 +603,50 @@ _SPECTRAL_BASIS_LAMBDA_MAX = 700.0
 _SPECTRAL_OUT_OF_REACH_MAX = 0.15
 
 
+def stored_layer_sensitivities(profile):
+    """Per-layer LINEAR sensitivity on the curve's OWN sampling, unclipped.
+
+    ⚠ THIS IS NOT :func:`layer_sensitivities`, AND THE DIFFERENCE IS THE WHOLE
+    POINT. That function resamples onto :func:`spectral_grid`, which stops at
+    ``_SPECTRAL_LAMBDA_MAX`` = 730 nm because that is the domain the renderer
+    integrates over. Anything the emulsion does past 730 nm is dropped there,
+    correctly -- the renderer cannot act on it.
+
+    The GUARDS, however, must see exactly what the renderer cannot. A guard
+    that asks "how much of this emulsion lies outside the basis's reach?" and
+    then measures it on a grid that has already discarded the far red is
+    answering its own question with the evidence removed.
+
+    ⚠ MEASURED, 2026-08-29. ``KONICA_INFRARED_750`` stores a curve sampled to
+    830 nm. On the clipped grid its out-of-reach share read **0.203** and its
+    peak read **730 nm**; on its own samples they are **0.437** and **750 nm**.
+    The guard refused it either way, so nothing rendered wrong -- but it was
+    refusing on a number low by a factor of two and on a peak that was an
+    artefact of the grid's last sample. A threshold tested against a number
+    that cannot reach it is the same defect this project has now caught three
+    times (C20's guard that could not fail, the census that counted the wrong
+    field, the 2026-08-26 sweep that no test re-ran).
+
+    Returns ``(lambda_nm, [row, ...])`` with rows in LINEAR sensitivity, or
+    ``None`` when the profile carries no digitised curve.
+    """
+    sp = getattr(profile, "spectral", None)
+    if sp is None or not sp.has_data:
+        return None
+
+    if sp.log_s_r and sp.log_s_g and sp.log_s_b:
+        rows = [sp.log_s_r, sp.log_s_g, sp.log_s_b]
+    elif sp.log_s_pan:
+        rows = [sp.log_s_pan]
+    else:
+        return None
+
+    n = len(rows[0])
+    lam = (sp.lambda_start_nm
+           + sp.lambda_step_nm * np.arange(n, dtype=np.float64))
+    return lam, [np.power(10.0, np.asarray(r, dtype=np.float64)) for r in rows]
+
+
 def spectral_out_of_reach(profile) -> float | None:
     """Share of the stock's sensitivity lying beyond the basis's red limit.
 
@@ -610,19 +654,22 @@ def spectral_out_of_reach(profile) -> float | None:
     whose maximum is in the infrared, this catches one whose maximum is in the
     visible but which carries a substantial infrared shoulder -- the case that
     a peak test alone passes incorrectly.
+
+    Measured on the curve's own samples (see
+    :func:`stored_layer_sensitivities`), never on the renderer's clipped grid.
     """
-    sens = layer_sensitivities(profile)
-    if sens is None:
+    stored = stored_layer_sensitivities(profile)
+    if stored is None:
         return None
-    grid = spectral_grid()
+    lam, rows = stored
     trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
-    beyond = grid > _SPECTRAL_BASIS_LAMBDA_MAX
+    beyond = lam > _SPECTRAL_BASIS_LAMBDA_MAX
     total = 0.0
     out = 0.0
-    for row in sens:
-        total += float(trap(row, grid))
-        if beyond.any():
-            out += float(trap(row[beyond], grid[beyond]))
+    for row in rows:
+        total += float(trap(row, lam))
+        if int(beyond.sum()) > 1:
+            out += float(trap(row[beyond], lam[beyond]))
     return (out / total) if total > 0.0 else None
 
 
@@ -632,12 +679,17 @@ def spectral_peak_lambda(profile) -> float | None:
     Returns the LONGEST per-layer peak, because it is the long-wavelength end
     that a visible-primary basis fails to reach. ``None`` when the stock carries
     no curves.
+
+    Measured on the curve's own samples, for the reason set out in
+    :func:`stored_layer_sensitivities`: read off the clipped grid, an infrared
+    stock's peak collapses onto the grid's last sample and stops being a fact
+    about the emulsion.
     """
-    sens = layer_sensitivities(profile)
-    if sens is None:
+    stored = stored_layer_sensitivities(profile)
+    if stored is None:
         return None
-    grid = spectral_grid()
-    peaks = [float(grid[int(np.argmax(row))]) for row in sens
+    lam, rows = stored
+    peaks = [float(lam[int(np.argmax(row))]) for row in rows
              if float(row.max()) > 0.0]
     return max(peaks) if peaks else None
 
@@ -1568,7 +1620,7 @@ class RenderSettings:
     # -- measured spectral sensitivity (see the SPECTRAL block above) --------
     # Consumes SpectralSensitivity.log_s_* where the stock carries it. Each
     # flag substitutes a DERIVED quantity for an authored proxy, and each falls
-    # back silently to the proxy for the 89 of 142 stocks that have no curves.
+    # back silently to the proxy for the 85 of 161 stocks that have no curves.
     #
     # spectral_balance: ON. Replaces the three assumed peak wavelengths of
     #   balance_gains() with the full measured sensitisation. Safe by
@@ -1576,24 +1628,54 @@ class RenderSettings:
     #   illuminants, normalised to green, so it cannot change overall exposure
     #   and cannot double-count anything downstream.
     #
-    # spectral_mono: OFF, and the reason is a measured failure, not caution.
-    #   The derivation projects the pan curve onto three primary lobes, and a
-    #   stock sensitised outside those lobes therefore derives to nonsense:
-    #   KONICA_INFRARED_750 (peak 750 nm) comes out BLUE-dominant at
-    #   (0.161, 0.193, 0.646) against an authored, correct, red-dominant
-    #   (0.55, 0.15, 0.30). spectral_monochrome_weights() now refuses any
-    #   stock whose peak sensitisation lies beyond the basis's reach,
-    #   so enabling this flag is safe -- IR and extended-red stocks fall back
-    #   automatically. The guard is the peak sensitisation wavelength against
-    #   the basis's long-wavelength limit, which is an unambiguous physical
-    #   criterion rather than a tuned overlap threshold. It stays OFF by default because for the stocks that DO
-    #   pass the guard the derived triple still depends on the assumed primary
-    #   lobe width, which is an assumption and not a measurement, and because
-    #   an independent analysis on 2026-08-03 reached the same conclusion about
-    #   the same construction. The honest fix is a scene spectral model
+    # spectral_mono: ON since 2026-08-29, AND THE REASON IS PARITY, NOT A
+    #   CHANGE OF MIND ABOUT THE PHYSICS.
+    #
+    #   ⚠ WHAT THIS FLAG'S PREVIOUS "OFF" ACTUALLY MEANT. The C++ engine has
+    #   never had this flag. Algo_07_Sim.cpp calls AlgoSpectralMonoWeights()
+    #   unconditionally and falls back to profile.spectral_weights only when
+    #   the stock carries no pan curve. So while this side sat OFF, the two
+    #   engines rendered DIFFERENT monochrome images for the 24 stocks that
+    #   carry a traced pan curve -- both running, both plausible, which is
+    #   exactly the failure mode cpp_parity.py was written to prevent and
+    #   exactly the one it does not cover (it audits the grain and MTF laws
+    #   only). Turning this ON does not introduce a divergence; it ENDS one
+    #   that had been shipping. Measured worst case: KODAK_PLUS_X_125, blue
+    #   weight 0.110 authored against 0.502 derived.
+    #
+    #   The earlier argument for OFF still stands as an argument about the
+    #   MODEL and is not withdrawn: the derived triple depends on the assumed
+    #   primary lobe width (_PRIMARY_WIDTH_NM), which is an assumption, and an
+    #   independent analysis on 2026-08-03 reached the same conclusion about
+    #   the same construction. The honest fix remains a scene spectral model
     #   (reflectance basis functions under a stated illuminant, Smits or
     #   Jakob-Hanika class), built deliberately -- not a reprojection of data
-    #   the database already holds.
+    #   the database already holds. What changed is that "OFF" was never
+    #   buying that caution: it bought a silent Python/C++ split while the
+    #   plugin the owner ships derived anyway. One assumption, applied once,
+    #   in both engines, is strictly better than one assumption applied in one
+    #   of them.
+    #
+    #   GUARD. spectral_monochrome_weights() refuses any stock whose peak
+    #   sensitisation lies beyond the basis's reach, or which carries more
+    #   than _SPECTRAL_OUT_OF_REACH_MAX of its energy past it, measured on the
+    #   curve's own samples (see stored_layer_sensitivities). KONICA_INFRARED_
+    #   750 is refused: peak 750 nm, 0.437 of its energy out of reach, and it
+    #   derives to a BLUE-dominant (0.161, 0.193, 0.646) against an authored,
+    #   correct, red-dominant (0.55, 0.15, 0.30).
+    #
+    #   ⚠ THE GUARD DOES NOT CATCH ROLLEI_INFRARED_400, AND THAT IS NOT A
+    #   THRESHOLD THAT NEEDS TUNING. That stock's stored curve is the
+    #   UNFILTERED sensitisation: it peaks at 410 nm and puts only 0.028 of
+    #   its energy past 700 nm, so it is not an infrared-dominant curve and no
+    #   out-of-reach test can honestly call it one. Its authored red-dominant
+    #   (0.52, 0.20, 0.28) encodes an assumed deep-red/IR taking filter that
+    #   NO FIELD IN THE PROFILE RECORDS. The two triples answer different
+    #   questions and the database cannot currently tell them apart. Both
+    #   engines therefore now derive for this stock, which is correct for the
+    #   data on file and wrong for the way the film is used. Raised as queue
+    #   row C39 (a taking_filter carrier); do not "fix" it by lowering the
+    #   threshold, which would start refusing ordinary panchromatic stocks.
     #
     # spectral_taking: OFF, deliberately. The derived matrix is physically the
     #   right object, but the pipeline already carries cross-channel mixing in
@@ -1605,7 +1687,7 @@ class RenderSettings:
     #   from spectral_taking_matrix() and reported by
     #   spectral_exposure_report() so the disagreement stays visible.
     spectral_balance: bool = True
-    spectral_mono: bool = False
+    spectral_mono: bool = True
     spectral_taking: bool = False
     misreg_scale: float = 1.0       # multiplies the stock's own registration error
     print_grain: bool = True

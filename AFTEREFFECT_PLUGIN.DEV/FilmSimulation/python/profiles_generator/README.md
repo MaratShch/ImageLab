@@ -4,6 +4,13 @@ A rewrite of the original grain-overlay script as an actual photochemical model.
 Python 3.12, 64-bit, Windows and Linux/WSL2. Dependencies: **numpy and Pillow only** —
 no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 
+⚠ **That rule covers the RENDERER and the GENERATOR, which is where it matters. The audit
+scripts additionally need PyMuPDF**, because they re-derive adopted numbers from the source
+PDFs — an audit that cannot open the document cannot check anything. `agfa_2004_curves.py`
+will also use **SciPy** for one six-parameter curve re-fit if it is installed, and skips that
+one check with a printed message if it is not; every other check in it runs either way. No
+audit dependency reaches the render path.
+
 > ## → For current status, read **`PROGRESS.md`** first
 >
 > One screen: build state, what is done, what is open and ranked, and the short list of
@@ -17,6 +24,144 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > in order: `PROGRESS.md` (one screen), `FilmActiveProfiles.md` (per-stock coverage, regenerated
 > from the database on every build), `NotFound.md` (what is still missing), and the **Files** and
 > **Known limits** sections at the bottom of this README, which ARE maintained as current.
+>
+> **Status 2026-08-25g (task 5 started, queue E0b-orig / C15):** `verify.py` **351 PASS / 1 FAIL**,
+> 14 audits green, schema **v11 unchanged**, **160 stocks unchanged** -- the new profile C15 would
+> have added is NOT there, deliberately; see below.
+>
+> **THE FIRST MEASURED MTF FOR A COLOUR REVERSAL STOCK, AND THE LARGEST MTF CORRECTION THIS PROJECT
+> HAS MADE.** `KODAK_EKTACHROME_100D_5285`, traced from H-1-5285 p3 by `mtf_vector.py`. Stored
+> f50_g was the estimate **82.0**; the sheet measures **42.1** -- the estimate was **1.95x too
+> sharp**. Red and blue had no measurement of their own either: 74.0 / 90.0 were the estimating
+> rule's fixed ratios about that wrong centre. Measured **R 27.2 / G 42.1 / B 60.9**, layer order
+> R < G < B exactly as `MTFSpec`'s docstring predicts (second independent confirmation, after 5201),
+> and the power law beats the legacy Gaussian on all three records (q 1.87 / 2.39 / 2.52).
+>
+> ⚠ **IT ALSO BOUNDS A FAMILY CONSTANT.** Queue C24 found measured red clustered at 36.4 cycles/mm
+> across the Kodak cine NEGATIVES, and five profiles were re-anchored to exactly 36.0 on that
+> finding. This REVERSAL stock's red is **27.2** -- 25 % below, and it alone would take the cluster's
+> spread from 25 % to 41 %. The guard now excludes reversal stocks, which is the same class-estimate
+> refusal C24 already made for the Fuji sheets. **Nothing had licensed assuming that anchor reached
+> past the negative family, and it does not.** The five re-anchored negatives are untouched.
+>
+> ⚠ **QUEUE ITEM E0b-orig HAD BEEN FINISHED FOR A WEEK AND NEVER STRUCK.** Its three plot sets --
+> 7239 dye density, 5231 MTF, 5285 sigma(D) -- were all adopted on or before 2026-08-18 while the
+> entry still described them as to-do, so it sat on the ready-now list the entire time. One real
+> leftover remains: **7239's spectral sensitivity**, blocked because its panel carries no rotated
+> caption for the panel finder to anchor on (the known limit recorded in `spectral_vector.py`: 5
+> pages reachable against 24 for dye panels).
+>
+> ⚠ **AND C15 IS STOPPED, ON SOMETHING I SHOULD HAVE CHECKED BEFORE PROPOSING IT.** Three questions
+> were put to the owner and answered -- do not transfer the fade rates, treat the DI film as a
+> separate film, store `AgingSpec` inert -- all on the strength of my recommendation to give it its
+> own profile. Reading the schema afterwards: **`StockKind` has only NEGATIVE and REVERSAL**, there
+> is no intermediate category, and the DI/dupe concept already lives in `PRINT_STOCKS` (`SCAN_DI`,
+> `DUPE_FINE_GRAIN`) -- but **`PrintStock` carries no `aging` field**, because `AgingSpec` exists
+> only on `FilmProfile`. So attaching the measured Arrhenius table today would mean declaring a
+> digital-intermediate recording film a camera negative, putting it in the camera ListBox and
+> shifting 160 indices: a category error committed to obtain a field. **Stopped rather than forced.**
+> The data is confirmed from the full sheet (H-1-2254, March 2026): colour separations yellow **86
+> years**, D-min blue **77 years**, at 21 C; everything else >100, and everything >100 at 7 C.
+>
+> **Status 2026-08-25f (four gates, queue C32-C35):** `verify.py` **351 PASS / 1 FAIL**, 14 audits
+> green (two new), schema **v11 unchanged**, **160 stocks unchanged**. No new film data -- this pass
+> adds checks, not values.
+>
+> **THE BYPASS RATE ON THE SHARED-LAW SURFACE WAS 2 OF 2.** After C30 found one law with no callers,
+> the surface was enumerated rather than sampled: `film_sim.py` calls exactly `fp.grain_sigma` and
+> `fp.mtf_response` from the database module and nothing else, and the generator emits exactly those
+> two into the header. **Both were unreachable from the stages.** `check_law_reachability()` now
+> fails the build on any published law with no caller, and equally on a recorded bypass that quietly
+> acquires one.
+>
+> ⚠ **THE NEW GATE'S FIRST RUN PASSED -- ON A COMMENT.** `FilmGrainSigma` reported "reached from 1
+> stage source", the source being the comment in `Algo_11_Sim.cpp` explaining that it is NOT called.
+> C++ comments are stripped before the search now. A gate that passes on prose about its own failure
+> is the defect it exists to catch, and a new gate's first PASS deserves more suspicion than its
+> first failure.
+>
+> ⚠ **AND THE TWO C++ PATHS DIVERGED WITHIN HOURS, BECAUSE OF YESTERDAY'S FIX.** Applying the
+> net-1.0 grain normalisation to the scalar stage alone left scalar and AVX2 **1.039x to 1.183x
+> apart on grain amplitude** -- a difference in the MODEL, not the vectorisation, which this
+> project's own AVX2 rules forbid. Mirrored into `AVX2/Algo_11_Sim.cpp` at **zero inner-loop cost**
+> (it folds into `gain` before the broadcast, since `gain * (amp * scale) == (gain * scale) * amp`),
+> and verified by compiling the twin under `AlgoType = float` with `-mavx2 -mfma`. **The header was
+> flipped for that test and restored to `double` immediately -- the shipped alias is untouched.**
+> `check_twin_consistency()` now asserts that law-bearing tokens appear on both sides.
+>
+> ⚠ **`FilmMtfResponse` IS STILL BYPASSED, AND IS NOW RECORDED WITH ITS COST.** The measured
+> `1/(1+(f/f50)^q)` rolloff is a frequency-domain form and **the C++ side has no FFT at all** --
+> `AlgoSeparableBlur.hpp` opens by arguing why not. So the 9 stocks with a measured q render on the
+> legacy Gaussian: exact at f50 by construction, **up to 3.8x too much modulation at 2x f50**.
+> Closing it needs an architecture decision, not a patch.
+>
+> **A DOCUMENTATION GATE (C34).** An audit found four hardcoded counts wrong by up to **2.3x**, and
+> nothing had compared prose to the database -- `build.py` gated exactly one claim, and that check
+> had never fired. `doc_consistency.py` checks a registry of load-bearing sentences against live
+> expressions, from the audit stage. ⚠ A pattern that stops matching **fails**: an unmatched pattern
+> silently stops checking, which is the state it exists to end.
+>
+> **THE PROJECT-ROOT `doc/` FOLDER, REVIEWED FOR THE FIRST TIME (C35) -- and it has never been
+> delivered.** Seven documents, 2661 lines, outside every archive ever shipped, because every
+> archive covered `PYTHON/profile_generator/doc` only. Three of them still described stages **15, 16
+> and 09b as stubs** when all three fully render. `STAGE_FUSION_PROPOSAL`'s central 4K memory
+> argument is **superseded by its own project**: it quotes the pre-ping/pong 2.90 GB float footprint,
+> but M1 shipped and 4K UHD is now ~0.77 GiB, so the case for fusing to reach 2 GB is moot. ⚠ And
+> **neither AVX2 document states that the vector build requires `AlgoType = float`** while the
+> shipped header sets `double` and 17 AVX2 units static_assert against it. Not corrected: every
+> performance figure is a 2026-08-11 measurement never repeated, now with two 2026-08-25 engine
+> changes underneath the tables that time them.
+>
+> **The closed-loop tier widened from a 5-stock sample to the whole database** -- f50 modulation and
+> characteristic-curve reproduction across all 160 stocks, 0 outliers.
+>
+> **Status 2026-08-25e (the grain bypass, queue C30/C31):** `verify.py` **351 PASS / 1 FAIL**,
+> 12 audits green, schema **v11 unchanged**, **160 stocks unchanged**, `film_names.txt` unchanged.
+> ⚠ **THE C++ RENDER CHANGES ON EVERY STOCK, DELIBERATELY** -- this is a correction, not a tuning.
+>
+> **THE LARGEST SINGLE ACCURACY DEFECT FOUND IN THIS PROJECT, AND IT WAS IN THE SHIPPED PLUGIN.**
+> `film_profiles.hpp` defines `FilmGrainSigma()` as THE ONE DEFINITION -- the legacy law divided by
+> `sqrt(1 + fog_grain)`, so the shape is exactly 1.0 at NET density 1.0, plus the measured-anchor
+> branch. **It had zero callers.** `AlgoAddGrain` inlined its own square root with no normalisation.
+>
+> Measured across the whole database: on the **147** legacy-branch stocks the C++/Python ratio was
+> **exactly `sqrt(1 + fog_grain)`** -- 1.0392 to 1.1832, mean **1.1027** -- reproduced to
+> **3.0e-08**, so one missing divisor was the entire level error. On the **13** stocks carrying a
+> measured sigma(D) shape it was worse and not a constant: **0.39x in shadow to 2.2x at depth**, and
+> **inverted** on the two reversal stocks. That is grain distributed wrongly across the tone scale,
+> in opposite directions for negative and reversal -- and every affected stock crossed 1.0 near net
+> density 1.0, which is exactly why a mid-grey spot check looked correct.
+>
+> ⚠ **IT SURVIVED BECAUSE THE PARITY HARNESS CALLED THE LAW DIRECTLY.** `cpp_parity.py` evaluated
+> `FilmGrainSigma()` itself, agreed with Python on every stock, and never touched the function that
+> renders. Every number in its report was true and the image was still wrong. Third instance this
+> month of a check aimed at the wrong subject, after C20's vacuous interimage guard and a compile
+> gate that has never covered the AVX2 path.
+>
+> **Fixed** by applying the normalisation inside the stage, hoisted out of both loops -- it depends
+> only on `fogGrain`, which the stage already receives, **so no shared signature changed and the
+> AVX2 twin still compiles untouched**. Verified: the stage returns **exactly 1.0** at net density
+> 1.0 on all 160 stocks x 3 channels, and the 147 legacy stocks now agree with the reference to
+> **4.3e-09**.
+>
+> ⚠ **STILL OPEN, SCOPED, AND PINNED: the measured sigma(D) SHAPE cannot be reached from the stage**
+> (13 stocks). It needs the `GrainSpec` and `dmax`, i.e. a shared signature change with the AVX2
+> twin moving in the same commit. Those 13 now get the correct LEVEL and the legacy SHAPE -- worst
+> error falls from 0.39x-2.2x to a pinned **1.73** at net 2.5, with net 1.0 exact. Strictly better,
+> still not right.
+>
+> **C31, two validation tiers, both of which would have caught this on their first run.** A
+> **stage-level parity family** that compiles and calls `AlgoAddGrain` itself -- 2400 probes, the
+> amplitude recovered exactly rather than fitted (`amp = out - D` at unit field and unit gain) --
+> asserting the net-1.0 identity and judging the legacy and measured-shape populations separately,
+> so a scoped gap can neither grow nor silently close. And a **closed-loop tier** in `verify.py`:
+> render, measure back through the manufacturer's own convention, compare to the published number.
+> Two new checks -- a sinusoid at f50 returning exactly 50 % modulation under both transfer laws,
+> and the rendered characteristic curve reproducing the stored curve to 0.002 D.
+>
+> ⚠ The f50 check needed its sampling corrected before it could be trusted: at an arbitrary rate the
+> sine leaks across FFT bins and peak-to-peak stops measuring modulation, so two stocks read 0.559
+> and 0.590 and looked like real failures. px/mm now places f50 on an exact bin.
 >
 > **Status 2026-08-25d (validation pass + renderer parity + documentation audit, queue
 > C17/C20/B1-part):** `verify.py` **349 PASS / 1 FAIL**, 12 audits green, schema **v11 unchanged**,
@@ -1081,19 +1226,34 @@ no OpenCV, no SciPy. 16-bit PNG writing uses stdlib `zlib`.
 > instead, priority-ordered by measured benefit. See
 > `CURVE_RESOLUTION_ANALYSIS_2026-08-13.md`.
 >
-> **Status 2026-08-13 (fifth entry, CORRECTED):** the spectral-sensitivity gap
-> is **partly** closed. The digitised per-layer curves (53 of 142 stocks) were read by
-> nothing; they now drive colour-temperature balance in both Python and C++.
-> The monochrome-collapse and taking-matrix derivations were also built, then
-> found to reproduce a failure a 2026-08-03 analysis had already quarantined
-> (projecting a sensitisation onto three visible primaries derives blue-dominant
-> nonsense for an IR stock), so both ship OFF by default with a guard and a
-> recorded blind spot. New: `AlgoSpectralSensitivity.hpp/.cpp` and a
-> standalone function block in `film_sim.py`. Python and C++ agree to four
-> decimals. Stocks without curves render bit-identically. The derived taking
+> **Status 2026-08-13 (fifth entry, CORRECTED 2026-08-29):** the
+> spectral-sensitivity gap is **partly** closed. The digitised per-layer curves
+> (**76 of 161** stocks) were read by nothing; they now drive colour-temperature
+> balance in both Python and C++. The monochrome-collapse and taking-matrix
+> derivations were also built, then found to reproduce a failure a 2026-08-03
+> analysis had already quarantined (projecting a sensitisation onto three visible
+> primaries derives blue-dominant nonsense for an IR stock). New:
+> `AlgoSpectralSensitivity.hpp/.cpp` and a standalone function block in
+> `film_sim.py`. Stocks without curves render bit-identically. The derived taking
 > matrix is computed and reported but deliberately NOT wired in — it would
 > double-count mixing already carried by `dye_matrix` and `InterimageSpec`. See
 > `CHANGES_2026-08-13_spectral_path.md`.
+>
+> ⚠ **TWO CLAIMS IN THE ORIGINAL OF THIS ENTRY WERE WRONG. They are corrected in
+> place above rather than left standing with a note under them.** It said the
+> monochrome collapse *"ships OFF by default"* and that *"Python and C++ agree to
+> four decimals"*. Neither described what shipped. `Algo_07_Sim.cpp` calls
+> `AlgoSpectralMonoWeights()` **unconditionally**, and always has; only
+> `film_sim` carried a flag, and it defaulted to False. So the collapse shipped
+> ON in the plugin and OFF in the reference renderer, and for the 24 monochrome
+> stocks carrying a traced pan curve the two engines rendered **different
+> images** — worst case `KODAK_PLUS_X_125`, blue weight 0.110 against 0.502. The
+> "agree to four decimals" was true of the two *functions* and false of the two
+> *pipelines*, and that distinction is what hid it for sixteen days. Since
+> 2026-08-29 `RenderSettings.spectral_mono` defaults to **True**, and
+> `spectral_mono_parity.py` compiles the plugin's own translation unit and
+> compares all 68 monochrome stocks on every build. Full account:
+> `RESULT_2026-08-29c_spectral_weights.md`.
 >
 > **Status 2026-08-15 (tenth entry): 143 stocks.** Fifteen new references processed
 > plus the 1495-page KODAK DATA BOOK (vol 5 FILMS located, pp 1150–1495, queued) and

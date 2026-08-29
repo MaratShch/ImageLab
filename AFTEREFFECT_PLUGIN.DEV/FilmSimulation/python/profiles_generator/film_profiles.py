@@ -18823,9 +18823,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFACOLOR_NEG_TYPE_3': (
         ParamSource(
@@ -18881,9 +18881,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFACOLOR_NEG_TYPE_B_1943': (
         ParamSource(
@@ -18937,12 +18937,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Schmidt, Richard / Kochs, Adolf, 'Farbfilmtechnik. Eine Einfuehrung fuer Filmschaffende', Berlin: Hesse 1943 (Schriftenreihe der Reichsfilmkammer 10), pp. 54-125, Abb. 57-59 -- via PDF/PROFILES/AGFA/'Agfacolor 01.mhtml'. Layer sensitisation figure (schematic, +/-10 nm), balance 4200 K Schneeweisskohle arc, EI and process context. Cheltsov & Bongard 1958 p172 documents the post-war B-333/C-334 siblings at 5800/3200 K",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFACOLOR_NEU_1936': (
         ParamSource(
@@ -18996,9 +18995,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFA_APX_100': (
         ParamSource(
@@ -19052,11 +19051,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Agfa-Gevaert, AGFAPAN APX 100 data sheet (apx100.pdf), p2, 'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF vector-path extraction 2026-08-17, superseding the 2026-08-02 visual transcription of the same plot",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.261, 0.343, 0.396), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_APX_25': (
         ParamSource(
@@ -19110,11 +19110,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Agfa-Gevaert, AGFAPAN APX 25 data sheet (agfapanapx25.pdf), p2, 'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF vector-path extraction 2026-08-17, superseding the 2026-08-02 visual transcription of the same plot",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.315, 0.339, 0.346), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_APX_400': (
         ParamSource(
@@ -19168,11 +19169,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Agfa-Gevaert, AGFAPAN APX 400 data sheet (apx400.pdf), p2, 'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF vector-path extraction 2026-08-17, superseding the 2026-08-02 visual transcription of the same plot",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.251, 0.336, 0.413), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_OPTIMA_100': (
         ParamSource(
@@ -19226,12 +19228,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='Agfa Professional Films -- AGFACOLOR OPTIMA II 100 pages (agfa_films.pdf p5, p7), Agfa-Gevaert AG',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFA_OPTIMA_200': (
         ParamSource(
@@ -19287,9 +19288,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFA_OPTIMA_400': (
         ParamSource(
@@ -19345,9 +19346,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFA_PORTRAIT_160': (
         ParamSource(
@@ -19403,9 +19404,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'AGFA_SCALA_200X': (
         ParamSource(
@@ -19502,12 +19503,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="AGFACOLOR Vista 100, 200, 400, 800 -- Technical Data AF, Agfa-Gevaert, 06/2000 -- PDF/PROFILES/AGFA/'AGFACOLOR Vista 100, 200, 400, 800.pdf'. Per-film table: Vista 200 ISO 200/24 deg; RMS granularity 4.3 (48 um, D = 1.0); resolving power 130 l/mm at 1000:1 and 50 at 1.6:1; emulsion layer 18 um; base acetyl cellulose 120 um; latitude MINUS 1 1/2 to +3 stops; process AP 70 / C-41; reciprocity flat 1/10000-1 s, +1/2 to +1 stop at 10 s, no CC filter; all curves VECTOR. Siblings documented on the same sheet: Vista 100/400/800 RMS 4.0/4.5/5.0, resolving 130/130/110 at 1000:1 and 50/50/40 at 1.6:1, layer 16/19/22 um. ⚠ LATITUDE CORRECTED 2026-08-18, '-2..+3' -> '-1 1/2..+3'. The sheet prints -1 1/2 to +3 for Vista 200 (page 6, middle-left data block, word positions x 130-174 pt at y 627), -1 to +3 for BOTH Vista 400 and Vista 800, and -2 to +3 for AGFACOLOR FUTURA II 100 on the NEXT page. The old figure was one of the neighbouring columns, which is the characteristic failure mode of this sheet: three films are printed side by side in three narrow columns and a value read by eye lands one column over. Nothing in the database consumed the latitude field, so no rendered output changes. ⚠ PAGE LAYOUT, so the next reader does not repeat the search: page 6 carries Vista 200 / 400 / 800 side by side, each with four stacked panels (spectral sensitivity, spectral density, sharpness, colour density curves) above its own data block. VISTA 100 IS NOT ON PAGE 6 -- its column begins on page 5. The queue's description of this sheet as 'one vector page carries the 100/200/400/800 family' was therefore wrong in both directions: four films are not superimposed on one plot, and the page in question holds three of them, not four. SPECTRAL SENSITIVITY ADOPTED 2026-08-18 for Vista 200 by agfa_vista.py; see the field comment in the profile for the dash-pattern legend (solid green / dashed blue / dash-dot red), the two independent cross-checks, and the printed absolute peaks b 2.02 / g 2.12 / r 2.06 that per-layer normalisation discards. The sheet's 'Sharpness' panel is a rectangular-wave TRANSFER FACTOR that exceeds 100 % at low frequency, NOT a sine-wave MTF, so f50 was deliberately left as an estimate rather than read off it",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'ANSCOCOLOR_NEG_843': (
         ParamSource(
@@ -19563,9 +19563,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'CINESTILL_800T': (
         ParamSource(
@@ -19589,9 +19589,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'DUFAYCOLOR_1937': (
         ParamSource(
@@ -19645,9 +19645,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMANCOLOR_5248_1953': (
         ParamSource(
@@ -19703,9 +19703,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_5247_1974': (
         ParamSource(
@@ -19759,9 +19759,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_5247_1983': (
         ParamSource(
@@ -19815,12 +19815,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='Eastman Kodak Company, «EASTMAN Color Negative Film 5247», publication TI0835, revised 6-93 (spectral plate TI0835C dated 6-83) -- PDF/PROFILES/KODAK/5247.pdf, text layer present. GROUNDS: the EI that this profile exists to carry -- the sheet prints "Tungsten (3200 K) ... 125/22", and also 125/22 for 3400 K photoflood and for Optima 32, with "Daylight 80/20"; a clear acetate safety base with rem-jet backing; and the p4 spectral-sensitivity plate, digitised 2026-08-02 (batch 4) at criterion log_reciprocal_erg_cm2_D1.0_above_dmin. ⚠ THE SHEET DATES THE COATING, NOT THE PRODUCT NAME. TI0835C of June 1983 is the OLDEST hard date in this corpus for the improved EI 125T coating, which is why the profile is named _1983 -- that year is a FLOOR, not a proven introduction date. The corpus contains no statement of when Kodak made the change. The \'5247-II\' designation and the \'post-1979\' date that appear in older comments are prior knowledge with no source here and are recorded as unverified, not adopted. ⚠ THIS DOCUMENT WAS DECLARED ABSENT BY THE 2026-07-31 LOCAL-ARCHIVE CAVEAT (see above) while being the load-bearing evidence for the 2026-08-18 split of 5247 into _1974 and _1983. Found on disk 2026-08-18. ⚠ RE-VERIFIED AGAINST THE SHEET 2026-08-18 (queue item E0), and THREE STORED VALUES CHANGED as a result. (1) rms granularity 13.0 -> 5.0: TI0835\'s Image Structure section prints \'rms Granularity: less than 5 / Read with a microdensitometer, (red, green, blue) using a 48-micrometre aperture\' -- Kodak\'s own figure on this database\'s own 48 um convention. The earlier refusal to adopt Chibisov 1988\'s printed RMS 5 was reasoned (\'cross-era metric equivalence unverified\') and is now SUPERSEDED, because the objection was about Chibisov\'s metric and this is Kodak\'s. Two independent sources agree on ~5; 13.0 sat 2.6x above Kodak\'s printed upper bound. (2) Resolving power: TI0835 prints \'ISO RPL 50 lines/mm (TOC 1.6:1)\' and \'ISO RP 100 lines/mm (TOC 1000:1)\', determined by a method similar to ISO 6328-1982. The pair was already in _RESOLVING_POWER but attached to EASTMAN_5247_1974 -- a leftover from the 2026-08-18 split, since TI0835 documents the EI 125 coating. MOVED to this profile; _1974 now correctly has none. (3) Reciprocity: the sheet prints \'no filter corrections or exposure adjustments for exposure times from 1/10,000 to 1/10 second. At an exposure time of 1 second, use a KODAK Color Compensating Filter CC10Y and increase exposure by 1/2 stop\', so this stock DOES fail and fails CHROMATICALLY; it previously carried the colour-negative default of no failure at all. Entered in _RECIPROCITY_OVERRIDES. ALSO CONFIRMED, no change needed: EI 125/22 tungsten at 3200 K with no filter, and 125/22 at 3400 K photoflood; clear acetate base with rem-jet backing; Process ECN-2; Status M densitometry with tungsten 1/50 s exposure on the characteristic plate. ⚠ THE DAYLIGHT INDEX IS FILTER-DERIVED AND IS DELIBERATELY NOT STORED: the sheet\'s \'Daylight 80/20\' requires a WRATTEN Gelatin No. 85, and \'Tungsten (3000 K) 80/20\' requires a No. 82B. Those are filter factors, not film speeds -- the same treatment already applied to the Konica stocks. STILL NOT PRINTED ANYWHERE ON THIS SHEET: numeric gamma or contrast index, numeric Dmin or Dmax, base thickness, MTF as a number. ⚠ PLATE DATING, which is why this profile is named _1983 and not _1993: the body is stamped \'TI0835 ... Revised 6-93\' with \'Copyright, Eastman Kodak Company, 1993\', but ALL FOUR graph plates carry their own older codes and dates -- TI0835A (MTF) 6-83, TI0835B (characteristic) 6-83, TI0835C (spectral sensitivity) 6-83, TI0835D (spectral dye density) 6-83. The graphs were never redrawn when the text was revised, so the plotted data is 1983 data in a 1993 wrapper. All four plates are RASTER (one 959x719 px image per page, pp 6-9); the text and table pages 1-5 are vector. Chibisov 1988\'s S 125 GOST, mean gradient 0.50 and MTF 0.65-0.32 at 30 mm^-1 remain RECORDED, NOT ADOPTED -- unlike its RMS figure, those have no Kodak counterpart on this sheet to corroborate them. ✅ THE SEHLIN/KENNEL YEAR CONFLICT IS SETTLED: the paper is July 1985, pp 724-734. Its own first-page footnote explains the filename\'s 1983 -- that is the date it was PRESENTED (125th SMPTE Technical Conference, Los Angeles, paper No. 125-40, November 2, 1983); it was received in final form 14 September 1984 and copyrighted 1985. The file KODAK/Sehlin_Kennel_etal_1983_ChoosingECN5247or52941.pdf is therefore MISNAMED, and this database\'s existing 1985 citation was right all along',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_5250_1959': (
         ParamSource(
@@ -19872,11 +19871,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=3, status='assumed',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_5254_1968': (
         ParamSource(
@@ -19928,11 +19927,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=3, status='assumed',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_DOUBLE_X_5222': (
         ParamSource(
@@ -19989,11 +19988,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='high',
             note="The developer is a NAME printed by the source, not a measured number -- hence status 'stated'. It matters because development progress type is a property of the DEVELOPER, not the emulsion (Tani gets both types from one emulsion with CP-20 and D72)."),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «EASTMAN DOUBLE-X Negative Film 5222/7222 -- Technical Data», KODAK Publication No. H-1-5222, Revised 7-15 (header JULY 2015), (c) 2015, p3 'Spectral Sensitivity Curves'; PDF vector-path extraction 2026-08-26 by spectral_vector.extract_mono_sheet. Printed footnote in full: '*Sensitivity = reciprocal of exposure (ergs/cm2) required to produce specified density'. THE SPECIFIED DENSITY IS PRINTED HERE, twice: the panel draws TWO curves captioned 'D = 0.3 Above Gross Fog' and 'D = 1.0 Above Gross Fog', and the adopted set is the D 1.0 one, selected by matching that caption to the curve it sits above rather than by page order. Also printed inside the frame: 'Processing: KODAK Developer D-96 at 21 C (70 F) to recommended control gamma', 'Exposure: 1.4 sec', 'Densitometry: Diffuse Visual'. Traced extent 419-655 nm, 24 measured samples on the 380-680 nm grid, absolute peak log sensitivity 0.90 at 430 nm; the peak is thrown away by the schema's per-layer normalisation and survives only here. Axis from 11 wavelength ticks (worst residual 0.29 pt) and 5 sensitivity ticks (0.33 pt); the axis runs to -1.0 and Kodak draws that minus as an OVERBAR absent from the text layer, so the tick was signed by its position about the zero tick and the five-tick collinearity confirms it. ⚠ THIS REPLACES A READING OF THE SAME FIGURE from the sheet's OTHER EDITION: H-1-5222 revised 3-26 prints the identical plot as a raster and was read by hand on 2026-08-02. The two agree to rms 0.037 decades over the 23 mutually-measured samples and peak on the same 430 nm sample, so the numbers are confirmed rather than corrected; what changes is that they are now machine-derived with residuals on record",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.470, 0.210), a class default. This cell prints (0.277, 0.360, 0.363), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'EASTMAN_EKTACHROME_5239': (
         ParamSource(
@@ -20047,9 +20047,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_EKTACHROME_7239': (
         ParamSource(
@@ -20101,12 +20101,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Eastman Kodak Company, «EASTMAN EKTACHROME Film (Daylight) 7239 -- Technical Data», KODAK Publication No. H-1-5239, Minor Revision 2-99 (header February 1999), (c) Eastman Kodak Company 1998, CAT 824 4295 -- PDF/PROFILES/KODAK/'Kodak Eastman EKTACHROME Film (Daylight) 7239.pdf', 4 pages, text layer present, and ALL FOUR PLOTS ON p3 ARE VECTOR: sensitometric, spectral-sensitivity, SPECTRAL-DYE-DENSITY and modulation-transfer. ⚠ RE-VERIFIED DIGIT FOR DIGIT 2026-08-18 (queue item E0), and it verifies well. PRINTED AND CONFIRMED: 'EXPOSURE INDEX/DIN Daylight-160/23' = the stored EI 160; 'Diffuse RMS Granularity* 14' with footnote '*Read at a net diffuse visual density of 1.0, using a 48-micrometer aperture' = the stored rms 14.0 exactly, on this database's own convention; 'TOC 1.6:1 40 lines/mm' and 'TOC 1000:1 100 lines/mm' = the stored (40, 100) pair exactly; 'This film has a clear acetate safety base.'; 'Process VNF-1 ... and Process RVNP'; the sensitometric plate is annotated 'Exposure: Daylight, 1/100 second / Process: VNF-1 / Densitometry: Status A'. The sheet's 'Tungsten* (3200 K)-40/17' carries the footnote '*with 85B filter' and is FILTER-DERIVED, deliberately not stored. ⚠ A FALSE HIT TO KNOW ABOUT: page 1 of this PDF contains, at a different y-offset from its real header, the stray text 'H-1-5247' and 'August 1996'. It is template residue -- every genuine colophon in the document (page 1 header, the page 2 and 3 running heads, the page 4 publication block) reads H-1-5239, and the file is a single 4-page document with no 5247 content. A corpus-wide search for 'H-1-5247' WILL hit this file; it is not a 5247 source. ⚠ NOT PRINTED AS NUMBERS: gamma (stored 1.45/1.48/1.50 are estimates), Dmin, Dmax, any MTF value. ⚠ RECIPROCITY: the sheet prints only 'no filter or exposure adjustments for exposure times from 1 second to 1/10,000 second', which fixes onset_s = 1.0. The stored triple 0.93/0.92/0.94 is byte-identical to KODAK_EKTACHROME_100D_5285's -- one colour-reversal default applied twice, forty years and two processes apart. See that entry.",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_EXR_100T_5248': (
         ParamSource(
@@ -20162,12 +20161,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='EASTMAN EXR 100T Color Negative Film 5248/7248, Kodak publication H-1-7248, March 1999 -- PDF/PROFILES/KODAK/5248.pdf. EI 100 tungsten 3200 K +/-150 K (daylight 64 with No.85 = filter factor); RMS <5 at 48 um, net diffuse D 1.0; resolving power 80 (1.6:1) / 160 (1000:1) lines/mm; ECN-2 Status M; acetate + rem-jet; reciprocity none 1/1000-1/10 s, +1/3 stop at 1 s. Vector curves p3 (all five graphs)',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_EXR_200T_5293': (
         ParamSource(
@@ -20221,12 +20219,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='EASTMAN EXR 200T Film 5293/7293, Kodak publication H-1-5293t, August 2003 -- PDF/PROFILES/KODAK/5293.pdf. EI 200 tungsten 3200 K +/-150 K (daylight 125 with No.85 = filter factor); ECN-2 Status M; clear acetate + rem-jet; reciprocity none 1/1000-1 s, no CC (achromatic). RMS as curve only. Vector curves p3-p4',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_EXR_500T_5296': (
         ParamSource(
@@ -20278,12 +20275,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="EASTMAN EXR 500T Film 5296, Kodak MPTVI data sheet TI1664, reissued 6-92 -- PDF/PROFILES/KODAK/'eastman 500t 5296 exr - Kodak.pdf'. EI 500 tungsten / 28 DIN (daylight 320/26 with No.85 = filter factor); 3200 K +/-150 K; resolving power ISO RPL 50 / ISO RP 100 lines/mm (1.6:1 / 1000:1); ECN-2; clear acetate + rem-jet; reciprocity none 1/1000-1 s (achromatic). Text-only sheet: no curves at all",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_EXR_50D_5245': (
         ParamSource(
@@ -20339,12 +20335,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="EASTMAN EXR 50D Film 5245/7245, Kodak publication H-1-5245t, May 2003 -- PDF/PROFILES/KODAK/5245.pdf. EI 50 daylight (tungsten 12 with 80A = filter factor); 5500 K; ECN-2 Status M; clear acetate + rem-jet; reciprocity none 1/1000-1 s with no CC filter (achromatic). RMS as curve only; no resolving power printed. WARNING: p1 carries a duplicated misprinted row 'Tungsten (3200 K) | None | 50' -- do not use. Vector curve pages: p3 (characteristic + MTF), p4 (granularity, spectral sensitivity, dye density)",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EASTMAN_ORTHO_1930': (
         ParamSource(
@@ -20456,11 +20451,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, 'EASTMAN PLUS-X Negative Film 5231/7231', Technical Data H-1-5231, February 1999",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.540, 0.190), a class default. This cell prints (0.296, 0.340, 0.364), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'EASTMAN_SUPER_XX_1938': (
         ParamSource(
@@ -20626,12 +20622,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK EKTACHROME 160T Professional (EPT), Kodak publication E-144, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'EKTACHROME_64': (
         ParamSource(
@@ -20685,12 +20680,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK EKTACHROME 64 Professional (EPR), Kodak publication E-8, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FERRANIACOLOR_NEG_82': (
         ParamSource(
@@ -20746,9 +20740,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FERRANIACOLOR_REVERSAL_1950': (
         ParamSource(
@@ -20804,9 +20798,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FERRANIA_P30': (
         ParamSource(
@@ -20858,11 +20852,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Film Ferrania S.r.l., 'Curve caratteristiche e sensibilita spettrali' [Characteristic curves and spectral sensitivities], undated (P30 New / P33 / Orto comparison sheet); processing Kodak D-76 stock 20 C 8 min",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.361, 0.365, 0.274), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'FOMAPAN_400_ACTION': (
         ParamSource(
@@ -20916,11 +20911,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Foma Bohemia, 'FOMAPAN 400 Action' technical datasheet, undated (PDF 2023)",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.480, 0.220), a class default. This cell prints (0.395, 0.349, 0.256), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'FUJICOLOR_A250': (
         ParamSource(
@@ -20974,12 +20970,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='Fuji Film Data Sheet MP3-57E, Fuji Photo Film Co., Ltd., printed 1980.08 -- PDF/PROFILES/FUJI/«FUJICOLOR NEGATIVE FILM A 250.pdf». Fujicolor Negative A250, 35 mm type 8518 / 16 mm type 8528; launched 1980 and then the world\'s fastest colour negative motion-picture film (Academy Award of Merit); integral orange mask by coloured couplers. GROUNDS: exposure index -- the sheet\'s own line "3200K Tungsten Lamps ..... 250", hence EI 250 at 3200 K; the characteristic curves, traced from the sheet\'s plot at Status M, 3200 K through a Fuji SC-41 UV filter, 1/50 s, calibrated on the printed gridlines to +/-0.02 D -- straight-line slope over log E -2.0..-1.0 measured 0.56 / 0.54 / 0.54 (B/G/R) and the toe plateau at log E ~ -3.3 reading B 0.95 / G 0.54 / R 0.22, which IS the orange-mask dmin ladder and is why mask_encoding is dmin_ladder rather than neutral_dmin; and the "Spectrogram to Tungsten Light (3200 K)" plot, relative spectral sensitivity on a printed log scale, peaks read at B 430, G ~557, R ~642 nm with deep crossovers at B/G ~490 nm and G/R ~580 nm (the yellow filter layer showing up). NOT PRINTED ANYWHERE IN THE SHEET: any numeric gamma, Dmin or Dmax; any granularity figure, aperture or density condition; resolving power; MTF; reciprocity. The stored rms 8.6 is consequently an ESTIMATE for a 250T stock of 1980, bracketed between Eastman 5293 (200T, rms 7.4) and 5294 (400T). ⚠ MISATTRIBUTION HAZARD, RECORDED SO IT CANNOT RECUR: the companion file PDF/PROFILES/FUJI/«A 250.pdf» is NOT this film\'s datasheet. It is Yamaryo, Ishimaru and Takemura, SMPTE Journal, July 1985, and it concerns AX 8514/8512 and LP 8816. Its granularity, CTF and exposure figures -- including its 40x40 um granularity numbers -- must NOT be attributed to A250',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FUJICOLOR_SUPER_F500_8572': (
         ParamSource(
@@ -21035,12 +21030,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="FUJICOLOR SUPER F-500 datasheet (35mm Type 8572 / 16mm Type 8672), FUJIFILM -- PDF/PROFILES/FUJI/'F500 - 8572.pdf'. p1: EI 500 tungsten 3200 K; daylight 320 with LBA-12 or Wratten No.85 (filter factor, not stored); seven-row illuminant/filter EI table (HMI 320; white fluorescent CC-30R at 250; 3-band 5000 K CC-30R at 250; 6700 K CC-40R at 200); all four curve sets VECTOR. p2: RMS granularity 4.0 (x1000, 48 um aperture, D = 1.0 above Dmin); reciprocity none 1/1000-1/10 s, +1/3 stop at 1 s with NO CC filter (achromatic); CTF graph 1-100 c/mm (no numeric resolving power); NOTE the 2-page sheet states neither process nor base. TRACED 2026-08-23, in the same pass as the sister sheet 8532: the three characteristic curves (frame (660.415,350.0)-(830.417,605.804), fitted to rms 0.013-0.021 D with the shoulder held -- the drawn curve stops at mid grey +5.0 stops and never shoulders), the three spectral sensitivity curves (peaks 467/551/648 nm), and the contrast transfer function, which crosses 0.5 at 24.79 c/mm AS PRINTED and converts by Coltman's square-to-sine inversion to a SINE f50 of 20.21 c/mm (19.66-20.91 over a -30%/+40% swing of the extrapolated tail). The earlier reading of this sheet recorded the CTF panel as unusable for f50; it is usable, and the 'CTF graph only' entry in NotFound.md is corrected accordingly. ⚠ THIS SHEET SHARES 8532'S MIS-SET EXPOSURE AXIS, character for character: the ten uniformly spaced gridline labels print -4.5 -3.0 -3.5 -2.0 -2.5 -1.0 -1.5 0.0 0.5 1.0, which is not monotonic. That the SAME sequence appears on both sheets is what identifies it as a Super-F template defect rather than a misread of either sheet. Read as first gridline = -4.5 (see the 8532 citation for the argument). This sheet then does double duty as the CHECK on that reading: its green speed point and 8532's sit 0.577 decades apart, against the 0.602 the printed exposure indices 500 and 125 require -- 0.08 stop",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FUJI_ETERNA_VIVID_500T_8547': (
         ParamSource(
@@ -21080,12 +21074,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='FUJICOLOR ETERNA Vivid 500 datasheet, FUJIFILM Corporation, 2009',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FUJI_F125_8530': (
         ParamSource(
@@ -21140,9 +21133,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FUJI_NEOPAN_1600': (
         ParamSource(
@@ -21197,11 +21190,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='high',
             note="The developer is a NAME printed by the source, not a measured number -- hence status 'stated'. It matters because development progress type is a property of the DEVELOPER, not the emulsion (Tani gets both types from one emulsion with CP-20 and D72)."),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), section 9 SPECTRAL SENSITIVITY CURVE (PDF p3), 'Spectrogram to Daylight (5400K)' -- re-traced at 5 nm on 2026-08-15 from the 300 dpi raster; agrees with the earlier 10 nm trace to 0.016 log",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.275, 0.328, 0.397), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'FUJI_NEOPAN_ACROS_100': (
         ParamSource(
@@ -21243,11 +21237,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Fuji Photo Film Co., Ltd., 'NEOPAN 100 ACROS' data sheet, Ref. No. AF3-095E, sec. 12, wedge spectrogram to daylight 5400 K; original release 2001 (printer's code EIGI-01.6)",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.342, 0.353, 0.304), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'FUJI_PROVIA_400X': (
         ParamSource(
@@ -21301,12 +21296,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='FUJICHROME PROVIA 400X Product Information Bulletin, FUJIFILM Corporation, 2007',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FUJI_SENSIA_100': (
         ParamSource(
@@ -21360,12 +21354,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='FUJICHROME Sensia 100 [RA] datasheet AF3-091E, FUJIFILM Corporation',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FUJI_SUPER_F125_8532': (
         ParamSource(
@@ -21421,12 +21414,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Fuji Photo Film Co., Ltd., 'FUJICOLOR NEGATIVE FILM F-125 (SUPER F SERIES) / 35mm Type 8532, 16mm Type 8632', Ref. No. KB-913E (SK.99.05.DT.MW), Printed in Japan, (C)1999 Fuji Photo Film Co., Ltd. -- issuer address printed as 26-30 Nishiazabu 2-chome, Minato-ku, Tokyo 106-8620, Japan; PDF creation stamp 2001-08-24. PDF/PROFILES/FUJI/Fujifilm-Super-F-125-8532-35mm-Motion-Picture-Film.pdf. ⚠ THE COPYRIGHT LINE AND REF. NO. ARE OUTLINED VECTOR ART, NOT TEXT, so they are invisible to get_text() and an earlier reading of this same file concluded 'no printed date anywhere on the sheet' and dated the document from the PDF stamp instead. They are legible in a 110 dpi render of page 1, bottom centre. The lesson generalises: on this sheet the product name, the FUJIFILM logotype and the whole footer are outlined, so a text-layer dump UNDER-REPORTS what the sheet prints. Page 1 also carries the 2002 FIFA World Cup 'OFFICIAL IMAGING SPONSOR' mark, which is consistent with a 1999 copyright on material still in print in 2001 and is recorded as an observation, not as a second date. PRINTED AS TEXT, adopted verbatim: EI 125 at 3200 K tungsten with no filter; EI 80 daylight and 80 HMI with an LBA-12 or Wratten 85, 64 with CC-30R under fluorescent, 50 at 6700 K with CC-40R -- all recorded as FILTER FACTORS and none stored as a second index; colour-balanced for 3200 K; RMS granularity 3.0 read at 'a visual diffuse density 1.0 above the minimum density; a 48um diameter aperture used', which is NET 1.0 and therefore needs no conversion; reciprocity none from 1/1000 to 1/10 s, +1/3 stop at 1 s; densitometry Status M with exposure at 3200 K for 1/50 s through a Fuji SC-41 UV absorber; spectral-sensitivity criterion 'Density 0.40 above Minimum Density, reciprocal of exposure (ergs/cm2)'; MR code edge marking with film identification mark FN32, film name FUJI F-125, and frame marks 5/8/15 perforations apart for 65 mm, 4 for 35 mm, none for 16 mm. TRACED FROM THE SHEET'S OWN VECTOR PANELS 2026-08-23 (queue C11, closed for this stock): the three characteristic curves, the contrast transfer function and the three spectral sensitivity curves are stroked PDF paths, so their coordinates are EXACT and only the axis calibration is fitted. Characteristic curves: plot frame (99.582,677.196)-(269.584,933.0), density 0.0-3.0 across the frame at 28.334 pt per 0.5 D, exposure 4.5 decades at 28.423 pt per 0.5 decade; fitted to the project's softplus ToneCurve with the shoulder HELD (see the profile comment) to rms 0.005-0.009 D. ⚠⚠ THE EXPOSURE AXIS LABELS ARE MIS-SET ON THE SHEET AND MUST NOT BE READ LITERALLY. The ten gridline labels print, left to right, -4.5 -3.0 -3.5 -2.0 -2.5 -1.0 -1.5 0.0 0.5 1.0 -- which is NOT MONOTONIC, so the sheet contradicts itself and at least four labels are wrong whatever the truth is. The gridlines themselves are exactly uniform (0.5 decade each), so only the ORIGIN is in doubt, and it was settled by physics, not by the labels: with the first gridline at -4.5 the fitted toe_x comes out -1.64..-1.68 and the mid-grey green density 1.37, both inside the range the traced Kodak stocks occupy (toe_x -1.48..-1.59, D_g(0) 1.41-1.44); with the first gridline at -3.5 they come out -0.62..-0.68 and 0.82, far outside it. The reading is therefore FIRST GRIDLINE = -4.5, axis -4.5..0.0, and the six labels -3.0 -2.0 -1.0 0.0 0.5 1.0 are each +1.0 from the truth. THE SAME TEMPLATE ERROR IS ON THE F-500 8572 SHEET, character for character, which is what shows it is a template defect rather than a misread. Cross-check: the green speed points of the two sheets sit 0.577 decades apart against the 0.602 their printed exposure indices (125 and 500) demand -- 0.08 stop, which is the strongest evidence available that the exposure scale is read right. SHARPNESS, converted rather than transferred: the panel is a CONTRAST TRANSFER FUNCTION against a rectangular wave chart, 'normalized with the amplitude of a zero frequency', and it crosses 0.5 at 37.78 c/mm as printed. Coltman's square-to-sine inversion, MTF(f) = (pi/4)[C(f) + C(3f)/3 - C(5f)/5 + C(7f)/7 + C(11f)/11 - C(13f)/13 - ...], puts the SINE-wave f50 at 32.07 c/mm (30.98-33.49 as the extrapolated tail above the drawn 50 c/mm is varied -30%/+40%), with a low-frequency overshoot of +9.0% in the converted sine MTF (+10.7% as printed). So the unit hazard recorded here in August 2026 is RESOLVED, not carried: the conversion needs no duty-cycle assumption beyond the 1:1 bar chart the words 'rectangular wave' state. STILL NOT STORABLE: the spectral-density panel plots only 'Typical Densities for a Mid-scale Neutral Subject' and 'Minimum Densities' -- it does NOT separate cyan, magenta and yellow, and SpectralDyeDensity.validate() requires all three, so this is a SCHEMA-SHAPE mismatch and not a missing document. Both traces were read and are quoted in the profile comment so the numbers are not lost",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'FUJI_VELVIA_50': (
         ParamSource(
@@ -21474,12 +21466,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='FUJICHROME Velvia 50 datasheet / Data Guide, FUJIFILM Corporation',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GENERIC_BW': (
         ParamSource(
@@ -21587,11 +21578,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=3, status='assumed',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GEVACHROME_600': (
         ParamSource(
@@ -21647,9 +21638,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GEVACHROME_605': (
         ParamSource(
@@ -21705,9 +21696,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GEVACHROME_902': (
         ParamSource(
@@ -21761,12 +21752,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='Verbrugghe, R. G. L., «A Sharp Reversal Color Print Film», Journal of the SMPTE 76(12), December 1967, pp. 1198-1201 -- PDF/PROFILES/AGFA/Gevachrome902.pdf, an IMAGE-ONLY scan with no text layer (pdftotext yields 4 bytes), read VISUALLY. Gevachrome Print Film T.9.02, a colour REVERSAL print stock for printing from reversal originals and for 16 mm reductions. GROUNDS: the defining lab-dialled gamma -- the paper states 1.10 to 1.50 obtained purely by colour-development time, 4 to 6 minutes, and states the relationship to be LINEAR; the stored 1.30 is the MIDPOINT of that range, not a printed value, and any lab-specific development time re-derives it; printing-light colour temperature 2900-3000 K, stated, hence the stored balance 2950 K; total emulsion thickness cut from 15 to 11.5 um for definition; Fig. 4, the neutral grey scale, D ~3.0-3.1 at log E 0 with the shoulder at ~0.15; Fig. 8, "REL. LOG. SENSITIVITY" 0-3 against 350-800 nm, the source of the stored spectral set -- sharp cut-offs on all three layers, which is what a print stock needs since it only has to see the negative\'s three dye absorption bands. NOT PRINTED: any exposure index (it is a print stock; the stored EI 8 is a placeholder for the printing exposure, not a film speed), resolving power, reciprocity, or Dmax as a number. GRANULARITY IS THE IMPORTANT ABSENCE: the paper gives it ONLY as a Wiener spectrum at ND 1.00, with no sigma_D and no RMS figure, so it cannot be converted to the 48 um convention and the stored rms 11.5 remains a CLASS ESTIMATE. The stored f50 set 62/70/76 is likewise NOT attributed to this paper -- the paper\'s sharpness claim is qualitative in this profile\'s record',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GEVACOLOR_1952': (
         ParamSource(
@@ -21821,9 +21811,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GEVACOLOR_NEG_652': (
         ParamSource(
@@ -21879,9 +21869,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GEVACOLOR_NEG_682': (
         ParamSource(
@@ -21935,12 +21925,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Vervoort, A. / Stappaerts, H., 'A New Gevacolor Negative Film Type 682', SMPTE Journal 89(9), 1980, pp. 650-652: published gamma 0.57, per-layer RMS granularity curves, DIR couplers in green- and red-sensitive layers, double-layer coating technique. NOTE PDF/PROFILES/AGFA/NewGevacol_Neg_682.pdf is on file but image-only (OCR completed 2026-08-16). PDF/PROFILES/GEVAERT/Verpoort_Stapp1980_NewGevacolNeg682.pdf is a SECOND SCAN OF THE SAME PAPER, not a second source, and its filename misspells the first author, who is printed as Vervoort. ⚠ FIGURE-BY-FIGURE STATE AFTER THE 2026-08-19 PASS (queue item G3): Fig. 10 (sensitometric curves, printed p652) MACHINE-TRACED and adopted at one sample per pixel column -- 589/513/437 samples for B/G/R, ToneCurve fits at rms 0.0063/0.0040/0.0055 D, validated against the figure's own printed gamma 0.57 (traced green 0.5677); see gevaert_curves.py. Fig. 6 (structure, p651) READ and adopted as the layer order, with the six-emulsion double-layer construction recorded in LayerStack.source. Fig. 11 (MTF, p652) READ VISUALLY: 50 % crossings at R ~29 and G ~44 lines/mm; blue is still at ~60 % at the 50 lines/mm right edge, so its f50 is bounded >50 only and the stored 62.0 remains an estimate; the plotted response never exceeds 100 %, so the stored adjacency 0.11 has NO support in this figure. ⚠ UNIT HAZARD: the abscissa says 'lines/mm' while this database stores cycles/mm -- if Agfa-Gevaert meant half-cycles every f50 here is 2x high; adopted on the cycles/mm convention used by every Kodak sheet in this corpus, risk recorded, queue G6. Fig. 7 (spectral sensitivity, p651) READ as a CHECK on the stored 25 nm set: peaks measured B 432 / G 565 / R 645 nm against stored 425 / 550 / 650 -- within one grid step, and green genuinely reads 565 nm, between two stored samples, which a 25 nm grid cannot express. Fig. 8 (spectral dye density, p651) PARTLY TRACED: peaks Y 1.46 at 448 nm, M 1.48 at 525 nm, C 1.46 at 687 nm, cyan traced over 364-703 nm, but the three curves were NOT separated over their full range -- at 340 ppi the cyan curve's dotting merges into components that the solid/dashed style split classes as solid, so a dye-specific rule is needed. ⚠ NOTHING PARTIAL WAS STORED: dye_density stays EMPTY rather than holding an interpolated set; queue G7. PRINTED AND STILL UNSTORED for want of a carrier: the exposure convention '1076 lx (100 ft/cd) ... f/2.8 ... 1/50 s', storage 'below 12 C (54 F)', Table II relative signal-to-noise ratios, Table III printer trimmer settings, and the ECN-2 process designation",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'GEVAERT_PANCHRO_1950': (
         ParamSource(
@@ -22048,11 +22037,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="HARMAN technology Limited, 'ILFORD DELTA 3200 PROFESSIONAL' technical information sheet, wedge spectrogram to tungsten 2856 K, November 2018",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.330, 0.460, 0.210), a class default. This cell prints (0.356, 0.347, 0.297), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'ILFORD_FP4': (
         ParamSource(
@@ -22260,11 +22250,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="HARMAN technology Limited, 'ILFORD HP5 PLUS' technical information sheet, wedge spectrogram to tungsten 2850 K, November 2018",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.340, 0.460, 0.200), a class default. This cell prints (0.323, 0.370, 0.307), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'ILFORD_HPS': (
         ParamSource(
@@ -22554,9 +22545,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODACHROME_64': (
         ParamSource(
@@ -22598,12 +22589,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODACHROME 25/64/200 Films, Kodak publication E-55, Eastman Kodak Company, 2009',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODACHROME_TYPE_A_1938': (
         ParamSource(
@@ -22659,9 +22649,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_8374': (
         ParamSource(
@@ -22769,11 +22759,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Eastman Kodak Company, publication F-4036 (f4036-BW400CN.pdf), Spectral Sensitivity Curves, p5; PDF vector-path extraction 2026-08-16',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.354, 0.396, 0.250), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_EKTACHROME_100D_5285': (
         ParamSource(
@@ -22824,12 +22815,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='high',
             note="The developer is a NAME printed by the source, not a measured number -- hence status 'stated'. It matters because development progress type is a property of the DEVELOPER, not the emulsion (Tani gets both types from one emulsion with CP-20 and D72)."),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Eastman Kodak Company, «KODAK EKTACHROME 100D Color Reversal Film 5285 / 7285 -- Technical Data», KODAK Publication No. H-1-5285, Revised 2-10 (header February 2010), (c) 2010 -- PDF/PROFILES/KODAK/Ektachrome_100d.pdf, text layer present, ALL PLOTS VECTOR (p3 characteristic and MTF; p4 diffuse rms granularity, spectral dye density, spectral sensitivity). ⚠ RE-VERIFIED 2026-08-18 (queue item E0). PRINTED AND CONFIRMED: 'EXPOSURE INDEXES Daylight (5500K): 100' = the stored EI 100 at the stored 5500 K; 'Acetate safety base'; 'Process this film in KODAK Chemicals, Process E-6, cine machine only'; the characteristic plate is annotated 'Exposure: Daylight, 1/100 second / Process: E-6 / Densitometry: Status A'. The sheet's 'Tungsten (3200K): 25 (with 80A filter)' is FILTER-DERIVED and deliberately not stored as a tungsten EI. ⚠ CATALOGUE-NUMBER HAZARD, CONFIRMED BY READING BOTH FILES: THIS sheet is H-1-5285 and names 5285 and 7285 only. The corpus ALSO holds KODAK/KODAK-EKTACHROME-100D-5294-7294-technical-information.pdf, publication H-1-5294, which documents EKTACHROME 100D 5294/7294 -- a DIFFERENT catalogue product. Both files are named 'Ektachrome 100D' and both answer a search for it. This database holds 5285 only; the two sheets must never be merged. ⚠ NOT PRINTED AS A NUMBER: rms granularity (the sheet gives the CURVES plus the instruction 'multiply by 1000 for the rms value', so the stored single figure 3.0 is a read off the plot, not a printed value), gamma, Dmin, Dmax, resolving power (absent entirely, so the stored 0.0/0.0 is correct). ⚠ RECIPROCITY IS AN UNSOURCED ESTIMATE AND IS SHARED WITH AN UNRELATED FILM: the sheet prints only 'no filter corrections or exposure adjustments for exposure times from 1/10,000 to 1 second', which fixes onset_s = 1.0 and nothing else. The stored triple 0.93/0.92/0.94 is byte-identical to the one on EASTMAN_EKTACHROME_7239 -- two films two process generations and forty years apart, E-6 versus VNF-1 -- so it is one heuristic applied twice, not two derivations. Both come from the colour-reversal default in _reciprocity_for(). Recorded rather than differentiated, because inventing a spread would be worse than admitting a shared default.",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_EKTAPAN_100': (
         ParamSource(
@@ -22940,9 +22930,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_EKTAR_100': (
         ParamSource(
@@ -22976,12 +22966,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_GOLD_100': (
         ParamSource(
@@ -23035,12 +23024,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_GOLD_200': (
         ParamSource(
@@ -23076,12 +23064,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK GOLD 100 and 200 Films, publication E-7022, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_ORTHO_X_SHEET_1952': (
         ParamSource(
@@ -23301,11 +23288,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Eastman Kodak Company, publication F-4018 (f4018-125PX-2007.pdf), Spectral Sensitivity Curves, p9; PDF vector-path extraction 2026-08-16',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.205, 0.292, 0.502), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_PORTRA_100T': (
         ParamSource(
@@ -23357,12 +23345,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK PROFESSIONAL PORTRA 100T Film, publication E-2468, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_PORTRA_160': (
         ParamSource(
@@ -23418,12 +23405,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK PROFESSIONAL PORTRA 160 Film, publication E-4051 (2016), Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_PORTRA_400': (
         ParamSource(
@@ -23473,12 +23459,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK PROFESSIONAL PORTRA 400, Kodak publication E-4050, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_PORTRA_800': (
         ParamSource(
@@ -23522,12 +23507,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK PROFESSIONAL PORTRA 800 Film, publication E-4040 (2016), Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_PROFOTO_100': (
         ParamSource(
@@ -23581,9 +23565,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_PRO_100T_PRT': (
         ParamSource(
@@ -23639,9 +23623,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_RECORDING_2475': (
         ParamSource(
@@ -23917,11 +23901,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Eastman Kodak Company, publication F-2350 (f2350-T400CN.pdf), Spectral Sensitivity Curves, p6; PDF vector-path extraction 2026-08-16',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.350, 0.398, 0.252), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TECHNICAL_PAN': (
         ParamSource(
@@ -24032,11 +24017,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Eastman Kodak Company, publication F-4016 (f4016_tmax_100-2018.pdf), Spectral Sensitivity Curves, p8; PDF vector-path extraction 2026-08-16',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.267, 0.340, 0.393), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TMAX_400': (
         ParamSource(
@@ -24088,11 +24074,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Eastman Kodak Company, publication F-4043 (f4043_TMax_400-2016.pdf), Spectral-Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.296, 0.370, 0.334), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TMAX_P3200': (
         ParamSource(
@@ -24132,11 +24119,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Eastman Kodak Company, publication F-4001 (f4001-P3200TMZ-2019.pdf), Spectral Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.292, 0.364, 0.344), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_320TXP': (
         ParamSource(
@@ -24232,11 +24220,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Eastman Kodak Company, publication F-4017 (f4017_TriX.pdf), Spectral Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.253, 0.322, 0.425), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_REVERSAL_200': (
         ParamSource(
@@ -24290,11 +24279,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, 'KODAK TRI-X Reversal Film 7266 Technical Information', publication H-1-7266, revised March 2026 (film line dating to 1955)",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.470, 0.210), a class default. This cell prints (0.271, 0.354, 0.375), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_SHEET_1952': (
         ParamSource(
@@ -24386,12 +24376,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK ULTRA MAX 400 Film, publication E-7023, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_ULTRAMAX_800': (
         ParamSource(
@@ -24445,12 +24434,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK ULTRA MAX 800 Film, publication E-7024, Eastman Kodak Company',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_ULTRA_COLOR_100UC': (
         ParamSource(
@@ -24504,9 +24492,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_ULTRA_COLOR_400UC': (
         ParamSource(
@@ -24560,9 +24548,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VERICHROME_1952': (
         ParamSource(
@@ -24728,9 +24716,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION2_200T_5217': (
         ParamSource(
@@ -24786,12 +24774,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK VISION2 200T Color Negative Film 5217/7217, Kodak publication H-1-5217, (c)2004 rev. 10-2005 -- PDF/PROFILES/KODAK/5217-Vision2-200T.pdf. EI 200 tungsten 3200 K +/-150 K (daylight 125 with No.85); ECN-2; acetate + rem-jet; reciprocity none 1/1000-1/10 s, +2/3 stop CC10R at 1 s, +1 stop CC10R at 10 s (CHROMATIC, red weakest). Vector curve page p3 (all five graphs -- the richest of the VISION2 set)',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION2_250D_5205': (
         ParamSource(
@@ -24845,12 +24832,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="KODAK VISION2 250D Color Negative Film 5205/7205, Kodak publication H-1-5205t, August 2004 -- PDF/PROFILES/KODAK/H-1-5205t.pdf (identical copy: 5205t.pdf; 2004 6pp edition also on file as 'KODAK VISION2 250D Color Negative Film 5205.pdf'). EI 250 daylight 5500 K (tungsten 64 with 80A); ECN-2 Status M; acetate + rem-jet; reciprocity none 1/1000-1/10 s, +2/3 CC10R at 1 s, +1 stop CC10R at 10 s (chromatic, red weakest -- entered in _RECIPROCITY_OVERRIDES). RMS as curve only. Vector curves p3-p4",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION2_500T_5218': (
         ParamSource(
@@ -24906,12 +24892,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="KODAK VISION2 500T Color Negative Film 5218/7218, Kodak publication H-1-5218t, March 2006 -- PDF/PROFILES/KODAK/5218-Vision2-500T-H-1-5218t.pdf (inferior 2002 brochure '500T - 5218.pdf' also on file). EI 500 tungsten 3200 K +/-150 K (daylight 320 with No.85); ECN-2 Status M; 5218/7218 acetate + rem-jet, SO-218 ESTAR + rem-jet; reciprocity none 1/1000-1/10 s, +2/3 CC10R at 1 s, +1 stop CC10R at 10 s (chromatic). Full vector curve set p3-p4 including spectral sensitivity and dye density",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION2_50D_5201': (
         ParamSource(
@@ -24967,12 +24952,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Eastman Kodak Company, 'KODAK VISION2 50D Color Negative Film 5201 / 7201', publication H-1-5201, CAT 122 9749, New 10-2005 (PDF title 62084-Broch.pdf), PDF/PROFILES/KODAK/Kodak VISION2 50D 5201.pdf. PRINTED AS TEXT, adopted verbatim: EI 50 daylight (5500 K); EI 12 tungsten 3200 K WITH a WRATTEN 80A, recorded as a filter factor and NOT stored as a tungsten index; acetate safety base with rem-jet backing; process ECN-2; reciprocity none from 1/1000 s to 1 s, +1/3 stop and a CC10R at 10 s; 35 mm SP718 and 16 mm SP455/445/457 with BH-4740 and 1R-7605 perforation pitches; storage 13 C or below, -18 C beyond 6 months; 'Do not use a safelight. Handle unprocessed film in total darkness.'; the film prints NO scalar granularity, resolving power or gamma anywhere -- 'the measured granularity is exceptionally low' is the whole of the text on grain. MEASURED FROM p3's VECTOR PANELS, 2026-08-20: characteristic curves for all three records (kodak_sensitometry.py, fit rms 0.0053/0.0065/0.0064 D over 100/125/121 samples, abscissa origin +1.9932 decades from the sensitometric panel's own 18 %-grey zero); sigma(D) shape and level (granularity_vector.py, ninth vector sheet, green ratios 0.54/1.00/0.89 peaking 1.20x at D 0.80, net-1.0 rms r/g/b 4.36/4.51/9.63); per-record MTF (mtf_vector.py, f50 32.1/49.7/55.5 cycles/mm, overshoot +0.108/+0.157/+0.142, rolloff q 2.77/3.23/3.42). COMPLETED 2026-08-25 (queue C9 and C10), from the same p3 vector art: spectral dye density (dye_density.py family C, peak_1.0, peaks 450/540/680 nm, validated by Neutral - Dmin = k*(C+M+Y) with k = 0.628/0.604/0.595 at rms 0.019 D) and spectral sensitivity (spectral_vector.py, the file's first vector-traced spectral set, peaks 470/540/650 nm, layers assigned by Kodak's ink convention with the red record drawn as a yellow-under-magenta overprint). ⚠ THE SENSITIVITY CRITERION IS INCOMPLETE ON THE SHEET: it prints 'reciprocal of exposure (erg/cm2) required to produce specified density' and never names the density; stored as printed rather than borrowing the 'D 0.2 above dmin' the 5218/5217/5219 entries carry, which is printed on none of their sheets either. ⚠ The spectral adoption MOVES THIS STOCK'S RENDER (+0.28 stop of red gain at 3200 K against the 600/550/450 nm proxy, green unchanged); the dye set is inert. The sheet's own caveat is recorded rather than smoothed over: 'Sensitometric and Diffuse RMS Granularity curves are produced on different equipment. A slight variation in curve shape may be noticed.' -- measured here as 0.022-0.055 D between the two panels, which is why the coarse panel is used only for the abscissa origin",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION3_200T_5213': (
         ParamSource(
@@ -25026,12 +25010,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Eastman Kodak Company, «KODAK VISION3 200T Color Negative Film 5213/7213 -- Technical Data», KODAK Publication No. H-1-5213, Revised 3-26 (header MARCH 2026), (c) 2026 -- PDF/PROFILES/KODAK/KODAK-VISION3-200T-5213-7213-technical-information.pdf, text layer present. PRINTED AND CONFIRMED: EI 'Tungsten (3200K) - 200' = the stored 200 at the stored 3200 K. THE FILTER-DERIVED INDEX HERE IS 'Daylight - 125 (with 85 filter)'. ⚠ A PHYSICAL DIFFERENCE FROM ITS SIBLINGS, PRINTED AND WORTH KEEPING: this stock has NO REM-JET. The sheet states 'An Anti-halation undercoat replaces the traditional remjet backing layer', whereas the 5219 sheet says that stock 'ha[s] an acetate safety base with rem-jet backing'. Any halation or backing-dependent behaviour keyed by stock should honour that split. ⚠ RE-VERIFIED AGAINST THE SHEET 2026-08-18 (queue item E0). This citation was a one-line placeholder until then, because the LOCAL-ARCHIVE CAVEAT wrongly recorded the sheet as not on file. It IS on file and was read digit by digit. NO STORED VALUE CHANGED -- and the reason is the important finding: THE VISION3 SHEETS PRINT ALMOST NO NUMBERS. Granularity, gamma, Dmin and MTF appear ONLY as curves inside RASTER images (page 3 carries the MTF, sensitometric and rms-granularity plots; page 4 the spectral-sensitivity and spectral-dye-density plots), so the stored numeric values cannot be confirmed OR refuted from printed text -- they came from tracing those rasters, and re-verifying them means re-tracing, not re-reading. The sheet's only printed granularity statement is the METHOD: 'Read with a microdensitometer, using a 48-micrometre aperture' and 'multiply by 1000 for the rms value', which confirms the CONVENTION the stored numbers use but not their magnitudes. ⚠ THE SECOND EXPOSURE INDEX ON THESE SHEETS IS FILTER-DERIVED AND IS DELIBERATELY NOT STORED, the same treatment already applied to the Konica stocks: it is a filter factor, not a film speed. Reciprocity: the sheet states only 'You do not need to make any filter corrections or exposure adjustments for exposure times from 1/1000 of a second to 1 second' -- which CONFIRMS the stored onset_s of 1.0 s but prints no exponent, so the stored Schwarzschild p remains an estimate for times beyond 1 s. Process ECN-2, printed. NOT PRINTED anywhere: resolving power, base thickness, densitometry status letter, or the exposure conditions behind the plotted curves. ",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION3_250D_5207': (
         ParamSource(
@@ -25073,12 +25056,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Eastman Kodak Company, «KODAK VISION3 250D Color Negative Film 5207/7207 -- Technical Data», KODAK Publication No. H-1-5207, Revised 3-26 (header MARCH 2026), (c) 2026 -- PDF/PROFILES/KODAK/KODAK-VISION3-250D-5207-7207-technical-information.pdf, text layer present. PRINTED AND CONFIRMED: EI 'Daylight (5500K): 250' = the stored 250; acetate safety base. THE FILTER-DERIVED INDEX HERE IS 'Tungsten (3200K): 64 (with 80A filter)'. ⚠ RE-VERIFIED AGAINST THE SHEET 2026-08-18 (queue item E0). This citation was a one-line placeholder until then, because the LOCAL-ARCHIVE CAVEAT wrongly recorded the sheet as not on file. It IS on file and was read digit by digit. NO STORED VALUE CHANGED -- and the reason is the important finding: THE VISION3 SHEETS PRINT ALMOST NO NUMBERS. Granularity, gamma, Dmin and MTF appear ONLY as curves inside RASTER images (page 3 carries the MTF, sensitometric and rms-granularity plots; page 4 the spectral-sensitivity and spectral-dye-density plots), so the stored numeric values cannot be confirmed OR refuted from printed text -- they came from tracing those rasters, and re-verifying them means re-tracing, not re-reading. The sheet's only printed granularity statement is the METHOD: 'Read with a microdensitometer, using a 48-micrometre aperture' and 'multiply by 1000 for the rms value', which confirms the CONVENTION the stored numbers use but not their magnitudes. ⚠ THE SECOND EXPOSURE INDEX ON THESE SHEETS IS FILTER-DERIVED AND IS DELIBERATELY NOT STORED, the same treatment already applied to the Konica stocks: it is a filter factor, not a film speed. Reciprocity: the sheet states only 'You do not need to make any filter corrections or exposure adjustments for exposure times from 1/1000 of a second to 1 second' -- which CONFIRMS the stored onset_s of 1.0 s but prints no exponent, so the stored Schwarzschild p remains an estimate for times beyond 1 s. Process ECN-2, printed. NOT PRINTED anywhere: resolving power, base thickness, densitometry status letter, or the exposure conditions behind the plotted curves. ",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION3_500T_5219': (
         ParamSource(
@@ -25120,12 +25102,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Eastman Kodak Company, «KODAK VISION3 500T Color Negative Film 5219/7219 -- Technical Data», KODAK Publication No. H-1-5219, Revised 3-22 (header MARCH 2022), (c) 2022 -- PDF/PROFILES/KODAK/VISION3_5219_7219_Technical-data.pdf, text layer present. NOTE this sheet is the 2022 revision while its three siblings on file are the 2026 revision. PRINTED AND CONFIRMED: EI 'Tungsten (3200K) - 500' = the stored 500 at the stored 3200 K; 'acetate safety base with rem-jet backing' -- REM-JET PRESENT, unlike 5213. THE FILTER-DERIVED INDEX HERE IS 'Daylight - 320 (with 85 filter)' (the sheet itself prints a stray extra bracket there). ⚠ RE-VERIFIED AGAINST THE SHEET 2026-08-18 (queue item E0). This citation was a one-line placeholder until then, because the LOCAL-ARCHIVE CAVEAT wrongly recorded the sheet as not on file. It IS on file and was read digit by digit. NO STORED VALUE CHANGED -- and the reason is the important finding: THE VISION3 SHEETS PRINT ALMOST NO NUMBERS. Granularity, gamma, Dmin and MTF appear ONLY as curves inside RASTER images (page 3 carries the MTF, sensitometric and rms-granularity plots; page 4 the spectral-sensitivity and spectral-dye-density plots), so the stored numeric values cannot be confirmed OR refuted from printed text -- they came from tracing those rasters, and re-verifying them means re-tracing, not re-reading. The sheet's only printed granularity statement is the METHOD: 'Read with a microdensitometer, using a 48-micrometre aperture' and 'multiply by 1000 for the rms value', which confirms the CONVENTION the stored numbers use but not their magnitudes. ⚠ THE SECOND EXPOSURE INDEX ON THESE SHEETS IS FILTER-DERIVED AND IS DELIBERATELY NOT STORED, the same treatment already applied to the Konica stocks: it is a filter factor, not a film speed. Reciprocity: the sheet states only 'You do not need to make any filter corrections or exposure adjustments for exposure times from 1/1000 of a second to 1 second' -- which CONFIRMS the stored onset_s of 1.0 s but prints no exponent, so the stored Schwarzschild p remains an estimate for times beyond 1 s. Process ECN-2, printed. NOT PRINTED anywhere: resolving power, base thickness, densitometry status letter, or the exposure conditions behind the plotted curves. ",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION3_50D_5203': (
         ParamSource(
@@ -25179,12 +25160,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Eastman Kodak Company, «KODAK VISION3 50D Color Negative Film 5203/7203 -- Technical Data», KODAK Publication No. H-1-5203, Revised 3-26 (header MARCH 2026), (c) 2026 -- PDF/PROFILES/KODAK/KODAK-VISION3-50D-5203-7203-technical-information.pdf, text layer present. PRINTED AND CONFIRMED: EI 'Daylight (5500K): 50' = the stored 50; acetate safety base. THE FILTER-DERIVED INDEX HERE IS 'Tungsten (3200K): 12 (with 80A filter)'. ⚠ RE-VERIFIED AGAINST THE SHEET 2026-08-18 (queue item E0). This citation was a one-line placeholder until then, because the LOCAL-ARCHIVE CAVEAT wrongly recorded the sheet as not on file. It IS on file and was read digit by digit. NO STORED VALUE CHANGED -- and the reason is the important finding: THE VISION3 SHEETS PRINT ALMOST NO NUMBERS. Granularity, gamma, Dmin and MTF appear ONLY as curves inside RASTER images (page 3 carries the MTF, sensitometric and rms-granularity plots; page 4 the spectral-sensitivity and spectral-dye-density plots), so the stored numeric values cannot be confirmed OR refuted from printed text -- they came from tracing those rasters, and re-verifying them means re-tracing, not re-reading. The sheet's only printed granularity statement is the METHOD: 'Read with a microdensitometer, using a 48-micrometre aperture' and 'multiply by 1000 for the rms value', which confirms the CONVENTION the stored numbers use but not their magnitudes. ⚠ THE SECOND EXPOSURE INDEX ON THESE SHEETS IS FILTER-DERIVED AND IS DELIBERATELY NOT STORED, the same treatment already applied to the Konica stocks: it is a filter factor, not a film speed. Reciprocity: the sheet states only 'You do not need to make any filter corrections or exposure adjustments for exposure times from 1/1000 of a second to 1 second' -- which CONFIRMS the stored onset_s of 1.0 s but prints no exponent, so the stored Schwarzschild p remains an estimate for times beyond 1 s. Process ECN-2, printed. NOT PRINTED anywhere: resolving power, base thickness, densitometry status letter, or the exposure conditions behind the plotted curves. ",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION_200T_5274': (
         ParamSource(
@@ -25240,12 +25220,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK VISION 200T Color Negative Film 5274/7274, Kodak publication H-1-5274, April 1997 -- PDF/PROFILES/KODAK/5274.pdf. EI 200 tungsten 3200 K +/-150 K (daylight 125 with No.85); ECN-2 Status M; acetate + rem-jet; reciprocity none 1/1000-1 s, +2/3 stop CC10Y at 10 s (chromatic at 10 s). Vector curves p3-p4 (spectral sensitivity 240/232/168-node paths)',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION_250D_5246': (
         ParamSource(
@@ -25299,12 +25278,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK VISION 250D Color Negative Film 5246/7246, Kodak publication H-1-5246t, March 2003 -- PDF/PROFILES/KODAK/5246.pdf. EI 250 daylight 5500 K (tungsten 64 with 80A); ECN-2 Status M; acetate + rem-jet; reciprocity none 1/1000-1 s, +2/3 stop CC10Y at 10 s. RMS as curve only. Vector curves p4-p5',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KODAK_VISION_500T_5279': (
         ParamSource(
@@ -25360,12 +25338,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source='KODAK VISION 500T Color Negative Film 5279/7279, Kodak publication H-1-5279, March 1996 -- PDF/PROFILES/KODAK/5279.pdf. EI 500 tungsten 3200 K +/-150 K (daylight 320 with No.85); ECN-2; acetate + rem-jet; reciprocity none 1/1000-1 s, +2/3 stop CC10Y at 10 s; qualitative magenta-masking-coupler statement p3 (no numeric mask density). Vector curves p2-p3 (spectral sensitivity 368/272/224-node paths)',
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KONICA_CENTURIA_SUPER_1600': (
         ParamSource(
@@ -25419,12 +25396,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Konica Color CENTURIA SUPER 1600 technical data sheet (undated, post-Feb-2002) -- PDF/PROFILES/KONICA/csuper1600.pdf. ISO 1600/33 daylight/flash (photolamp 520 with 80B, tungsten 400 with 80A = filter factors); RMS 6 at 48 um; resolving power 50 (1.6:1) / 100 (1000:1) lines/mm; process CNK-4 / C-41, Status M; triacetate base; reciprocity 1/10000-1 s none, +1 stop at 10 s with CC 'None' (ACHROMATIC -- entered). Curves vector but fragmented; layer schematic on p1 is not data",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KONICA_CENTURIA_SUPER_400': (
         ParamSource(
@@ -25478,12 +25454,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Konica Corporation, 'Konica Color VX SUPER 400 Film -- TECHNICAL DATA SHEET', retrieved 2026-08-16 from 125px.com/docs/film/konica/VX-S400.pdf. ADJACENT PRODUCT, recorded for traceability and NOT back-applied: ISO 400/27, triacetate, CNK-4, RMS granularity 4 (48 um), resolving 50 lines/mm at 1.6:1 and 100 at 1000:1, reciprocity none 1/10000..1 s and +1 stop at 10 s achromatic. The VX SUPER and CENTURIA SUPER lines are different Konica families; the CENTURIA SUPER 400 sheet (125px.com/docs/film/konica/csuper400.pdf) WAS located and its front matter read (ISO 400/27, triacetate, DX 26-5, emulsion #400-#499, MCC/UCC crystal technology, CNK-4), but its data-table page did not survive text extraction -- the stored RMS/resolving for this stock therefore remain [C3] pending a full read of that sheet",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KONICA_CHROME_CENTURIA_100': (
         ParamSource(
@@ -25537,12 +25512,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Konica Corporation, «Konica Chrome CENTURIA 100 SRA Film -- Technical Data Sheet», undated (PDF dated 2002) -- PDF/PROFILES/KONICA/chrocen100.pdf. Konica's late reversal (SRA), process E-6 / CRK-2. GROUNDS: ISO 100; DIFFUSE RMS GRANULARITY 11, at the 48 um aperture and net density 1.0 -- so the stored rms 11.0 is the printed figure on the database's own convention, not a conversion; RESOLVING POWER 60 lines/mm at 1.6:1 and 140 at 1000:1, which is sharper than its speed class and is the source of the stored (60.0, 140.0) pair; a FULL reciprocity table out to 64 s showing NO correction required to 4 s and +1 stop with CC10C at 64 s -- unusually good long-exposure manners for a slide film, and the basis of the stored ReciprocitySpec; Dmax drawn to ~4.0; and the p2 spectral-sensitivity plot at D 1.0, CRK-2, Status A, digitised 2026-08-02 and overlay-verified. NOTE the sheet's 3400 K / 3200 K indices are FILTER-DERIVED (Wratten 80B / 80A) -- filter factors, not film properties -- and are deliberately not stored as a tungsten EI, the same treatment applied to KONICA_VX_100",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KONICA_CHROME_R100': (
         ParamSource(
@@ -25596,12 +25570,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Konica Corporation, «Konica Chrome R-100 Film -- Technical Data Sheet», undated (PDF dated 1999) -- PDF/PROFILES/KONICA/R100.pdf. Konica's earlier-generation reversal, process CRK-2 / E-6. GROUNDS: ISO 100 daylight, with 32 through an 80B and 25 through an 80A -- both FILTER-DERIVED indices, deliberately not stored as a tungsten EI (same treatment as KONICA_VX_100); DIFFUSE RMS GRANULARITY 11, the same figure as the later Chrome Centuria, at the 48 um aperture; RESOLVING POWER 50 lines/mm at 1.6:1 and 125 at 1000:1, softer than the Centuria and the source of the stored (50.0, 125.0) pair; the old-school reciprocity cliff -- correction already required at 1 s, +1/2 stop with CC5R, which is the documented origin of this stock's greenish long exposures and the basis of the stored onset_s 0.5; and the p2 spectral-sensitivity plot at D 1.0, CRK-2, Status A, digitised 2026-08-02 and overlay-verified",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KONICA_IMPRESA_50': (
         ParamSource(
@@ -25655,12 +25628,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Konica Color IMPRESA 50 Professional Film, PUB. No. TDSN-501 (undated) -- PDF/PROFILES/KONICA/IMP50.pdf. ISO 50/18 daylight/flash (photolamp 16 with 80B, tungsten 12 with 80A = filter factors); resolving power 63 (1.6:1) / 160 (1000:1) lines/mm; CNK-4 / C-41; triacetate; reciprocity 1/10000-1 s none, +1/2 stop at 10 s, CC 'None' (ACHROMATIC -- entered, the mildest documented failure in this database). No RMS printed (confirmed by OCR of the page rasters). Curves are RASTER images, not vector",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'KONICA_INFRARED_750': (
         ParamSource(
@@ -25716,9 +25688,10 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='authored class triple; curve-based derivation refused by the gamut-reach guard',
+            source="Konica Corporation, 'KONICA Infrared 750 Black & White Film', Technical Data Sheet, Spectral Sensitivity plot (daylight, without filter); publication undated, film marketed 1980s-2000s",
+            confidence='medium',
+            note="Authored class triple, and it is what renders. The curve-based derivation is REFUSED by the gamut-reach guard: peak sensitisation 750 nm against a 700 nm basis limit, and 0.437 of the emulsion's energy lies beyond that limit (measured on the curve's own samples to 830 nm, not on the renderer's 730 nm grid -- on the clipped grid the same figures read 730 nm and 0.203, low by a factor of two). Projected onto three visible lobes this stock derives to (0.161, 0.193, 0.646), BLUE-dominant, against an authored and correct red-dominant (0.550, 0.150, 0.300). That is a true statement about photographing a monitor and a nonsense one about photographing the world."),
     ),
     'KONICA_VX_100': (
         ParamSource(
@@ -25772,12 +25745,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='integrated from the traced log-sensitivity curves',
-            source="Konica Corporation, 'Konica Color VX 100 Film (IMPROVED) -- TECHNICAL DATA SHEET', retrieved 2026-08-16 from the 125px.com datasheet mirror (125px.com/docs/film/konica/VX100Improved.pdf). Documented: ISO 100/21 daylight; triacetate base; process CNK-4 / C-41; DIFFUSE RMS GRANULARITY 4 (48 um aperture, 12x, D-min+1.0, Status M); RESOLVING POWER 63 lines/mm at 1.6:1 and 125 lines/mm at 1000:1; reciprocity -- no correction 1/10000..1 s, +1 stop at 10 s with NO colour-compensating filter (achromatic failure); full nine-layer structure listed; characteristic, spectral sensitivity, spectral dye density and MTF curves plotted. CONFIRMS the stored RMS 4.0 and resolving 63/125 EXACTLY, and the achromatic reciprocity model. The 3400 K / 3200 K entries (32 and 25) are FILTER-DERIVED indices (Wratten 80B / 80A) -- filter factors, not film properties, so not stored as tungsten EI",
-            confidence='high',
-            note='This profile carries a traced spectral sensitivity set; the RGB taking weights are integrated from it rather than typed in.'),
+            conditions='n/a -- field not read for a three-layer stock',
+            confidence='low',
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'LUMIERE_LUMICHROME': (
         ParamSource(
@@ -25887,9 +25859,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'ORWOCOLOR_NC24': (
         ParamSource(
@@ -25941,11 +25913,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=3, status='assumed',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'ORWO_CHROM_UT18': (
         ParamSource(
@@ -25999,9 +25971,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'POLAROID_146L': (
         ParamSource(
@@ -26517,11 +26489,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Polaroid, 'Film Data Sheet - Polapan Pro 100 B&W (T-54, T-554, T-664, T-804)', undated (PDF 1999)",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.301, 0.295, 0.403), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'POLAROID_667': (
         ParamSource(
@@ -26573,11 +26546,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Polaroid, 'Film Data Sheet - T-87, T-667 & Viva 3000 Instant B&W Peel-Apart Pack Films', undated (PDF 1999)",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.253, 0.299, 0.448), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'POLAROID_SX70': (
         ParamSource(
@@ -26631,9 +26605,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'ROLLEI_INFRARED_400': (
         ParamSource(
@@ -26687,11 +26661,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Rollei GmbH, 'ROLLEI INFRARED' technical data sheet, October 2005",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.520, 0.200, 0.280), a class default. This cell prints (0.349, 0.315, 0.336), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not. ⚠ SPECIFIC TO THIS STOCK: the traced curve is the UNFILTERED sensitisation -- it peaks at 410 nm and puts only 0.028 of its energy past 700 nm, so the gamut-reach guard cannot honestly refuse it. The authored (0.52, 0.20, 0.28) encodes an assumed deep-red/IR taking filter that NO FIELD IN THIS PROFILE RECORDS. The derived triple is right for the data on file and wrong for the way the film is used. Queue row C39."),
     ),
     'ROLLEI_R3': (
         ParamSource(
@@ -26745,11 +26720,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Rollei/MACO, 'ROLLEI R3 - Product information and instructions for use', GBA R3_D,GB, 21 October 2004",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.400, 0.280), a class default. This cell prints (0.250, 0.293, 0.458), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'ROLLEI_RETRO_400': (
         ParamSource(
@@ -26803,11 +26779,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Rollei GmbH, 'ROLLEI RETRO 100/400' technical data sheet, January 2008",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.160, 0.440, 0.400), a class default. This cell prints (0.260, 0.340, 0.400), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'SOVIET_PANCHROM_1939': (
         ParamSource(
@@ -26917,9 +26894,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_CNL_65': (
         ParamSource(
@@ -26973,9 +26950,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_CO_32D': (
         ParamSource(
@@ -27029,9 +27006,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_DS_2': (
         ParamSource(
@@ -27087,9 +27064,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_DS_4': (
         ParamSource(
@@ -27146,9 +27123,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_DS_5M': (
         ParamSource(
@@ -27205,9 +27182,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_FOTO_130': (
         ParamSource(
@@ -27487,9 +27464,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_LN_8': (
         ParamSource(
@@ -27543,9 +27520,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_LN_9': (
         ParamSource(
@@ -27599,9 +27576,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'SVEMA_LN_9S': (
         ParamSource(
@@ -27655,9 +27632,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
     'TASMA_FN_64': (
         ParamSource(
@@ -27821,11 +27798,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=3, status='assumed',
+            param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
-            conditions='n/a',
+            conditions='n/a -- field not read for a three-layer stock',
             confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
 }
 

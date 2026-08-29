@@ -329,6 +329,42 @@ def audits(root: Path):
          "fields, at two pixel scales. Reads sizeof(AlgoType) from the compiled "
          "probe and picks its tolerance from it, so the switchable double/float "
          "typedef stays switchable"),
+        # ⚠ THE THIRD CODE AUDIT, ADDED 2026-08-29, AND THE ONE THAT CAUGHT A
+        # DIVERGENCE THAT WAS ALREADY SHIPPING. Algo_07_Sim.cpp derives the
+        # monochrome collapse weights from the traced pan curve
+        # unconditionally; film_sim gated the identical derivation behind
+        # RenderSettings.spectral_mono, which defaulted to False. For the 24
+        # stocks with a curve the plugin and the reference renderer therefore
+        # produced different B&W images, worst case KODAK_PLUS_X_125 at blue
+        # 0.110 against 0.502. Neither cpp_parity (grain, MTF, reciprocity) nor
+        # interimage_parity (the DIR couplers) looks at stage 7.
+        ("spectral_mono_parity.py",
+         ["--algodir", str(root), "--assert", "--allow-guard-gap"],
+         root / "AlgoSpectralSensitivity.cpp",
+         "film_sim.spectral_monochrome_weights() against the plugin's own "
+         "AlgoSpectralMonoWeights(), all 68 monochrome stocks walked out of "
+         "the real database, to 1e-9. ⚠ --allow-guard-gap accepts ONE known "
+         "open defect -- the gamut-reach guard exists only in Python, so "
+         "KONICA_INFRARED_750 derives to a blue-dominant nonsense in C++ "
+         "(queue C40). The audit names it in its own [OK] line on every run "
+         "so accepting it cannot become forgetting it"),
+        # ⚠ NOT A DOCUMENT AUDIT EITHER: it re-derives the spectral_weights
+        # PROVENANCE from the live database. Added 2026-08-29 after 48 colour
+        # stocks were found labelled status='derived', 'integrated from the
+        # traced log-sensitivity curves', while every one of them still stored
+        # the (0.30, 0.59, 0.11) dataclass default -- Rec.601 luma, integrated
+        # from nothing. _PARAM_SOURCES_DERIVED's own header says "REGENERATE,
+        # do not hand-edit: the rules live in the task EM-A6 generator", and
+        # that generator is not in the repository, so for this parameter the
+        # rule now lives here and is checked.
+        ("spectral_weight_provenance.py",
+         ["--assert"],
+         HERE / "film_profiles.py",
+         "the spectral_weights ParamSource record of all 161 profiles against "
+         "the rule that produces it: derived where a monochrome stock's curve "
+         "is integrated at run time, refused-with-cause where the guard "
+         "declines, inert where the stock is colour and the field is never "
+         "read"),
         ("doc_consistency.py",
          ["--root", str(root / "PYTHON" / "profile_generator"), "--assert"],
          root / "PYTHON" / "profile_generator" / "doc",

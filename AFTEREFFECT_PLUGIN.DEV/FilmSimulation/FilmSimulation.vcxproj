@@ -325,7 +325,9 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\run.cmd" />
     <None Include="python\profiles_generator\sheet.py" />
     <None Include="python\profiles_generator\sort_profiles.py" />
+    <None Include="python\profiles_generator\spectral_mono_parity.py" />
     <None Include="python\profiles_generator\spectral_vector.py" />
+    <None Include="python\profiles_generator\spectral_weight_provenance.py" />
     <None Include="python\profiles_generator\verify.py" />
     <None Include="python\profiles_generator\vision3_granularity.py" />
   </ItemGroup>

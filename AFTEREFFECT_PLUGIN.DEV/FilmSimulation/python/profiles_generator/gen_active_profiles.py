@@ -61,6 +61,7 @@ import argparse
 import re
 
 import film_profiles as fp
+import film_sim as fs
 from film_profiles import Feature
 
 # The spectral consumers, imported so this report can state what the RENDERER
@@ -608,8 +609,33 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     co = p.coating
     rc = p.reciprocity
 
-    # spectral sensitivity: the weights actually used by the renderer
-    c_spec = mk("spec_any", _tri(p.spectral_weights))
+    # -- spectral sensitivity: THE WEIGHTS ACTUALLY USED BY THE RENDERER -----
+    #
+    # ⚠ THIS COMMENT WAS A CLAIM, NOT A FACT, UNTIL 2026-08-29. The cell
+    # printed profile.spectral_weights unconditionally, while for the 24
+    # monochrome stocks that carry a traced pan curve NEITHER ENGINE READS
+    # THAT FIELD -- both integrate the curve at run time (film_sim stage 7 /
+    # Algo_07_Sim.cpp case 2). So this column showed a number no frame used,
+    # marked red as an estimate, on stocks whose curve had been traced from
+    # the manufacturer's own sheet. That is how the owner came to ask why the
+    # APX 100 and APX 400 datasheets had been ignored: they had not been, but
+    # this file said they had.
+    #
+    # ⚠ AND NOTE WHICH COLUMN THIS IS. The header calls it "Spectral
+    # Sensitivity", but it prints the three-number RGB collapse triple, NOT
+    # the sensitisation curve -- that is "Spectral Response Curves", four
+    # columns right. Two different things with confusable names, which is the
+    # other half of how the report misled.
+    #
+    # The report is derived from the renderer, never from a parallel
+    # reimplementation of it, so the derivation is IMPORTED rather than
+    # repeated here. A hard import on purpose: if film_sim cannot be reached
+    # this file must fail, not quietly fall back to the value it used to print
+    # wrongly.
+    _dw = fs.spectral_monochrome_weights(p) if mono else None
+    c_spec = mk("spec_any",
+                (_tri(_dw) + " derived") if _dw is not None
+                else _tri(p.spectral_weights))
 
     # H&D: gamma and base+fog
     if mono:
@@ -929,6 +955,33 @@ def main() -> int:
     w("The evidence test behind the second and third classes is the same one that "
       "produced the earlier +/- table; only the presentation distinguishes a "
       "specification ceiling from a measured value.")
+    w("")
+    w("### ⚠ Two traps in the *Spectral Sensitivity* column, both fixed "
+      "2026-08-29")
+    w("")
+    w("**It is not the curve.** The column headed *Spectral Sensitivity* prints "
+      "`spectral_weights` -- the three-number triple that collapses scene RGB "
+      "onto one silver record. The digitised **curve** is four columns to the "
+      "right, under *Spectral Response Curves*. Two different quantities with "
+      "confusable names, and the reason this file was read as saying that Agfa's "
+      "APX datasheets had been ignored. They had not: `apx100.pdf` and "
+      "`apx400.pdf` p2 were vector-traced on 2026-08-17 to 0.50 nm and "
+      "0.0034 log.")
+    w("")
+    w("**A cell suffixed `derived` is a value no literal in the database "
+      "holds.** For the %d monochrome stocks that carry a traced pan curve, "
+      "neither engine reads `spectral_weights` at all -- both integrate the "
+      "curve against the render primary basis at run time (`film_sim` stage 7 "
+      "via `RenderSettings.spectral_mono`; `Algo_07_Sim.cpp` case 2 via "
+      "`AlgoSpectralMonoWeights`). This column prints what the renderer "
+      "applies, which is the derived triple; the stored triple is a class "
+      "default kept only as the fallback for stocks with no curve. Until "
+      "2026-08-29 the column printed that unused stored default and marked it "
+      "red, so it under-reported the evidence on exactly the stocks whose "
+      "curves had been traced."
+      % sum(1 for _q in fp.FILM_PROFILES
+            if _q.is_monochrome
+            and fs.spectral_monochrome_weights(_q) is not None))
     w("")
     # ⚠ ADDED 2026-08-27 AT THE OWNER'S REQUEST, after five H&D cells in this
     # file were found claiming to be documented when the curves were estimates.
