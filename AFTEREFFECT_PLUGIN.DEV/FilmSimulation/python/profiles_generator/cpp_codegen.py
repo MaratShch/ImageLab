@@ -635,7 +635,46 @@ struct ProcessVariant
     int32_t     exposure_index;   ///< 0 = inherit
     float       gamma_scale;      ///< 1.0 = unchanged; ignored when has_curves
     float       dmin_shift;
+    /// Stops of push (+) or pull (-) from the profile's own EI; 0 = this is a
+    /// CHEMISTRY variant, not a push (schema v21). ⚠ Redundant with
+    /// exposure_index on purpose: the stop count is what the sheet PRINTS, and
+    /// deriving it from the EI ratio would turn a printed label into
+    /// arithmetic. A push record always carries its own curves.
+    int32_t     push_stops;
     ProcessingSpec processing;
+    std::string source;
+};
+
+
+/// What a CORRECTLY EXPOSED negative should measure (schema v21, 2026-08-31,
+/// INERT).
+///
+/// The manufacturer's own definition of correct exposure: red Status M
+/// densities a properly exposed and processed negative reads on four named
+/// subject areas. Every other record in this database says what the film DOES
+/// with a given exposure; this one says which of those outputs the film was
+/// designed to land on, which is what makes it the anchor for scan and print
+/// calibration.
+///
+/// ⚠ EVERY VALUE IS A RANGE, low then high, and (0, 0) means the sheet does not
+/// publish that area. The sheets print "0.79 to 0.89" and never a single
+/// number; the WIDTH is information -- professional stocks are quoted to
+/// +/-0.05, consumer stocks to +/-0.15, pushed stocks wider again.
+///
+/// ⚠ ONE RECORD PER PUBLISHED EXPOSURE INDEX. PORTRA 800 carries three (EI
+/// 800 / 1600 / 3200) and ULTRA MAX 800 two; the records ascend by EI.
+///
+/// NOTHING IN EITHER RENDERER READS THIS, and an aim density is not a curve:
+/// used as an output it would fight the characteristic curve that already
+/// determines density from exposure. It is a comparison, made offline.
+struct AimDensity
+{
+    int32_t     exposure_index;
+    float       gray_card_lo,       gray_card_hi;
+    float       gray_scale_lo,      gray_scale_hi;
+    float       forehead_light_lo,  forehead_light_hi;
+    float       forehead_dark_lo,   forehead_dark_hi;
+    std::string filter;   ///< "status_m_red" on every published table so far
     std::string source;
 };
 
@@ -1234,6 +1273,24 @@ struct FilmProfile {
     /// Callier coefficient (specular/diffuse density seen by a condenser):
     /// 1.0 dye images, ~1.3 B&W silver negative, ~1.25 B&W reversal.
     float callier_q;
+    // -- schema v20 (2026-08-30, queue C39) -----------------------------------
+    /// Cut-on wavelength, in nm, of the longpass filter this profile's look
+    /// ASSUMES in front of the lens. 0.0 = none, or a filter the source names
+    /// without a number.
+    ///
+    /// \warning THE SCHEMA WAS SILENT ABOUT FILTRATION AND ON ONE STOCK THAT
+    /// SILENCE RENDERED THE WRONG ANSWER. ROLLEI_INFRARED_400 stores the
+    /// sheet's UNFILTERED curve, peaking at 410 nm; by that curve it looks
+    /// panchromatic, so the gamut-reach guard passed it and this engine derived
+    /// a near-flat (0.349, 0.315, 0.336) for a film nobody shoots unfiltered.
+    /// Behind the sheet's own 715 nm filter 2.2 % of the curve survives, all of
+    /// it past the basis's 700 nm ceiling, so the guard refuses and the
+    /// authored red-dominant triple is used instead.
+    ///
+    /// \warning ONLY AN IDEAL LONGPASS CROSSES INTO C++. The Python side can
+    /// also carry a MEASURED transmission curve; no stock does, and if one ever
+    /// does this float cannot express it -- see film_profiles.TakingFilter.
+    float taking_filter_cut_on_nm;
     // -- schema v3 (2026-08) --------------------------------------------------
     /// Digitised spectral sensitivity; empty = fall back to spectral_weights
     /// / taking_matrix. See the struct documentation above.
@@ -1273,6 +1330,10 @@ struct FilmProfile {
     std::vector<ParamSource>    param_sources;
     /// The same emulsion under a different chemistry. See struct.
     std::vector<ProcessVariant> process_variants;
+    // -- schema v21 (2026-08-31, queue K2), INERT ----------------------------
+    /// The manufacturer's published aim densities, one record per exposure
+    /// index, ascending. Empty on 152 of 165 profiles. See struct.
+    std::vector<AimDensity>     aim_density;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -1325,6 +1386,14 @@ struct PrintStock {
     float mtf_f50_b;
     float mtf_f50_bound;   ///< frequency a censored record is known to exceed
     bool  mtf_measured;    ///< at least one of the three is off a plot
+    // -- schema v22 (2026-08-31, queue M1), INERT ----------------------------
+    /// The print emulsion's own spectral sensitivity -- what its three layers
+    /// see when they read a negative's dyes. Empty on 10 of the 11 print
+    /// stocks. ⚠ This is the `M_reader` a correct stage-12 `dye_matrix` needs
+    /// (`M_reader . M_status^-1`), and having it does NOT licence adopting
+    /// that matrix: 164 of 165 profiles render through SCAN_DI, whose reader
+    /// is a scanner and not this film.
+    SpectralSensitivity spectral;
 
 };
 
@@ -1723,9 +1792,33 @@ def _process_variants(seq) -> str:
                 str(v.exposure_index),
                 _f(v.gamma_scale),
                 _f(v.dmin_shift),
+                str(v.push_stops),
                 _processing(v.processing),
                 f'"{_escape(v.source)}"',
             ])
+            + " }"
+        )
+    return "{ " + ", ".join(items) + " }"
+
+
+def _aim_density(seq) -> str:
+    """std::vector<AimDensity> initialiser (schema v21).
+
+    ⚠ THE RANGES ARE FLATTENED TO lo/hi PAIRS, not emitted as a nested struct.
+    A two-float sub-struct would need its own aggregate braces at every one of
+    four areas on every record, and the C++ side reads nothing here -- the pair
+    naming carries the meaning that the nesting would.
+    """
+    if not seq:
+        return "{}"
+    items = []
+    for a in seq:
+        items.append(
+            "{ "
+            + ", ".join(
+                [str(a.exposure_index)]
+                + [_f(v) for area in a.AREAS for v in getattr(a, area)]
+                + [f'"{_escape(a.filter)}"', f'"{_escape(a.source)}"'])
             + " }"
         )
     return "{ " + ", ".join(items) + " }"
@@ -1999,6 +2092,8 @@ def _profile_block(p: FilmProfile) -> str:
             "{_escape(p.speed_criterion)}",
             "{_escape(p.mask_encoding)}",
             {_f(p.callier_q)},
+            {_f(p.taking_filter.cut_on_nm
+                if p.taking_filter.model == "ideal_longpass" else 0.0)},
             {_spectral(p.spectral)},
             {_coating(p.coating)},
             {_interimage(p.interimage)},
@@ -2012,7 +2107,8 @@ def _profile_block(p: FilmProfile) -> str:
             {_emulsion(p.emulsion)},
             {_third_party(p.third_party)},
             {_param_sources(p.param_sources)},
-            {_process_variants(p.process_variants)}
+            {_process_variants(p.process_variants)},
+            {_aim_density(p.aim_density)}
         }},
 """
 
@@ -2031,7 +2127,8 @@ def _print_block(s: PrintStock) -> str:
             {_aging(s.aging)},
             {_dye_stability(s.dye_stability)},
             {_f(s.mtf_f50_r)}, {_f(s.mtf_f50_g)}, {_f(s.mtf_f50_b)},
-            {_f(s.mtf_f50_bound)}, {"true" if s.mtf_measured else "false"}
+            {_f(s.mtf_f50_bound)}, {"true" if s.mtf_measured else "false"},
+            {_spectral(s.spectral)}
         }},
 """
 

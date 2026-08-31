@@ -95,13 +95,13 @@ def live() -> dict:
 #: worse than no check: it will pass while asserting something nobody meant.
 REGISTRY: tuple[tuple[str, str, str, str], ...] = (
     ("doc/NotFound.md",
-     r"\*\*Database: (\d+) film stocks",
+     r"\*\*(\d+) film stocks, \d+ print stocks, \d+ gauges, schema v\d+\.\*\*",
      "stocks", "the headline database size"),
     ("doc/NotFound.md",
-     r"\*\*Database: \d+ film stocks, (\d+) print stocks",
+     r"\*\*\d+ film stocks, (\d+) print stocks, \d+ gauges, schema v\d+\.\*\*",
      "print_stocks", "the headline print-stock count"),
     ("doc/NotFound.md",
-     r"\*\*Database: \d+ film stocks, \d+ print stocks, schema v(\d+)\.\*\*",
+     r"\*\*\d+ film stocks, \d+ print stocks, \d+ gauges, schema v(\d+)\.\*\*",
      "schema", "the headline schema version -- see the note in _live()"),
     ("doc/FilmActiveProfiles.md",
      r"\*\*(\d+) parameters across \d+ profiles now carry `ParamSource`",
@@ -110,8 +110,8 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
      r"52 \u2192 (\d+) entries, 26 \u2192 161 profiles",
      "param_sources", "PROGRESS item 17's ParamSource count"),
     ("doc/NotFound.md",
-     r"\*\*(\d+)\*\* stocks measured \(`sigma_shape_measured`\)",
-     "sigma_measured", "the measured sigma(D) count in the READ FIRST table"),
+     r"\*\*(\d+) of \d+\*\* measured, and every one is Kodak",
+     "sigma_measured", "the measured sigma(D) count in the one-screen table"),
     # ⚠ PATTERN UPDATED 2026-08-26 IN THE SAME EDIT AS THE SENTENCE, which is
     # the discipline this module exists to enforce. DOUBLE-X 5222 became the
     # SECOND monochrome stock with a measured MTF, so "the mono stock in the
@@ -119,8 +119,8 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
     # arithmetic -- and the unmatched pattern failed the build, exactly as
     # designed, instead of passing on a sentence nobody had reread.
     ("doc/NotFound.md",
-     r"one of the TWO mono stocks in the \*\*(\d+)\*\* that now carry `mtf_measured`",
-     "mtf_measured", "the measured-MTF count"),
+     r"MTF: 199 vector pages inventoried, (\d+) stocks measured",
+     "mtf_measured", "the measured-MTF count in the one-screen table"),
     ("doc/DATASHEET_VERIFICATION_REPORT.md",
      r"\*\*(\d+) stocks now carry `mtf_measured`\*\*",
      "mtf_measured", "the measured-MTF count in the verification report"),
@@ -133,6 +133,21 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
     # ---- 2026-08-25d. The carrier census, added in the same edit as the
     # sentence it checks, which is the rule this module's docstring states and
     # which the four counts below now enforce rather than merely recommend.
+    # ⚠ REGISTERED 2026-08-31. `SCHEMA_VERSION` was found FOUR versions stale --
+    # v19-v22 landed with their fields commented and the constant never bumped --
+    # and every document repeating "schema v18" was wrong with it. Only
+    # NotFound.md's headline had the version guarded; these two did not, so they
+    # are registered now. The lesson is the one this registry exists for: a
+    # number is only maintained if something fails when it drifts.
+    ("doc/DATASHEET_VERIFICATION_REPORT.md",
+     r"the database holds \d+ film stocks, \d+ print stocks, schema v(\d+)\.",
+     "schema", "the verification report's schema version"),
+    ("doc/PROGRESS.md",
+     r"\*\*(\d+) film stocks, \d+ print stocks, \d+ gauges\*\*, schema \*\*v\d+\*\*",
+     "stocks", "the PROGRESS build-facts stock count"),
+    ("doc/PROGRESS.md",
+     r"\*\*\d+ film stocks, \d+ print stocks, \d+ gauges\*\*, schema \*\*v(\d+)\*\*",
+     "schema", "the PROGRESS build-facts schema version"),
     ("doc/NotFound.md",
      r"\*\*(\d+) stocks carry a spectral dye-density set\*\*",
      "dye_sets", "the carrier census: dye-density sets"),

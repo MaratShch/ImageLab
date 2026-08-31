@@ -209,6 +209,128 @@ namespace
 
         return 0;
     }
+
+
+    // -----------------------------------------------------------------------
+    //  Trapezoidal integral over a contiguous run of uniformly spaced samples.
+    //
+    //  Returns zero for fewer than two samples, which is what makes the
+    //  out-of-reach test below silently correct when a curve stops at or before
+    //  the basis limit: there is no tail, so there is no tail integral.
+    // -----------------------------------------------------------------------
+    HighPrecType trapzUniform (const HighPrecType* v,
+                               const int32_t       n,
+                               const HighPrecType  step) noexcept
+    {
+        if (n < 2)
+            return 0.0;
+
+        HighPrecType sum = 0.0;
+
+        for (int32_t i = 0; i < n; i++)
+            sum += v[i];
+
+        return step * (sum - 0.5 * (v[0] + v[n - 1]));
+    }
+
+
+    // -----------------------------------------------------------------------
+    //  THE GAMUT-REACH GUARD. See the long note in the header for why it
+    //  exists, why it reads the STORED samples rather than the render grid, and
+    //  why it deliberately does not catch ROLLEI_INFRARED_400.
+    //
+    //  ⚠ Mirrors film_sim.spectral_peak_lambda() and
+    //  film_sim.spectral_out_of_reach() exactly, including the "at least two
+    //  samples beyond the limit" condition. spectral_mono_parity.py is what
+    //  keeps the two in step; it drives THIS function, not a restatement of it.
+    // -----------------------------------------------------------------------
+    bool panWithinBasisReach (const film::SpectralSensitivity& sp,
+                              const HighPrecType cutOnNm) noexcept
+    {
+        //  cutOnNm is the profile's TAKING FILTER (schema v20, queue C39): the
+        //  longpass the stock's look assumes in front of the lens, 0 = none.
+        //
+        //  \warning THE FILTER GOES IN HERE, BEFORE BOTH TESTS, BECAUSE THE
+        //  GUARD AND THE COLLAPSE MUST JUDGE THE SAME EMULSION. Applied later
+        //  the guard would pass a bare curve while the weights came off a
+        //  filtered one, which is the split this guard was written to close.
+        //  ROLLEI_INFRARED_400 is the case: bare it peaks at 410 nm and looks
+        //  panchromatic, so this returned true and the engine derived a
+        //  near-flat triple for a film nobody shoots unfiltered. Behind the
+        //  sheet's own 715 nm filter its peak moves to 720 nm and every
+        //  remaining photon is past the basis ceiling, so this now returns
+        //  false and the authored red-dominant triple is used.
+        const std::size_t n = sp.log_s_pan.size();
+
+        if (n < 2)
+            return false;
+
+        const HighPrecType start = static_cast<HighPrecType>(sp.lambda_start_nm);
+        const HighPrecType step  = static_cast<HighPrecType>(sp.lambda_step_nm);
+
+        if (!(step > 0.0))
+            return false;
+
+        // Linear sensitivity on the curve's OWN sampling, unclipped. The stored
+        // values are LOG sensitivity, so they are exponentiated here; nothing is
+        // resampled, because resampling is what discarded the far red.
+        std::vector<HighPrecType> lin(n);
+        std::size_t               peakIdx = 0;
+
+        for (std::size_t i = 0; i < n; i++)
+        {
+            const HighPrecType nm =
+                start + step * static_cast<HighPrecType>(i);
+
+            lin[i] = std::pow(10.0,
+                              static_cast<HighPrecType>(sp.log_s_pan[i]));
+
+            //  Ideal step. A real filter has a finite edge and no source
+            //  states one; the question this answers is whether the usable
+            //  energy lies inside the basis at all, for which the printed
+            //  wavelength is enough. Mirrors film_sim.taking_filter_transmission.
+            if ((cutOnNm > 0.0) && (nm < cutOnNm))
+                lin[i] = 0.0;
+
+            if (lin[i] > lin[peakIdx])
+                peakIdx = i;
+        }
+
+        const HighPrecType peakNm =
+            start + step * static_cast<HighPrecType>(peakIdx);
+
+        if (peakNm > ALGO_SPECTRAL_BASIS_LAMBDA_MAX)
+            return false;
+
+        const HighPrecType total = trapzUniform(lin.data(),
+                                                static_cast<int32_t>(n), step);
+
+        if (!(total > 0.0))
+            return false;
+
+        // First sample strictly beyond the limit. The tail is contiguous
+        // because the sampling is uniform and ascending.
+        std::size_t first = n;
+
+        for (std::size_t i = 0; i < n; i++)
+        {
+            if (start + step * static_cast<HighPrecType>(i)
+                > ALGO_SPECTRAL_BASIS_LAMBDA_MAX)
+            {
+                first = i;
+                break;
+            }
+        }
+
+        if (first >= n)
+            return true;                       // nothing beyond the limit at all
+
+        const HighPrecType beyond =
+            trapzUniform(lin.data() + first,
+                         static_cast<int32_t>(n - first), step);
+
+        return (beyond / total) <= ALGO_SPECTRAL_OUT_OF_REACH_MAX;
+    }
 }   // anonymous namespace
 
 
@@ -291,6 +413,36 @@ bool AlgoSpectralMonoWeights
 
     if (fetchLayers(profile.spectral, sens) != 1)
         return false;
+
+    // ⚠ QUEUE C40. Refuse a stock the visible basis cannot reach, and refuse it
+    // BEFORE integrating: the integral is perfectly well defined for an
+    // infrared emulsion and perfectly meaningless. Writing nothing on refusal
+    // is the contract -- Algo_07_Sim.cpp falls back to profile.spectral_weights,
+    // which for these stocks is the authored triple and the right answer.
+    if (!panWithinBasisReach(
+            profile.spectral,
+            static_cast<HighPrecType>(profile.taking_filter_cut_on_nm)))
+        return false;
+
+    //  \warning THE FILTER IS APPLIED ON THE INTEGRATION PATH TOO, AND LEAVING
+    //  IT OFF WOULD HAVE BEEN INVISIBLE. The guard above judges the FILTERED
+    //  emulsion; if the integral below used the bare one, the guard and the
+    //  collapse would disagree about which film they were looking at -- and on
+    //  every stock the guard refuses, that disagreement never shows.
+    //  Mirrors film_sim.layer_sensitivities.
+    {
+        const HighPrecType cutOn =
+            static_cast<HighPrecType>(profile.taking_filter_cut_on_nm);
+
+        if (cutOn > 0.0)
+        {
+            for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+            {
+                if (gridLambda(i) < cutOn)
+                    sens[0][i] = 0.0;
+            }
+        }
+    }
 
     const HighPrecType centres[3] =
     {

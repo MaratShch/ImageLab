@@ -892,17 +892,31 @@ def main() -> int:
     w("| Property | Measured | Remaining | What would close the gap |")
     w("|---|---|---|---|")
     w(f"| Grain sigma(D) shape | **{_sig}** | {_n - _sig} | raster granularity "
-      f"pages remain on disk; four were read by vision3_granularity.py and one "
-      f"by the 7266 pass (2026-08-25b). Every measured shape is still Kodak, so "
-      f"every non-Kodak sigma(D) is unmeasured |")
+      f"pages remain on disk (39 inventoried). \u26a0 EVERY MEASURED SHAPE IS STILL "
+      f"KODAK -- 11 colour negatives, 1 colour reversal, 1 B&W reversal -- so "
+      f"every non-Kodak sigma(D) is unmeasured, and the 55 MONOCHROME NEGATIVES "
+      f"carry a default the one measured B&W shape contradicts in DIRECTION. "
+      f"Queue F2b: one granularity-vs-density plot for a named B&W negative at a "
+      f"stated aperture |")
     w(f"| MTF rolloff shape | **{_mtfm}** | {_n - _mtfm} | 199 vector MTF pages "
-      f"inventoried, 26 curves on 12 sheets traced (queue C2b) |")
+      f"inventoried, 26 curves on 12 sheets traced (queue C2b). \u26a0 ONE OF THE "
+      f"{_mtfm} IS NOT PER-LAYER: KONICA_IMPRESA_50's sheet prints a single "
+      f"visual-filter curve, so its f50 is pooled and written to all three "
+      f"fields; verify.py names it in `_VISUAL_FILTER_MEASURED` and excludes it "
+      f"from the two guards that reason about red records |")
     w(f"| Resolving power (printed pair) | **{_rp}** | {_n - _rp} | only sheets "
       f"that print a TOC pair; many never did |")
     w(f"| Spectral sensitivity curve | **{_spec}** | {_n - _spec} | mostly a "
-      f"tracing job on pages already held |")
+      f"tracing job on pages already held -- \u26a0 BUT NOT ALL OF IT IS TRACING. On "
+      f"the KODAK still sheets the three layer curves CROSS, and `assign_layers` "
+      f"refuses rather than name them by geometry: exactly one panel of that "
+      f"batch passes a plausibility window and it belongs to a film not in the "
+      f"database. See `NotFound.md` S4.9.1 |")
     w(f"| Spectral dye density curve | **{_dye}** | {_n - _dye} | 191 vector "
-      f"dye-density pages inventoried (queue B1, G7) |")
+      f"dye-density pages inventoried (queue B1, G7). \u26a0 THIS COUNTER MEANS THREE "
+      f"SEPARATED DYES and must not be 'corrected' upward: several sheets -- the "
+      f"KODAK E-series still pages, the KONICA scans, Fuji's Super-F -- publish a "
+      f"NEUTRAL + D-min pair instead, which `has_neutral_pair` counts separately |")
     w(f"| Layer stack (coating order) | **{_stack}** | {_n - _stack} | printed as "
       f"a diagram on some sheets; Cheltsov & Bongard 1958 Table 24 for the rest |")
     w(f"| Reciprocity table | **{_recip}** | {_n - _recip} | almost never printed "

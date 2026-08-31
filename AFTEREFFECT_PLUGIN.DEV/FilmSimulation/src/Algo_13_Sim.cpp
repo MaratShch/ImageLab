@@ -469,10 +469,12 @@ void AlgoStage13_Duplication
                                    frameIndex * (ALGO_DUPE_MAX_GENERATIONS * 2 + 1)
                                        + pass + 1);
 
-                AlgoAddGrain(work[0], work[1], work[2],
-                             pScrField, pScrField, pScrField,
-                             sizeX, sizeY, pitch,
-                             dupeDmin, ALGO_GRAIN_DUPE_FOG, grainGain);
+                // ⚠ AlgoAddGrainRaw, NOT AlgoAddGrain: duplicating stock has no
+                // published rms to pin the amplitude to. See AlgoGrainAmpRaw.
+                AlgoAddGrainRaw(work[0], work[1], work[2],
+                                pScrField, pScrField, pScrField,
+                                sizeX, sizeY, pitch,
+                                dupeDmin, ALGO_GRAIN_DUPE_FOG, grainGain);
             }
 
             floorImage(work[0], work[1], work[2], sizeX, sizeY, pitch);

@@ -180,6 +180,20 @@ HighPrecType AlgoDensityScalar
 //                which has no print stage and never reads it
 //  greyTarget    display value a neutral grey should reach, 0 to 1
 //  couplerScale  user scale on the coupler strength
+//  scannerSpecular  how directional the reader is, 0 diffuse to 1 condenser.
+//                ⚠ THE SOLVE HAS TO SEE THE READER'S OPTICS, AND THAT IS THE
+//                WHOLE REASON THIS PARAMETER EXISTS (queue C41). Callier
+//                steepens the density a printer or scanner reads, and a lab
+//                responds by RE-TIMING the print -- that is what printer
+//                lights are for. Leave the solve blind to it and a condenser
+//                setting both steepens the tone scale AND shifts mid grey,
+//                the shift being the larger of the two: measured on
+//                EASTMAN_DOUBLE_X_5222 at specular = 1, mid grey moves by
+//                roughly a fifth of the output range against a contrast
+//                change of a few per cent. One of those effects is the
+//                physics; the other is the laboratory failing to do its job.
+//                Pass 0 -- the default -- and the factor is exactly 1.0, so
+//                every render made before stage 12b existed is reproduced.
 //  anchorOut     three results: log-exposure trims for a reversal stock, print
 //                offsets for a negative
 // ---------------------------------------------------------------------------
@@ -189,6 +203,7 @@ void AlgoSolveAnchors
     const film::PrintStock*  pPrintStock,
     const HighPrecType       greyTarget,
     const HighPrecType       couplerScale,
+    const HighPrecType       scannerSpecular,
     HighPrecType             anchorOut[3]
 ) noexcept;
 

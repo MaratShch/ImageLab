@@ -659,9 +659,169 @@ void AlgoMakeGrainField
 
 
 // ---------------------------------------------------------------------------
+//  The amplitude evaluator, eight lanes at a time.
+//
+//  Same struct, same law, same numbers as the scalar path -- only the execution
+//  differs, which is the project's rule for a twin. The struct itself is built
+//  by the SHARED AlgoGrainAmpBuild() in AlgoGrain.hpp, so the two paths cannot
+//  drift in the model even if this loop is rewritten.
+// ---------------------------------------------------------------------------
+static inline __m256 algoGrainAmpVec
+(
+    const AlgoGrainAmp& a,
+    const __m256        d
+) noexcept
+{
+    if (!a.measured)
+    {
+        // _mm256_sqrt_ps is a REAL instruction, so this is the rare
+        // transcendental in the engine that needs no approximation and no
+        // accuracy trade - eight square roots for the price of one, exactly
+        // rounded. The floor at zero is a max, not a branch: a negative
+        // developed density is physically meaningless and its square root
+        // would be a NaN that would propagate through every stage after this.
+        const __m256 developed =
+            _mm256_max_ps(_mm256_sub_ps(d, _mm256_set1_ps(a.dmin)),
+                          _mm256_setzero_ps());
+
+        const __m256 root =
+            _mm256_sqrt_ps(_mm256_add_ps(developed, _mm256_set1_ps(a.fog)));
+
+        // ampScale pins the result to exactly 1.0 at NET density 1.0 -- the
+        // density the datasheets quote rms_granularity at. Without it this
+        // stage ran 1.0392x to 1.1832x loud on every stock (queue C30/C33).
+        return _mm256_mul_ps(root, _mm256_set1_ps(a.ampScale));
+    }
+
+    // Piecewise linear over at most three segments, held flat outside the
+    // traced range. Walked as a cascade of blends rather than a branch: the
+    // eight lanes generally fall in different segments, so there is nothing to
+    // branch on. Each blend overwrites only the lanes that have passed the
+    // segment's lower edge, and because the anchors ascend the LAST segment a
+    // lane qualifies for is the one that survives.
+    __m256 v = _mm256_set1_ps(a.loY);
+
+    for (int32_t i = 1; i < a.n; i++)
+    {
+        const __m256 seg = _mm256_fmadd_ps(_mm256_set1_ps(a.slope[i]), d,
+                                           _mm256_set1_ps(a.icept[i]));
+
+        const __m256 over = _mm256_cmp_ps(d, _mm256_set1_ps(a.xs[i - 1]),
+                                          _CMP_GT_OQ);
+
+        v = _mm256_blendv_ps(v, seg, over);
+    }
+
+    const __m256 above = _mm256_cmp_ps(d, _mm256_set1_ps(a.xs[a.n - 1]),
+                                       _CMP_GE_OQ);
+
+    return _mm256_blendv_ps(v, _mm256_set1_ps(a.hiY), above);
+}
+
+
+// ---------------------------------------------------------------------------
+//  One channel of the add, given a prepared evaluator.
+// ---------------------------------------------------------------------------
+static inline void algoAddGrainPlane
+(
+    AlgoType* RESTRICT       pD,
+    const AlgoType* RESTRICT pF,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const AlgoGrainAmp&      a,
+    const AlgoType           gain
+) noexcept
+{
+    const __m256  vGain = _mm256_set1_ps(gain);
+    const int32_t nv    = sizeX / ALGO_AVX2_LANES_LOCAL;
+    const int32_t nt    = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
+    const __m256i mt    = algoTailMaskLocal(nt);
+
+    for (int32_t y = 0; y < sizeY; y++)
+    {
+        const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
+
+        AlgoType* RESTRICT       rD = pD + off;
+        const AlgoType* RESTRICT rF = pF + off;
+
+        int32_t x = 0;
+
+        // Unaligned loads and stores throughout: the image buffers carry no
+        // alignment guarantee, and the row padding must stay untouched.
+        for (int32_t v = 0; v < nv; v++, x += ALGO_AVX2_LANES_LOCAL)
+        {
+            const __m256 d   = _mm256_loadu_ps(rD + x);
+            const __m256 amp = algoGrainAmpVec(a, d);
+
+            const __m256 add = _mm256_mul_ps(
+                _mm256_mul_ps(vGain, _mm256_loadu_ps(rF + x)), amp);
+
+            _mm256_storeu_ps(rD + x, _mm256_add_ps(d, add));
+        }
+
+        // Mandatory scalar tail, expressed as a masked vector so the partial
+        // lane count needs no separate arithmetic path.
+        if (nt > 0)
+        {
+            const __m256 d   = _mm256_maskload_ps(rD + x, mt);
+            const __m256 amp = algoGrainAmpVec(a, d);
+
+            const __m256 add = _mm256_mul_ps(
+                _mm256_mul_ps(vGain, _mm256_maskload_ps(rF + x, mt)), amp);
+
+            _mm256_maskstore_ps(rD + x, mt, _mm256_add_ps(d, add));
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------------
 //  Add grain fields to density
 // ---------------------------------------------------------------------------
 void AlgoAddGrain
+(
+    AlgoType* RESTRICT       pDstR,
+    AlgoType* RESTRICT       pDstG,
+    AlgoType* RESTRICT       pDstB,
+    const AlgoType* RESTRICT pFieldR,
+    const AlgoType* RESTRICT pFieldG,
+    const AlgoType* RESTRICT pFieldB,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const AlgoType           dmin[3],
+    const AlgoType           dmax[3],
+    const film::GrainSpec&   grain,
+    const AlgoType           gain
+) noexcept
+{
+    AlgoType* RESTRICT       dstPlane[3] = { pDstR,   pDstG,   pDstB   };
+    const AlgoType* RESTRICT fldPlane[3] = { pFieldR, pFieldG, pFieldB };
+
+    for (int32_t c = 0; c < 3; c++)
+    {
+        // Setup domain: three times per render, never per pixel. ampScale and
+        // the segment coefficients are computed in HighPrecType by the shared
+        // builder, so this path and the scalar one start from bit-identical
+        // constants.
+        const AlgoGrainAmp amp = AlgoGrainAmpBuild(grain, dmin[c], dmax[c]);
+
+        algoAddGrainPlane(dstPlane[c], fldPlane[c],
+                          sizeX, sizeY, pitch, amp, gain);
+    }
+
+    return;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Add grain fields to density, UNPINNED -- print and duplication stocks.
+//
+//  ⚠ No ampScale here, deliberately: print and dupe grain carry no published
+//  rms to be pinned to. See AlgoGrainAmpRaw in AlgoGrain.hpp.
+// ---------------------------------------------------------------------------
+void AlgoAddGrainRaw
 (
     AlgoType* RESTRICT       pDstR,
     AlgoType* RESTRICT       pDstG,
@@ -680,83 +840,12 @@ void AlgoAddGrain
     AlgoType* RESTRICT       dstPlane[3] = { pDstR,   pDstG,   pDstB   };
     const AlgoType* RESTRICT fldPlane[3] = { pFieldR, pFieldG, pFieldB };
 
-    // Floor under the square root. Keeps grain alive in the deepest shadow, where
-    // the density has fallen back to base fog and a bare square root would give
-    // exactly zero. Perfectly clean blacks are one of the loudest digital tells.
-    const AlgoType fog = MAX_VALUE(fogGrain, ALGO_ZERO);
-
     for (int32_t c = 0; c < 3; c++)
     {
-        AlgoType* RESTRICT       pD = dstPlane[c];
-        const AlgoType* RESTRICT pF = fldPlane[c];
+        const AlgoGrainAmp amp = AlgoGrainAmpRaw(dmin[c], fogGrain);
 
-        // Base plus fog of the curve that produced this plane. Subtracting it is
-        // what makes the amplitude depend on DEVELOPED density rather than on total
-        // density: the base carries no crystals and contributes no grain.
-        const AlgoType dm = dmin[c];
-
-        for (int32_t y = 0; y < sizeY; y++)
-        {
-            const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
-
-            AlgoType* RESTRICT       rD = pD + off;
-            const AlgoType* RESTRICT rF = pF + off;
-
-            // Poisson statistics of a countable crystal population: the standard
-            // deviation grows as the square root of the mean count, and developed
-            // density stands in for that count.
-            //
-            // _mm256_sqrt_ps is a REAL instruction, so this is the rare transcendental
-            // in the engine that needs no approximation and no accuracy trade - eight
-            // square roots for the price of one, exactly rounded.
-            //
-            // The floor at zero is a max, not a branch: a negative developed density is
-            // physically meaningless and its square root would be a NaN that would
-            // propagate through every stage after this one.
-            const __m256 vDm   = _mm256_set1_ps(dm);
-            const __m256 vFog  = _mm256_set1_ps(fog);
-            const __m256 vGain = _mm256_set1_ps(gain);
-            const __m256 vZero = _mm256_setzero_ps();
-
-            const int32_t nv = sizeX / ALGO_AVX2_LANES_LOCAL;
-            const int32_t nt = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
-            const __m256i mt = algoTailMaskLocal(nt);
-
-            int32_t x = 0;
-
-            for (int32_t v = 0; v < nv; v++, x += ALGO_AVX2_LANES_LOCAL)
-            {
-                const __m256 d = _mm256_loadu_ps(rD + x);
-
-                const __m256 developed =
-                    _mm256_max_ps(_mm256_sub_ps(d, vDm), vZero);
-
-                const __m256 amp =
-                    _mm256_sqrt_ps(_mm256_add_ps(developed, vFog));
-
-                // d + gain * field * amp, as two FMAs' worth of work in one chain.
-                const __m256 add =
-                    _mm256_mul_ps(_mm256_mul_ps(vGain, _mm256_loadu_ps(rF + x)), amp);
-
-                _mm256_storeu_ps(rD + x, _mm256_add_ps(d, add));
-            }
-
-            if (nt > 0)
-            {
-                const __m256 d = _mm256_maskload_ps(rD + x, mt);
-
-                const __m256 developed =
-                    _mm256_max_ps(_mm256_sub_ps(d, vDm), vZero);
-
-                const __m256 amp =
-                    _mm256_sqrt_ps(_mm256_add_ps(developed, vFog));
-
-                const __m256 add = _mm256_mul_ps(
-                    _mm256_mul_ps(vGain, _mm256_maskload_ps(rF + x, mt)), amp);
-
-                _mm256_maskstore_ps(rD + x, mt, _mm256_add_ps(d, add));
-            }
-        }
+        algoAddGrainPlane(dstPlane[c], fldPlane[c],
+                          sizeX, sizeY, pitch, amp, gain);
     }
 
     return;
@@ -818,7 +907,19 @@ void AlgoStage11_Grain
         static_cast<AlgoType>(profile.curves.b.dmin)
     };
 
-    const AlgoType fogGrain  = static_cast<AlgoType>(gs.fog_grain);
+    // Asymptotic maximum density per channel. ⚠ ONLY the measured sigma(D)
+    // branch reads this, and only as a FALLBACK: a traced shape stores its own
+    // endpoints (sigma_shape_toe_at / _dmax_at) because the granularity plot and
+    // the sensitometric plot are made on different equipment and disagree about
+    // where the film starts and stops -- Kodak's own footnote says so, and the
+    // VISION3 sheets differ by a mean +0.051 D.
+    const AlgoType dmax[3] =
+    {
+        static_cast<AlgoType>(profile.curves.r.dmax()),
+        static_cast<AlgoType>(profile.curves.g.dmax()),
+        static_cast<AlgoType>(profile.curves.b.dmax())
+    };
+
     const AlgoType clumpGain = static_cast<AlgoType>(gs.clump_gain);
 
     // ----------------------------------------------------------------------
@@ -852,7 +953,7 @@ void AlgoStage11_Grain
         // coloured speckle on a black-and-white image.
         AlgoAddGrain(pDstR, pDstG, pDstB,
                      pScrFieldR, pScrFieldR, pScrFieldR,
-                     sizeX, sizeY, pitch, dmin, fogGrain, gain);
+                     sizeX, sizeY, pitch, dmin, dmax, gs, gain);
     }
     else
     {
@@ -900,7 +1001,7 @@ void AlgoStage11_Grain
 
         AlgoAddGrain(pDstR, pDstG, pDstB,
                      pScrFieldR, pScrFieldG, pScrFieldB,
-                     sizeX, sizeY, pitch, dmin, fogGrain, gain);
+                     sizeX, sizeY, pitch, dmin, dmax, gs, gain);
     }
 
     // ----------------------------------------------------------------------

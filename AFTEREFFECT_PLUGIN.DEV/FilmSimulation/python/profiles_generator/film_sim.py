@@ -188,17 +188,127 @@ def _tint_factor(profile: FilmProfile, c: int) -> float:
     return 1.0 + (profile.base_tint[c] - 1.0) * 0.5
 
 
-def _callier_factor(profile, scanner_specular: float) -> float:
-    """1 + specular*(Q-1): the multiplier a directional reader applies (C22).
+#: Net-density span and resolution of the Callier lookup. See `callier_lut`.
+CALLIER_LUT_MIN = -1.0
+CALLIER_LUT_MAX = 5.0
+CALLIER_LUT_N = 1025
 
-    One definition, used by both the anchor solve and stage 12b, because the two
-    MUST agree -- the solve exists to cancel the level change the stage causes.
+
+def callier_net(d_net, q: float, s: float):
+    """Silberstein & Tuttle's specular density, as a function of NET density.
+
+        10**-D_sp  =  E * 10**-D_diff  +  (1 - E) * 10**-(beta * D_diff)
+
+    Mees, *The Theory of the Photographic Process*, printed page 644, in the
+    chapter FIG. 179 belongs to. The book's own definitions: **E** is "a constant
+    expressing the fraction of the scattered light which emerges normally or
+    quasi-normally; i.e., the amount accepted by the photometric field of a
+    densitometer or by the projection lens of such a device as an enlarging
+    printer", and **beta** is "unity plus the ratio of scattering to absorption
+    coefficients". "If E = 0, beta is numerically equal to Callier's Q. If
+    E = 1.0, D_sp = D_diff."
+
+    ⚠ THAT IS C22's FILM x GEOMETRY SPLIT, IN PRINT SINCE 1942. `scanner_specular`
+    is `1 - E` and `callier_q` is `beta`. C22 argued the split from first
+    principles because no source stated one. A source states one, three pages
+    from a figure already in the corpus.
+
+    ⚠ WHAT THIS REPLACED, AND IT WAS NOT MERELY REFINEMENT. The former law was
+    `D_read = dmin + (D - dmin) * (1 + s*(Q-1))` -- a linear interpolation of
+    the MULTIPLIER between the two readers. Right at both ends, wrong in
+    between, because mixing an accepted and a rejected beam averages
+    TRANSMITTANCES and not densities. Measured over the database before the
+    change: exactly equal at s = 0 and s = 1, and up to **0.21 D** apart at the
+    intermediate settings a user actually dials, 1483 of 3740 sampled points
+    differing by more than 0.002 D. ⚠ The two agreed precisely where anyone
+    would have hand-checked them and diverged everywhere else.
+
+    ⚠ NET DENSITY IS THE ARGUMENT, WHICH IS THIS PROJECT'S CHOICE AND NOT THE
+    BOOK'S. Silberstein and Tuttle write plain D. Referencing to dmin is C22's
+    reasoning unchanged -- scattering scales with developed silver and clear base
+    carries none, so a condenser must not darken the base. Recorded because it is
+    a real difference between what the source states and what this computes.
+
+    ⚠ AND IT DOES NOT FIX THE TOE. Expanding for small D gives
+    Q -> E + (1-E)*beta, a CONSTANT. Mees FIG. 179, three pages earlier in the
+    same chapter, MEASURES Q collapsing to 1.04 at net density 0.055
+    (`mees_callier_q.py`). Model and measurement disagree about the toe and the
+    measurement wins; a toe correction still has to come from that figure.
+
+    Exact at both ends by construction: E = 1 returns `d_net`, E = 0 returns
+    `beta * d_net`. Defined for NEGATIVE net density too -- grain can push a
+    pixel below dmin -- and needs no branch there, so the base case stays exact.
     """
+    d = np.asarray(d_net, dtype=np.float64)
+    e = 1.0 - s
+    t = e * np.power(10.0, -d) + (1.0 - e) * np.power(10.0, -q * d)
+    return -np.log10(np.maximum(t, 1e-300))
+
+
+class _QOnly:
+    """Carries just `callier_q`, so `callier_lut` can serve `callier_density`.
+
+    `callier_density` takes Q as a number rather than a profile -- it is called
+    from the stage list where the profile is not in scope -- while `callier_lut`
+    takes a profile so the solve and the stage cannot end up asking different
+    questions. One tiny adapter beats two builders that could drift.
+    """
+
+    __slots__ = ("callier_q",)
+
+    def __init__(self, q: float) -> None:
+        self.callier_q = float(q)
+
+
+def callier_is_inert(profile, scanner_specular: float) -> bool:
+    """True when the law is the identity and no plane may be touched."""
+    return float(scanner_specular) <= 0.0 or float(profile.callier_q) == 1.0
+
+
+def callier_lut(profile, scanner_specular: float):
+    """Uniform lookup over NET density, or None when the law is inert.
+
+    ⚠ THE LOOKUP IS PART OF THE LAW RATHER THAN AN OPTIMISATION OF IT, AND THAT
+    IS DELIBERATE. `callier_net` costs two `pow` and a `log10` per channel per
+    pixel, and neither has an AVX2 intrinsic. A C++ port evaluating it directly
+    would either drop the AVX2 engine to scalar for this stage or compute it
+    differently in the two twins -- and a law that differs between twins is the
+    exact defect `cpp_parity`'s twin check exists to catch. Both engines and this
+    reference therefore build the SAME table, with the same bounds, the same
+    count and the same interpolation, so parity holds by construction instead of
+    by tolerance.
+
+    Returns `(lo, step, values)`. Outside the span the caller extrapolates on the
+    end slopes: below the floor the curve is smooth and nearly linear, and above
+    the ceiling it is asymptotically `d_net - log10(E)`, slope exactly 1.
+    """
+    if callier_is_inert(profile, scanner_specular):
+        return None
     q = float(profile.callier_q)
     s = float(scanner_specular)
-    if s <= 0.0 or q == 1.0:
-        return 1.0
-    return 1.0 + s * (q - 1.0)
+    xs = np.linspace(CALLIER_LUT_MIN, CALLIER_LUT_MAX, CALLIER_LUT_N)
+    step = (CALLIER_LUT_MAX - CALLIER_LUT_MIN) / (CALLIER_LUT_N - 1)
+    return CALLIER_LUT_MIN, step, callier_net(xs, q, s)
+
+
+def callier_lut_at(lut, d_net):
+    """Linear interpolation in `lut`, with slope extrapolation outside it."""
+    lo, step, v = lut
+    n = len(v)
+    d = np.asarray(d_net, dtype=np.float64)
+    t = (d - lo) / step
+    i = np.clip(np.floor(t).astype(np.int64), 0, n - 2)
+    out = v[i] + (v[i + 1] - v[i]) * (t - i)
+    below = t < 0.0
+    above = t > (n - 1)
+    if np.any(below):
+        out = np.where(below, v[0] + (d - lo) * ((v[1] - v[0]) / step), out)
+    if np.any(above):
+        hi = lo + step * (n - 1)
+        out = np.where(above,
+                       v[n - 1] + (d - hi) * ((v[n - 1] - v[n - 2]) / step),
+                       out)
+    return out
 
 
 def solve_anchors(
@@ -253,12 +363,23 @@ def solve_anchors(
     # DOUBLE-X at specular = 1, mid grey moved +48/255 before this was wired in,
     # against a contrast change of a few per cent. One of those two effects is
     # the physics; the other is the lab failing to do its job.
-    _cal = _callier_factor(profile, scanner_specular)
+    # ⚠ THE SOLVE EVALUATES THE LAW EXACTLY AND THE PIXEL PASS USES THE TABLE,
+    # AND THAT ASYMMETRY IS ON PURPOSE. The solve touches a handful of scalars
+    # per iteration, so the two `pow` calls cost nothing there and an exact
+    # answer is worth having; the pixel pass touches millions, where the table
+    # is what makes the AVX2 twin possible at all. The table is built FROM this
+    # same function, so the two cannot drift apart in meaning -- only by the
+    # table's own interpolation error, which `cpp_parity` measures.
+    _cal_inert = callier_is_inert(profile, scanner_specular)
+    _cal_q = float(profile.callier_q)
+    _cal_s = float(scanner_specular)
 
     def _cal_apply(d: list[float]) -> list[float]:
-        if _cal == 1.0:
+        if _cal_inert:
             return list(d)
-        return [curves[k].dmin + (d[k] - curves[k].dmin) * _cal for k in range(3)]
+        return [curves[k].dmin
+                + float(callier_net(d[k] - curves[k].dmin, _cal_q, _cal_s))
+                for k in range(3)]
 
     # Log exposure each record actually receives from a neutral 18% grey, which
     # is 1.0 in relative exposure before the taking filters mix the records.
@@ -515,6 +636,17 @@ def layer_sensitivities(profile) -> np.ndarray | None:
         interp = np.interp(grid, src_lam, src_val,
                            left=-np.inf, right=-np.inf)
         out[i] = np.where(np.isfinite(interp), np.power(10.0, interp), 0.0)
+
+    # ⚠ THE TAKING FILTER IS APPLIED ON THIS PATH TOO, AND LEAVING IT OFF WOULD
+    # HAVE BEEN INVISIBLE (queue C39, schema v20). `stored_layer_sensitivities`
+    # feeds the GUARDS and this feeds the INTEGRATION. Filtering only the first
+    # gives a guard that judges a filtered emulsion and weights derived from a
+    # bare one -- the two would disagree about what film they were looking at,
+    # and on every stock the guard happens to refuse the disagreement never
+    # shows. Inert on 163 of 165 profiles.
+    tf = getattr(profile, "taking_filter", None)
+    if tf is not None and tf.renders:
+        out = out * taking_filter_transmission(tf, grid)[None, :]
     return out
 
 
@@ -644,7 +776,44 @@ def stored_layer_sensitivities(profile):
     n = len(rows[0])
     lam = (sp.lambda_start_nm
            + sp.lambda_step_nm * np.arange(n, dtype=np.float64))
-    return lam, [np.power(10.0, np.asarray(r, dtype=np.float64)) for r in rows]
+    lin = [np.power(10.0, np.asarray(r, dtype=np.float64)) for r in rows]
+
+    # ⚠ THE TAKING FILTER IS APPLIED HERE, WHICH MEANS EVERY GUARD AND THE
+    # COLLAPSE ALL SEE THE SAME EMULSION (queue C39, schema v20). Putting it
+    # anywhere further downstream would let the reach guard judge a bare curve
+    # and the weights be derived from a filtered one, which is a split of the
+    # exact kind this function was written to close in the first place.
+    #
+    # ⚠ AND IT IS `profile.taking_filter`, NOT `spectral.measured_through`.
+    # The stored curve is what the sheet plotted; this is what the profile
+    # assumes in front of the lens. On both infrared stocks the sheet plotted
+    # the BARE emulsion, so applying the intended filter is exactly the missing
+    # step -- and on the other 163 profiles the filter is empty and this loop
+    # does not execute, so their curves are untouched to the last bit.
+    tf = getattr(profile, "taking_filter", None)
+    if tf is not None and tf.renders:
+        t = taking_filter_transmission(tf, lam)
+        lin = [row * t for row in lin]
+    return lam, lin
+
+
+def taking_filter_transmission(tf, lam):
+    """T(lambda) for a TakingFilter on an arbitrary wavelength grid.
+
+    ⚠ THE IDEAL LONGPASS IS A HARD STEP AND THAT IS DELIBERATE. A real 715 nm
+    filter has a finite edge, and modelling one would mean inventing an edge
+    width no source states. The question this transmission is actually used to
+    answer is "does the usable energy of this emulsion lie inside the
+    renderer's spectral basis at all", and for that a step at the wavelength
+    the sheet PRINTS is both sufficient and honest. `TakingFilter.model`
+    records which kind of thing the caller is holding.
+    """
+    if tf.model == "measured":
+        return np.asarray(tf.transmission, dtype=np.float64)
+    if tf.model == "ideal_longpass" and tf.cut_on_nm > 0.0:
+        return (np.asarray(lam, dtype=np.float64) >= tf.cut_on_nm).astype(
+            np.float64)
+    return np.ones_like(np.asarray(lam, dtype=np.float64))
 
 
 def spectral_out_of_reach(profile) -> float | None:
@@ -1200,7 +1369,16 @@ def callier_density(dens, curves, callier_q, specular, is_monochrome):
     reader contributes how directional it is (`specular`, 0 = fully diffuse,
     1 = fully condenser), and neither alone is the answer.
 
-        D_read = dmin + (D - dmin) * (1 + specular * (Q - 1))
+        10**-(D_read - dmin) = E*10**-(D-dmin) + (1-E)*10**-(Q*(D-dmin))
+
+    with E = 1 - specular. Silberstein & Tuttle, via Mees printed p644 -- see
+    `callier_net`, which is the one definition of the law and which builds the
+    table this stage reads.
+
+    ⚠ THE LINEAR FORM THAT USED TO BE HERE, `dmin + (D-dmin)*(1+s*(Q-1))`, WAS
+    RIGHT AT BOTH ENDS AND WRONG IN BETWEEN, by up to 0.21 D at the settings a
+    user actually dials. It interpolated the multiplier; light interpolates
+    transmittance. Replaced 2026-08-30, queue M3.
 
     ⚠ REFERENCED TO dmin, NOT TO ZERO, and that is the physics rather than a
     convenience: the scattering scales with the amount of developed silver, so
@@ -1221,13 +1399,27 @@ def callier_density(dens, curves, callier_q, specular, is_monochrome):
     """
     if specular <= 0.0 or callier_q == 1.0:
         return dens
-    k = np.float32(1.0 + specular * (callier_q - 1.0))
+    lut = callier_lut(_QOnly(callier_q), specular)
+    lo, step, vals = lut
+    v32 = vals.astype(np.float32)
+    n = len(v32)
+    hi_x = np.float32(lo + step * (n - 1))
+    slope_lo = np.float32((v32[1] - v32[0]) / step)
+    slope_hi = np.float32((v32[n - 1] - v32[n - 2]) / step)
     for c in range(3):
         dmin = np.float32(curves[c].dmin)
-        # (D - dmin) * k + dmin, written so a density below dmin (which grain
-        # can produce in the base) scales the same way rather than being clamped
-        # into a different branch.
-        dens[:, :, c] = (dens[:, :, c] - dmin) * k + dmin
+        # Net density, including the NEGATIVE values grain produces in the base.
+        # The law is defined there and needs no branch, which is what keeps the
+        # base case exact rather than clamped into a second code path.
+        net = dens[:, :, c] - dmin
+        t = (net - np.float32(lo)) / np.float32(step)
+        i = np.clip(np.floor(t).astype(np.int32), 0, n - 2)
+        out = v32[i] + (v32[i + 1] - v32[i]) * (t - i.astype(np.float32))
+        out = np.where(t < np.float32(0.0),
+                       v32[0] + (net - np.float32(lo)) * slope_lo, out)
+        out = np.where(t > np.float32(n - 1),
+                       v32[n - 1] + (net - hi_x) * slope_hi, out)
+        dens[:, :, c] = out.astype(np.float32) + dmin
     np.maximum(dens, np.float32(0.0), out=dens)
     return dens
 
@@ -2433,9 +2625,11 @@ def simulate(
         # mid grey +54/255 out on DOUBLE-X while the anchor solve was already
         # correct -- the two references disagreed, and the print re-timed against
         # the wrong one.
-        _calf = _callier_factor(profile, settings.scanner_specular)
-        if _calf != 1.0:
-            d_mid = [curves[c].dmin + (d_mid[c] - curves[c].dmin) * _calf
+        if not callier_is_inert(profile, settings.scanner_specular):
+            _cq = float(profile.callier_q)
+            _cs = float(settings.scanner_specular)
+            d_mid = [curves[c].dmin
+                     + float(callier_net(d_mid[c] - curves[c].dmin, _cq, _cs))
                      for c in range(3)]
 
         # Nobody ever projected the camera negative. A release print is three or

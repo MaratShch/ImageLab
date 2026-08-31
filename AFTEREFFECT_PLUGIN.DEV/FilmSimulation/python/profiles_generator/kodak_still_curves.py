@@ -1224,10 +1224,75 @@ EXPECTED = {
 #: The GOLD 200 panel on the 2007 two-film sheet, checked separately because
 #: EXPECTED is keyed by (pdf, page, kind) and that sheet holds two panels of
 #: the same kind on one page. Values are dmin/gamma per channel.
+#:
+#: ⚠ EXTENDED 2026-08-31 (queue K3) TO THE PUSH PANELS, which are the other
+#: case of several same-kind panels on one page -- E-190 (2006) p12 draws three
+#: and E-190 (2003) p13 and p14 draw two and three. They are keyed by their
+#: printed caption, which is what distinguishes them, and pinned because they
+#: are now ADOPTED: `film_profiles._PROCESS_VARIANTS` stores the E-190 (2006)
+#: pair for PORTRA 800 and the E-190 (2003) p13 pair for 400UC.
+#:
+#: ⚠ AND THE UNADOPTED READINGS ARE PINNED TOO, DELIBERATELY. The E-190 (2003)
+#: PORTRA 800 panels and the E-4040 (2016) ones are NOT stored -- see the
+#: variant records for why -- but they are the evidence that three editions of
+#: one film's push disagree, and an unpinned disagreement is a claim nobody can
+#: re-check. Red gamma at EI 1600 reads 0.6883 (2003), 0.6100 (2006) and 0.6341
+#: (2016) under labels that all say the same film and the same push.
 EXPECTED_SECOND_CHAR = {
     ("E7022-Gold_100_200.pdf", 4, "GOLD 200"): {
         "R": (0.2593, 0.5003), "G": (0.6640, 0.5157), "B": (0.9687, 0.5974)},
+    # ---- ADOPTED: PORTRA 800's pushes, E-190 (2006) p12 --------------------
+    ("e190-Portra-2006.pdf", 12, "Characteristic Curves, EI 1600 (Push 1)"): {
+        "R": (0.2779, 0.6100), "G": (0.6631, 0.6019), "B": (1.0030, 0.7050)},
+    ("e190-Portra-2006.pdf", 12, "Characteristic Curves, EI 3200 (Push 2)"): {
+        "R": (0.3173, 0.6918), "G": (0.6938, 0.7162), "B": (1.0468, 0.7872)},
+    # ⚠ THE ANCHOR THAT MAKES THOSE TWO A PUSH. This page's EI 800 panel must
+    # keep reproducing the profile's own stored curves; if it stops, the two
+    # records above are no longer a delta from anything.
+    ("e190-Portra-2006.pdf", 12, "Characteristic Curves, EI 800"): {
+        "R": (0.2200, 0.5372), "G": (0.6551, 0.5185), "B": (1.0072, 0.6448)},
+    # ---- ADOPTED: 400UC, E-190 (2003) p13, both panels ---------------------
+    ("KODAK PROFESSIONAL PORTRA - 2003 year.pdf", 13,
+     "Characteristic Curves, EI 400"): {
+        "R": (0.3338, 0.5505), "G": (0.7630, 0.5761), "B": (1.0508, 0.6655)},
+    ("KODAK PROFESSIONAL PORTRA - 2003 year.pdf", 13,
+     "Characteristic Curves, EI 800 (Push 1)"): {
+        "R": (0.3989, 0.6149), "G": (0.7923, 0.6582), "B": (1.0752, 0.7570)},
+    # ---- NOT ADOPTED, pinned as the evidence of the disagreement -----------
+    ("KODAK PROFESSIONAL PORTRA - 2003 year.pdf", 14,
+     "Characteristic Curves, EI 800"): {
+        "R": (0.3168, 0.5638), "G": (0.7462, 0.5989), "B": (1.0323, 0.6841)},
+    ("KODAK PROFESSIONAL PORTRA - 2003 year.pdf", 14,
+     "Characteristic Curves, EI 1600 (Push 1)"): {
+        "R": (0.3599, 0.6883), "G": (0.7874, 0.7115), "B": (1.0920, 0.7720)},
+    ("KODAK PROFESSIONAL PORTRA - 2003 year.pdf", 14,
+     "Characteristic Curves, EI 3200 (Push 2)"): {
+        "R": (0.3932, 0.7862), "G": (0.8214, 0.8018), "B": (1.1504, 0.8254)},
+    ("e4040_portra_800.pdf", 4, "Characteristic Curves, EI 1600 (Push 1)"): {
+        "R": (0.2404, 0.6341), "G": (0.6614, 0.6364), "B": (1.0139, 0.7282)},
+    ("e4040_portra_800.pdf", 4, "Characteristic Curves, EI 3200 (Push 2)"): {
+        "R": (0.3050, 0.6909), "G": (0.7049, 0.7177), "B": (1.0625, 0.7855)},
 }
+
+#: ⚠ A PANEL THAT MUST STAY UNREADABLE, AND WHY THAT IS AN ASSERTION RATHER
+#: THAN A GAP. E-4040 (2016) p4's "Characteristic Curves, EI 800" cannot be
+#: calibrated: its printed LOG EXPOSURE axis reads -4.0, -2.0, -3.0, -1.0, 0.0,
+#: 1.0 across six evenly spaced ticks -- the second and third labels transposed
+#: in Kodak's own artwork, confirmed against the page rendered at 6x, so this
+#: is the plate and not the text layer. `_sign_ticks` refuses it because no
+#: signing of those labels is collinear, which is the correct outcome: the
+#: alternative is a fitted axis wrong by a decade in the middle of the plot.
+#:
+#: Asserted rather than merely noted, because the day this panel starts reading
+#: is the day either a corrected edition arrived or the tick fitter began
+#: tolerating a non-collinear axis, and those need opposite responses. It also
+#: decides a stored number: it is why PORTRA 800's push sets are taken from
+#: E-190 (2006), whose EI 800 panel DOES read and reproduces the profile's own
+#: curves, rather than from the newest sheet.
+EXPECTED_UNREADABLE = (
+    ("e4040_portra_800.pdf", 4, "Characteristic Curves, EI 800",
+     "the printed exposure axis transposes its -2.0 and -3.0 labels"),
+)
 
 #: f50 in cycles/mm per channel for the three adopted MTF sets. A None entry
 #: means the traced curve NEVER REACHES 50 % within the plotted frequency range
@@ -1369,6 +1434,31 @@ def run_assert():
                            % (pdf, want, ch, m["dmin"], wd, m["gamma"], wg))
         doc.close()
 
+    # ⚠ AND ONE PANEL IS ASSERTED TO STAY UNREADABLE. See EXPECTED_UNREADABLE:
+    # a Kodak plate with two transposed axis labels, which the tick fitter must
+    # go on refusing. A silent success here would be a fitted axis wrong by a
+    # decade, and it would move an adopted push set to the wrong document.
+    for pdf, pno, want, why in EXPECTED_UNREADABLE:
+        doc = pymupdf.open(os.path.join(PDF_DIR, pdf))
+        page = doc[pno - 1]
+        found = False
+        for k, txt, box, lx, ly, letters, exp in find_panels(page, pdf):
+            if k != "char" or want not in txt:
+                continue
+            found = True
+            checked += 1
+            if extract_panel(page, box, letters=letters, log_x=lx, log_y=ly,
+                             expect=exp) is not None:
+                bad.append("%s p%d %s: now READS, but %s -- either the "
+                           "edition changed or the tick fitter stopped "
+                           "refusing a non-collinear axis"
+                           % (pdf, pno, want, why))
+            break
+        if not found:
+            bad.append("%s p%d %s: the panel this check is about is no longer "
+                       "even located" % (pdf, pno, want))
+        doc.close()
+
     # The two REFUSALS are asserted as refusals. A later change that starts
     # accepting them must say so here, rather than quietly adopting a pair the
     # reader was built to reject.
@@ -1392,17 +1482,24 @@ def run_assert():
     if bad:
         print("[FAIL] " + "; ".join(bad))
         return 1
-    print("[OK] %d values re-derived from 13 KODAK still-film sheets: 42 "
-          "characteristic dmin/gamma pairs, 12 MTF f50 readings with the "
-          "censored one kept censored, 14 dye-pair peaks, and 2 refusals still "
-          "refusing. Four of the checks are cross-document rather than "
-          "per-number: PORTRA 160NC read independently from both E-190 "
-          "vintages; GOLD 200 read from the 2007 sheet by CAPTION and from the "
-          "2022 sheet by GEOMETRY OVERRIDE, fifteen years and two location "
-          "mechanisms apart; the shared 2007 dye panel pinned to the peaks the "
-          "2022 GOLD-200-only sheet prints, which is what keeps GOLD 100 "
-          "empty; and E-2468's characteristic panel pinned as PORTRA 160VC's "
-          "figure F009_0154AC so that Kodak's copy-paste defect stays visible"
+    print("[OK] %d values re-derived from 13 KODAK still-film sheets: 69 "
+          "characteristic dmin/gamma pairs across 23 panels, 12 MTF f50 "
+          "readings with the censored one kept censored, 14 dye-pair peaks, 2 "
+          "refusals still refusing and 1 panel still unreadable. Six of the "
+          "checks are cross-document rather than per-number: PORTRA 160NC read "
+          "independently from both E-190 vintages; GOLD 200 read from the 2007 "
+          "sheet by CAPTION and from the 2022 sheet by GEOMETRY OVERRIDE, "
+          "fifteen years and two location mechanisms apart; the shared 2007 "
+          "dye panel pinned to the peaks the 2022 GOLD-200-only sheet prints, "
+          "which is what keeps GOLD 100 empty; E-2468's characteristic panel "
+          "pinned as PORTRA 160VC's figure F009_0154AC so that Kodak's "
+          "copy-paste defect stays visible; E-190 (2006) p12's EI 800 panel "
+          "pinned to PORTRA 800's own stored curves, which is what makes the "
+          "two push sets beside it a PUSH and not an edition difference; and "
+          "E-4040 (2016) p4's EI 800 panel asserted to stay UNREADABLE, "
+          "because Kodak printed its exposure axis -4.0 / -2.0 / -3.0 / -1.0 "
+          "/ 0.0 / 1.0 and a fitter that accepted that would be wrong by a "
+          "decade mid-plot"
           % checked)
     return 0
 

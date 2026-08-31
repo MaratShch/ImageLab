@@ -61,7 +61,16 @@ TOL = 1e-9
 
 #: Stocks where the Python guard refuses and C++ has no guard to refuse with.
 #: Listing them is not an excuse -- it is what makes the gap countable.
-KNOWN_GUARD_GAP = ("KONICA_INFRARED_750",)
+#:
+#: ⚠ EMPTIED 2026-08-30: queue C40 is closed. AlgoSpectralMonoWeights() now
+#: carries the same two tests as the Python side -- peak sensitisation and
+#: out-of-reach energy share, both measured on the profile's own stored samples
+#: rather than the 360-730 nm render grid -- and refuses by returning false, so
+#: Algo_07_Sim.cpp falls back to the authored triple exactly as film_sim does.
+#: Measured after the change: 68 of 68 monochrome stocks agree, no gaps.
+#: KONICA_INFRARED_750 no longer renders at a blue-dominant
+#: (0.1611, 0.1931, 0.6458); both engines use its authored (0.55, 0.15, 0.30).
+KNOWN_GUARD_GAP: tuple[str, ...] = ()
 
 _PROG = r"""
 #include "AlgoSpectralSensitivity.hpp"

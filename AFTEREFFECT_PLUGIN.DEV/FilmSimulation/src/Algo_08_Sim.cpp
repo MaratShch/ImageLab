@@ -89,6 +89,7 @@
 #include "Common.hpp"
 #include "AlgoCharacteristicCurve.hpp"
 #include "AlgoInterimage.hpp"
+#include "AlgoCallier.hpp"  // AlgoCallierNet / AlgoCallierApplyScalar (C41, G3)
 #include "AlgoHalation.hpp"
 #include "AlgoCurveLut.hpp"   // the shared tabulated characteristic curve   // AlgoSoftplus, ALGO_SOFTPLUS_LINEAR_LIMIT
 
@@ -497,11 +498,19 @@ void AlgoSolveAnchors
     const film::PrintStock*  pPrintStock,
     const HighPrecType       greyTarget,
     const HighPrecType       couplerScale,
+    const HighPrecType       scannerSpecular,
     HighPrecType             anchorOut[3]
 ) noexcept
 {
     const film::RGBCurves& curves = profile.curves;
     const film::Matrix3&   negM   = profile.dye_matrix;
+
+    // ⚠ QUEUE C41, and this twin moves in the same commit as the scalar one by
+    // rule: the solve is a MODEL, not an execution strategy, so the two paths
+    // may differ in how they compute it and never in what they compute. Exactly
+    // 1.0 at the default and on every colour stock.
+    const HighPrecType callierQ =
+        static_cast<HighPrecType>(profile.callier_q);
 
     // Where a neutral grey starts on each record's own curve.
     HighPrecType logEMid[3];
@@ -564,7 +573,16 @@ void AlgoSolveAnchors
                       + static_cast<HighPrecType>(negM[c][1]) * d[1]
                       + static_cast<HighPrecType>(negM[c][2]) * d[2];
 
-                    return normalisedTransmittance(mixed, curveOf(curves, c));
+                    // A slide is read by the same optics as a negative
+                    // print, so the projector's or scanner's directionality
+                    // applies here too.
+                    const HighPrecType read = AlgoCallierApplyScalar(
+                        mixed,
+                        static_cast<HighPrecType>(curveOf(curves, c).dmin),
+                        callierQ,
+                        scannerSpecular);
+
+                    return normalisedTransmittance(read, curveOf(curves, c));
                 };
 
                 // More exposure on a slide means less density means a brighter
@@ -601,9 +619,19 @@ void AlgoSolveAnchors
     HighPrecType dMid[3];
 
     for (int32_t c = 0; c < 3; c++)
+    {
         dMid[c] = static_cast<HighPrecType>(negM[c][0]) * dNeg[0]
                 + static_cast<HighPrecType>(negM[c][1]) * dNeg[1]
                 + static_cast<HighPrecType>(negM[c][2]) * dNeg[2];
+
+        // The printer reads this negative through its own optics, and the
+        // offset solved below is what a lab would re-time to.
+        dMid[c] = AlgoCallierApplyScalar(
+            dMid[c],
+            static_cast<HighPrecType>(curveOf(curves, c).dmin),
+            callierQ,
+            scannerSpecular);
+    }
 
     // Without a print stock there is nothing to print onto and no offset to
     // solve. The negative densities are handed back so the caller still has a

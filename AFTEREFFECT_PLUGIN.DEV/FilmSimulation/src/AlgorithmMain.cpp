@@ -115,7 +115,8 @@
 #include "AlgoScanMtf.hpp"               // stage 10
 #include "AlgoEdgeFog.hpp"               // stage 10b
 #include "AlgoGrain.hpp"                 // stage 11
-#include "AlgoDyeImpurity.hpp"           // stage 12
+#include "AlgoDyeImpurity.hpp"
+#include "AlgoCallier.hpp"   // stage 12b (queue C41)           // stage 12
 #include "AlgoDuplication.hpp"           // stage 13
 #include "AlgoTransmittance.hpp"         // stage 14
 #include "AlgoReseauReconstruct.hpp"     // stage 14b
@@ -938,6 +939,7 @@ void Algorithm_Main
     AlgoSolveAnchors(profile, pPrint,
                      static_cast<HighPrecType>(algoCtrl.greyTarget),
                      static_cast<HighPrecType>(algoCtrl.couplerScale),
+                     static_cast<HighPrecType>(algoCtrl.scannerSpecular),
                      anchor);
 
     // -----------------------------------------------------------------------
@@ -1101,6 +1103,48 @@ void Algorithm_Main
     AlgoStage12_DyeImpurity(s11R, s11G, s11B,
                             s12R, s12G, s12B,
                             sizeX, sizeY, pitch, profile);
+
+    // -----------------------------------------------------------------------
+    // 12b. CALLIER: THE DENSITY THE READER'S OPTICS SEE      S12 -> S12 (in place)
+    //
+    //     Developed silver scatters the measuring beam. An integrating sphere
+    //     collects the scattered light and reads the diffuse density every curve in
+    //     the database is expressed in; a condenser or a point source loses it
+    //     outside its acceptance angle and reads a HIGHER density, steepening the
+    //     whole tone scale. That is why a silver negative printed on a condenser
+    //     enlarger is contrastier than the same negative on a diffusion enlarger at
+    //     the same paper grade.
+    //
+    //     HERE, at the boundary between the developed negative and everything that
+    //     reads it, because BOTH readers in this chain are affected - an optical
+    //     printer with a condenser and a scanner with a directed source see the same
+    //     steepened density. Before stage 13 rather than after, since the print
+    //     stage's own curve must act on what its optics actually see.
+    //
+    //     ⚠ IN PLACE ON THE STAGE-12 PLANES, no scratch buffer: the operation is
+    //     pointwise, so stage 13 reads the corrected values from the same pointers.
+    //     ⚠ AND IT IS INERT AT THE DEFAULT. scannerSpecular is 0, the factor is
+    //     exactly 1.0, the stage returns before touching a pixel, and every render
+    //     made before this stage existed is reproduced. It is also inert at ANY
+    //     setting for the colour stocks, whose dye images carry Q = 1.0.
+    //
+    //     The anchor solve above sees the same factor, and it has to: a lab that
+    //     switches to a condenser head RE-TIMES the print. Leave the solve blind
+    //     and the control shifts mid grey by more than it changes contrast.
+    // -----------------------------------------------------------------------
+    {
+        const AlgoType s12Dmin[3] =
+        {
+            static_cast<AlgoType>(profile.curves.r.dmin),
+            static_cast<AlgoType>(profile.curves.g.dmin),
+            static_cast<AlgoType>(profile.curves.b.dmin)
+        };
+
+        ALGO_PROF_MARK("12b  Callier");
+        AlgoStage12b_Callier(s12R, s12G, s12B,
+                             sizeX, sizeY, pitch, s12Dmin, profile,
+                             static_cast<HighPrecType>(algoCtrl.scannerSpecular));
+    }
 
     // -----------------------------------------------------------------------
     // 13. DUPLICATION GENERATIONS, THEN THE PRINT          S12 -> S13

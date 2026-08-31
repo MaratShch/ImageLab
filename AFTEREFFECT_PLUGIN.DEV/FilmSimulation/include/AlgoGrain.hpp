@@ -99,6 +99,7 @@
 #include "film_profiles.hpp"
 
 #include <cstdint>   // int32_t
+#include <cmath>     // AlgoGrainAmpBuild / AlgoGrainAmpAt: std::sqrt
 
 
 // ---------------------------------------------------------------------------
@@ -195,19 +196,324 @@ void AlgoMakeGrainField
 
 
 // ---------------------------------------------------------------------------
+//  AlgoGrainAmp -- the sigma(D) multiplier, hoisted out of the pixel loop.
+//
+//  ⚠ THIS EXISTS BECAUSE THE STAGE AND THE LAW HAD DRIFTED APART, AND THE
+//  DRIFT SHIPPED. `film::FilmGrainSigma()` in the generated header is the one
+//  definition and is audited against `film_profiles.grain_sigma()` on every
+//  build -- but NOTHING IN THE RENDERER CALLED IT. AlgoAddGrain inlined its own
+//  square root, without the net-1.0 normalisation, so every rendered frame was
+//  louder than the reference by exactly sqrt(1 + fog_grain): measured
+//  1.0392 to 1.1832 across the database, mean 1.1013, and 158 of 161 stocks
+//  over 5 %. `rms_granularity` had stopped meaning the figure the datasheets
+//  print. A law that is correct and unreachable is not a correct renderer.
+//
+//  WHY A PRECOMPUTED STRUCT RATHER THAN A PER-PIXEL CALL. FilmGrainSigma builds
+//  and insertion-sorts up to four anchors and walks them twice, all of which
+//  depends on the STOCK and the CHANNEL and none of which depends on the pixel.
+//  Calling it per pixel would be correct and unusable. Everything invariant is
+//  computed once per channel here, in HighPrecType, and the inner loop is left
+//  with one square root and one multiply on the legacy branch, or at most three
+//  compares and one fused multiply-add on the measured branch.
+//
+//  ⚠ THE BUILDER MIRRORS FilmGrainSigma EXACTLY, INCLUDING ITS USABILITY TEST.
+//  It is not a second opinion about the law -- it is the same law with the
+//  loop-invariant half lifted out. If FilmGrainSigma changes, this changes with
+//  it in the same commit, and `cpp_parity.py`'s stage probe is what proves the
+//  two still agree, because it drives AlgoAddGrain itself rather than the law.
+// ---------------------------------------------------------------------------
+struct AlgoGrainAmp
+{
+    bool     measured;      ///< false = legacy square-root branch
+    int32_t  n;             ///< anchors in xs[], 3 or 4 (measured only)
+    AlgoType xs[4];         ///< anchor densities, ascending
+    AlgoType slope[4];      ///< segment i covers (xs[i-1], xs[i]]: slope*D+icept
+    AlgoType icept[4];      ///< already divided by the net-1.0 reference
+    AlgoType loY;           ///< held flat below xs[0]
+    AlgoType hiY;           ///< held flat above xs[n-1]
+    AlgoType dmin;          ///< legacy: this channel's base plus fog
+    AlgoType fog;           ///< legacy: floor under the square root
+    AlgoType ampScale;      ///< legacy: 1 / sqrt(1 + fog), the net-1.0 pin
+};
+
+
+// ---------------------------------------------------------------------------
+//  Build the per-channel evaluator. Setup domain: runs three times per render,
+//  never per pixel, so it computes in HighPrecType throughout.
+// ---------------------------------------------------------------------------
+inline AlgoGrainAmp AlgoGrainAmpBuild
+(
+    const film::GrainSpec& grain,
+    const AlgoType         dminC,
+    const AlgoType         dmaxC
+) noexcept
+{
+    AlgoGrainAmp a;
+
+    a.measured = false;
+    a.n        = 0;
+    a.loY      = ALGO_ONE;
+    a.hiY      = ALGO_ONE;
+    a.dmin     = dminC;
+
+    for (int32_t i = 0; i < 4; i++)
+    {
+        a.xs[i]    = ALGO_ZERO;
+        a.slope[i] = ALGO_ZERO;
+        a.icept[i] = ALGO_ONE;
+    }
+
+    // Legacy half is always filled, so a measured branch that turns out to be
+    // unusable falls through to a fully formed evaluator rather than to zeros.
+    const HighPrecType fog =
+        MAX_VALUE(static_cast<HighPrecType>(grain.fog_grain),
+                  static_cast<HighPrecType>(0.0));
+
+    const HighPrecType den = std::sqrt(static_cast<HighPrecType>(1.0) + fog);
+
+    a.fog      = static_cast<AlgoType>(fog);
+    a.ampScale = static_cast<AlgoType>(
+        (den > static_cast<HighPrecType>(0.0))
+            ? (static_cast<HighPrecType>(1.0) / den)
+            : static_cast<HighPrecType>(1.0));
+
+    if (!grain.sigma_shape_measured || !(grain.sigma_shape_mid > 0.0f))
+        return a;
+
+    const HighPrecType dToe = (grain.sigma_shape_toe_at > 0.0f)
+        ? static_cast<HighPrecType>(grain.sigma_shape_toe_at)
+        : static_cast<HighPrecType>(dminC);
+
+    const HighPrecType dTop = (grain.sigma_shape_dmax_at > 0.0f)
+        ? static_cast<HighPrecType>(grain.sigma_shape_dmax_at)
+        : static_cast<HighPrecType>(dmaxC);
+
+    // NET density 1.0. The stored anchors are ratios to the ABSOLUTE 1.0 value
+    // because that is how they were traced, so the reference is recomputed here
+    // rather than baked into the data -- exactly as FilmGrainSigma does it.
+    const HighPrecType dRef = static_cast<HighPrecType>(dminC)
+                            + static_cast<HighPrecType>(1.0);
+
+    if (!(dTop > dToe) || !(dRef < dTop))
+        return a;
+
+    HighPrecType xs[4];
+    HighPrecType ys[4];
+    int32_t      n = 0;
+
+    xs[n] = dToe;
+    ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_toe);
+    xs[n] = static_cast<HighPrecType>(1.0);
+    ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_mid);
+    xs[n] = dTop;
+    ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_dmax);
+
+    if ((grain.sigma_shape_peak > 0.0f) && (grain.sigma_shape_peak_at > 0.0f))
+    {
+        xs[n] = static_cast<HighPrecType>(grain.sigma_shape_peak_at);
+        ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_peak);
+    }
+
+    for (int32_t i = 1; i < n; i++)
+    {
+        const HighPrecType kx = xs[i];
+        const HighPrecType ky = ys[i];
+        int32_t j = i - 1;
+        while ((j >= 0) && (xs[j] > kx))
+        {
+            xs[j + 1] = xs[j];
+            ys[j + 1] = ys[j];
+            --j;
+        }
+        xs[j + 1] = kx;
+        ys[j + 1] = ky;
+    }
+
+    // The net-1.0 reference value, read off the same piecewise-linear shape.
+    HighPrecType mid = ys[n - 1];
+
+    if (dRef <= xs[0])
+    {
+        mid = ys[0];
+    }
+    else
+    {
+        for (int32_t i = 1; i < n; i++)
+        {
+            if (dRef <= xs[i])
+            {
+                const HighPrecType t = (xs[i] > xs[i - 1])
+                    ? ((dRef - xs[i - 1]) / (xs[i] - xs[i - 1]))
+                    : static_cast<HighPrecType>(0.0);
+                mid = ys[i - 1] + t * (ys[i] - ys[i - 1]);
+                break;
+            }
+        }
+    }
+
+    const HighPrecType invMid = (mid > static_cast<HighPrecType>(0.0))
+        ? (static_cast<HighPrecType>(1.0) / mid)
+        : static_cast<HighPrecType>(1.0);
+
+    // Fold the normalisation into the segment coefficients, so the pixel loop
+    // never divides and never sees the reference at all.
+    a.measured = true;
+    a.n        = n;
+    a.loY      = static_cast<AlgoType>(ys[0] * invMid);
+    a.hiY      = static_cast<AlgoType>(ys[n - 1] * invMid);
+
+    for (int32_t i = 0; i < n; i++)
+        a.xs[i] = static_cast<AlgoType>(xs[i]);
+
+    for (int32_t i = 1; i < n; i++)
+    {
+        const HighPrecType dx = xs[i] - xs[i - 1];
+        const HighPrecType m  = (dx > static_cast<HighPrecType>(0.0))
+            ? ((ys[i] - ys[i - 1]) / dx)
+            : static_cast<HighPrecType>(0.0);
+
+        a.slope[i] = static_cast<AlgoType>(m * invMid);
+        a.icept[i] = static_cast<AlgoType>((ys[i - 1] - m * xs[i - 1]) * invMid);
+    }
+
+    return a;
+}
+
+
+// ---------------------------------------------------------------------------
+//  The UNPINNED evaluator, for grain that is not anchored to a published rms.
+//
+//  ⚠ THE ASYMMETRY IS REAL AND IT IS NOT AN OVERSIGHT. Camera-negative grain is
+//  pinned to the stock's own `rms_granularity`, a figure the manufacturer
+//  publishes at a stated density -- "Read at a NET diffuse visual density of
+//  1.0, using a 48-micrometre aperture" (Kodak 5248 p1, 5222 p1) -- so the
+//  amplitude MUST be exactly 1.0 there or the stored number stops meaning what
+//  the sheet says. PRINT and DUPLICATION grain have no such figure: the print
+//  stock's grain_rms is the field's own amplitude and the weighting here is a
+//  look, not a calibration. Normalising it would move every print render away
+//  from the reference for no measurement's sake.
+//
+//  So stages 13 and 14 keep `sqrt(max(D - dmin, 0) + fog)` exactly as
+//  film_sim.simulate() computes it, with no ampScale. Verified against the
+//  reference: `out[:,:,c] += pfield * np.sqrt(max(out - dmin, 0) + 0.15)`.
+// ---------------------------------------------------------------------------
+inline AlgoGrainAmp AlgoGrainAmpRaw
+(
+    const AlgoType dminC,
+    const AlgoType fogGrain
+) noexcept
+{
+    AlgoGrainAmp a;
+
+    a.measured = false;
+    a.n        = 0;
+    a.loY      = ALGO_ONE;
+    a.hiY      = ALGO_ONE;
+    a.dmin     = dminC;
+    a.fog      = MAX_VALUE(fogGrain, ALGO_ZERO);
+    a.ampScale = ALGO_ONE;          // deliberately unpinned -- see above
+
+    for (int32_t i = 0; i < 4; i++)
+    {
+        a.xs[i]    = ALGO_ZERO;
+        a.slope[i] = ALGO_ZERO;
+        a.icept[i] = ALGO_ONE;
+    }
+
+    return a;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Evaluate the multiplier at one density. Scalar; the AVX2 twin open-codes the
+//  same arithmetic across eight lanes from the same struct.
+// ---------------------------------------------------------------------------
+inline AlgoType AlgoGrainAmpAt
+(
+    const AlgoGrainAmp& a,
+    const AlgoType      d
+) noexcept
+{
+    if (!a.measured)
+    {
+        // Poisson statistics of a countable crystal population: the standard
+        // deviation grows as the square root of the mean count, and developed
+        // density stands in for that count. ampScale is what pins the result to
+        // exactly 1.0 at NET density 1.0 -- dmin cancels there, which is why the
+        // pin carries no per-channel term.
+        const AlgoType developed = MAX_VALUE(d - a.dmin, ALGO_ZERO);
+        return static_cast<AlgoType>(std::sqrt(
+            static_cast<HighPrecType>(developed + a.fog))) * a.ampScale;
+    }
+
+    // Held flat outside the traced range rather than extrapolated. Extrapolating
+    // a traced curve past its own endpoints is how a plausible number becomes a
+    // fabricated one; holding it flat says "we stop knowing here", which is true.
+    if (d <= a.xs[0])
+        return a.loY;
+
+    if (d >= a.xs[a.n - 1])
+        return a.hiY;
+
+    for (int32_t i = 1; i < a.n; i++)
+    {
+        if (d <= a.xs[i])
+            return a.slope[i] * d + a.icept[i];
+    }
+
+    return a.hiY;
+}
+
+
+// ---------------------------------------------------------------------------
 //  Add one grain field to three density planes, weighted by local density.
 //
 //  Exposed for the same reason: stages 13 and 14 add grain with the identical
-//  square-root weighting, and the weighting is where the physics lives.
+//  weighting, and the weighting is where the physics lives.
 //
 //  pDstR/G/B     density planes, modified in place
 //  pFieldR/G/B   the three fields; pass the same pointer three times for a stock
 //                with a single emulsion
 //  dmin          per-channel base plus fog of the curve that produced pDst
-//  fogGrain      density floor under the square root
+//  dmax          per-channel asymptotic maximum density of that same curve --
+//                needed by the measured sigma(D) branch, which is anchored on
+//                the traced range and falls back to the curve model only when
+//                the trace did not record its own endpoints
+//  grain         the stock's GrainSpec; the amplitude law reads fog_grain and
+//                the five sigma_shape_* fields from it. ⚠ Passing the spec
+//                rather than a loose fog value is deliberate: the previous
+//                signature took fog_grain alone, which made it structurally
+//                impossible for this stage to reach the measured shape and is
+//                half of why the bypass lasted
 //  gain          user grain scale
 // ---------------------------------------------------------------------------
 void AlgoAddGrain
+(
+    AlgoType* RESTRICT       pDstR,
+    AlgoType* RESTRICT       pDstG,
+    AlgoType* RESTRICT       pDstB,
+    const AlgoType* RESTRICT pFieldR,
+    const AlgoType* RESTRICT pFieldG,
+    const AlgoType* RESTRICT pFieldB,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const AlgoType           dmin[3],
+    const AlgoType           dmax[3],
+    const film::GrainSpec&   grain,
+    const AlgoType           gain
+) noexcept;
+
+
+// ---------------------------------------------------------------------------
+//  The UNPINNED overload, for print (stage 14) and duplication (stage 13).
+//
+//  Same loop, same weighting, no net-1.0 pin -- see AlgoGrainAmpRaw for why the
+//  two differ and why that difference is the model rather than an omission.
+//  ⚠ Do NOT "unify" these by giving this one an ampScale: it would silently
+//  move every print and dupe render away from film_sim.simulate().
+// ---------------------------------------------------------------------------
+void AlgoAddGrainRaw
 (
     AlgoType* RESTRICT       pDstR,
     AlgoType* RESTRICT       pDstG,

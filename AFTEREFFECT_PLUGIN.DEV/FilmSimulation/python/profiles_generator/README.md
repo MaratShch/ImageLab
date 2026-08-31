@@ -1518,24 +1518,43 @@ structural problems, worst first:
 
 Order is not cosmetic; several steps give visibly wrong results if moved.
 
-| # | Step | Domain |
-|---|------|--------|
-| 1 | Decode sRGB → linear light | — |
-| 2 | Relative exposure (18% grey = 1.0), exposure offset, taking filters | linear |
-| 3 | Stock colour balance, then **veiling flare** from the taking lens | linear |
-| 4 | Large-scale coating unevenness | linear |
-| 5 | Halation: multi-radius, all channels, energy conserving | linear exposure |
-| 6 | Emulsion MTF — light scatter inside the gelatin | linear exposure |
-| 7 | Collapse to one record: spectral sensitivity, or the **réseau grid** | linear |
-| 8 | Characteristic curve → density | density |
-| 9 | DIR coupler inter-image effects | density |
-| 10 | Scan: MTF + per-channel misregistration (pre-sampling filter) | density |
-| 11 | Grain: per-channel RMS, spectrally shaped, amplitude from **`grain_sigma()`** — the MEASURED σ(D) shape where a vendor plot was traced (5 stocks), otherwise the legacy √density law, bit-for-bit as before (150 stocks) | density |
-| 12 | Dye impurity / scanner crosstalk matrix | density |
-| 13 | **Duplication generations**, then print | density |
-| 14 | Print grain, transmittance → display linear, réseau reconstruction | — |
-| 15 | Encode sRGB, dither, quantise to 16 or 8 bit | — |
+⚠ **RE-DERIVED FROM THE CODE, 2026-08-31.** This table read 15 rows for weeks and the pipeline has
+**25 stage entry points**, because eight of the numbered stages carry sub-stages. The list below is
+the set of `AlgoStageNN*` symbols in the C++ tree, which is the same set `film_sim.py` implements
+and `test_stage_parity` walks.
 
+| # | Stage entry point | What it does | Domain |
+|---|---|---|---|
+| 1 | *(host)* | decode sRGB → linear light | — |
+| 2 | `AlgoStage02_RelativeExposure` | scene linear → exposure units, 18 % grey = 1.0 | linear |
+| 2b | `AlgoStage02b_TakingFilters` | 3×3 mix across the three colour records | linear |
+| 3 | `AlgoStage03_StockColourBalance` | per-layer gains from a colour-temperature mismatch, from Planck's law | linear |
+| 3b | `AlgoStage03b_VeilingFlare` | broad scatter from the taking lens | linear |
+| 3c | `AlgoStage03c_TemporalFlicker` | per-frame exposure instability | linear |
+| 4 | `AlgoStage04_CoatingAndVignette` | large-scale coating unevenness and cos⁴ falloff, assembled into one field | linear |
+| 5 | `AlgoStage05_Halation` | base-reflection halo, multi-radius, **energy conserving** | linear exposure |
+| 6 | `AlgoStage06_EmulsionMtf` | light scatter inside the gelatin, per channel | linear exposure |
+| 6b | `AlgoStage06b_CornerDefocus` | film buckling in the gate, radially blended | linear exposure |
+| 7 | `AlgoStage07_EmulsionRecord` | collapse to the record the emulsion holds: spectral sensitivity, or the **réseau grid** | linear |
+| 8 | `AlgoStage08_CharacteristicCurve` | exposure → density, with the print/dupe anchors solved | density |
+| 8b | `AlgoStage08b_Interimage` | cross-layer development inhibition | density |
+| 9 | `AlgoStage09_DirCoupler` | lateral inhibitor diffusion, two scales | density |
+| 9b | `AlgoStage09b_NegativeDefects` | embedded particulate: dust, debris, fibres | density |
+| 10 | `AlgoStage10_ScanMtf` | scanner optics plus per-channel registration error | density |
+| 10b | `AlgoStage10b_EdgeFog` | additive fog near the physical film edges | density |
+| 11 | `AlgoStage11_Grain` | per-channel RMS, spectrally shaped, amplitude from the **measured σ(D) shape** where a vendor plot was traced (13 stocks), otherwise the legacy √density law | density |
+| 12 | `AlgoStage12_DyeImpurity` | dye impurity / scanner crosstalk matrix | density |
+| 13 | `AlgoStage13_Duplication` | duplication generations, then the release print | density |
+| 14 | `AlgoStage14_Transmittance` | print grain, then density → transmittance. **The pipeline leaves the density domain here** | → display linear |
+| 14b | `AlgoStage14b_ReseauReconstruct` | additive colour rebuilt through the grid | display linear |
+| 14c | `AlgoStage14c_SilverTone` | non-neutral developed silver | display linear |
+| 15 | `AlgoStage15_GateWeave` | gate weave and registration instability | display linear |
+| 16 | `AlgoStage16_GateDefects` | machine-side defects: gate dirt, one-frame dirt, splices | transmittance |
+| 17 | `AlgoStage17_FinalClamp` | the **single** final clamp, then narrowing back to the storage type | — |
+
+⚠ **Stage 17 is the only clamp in the chain, deliberately.** Everything upstream leaves its output
+unclamped at the top so the characteristic curve's shoulder has real highlight information to roll
+off.
 Reversal stocks skip step 13 entirely: the film *is* the positive, so there is no print.
 
 Details that matter and are easy to get wrong:
@@ -1561,6 +1580,48 @@ Details that matter and are easy to get wrong:
   as far off as 1.27, which threw the mid tone out by more than a stop; they are now
   unit-row-sum by construction (see the `_dye` fix below), so the matrix contribution
   to the anchor is exactly neutral and only the taking matrix and couplers move it.
+
+## Implementation status — Python, scalar C++, AVX2
+
+**Re-derived from the trees on 2026-08-31.** Three implementations, one contract.
+
+| | what it is | coverage | status |
+|---|---|---|---|
+| **`film_sim.py`** | the model of record. Every parameter is read here first and every audit re-derives its numbers against this | 25 / 25 stages | the reference for *meaning* |
+| **Scalar C++** (`Algo_02..17_Sim.cpp` + 30 headers) | ⚠ **the HIGH-ACCURACY REFERENCE, not a performance target** (project policy, 2026-08-28). Priorities in order: numerical accuracy, clarity, determinism, correctness. Expensive-but-more-accurate mathematics is acceptable here | **25 / 25** stage entry points | reference for *number* |
+| **AVX2** (`AVX2/Algo_02..17_Sim.cpp`) | the production path, measured against the scalar build | **25 / 25** stage entry points | complete |
+
+**Precision contract.** Scalar `AlgoType = double`; AVX2 `AlgoType = float`; `HighPrecType = double`
+in **both**; `ImgType = float`. AVX2/FMA only, no AVX-512. Image buffers use **unaligned** SIMD
+loads and stores, and every kernel carries a **scalar tail**.
+
+**What is enforced, and what it currently measures**
+
+| audit | what it compares | result |
+|---|---|---|
+| `cpp_parity.py` | grain, MTF, reciprocity and Callier laws, Python against C++, **whole database** | green |
+| `interimage_parity.py` | stages 8b and 9, Python against the plugin's own C++ | worst **5.335e-05** over 5 stocks × 2 fields × 5760 values |
+| `spectral_mono_parity.py` | the monochrome collapse weights, both engines | **68/68 stocks agree exactly, zero guard gaps** |
+| `verify.py` | 462 model and data assertions | **461 PASS / 1 FAIL** — see below |
+| compile gate | `g++ -std=c++14 -Wall -Wextra` on all 18 TUs | exit 0 **and zero bytes of output** |
+
+⚠ **The one standing verify FAIL is a known baseline, not a regression.** The saturation-hierarchy
+check asserts an ordering `velvia > kodachrome > technicolor > 5219 > 5296 > agfacolor > orwocolor`;
+5219 and technicolor sit the wrong way round, and the check is left failing rather than relaxed
+because the ordering is the claim.
+
+### Known gaps in the C++ side, stated rather than implied
+
+- ⚠ **`FilmMtfResponse` has no stage caller in C++.** There is no FFT in the plugin tree, so the
+  frequency-domain rolloff the database now stores per stock is applied in Python and approximated
+  by a spatial kernel in C++. This is one half of queue **C16**.
+- ⚠ **The two renderers still differ below ~1.2 px of edge sigma.** Python multiplies by the
+  analytic Gaussian transfer in the frequency domain; C++ convolves a truncated separable spatial
+  kernel. They agree to 6e-5 above ~1.2 px and diverge to 1.5e-1 at 0.4 px — and stored `edge_um`
+  of 9–13 µm puts a 35 mm frame squarely in that band. No tolerance fixes it; queue **C16** is a
+  decision about the threshold, not a bug to chase.
+- ⚠ **There is no ground-truth harness on either side.** Every audit checks the code against the
+  database or against the other engine. **Nothing checks a render against a photograph.**
 
 ## The 1930s-40s block, and what it needed
 
@@ -1734,7 +1795,7 @@ structure is built to accept real data; only the numbers are provisional.
 |------|---------|
 | `build.py` | **The entry point.** Ordered, gated regeneration + audit: audit → verify → codegen → sync → docs → compile. `--check` is read-only. Registers the audit scripts, so a new extraction script becomes part of the build instead of an orphan. Stdlib only |
 | `run.cmd` | Windows wrapper: `run.cmd` / `check` / `build` / `render` |
-| `film_profiles.py` | Physical parameters, **159 film stocks, 9 print stocks**, 14 gauges. **Schema v10** (v8 added `GrainSpec.sigma_shape_peak`/`_peak_at`/`_toe_at`/`_dmax_at`/`_measured`; **v9 redefined `rms_granularity` as the rms at NET density 1.0** — same layout, different meaning; **v10 added `MTFSpec.mtf_rolloff_q` / `mtf_measured`, so the MTF rolloff shape is stored and read**). Holds the ONE definition of both the grain-σ law (`grain_sigma`) and the MTF law (`mtf_response`), mirrored in the generated C++ as `FilmGrainSigma` / `FilmMtfResponse` |
+| `film_profiles.py` | Physical parameters, **165 film stocks, 11 print stocks**, 14 gauges, **schema v22** (re-derived 2026-08-31; the `SCHEMA_VERSION` history log at the top of the file is the authority, and it records why the constant sat four versions stale until then). Holds the ONE definition of both the grain-σ law (`grain_sigma`) and the MTF law (`mtf_response`), mirrored in the generated C++ as `FilmGrainSigma` / `FilmMtfResponse`. ⚠ `FilmMtfResponse` has **no stage caller in C++** — there is no FFT in the plugin tree; see *Implementation status* |
 | `film_sim.py` | The pipeline, 16-bit PNG writer, CLI. Holds the ONE definition of the reciprocity law (`reciprocity_log_shift`, `_cc_filter_shift`) and of the two DIR-coupler stages (`apply_interimage`, `apply_dir_couplers`), each mirrored in the plugin's own C++ and covered by a parity audit |
 | `cpp_codegen.py` | Emits `film_profiles.hpp` / `.cpp`, then `film_names.txt` and `film_enum.hpp` for a C++ port |
 | `film_profiles.hpp/.cpp` | Generated C++ tables, with the reference formulae in the header |
@@ -1744,7 +1805,7 @@ structure is built to accept real data; only the numbers are provisional.
 | `gen_film_names.py` | **Deprecated, and actively harmful if run.** Superseded by `cpp_codegen.write_film_names()`, which derives order from the emitted `.cpp` instead of from `FILM_PROFILES`. Running it after `cpp_codegen.py` rewrites 19 of 154 display names in `film_names.txt`. `build.py` never invokes it and reports if the file on disk was not `cpp_codegen`'s. Kept only for reference |
 | `vision3_granularity.py` | Audit: re-derives the four VISION3 σ(D) triples from the Kodak TI sheets, exits non-zero if it stops reproducing. Run by `build.py`'s audit stage |
 | `mees_granularity.py` | Audit: re-derives the B&W silver-negative σ(D) shape from Mees Fig. 302 (printed p866), four negative emulsions. Run by `build.py`'s audit stage. See `RESULT_2026-08-18b_bw_sigma_d.md` |
-| `dye_density.py` | Audit: re-derives all **11 adopted spectral dye-density sets** from the sheets' vector paths; 5285 and 2383 are the validation pair. ⚠ Its docstring records the three defects that had put 7239/5217/5218 on a "failed" list when the sources were fine |
+| `dye_density.py` | Audit: re-derives all **12 adopted spectral dye-density sets** from the sheets' vector paths; 5285 and 2383 are the validation pair. ⚠ Its docstring records the three defects that had put 7239/5217/5218 on a "failed" list when the sources were fine |
 | `granularity_vector.py` | Audit: σ(D) from a **vector** granularity plot — **9 sheets**: EKTACHROME 100D 5285 (the only measured σ(D) for a colour **reversal** stock), the six colour negatives adopted 2026-08-18 (5245, 5246, 5248, 5274, 5279, 5218), **VISION2 50D 5201 added 2026-08-20**, and the VISION3 500T brochure as an independent cross-check of 5219's raster trace. Also reports each sheet's **net-1.0 rms triple**, which reproduces all six values adopted under C1d to within 0.7 % — and which answered queue C1e as a by-product. Composes the characteristic and granularity curves at shared abscissa, so the log-exposure axis cancels; `--overlay` draws every traced point back onto the panel and is the adoption gate. See `RESULT_2026-08-18f_C1c_sigma_harvest.md` |
 | `gevaert_curves.py` | Audit: characteristic curves from the **paper scans** of the Agfa-Gevaert journal articles -- `GEVACOLOR_NEG_682`'s Fig. 10 at one sample per pixel column off the native 340 ppi 1-bit scan, validated against the gamma 0.57 the figure prints. Fits both axes as LINES because the page is skewed 1.40 deg, and re-verifies its pinned tick anchors against the pixels on every run |
 | `interimage_parity.py` | Audit: **the Python vs C++ DIR-coupler stages — the only audit that probes the PLUGIN'S OWN translation units** rather than generated code. Compiles against `Algo_08_Sim.cpp` / `Algo_09_Sim.cpp` and compares `apply_interimage()` / `apply_dir_couplers()` against `AlgoStage08b_Interimage()` / `AlgoStage09_DirCoupler()` over 5 stocks × 2 fields × 2 pixel scales. Reads `sizeof(AlgoType)` from the compiled probe and picks its tolerance from it, so the deliberately switchable double/float typedef stays switchable. ⚠ Asserts only where the blur is resolved; the sub-pixel scale is probed and reported, because below ~1 px the two blur implementations are not the same operator |
@@ -1754,22 +1815,35 @@ structure is built to accept real data; only the numbers are provisional.
 | `kodak_sensitometry.py` | Audit: `ToneCurve` parameters least-squares fitted to a Kodak sheet's **vector** characteristic curves, sharing `digitize_plot.fit_tonecurve` so the model has one definition. ⚠ Takes the SHAPE from the dense curves inside the *granularity* panel and asks the panel titled "Sensitometric" only for the abscissa origin — see method rule 22 |
 | `agfa_vista.py` | Audit: `AGFA_VISTA_200`'s spectral sensitivity, and the **dash-pattern legend** it depends on — solid = green, dashed = blue, dash-dot = red, cross-checked against Agfa's own printed labels |
 | `plot_inventory.py` | Audit: the corpus plot inventory (191 vector dye-density pages, 199 MTF, 101 granularity, 294 characteristic), with three known-answer pages as the classifier's ground truth. ⚠ Those counts are **corpus-wide (450 PDFs)**, so they are reported but NOT asserted when fewer PDFs are present — a partial mirror used to fail all four (method rule 20) |
-| `verify.py` | **304-check suite (303 PASS / 1 FAIL by design)**: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, provenance guards, the grain LEVEL contract (amplitude = stored rms at net density 1.0, all 465 stock-channels, plus an empirical aperture-integrated end-to-end check), edge cases. Render-heavy. ⚠ **Slicing is currently broken for any slice that does not start at 1** — a later section references a name bound in an earlier one (`NameError: _fpm`). Full runs are unaffected |
+| `verify.py` | **462-check suite (461 PASS / 1 FAIL by design — the saturation-hierarchy baseline)**: curves, calibration, anchors, isotropy, PNG, flare, generations, réseau, spectral data, provenance guards, the grain LEVEL contract (amplitude = stored rms at net density 1.0, all 465 stock-channels, plus an empirical aperture-integrated end-to-end check), edge cases. Render-heavy. ⚠ **Slicing is currently broken for any slice that does not start at 1** — a later section references a name bound in an earlier one (`NameError: _fpm`). Full runs are unaffected |
 | `make_test_chart.py` | Synthetic chart (ramp, patches, MTF bars, specular discs) |
 | `make_period_chart.py` | Larger chart for the period stocks and the réseau |
 | `contact_sheet.png` | All stocks on the small chart |
 | `period_sheet.png` | The period stocks, plus a 3-generation dupe comparison |
 | `dufay_crop.png` | Dufaycolor réseau at 1:1, so the grid is visible |
-| `doc/` | Audit trail: datasheet verification (Found/NotFound), Soviet book extraction, dated changelogs, measurement adoption reports |
+| `konica_raster.py` | Audit, **NEW 2026-08-31 (queue E3)**: the seven KONICA plot panels — the first sheets in this corpus adopted from that are **raster end to end**. No paths and no tick text, so calibration is geometric off the printed grid and every panel re-detects its own gridlines before a curve is traced. ⚠ Their embedded bitmaps are stored **upside down** |
+| `kodak_aim_density.py` | Audit: the 16 published aim-density tables off 13 KODAK sheets, read by geometry rather than page order because the two table layouts emit their forehead pairs in opposite orders. Five of its twenty-one checks are cross-document |
+| `polaroid_spectral.py` | Audit: the four POLAROID spectral panels, two of them new data. ⚠ Asserts the direction the sheets are read in — peak plotted value must RISE with exposure index — because the inverted reading passes every band and ordering check |
+| `spectral_vector.py` | Audit: **19 registered sheets**, colour and monochrome. The monochrome path selects a curve by the density criterion printed beside it and now MEASURES the second criterion as well: the gap between two criterion curves must follow the density order in sign and be wavelength-independent, which is the check that catches a swapped pair |
+| `doc/` | Audit trail: datasheet verification (Found/NotFound), Soviet book extraction, dated changelogs, measurement adoption reports. ⚠ `DIGITIZATION_QUEUE_history.md` and `NotFound_history.md` hold the superseded revisions of the two live status documents — read them for the provenance of a fix, never for state |
 
 ## Verification
 
-⚠ **THIS SECTION WAS BADLY STALE AND IS REWRITTEN AS OF 2026-08-23.** It said "70 checks,
-all passing (67 original + 3 schema-v3 spectral checks)", which described the suite as it
-stood before schema v4. `python verify.py` runs a **304-check suite: 303 PASS and 1 FAIL by
+**Re-counted 2026-08-31.** `python verify.py` runs a **462-check suite: 461 PASS and 1 FAIL by
 design** — the saturation-hierarchy ordering, which the owner instructed to leave alone.
-`build.py` compares the FAIL *set* against a baseline, so a NEW failure fails the build while
-the known one does not.
+`build.py` compares the FAIL *set* against a baseline, so a NEW failure fails the build while the
+known one does not.
+
+⚠ **This section has been stale twice and the count is still not gated.** It read "70 checks"
+until 2026-08-23 and "304 checks" until today. `doc_consistency.py` guards seventeen registered
+numbers across five documents and this is not one of them, because the suite size is a property of
+`verify.py` rather than of the database. Re-count it, do not trust it.
+
+**The other gates, all green as of 2026-08-31:** 28 registered audits (23 run in this checkout, 5
+SKIP for sources on the owner's machine), `cpp_parity` across the whole database,
+`interimage_parity` at worst 5.335e-05, `spectral_mono_parity` 68/68 with zero guard gaps,
+`doc_consistency` 17/17, and `g++ -std=c++14 -Wall -Wextra` on all 18 TUs with **zero bytes of
+output**.
 
 The list below says what the suite asserts in kind; the file itself is the specification:
 

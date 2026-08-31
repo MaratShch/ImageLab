@@ -292,6 +292,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\agfa_2004_curves.py" />
     <None Include="python\profiles_generator\agfa_vista.py" />
     <None Include="python\profiles_generator\build.py" />
+    <None Include="python\profiles_generator\callier_silberstein_tuttle.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
     <None Include="python\profiles_generator\cpp_parity.py" />
     <None Include="python\profiles_generator\dashtrace.py" />
@@ -299,6 +300,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\di_2254.py" />
     <None Include="python\profiles_generator\doc_consistency.py" />
     <None Include="python\profiles_generator\dye_density.py" />
+    <None Include="python\profiles_generator\dye_matrix_from_spectra.py" />
     <None Include="python\profiles_generator\empirical_import.py" />
     <None Include="python\profiles_generator\film_ids.lock" />
     <None Include="python\profiles_generator\film_profiles.py" />
@@ -311,15 +313,20 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\granularity_vector.py" />
     <None Include="python\profiles_generator\interimage_parity.py" />
     <None Include="python\profiles_generator\iso5_3_density.py" />
+    <None Include="python\profiles_generator\iso_5_3_status.py" />
     <None Include="python\profiles_generator\kodak_1952_curves.py" />
+    <None Include="python\profiles_generator\kodak_aim_density.py" />
     <None Include="python\profiles_generator\kodak_sensitometry.py" />
     <None Include="python\profiles_generator\kodak_still_curves.py" />
     <None Include="python\profiles_generator\kodak_time_gamma.py" />
+    <None Include="python\profiles_generator\konica_raster.py" />
     <None Include="python\profiles_generator\make_period_chart.py" />
     <None Include="python\profiles_generator\make_test_chart.py" />
+    <None Include="python\profiles_generator\mees_callier_q.py" />
     <None Include="python\profiles_generator\mees_granularity.py" />
     <None Include="python\profiles_generator\mtf_vector.py" />
     <None Include="python\profiles_generator\plot_inventory.py" />
+    <None Include="python\profiles_generator\polaroid_spectral.py" />
     <None Include="python\profiles_generator\README.md" />
     <None Include="python\profiles_generator\render.cmd" />
     <None Include="python\profiles_generator\run.cmd" />
@@ -328,6 +335,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\spectral_mono_parity.py" />
     <None Include="python\profiles_generator\spectral_vector.py" />
     <None Include="python\profiles_generator\spectral_weight_provenance.py" />
+    <None Include="python\profiles_generator\ti0835_plates.py" />
     <None Include="python\profiles_generator\verify.py" />
     <None Include="python\profiles_generator\vision3_granularity.py" />
   </ItemGroup>

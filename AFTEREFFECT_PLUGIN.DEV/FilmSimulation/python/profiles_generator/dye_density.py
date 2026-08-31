@@ -447,8 +447,53 @@ def _bands_ok(lams):
 def _peaks(curves, idxs, grid):
     return sorted((float(grid[curves[i].argmax()]), i) for i in idxs)
 
+def _neutral_and_dmin(curves, grid, used):
+    """The two traces a dye panel draws besides the dyes: neutral and D-min.
+
+    ⚠ THESE WERE BEING EXTRACTED AND THROWN AWAY ON EVERY PEAK-NORMALISED
+    SHEET. Family C already located both and validated them against the identity
+    `Neutral - Dmin = k(C+M+Y)`, then returned None for them because one
+    `normalisation` string cannot describe peak-normalised dyes AND an
+    as-printed neutral in one record. That was a schema limitation talking, not
+    an absence of data: `SpectralDyeDensity.normalisation_neutral` now lets the
+    pair state its own convention, so the traces can be kept.
+
+    Told apart the way the plate draws them: the NEUTRAL is the trace that goes
+    highest -- being the three dyes plus the mask, it must -- and the D-MIN is
+    the remaining one, which peaks at the short-wavelength end and decays,
+    because on a masked negative it IS the orange mask.
+    """
+    # ⚠ A CONSTANT TRACE IS NOT A CURVE, AND ONE IS PRESENT ON EVERY SHEET.
+    # `extract` returns six paths for 5218, and the sixth is a horizontal rule
+    # at a fixed density -- a gridline the frame detector did not eat. Counted
+    # as data it makes three leftovers where there are two, and this whole
+    # function then declines and the neutral is lost again. Flats are dropped on
+    # range, which no real absorption curve comes close to.
+    rest = [i for i in range(len(curves)) if i not in used
+            and float(curves[i].max() - curves[i].min()) > 0.08]
+    # ⚠ AND A DUPLICATE IS NOT A SECOND TRACE. Kodak makes red ink by
+    # overprinting yellow under magenta, so the cyan curve arrives TWICE, as two
+    # paths that agree to the last decimal. On 5217 that is what makes four
+    # leftovers out of two and loses the neutral.
+    uniq = []
+    for i in rest:
+        if not any(float(np.abs(curves[i] - curves[j]).max()) < 1e-6
+                   for j in uniq):
+            uniq.append(i)
+    rest = uniq
+    if len(rest) != 2:
+        return None, None
+    hi = max(rest, key=lambda i: float(curves[i].max()))
+    lo = [i for i in rest if i != hi][0]
+    # ⚠ D-min must peak in the short-wavelength half, or the two have been
+    # swapped and every consumer downstream would be confidently wrong.
+    if float(grid[curves[lo].argmax()]) > 0.5 * (grid[0] + grid[-1]):
+        return None, None
+    return curves[hi], curves[lo]
+
+
 def pick_dye_set(curves, grid, tol_sum=0.14, tol_peak=0.04):
-    """Return (cyan, magenta, yellow, neutral_or_None, mode, residual)."""
+    """Return (cyan, magenta, yellow, neutral, dmin, mode, residual)."""
     n=len(curves)
     best=None
     # --- family A: quartet with neutral = C+M+Y ---------------------------
@@ -461,10 +506,13 @@ def pick_dye_set(curves, grid, tol_sum=0.14, tol_peak=0.04):
             if not _bands_ok([p[0] for p in pk]): continue
             if not (0.25 <= max(curves[i].max() for i in quad) <= 4.0): continue
             cand=(res,"as_printed_plus_neutral",curves[pk[2][1]],
-                  curves[pk[1][1]],curves[pk[0][1]],curves[ni])
+                  curves[pk[1][1]],curves[pk[0][1]],curves[ni],
+                  {ni, pk[0][1], pk[1][1], pk[2][1]})
             if best is None or res<best[0]: best=cand
-    if best: 
-        r,mode,c,m,y,neu=best; return c,m,y,neu,mode,r
+    if best:
+        r,mode,c,m,y,neu,used=best
+        _n2,dm=_neutral_and_dmin(curves,grid,used)
+        return c,m,y,neu,dm,mode,r
     # --- family B: three traces each normalised to unit peak --------------
     for tri in itertools.combinations(range(n),3):
         mx=[float(curves[i].max()) for i in tri]
@@ -479,11 +527,13 @@ def pick_dye_set(curves, grid, tol_sum=0.14, tol_peak=0.04):
             if v.min() > 0.5: ok=False; break
         if not ok: continue
         spread=max(abs(v-1.0) for v in mx)
-        cand=(spread,"peak_1.0",curves[pk[2][1]],curves[pk[1][1]],curves[pk[0][1]],None)
+        cand=(spread,"peak_1.0",curves[pk[2][1]],curves[pk[1][1]],
+              curves[pk[0][1]],None,{pk[0][1],pk[1][1],pk[2][1]})
         if best is None or spread<best[0]: best=cand
     if not best: return None
-    r,mode,c,m,y,neu=best
-    return c,m,y,neu,mode,r
+    r,mode,c,m,y,neu,used=best
+    neu2,dm=_neutral_and_dmin(curves,grid,used)
+    return c,m,y,(neu if neu is not None else neu2),dm,mode,r
 
 # ---------------------------------------------------------------------------
 # FAMILY C: identify the traces by INK, not by segment count (queue item C9).
@@ -581,9 +631,14 @@ FAMILY_C_IDENTITY_RMS = 0.05
 def pick_dye_set_inked(inked, grid):
     """Family C: peak_1.0 dyes + as-printed neutral + as-printed dmin.
 
-    Returns (cyan, magenta, yellow, None, "peak_1.0", rms) or None. The neutral
-    is NOT returned: it is as-printed while the dyes are not, and one record
-    cannot carry both conventions.
+    Returns (cyan, magenta, yellow, neutral, dmin, "peak_1.0", rms) or None.
+
+    ⚠ THE NEUTRAL AND D-MIN USED TO BE DISCARDED HERE, and the stated reason was
+    that they are as-printed while the dyes are peak-normalised, so "one record
+    cannot carry both conventions". True of the schema as it stood; fixed rather
+    than worked around -- `normalisation_neutral` now states the pair's own
+    convention, so both traces are returned and stored. The D-min trace is the
+    orange mask, which nothing in this database recorded spectrally before.
 
     THE VALIDATOR IS THE POINT OF THIS FAMILY. Family A identifies its quartet
     by neutral = C+M+Y, which cannot hold when the dyes are peak-normalised and
@@ -633,7 +688,7 @@ def pick_dye_set_inked(inked, grid):
         return None
     if coef.min() <= 0.0 or (coef.max() - coef.min()) / coef.mean() > 0.15:
         return None     # not a neutral: the three dyes do not contribute equally
-    return c, m, y, None, "peak_1.0", rms
+    return c, m, y, neutrals[0], dmins[0], "peak_1.0", rms
 
 
 def extract_sheet(root: Path, tag: str):
@@ -654,10 +709,10 @@ def extract_sheet(root: Path, tag: str):
             # disturbed by it. --assert proves that claim on every run.
             sel = pick_dye_set_inked(extract_inked(pg, r[0], r[1], GRID), GRID)
         if sel:
-            c, m, y, neu, mode, res = sel
+            c, m, y, neu, dm, mode, res = sel
             return dict(tag=tag, profile=prof, file=fn, page=pgno, mode=mode,
                         residual=res, cyan=c, magenta=m, yellow=y,
-                        neutral=neu), None
+                        neutral=neu, dmin=dm), None
     return None, "no curve set matched any of the three normalisation families"
 
 
@@ -691,6 +746,20 @@ def main() -> int:
         if not ok:
             print(f"         expected {want_mode} res={want_res:.4f}")
             bad += 1
+        # ⚠ THE NEUTRAL IDENTITY, REPORTED FOR EVERY SHEET THAT NOW CARRIES THE
+        # PAIR. `Neutral - Dmin = k(C+M+Y)` with the three k EQUAL is what makes
+        # a neutral a neutral, and the coefficients are free to be anything, so
+        # a small spread is evidence rather than arithmetic. Reported here and
+        # ENFORCED in dye_matrix_from_spectra, which is where a bad panel would
+        # otherwise reach a render.
+        if got["neutral"] is not None and got["dmin"] is not None:
+            A = np.vstack([got["cyan"], got["magenta"], got["yellow"]]).T
+            b = got["neutral"] - got["dmin"]
+            k, *_ = np.linalg.lstsq(A, b, rcond=None)
+            sp = float((k.max() - k.min()) / max(k.mean(), 1e-9))
+            print("         neutral identity k=%s spread=%.3f%s"
+                  % (" ".join("%.3f" % v for v in k), sp,
+                     "  <== not a neutral" if sp > 0.15 else ""))
     print(f"\n[i] {len(tags) - bad - skipped} reproduced, {bad} failed, "
           f"{skipped} skipped")
     if ns.do_assert and bad:

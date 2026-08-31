@@ -436,9 +436,19 @@ int main()
         FilmProfile prof = FilmProfile();
         prof.callier_q = p.q;
 
-        const HighPrecType f = AlgoCallierFactor(prof, (HighPrecType)p.spec);
+        // ⚠ THE PROBE MOVED WITH THE LAW (M3). It used to read back a
+        // multiplier; there is no multiplier any more, so it reads back the NET
+        // density the law produces and the dmin-referenced result, which is
+        // what both consumers actually use.
+        const HighPrecType q = (HighPrecType)prof.callier_q;
+        const HighPrecType f =
+            ((HighPrecType)p.spec <= 0.0 || q == 1.0)
+                ? ((HighPrecType)p.d - (HighPrecType)p.dmin)
+                : AlgoCallierNet((HighPrecType)p.d - (HighPrecType)p.dmin,
+                                 q, (HighPrecType)p.spec);
         const HighPrecType r = AlgoCallierApplyScalar((HighPrecType)p.d,
-                                                      (HighPrecType)p.dmin, f);
+                                                      (HighPrecType)p.dmin,
+                                                      q, (HighPrecType)p.spec);
 
         printf("C\t%s\t%d\t%d\t%d\t%.17g\t%.17g\n",
                p.name, p.c, p.is, p.id, (double)f, (double)r);
@@ -447,6 +457,179 @@ int main()
     return 0;
 }
 """
+
+
+# ===========================================================================
+#  STAGE-LEVEL CALLIER PROBE -- added 2026-08-30 (queue C41).
+#
+#  ⚠ THE LAW FAMILY ABOVE PASSED FOR A WEEK WHILE NOTHING CALLED THE LAW. That
+#  is the same shape of hole the grain probe was written for: the law
+#  and AlgoCallierApplyScalar agreed with Python to 1.4e-07 on 11592 probes,
+#  and the pipeline did not invoke either of them. A parity check must exercise
+#  the CODE THAT RENDERS.
+#
+#  So this drives the two things C41 actually wired:
+#
+#    STAGE   AlgoStage12b_Callier on a real plane, recovering what it wrote.
+#    SOLVE   AlgoSolveAnchors with a non-zero scannerSpecular, against
+#            film_sim.solve_anchors with the same setting.
+#
+#  ⚠ THE SOLVE HALF IS THE ONE THAT MATTERS AND IT IS WHY THIS PROBE EXISTS AT
+#  ALL. Wiring the pixel pass without the solve is a documented regression --
+#  mid grey moves by more than the contrast does -- so a probe that checked only
+#  the stage would pass on exactly the broken configuration this task was
+#  approved to prevent.
+# ===========================================================================
+
+CALLIER_STAGE_CPP = r"""
+#include "AlgoCallier.hpp"
+#include "AlgoCharacteristicCurve.hpp"
+#include "film_profiles.hpp"
+#include <cstdio>
+
+struct SRow { const char* name; int is; double spec; };
+
+static const SRow SROWS[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    const auto& db = film::GetFilmDatabase();
+    const int   n  = (int)(sizeof(SROWS)/sizeof(SROWS[0]));
+
+    for (int i = 0; i < n; ++i)
+    {
+        const SRow& r = SROWS[i];
+
+        const film::FilmProfile* p = nullptr;
+        for (const auto& q : db)
+            if (q.name == r.name) { p = &q; break; }
+        if (nullptr == p)
+            continue;
+
+        // ---- STAGE. Four pixels at known densities, one per channel plane.
+        const int W = 4, H = 1, P = 4;
+        AlgoType dR[4], dG[4], dB[4];
+        const AlgoType dmin[3] = {
+            (AlgoType)p->curves.r.dmin,
+            (AlgoType)p->curves.g.dmin,
+            (AlgoType)p->curves.b.dmin };
+
+        // Net densities either side of the reference, so a wrong dmin
+        // reference shows up as a slope error rather than a constant.
+        const double net[4] = { 0.0, 0.25, 1.0, 2.0 };
+        for (int x = 0; x < 4; ++x) {
+            dR[x] = (AlgoType)(p->curves.r.dmin + net[x]);
+            dG[x] = (AlgoType)(p->curves.g.dmin + net[x]);
+            dB[x] = (AlgoType)(p->curves.b.dmin + net[x]);
+        }
+
+        AlgoStage12b_Callier(dR, dG, dB, W, H, P, dmin, *p,
+                             (HighPrecType)r.spec);
+
+        for (int x = 0; x < 4; ++x)
+            printf("CS\t%s\t%d\t%d\t%.17g\t%.17g\t%.17g\n",
+                   r.name, r.is, x,
+                   (double)dR[x], (double)dG[x], (double)dB[x]);
+
+        // ---- SOLVE. Reversal stocks take a null print stock, as the caller
+        // does; negatives take the database's own default print.
+        const film::PrintStock* ps = nullptr;
+        if (!p->isReversal()) {
+            const auto& stocks = film::GetPrintStocks();
+            for (const auto& s : stocks)
+                if (s.name == p->default_print) { ps = &s; break; }
+            if (nullptr == ps && !stocks.empty())
+                ps = &stocks[0];
+        }
+
+        HighPrecType anchor[3] = { 0, 0, 0 };
+        AlgoSolveAnchors(*p, ps, (HighPrecType)0.18, (HighPrecType)1.0,
+                         (HighPrecType)r.spec, anchor);
+
+        printf("CA\t%s\t%d\t0\t%.17g\t%.17g\t%.17g\n",
+               r.name, r.is,
+               (double)anchor[0], (double)anchor[1], (double)anchor[2]);
+    }
+
+    return 0;
+}
+"""
+
+#: Specular settings probed. 0.0 is the load-bearing one: the whole inertness
+#: contract is that it changes nothing, so it must be compared, not assumed.
+CALLIER_STAGE_SPECULAR = (0.0, 0.35, 1.0)
+
+
+def callier_stage_probe_table():
+    """One row per (stock, specular). The whole database, both kinds."""
+    return [(q.name, i, float(s))
+            for q in fp.FILM_PROFILES
+            for i, s in enumerate(CALLIER_STAGE_SPECULAR)]
+
+
+def callier_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
+    lines = ['    { "%s", %d, %.17g },' % r for r in rows]
+    src = tmp / "callier_stage_parity.cpp"
+    src.write_text(CALLIER_STAGE_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "callier_stage_parity"
+    # ⚠ THE REAL DATABASE, not literals. Unlike the law probe above this one
+    # cannot use literals: AlgoSolveAnchors reads the whole profile -- curves,
+    # dye matrix, couplers, taking matrix, print stock -- so a hand-built stub
+    # would be a different film. build.py runs the audits AFTER codegen, so the
+    # table it walks is the one the generator just wrote.
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(root / "Algo_08_Sim.cpp"),
+           # ⚠ Algo_08 pulls AlgoSoftplus from stage 5 and AlgoCopyImage from the
+           # separable blur, so those translation units have to be linked even
+           # though this probe never calls into either. Linking the REAL stage is
+           # the entire point -- a reimplementation of the solve here would
+           # recreate the divergence the probe exists to catch.
+           str(root / "Algo_05_Sim.cpp"),
+           str(root / "AlgoSeparableBlur.cpp"),
+           str(HERE / "film_profiles.cpp"),
+           str(HERE / "LoadFilmDataBase.cpp")]
+    cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] Callier stage probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] Callier stage probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        fam, nm, i_s, k, a, b, c = line.split("\t")
+        out[(fam, nm, int(i_s), int(k))] = (float(a), float(b), float(c))
+    return out
+
+
+def callier_stage_python_side(rows) -> dict:
+    """The same probes through film_sim's own stage 12b and anchor solve."""
+    import numpy as _np
+    import film_sim as fs
+    out = {}
+    net = (0.0, 0.25, 1.0, 2.0)
+    for nm, i_s, sp in rows:
+        p = fp.get_profile(nm)
+        cur = p.curves.as_tuple()
+        dens = _np.zeros((1, 4, 3), dtype=_np.float32)
+        for x, nt in enumerate(net):
+            for c in range(3):
+                dens[0, x, c] = float(cur[c].dmin) + nt
+        fs.callier_density(dens, cur, p.callier_q, sp, p.is_monochrome)
+        for x in range(4):
+            out[("CS", nm, i_s, x)] = tuple(float(dens[0, x, c])
+                                            for c in range(3))
+        ps = None if p.is_reversal else fp.get_print_stock(p.default_print)
+        a = fs.solve_anchors(p, ps, 0.18, 1.0, sp)
+        out[("CA", nm, i_s, 0)] = (float(a[0]), float(a[1]), float(a[2]))
+    return out
 
 
 # ===========================================================================
@@ -475,7 +658,20 @@ GRAIN_STAGE_CPP = r"""
 #include "film_profiles.hpp"
 #include <cstdio>
 
-struct SRow { const char* name; int ch; int k; double D; double dmin; double fog; };
+// ⚠ THE ROW CARRIES THE WHOLE GrainSpec THE LAW READS, NOT JUST fog.
+// Before 2026-08-30 AlgoAddGrain took a loose fog value, which made it
+// STRUCTURALLY IMPOSSIBLE for the stage to reach the measured sigma(D) shape --
+// half of why queue C30/C33 lasted as long as it did. The signature now takes
+// the spec and the per-channel dmax, so this probe has to supply both, and
+// supplying them is what makes the measured branch testable at all.
+struct SRow {
+    const char* name; int ch; int k;
+    double D; double dmin; double dmax;
+    double fog;
+    int    measured;
+    double toe; double toe_at; double mid; double top; double top_at;
+    double peak; double peak_at;
+};
 
 static const SRow SROWS[] = {
 /*ROWS*/
@@ -486,20 +682,45 @@ int main()
     const int n = (int)(sizeof(SROWS)/sizeof(SROWS[0]));
     for (int i = 0; i < n; ++i) {
         const SRow& r = SROWS[i];
+
+        // Value-initialised, then only the fields the amplitude law reads are
+        // set by name. A positional literal here would rot the first time
+        // GrainSpec gains a field.
+        film::GrainSpec g{};
+        g.fog_grain             = (float)r.fog;
+        g.sigma_shape_measured  = (r.measured != 0);
+        g.sigma_shape_toe       = (float)r.toe;
+        g.sigma_shape_toe_at    = (float)r.toe_at;
+        g.sigma_shape_mid       = (float)r.mid;
+        g.sigma_shape_dmax      = (float)r.top;
+        g.sigma_shape_dmax_at   = (float)r.top_at;
+        g.sigma_shape_peak      = (float)r.peak;
+        g.sigma_shape_peak_at   = (float)r.peak_at;
+
         // One pixel is enough; four keeps the row loop honest.
         const int W = 4, H = 1, P = 4;
         AlgoType dR[4], dG[4], dB[4], fR[4], fG[4], fB[4];
         const AlgoType D  = (AlgoType)r.D;
         const AlgoType dm[3] = { (AlgoType)r.dmin, (AlgoType)r.dmin, (AlgoType)r.dmin };
+        const AlgoType dx[3] = { (AlgoType)r.dmax, (AlgoType)r.dmax, (AlgoType)r.dmax };
         for (int x = 0; x < 4; ++x) {
             dR[x] = dG[x] = dB[x] = D;
             fR[x] = fG[x] = fB[x] = (AlgoType)1.0;   // unit field: amp = out - D
         }
         AlgoAddGrain(dR, dG, dB, fR, fG, fB, W, H, P,
-                     dm, (AlgoType)r.fog, (AlgoType)1.0);
+                     dm, dx, g, (AlgoType)1.0);
         const AlgoType* plane = (r.ch == 0) ? dR : ((r.ch == 1) ? dG : dB);
-        printf("S\t%s\t%d\t%d\t%.9g\n", r.name, r.ch, r.k,
-               (double)(plane[0] - D));
+
+        // ⚠ THE EQUIVALENCE, ASSERTED IN THE SAME PROGRAM ON THE SAME ROW.
+        // The stage reaches FilmGrainSigma through a hoisted evaluator rather
+        // than by calling it, which is only admissible while something proves
+        // the two are one law. This is that proof: same GrainSpec, same dmin,
+        // same dmax, same density, both spellings, printed side by side.
+        const double law = (double)film::FilmGrainSigma(
+            g, (float)r.dmin, (float)r.dmax, (float)r.D);
+
+        printf("S\t%s\t%d\t%d\t%.9g\t%.9g\n", r.name, r.ch, r.k,
+               (double)(plane[0] - D), law);
     }
     return 0;
 }
@@ -513,19 +734,33 @@ GRAIN_STAGE_NET = (0.2, 0.5, 1.0, 1.5, 2.5)
 
 
 def grain_stage_probe_table():
+    """One row per (stock, channel, net density), carrying everything the
+    amplitude law reads -- including the measured sigma(D) fields, which the
+    stage could not reach at all before 2026-08-30."""
     rows = []
     for p in fp.FILM_PROFILES:
         g = p.grain
         for c, cur in enumerate(p.curves.as_tuple()):
             dmin = float(cur.dmin)
+            dmax = float(cur.dmax)
             for k, net in enumerate(GRAIN_STAGE_NET):
-                rows.append((p.name, c, k, dmin + net, dmin,
-                             float(g.fog_grain)))
+                rows.append((p.name, c, k, dmin + net, dmin, dmax,
+                             float(g.fog_grain),
+                             1 if g.sigma_shape_measured else 0,
+                             float(g.sigma_shape_toe),
+                             float(g.sigma_shape_toe_at),
+                             float(g.sigma_shape_mid),
+                             float(g.sigma_shape_dmax),
+                             float(g.sigma_shape_dmax_at),
+                             float(g.sigma_shape_peak),
+                             float(g.sigma_shape_peak_at)))
     return rows
 
 
 def grain_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
-    lines = ['    { "%s", %d, %d, %.17g, %.17g, %.17g },' % r for r in rows]
+    lines = ['    { "%s", %d, %d, %.17g, %.17g, %.17g, %.17g, %d, '
+             '%.17g, %.17g, %.17g, %.17g, %.17g, %.17g, %.17g },' % r
+             for r in rows]
     src = tmp / "grain_stage_parity.cpp"
     src.write_text(GRAIN_STAGE_CPP.replace("/*ROWS*/", "\n".join(lines)))
     exe = tmp / "grain_stage_parity"
@@ -548,8 +783,8 @@ def grain_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
         raise SystemExit(2)
     out = {}
     for line in r.stdout.splitlines():
-        fam, nm, c, k, v = line.split("\t")
-        out[(fam, nm, int(c), int(k))] = float(v)
+        fam, nm, c, k, v, law = line.split("\t")
+        out[(fam, nm, int(c), int(k))] = (float(v), float(law))
     return out
 
 
@@ -561,11 +796,10 @@ def grain_stage_python_side(rows) -> dict:
     reason this probe family exists.
     """
     out = {}
-    for (nm, c, k, D, dmin, _fog) in rows:
+    for row in rows:
+        nm, c, k, D, dmin, dmax = row[0], row[1], row[2], row[3], row[4], row[5]
         p = fp.get_profile(nm)
-        cur = p.curves.as_tuple()[c]
-        out[("S", nm, c, k)] = float(
-            fp.grain_sigma(p.grain, dmin, float(cur.dmax), D))
+        out[("S", nm, c, k)] = float(fp.grain_sigma(p.grain, dmin, dmax, D))
     return out
 
 
@@ -617,16 +851,20 @@ def callier_build_and_run(tmp: Path, root: Path, rows) -> dict:
 def callier_python_side(rows) -> dict:
     """The same rows through film_sim, the reference.
 
-    ⚠ Uses film_sim._callier_factor AND the same dmin-referenced expression
-    callier_density() applies per pixel, rather than re-deriving either: a
-    parity probe that reimplements the reference is testing itself.
+    ⚠ Uses film_sim.callier_net, the single definition of the law, rather than
+    re-deriving it: a parity probe that reimplements the reference is testing
+    itself. Reports the NET density the law produces and the dmin-referenced
+    result, which is exactly what both consumers use.
     """
     import film_sim as fs
     out = {}
     for (nm, c, i_s, i_d, sp, d, dmin, _q) in rows:
         prof = fp.get_profile(nm)
-        f = float(fs._callier_factor(prof, sp))
-        out[("C", nm, c, i_s, i_d)] = (f, dmin + (d - dmin) * f)
+        if fs.callier_is_inert(prof, sp):
+            net = d - dmin
+        else:
+            net = float(fs.callier_net(d - dmin, float(prof.callier_q), sp))
+        out[("C", nm, c, i_s, i_d)] = (net, dmin + net)
     return out
 
 
@@ -674,19 +912,14 @@ GENERATED_LAWS = {
 #: leaving this dict must leave because it gained a caller, never because the
 #: failure became inconvenient.
 LAW_BYPASS_BASELINE = {
-    "FilmGrainSigma":
-        "queue C30/C33: PARTIALLY closed 2026-08-25. The net-1.0 normalisation "
-        "-- the whole of the LEVEL error, measured at sqrt(1 + fog_grain), "
-        "1.0392-1.1832 -- is now applied inside AlgoAddGrain, hoisted out of "
-        "both loops because it depends only on fogGrain, which the stage "
-        "already receives. That took no shared signature change, so the AVX2 "
-        "twin was untouched. What is STILL bypassed is the measured-anchor "
-        "branch: reaching it needs the GrainSpec and dmax, i.e. a shared "
-        "signature change with the AVX2 twin moving in the same commit. Cost "
-        "of the remainder, measured: the 13 stocks with sigma_shape_measured "
-        "render the legacy SHAPE at the correct LEVEL -- worst relative error "
-        "1.73 at net density 2.5, exact at net 1.0. The 147 legacy-branch "
-        "stocks are exact (4.3e-09) and are pinned by the stage-level probe",
+    # ⚠ FilmGrainSigma LEFT THIS DICT ON 2026-08-30 BECAUSE IT GAINED A CALLER,
+    # WHICH IS THE ONLY ADMISSIBLE REASON. Queue C30/C33 is closed: AlgoAddGrain
+    # now takes the GrainSpec and the per-channel dmax, reaches the measured
+    # sigma(D) anchors, and both twins go through the shared AlgoGrainAmpBuild()
+    # / AlgoGrainAmpAt(). Measured after the change: worst relative
+    # disagreement against the Python reference 2.52e-07 over 2415 probes, and
+    # |amp - 1| at NET density 1.0 is EXACTLY zero on all 161 stocks x 3
+    # channels. See LAW_EQUIVALENT_IMPL for how the indirection is kept honest.
     "FilmMtfResponse":
         "queue C32: the measured rolloff is a frequency-domain form and the C++ "
         "side has NO FFT -- AlgoEmulsionMtf convolves a separable spatial "
@@ -694,6 +927,27 @@ LAW_BYPASS_BASELINE = {
         "(numerical kernel, an FFT path, or a fitted separable equivalent), so "
         "the 9 stocks with a measured q render on the legacy Gaussian: correct "
         "at f50 by construction, up to 3.8x too much modulation at 2x f50",
+}
+
+
+#: A law may be reached through a NAMED equivalent rather than by its own
+#: symbol, and this is where that indirection is declared instead of inferred.
+#:
+#: ⚠ AN ENTRY HERE IS A LIABILITY, NOT A CONVENIENCE. Two spellings of one law
+#: is the exact condition this whole file exists to police, so an equivalent is
+#: admissible only while something ASSERTS the two agree numerically. For
+#: FilmGrainSigma that assertion is in the stage probe below, which evaluates
+#: `film::FilmGrainSigma()` and the stage's own hoisted evaluator inside the
+#: SAME compiled program, on the same rows, and fails if they differ at all.
+#:
+#: Why the indirection exists rather than the stage simply calling the law:
+#: FilmGrainSigma builds and insertion-sorts up to four anchors and walks them
+#: twice, none of which depends on the pixel. Calling it per pixel would be
+#: correct and unusable. AlgoGrainAmpBuild does that work once per channel and
+#: AlgoGrainAmpAt evaluates the result; the law is the same, the arithmetic is
+#: hoisted.
+LAW_EQUIVALENT_IMPL = {
+    "FilmGrainSigma": ("AlgoGrainAmpBuild", "AlgoGrainAmpAt"),
 }
 
 
@@ -708,8 +962,34 @@ LAW_BYPASS_BASELINE = {
 #: to 1.183x apart on grain amplitude -- a difference in the MODEL, not in the
 #: vectorisation. That is exactly what the project's own AVX2 rules forbid, and
 #: nothing would have reported it.
+#
+#: ⚠ RE-POINTED 2026-08-30 WHEN C30/C33 WAS CLOSED, AND THE REASON MATTERS.
+#: This used to require the token `ampScale` in both twins. That was the right
+#: test while the normalisation was a loose local duplicated in two files -- and
+#: it did its job: it is what reported, on every build, that the law had gone
+#: missing from BOTH sides.
+#:
+#: The law no longer lives in either .cpp. `AlgoGrainAmpBuild()` /
+#: `AlgoGrainAmpAt()` in the shared AlgoGrain.hpp are now the single definition,
+#: evaluated once per channel in HighPrecType, and each twin only chooses how to
+#: run the resulting struct over pixels. That is a STRONGER guarantee than a
+#: matching token -- the two paths cannot compute different models because there
+#: is only one model -- but it needs this test to check that both twins actually
+#: go through it rather than open-coding a square root again, which is exactly
+#: how the bypass started. `AlgoGrainAmpRaw` is listed beside it because the
+#: UNPINNED print/dupe path is a second law and must also be shared: pinning it
+#: would move every print render away from film_sim.simulate().
+#: ⚠ Algo_08 ADDED 2026-08-30 (M3), AND THE REASON IS THAT NOTHING ELSE COVERS
+#: IT. The AVX2 twin of the anchor solve is not compiled by any audit -- the
+#: flattened tree here resolves `#include "AlgoTypes.hpp"` to the scalar copy,
+#: so the AVX2 flavour builds only inside the owner's real project layout. That
+#: makes a textual twin check the ONLY automatic guard on this file, and the
+#: Callier law was just rewritten in both copies by hand. `callierQ` is listed
+#: as well as the function, because the failure that matters is one twin being
+#: left on the old precomputed-multiplier form.
 TWIN_LAW_TOKENS = {
-    "Algo_11_Sim.cpp": ("ampScale",),
+    "Algo_11_Sim.cpp": ("AlgoGrainAmpBuild", "AlgoGrainAmpRaw"),
+    "Algo_08_Sim.cpp": ("AlgoCallierApplyScalar", "callierQ"),
 }
 
 
@@ -778,13 +1058,25 @@ def check_law_reachability(root: Path) -> int:
         # -- the source being a COMMENT in Algo_11_Sim.cpp explaining that the
         # law is NOT called. A gate that passes on prose about its own failure is
         # the same class of defect it exists to catch.
-        hits = [f.name for f in srcs
-                if re.search(r"\b%s\b" % law, _strip_cpp_comments(
-                    f.read_text(errors="ignore")))]
+        # A law counts as reached through its own symbol OR through a declared
+        # equivalent (see LAW_EQUIVALENT_IMPL, and read the warning there before
+        # adding one).
+        wanted = (law,) + tuple(LAW_EQUIVALENT_IMPL.get(law, ()))
+        hits = []
+        via = set()
+        for f in srcs:
+            body = _strip_cpp_comments(f.read_text(errors="ignore"))
+            for sym in wanted:
+                if re.search(r"\b%s\b" % sym, body):
+                    hits.append(f.name)
+                    via.add(sym)
+                    break
         reachable = bool(hits)
         if reachable and law not in LAW_BYPASS_BASELINE:
+            through = "" if via == {law} else \
+                " (through %s)" % ", ".join(sorted(via))
             print(f"[i] law reachability: {law} reached from {len(hits)} stage "
-                  f"source(s) -- {what}")
+                  f"source(s){through} -- {what}")
         elif law in LAW_BYPASS_BASELINE:
             print(f"[i] law reachability: {law} is a RECORDED BYPASS -- "
                   f"{LAW_BYPASS_BASELINE[law]}")
@@ -1028,28 +1320,35 @@ def main() -> int:
                   f"{len(set(scpp) - set(spy))} extra")
             bad += 1
         else:
-            # ⚠ TWO POPULATIONS, AND THEY MUST BE JUDGED SEPARATELY.
-            # The 147 stocks on the legacy branch are now EXACT -- the stage and
-            # the reference compute the same expression. The 13 carrying
-            # `sigma_shape_measured` are NOT, and knowingly so: the stage cannot
-            # reach the traced anchors without the GrainSpec and dmax, which
-            # means a shared signature change and the AVX2 twin moving in the
-            # same commit. Failing the whole family on a gap that is scoped,
-            # measured and deliberate would make this probe unusable as a gate;
-            # asserting the fixed half exactly, and pinning the size of the
-            # unfixed half, is what keeps it honest in both directions.
+            # ⚠ ONE POPULATION SINCE 2026-08-30 (queue C30/C33 CLOSED).
+            # This used to judge two: the legacy-branch stocks, which were
+            # exact, and the 13 carrying `sigma_shape_measured`, which were
+            # knowingly wrong because the stage took a loose fog value and could
+            # not reach the traced anchors at all. That gap is closed --
+            # AlgoAddGrain now takes the GrainSpec and the per-channel dmax, the
+            # AVX2 twin moved in the same commit, and both go through the shared
+            # AlgoGrainAmpBuild(). So EVERY stock must now be exact and the
+            # split is gone.
+            #
+            # The measured population is still counted, for the opposite reason
+            # it used to be: as a COVERAGE assertion. A probe that silently
+            # stopped exercising the measured branch would pass this family
+            # trivially, which is the shape of defect this file exists to catch.
             _shaped = {q.name for q in fp.FILM_PROFILES
                        if q.grain.sigma_shape_measured}
-            sworst, sat = 0.0, None          # legacy branch: must be exact
-            hworst, hat = 0.0, None          # measured-shape: quantified gap
+            sworst, sat = 0.0, None          # every branch: must be exact
+            hworst, hat = 0.0, None          # measured branch, reported alone
+            eworst, eat = 0.0, None          # stage vs the generated law
             for k, want in spy.items():
-                got = scpp[k]
+                got, law = scpp[k]
                 err = abs(got - want) / max(abs(want), 1e-9)
-                if k[1] in _shaped:
-                    if err > hworst:
-                        hworst, hat = err, k
-                elif err > sworst:
+                if err > sworst:
                     sworst, sat = err, k
+                if k[1] in _shaped and err > hworst:
+                    hworst, hat = err, k
+                lerr = abs(got - law) / max(abs(law), 1e-9)
+                if lerr > eworst:
+                    eworst, eat = lerr, k
             # ⚠ THE NET-1.0 IDENTITY IS THE LOAD-BEARING ASSERTION. Index 2 of
             # GRAIN_STAGE_NET is net density 1.0, the convention the stored
             # rms_granularity is quoted at. The stage must return EXACTLY 1.0
@@ -1057,7 +1356,8 @@ def main() -> int:
             # means the number the manufacturer printed. This is the check that
             # would have caught the missing normalisation on day one.
             k_net1 = GRAIN_STAGE_NET.index(1.0)
-            net1 = [v for (fam, nm, c, k), v in scpp.items() if k == k_net1]
+            net1 = [v for (fam, nm, c, k), (v, _l) in scpp.items()
+                    if k == k_net1]
             worst_net1 = max(abs(v - 1.0) for v in net1) if net1 else 1.0
             print(f"[i] grain STAGE: {len(spy)} probes over "
                   f"{len(fp.FILM_PROFILES)} stocks x 3 channels x "
@@ -1066,23 +1366,40 @@ def main() -> int:
                   f"at {sat}; worst |amp - 1| at NET density 1.0 = "
                   f"{worst_net1:.2e}")
             print(f"[i] grain STAGE: {len(_shaped)} stocks carry a measured "
-                  f"sigma(D) SHAPE the stage cannot reach yet -- worst relative "
-                  f"gap {hworst:.2f} at {hat} (level correct, shape legacy)")
+                  f"sigma(D) SHAPE and the stage now REACHES it -- worst "
+                  f"relative disagreement {hworst:.2e} at {hat}")
             if sworst > TOL:
                 print(f"[FAIL] the RENDERED grain amplitude disagrees with the "
                       f"reference by {sworst:.2e} (tolerance {TOL:.0e}) at "
                       f"{sat} -- the stage, not the law")
                 bad += 1
-            # The scoped gap must not GROW, and must not silently close either:
-            # if it reaches zero the shape landed and this guard should be
-            # retired in the same change, not left asserting a fixed defect.
-            if hworst > 2.5:
-                print(f"[FAIL] the measured-shape gap has grown to {hworst:.2f} "
-                      f"at {hat} -- it was 1.73 when recorded on 2026-08-25")
+            # ⚠ THE GAP GUARD THAT USED TO LIVE HERE IS RETIRED, NOT LOOSENED.
+            # It asserted that the measured-shape disagreement stayed under
+            # 2.5 -- a fixed defect, pinned so it could not grow. The defect is
+            # fixed, so the assertion above (sworst > TOL, applied to every
+            # stock including these) now covers them and a separate tolerance
+            # would only weaken it. What replaces it is a COVERAGE check: the
+            # measured branch must still be exercised by real stocks, because a
+            # probe that stopped reaching it would pass everything.
+            if len(_shaped) < 13:
+                print(f"[FAIL] only {len(_shaped)} stocks carry a measured "
+                      f"sigma(D) shape -- the branch this probe must exercise "
+                      f"has shrunk below the 13 it was closed against")
                 bad += 1
-            if len(_shaped) != 13:
-                print(f"[FAIL] {len(_shaped)} stocks carry a measured sigma(D) "
-                      f"shape, not the 13 this gap was measured over")
+            # ⚠ THE INDIRECTION LICENCE. The stage reaches FilmGrainSigma
+            # through AlgoGrainAmpBuild/At rather than by calling it, and
+            # LAW_EQUIVALENT_IMPL only permits that while this holds. Both
+            # spellings are evaluated inside one compiled program on identical
+            # inputs, so the tolerance is float32 rounding on the same
+            # expression, not a model tolerance.
+            print(f"[i] grain STAGE: the stage's hoisted evaluator vs the "
+                  f"generated FilmGrainSigma -- worst {eworst:.2e} at {eat}")
+            if eworst > 1e-6:
+                print(f"[FAIL] the stage's amplitude evaluator and the "
+                      f"generated FilmGrainSigma disagree by {eworst:.2e} at "
+                      f"{eat}. LAW_EQUIVALENT_IMPL licences the indirection "
+                      f"ONLY while they are one law -- either fix the "
+                      f"evaluator or make the stage call the law directly")
                 bad += 1
             if worst_net1 > 1e-6:
                 print(f"[FAIL] the grain stage does not return exactly 1.0 at "
@@ -1114,19 +1431,28 @@ def main() -> int:
             # ⚠ THE SAME TRAP, THIRD TIME: two implementations that both returned
             # the input unchanged would agree perfectly and model nothing. So
             # count what MOVES, and require the branches that must move to move.
-            moved = sum(1 for k, (f, d) in cpy.items() if f != 1.0)
+            # ⚠ THE MOVEMENT AND INERTNESS TESTS MOVED WITH THE LAW (M3). They
+            # used to compare a MULTIPLIER against 1.0. There is no multiplier
+            # any more, so they compare the NET density the law returns against
+            # the net density it was given -- which is what "the law did
+            # nothing" actually means, and is the form that survives the next
+            # change of law as well.
+            _net_in = {("C", nm, c, i_s, i_d): (d - dm)
+                       for (nm, c, i_s, i_d, _sp, d, dm, _q) in crows}
+            moved = sum(1 for k, (f, _d) in cpy.items() if f != _net_in[k])
             # Exactly inert at specular 0, for every stock and channel -- and
-            # EXACTLY is the word: a 1e-12 factor would change the last bit of
-            # every density in a render that previously had none.
-            inert0 = all(f == 1.0 and d == cpy[k][1]
-                         for k, (f, d) in cpy.items() if k[3] == 0)
-            inert0 = inert0 and all(f == 1.0 for k, (f, _d) in ccpp.items()
-                                    if k[3] == 0)
+            # EXACTLY is the word: a 1e-12 departure would change the last bit
+            # of every density in a render that previously had none.
+            inert0 = all(f == _net_in[k] for k, (f, _d) in cpy.items()
+                         if k[3] == 0)
+            inert0 = inert0 and all(f == _net_in[k]
+                                    for k, (f, _d) in ccpp.items() if k[3] == 0)
             # ⚠ AND THE COLOUR STOCKS MUST BE INERT AT *EVERY* SETTING. Q = 1.0
-            # on all 93 of them because a chromogenic dye image does not scatter;
+            # on all of them because a chromogenic dye image does not scatter;
             # if a future edit gave one of them a Q, this is what catches it.
             colour_moved = [k[1] for k, (f, _d) in cpy.items()
-                            if f != 1.0 and not fp.get_profile(k[1]).is_monochrome]
+                            if f != _net_in[k]
+                            and not fp.get_profile(k[1]).is_monochrome]
             # The dmin REFERENCE, which is the whole point of this family: at the
             # probe whose density IS dmin (delta index 1) the law must be the
             # IDENTITY even at full specular, because clear base carries no
@@ -1139,7 +1465,7 @@ def main() -> int:
             print(f"[i] Callier: {len(cpy)} probes over "
                   f"{len(fp.FILM_PROFILES)} stocks x 3 channels x "
                   f"{len(CALLIER_SPECULAR)} specular x {len(CALLIER_DELTA)} "
-                  f"densities, {moved} with a non-unit factor")
+                  f"densities, {moved} moved by the law")
             print(f"[i] Callier: worst absolute disagreement {cworst:.2e} at {cat}")
             if cworst > TOL_CALLIER:
                 print(f"[FAIL] the Python and C++ Callier laws disagree by "
@@ -1161,8 +1487,96 @@ def main() -> int:
                 bad += 1
             if moved < 300:
                 print(f"[FAIL] the Callier probe is not exercising its own "
-                      f"branch: only {moved} rows carry a non-unit factor")
+                      f"branch: only {moved} rows are moved by the law")
                 bad += 1
+
+        # ------------------------------------------------ CALLIER, THE STAGE --
+        # ⚠ EVERYTHING ABOVE COMPARES A LAW AGAINST A LAW, AND THAT PASSED FOR A
+        # WEEK WHILE NOTHING IN THE PIPELINE CALLED EITHER FUNCTION. This drives
+        # the two places C41 wired: the in-place stage 12b, and AlgoSolveAnchors
+        # at a non-zero specular. The SOLVE half is the load-bearing one -- a
+        # pixel pass without it moves mid grey by more than it changes contrast,
+        # which is precisely the configuration this task existed to prevent, and
+        # a stage-only probe would pass on it.
+        if not (root / "Algo_08_Sim.cpp").is_file():
+            print(f"  [SKIP] Callier stage: Algo_08_Sim.cpp not present "
+                  f"under {root}")
+        else:
+            srows = callier_stage_probe_table()
+            with tempfile.TemporaryDirectory() as td:
+                scpp = callier_stage_build_and_run(Path(td), root, srows)
+            spy = callier_stage_python_side(srows)
+            if set(scpp) != set(spy):
+                print(f"[FAIL] Callier stage probe sets differ: "
+                      f"{len(set(spy) - set(scpp))} missing, "
+                      f"{len(set(scpp) - set(spy))} extra")
+                bad += 1
+            else:
+                sw_stage, sat_stage = 0.0, None
+                sw_solve, sat_solve = 0.0, None
+                for k, want in spy.items():
+                    got = scpp[k]
+                    err = max(abs(a - b) for a, b in zip(got, want))
+                    if k[0] == "CS":
+                        if err > sw_stage:
+                            sw_stage, sat_stage = err, k
+                    elif err > sw_solve:
+                        sw_solve, sat_solve = err, k
+                # ⚠ INERTNESS FIRST, AND AS AN IDENTITY RATHER THAN A TOLERANCE.
+                # At specular 0 the stage must leave the plane untouched and the
+                # solve must return what it returned before the parameter
+                # existed. "Close enough" is not the contract: a last-bit change
+                # on every density is still a changed render.
+                base = {}
+                for k, v in scpp.items():
+                    if k[2] == 0:
+                        base[(k[0], k[1], k[3])] = v
+                stage_inert = all(
+                    scpp[k] == base[(k[0], k[1], k[3])]
+                    for k in scpp if k[2] == 0)
+                # The colour half must be inert at EVERY setting: Q = 1.0 on all
+                # of them, so a moved colour stock means a Q crept in.
+                col_moved = [k[1] for k in scpp
+                             if k[2] != 0
+                             and not fp.get_profile(k[1]).is_monochrome
+                             and scpp[k] != base[(k[0], k[1], k[3])]]
+                # And the monochrome half must MOVE, or the probe proves nothing.
+                mono_moved = sum(1 for k in scpp
+                                 if k[2] == 2
+                                 and fp.get_profile(k[1]).is_monochrome
+                                 and scpp[k] != base[(k[0], k[1], k[3])])
+                print(f"[i] Callier STAGE: {len(spy)} probes over "
+                      f"{len(fp.FILM_PROFILES)} stocks x "
+                      f"{len(CALLIER_STAGE_SPECULAR)} specular, driving "
+                      f"AlgoStage12b_Callier and AlgoSolveAnchors themselves")
+                print(f"[i] Callier STAGE: worst stage {sw_stage:.2e} at "
+                      f"{sat_stage}; worst SOLVE {sw_solve:.2e} at {sat_solve}")
+                print(f"[i] Callier STAGE: {mono_moved} monochrome rows move at "
+                      f"full specular, {len(set(col_moved))} colour stocks move "
+                      f"(must be 0)")
+                if sw_stage > TOL_CALLIER:
+                    print(f"[FAIL] stage 12b disagrees with "
+                          f"film_sim.callier_density by {sw_stage:.2e} at "
+                          f"{sat_stage}")
+                    bad += 1
+                if sw_solve > TOL:
+                    print(f"[FAIL] AlgoSolveAnchors disagrees with "
+                          f"film_sim.solve_anchors by {sw_solve:.2e} at "
+                          f"{sat_solve} -- ⚠ THE SOLVE IS THE HALF THAT SHIFTS "
+                          f"MID GREY; a wrong anchor is worse than no Callier")
+                    bad += 1
+                if not stage_inert:
+                    print("[FAIL] stage 12b is NOT inert at scannerSpecular = 0")
+                    bad += 1
+                if col_moved:
+                    print(f"[FAIL] {len(set(col_moved))} colour stock(s) are "
+                          f"moved by stage 12b; a dye image does not scatter")
+                    bad += 1
+                if mono_moved < 100:
+                    print(f"[FAIL] only {mono_moved} monochrome rows move at "
+                          f"full specular -- the stage probe is not exercising "
+                          f"its own branch")
+                    bad += 1
 
     if worst > TOL:
         print(f"[FAIL] Python and C++ grain laws disagree by {worst:.2e} "

@@ -103,8 +103,43 @@ rounding), 5205 0.030/0.047/0.047, 5217 0.077/0.086/0.047, 5222 0.003,
 5246 0.029/0.050/0.064, 5274 0.041/0.070/0.065, 5279 0.056/0.073/0.034, and
 7239 which has no independent set to compare against.
 
+WHAT C38 FOUND ON 2026-08-31: TWO OF THE THREE DISAGREEMENTS DID NOT EXIST
+---------------------------------------------------------------------------
+C37 pinned three disagreements and raised them as an adjudication, on the view
+that choosing between a vector trace and an adopted raster reading is a
+decision. It was not a decision. **Only one of the three was about the film.**
+
+  * **5218 -- WRONG DOCUMENT, and this reader is what made it the wrong one.**
+    `5218.pdf` is the four-page BROCHURE H-1-5218; the adopted set is cited to
+    the six-page TECHNICAL DATA sheet H-1-5218t, which is a separate file.
+    `_sign_y_ticks` could not read the technical sheet at all, because that page
+    EMITS ITS WHOLE CONTENT TWICE at identical coordinates and the duplicate
+    "0.0" label looked like an unresolvable macron pair -- so the sweep fell
+    back to the brochure and C37 recorded "5218's page is 3, not the 4 this row
+    gives". ⚠ The page was right; the FILE was wrong. With coincident duplicates
+    dropped, the technical sheet reads and agrees at **0.033 / 0.082 / 0.056**,
+    inside the band the other eight occupy. **The adopted raster set stands.**
+    The brochure stays registered as `5218_brochure` at its own 0.241 / 0.210 /
+    0.138, which is now labelled for what it is: a difference between two
+    DOCUMENTS. Kodak redrew the panel narrower for the brochure, red peaking at
+    640 nm against the technical sheet's 650.
+  * **5231 -- WRONG CURVE, and the reader picked it.** See `extract_mono_sheet`:
+    the caption-to-curve rule assumed captions sit above their curves, which is
+    true on H-1-5222 and false on H-1-5231, so the D=0.3 caption selected the
+    D=1.0 curve. Paired by sensitivity instead, the trace peaks at **400 nm**,
+    exactly where the adopted set does, and agrees at **rms 0.063**. There is no
+    double-hump problem. **The adopted raster set stands.**
+  * **5245 blue -- A REAL DEFECT, IN THE STORED READING.** Adjudicated in favour
+    of the trace and REPLACED; see below and the profile's own note. This is the
+    only one of the three that moved a number.
+
+⚠ Worth stating plainly, because it is the second time in three days: a pinned
+disagreement is evidence that something is wrong SOMEWHERE, and the reader is
+part of "somewhere". Two of these three were ours.
+
 ⚠ **THREE DO NOT AGREE, AND THE PREVIOUSLY RECORDED EXPLANATION FOR ONE OF THEM
-DOES NOT SURVIVE INSPECTION:**
+DOES NOT SURVIVE INSPECTION:** (C37's account, kept because the numbers above
+are answers to it)
 
   * **5245 blue, core rms 0.335.** This docstring used to say the cause was
     "comparing a TRUNCATED trace against a complete one after per-layer peak
@@ -129,12 +164,11 @@ DOES NOT SURVIVE INSPECTION:**
     makes them equal and puts argmax at 590. Both agree on the shape; they
     disagree on which hump normalisation hangs off.
 
-⚠ **NOTHING WAS RE-ADOPTED ON THE STRENGTH OF ANY OF THAT.** A cross-check
-audit is not the place to choose between a vector trace and an adopted raster
-reading -- XX1 made that kind of call deliberately, with the evidence set out,
-and the same is owed here. The three disagreements are pinned at their measured
-values so they cannot drift silently, and they are raised as their own queue
-item instead.
+⚠ **NOTHING WAS RE-ADOPTED ON THE STRENGTH OF ANY OF THAT** -- correctly, on
+2026-08-29, because a cross-check audit is not the place to choose between a
+vector trace and an adopted raster reading. C38 made the choice on 2026-08-31
+with the plot in front of it: **5245's blue record was replaced and the other
+two were confirmed**, which is set out at the top of this section.
 
 ⚠ THE 2026-08-26 SWEEP DID PRODUCE TWO REAL RESULTS, neither of them a new curve:
   1. The DENSITY CRITERION question moved from a decision to a measurement. The
@@ -256,11 +290,42 @@ SHEETS = {
     # spectral set from the 2026-08-02 RASTER batch. The 2026-08-26 sweep
     # noted this in prose and then left the sheets unregistered, so eleven
     # hand-run comparisons were pinned by nothing. They are pinned now.
-    # ⚠ 5218's PAGE IS 3, NOT THE 4 THE QUEUE ROW GIVES. Read from the page
-    # itself: p4 has no sensitivity caption and the extraction fails there.
     "5205": ("5205t.pdf", 4, "KODAK_VISION2_250D_5205"),
-    "5218": ("5218.pdf", 3, "KODAK_VISION2_500T_5218"),
+    # ⚠ 5218 IS TWO DOCUMENTS AND C37 READ THE WRONG ONE. `5218.pdf` is the
+    # four-page BROCHURE H-1-5218; the adopted set is cited to the six-page
+    # TECHNICAL DATA sheet H-1-5218t (March 2006), which is a different file.
+    # C37 recorded "5218's page is 3, not the 4 this row gives" and corrected
+    # the page -- the page was right, the FILE was wrong. Reading the technical
+    # sheet takes the agreement from 0.241/0.210/0.138 to 0.033/0.082/0.056,
+    # i.e. into the band the other eight sit in, and the C38 "5218 moves all
+    # three layers" disagreement is a difference between two DOCUMENTS rather
+    # than between two readings. Both stay registered: the brochure's numbers
+    # are what the brochure prints, and pinning them is how we notice if that
+    # ever stops being true.
+    "5218": ("5218-Vision2-500T-H-1-5218t.pdf", 4, "KODAK_VISION2_500T_5218"),
+    "5218_brochure": ("5218.pdf", 3, "KODAK_VISION2_500T_5218"),
     "5245": ("5245.pdf", 4, "EASTMAN_EXR_50D_5245"),
+    # ⚠ 5248 WAS ON THE "FINDABLE BUT NOT EXTRACTABLE" LIST AND THE DIAGNOSIS
+    # THERE WAS WRONG. It was recorded as blocked on METHOD -- "three curves in
+    # black, and `extract_mono` cannot separate three" -- but `extract_mono`
+    # separates three black curves on five other sheets. The actual blocker was
+    # the same one that hid H-1-5218t: the FIRST frame that calibrates on this
+    # page is not the frame that holds all three traces, and until 2026-08-31
+    # no second candidate was tried. Registered as an ordinary cross-check
+    # 2026-08-31 (queue C38). Its numbers are recorded here, NOT adjudicated:
+    # see EXPECTED_VS_STORED for what its three rms values do and do not mean.
+    "5248": ("5248.pdf", 3, "EASTMAN_EXR_100T_5248"),
+    # ⚠ A PRINT STOCK, AND THE ONLY ONE (queue M1, 2026-08-31). Its profile is
+    # a `PrintStock`, not a `FilmProfile`, so `EXPECTED_VS_STORED` cannot reach
+    # it -- the two editions check each other instead, which is a stronger test
+    # than a self-comparison anyway. This panel was on the module header's
+    # "measured failures" list as *"only 2 sensitivity ticks found against the
+    # frame; a print stock's panel is laid out differently"*. It is not laid out
+    # differently: its axis runs -3.0 to +1.0, because a print emulsion is
+    # slower than a camera negative, and `axis_cal`'s y window rejected every
+    # negative label. See the comment there.
+    "2383": ("KODAK VISION Color Print Film 2383.pdf", 6, "KODAK_2383_RELEASE"),
+    "2383_alt": ("Kodak Color Print Film 2383.pdf", 6, "KODAK_2383_RELEASE"),
     "5246": ("5246.pdf", 5, "KODAK_VISION_250D_5246"),
     "5274": ("5274.pdf", 4, "KODAK_VISION_200T_5274"),
     "5279": ("5279.pdf", 3, "KODAK_VISION_500T_5279"),
@@ -272,21 +337,30 @@ SHEETS = {
 #: next reader does not re-derive the diagnosis, in the same spirit as the
 #: 5285 and 2383 entries in this module's header.
 #:
-#:   5248 p3, 5293 p4  17 long paths each and NOT ONE COLOURED. These sheets
-#:                     draw all three sensitivity curves in BLACK, so the ink
-#:                     convention says nothing about them -- the 7239 problem,
-#:                     but with three curves instead of one. `extract_mono`
-#:                     reads a single black trace and cannot separate three.
-#:                     Blocked on METHOD (a three-black-curve separator), not
-#:                     on the source. This is the closest thing to reachable
-#:                     new work on the C37 list.
+#: ⚠ AND THE DIAGNOSIS RECORDED HERE FOR TWO OF THEM WAS WRONG, which is why
+#: 5248 is no longer on this list. C37 wrote that 5248 p3 and 5293 p4 "draw all
+#: three curves in BLACK, so the ink convention says nothing and `extract_mono`
+#: reads a single black trace and cannot separate three -- blocked on METHOD".
+#: `extract_mono` separates three black curves on 5205, 5245, 5246, 5274 and
+#: 5279, so that was never the blocker. On 5248 the blocker was the FRAME: the
+#: first candidate that calibrates is not the one holding all three traces, and
+#: the reader stopped at the first that calibrated. Fixed 2026-08-31 and 5248
+#: now reads and is registered. 5293 still does not, and its cause is measured
+#: below rather than inherited.
+#:
+#:   5293 p4           17 long paths, none coloured, and no candidate frame
+#:                     yields three separable black traces even with the
+#:                     2026-08-31 frame fallback. Cause not yet isolated
+#:                     further than that; the C37 "cannot separate three"
+#:                     wording is NOT retained, because it was disproved on the
+#:                     sheet next to it.
 #:   5219 p3           no path with 8 or more segments at all: the curves are
 #:                     drawn as many short strokes or as outlined art.
 #:   8532 p1           Fuji layout, 3 page images and only 5 long black paths.
 #:   8547 p1           24 page images and no long paths -- the panel is RASTER.
 #:                     Its stored set came from a raster reading anyway, so
 #:                     there is nothing here a vector reader could improve.
-UNREACHABLE = ("5248", "5293", "5219", "8532", "8547")
+UNREACHABLE = ("5293", "5219", "8532", "8547")
 
 #: Recorded 2026-08-25. --assert fails if an extraction stops reproducing.
 #: (peak nm per layer r/g/b, absolute peak LOG SENSITIVITY per layer r/g/b).
@@ -309,8 +383,20 @@ EXPECTED = {
     "7239": ((660.0, 560.0, 410.0), (1.25, 1.10, 1.70)),
     # Measured 2026-08-29 (queue C37).
     "5205": ((650.0, 550.0, 440.0), (2.53, 2.46, 2.58)),
-    "5218": ((640.0, 540.0, 420.0), (2.60, 2.78, 3.16)),
+    # H-1-5218t p4, the document the adopted set is cited to (queue C38).
+    "5218": ((650.0, 540.0, 420.0), (2.58, 2.76, 3.13)),
+    # H-1-5218 p3, the brochure. ⚠ ITS RED PEAK IS 10 nm SHORT OF THE TECHNICAL
+    # SHEET'S and every flank is narrower: a redrawn marketing chart, kept
+    # registered so the difference stays measured rather than remembered.
+    "5218_brochure": ((640.0, 540.0, 420.0), (2.60, 2.78, 3.16)),
     "5245": ((640.0, 550.0, 460.0), (1.09, 1.30, 1.23)),
+    # Measured 2026-08-31 (queue C38), the sheet the frame fallback unblocked.
+    "5248": ((640.0, 550.0, 470.0), (1.07, 1.49, 1.94)),
+    # The print stock, both editions. ⚠ Its absolute peaks are NEGATIVE in red
+    # and green -- a release print is slower than any camera negative, which is
+    # the fact that made its axis go below zero and its panel unreadable.
+    "2383": ((680.0, 550.0, 470.0), (-1.25, -0.15, 0.65)),
+    "2383_alt": ((680.0, 550.0, 470.0), (-1.24, -0.16, 0.62)),
     "5246": ((650.0, 540.0, 430.0), (2.53, 2.59, 2.48)),
     "5274": ((650.0, 540.0, 470.0), (2.29, 2.51, 2.82)),
     "5279": ((650.0, 540.0, 410.0), (1.16, 1.41, 1.69)),
@@ -335,14 +421,35 @@ EXPECTED_VS_STORED = {
     "5201": (0.002, 0.002, 0.003),   # the profile HOLDS this trace: rounding only
     "5205": (0.030, 0.047, 0.047),
     "5217": (0.077, 0.086, 0.047),
-    # ⚠ 5218 AND 5245 DO NOT AGREE THE WAY THE OTHER SIX DO, and both are
-    # pinned at their measured disagreement rather than waved through. See
-    # the header for what each one is; neither is re-adopted here, because
-    # choosing between a vector trace and an adopted raster reading is the
-    # kind of decision XX1 took deliberately and not a side effect of an
-    # audit that was scoped as a cross-check.
-    "5218": (0.241, 0.210, 0.138),
-    "5245": (0.064, 0.155, 0.335),
+    # ⚠ ADJUDICATED 2026-08-31 (queue C38). Both of these were pinned as
+    # unexplained disagreements by C37 and neither survived being looked at:
+    #   5218 -- the audit was reading the BROCHURE. Against the technical data
+    #     sheet the adopted set is actually cited to, the agreement is ordinary.
+    #     The stored raster reading STANDS.
+    #   5245 -- the stored BLUE tail was not a reading. Its steps below 490 nm
+    #     run 0.55/0.65/0.65/0.65, a straight line, and the drawn curve leaves
+    #     the bottom of the frame at 527 nm where the stored tail still has it
+    #     0.8 decades higher. Re-read against the plot and REPLACED by the
+    #     trace; red and green agreed and were left alone, so the blue entry
+    #     below is now this reader against itself and the other two are not.
+    "5218": (0.033, 0.082, 0.056),
+    "5218_brochure": (0.241, 0.210, 0.138),
+    "5245": (0.064, 0.155, 0.002),
+    # ⚠ 5248 IS RECORDED, NOT ADJUDICATED, and the three numbers do not mean the
+    # same thing. Through the body of every layer the two readings agree to
+    # better than 0.10 decades; all three rms values are carried by the STEEP
+    # FLANKS where each curve leaves the bottom of the frame -- red 660-680,
+    # green 580-600 -- and on a flank falling 0.7 decades per 10 nm a 2 nm
+    # difference in where a reader thinks the curve ended is 0.14 decades of
+    # "disagreement" about nothing. That is the same effect `_core_rms` was
+    # written to suppress, one sample further in than it reaches. Nothing here
+    # argues that either reading is wrong, so nothing is re-adopted.
+    # ⚠ ONE SAMPLE WAS ADOPTED FROM THE TRACE, AND IT IS NOT IN THESE NUMBERS'
+    # FAVOUR: the stored green had a 0.40-decade single-sample notch at 460 nm
+    # that the drawn curve does not have. Corrected in film_profiles.py; it
+    # moved this row's green from 0.212 to 0.190, which is the honest size of a
+    # one-sample fix and not a resolution of the flank difference.
+    "5248": (0.158, 0.190, 0.068),
     "5246": (0.029, 0.050, 0.064),
     "5274": (0.041, 0.070, 0.065),
     "5279": (0.056, 0.073, 0.034),
@@ -484,6 +591,23 @@ def _sign_y_ticks(raw):
     """
     if not raw:
         return {}, "no sensitivity ticks against the frame"
+    # ⚠ A LABEL DRAWN TWICE AT THE SAME PLACE IS ONE TICK, NOT A MACRON PAIR,
+    # and until 2026-08-31 this function could not tell the two apart. Kodak's
+    # H-1-5218t emits its whole page content TWICE -- every frame, every curve
+    # and every tick label at IDENTICAL coordinates -- so the y column came back
+    # as 0.0/1.0/2.0/3.0/4.0 each seen twice, `len(zeros) != 1` fired, and the
+    # panel was recorded as uncalibratable. That is what sent the C37 sweep to
+    # the four-page BROCHURE (H-1-5218) instead of the technical data sheet the
+    # adopted set is cited to, and the "5218 disagrees on all three layers"
+    # finding was the difference between two DOCUMENTS, not two readings.
+    # Coincident duplicates are dropped; a genuine macron pair sits at two
+    # DIFFERENT rows and is untouched by this, which is why the drop is safe.
+    ded: list[tuple[float, float]] = []
+    for v, cy in raw:
+        if any(abs(v - a) < 1e-9 and abs(cy - b) < 1e-6 for a, b in ded):
+            continue
+        ded.append((v, cy))
+    raw = ded
     counts: dict[float, int] = {}
     for v, _cy in raw:
         counts[v] = counts.get(v, 0) + 1
@@ -525,8 +649,23 @@ def axis_cal(pg, fr):
         if (fr.x0 - 8 <= cx <= fr.x1 + 8 and fr.y1 - 2 <= cy <= fr.y1 + 14
                 and 200 <= v <= 900):
             xs.setdefault(v, cx)
+        # ⚠ THE WINDOW ADMITS NEGATIVE VALUES, AND THAT ONE CHARACTER IS THE
+        # WHOLE OF WHAT MADE A PRINT STOCK "UNREADABLE" (queue M1, 2026-08-31).
+        # It used to read `0 <= v <= 6`, which is right for every Kodak camera
+        # negative in the corpus -- their sensitivity axes run 0..4 -- and wrong
+        # for KODAK VISION Color Print Film 2383, whose axis runs -3.0 to +1.0
+        # with real hyphens in the text layer. Two of its five labels survived
+        # the filter, the panel reported "only 2 sensitivity ticks against the
+        # frame", and `spectral_vector`'s header recorded that as "a print
+        # stock's panel is laid out differently". It is not laid out
+        # differently; it is a print stock, so it is SLOWER than a camera
+        # negative and its axis has to go below zero.
+        # ⚠ This does not weaken `_sign_y_ticks`. Where the minus is a macron
+        # the label still arrives unsigned and is still signed by position;
+        # where it is a hyphen, as here, the values arrive distinct and that
+        # function passes them through untouched.
         if (fr.x0 - 32 <= cx < fr.x0 - 1 and fr.y0 - 10 <= cy <= fr.y1 + 10
-                and 0 <= v <= 6):
+                and -6 <= v <= 6):
             y_raw.append((v, cy))
     ys, y_err = _sign_y_ticks(y_raw)
     if len(xs) < 3:
@@ -670,7 +809,18 @@ def extract_mono(pg, cal, fr, grid):
                 continue
             lam = [(x - cal[0]) / (cal[2] - cal[0]) * (cal[3] - cal[1]) + cal[1]
                    for x in xs]
-            out.append((y, (min(lam), max(lam))))
+            ext = (min(lam), max(lam))
+            # ⚠ THE SAME CURVE DRAWN TWICE IS ONE CURVE. H-1-5218t emits its
+            # whole page content twice at identical coordinates, so this panel
+            # yields six paths for three traces and the caller's "expected 3
+            # layers" test fails on a sheet that has exactly three. Only EXACT
+            # duplicates are collapsed -- two traces that merely resemble one
+            # another survive, which is the same rule `dye_density.extract_inked`
+            # applies to Kodak's yellow-under-magenta overprint.
+            if any(abs(ext[0] - e[0]) < 1e-6 and abs(ext[1] - e[1]) < 1e-6
+                   and np.array_equal(y, v) for v, e in out):
+                continue
+            out.append((y, ext))
     return out
 
 
@@ -752,85 +902,101 @@ def extract_sheet(root: Path, tag: str):
             (fr for fr in dd.frames(pg)
              if fr.x0 >= lx - 2 and not (fr.y1 < ly0 - 30 or fr.y0 > ly1 + 30)),
             key=lambda r: r.x0)
-        cal_r = None
+        # ⚠ AND A FRAME THAT CALIBRATES IS NOT NECESSARILY THE RIGHT FRAME.
+        # Until 2026-08-31 the first candidate that calibrated was the only one
+        # tried, and on H-1-5218t p4 that is a frame 40 pt too NARROW: it
+        # calibrates cleanly (11 x ticks, 0.02 pt residual) and stops at 648 nm,
+        # so the cyan trace -- which runs to 698 -- falls outside it and the
+        # panel reads as two layers instead of three. Calibrating and yielding a
+        # three-layer set are different tests and both have to be applied to the
+        # same frame; the first error is kept so a genuine failure still reports
+        # the nearest frame's reason rather than the last candidate's.
+        first_err = None
         for fr in cands:
             cal_r, err = axis_cal(pg, fr)
-            if cal_r is not None:
-                break
-        if cal_r is None:
-            continue
-        cal = cal_r[0]
-        inked = dd.extract_inked(pg, cal, fr, GRID)
-        # red = the yellow-under-magenta overprint; assert the pair coincides
-        reds = inked.get("yellow", []) + inked.get("magenta", [])
-        if len(reds) == 2 and float(np.abs(reds[0] - reds[1]).max()) > 1e-9:
-            return None, "the two red-ink paths are not an overprint pair"
-        raw = {}
-        if len(inked.get("blue", [])) == 1:
-            raw["b"] = (inked["blue"][0], _trace_extent(pg, cal, fr, "blue"))
-        if len(inked.get("green", [])) == 1:
-            raw["g"] = (inked["green"][0], _trace_extent(pg, cal, fr, "green"))
-        if reds:
-            raw["r"] = (reds[0], _trace_extent(pg, cal, fr, "magenta")
-                        or _trace_extent(pg, cal, fr, "yellow"))
-        method = "ink"
-        captions = ""
-        if len(raw) != 3:
-            # ⚠ MONO FALLBACK. Not every Kodak panel is inked; see extract_mono.
-            # Tried only after the palette has failed, so no inked sheet changes
-            # method, and the three-layer requirement is identical either way.
-            mono = extract_mono(pg, cal, fr, GRID)
-            if len(mono) != 3:
-                return None, (f"expected 3 layers in the frame: ink gave "
-                              f"{sorted(raw)} from {sorted(inked)}, "
-                              f"black paths gave {len(mono)}")
-
-            def _peak_nm(item):
-                v, (lo, hi) = item
-                ins = (GRID >= lo - 1e-9) & (GRID <= hi + 1e-9)
-                return float(GRID[np.argmax(np.where(ins, v, -np.inf))])
-
-            mono.sort(key=_peak_nm)
-            raw = {"b": mono[0], "g": mono[1], "r": mono[2]}
-            method = "mono"
-            caps = layer_captions(pg, fr, cal)
-            if len(caps) == 3:
-                order = [k for k, _v in sorted(caps.items(),
-                                               key=lambda kv: kv[1])]
-                if order != ["b", "g", "r"]:
-                    return None, ("the in-frame layer captions run "
-                                  + "/".join(order)
-                                  + " across the frame, not b/g/r")
-                captions = " ".join(f"{k}@{v:.0f}" for k, v in
-                                    sorted(caps.items(), key=lambda kv: kv[1]))
-        out, peaks, lams = {}, {}, {}
-        for k, (v, ext) in raw.items():
-            if ext is None:
-                return None, f"no extent for the {k} layer"
-            norm, peak = normalise(v, ext)
-            if norm is None:
-                return None, f"the {k} layer's extent misses the stored grid"
-            out[k], peaks[k] = norm, peak
-            # the peak is the sample at 0.0 by construction, but it must be
-            # sought among the MEASURED samples only -- the floor-padded ones
-            # carry no information and an all--inf comparison would silently
-            # return index 0, i.e. the left edge of the grid.
-            lams[k] = float(GRID[np.argmax(
-                np.where(norm > FLOOR + 1e-9, norm, -np.inf))])
-        for k, (lo, hi) in BANDS.items():
-            if not lo <= lams[k] <= hi:
-                return None, (f"the {k} layer peaks at {lams[k]:.0f} nm, "
-                              f"outside {lo:.0f}-{hi:.0f}")
-        if not lams["b"] < lams["g"] < lams["r"]:
-            return None, "layer peaks are not in ascending wavelength order"
-        return dict(tag=tag, profile=prof, file=fn, page=pgno,
-                    log_s_r=out["r"], log_s_g=out["g"], log_s_b=out["b"],
-                    peak_r=peaks["r"], peak_g=peaks["g"], peak_b=peaks["b"],
-                    lam_r=lams["r"], lam_g=lams["g"], lam_b=lams["b"],
-                    x_resid=cal_r[1], y_resid=cal_r[2],
-                    n_x=cal_r[3], n_y=cal_r[4],
-                    method=method, captions=captions), None
+            if cal_r is None:
+                first_err = first_err or err
+                continue
+            got, err = _sheet_from_frame(pg, fr, cal_r, tag, fn, pgno, prof)
+            if got is not None:
+                return got, None
+            first_err = first_err or err
     return None, "no LOG SENSITIVITY panel yielded three inked layers"
+
+
+def _sheet_from_frame(pg, fr, cal_r, tag, fn, pgno, prof):
+    """One calibrated frame -> the three-layer result, or (None, reason)."""
+    cal = cal_r[0]
+    inked = dd.extract_inked(pg, cal, fr, GRID)
+    # red = the yellow-under-magenta overprint; assert the pair coincides
+    reds = inked.get("yellow", []) + inked.get("magenta", [])
+    if len(reds) == 2 and float(np.abs(reds[0] - reds[1]).max()) > 1e-9:
+        return None, "the two red-ink paths are not an overprint pair"
+    raw = {}
+    if len(inked.get("blue", [])) == 1:
+        raw["b"] = (inked["blue"][0], _trace_extent(pg, cal, fr, "blue"))
+    if len(inked.get("green", [])) == 1:
+        raw["g"] = (inked["green"][0], _trace_extent(pg, cal, fr, "green"))
+    if reds:
+        raw["r"] = (reds[0], _trace_extent(pg, cal, fr, "magenta")
+                    or _trace_extent(pg, cal, fr, "yellow"))
+    method = "ink"
+    captions = ""
+    if len(raw) != 3:
+        # ⚠ MONO FALLBACK. Not every Kodak panel is inked; see extract_mono.
+        # Tried only after the palette has failed, so no inked sheet changes
+        # method, and the three-layer requirement is identical either way.
+        mono = extract_mono(pg, cal, fr, GRID)
+        if len(mono) != 3:
+            return None, (f"expected 3 layers in the frame: ink gave "
+                          f"{sorted(raw)} from {sorted(inked)}, "
+                          f"black paths gave {len(mono)}")
+
+        def _peak_nm(item):
+            v, (lo, hi) = item
+            ins = (GRID >= lo - 1e-9) & (GRID <= hi + 1e-9)
+            return float(GRID[np.argmax(np.where(ins, v, -np.inf))])
+
+        mono.sort(key=_peak_nm)
+        raw = {"b": mono[0], "g": mono[1], "r": mono[2]}
+        method = "mono"
+        caps = layer_captions(pg, fr, cal)
+        if len(caps) == 3:
+            order = [k for k, _v in sorted(caps.items(),
+                                           key=lambda kv: kv[1])]
+            if order != ["b", "g", "r"]:
+                return None, ("the in-frame layer captions run "
+                              + "/".join(order)
+                              + " across the frame, not b/g/r")
+            captions = " ".join(f"{k}@{v:.0f}" for k, v in
+                                sorted(caps.items(), key=lambda kv: kv[1]))
+    out, peaks, lams = {}, {}, {}
+    for k, (v, ext) in raw.items():
+        if ext is None:
+            return None, f"no extent for the {k} layer"
+        norm, peak = normalise(v, ext)
+        if norm is None:
+            return None, f"the {k} layer's extent misses the stored grid"
+        out[k], peaks[k] = norm, peak
+        # the peak is the sample at 0.0 by construction, but it must be
+        # sought among the MEASURED samples only -- the floor-padded ones
+        # carry no information and an all--inf comparison would silently
+        # return index 0, i.e. the left edge of the grid.
+        lams[k] = float(GRID[np.argmax(
+            np.where(norm > FLOOR + 1e-9, norm, -np.inf))])
+    for k, (lo, hi) in BANDS.items():
+        if not lo <= lams[k] <= hi:
+            return None, (f"the {k} layer peaks at {lams[k]:.0f} nm, "
+                          f"outside {lo:.0f}-{hi:.0f}")
+    if not lams["b"] < lams["g"] < lams["r"]:
+        return None, "layer peaks are not in ascending wavelength order"
+    return dict(tag=tag, profile=prof, file=fn, page=pgno,
+                log_s_r=out["r"], log_s_g=out["g"], log_s_b=out["b"],
+                peak_r=peaks["r"], peak_g=peaks["g"], peak_b=peaks["b"],
+                lam_r=lams["r"], lam_g=lams["g"], lam_b=lams["b"],
+                x_resid=cal_r[1], y_resid=cal_r[2],
+                n_x=cal_r[3], n_y=cal_r[4],
+                method=method, captions=captions), None
 
 
 #: MONOCHROME sheets: one sensitive layer, so one curve and `log_s_pan`.
@@ -856,6 +1022,24 @@ MONO_SHEETS = {
     # which is why the caption is matched per sheet and not by one constant.
     "5231": ("5231-PLUS-X.pdf", 3,
              "EASTMAN_PLUS_X_5231", "D=0.3 Above gross fog"),
+    # ---- queue B3, 2026-08-31 ----------------------------------------------
+    # ⚠ P-255 IS THE FIRST MONOCHROME SHEET HERE WHOSE CAPTION IS SPLIT OVER
+    # TWO TEXT LINES: the panel prints "Diffuse Density=" above "0.3 above
+    # D-min". The key is the line that carries the density, because that is the
+    # line the criterion can be read from; see CRIT_RE.
+    "p255": ("p255.pdf", 9,
+             "KODAK_TECHNICAL_PAN", "0.3 above D-min"),
+    "p255_2003": ("p255-2003_06.pdf", 9,
+                  "KODAK_TECHNICAL_PAN", "0.3 above D-min"),
+    # ⚠ TWO EDITIONS OF F-4043, DELIBERATELY, and the second is the point. The
+    # profile's set was adopted 2026-08-16 from the 2016 edition alone, so a
+    # check against 2016 is a check against itself. The 2007 edition is an
+    # independent printing of the same figure and gives the set its first real
+    # cross-validation, exactly as the two 2383 editions do for M1.
+    "tmax400": ("f4043_TMax_400-2016.pdf", 7,
+                "KODAK_TMAX_400", "D=0.3 greater than D-min"),
+    "tmax400_2007": ("f4043-TMAX_400-2007.pdf", 11,
+                     "KODAK_TMAX_400", "D=0.3 greater than D-min"),
 }
 
 #: Recorded 2026-08-26. (peak nm, absolute peak log sensitivity, measured
@@ -885,18 +1069,67 @@ MONO_SHEETS = {
 #: where it stays true, and this number now guards the rounding instead.
 MONO_EXPECTED = {
     "5222": (430.0, 0.904, 24, 0.003),
-    # ⚠ 5231 IS THE ONE MONO CROSS-CHECK THAT DOES NOT AGREE, and the way it
-    # disagrees is specific: core rms 0.213 decades, worst sample 0.295, and
-    # THE ARGMAX IS ON A DIFFERENT HUMP. A panchromatic sensitivity curve has
-    # two maxima -- a blue one near 400 nm and a red one near 590 -- and this
-    # emulsion's are within a quarter of a decade of each other. The adopted
-    # raster reading makes the 400 nm hump the peak; the vector trace makes
-    # them equal and lands argmax on 590. Both agree the curve is double-
-    # humped and nearly flat between; they disagree about which hump wins,
-    # which is the `argmax on a plateau` failure the 2026-08-26 sweep found on
-    # 5246's blue record, in a harsher form because normalisation hangs off it.
-    # NOT re-adopted here: see the header.
-    "5231": (590.0, 0.276, 26, 0.213),
+    # ⚠ 5231 WAS "THE ONE MONO CROSS-CHECK THAT DOES NOT AGREE" AND IT WAS THE
+    # READER THAT WAS WRONG, NOT EITHER READING. C37 recorded core rms 0.213
+    # with the argmax on the other hump of a double-humped curve, and adjudicated
+    # it as queue C38. There is no hump problem and never was: the caption-to-
+    # curve rule was reading the D=1.0 curve for the D=0.3 caption, because on
+    # this sheet -- unlike H-1-5222 -- both captions are printed UNDER their
+    # curves. Paired by sensitivity instead (see `extract_mono_sheet`), the
+    # trace peaks at 400 nm exactly where the adopted set does, and agrees at
+    # rms 0.063, inside the band the eight agreeing colour sheets occupy.
+    # The adopted raster reading STANDS.
+    "5231": (400.0, 1.53, 27, 0.063),
+    # ---- queue B3, 2026-08-31 ----------------------------------------------
+    # ⚠ 380 nm IS THE GRID EDGE, NOT THE FILM'S PEAK. P-255's panel runs to
+    # 250 nm and the curve is still climbing where the stored grid begins, so
+    # the argmax pinned here is a property of GRID. Recorded at the profile.
+    "p255": (380.0, 1.03, 31, 0.003),
+    "p255_2003": (380.0, 1.03, 31, 0.003),
+    # ⚠ 0.0115 AGAINST THE SHEET THE SET WAS ADOPTED FROM, 0.0048 AGAINST THE
+    # OTHER EDITION, and the smaller number is the one from the file the
+    # profile has never read. Both are the reader's own drift since 2026-08-16,
+    # not a disagreement between the editions -- those agree at rms 0.0083.
+    "tmax400": (570.0, 3.09, 27, 0.0115),
+    "tmax400_2007": (570.0, 3.09, 27, 0.0048),
+}
+
+
+#: The gap between a panel's two printed density criteria, in decades, as
+#: (mean, sd, tolerance). Signed: NEGATIVE where the adopted criterion is the
+#: HIGHER density, because a higher density needs more exposure and so plots
+#: lower. See `_mono_from_frame` for what this tests.
+#:
+#: ⚠ THIS IS A CHECK ON THE PAIRING, WHICH READ THE WRONG CURVE ONCE ALREADY.
+#: C38's "5231 puts the argmax on the other hump" was the caption-to-curve rule
+#: mis-pairing, and it survived every band, ordering and peak check the reader
+#: had. It could not survive this one: swapping the pair flips the sign.
+#: The magnitudes are also physically legible -- 0.7 density units divided by
+#: the gap gives the slope of the characteristic curve between the two
+#: criteria: 5222 0.71, 5231 0.66, T-MAX 400 0.66, all normal negative
+#: gammas, against Technical Pan's 1.72, which is the only film here whose
+#: sheet prints a contrast index above 2.
+SEP_EXPECTED = {
+    "5222": (-0.992, 0.064),
+    "5231": (+1.068, 0.088),
+    "p255": (+0.408, 0.036),
+    "p255_2003": (+0.408, 0.036),
+    "tmax400": (+1.059, 0.078),
+    "tmax400_2007": (+1.058, 0.079),
+}
+SEP_TOL = 0.02
+
+#: Two editions of one publication, traced independently and required to agree.
+#: ⚠ THE TWO ROWS MEAN DIFFERENT THINGS. F-4043's editions are separate
+#: printings whose artwork was redrawn, so 0.0083 is a genuine cross-edition
+#: validation of the set KODAK_TMAX_400 holds -- the first it has ever had, and
+#: the substance of what queue B3 wanted for that stock. P-255's two editions
+#: carry BIT-IDENTICAL artwork, so 0.0000 validates nothing about the film; it
+#: is a guard that a re-edition has not silently redrawn the figure, and saying
+#: it is a cross-check would be a false claim.
+MONO_EDITIONS = {
+    ("tmax400", "tmax400_2007"): 0.0083,
+    ("p255", "p255_2003"): 0.0000,
 }
 
 
@@ -910,9 +1143,27 @@ MONO_NOTE = {
              "that was 0.037 against the hand reading this replaced, and it "
              "is recorded in the profile's source string"),
     "5231": ("a GENUINE cross-method comparison against the 2026-08-02 raster "
-             "reading, and it does not agree -- the two put the argmax on "
-             "different humps of a double-humped curve. Recorded, not "
-             "re-adopted"),
+             "reading, and it AGREES -- same 400 nm argmax, rms 0.063. The "
+             "0.213 disagreement C37 pinned was this reader pairing the D=0.3 "
+             "caption with the D=1.0 curve; adjudicated in C38, nothing "
+             "re-adopted because nothing needed to be"),
+    "p255": ("the storage rounding. The profile HOLDS this trace as of "
+             "2026-08-31 -- before it, KODAK_TECHNICAL_PAN had no spectral "
+             "set at all -- so there is nothing independent to compare "
+             "against and this number only guards the 2-decimal literal"),
+    "p255_2003": ("as p255: the storage rounding. ⚠ AND THE 2003 EDITION IS "
+                  "NOT AN INDEPENDENT READING -- its artwork is bit-identical "
+                  "to the 2000 edition's, which is why the two agree at "
+                  "rms 0.0000 exactly"),
+    "tmax400": ("a GENUINE comparison, but against the same edition the set "
+                "was adopted from on 2026-08-16, so it measures this reader's "
+                "own drift since then and not the data"),
+    "tmax400_2007": ("⚠ THE ONE THAT COUNTS. The stored set came from the "
+                     "2016 edition; this is the 2007 edition, a file the "
+                     "profile has never read, and it reproduces the set to "
+                     "rms 0.005 -- closer than the 2016 edition now does. "
+                     "This is the cross-validation KODAK_TMAX_400's set has "
+                     "been carrying an unqualified tier-1 claim without"),
 }
 
 
@@ -922,10 +1173,26 @@ def extract_mono_sheet(root: Path, tag: str):
     Same reader as the colour path -- same caption finder, same frame fallback,
     same macron-minus tick signing, same `extract_mono` -- with the three-layer
     assignment replaced by a one-curve SELECTION. The curve is identified by the
-    in-frame caption that names its density criterion, matched by geometry: the
-    caption sits directly above its own curve, so evaluating every traced curve
-    at the caption's x-centre and taking the nearest one BELOW it is the
-    association the page itself draws.
+    in-frame caption that names its density criterion.
+
+    ⚠ THE ASSOCIATION IS PHYSICAL, NOT GEOMETRIC, AND THE GEOMETRIC RULE THIS
+    REPLACES READ THE WRONG CURVE OFF A SHEET IN SERVICE. Until 2026-08-31 the
+    rule was "the caption sits directly above its own curve, so take the nearest
+    traced curve BELOW it". That is true of H-1-5222 and FALSE of H-1-5231,
+    where both captions sit UNDER their curves -- so the D=0.3 caption selected
+    the D=1.0 curve, and the result was pinned as queue C38's "5231 puts the
+    argmax on the other hump of a double-humped curve". There is no hump
+    problem: read correctly the trace agrees with the adopted set at rms 0.058
+    with a slope of 1.013, and the "other hump" was simply the other criterion.
+    Caption placement is a layout choice and differs between sheets.
+
+    What does not differ is the sensitometry: a LOWER density criterion is
+    reached with LESS exposure, so the D=0.3 curve lies ABOVE the D=1.0 curve
+    everywhere. Sorting the captions by their printed density and the curves by
+    log sensitivity, descending, pairs them without reference to the layout. The
+    curves are required not to cross before the pairing is used, because two
+    curves that cross are not two criteria on one emulsion and the ordering
+    would then mean nothing.
     """
     import pymupdf
     fn, pgno, prof, want_caption = MONO_SHEETS[tag]
@@ -934,76 +1201,131 @@ def extract_mono_sheet(root: Path, tag: str):
         return None, f"source not present: {fn}"
     pg = pymupdf.open(pdf)[pgno - 1]
     axes = rot_lines(pg, ("LOG", "SENSITIVITY")) or rot_labels(pg)
+    # ⚠ CONTINUE PAST A FRAME THAT CALIBRATES BUT DOES NOT YIELD THE PANEL, the
+    # same lesson `extract_sheet` learned on 7239 and C38 re-learned on 5218.
+    # Until 2026-08-31 this loop took the FIRST frame that calibrated and then
+    # committed to it: if that frame traced no curve the whole sheet was
+    # abandoned, and if it traced one curve where the caption pair needs two the
+    # sheet failed with "1 criterion captions against 2 traced curves" while the
+    # correct frame sat next in the list. F-4043 (2007) p11 is exactly that
+    # page -- its first calibrating frame yields ONE curve.
+    last = "no LOG SENSITIVITY panel yielded a monochrome curve"
     for ax in axes:
         lx, ly0, ly1 = ax[0], ax[1], ax[2]
         cands = sorted(
             (fr for fr in dd.frames(pg)
              if fr.x0 >= lx - 2 and not (fr.y1 < ly0 - 30 or fr.y0 > ly1 + 30)),
             key=lambda r: r.x0)
-        cal_r = None
         for fr in cands:
             cal_r, _err = axis_cal(pg, fr)
-            if cal_r is not None:
-                break
-        if cal_r is None:
-            continue
-        cal = cal_r[0]
-        curves = extract_mono(pg, cal, fr, GRID)
-        if not curves:
-            continue
-        # the criterion captions printed inside the frame, with their positions
-        caps = []
-        for blk in pg.get_text("dict").get("blocks", []):
-            for ln in blk.get("lines", []):
-                txt = " ".join(sp.get("text", "") for sp in ln.get("spans", []))
-                x0, y0, x1, y1 = ln["bbox"]
-                if not (fr.x0 <= (x0 + x1) / 2 <= fr.x1
-                        and fr.y0 <= (y0 + y1) / 2 <= fr.y1):
-                    continue
-                if "ABOVE" in txt.upper() and "=" in txt:
-                    caps.append((txt.strip(), (x0 + x1) / 2, y1))
-        if not caps:
-            return None, "no density-criterion caption printed inside the frame"
-        hit = [c for c in caps if c[0] == want_caption]
-        if not hit:
-            return None, (f"the sheet prints {[c[0] for c in caps]}, not "
-                          f"{want_caption!r} -- the criterion moved")
-        _txt, cap_x, cap_y = hit[0]
-        cap_nm = ((cap_x - cal[0]) / (cal[2] - cal[0]) * (cal[3] - cal[1])
-                  + cal[1])
-        # ⚠ MATCH BY GEOMETRY, NOT BY PAGE ORDER. Each caption sits directly
-        # above its own curve; page order is an emission detail and would
-        # silently pick the other criterion on a sheet that emitted them the
-        # other way round.
-        best, best_gap = None, None
-        for v, ext in curves:
-            lo, hi = ext
-            if not (lo - 1e-9 <= cap_nm <= hi + 1e-9):
+            if cal_r is None:
                 continue
-            here = float(np.interp(cap_nm, GRID, v))
-            # page y grows downward; "below the caption" is a LOWER log
-            # sensitivity than the caption's own row
-            cap_val = ((cap_y - cal[4]) / (cal[6] - cal[4]) * (cal[7] - cal[5])
-                       + cal[5])
-            gap = cap_val - here
-            if gap < 0:
+            got, err = _mono_from_frame(pg, fr, cal_r, tag, fn, pgno, prof,
+                                        want_caption)
+            if got is not None:
+                return got, None
+            last = err
+    return None, last
+
+
+#: The density criterion a monochrome spectral panel is read to, in the three
+#: spellings this corpus prints. ⚠ ONE CONSTANT WOULD NOT DO, and assuming it
+#: would is what kept P-255 out of the database: the reader's test until
+#: 2026-08-31 was `"ABOVE" in txt and "=" in txt`, which fits H-1-5222's
+#: "D = 1.0 Above Gross Fog" and matches NEITHER of the two sheets added today.
+#: F-4043 prints "D=0.3 greater than D-min" -- no "above" -- and P-255 splits
+#: its caption across two text lines, "Diffuse Density=" then "0.3 above D-min",
+#: so the line carrying the number carries no "=" and the line carrying the "="
+#: carries no number. The regex reads whichever line states BOTH a density and
+#: the reference it is measured above, which is the thing that identifies the
+#: criterion; the rest of the caption is typography.
+CRIT_RE = re.compile(
+    r"(?:D\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:above|greater\s+than)\s+"
+    r"(?:gross\s+fog|d\s*-?\s*min)", re.I)
+
+
+def _mono_from_frame(pg, fr, cal_r, tag, fn, pgno, prof, want_caption):
+    """One candidate frame of a monochrome panel. See `extract_mono_sheet`."""
+    curves = extract_mono(pg, cal_r[0], fr, GRID)
+    if not curves:
+        return None, "the frame traced no monochrome curve"
+    # the criterion captions printed inside the frame
+    caps = []
+    for blk in pg.get_text("dict").get("blocks", []):
+        for ln in blk.get("lines", []):
+            txt = " ".join(sp.get("text", "") for sp in ln.get("spans", []))
+            x0, y0, x1, y1 = ln["bbox"]
+            if not (fr.x0 <= (x0 + x1) / 2 <= fr.x1
+                    and fr.y0 <= (y0 + y1) / 2 <= fr.y1):
                 continue
-            if best_gap is None or gap < best_gap:
-                best, best_gap = (v, ext), gap
-        if best is None:
-            return None, f"no traced curve sits below the {want_caption!r} caption"
-        raw, ext = best
-        norm, peak = normalise(raw, ext)
-        if norm is None:
-            return None, "the traced extent misses the stored grid"
-        meas = norm > FLOOR + 1e-9
-        lam = float(GRID[np.argmax(np.where(meas, norm, -np.inf))])
-        return dict(tag=tag, profile=prof, file=fn, page=pgno,
-                    log_s_pan=norm, peak=peak, lam=lam, n_meas=int(meas.sum()),
-                    caption=want_caption, captions=[c[0] for c in caps],
-                    x_resid=cal_r[1], y_resid=cal_r[2],
-                    n_x=cal_r[3], n_y=cal_r[4]), None
-    return None, "no LOG SENSITIVITY panel yielded a monochrome curve"
+            m = CRIT_RE.search(txt)
+            if m is not None:
+                caps.append((txt.strip(), float(m.group(1))))
+    if not caps:
+        return None, "no density-criterion caption printed inside the frame"
+    if want_caption not in [c[0] for c in caps]:
+        return None, (f"the sheet prints {[c[0] for c in caps]}, not "
+                      f"{want_caption!r} -- the criterion moved")
+    # ---- pair the captions to the curves by SENSITIVITY, see the docstring
+    crit = sorted((d, txt) for txt, d in caps)
+    if len(crit) != len(curves):
+        return None, (f"{len(crit)} criterion captions against "
+                      f"{len(curves)} traced curves")
+    # the span every curve measures, which is where "higher" has a meaning
+    lo = max(e[0] for _v, e in curves)
+    hi = min(e[1] for _v, e in curves)
+    span = (GRID >= lo - 1e-9) & (GRID <= hi + 1e-9)
+    if span.sum() < 3:
+        return None, "the traced curves share too little wavelength span"
+    order = sorted(curves, key=lambda c: -float(c[0][span].mean()))
+    for a, b in zip(order, order[1:]):
+        if not (a[0][span] > b[0][span]).all():
+            return None, ("two criterion curves cross -- the "
+                          "sensitivity ordering cannot pair them")
+    pair = {txt: cur for (_d, txt), cur in zip(crit, order)}
+    norm, peak = normalise(*pair[want_caption])
+    if norm is None:
+        return None, "the traced extent misses the stored grid"
+    meas = norm > FLOOR + 1e-9
+    lam = float(GRID[np.argmax(np.where(meas, norm, -np.inf))])
+    # ⚠ THE OTHER CRITERION IS MEASURED, NOT MERELY NAMED, and it is a check the
+    # single-curve reader could not make at all. The panel draws the SAME
+    # emulsion read to a second density, so the gap between the two curves is
+    # the log-exposure interval between those two densities on this film's
+    # characteristic curve. Two things must hold and both are asserted in
+    # `main()`: the gap's SIGN must follow the criteria (the lower density is
+    # reached with less exposure, so it is the higher curve -- `sep` is negative
+    # when the ADOPTED criterion is the higher density, as on 5222, and positive
+    # when it is the lower, as on the other four), and the gap must be nearly
+    # wavelength-INDEPENDENT, because a density criterion is a property of the
+    # curve and not of the sensitising dyes. `sep_sd` is that second test.
+    # ⚠ Read as a slope, dD/dlogE = 0.7/|sep|, the gap lands BELOW the sheet's
+    # printed Contrast Index and should: P-255's panel is HC-110 (Dil D) 8 min,
+    # printed CI 2.00, and |sep| 0.408 gives 1.72 -- CI averages from 0.1 above
+    # D-min over a wider range, while D=0.3 to D=1.0 sits in the toe. The number
+    # is pinned as what it is, an interval between two printed criteria, not as
+    # a reconstruction of CI.
+    others = {}
+    for d, txt in crit:
+        if txt == want_caption:
+            continue
+        o_norm, o_peak = normalise(*pair[txt])
+        if o_norm is None:
+            continue
+        both = meas & (o_norm > FLOOR + 1e-9)
+        gap = (norm + peak) - (o_norm + o_peak)
+        others[txt] = dict(
+            density=d, peak=o_peak, n_meas=int((o_norm > FLOOR + 1e-9).sum()),
+            lam=float(GRID[np.argmax(np.where(o_norm > FLOOR + 1e-9,
+                                              o_norm, -np.inf))]),
+            sep=float(gap[both].mean()) if both.any() else float("nan"),
+            sep_sd=float(gap[both].std()) if both.sum() > 1 else float("nan"))
+    return dict(tag=tag, profile=prof, file=fn, page=pgno,
+                log_s_pan=norm, peak=peak, lam=lam, n_meas=int(meas.sum()),
+                caption=want_caption, captions=[c[0] for c in caps],
+                others=others,
+                x_resid=cal_r[1], y_resid=cal_r[2],
+                n_x=cal_r[3], n_y=cal_r[4]), None
 
 
 def main() -> int:
@@ -1073,7 +1395,25 @@ def main() -> int:
         if ns.dump:
             for k in ("log_s_r", "log_s_g", "log_s_b"):
                 print(f"            {k}=({', '.join('%.2f' % v for v in got[k])}),")
+    # ---- queue M1: the two 2383 editions must keep agreeing -----------------
+    # ⚠ THE ONLY CROSS-CHECK THIS PANEL CAN HAVE, and it is a real one. 2383 is
+    # a PrintStock, so there is no independently-adopted FilmProfile set to
+    # compare against -- but the corpus holds the same figure in two different
+    # files, and two files agreeing is better evidence than a set agreeing with
+    # itself. If they ever stop, one of them has been replaced by a revision.
+    if {"2383", "2383_alt"} <= set(tags):
+        a, _ea = extract_sheet(root, "2383")
+        b, _eb = extract_sheet(root, "2383_alt")
+        if a and b:
+            rr = [_core_rms(a["log_s_" + k], b["log_s_" + k])[0] for k in "rgb"]
+            ok = all(v == v and v < 0.05 for v in rr)
+            print(f"  [{'OK  ' if ok else 'FAIL'}] the two 2383 editions agree: "
+                  f"rms {rr[0]:.4f} / {rr[1]:.4f} / {rr[2]:.4f} decades")
+            if not ok:
+                bad += 1
+
     # ---- the MONOCHROME sheets: one curve, chosen by its criterion caption ----
+    mono = {}
     for tag in (ns.sheet or sorted(MONO_SHEETS)):
         if tag not in MONO_SHEETS:
             continue
@@ -1111,9 +1451,43 @@ def main() -> int:
             print(f"         expected peak {want_peak:.2f} @ {want_lam:.0f} nm, "
                   f"{want_n} samples, rms {want_rms:.3f}")
             bad += 1
+        # ---- the SECOND criterion, which the pairing has to get right -------
+        mono[tag] = got
+        if tag in SEP_EXPECTED and got["others"]:
+            o = next(iter(got["others"].values()))
+            w_sep, w_sd = SEP_EXPECTED[tag]
+            adopted_d = float(re.search(r"(\d+(?:\.\d+)?)",
+                                        got["caption"]).group(1))
+            # the lower criterion is reached with less exposure, so it is the
+            # higher curve: the sign of the gap follows the density order
+            want_sign = 1.0 if adopted_d < o["density"] else -1.0
+            sok = (abs(o["sep"] - w_sep) < SEP_TOL
+                   and abs(o["sep_sd"] - w_sd) < SEP_TOL
+                   and o["sep"] * want_sign > 0)
+            slope = 0.7 / abs(o["sep"]) if o["sep"] else float("nan")
+            print(f"  [{'OK  ' if sok else 'FAIL'}] {tag} second criterion "
+                  f"D={o['density']:.1f}: {o['sep']:+.3f} +/- {o['sep_sd']:.3f} "
+                  f"decades from the adopted D={adopted_d:.1f} curve "
+                  f"(dD/dlogE {slope:.2f} between them), {o['n_meas']} samples")
+            if not sok:
+                print(f"         expected {w_sep:+.3f} +/- {w_sd:.3f}, sign "
+                      f"{'+' if want_sign > 0 else '-'}")
+                bad += 1
         if ns.dump:
             print("            log_s_pan=("
                   + ", ".join("%.2f" % v for v in got["log_s_pan"]) + "),")
+
+    # ---- two editions of one publication, traced independently --------------
+    for (a, b), want in sorted(MONO_EDITIONS.items()):
+        if a not in mono or b not in mono:
+            continue
+        r, _n = _core_rms(mono[a]["log_s_pan"], mono[b]["log_s_pan"])
+        eok = abs(r - want) < RMS_TOL
+        print(f"  [{'OK  ' if eok else 'FAIL'}] {a} and {b} are the same "
+              f"figure in two editions: rms {r:.4f} decades (expected "
+              f"{want:.4f})")
+        if not eok:
+            bad += 1
     print(f"\n[i] {len(tags) + len(MONO_SHEETS) - bad - skipped} reproduced, "
           f"{bad} failed, {skipped} skipped")
     if ns.do_assert and bad:

@@ -157,9 +157,14 @@ void AlgoStage14_Transmittance
         // applies the user scale to the field's own amplitude here and not a second
         // time in the weighting - print grain is already the smaller of the two
         // contributions and double-scaling it would make the control non-linear.
-        AlgoAddGrain(pDstR, pDstG, pDstB,
-                     pScrField, pScrField, pScrField,
-                     sizeX, sizeY, pitch, dmin, ALGO_GRAIN_DUPE_FOG, ALGO_ONE);
+        // ⚠ AlgoAddGrainRaw, NOT AlgoAddGrain. Print grain carries no published
+        // rms figure to be pinned to, so it keeps the UNNORMALISED weighting the
+        // reference uses; pinning it would move every print render for no
+        // measurement's sake. See AlgoGrainAmpRaw.
+        AlgoAddGrainRaw(pDstR, pDstG, pDstB,
+                        pScrField, pScrField, pScrField,
+                        sizeX, sizeY, pitch, dmin,
+                        ALGO_GRAIN_DUPE_FOG, ALGO_ONE);
     }
 
     // ----------------------------------------------------------------------

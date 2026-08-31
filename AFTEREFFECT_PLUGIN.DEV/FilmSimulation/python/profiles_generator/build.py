@@ -173,6 +173,87 @@ def audits(root: Path):
          root / "PDF" / "PROFILES" / "RETRO"
               / "THE THEORY OF THE Photographic PROCESS.pdf",
          "B&W silver-negative sigma(D) shape, Mees Fig. 302"),
+        # ⚠ THE ONLY AUDIT WHOSE SOURCE IS DELIBERATELY NOT ADOPTED. Every other
+        # entry in this list re-derives a number the database stores. This one
+        # re-derives a SHAPE the database cannot express -- Q rising from unity
+        # at the toe -- from a figure whose caveats (no stated collection angle,
+        # one motion-picture POSITIVE stock, "O. Sandvik, private
+        # communication") disqualify it as a source for `callier_q`. It is
+        # registered anyway because that shape is the standing argument for
+        # replacing the constant-Q model, and an argument resting on a trace
+        # nobody re-runs decays into a remembered impression.
+        ("mees_callier_q.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "mees_fig179_p643.png",
+         "Callier Q against diffuse density at five development gammas, Mees "
+         "FIG. 179 -- five curves traced by columns above D 0.25, the shared "
+         "toe traced by rows below it. REFERENCE ONLY: it touches no profile, "
+         "and must not until a source states a collection angle"),
+        # ⚠ THE FIRST AUDIT THAT MAKES A STORED NUMBER *RENDER* RATHER THAN
+        # CHECKING ONE THAT ALREADY DID. Every colour `dye_matrix` in this
+        # database was built by `_dye(k)` from a single scalar and was therefore
+        # SYMMETRIC -- so every colour stock crosstalked the same way and
+        # differed only in how much, while twelve of them carried traced dye
+        # spectra that nothing read. These two audits close that: the first
+        # verifies the ISO 5-3 status responses, the second integrates each
+        # stock's own dye panel against them and asserts the ten adopted
+        # matrices, the two refused panels, and the sign pattern.
+        # ⚠ GUARDED ON ITSELF, NOT ON THE PDF IT CAME FROM, AND THAT IS
+        # DELIBERATE. The tables are literals transcribed once from the page
+        # images; the check is a SELF-check of those literals -- peaks, unit
+        # peaks, monotone flanks, status M longer than status A in every band.
+        # Guarding it on the source PDF would make it SKIP on any tree without
+        # the corpus, which is precisely where a mistranscribed constant would
+        # otherwise travel unnoticed.
+        ("iso_5_3_status.py",
+         ["--root", str(root), "--assert"],
+         HERE / "iso_5_3_status.py",
+         "the ISO status A and status M spectral responses transcribed from "
+         "ANSI/ISO 5-3-1995 tables 3 and 4 -- peaks at 440/530/620 and "
+         "450/540/640 nm, unit peaks, monotone flanks. ⚠ Read off the PAGE "
+         "IMAGES, because the scan's OCR floats two red entries free of their "
+         "wavelength rows and shifts the status A red response by 10 nm"),
+        ("dye_matrix_from_spectra.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "the ten dye matrices derived by integrating each stock's traced "
+         "spectral dye density against the ISO 5-3 response its own "
+         "density_metric names, checked against the literals the database "
+         "stores, against the sign pattern every real dye set obeys, and "
+         "against four Soviet manufacturing specifications the derivation "
+         "never saw -- plus the two panels it refuses by name"),
+        # ⚠ AN AUDIT OF A LAW WE DO **NOT** SHIP, KEPT FOR THE SAME REASON as
+        # mees_callier_q: the case for changing the Callier law rests on a
+        # measured divergence, and a divergence nobody re-measures decays into a
+        # remembered impression. It also pins the two things that must stay true
+        # of any replacement -- exact inertness at specular 0, and exact
+        # inertness for every colour stock at any setting.
+        ("callier_silberstein_tuttle.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "Silberstein & Tuttle's published specular/diffuse relation (Mees "
+         "printed p644) against the linear law film_sim and AlgoCallier ship: "
+         "both exactly inert at specular 0 and at Q = 1.0, identical at both "
+         "ENDPOINTS, and diverging by up to 0.21 D in between -- the shipped "
+         "law interpolates the multiplier, the published one interpolates "
+         "transmittance, which is what light actually does"),
+        # ⚠ QUEUE B4. Four plates that sat unread for a year behind a blocker
+        # recorded as "axis calibration is not solved". It was two things and
+        # neither was calibration: the outermost gridline on each axis is
+        # fainter than the interior ones and fell under the ink threshold, and
+        # the embedded raster is stored UPSIDE DOWN behind the page's own flip
+        # transform. Registered because the adopted MTF, base+fog triple and
+        # dye pair all come off these traces.
+        ("ti0835_plates.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "5247.pdf",
+         "the four TI0835 plates for EASTMAN_5247_1983 -- MTF, characteristic, "
+         "spectral and spectral dye density -- each calibrated on its own grid "
+         "landing on round steps, traced by exact plate ink, and guarded on "
+         "the properties an upside-down or legend-contaminated read breaks: "
+         "records stacked blue > green > red, spectral peaks in order and "
+         "within 18 nm of the stored set, and a D-min trace that FALLS towards "
+         "the red because it is the orange mask"),
         ("dye_density.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "KODAK",
@@ -188,7 +269,48 @@ def audits(root: Path):
          "by Kodak's ink convention (the red record being a yellow-under-"
          "magenta overprint), peaks pinned at 470 / 540 / 650 nm and the "
          "absolute peak sensitivities the schema's per-layer normalisation "
-         "throws away"),
+         "throws away -- plus 12 further panels read as cross-checks against "
+         "sets already adopted, and the three C37 disagreements C38 settled on "
+         "2026-08-31: 5218 was the BROCHURE read against the technical sheet, "
+         "5231 was this reader pairing a criterion caption with the wrong "
+         "curve, and only 5245's blue tail was a defect in the data"),
+        ("polaroid_spectral.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "POLAROID" / "664fds.pdf",
+         "the four POLAROID spectral sensitivity panels, two of them new data "
+         "(Type 52 and Type 55 P/N) and two cross-checks that reproduce "
+         "hand-read sets from 1999 sheets to rms 0.034 and 0.027 decades. ⚠ "
+         "Queue item E2 prescribed NEGATING these curves -- the sheets' prose "
+         "says they plot 'the equivalent energy needed' -- and negating them is "
+         "exactly the mirrored reading that row warned about. The axis is "
+         "sensitivity: the 667 edition captions it 'Spectral Sensitivity "
+         "(cm^2/erg)', area per unit energy. The decisive check is asserted "
+         "here rather than argued: peak plotted value must RISE with exposure "
+         "index across all four sheets (EI 50 -> 9.8, 100 -> 15.6, 400 -> 98.0, "
+         "3000 -> 233.1), which under the inverted reading would have the ISO "
+         "3000 film needing fifteen times more light than the ISO 100 one"),
+        # ---- queue E3, 2026-08-31 -----------------------------------------
+        ("konica_raster.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KONICA" / "IMP50.pdf",
+         "the seven KONICA plot panels, which are the first RASTER-ONLY sheets "
+         "in this corpus to be adopted from: every figure in IMP50.pdf and "
+         "INF750.pdf is an embedded bitmap with no paths and no tick text, so "
+         "calibration is geometric off the printed grid and every panel "
+         "re-detects its own gridlines before a curve is traced. ⚠ The bitmaps "
+         "are also stored UPSIDE DOWN -- rotating them 180 degrees leaves the "
+         "text mirror-reversed, which is how the flip announces itself. What it "
+         "adopted: IMPRESA 50's characteristic curves, whose Dmin triple was a "
+         "family template shared with two other KONICA stocks and wrong in blue "
+         "by 0.32 D, and its visual-filter MTF (f50 64.9, not the estimated 72; "
+         "121.4 % overshoot at 6.88 c/mm; power-law rolloff q 2.20 beating the "
+         "Gaussian 2x); and INFRARED 750's curve at the sheet's own standard "
+         "condition, Konicadol DP 6 min at 20 C, which moved gamma 0.72 -> 1.70 "
+         "because all FIFTEEN printed curves are steeper than the value held. "
+         "The decisive check is asserted rather than argued: IMPRESA 50's Dmin "
+         "is read off TWO figures on TWO pages -- the characteristic plateau and "
+         "the minimum-density spectrum sampled at the status M band centres -- "
+         "and they agree to 0.005-0.015 D"),
         ("granularity_vector.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "KODAK" / "Ektachrome_100d.pdf",
@@ -294,7 +416,35 @@ def audits(root: Path):
          "accepting a crossing pair has to say so rather than adopt it quietly. "
          "One f50 is asserted to remain CENSORED (E-190 2003 p9 blue is still "
          "at 55 % where the plot stops), which keeps 'never reaches 50 %' "
-         "distinguishable from a number"),
+         "distinguishable from a number. ⚠ EXTENDED 2026-08-31 (queue K3) to "
+         "the ten PUSH panels: two adopted pairs, the EI 800 anchor that makes "
+         "them a push rather than an edition difference, and five readings "
+         "pinned precisely because they are NOT adopted -- three editions of "
+         "PORTRA 800 give red gamma at EI 1600 as 0.6883, 0.6100 and 0.6341, "
+         "and an unpinned disagreement is a claim nobody can re-check. A "
+         "sixth check asserts a panel stays UNREADABLE: E-4040 (2016) p4's EI "
+         "800 axis is printed -4.0 / -2.0 / -3.0 / -1.0 / 0.0 / 1.0, two "
+         "labels transposed in Kodak's artwork, and a tick fitter that ever "
+         "accepts it would be wrong by a decade mid-plot"),
+        ("kodak_aim_density.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "KODAK PROFESSIONAL PORTRA - 2003 year.pdf",
+         "the sixteen published AIM DENSITY tables -- the red Status M "
+         "densities Kodak says a correctly exposed negative reads on a gray "
+         "card, a paper gray scale and a lit forehead -- read off thirteen "
+         "sheets by geometry rather than page order, because the two table "
+         "layouts emit their forehead pairs in opposite orders. Five of the "
+         "twenty-one checks are cross-document: PORTRA 400 must read the same "
+         "in E-4050's 2010 and 2016 editions, ULTRA MAX 400 the same in E-7019 "
+         "(2007) and E-7023 (2016), GOLD 200 the same in E-7022's 2007 "
+         "two-column and 2022 one-column layouts, every pushed aim must RISE "
+         "with the push, and E-190 (2003)'s PORTRA 800 table must keep showing "
+         "BOTH of its defects -- an aim that falls as the film is pushed, and "
+         "an EI 800 forehead pair copied verbatim from the 160NC/400NC column "
+         "four inches above it. ⚠ That last assertion is inverted on purpose: "
+         "it fails if the broken table ever starts agreeing, because that "
+         "would mean the reader moved and not the document",),
         # ⚠ NOT A DOCUMENT AUDIT -- a CODE audit, and it belongs in this stage
         # anyway. Its "source" is the GENERATED header rather than a PDF, and what
         # it re-derives is that the Python reference law and the emitted C++ law
@@ -338,16 +488,21 @@ def audits(root: Path):
         # produced different B&W images, worst case KODAK_PLUS_X_125 at blue
         # 0.110 against 0.502. Neither cpp_parity (grain, MTF, reciprocity) nor
         # interimage_parity (the DIR couplers) looks at stage 7.
+        # ⚠ --allow-guard-gap WAS REMOVED 2026-08-30, NOT LEFT IN AS A SAFETY
+        # NET. It accepted one known open defect: the gamut-reach guard existed
+        # only in Python, so KONICA_INFRARED_750 derived to a blue-dominant
+        # (0.1611, 0.1931, 0.6458) in the plugin against its authored and
+        # correct red-dominant (0.55, 0.15, 0.30). Queue C40 closed that by
+        # porting the two tests into AlgoSpectralMonoWeights(). Running WITHOUT
+        # the flag is what keeps it closed: a re-opened gap now fails the build
+        # instead of printing a line somebody has learned to skip.
         ("spectral_mono_parity.py",
-         ["--algodir", str(root), "--assert", "--allow-guard-gap"],
+         ["--algodir", str(root), "--assert"],
          root / "AlgoSpectralSensitivity.cpp",
          "film_sim.spectral_monochrome_weights() against the plugin's own "
          "AlgoSpectralMonoWeights(), all 68 monochrome stocks walked out of "
-         "the real database, to 1e-9. ⚠ --allow-guard-gap accepts ONE known "
-         "open defect -- the gamut-reach guard exists only in Python, so "
-         "KONICA_INFRARED_750 derives to a blue-dominant nonsense in C++ "
-         "(queue C40). The audit names it in its own [OK] line on every run "
-         "so accepting it cannot become forgetting it"),
+         "the real database, to 1e-9 -- including the gamut-reach guard, which "
+         "must refuse and fall back on the same stocks in both engines"),
         # ⚠ NOT A DOCUMENT AUDIT EITHER: it re-derives the spectral_weights
         # PROVENANCE from the live database. Added 2026-08-29 after 48 colour
         # stocks were found labelled status='derived', 'integrated from the

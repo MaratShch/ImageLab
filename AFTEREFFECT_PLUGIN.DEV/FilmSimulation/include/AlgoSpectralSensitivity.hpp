@@ -137,6 +137,52 @@ constexpr HighPrecType ALGO_SPECTRAL_PRIMARY_WIDTH_NM = 55.0;
 
 
 // ---------------------------------------------------------------------------
+//  GAMUT-REACH GUARD -- queue C40, added 2026-08-30.
+//
+//  ⚠ THIS GUARD EXISTED ONLY IN PYTHON UNTIL TODAY, AND ITS ABSENCE HERE WAS A
+//  WRONG RENDER THAT SHIPPED. AlgoSpectralMonoWeights() derived for any profile
+//  carrying log_s_pan, with no test at all, so KONICA_INFRARED_750 -- peak
+//  750 nm -- came out at (0.1611, 0.1931, 0.6458), BLUE-dominant, against the
+//  authored and correct red-dominant (0.55, 0.15, 0.30). An infrared film
+//  rendering as though its red record barely existed. Found by
+//  spectral_mono_parity.py, which compiles this translation unit against the
+//  real database: 67 of 68 monochrome stocks agreed, and this was the one.
+//
+//  The derivation projects a sensitisation onto three visible lobes. That is
+//  meaningful only while the emulsion lives where the lobes can excite it. Two
+//  independent ways it can fail, so two tests:
+//
+//    PEAK        the maximum lies past the basis's red limit. 700 nm is where
+//                the reddest lobe (600 nm centre, 55 nm width) has fallen to
+//                about 16 % of its peak.
+//    ENERGY      the maximum is inside, but a substantial shoulder is not. A
+//                stock with a seventh of its response in the deep red or the
+//                infrared is not describable by three visible lobes, whatever
+//                its peak does.
+//
+//  ⚠ BOTH ARE MEASURED ON THE CURVE'S OWN STORED SAMPLES, NOT ON THE
+//  360-730 nm RENDER GRID. Measuring "how much lies outside the grid" using the
+//  grid is a threshold compared against a quantity that cannot reach it: on the
+//  clipped grid KONICA_INFRARED_750 reads peak 730 nm and 0.203 out of reach;
+//  on its own samples, which run to 830 nm, it reads 750 nm and 0.437. The
+//  Python guard refused it either way, but on a figure low by a factor of two
+//  and a peak that was an artefact of the grid's last sample. Mirrors
+//  film_sim.stored_layer_sensitivities().
+//
+//  ⚠ AND IT DOES NOT CATCH ROLLEI_INFRARED_400, WHICH IS NOT A THRESHOLD TO
+//  TUNE. That stock's stored curve is the UNFILTERED sensitisation: peak
+//  410 nm, 0.028 of its energy past 700 nm. By the data on file it is an
+//  ordinary panchromatic emulsion and no honest reach test can refuse it. Its
+//  authored red-dominant triple encodes an assumed deep-red/IR taking filter
+//  that NO FIELD IN THE PROFILE RECORDS -- queue C39, a carrier, not a
+//  threshold. Lowering ALGO_SPECTRAL_OUT_OF_REACH_MAX to catch it would start
+//  refusing ordinary panchromatic stocks.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SPECTRAL_BASIS_LAMBDA_MAX = 700.0;
+constexpr HighPrecType ALGO_SPECTRAL_OUT_OF_REACH_MAX = 0.15;
+
+
+// ---------------------------------------------------------------------------
 //  AlgoSpectralHasCurves
 //
 //  Whether this profile carries usable digitised sensitivity. Every function
