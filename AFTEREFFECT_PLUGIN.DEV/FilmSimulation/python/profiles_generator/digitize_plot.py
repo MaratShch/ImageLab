@@ -182,3 +182,37 @@ def fit_tonecurve(x: np.ndarray, d: np.ndarray, init: tuple[float, ...]
     r = softplus_curve(x, *p) - d
     return tuple(float(v) for v in p), float(np.sqrt(np.mean(r * r))), float(
         np.max(np.abs(r)))
+
+def fit_tonecurve4(x, d, init):
+    """`fit_tonecurve` with the SHOULDER HELD FIXED at its init value.
+
+    ⚠ WHY A SECOND ENTRY POINT RATHER THAN A FLAG ON THE FIRST. A datasheet that
+    stops inside the straight line contains no information about the shoulder,
+    and a six-parameter fit to such a trace still returns a shoulder -- one
+    placed whichever side of the last sample the simplex drifted to. On the Fuji
+    T3 sheets that put red's shoulder at logH 1.16 and green's at 0.27, which
+    extrapolates to a Dmax ladder with RED ABOVE GREEN on a film whose own
+    curves put blue highest. Fitting four parameters and declaring the other two
+    is honest about what the trace can support; silently fitting six is not.
+
+    Returns (params, rms, max_abs) exactly as `fit_tonecurve` does, with
+    params[4] and params[5] equal to init[4] and init[5].
+    """
+    x = np.asarray(x, dtype=np.float64)
+    d = np.asarray(d, dtype=np.float64)
+    sx, sk = float(init[4]), float(init[5])
+
+    def loss(p):
+        dmin, gamma, tx, tk = p
+        if gamma <= 0 or tk <= 0.02 or sx <= tx:
+            return 1e9
+        pen = 100.0 * (sk - 1.4 * tk) ** 2 if sk > 1.4 * tk else 0.0
+        r = softplus_curve(x, dmin, gamma, tx, tk, sx, sk) - d
+        return float(np.mean(r * r)) + pen
+
+    steps = [0.02, 0.03, 0.08, 0.04]
+    p, _ = _nelder_mead(loss, np.asarray(init[:4], dtype=np.float64), steps)
+    full = (float(p[0]), float(p[1]), float(p[2]), float(p[3]), sx, sk)
+    r = softplus_curve(x, *full) - d
+    return full, float(np.sqrt(np.mean(r * r))), float(np.max(np.abs(r)))
+

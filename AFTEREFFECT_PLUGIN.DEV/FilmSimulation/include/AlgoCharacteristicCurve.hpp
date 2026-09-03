@@ -219,6 +219,13 @@ void AlgoSolveAnchors
 //  profile       stock being simulated
 //  anchor        the three values returned by AlgoSolveAnchors; applied here for
 //                a reversal stock, carried to the print stage for a negative
+//  recipShift    per-channel reciprocity shift in DECADES, added to the log
+//                exposure before the curve sees it and before the retained
+//                log-exposure plane is written, so stage 8b reads the same
+//                effective exposure the curve did. All zeros = inert, and the
+//                addition of a floating zero is bit-exact, so a caller that
+//                states no exposure time reproduces every earlier render
+//                exactly. See AlgoReciprocity.hpp.
 //
 //  The three log-exposure planes must be distinct from the source and from the
 //  destination.
@@ -238,7 +245,8 @@ void AlgoStage08_CharacteristicCurve
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const HighPrecType       anchor[3]
+    const HighPrecType       anchor[3],
+    const HighPrecType       recipShift[3]
 ) noexcept;
 
 

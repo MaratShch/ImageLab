@@ -165,6 +165,35 @@ void AlgoStage06_EmulsionMtf
                               ? (ALGO_MTF_SIGMA_MM_PER_INV_F50 / f50[c]) * pxPerMm
                               : ALGO_ZERO;
 
+        // ------------------------------------------------------------------
+        //  ⚠ THE MEASURED ROLLOFF, WHICH THIS STAGE COULD NOT EXPRESS UNTIL
+        //  2026-09-03.
+        //
+        //  `film::FilmMtfResponse` is the law and it is a FREQUENCY-DOMAIN
+        //  form, 1/(1+(f/f50)^q). This engine has no FFT, so every stock
+        //  carrying a measured q rendered on the single Gaussian below --
+        //  correct at f50 by construction and up to 3.8x too much modulation at
+        //  2x f50, on 22 stocks. The state was recorded rather than hidden, in
+        //  cpp_parity's LAW_BYPASS_BASELINE, and this is it being closed.
+        //
+        //  `FilmMtfKernel` returns a WEIGHTED PAIR of Gaussians whose sigmas are
+        //  multiples of the base sigma already computed above, so the law needs
+        //  no new machinery: it becomes two lobes of the multi-Gaussian blur
+        //  this stage has always run. Worst max|error| 0.0384 against 0.1737 for
+        //  the Gaussian it replaces -- every affected stock improves.
+        //
+        //  A stock whose q is not tabulated keeps the legacy single Gaussian and
+        //  therefore renders BIT-IDENTICALLY to before, which is the property
+        //  that makes this safe to land on a 175-stock database.
+        // ------------------------------------------------------------------
+        float kW1 = 0.0f, kS1 = 0.0f, kS2 = 0.0f;
+
+        const bool wantKernel = mtf.mtf_measured
+                             && (mtf.mtf_rolloff_q > 0.0f)
+                             && (basePx > ALGO_ZERO)
+                             && film::FilmMtfKernel(mtf.mtf_rolloff_q,
+                                                    kW1, kS1, kS2);
+
         // Nothing to filter: the emulsion is sharper than this render grid and
         // there is no adjacency lift to apply either.
         if ((basePx < ALGO_MTF_MIN_SIGMA_PX) && (false == wantAdjacency))
@@ -185,34 +214,52 @@ void AlgoStage06_EmulsionMtf
         //  passes DC untouched and cannot shift the exposure level - which is
         //  what makes this an edge effect rather than a brightness change.
         // ------------------------------------------------------------------
-        AlgoType sigmaPx[ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO, ALGO_ZERO,
-                                                  ALGO_ZERO, ALGO_ZERO };
-        AlgoType weight [ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO, ALGO_ZERO,
-                                                  ALGO_ZERO, ALGO_ZERO };
+        AlgoType sigmaPx[ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO };
+        AlgoType weight [ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO };
 
-        const HighPrecType base2 = static_cast<HighPrecType>(basePx)
-                                 * static_cast<HighPrecType>(basePx);
+        //  The base transfer is one lobe on the legacy path and two on the
+        //  measured one. Everything downstream is written against this pair so
+        //  the two paths differ in nothing but the lobe count.
+        AlgoType baseSigma [2] = { basePx, ALGO_ZERO };
+        AlgoType baseWeight[2] = { ALGO_ONE, ALGO_ZERO };
+        int32_t  baseLobes     = 1;
 
-        sigmaPx[0] = basePx;
-        weight [0] = ALGO_ONE;
-
-        int32_t lobes = 1;
-
-        if (wantAdjacency)
+        if (wantKernel)
         {
-            const HighPrecType in2 = static_cast<HighPrecType>(adjInnerPx)
-                                   * static_cast<HighPrecType>(adjInnerPx);
+            baseSigma [0] = basePx * static_cast<AlgoType>(kS1);
+            baseWeight[0] = static_cast<AlgoType>(kW1);
+            baseSigma [1] = basePx * static_cast<AlgoType>(kS2);
+            baseWeight[1] = ALGO_ONE - static_cast<AlgoType>(kW1);
+            baseLobes     = 2;
+        }
 
-            const HighPrecType out2 = static_cast<HighPrecType>(adjOuterPx)
-                                    * static_cast<HighPrecType>(adjOuterPx);
+        int32_t lobes = 0;
 
-            sigmaPx[1] = static_cast<AlgoType>(std::sqrt(base2 + in2));
-            weight [1] = adjacency;
+        for (int32_t k = 0; k < baseLobes; k++)
+        {
+            const HighPrecType b2 = static_cast<HighPrecType>(baseSigma[k])
+                                  * static_cast<HighPrecType>(baseSigma[k]);
 
-            sigmaPx[2] = static_cast<AlgoType>(std::sqrt(base2 + out2));
-            weight [2] = -adjacency;
+            sigmaPx[lobes] = baseSigma [k];
+            weight [lobes] = baseWeight[k];
+            lobes++;
 
-            lobes = 3;
+            if (wantAdjacency)
+            {
+                const HighPrecType in2 = static_cast<HighPrecType>(adjInnerPx)
+                                       * static_cast<HighPrecType>(adjInnerPx);
+
+                const HighPrecType out2 = static_cast<HighPrecType>(adjOuterPx)
+                                        * static_cast<HighPrecType>(adjOuterPx);
+
+                sigmaPx[lobes] = static_cast<AlgoType>(std::sqrt(b2 + in2));
+                weight [lobes] = baseWeight[k] * adjacency;
+                lobes++;
+
+                sigmaPx[lobes] = static_cast<AlgoType>(std::sqrt(b2 + out2));
+                weight [lobes] = -baseWeight[k] * adjacency;
+                lobes++;
+            }
         }
 
         // ------------------------------------------------------------------

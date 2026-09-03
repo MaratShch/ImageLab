@@ -830,7 +830,8 @@ void AlgoStage08_CharacteristicCurve
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const HighPrecType       anchor[3]
+    const HighPrecType       anchor[3],
+    const HighPrecType       recipShift[3]
 ) noexcept
 {
     const film::RGBCurves& curves = profile.curves;
@@ -883,6 +884,12 @@ void AlgoStage08_CharacteristicCurve
         const __m256 vFloor = _mm256_set1_ps(ALGO_CURVE_EXPOSURE_FLOOR);
         const __m256 vInvLn10 = _mm256_set1_ps(ALGO_AVX2_INV_LN10);
         const __m256 vTrim  = _mm256_set1_ps(trim);
+
+        // Reciprocity failure: a frame constant, broadcast once per channel.
+        // The published corrections are functions of TIME alone, so there is
+        // nothing per-pixel to compute and nothing per-lane to gather.
+        const AlgoType recip  = static_cast<AlgoType>(recipShift[c]);
+        const __m256 vRecip = _mm256_set1_ps(recip);
 
         // ------------------------------------------------------------------
         //  The curve, tabulated once for this channel.
@@ -937,8 +944,15 @@ void AlgoStage08_CharacteristicCurve
                 // decades of exposure and density is itself a base-ten quantity.
                 // There is no vector log10, so the natural log is scaled - which is
                 // exactly what a scalar log10 does internally anyway.
-                const __m256 logE =
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10);
+                // \warning ADDED AFTER THE SCALE, NOT FOLDED INTO IT. Making
+                // this an FMA against vInvLn10 would change the rounding of
+                // every pixel and break the bit-exactness contract the field
+                // was added under: at recip == 0 the add is the identity, so a
+                // caller that states no exposure time reproduces every
+                // pre-2026-09-01 render exactly. The scalar twin adds it in the
+                // same place for the same reason.
+                const __m256 logE = _mm256_add_ps(
+                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
 
                 // RETAINED. The interimage stage reads this rather than recovering
                 // it from the density, which is not invertible through the shoulder.
@@ -965,8 +979,15 @@ void AlgoStage08_CharacteristicCurve
                 const __m256 e =
                     _mm256_max_ps(_mm256_maskload_ps(pE + x, vTail), vFloor);
 
-                const __m256 logE =
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10);
+                // \warning ADDED AFTER THE SCALE, NOT FOLDED INTO IT. Making
+                // this an FMA against vInvLn10 would change the rounding of
+                // every pixel and break the bit-exactness contract the field
+                // was added under: at recip == 0 the add is the identity, so a
+                // caller that states no exposure time reproduces every
+                // pre-2026-09-01 render exactly. The scalar twin adds it in the
+                // same place for the same reason.
+                const __m256 logE = _mm256_add_ps(
+                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
 
                 _mm256_maskstore_ps(pL + x, vTail, logE);
 
@@ -1087,6 +1108,21 @@ void AlgoStage08b_Interimage
     for (int32_t c = 0; c < 3; c++)
         invRef[c] = ALGO_ONE / MAX_VALUE(dRef[c], ALGO_IIE_REF_FLOOR);
 
+    // Cap on the density weight, one per channel: the value it reaches at that
+    // channel's own Dmax. VERBATIM from the scalar translation unit - queue
+    // item C18, 2026-09-02 - and provably non-binding, see the note at its use.
+    AlgoType wCap[3];
+
+    for (int32_t c = 0; c < 3; c++)
+    {
+        const film::ToneCurve& cv = curveOf(curves, c);
+
+        const AlgoType dMaxC = static_cast<AlgoType>(
+            cv.dmin + cv.gamma * (cv.shoulder_x - cv.toe_x));
+
+        wCap[c] = (ALGO_ONE - dw) + dw * dMaxC * invRef[c];
+    }
+
     // Per-channel curve parameters and reversal trims, hoisted out of the pixel
     // loops. They are stored as float while the arithmetic runs in AlgoType, and
     // the compiler cannot prove the profile is unchanged by the stores into the
@@ -1188,14 +1224,26 @@ void AlgoStage08b_Interimage
                     // have.
                     //
                     // Two FMAs: w = (1-dw) + dw*invRj*D, then e = (D-ref)*w.
+                    // ---- THE BOUND, queue item C18, closed 2026-09-02 ----
+                    // ⚠ THE WEIGHT USED TO BE UNBOUNDED, and the cap is the
+                    // stock's own Dmax. PROVABLY INERT: ToneCurve::dmax is
+                    // exactly dmin + gamma*(shoulderX - toeX) and the density
+                    // this stage reads is dmin + gamma times a difference of two
+                    // softplus ramps, bounded above by (shoulderX - toeX), so
+                    // D < Dmax for every finite log E and the minimum can never
+                    // bind. Bit-for-bit identical output; bounded by
+                    // construction instead of by accident. Verbatim from the
+                    // scalar unit, one _mm256_min_ps.
                     const __m256 vBase  = _mm256_set1_ps(ALGO_ONE - dw);
                     const __m256 vSlope = _mm256_set1_ps(dw * invRj);
                     const __m256 vRef   = _mm256_set1_ps(ref);
+                    const __m256 vWCap  = _mm256_set1_ps(wCap[j]);
 
                     for (int32_t v = 0; v < vecCount; v++, x += ALGO_AVX2_LANES)
                     {
                         const __m256 d = _mm256_loadu_ps(pD + x);
-                        const __m256 w = _mm256_fmadd_ps(vSlope, d, vBase);
+                        const __m256 w = _mm256_min_ps(
+                            _mm256_fmadd_ps(vSlope, d, vBase), vWCap);
 
                         _mm256_storeu_ps(pE + x,
                             _mm256_mul_ps(_mm256_sub_ps(d, vRef), w));
@@ -1204,7 +1252,8 @@ void AlgoStage08b_Interimage
                     if (tailN > 0)
                     {
                         const __m256 d = _mm256_maskload_ps(pD + x, vTail);
-                        const __m256 w = _mm256_fmadd_ps(vSlope, d, vBase);
+                        const __m256 w = _mm256_min_ps(
+                            _mm256_fmadd_ps(vSlope, d, vBase), vWCap);
 
                         _mm256_maskstore_ps(pE + x, vTail,
                             _mm256_mul_ps(_mm256_sub_ps(d, vRef), w));

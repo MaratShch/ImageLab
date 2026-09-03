@@ -44,6 +44,12 @@
 //  time", the shift is exactly zero, and every render made before this file
 //  existed is reproduced bit for bit.
 //
+//  \warning WIRED INTO THE PIPELINE 2026-09-01. This header was authored
+//  earlier and left unincluded: no translation unit pulled it in, so the C++
+//  engine had no reciprocity model at all while film_sim did. Stage 8 now
+//  takes the shift as a parameter and AlgorithmMain computes it once per
+//  frame. The CC three-digit rule below was added in the same edit.
+//
 //  ONE LAW, TWO LANGUAGES. film_sim.reciprocity_log_shift() is the reference;
 //  cpp_parity.py compiles this header and compares the two over every stock in
 //  the database at a ladder of exposure times.
@@ -121,7 +127,7 @@ inline void AlgoCcFilterShift (const std::string& text, HighPrecType out[3]) noe
             continue;
         }
 
-        // Run of digits: the filter's density in hundredths, as printed.
+        // Run of digits: the filter's density, as printed.
         std::size_t j = i;
         int32_t     v = 0;
 
@@ -130,6 +136,25 @@ inline void AlgoCcFilterShift (const std::string& text, HighPrecType out[3]) noe
             v = (v * 10) + static_cast<int32_t>(text[j] - '0');
             j++;
         }
+
+        // \warning A THREE-DIGIT CC CODE IS THOUSANDTHS, NOT HUNDREDTHS, AND
+        // READING IT WRONG IS A FACTOR OF TEN THAT FLIPS THE SIGN OF THE
+        // RESULT. Every CC code in the corpus was two digits when this header
+        // was first written; AGFA_RSX_II_200 arrived on 2026-09-01 with "075 Y"
+        // printed on agfa_films.pdf p6 - a CC7.5Y, i.e. 0.075 density. Read as
+        // 75/100 it becomes a 0.75-density filter, its blue credit swamps the
+        // 1-stop printed correction, and the shift comes out at +0.449 for
+        // blue: a LONGER exposure making the film FASTER, which no sensitometry
+        // supports. film_sim gained this rule the same day and verify.py's
+        // "reciprocity never increases effective exposure" guard is what caught
+        // it. The give-away inside the data is monotonicity: that row runs
+        // 0 -> 075Y -> 15Y+05C, and 0.075 -> 0.15 ascends while 0.75 -> 0.15
+        // does not.
+        // Bit-for-bit inert for every code that existed before it: CC075Y is
+        // the only three-digit code in the database and the other nine distinct
+        // codes take the unchanged branch.
+        const std::size_t nd = j - i;
+        const bool        thousandths = (nd == 3) && (text[i] == '0');
 
         if (j >= n)
             break;
@@ -155,7 +180,8 @@ inline void AlgoCcFilterShift (const std::string& text, HighPrecType out[3]) noe
         if (known)
         {
             const HighPrecType d =
-                static_cast<HighPrecType>(v) / static_cast<HighPrecType>(100);
+                static_cast<HighPrecType>(v)
+                / static_cast<HighPrecType>(thousandths ? 1000 : 100);
 
             for (int32_t c = 0; c < 3; c++)
             {

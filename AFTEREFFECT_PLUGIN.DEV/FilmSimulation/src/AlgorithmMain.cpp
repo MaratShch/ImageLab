@@ -109,6 +109,8 @@
 #include "AlgoCornerDefocus.hpp"         // stage 6b
 #include "AlgoEmulsionRecord.hpp"        // stage 7
 #include "AlgoCharacteristicCurve.hpp"   // stage 8
+#include "AlgoReciprocity.hpp"           // stage 8, frame constant
+#include "AlgoProcessVariant.hpp"        // frame setup, curve selection
 #include "AlgoInterimage.hpp"            // stage 8b
 #include "AlgoDirCoupler.hpp"            // stage 9
 #include "AlgoNegativeDefects.hpp"       // stage 9b   IMPLEMENTED
@@ -456,8 +458,29 @@ void Algorithm_Main
     //  the effect panel and is pre-validated, and re-testing it here would be
     //  duplicated work on the hot path.
     // -----------------------------------------------------------------------
-    const film::FilmProfile& profile =
+    const film::FilmProfile& profileAsShipped =
         memHandler.pProfileDb[UnderlyingType(algoCtrl.filmProfile)];
+
+    // -----------------------------------------------------------------------
+    //  The chosen PROCESS, resolved before anything reads a curve.
+    //
+    //  A process variant is a different DEVELOPMENT of the same emulsion, and
+    //  where the manufacturer plotted it separately the record carries its own
+    //  traced curve set. Applying it by overriding the profile - rather than by
+    //  handing a curve set to each consumer - is what guarantees the anchor
+    //  solve, stage 8, the grain amplitude and the dupe chain all render the
+    //  same film. See AlgoProcessVariant.hpp.
+    //
+    //  INERT AT THE DEFAULT: processVariant is -1 unless the caller selects
+    //  one, `variantStore` is never written, and the reference below binds
+    //  straight to the database entry.
+    // -----------------------------------------------------------------------
+    film::FilmProfile variantStore;
+
+    const film::FilmProfile& profile =
+        AlgoResolveProcessVariant(profileAsShipped,
+                                  algoCtrl.processVariant,
+                                  variantStore);
 
     // -----------------------------------------------------------------------
     //  Resolve the gauge, and from it every physical frame dimension.
@@ -943,6 +966,33 @@ void Algorithm_Main
                      anchor);
 
     // -----------------------------------------------------------------------
+    //  Reciprocity failure: three numbers for the whole frame.
+    //
+    //  \warning WIRED 2026-09-01, AND UNTIL THEN THIS ENGINE HAD NO RECIPROCITY
+    //  MODEL AT ALL. AlgoReciprocity.hpp had been written, documented and left
+    //  unincluded - no translation unit pulled it in - while film_sim applied
+    //  the correction on every render, so the reference and the plugin
+    //  disagreed on every long exposure of every stock that publishes a table.
+    //  AlgoControl.hpp had already specified `exposureTimeS` for it and marked
+    //  the stage PENDING.
+    //
+    //  There are no pixels to walk: every correction on file is a function of
+    //  TIME alone, so this resolves to three constants that stage 8 adds to the
+    //  logarithm it is computing anyway. Zero per-pixel cost.
+    //
+    //  INERT AT THE DEFAULT. exposureTimeS is 0 unless the caller states a
+    //  shutter time, the shift is then exactly zero, and adding a floating zero
+    //  is the identity - so every render made before this call existed is
+    //  reproduced bit for bit.
+    // -----------------------------------------------------------------------
+    HighPrecType recipShift[3];
+
+    ALGO_PROF_MARK("--   reciprocity");
+    AlgoReciprocityLogShift(profile,
+                            static_cast<HighPrecType>(algoCtrl.exposureTimeS),
+                            recipShift);
+
+    // -----------------------------------------------------------------------
     // 8. CHARACTERISTIC CURVE                              S07 -> S08
     //                                                      log E -> Scr_LogE_*
     //
@@ -958,7 +1008,7 @@ void Algorithm_Main
                                     s08R, s08G, s08B,
                                     logER, logEG, logEB,
                                     sizeX, sizeY, pitch,
-                                    profile, anchor);
+                                    profile, anchor, recipShift);
 
     // -----------------------------------------------------------------------
     // 8b. INTERIMAGE EFFECTS                               S08 -> S08b

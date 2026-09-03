@@ -159,6 +159,17 @@ SHEETS = {
     # CTprecisa, which it does not.
     "vista200": ("AGFA/AGFACOLOR Vista 100, 200, 400, 800.pdf", 6,
                  "AGFA_VISTA_200", (53.4, 179.8, 316.1, 401.6)),
+    # ---- queue T2, 2026-09-02e: the still-film sheets the row asked for ------
+    # ⚠ ONLY EKTAR IS HERE, AND THAT IS THE ROW'S ANSWER, NOT AN OMISSION. T2
+    # named E-4046 (EKTAR 100) and E-7022 (GOLD 200). Both 2016 sheets draw
+    # their curves as VECTOR paths, but only E-4046 CARRIES an MTF panel at all
+    # (E4046D, three records, 1-600 c/mm): E-7022 page 4 prints characteristic,
+    # spectral-sensitivity and spectral-dye-density curves and NO modulation
+    # transfer function, on any of its four pages or in any of the four copies
+    # held. GOLD 200's f50 therefore stays an estimate and the reason is now on
+    # record instead of being an unexplained gap.
+    "ektar100": ("KODAK/e4046_ektar_100-2016.pdf", 4,
+                 "KODAK_EKTAR_100", (346.0, 558.0, 352.0, 514.0)),
 }
 
 #: Measured 2026-08-18/20. --assert fails if a sheet stops reproducing these.
@@ -253,6 +264,22 @@ EXPECTED = {
     },
     # One visual-weighted curve, so it pins the mono key.
     "vista200": {"-": dict(f50=50.0, peak=1.117, peak_at=3.4)},
+    # ---- queue T2, 2026-09-02e ----------------------------------------------
+    # ✅ THE FIRST MEASURED MTF FOR A STILL COLOUR NEGATIVE in this database --
+    # every other traced sheet is a cine stock. ⚠ AND THE ESTIMATE IT REPLACES
+    # WAS 1.5x TOO SHARP on every record: the stored triple was 74.3 / 80.0 /
+    # 87.6 against a measured 35.5 / 52.7 / 54.8. That is the same direction and
+    # very nearly the same size as the error found on 5285 (1.95x), 5222 (1.33x)
+    # and 5231 (1.45x), so it is the estimating RULE showing through again, not
+    # this profile. Layer order comes out R < G < B, which is the order
+    # MTFSpec's docstring predicts and the fourth stock to confirm it.
+    # Verified on the --overlay render: the traced points sit on the printed
+    # curves over the whole 2.5-80.7 c/mm extent.
+    "ektar100": {
+        "R": dict(f50=35.5, peak=1.124, peak_at=9.0),
+        "G": dict(f50=52.7, peak=1.183, peak_at=9.7),
+        "B": dict(f50=54.8, peak=1.070, peak_at=9.0),
+    },
 }
 TOL_F, TOL_P = 1.0, 0.01
 

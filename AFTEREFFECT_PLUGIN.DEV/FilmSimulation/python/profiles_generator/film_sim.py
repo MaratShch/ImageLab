@@ -1100,8 +1100,61 @@ class FreqGrid:
             -2.0 * (math.pi**2) * (s_mm**2) * (self.f_mm.astype(np.float32) ** 2)
         ).astype(np.float32)
 
+    def kernel_transfer(self, sigma_px: float, n: int,
+                        cutoff: float = 4.0) -> np.ndarray:
+        """Exact transfer of the C++ engine's TRUNCATED SEPARABLE Gaussian.
+
+        ⚠ INERT. NO RENDER PATH CALLS THIS. It exists so the parity tooling can
+        PREDICT the production engine's blur instead of tolerating the
+        difference, and it is placed here rather than in the parity script
+        because the formula it implements is the C++ kernel's, and the two must
+        never drift apart.
+
+        WHAT IT IS FOR -- queue A2 / C16, 2026-09-02e. `apply_transfer`
+        multiplies the DFT by the ANALYTIC Gaussian transfer
+        exp(-2 pi^2 sigma^2 f^2); `AlgoGaussianBlurPlaneWrap` convolves with a
+        SAMPLED Gaussian truncated at ``cutoff`` sigma (half = ceil(4 sigma),
+        minimum 1) and renormalised to unit sum. Those are different operators
+        and C16 measured the difference empirically: "6e-5 above ~1.2 px,
+        diverging to 1.5e-1 at 0.4 px". This function makes it exact.
+
+        ⚠ AND THE MEASUREMENT THAT EXPLAINS THE 1.2 px. The divergence is not a
+        gradual loss of accuracy in the kernel; it is ALIASING, and it lives
+        entirely at Nyquist. A spatial kernel's transfer is periodic in
+        frequency, so what it applies is the PERIODISED analytic transfer,
+        sum over m of T(f + m). At f = Nyquist the m = -1 image lands exactly on
+        the m = 0 term and the transfer is DOUBLED. Measured on a 1024-sample
+        grid, kernel transfer at Nyquist against analytic:
+            sigma 0.60 px   0.3379 vs 0.1692   ratio 2.00
+            sigma 0.80 px   0.0850 vs 0.0425   ratio 2.00
+            sigma 1.00 px   0.0144 vs 0.0072   ratio 2.00
+            sigma 1.20 px   0.0016 vs 0.0008   ratio 2.00
+        The ratio is 2.00 at every sigma. ⚠ SO THE TWO FORMS DO NOT CONVERGE
+        ABOVE 1.2 px BECAUSE THE KERNEL GETS BETTER -- it does not, it is always
+        exactly twice as high at Nyquist. They converge because T(Nyquist)
+        itself falls to zero, and twice a vanishing number vanishes. The "1.2
+        px" in C16's row is the sigma at which 2*T(Nyquist) drops below 1e-3;
+        nothing changes about the kernel there.
+        ⚠ BELOW ABOUT 0.8 px THE CLOSED FORM STOPS HOLDING, because the
+        truncation at 4 sigma and the renormalisation that follows it become
+        significant: at sigma 0.4 the support is 5 taps and the periodised
+        prediction is 8.5e-2 away from the actual kernel, at sigma 0.25 it is
+        3 taps and 6.0e-1 away. That is why this function builds the taps and
+        transforms them rather than summing images of T -- for a five-tap
+        renormalised kernel only the taps themselves are the truth.
+        """
+        half = max(1, int(math.ceil(cutoff * float(sigma_px))))
+        x = np.arange(-half, half + 1, dtype=np.float64)
+        k = np.exp(-0.5 * (x / float(sigma_px)) ** 2)
+        k /= k.sum()
+        lag = np.zeros(int(n), dtype=np.float64)
+        for i, xx in enumerate(x.astype(int)):
+            lag[xx % int(n)] += k[i]
+        return np.real(np.fft.rfft(lag))
+
     def mtf(self, f50_cpmm: float, adjacency: float, adjacency_um: float,
-            spec: "fp.MTFSpec | None" = None, channel: int = 1) -> np.ndarray:
+            spec: "fp.MTFSpec | None" = None, channel: int = 1,
+            use_kernel: bool = False) -> np.ndarray:
         """Emulsion or scanner MTF, 50% modulation at ``f50_cpmm``.
 
         50 % at ``f50_cpmm`` exactly, optionally multiplied by a mild
@@ -1117,7 +1170,13 @@ class FreqGrid:
         Both laws are exactly 0.5 at f50, so a stock gaining a measured rolloff
         changes shape and NOT level. See fp.mtf_response.
         """
-        if spec is not None:
+        if spec is not None and use_kernel:
+            # The two-lobe separable form the C++ twins convolve. Falls back to
+            # the law itself when the stock's q is not tabulated, exactly as the
+            # C++ side falls back to its legacy Gaussian.
+            t = fp.mtf_kernel_response(spec, channel,
+                                       self.f_mm).astype(np.float32)
+        elif spec is not None:
             t = fp.mtf_response(spec, channel, self.f_mm).astype(np.float32)
         else:
             t = np.exp(
@@ -1268,11 +1327,83 @@ def _cc_filter_shift(text: str) -> tuple[float, float, float]:
         if j >= len(s) or s[j] not in _CC_ATTENUATES:
             i = j + 1
             continue
-        dens_cc = int(s[i:j]) / 100.0
+        # ⚠ A THREE-DIGIT CC CODE IS THOUSANDTHS, NOT HUNDREDTHS, AND READING
+        # IT WRONG IS A FACTOR OF TEN THAT FLIPS THE SIGN OF THE RESULT.
+        # Every CC code in the corpus was two digits until 2026-09-01, when
+        # AGFA_RSX_II_200 arrived with "075 Y" printed on agfa_films.pdf p6 --
+        # a CC7.5Y, i.e. 0.075 density. Read as 75/100 it became a 0.75-density
+        # filter, its blue credit swamped the 1-stop printed correction, and
+        # `reciprocity_log_shift` returned +0.449 for blue: a LONGER exposure
+        # making the film FASTER, which no sensitometry supports. verify.py's
+        # "reciprocity never increases effective exposure" guard caught it.
+        # The give-away inside the data is monotonicity: that row runs
+        # 0 -> 075Y -> 15Y+05C, and 0.075 -> 0.15 ascends while 0.75 -> 0.15
+        # does not.
+        # ⚠ BIT-FOR-BIT INERT FOR EVERY STOCK THAT EXISTED BEFORE IT. CC075Y
+        # is the only three-digit code in the database; the other nine distinct
+        # codes are two-digit and take the unchanged branch.
+        _digits = s[i:j]
+        dens_cc = (int(_digits) / 1000.0
+                   if len(_digits) == 3 and _digits[0] == "0"
+                   else int(_digits) / 100.0)
         for c in _CC_ATTENUATES[s[j]]:
             out[c] += dens_cc
         i = j + 1
     return tuple(out)                  # type: ignore[return-value]
+
+
+def resolve_process_variant(profile, index: int):
+    """The profile as a chosen PROCESS renders it. Returns `profile` unchanged
+    when nothing is chosen, so this is inert by default.
+
+    ⚠ WHAT A VARIANT IS AND WHAT IT IS NOT. `ProcessVariant` records a
+    DIFFERENT DEVELOPMENT of the same emulsion -- a push, a cross-process, an
+    alternate kit -- and where the manufacturer plotted that development
+    separately the record carries its own traced ToneCurve set. Selecting one
+    is therefore not a tweak to the stored curve: it is a different measured
+    curve for the same film, which is exactly why it is applied by REPLACING
+    the profile's curves rather than by scaling them.
+
+    ⚠ 24 VARIANTS EXIST ACROSS 6 STOCKS AND ONLY 5 OF THEM CHANGE A PIXEL.
+    Four carry their own curves -- PORTRA 800 at EI 1600 and EI 3200, and
+    ULTRA COLOR 400UC as E-190 prints it and at EI 800 -- and CINESTILL 800T's
+    Cs2 two-bath kit carries `gamma_scale` 0.879. The other nineteen differ
+    only in `exposure_index`, which no renderer reads, so selecting one of
+    those is a no-op and is left as one rather than being given an invented
+    effect. The AGFAPAN developer variants are the whole of that nineteen:
+    Agfa print an exposure index per developer and no second curve.
+
+    `index` is an index into `profile.process_variants`; anything outside the
+    range, and any variant that is the profile's own default, returns the
+    profile untouched.
+    """
+    if index is None or index < 0:
+        return profile
+    variants = getattr(profile, "process_variants", ())
+    if not variants or index >= len(variants):
+        return profile
+    v = variants[index]
+
+    curves = profile.curves
+    if getattr(v, "curves", None) is not None:
+        curves = v.curves
+    elif v.gamma_scale != 1.0 or v.dmin_shift != 0.0:
+        # ⚠ THE COEFFICIENT IS SCALED, NOT THE OBSERVABLE SLOPE, and the record
+        # means the coefficient: `ProcessVariant.gamma_scale` is documented as
+        # multiplying `ToneCurve.gamma`, which is the model parameter. On a
+        # curve whose knees are far apart the two are the same number to within
+        # a per cent; where they are not, the variant that cares carries its own
+        # curves instead and never reaches this branch.
+        curves = RGBCurves(
+            *[replace(c,
+                      gamma=c.gamma * v.gamma_scale,
+                      dmin=c.dmin + v.dmin_shift)
+              for c in profile.curves.as_tuple()]
+        )
+    if curves is profile.curves and not v.exposure_index:
+        return profile
+    ei = v.exposure_index or profile.exposure_index
+    return replace(profile, curves=curves, exposure_index=ei)
 
 
 def reciprocity_log_shift(profile, exposure_time_s: float) -> tuple[float, ...]:
@@ -1461,6 +1592,29 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
     # reference so a neutral stays untouched either way -- that property
     # is the whole point of the stage and must survive the mechanism split.
     dw = float(iie.density_weighting)
+    # ---- THE BOUND, queue item C18, closed 2026-09-02 ---------------------
+    # ⚠ THE WEIGHT USED TO BE UNBOUNDED, AND THAT WAS THE WHOLE OF C18. The
+    # weight is (1 - dw) + dw * D_j / D_ref, so it grows without limit in the
+    # density it is handed, and `density_weighting` is the largest undocumented
+    # number in the colour path -- 0.65 on 36 reversal stocks, magnitude tier 3,
+    # worst-case correction -0.58 logE on VELVIA 50.
+    #
+    # ⚠ THE CAP IS THE STOCK'S OWN Dmax AND IT IS PROVABLY INERT, which is why
+    # it can land without the D1/D2 measurement C18 was waiting for.
+    # `ToneCurve.dmax` is not a stored guess: it is exactly the asymptote
+    # dmin + gamma*(shoulder_x - toe_x), and `density()` is dmin + gamma times a
+    # DIFFERENCE OF TWO SOFTPLUS RAMPS, which is strictly increasing and bounded
+    # above by (shoulder_x - toe_x). So D_j < dmax for every finite log E, on
+    # both the negative and the reversal branch, and this minimum can never
+    # bind. Every render is bit-for-bit what it was; what changes is that the
+    # expression is now bounded by construction instead of by the accident that
+    # nothing upstream has ever handed it a density above Dmax.
+    #
+    # What it does NOT do is supply the saturating FORM with a measured
+    # asymptote that C18 actually wants. That still needs the wedge
+    # measurement; a cap at Dmax is the honest bound available without one,
+    # and inventing a saturation constant would have been the other kind of
+    # answer. `verify.py` asserts the cap is non-binding across the database.
     delta = None
     for _ in range(int(iie.iterations)):
         delta = [dens[:, :, j] - np.float32(d_ref[j]) for j in range(3)]
@@ -1468,6 +1622,8 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
             for j in range(3):
                 ref = max(d_ref[j], 1e-4)
                 wj = (1.0 - dw) + dw * (dens[:, :, j] / np.float32(ref))
+                w_cap = (1.0 - dw) + dw * (float(curves[j].dmax) / ref)
+                np.minimum(wj, np.float32(w_cap), out=wj)
                 delta[j] = delta[j] * wj.astype(np.float32)
         for c in range(3):
             adj = np.zeros((h, w), dtype=np.float32)
@@ -1639,6 +1795,139 @@ def reseau_reconstruct(
 # ===========================================================================
 # Grain synthesis
 # ===========================================================================
+
+# ---------------------------------------------------------------------------
+#  TEMPORAL GRAIN -- queue C7, closed 2026-09-02
+# ---------------------------------------------------------------------------
+#: Honjo 1989 §4 (Техника кино и телевидения 1989 №4, the Fuji symposium paper
+#: already cited on the F-series stocks): at 24 frames per second the eye
+#: INTEGRATES over about 0.2 s, i.e. about five frames. Grain is re-rolled every
+#: frame and is zero-mean, so five independent samples average down by 1/sqrt(5)
+#: and the granularity a viewer perceives in PLAYBACK is 0.447 of what the same
+#: emulsion shows in a frozen frame.
+HONJO_EYE_INTEGRATION_S: float = 0.2
+
+#: The upper bound on how many frames may be averaged. Beyond a handful the
+#: assumption behind the sqrt law -- independent, stationary grain in a static
+#: scene -- stops holding: real footage moves, and motion decorrelates the
+#: retinal average long before the arithmetic runs out. Capped rather than
+#: extrapolated.
+TEMPORAL_GRAIN_MAX_FRAMES: float = 8.0
+
+
+def temporal_grain_scale(fps: float,
+                         integration_s: float = HONJO_EYE_INTEGRATION_S
+                         ) -> float:
+    """Grain amplitude a MOVING image should carry, relative to a still frame.
+
+    ⚠ THIS IS NOT APPLIED ANYWHERE, AND THAT IS THE DECISION RATHER THAN AN
+    OVERSIGHT. Queue C7 asked whether the still-frame grain amplitude is 2.24x
+    too strong in playback. The physics says yes; the product question -- is this
+    plugin judged frame by frame in a viewer, or in motion on a timeline? -- has
+    two honest answers and only one can be the default.
+
+    The default stays 1.0, i.e. STILL-FRAME CALIBRATION, for three reasons that
+    are about evidence rather than taste:
+
+    1. **Every granularity measurement this database holds is a STILL
+       measurement.** rms through a 48 um aperture, Wiener spectra, Selwyn
+       constants -- all made on a stationary sample. A renderer whose default
+       silently divided them by 2.24 would stop reproducing the numbers it is
+       calibrated against, and every parity test and reference render in this
+       project would then be checked against a quantity no document states.
+    2. **It is not reversible by a user who does not know the rule.** Someone who
+       thinks the grain is too weak can raise `grain_scale`; someone who does not
+       know 0.447 was already applied cannot tell whether they are correcting the
+       emulsion or correcting the model.
+    3. **The correction is one multiply on a control that already exists.** Both
+       engines carry `grainScale`, so a host that wants motion-correct grain sets
+       `grain_scale = temporal_grain_scale(fps)` and has it. Nothing was added to
+       `FilmProfile`, nothing to the C++ stage list, and no shipped render moves.
+
+    At 24 fps with the printed 0.2 s this returns 1/sqrt(4.8) = 0.4564; the
+    queue's own 1/sqrt(5) = 0.4472 comes from rounding the same 0.2 s to five
+    frames.
+    """
+    n = float(fps) * float(integration_s)
+    n = min(max(n, 1.0), TEMPORAL_GRAIN_MAX_FRAMES)
+    return 1.0 / math.sqrt(n)
+
+
+# ---------------------------------------------------------------------------
+#  sigma(D) <-> sigma(T), TO FOURTH ORDER -- Takano 1969 eq (2)
+# ---------------------------------------------------------------------------
+#: Kiyoshi Takano, «写真フィルムの粒状性» / "Granularity of Photographic Film",
+#: テレビジョン (J. Inst. Telev. Engrs. Japan) 23(1) 13-23 (1969), §3.2 (1),
+#: printed equation (2), with T = 10^-D:
+#:
+#:     sigma(D) = 0.434 * (sigma(T)/T_bar)
+#:                * [ 1 + (1/12)(sigma(T)/T_bar)^2
+#:                      + (1/80)(sigma(T)/T_bar)^4 + ... ]
+#:
+#: ⚠ WHY THIS IS HERE AND NOT IN A DERIVATION SCRIPT. Every granularity figure
+#: this project stores is one of these two quantities, and the two are NOT
+#: interchangeable: rms granularity as the industry quotes it is sigma(T) read
+#: through a 48 um aperture, while `GrainSpec.sigma_shape_*` and everything the
+#: renderer does with grain live in DENSITY. The corpus converted between them
+#: with the FIRST term alone -- sigma_D = 0.4343 * sigma_t / t_bar -- and that
+#: approximation is exactly what failed on BBC Report T-101 Fig. 26, whose
+#: measured sigma(T)/T_bar runs 0.39 to 1.64: the law `sigma_D = 0.648*D^0.665`
+#: fitted from it was WITHDRAWN for that reason (see the ILFORD_HPS provenance
+#: note in film_profiles.py). Takano prints the correction the corpus needed.
+#:
+#: ⚠ NOTHING ON THE RENDER PATH CALLS THIS. It is a derivation helper: readers
+#: and provenance work use it to move a stated sigma(T) into density before it
+#: is stored. Adding it moves no pixel on any stock.
+SIGMA_T_SERIES_C2: float = 1.0 / 12.0
+SIGMA_T_SERIES_C4: float = 1.0 / 80.0
+
+
+def sigma_density_from_transmittance(sigma_over_t: float) -> float:
+    """sigma(D) from the ratio sigma(T)/T_bar, by Takano 1969 eq (2).
+
+    Args:
+        sigma_over_t: sigma(T) divided by mean transmittance, dimensionless.
+            This is the whole argument -- the series depends on the RATIO only,
+            not on T_bar and sigma(T) separately, which is why a stated rms
+            granularity can be converted without knowing the density it was
+            measured at.
+
+    Returns:
+        sigma(D) in density units.
+
+    The series is asymptotic in the ratio and Takano prints three terms. At the
+    ratio 0.39 that T-101 Fig. 26's cleanest sample gives, the correction over
+    the first-order form is +1.3 %; at its worst sample, ratio 1.64, it is
+    +31 %. Below about 0.2 the difference is under 0.4 % and the first-order
+    form is adequate -- which is why the corpus got away with it for so long.
+    """
+    r = float(sigma_over_t)
+    return 0.434 * r * (1.0 + SIGMA_T_SERIES_C2 * r ** 2
+                        + SIGMA_T_SERIES_C4 * r ** 4)
+
+
+def sigma_transmittance_from_density(sigma_d: float,
+                                     tol: float = 1e-15,
+                                     max_iter: int = 60) -> float:
+    """The inverse of :func:`sigma_density_from_transmittance`.
+
+    Newton on the printed series. Monotone for every ratio the series is
+    meaningful over, so the iteration cannot land on a second root; it is
+    written out rather than approximated because the whole point of carrying
+    the higher terms is that the round trip closes.
+    """
+    target = float(sigma_d)
+    r = target / 0.434                      # first-order seed
+    for _ in range(max_iter):
+        f = sigma_density_from_transmittance(r) - target
+        if abs(f) < tol:
+            break
+        d = 0.434 * (1.0 + 3.0 * SIGMA_T_SERIES_C2 * r ** 2
+                     + 5.0 * SIGMA_T_SERIES_C4 * r ** 4)
+        r -= f / d
+    return r
+
+
 def _trapz(y: np.ndarray, x: np.ndarray) -> float:
     """Trapezoidal integration, tolerating the numpy 1.x / 2.x rename."""
     fn = getattr(np, "trapezoid", None) or np.trapz
@@ -1779,6 +2068,18 @@ def write_png(path: Path, rgb: np.ndarray, bit_depth: int = 16) -> None:
 @dataclass(slots=True)
 class RenderSettings:
     """Everything about the render that is not the film stock itself."""
+    #: Render the emulsion MTF through the SEPARABLE KERNEL the C++ engines use
+    #: instead of the exact frequency-domain law.
+    #:
+    #: ⚠ ADDITIVE AND OFF BY DEFAULT. Python keeps the exact law as the
+    #: reference -- that is the whole point of having a reference -- and this
+    #: switch exists so the three implementations can be compared on the SAME
+    #: arithmetic. With it off, Python and C++ differ on the 22 measured stocks
+    #: by the kernel's fit error (worst 0.0384 in modulation); with it on, they
+    #: should agree to floating-point noise. Turning it on makes Python LESS
+    #: accurate, which is why it is not the default.
+    mtf_use_kernel: bool = False
+
 
     film_format: str = "super35"
     print_stock: str = ""           # "" = use the stock's own default
@@ -1793,6 +2094,11 @@ class RenderSettings:
     # -- and every sheet on file prints "no correction needed" across exactly
     # -- that span. The corrections live beyond 1 s and below 1e-4 s.
     exposure_time_s: float = 0.0
+    #: Index into the stock's own `process_variants`, or -1 for the
+    #: development the stored curves represent. See
+    #: `resolve_process_variant`: only 5 of the 24 recorded variants
+    #: change a pixel, and the rest are inert on purpose.
+    process_variant: int = -1
     scene_kelvin: float = 5500.0
     wb_strength: float = 0.0
     grey_target: float = 0.18       # display linear value for 18% scene grey
@@ -2142,6 +2448,13 @@ def simulate(
     Returns:
         (h, w, 3) float32 linear light, display referred.
     """
+    # ⚠ FIRST, BEFORE ANYTHING READS A CURVE. The anchor solve, stage 8, the
+    # grain amplitude and the dupe chain all read `profile.curves`, so a variant
+    # that replaced them later would leave the solve anchored to a development
+    # the frame is not being given. Replacing the profile here means every
+    # consumer downstream sees one consistent film.
+    profile = resolve_process_variant(profile, settings.process_variant)
+
     h, w = linear_rgb.shape[:2]
     negative_width_mm = FORMATS[settings.film_format]
     px_per_mm = w / negative_width_mm
@@ -2332,7 +2645,8 @@ def simulate(
     f50s = profile.mtf.f50s()
     for c in range(3):
         t = grid.mtf(f50s[c], profile.mtf.adjacency, profile.mtf.adjacency_um,
-                     spec=profile.mtf, channel=c)
+                     spec=profile.mtf, channel=c,
+                     use_kernel=settings.mtf_use_kernel)
         exposure[:, :, c] = apply_transfer(exposure[:, :, c], t)
     np.maximum(exposure, np.float32(0.0), out=exposure)
 

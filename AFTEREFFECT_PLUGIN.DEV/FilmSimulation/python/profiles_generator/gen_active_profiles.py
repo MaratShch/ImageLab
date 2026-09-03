@@ -157,8 +157,20 @@ PROPS = [
     ("MTF / Resolving Power", "mtf"),
     ("Halation", "halation"),
     ("Film Base Properties", "base"),
+    ("Emulsion Designation", "desig"),
     ("Emulsion Properties", "emul"),
     ("Processing Characteristics", "proc"),
+    # ⚠ SPLIT OUT OF "Processing Characteristics" 2026-09-01. It was printed
+    # inside that cell, so a documented densitometry status and speed criterion
+    # made the whole cell plain and carried the Callier coefficient along with
+    # it. `callier_q` is assigned by RULE in `film_profiles._apply_schema_v2`
+    # (1.25 reversal / 1.30 negative / 1.00 where the effect is off) and NOT ONE
+    # of the stocks has a ParamSource record for it -- including
+    # EASTMAN_TRI_X_5223, whose T-101 Fig. 25 is the only real Callier
+    # measurement in the corpus and which explicitly left `callier_q`
+    # unchanged. So this column is red on every row, by construction, and that
+    # is the correct report.
+    ("Callier Coefficient", "callier"),
     ("Exposure Latitude", "lat"),
     ("Dynamic Range", "dr"),
     ("Color Characteristics", "colour"),
@@ -524,8 +536,28 @@ def evaluate(p, block: str) -> dict[str, str]:
         or p.mtf.resolving_power_lp_mm_highc > 0.0
         or _documented_near(block, "mtf")
     )
-    for key in ("base", "emul", "proc", "lat", "dr", "phys"):
+    for key in ("base", "emul", "proc", "phys"):
         res[key] = mark(_documented_near(block, key))
+    # ⚠ `lat` AND `dr` LEFT THE PROSE-PROXIMITY LOOP 2026-09-01. Both print a
+    # number computed from the stored ToneCurve and nothing else, so the only
+    # question that decides their standing is whether that curve is documented
+    # and usable. See the note at c_lat / c_dr.
+    _curve_ok = res["hd"] == "+" and not p.curves.g.is_degenerate
+    res["lat"] = mark(_curve_ok)
+    res["dr"] = mark(_curve_ok)
+    # ⚠ NOT a prose-proximity question. The Callier coefficient is either
+    # carried by a recorded ParamSource on `callier_q` or it is the class
+    # default, and no amount of processing prose nearby changes which. Asking
+    # `_documented_near` would let a developer/time table plainly colour a
+    # number that came from a two-branch rule.
+    res["callier"] = mark(p.source_for("callier_q") is not None)
+    # ⚠ THE DESIGNATION COLUMN IS NEVER MARKED, and that is deliberate. This
+    # field can hold only a value copied from a document -- there is no
+    # heuristic that fills it and the honest alternative is "" -- so a
+    # populated cell is documented by construction and an empty one prints an
+    # explicit `-`. Running it through `mark()` would ask the prose-proximity
+    # test a question it cannot answer and would colour a printed film code red.
+    res["desig"] = mark(True)
     res["halation"] = mark(p.name in _HALATION_MEASURED)
     res["colour"] = mark(
         (not p.is_monochrome) and _documented_near(block, "colour")
@@ -697,6 +729,17 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     c_shape = ("-" if _shape == (0.0, 1.0, 0.0)
                else mk("sigma_shape", "%.2f/%.2f/%.2f" % _shape))
 
+    # ⚠ f50 AND RESOLVING POWER ARE MARKED SEPARATELY, AND THEY DID NOT USED TO
+    # BE. Both lived in one cell, so a single `mk()` call had to pick one colour
+    # for two parameters with different provenance -- and it picked the worse
+    # one. Every AGFAPAN row printed "f50 80/80/80 c/mm  RP 150 lp/mm @1000:1"
+    # entirely in red, which reads as "Agfa publish no resolving power". Agfa
+    # print 150 lines/mm on the film's own column and it is stored; only f50 is
+    # an estimate, and deliberately so while queue G6 is open. One cell cannot
+    # carry two provenances, so it is now two spans.
+    # RESOLVING POWER IS NEVER ESTIMATED IN THIS DATABASE. The field is only
+    # ever written from a printed figure -- there is no heuristic that fills it
+    # -- so a populated value is documented by construction and prints plain.
     rp = ""
     if m.resolving_power_lp_mm_highc > 0:
         if m.resolving_power_lp_mm_lowc > 0:
@@ -705,7 +748,7 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
         else:
             # several sheets print only the 1000:1 figure
             rp = "  RP %.0f lp/mm @1000:1" % m.resolving_power_lp_mm_highc
-    c_mtf = mk("mtf", "f50 %.0f/%.0f/%.0f c/mm%s" % (m.f50_r, m.f50_g, m.f50_b, rp))
+    c_mtf = mk("mtf", "f50 %.0f/%.0f/%.0f c/mm" % (m.f50_r, m.f50_g, m.f50_b)) + rp
 
     # HALATION, added 2026-08-27 at the owner's request. It had no column at
     # all, which for a rendered, plainly visible effect made this report
@@ -729,10 +772,21 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
         if p.name in _HALATION_THIRDPARTY:
             c_hal += " [3rd-party T3, gain+thr only]"
 
+    # ⚠ THE SUPPORT IS PUBLISHED AND THE TINT IS NOT, so this cell prints them
+    # separately (schema v23, 2026-09-01). Twelve Agfa stocks print "Film base:
+    # 135 = 120 um" beside their layer thickness and the whole cell was marked
+    # as an estimate for want of a carrier -- not for want of a source. The
+    # thickness is only ever written from a printed figure, so it prints plain;
+    # `base_tint` remains the model's own estimate on every stock in the
+    # database and keeps its own mark.
     base = "tint %s" % _tri(p.base_tint)
     if Feature.NITRATE_BASE in p.features:
         base += ", nitrate"
     c_base = mk("base", base)
+    if p.emulsion.base_um > 0.0:
+        c_base += ", base %.0f um" % p.emulsion.base_um
+        if p.emulsion.base_material:
+            c_base += " %s" % p.emulsion.base_material
 
     if mono:
         emul = "single silver layer"
@@ -744,11 +798,49 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
         emul = "tripack, dye cloud %.1f um" % g.dye_cloud_um
     emul += ", misreg %.1f um" % p.misregistration_um
     c_emul = mk("emul", emul)
+    # Coated thickness, schema v22/v23. Published on twelve Agfa stocks and on
+    # nothing else in the database; only ever written from a printed figure.
+    if p.emulsion.coated_um > 0.0:
+        c_emul += ", coated %.0f um" % p.emulsion.coated_um
 
-    c_proc = mk("proc", "%s; %s; Callier q %.2f" % (
+    # ⚠ THE MANUFACTURER'S OWN EMULSION IDENTIFIER, OR AN EXPLICIT `-`. Schema
+    # v23. A blank cell would read as "not checked"; `-` says "checked, and no
+    # reliable identifier is published". Every populated value is copied from
+    # the profile's own cited source text -- never synthesised from its name,
+    # which is how a first attempt produced "1936" for AGFACOLOR_NEU_1936 and
+    # "3200" for ILFORD_DELTA_3200. It prints PLAIN when present because this
+    # field can only ever hold a documented value: there is no heuristic that
+    # fills it, and "" is the honest alternative.
+    c_desig = p.emulsion.designation if p.emulsion.designation else "-"
+
+    # Reciprocity table and processing family, both populated by the 2026-09-01
+    # AGFA harvest and both previously invisible in this report: a stock could
+    # carry a manufacturer reciprocity table and a five-developer gamma-time
+    # family and the row would show only the fitted Schwarzschild exponent.
+    _extra = []
+    if p.reciprocity_table.has_data:
+        _extra.append("recip table %d pts" % len(p.reciprocity_table.times_s))
+        # ⚠ SCHEMA v24. Printed beside the exposure correction on the same time
+        # cells and invisible in this report until 2026-09-01. A stated row of
+        # ZEROS is data (AGFA_APX_25) and is shown as such, not skipped.
+        _dc = p.reciprocity_table.development_correction_pct
+        if _dc:
+            _extra.append("dev corr %s %%"
+                          % "/".join("%g" % v for v in _dc))
+    if p.processing_family.has_data:
+        _devs = sorted({q.developer for q in p.processing_family.points})
+        _extra.append("gamma-time %d pts / %d dev"
+                      % (len(p.processing_family.points), len(_devs)))
+    if p.process_variants:
+        _extra.append("%d process variants" % len(p.process_variants))
+
+    c_proc = mk("proc", "%s; %s" % (
         DENSITY_STD.get(p.density_metric, p.density_metric),
-        SPEED_STD.get(p.speed_criterion, p.speed_criterion),
-        p.callier_q))
+        SPEED_STD.get(p.speed_criterion, p.speed_criterion)))
+    if _extra:
+        c_proc += "; " + "; ".join(_extra)
+    # Its own cell since 2026-09-01 -- see the note in PROPS.
+    c_callier = mk("callier", "q %.2f" % p.callier_q)
     # ⚠ TIGHTENED 2026-08-27 (owner asked whether this file can be trusted).
     # These two cells print numbers DERIVED FROM THE STORED CURVE --
     # `ToneCurve.latitude_stops` is (shoulder_x - toe_x) * 3.3219 and
@@ -759,9 +851,29 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     # sheet quoted an unrelated latitude or Dmax. A derived number can be no
     # better evidenced than the curve it comes from, so both now require the
     # H&D cell to be documented as well.
-    c_lat = mk("lat" if ev["hd"] == "+" else "_never", "%.1f stops"
-               % cv.g.latitude_stops)
-    c_dr = mk("dr" if ev["hd"] == "+" else "_never", "Dmax %.2f, range %.2f"
+    # ⚠ REVISED 2026-09-01. The two cells were asking DIFFERENT questions of
+    # the same evidence and the AGFAPAN rows showed it: APX 100 printed its
+    # latitude plain and its Dmax red off one traced curve, because the word
+    # "latitude" appears in that profile's prose and "Dmax" does not. Whether a
+    # datasheet happens to also quote an unrelated latitude or density range
+    # cannot change the standing of a number computed from the curve, so both
+    # now key on the CURVE ALONE -- documented H&D, and a curve that is not
+    # degenerate. That flips the Dynamic Range cell plain on the stocks whose
+    # Exposure Latitude was already plain, and it is the same evidence in both.
+    # ⚠ AND THE Dmax IS LABELLED `asym` BECAUSE THAT IS WHAT IT IS:
+    # `ToneCurve.dmax` is dmin + gamma*(shoulder_x - toe_x), the model's
+    # ASYMPTOTE, which the drawn curve reaches only if it actually shouldered
+    # inside the traced range. Measured against the plotted maxima on the 1998
+    # Agfa sheet the two agree to 0.003-0.010 D on APX 25 and 100 but part by
+    # 0.072 on APX 400, 0.085 on RSX II 50 and 0.207 on OPTIMA 100. So a plain
+    # cell here certifies the CURVE, not that the film was measured to reach
+    # this density. Closing that last gap needs the drawn maximum stored at
+    # trace time; it is not in the schema and is not invented here.
+    # `ev["lat"]` and `ev["dr"]` are both `mark(documented curve, not
+    # degenerate)`; the test itself lives in `evaluate` so the coverage summary
+    # counts the same thing the cells print.
+    c_lat = mk("lat", "%.1f stops" % cv.g.latitude_stops)
+    c_dr = mk("dr", "Dmax(asym) %.2f, range %.2f"
               % (cv.g.dmax, cv.g.dmax - cv.g.dmin))
 
     if mono or not ii.active:
@@ -799,7 +911,8 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     # Cell order MUST match PROPS, or the per-stock table silently misaligns:
     # the header is built from PROPS and the rows from this list.
     return [c_spec, c_hd, c_curves, c_used, c_grain, c_rms, c_shape, c_mtf,
-            c_hal, c_base, c_emul, c_proc, c_lat, c_dr, c_col, c_phys]
+            c_hal, c_base, c_desig, c_emul, c_proc, c_callier, c_lat, c_dr,
+            c_col, c_phys]
 
 
 def _iie_pct(p):
@@ -860,6 +973,9 @@ def main() -> int:
     # cannot go stale the way a hand-written summary does.
     _n = len(fp.FILM_PROFILES)
     _sig = sum(1 for q in fp.FILM_PROFILES if q.grain.sigma_shape_measured)
+    # Counted live: this number was hardcoded 55 in the sigma(D) row.
+    _mononeg = sum(1 for q in fp.FILM_PROFILES
+                   if q.is_monochrome and not q.is_reversal)
     _mtfm = sum(1 for q in fp.FILM_PROFILES if q.mtf.mtf_measured)
     _spec = sum(1 for q in fp.FILM_PROFILES
                 if getattr(q, "spectral", None) and q.spectral.has_data)
@@ -894,10 +1010,15 @@ def main() -> int:
     w(f"| Grain sigma(D) shape | **{_sig}** | {_n - _sig} | raster granularity "
       f"pages remain on disk (39 inventoried). \u26a0 EVERY MEASURED SHAPE IS STILL "
       f"KODAK -- 11 colour negatives, 1 colour reversal, 1 B&W reversal -- so "
-      f"every non-Kodak sigma(D) is unmeasured, and the 55 MONOCHROME NEGATIVES "
-      f"carry a default the one measured B&W shape contradicts in DIRECTION. "
-      f"Queue F2b: one granularity-vs-density plot for a named B&W negative at a "
-      f"stated aperture |")
+      f"every non-Kodak sigma(D) is unmeasured, and the {_mononeg} MONOCHROME "
+      f"NEGATIVES carry a default that is TOO SHALLOW AT D-MAX -- not, as this "
+      f"line claimed until 2026-09-01, backwards. Measured against "
+      f"`KODAK_TRI_X_REVERSAL_200`, the only B&W stock with a traced shape, "
+      f"both the legacy sqrt(D-dmin+fog) law and the measurement RISE toward "
+      f"D-max; the law gives 0.218 / 1.000 / 1.446 at toe / net 1.0 / D-max "
+      f"against a measured 0.218 / 1.000 / 1.994, so it is about 38 % low at "
+      f"the top end. Queue F2b: one granularity-vs-density plot for a named "
+      f"B&W negative at a stated aperture |")
     w(f"| MTF rolloff shape | **{_mtfm}** | {_n - _mtfm} | 199 vector MTF pages "
       f"inventoried, 26 curves on 12 sheets traced (queue C2b). \u26a0 ONE OF THE "
       f"{_mtfm} IS NOT PER-LAYER: KONICA_IMPRESA_50's sheet prints a single "
@@ -1163,11 +1284,88 @@ def main() -> int:
       "other populated cell is the model's own estimate |")
     w("| Film Base Properties | base transmittance tint R/G/B, base material "
       "when notable |")
+    w("| Emulsion Designation | the MANUFACTURER'S OWN identifier for the "
+      "emulsion behind this product, exactly as the source prints it -- "
+      "Kodak/Eastman cine film codes (`5219/7219`), Kodak still B&W letter "
+      "codes (`TMX`, `TMZ`), Agfa's printed colour-negative Negative code "
+      "(`49-14`). A pair like `5219/7219` is ONE emulsion slit two ways, 35 mm "
+      "and 16 mm, and is written as the sheet writes it. ⚠ **`-` means no "
+      "reliable identifier is published for that film**, which is a checked "
+      "statement and not an unfilled cell: 45 of 170 stocks carry one. Every "
+      "value is attested in that profile's own cited source text; none is "
+      "derived from its NAME, because a rule that read four-digit groups out "
+      "of names returned years (`1936`), speeds (`3200`) and Data Book "
+      "editions (`1952`) for nineteen stocks. `CINESTILL_800T` carries "
+      "`5219/7219` although its name contains no code at all, because it is "
+      "VISION3 500T with the remjet stripped and CineStill say so in print -- "
+      "which is the correlation this column exists to make visible |")
     w("| Emulsion Properties | layer architecture, dye cloud size, channel "
-      "misregistration |")
-    w("| Processing Characteristics | densitometry status and speed criterion |")
-    w("| Exposure Latitude | toe-to-shoulder span of the green record, stops |")
-    w("| Dynamic Range | asymptotic Dmax and Dmax-Dmin of the green record |")
+      "misregistration, and the total COATED thickness where published "
+      "(schema v22). Twelve Agfa stocks print it, 3-27 um; no other maker in "
+      "this corpus does |")
+    w("| Processing Characteristics | densitometry status and speed criterion "
+      "-- plus, from 2026-09-01, three carriers that were previously invisible "
+      "in this report: a manufacturer RECIPROCITY TABLE (point count), a "
+      "GAMMA-TIME family (point count and the number of developers it spans) "
+      "and the number of PROCESS VARIANTS. A stock could hold all three and "
+      "this file would show only the fitted Schwarzschild exponent, which is "
+      "how a five-developer Agfa processing table looked identical to no "
+      "processing data at all |")
+    w("| Reciprocity (in the Processing cell) | `recip table N pts` counts the "
+      "manufacturer's printed exposure corrections; `dev corr` is the "
+      "DEVELOPMENT compensation on the same time cells, new in schema v24 "
+      "(2026-09-01). Only Agfa publish one in this corpus -- «Developing "
+      "adjustment (%)» / «Entwicklungskorrektur (%)», 0 / -10 / -25 / -35 for "
+      "APX 100 and APX 400 and a stated 0 / 0 / 0 / 0 for APX 25. Reciprocity "
+      "failure raises development contrast as well as costing speed, and the "
+      "database held only the speed half until then |")
+    w("| Callier Coefficient | the specular-to-diffuse density ratio used by "
+      "the condenser-enlarger model. ⚠ **STILL RED ON EVERY ROW, AND THE "
+      "REASON CHANGED ON 2026-09-02 (queues C43 and C44 both closed).** "
+      "`callier_q` is no longer the two-branch class constant 1.25/1.30/1.00 "
+      "it was: on the 68 monochrome stocks it is now DERIVED PER STOCK from "
+      "that stock's own mid slope through beta(gamma) = 1 + 0.9706 "
+      "gamma/(gamma + 0.2558), giving 1.64-1.87, and colour stays 1.00. This "
+      "column reports whether a stock carries a ParamSource on `callier_q`, "
+      "and a derivation from a class relation is not a per-film measurement, "
+      "so the cell stays red -- correctly. ⚠ WHAT THE RELATION RESTS ON: "
+      "Sayanagi 1959 («Callier Q Factor と粒状», Canon, 23(1) 20-24) derives Q "
+      "from grain optics and gets Q_II = 2/(1 + Ig^1/2), which contains NO "
+      "DENSITY at all -- so on base-subtracted density Q is flat, and the "
+      "measured toe collapse (1.081 at D 0.05; Mees FIG. 179 1.042 at D 0.055) "
+      "is the BASE TERM, not a model defect. Fitting that base independently "
+      "to the two measured Q(D) curves gives Db 0.045 (Trumpy/Streiffert) and "
+      "Db 0.050 (Mees) -- two laboratories, two decades, the same number -- "
+      "and it explains why FIG. 179 draws all five gamma curves as ONE stroke "
+      "below D 0.25. ⚠ SO C44 CLOSED WITH NO CODE CHANGE: "
+      "`film_sim.callier_net` works on NET density, the base is already gone, "
+      "and a toe correction fitted to base-inclusive data would remove it "
+      "twice. ⚠ AND C43 CLOSED BECAUSE THE BASE-CORRECTED REFIT MADE beta A "
+      "FUNCTION OF GAMMA rather than a constant: 1.491 / 1.495 / 1.729 / "
+      "1.822 / 1.828 at gamma 0.21 / 0.37 / 0.69 / 1.20 / 1.65 on Mees's five "
+      "curves, and 1.809 on the base-corrected Trumpy fit, against the "
+      "undocumented 1.30 they replace. The relation's ENDPOINTS were what "
+      "chose its form: beta(0) = 1 exactly and beta(inf) = 1.971, just under "
+      "Sayanagi's own ceiling of 2, which inverting Ig = (2/beta - 1)^2 turns "
+      "into grain transmittances falling 11.7 % -> 0.9 % as development "
+      "proceeds. ⚠ INERT AT THE SHIPPED DEFAULT -- Callier applies only when "
+      "`scanner_specular` > 0. ⚠ BBC T-101 Fig. 25's 2.00-2.34 at 0.0016 sr "
+      "sits ABOVE Sayanagi's ceiling and is recorded as an open tension, not "
+      "explained away. See `sayanagi_callier.py` and "
+      "`film_profiles._CALLIER_BETA_VS_GAMMA` |")
+    w("| Exposure Latitude | toe-to-shoulder span of the green record, stops. "
+      "Computed from the stored curve, so it is plain exactly when that curve "
+      "is documented and not degenerate -- not when the sheet happens to print "
+      "a latitude figure of its own, which is a different number measured a "
+      "different way |")
+    w("| Dynamic Range | Dmax and Dmax-Dmin of the green record, marked on the "
+      "same basis as Exposure Latitude. ⚠ THE Dmax IS THE MODEL ASYMPTOTE, "
+      "dmin + gamma*(shoulder_x - toe_x), which is labelled `asym` in the cell "
+      "because the drawn curve reaches it only if it shouldered inside the "
+      "traced range: against the plotted maxima on the 1998 Agfa sheet the two "
+      "agree to 0.003-0.010 D on APX 25 and APX 100 and part by 0.072 on APX "
+      "400, 0.085 on RSX II 50 and 0.207 on OPTIMA 100. A plain cell certifies "
+      "the CURVE, not a measured maximum density |")
     w("| Color Characteristics | interimage effect per receiver B/G/R as the "
       "percentage gamma steepening of US5273870A, and DIR coupler strength; "
       "monochrome stocks show silver image tone instead |")
@@ -1253,11 +1451,17 @@ def main() -> int:
       "the generic amateur-gauge entries. Their ISO/ASA column is a "
       "manufacturer or historical figure, not a standardised speed.")
     w("")
-    w("Callier q in the Processing column is the specular-to-diffuse density "
+    w("Callier q, its own column since 2026-09-01, is the specular-to-diffuse "
+      "density "
       "ratio (1.0 for dye images, higher for silver). Mees 1942 p.235 gives "
       "the grain-size relation behind it: Callier showed q *\"is closely "
       "related to grain size and increases with it\"*, and Eggert & Kuster "
-      "measured d = 6.8 log q.")
+      "measured d = 6.8 log q. ⚠ In the renderer it is NOT used as a bare "
+      "ratio: `film_sim.callier_net` applies Silberstein & Tuttle, where "
+      "`callier_q` is beta -- a film property -- and the reader's collection "
+      "cone is the separate `scanner_specular` control. A beta held low "
+      "because a real condenser is not collimated would count the geometry "
+      "twice.")
     w("")
     w("## Coverage summary")
     w("")

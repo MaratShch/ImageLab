@@ -68,7 +68,15 @@ constexpr int32_t ALGO_BLUR_MAX_HALF_TAPS = 64;
 constexpr int32_t ALGO_BLUR_MAX_TAPS      = 2 * ALGO_BLUR_MAX_HALF_TAPS + 1;
 
 // Largest number of Gaussian lobes the multi-lobe form accepts.
-constexpr int32_t ALGO_BLUR_MAX_LOBES = 4;
+// ⚠ RAISED 4 -> 6 ON 2026-09-03 AND THE REASON IS STAGE 6, NOT THIS FILE.
+// The emulsion MTF used one base lobe plus two adjacency lobes, which is three.
+// A measured rolloff now enters as a WEIGHTED PAIR of base Gaussians (see
+// film::FilmMtfKernel), and because the adjacency band-pass multiplies the base
+// transfer rather than adding to it, each base lobe carries its own inner and
+// outer adjacency partner: 2 x 3 = 6. Nothing else in the engine asks for more
+// than three, so the extra capacity costs two unused array slots per call and
+// no arithmetic.
+constexpr int32_t ALGO_BLUR_MAX_LOBES = 6;
 
 
 // ---------------------------------------------------------------------------

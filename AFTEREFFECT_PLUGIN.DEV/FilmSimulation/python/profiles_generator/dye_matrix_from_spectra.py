@@ -194,8 +194,16 @@ SOVIET_BANDS = {("m", "b"): (0.15, 0.25), ("c", "g"): (0.00, 0.10),
                 ("m", "r"): (0.00, 0.15), ("c", "b"): (0.00, 0.10)}
 
 #: Stocks whose panel predates modern dye chemistry.
+#: ⚠ 2026-09-02, queue G2: GEVACHROME_600 and GEVACHROME_605 join the early set,
+#: and they are the cleanest members of it. They are 1968 Agfa-Gevaert reversal
+#: stock -- the same maker and the same decade as GEVACOLOR_NEG_682, which was
+#: already here -- and their derived magenta-into-blue is 0.2232, inside the
+#: Soviet specification band 0.15-0.25 without being fitted to it. ⚠ CLASSING
+#: THEM AS "later" ON THE FIRST PASS DROPPED THE EARLY/LATER RATIO TO 1.37 AND
+#: FIRED THIS AUDIT, which is the guard working: a 1968 emulsion counted as
+#: modern makes forty years of dye chemistry look like twenty.
 OLD_STOCKS = ("GEVACOLOR_NEG_682", "KODAK_EKTACHROME_100D_5285",
-              "EASTMAN_EKTACHROME_7239")
+              "EASTMAN_EKTACHROME_7239", "GEVACHROME_600", "GEVACHROME_605")
 
 #: ⚠ THE HISTORICAL CLAIM, AND IT IS DELIBERATELY A CLAIM ABOUT THE SET RATHER
 #: THAN ABOUT ANY ONE STOCK. An earlier version asserted "every modern stock
@@ -258,6 +266,29 @@ EXPECTED_REFUSALS = {
         "of the three traces carries something that is not its dye. Passed the "
         "sign test, the ratio bounds and the Soviet cross-check; only the "
         "sheet's own neutral catches it",
+    # ⚠ ADDED 2026-09-01d, AND THE REFUSAL IS THE EXPECTED CONSEQUENCE OF A
+    # CAVEAT ALREADY RECORDED ON THE SOURCE rather than a surprise. Every other
+    # entry here is a datasheet panel with a calibrated ordinate. Technicolor's
+    # is not: Flueckiger et al. 2018 Fig. 16 has NO ordinate scale, no ticks and
+    # no label, so the stored curves are peak-normalised WITH THE BOTTOM AXIS
+    # ASSUMED TO BE ZERO ABSORBANCE. Any real baseline above that axis inflates
+    # every off-band term, and the off-band terms are exactly what a dye matrix
+    # is made of. The trace's own minima sit at 0.09-0.16 of peak, which is the
+    # size of the effect. So the matrix is refused while the CURVES are kept:
+    # the peak positions, which is what the source validates (460/540/660/720 nm
+    # against its own printed list), are unaffected by a baseline offset, and
+    # the cross-talk is not.
+    "TECHNICOLOR_THREE_STRIP":
+        "cyan reads 0.4298 into green, outside the admissible -0.06..0.30. "
+        "⚠ NOT A BAD TRACE -- A MISSING ORDINATE. This is the only set here "
+        "that is not off a calibrated datasheet panel: Flueckiger et al. 2018 "
+        "Fig. 16 carries no ordinate scale, so the curves are stored "
+        "peak-normalised with the axis assumed to be zero absorbance, and an "
+        "unknown baseline inflates precisely the off-band terms a dye matrix "
+        "is built from. The curves stay (their peaks are validated against the "
+        "report's own printed peak list); the derived matrix does not. What "
+        "would lift the refusal is a Technicolor dye measurement with a stated "
+        "absorbance scale",
 }
 
 #: Physically admissible range for an unwanted-absorption ratio. Slightly
@@ -379,6 +410,19 @@ PRINT_READER = "KODAK_2383_RELEASE"
 #: applied crosstalk already present in the status curves, at several times the
 #: strength of the correction actually owed.
 EXPECTED_STAGE12 = {
+    # ⚠ GEVAERT, 2026-09-02 (queue G2). ONE VALUE FOR TWO STOCKS, because Bild 4
+    # draws one dye set for both Typ 6.00 and Typ 6.05 -- the same one-drawing
+    # case as RSX II 50 / 100 below. At 0.0903 they are the HIGHEST in this
+    # table, which is what a 1968 dye set read through a modern release print
+    # should be.
+    "GEVACHROME_600": 0.0903,
+    "GEVACHROME_605": 0.0903,
+    # ⚠ THE THREE AGFA ENTRIES ADDED 2026-09-01 WERE THE HIGHEST IN THIS TABLE
+    # AFTER 5218 until the two Gevachrome rows above overtook them, and RSX II 50 and RSX II 100 agree to 2e-4 because Agfa drew
+    # ONE spectral-density panel for both films -- one measurement, not two.
+    "AGFA_RSX_II_50": 0.0762,
+    "AGFA_RSX_II_100": 0.0764,
+    "AGFA_RSX_II_200": 0.0811,
     "EASTMAN_EKTACHROME_7239": 0.0694,
     "EASTMAN_EXR_50D_5245": 0.0781,
     "EASTMAN_EXR_200T_5293": 0.0681,

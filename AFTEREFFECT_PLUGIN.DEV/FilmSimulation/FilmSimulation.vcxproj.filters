@@ -249,6 +249,9 @@
     <ClInclude Include="include\CommonPixFormat.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoProcessVariant.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -390,6 +393,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\LoadFilmDataBase.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_17.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -557,6 +563,66 @@
     <None Include="python\profiles_generator\ti0835_plates.py">
       <Filter>python\profiles_generator</Filter>
     </None>
+    <None Include="python\profiles_generator\adopt_agfa_1998.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\adopt_agfa_full.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_1998_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_2003_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_2003_sheet.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_p16c.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_scala_sheet.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\bbc_t101_2.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\flueckiger_2018.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_neopan_ss.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_t3_2026.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gevachrome_1968_raster.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\jp_jps_1965_269.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\MANIFEST.md">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ooue_1959_granularity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sayanagi_callier.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sehlin_kennel_1985.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\takano_1968_mottle.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\takano_1969_granularity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\trumpy_callier_q.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\profiles_generator\Readme!.txt">
@@ -565,5 +631,19 @@
     <Text Include="include\film_names.txt">
       <Filter>include</Filter>
     </Text>
+    <Text Include="python\profiles_generator\MANIFEST.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\README.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\README_ARCHIVES.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="python\profiles_generator\Lady.png">
+      <Filter>python\profiles_generator</Filter>
+    </Image>
   </ItemGroup>
 </Project>

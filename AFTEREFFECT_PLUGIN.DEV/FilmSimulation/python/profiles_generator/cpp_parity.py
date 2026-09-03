@@ -387,7 +387,30 @@ def recip_python_side(rows) -> dict:
 # specular, so the widest probe in the ladder sets it. 1e-6 leaves two decades of
 # headroom over that and still catches any real divergence in the law -- a
 # reference-to-zero bug, for instance, would show up at 0.1-1.0, six decades up.
-TOL_CALLIER = 1e-6
+#
+# ⚠ 1e-6 -> 1e-5 ON 2026-09-02, AND THE CAUSE IS QUEUE C43 RATHER THAN A NEW
+# DEFECT. `callier_q` stopped being the class constant 1.3 and became a
+# per-stock beta of 1.64-1.87, and the dominant residual is no longer float
+# storage of q -- it is LINEAR INTERPOLATION IN THE SHARED LUT, whose error
+# scales with the law's curvature and therefore with beta:
+#
+#     q = 1.3000   worst |LUT - exact|  2.2e-07   (the old floor)
+#     q = 1.8408   worst |LUT - exact|  1.7e-06   (measured, 8x worse)
+#
+# over CALLIER_LUT_MIN..MAX in 1025 samples, at every intermediate specular
+# setting. The observed parity residual, 1.41e-06 at POLAROID_51, is that number
+# and not a divergence between the two implementations of the law -- float
+# storage of q alone accounts for at most 2.3e-07 (measured the same way).
+#
+# ⚠ WHY THE TOLERANCE IS RAISED RATHER THAN THE LUT REFINED, with the cost of
+# the alternative measured rather than guessed: doubling ALGO_CALLIER_LUT_N to
+# 2049 quarters the error to about 4.4e-07 and would restore the old bound, at
+# 16 KB per LUT in the scalar build where AlgoType is double. 1.7e-06 D is three
+# orders of magnitude below one 16-bit code step, so the refinement buys nothing
+# a viewer could see, and enlarging a struct that may live on the stack is not a
+# change to make as the last item of a long batch. The number is recorded here
+# so the next reader can act on it with the arithmetic already done.
+TOL_CALLIER = 1e-5
 
 #: specular settings: 0 must be exactly inert, 1 is the full condenser, and the
 #: two interior values catch a factor applied as (1 + s)*(Q - 1) or similar.
@@ -556,6 +579,288 @@ int main()
     return 0;
 }
 """
+
+
+# ===========================================================================
+#  RECIPROCITY, STAGE LEVEL
+#
+#  ⚠ THE LAW FAMILY ABOVE PASSED FOR MONTHS WHILE NOTHING CALLED THE LAW, AND
+#  THAT IS NOT A HYPOTHETICAL -- IT IS WHAT HAPPENED. `AlgoReciprocity.hpp` was
+#  written, documented, parity-tested against film_sim over 6120 probes, and
+#  included by NO translation unit. The C++ engine therefore had no reciprocity
+#  model at all while film_sim applied one on every render, and the law family
+#  reported agreement the whole time because it compiled the header itself.
+#  The Callier families learned the same lesson a week earlier; this is the
+#  guard that stops the third repetition.
+#
+#  So this family does not call the law. It drives the REAL
+#  AlgoStage08_CharacteristicCurve on a real exposure plane, at a stated
+#  exposure time, and compares the densities it writes against film_sim's own
+#  stage 8 with the same time. If the shift is ever unwired from the stage
+#  again, the arithmetic stays right and THIS fails.
+#
+#  It also pins the inertness contract: `t = 0` must reproduce the stage's
+#  pre-wiring output BIT FOR BIT, which is what makes the field safe to ship.
+# ===========================================================================
+
+RECIP_STAGE_CPP = r"""
+#include "AlgoCharacteristicCurve.hpp"
+#include "AlgoReciprocity.hpp"
+#include "film_profiles.hpp"
+#include <cstdio>
+
+struct TRow { const char* name; int it; double t; };
+
+static const TRow TROWS[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    const auto& db = film::GetFilmDatabase();
+    const int   n  = (int)(sizeof(TROWS)/sizeof(TROWS[0]));
+
+    // Four exposures spanning eight decades, so a shift shows as a translation
+    // of the whole tone scale rather than as one displaced sample.
+    const double E[4] = { 1e-4, 1e-2, 1.0, 10.0 };
+
+    for (int i = 0; i < n; ++i)
+    {
+        const TRow& r = TROWS[i];
+
+        const film::FilmProfile* p = nullptr;
+        for (const auto& q : db)
+            if (q.name == r.name) { p = &q; break; }
+        if (nullptr == p)
+            continue;
+
+        const int W = 4, H = 1, P = 4;
+        AlgoType eR[4], eG[4], eB[4];
+        AlgoType dR[4], dG[4], dB[4];
+        AlgoType lR[4], lG[4], lB[4];
+
+        for (int x = 0; x < 4; ++x)
+            eR[x] = eG[x] = eB[x] = (AlgoType)E[x];
+
+        HighPrecType shift[3];
+        AlgoReciprocityLogShift(*p, (HighPrecType)r.t, shift);
+
+        // A reversal stock consumes the anchor as a log-exposure trim; a
+        // negative carries it to the print. Zero here for both, because this
+        // family is about the SHIFT and a non-zero trim would only add a
+        // constant that both sides share.
+        const HighPrecType anchor[3] = { 0, 0, 0 };
+
+        AlgoStage08_CharacteristicCurve(eR, eG, eB, dR, dG, dB,
+                                        lR, lG, lB, W, H, P,
+                                        *p, anchor, shift);
+
+        for (int x = 0; x < 4; ++x)
+            printf("RS\t%s\t%d\t%d\t%.17g\t%.17g\t%.17g\n",
+                   r.name, r.it, x,
+                   (double)dR[x], (double)dG[x], (double)dB[x]);
+    }
+
+    return 0;
+}
+"""
+
+#: ⚠ 0.0 IS THE LOAD-BEARING ONE. It is the inertness contract: at "no stated
+#: time" the stage must return exactly what it returned before the parameter
+#: existed. The other three straddle every table's measured range so the
+#: held-flat ends and the interpolated middle are all exercised.
+RECIP_STAGE_TIMES = (0.0, 1.0, 10.0, 100.0)
+
+
+def recip_stage_probe_table():
+    return [(q.name, i, float(t))
+            for q in fp.FILM_PROFILES
+            for i, t in enumerate(RECIP_STAGE_TIMES)]
+
+
+def recip_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
+    lines = ['    { "%s", %d, %.17g },' % r for r in rows]
+    src = tmp / "recip_stage_parity.cpp"
+    src.write_text(RECIP_STAGE_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "recip_stage_parity"
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(root / "Algo_08_Sim.cpp"),
+           # Same link set as the Callier stage probe: stage 8 pulls
+           # AlgoSoftplus from stage 5 and AlgoCopyImage from the separable
+           # blur. Linking the REAL stage is the whole point.
+           str(root / "Algo_05_Sim.cpp"),
+           str(root / "AlgoSeparableBlur.cpp"),
+           str(HERE / "film_profiles.cpp"),
+           str(HERE / "LoadFilmDataBase.cpp")]
+    cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] reciprocity stage probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] reciprocity stage probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        fam, nm, it, k, a, b, c = line.split("\t")
+        out[(fam, nm, int(it), int(k))] = (float(a), float(b), float(c))
+    return out
+
+
+def recip_stage_python_side(rows) -> dict:
+    """The same four exposures through film_sim's own curve and shift."""
+    import math as _m
+    import film_sim as fs
+    E = (1e-4, 1e-2, 1.0, 10.0)
+    by = {q.name: q for q in fp.FILM_PROFILES}
+    out = {}
+    for name, it, t in rows:
+        q = by[name]
+        sh = fs.reciprocity_log_shift(q, t) if t > 0.0 else (0.0, 0.0, 0.0)
+        curves = q.curves.as_tuple()
+        rev = q.is_reversal
+        for k, e in enumerate(E):
+            vals = []
+            for c in range(3):
+                # ⚠ `density_scalar`, NOT `density`. The array form casts
+                # through np.float32 and this probe links the SCALAR stage,
+                # where AlgoType is double -- comparing a float32 Python result
+                # against a double C++ one reported a 5.7e-06 D "disagreement"
+                # that was entirely float32 rounding through the softplus. The
+                # two forms are the same expression at different widths, and
+                # the one to compare against is the one the linked stage uses.
+                # 1e-8 is ALGO_CURVE_EXPOSURE_FLOOR, mirrored deliberately.
+                le = _m.log10(max(e, 1e-8)) + sh[c]
+                arg = -le if rev else le
+                vals.append(fs.density_scalar(arg, curves[c]))
+            out[("RS", name, it, k)] = tuple(vals)
+    return out
+
+
+
+# ===========================================================================
+#  PROCESS VARIANT, RESOLVER LEVEL
+#
+#  The resolver returns a PROFILE, so what is compared is the six ToneCurve
+#  parameters it yields on each of the three records, plus the exposure index.
+#  Driven over every stock and every variant index in the database, including
+#  the out-of-range and OFF sentinels.
+#
+#  ⚠ THE INERT CASES ARE THE LOAD-BEARING ONES. -1 and an out-of-range index
+#  must return the stock exactly as shipped, and so must the nineteen AGFAPAN
+#  developer records, which differ only in an exposure index no stage reads.
+#  A resolver that copied the profile for those would still render correctly
+#  and would still be wrong: the contract is that selecting a label costs
+#  nothing and changes nothing.
+# ===========================================================================
+
+VARIANT_CPP = r"""
+#include "AlgoProcessVariant.hpp"
+#include "film_profiles.hpp"
+#include <cstdio>
+
+struct VRow { const char* name; int idx; };
+
+static const VRow VROWS[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    const auto& db = film::GetFilmDatabase();
+    const int   n  = (int)(sizeof(VROWS)/sizeof(VROWS[0]));
+
+    for (int i = 0; i < n; ++i)
+    {
+        const VRow& r = VROWS[i];
+
+        const film::FilmProfile* p = nullptr;
+        for (const auto& q : db)
+            if (q.name == r.name) { p = &q; break; }
+        if (nullptr == p)
+            continue;
+
+        film::FilmProfile store;
+        const film::FilmProfile& out =
+            AlgoResolveProcessVariant(*p, r.idx, store);
+
+        // Whether the resolver copied at all is part of the contract, not an
+        // implementation detail: it is what makes an unselected variant free.
+        const int copied = (&out == p) ? 0 : 1;
+
+        const film::ToneCurve* c[3] = { &out.curves.r, &out.curves.g, &out.curves.b };
+
+        for (int k = 0; k < 3; ++k)
+            printf("V\t%s\t%d\t%d\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%d\t%d\n",
+                   r.name, r.idx, k,
+                   (double)c[k]->dmin, (double)c[k]->gamma,
+                   (double)c[k]->toe_x, (double)c[k]->toe_k,
+                   (double)c[k]->shoulder_x, (double)c[k]->shoulder_k,
+                   (int)out.exposure_index, copied);
+    }
+
+    return 0;
+}
+"""
+
+
+def variant_probe_table():
+    """Every stock, every variant index, plus OFF and one past the end."""
+    rows = []
+    for q in fp.FILM_PROFILES:
+        rows.append((q.name, -1))
+        for i in range(len(q.process_variants)):
+            rows.append((q.name, i))
+        rows.append((q.name, len(q.process_variants)))     # out of range
+    return rows
+
+
+def variant_build_and_run(tmp: Path, root: Path, rows) -> dict:
+    lines = ['    { "%s", %d },' % r for r in rows]
+    src = tmp / "variant_parity.cpp"
+    src.write_text(VARIANT_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "variant_parity"
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
+    cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] process-variant probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] process-variant probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split("\t")
+        out[(f[0], f[1], int(f[2]), int(f[3]))] = (
+            tuple(float(x) for x in f[4:10]), int(f[10]), int(f[11]))
+    return out
+
+
+def variant_python_side(rows) -> dict:
+    import film_sim as fs
+    by = {q.name: q for q in fp.FILM_PROFILES}
+    out = {}
+    for name, idx in rows:
+        q = by[name]
+        r = fs.resolve_process_variant(q, idx)
+        cs = r.curves.as_tuple()
+        for k in range(3):
+            c = cs[k]
+            out[("V", name, idx, k)] = (
+                (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k),
+                int(r.exposure_index), 0 if r is q else 1)
+    return out
+
 
 #: Specular settings probed. 0.0 is the load-bearing one: the whole inertness
 #: contract is that it changes nothing, so it must be compared, not assumed.
@@ -905,6 +1210,9 @@ GENERATED_LAWS = {
         "the measured sigma(D) anchors"),
     "FilmMtfResponse": (
         "emulsion MTF, including the measured 1/(1+(f/f50)^q) rolloff"),
+    "FilmMtfKernel": (
+        "the separable two-Gaussian equivalent of that rolloff, which is what a "
+        "renderer without an FFT can actually convolve"),
 }
 
 #: Laws known to be bypassed, with the reason, so the check reports honestly
@@ -920,13 +1228,6 @@ LAW_BYPASS_BASELINE = {
     # disagreement against the Python reference 2.52e-07 over 2415 probes, and
     # |amp - 1| at NET density 1.0 is EXACTLY zero on all 161 stocks x 3
     # channels. See LAW_EQUIVALENT_IMPL for how the indirection is kept honest.
-    "FilmMtfResponse":
-        "queue C32: the measured rolloff is a frequency-domain form and the C++ "
-        "side has NO FFT -- AlgoEmulsionMtf convolves a separable spatial "
-        "Gaussian. Applying the power law needs an architecture decision "
-        "(numerical kernel, an FFT path, or a fitted separable equivalent), so "
-        "the 9 stocks with a measured q render on the legacy Gaussian: correct "
-        "at f50 by construction, up to 3.8x too much modulation at 2x f50",
 }
 
 
@@ -948,6 +1249,21 @@ LAW_BYPASS_BASELINE = {
 #: hoisted.
 LAW_EQUIVALENT_IMPL = {
     "FilmGrainSigma": ("AlgoGrainAmpBuild", "AlgoGrainAmpAt"),
+    # ⚠ THIS ENTRY IS A DIFFERENT KIND FROM THE ONE ABOVE AND MUST NOT BE READ
+    # AS THE SAME CLAIM. AlgoGrainAmpBuild computes the SAME law with the
+    # loop-invariant half hoisted, and the probe asserts they agree exactly.
+    # FilmMtfKernel is an APPROXIMATION: the law is a frequency-domain form and
+    # this engine convolves separable spatial Gaussians, so the kernel is the
+    # best two-lobe fit to it, not the thing itself. Its agreement with
+    # FilmMtfResponse is bounded, not exact -- worst max|error| 0.0384 in
+    # modulation over the 22 tabulated exponents.
+    #
+    # ⚠ WHAT MAKES IT ADMISSIBLE ANYWAY: the alternative was not the exact law,
+    # it was the single Gaussian, whose error against the same target is 0.1737.
+    # The entry records an approximation that is 4.5x closer than what it
+    # replaced, with the bound asserted by verify.py, rather than a bypass that
+    # was 4.5x further away and asserted nothing.
+    "FilmMtfResponse": ("FilmMtfKernel",),
 }
 
 
@@ -987,15 +1303,45 @@ LAW_EQUIVALENT_IMPL = {
 #: Callier law was just rewritten in both copies by hand. `callierQ` is listed
 #: as well as the function, because the failure that matters is one twin being
 #: left on the old precomputed-multiplier form.
+#: ⚠ `recipShift` ADDED 2026-09-01 WITH THE RECIPROCITY WIRING, and it is the
+#: only automatic guard the AVX2 twin has for it. The stage-level family below
+#: links the SCALAR Algo_08_Sim.cpp; the AVX2 flavour is not compiled by any
+#: audit in this flattened tree, so a twin left without the shift would render
+#: every long exposure differently from the scalar path and nothing would say
+#: so. Both the parameter and the broadcast are listed, because the failure
+#: that matters is a twin that takes the argument and never uses it.
 TWIN_LAW_TOKENS = {
     "Algo_11_Sim.cpp": ("AlgoGrainAmpBuild", "AlgoGrainAmpRaw"),
-    "Algo_08_Sim.cpp": ("AlgoCallierApplyScalar", "callierQ"),
+    "Algo_08_Sim.cpp": ("AlgoCallierApplyScalar", "callierQ", "recipShift"),
+}
+
+#: Tokens that must appear in the AVX2 twin ALONE -- the vector form of a law
+#: the scalar twin writes differently. `vRecip` is the broadcast of the shift:
+#: a twin carrying `recipShift` in its signature and no broadcast would compile,
+#: pass the token check above, and silently drop the correction.
+TWIN_AVX2_ONLY_TOKENS = {
+    "Algo_08_Sim.cpp": ("vRecip",),
 }
 
 
 def check_twin_consistency(root: Path) -> int:
     """Scalar and AVX2 twins must share the LAW, differing only in execution."""
     bad = 0
+    for name, tokens in sorted(TWIN_AVX2_ONLY_TOKENS.items()):
+        b = root / "AVX2" / name
+        if not b.is_file():
+            print(f"  [SKIP] twin consistency: AVX2/{name} not present")
+            continue
+        tb = _strip_cpp_comments(b.read_text(errors="ignore"))
+        for tok in tokens:
+            if re.search(r"\b%s\b" % re.escape(tok), tb) is not None:
+                print(f"[i] twin consistency: AVX2/{name} carries its vector "
+                      f"form '{tok}'")
+            else:
+                print(f"[FAIL] AVX2/{name} is missing '{tok}' -- it takes the "
+                      f"parameter and never applies it, so every long exposure "
+                      f"renders differently from the scalar path")
+                bad += 1
     for name, tokens in sorted(TWIN_LAW_TOKENS.items()):
         a, b = root / name, root / "AVX2" / name
         if not (a.is_file() and b.is_file()):
@@ -1576,6 +1922,146 @@ def main() -> int:
                     print(f"[FAIL] only {mono_moved} monochrome rows move at "
                           f"full specular -- the stage probe is not exercising "
                           f"its own branch")
+                    bad += 1
+
+        # ------------------------------------------------------------------
+        #  PROCESS VARIANT. The resolver, over every stock and every index.
+        # ------------------------------------------------------------------
+        if not (root / "AlgoProcessVariant.hpp").is_file():
+            print(f"  [SKIP] process variant: AlgoProcessVariant.hpp not "
+                  f"present under {root}")
+        else:
+            vrows = variant_probe_table()
+            with tempfile.TemporaryDirectory() as td:
+                vcpp = variant_build_and_run(Path(td), root, vrows)
+            vpy = variant_python_side(vrows)
+            if set(vcpp) != set(vpy):
+                print(f"[FAIL] process-variant probe sets differ: "
+                      f"{len(set(vpy) - set(vcpp))} missing, "
+                      f"{len(set(vcpp) - set(vpy))} extra")
+                bad += 1
+            else:
+                vw, vat, ei_bad, cp_bad = 0.0, None, [], []
+                for k, (want, wei, wcp) in vpy.items():
+                    got, gei, gcp = vcpp[k]
+                    err = max(abs(a - b) for a, b in zip(got, want))
+                    if err > vw:
+                        vw, vat = err, k
+                    if gei != wei:
+                        ei_bad.append(k)
+                    if gcp != wcp:
+                        cp_bad.append(k)
+                moved = sum(1 for k, (_, _, cp) in vpy.items() if cp)
+                stocks_moved = len({k[1] for k, (_, _, cp) in vpy.items() if cp})
+                print(f"[i] process variant: {len(vpy)} probes over "
+                      f"{len(fp.FILM_PROFILES)} stocks x every variant index "
+                      f"plus OFF and out-of-range")
+                print(f"[i] process variant: worst curve-parameter "
+                      f"disagreement {vw:.2e} at {vat}; {moved} probe rows "
+                      f"resolve to a DIFFERENT profile, over {stocks_moved} "
+                      f"stock(s)")
+                if vw > TOL_CALLIER:
+                    print(f"[FAIL] the two resolvers disagree by {vw:.2e} at "
+                          f"{vat}")
+                    bad += 1
+                if ei_bad:
+                    print(f"[FAIL] exposure index differs on {len(ei_bad)} "
+                          f"probe(s), first {ei_bad[0]}")
+                    bad += 1
+                # ⚠ THE COPY DECISION IS PART OF THE CONTRACT. If C++ copies
+                # where Python does not, the nineteen label-only variants stop
+                # being free; if it does not copy where Python does, a selected
+                # variant silently renders as the base stock.
+                if cp_bad:
+                    print(f"[FAIL] the two resolvers disagree about WHETHER a "
+                          f"variant changes the profile, on {len(cp_bad)} "
+                          f"probe(s), first {cp_bad[0]}")
+                    bad += 1
+                # ⚠ TWO DIFFERENT COUNTS, AND CONFLATING THEM IS THE MISTAKE
+                # THIS ASSERTION WAS WRITTEN WRONG THE FIRST TIME. SEVEN stocks
+                # resolve to a different PROFILE, because the nineteen AGFAPAN
+                # developer records each state their own exposure index -- Agfa
+                # print one per developer -- and the resolver honours it even
+                # though no stage reads that field yet. Only FOUR change a
+                # CURVE and therefore a pixel: PORTRA 800 and ULTRA COLOR 400UC
+                # carry traced push curves, CINESTILL 800T's Cs2 kit carries a
+                # gamma scale, and GEVACHROME_605 carries the 320 ASA reversal
+                # push traced from Bild 6 (queue G5, 2026-09-03). Pinning both
+                # numbers is what makes a future change legible: a variant
+                # losing its curves moves the first, a variant losing its EI
+                # moves the second.
+                curve_moved = set()
+                for k, (want, _, _) in vpy.items():
+                    base_k = ("V", k[1], -1, k[3])
+                    if vpy[base_k][0] != want:
+                        curve_moved.add(k[1])
+                if stocks_moved != 7:
+                    print(f"[FAIL] {stocks_moved} stocks resolve to a different "
+                          f"profile; 7 are expected -- 4 that change curves and "
+                          f"the 3 AGFAPAN stocks whose developer records state "
+                          f"their own exposure index")
+                    bad += 1
+                if len(curve_moved) != 4:
+                    print(f"[FAIL] {len(curve_moved)} stocks change a CURVE "
+                          f"({sorted(curve_moved)}); 4 are expected -- "
+                          f"KODAK_PORTRA_800, KODAK_ULTRA_COLOR_400UC, "
+                          f"CINESTILL_800T and GEVACHROME_605. A change here "
+                          f"means a variant gained or lost its measured curve "
+                          f"set")
+                    bad += 1
+                print(f"[i] process variant: {len(curve_moved)} stocks change a "
+                      f"CURVE and therefore a pixel: {sorted(curve_moved)}")
+
+        # ------------------------------------------------------------------
+        #  RECIPROCITY, STAGE LEVEL. Drives the real stage 8, not the law.
+        # ------------------------------------------------------------------
+        if not (root / "Algo_08_Sim.cpp").is_file():
+            print(f"  [SKIP] reciprocity stage: Algo_08_Sim.cpp not present "
+                  f"under {root}")
+        else:
+            trows = recip_stage_probe_table()
+            with tempfile.TemporaryDirectory() as td:
+                tcpp = recip_stage_build_and_run(Path(td), root, trows)
+            tpy = recip_stage_python_side(trows)
+            if set(tcpp) != set(tpy):
+                print(f"[FAIL] reciprocity stage probe sets differ: "
+                      f"{len(set(tpy) - set(tcpp))} missing, "
+                      f"{len(set(tcpp) - set(tpy))} extra")
+                bad += 1
+            else:
+                tw, tat = 0.0, None
+                for k, want in tpy.items():
+                    err = max(abs(a - b) for a, b in zip(tcpp[k], want))
+                    if err > tw:
+                        tw, tat = err, k
+                # Inertness as an IDENTITY, not a tolerance: at t = 0 the stage
+                # must write exactly what it wrote before the parameter existed.
+                base = {(k[1], k[3]): v for k, v in tcpp.items() if k[2] == 0}
+                inert = all(tcpp[k] == base[(k[1], k[3])]
+                            for k in tcpp if k[2] == 0)
+                # And it has to MOVE somewhere, or the probe proves nothing --
+                # which is exactly the failure mode that let an unincluded
+                # header pass its own law family for months.
+                moved = sum(1 for k in tcpp
+                            if k[2] != 0 and tcpp[k] != base[(k[1], k[3])])
+                print(f"[i] reciprocity STAGE: {len(tpy)} probes over "
+                      f"{len(fp.FILM_PROFILES)} stocks x "
+                      f"{len(RECIP_STAGE_TIMES)} times x 4 exposures, driving "
+                      f"AlgoStage08_CharacteristicCurve itself")
+                print(f"[i] reciprocity STAGE: worst {tw:.2e} D at {tat}; "
+                      f"{moved} rows move once a time is stated")
+                if tw > TOL_CALLIER:
+                    print(f"[FAIL] stage 8 disagrees with film_sim by "
+                          f"{tw:.2e} D at {tat} -- the shift is wired but the "
+                          f"two engines do not agree on it")
+                    bad += 1
+                if not inert:
+                    print("[FAIL] stage 8 is NOT inert at exposureTimeS = 0")
+                    bad += 1
+                if moved < 100:
+                    print(f"[FAIL] only {moved} rows move once a time is "
+                          f"stated -- stage 8 is not reading the shift, which "
+                          f"is the exact defect this family exists to catch")
                     bad += 1
 
     if worst > TOL:

@@ -1216,6 +1216,60 @@ struct AlgoControls
     double exposureTimeS;
 
     /**
+     *  1  NAME           processVariant
+     *  2  TYPE           int32_t
+     *  3  AE CONTROL     dropdown, populated from the selected stock's own
+     *                    `process_variants` list -- the entries are named by
+     *                    the manufacturer ("EI 1600 (Push 1)", "Cs2 two-bath
+     *                    kit") and the list is EMPTY on 164 of the 170 stocks,
+     *                    so the control should hide itself rather than show a
+     *                    dropdown with one dead entry
+     *  4  UNIT           index into that vector. Not an enum: the list is
+     *                    per-stock and changes when the stock changes
+     *  5  MIN            -1, the OFF sentinel
+     *  6  MAX            size of the selected stock's process_variants, minus
+     *                    one. Out of range is treated as -1 rather than
+     *                    clamped, because a stale preset pointing at a variant
+     *                    the new stock does not have should render the stock as
+     *                    shipped, not render its variant 0
+     *  7  DEFAULT        -1 -- the development the stored curves represent
+     *  8  STEP           1
+     *  9  PURPOSE        Selects a DIFFERENT DEVELOPMENT of the same emulsion:
+     *                    a push, a cross-process, an alternate chemistry kit.
+     *                    Where the manufacturer plotted that development
+     *                    separately the record carries its own TRACED curve
+     *                    set, so this is not a contrast tweak -- it is a second
+     *                    measurement of the same film.
+     * 10  OUTPUT EFFECT  Replaces the profile's characteristic curves, and its
+     *                    exposure index where the variant states one, before
+     *                    anything reads either. -1 reproduces pre-field renders
+     *                    BIT FOR BIT: the base profile is returned by
+     *                    reference and nothing is copied.
+     *                    \warning ONLY 5 OF THE 24 RECORDED VARIANTS CHANGE A
+     *                    PIXEL. Four carry curves (PORTRA 800 at EI 1600 and
+     *                    3200, ULTRA COLOR 400UC as E-190 prints it and at
+     *                    EI 800) and CINESTILL 800T's Cs2 kit carries a gamma
+     *                    scale. The other nineteen are the AGFAPAN developer
+     *                    records, which differ only in exposure index -- a
+     *                    field no stage reads -- so selecting one is a
+     *                    deliberate no-op rather than an invented effect.
+     * 11  STAGES         resolved in frame setup, before the anchor solve. Read
+     *                    downstream by stage 8, stage 11's grain amplitude and
+     *                    stage 13's dupe chain, all of which take the profile
+     *                    and therefore see one consistent film.
+     * 12  INTERACTIONS   Compounds with nothing: it selects the curve every
+     *                    other control is then applied to. A pushed variant
+     *                    already includes the speed change the photographer
+     *                    made, so it should NOT be combined with an
+     *                    exposureStops offset meant to represent the same push.
+     * 13  SCALAR/AVX2    External semantics identical. Resolution is a frame
+     *                    setup step with no pixel loop in either path.
+     * 14  FULL/LITE      Both, at full quality: one profile copy per frame,
+     *                    and only when a variant is selected.
+     */
+    int32_t processVariant;
+
+    /**
      *  1  NAME           scannerSpecular
      *  2  TYPE           double
      *  3  AE CONTROL     slider
@@ -1431,6 +1485,33 @@ struct AlgoControls
      *                    low-resolution grain field upsampled reads as
      *                    blotches. Lite must reduce grain by CHANNEL COUNT and
      *                    OCTAVE COUNT, never by resolution.
+     * 15  TEMPORAL GRAIN, and why the DEFAULT IS A STILL-FRAME CALIBRATION.
+     *                    Queue C7, closed 2026-09-02. Honjo 1989 section 4
+     *                    states that at 24 fps the eye integrates over about
+     *                    0.2 s, i.e. about five frames. Grain is re-rolled per
+     *                    frame and is zero-mean, so five independent samples
+     *                    average down by 1/sqrt(5) and the granularity a viewer
+     *                    perceives in PLAYBACK is about 0.447 of what the same
+     *                    emulsion shows in a frozen frame - this control's
+     *                    default of 1.0 is therefore about 2.24x too strong in
+     *                    motion, and that is deliberate.
+     *
+     *                    IT IS DELIBERATE BECAUSE EVERY GRANULARITY FIGURE THIS
+     *                    ENGINE IS CALIBRATED AGAINST IS A STILL MEASUREMENT -
+     *                    rms through a 48 um aperture, Wiener spectra, Selwyn
+     *                    constants, all made on a stationary sample. A default
+     *                    that silently divided them by 2.24 would stop
+     *                    reproducing the numbers the calibration cites, and the
+     *                    parity tests would then be checking against a quantity
+     *                    no document states. It is also not reversible by a user
+     *                    who does not know the rule was applied.
+     *
+     *                    A HOST THAT WANTS MOTION-CORRECT GRAIN NEEDS NOTHING
+     *                    NEW: it sets grainScale to 1/sqrt(fps * 0.2), clamped
+     *                    to [1, 8] frames, which film_sim.temporal_grain_scale()
+     *                    computes. 0.4564 at 24 fps, 0.4472 at 25. No field was
+     *                    added to FilmProfile and no stage changed, so this note
+     *                    is the whole of C7 on the C++ side.
      */
     double grainScale;
 

@@ -52,7 +52,7 @@
 //  carries in AgingSpec, so a 1943 Agfacolor at dustLevel 1.0 would be dirtier
 //  than a modern stock at the same setting with nobody authoring two presets.
 //
-//  That cannot work today: all 93 stocks in the generated database ship AgingSpec
+//  That cannot work today: all 142 stocks in the generated database ship AgingSpec
 //  entirely zero, documented as "fresh". Multiplying by dust_area_ppm would
 //  silence the defect layer on every single stock and look exactly like a broken
 //  control. So the levels are absolute for now - dustLevel 1.0 means the measured
@@ -95,19 +95,36 @@ FilmDamage getFilmDamageDefault (void) noexcept
     //
     //  WHICH OF THESE DO SOMETHING TODAY
     //
-    //  Three: dustLevel, debrisLevel, fibreLevel. Stage 9b consumes them and they
-    //  render.
+    //  !! RE-AUDITED 2026-08-28. This section said "three ... the other eleven"
+    //  and had gone stale: three more classes went live and nobody came back
+    //  here. The count is now NINE live and EIGHT inert, verified by a
+    //  tree-wide grep of all seventeen identifiers across both instruction-set
+    //  trees.
     //
-    //  The other eleven are read by NOTHING yet - their stages are still
-    //  pass-throughs. They are populated anyway, and deliberately, for two
-    //  reasons: the value is the correct one for this grade of film, so when each
-    //  stage lands it is immediately right rather than needing a second pass over
+    //  LIVE (9):
+    //     damageStrength, damageSeed          the master pair, all three stages
+    //     dustLevel, debrisLevel, fibreLevel  stage 9b, the particulate classes
+    //     dirtClumping                        stage 9b, their spatial process
+    //     weaveAmount                         stage 15
+    //     gateDirt, damageEvents              stage 16
+    //
+    //  INERT (8) - no reader anywhere in the engine:
+    //     scratchTransport, scratchHandling, processingQuality, dryingMarks,
+    //     storageSeverity, colourVeil, flickerStops, scannerArtifacts
+    //
+    //  flickerStops is the one worth calling out: its intended consumer, stage
+    //  3c, is a genuine pass-through that voids all five of its arguments, so
+    //  that control has nowhere to act even in principle today.
+    //
+    //  The inert eight are populated anyway, and deliberately, for two reasons:
+    //  the value is the correct one for this grade of film, so when each stage
+    //  lands it is immediately right rather than needing a second pass over
     //  this file; and a zero here would be indistinguishable from a considered
     //  decision that this grade of film has no scratches, which is false.
     //
-    //  So a render with these defaults shows dust, debris and fibres, and nothing
-    //  else, and that is the honest current state of the pipeline rather than a
-    //  fault in these numbers.
+    //  So a render with these defaults shows dust, debris, fibres, gate dirt,
+    //  gate events and weave, and nothing else. That is the honest current
+    //  state of the pipeline rather than a fault in these numbers.
     // ----------------------------------------------------------------------
 
     // ---- Particulate: LIVE, rendered by stage 9b --------------------------
@@ -360,7 +377,7 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     //  cannot, because the reference has nothing to mirror. The verification
     //  harness therefore clears the flag before comparing, and must keep doing so.
     // ----------------------------------------------------------------------
-    controls.filmDamageEnabled = false;
+    controls.filmDamageEnabled = true;
     controls.damage            = getFilmDamageDefault();
 
     return controls;

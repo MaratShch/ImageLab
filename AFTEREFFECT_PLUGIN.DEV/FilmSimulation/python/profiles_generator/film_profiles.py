@@ -257,9 +257,29 @@ _SENSITIZATIONS = frozenset({"S", "S+Au", "reduction"})
 # the failure this log exists to prevent: a reader who trusts the constant sees
 # a v18 database and a v22 dataclass, and nothing tells them which is right.
 # The constant is now 22 and the four entries are recorded here.
-# ⚠ ALL FOUR ARE INERT AND APPENDED, so a v22 database renders bit-identically
+# ⚠ ALL FIVE ARE INERT AND APPENDED, so a v23 database renders bit-identically
 # to v18 and no film index moves. The bump is a truth claim about the SHAPE of
 # the record, not a change to any rendered number.
+#
+# v23 (2026-09-01, the AGFA harvest): EmulsionSpec gained `base_um`,
+# `base_material` and `designation`. `designation` is the MANUFACTURER'S OWN
+# emulsion identifier, stored exactly as printed, so that the same emulsion can
+# be recognised across products and generations -- Kodak coat one emulsion as
+# 5219 in 35 mm and 7219 in 16 mm, and CINESTILL_800T is VISION3 500T with the
+# remjet stripped. ⚠ It must never hold an identifier this project invented: a
+# synthesised key would make two different emulsions look related, which is the
+# exact opposite of what the field is for, so "" (rendered `-` in the docs) is
+# the honest value wherever no source prints one. The other two are -- the thickness and polymer of the film SUPPORT, which no
+# field in this schema could hold before. Agfa print it beside `coated_um` on
+# every column of «Technical Data PF» ("Layer thickness: 7 um / Film base:
+# 135 = 120 um"), so twelve stocks had a published number with nowhere to put
+# it and the `Film Base Properties` column of FilmActiveProfiles.md was marked
+# as an estimate for want of a carrier rather than for want of a source.
+# ⚠ IT IS A SUPPORT PROPERTY LIVING ON AN EMULSION RECORD, and that is a
+# deliberate compromise recorded at the field. ⚠ `base_um` holds the 135
+# (35 mm) figure ONLY; Agfa publish a different thickness per format and one
+# float cannot hold three. INERT: nothing reads either field, so a v23 database
+# renders bit-identically to a v22 one and no film index moves.
 #
 # v22 (2026-08-31, queue M1): PrintStock gained `spectral`, a
 # SpectralSensitivity. `KODAK_2383_RELEASE` is the first print stock in this
@@ -383,7 +403,7 @@ _SENSITIZATIONS = frozenset({"S", "S+Au", "reduction"})
 # ordering for eight stocks that previously had only analogy estimates, and a
 # permanent record of WHY the rms fields could not be upgraded from the same
 # sources. Read by nothing on the render path.
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 24
 
 
 # ---------------------------------------------------------------------------
@@ -653,6 +673,19 @@ class GrainSpec:
         clump_um_r/g/b: Mean developed clump diameter per layer, micrometres.
             In colour negative the fast blue-sensitive layer usually has the
             coarsest grain; the red layer sits at the bottom of the stack.
+            ⚠ THE NAME IS MISLEADING AND THE MODEL IS NOT. This is the GRAIN
+            scale, not the cluster scale: it sets the high-frequency rolloff
+            `f_hi = 500 / clump_um` c/mm, while `clump_gain` adds a lobe at
+            `f_lo = f_hi / 6` -- a length SIX TIMES clump_um, which is the
+            cluster. Takano 1968 (knowledge base §23n) measures the developed
+            aggregate at 5 to 8 times the mean grain, so the model's hard-coded
+            6 is independently corroborated and the two scales are already
+            separate. Anything comparing a measured CLUSTER size with this field
+            directly is out by about six.
+            ⚠ RESCALED CORPUS-WIDE 2026-09-03, queue C45, owner-approved: every
+            ESTIMATED value divided by 3.1, the five T-101-measured stocks left
+            alone. See `_CLUMP_RESCALE_C45_2026_09_03` below for the evidence,
+            the anchor and the two invariants that make it safe.
             ⚠ THIS QUANTITY IS NOT A PROPERTY OF THE EMULSION ALONE. It depends
             on how the film was DEVELOPED, and the dependence is measured, not
             supposed: BBC Report T-101 Table 3 (journal p35) tabulates equivalent
@@ -2285,6 +2318,15 @@ class ParamSource:
 _PROCESS_FAMILIES = frozenset({
     "ECN-2", "ECP-2", "C-41", "E-6", "K-14", "AP-70", "CRI",
     "BW-negative", "BW-reversal", "ECN-1", "VNF-1", "Agfacolor",
+    # ⚠ ADDED 2026-09-03 (queue G5) RATHER THAN FILING GEVACHROME UNDER E-6.
+    # Agfa-Gevaert's 1968 colour-reversal television process is not E-6 and
+    # predates it: Kino-Technik 1968 Nr. 10 p264 Tab. IV prints all twelve
+    # steps and all six of its own baths -- GP 110 first developer, GP 332
+    # stop, GP 26 colour developer, GP 308 fixer, GP 446 bleach, GP 660
+    # stabiliser -- with a re-exposure between them. Calling that E-6 would
+    # assert a chemistry the source contradicts; the set is a validation
+    # whitelist read nowhere else, so widening it costs nothing.
+    "Gevachrome",
 })
 
 
@@ -2544,6 +2586,45 @@ class EmulsionSpec:
     iodide_mol_pct: float = 0.0
     sensitization: str = ""
     coated_um: float = 0.0
+    # -- schema v23 (2026-09-01): THE SUPPORT, WHICH IS NOT THE EMULSION -------
+    # ⚠ THESE TWO LIVE HERE FOR WANT OF A BETTER HOME AND THAT IS A COMPROMISE
+    # WORTH STATING. A film base is not an emulsion property; it is the sheet of
+    # plastic underneath. But it is published in the same breath as `coated_um`
+    # on every Agfa column -- "Layer thickness: 7 um / Film base: 135 = 120 um"
+    # -- it is a physical thickness of the same object, and adding a whole
+    # `SupportSpec` for two fields would cost a C++ struct, an emitter, a
+    # validator and a parity test to carry a number nothing reads yet.
+    # ⚠ `base_um` IS THE 135 (35 mm) FIGURE AND ONLY THAT. Agfa publish a
+    # different thickness per format -- 135 = 120 um, 120 = 95 um, sheet film =
+    # 175 um PET or 190 um acetate -- and one float cannot hold three. The 135
+    # value is stored because it is the format `default_format` names on all
+    # twelve Agfa stocks; the others are recorded in `source`. A future
+    # per-format carrier should read them back out of there, not re-derive them.
+    base_um: float = 0.0
+    #: "acetate" | "PET" | "" -- the support polymer, as the sheet names it.
+    base_material: str = ""
+    # -- schema v23 (2026-09-01): THE MANUFACTURER'S OWN EMULSION IDENTIFIER ---
+    #: The maker's designation for the emulsion behind this product, EXACTLY as
+    #: the source prints it. Empty means no reliable identifier is on file, and
+    #: the documentation renders that as `-`.
+    #:
+    #: ⚠ THIS FIELD MUST NEVER HOLD AN IDENTIFIER THIS PROJECT INVENTED. Its
+    #: whole purpose is to let the same emulsion be recognised across products
+    #: and generations -- Kodak coat one emulsion as 5219 in 35 mm and 7219 in
+    #: 16 mm, and CINESTILL_800T is VISION3 500T with the remjet removed -- and
+    #: a synthesised key would make two different things look related or one
+    #: thing look like two. If the sheet does not print an identifier, the
+    #: honest value is "".
+    #:
+    #: ⚠ IT IS NOT A BATCH NUMBER. An emulsion NUMBER in the photographic sense
+    #: (the "emulsion 0176 001" stamped on a box) identifies one coating run and
+    #: changes every few months; nothing in this corpus records one and nothing
+    #: should. What is stored here is the product-level emulsion designation the
+    #: manufacturer uses in its own technical literature:
+    #:     Kodak/Eastman cine   the film code -- "5219", "5222", "7239"
+    #:     Agfa colour negative the printed "Negative code" -- "49-14"
+    #: Anything else needs a document that prints it.
+    designation: str = ""
     source: str = ""
 
     @property
@@ -2826,6 +2907,24 @@ class ReciprocityTable:
     times_s: tuple[float, ...] = ()
     stops_correction: tuple[float, ...] = ()
     cc_filters: tuple[str, ...] = ()
+    #: ⚠ SCHEMA v24, 2026-09-01. The DEVELOPMENT correction the manufacturer
+    #: prescribes at each of the same times, as a PERCENTAGE CHANGE IN
+    #: DEVELOPING TIME -- negative meaning "develop this much less".
+    #:
+    #: Reciprocity failure is not only a speed loss. A long exposure builds a
+    #: latent image whose development contrast is higher than normal, so a
+    #: sheet that prints an exposure correction alone is describing half the
+    #: effect. Agfa print both, side by side and on the same four time cells,
+    #: for their two black-and-white negatives: F-PF-D4 p6 gives
+    #: «Belichtungskorrektur (Blendenstufen) 0 / + 1 / + 2 / + 3» and directly
+    #: beneath it «Entwicklungskorrektur (%) 0 / - 10 / - 25 / - 35».
+    #:
+    #: ⚠ INERT, like the rest of this dataclass: no pipeline stage reads it.
+    #: It is stored because the alternative was to hold a printed measurement
+    #: in a comment, and because a contrast correction that large -- a third
+    #: off the developing time at 100 s -- is exactly the kind of number a
+    #: future long-exposure model would need and could not re-derive.
+    development_correction_pct: tuple[float, ...] = ()
     source: str = ""
 
     @property
@@ -2834,7 +2933,8 @@ class ReciprocityTable:
 
     def validate(self, label: str = "") -> None:
         if not self.times_s:
-            if self.stops_correction or self.cc_filters:
+            if (self.stops_correction or self.cc_filters
+                    or self.development_correction_pct):
                 raise ValueError(f"{label}: reciprocity table without times")
             return  # inert default
         if len(self.times_s) != len(self.stops_correction):
@@ -2842,6 +2942,19 @@ class ReciprocityTable:
                 f"{label}: reciprocity times and corrections differ in length")
         if self.cc_filters and len(self.cc_filters) != len(self.times_s):
             raise ValueError(f"{label}: cc_filters must match times_s in length")
+        if (self.development_correction_pct
+                and len(self.development_correction_pct) != len(self.times_s)):
+            raise ValueError(
+                f"{label}: development_correction_pct must match times_s in length")
+        # A development correction is a REDUCTION or nothing: no manufacturer
+        # asks for MORE development to compensate a long exposure, because the
+        # contrast error runs the other way. A positive value here would mean
+        # the sign convention had been misread, which is the failure this
+        # guard exists to catch.
+        if any(v > 0.0 for v in self.development_correction_pct):
+            raise ValueError(
+                f"{label}: development_correction_pct is a reduction; "
+                f"positive values indicate a sign error")
         if any(t <= 0.0 for t in self.times_s):
             raise ValueError(f"{label}: reciprocity times must be > 0")
         if list(self.times_s) != sorted(self.times_s):
@@ -3881,7 +3994,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_rev(0.28, 1.70, toe_x=-0.66, toe_k=0.20, shoulder_x=0.70),
             b=_rev(0.33, 1.78, toe_x=-0.58, toe_k=0.20, shoulder_x=0.66),
         ),
-        grain=GrainSpec(11.0, 14.0, 13.0, 17.0, clump_gain=1.25, fog_grain=0.30),
+        grain=GrainSpec(11.0, 4.516, 4.194, 5.484, clump_gain=1.25, fog_grain=0.30),
         mtf=MTFSpec(26.0, 30.0, 34.0, adjacency=0.02),
         halation=HalationSpec(
             radii_um=(22.0, 110.0, 500.0),
@@ -3914,7 +4027,56 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=100,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.11, 0.620, -1.56, 0.31, 1.80, 0.42)),
+        # ⚠ TRACED 2026-09-01, REPLACING A CLASS ESTIMATE THAT WAS ALREADY
+        # CLAIMING TO BE A TRACE. This profile's derived provenance said
+        # `fitted_from='datasheet_curve'` -- "the softplus parameters were
+        # fitted to a published characteristic curve" -- and they had not
+        # been: the previous values were the family default toe and
+        # shoulder with a dmin and a gamma written beside them. Queue row
+        # E1 caught exactly this on the three Agfa COLOUR films on
+        # 2026-08-29; nobody checked whether the AGFAPAN trio had the same
+        # defect. It did. Now the claim is true.
+        # Vector path off the sheet's own Characteristic curve panel,
+        # six-parameter softplus fit at rms 0.0118 D over 5.95 decades.
+        # ⚠ THE CURVE IS NOT DRAWN AT AGFA'S OWN REFERENCE DEVELOPMENT, AND
+        # AS OF 2026-09-01 WE CAN NAME THE CONDITION IT *IS* DRAWN AT.
+        # This comment previously said the sheet "does not say what it is drawn
+        # at", which was true of that sheet and false of the corpus. «Technical
+        # Data P-16-C» -- the companion `agfa_films.pdf` p11 names in its last
+        # line, and which had been filed under `agfa_film_chem.pdf` where
+        # nothing connected it -- states Agfa's three standard contrast aims in
+        # words in 3.4: flatter negatives at gamma 0.55 for a high subject
+        # contrast, medium at 0.65, higher contrast at 0.75. The measured
+        # mid_slope below is 0.70-0.74, so this curve is the **gamma 0.75 aim**,
+        # not an unstated development, and `processing_family` now carries the
+        # printed time that reaches it in each of six developers. Measured mid_slope
+        # here is 0.740; the Gamma-time panel on the SAME PAGE and the
+        # 2004 B&W handbook both specify the AGFAPAN line at gamma 0.65,
+        # which REFINAL reaches at 6 min. Reading 0.74 off the
+        # gamma-time curve puts this development at roughly 8-9.5 min.
+        # THE TRACE IS ADOPTED AS DRAWN rather than rescaled to 0.65,
+        # because a rescaled curve would describe no development that
+        # exists -- its shape would be one condition and its contrast
+        # another. `processing_family` on this profile carries the whole
+        # gamma-vs-time mapping, so the reference condition is one
+        # interpolation away and nothing is lost by storing the real one.
+        # ⚠ RENDER IMPACT IS REAL: contrast rises about 14 % against the
+        # previous estimate, and D-max goes 2.19 -> 2.57.
+        # ⚠ D-MIN 0.267 AND THE ORDER IS PHYSICALLY BACKWARDS.
+        # Measured across the three AGFAPAN films the plotted D-min
+        # FALLS with speed -- 0.273 / 0.267 / 0.110 for APX 25 / 100 /
+        # 400 -- and a faster, thicker emulsion (10 um against 3 um)
+        # should fog MORE, not less. It is not a tracing artefact: the
+        # 2004 B&W handbook redraws the same curves in a different ink
+        # at a different scale and returns 0.261 and 0.107, agreeing to
+        # 0.02 D. Either the APX 400 panel plots density above base
+        # while the other two plot total density, or the panels do not
+        # share a zero; the sheets state neither. ADOPTED AS MEASURED,
+        # because the value it replaces (0.10 / 0.11 / 0.13) is an
+        # ascending family ladder with no source behind it at all --
+        # a tidy invention is not better evidence than an untidy
+        # reading. Queue D1, one empty-gate frame, settles it.
+        curves=_mono(ToneCurve(0.267, 0.800, -1.338, 0.371, +1.538, 0.519)),
         # rms 9.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
         # SOURCE PDF/PROFILES/AGFA/apx100.pdf p1: "Granularity: RMS (x 1000):
         # 9.0  (REFINAL, 6 min, 20 C)"; corroborated by agfa_films.pdf p10 and
@@ -3925,11 +4087,188 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # fitted into ReciprocitySpec because a single Schwarzschild exponent
         # cannot reproduce those three points (p would have to be 0.40 at 10 s
         # and 0.55 at 100 s), so forcing one would invent data.
-        grain=GrainSpec(9.0, 9.0, 9.0, 9.0, clump_gain=0.85, fog_grain=0.17),
-        mtf=MTFSpec(80.0, 80.0, 80.0, adjacency=0.10, adjacency_um=14.0),
+        grain=GrainSpec(9.0, 2.903, 2.903, 2.903, clump_gain=0.85, fog_grain=0.17),
+        mtf=MTFSpec(80.0, 80.0, 80.0, adjacency=0.0998, adjacency_um=14.0),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        emulsion=EmulsionSpec(
+            sensitization="S",
+            coated_um=7.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."
+                    "⚠ `sensitization` IS NOT FROM THIS SHEET AND IS NOT A MEASUREMENT ON THIS FILM. It is a tier-3 CLASS DEFAULT from US 4,495,277 «Photographic silver halide emulsion» (Becker, Klötzer and Moisar; assignee Agfa-Gevaert AG, Leverkusen; filed 1983-08-01, granted 1985-01-22) -- PDF/PROFILES/RETRO/US4495277.pdf. Its worked emulsions are ripened with sodium thiosulphate pentahydrate, 80 umol per mol Ag, 120 min at 45 C, plus 42.5 mg of a triazaindolizine stabiliser -- SULPHUR ONLY. Gold and the other noble metals appear in that document solely in the boilerplate list of alternative sensitisers and are not used in any example. Agfa house practice at an AGFAPAN-era date is the whole of the grounds, which is why this is tier 3 and status `assumed`. ⚠ THREE FIELDS THIS PATENT DOES NOT LICENCE ARE LEFT EMPTY ON PURPOSE -- grain_um, habit, iodide_mol_pct -- because the patent itself declines to constrain them: «The silver halide grains may assume the known forms, for example, cubic, octahedral or even a combination of tetrahedral and decahedral. The absolute value of the mean grain size may vary within wide limits», then 0.3 to 2 um, which is the entire field. Its worked emulsions (A 0.65 um, K 0.67 um, B) are laboratory preparations tied to no product: AGFAPAN, APX, ISO, DIN and ASA appear nowhere in its six pages and its speeds 290 / 100 / 445 are a relative scale. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR, NOT BLACK AND WHITE. Example 3 coats emulsion A with a yellow coupler and processes it in a CD-3-type colour developer with a bleach-fix, and the emulsion is an iodide-free AgBr core / AgCl shell / AgBr shell structure at 10 mol % total AgCl -- not the AgBrI a B&W camera negative uses. The patent's subject is pressure-fog resistance in the wet state and speed through surface ripening, not granularity or tone. NOTHING NUMERIC IS TAKEN FROM IT."
+                    ),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(0.5, 1.0, 10.0, 100.0),
+            stops_correction=(0.0, 1.0, 2.0, 3.0),
+            development_correction_pct=(0.0, -10.0, -25.0, -35.0),
+            # ⚠ THE HALF OF RECIPROCITY FAILURE THE EXPOSURE ROW DOES NOT
+            # DESCRIBE. A long exposure does not only cost speed, it raises
+            # development contrast, and Agfa print the compensation on the same
+            # four time cells: -10 % at 1 s, -25 % at 10 s, -35 % at 100 s. Read
+            # from agfa_films.pdf p6, where the row spans all three AGFAPAN
+            # columns; identical in F-PF-E4 08/2004 p6 («Developing adjustment
+            # (%)») and F-PF-D4 07/2003 p6 («Entwicklungskorrektur (%)»), so
+            # three editions across six years agree cell for cell.
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ REPLACED 2026-09-01 (SECOND PASS): THE TRACED GAMMA-TIME CURVES
+        # ARE SUPERSEDED BY A PRINTED TABLE. The first pass digitised the
+        # range sheet's Gamma-time panel -- four drawn curves, five printed
+        # developer names, and a label-matching step whose two closest
+        # assignments were 0.0 and 0.2 pt apart. «Technical Data P-16-C»,
+        # the companion `agfa_films.pdf` p11 names in its last line, prints
+        # the same physics as TEXT: the time to reach gamma 0.55, 0.65 and
+        # 0.75, per developer, per film, for drum and small tank. No
+        # tracing, no calibration, no label matching, and it covers ATOMAL
+        # FF, which the plotted panel does not show at all.
+        # ⚠ THE TRACE AND THE TABLE AGREE WHERE THEY OVERLAP, which is why
+        # the trace was worth doing and why this supersedes rather than
+        # contradicts it: RODINAL 1+25 small tank at gamma 0.65 reads 6 / 8
+        # / 7 min for APX 25 / 100 / 400 in P-16-C and 6 / 8 / 7 min on
+        # agfa_films.pdf p11, independently.
+        # ⚠ DEVELOPER NAMES ARE NORMALISED TO THE COMPACT FORM. Agfa print
+        # "RODINAL 1 + 25" with spaces in both the range sheet and P-16-C, and
+        # "RODINAL 1+25" without them in the 2004 handbook. The database uses
+        # the compact form everywhere -- ProcessVariant already did -- because
+        # two spellings of one developer make every join on this field a silent
+        # miss. It cost a verify guard on the first build after adoption.
+        # ⚠ EVERY (developer, method, film) TRIPLE ASCENDS WITH GAMMA here.
+        # That free monotonicity test is what condemned the 2004 handbook's
+        # RODINAL table, whose gamma 0.55 column falls against its own 0.65
+        # column -- see the standing correction in NotFound.md.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=6, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=9, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=3, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=6, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=7, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=10, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=14, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=19, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=17, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.5, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.5, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.65),   # small tank
+            ),
+            source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
+                    'White Chemicals, Film Processing», 08/1999 -- '
+                    'PDF/PROFILES/AGFA/agfa_film_chem.pdf sections 4 and 5, '
+                    'the «Dilution and developing times (at 20 C)» contrast '
+                    'tables: developing time to reach gamma 0.55 / 0.65 / '
+                    '0.75 for each AGFAPAN film, for rotary drum and for '
+                    'small tank/tray, across six developers. 64 printed time '
+                    'cells, read as TEXT. ⚠ THE METHOD IS IN THE TRAILING '
+                    'COMMENT, NOT IN A FIELD: DevelopmentPoint has developer, '
+                    'dilution, minutes, celsius and gamma but no agitation or '
+                    'vessel, so the drum and small-tank rows are '
+                    'distinguishable only by their times. Where a developer '
+                    'prints both, the drum time is the shorter. ⚠ REFINAL M '
+                    'is NOT here: it is a machine developer/replenisher '
+                    'described in prose with no contrast table.'),
+        ),
+        # ⚠ PUSH IS DOCUMENTED, AND ONLY BY ONE STOP. `PushSpec` was
+        # empty on all three AGFAPAN profiles until 2026-09-01; P-16-C
+        # 3.6 prints the development time for the film exposed a stop
+        # up, per developer, at 20 C and 24 C. The fog penalty stays
+        # ZERO and `fog_penalty_stated` FALSE: Agfa give times and
+        # speeds and say nothing about base fog, so a penalty here
+        # would be this project's invention rather than the maker's
+        # measurement.
+        push=PushSpec(
+            max_push_stops=1.0,
+            max_pull_stops=0.0,
+            fog_penalty_stated=False,
+            source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
+                    'White Chemicals, Film Processing», 08/1999 -- '
+                    'PDF/PROFILES/AGFA/agfa_film_chem.pdf section 3.6, '
+                    '«Development times of AGFAPAN films (with different '
+                    'speed ratings)»: the film exposed at ISO 200 instead of '
+                    'its nominal ISO 100, with the developing time that then '
+                    'applies. Printed rows: REFINAL 20 C 6 -> 9 min; REFINAL '
+                    '24 C - -> 5 min; STUDIONAL LIQUID 20 C 4 -> 6 min; '
+                    'RODINAL SPECIAL 24 C - -> 3.5 min; RODINAL 1 + 25 20 C 8 '
+                    '-> 11 min; RODINAL 1 + 25 24 C - -> 8 min. ⚠ ONE STOP IS '
+                    'ALL AGFA DOCUMENT. The table has exactly two speed '
+                    'columns and there is no ISO 400 row anywhere in the '
+                    'corpus, so max_push_stops is 1.0 and not an '
+                    'extrapolation. ⚠ NO PULL ROW EITHER: the contrast tables '
+                    'reach gamma 0.55, which is a flatter DEVELOPMENT at the '
+                    'nominal speed, not a pull rating. ⚠ A DASH IN THAT TABLE '
+                    "IS A REFUSAL, NOT A ZERO -- Agfa print '-' where a "
+                    'film/developer/temperature combination is not '
+                    'recommended, and those cells are omitted here rather '
+                    'than stored as no time at all.'),
+        ),
         features=Feature.NONE,
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]:
         # Agfa 'Datenblatt APX 100' (08/1995, 1st ed.), 'lg Sensitivity'.
@@ -4004,16 +4343,245 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=25,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.10, 0.640, -1.62, 0.30, 1.86, 0.40)),
+        # ⚠ TRACED 2026-09-01, REPLACING A CLASS ESTIMATE THAT WAS ALREADY
+        # CLAIMING TO BE A TRACE. This profile's derived provenance said
+        # `fitted_from='datasheet_curve'` -- "the softplus parameters were
+        # fitted to a published characteristic curve" -- and they had not
+        # been: the previous values were the family default toe and
+        # shoulder with a dmin and a gamma written beside them. Queue row
+        # E1 caught exactly this on the three Agfa COLOUR films on
+        # 2026-08-29; nobody checked whether the AGFAPAN trio had the same
+        # defect. It did. Now the claim is true.
+        # Vector path off the sheet's own Characteristic curve panel,
+        # six-parameter softplus fit at rms 0.0123 D over 5.95 decades.
+        # ⚠ THE CURVE IS NOT DRAWN AT AGFA'S OWN REFERENCE DEVELOPMENT, AND
+        # AS OF 2026-09-01 WE CAN NAME THE CONDITION IT *IS* DRAWN AT.
+        # This comment previously said the sheet "does not say what it is drawn
+        # at", which was true of that sheet and false of the corpus. «Technical
+        # Data P-16-C» -- the companion `agfa_films.pdf` p11 names in its last
+        # line, and which had been filed under `agfa_film_chem.pdf` where
+        # nothing connected it -- states Agfa's three standard contrast aims in
+        # words in 3.4: flatter negatives at gamma 0.55 for a high subject
+        # contrast, medium at 0.65, higher contrast at 0.75. The measured
+        # mid_slope below is 0.70-0.74, so this curve is the **gamma 0.75 aim**,
+        # not an unstated development, and `processing_family` now carries the
+        # printed time that reaches it in each of six developers. Measured mid_slope
+        # here is 0.740; the Gamma-time panel on the SAME PAGE and the
+        # 2004 B&W handbook both specify the AGFAPAN line at gamma 0.65,
+        # which REFINAL reaches at 6 min. Reading 0.74 off the
+        # gamma-time curve puts this development at roughly 8-9.5 min.
+        # THE TRACE IS ADOPTED AS DRAWN rather than rescaled to 0.65,
+        # because a rescaled curve would describe no development that
+        # exists -- its shape would be one condition and its contrast
+        # another. `processing_family` on this profile carries the whole
+        # gamma-vs-time mapping, so the reference condition is one
+        # interpolation away and nothing is lost by storing the real one.
+        # ⚠ RENDER IMPACT IS REAL: contrast rises about 14 % against the
+        # previous estimate, and D-max goes 2.33 -> 2.57.
+        # ⚠ D-MIN 0.273 AND THE ORDER IS PHYSICALLY BACKWARDS.
+        # Measured across the three AGFAPAN films the plotted D-min
+        # FALLS with speed -- 0.273 / 0.267 / 0.110 for APX 25 / 100 /
+        # 400 -- and a faster, thicker emulsion (10 um against 3 um)
+        # should fog MORE, not less. It is not a tracing artefact: the
+        # 2004 B&W handbook redraws the same curves in a different ink
+        # at a different scale and returns 0.261 and 0.107, agreeing to
+        # 0.02 D. Either the APX 400 panel plots density above base
+        # while the other two plot total density, or the panels do not
+        # share a zero; the sheets state neither. ADOPTED AS MEASURED,
+        # because the value it replaces (0.10 / 0.11 / 0.13) is an
+        # ascending family ladder with no source behind it at all --
+        # a tidy invention is not better evidence than an untidy
+        # reading. Queue D1, one empty-gate frame, settles it.
+        curves=_mono(ToneCurve(0.273, 0.810, -1.320, 0.383, +1.520, 0.536)),
         # rms 7.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
         # SOURCE PDF/PROFILES/AGFA/agfapanapx25.pdf p1: "Granularity: RMS
         # (x 1000): 7.0"; corroborated by agfa_films.pdf p10. Resolving power
         # 200 lp/mm at 1000:1 (same page) -> _RESOLVING_POWER.
-        grain=GrainSpec(7.0, 5.0, 5.0, 5.0, clump_gain=0.55, fog_grain=0.14),
-        mtf=MTFSpec(112.0, 112.0, 112.0, adjacency=0.13, adjacency_um=11.0),
+        grain=GrainSpec(7.0, 1.613, 1.613, 1.613, clump_gain=0.55, fog_grain=0.14),
+        mtf=MTFSpec(112.0, 112.0, 112.0, adjacency=0.0514, adjacency_um=11.0),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        emulsion=EmulsionSpec(
+            sensitization="S",
+            coated_um=3.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."
+                    "⚠ `sensitization` IS NOT FROM THIS SHEET AND IS NOT A MEASUREMENT ON THIS FILM. It is a tier-3 CLASS DEFAULT from US 4,495,277 «Photographic silver halide emulsion» (Becker, Klötzer and Moisar; assignee Agfa-Gevaert AG, Leverkusen; filed 1983-08-01, granted 1985-01-22) -- PDF/PROFILES/RETRO/US4495277.pdf. Its worked emulsions are ripened with sodium thiosulphate pentahydrate, 80 umol per mol Ag, 120 min at 45 C, plus 42.5 mg of a triazaindolizine stabiliser -- SULPHUR ONLY. Gold and the other noble metals appear in that document solely in the boilerplate list of alternative sensitisers and are not used in any example. Agfa house practice at an AGFAPAN-era date is the whole of the grounds, which is why this is tier 3 and status `assumed`. ⚠ THREE FIELDS THIS PATENT DOES NOT LICENCE ARE LEFT EMPTY ON PURPOSE -- grain_um, habit, iodide_mol_pct -- because the patent itself declines to constrain them: «The silver halide grains may assume the known forms, for example, cubic, octahedral or even a combination of tetrahedral and decahedral. The absolute value of the mean grain size may vary within wide limits», then 0.3 to 2 um, which is the entire field. Its worked emulsions (A 0.65 um, K 0.67 um, B) are laboratory preparations tied to no product: AGFAPAN, APX, ISO, DIN and ASA appear nowhere in its six pages and its speeds 290 / 100 / 445 are a relative scale. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR, NOT BLACK AND WHITE. Example 3 coats emulsion A with a yellow coupler and processes it in a CD-3-type colour developer with a bleach-fix, and the emulsion is an iodide-free AgBr core / AgCl shell / AgBr shell structure at 10 mol % total AgCl -- not the AgBrI a B&W camera negative uses. The patent's subject is pressure-fog resistance in the wet state and speed through surface ripening, not granularity or tone. NOTHING NUMERIC IS TAKEN FROM IT."
+                    ),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(0.5, 1.0, 10.0, 100.0),
+            stops_correction=(0.0, 0.5, 1.0, 2.0),
+            development_correction_pct=(0.0, 0.0, 0.0, 0.0),
+            # ⚠ FOUR PRINTED ZEROS, AND THEY ARE A MEASUREMENT, NOT AN ABSENT
+            # ROW. On agfa_films.pdf p6 the «Developing adjustment (%)» line runs
+            # under all three AGFAPAN columns at once and reads 0 / 0 / 0 / 0 here
+            # while its neighbours read 0 / -10 / -25 / -35. Agfa are saying this
+            # emulsion's contrast does NOT climb with a long exposure and the other
+            # two films' does -- a real per-film difference, and the slowest film
+            # being the one that needs no correction is the expected direction.
+            # Storing () would throw that statement away; storing zeros keeps it.
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored. ⚠ TWO AGFA "
+                    "DOCUMENTS DISAGREE ON THIS ROW. agfapanapx25.pdf "
+                    "(08/1995) prints none / +1 / +1.5 / +2 for 1/10000-0.5 "
+                    "s, 1 s, 10 s, 100 s; agfa_films.pdf (09/1998) prints 0 "
+                    "/ +0.5 / +1 / +2. The 1998 values are stored. The 2004 "
+                    "B&W handbook confirms 1998 for APX 100 and APX 400 but "
+                    "drops APX 25, so the tie is unbroken. Difference is up "
+                    "to one full stop at 10 s"),
+        ),
+        # ⚠ REPLACED 2026-09-01 (SECOND PASS): THE TRACED GAMMA-TIME CURVES
+        # ARE SUPERSEDED BY A PRINTED TABLE. The first pass digitised the
+        # range sheet's Gamma-time panel -- four drawn curves, five printed
+        # developer names, and a label-matching step whose two closest
+        # assignments were 0.0 and 0.2 pt apart. «Technical Data P-16-C»,
+        # the companion `agfa_films.pdf` p11 names in its last line, prints
+        # the same physics as TEXT: the time to reach gamma 0.55, 0.65 and
+        # 0.75, per developer, per film, for drum and small tank. No
+        # tracing, no calibration, no label matching, and it covers ATOMAL
+        # FF, which the plotted panel does not show at all.
+        # ⚠ THE TRACE AND THE TABLE AGREE WHERE THEY OVERLAP, which is why
+        # the trace was worth doing and why this supersedes rather than
+        # contradicts it: RODINAL 1+25 small tank at gamma 0.65 reads 6 / 8
+        # / 7 min for APX 25 / 100 / 400 in P-16-C and 6 / 8 / 7 min on
+        # agfa_films.pdf p11, independently.
+        # ⚠ DEVELOPER NAMES ARE NORMALISED TO THE COMPACT FORM. Agfa print
+        # "RODINAL 1 + 25" with spaces in both the range sheet and P-16-C, and
+        # "RODINAL 1+25" without them in the 2004 handbook. The database uses
+        # the compact form everywhere -- ProcessVariant already did -- because
+        # two spellings of one developer make every join on this field a silent
+        # miss. It cost a verify guard on the first build after adoption.
+        # ⚠ EVERY (developer, method, film) TRIPLE ASCENDS WITH GAMMA here.
+        # That free monotonicity test is what condemned the 2004 handbook's
+        # RODINAL table, whose gamma 0.55 column falls against its own 0.65
+        # column -- see the standing correction in NotFound.md.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=11, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=10, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=3, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=6, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=6, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=9, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=15, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=10, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.65),   # small tank
+            ),
+            source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
+                    'White Chemicals, Film Processing», 08/1999 -- '
+                    'PDF/PROFILES/AGFA/agfa_film_chem.pdf sections 4 and 5, '
+                    'the «Dilution and developing times (at 20 C)» contrast '
+                    'tables: developing time to reach gamma 0.55 / 0.65 / '
+                    '0.75 for each AGFAPAN film, for rotary drum and for '
+                    'small tank/tray, across six developers. 64 printed time '
+                    'cells, read as TEXT. ⚠ THE METHOD IS IN THE TRAILING '
+                    'COMMENT, NOT IN A FIELD: DevelopmentPoint has developer, '
+                    'dilution, minutes, celsius and gamma but no agitation or '
+                    'vessel, so the drum and small-tank rows are '
+                    'distinguishable only by their times. Where a developer '
+                    'prints both, the drum time is the shorter. ⚠ REFINAL M '
+                    'is NOT here: it is a machine developer/replenisher '
+                    'described in prose with no contrast table.'),
+        ),
+        # ⚠ PUSH IS DOCUMENTED, AND ONLY BY ONE STOP. `PushSpec` was
+        # empty on all three AGFAPAN profiles until 2026-09-01; P-16-C
+        # 3.6 prints the development time for the film exposed a stop
+        # up, per developer, at 20 C and 24 C. The fog penalty stays
+        # ZERO and `fog_penalty_stated` FALSE: Agfa give times and
+        # speeds and say nothing about base fog, so a penalty here
+        # would be this project's invention rather than the maker's
+        # measurement.
+        push=PushSpec(
+            max_push_stops=1.0,
+            max_pull_stops=0.0,
+            fog_penalty_stated=False,
+            source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
+                    'White Chemicals, Film Processing», 08/1999 -- '
+                    'PDF/PROFILES/AGFA/agfa_film_chem.pdf section 3.6, '
+                    '«Development times of AGFAPAN films (with different '
+                    'speed ratings)»: the film exposed at ISO 50 instead of '
+                    'its nominal ISO 25, with the developing time that then '
+                    'applies. Printed rows: REFINAL 20 C 6 -> 10 min; REFINAL '
+                    '24 C - -> 6 min; STUDIONAL LIQUID 20 C 4 -> 7 min; '
+                    'RODINAL SPECIAL 24 C - -> 4 min; RODINAL 1 + 25 20 C 6 '
+                    '-> - min. ⚠ ONE STOP IS ALL AGFA DOCUMENT. The table has '
+                    'exactly two speed columns and there is no ISO 100 row '
+                    'anywhere in the corpus, so max_push_stops is 1.0 and not '
+                    'an extrapolation. ⚠ NO PULL ROW EITHER: the contrast '
+                    'tables reach gamma 0.55, which is a flatter DEVELOPMENT '
+                    'at the nominal speed, not a pull rating. ⚠ A DASH IN '
+                    "THAT TABLE IS A REFUSAL, NOT A ZERO -- Agfa print '-' "
+                    'where a film/developer/temperature combination is not '
+                    'recommended, and those cells are omitted here rather '
+                    'than stored as no time at all.'),
+        ),
         features=Feature.NONE,
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]:
         # Agfa 'Datenblatt APX 25' (08/1995, 1st ed.), 'lg Sensitivity'.
@@ -4061,16 +4629,251 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.13, 0.660, -1.50, 0.29, 1.70, 0.40)),
+        # ⚠ TRACED 2026-09-01, REPLACING A CLASS ESTIMATE THAT WAS ALREADY
+        # CLAIMING TO BE A TRACE. This profile's derived provenance said
+        # `fitted_from='datasheet_curve'` -- "the softplus parameters were
+        # fitted to a published characteristic curve" -- and they had not
+        # been: the previous values were the family default toe and
+        # shoulder with a dmin and a gamma written beside them. Queue row
+        # E1 caught exactly this on the three Agfa COLOUR films on
+        # 2026-08-29; nobody checked whether the AGFAPAN trio had the same
+        # defect. It did. Now the claim is true.
+        # Vector path off the sheet's own Characteristic curve panel,
+        # six-parameter softplus fit at rms 0.0079 D over 5.95 decades.
+        # ⚠ THE CURVE IS NOT DRAWN AT AGFA'S OWN REFERENCE DEVELOPMENT, AND
+        # AS OF 2026-09-01 WE CAN NAME THE CONDITION IT *IS* DRAWN AT.
+        # This comment previously said the sheet "does not say what it is drawn
+        # at", which was true of that sheet and false of the corpus. «Technical
+        # Data P-16-C» -- the companion `agfa_films.pdf` p11 names in its last
+        # line, and which had been filed under `agfa_film_chem.pdf` where
+        # nothing connected it -- states Agfa's three standard contrast aims in
+        # words in 3.4: flatter negatives at gamma 0.55 for a high subject
+        # contrast, medium at 0.65, higher contrast at 0.75. The measured
+        # mid_slope below is 0.70-0.74, so this curve is the **gamma 0.75 aim**,
+        # not an unstated development, and `processing_family` now carries the
+        # printed time that reaches it in each of six developers. Measured mid_slope
+        # here is 0.700; the Gamma-time panel on the SAME PAGE and the
+        # 2004 B&W handbook both specify the AGFAPAN line at gamma 0.65,
+        # which REFINAL reaches at 6 min. Reading 0.70 off the
+        # gamma-time curve puts this development at roughly 8-9.5 min.
+        # THE TRACE IS ADOPTED AS DRAWN rather than rescaled to 0.65,
+        # because a rescaled curve would describe no development that
+        # exists -- its shape would be one condition and its contrast
+        # another. `processing_family` on this profile carries the whole
+        # gamma-vs-time mapping, so the reference condition is one
+        # interpolation away and nothing is lost by storing the real one.
+        # ⚠ RENDER IMPACT IS REAL: contrast rises about 14 % against the
+        # previous estimate, and D-max goes 2.24 -> 2.90.
+        # ⚠ D-MIN 0.110 IS THE LOWEST OF THE THREE APX FILMS AND
+        # THAT IS BACKWARDS -- see the note on APX 25. Adopted as
+        # measured, because two independent Agfa artworks five years
+        # apart draw it that way and the previous 0.13 was an
+        # invented family ladder with no source at all.
+        curves=_mono(ToneCurve(0.110, 0.713, -1.855, 0.358, +2.055, 0.481)),
         # rms 14.0: published diffuse RMS granularity, CONFIRMED 2026-07-31.
         # SOURCE PDF/PROFILES/AGFA/apx400.pdf p1: "Granularity: RMS (x 1000):
         # 14.0"; corroborated by agfa_films.pdf p10. Resolving power 110 lp/mm
         # at 1000:1 (same page) -> _RESOLVING_POWER.
-        grain=GrainSpec(14.0, 15.0, 15.0, 15.0, clump_gain=1.25, fog_grain=0.22),
-        mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.06, adjacency_um=19.0),
+        grain=GrainSpec(14.0, 4.839, 4.839, 4.839, clump_gain=1.25, fog_grain=0.22),
+        mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.0998, adjacency_um=19.0),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        emulsion=EmulsionSpec(
+            sensitization="S",
+            coated_um=10.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."
+                    "⚠ `sensitization` IS NOT FROM THIS SHEET AND IS NOT A MEASUREMENT ON THIS FILM. It is a tier-3 CLASS DEFAULT from US 4,495,277 «Photographic silver halide emulsion» (Becker, Klötzer and Moisar; assignee Agfa-Gevaert AG, Leverkusen; filed 1983-08-01, granted 1985-01-22) -- PDF/PROFILES/RETRO/US4495277.pdf. Its worked emulsions are ripened with sodium thiosulphate pentahydrate, 80 umol per mol Ag, 120 min at 45 C, plus 42.5 mg of a triazaindolizine stabiliser -- SULPHUR ONLY. Gold and the other noble metals appear in that document solely in the boilerplate list of alternative sensitisers and are not used in any example. Agfa house practice at an AGFAPAN-era date is the whole of the grounds, which is why this is tier 3 and status `assumed`. ⚠ THREE FIELDS THIS PATENT DOES NOT LICENCE ARE LEFT EMPTY ON PURPOSE -- grain_um, habit, iodide_mol_pct -- because the patent itself declines to constrain them: «The silver halide grains may assume the known forms, for example, cubic, octahedral or even a combination of tetrahedral and decahedral. The absolute value of the mean grain size may vary within wide limits», then 0.3 to 2 um, which is the entire field. Its worked emulsions (A 0.65 um, K 0.67 um, B) are laboratory preparations tied to no product: AGFAPAN, APX, ISO, DIN and ASA appear nowhere in its six pages and its speeds 290 / 100 / 445 are a relative scale. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR, NOT BLACK AND WHITE. Example 3 coats emulsion A with a yellow coupler and processes it in a CD-3-type colour developer with a bleach-fix, and the emulsion is an iodide-free AgBr core / AgCl shell / AgBr shell structure at 10 mol % total AgCl -- not the AgBrI a B&W camera negative uses. The patent's subject is pressure-fog resistance in the wet state and speed through surface ripening, not granularity or tone. NOTHING NUMERIC IS TAKEN FROM IT."
+                    ),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(0.5, 1.0, 10.0, 100.0),
+            stops_correction=(0.0, 1.0, 2.0, 3.0),
+            development_correction_pct=(0.0, -10.0, -25.0, -35.0),
+            # ⚠ THE HALF OF RECIPROCITY FAILURE THE EXPOSURE ROW DOES NOT
+            # DESCRIBE. A long exposure does not only cost speed, it raises
+            # development contrast, and Agfa print the compensation on the same
+            # four time cells: -10 % at 1 s, -25 % at 10 s, -35 % at 100 s. Read
+            # from agfa_films.pdf p6, where the row spans all three AGFAPAN
+            # columns; identical in F-PF-E4 08/2004 p6 («Developing adjustment
+            # (%)») and F-PF-D4 07/2003 p6 («Entwicklungskorrektur (%)»), so
+            # three editions across six years agree cell for cell.
+            # ⚠ AND THE FIRST TIME CELL IS 0.5 s DESPITE WHAT THE 4th EDITION
+            # PRINTS. F-PF-E4 and F-PF-D4 both head this film's first column
+            # «1/10 000-1» where APX 100's and SCALA's read «1/10 000-½» -- and
+            # the glyph is genuine, U+00BD on those two and a plain '1' here, in
+            # both languages, so it is the document and not the extraction. As
+            # printed it is self-contradictory: the same 1 s would carry both the
+            # zero-correction interval's end and the +1 stop column beside it.
+            # The 1st edition settles it -- agfa_films.pdf p6 prints
+            # «1/10 000 - ½» for ALL THREE AGFAPAN films -- and so does the 4th
+            # edition's own layout, where the 3-column COLOUR blocks are the ones
+            # that end at 1 s and the 4-column B&W blocks end at ½. A cut-and-paste
+            # from the colour block, introduced in the 4th edition and left in both
+            # of its languages.
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ REPLACED 2026-09-01 (SECOND PASS): THE TRACED GAMMA-TIME CURVES
+        # ARE SUPERSEDED BY A PRINTED TABLE. The first pass digitised the
+        # range sheet's Gamma-time panel -- four drawn curves, five printed
+        # developer names, and a label-matching step whose two closest
+        # assignments were 0.0 and 0.2 pt apart. «Technical Data P-16-C»,
+        # the companion `agfa_films.pdf` p11 names in its last line, prints
+        # the same physics as TEXT: the time to reach gamma 0.55, 0.65 and
+        # 0.75, per developer, per film, for drum and small tank. No
+        # tracing, no calibration, no label matching, and it covers ATOMAL
+        # FF, which the plotted panel does not show at all.
+        # ⚠ THE TRACE AND THE TABLE AGREE WHERE THEY OVERLAP, which is why
+        # the trace was worth doing and why this supersedes rather than
+        # contradicts it: RODINAL 1+25 small tank at gamma 0.65 reads 6 / 8
+        # / 7 min for APX 25 / 100 / 400 in P-16-C and 6 / 8 / 7 min on
+        # agfa_films.pdf p11, independently.
+        # ⚠ DEVELOPER NAMES ARE NORMALISED TO THE COMPACT FORM. Agfa print
+        # "RODINAL 1 + 25" with spaces in both the range sheet and P-16-C, and
+        # "RODINAL 1+25" without them in the 2004 handbook. The database uses
+        # the compact form everywhere -- ProcessVariant already did -- because
+        # two spellings of one developer make every join on this field a silent
+        # miss. It cost a verify guard on the first build after adoption.
+        # ⚠ EVERY (developer, method, film) TRIPLE ASCENDS WITH GAMMA here.
+        # That free monotonicity test is what condemned the 2004 handbook's
+        # RODINAL table, whose gamma 0.55 column falls against its own 0.65
+        # column -- see the standing correction in NotFound.md.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=7, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=12, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=10, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=3, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=6, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=6, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=7, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=7, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=9, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=11, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=11, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=4.5, celsius=20.0,
+                                 gamma=0.65),   # small tank
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3, celsius=20.0,
+                                 gamma=0.55),   # drum
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=4, celsius=20.0,
+                                 gamma=0.65),   # drum
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=5, celsius=20.0,
+                                 gamma=0.75),   # drum
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=4.5, celsius=20.0,
+                                 gamma=0.65),   # small tank
+            ),
+            source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
+                    'White Chemicals, Film Processing», 08/1999 -- '
+                    'PDF/PROFILES/AGFA/agfa_film_chem.pdf sections 4 and 5, '
+                    'the «Dilution and developing times (at 20 C)» contrast '
+                    'tables: developing time to reach gamma 0.55 / 0.65 / '
+                    '0.75 for each AGFAPAN film, for rotary drum and for '
+                    'small tank/tray, across six developers. 64 printed time '
+                    'cells, read as TEXT. ⚠ THE METHOD IS IN THE TRAILING '
+                    'COMMENT, NOT IN A FIELD: DevelopmentPoint has developer, '
+                    'dilution, minutes, celsius and gamma but no agitation or '
+                    'vessel, so the drum and small-tank rows are '
+                    'distinguishable only by their times. Where a developer '
+                    'prints both, the drum time is the shorter. ⚠ REFINAL M '
+                    'is NOT here: it is a machine developer/replenisher '
+                    'described in prose with no contrast table.'),
+        ),
+        # ⚠ PUSH IS DOCUMENTED, AND ONLY BY ONE STOP. `PushSpec` was
+        # empty on all three AGFAPAN profiles until 2026-09-01; P-16-C
+        # 3.6 prints the development time for the film exposed a stop
+        # up, per developer, at 20 C and 24 C. The fog penalty stays
+        # ZERO and `fog_penalty_stated` FALSE: Agfa give times and
+        # speeds and say nothing about base fog, so a penalty here
+        # would be this project's invention rather than the maker's
+        # measurement.
+        push=PushSpec(
+            max_push_stops=1.0,
+            max_pull_stops=0.0,
+            fog_penalty_stated=False,
+            source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
+                    'White Chemicals, Film Processing», 08/1999 -- '
+                    'PDF/PROFILES/AGFA/agfa_film_chem.pdf section 3.6, '
+                    '«Development times of AGFAPAN films (with different '
+                    'speed ratings)»: the film exposed at ISO 800 instead of '
+                    'its nominal ISO 400, with the developing time that then '
+                    'applies. Printed rows: REFINAL 20 C 6 -> 16 min; REFINAL '
+                    '24 C - -> 10 min; STUDIONAL LIQUID 20 C 4.5 -> - min; '
+                    'RODINAL 1 + 25 20 C 7 -> - min. ⚠ ONE STOP IS ALL AGFA '
+                    'DOCUMENT. The table has exactly two speed columns and '
+                    'there is no ISO 1600 row anywhere in the corpus, so '
+                    'max_push_stops is 1.0 and not an extrapolation. ⚠ NO '
+                    'PULL ROW EITHER: the contrast tables reach gamma 0.55, '
+                    'which is a flatter DEVELOPMENT at the nominal speed, not '
+                    'a pull rating. ⚠ A DASH IN THAT TABLE IS A REFUSAL, NOT '
+                    "A ZERO -- Agfa print '-' where a "
+                    'film/developer/temperature combination is not '
+                    'recommended, and those cells are omitted here rather '
+                    'than stored as no time at all.'),
+        ),
         features=Feature.NONE,
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]:
         # Agfa 'Datenblatt APX 400' (08/1995, 1st ed.), 'lg Sensitivity'.
@@ -4158,7 +4961,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # The per-channel rms_r/g/b values are derived from this figure by
         # _grain_v2's tier-2 stack rule (b ~1.3x, r ~1.1x of green); Agfa does
         # not publish per-layer granularity.
-        grain=GrainSpec(4.0, 11.0, 12.0, 14.0, clump_gain=0.80, fog_grain=0.18),
+        grain=GrainSpec(4.0, 3.548, 3.871, 4.516, clump_gain=0.80, fog_grain=0.18),
         # f50 values remain engineering estimates: Agfa publishes sharpness
         # only as a plotted transfer-factor curve (agfa_films.pdf p7), never as
         # a numeric MTF. The published resolving power (50 lp/mm at 1.6:1,
@@ -4176,12 +4979,113 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # against Gevacolor 682's identically worded axis. A factor of two is
         # not a rounding difference. The f50 values below stay estimates until
         # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.135, adjacency_um=17.0),
+        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.1091, adjacency_um=17.0),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        emulsion=EmulsionSpec(
+            coated_um=16.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um', sheet film = PET 175 um. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        # ⚠ AGFA NAME THE LAYERS OF THIS ONE FILM AND OF NO OTHER IN THE RANGE,
+        # WHICH TURNS AN ASSUMED COATING ORDER INTO A DOCUMENTED ONE. F-PF-D4
+        # p5 «Schichtaufbau» draws the stack "am Beispiel des Optima 100" and
+        # labels all nine strata top to base: Schutzschicht, UV-Filterschicht,
+        # Blauempfindliche Gelbschichten, Gelbfilterschicht, Grünempfindliche
+        # Purpurschichten, Rotfilterschicht, Rotempfindliche Blaugrünschichten,
+        # Lichthofschutzschicht, Unterlage -- closing with
+        # «Gesamtschichtdicke: 16 µm», which is exactly the `coated_um` above,
+        # so the diagram and the spec block agree and this is this film's stack
+        # and not a generic illustration.
+        #
+        # The three SENSITISED layers in that list run blue, green, red from the
+        # top, which is the conventional order -- and `LayerStack` exists
+        # precisely because it is not always conventional (Cheltsov & Bongard
+        # record Duponcolor 275 as blue/red/green and Eastmancolor 5382 with
+        # blue at the bottom). Storing it here says "checked, and it is the
+        # usual one" instead of leaving it assumed.
+        #
+        # ⚠ `resolving_top/mid/bot` STAY 0.0. Agfa publish one resolving power
+        # for the film, not three per layer, and the validator refuses per-layer
+        # figures without an order for the same reason this entry exists.
+        layer_stack=LayerStack(
+            order=("blue", "green", "red"),
+            source=("Agfa-Gevaert AG, «Technische Daten -- Agfa Professional "
+                    "Filmsortiment», F-PF-D4, 4. Auflage, Stand 07/2003 -- "
+                    "PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p5, "
+                    "«Schichtaufbau ... Nachfolgend eine schematische "
+                    "Darstellung am Beispiel des Optima 100»; English twin "
+                    "F-PF-E4 08/2004 p5 -- PDF/PROFILES/AGFA/AGFA stocks.pdf. "
+                    "Printed top to base: Schutzschicht / UV-Filterschicht / "
+                    "Blauempfindliche Gelbschichten / Gelbfilterschicht / "
+                    "Grünempfindliche Purpurschichten / Rotfilterschicht / "
+                    "Rotempfindliche Blaugrünschichten / Lichthofschutzschicht "
+                    "/ Unterlage, «Gesamtschichtdicke: 16 µm». ⚠ Agfa call the "
+                    "figure «eine schematische Darstellung»: the ORDER and the "
+                    "NAMES are the manufacturer's, the drawn thicknesses are "
+                    "not to scale, and no per-layer thickness is published or "
+                    "stored"),
+        ),
+
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 0.5, 1.5),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ THIS IS THE NEUTRAL + D-MIN PAIR, NOT THREE DYES, AND THE
+        # DISTINCTION IS THE ONE NotFound.md WARNS AGAINST COLLAPSING.
+        # Agfa's Spectral density panel on a colour NEGATIVE draws two
+        # AGGREGATE curves -- the film's total transmission at a
+        # midscale neutral exposure and at minimum density -- and two
+        # aggregates cannot be separated into cyan, magenta and yellow.
+        # `has_data` stays FALSE here and `has_neutral_pair` becomes
+        # true; the dye-set counter does NOT move. The reversal films
+        # on the same sheet DO get three dyes, because their panel
+        # draws them separately.
+        # ⚠ The D-min curve is the ORANGE MASK measured spectrally --
+        # it peaks at 400 nm and falls to 0.28 D at 700 nm,
+        # which is the mask's whole purpose and is exactly the shape
+        # `curves.*.dmin` reduces to three numbers.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.726, 1.376, 1.452, 1.605, 1.705, 1.748, 1.745,
+                      1.656, 1.532, 1.409, 1.329, 1.314, 1.328, 1.355,
+                      1.386, 1.363, 1.266, 1.107, 0.956, 0.796, 0.686,
+                      0.653, 0.670, 0.718, 0.776, 0.835, 0.898, 0.961,
+                      1.002, 1.026, 1.022),
+            d_dmin=(1.378, 0.920, 0.899, 0.923, 0.943, 0.935, 0.910, 0.875,
+                   0.829, 0.788, 0.754, 0.724, 0.699, 0.675, 0.646, 0.621,
+                   0.606, 0.601, 0.566, 0.472, 0.349, 0.282, 0.246, 0.234,
+                   0.238, 0.251, 0.264, 0.273, 0.278, 0.279, 0.280),
+            normalisation='as printed -- absolute spectral density, no normalisation applied',
+            normalisation_neutral='midscale neutral of medium brightness against minimum density, the two exposure levels the sheet states on p5',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p7, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density'),
+        ),
         features=Feature.NONE,
         # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
         # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
@@ -4224,6 +5128,623 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                     "density 1.0 above minimum density"),
         ),
     ),
+    # ======================================================================
+    # 2026-09-01 batch: the four AGFA films that only the 1998 edition of
+    # «Technical Data PF» plots. `agfa_films.pdf` was recorded in NotFound.md
+    # and queue G6 as a duplicate of the 2004 F-PF-E4 sheet; it is a separate
+    # 1st edition of 09/1998, it is 100 % vector, and it is the ONLY document
+    # in the corpus that plots ULTRA 50 and the RSX II line at all. Every
+    # curve below is digitised by `agfa_1998_curves.py` from that file.
+    # ======================================================================
+    FilmProfile(
+        name="AGFA_ULTRA_50",
+        aliases=("ultra 50", "agfa ultra 50", "agfacolor ultra 50",
+                 "agfa ultra"),
+        description=(
+            "[T1] AGFACOLOR ULTRA 50 -- curves and spectral traced, everything else [T3]. "
+            "Agfa's saturation film and the slowest colour negative it made "
+            "for the professional line. The published grain is RMS 4.3 -- as "
+            "coarse as Optima 200 at two stops less speed -- which is the "
+            "price of the coupler load: the traced curves show the steepest "
+            "blue record in the whole Agfa negative set (gamma 0.815 against "
+            "Optima 100's 0.691) over the thickest coating Agfa published, "
+            "27 um. That is what the name is about."
+        ),
+        era="1990s-2000s",
+        exposure_index=50,
+        balance_kelvin=5500,
+        # ⚠ TRACED 2026-09-01 from agfa_films.pdf p8, Colour density curves
+        # panel, by `agfa_1998_curves.py`. Vector paths separated by DASH
+        # ARRAY -- solid green, dashed blue, dash-dot-dot red -- and checked
+        # against the panel's own printed Blue/Green/Red words. Six-parameter
+        # softplus fit, rms 0.014 / 0.005 / 0.011 D for r/g/b.
+        # ⚠ THE ABSCISSA IS RE-ANCHORED AND THAT PART IS CONVENTION. Agfa
+        # plot absolute lg exposure (Lx*s); ToneCurve.x is relative to this
+        # corpus's mid-grey anchor and no document connects the two, so the
+        # straight line's midpoint is placed at +0.10 where the `_neg` family
+        # defaults put it. dmin, gamma, the toe-to-shoulder SPAN and both
+        # softnesses are measured; only the origin is carried.
+        # ⚠ green's shoulder_k is 0.429 and not the fit's 0.431, which would
+        # be 1.404 x toe_k -- four thousandths past the 1.4 x bound
+        # ToneCurve's docstring sets for monotonicity. Clipped to the bound.
+        curves=RGBCurves(
+            r=ToneCurve(0.405, 0.648, -1.478, 0.300, +1.678, 0.420),
+            g=ToneCurve(0.742, 0.714, -1.384, 0.307, +1.584, 0.429),
+            b=ToneCurve(0.941, 0.814, -1.320, 0.309, +1.520, 0.379),
+        ),
+        # rms 4.3 PUBLISHED (agfa_films.pdf p8, "Granularity (x 1000): RMS
+        # 4.3"), under conditions the same sheet states on p5: daylight
+        # exposure, visual filter (Vlambda), diffuse density 1.0, 48 um
+        # aperture. ⚠ The per-channel clump diameters are NOT published and
+        # are the Agfa family's rms-keyed stack rule evaluated at 4.3 -- the
+        # same rule that gives Optima 200 its 11.8/12.9/15.0.
+        grain=GrainSpec(4.3, 3.806, 4.161, 4.839, clump_gain=0.86, fog_grain=0.18),
+        # Resolving power 140 lines/mm at 1000:1 and 50 at 1.6:1, PUBLISHED --
+        # identical to Optima 100's, so f50 carries Optima 100's estimate
+        # rather than inventing a new one.
+        # ⚠ adjacency 0.1445 MEASURED, f50 DELIBERATELY NOT. The Sharpness
+        # panel peaks at 114.4 %, the highest overshoot of the twelve films on
+        # this sheet, so what it plots is an adjacency-enhanced response and
+        # not an MTF. The overshoot is a RATIO and carries no unit, so it is
+        # adoptable whatever the abscissa means; f50 reads 42.6 on the panel's
+        # own axis and is not stored, because whether Agfa's "Lines (mm)"
+        # means cycles or line pairs is queue G6.
+        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.1445, adjacency_um=17.0,
+                    resolving_power_lp_mm_lowc=50.0,
+                    resolving_power_lp_mm_highc=140.0),
+        # [T3] Stronger couplers than any other Agfa negative: this is the
+        # saturation film and the traced blue gamma is the steepest of the
+        # set. Not published -- an engineering estimate consistent with that.
+        couplers=CouplerSpec(0.28, 52.0, 0.12, 12.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.0, 0.985, 0.955),
+        misregistration_um=5.5,
+        default_format="ff35",
+        emulsion=EmulsionSpec(
+            coated_um=27.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p8, 'Layer thickness: "
+                    "27 um'. The thickest coating Agfa publish in this "
+                    "range. Crystal size, habit, aspect ratio and iodide are "
+                    "not stated and stay at zero"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 1.0, 2.0),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ THIS IS THE NEUTRAL + D-MIN PAIR, NOT THREE DYES, AND THE
+        # DISTINCTION IS THE ONE NotFound.md WARNS AGAINST COLLAPSING.
+        # Agfa's Spectral density panel on a colour NEGATIVE draws two
+        # AGGREGATE curves -- the film's total transmission at a
+        # midscale neutral exposure and at minimum density -- and two
+        # aggregates cannot be separated into cyan, magenta and yellow.
+        # `has_data` stays FALSE here and `has_neutral_pair` becomes
+        # true; the dye-set counter does NOT move. The reversal films
+        # on the same sheet DO get three dyes, because their panel
+        # draws them separately.
+        # ⚠ The D-min curve is the ORANGE MASK measured spectrally --
+        # it peaks at 400 nm and falls to 0.27 D at 700 nm,
+        # which is the mask's whole purpose and is exactly the shape
+        # `curves.*.dmin` reduces to three numbers.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.571, 1.327, 1.340, 1.457, 1.571, 1.644, 1.655,
+                      1.611, 1.533, 1.423, 1.353, 1.320, 1.310, 1.337,
+                      1.350, 1.309, 1.280, 1.200, 1.070, 0.893, 0.771,
+                      0.709, 0.693, 0.715, 0.764, 0.817, 0.864, 0.903,
+                      0.928, 0.935, 0.925),
+            d_dmin=(1.161, 0.865, 0.808, 0.843, 0.882, 0.898, 0.898, 0.890,
+                   0.863, 0.812, 0.770, 0.751, 0.717, 0.675, 0.638, 0.624,
+                   0.621, 0.603, 0.542, 0.446, 0.352, 0.284, 0.252, 0.243,
+                   0.248, 0.257, 0.265, 0.270, 0.271, 0.271, 0.268),
+            normalisation='as printed -- absolute spectral density, no normalisation applied',
+            normalisation_neutral='midscale neutral of medium brightness against minimum density, the two exposure levels the sheet states on p5',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p8, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density'),
+        ),
+        features=Feature.NONE,
+        # Spectral sensitivity [T1], VECTOR-TRACED 2026-09-01 from
+        # agfa_films.pdf p8. Axis fit residual 0.00 nm / 0.0004 lg -- the
+        # labels are real text on a Distiller PDF, so the calibration is
+        # exact. Layers separated by dash array and checked against the
+        # panel's printed Blue/Green/Red words and against the physical
+        # requirement that the peaks ascend b < g < r (420 / 550 / 650 nm).
+        # -4.00 is the corpus's off-scale sentinel: it marks wavelengths the
+        # curve is NOT DRAWN at, not a measured sensitivity of 1e-4.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.40, -0.82, -0.42, -0.26, -0.15, -0.04, 0.00, -0.16, -0.53, -1.21, -4.00, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.61, -1.17, -0.75, -0.48, -0.26, -0.08, 0.00, -0.09, -0.21, -0.70, -1.37, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-4.00, -4.00, -0.69, -0.25, 0.00, -0.02, -0.09, -0.09, -0.11, -0.34, -0.73, -1.31, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="relative_log",
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p8, Spectral "
+                    "sensitivity panel. Vector paths, dash-keyed by layer. "
+                    "Measurement conditions as the sheet states them on p5: "
+                    "equal-energy spectrum, reading density 1.0 above "
+                    "minimum density"),
+        ),
+    ),
+
+    FilmProfile(
+        name="AGFA_RSX_II_50",
+        aliases=("rsx ii 50", "rsx 50", "agfachrome rsx ii 50",
+                 "agfachrome rsx 50", "agfa rsx 50"),
+        description=(
+            "[T1] AGFACHROME RSX II 50 -- curves and spectral traced, everything else [T3]. The "
+            "slow member of Agfa's E-6 slide line. Traced mid-slope 1.95 / "
+            "2.00 / 1.91 for r/g/b over a 25 um coating, with the green "
+            "record running to D-max 3.95 -- the deepest of the three, which "
+            "is why the film reads neutral-to-cool rather than warm. "
+            "⚠ Agfa reused ONE piece of spectral artwork for RSX II 50 and "
+            "RSX II 100; see the ParamSource."
+        ),
+        era="1990s-2000s",
+        kind=StockKind.REVERSAL,
+        exposure_index=50,
+        balance_kelvin=5500,
+        # ⚠ TRACED 2026-09-01 from agfa_films.pdf p8, Colour density curves,
+        # by `agfa_1998_curves.py`. Fit rms 0.013 / 0.009 / 0.009 D.
+        # ⚠ THE ABSCISSA IS NEGATED, AS ToneCurve REQUIRES FOR A REVERSAL
+        # STOCK, and this is not cosmetic: fitted in the sheet's own ascending
+        # frame the same records return dmin 3.0 with gamma 2.0-2.5, numbers
+        # that are in range for a slide film and completely wrong. toe_x
+        # governs the HIGHLIGHT end here. The straight line's midpoint is
+        # placed at +0.08, the reversal family's own anchor (SCALA 200x
+        # +0.08, EKTACHROME 64 +0.08, EKTACHROME 5239/7239 +0.09).
+        # ⚠ `gamma` IS A MODEL COEFFICIENT AND IT IS NOT THE SLOPE. The red
+        # record's fit rests on the 2.50 ceiling, but ToneCurve.mid_slope --
+        # the observable -- returns 1.95, against a 0.60-decade steepest
+        # chord of 2.015 measured straight off the artwork. All three
+        # mid_slopes land inside the 1.6-2.1 band the ToneCurve docstring
+        # gives for colour reversal. Capping gamma at 2.10 instead was tried
+        # and made it WORSE: mid_slope fell to 1.86 and the rms rose from
+        # 0.013 to 0.019 D.
+        curves=RGBCurves(
+            r=ToneCurve(0.156, 2.500, -0.585, 0.291, +0.745, 0.345),
+            g=ToneCurve(0.136, 2.424, -0.724, 0.288, +0.884, 0.403),
+            b=ToneCurve(0.126, 2.483, -0.589, 0.275, +0.749, 0.385),
+        ),
+        # rms 10.0 PUBLISHED (agfa_films.pdf p8), conditions from p5:
+        # daylight, visual filter (Vlambda), diffuse density 1.0, 48 um
+        # aperture. Clump diameters are NOT published -- estimated on the
+        # reversal family's scale, where EKTACHROME 64 at the same rms 11.0
+        # carries 6.0/6.5/7.5.
+        grain=GrainSpec(10.0, 2, 2.161, 2.484, clump_gain=0.36, fog_grain=0.12),
+        # Resolving power 125 lines/mm at 1000:1 and 55 at 1.6:1, PUBLISHED.
+        # ⚠ The 2004 edition revises the 1000:1 figure to 135; the 1998 value
+        # is stored because every other number on this profile is 1998.
+        # adjacency 0.0435 MEASURED off a panel that peaks at 104.4 %; f50
+        # reads 29.2 and is NOT stored -- queue G6.
+        mtf=MTFSpec(70.0, 78.0, 84.0, adjacency=0.0435, adjacency_um=15.0,
+                    resolving_power_lp_mm_lowc=55.0,
+                    # ⚠ REVISED UPWARD 2026-09-01, 125 -> 135
+                    # lines/mm. See the ParamSource: the 4th
+                    # edition prints a higher figure than the
+                    # 1st, on curves that did not move.
+                    resolving_power_lp_mm_highc=135.0),
+        couplers=CouplerSpec(0.10, 48.0, 0.06, 10.0),
+        dye_matrix=_dye(-0.14),
+        misregistration_um=3.5,
+        default_format="ff35",
+        emulsion=EmulsionSpec(
+            coated_um=25.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p8, 'Layer thickness: "
+                    "25 um'"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        # ⚠ THE CC FILTERS ARE PART OF THE MEASUREMENT, NOT DECORATION. Agfa
+        # prescribe 05B at 10 s and 10B at 100 s, i.e. the BLUE record is what
+        # loses speed first -- chromatic reciprocity failure, and its
+        # direction, read off the filter colour alone.
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 0.5, 1.0),
+            cc_filters=("", "CC05B", "CC10B"),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect', the AGFACHROME slide-film block, which prints "
+                    "an f-stop correction and a CC filtration row"),
+        ),
+        # ⚠ THE FIRST SEPARATED THREE-DYE SET IN THE AGFA CORPUS, AND
+        # IT PASSES A CLOSURE TEST THE PANEL ITSELF SUPPLIES. Agfa draw
+        # FOUR curves here -- Yellow, Magenta, Cyan and a Visual grey --
+        # so the three dyes can be checked against the neutral they are
+        # supposed to compose to. Summed at all 31 sampled wavelengths
+        # they reproduce the printed visual grey to 0.027 D rms.
+        # That is an independent physical check, not a fit residual.
+        # ⚠ THE DASH KEY IS MEANINGLESS ON THIS PANEL. Everywhere else
+        # on the sheet solid/dashed/dash-dot-dot means green/blue/red;
+        # here the curves are NAMED in print and the naming does not
+        # follow the dash convention -- read by dash the yellow, cyan
+        # and magenta traces come back labelled b, g and r. They are
+        # matched to their printed names by bounding-box distance.
+        # Peaks land where they must: yellow 450 nm,
+        # magenta 540 nm, cyan 660 nm.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.148, 0.116, 0.093, 0.078, 0.066, 0.056, 0.050, 0.046,
+                    0.047, 0.053, 0.064, 0.078, 0.095, 0.122, 0.155, 0.196,
+                    0.250, 0.316, 0.389, 0.484, 0.593, 0.706, 0.814, 0.912,
+                    0.996, 1.054, 1.079, 1.068, 1.026, 0.963, 0.876),
+            d_magenta=(0.092, 0.107, 0.121, 0.133, 0.145, 0.158, 0.174,
+                      0.208, 0.284, 0.385, 0.498, 0.623, 0.744, 0.856,
+                      0.924, 0.915, 0.860, 0.751, 0.610, 0.452, 0.320,
+                      0.231, 0.166, 0.116, 0.083, 0.060, 0.044, 0.035,
+                      0.031, 0.028, 0.025),
+            d_yellow=(0.469, 0.595, 0.744, 0.874, 0.928, 0.931, 0.898,
+                     0.781, 0.599, 0.425, 0.295, 0.199, 0.142, 0.102,
+                     0.073, 0.053, 0.041, 0.034, 0.029, 0.026, 0.024,
+                     0.023, 0.022, 0.022, 0.022, 0.022, 0.023, 0.023,
+                     0.024, 0.024, 0.024),
+            d_neutral=(0.683, 0.787, 0.933, 1.065, 1.122, 1.123, 1.097,
+                      1.027, 0.908, 0.850, 0.833, 0.870, 0.954, 1.064,
+                      1.123, 1.141, 1.125, 1.079, 0.999, 0.922, 0.904,
+                      0.928, 0.977, 1.022, 1.074, 1.108, 1.117, 1.101,
+                      1.050, 0.985, 0.888),
+            normalisation='as printed -- absolute spectral density of the processed dye image, no normalisation applied',
+            normalisation_neutral='the panel\'s own Visual grey curve, stored as the neutral because on a reversal film that IS the neutral; it is a CHECK on the three dyes, not a substitute for them',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p8, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density'),
+        ),
+        features=Feature.NONE,
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.02, -1.92, -1.80, -1.64, -1.47, -1.26, -0.98, -0.74, -0.52, -0.36, -0.21, -0.09, 0.00, -0.01, -0.31, -0.95, -1.63, -2.19, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.73, -1.46, -1.21, -0.94, -0.66, -0.45, -0.28, -0.14, -0.04, 0.00, -0.08, -0.44, -1.15, -1.84, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-4.00, -4.00, -0.67, -0.17, 0.00, -0.07, -0.12, -0.14, -0.14, -0.24, -0.53, -0.88, -1.20, -1.53, -1.88, -2.33, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="relative_log",
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p8, Spectral "
+                    "sensitivity panel; conditions from p5, equal-energy "
+                    "spectrum, reading density 1.0 above minimum density. "
+                    "⚠ AGFA DREW ONE CURVE SET FOR TWO FILMS: the RSX II 100 "
+                    "panel on p9 traces to the same numbers within 0.002 lg "
+                    "at every sampled wavelength, so this set is ONE "
+                    "measurement serving both stocks and not two independent "
+                    "ones. Their density curves and their sharpness panels "
+                    "are genuinely different"),
+        ),
+    ),
+
+    FilmProfile(
+        name="AGFA_RSX_II_100",
+        aliases=("rsx ii 100", "rsx 100", "agfachrome rsx ii 100",
+                 "agfachrome rsx 100", "agfa rsx 100"),
+        description=(
+            "[T1] AGFACHROME RSX II 100 -- curves and spectral traced, everything else [T3]. "
+            "the middle slide and the one Agfa notched its sheet film for. "
+            "Same 25 um coating and same published RMS 10.0 as RSX II 50 for "
+            "a stop more speed, and the traced curves are nearly the same "
+            "shape -- mid-slope 1.95 / 1.96 / 1.90. ⚠ Agfa reused ONE piece "
+            "of spectral artwork for this film and RSX II 50."
+        ),
+        era="1990s-2000s",
+        kind=StockKind.REVERSAL,
+        exposure_index=100,
+        balance_kelvin=5500,
+        # ⚠ TRACED 2026-09-01 from agfa_films.pdf p9. Fit rms 0.014 / 0.012 /
+        # 0.011 D. Reversal convention and the gamma-vs-mid_slope caveat are
+        # exactly as on AGFA_RSX_II_50 above.
+        # ⚠ THE BLUE RECORD IS THE ONE THAT NEEDED A MULTI-START FIT. From a
+        # single seed it settled at gamma 1.404 with the two knees 5.3 decades
+        # apart on a curve drawn over 5.0, at rms 0.139 D against 0.009-0.014
+        # for every other record on the page. Nothing about 1.404 looks wrong
+        # for a slide film; only the residual gave it away.
+        curves=RGBCurves(
+            r=ToneCurve(0.145, 2.500, -0.586, 0.284, +0.746, 0.345),
+            g=ToneCurve(0.131, 2.342, -0.772, 0.282, +0.932, 0.395),
+            b=ToneCurve(0.124, 2.421, -0.601, 0.262, +0.761, 0.367),
+        ),
+        grain=GrainSpec(10.0, 2, 2.161, 2.484, clump_gain=0.36, fog_grain=0.12),
+        # RP 125 / 50 lines/mm PUBLISHED (2004 edition revises 1000:1 to 130).
+        # adjacency 0.0826 MEASURED, panel peaks 108.3 %; f50 31.8 not stored,
+        # queue G6.
+        mtf=MTFSpec(68.0, 76.0, 82.0, adjacency=0.0826, adjacency_um=15.0,
+                    resolving_power_lp_mm_lowc=50.0,
+                    # ⚠ REVISED UPWARD 2026-09-01, 125 -> 130
+                    # lines/mm. See the ParamSource: the 4th
+                    # edition prints a higher figure than the
+                    # 1st, on curves that did not move.
+                    resolving_power_lp_mm_highc=130.0),
+        couplers=CouplerSpec(0.10, 48.0, 0.06, 10.0),
+        dye_matrix=_dye(-0.14),
+        misregistration_um=3.5,
+        default_format="ff35",
+        emulsion=EmulsionSpec(
+            coated_um=25.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p9, 'Layer thickness: "
+                    "25 um'. The same page gives the sheet-film base as "
+                    "Acetate 190 um, the only acetate sheet base in the "
+                    "range"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um', sheet film = Acetate 190 um. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 0.5, 1.0),
+            cc_filters=("", "CC05B", "CC10B"),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect', the AGFACHROME slide-film block"),
+        ),
+        # ⚠ THE FIRST SEPARATED THREE-DYE SET IN THE AGFA CORPUS, AND
+        # IT PASSES A CLOSURE TEST THE PANEL ITSELF SUPPLIES. Agfa draw
+        # FOUR curves here -- Yellow, Magenta, Cyan and a Visual grey --
+        # so the three dyes can be checked against the neutral they are
+        # supposed to compose to. Summed at all 31 sampled wavelengths
+        # they reproduce the printed visual grey to 0.027 D rms.
+        # That is an independent physical check, not a fit residual.
+        # ⚠ THE DASH KEY IS MEANINGLESS ON THIS PANEL. Everywhere else
+        # on the sheet solid/dashed/dash-dot-dot means green/blue/red;
+        # here the curves are NAMED in print and the naming does not
+        # follow the dash convention -- read by dash the yellow, cyan
+        # and magenta traces come back labelled b, g and r. They are
+        # matched to their printed names by bounding-box distance.
+        # Peaks land where they must: yellow 450 nm,
+        # magenta 540 nm, cyan 660 nm.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.148, 0.116, 0.093, 0.078, 0.066, 0.056, 0.050, 0.046,
+                    0.047, 0.053, 0.064, 0.078, 0.095, 0.122, 0.155, 0.196,
+                    0.250, 0.316, 0.389, 0.484, 0.593, 0.707, 0.814, 0.912,
+                    0.996, 1.054, 1.079, 1.068, 1.026, 0.963, 0.876),
+            d_magenta=(0.092, 0.107, 0.121, 0.133, 0.145, 0.158, 0.174,
+                      0.209, 0.284, 0.385, 0.498, 0.623, 0.744, 0.856,
+                      0.924, 0.915, 0.860, 0.751, 0.610, 0.452, 0.320,
+                      0.230, 0.166, 0.116, 0.083, 0.060, 0.045, 0.035,
+                      0.031, 0.028, 0.025),
+            d_yellow=(0.469, 0.595, 0.744, 0.874, 0.928, 0.931, 0.898,
+                     0.781, 0.599, 0.425, 0.295, 0.199, 0.142, 0.102,
+                     0.073, 0.053, 0.041, 0.034, 0.029, 0.026, 0.024,
+                     0.023, 0.022, 0.022, 0.022, 0.022, 0.023, 0.023,
+                     0.024, 0.024, 0.024),
+            d_neutral=(0.683, 0.787, 0.933, 1.065, 1.122, 1.123, 1.097,
+                      1.027, 0.908, 0.850, 0.833, 0.869, 0.954, 1.064,
+                      1.123, 1.141, 1.125, 1.079, 1.000, 0.922, 0.904,
+                      0.928, 0.977, 1.022, 1.074, 1.108, 1.117, 1.101,
+                      1.050, 0.984, 0.888),
+            normalisation='as printed -- absolute spectral density of the processed dye image, no normalisation applied',
+            normalisation_neutral='the panel\'s own Visual grey curve, stored as the neutral because on a reversal film that IS the neutral; it is a CHECK on the three dyes, not a substitute for them',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p9, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density. ⚠ AGFA DREW ONE SPECTRAL-DENSITY PANEL '
+                    'FOR RSX II 50 AND RSX II 100: the two trace to within '
+                    '0.0005 D at every sampled wavelength, so this is ONE '
+                    'measurement serving two stocks'),
+        ),
+        features=Feature.NONE,
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.02, -1.92, -1.80, -1.64, -1.47, -1.26, -0.98, -0.74, -0.52, -0.36, -0.21, -0.09, 0.00, -0.01, -0.31, -0.95, -1.63, -2.19, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.73, -1.47, -1.21, -0.94, -0.66, -0.45, -0.28, -0.14, -0.04, 0.00, -0.08, -0.44, -1.15, -1.84, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-4.00, -4.00, -0.67, -0.17, 0.00, -0.07, -0.12, -0.14, -0.14, -0.24, -0.53, -0.88, -1.20, -1.53, -1.88, -2.33, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="relative_log",
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p9, Spectral "
+                    "sensitivity panel; conditions from p5. ⚠ AGFA DREW ONE "
+                    "CURVE SET FOR TWO FILMS: the RSX II 50 panel on p8 "
+                    "traces to the same numbers within 0.002 lg at every "
+                    "sampled wavelength. This is ONE measurement serving both "
+                    "stocks. Their density curves and sharpness panels are "
+                    "genuinely different"),
+        ),
+    ),
+
+    FilmProfile(
+        name="AGFA_RSX_II_200",
+        aliases=("rsx ii 200", "rsx 200", "agfachrome rsx ii 200",
+                 "agfachrome rsx 200", "agfa rsx 200"),
+        description=(
+            "[T1] AGFACHROME RSX II 200 -- curves and spectral traced, everything else [T3]. "
+            "the fast slide and the only one of the three with its own "
+            "spectral artwork and a published push/pull range. Flatter than "
+            "its siblings -- mid-slope 1.75 / 1.68 / 1.86 against RSX II "
+            "50's 1.95 / 2.00 / 1.91 -- on a thicker 27 um coating with RMS "
+            "12.0 and the lowest resolving power in the line."
+        ),
+        era="1990s-2000s",
+        kind=StockKind.REVERSAL,
+        exposure_index=200,
+        balance_kelvin=5500,
+        # ⚠ TRACED 2026-09-01 from agfa_films.pdf p9. Fit rms 0.004 / 0.004 /
+        # 0.008 D -- the cleanest three records on the sheet. Reversal
+        # convention as above; here the fit does NOT rest on any bound, and
+        # gamma 2.02 / 1.91 / 2.32 sits at or near the documented band on its
+        # own.
+        curves=RGBCurves(
+            r=ToneCurve(0.132, 2.022, -0.723, 0.381, +0.883, 0.234),
+            g=ToneCurve(0.116, 1.908, -0.733, 0.352, +0.893, 0.241),
+            b=ToneCurve(0.099, 2.324, -0.629, 0.364, +0.789, 0.233),
+        ),
+        grain=GrainSpec(12.0, 2.258, 2.452, 2.806, clump_gain=0.42, fog_grain=0.13),
+        # RP 110 / 50 lines/mm PUBLISHED (2004 revises 1000:1 to 120).
+        # adjacency 0.1041 MEASURED, panel peaks 110.4 %; f50 21.2 -- the
+        # lowest of the twelve -- NOT stored, queue G6.
+        mtf=MTFSpec(60.0, 68.0, 74.0, adjacency=0.1041, adjacency_um=16.0,
+                    resolving_power_lp_mm_lowc=50.0,
+                    # ⚠ REVISED UPWARD 2026-09-01, 110 -> 120
+                    # lines/mm. See the ParamSource: the 4th
+                    # edition prints a higher figure than the
+                    # 1st, on curves that did not move.
+                    resolving_power_lp_mm_highc=120.0),
+        couplers=CouplerSpec(0.11, 48.0, 0.06, 10.0),
+        dye_matrix=_dye(-0.13),
+        misregistration_um=3.5,
+        default_format="ff35",
+        emulsion=EmulsionSpec(
+            coated_um=27.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p9, 'Layer thickness: "
+                    "27 um'"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        # ⚠ DIRECTIONS ARE PRINTED, MAGNITUDES ARE NOT. The push/pull table
+        # beside this film's panels gives the SPEED of each step and then only
+        # direction words for everything else -- contrast "increasingly
+        # steeper" / "flatter", maximum density "decreasing" / "increasing",
+        # granularity "increasingly coarse-grained" / "finer". Unlike SCALA
+        # 200x, whose density panel plots all five steps as measured curves,
+        # RSX II 200's panel plots the standard process only. So the range is
+        # stored and every magnitude is left at zero rather than transferred
+        # from SCALA, which is a different emulsion in a different process.
+        # ⚠ CORRECTED 2026-09-01: THIS STOCK WAS CARRYING SCALA'S PUSH TABLE.
+        # It held max_push 3.0 / max_pull 1.0 sourced to the 1998 sheet p9
+        # 'Push/pull behaviour'. That table is at x 396.8 on a page whose three
+        # columns are RSX II 100 (x 42-200), RSX II 200 (x 219-375) and AGFA
+        # SCALA 200x (x 425-575) -- it belongs to the SCALA column, and
+        # AGFA_SCALA_200X already carries the identical numbers from it. RSX II
+        # 200 is ISO 200 like SCALA, so the misattributed ISO 400/800/1600 push
+        # ladder looked entirely plausible on it. Column adjacency, not a
+        # reading error.
+        #
+        # What Agfa actually publish for this film is a DIFFERENT and much
+        # smaller claim, in prose rather than a table, on F-PF-D4/E4 p4: «Die
+        # Agfachrome RSX II-Professionalfilme verfügen über eine
+        # außergewöhnliche gute Push/Pull-Stabilität. Bis zu einer
+        # Empfindlichkeitsanpassung von ± 1 Blende (!) bleibt die Neutralität
+        # der Farbwiedergabe voll erhalten. Und selbst eine
+        # Empfindlichkeitssteigerung von bis zu 2 Blenden beeinflußt die
+        # Farbbalance und die Maximaldichte nur sehr gering.»
+        #
+        # ⚠ 2.0 IS THE PUSH LIMIT AND 1.0 IS THE PULL LIMIT, and they are not
+        # symmetric because the sentence is not: Agfa state ± 1 stop with FULL
+        # neutrality and then extend only the PUSH direction to 2 stops with a
+        # stated small penalty. No pull beyond 1 stop is claimed anywhere.
+        push=PushSpec(
+            max_push_stops=2.0,
+            max_pull_stops=1.0,
+            fog_penalty_stated=False,
+            source=("Agfa-Gevaert AG, «Technische Daten -- Agfa Professional "
+                    "Filmsortiment», F-PF-D4, 4. Auflage, Stand 07/2003 -- "
+                    "PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p4, "
+                    "«Push/Pull-Verarbeitung bei Diafilmen»; English twin "
+                    "F-PF-E4 08/2004 p4 -- PDF/PROFILES/AGFA/AGFA stocks.pdf. "
+                    "⚠ REPLACES A MISATTRIBUTION: this profile previously held "
+                    "SCALA's Push 1/2/3 + Pull 1 ladder (ISO 400/800/1600/100), "
+                    "read off the 1998 sheet p9 where that table sits under the "
+                    "SCALA column two columns to the right. The magnitudes are "
+                    "prose here and there is no curve for any step, so nothing "
+                    "beyond the two limits is stored -- and the limits apply to "
+                    "the whole RSX II line, not to this film alone"),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 1.0, 2.0),
+            cc_filters=("", "CC075Y", "CC15Y+CC05C"),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. ⚠ THIS FILM'S CC ROW IS YELLOW AND CYAN WHERE "
+                    "ITS TWO SIBLINGS ARE BLUE, i.e. the fast emulsion's "
+                    "reciprocity failure is chromatically opposite to the "
+                    "slow ones' -- the blue record holds and the red and "
+                    "green lose speed"),
+        ),
+        # ⚠ THE FIRST SEPARATED THREE-DYE SET IN THE AGFA CORPUS, AND
+        # IT PASSES A CLOSURE TEST THE PANEL ITSELF SUPPLIES. Agfa draw
+        # FOUR curves here -- Yellow, Magenta, Cyan and a Visual grey --
+        # so the three dyes can be checked against the neutral they are
+        # supposed to compose to. Summed at all 31 sampled wavelengths
+        # they reproduce the printed visual grey to 0.029 D rms.
+        # That is an independent physical check, not a fit residual.
+        # ⚠ THE DASH KEY IS MEANINGLESS ON THIS PANEL. Everywhere else
+        # on the sheet solid/dashed/dash-dot-dot means green/blue/red;
+        # here the curves are NAMED in print and the naming does not
+        # follow the dash convention -- read by dash the yellow, cyan
+        # and magenta traces come back labelled b, g and r. They are
+        # matched to their printed names by bounding-box distance.
+        # Peaks land where they must: yellow 440 nm,
+        # magenta 540 nm, cyan 660 nm.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.152, 0.125, 0.101, 0.081, 0.065, 0.052, 0.045, 0.043,
+                    0.046, 0.054, 0.064, 0.077, 0.094, 0.120, 0.157, 0.205,
+                    0.259, 0.331, 0.415, 0.507, 0.607, 0.716, 0.837, 0.937,
+                    1.012, 1.059, 1.077, 1.068, 1.031, 0.967, 0.884),
+            d_magenta=(0.080, 0.100, 0.117, 0.129, 0.139, 0.152, 0.176,
+                      0.213, 0.271, 0.355, 0.465, 0.605, 0.753, 0.857,
+                      0.898, 0.889, 0.845, 0.749, 0.602, 0.464, 0.349,
+                      0.257, 0.186, 0.140, 0.111, 0.090, 0.072, 0.056,
+                      0.044, 0.036, 0.030),
+            d_yellow=(0.508, 0.653, 0.792, 0.891, 0.937, 0.929, 0.870,
+                     0.743, 0.566, 0.401, 0.284, 0.192, 0.133, 0.093,
+                     0.066, 0.052, 0.045, 0.038, 0.032, 0.027, 0.024,
+                     0.023, 0.022, 0.021, 0.020, 0.020, 0.019, 0.019,
+                     0.018, 0.018, 0.018),
+            d_neutral=(0.705, 0.820, 0.957, 1.067, 1.115, 1.113, 1.071,
+                      0.980, 0.860, 0.806, 0.797, 0.851, 0.946, 1.040,
+                      1.088, 1.117, 1.128, 1.092, 1.032, 0.975, 0.947,
+                      0.969, 1.014, 1.065, 1.113, 1.141, 1.141, 1.119,
+                      1.073, 1.005, 0.917),
+            normalisation='as printed -- absolute spectral density of the processed dye image, no normalisation applied',
+            normalisation_neutral='the panel\'s own Visual grey curve, stored as the neutral because on a reversal film that IS the neutral; it is a CHECK on the three dyes, not a substitute for them',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p9, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density'),
+        ),
+        features=Feature.NONE,
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.96, -1.90, -1.84, -1.81, -1.82, -1.85, -1.82, -1.74, -1.65, -1.59, -1.51, -1.36, -1.16, -0.94, -0.71, -0.53, -0.41, -0.28, -0.13, -0.03, 0.00, -0.14, -0.58, -1.37, -2.00, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -1.92, -1.79, -1.66, -1.52, -1.36, -1.17, -0.98, -0.80, -0.61, -0.43, -0.27, -0.18, -0.08, 0.00, -0.04, -0.27, -1.01, -1.73, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.62, -0.42, -0.17, 0.00, -0.03, -0.14, -0.24, -0.32, -0.39, -0.51, -0.82, -1.17, -1.51, -1.88, -2.36, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="relative_log",
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p9, Spectral "
+                    "sensitivity panel; conditions from p5, equal-energy "
+                    "spectrum, reading density 1.0 above minimum density. "
+                    "Unlike RSX II 50 and 100, which share one drawing, this "
+                    "film's panel is its own: all three layers extend "
+                    "markedly further into the short wavelengths and the "
+                    "blue record is drawn from 380 nm"),
+        ),
+    ),
+
     FilmProfile(
         name="AGFA_VISTA_200",
         aliases=("vista", "agfa vista", "vista 200"),
@@ -4242,7 +5763,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             b=_neg(1.05, 0.640),
         ),
         # rms_granularity CORRECTED 9.4 -> 4.3 on 2026-08-15: AGFA/'AGFACOLOR Vista 100, 200, 400, 800.pdf' (Technical Data AF, 06/2000) prints RMS 4.3 (48 um, D=1.0); old value was an estimate
-        grain=GrainSpec(4.3, 13.0, 14.0, 16.5, clump_gain=0.92, fog_grain=0.19),
+        grain=GrainSpec(4.3, 4.194, 4.516, 5.323, clump_gain=0.92, fog_grain=0.19),
         # ⚠ f50 LEFT AS AN ESTIMATE ON PURPOSE, 2026-08-18. The sheet's
         # "Sharpness" panel plots TRANSFER FACTOR (%) against lines/mm and
         # OVERSHOOTS 100 % at low frequency, so it is a CTF-like rectangular-wave
@@ -4251,6 +5772,17 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # measurement. The printed RESOLVING POWER is stored instead, in
         # _RESOLVING_POWER, where the schema documents what it means. Converting
         # the panel properly (Coltman) is queued with the MTF-as-a-curve work.
+        # ⚠ adjacency LEFT ALONE 2026-09-02e (queue A4) AND THE REASON IS A SECOND,
+        # LARGER DISCREPANCY ON THIS PROFILE. The Agfa sheet's own curve was traced by
+        # mtf_vector.py and measures f50 50.0 c/mm with a +11.7 % overshoot peaking at
+        # 3.4 c/mm -- a resolved interior peak, so the two-parameter adjacency solve
+        # applied to twelve other stocks in this pass would work here too. It is NOT
+        # applied, because the solve runs against the stock's STORED rolloff and this
+        # profile's stored f50 triple is the class estimate 56 / 63 / 69, not the
+        # measured 50.0. Solving an adjacency pair on a rolloff the measurement
+        # contradicts would bury an unadopted f50 inside a "measured" adjacency. The
+        # f50 adoption is a separate decision (one unlabelled visual-weighted curve
+        # against three stored channels) and is not taken here.
         mtf=MTFSpec(56.0, 63.0, 69.0, adjacency=0.08, adjacency_um=18.0),
         couplers=CouplerSpec(0.30, 50.0, 0.13, 12.0),
         dye_matrix=_dye(-0.05),
@@ -4489,7 +6021,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # best available, NOT a good one. Do not cite it as measured.
         # The per-layer triple is re-derived by _grain_v2 from the same b/g 1.3
         # and r/g 1.1 stack rule as before: 12.65 / 11.5 / 14.95.
-        grain=GrainSpec(11.5, 11.5, 12.5, 15.0, clump_gain=0.36, fog_grain=0.22),
+        grain=GrainSpec(11.5, 3.71, 4.032, 4.839, clump_gain=0.36, fog_grain=0.22),
         # [T3] f50 RE-ANCHORED 2026-08-27 on the same source's single
         # mtf50 = 55 lp/mm, same owner decision and same reasoning as the rms
         # figure above. WAS 40 / 48 / 56 -- our own analogy from VISION3 500T.
@@ -4652,7 +6184,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # One emulsion, so one curve. All the colour behaviour comes from the
         # reseau, not from these.
         curves=_mono(ToneCurve(0.30, 1.48, -0.72, 0.22, 0.94, 0.34)),
-        grain=GrainSpec(12.5, 16.5, 16.5, 16.5, clump_gain=1.35, fog_grain=0.34),
+        grain=GrainSpec(12.5, 5.323, 5.323, 5.323, clump_gain=1.35, fog_grain=0.34),
         mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.03),
         halation=HalationSpec(
             radii_um=(22.0, 105.0, 470.0),
@@ -4683,6 +6215,21 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             # neutralises in reality and which otherwise tints the
             # neutral-grey reconstruction invariant. WITHIN-row band
             # ratios -- the crosstalk signature -- are preserved exactly.
+            # ⚠ AND THEREFORE THE x4.05 ABOVE HAS NO EFFECT ON THIS MATRIX
+            # AT ALL (queue C46, closed 2026-09-02). A UNIFORM scalar
+            # cancels exactly under a per-row normalisation to a FIXED sum,
+            # so the "invented constant" survives only in the prose. That
+            # matters because C46's whole case for replacing this matrix
+            # with the Flueckiger et al. 2018 Fig. 21 measurement was that
+            # the new one "needs no invented 4.05" -- an argument about a
+            # factor that was never in the stored numbers. What is left is
+            # a genuine but unadjudicable disagreement: the diagonals agree
+            # to 0.015 / 0.056 / 0.009 and the blue element's red leak to
+            # 2 %, while the red and green elements' leakage differs by up
+            # to 2x, on two prints of ninety-year-old material of different
+            # age with one trace each. THIS MATRIX IS KEPT; the second
+            # measurement stays recorded in
+            # _DUFAYCOLOR_RESEAU_FLUECKIGER_BANDS.
             filter_matrix=(
                 (0.700, 0.064, 0.036),
                 (0.170, 0.460, 0.170),
@@ -4721,7 +6268,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.28, 0.560, toe_x=-1.18, toe_k=0.38, shoulder_x=1.40),
             b=_neg(0.29, 0.580, toe_x=-1.08, toe_k=0.36, shoulder_x=1.30),
         ),
-        grain=GrainSpec(13.0, 18.5, 20.0, 24.0, clump_gain=1.40, fog_grain=0.30,
+        grain=GrainSpec(13.0, 5.968, 6.452, 7.742, clump_gain=1.40, fog_grain=0.30,
                         anisotropy=1.04),
         mtf=MTFSpec(24.0, 28.0, 33.0, adjacency=0.03, adjacency_um=34.0),
         halation=HalationSpec(
@@ -4826,7 +6373,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # of the ORIGINAL EI 100 coating; TI0835 documents the improved EI 125
         # one. Stopping values from crossing between the two generations is the
         # entire point of the 2026-08-18 split.
-        grain=GrainSpec(5.0, 7.1, 7.7, 9.2, clump_gain=1.40, fog_grain=0.30,
+        grain=GrainSpec(5.0, 2.29, 2.484, 2.968, clump_gain=1.40, fog_grain=0.30,
                         anisotropy=1.04),
         # RESOLVING POWER: TI0835 prints it as a labelled ISO pair -- "ISO RPL
         # 50 lines/mm (TOC 1.6:1)" and "ISO RP 100 lines/mm (TOC 1000:1)",
@@ -4936,7 +6483,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # "Diffuse rms granularity* 14", "*Read at a net diffuse visual density
         # of 1.0, using a 48-micrometer aperture" -- this database's own
         # convention, printed.
-        grain=GrainSpec(14.0, 12.0, 12.0, 12.0, clump_gain=1.05, fog_grain=0.22),
+        grain=GrainSpec(14.0, 3.871, 3.871, 3.871, clump_gain=1.05, fog_grain=0.22),
         # [T1] MTF MEASURED AND ADOPTED 2026-08-26 (H-1-5222 p2, the vector
         # Modulation-Transfer panel; tungsten, D-96 to control gamma, diffuse
         # visual). WAS THE FLAT ESTIMATE 56.0 / 56.0 / 56.0 -- 1.33x too sharp.
@@ -4954,7 +6501,14 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # ⚠ adjacency_um STAYS AN ESTIMATE at 25.0: the panel gives the
         # overshoot's SIZE and its FREQUENCY (peak at 4.1 cycles/mm), not the
         # micrometre scale the renderer's edge kernel wants.
-        mtf=MTFSpec(42.2, 42.2, 42.2, adjacency=0.250, adjacency_um=25.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.250 at 4.1 c/mm on the - record, replacing 0.250 / 25.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(42.2, 42.2, 42.2, adjacency=0.2996, adjacency_um=49.8,
                     mtf_rolloff_q=2.88, mtf_measured=True),
         spectral_weights=(0.32, 0.47, 0.21),
         misregistration_um=0.0,
@@ -5060,7 +6614,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # 48-micrometer aperture -- exactly this field's convention. Replaces
         # the 10.4 estimate, which predated the sheet and carried no source.
         # Clump sizes remain estimates; the sheet publishes no grain size.
-        grain=GrainSpec(14.0, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
+        grain=GrainSpec(14.0, 4.032, 4.355, 5.161, clump_gain=0.72, fog_grain=0.20),
         mtf=MTFSpec(48.0, 54.0, 60.0, adjacency=0.08, adjacency_um=18.0),
         halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
                              threshold_stops=1.9),
@@ -5095,7 +6649,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # 48-micrometer aperture -- exactly this field's convention. Replaces
         # the 10.4 estimate, which predated the sheet and carried no source.
         # Clump sizes remain estimates; the sheet publishes no grain size.
-        grain=GrainSpec(14.0, 12.5, 13.5, 16.0, clump_gain=0.72, fog_grain=0.20),
+        grain=GrainSpec(14.0, 4.032, 4.355, 5.161, clump_gain=0.72, fog_grain=0.20),
         mtf=MTFSpec(48.0, 54.0, 60.0, adjacency=0.08, adjacency_um=18.0),
         halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
                              threshold_stops=1.9),
@@ -5189,7 +6743,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             g=_neg(0.24, 0.585, toe_x=-1.32, toe_k=0.34, shoulder_x=1.55),
             b=_neg(0.23, 0.615, toe_x=-1.20, toe_k=0.32, shoulder_x=1.44),
         ),
-        grain=GrainSpec(10.5, 16.0, 17.5, 21.0, clump_gain=1.15, fog_grain=0.26),
+        grain=GrainSpec(10.5, 5.161, 5.645, 6.774, clump_gain=1.15, fog_grain=0.26),
         mtf=MTFSpec(30.0, 36.0, 42.0, adjacency=0.05, adjacency_um=30.0),
         halation=HalationSpec(
             radii_um=(18.0, 95.0, 480.0),
@@ -5258,8 +6812,20 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         exposure_index=25,
         balance_kelvin=3400,  # carbon arc / early incandescent
         curves=_mono(ToneCurve(0.32, 0.700, -1.06, 0.26, 1.44, 0.40)),
-        grain=GrainSpec(13.5, 17.0, 17.0, 17.0, clump_gain=1.45, fog_grain=0.38,
+        grain=GrainSpec(13.5, 5.484, 5.484, 5.484, clump_gain=1.45, fog_grain=0.38,
                         anisotropy=1.05),
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(28.0, 28.0, 28.0, adjacency=0.02),
         halation=HalationSpec(
             radii_um=(24.0, 120.0, 560.0),
@@ -5292,6 +6858,42 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         era="1950s-2000s",
         is_monochrome=True,
+        # ⚠ ITS 1942 PREDECESSOR IS IN THE CORPUS AND IS DELIBERATELY NOT MERGED
+        # INTO THIS PROFILE -- queue E4, 2026-09-02e. The row asked for "the
+        # Plus-X 5231 predecessor" and the 1942 Kodak book supplies it in full:
+        # EASTMAN PLUS-X PANCHROMATIC NEGATIVE FILM, Type 1231 (printed page 44,
+        # PDF page 49), "a high speed, fine-grain negative material ... an
+        # excellent balance between the maximum desirable speed for most
+        # purposes and the finest grain obtainable at that speed". Its printed
+        # specification, transcribed and kept here because it belongs to this
+        # product line and nowhere else:
+        #     Kodak Film Speed   Sunlight 240 / Tungsten 160
+        #     development        Kodak SD-21 to gamma 0.65 (a SEASONED D-76 --
+        #                        see EASTMAN_SUPER_XX_1938 for the formula)
+        #     IIb control gamma  0.60 to 0.70
+        #     resolving power    55 lines/mm in SD-21
+        #     base               gray nitrate, with the gray antihalation dye
+        #                        all Eastman picture negatives of the period
+        #                        carried
+        #     perforations       standard 35 mm negative
+        # ⚠ AND WHY IT IS NOT WRITTEN TO ANY FIELD OF THIS PROFILE. This stock
+        # is 5231, the acetate emulsion of H-1-5231 (February 1999); Type 1231
+        # is a nitrate emulsion of 1942. Three generations and a base change
+        # apart, sharing a trade name and the last three digits of a catalogue
+        # number -- the exact shape of the trap this file records for
+        # EASTMAN_5247 (1974 vs 1983), ILFORD PAN F vs PAN F PLUS and NEOPAN SS
+        # (1959 vs 1999). The measured evidence that they are different films is
+        # already here: 1231's resolving power is 55 lines/mm at a 1000:1 chart,
+        # while 5231's own vector MTF traces to f50 41.3 c/mm with the curve
+        # still at 24.5 % response at 98 c/mm. Those are not the same emulsion's
+        # numbers and averaging them would produce a film that never existed.
+        # ⚠ NOR IS A NEW PROFILE OPENED FOR 1231 IN THIS PASS, and the reason is
+        # evidential, not clerical: the book prints its H&D family, time-gamma
+        # and time-fog curves as a RASTER on a 1942 letterpress scan, so a tone
+        # curve for it would be a trace of a halftone of a printed plot, and its
+        # speed is on the pre-ASA Kodak scale which PH2.5-1960 does not convert
+        # by a constant. The printed numbers above are the whole of what the
+        # document actually supports, and they are recorded.
         exposure_index=80,
         balance_kelvin=5500,  # EI 80 is the daylight rating (64 tungsten)
         # dmin CORRECTED 2026-08-18, 0.120 -> 0.210, from the sheet's own printed
@@ -5385,7 +6987,54 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # than tuned away.
         # ⚠ f50 IS UNCHANGED at 41.3 and both laws pass through 0.5 there, so this
         # is a SHAPE change only -- no level decision rides along with it.
-mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
+# ⚠ adjacency AND adjacency_um BOTH REPLACED 2026-09-02e (queue A4). THE PAIR
+# STORED HERE UNTIL TODAY COULD NOT REPRODUCE THIS SHEET'S OWN MEASUREMENT, and
+# neither could the pair on any of the other eleven measured sheets: the defect
+# is definitional, not a typo.
+#   WHAT WAS WRONG. `adjacency` was set equal to the traced overshoot -- 0.034
+# here, because the plot peaks at 103.4 % -- on the reading that "MTFSpec
+# defines adjacency as the fractional overshoot above unity". It does not. The
+# renderer (`film_sim.FreqGrid.mtf`) multiplies the ROLLOFF by a difference of
+# Gaussians, sigma1 = 0.4a and sigma2 = 2.0a, so what reaches the image is
+#       T(f) = rolloff(f) * [ 1 + adjacency * (G(0.4a) - G(2.0a)) ]
+# and the rolloff ATTENUATES the lift before it is seen. `adjacency` is the
+# amplitude of the lift BEFORE that attenuation; the observed overshoot is
+# always smaller. Storing the observed value therefore always understates it.
+#   HOW BAD IT WAS HERE. With 0.034 / 16.0 the product never exceeds 1.0 at any
+# frequency -- this stock was one of the twelve the C19 census caught carrying
+# an `adjacency` that reads as active and renders as inert. The sheet prints a
+# +3.4 % overshoot and the engine rendered none.
+#   THE FIX IS A TWO-PARAMETER SOLVE, NOT A RESCALING. The measurement is two
+# numbers, a peak VALUE and a peak FREQUENCY, and the model has exactly two
+# free parameters, so the system is determined and is solved rather than
+# guessed: find (adjacency, adjacency_um) such that argmax_f T(f) = the traced
+# peak frequency AND max_f T(f) = the traced peak value. Solved on the stock's
+# own stored rolloff (q = 1.84 here), over a 0.1-300 c/mm log grid, a_um refined
+# to 0.01 um. Result 0.0691 / 32.1 reproduces 1.0340 at 4.60 c/mm against the
+# traced 1.034 at 4.7 -- 0.001 c/mm in location and exact in value.
+#   ⚠ AND IT SETTLES C2c/C19's OTHER COMPLAINT, WHICH WAS THAT `adjacency_um`
+# "disagrees with the traced overshoot frequency on all four stocks checked".
+# The old note here said the 4.7 c/mm peak implied "a spatial scale of order
+# 100-200 um" against a stored 16.0, and left the field FLAGGED, NOT CHANGED,
+# because resolving it needed the renderer's definition of the field. That
+# definition is now pinned (f_lift_peak = 206.07 / adjacency_um c/mm, verify.py
+# C2c) and the answer is 32.1 um -- neither the naive 1/f reading nor the stored
+# value. The flag is discharged.
+#   ⚠ THE RED RECORDS OF EVERY COLOUR SHEET ARE REFUSED, not solved. On 5201,
+# 5274, 5217, 5218 and 5279 the red curve's maximum sits on the FIRST TRACED
+# SAMPLE (2.4-2.5 c/mm), so the peak is outside the drawn range and the trace
+# gives a bound, not a measurement. Solving it anyway returns a_um 74-84 um on
+# every one of them -- a clean signature of an unresolved peak, and exactly the
+# artefact that would have been laundered into the database as a "systematic
+# red edge effect". Each stock is solved on its GOVERNING record: the single
+# curve on a mono sheet, GREEN on a colour sheet (the same convention f50 uses,
+# and the record the visual response is dominated by). The blue solution is
+# recorded per stock and is NOT averaged in -- method rule 4.
+#   WHAT THIS CHANGES. Twelve stocks' mid-frequency MTF. It is a level change in
+# the 4-20 c/mm band only: every stock still passes 50 % at its own measured
+# f50, and every rolloff law and q is untouched. Nothing else in the schema
+# moves and no C++ source changes -- both engines read these constants.
+mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0691, adjacency_um=32.1,
                     mtf_rolloff_q=1.84, mtf_measured=True),
         spectral_weights=(0.27, 0.54, 0.19),
         misregistration_um=0.0,
@@ -5560,10 +7209,21 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         ),
         era="1938-1950s",
         is_monochrome=True,
+        # ⚠ RE-VERIFIED AGAINST THE BOOK ITSELF 2026-09-02e (queue E4), AND ONE
+        # CITATION WAS WRONG. The 2026-08-11 harvest was made without the file
+        # in this checkout; the owner supplied it this session and every value
+        # below was checked page by page against a 200 dpi render with OCR.
+        # Everything reproduces EXCEPT the PDF page number, which was recorded
+        # as 49 and is 50 -- printed page 45 of the book, PDF page 50, confirmed
+        # from the book's own contents list on PDF page 44 ("1232 SUPER-XX
+        # PANCHROMATIC NEGATIVE .... 45") and from the page's own folio. The
+        # neighbouring sheets are Background-X Type 1230 on PDF 48 and Plus-X
+        # Type 1231 on PDF 49, which is how the off-by-one arose. Corrected
+        # here and in _RESOLVING_POWER.
         # DOCUMENTED 2026-08-11 [C1]: the 1942 Kodak book "Eastman Motion
         # Picture Films for Professional Use" carries the full specification
         # sheet for this product under its 35 mm nitrate designation, EASTMAN
-        # SUPER-XX PANCHROMATIC NEGATIVE FILM, Type 1232 (book p45, PDF p49):
+        # SUPER-XX PANCHROMATIC NEGATIVE FILM, Type 1232 (book p45, PDF p50):
         # Kodak Film Speed Sunlight 400 / Tungsten 250 (Weston 100/64,
         # G.E. 160/100) for SD-21 development to gamma 0.65; recommended IIb
         # control gamma 0.60-0.70; resolving power 55 lines/mm in SD-21;
@@ -5574,12 +7234,47 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # rather than the raw 400; both are recorded in the provenance.
         exposure_index=100,
         balance_kelvin=5500,  # EI 100 is the daylight rating
+        # ⚠ WHAT THE SENSITOMETRY WAS MEASURED IN, WHICH THE EARLIER HARVEST
+        # DID NOT RECORD AND WHICH CHANGES HOW EVERY NUMBER ABOVE READS. Book
+        # page 16 (PDF page 21) prints the developer: "The Kodak Developer SD-21
+        # used in determining the sensitometric curves and other data on a
+        # number of the Specification Sheets is a modification of Kodak D-76. It
+        # is obtained by the addition of 6 grams of borax, 8 grams of boric
+        # acid, and 0.25 gram of potassium bromide to each liter of D-76
+        # solution." Kodak's stated reason is the important part: SD-21 "repre-
+        # sents a 'seasoned' D-76" and its results "approximate more nearly
+        # those given by the partially exhausted developers used in practice."
+        # ⚠ SO THE PRINTED GAMMA 0.65, THE SPEEDS AND THE 55 LINES/MM ARE
+        # SEASONED-D-76 FIGURES, NOT FRESH-D-76 FIGURES, and the book says
+        # explicitly that the formula "is given here only for the purpose of
+        # specifying testing conditions and is not intended as a recommendation
+        # for commercial laboratory use." Any future comparison of this stock
+        # against a D-76 measurement has to carry that difference; the two are
+        # not the same developer and Kodak chose the seasoned one deliberately.
+        # Sensitometer Type IIb, 65 degrees F.
+        # ⚠ THE 16 mm SIBLING IS A SEPARATE CATALOGUE NUMBER AND NOT A SEPARATE
+        # EMULSION: EASTMAN SUPER-XX PANCHROMATIC NEGATIVE SAFETY FILM, Type
+        # 5242 (PDF page 52) prints the SAME speeds, the same SD-21 gamma 0.65,
+        # the same IIb aim and the same 55 lines/mm, and says in words it "is
+        # similar to Super-XX Panchromatic, Type 1232". Its ONE difference is
+        # the base: BLUE-GRAY ACETATE against 1232's GRAY NITRATE. That is a
+        # base-thickness and safety difference, not an image-structure one, so
+        # this profile covers both and NITRATE_BASE below is the 35 mm product's
+        # property.
+        # ⚠ AND THE ONE GRAININESS STATEMENT IN THE BOOK THAT IS QUANTITATIVE
+        # ENOUGH TO CONSTRAIN rms, page 8 (PDF page 13): Plus-X Type 1231 is
+        # "twice as fast as Eastman Super-X, its predecessor as standard
+        # production negative film, yet its graininess is definitely lower";
+        # Super-XX Type 1232 "has extreme speed, three times that of Super-X,
+        # yet its graininess is barely perceptibly greater". So the ordering is
+        # Plus-X < Super-X < Super-XX with Super-XX only just above Super-X --
+        # a narrow bracket, and it is why rms 12.0 is kept rather than raised.
         # Curve/grain/MTF values remain the earlier fit [T2 after the 1942
         # corroboration]: the printed gamma aim 0.60-0.70 brackets the fitted
         # gamma 0.610, and "medium graininess" for a 1942 emulsion is
         # consistent with rms 12 next to Plus-X 1231's "fine grain".
         curves=_mono(ToneCurve(0.28, 0.610, -1.52, 0.34, 1.92, 0.52)),
-        grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=1.30, fog_grain=0.32),
+        grain=GrainSpec(12.0, 5.161, 5.161, 5.161, clump_gain=1.30, fog_grain=0.32),
         mtf=MTFSpec(35.0, 35.0, 35.0, adjacency=0.04),
         # The 1942 book states ALL Eastman picture negatives are coated on
         # base carrying a gray dye "to prevent halation" -- so the halation
@@ -5643,7 +7338,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # Justified by amateur emulsion quality and by reversal processing,
         # which develops the unexposed silver and yields coarser apparent
         # grain than negative processing of the same crystals.
-        grain=GrainSpec(19.0, 17.0, 17.0, 17.0, clump_gain=1.45, fog_grain=0.26,
+        grain=GrainSpec(19.0, 5.484, 5.484, 5.484, clump_gain=1.45, fog_grain=0.26,
                         anisotropy=1.06),
         mtf=MTFSpec(44.0, 44.0, 44.0, adjacency=0.05, adjacency_um=19.0),
         spectral_weights=(0.27, 0.54, 0.19),
@@ -5674,7 +7369,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         ),
         # Same reversal reasoning as GENERIC_BW: no print stage to amplify
         # the grain, so the emulsion number has to carry it.
-        grain=GrainSpec(12.0, 10.5, 11.5, 13.0, clump_gain=0.70, fog_grain=0.22,
+        grain=GrainSpec(12.0, 3.387, 3.71, 4.194, clump_gain=0.70, fog_grain=0.22,
                         anisotropy=1.06),
         mtf=MTFSpec(50.0, 56.0, 62.0, adjacency=0.08, adjacency_um=17.0),
         halation=HalationSpec(gain_r=0.05, gain_g=0.018, gain_b=0.005,
@@ -5709,7 +7404,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # SOURCE PDF/PROFILES/KODAK/e144-Ektachrome_160T_EPT.pdf p4: "Diffuse
         # rms Granularity*  13 (very fine)". Same sheet: EI 160 tungsten,
         # Process E-6, densitometry Status A.
-        grain=GrainSpec(13.0, 9.5, 10.5, 12.5, clump_gain=0.52, fog_grain=0.17),
+        grain=GrainSpec(13.0, 3.065, 3.387, 4.032, clump_gain=0.52, fog_grain=0.17),
         mtf=MTFSpec(58.0, 65.0, 72.0, adjacency=0.10, adjacency_um=16.0),
         halation=HalationSpec(gain_r=0.05, gain_g=0.017, gain_b=0.005,
                              threshold_stops=2.0),
@@ -5767,7 +7462,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # Granularity* 11 (very fine)". Same sheet: EI 64, Process E-6,
         # densitometry Status A, and a numeric reciprocity/CC-filter table.
         # Kodak publishes no resolving-power figure for this stock.
-        grain=GrainSpec(11.0, 6.0, 6.5, 7.5, clump_gain=0.34, fog_grain=0.13),
+        grain=GrainSpec(11.0, 1.935, 2.097, 2.419, clump_gain=0.34, fog_grain=0.13),
         mtf=MTFSpec(72.0, 80.0, 88.0, adjacency=0.12, adjacency_um=14.0),
         halation=HalationSpec(gain_r=0.045, gain_g=0.015, gain_b=0.004,
                              threshold_stops=2.1),
@@ -5844,7 +7539,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # flat at the D 2.0 axis edge at steps 19-20 -- axis saturation,
         # not necessarily the true film shoulder [T3 there].
         curves=_mono(ToneCurve(0.107, 1.251, -0.971, 0.240, 0.615, 0.044)),
-        grain=GrainSpec(7.4, 10.0, 10.0, 10.0, clump_gain=1.15, fog_grain=0.18),
+        grain=GrainSpec(7.4, 3.226, 3.226, 3.226, clump_gain=1.15, fog_grain=0.18),
         mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.09, adjacency_um=15.0),
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
@@ -5890,7 +7585,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # conditions match this project's metric definition (sigma(D)*1000 at
         # D = 1.0), so the figure is adopted verbatim. Corrected 2026-07-31
         # from the previous estimate of 11.5 -- a 52 % under-statement.
-        grain=GrainSpec(17.5, 15.5, 15.5, 15.5, clump_gain=1.30, fog_grain=0.28,
+        grain=GrainSpec(17.5, 5, 5, 5, clump_gain=1.30, fog_grain=0.28,
                         anisotropy=1.03),
         # f50 stays an estimate: Foma publishes no MTF whatsoever. The single
         # published resolving-power figure (90 lines/mm, same page) is recorded
@@ -5958,7 +7653,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
             b=ToneCurve(0.8749, 0.6193, -1.5764, 0.1064, 2.1000, 0.1489),
         ),
         # rms_granularity CORRECTED 7.4 -> 4.0 on 2026-08-15: manufacturer sheet FUJI/'F500 - 8572.pdf' p2 prints RMS 4.0 (x1000, 48 um, D=1.0 above Dmin); the old value was an estimate
-        grain=GrainSpec(4.0, 10.0, 9.2, 12.6, clump_gain=0.62, fog_grain=0.22),
+        grain=GrainSpec(4.0, 3.226, 2.968, 4.065, clump_gain=0.62, fog_grain=0.22),
         # [T1] f50_g CONVERTED FROM THE SHEET'S CONTRAST TRANSFER FUNCTION,
         # 2026-08-23, by the same Coltman inversion used on 8532 -- see that
         # entry for the formula and the tail treatment. Traced 1.90-50.04 c/mm;
@@ -5979,6 +7674,20 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
         # printed). ⚠ LOWER BOUND, as on 8532: the trace begins at 1.90 c/mm
         # already at its maximum, so the panel does not resolve the overshoot
         # peak. adjacency_um 20.0 stays an estimate.
+        # ⚠ adjacency 0.009 IS MEASURED AND STILL RENDERS AS NOTHING, and queue A4
+        # (2026-09-02e) established WHY and then REFUSED TO FIX IT. The sheet's
+        # converted sine curve peaks at 1.009, which is the amplitude -- but the trace
+        # BEGINS at that maximum (1.90 c/mm, the first drawn sample), so the panel does
+        # not resolve the peak FREQUENCY. The renderer needs both: `adjacency` is the
+        # difference-of-Gaussians amplitude before the rolloff attenuates it, and
+        # `adjacency_um` sets where the band-pass peaks (f = 206.07 / adjacency_um).
+        # Two unknowns, one measurement -- underdetermined. What the trace DOES give is
+        # a bound: the peak lies at or below 1.90 c/mm, so adjacency_um >= 108 um,
+        # five to eight times the stored 20.0. Solving on that bound would place the
+        # lift essentially at DC on the strength of a boundary sample, so it is not
+        # done. The twelve stocks whose sheets DO resolve the peak were solved in the
+        # same pass; this one is recorded as unresolved. Consequence, stated plainly:
+        # the sheet prints a +0.9 % overshoot and the engine renders none.
         mtf=MTFSpec(16.6, 20.21, 22.4, adjacency=0.009, adjacency_um=20.0,
                     mtf_rolloff_q=1.700, mtf_measured=True),
         # [T1] SPECTRAL SENSITIVITY TRACED FROM THE SHEET'S VECTOR PANEL,
@@ -6042,7 +7751,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.034, adjacency_um=16.0,
             b=_neg(0.20, 0.660, toe_x=-1.64, shoulder_x=1.80),
         ),
         # rms_granularity CORRECTED 6.8 -> 3.5 on 2026-08-15: FUJI/eterna_vivid500.pdf prints RMS 3.5 (48 um, D=1.0), previously unread on that sheet
-        grain=GrainSpec(3.5, 9.6, 9.0, 11.8, clump_gain=0.34, fog_grain=0.20),
+        grain=GrainSpec(3.5, 3.097, 2.903, 3.806, clump_gain=0.34, fog_grain=0.20),
                 # [T3] f50 RE-ANCHORED 2026-08-27 on this source's single
         # mtf50 = 55 lp/mm. WAS 50/58/66 -- our own estimate; mtf_measured is
         # False here and this profile has NO documented resolving-power pair,
@@ -6188,7 +7897,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # reduction across the generation -- exactly what that sheet claims
         # ("remarkably fine grain"). The old 5.4 was an estimate and made the
         # older stock 80 % grainier than its successor.
-        grain=GrainSpec(4.0, 8.0, 9.0, 11.0, clump_gain=0.42, fog_grain=0.16),
+        grain=GrainSpec(4.0, 2.581, 2.903, 3.548, clump_gain=0.42, fog_grain=0.16),
         # ⚠ sigma(D) WAS AVAILABLE AND WAS *NOT* ADOPTED, 2026-08-24. 1990 No.1
         # Fig. 4 is a full measured sigma(D) curve for this emulsion, 48 um
         # aperture, D 0.35-1.3, and the `sigma_shape_*` fields exist for exactly
@@ -6385,7 +8094,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # triples describe nearly the same curve -- so gamma 1.030 here should be
         # read together with toe_x -0.880 and shoulder_x 1.000, not on its own.
         curves=_mono(ToneCurve(0.211, 1.030, -0.880, 0.240, 1.000, 0.480)),
-        grain=GrainSpec(17.2, 22.0, 22.0, 22.0, clump_gain=1.50, fog_grain=0.30),
+        grain=GrainSpec(17.2, 7.097, 7.097, 7.097, clump_gain=1.50, fog_grain=0.30),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.04, adjacency_um=22.0),
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
@@ -6457,6 +8166,119 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         ),
     ),
     FilmProfile(
+        name="FUJI_NEOPAN_SS",
+        aliases=("neopan ss", "neopan-ss", "ss135", "neopan ss 135"),
+        description=(
+            "[T1] Fuji's conventional-crystal medium-speed B&W, the film "
+            "ACROS eventually replaced. Cubic silver halide, not tabular, "
+            "which is the whole difference in look: where ACROS packs flat "
+            "and reads smooth, SS clusters and reads velvety at the same "
+            "nominal speed. The sheet calls it \"orthopanchromatic\" and its "
+            "own spectral curve shows why -- a hard cut just past 650 nm "
+            "instead of a panchromatic tail into the deep red. ⚠ THE NAME IS "
+            "OLDER THAN THE COATING THIS PROFILE DESCRIBES: see the era note."
+        ),
+        era="1999-2007",
+        is_monochrome=True,
+        exposure_index=100,
+        balance_kelvin=5400,
+        # [T1] CURVE TRACED FROM AF3-411E(N) §9 (queue N1, 2026-09-02),
+        # "CHARACTERISTIC CURVES", Microfine 20 C (68 F), small tank. The
+        # panel draws FIVE development times and PRINTS THE AVERAGE GRADIENT
+        # ON EACH -- 4 min G 0.28, 6 min 0.37, 8 min 0.45, 10 min 0.53,
+        # 12 min 0.61 -- which is what makes this trace self-checking, the
+        # same property NEOPAN 1600's three printed G values gave.
+        # ⚠ THE 10 MINUTE CURVE IS THE ONE STORED, because the sheet's own
+        # development table puts Microfine at 20 C / EI 100 at 9 1/2 minutes
+        # and 10 min is the drawn curve nearest that recommendation.
+        # Traced by fuji_neopan_ss.py at 8x on the embedded raster; five
+        # curves followed together with per-track coasting, because they
+        # converge at the toe and a single-track follower swaps them there.
+        # 710 columns kept over logH -2.35..+0.45; fit rms 0.0235 D, max
+        # 0.0984 D.
+        # ⚠ THE FIT REPRODUCES THE PRINTED NUMBER IT WAS NOT GIVEN: the
+        # model's average gradient over dlogH = 2.0 from 0.1 above base is
+        # 0.552 against the printed 0.53, i.e. +4 %, while its straight-line
+        # slope is 0.582 -- both honoured, gamma being the straight-line
+        # value exactly as on ACROS. Across all five curves the traced
+        # straight-line slopes are 0.680 / 0.585 / 0.478 / 0.393 / 0.293
+        # against printed 0.61 / 0.53 / 0.45 / 0.37 / 0.28, a consistent
+        # 5-11 % excess which is what an average gradient including the toe
+        # must show.
+        # dmin 0.245 is the sheet's own printed "Base Density" rule, read off
+        # the panel rather than fitted -- the fit is unconditioned in dmin
+        # because the plotted curves never reach the base plateau.
+        # ⚠ THE SHOULDER IS NOT MEASURED. The panel stops at D 1.82 and the
+        # curve is still straight, so shoulder_x is pinned to give a Dmax of
+        # 2.70 [T3, a conventional-emulsion class value] and shoulder_k sits
+        # at the 2*toe_k monotonicity bound. Refitting at Dmax 2.5 or 3.0
+        # moves the fit rms by 0.0002 D and the model Gbar by 0.001 -- the
+        # plotted range does not constrain it, and that is recorded rather
+        # than hidden behind a fitted-looking number.
+        curves=_mono(ToneCurve(0.2450, 0.5525, -2.4553, 0.0607, 1.9882, 0.1212)),
+        # ⚠ [T3] GRAIN IS A CLASS ESTIMATE AND NOT A MEASUREMENT, AND THE
+        # REASON IS A DATE, NOT AN ABSENCE. AF3-411E prints no image-structure
+        # section at all: no rms granularity, no resolving power, no MTF (the
+        # sheet runs features / sizes / speed / colour sensitivity / exposure
+        # guide / safelight / processing / spectral / characteristic / time-G
+        # and stops). This corpus DOES hold four granularity measurements of a
+        # film called Neopan SS -- Ooue 1959 Part 2 Fig. 26 (Wiener spectrum,
+        # Minidol), Ooue 1959 «23_7» Fig. 7 (sigma against D at a stated 10 um
+        # aperture, Microfine), and Takano 1969 Fig. 8 (Selwyn granularity at
+        # thirteen apertures, giving clump_um 2.46 um at the corpus median
+        # clump_gain) -- and ⚠ NONE OF THEM IS APPLIED HERE. They measure the
+        # coating sold under that name in 1959-1969; this profile is the 1999
+        # sheet. One trade name, two products, forty years apart: the same
+        # trap this corpus documents for EASTMAN_5247 (1974 against 1983) and
+        # for ILFORD PAN F against PAN F PLUS. Values are the cubic ISO 100
+        # band its peers occupy -- AGFA_APX_100 9.0/9.0/0.85 and
+        # KODAK_PLUS_X_125 9.5/15.0/0.80 -- and are flagged estimates.
+        grain=GrainSpec(9.0, 3.226, 3.226, 3.226, clump_gain=0.85, fog_grain=0.16),
+        # [T3] No MTF and no resolving power on the sheet. f50 sits between
+        # its two cubic ISO 100-125 peers (APX 100 at 80, PLUS-X 125 at 62);
+        # adjacency follows the same class default they carry.
+        mtf=MTFSpec(74.0, 78.0, 82.0, adjacency=0.10, adjacency_um=14.0),
+        spectral_weights=(0.27, 0.55, 0.18),
+        misregistration_um=0.0,
+        default_format="ff35",
+        # [T1] SPECTRAL SENSITIVITY TRACED FROM AF3-411E(N) §8, "SPECTRAL
+        # SENSITIVITY CURVE", wedge spectrogram to daylight 5400 K. Traced at
+        # 10 nm pitch on the same raster as the characteristic panel; the
+        # ordinate carries a single "1.0" bracket and no zero, so this is a
+        # RELATIVE log curve normalised to its own peak at 410 nm and the
+        # absolute level is not claimed.
+        # ⚠ THE ORTHOPANCHROMATIC SIGNATURE IS THE CHECK, and it is exactly
+        # what §4 of the same sheet states in words: a blue peak at 410, a
+        # deep green-blue trough at 490-500, a secondary red lobe peaking at
+        # 590, and a hard cut past 650 nm.
+        # ⚠ 380 nm, 400 nm, 650 nm and 660 nm are NOT traced values. 400 is
+        # interpolated across the panel's own 400 nm gridline, which masks the
+        # curve where it crosses; 380 is one step of extrapolation from 390;
+        # and the curve leaves the bottom of the panel between 640 and 660, so
+        # the last two samples record the CUT-OFF and not a reading.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.050, -0.032, -0.010, 0.000, -0.012, -0.035,
+                       -0.066, -0.108, -0.164, -0.246, -0.370, -0.555,
+                       -0.539, -0.460, -0.419, -0.422, -0.404, -0.331,
+                       -0.232, -0.141, -0.127, -0.087, -0.102, -0.183,
+                       -0.187, -0.283, -0.443, -1.100, -3.000),  # 380..660
+            criterion="relative_log",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET \"NEOPAN SS "
+                "(135)\", Ref. No. AF3-411E(N) (EIGI-99.3-HB4-8), section 8 "
+                "SPECTRAL SENSITIVITY CURVE -- spectrogram to daylight "
+                "5400 K. Traced by fuji_neopan_ss.py at 10 nm pitch; relative "
+                "log, peak-normalised at 410 nm, absolute level not claimed. "
+                "380/400/650/660 nm are interpolated, extrapolated or "
+                "cut-off markers, not readings -- see the profile note."),
+        ),
+        halation=HalationSpec(
+            gain_r=0.045, gain_g=0.045, gain_b=0.034,
+            threshold_stops=1.6),
+        features=Feature.HALATION,
+    ),
+    FilmProfile(
         name="FUJI_NEOPAN_ACROS_100",
         aliases=("acros", "neopan acros", "acros 100", "neopan 100 acros"),
         description=(
@@ -6495,7 +8317,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # reciprocity entry for this stock is likewise datasheet-backed, not an
         # estimate. (The sheet is 6 pages; an earlier draft of this comment said
         # p7, which does not exist.)
-        grain=GrainSpec(7.0, 7.0, 7.0, 7.0, clump_gain=0.22, fog_grain=0.13),
+        grain=GrainSpec(7.0, 2.258, 2.258, 2.258, clump_gain=0.22, fog_grain=0.13),
         mtf=MTFSpec(104.0, 104.0, 104.0, adjacency=0.14, adjacency_um=11.0),
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
@@ -6627,7 +8449,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # 1000:1 (same page) -> _RESOLVING_POWER. The sheet also documents
         # push latitude of -1/2 stop (EI 280) to +2 stops (EI 1600) and
         # densitometry via Fuji FAD-30S (Status A).
-        grain=GrainSpec(11.0, 12.0, 13.0, 15.0, clump_gain=0.44, fog_grain=0.18),
+        grain=GrainSpec(11.0, 3.871, 4.194, 4.839, clump_gain=0.44, fog_grain=0.18),
         mtf=MTFSpec(60.0, 68.0, 74.0, adjacency=0.11, adjacency_um=15.0),
         halation=HalationSpec(gain_r=0.04, gain_g=0.014, gain_b=0.004,
                              threshold_stops=2.1),
@@ -6649,6 +8471,239 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
             source=("Fujifilm, 'FUJICHROME PROVIA 400X Professional [RXP]' "
                     "Product Information Bulletin, AF3-0213E, 2006"),
         ),
+    ),
+    # ======================================================================
+    # queue T3, 2026-09-02e -- THREE NEW STOCKS from the three Fuji datasheets
+    # the row named. Traced by fuji_t3_2026.py, registered in the build audit.
+    # ⚠ WHAT IS MEASURED AND WHAT IS NOT, once, for all three: the CHARACTERISTIC
+    # CURVES and the MTF are traced off each sheet's own vector/raster panel at
+    # 600 dpi; the DIFFUSE RMS GRANULARITY, RESOLVING POWER at both test-object
+    # contrasts, base material and thickness, ISO speed and process are PRINTED
+    # NUMBERS, transcribed. Everything else -- clump size, halation, couplers,
+    # dye crosstalk, reciprocity -- is [T3] and follows the nearest sibling
+    # already in this file, which is stated per stock. ⚠ NONE OF THE THREE
+    # CARRIES SPECTRAL DATA: all three sheets print a spectral-sensitivity
+    # panel, but on two of them the ordinate is a bracketed arrow marked "1.0"
+    # rather than a numbered ladder, so the decade scale rests on an annotation
+    # and a peak-normalised log_s built on a misread bracket would be wrong by a
+    # factor while looking entirely plausible. has_data stays False.
+    # ======================================================================
+    FilmProfile(
+        name="FUJI_PROVIA_100F",
+        aliases=("provia 100f", "100f", "rdp iii", "rdpiii", "rdp3"),
+        description=(
+            "[T1] Fuji's fine-grained professional daylight slide film, the "
+            "RDP III generation. The sheet's own claim is the finest grain "
+            "among ISO 100 colour reversal films at a diffuse rms granularity "
+            "of 8, with high sharpness, improved reciprocity and full push/pull "
+            "latitude. Cool, accurate colour rather than Velvia's saturation."
+        ),
+        era="2000-2010s",
+        kind=StockKind.REVERSAL,
+        exposure_index=100,
+        balance_kelvin=5500,
+        # ⚠ [T1] CURVES TRACED 2026-09-02e, AND ONLY ONE RECORD IS COMPLETE.
+        # SOURCE PDF/PROFILES/FUJI/provia_100f_datasheet.pdf page 6, panel "18.
+        # CHARACTERISTIC CURVES", exposure Daylight 1/50 s, process E-6/CR-56,
+        # densitometry Fuji FAD-30S (Status A). Calibrated from the panel's own
+        # gridline ladders -- the axis labels are OUTLINED TEXT and not
+        # extractable -- and checked against the template's square aspect: 374.1
+        # px per decade against 372.7 px per density, 0.4 %.
+        #   RED is drawn SOLID and traces over 1587 columns, logH -3.40 to
+        # +0.84, D 0.09 to 3.30, fitted at rms 0.0151 D. Green is DASH-DOT and
+        # blue DASHED, and all three lie within 0.15 D of one another over the
+        # whole scale except the top half-density, so their traces survive only
+        # in the shoulder (662 and 377 columns). ⚠ A SIX-PARAMETER FIT TO THOSE
+        # FRAGMENTS RETURNS dmin 1.49 / gamma 3.12 FOR GREEN -- an excellent fit
+        # to a fragment and a nonsense curve. Green and blue therefore take
+        # RED'S SHAPE and only their own MEASURED MAXIMUM DENSITY (3.43 and
+        # 3.34), applied through gamma. That encodes what the sheet shows --
+        # three records of one shape, separated at the shadow end -- and nothing
+        # it does not.
+        curves=RGBCurves(
+            r=ToneCurve(0.0728, 1.9881, 0.5984, 0.2734, 2.2153, 0.1761),
+            g=ToneCurve(0.0728, 2.0745, 0.5984, 0.2734, 2.2153, 0.1761),
+            b=ToneCurve(0.0728, 2.0214, 0.5984, 0.2734, 2.2153, 0.1761),
+        ),
+        # rms 8.0 PRINTED: page 5, "16. DIFFUSE RMS GRANULARITY VALUE ..... 8",
+        # micro-densitometer aperture 48 um diameter, sample density 1.0 above
+        # minimum density -- the same convention as every other Fuji stock here,
+        # stored UNCONVERTED as 8532 and PROVIA 400X are. Resolving power 60
+        # lp/mm at 1.6:1 and 140 lp/mm at 1000:1 (page 6) -> _RESOLVING_POWER.
+        # ⚠ THE CLUMP TRIPLE AND clump_gain ARE [T3], from PROVIA 400X scaled by
+        # the rms ratio 8/11; the sheet prints no image-structure data beyond
+        # the two numbers above.
+        grain=GrainSpec(8.0, 2.903, 3.226, 3.871, clump_gain=0.40, fog_grain=0.15),
+        # ⚠ [T1] f50 TRACED, adjacency REFUSED. The MTF panel (page 6, "20. MTF
+        # CURVE") is ONE unlabelled black curve, not three records, so it gives
+        # one f50: 39.8 c/mm, traced over 1083 columns, both axes log and
+        # calibrated from the gridlines to 656.6 and 656.7 px per decade -- the
+        # two axes agreeing to 0.02 % on this sheet is what establishes that the
+        # Fuji MTF template is square. The value is assigned to GREEN and red
+        # and blue take Fuji's family flanking ratios 0.8976 / 1.0762, the same
+        # rule 8532 and 8572 already use, so both are [T2].
+        #   ⚠ adjacency IS 0.0 AND THAT IS A REFUSAL, NOT AN ABSENCE. The panel
+        # prints a response of 115.5 % at its left end, so an overshoot exists
+        # and is measured -- but the drawn curve BEGINS at its maximum, so the
+        # peak FREQUENCY is outside the panel. Queue A4 (same day) established
+        # that the renderer needs both an amplitude and a length, that the two
+        # are determined only when a sheet resolves the peak, and that a
+        # boundary sample gives a bound and not a measurement. The bound is
+        # adjacency_um >= 206.07 / 3.0 = 69 um, five times the class default,
+        # and it is not adopted. Same disposition as FUJI_SUPER_F125_8532.
+        #   q 3.50 FITTED from the same trace over the 505 samples above
+        # 8 c/mm -- the samples below carry the overshoot, which is a separate
+        # effect -- at rms 0.0742 against the Gaussian's 0.1036, 1.4x better,
+        # so the power law is stored and mtf_measured is set.
+        mtf=MTFSpec(35.7, 39.8, 42.8, mtf_rolloff_q=3.50, mtf_measured=True),
+        halation=HalationSpec(gain_r=0.030, gain_g=0.011, gain_b=0.003,
+                              threshold_stops=2.2),
+        couplers=CouplerSpec(0.09, 46.0, 0.055, 10.0),
+        dye_matrix=_dye(-0.14),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="FUJICOLOR_SUPERIA_XTRA_400",
+        aliases=("superia x-tra 400", "superia xtra 400", "x-tra 400",
+                 "superia 400 ch"),
+        description=(
+            "[T1] Fuji's ISO 400 consumer colour negative in its Super "
+            "Fine-Sigma generation, with the fourth colour layer. The sheet's "
+            "own account of the technology is specific and worth keeping: the "
+            "sigma crystals are uniform thin tablets of about HALF the "
+            "thickness of the hexagonal crystals in the preceding SUPERIA "
+            "X-TRA 400, which is where the extra speed at equal grain comes "
+            "from. Diffuse rms granularity 4."
+        ),
+        era="2003-2010s",
+        kind=StockKind.NEGATIVE,
+        exposure_index=400,
+        balance_kelvin=5500,
+        # ⚠ [T1] CURVES TRACED 2026-09-02e. SOURCE
+        # PDF/PROFILES/FUJI/superia_xtra400_datasheet.pdf page 6, panel "17.
+        # CHARACTERISTIC CURVES", exposure Daylight 1/125 s, process CN-16,
+        # densitometry Status M. The three records are drawn in RED, GREEN and
+        # BLUE ink, so they separate exactly by hue -- 1435, 1424 and 1403
+        # columns over logH -3.63 to +0.33, fitted at rms 0.0030 / 0.0109 /
+        # 0.0120 D. Gridline calibration checked against the square template:
+        # 362.5 px per decade against 361.2 px per density, 0.4 %.
+        # ⚠ THE SHOULDER IS DECLARED, NOT FITTED, and the reason is a defect the
+        # first fit produced. The panel stops at logH +0.33, well inside the
+        # straight line -- a colour negative has no shoulder in its printed
+        # range -- so a free shoulder_x settles wherever the trace ends: 1.16
+        # for red against 0.27 for green, extrapolating to a Dmax ladder of
+        # 2.68 / 2.57 / 3.00, i.e. RED ABOVE GREEN on a film whose own traced
+        # curves put blue highest and red lowest at every exposure. Pinning the
+        # shoulder at _neg's family default (1.75, 0.42) leaves only dmin, gamma
+        # and the toe to the fit and restores the ladder: 3.08 / 3.64 / 4.12.
+        curves=RGBCurves(
+            r=ToneCurve(0.1366, 0.6622, -2.6956, 0.3041, 1.75, 0.42),
+            g=ToneCurve(0.3744, 0.7047, -2.8800, 0.3000, 1.75, 0.42),
+            b=ToneCurve(0.6940, 0.7510, -2.8060, 0.3000, 1.75, 0.42),
+        ),
+        # rms 4.0 PRINTED: page 5, "15. DIFFUSE RMS GRANULARITY VALUE .... 4",
+        # aperture 48 um, magnification 12x, sample density 1.0 above minimum.
+        # Resolving power 50 lp/mm at 1.6:1 and 125 lp/mm at 1000:1 ->
+        # _RESOLVING_POWER. ⚠ THE CLUMP TRIPLE IS [T3]; the sheet prints no
+        # image-structure data beyond those numbers. TABULAR_GRAIN is set on the
+        # sheet's own words, not inferred.
+        grain=GrainSpec(4.0, 1.613, 1.774, 2.097, clump_gain=0.30, fog_grain=0.13),
+        # ⚠ [T1] f50 TRACED 57.9 c/mm; see FUJI_PROVIA_100F for the panel's
+        # geometry, the one-curve-one-f50 rule and the flanking ratios, and for
+        # why adjacency is refused rather than set. This sheet's abscissa is the
+        # one that shows Fuji's gridlines are drawn imprecisely: consecutive
+        # pairs imply 653, 618, 608, 648 and 668 px per decade, a +/-5 % scatter
+        # about the fit, so this f50 carries about +/-5 % and 57.9 must not be
+        # read as three significant figures.
+        #   q 2.62 fitted over 602 samples above 8 c/mm at rms 0.0761 against
+        # the Gaussian's 0.0870 -- only 1.1x better, the narrowest margin of the
+        # three, and it is stored anyway for the same reason 5222's is: the
+        # discriminator is the FIT, and 0.0761 sits inside the 0.0095-0.132 band
+        # of every accepted curve in this file.
+        mtf=MTFSpec(51.97, 57.9, 62.31, mtf_rolloff_q=2.62, mtf_measured=True),
+        halation=HalationSpec(gain_r=0.045, gain_g=0.016, gain_b=0.005,
+                              threshold_stops=1.9),
+        couplers=CouplerSpec(0.13, 50.0, 0.070, 11.0),
+        dye_matrix=_dye(-0.10),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+    ),
+    FilmProfile(
+        name="FUJICOLOR_PRO_400H",
+        aliases=("pro 400h", "400h", "fuji 400h"),
+        description=(
+            "[T1] Fuji's ISO 400 professional colour negative with the fourth "
+            "colour-sensitive layer, sold on neutral-grey fidelity across a "
+            "wide exposure range and on skin tones. Diffuse rms granularity 4, "
+            "the same figure its consumer sibling SUPERIA X-TRA 400 prints -- "
+            "see the note on grain below, because the two films are not the "
+            "same and the agreement is a rounding artefact."
+        ),
+        era="2004-2021",
+        kind=StockKind.NEGATIVE,
+        exposure_index=400,
+        balance_kelvin=5500,
+        # ⚠ [T1] CURVES TRACED 2026-09-02e AND THIS PANEL IS THE HARD ONE.
+        # SOURCE PDF/PROFILES/FUJI/pro_400h_datasheet.pdf page 8, panel "18.
+        # CHARACTERISTIC CURVES", exposure Daylight 1/125 s, process C-41,
+        # densitometry Status M. Gridlines calibrate to 344.7 px per decade
+        # against 344.0 px per density, 0.2 % on the square check.
+        #   ⚠ ALL THREE RECORDS ARE DRAWN IN BLACK, so hue cannot separate them,
+        # and three things had to be dealt with before the trace was believable.
+        # (1) The gridlines are the same ink as the curves, so a column offers
+        # eleven groups and not three; erasing the FITTED ladder -- not the
+        # detected lines, because the D 3.0 rule is invisible under the caption
+        # block -- removes them. Before that, "blue" came back dead flat at
+        # D 2.97-3.08 across the whole frame, which is the D 3.0 gridline.
+        # (2) The words "Blue", "Green" and "Red" are written in the gaps
+        # BETWEEN the curves and gave the walker stepping stones from one record
+        # to the next -- red climbed the word "Red" and returned green's D 0.69
+        # toe as its own. Dropping connected components narrower than 150 px
+        # removes the glyphs and keeps the curves, which are single components
+        # spanning the frame. (3) The three records are then walked outward from
+        # the rightmost column offering exactly three groups, where they are
+        # fully separated and unannotated.
+        #   Result: 1321 / 1317 / 1313 columns over logH -3.58 to +0.68, D 0.17
+        # to 1.93 (red), 0.68 to 2.37 (green) and 0.94 to 2.60 (blue), matching
+        # the printed curve ends. Shoulder declared at the family default for
+        # the reason given on SUPERIA X-TRA 400.
+        curves=RGBCurves(
+            r=ToneCurve(0.1503, 0.6136, -2.3221, 0.3000, 1.75, 0.42),
+            g=ToneCurve(0.6535, 0.5721, -2.4195, 0.3000, 1.75, 0.42),
+            b=ToneCurve(0.9199, 0.5431, -2.4894, 0.3000, 1.75, 0.42),
+        ),
+        # rms 4.0 PRINTED: page 8, "16. DIFFUSE RMS GRANULARITY VALUE ..... 4*",
+        # aperture 48 um, sample density +1.0 above minimum; the asterisk is
+        # Fuji's own footnote that the figure is their measurement and is not
+        # comparable with a colour reversal film's. Resolving power 50 and 125
+        # lp/mm -> _RESOLVING_POWER.
+        # ⚠ THE IDENTICAL NUMBERS TO SUPERIA X-TRA 400 ARE A ROUNDING ARTEFACT
+        # AND THE TWO PROFILES ARE NOT COLLAPSED ONTO ONE SET OF VALUES. Both
+        # sheets print rms 4 and 50/125 lp/mm because Fuji rounds the rms to one
+        # digit, but the traced curves are different films: this stock's Dmin
+        # ladder sits 0.02 to 0.28 D higher, its gammas are lower (0.614 / 0.572
+        # / 0.543 against 0.662 / 0.705 / 0.751) and its scale is shorter. Where
+        # the printed values coincide they coincide because the maker printed
+        # the same value; the clump triple below is this film's own [T3]
+        # estimate and is set from its own lower contrast, not copied.
+        grain=GrainSpec(4.0, 1.774, 1.935, 2.258, clump_gain=0.32, fog_grain=0.14),
+        # ⚠ [T1] f50 TRACED 51.9 c/mm; panel geometry, the one-curve rule, the
+        # flanking ratios and the adjacency refusal are all as recorded on
+        # FUJI_PROVIA_100F. The printed overshoot here is +11.0 % and its peak
+        # again sits on the first drawn sample (2.6 c/mm), so again a bound.
+        #   q 2.17 fitted over 626 samples above 8 c/mm at rms 0.0400 against
+        # the Gaussian's 0.0659, 1.6x better -- the cleanest of the three.
+        mtf=MTFSpec(46.59, 51.9, 55.86, mtf_rolloff_q=2.17, mtf_measured=True),
+        halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.005,
+                              threshold_stops=2.0),
+        couplers=CouplerSpec(0.12, 50.0, 0.065, 11.0),
+        dye_matrix=_dye(-0.11),
+        misregistration_um=4.0,
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
     ),
     FilmProfile(
         name="FUJI_SENSIA_100",
@@ -6673,7 +8728,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # RMS GRANULARITY VALUE ............ 10". Resolving power 55 lp/mm at
         # 1.6:1 and 135 lp/mm at 1000:1 (same page) -> _RESOLVING_POWER. The
         # sheet also gives the base: cellulose triacetate, 127 um, 135 only.
-        grain=GrainSpec(10.0, 9.0, 9.5, 11.0, clump_gain=0.40, fog_grain=0.15),
+        grain=GrainSpec(10.0, 2.903, 3.065, 3.548, clump_gain=0.40, fog_grain=0.15),
         mtf=MTFSpec(64.0, 72.0, 78.0, adjacency=0.11, adjacency_um=14.0),
         halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.004,
                              threshold_stops=2.05),
@@ -6781,7 +8836,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # printed rather than reconciled with the estimate it contradicts.
         # No per-layer triple and no sigma(D) curve shape: the sheet prints one
         # scalar and no granularity-vs-density plot at all.
-        grain=GrainSpec(3.0, 6.0, 7.0, 9.0, clump_gain=0.38, fog_grain=0.14),
+        grain=GrainSpec(3.0, 1.935, 2.258, 2.903, clump_gain=0.38, fog_grain=0.14),
         # [T1] f50_g CONVERTED FROM THE SHEET'S OWN PANEL, 2026-08-23. The panel
         # is headed "Contrast transfer function" with the footnote "Spatial
         # frequency attenuation characteristic of amplitude relative to
@@ -6819,6 +8874,20 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # where the overshoot peaks and the true peak may be higher. That is
         # also why adjacency_um stays the [T2] 13.0 carried from 8530: the
         # magnitude is measured here, the SCALE is not.
+        # ⚠ adjacency 0.090 IS MEASURED AND STILL RENDERS AS NOTHING, and queue A4
+        # (2026-09-02e) established WHY and then REFUSED TO FIX IT. The sheet's
+        # converted sine curve peaks at 1.090, which is the amplitude -- but the trace
+        # BEGINS at that maximum (2.04 c/mm, the first drawn sample), so the panel does
+        # not resolve the peak FREQUENCY. The renderer needs both: `adjacency` is the
+        # difference-of-Gaussians amplitude before the rolloff attenuates it, and
+        # `adjacency_um` sets where the band-pass peaks (f = 206.07 / adjacency_um).
+        # Two unknowns, one measurement -- underdetermined. What the trace DOES give is
+        # a bound: the peak lies at or below 2.04 c/mm, so adjacency_um >= 101 um,
+        # five to eight times the stored 13.0. Solving on that bound would place the
+        # lift essentially at DC on the strength of a boundary sample, so it is not
+        # done. The twelve stocks whose sheets DO resolve the peak were solved in the
+        # same pass; this one is recorded as unresolved. Consequence, stated plainly:
+        # the sheet prints a +9.0 % overshoot and the engine renders none.
         mtf=MTFSpec(28.8, 32.07, 34.5, adjacency=0.090, adjacency_um=13.0,
                     mtf_rolloff_q=1.915, mtf_measured=True),
         halation=HalationSpec(gain_r=0.035, gain_g=0.012, gain_b=0.004),
@@ -6923,7 +8992,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # 1000:1 (same page) already recorded in _RESOLVING_POWER.
         # NOTE: AF3-0221E2Velvia50PIB.pdf is the same document, not a second
         # independent source.
-        grain=GrainSpec(9.0, 3.6, 3.8, 4.4, clump_gain=0.18, fog_grain=0.12),
+        grain=GrainSpec(9.0, 1.161, 1.226, 1.419, clump_gain=0.18, fog_grain=0.12),
         mtf=MTFSpec(88.0, 98.0, 108.0, adjacency=0.15, adjacency_um=12.0),
         halation=HalationSpec(
             radii_um=(7.0, 36.0, 160.0),
@@ -7043,7 +9112,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
             g=_neg(0.66, 0.605, toe_x=-1.44, shoulder_x=1.50),
             b=_neg(1.06, 0.575, toe_x=-1.48, shoulder_x=1.46),
         ),
-        grain=GrainSpec(14.2, 17.0, 18.0, 21.0, clump_gain=1.50, fog_grain=0.30,
+        grain=GrainSpec(14.2, 5.484, 5.806, 6.774, clump_gain=1.50, fog_grain=0.30,
                         anisotropy=1.10),
         mtf=MTFSpec(30.0, 33.0, 36.0, adjacency=0.03, adjacency_um=24.0),
         halation=HalationSpec(
@@ -7074,7 +9143,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         exposure_index=32,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.16, 0.750, -1.34, 0.27, 1.58, 0.38)),
-        grain=GrainSpec(11.0, 14.0, 14.0, 14.0, clump_gain=1.40, fog_grain=0.28,
+        grain=GrainSpec(11.0, 4.516, 4.516, 4.516, clump_gain=1.40, fog_grain=0.28,
                         anisotropy=1.08),
         mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.04, adjacency_um=22.0),
         spectral_weights=(0.24, 0.53, 0.23),
@@ -7114,7 +9183,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # processing chart) plus both KENTMERE sheets. This value and the f50s
         # below are engineering estimates; the provenance tier was corrected
         # from 1 to 2 on 2026-07-31 to reflect that.
-        grain=GrainSpec(16.0, 22.0, 22.0, 22.0, clump_gain=0.45, fog_grain=0.34),
+        grain=GrainSpec(16.0, 7.097, 7.097, 7.097, clump_gain=0.45, fog_grain=0.34),
         mtf=MTFSpec(30.0, 30.0, 30.0, adjacency=0.06),
         spectral_weights=(0.33, 0.46, 0.21),
         misregistration_um=0.0,
@@ -7153,7 +9222,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.16, 0.720, -1.46, 0.34, 1.66, 0.44)),
-        grain=GrainSpec(13.6, 18.0, 18.0, 18.0, clump_gain=1.50, fog_grain=0.26,
+        grain=GrainSpec(13.6, 5.806, 5.806, 5.806, clump_gain=1.50, fog_grain=0.26,
                         anisotropy=1.06),
         mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.04, adjacency_um=22.0),
         spectral_weights=(0.26, 0.54, 0.20),
@@ -7211,7 +9280,7 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # direction. Treat this figure as an upper bound, not a measurement.
         # The per-layer triple is re-derived by _grain_v2 from the same stack
         # rule as before, so only the LEVEL moves.
-grain=GrainSpec(12.0, 13.0, 13.0, 13.0, clump_gain=1.00, fog_grain=0.24),
+grain=GrainSpec(12.0, 4.194, 4.194, 4.194, clump_gain=1.00, fog_grain=0.24),
                 # [T3] f50 RE-ANCHORED 2026-08-27 on this source's single
         # mtf50 = 65 lp/mm. WAS 52/52/52 -- our own estimate; mtf_measured is
         # False here and this profile has NO documented resolving-power pair,
@@ -7389,7 +9458,10 @@ mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08),
         # density 1.0. Swapping in 18.5 would trade a confirmed estimate at the
         # right density for a measurement at the wrong one. The agreement to 3 %
         # is the result; the stored number stays.
-        grain=GrainSpec(19.0, 1.431, 1.431, 1.431, clump_gain=0.0,
+        # ⚠ rms 19.0 -> 20.02 on 2026-09-01, an estimate replaced by a
+        # MEASUREMENT: BBC T-101/2 Table 1 prints this emulsion's Wiener
+        # spectrum and the corpus had recorded "no published rms for this stock".
+        grain=GrainSpec(20.02, 1.431, 1.431, 1.431, clump_gain=0.0,
                         fog_grain=0.40, anisotropy=1.08),
         # [T1] clump_um 1.90 -> 1.432, 2026-08-24 (second pass, same day),
         # owner-approved. THE SOURCE CHANGED FROM A TRACE TO A PRINTED NUMBER,
@@ -7498,6 +9570,18 @@ mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08),
         # kept only 28 points after gridline masking. Neither number was stored,
         # and neither is what the values above come from -- those are T-101
         # Table 2, printed.
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.02, adjacency_um=26.0),
         spectral_weights=(0.26, 0.54, 0.20),
         misregistration_um=0.0,
@@ -7534,7 +9618,7 @@ mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08),
         # gives 16 for KODACHROME 200 -- do not cross-wire the two.) Process
         # K-14, densitometry Status A, EI 64; push processing explicitly not
         # recommended for the 64 emulsion.
-        grain=GrainSpec(10.0, 3.8, 4.0, 4.6, clump_gain=0.30, fog_grain=0.12),
+        grain=GrainSpec(10.0, 1.226, 1.29, 1.484, clump_gain=0.30, fog_grain=0.12),
                 # [T3] f50 RE-ANCHORED 2026-08-27 on this source's single
         # mtf50 = 100 lp/mm. WAS 86/96/104 -- our own estimate; mtf_measured is
         # False here and this profile has NO documented resolving-power pair,
@@ -7704,7 +9788,7 @@ mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0),
         # Kodak starts the two curves of a pair at slightly different x. The
         # difference is 0.001 D and is recorded so the clamp is never mistaken for
         # the sheet's endpoint.
-        grain=GrainSpec(13.1, 5.0, 5.4, 6.2, clump_gain=0.24, fog_grain=0.14,
+        grain=GrainSpec(13.1, 1.613, 1.742, 2, clump_gain=0.24, fog_grain=0.14,
                         rms_r=19.0, rms_g=13.1, rms_b=25.7,
                         sigma_shape_toe=0.15, sigma_shape_mid=1.00,
                         sigma_shape_dmax=3.10,
@@ -7746,7 +9830,14 @@ mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0),
         # ⚠ adjacency_um 15.0 is NOT measured and this sheet contradicts it like
         # every other: the green overshoot peaks at 7.8 cycles/mm, a spatial
         # scale of ~128 um. Left at the family value pending queue C2c.
-        mtf=MTFSpec(27.2, 42.1, 60.9, adjacency=0.030, adjacency_um=15.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.030 at 7.8 c/mm on the G record, replacing 0.030 / 15.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(27.2, 42.1, 60.9, adjacency=0.0716, adjacency_um=16.4,
                     mtf_rolloff_q=2.39, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(9.0, 46.0, 210.0),
@@ -7948,7 +10039,7 @@ mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0),
         # direction. Treat this figure as an upper bound, not a measurement.
         # The per-layer triple is re-derived by _grain_v2 from the same stack
         # rule as before, so only the LEVEL moves.
-grain=GrainSpec(6.5, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
+grain=GrainSpec(6.5, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.17),
         # f50 stays an estimate: Portra's MTF is a plotted curve, and Kodak
         # publishes no resolving-power figure for this stock at all.
         mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
@@ -8123,7 +10214,7 @@ grain=GrainSpec(6.5, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
         # but the sheet prints "Note: This curve represents granularity based on
         # modified measuring techniques", so its ABSOLUTE level is not the
         # standard diffuse RMS. The SHAPE is what this plate grounds.
-        grain=GrainSpec(10.0, 14.0, 14.0, 14.0, clump_gain=1.20, fog_grain=0.26,
+        grain=GrainSpec(10.0, 4.516, 4.516, 4.516, clump_gain=1.20, fog_grain=0.26,
                         sigma_shape_toe=0.262, sigma_shape_mid=1.0,
                         sigma_shape_dmax=2.829,
                         sigma_shape_toe_at=0.352, sigma_shape_dmax_at=3.089,
@@ -8196,7 +10287,7 @@ grain=GrainSpec(6.5, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
         # 1.81x), which would put this 200T near 2.0x -- a plausible number with
         # nothing measuring it. If a per-layer granularity plot for 5213 ever
         # turns up, this is the one to read.
-        grain=GrainSpec(4.6, 7.6, 8.2, 9.8, clump_gain=0.22, fog_grain=0.19,
+        grain=GrainSpec(4.6, 2.452, 2.645, 3.161, clump_gain=0.22, fog_grain=0.19,
                         sigma_shape_toe=0.41, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.58,
                         # C1 2026-08-18: the interior maximum,
@@ -8317,7 +10408,7 @@ grain=GrainSpec(6.5, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
         # red cannot be separated at all would put two members of one family on
         # two different footings for no measured reason. Both fall back; both are
         # off the discarded 1.10x, which is the direction error that mattered.
-grain=GrainSpec(4.2, 7.0, 7.6, 9.0, clump_gain=0.20, fog_grain=0.18,
+grain=GrainSpec(4.2, 2.258, 2.452, 2.903, clump_gain=0.20, fog_grain=0.18,
                         rms_b=8.92,
                         sigma_shape_toe=0.59, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.57,
@@ -8518,7 +10609,7 @@ mtf=MTFSpec(36.0, 70.0, 80.0, adjacency=0.11, adjacency_um=19.0),
         # ABSOLUTE D 1.0; at NET 1.0 they differ by 1.12x in green and 1.25x in
         # blue. Smaller, real, and not an axis error -- so the raster family's
         # per-layer ratios are usable and its absolute level still is not.
-grain=GrainSpec(6.6, 10.5, 11.5, 13.5, clump_gain=0.28, fog_grain=0.20,
+grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                         rms_r=5.92, rms_g=6.60, rms_b=17.84,
                         sigma_shape_toe=0.67, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.55,
@@ -8724,7 +10815,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # measurement either -- but it sits between the two sheets that DO
         # separate red (5207 0.85x, 5219 0.90x), while the heuristic's 1.10x sits
         # outside both, on the wrong side of green.
-        grain=GrainSpec(2.6, 4.2, 4.6, 5.4, clump_gain=0.14, fog_grain=0.16,
+        grain=GrainSpec(2.6, 1.355, 1.484, 1.742, clump_gain=0.14, fog_grain=0.16,
                         rms_b=4.71,
                         sigma_shape_toe=0.39, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.63,
@@ -8798,7 +10889,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=40,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.15, 0.700, -1.40, 0.34, 1.70, 0.46)),
-        grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=1.50, fog_grain=0.30,
+        grain=GrainSpec(12.0, 5.161, 5.161, 5.161, clump_gain=1.50, fog_grain=0.30,
                         anisotropy=1.10),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03, adjacency_um=24.0),
         spectral_weights=(0.24, 0.52, 0.24),
@@ -8840,7 +10931,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # mask. The measured CROSSOVER table (toe_r -0.17, dense_r -0.99)
         # is the mask + layer divergence showing up exactly where the
         # per-channel dmin/toe/shoulder spreads below already encode it.
-        grain=GrainSpec(18.0, 14.0, 15.0, 18.0, clump_gain=1.35, fog_grain=0.30,
+        grain=GrainSpec(18.0, 4.516, 4.839, 5.806, clump_gain=1.35, fog_grain=0.30,
                         anisotropy=1.06,
                         sigma_shape_toe=0.50, sigma_shape_dmax=1.80),
         mtf=MTFSpec(26.0, 30.0, 34.0, adjacency=0.02),
@@ -8887,7 +10978,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.28, 0.555, toe_x=-1.38, toe_k=0.36, shoulder_x=1.50),
             b=_neg(0.30, 0.570, toe_x=-1.26, toe_k=0.34, shoulder_x=1.42),
         ),
-        grain=GrainSpec(13.0, 15.0, 16.0, 19.0, clump_gain=1.30, fog_grain=0.29,
+        grain=GrainSpec(13.0, 4.839, 5.161, 6.129, clump_gain=1.30, fog_grain=0.29,
                         anisotropy=1.08),
         mtf=MTFSpec(28.0, 32.0, 36.0, adjacency=0.02),
         couplers=CouplerSpec(0.05, 78.0),
@@ -8916,7 +11007,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # D-Min and Slope but no values for this film, so there is nothing to
         # transcribe.
         curves=_mono(ToneCurve(0.14, 1.30, -0.65, 0.24, 0.74, 0.32)),
-        grain=GrainSpec(8.6, 13.0, 13.0, 13.0, clump_gain=0.85, fog_grain=0.20),
+        grain=GrainSpec(8.6, 4.194, 4.194, 4.194, clump_gain=0.85, fog_grain=0.20),
         # Published resolution 20-25 lp/mm at 1000:1 -> _RESOLVING_POWER.
         # CORRECTED 2026-08-14 (systematic re-analysis). Was mtf=MTFSpec(40.0, 40.0, 40.0, adjacency=0.05, adjacency_um=20.0),.
         # Polaroid's own sheet (664fds.pdf p2) gives a limiting resolution of
@@ -8993,7 +11084,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.10, 1.55, -0.497, 0.24, 0.567, 0.32)),
         # ISO 3000/DIN 36 confirmed on 667fds.pdf p2. Polaroid publishes no
         # granularity metric for any film, so rms 19.4 remains an estimate.
-        grain=GrainSpec(19.4, 26.0, 26.0, 26.0, clump_gain=1.35, fog_grain=0.34),
+        grain=GrainSpec(19.4, 8.387, 8.387, 8.387, clump_gain=1.35, fog_grain=0.34),
         # f50 stays an estimate: Polaroid prints an MTF graph with no tabulated
         # values. Published resolution 14-20 lp/mm at 1000:1 -> _RESOLVING_POWER.
         # CORRECTED 2026-08-14 (systematic re-analysis). Was mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.03, adjacency_um=24.0),.
@@ -9051,7 +11142,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=ToneCurve(0.22, 1.46, -0.54, 0.26, 0.59, 0.34),
             b=ToneCurve(0.25, 1.42, -0.58, 0.26, 0.56, 0.34),
         ),
-        grain=GrainSpec(6.8, 17.0, 18.0, 20.0, clump_gain=0.95, fog_grain=0.26,
+        grain=GrainSpec(6.8, 5.484, 5.806, 6.452, clump_gain=0.95, fog_grain=0.26,
                         anisotropy=1.06),
         mtf=MTFSpec(18.0, 20.0, 22.0, adjacency=0.0),
         couplers=CouplerSpec(0.0, 55.0, 0.0, 12.0),
@@ -9079,8 +11170,20 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # Steeper and shorter than Super-XX: more contrast, less latitude,
         # highlights gone sooner.
         curves=_mono(ToneCurve(0.36, 0.780, -1.14, 0.26, 1.42, 0.36)),
-        grain=GrainSpec(14.5, 18.5, 18.5, 18.5, clump_gain=1.60, fog_grain=0.40,
+        grain=GrainSpec(14.5, 5.968, 5.968, 5.968, clump_gain=1.60, fog_grain=0.40,
                         anisotropy=1.12),
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(24.0, 24.0, 24.0, adjacency=0.02),
         halation=HalationSpec(
             radii_um=(26.0, 130.0, 600.0),
@@ -9233,7 +11336,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # and preserving appearance is what was chosen.
         # ⚠ IF THIS STOCK IS EVER RE-FITTED, drop the factor and fit against the
         # net-1.0 convention directly; do not fit on top of this compensation.
-        grain=GrainSpec(13.212, 23.0, 23.0, 23.0, clump_gain=1.55, fog_grain=0.32,
+        grain=GrainSpec(13.212, 7.419, 7.419, 7.419, clump_gain=1.55, fog_grain=0.32,
                         anisotropy=1.10),
         # f50 35 [T2, raised from the 34 estimate 2026-08-11]: GOST 24876-81
         # table 6 requires T(30 mm^-1) >= 0.60 for Foto-65 in BOTH quality
@@ -9373,7 +11476,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # and preserving appearance is what was chosen.
         # ⚠ IF THIS STOCK IS EVER RE-FITTED, drop the factor and fit against the
         # net-1.0 convention directly; do not fit on top of this compensation.
-        grain=GrainSpec(38.766, 21.5, 21.5, 21.5, clump_gain=1.70, fog_grain=0.38,
+        grain=GrainSpec(38.766, 6.935, 6.935, 6.935, clump_gain=1.70, fog_grain=0.38,
                         anisotropy=1.14,
                         sigma_shape_toe=0.67, sigma_shape_dmax=1.69),
         # f50 30 [T2, raised from the 26 estimate 2026-08-11]: GOST 24876-81
@@ -9431,7 +11534,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # Shape: measured toe 0.36; the dense bin (0.90) came out BELOW
         # mid, which negatives do not do -- leakage again; dmax capped at
         # 1.0 (direction of the data, not its face value).
-        grain=GrainSpec(20.0, 16.0, 16.0, 16.0, clump_gain=1.45, fog_grain=0.30,
+        grain=GrainSpec(20.0, 5.161, 5.161, 5.161, clump_gain=1.45, fog_grain=0.30,
                         anisotropy=1.08,
                         sigma_shape_toe=0.36, sigma_shape_dmax=1.00),
         mtf=MTFSpec(32.0, 32.0, 32.0, adjacency=0.03, adjacency_um=24.0),
@@ -9545,13 +11648,77 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # literature; the numeric splits are estimates around the old
         # uniform values.
         curves=_mono(ToneCurve(0.18, 0.660, -1.34, 0.30, 1.72, 0.44)),
-        grain=GrainSpec(7.5, 12.0, 11.0, 10.5, clump_gain=1.10, fog_grain=0.24,
+        grain=GrainSpec(7.5, 3.871, 3.548, 3.387, clump_gain=1.10, fog_grain=0.24,
                         rms_r=8.2, rms_g=7.2, rms_b=6.8),
         mtf=MTFSpec(32.0, 48.0, 38.0, adjacency=0.06, adjacency_um=26.0),
         halation=HalationSpec(
             radii_um=(16.0, 80.0, 380.0),
             gain_r=0.22, gain_g=0.18, gain_b=0.26,  # blue: base-first scatter
             threshold_stops=1.3,
+        ),
+        # ⚠ FIRST MEASUREMENT THIS PROFILE HAS EVER CARRIED. Until 2026-09-01d
+        # its provenance read "No official manufacturer datasheet available --
+        # values estimated from secondary/historical sources", and NotFound.md
+        # listed it among the nine stocks with no source of any kind. This is a
+        # spectrophotometric measurement of a real Technicolor No. IV print.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=360.0, lambda_step_nm=10.0,
+            d_yellow=(
+                0.437, 0.493, 0.564, 0.652, 0.733, 0.821, 0.881, 0.930, 0.975, 0.996,
+                1.000, 0.977, 0.903, 0.809, 0.698, 0.542, 0.392, 0.299, 0.263, 0.244,
+                0.226, 0.216, 0.201, 0.187, 0.177, 0.168, 0.166, 0.161, 0.157, 0.166,
+                0.183, 0.206, 0.221, 0.230, 0.237, 0.239, 0.252, 0.261, 0.262, 0.256,
+                0.239, 0.217, 0.199, 0.186),
+            d_magenta=(
+                0.329, 0.308, 0.302, 0.302, 0.299, 0.282, 0.276, 0.272, 0.276, 0.295,
+                0.326, 0.376, 0.442, 0.531, 0.637, 0.747, 0.859, 0.970, 1.000, 0.977,
+                0.911, 0.874, 0.854, 0.770, 0.573, 0.372, 0.234, 0.156, 0.109, 0.086,
+                0.086, 0.101, 0.119, 0.129, 0.138, 0.142, 0.151, 0.164, 0.174, 0.181,
+                0.181, 0.177, 0.168, 0.163),
+            d_cyan=(
+                0.297, 0.258, 0.238, 0.221, 0.207, 0.188, 0.173, 0.162, 0.153, 0.151,
+                0.157, 0.171, 0.196, 0.226, 0.257, 0.292, 0.335, 0.369, 0.396, 0.422,
+                0.451, 0.488, 0.533, 0.593, 0.652, 0.704, 0.752, 0.814, 0.895, 0.971,
+                1.000, 0.972, 0.920, 0.871, 0.856, 0.872, 0.887, 0.861, 0.783, 0.664,
+                0.532, 0.411, 0.314, 0.253),
+            normalisation="peak_1.0",
+            source=(
+                "B. Flueckiger, D. Pfluger, G. Trumpy, S. Croci, T. Ayd\u0131n and "
+                "A. Smolic, \u00abInvestigation of Film Material\u2013Scanner "
+                "Interaction\u00bb, University of Zurich / DIASTOR, v1.1, "
+                "18 February 2018, \u00a72.8.2 Figure 16 (journal p22) -- "
+                "PDF/PROFILES/RETRO/flueckigeretal_investigationfilmmaterialscanner"
+                "interaction_2018_v_1-1b.pdf, traced by flueckiger_2018.py. "
+                "SAMPLE: a Technicolor trailer print of SAMSON AND DELILAH "
+                "(USA 1949, Cecil B. DeMille), 24 points of intense colour "
+                "measured on a SHIMADZU UV-1800 bench spectrophotometer. "
+                "METHOD: the Ohta (1973, pp. 553-557) statistical separation -- "
+                "a principal component analysis of the measured mixture spectra, "
+                "with the three highest eigenspectra combined by a linear "
+                "least-squares minimisation against ideal block dyes. "
+                "\u26a0 THE ORDINATE OF FIGURE 16 CARRIES NO SCALE, NO TICKS AND "
+                "NO LABEL, so only the SHAPE is measured and the level is not. "
+                "The curves stored here are normalised to unit peak WITH THE "
+                "BOTTOM AXIS TAKEN AS ZERO ABSORBANCE, which is an assumption "
+                "and is recorded as one: the traced minima sit at 0.157 "
+                "(yellow), 0.086 (magenta) and 0.151 (cyan) of peak, plausible "
+                "side absorptions for real dyes but not verifiable from this "
+                "figure. \u26a0 WHAT VALIDATES THE TRACE is the peak list \u00a72.8.2 "
+                "prints in its own running text and which the trace never saw: "
+                "yellow \u2248 460 nm, magenta \u2248 540 nm main and 575 secondary, "
+                "cyan \u2248 660 nm main and 720 secondary. The trace returns "
+                "460 / 540 / 660 / 720 exactly. The magenta 575 secondary is a "
+                "shoulder rather than a local maximum at this raster resolution "
+                "and is deliberately NOT claimed. \u26a0 IT IS A PRINT DYE SET, "
+                "not a camera-negative record: Technicolor No. IV is imbibition "
+                "dye transfer, so these are the three transfer dyes as applied "
+                "to the positive, which is what a viewer sees and what this "
+                "profile models. \u26a0 AND IT IS ONE PRINT OF ONE 1949 TITLE -- "
+                "\u00a72.8.2 states plainly that \u00abduring the several decades of "
+                "Technicolor\u2019s color film production, a variety of dyes were "
+                "applied\u00bb and that their development \u00abhas not been documented "
+                "to date\u00bb, so this is a sample of the process, not its "
+                "definition."),
         ),
         couplers=CouplerSpec(0.0, 0.0, 0.05, 14.0),
         # Broad, heavily overlapping taking filters. Positive off-diagonals in
@@ -9617,7 +11784,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # Grain [T3]: slide sigma in the batch is scan-limited (3.9 px corr
         # at ~29 px/mm is the scanner, not the film). Class estimate for a
         # 50-speed 1960s reversal from a non-Kodak line.
-        grain=GrainSpec(13.0, 14.0, 15.0, 17.0, clump_gain=1.10, fog_grain=0.20),
+        grain=GrainSpec(13.0, 4.516, 4.839, 5.484, clump_gain=1.10, fog_grain=0.20),
         mtf=MTFSpec(40.0, 45.0, 50.0, adjacency=0.05),
         # [T2] halation from the batch: 0.28 D excess (bias-corrected),
         # 1/e ~180 um at 47 px/mm.
@@ -9674,7 +11841,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # rms 13 [T3]: not in sheet; IR emulsions run grainier than their
         # speed suggests. Weights: 640-820 nm band dominates through the
         # usual red filter; the intrinsic blue lobe stays visible.
-        grain=GrainSpec(13.0, 16.0, 16.0, 16.0, clump_gain=1.20, fog_grain=0.22),
+        grain=GrainSpec(13.0, 5.161, 5.161, 5.161, clump_gain=1.20, fog_grain=0.22),
         mtf=MTFSpec(52.0, 52.0, 52.0, adjacency=0.04),
         spectral_weights=(0.55, 0.15, 0.30),
         halation=HalationSpec(radii_um=(15.0, 90.0, 350.0),
@@ -9751,7 +11918,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=ToneCurve(0.4838, 0.6881, -1.7923, 0.3929, 1.1808, 0.5501),
             b=ToneCurve(0.6087, 0.8202, -1.9474, 0.3000, 0.7798, 0.4200),
         ),
-        grain=GrainSpec(3.5, 9.0, 10.0, 12.0, clump_gain=0.55, fog_grain=0.12),
+        grain=GrainSpec(3.5, 2.903, 3.226, 3.871, clump_gain=0.55, fog_grain=0.12),
         # TRACED 2026-08-31, queue E3: IMP50.pdf p3 right, "Response (%)"
         # against "Spatial frequency (Cycles/mm)", log-log, exposure daylight,
         # process CNK-4, densitometry THROUGH A VISUAL FILTER.
@@ -9817,7 +11984,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.63, 0.625),
             b=_neg(1.02, 0.630),
         ),
-        grain=GrainSpec(4.0, 10.0, 11.0, 13.0, clump_gain=0.60, fog_grain=0.14),
+        grain=GrainSpec(4.0, 3.226, 3.548, 4.194, clump_gain=0.60, fog_grain=0.14),
         mtf=MTFSpec(62.0, 69.0, 76.0, adjacency=0.09, adjacency_um=16.0),
         couplers=CouplerSpec(0.24, 50.0, 0.11, 11.0),
         dye_matrix=_dye(-0.02),
@@ -9869,7 +12036,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.65, 0.630),
             b=_neg(1.05, 0.635),
         ),
-        grain=GrainSpec(4.0, 12.0, 13.0, 16.0, clump_gain=0.70, fog_grain=0.16),
+        grain=GrainSpec(4.0, 3.871, 4.194, 5.161, clump_gain=0.70, fog_grain=0.16),
         mtf=MTFSpec(52.0, 58.0, 64.0, adjacency=0.08, adjacency_um=18.0),
         couplers=CouplerSpec(0.26, 48.0, 0.12, 12.0),
         dye_matrix=_dye(-0.02),
@@ -9908,7 +12075,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.68, 0.610),
             b=_neg(1.08, 0.615),
         ),
-        grain=GrainSpec(6.0, 15.0, 16.0, 20.0, clump_gain=0.85, fog_grain=0.20),
+        grain=GrainSpec(6.0, 4.839, 5.161, 6.452, clump_gain=0.85, fog_grain=0.20),
         mtf=MTFSpec(44.0, 50.0, 56.0, adjacency=0.07, adjacency_um=20.0),
         couplers=CouplerSpec(0.24, 46.0, 0.11, 12.0),
         dye_matrix=_dye(-0.02),
@@ -9948,7 +12115,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_rev(0.16, 1.65, toe_x=-0.84, shoulder_x=1.00),
             b=_rev(0.17, 1.67, toe_x=-0.86, shoulder_x=0.98),
         ),
-        grain=GrainSpec(11.0, 12.0, 13.0, 15.0, clump_gain=0.46, fog_grain=0.16),
+        grain=GrainSpec(11.0, 3.871, 4.194, 4.839, clump_gain=0.46, fog_grain=0.16),
         mtf=MTFSpec(58.0, 65.0, 72.0, adjacency=0.10, adjacency_um=15.0),
         halation=HalationSpec(gain_r=0.04, gain_g=0.015, gain_b=0.005,
                               threshold_stops=2.0),
@@ -9989,7 +12156,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_rev(0.17, 1.60, toe_x=-0.82, shoulder_x=0.96),
             b=_rev(0.18, 1.62, toe_x=-0.84, shoulder_x=0.94),
         ),
-        grain=GrainSpec(11.0, 13.0, 14.0, 16.0, clump_gain=0.50, fog_grain=0.17),
+        grain=GrainSpec(11.0, 4.194, 4.516, 5.161, clump_gain=0.50, fog_grain=0.17),
         mtf=MTFSpec(50.0, 56.0, 62.0, adjacency=0.09, adjacency_um=16.0),
         halation=HalationSpec(gain_r=0.04, gain_g=0.015, gain_b=0.005,
                               threshold_stops=2.0),
@@ -10029,7 +12196,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.28, 0.650, -1.35, 0.28, 1.60, 0.36)),
-        grain=GrainSpec(15.0, 15.0, 15.0, 15.0, clump_gain=1.05, fog_grain=0.24),
+        grain=GrainSpec(15.0, 4.839, 4.839, 4.839, clump_gain=1.05, fog_grain=0.24),
         mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.06),
         spectral_weights=(0.32, 0.40, 0.28),
         # Clear-base halation is the R3 signature look.
@@ -10067,7 +12234,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.16, 0.700, -1.28, 0.26, 1.55, 0.35)),
-        grain=GrainSpec(11.0, 14.0, 14.0, 14.0, clump_gain=1.00, fog_grain=0.20),
+        grain=GrainSpec(11.0, 4.516, 4.516, 4.516, clump_gain=1.00, fog_grain=0.20),
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.05),
         spectral_weights=(0.52, 0.20, 0.28),
         # AURA: clear base + IR scatter. The marquee feature, not a defect.
@@ -10105,7 +12272,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.18, 0.680, -1.28, 0.26, 1.52, 0.35)),
-        grain=GrainSpec(17.0, 17.0, 17.0, 17.0, clump_gain=1.15, fog_grain=0.24),
+        grain=GrainSpec(17.0, 5.484, 5.484, 5.484, clump_gain=1.15, fog_grain=0.24),
         mtf=MTFSpec(46.0, 46.0, 46.0, adjacency=0.05),
         # Short red cutoff -> red-starved weights; the retro tonality.
         spectral_weights=(0.16, 0.44, 0.40),
@@ -10139,7 +12306,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=100,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.16, 0.650, -1.30, 0.27, 1.58, 0.36)),
-        grain=GrainSpec(13.0, 14.0, 14.0, 14.0, clump_gain=0.95, fog_grain=0.18),
+        grain=GrainSpec(13.0, 4.516, 4.516, 4.516, clump_gain=0.95, fog_grain=0.18),
         mtf=MTFSpec(56.0, 56.0, 56.0, adjacency=0.06),
         spectral_weights=(0.28, 0.46, 0.26),
         misregistration_um=0.0,
@@ -10170,7 +12337,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.17, 0.660, -1.28, 0.26, 1.55, 0.35)),
-        grain=GrainSpec(17.5, 17.0, 17.0, 17.0, clump_gain=1.10, fog_grain=0.22),
+        grain=GrainSpec(17.5, 5.484, 5.484, 5.484, clump_gain=1.10, fog_grain=0.22),
         mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.05),
         spectral_weights=(0.28, 0.46, 0.26),
         misregistration_um=0.0,
@@ -10204,7 +12371,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.68, 0.575, toe_x=-1.52, shoulder_x=1.78),
             b=_neg(1.1, 0.585, toe_x=-1.42, shoulder_x=1.66),
         ),
-        grain=GrainSpec(11.5, 16.0, 17.0, 20.0, clump_gain=0.55, fog_grain=0.18),
+        grain=GrainSpec(11.5, 5.161, 5.484, 6.452, clump_gain=0.55, fog_grain=0.18),
         mtf=MTFSpec(30.0, 34.0, 38.0, adjacency=0.09, adjacency_um=18.0),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -10237,7 +12404,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.67, 0.575, toe_x=-1.52, shoulder_x=1.78),
             b=_neg(1.08, 0.59, toe_x=-1.42, shoulder_x=1.66),
         ),
-        grain=GrainSpec(12.5, 16.0, 17.0, 20.0, clump_gain=0.55, fog_grain=0.18),
+        grain=GrainSpec(12.5, 5.161, 5.484, 6.452, clump_gain=0.55, fog_grain=0.18),
         mtf=MTFSpec(32.0, 36.0, 40.0, adjacency=0.09, adjacency_um=18.0),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -10271,7 +12438,33 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.68, 0.57, toe_x=-1.52, shoulder_x=1.78),
             b=_neg(1.09, 0.585, toe_x=-1.42, shoulder_x=1.66),
         ),
-        grain=GrainSpec(12.0, 17.0, 18.0, 22.0, clump_gain=0.55, fog_grain=0.18),
+        # ⚠ A MEASURED sigma(D) SHAPE WAS TRACED FOR THIS STOCK ON 2026-09-02c
+        # (queue E5) AND THEN WITHDRAWN BEFORE IT SHIPPED. Recorded here because
+        # the trace is good and the reason it cannot be stored is the useful part.
+        # Sehlin, Kennel et al., SMPTE Journal 94(7) 724-731, July 1985, Fig. 8
+        # plots DENSITY and RMS GRANULARITY against one shared log-exposure
+        # abscissa for this film. Traced by sehlin_kennel_1985.py, 735 of 799
+        # columns past the |dD/dlogE| >= 0.25 gate, giving toe 1.571 @ D 0.44 /
+        # mid 1.000 / dmax 0.703 @ D 2.08 with an interior peak 1.664 @ D 0.53 --
+        # values that land inside the eleven vendor-sheet negatives' 1.20-1.62
+        # and 0.50-0.90 and validate the trace.
+        # ⚠ WHAT THEY DO NOT DO IS LIVE IN THE DENSITY SPACE `sigma_anchors`
+        # READS. On all eleven measured stocks `sigma_shape_toe_at` sits at the
+        # GREEN layer's own dmin (5219 0.59 against 0.58, 5201 0.62 against 0.62)
+        # and `sigma_shape_dmax_at` near its dmax -- the anchors are per-layer
+        # analytical densities. Fig. 8's abscissa is scene placement and its
+        # ordinate is the film's plotted density, and the traced toe at D 0.44
+        # falls BELOW this stock's own green dmin of 0.68 and far below its blue
+        # dmin of 1.09. Stored anyway, `cpp_parity.py` caught it at once: the
+        # rendered grain amplitude on the blue record disagreed with the
+        # reference by 5.7e-01 against a 2e-05 tolerance, because the whole
+        # shape sat under the layer's dmin.
+        # ⚠ WITHDRAWN, NOT PATCHED. Re-anchoring would need a correspondence
+        # between Fig. 8's density axis and this film's per-layer curves, and
+        # the paper prints none. Shape and SPACE are as separate as shape and
+        # level -- and this is the second refusal on the same document, the
+        # first being its unlabelled granularity ordinate.
+        grain=GrainSpec(12.0, 5.484, 5.806, 7.097, clump_gain=0.55, fog_grain=0.18),
         mtf=MTFSpec(34.0, 38.0, 44.0, adjacency=0.09, adjacency_um=18.0),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -10342,7 +12535,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # GrainSpec docstring's tier-2 ladder assumed -- the ladder understated the
         # top layer badly, on all six sheets measured.
         # Anchor densities and the shape itself: see the sigma(D) note above.
-        grain=GrainSpec(4.10, 11.0, 12.0, 14.0, clump_gain=0.55, fog_grain=0.18,
+        grain=GrainSpec(4.10, 3.548, 3.871, 4.516, clump_gain=0.55, fog_grain=0.18,
                         rms_r=3.80, rms_g=4.10, rms_b=11.42,
                         sigma_shape_toe=1.19, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.72,
@@ -10358,7 +12551,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # the same red as every other Kodak cine negative measured. Red does not
         # scale with the stock's sharpness. q = 1.92/2.38/2.38, the only measured
         # stock whose green and blue exponents tie.
-        mtf=MTFSpec(37.2, 83.8, 100.5, adjacency=0.048, adjacency_um=18.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.048 at 12.9 c/mm on the G record, replacing 0.048 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(37.2, 83.8, 100.5, adjacency=0.0761, adjacency_um=12.4,
                     mtf_rolloff_q=2.38, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -10502,7 +12702,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # GrainSpec docstring's tier-2 ladder assumed -- the ladder understated the
         # top layer badly, on all six sheets measured.
         # Anchor densities and the shape itself: see the sigma(D) note above.
-        grain=GrainSpec(5.87, 12.0, 13.0, 15.0, clump_gain=0.55, fog_grain=0.18,
+        grain=GrainSpec(5.87, 3.871, 4.194, 4.839, clump_gain=0.55, fog_grain=0.18,
                         rms_r=4.42, rms_g=5.87, rms_b=11.29,
                         sigma_shape_toe=1.19, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.84,
@@ -10515,7 +12715,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # ⚠ SHARPEST BLUE RECORD IN THE DATABASE at 111.2 cycles/mm against a red
         # of 37.4 -- r/b = 0.336, the lowest measured ratio anywhere and less than
         # half the 0.78 the estimating rule assumed. q = 2.28/2.51/3.18.
-        mtf=MTFSpec(37.4, 75.1, 111.2, adjacency=0.069, adjacency_um=18.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.069 at 12.9 c/mm on the G record, replacing 0.069 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(37.4, 75.1, 111.2, adjacency=0.1014, adjacency_um=13.0,
                     mtf_rolloff_q=2.51, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -10601,7 +12808,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.66, 0.58, toe_x=-1.52, shoulder_x=1.78),
             b=_neg(1.06, 0.595, toe_x=-1.42, shoulder_x=1.66),
         ),
-        grain=GrainSpec(7.4, 13.0, 14.0, 17.0, clump_gain=0.55, fog_grain=0.18),
+        grain=GrainSpec(7.4, 4.194, 4.516, 5.484, clump_gain=0.55, fog_grain=0.18),
         # [T1/T2] MTF, MIXED PROVENANCE, 2026-08-23 (queue C2b/C24). GREEN AND BLUE
         # MEASURED off its own p3 panel (75.2 and 114.6 -- the second-sharpest blue
         # in the database; green overshoot +6.5 %); RED IS THE FAMILY ANCHOR of
@@ -10609,7 +12816,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # starting at 53 % response, which reports a plausible-looking f50 of 32.0
         # and means nothing.
         # WAS 54.0/62.0/70.0. mtf_measured NOT set -- same reason as 5205.
-        mtf=MTFSpec(36.0, 75.2, 114.6, adjacency=0.065, adjacency_um=18.0),
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.065 at 15.9 c/mm on the G record, replacing 0.065 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(36.0, 75.2, 114.6, adjacency=0.1326, adjacency_um=9.1),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
             weights=(0.58, 0.30, 0.12),
@@ -10737,7 +12951,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # GrainSpec docstring's tier-2 ladder assumed -- the ladder understated the
         # top layer badly, on all six sheets measured.
         # Anchor densities and the shape itself: see the sigma(D) note above.
-        grain=GrainSpec(8.74, 14.0, 15.0, 18.0, clump_gain=0.55, fog_grain=0.18,
+        grain=GrainSpec(8.74, 4.516, 4.839, 5.806, clump_gain=0.55, fog_grain=0.18,
                         rms_r=6.87, rms_g=8.74, rms_b=20.39,
                         sigma_shape_toe=0.96, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.50,
@@ -10760,7 +12974,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # q > 0) while the measured f50 triple and the measured overshoot are both
         # consumed. Normalising the curve by its own peak WOULD fit, and would put
         # this one stock on a convention the other eleven sheets do not share.
-        mtf=MTFSpec(41.1, 73.1, 76.1, adjacency=0.420, adjacency_um=18.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.420 at 15.1 c/mm on the G record, replacing 0.420 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(41.1, 73.1, 76.1, adjacency=0.5562, adjacency_um=12.3,
                     mtf_rolloff_q=0.0, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -10889,7 +13110,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # GrainSpec docstring's tier-2 ladder assumed -- the ladder understated the
         # top layer badly, on all six sheets measured.
         # Anchor densities and the shape itself: see the sigma(D) note above.
-        grain=GrainSpec(6.68, 12.0, 13.0, 16.0, clump_gain=0.55, fog_grain=0.18,
+        grain=GrainSpec(6.68, 3.871, 4.194, 5.161, clump_gain=0.55, fog_grain=0.18,
                         rms_r=5.34, rms_g=6.68, rms_b=15.75,
                         sigma_shape_toe=0.80, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.61,
@@ -10924,7 +13145,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # ⚠ adjacency_um 18.0 is NOT measured and this sheet contradicts it like
         # every other: green's overshoot peaks at 11.0 cycles/mm, a spatial scale of
         # ~91 um. Fourth stock, same direction. Left alone pending C2c.
-        mtf=MTFSpec(35.4, 68.8, 74.0, adjacency=0.162, adjacency_um=18.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.162 at 11.0 c/mm on the G record, replacing 0.162 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(35.4, 68.8, 74.0, adjacency=0.1998, adjacency_um=17.8,
                     mtf_rolloff_q=2.94, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -11050,7 +13278,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # GrainSpec docstring's tier-2 ladder assumed -- the ladder understated the
         # top layer badly, on all six sheets measured.
         # Anchor densities and the shape itself: see the sigma(D) note above.
-        grain=GrainSpec(6.78, 12.0, 13.0, 15.0, clump_gain=0.55, fog_grain=0.18,
+        grain=GrainSpec(6.78, 3.871, 4.194, 4.839, clump_gain=0.55, fog_grain=0.18,
                         rms_r=7.03, rms_g=6.78, rms_b=12.56,
                         sigma_shape_toe=0.94, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.90,
@@ -11191,7 +13419,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # ⚠ The toe anchor sits on a plateau (sigma spans 2.97-4.03 within
         # 0.02 D of it), so 0.54 is the low end of an ill-posed anchor, not a
         # point measurement. Recorded, as on five of the other eight sheets.
-        grain=GrainSpec(4.51, 8.0, 9.0, 11.0, clump_gain=0.48, fog_grain=0.15,
+        grain=GrainSpec(4.51, 2.581, 2.903, 3.548, clump_gain=0.48, fog_grain=0.15,
                         rms_r=4.36, rms_g=4.51, rms_b=9.63,
                         sigma_shape_toe=0.54, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.89,
@@ -11222,7 +13450,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # ⚠ adjacency_um 16.0 is NOT measured and contradicts this sheet like
         # every other: the green overshoot peaks at 10.7 cycles/mm, a spatial
         # scale of ~93 um. Left at the family value pending C2c.
-        mtf=MTFSpec(32.1, 49.7, 55.5, adjacency=0.157, adjacency_um=16.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.157 at 10.7 c/mm on the G record, replacing 0.157 / 16.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(32.1, 49.7, 55.5, adjacency=0.1980, adjacency_um=17.7,
                     mtf_rolloff_q=3.23, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(12.0, 62.0, 320.0),
@@ -11436,7 +13671,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # GrainSpec docstring's tier-2 ladder assumed -- the ladder understated the
         # top layer badly, on all six sheets measured.
         # Anchor densities and the shape itself: see the sigma(D) note above.
-        grain=GrainSpec(6.65, 12.0, 13.0, 16.0, clump_gain=0.55, fog_grain=0.18,
+        grain=GrainSpec(6.65, 3.871, 4.194, 5.161, clump_gain=0.55, fog_grain=0.18,
                         rms_r=5.51, rms_g=6.65, rms_b=15.51,
                         sigma_shape_toe=1.17, sigma_shape_mid=1.00,
                         sigma_shape_dmax=0.70,
@@ -11450,7 +13685,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # estimating rule errs in both directions on one sheet.
         # ⚠ THE FLATTEST ADJACENCY IN THE MEASURED SET, +1.4 %, against +42 % on
         # 5279 one product generation earlier. q = 2.14/2.50/2.71.
-        mtf=MTFSpec(37.6, 54.6, 69.7, adjacency=0.014, adjacency_um=18.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.014 at 7.7 c/mm on the G record, replacing 0.014 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(37.6, 54.6, 69.7, adjacency=0.0315, adjacency_um=16.9,
                     mtf_rolloff_q=2.50, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -11518,7 +13760,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.65, 0.582, toe_x=-1.52, shoulder_x=1.78),
             b=_neg(1.04, 0.598, toe_x=-1.42, shoulder_x=1.66),
         ),
-        grain=GrainSpec(5.1, 11.0, 12.0, 15.0, clump_gain=0.55, fog_grain=0.18),
+        grain=GrainSpec(5.1, 3.548, 3.871, 4.839, clump_gain=0.55, fog_grain=0.18),
         # [T1] MTF MEASURED AND ADOPTED 2026-08-23 (queue C2b/C24). Kodak H-1-5217
         # p3 MTF panel, read by mtf_vector.py off the sheet's own vector paths,
         # record identity from the printed R/G/B letters, trace inspected on the
@@ -11529,7 +13771,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # stored q is GREEN's, the visually weighted record, as on 5201 and 5274.
         # Adjacency stores green's overshoot, +11.0 % at 13.7 cycles/mm.
         # adjacency_um LEFT ALONE -- queue C2c owns that contradiction.
-        mtf=MTFSpec(33.9, 58.1, 67.4, adjacency=0.110, adjacency_um=18.0,
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.110 at 13.7 c/mm on the G record, replacing 0.110 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(33.9, 58.1, 67.4, adjacency=0.1511, adjacency_um=12.6,
                     mtf_rolloff_q=3.06, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -11598,7 +13847,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.64, 0.585, toe_x=-1.52, shoulder_x=1.78),
             b=_neg(1.03, 0.6, toe_x=-1.42, shoulder_x=1.66),
         ),
-        grain=GrainSpec(4.7, 11.0, 12.0, 14.0, clump_gain=0.55, fog_grain=0.18),
+        grain=GrainSpec(4.7, 3.548, 3.871, 4.516, clump_gain=0.55, fog_grain=0.18),
         # [T1/T2] MTF, MIXED PROVENANCE, 2026-08-23 (queue C2b/C24). GREEN AND BLUE ARE
         # MEASURED off this sheet's own p3 panel (55.9 and 59.3, green overshoot
         # +3.2 %); RED IS THE FAMILY ANCHOR of 36.0 cycles/mm and NOT a
@@ -11608,7 +13857,14 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # WAS 56.0/64.0/72.0. mtf_measured deliberately NOT set: two records are
         # measured and the third is a class estimate, so the stock keeps the
         # legacy Gaussian rolloff rather than claiming a measured shape.
-        mtf=MTFSpec(36.0, 55.9, 59.3, adjacency=0.032, adjacency_um=18.0),
+        # ⚠ adjacency / adjacency_um SOLVED 2026-09-02e (queue A4) from this sheet's own
+        # traced peak, 1.032 at 14.6 c/mm on the G record, replacing 0.032 / 18.0
+        # which reproduced neither. The stored value was the OBSERVED overshoot; the
+        # renderer's parameter is the difference-of-Gaussians amplitude BEFORE the
+        # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
+        # solved exactly. Full derivation and the refusal of the red records: see
+        # EASTMAN_PLUS_X_5231.
+        mtf=MTFSpec(36.0, 55.9, 59.3, adjacency=0.1552, adjacency_um=7.0),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
             weights=(0.58, 0.30, 0.12),
@@ -11726,7 +13982,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # and preserving appearance is what was chosen.
         # ⚠ IF THIS STOCK IS EVER RE-FITTED, drop the factor and fit against the
         # net-1.0 convention directly; do not fit on top of this compensation.
-        grain=GrainSpec(9.617, 17.0, 17.0, 17.0, clump_gain=1.40, fog_grain=0.28,
+        grain=GrainSpec(9.617, 5.484, 5.484, 5.484, clump_gain=1.40, fog_grain=0.28,
                         anisotropy=1.08,
                         sigma_shape_toe=0.60, sigma_shape_dmax=1.50),
         # f50 [T2]: scaled from FN-64's 34 c/mm by the documented resolving
@@ -11802,7 +14058,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # and preserving appearance is what was chosen.
         # ⚠ IF THIS STOCK IS EVER RE-FITTED, drop the factor and fit against the
         # net-1.0 convention directly; do not fit on top of this compensation.
-        grain=GrainSpec(20.680, 21.0, 21.0, 21.0, clump_gain=1.55, fog_grain=0.32,
+        grain=GrainSpec(20.680, 6.774, 6.774, 6.774, clump_gain=1.55, fog_grain=0.32,
                         anisotropy=1.10,
                         sigma_shape_toe=0.65, sigma_shape_dmax=1.60),
         # f50 [T2]: FN-64's 34 c/mm scaled by documented R ratio 100/110.
@@ -11879,7 +14135,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         ),
         # Grain [T3]: slow (EI 45) 1970s colour negative, Soviet coating:
         # coarser than western contemporaries of the same speed.
-        grain=GrainSpec(14.0, 13.0, 14.0, 17.0, clump_gain=1.30, fog_grain=0.28,
+        grain=GrainSpec(14.0, 4.194, 4.516, 5.484, clump_gain=1.30, fog_grain=0.28,
                         anisotropy=1.06,
                         sigma_shape_toe=0.50, sigma_shape_dmax=1.60),
         # f50 [T2]: documented R 63 lin/mm (white light) is NC21-class;
@@ -11926,10 +14182,22 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             b=_neg(0.92, 0.850, toe_x=-0.86, toe_k=0.32, shoulder_x=1.06),
         ),
         # Grain [T3]: EI 32 masked tungsten stock, Soviet coating.
-        grain=GrainSpec(15.0, 13.0, 14.0, 17.0, clump_gain=1.30, fog_grain=0.28,
+        grain=GrainSpec(15.0, 4.194, 4.516, 5.484, clump_gain=1.30, fog_grain=0.28,
                         anisotropy=1.06,
                         sigma_shape_toe=0.50, sigma_shape_dmax=1.65),
         # f50 [T2]: documented R 58 lin/mm, a step under DS-4's 63.
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(25.0, 29.0, 33.0, adjacency=0.02),
         halation=HalationSpec(radii_um=(18.0, 95.0, 400.0),
                               gain_r=0.16, gain_g=0.11, gain_b=0.09,
@@ -11984,7 +14252,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # entered as printed. These are CEILINGS, not typical values -- real
         # stock sat below them, so treating them as measurements would
         # overstate the grain.
-        grain=GrainSpec(22.0, 15.0, 16.0, 19.0, clump_gain=1.30, fog_grain=0.28,
+        grain=GrainSpec(22.0, 4.839, 5.161, 6.129, clump_gain=1.30, fog_grain=0.28,
                         anisotropy=1.05, rms_r=30.0, rms_g=22.0,
                         # rms_b deliberately left 0.0: the specification sets no
                         # blue ceiling, so the v1 pooled fallback applies rather
@@ -11995,6 +14263,18 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # f50 = 30 / sqrt(log2(1/T)) gives 24.9 (green) and 15.9 (red). Blue is
         # unspecified; it takes the green figure rather than an invented one.
         # Again these are minima, so the real stock was no softer than this.
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(15.9, 24.9, 24.9, adjacency=0.02),
         halation=HalationSpec(radii_um=(18.0, 100.0, 420.0),
                               gain_r=0.18, gain_g=0.12, gain_b=0.10,
@@ -12103,7 +14383,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         ),
         # [T1-limit] RMS ceilings 19 green / 21 red (table 2 item 9). Blue is
         # NOT specified, so it takes the pooled fallback rather than a guess.
-        grain=GrainSpec(19.0, 14.0, 15.0, 18.0, clump_gain=1.28, fog_grain=0.26,
+        grain=GrainSpec(19.0, 4.516, 4.839, 5.806, clump_gain=1.28, fog_grain=0.26,
                         anisotropy=1.05, rms_r=21.0, rms_g=19.0,
                         sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
         # [T1-limit] MTF >= 0.30 green, >= 0.15 red (table 2 item 8).
@@ -12113,6 +14393,18 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # explicitly (DS-5M, LN-9, TsND-64); that assumption is recorded here
         # rather than hidden. Under the Gaussian core f50 = 30/sqrt(log2(1/T)):
         # green 22.8, red 18.1. Blue unspecified -> green value.
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(18.1, 22.8, 22.8, adjacency=0.02),
         halation=HalationSpec(radii_um=(18.0, 100.0, 420.0),
                               gain_r=0.18, gain_g=0.12, gain_b=0.10,
@@ -12177,12 +14469,24 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         ),
         # [T1-limit] RMS <= 11 in both green and red (item 8) -- the finest
         # grain of any Soviet colour stock in this database.
-        grain=GrainSpec(11.0, 11.0, 12.0, 14.0, clump_gain=1.10, fog_grain=0.22,
+        grain=GrainSpec(11.0, 3.548, 3.871, 4.516, clump_gain=1.10, fog_grain=0.22,
                         anisotropy=1.04, rms_r=11.0, rms_g=11.0,
                         sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
         # [T1] MTF AT AN EXPLICITLY STATED 30 mm^-1 (item 7): green 0.40 +/-
         # 0.05, red 0.22 +/- 0.03. f50 = 30/sqrt(log2(1/T)) -> green 26.1,
         # red 20.3. Blue unspecified -> green value.
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(20.3, 26.1, 26.1, adjacency=0.02),
         halation=HalationSpec(radii_um=(18.0, 100.0, 420.0),
                               gain_r=0.18, gain_g=0.12, gain_b=0.10,
@@ -12238,9 +14542,21 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.55, 0.540, toe_x=-1.32, toe_k=0.32, shoulder_x=1.45),
             b=_neg(1.00, 0.600, toe_x=-1.28, toe_k=0.30, shoulder_x=1.42),
         ),
-        grain=GrainSpec(11.0, 11.0, 12.0, 14.0, clump_gain=1.10, fog_grain=0.22,
+        grain=GrainSpec(11.0, 3.548, 3.871, 4.516, clump_gain=1.10, fog_grain=0.22,
                         anisotropy=1.04, rms_r=11.0, rms_g=11.0,
                         sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
+        # ⚠ adjacency 0.02 IS AN UNEVIDENCED PLACEHOLDER AND RENDERS AS NOTHING, and
+        # that was CONFIRMED AND LEFT IN PLACE 2026-09-02e (queue A4), not overlooked.
+        # Against this stock's own rolloff the difference-of-Gaussians lift never brings
+        # the MTF above 100 % at any frequency, so the parameter reads as active and is
+        # inert. No source behind this profile prints an edge effect, and a class value
+        # cannot be borrowed: the only two B&W stocks in this database with a MEASURED
+        # adjacency solve to 0.069 / 32.1 um (PLUS-X 5231) and 0.300 / 49.8 um
+        # (DOUBLE-X 5222) -- a 4.3x spread in amplitude on two films of one maker, one
+        # era and one process, which is not a class (method rule 18). 0.02 is therefore
+        # kept as the labelled placeholder rather than replaced by a second invented
+        # number, and the conservative consequence -- no rendered overshoot -- is
+        # recorded rather than tuned away. See NotFound.md for what would settle it.
         mtf=MTFSpec(20.3, 26.1, 26.1, adjacency=0.02),
         # The rear carbon-black layer is the more effective antihalation
         # construction of the two, so halation gain is set lower than LN-9's.
@@ -12339,7 +14655,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # unlike every negative TU in the batch. Grain is a class estimate for
         # a 1980s amateur reversal stock at S 32; only the resolving power
         # below is documented.
-        grain=GrainSpec(13.0, 12.0, 13.0, 15.0, clump_gain=1.15, fog_grain=0.20,
+        grain=GrainSpec(13.0, 3.871, 4.194, 4.839, clump_gain=1.15, fog_grain=0.20,
                         anisotropy=1.04,
                         sigma_shape_toe=0.70, sigma_shape_mid=1.0,
                         sigma_shape_dmax=0.50),
@@ -12355,6 +14671,94 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         base_tint=(1.000, 0.990, 0.975),
         misregistration_um=8.0,
         default_format="ff35",
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    # ---- queue C4, closed 2026-09-02, AND THE QUEUE ROW WAS WRONG ----------
+    # C4 read "ЦО-90Д / ЦО-90Л — argued against, two documents with
+    # near-identical norms would render identically". ⚠ THEY ARE NOT TWO
+    # DOCUMENTS AND THERE IS NO ЦО-90Д. Both files under SOVIET STANDARDS are
+    # scans of ONE specification: same title block «КИНОПЛЕНКА И ФОТОПЛЕНКА
+    # ЦВЕТНЫЕ ОБРАЩАЕМЫЕ МАРОК ЦО-90Л», same ТУ 6-42-1514-90, same
+    # «(Вводятся впервые)», same signatories Калугин and Кислицын, same 1990
+    # registration stamp, two different physical copies. The "ЦО-90Д" in the
+    # 2026-08-17 batch note is an OCR misread of Л as Д on a typewritten page,
+    # and the OCR does it inconsistently WITHIN one file -- the body of the
+    # scan filed as "...marok_tso" reads "Ц0-90Д" on one line and "Ц0-90Л"
+    # four lines later, while the page image says Л both times.
+    # ⚠ SO THE ARGUMENT AGAINST C4 DISSOLVES RATHER THAN BEING OVERRULED: the
+    # objection was that two stocks would render identically. There is one
+    # stock. It is entered, and the phantom is recorded so it cannot come back.
+    FilmProfile(
+        name="SVEMA_CO_90L",
+        aliases=("co-90l", "co90l", "tso-90l", "tso90l", "ЦО-90Л",
+                 "svema co-90l", "tasma co-90l", "co-90"),
+        description=(
+            "[T1-limits] Soviet COLOUR REVERSAL cine and photo film for "
+            "TUNGSTEN 3200 K, nominal S 80 GOST 9160-82, from "
+            "ТУ 6-42-1514-90 — the last Soviet amateur reversal specification, "
+            "registered 1990 and marked «Вводятся впервые», i.e. a NEW product "
+            "in the year before the union dissolved. 16 mm double-perforated "
+            "cine film in 15 / 30 / 60 / 120 m rolls and 35 mm perforated "
+            "still film for slides, on ОТБ-14 triacetate base per "
+            "ОСТ 6-17-451-83. Specified: general sensitivity >= 80; "
+            "sensitivity balance <= 2.0; overall contrast coefficient "
+            "1.6–2.2; contrast balance <= 0.4; Dmin <= 0.25 B; Dmax >= 2.0 B "
+            "in EVERY layer; resolving power >= 75 mm^-1 per ГОСТ 2819-84. "
+            "⚠ THE RED-SENSITIVE LAYER IS SPECIFIED TO BE THE LEAST SENSITIVE "
+            "OF THE THREE and the blue-sensitive one may equal or exceed the "
+            "green — an ordering the TU states in words and which the stored "
+            "curves respect. Contrast is a RANGE 0.6 wide, so the stored "
+            "gamma is its midpoint: a coarser commitment than the negative "
+            "TUs, and the same caveat SVEMA_CO_32D carries."
+        ),
+        era="1990-1995",
+        exposure_index=80,
+        balance_kelvin=3200,
+        kind=StockKind.REVERSAL,
+        # [T1-limits] ТУ 6-42-1514-90 табл. 3, read visually from the page
+        # image of BOTH scans, which agree line for line.
+        # ⚠ ONE CONTRAST FIGURE FOR THE WHOLE FILM, NOT THREE. Item 3 gives
+        # 1.6–2.2 for the OVERALL coefficient and item 4 caps the balance
+        # between layers at 0.4; nothing says which layer is steeper. So all
+        # three take the 1.9 midpoint, and the 0.4 that a real coating is
+        # allowed to spread is documented rather than invented as a split --
+        # unlike ЦО-32Д, whose TU does specify the upper layer separately.
+        # Dmin 0.25 is a CEILING used as the stated value; Dmax >= 2.0 sizes
+        # the throw. Curve shape beyond those four numbers is [T3], carried
+        # over from SVEMA_CO_32D, the corpus's other Soviet amateur reversal.
+        curves=RGBCurves(
+            r=_rev(0.25, 1.900, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+            g=_rev(0.25, 1.900, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+            b=_rev(0.25, 1.900, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+        ),
+        # [T3] The TU specifies NO granularity and NO MTF, as with ЦО-32Д.
+        # Class estimate for a 1990 amateur reversal stock, scaled from
+        # SVEMA_CO_32D by the speed step 32 -> 80 (1.3 stops; the sqrt-speed
+        # rule gives ~1.6x, held to 1.25x because the two are one generation
+        # and one factory apart and the later coating is the finer technology).
+        # ⚠ sigma_shape IS DELIBERATELY LEFT AT THE CLASS DEFAULT, unlike
+        # SVEMA_CO_32D, which sets the OLD 0.7/1.0/0.5 triple in its own
+        # literal. Queue F2 corrected the reversal default to 0.21/1.00/2.97 --
+        # a RISE, which is what both measured reversal stocks do -- and copying
+        # ЦО-32Д's literal would have quietly re-imported the defect the
+        # correction removed. It would also have escaped verify's hold-out
+        # count, which exists precisely to keep that one literal visible.
+        grain=GrainSpec(16.0, 4.839, 5.161, 5.968, clump_gain=1.15, fog_grain=0.20,
+                        anisotropy=1.04),
+        # f50 [T2] inferred from the documented >= 75 mm^-1 the same way as the
+        # other Soviet stocks -- the TU prints no MTF curve to convert. 75 is
+        # ABOVE ЦО-32Д's 68, so the f50 triple is scaled up in proportion.
+        mtf=MTFSpec(33.0, 37.0, 42.0, adjacency=0.02),
+        halation=HalationSpec(radii_um=(16.0, 90.0, 380.0),
+                              gain_r=0.14, gain_g=0.10, gain_b=0.08,
+                              threshold_stops=1.5),
+        couplers=CouplerSpec(0.03, 70.0),
+        dye_matrix=_dye(0.22),
+        base_tint=(1.000, 0.990, 0.975),
+        misregistration_um=8.0,
+        # The TU lists the 16 mm cine loadings first and at length; the 35 mm
+        # still form is one sentence.
+        default_format="16mm",
         features=Feature.UNEVEN_EMULSION,
     ),
     FilmProfile(
@@ -12384,7 +14788,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             b=_neg(0.92, 0.850, toe_x=-1.16, toe_k=0.32, shoulder_x=1.36),
         ),
         # Grain [T3]: one GOST step faster than TsNL-32.
-        grain=GrainSpec(17.0, 14.0, 15.0, 18.0, clump_gain=1.35, fog_grain=0.30,
+        grain=GrainSpec(17.0, 4.516, 4.839, 5.806, clump_gain=1.35, fog_grain=0.30,
                         anisotropy=1.06,
                         sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
         # f50 [T2]: documented R 63 lin/mm.
@@ -12451,7 +14855,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # dissolves the coarse first-image silver, so finer than the
         # negative stocks of the same speed but coarser than western
         # slide film. No Soviet granularity figure printed.
-        grain=GrainSpec(12.0, 15.0, 15.0, 15.0, clump_gain=1.25, fog_grain=0.22,
+        grain=GrainSpec(12.0, 4.839, 4.839, 4.839, clump_gain=1.25, fog_grain=0.22,
                         anisotropy=1.08),
         # f50 [T2]: Chibisov 1988 Table I prints R 110 mm^-1 for OCh-45
         # (product-specific, supersedes the Iofis class minimum of 100);
@@ -12526,7 +14930,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             g=_neg(0.32, 0.575, toe_x=-1.34, toe_k=0.34, shoulder_x=1.28),
             b=_neg(0.36, 0.590, toe_x=-1.26, toe_k=0.32, shoulder_x=1.24),
         ),
-        grain=GrainSpec(13.5, 17.0, 16.0, 20.0, clump_gain=1.30, fog_grain=0.32,
+        grain=GrainSpec(13.5, 5.484, 5.161, 6.452, clump_gain=1.30, fog_grain=0.32,
                         anisotropy=1.02),
         mtf=MTFSpec(28.0, 32.0, 36.0, adjacency=0.02, adjacency_um=26.0),
         # Layer structure, verbatim: "Jede der Einzelschichten des
@@ -12608,7 +15012,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # condition anywhere. Estimated for a 250T stock of 1980, between
         # Eastman 5293 (200T, rms 7.4) and 5294 (400T). The 1985 SMPTE paper's
         # 40x40 um figures belong to 8514/8512 and are deliberately not used.
-        grain=GrainSpec(8.6, 14.0, 15.0, 18.0, clump_gain=0.80, fog_grain=0.19),
+        grain=GrainSpec(8.6, 4.516, 4.839, 5.806, clump_gain=0.80, fog_grain=0.19),
         mtf=MTFSpec(48.0, 55.0, 62.0, adjacency=0.07, adjacency_um=19.0),
         halation=HalationSpec(radii_um=(14.0, 72.0, 360.0),
                               weights=(0.56, 0.30, 0.14),
@@ -12666,7 +15070,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         ),
         # Granularity given only as a Wiener spectrum at ND 1.00 -- no
         # sigma_D or RMS number is stated, so rms stays a class estimate.
-        grain=GrainSpec(11.5, 11.0, 12.0, 14.0, clump_gain=0.42, fog_grain=0.16),
+        grain=GrainSpec(11.5, 3.548, 3.871, 4.516, clump_gain=0.42, fog_grain=0.16),
         mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.10, adjacency_um=14.0),
         halation=HalationSpec(gain_r=0.035, gain_g=0.012, gain_b=0.004,
                               threshold_stops=2.0),
@@ -12753,25 +15157,163 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # Layer-to-record mapping is the standard chromogenic one: the yellow
         # dye layer records BLUE, magenta records GREEN, cyan (Blaugruen)
         # records RED. So r = 1.45, g = 1.25, b = 1.25 for this type.
-        # dmin 0.10 traced from Bild 5a's right-hand plateau (0.09-0.12).
-        # Toe/shoulder softness [T2] transferred from GEVACHROME_902.
+        # [T1] SHAPE TRACED FROM BILD 5a, p264 -- queue G5, 2026-09-03,
+        # gevachrome_1968_raster.py.  ⚠ THIS REPLACES A [T2] TRANSFER FROM
+        # GEVACHROME_902, AND THE TRANSFER WAS HALF RIGHT: its toe_k 0.18 sits
+        # inside the traced 0.18-0.20, but its shoulder_k 0.30 is 2.5 to 8
+        # times too soft.  For a reversal `shoulder_x` is the SHADOW end, and
+        # Bild 5a's Dmax corner is nearly square -- the softplus drives sh_k to
+        # 0.038 on the red record trying to reproduce it, which is the model
+        # admitting it cannot draw a hard corner, not a measurement of one.
+        #
+        # ⚠ WHAT IS MEASURED AND WHAT IS DERIVED, kept apart on purpose:
+        #   gamma  PRINTED in the caption (1.45 / 1.25 / 1.25), never fitted;
+        #   dmin   read off the right-hand plateau, 0.12 / 0.10 / 0.09;
+        #   Dmax   read at the panel's left edge, 2.729 / 2.351 / 2.229;
+        #   span   = (Dmax - dmin) / gamma, so the throw rests on two directly
+        #          measured densities instead of on the fit's asymptote, which
+        #          a softplus only approaches and never reaches;
+        #   toe_k, shoulder_k  the only free parameters, from the trace.
+        # The midpoint (toe_x + shoulder_x) / 2 is HELD at the stored value so
+        # `solve_anchors` is undisturbed: x is -(log_e + anchor), the absolute
+        # origin is absorbed there, and only the span is physical.
+        #
+        # ⚠ THE PRINTED GAMMAS ARE A HARD VALIDATOR NOW, NOT A SOFT ONE.  The
+        # caption never says how Gevaert measured gamma, and a max-slope-over-
+        # a-window estimator returns 1.835 against a printed 1.45 -- biased
+        # high, and the reason this row stalled once.  Least squares over the
+        # straight-line portion (D 0.5-2.0) returns 1.478 / 1.250 here and
+        # 1.376 / 1.206 on Bild 5b: all four printed values inside 2 %, on two
+        # panels, from one estimator.  That identifies the convention as the
+        # straight-line slope and turns the caption into a check.
+        #
+        # Curve a is the Blaugruenschicht (cyan dye, RED record), b the
+        # Purpurschicht (GREEN), c the Gelbschicht (BLUE).  ⚠ b AND c MERGE
+        # from about lgE 0.4 and are NOT separable there, so they share one
+        # traced softness pair; what separates them is their Dmax at the left
+        # edge, 2.351 against 2.229, and that is where the two spans differ.
         curves=RGBCurves(
-            r=_rev(0.10, 1.45, toe_x=-0.86, shoulder_x=1.06),
-            g=_rev(0.10, 1.25, toe_x=-0.88, shoulder_x=1.04),
-            b=_rev(0.10, 1.25, toe_x=-0.90, shoulder_x=1.02),
+            r=_rev(0.12, 1.45, toe_x=-0.800, toe_k=0.182,
+                   shoulder_x=1.000, shoulder_k=0.038),
+            g=_rev(0.10, 1.25, toe_x=-0.821, toe_k=0.201,
+                   shoulder_x=0.981, shoulder_k=0.122),
+            b=_rev(0.09, 1.25, toe_x=-0.796, toe_k=0.201,
+                   shoulder_x=0.916, shoulder_k=0.122),
         ),
         # [T3] NO GRANULARITY FIGURE OF ANY KIND IS PRINTED in this paper -- no
         # sigma_D, no rms, no Wiener spectrum, not even a curve. These are class
         # estimates for a 50 ASA colour reversal cine stock of the late 1960s,
         # anchored on GEVACHROME_902's 11.5 (same maker, print stock, one grade
         # finer expected on a camera film of this speed).
-        grain=GrainSpec(10.0, 10.5, 11.5, 13.5, clump_gain=0.48, fog_grain=0.16),
-        # [T3] Bild 1a-c prints MODULATION TRANSFER curves for both types,
-        # measured separately in green, red and blue light -- not traced (see the
-        # scan note above), so f50 stays a class estimate and queue item G2 holds
-        # the trace. The paper's own claim is that both types are sharp enough
-        # for television resolution; it prints no numeric f50.
-        mtf=MTFSpec(58.0, 62.0, 66.0, adjacency=0.09, adjacency_um=15.0),
+        grain=GrainSpec(10.0, 3.387, 3.71, 4.355, clump_gain=0.48, fog_grain=0.16),
+        # [T1] TRACED FROM BILD 1a/b/c, p260 -- queue G2, 2026-09-02,
+        # gevachrome_1968_raster.py.  Log-log MTF in green / red / blue light,
+        # abscissa "Frequenz L/mm" 2-100 with a SINUSOIDAL test object (so
+        # L/mm is cycles/mm, the unit this field means), ordinate 10-100 %.
+        # ⚠ THE FORMER 58 / 62 / 66 WERE [T3] CLASS ESTIMATES AND WERE TWO TO
+        # THREE TIMES TOO HIGH.  What makes the replacement believable is that
+        # the trace recovers the printed physics without being told it: blue is
+        # sharpest and red softest on both films -- the Tab. I layer order, blue
+        # layer on top, red at the bottom under the whole pack -- at a ratio of
+        # 2.2, where the class estimates had it at 1.14; and Typ 6.05, the
+        # faster film, comes out softer than Typ 6.00 in all three channels.
+        # rms of the adopted rolloff law against the trace: 0.019 / 0.025 /
+        # 0.021.  Fitted q per channel 1.97 / 2.09 / 2.12; THIS FILM'S OWN
+        # MEDIAN 2.09 is stored.  ⚠ A SHARED 2.0 FOR BOTH TYPES WAS THE FIRST
+        # DRAFT AND verify.py REFUSED IT, correctly: MTFSpec carries one q per
+        # stock and the suite asserts that no two stocks were collapsed onto a
+        # constant, because that is how a class rule gets laundered into
+        # measured data.  The two films' medians differ (2.09 against 2.00) and
+        # each is that film's own.
+        # ⚠ adjacency 0.09 / adjacency_um 15.0 ARE PRE-TRACE ESTIMATES AND THIS SOURCE
+        # CAN NEVER CONFIRM THEM, established by queue A4 2026-09-02e. The G2 trace of
+        # Bild 1a/b/c replaced f50 and q and left this pair untouched, which was right
+        # but was not stated: Bild 1's ORDINATE RUNS 10-100 %, so an overshoot above
+        # 100 % is off the top of the frame and physically unrecordable from this panel
+        # whatever the film does. The pair is therefore not "unconfirmed pending a
+        # better read of the same figure" -- it is unconfirmable from Gevaert 1968 and
+        # needs a different document. Against the traced rolloff the lift never reaches
+        # 100 %, so the stored pair renders as no edge effect at all.
+        mtf=MTFSpec(20.4, 23.5, 44.4, adjacency=0.09, adjacency_um=15.0,
+                    mtf_rolloff_q=2.09, mtf_measured=True),
+        # [T1] TRACED FROM BILD 2a, p262 -- "Sensibilisierungskurven", relative
+        # sensitivity 0-3.0 against 350-800 nm.  ⚠ THE AXIS IS NOT LABELLED
+        # "log": it reads "relative Empfindlichkeit" over a 0-3.0 range with the
+        # curves running down to the axis at each band edge.  Read as LOG (three
+        # decades) because a linear relative scale normalised to a 0-3 range
+        # with peaks at 1.73-1.80 has no reading that makes sense, and because
+        # the band edges then mean 10^-3 of peak rather than exactly zero, which
+        # is what a dye-sensitised layer actually does.  Peaks as printed:
+        # blue 1.77, green 1.83, red 1.71 of 3.0, at 430 / 570 / 660 nm.
+        # -4.0 marks wavelengths where the source draws NO CURVE AT ALL (blue is
+        # drawn 367-529 nm, green 488-608, red 561-681); values inside those
+        # extents run down to the plot floor and are kept as traced.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -1.65, -1.408, -1.176, -0.977, -0.813, -0.712, -0.611,
+                     -0.475, -0.317, -0.126, 0.0, -0.464, -1.584, -4.0, -4.0),
+            log_s_g=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0, -1.725, -1.353, -1.123, -0.875, -0.661,
+                     -0.423, -0.24, -0.093, 0.0, -0.045, -0.69, -1.345, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+            log_s_b=(-0.647, -0.299, -0.126, -0.046, -0.008, 0.0, -0.008,
+                     -0.024, -0.071, -0.144, -0.251, -0.401, -0.604, -0.843,
+                     -1.228, -1.697, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0),
+            criterion="relative_log",
+            source=("Rens, J. E. / Van Bets, K., «Gevachrome-Farbumkehrfilme "
+                    "fuer Farbfernsehen», KINO-TECHNIK 1968 Nr. 10, Bild 2a, "
+                    "printed p262 -- PDF/PROFILES/GEVAERT/"
+                    "Rens_vanBets1968Gevachr6.00.pdf. RASTER-ONLY page at "
+                    "about 115 ppi; traced by gevachrome_1968_raster.py with "
+                    "the abscissa calibrated piecewise between the nine "
+                    "printed 50 nm gridlines and the ordinate on the printed "
+                    "0-3.0 scale (63.3 px per unit, checked on four "
+                    "gridlines). No filtration is stated for the measurement"),
+        ),
+        # [T1] TRACED FROM BILD 4, p262.  ⚠ ONE SET OF CURVES SERVES BOTH TYPES
+        # -- the caption reads "Typ 6.00 und Typ 6.05" and only three curves are
+        # drawn, so the identical set is stored on both profiles rather than
+        # invented separately for each.  Ordinate "Dichte" 0-3.0 AS PRINTED,
+        # not normalised.  Peaks 2.00 at 450 (yellow), 2.04 at 530 (magenta),
+        # 1.98 at 670-680 nm (cyan).
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.635, 0.502, 0.364, 0.303, 0.24, 0.198, 0.183, 0.167,
+                    0.167, 0.159, 0.163, 0.167, 0.183, 0.208, 0.236, 0.302,
+                    0.392, 0.51, 0.644, 0.81, 0.968, 1.148, 1.327, 1.498,
+                    1.66, 1.81, 1.921, 1.978, 1.976, 1.906, 1.782),
+            d_magenta=(0.238, 0.294, 0.34, 0.384, 0.421, 0.437, 0.497, 0.654,
+                       0.862, 1.113, 1.448, 1.721, 1.955, 2.04, 2.029, 1.944,
+                       1.738, 1.462, 1.138, 0.829, 0.571, 0.394, 0.271, 0.194,
+                       0.151, 0.103, 0.071, 0.056, 0.048, 0.048, 0.048),
+            d_yellow=(1.032, 1.229, 1.48, 1.719, 1.913, 2.0, 1.956, 1.77,
+                      1.497, 1.148, 0.81, 0.549, 0.379, 0.246, 0.171, 0.127,
+                      0.094, 0.071, 0.056, 0.048, 0.048, 0.05, 0.05, 0.05,
+                      0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05),
+            normalisation="as_printed_no_stated_normalisation",
+            source=("Rens & Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 4, "
+                    "printed p262, «Absorptionskurven der Bildfarbstoffe der "
+                    "Gevachrome-Farbumkehrfilme Typ 6.00 und Typ 6.05» -- ONE "
+                    "SET FOR BOTH TYPES, stored identically on both. Traced by "
+                    "gevachrome_1968_raster.py off the printed 50 nm and 0.5 D "
+                    "gridlines. ⚠ THE CYAN AND MAGENTA BRANCHES CROSS AT ABOUT "
+                    "420 nm and merge into one blob at the scan's resolution; "
+                    "400/410/420 nm are assigned from the unambiguous branches "
+                    "either side (the branch descending from 0.62 at 400 runs "
+                    "on to the 0.16 minimum at 490 and the 675 nm peak = cyan; "
+                    "the branch rising from 0.24 runs on to 0.87 at 480 and "
+                    "the 535 nm peak = magenta) and are asserted in the "
+                    "reader. ⚠ NOT STORED: the panel is plotted to 800 nm and "
+                    "the cyan trace continues to 0.15 D at 795, outside the "
+                    "corpus 400-700 grid; yellow and magenta terminate near "
+                    "715 nm. Below about 0.06 D the yellow tail lies on the "
+                    "axis rule and cannot be separated from it, so 610-700 nm "
+                    "is held at the 0.05 the last resolved columns give"),
+        ),
         halation=HalationSpec(gain_r=0.030, gain_g=0.011, gain_b=0.004,
                               threshold_stops=2.0),
         # [T2] FROM A PRINTED QUALITATIVE STATEMENT, p264: the film "hat einen
@@ -12824,19 +15366,121 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=160,
         balance_kelvin=3300,
         # Same printed caption as Typ 6.00, with the cyan layer at gamma 1.35.
+        # [T1] SHAPE TRACED FROM BILD 5b, p264 -- queue G5, 2026-09-03.  Same
+        # method as GEVACHROME_600, which carries the argument; only what is
+        # different about this panel is recorded here.
+        #
+        # ⚠ BILD 5b DOES NOT START AT lg i.t = 0 AND BILD 5a DOES.  Its printed
+        # abscissa labels 1, 2 and 3 fall at page-x 114 / 207 / 300 against
+        # 5a's 151 / 244 / 336.5, so the frame's left edge is lgE 0.45, not 0.
+        # Reading 5b on 5a's scale -- the two panels are the same size, in the
+        # same column, one above the other -- shifts every point by 0.40
+        # decades and quietly rescales the throw.  The two panels are
+        # calibrated separately for that reason.
+        # ⚠ CONSEQUENCE FOR Dmax: at lgE 0.45 the curves are at 2.505 / 2.266 /
+        # 2.096 and still climbing leftwards, so these are DENSITIES AT THE
+        # PANEL EDGE, not the film's Dmax.  The fitted asymptote agrees with
+        # them to 0.5 % (2.493 red, 2.121 blue), which is why they are used --
+        # but a sheet showing the missing 0.45 decades would move them up.
         curves=RGBCurves(
-            r=_rev(0.10, 1.35, toe_x=-0.86, shoulder_x=1.06),
-            g=_rev(0.10, 1.25, toe_x=-0.88, shoulder_x=1.04),
-            b=_rev(0.10, 1.25, toe_x=-0.90, shoulder_x=1.02),
+            r=_rev(0.12, 1.35, toe_x=-0.784, toe_k=0.202,
+                   shoulder_x=0.984, shoulder_k=0.075),
+            g=_rev(0.10, 1.25, toe_x=-0.787, toe_k=0.238,
+                   shoulder_x=0.947, shoulder_k=0.096),
+            b=_rev(0.09, 1.25, toe_x=-0.743, toe_k=0.238,
+                   shoulder_x=0.863, shoulder_k=0.096),
         ),
         # [T3] No granularity figure printed, as for Typ 6.00. Scaled up from
         # the 6.00 estimate by the speed difference (50 -> 160 ASA is 1.7 stops;
         # the classic sqrt-speed rule gives ~1.8x, capped here at 1.6x because
         # the paper stresses both types share one emulsion technology).
-        grain=GrainSpec(16.0, 13.0, 14.5, 17.0, clump_gain=0.55, fog_grain=0.18),
-        # [T3] as for 6.00; Bild 1 shows 6.05 slightly softer than 6.00 in all
-        # three colours, which the estimate respects in ORDER only.
-        mtf=MTFSpec(50.0, 54.0, 58.0, adjacency=0.09, adjacency_um=15.0),
+        grain=GrainSpec(16.0, 4.194, 4.677, 5.484, clump_gain=0.55, fog_grain=0.18),
+        # [T1] TRACED FROM BILD 1a/b/c, p260, dashed curve -- queue G2,
+        # 2026-09-02, gevachrome_1968_raster.py.  See GEVACHROME_600 for the
+        # calibration and for why the former class estimates were discarded.
+        # ⚠ THE DASHED CURVE IS THE HARD ONE and the reader says so: in Bild 1c
+        # its dash gaps between 28 and 38 c/mm are wide enough to hide it, and a
+        # nearest-ink follower walks off it onto the solid Typ 6.00 curve and
+        # silently returns 6.00's f50 twice.  The trace therefore predicts from
+        # the local slope and is forbidden to land on the already-traced solid
+        # curve.  rms of the adopted rolloff law: 0.007 / 0.013 / 0.006 --
+        # BETTER than Typ 6.00's, because the dashed stroke is thinner.
+        # Fitted q 1.90 / 2.00 / 2.00; this film's own median 2.00 is stored,
+        # against Typ 6.00's 2.09 -- see that profile for why the two are not
+        # merged into one family constant.
+        # ⚠ adjacency 0.09 / adjacency_um 15.0 ARE PRE-TRACE ESTIMATES AND THIS SOURCE
+        # CAN NEVER CONFIRM THEM, established by queue A4 2026-09-02e. The G2 trace of
+        # Bild 1a/b/c replaced f50 and q and left this pair untouched, which was right
+        # but was not stated: Bild 1's ORDINATE RUNS 10-100 %, so an overshoot above
+        # 100 % is off the top of the frame and physically unrecordable from this panel
+        # whatever the film does. The pair is therefore not "unconfirmed pending a
+        # better read of the same figure" -- it is unconfirmable from Gevaert 1968 and
+        # needs a different document. Against the traced rolloff the lift never reaches
+        # 100 %, so the stored pair renders as no edge effect at all.
+        mtf=MTFSpec(15.8, 20.3, 35.9, adjacency=0.09, adjacency_um=15.0,
+                    mtf_rolloff_q=2.00, mtf_measured=True),
+        # [T1] TRACED FROM BILD 2b, p262.  Same panel design as Bild 2a; peaks
+        # as printed blue 1.76, green 1.81, red 1.73 of 3.0, at 430 / 570 /
+        # 660 nm.  ⚠ 6.05's RED CURVE IS CUT IN TWO by the green layer's descent
+        # crossing it at about 597 nm and 1.0, so its 536-597 nm half is seeded
+        # and traced separately and then merged.  Drawn extents: blue 369-536,
+        # green 452-601, red 536-684 nm.
+        # ⚠ THE DIFFERENCE FROM 6.00 IS REAL AND IS THE POINT OF HAVING BOTH:
+        # 6.05's green layer starts at 452 nm against 6.00's 488, i.e. the fast
+        # film's magenta record reaches almost 40 nm further into the blue.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -1.625, -1.5,
+                     -1.375, -1.233, -1.029, -0.837, -0.73, -0.695, -0.59,
+                     -0.444, -0.278, -0.111, 0.0, -0.224, -1.178, -4.0, -4.0),
+            log_s_g=(-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -1.565,
+                     -1.335, -1.156, -0.979, -0.818, -0.733, -0.6, -0.456,
+                     -0.279, -0.107, -0.01, 0.0, -0.119, -0.747, -1.592, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+            log_s_b=(-0.876, -0.437, -0.181, -0.065, -0.016, 0.0, -0.008,
+                     -0.039, -0.079, -0.153, -0.248, -0.369, -0.537, -0.744,
+                     -1.093, -1.56, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0,
+                     -4.0),
+            criterion="relative_log",
+            source=("Rens & Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 2b, "
+                    "printed p262 -- same document, same scan limits and same "
+                    "tracing method as the Typ 6.00 entry; restated here "
+                    "rather than cross-referenced. RASTER-ONLY at about "
+                    "115 ppi, traced by gevachrome_1968_raster.py, abscissa "
+                    "calibrated piecewise on the nine printed 50 nm "
+                    "gridlines. The axis reads «relative Empfindlichkeit» "
+                    "0-3.0 and is taken as LOG; that reading is argued in the "
+                    "Typ 6.00 comment. No filtration stated"),
+        ),
+        # [T1] BILD 4 SERVES BOTH TYPES -- identical set to GEVACHROME_600's,
+        # stored here too rather than cross-referenced. See that entry for the
+        # crossing at 420 nm and for what is deliberately not stored.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.635, 0.502, 0.364, 0.303, 0.24, 0.198, 0.183, 0.167,
+                    0.167, 0.159, 0.163, 0.167, 0.183, 0.208, 0.236, 0.302,
+                    0.392, 0.51, 0.644, 0.81, 0.968, 1.148, 1.327, 1.498,
+                    1.66, 1.81, 1.921, 1.978, 1.976, 1.906, 1.782),
+            d_magenta=(0.238, 0.294, 0.34, 0.384, 0.421, 0.437, 0.497, 0.654,
+                       0.862, 1.113, 1.448, 1.721, 1.955, 2.04, 2.029, 1.944,
+                       1.738, 1.462, 1.138, 0.829, 0.571, 0.394, 0.271, 0.194,
+                       0.151, 0.103, 0.071, 0.056, 0.048, 0.048, 0.048),
+            d_yellow=(1.032, 1.229, 1.48, 1.719, 1.913, 2.0, 1.956, 1.77,
+                      1.497, 1.148, 0.81, 0.549, 0.379, 0.246, 0.171, 0.127,
+                      0.094, 0.071, 0.056, 0.048, 0.048, 0.05, 0.05, 0.05,
+                      0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05),
+            normalisation="as_printed_no_stated_normalisation",
+            source=("Rens & Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 4, "
+                    "printed p262 -- the caption reads «... Typ 6.00 und Typ "
+                    "6.05» and ONE set of three curves is drawn for the pair, "
+                    "so this is the same measurement as the Typ 6.00 entry "
+                    "carries, not an independent one. Traced by "
+                    "gevachrome_1968_raster.py; the cyan/magenta crossing at "
+                    "420 nm and the unstored 700-800 nm cyan tail are "
+                    "documented on the Typ 6.00 entry"),
+        ),
         halation=HalationSpec(gain_r=0.034, gain_g=0.013, gain_b=0.005,
                               threshold_stops=2.0),
         couplers=CouplerSpec(0.12, 48.0, 0.04, 10.0),
@@ -12925,7 +15569,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # reference channel with the per-layer values carried explicitly --
         # note the ordering blue >> red > green is the OPPOSITE of the usual
         # heuristic, because the DIR couplers act on green and red only.
-        grain=GrainSpec(16.0, 13.0, 12.0, 17.0, clump_gain=0.72, fog_grain=0.17,
+        grain=GrainSpec(16.0, 4.194, 3.871, 5.484, clump_gain=0.72, fog_grain=0.17,
                         rms_r=23.0, rms_g=16.0, rms_b=34.0),
         # [T2-VISUAL] f50 READ OFF Fig. 11 (2026-08-19, queue item G3). SOURCE
         # Vervoort & Stappaerts, printed p652, Fig. 11 "Modulation transfer
@@ -13109,7 +15753,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.24, 0.744, -1.40, 0.30, 1.70, 0.44)),
         # rms 10.5 [T2]: "fine grain" class at EI 64 between PANATOMIC_X
         # (very fine, 7.5) and TRI_X_SHEET (moderate, 13.5); no figure printed.
-        grain=GrainSpec(10.5, 13.0, 13.0, 13.0, clump_gain=1.05, fog_grain=0.26),
+        grain=GrainSpec(10.5, 4.194, 4.194, 4.194, clump_gain=1.05, fog_grain=0.26),
         # f50 44 [T2]: fitted so the rendered limiting resolution tracks the
         # printed 95 lines/mm (30:1 TOC) relative to the 1952 siblings below.
         mtf=MTFSpec(44.0, 44.0, 44.0, adjacency=0.03),
@@ -13191,7 +15835,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.18, 0.852, -1.50, 0.30, 1.80, 0.42)),
         # rms 7.5 [T2]: "very fine grain" at EI 32; scaled against APX_25
         # (rms 7.0) allowing for two decades older crystal technology.
-        grain=GrainSpec(7.5, 8.0, 8.0, 8.0, clump_gain=0.70, fog_grain=0.18),
+        grain=GrainSpec(7.5, 2.581, 2.581, 2.581, clump_gain=0.70, fog_grain=0.18),
         # f50 58 [T2] from the printed 100 lines/mm (30:1), the best of the
         # four 1952 stocks here.
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.06, adjacency_um=16.0),
@@ -13272,7 +15916,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # rms 13.5 [T2]: fastest of the set; slightly coarser than
         # SUPER_XX_1938 (12.0) at twice the printed speed, in line with the
         # book's "moderate enlargement without objectionable grain".
-        grain=GrainSpec(13.5, 15.0, 15.0, 15.0, clump_gain=1.20, fog_grain=0.30),
+        grain=GrainSpec(13.5, 4.839, 4.839, 4.839, clump_gain=1.20, fog_grain=0.30),
         # f50 34 [T2] from the printed 65 lines/mm (30:1) -- the softest of
         # the four, and consistent with SUPER_XX_1938's 35.
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03),
@@ -13351,7 +15995,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.19, 0.800, -1.46, 0.30, 1.78, 0.44)),
         # rms 11.5 [T2]: "moderate enlargement" class at EI 125, between
         # VERICHROME (10.5) and TRI_X_SHEET (13.5).
-        grain=GrainSpec(11.5, 13.5, 13.5, 13.5, clump_gain=1.10, fog_grain=0.27),
+        grain=GrainSpec(11.5, 4.355, 4.355, 4.355, clump_gain=1.10, fog_grain=0.27),
         # f50 42 [T2] from the printed 85 lines/mm (30:1).
         mtf=MTFSpec(42.0, 42.0, 42.0, adjacency=0.03),
         # "antihalation film" printed on the sheet: halation left disabled.
@@ -13451,7 +16095,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         ),
         # rms 4.3: published (AGFA stocks.pdf p6: "Granularity (x 1000):
         # RMS 4.3"). Per-channel values: stack rule from the green figure.
-        grain=GrainSpec(4.3, 11.8, 12.9, 15.0, clump_gain=0.86, fog_grain=0.18),
+        grain=GrainSpec(4.3, 3.806, 4.161, 4.839, clump_gain=0.86, fog_grain=0.18),
         # f50 [T2] one notch below Optima 100 (62/70/76): the published
         # resolving power drops 140 -> 130 lines/mm at 1000:1. Agfa prints
         # sharpness only as a plotted transfer-factor curve, never numeric.
@@ -13468,12 +16112,73 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # against Gevacolor 682's identically worded axis. A factor of two is
         # not a rounding difference. The f50 values below stay estimates until
         # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(58.0, 66.0, 72.0, adjacency=0.128, adjacency_um=17.0),
+        mtf=MTFSpec(58.0, 66.0, 72.0, adjacency=0.0915, adjacency_um=17.0),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        emulsion=EmulsionSpec(
+            coated_um=18.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 1.0, 2.0),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ THIS IS THE NEUTRAL + D-MIN PAIR, NOT THREE DYES, AND THE
+        # DISTINCTION IS THE ONE NotFound.md WARNS AGAINST COLLAPSING.
+        # Agfa's Spectral density panel on a colour NEGATIVE draws two
+        # AGGREGATE curves -- the film's total transmission at a
+        # midscale neutral exposure and at minimum density -- and two
+        # aggregates cannot be separated into cyan, magenta and yellow.
+        # `has_data` stays FALSE here and `has_neutral_pair` becomes
+        # true; the dye-set counter does NOT move. The reversal films
+        # on the same sheet DO get three dyes, because their panel
+        # draws them separately.
+        # ⚠ The D-min curve is the ORANGE MASK measured spectrally --
+        # it peaks at 400 nm and falls to 0.25 D at 700 nm,
+        # which is the mask's whole purpose and is exactly the shape
+        # `curves.*.dmin` reduces to three numbers.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.291, 1.257, 1.395, 1.536, 1.615, 1.657, 1.639,
+                      1.563, 1.448, 1.324, 1.272, 1.265, 1.286, 1.326,
+                      1.357, 1.319, 1.225, 1.092, 0.923, 0.776, 0.680,
+                      0.655, 0.672, 0.714, 0.762, 0.811, 0.860, 0.905,
+                      0.935, 0.953, 0.946),
+            d_dmin=(0.899, 0.805, 0.828, 0.858, 0.872, 0.866, 0.846, 0.816,
+                   0.780, 0.746, 0.719, 0.701, 0.691, 0.677, 0.649, 0.622,
+                   0.607, 0.599, 0.537, 0.418, 0.311, 0.257, 0.228, 0.220,
+                   0.221, 0.226, 0.235, 0.244, 0.252, 0.254, 0.249),
+            normalisation='as printed -- absolute spectral density, no normalisation applied',
+            normalisation_neutral='midscale neutral of medium brightness against minimum density, the two exposure levels the sheet states on p5',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p7, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density'),
+        ),
         features=Feature.NONE,
         # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
         # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
@@ -13545,7 +16250,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         ),
         # rms 4.5: published (AGFA stocks.pdf p6: "Granularity (x 1000):
         # RMS 4.5"). Per-channel values: stack rule from the green figure.
-        grain=GrainSpec(4.5, 12.4, 13.5, 15.8, clump_gain=0.95, fog_grain=0.19),
+        grain=GrainSpec(4.5, 4, 4.355, 5.097, clump_gain=0.95, fog_grain=0.19),
         # f50 [T2]: published resolving power equals Optima 200 (50/130) but
         # a 400-speed emulsion of this era gives up mid-frequency contrast;
         # placed between Optima 200 and Vista 200.
@@ -13562,12 +16267,76 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # against Gevacolor 682's identically worded axis. A factor of two is
         # not a rounding difference. The f50 values below stay estimates until
         # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(54.0, 62.0, 68.0, adjacency=0.094, adjacency_um=18.0),
+        mtf=MTFSpec(54.0, 62.0, 68.0, adjacency=0.0649, adjacency_um=18.0),
         couplers=CouplerSpec(0.24, 52.0, 0.11, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        emulsion=EmulsionSpec(
+            coated_um=19.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 1.0, 2.0),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ THIS IS THE NEUTRAL + D-MIN PAIR, NOT THREE DYES, AND THE
+        # DISTINCTION IS THE ONE NotFound.md WARNS AGAINST COLLAPSING.
+        # Agfa's Spectral density panel on a colour NEGATIVE draws two
+        # AGGREGATE curves -- the film's total transmission at a
+        # midscale neutral exposure and at minimum density -- and two
+        # aggregates cannot be separated into cyan, magenta and yellow.
+        # `has_data` stays FALSE here and `has_neutral_pair` becomes
+        # true; the dye-set counter does NOT move. The reversal films
+        # on the same sheet DO get three dyes, because their panel
+        # draws them separately.
+        # ⚠ The D-min curve is the ORANGE MASK measured spectrally --
+        # it peaks at 400 nm and falls to 0.33 D at 700 nm,
+        # which is the mask's whole purpose and is exactly the shape
+        # `curves.*.dmin` reduces to three numbers.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=410.0, lambda_step_nm=10.0,
+            d_neutral=(1.726, 1.421, 1.503, 1.660, 1.736, 1.757, 1.702,
+                      1.571, 1.423, 1.316, 1.285, 1.285, 1.309, 1.324,
+                      1.283, 1.193, 1.050, 0.887, 0.733, 0.652, 0.656,
+                      0.696, 0.760, 0.824, 0.888, 0.952, 0.997, 1.022,
+                      1.009, 0.943),
+            d_dmin=(1.376, 1.031, 1.003, 1.045, 1.059, 1.032, 0.977, 0.909,
+                   0.840, 0.777, 0.750, 0.726, 0.708, 0.681, 0.655, 0.639,
+                   0.630, 0.554, 0.428, 0.347, 0.313, 0.313, 0.322, 0.333,
+                   0.346, 0.356, 0.363, 0.363, 0.353, 0.329),
+            normalisation='as printed -- absolute spectral density, no normalisation applied',
+            normalisation_neutral='midscale neutral of medium brightness against minimum density, the two exposure levels the sheet states on p5',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p7, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density. ⚠ THE GRID STARTS AT 410 nm, NOT 400: '
+                    "this panel's Medium density trace is not drawn below 406 "
+                    'nm, and the missing sample is dropped rather than '
+                    'extrapolated'),
+        ),
         features=Feature.NONE,
         # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
         # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
@@ -13643,7 +16412,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         ),
         # rms 3.5: published (AGFA stocks.pdf p5: "Granularity (x 1000):
         # RMS 3.5"). Per-channel values: stack rule from the green figure.
-        grain=GrainSpec(3.5, 9.6, 10.5, 12.3, clump_gain=0.78, fog_grain=0.17),
+        grain=GrainSpec(3.5, 3.097, 3.387, 3.968, clump_gain=0.78, fog_grain=0.17),
         # f50 [T2] one notch above Optima 100: published resolving power is
         # 150 lines/mm at 1000:1 and 60 at 1.6:1, the best of the family.
         # ⚠ adjacency 0.090 MEASURED 2026-08-29 (queue E1) and f50
@@ -13659,7 +16428,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # against Gevacolor 682's identically worded axis. A factor of two is
         # not a rounding difference. The f50 values below stay estimates until
         # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(66.0, 74.0, 80.0, adjacency=0.090, adjacency_um=16.0),
+        mtf=MTFSpec(66.0, 74.0, 80.0, adjacency=0.0645, adjacency_um=16.0),
         # Weaker couplers and slightly stronger positive dye blend than
         # Optima: less edge snap, less saturation -- the portrait trade.
         couplers=CouplerSpec(0.18, 52.0, 0.08, 12.0),
@@ -13667,6 +16436,67 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        emulsion=EmulsionSpec(
+            coated_um=18.0,
+            base_um=120.0,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column"
+                    "⚠ FILM BASE (schema v23): the same column prints 'Film base: 135 = 120 um, 120 = 95 um'. Only the 135 figure is stored in `base_um`, because Agfa publish a different thickness per format and one float cannot hold three. `base_material` is left EMPTY: p5 says the base 'is made of acetyl cellulose or polyester' without saying which film gets which, and a material named for the sheet-film size is not a statement about the 35 mm base."),
+        ),
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 10.0, 100.0),
+            stops_correction=(0.0, 1.0, 2.0),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ THIS IS THE NEUTRAL + D-MIN PAIR, NOT THREE DYES, AND THE
+        # DISTINCTION IS THE ONE NotFound.md WARNS AGAINST COLLAPSING.
+        # Agfa's Spectral density panel on a colour NEGATIVE draws two
+        # AGGREGATE curves -- the film's total transmission at a
+        # midscale neutral exposure and at minimum density -- and two
+        # aggregates cannot be separated into cyan, magenta and yellow.
+        # `has_data` stays FALSE here and `has_neutral_pair` becomes
+        # true; the dye-set counter does NOT move. The reversal films
+        # on the same sheet DO get three dyes, because their panel
+        # draws them separately.
+        # ⚠ The D-min curve is the ORANGE MASK measured spectrally --
+        # it peaks at 400 nm and falls to 0.16 D at 700 nm,
+        # which is the mask's whole purpose and is exactly the shape
+        # `curves.*.dmin` reduces to three numbers.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.506, 1.262, 1.298, 1.427, 1.509, 1.535, 1.508,
+                      1.429, 1.318, 1.202, 1.117, 1.105, 1.123, 1.143,
+                      1.163, 1.180, 1.178, 1.138, 1.035, 0.891, 0.788,
+                      0.714, 0.693, 0.703, 0.742, 0.788, 0.830, 0.866,
+                      0.891, 0.902, 0.898),
+            d_dmin=(0.983, 0.658, 0.611, 0.621, 0.630, 0.634, 0.622, 0.598,
+                   0.576, 0.550, 0.530, 0.528, 0.514, 0.484, 0.464, 0.458,
+                   0.457, 0.445, 0.383, 0.311, 0.251, 0.203, 0.175, 0.164,
+                   0.165, 0.167, 0.167, 0.167, 0.167, 0.165, 0.162),
+            normalisation='as printed -- absolute spectral density, no normalisation applied',
+            normalisation_neutral='midscale neutral of medium brightness against minimum density, the two exposure levels the sheet states on p5',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», '
+                    '1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf '
+                    'p8, the Spectral density panel, digitised by '
+                    'agfa_1998_curves.py. Axis fit residual 0.0000 nm / 0.0000 '
+                    'D. Conditions as the sheet states them on p5: "the '
+                    'relative effect of a processed film on transmitted light", '
+                    'reference a neutral subject of medium brightness and '
+                    'minimum density'),
+        ),
         features=Feature.NONE,
         # Spectral sensitivity [T1], VECTOR-TRACED 2026-08-29 (queue E1) by
         # `agfa_2004_curves.py` from the sheet's own Spectral sensitivity
@@ -13721,7 +16551,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=100,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.15, 0.72, -1.40, 0.24, 1.80, 0.36)),
-        grain=GrainSpec(8.0, 14.0, 14.0, 14.0, clump_gain=0.30, fog_grain=0.14,
+        grain=GrainSpec(8.0, 4.516, 4.516, 4.516, clump_gain=0.30, fog_grain=0.14,
                         anisotropy=1.0),
         mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.10, adjacency_um=14.0),
         default_format="ff35",
@@ -13773,7 +16603,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.16, 0.70, -1.55, 0.26, 1.90, 0.38)),
-        grain=GrainSpec(10.0, 16.0, 16.0, 16.0, clump_gain=0.35, fog_grain=0.16,
+        grain=GrainSpec(10.0, 5.161, 5.161, 5.161, clump_gain=0.35, fog_grain=0.16,
                         anisotropy=1.0),
         mtf=MTFSpec(72.0, 72.0, 72.0, adjacency=0.10, adjacency_um=15.0),
         default_format="ff35",
@@ -13826,7 +16656,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=1000,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.22, 0.66, -1.70, 0.30, 1.85, 0.40)),
-        grain=GrainSpec(18.0, 22.0, 22.0, 22.0, clump_gain=0.55, fog_grain=0.24,
+        grain=GrainSpec(18.0, 7.097, 7.097, 7.097, clump_gain=0.55, fog_grain=0.24,
                         anisotropy=1.0),
         mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.08, adjacency_um=16.0),
         default_format="ff35",
@@ -14006,7 +16836,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.13, 0.72, -1.25, 0.30, 1.95, 0.38)),
         # [T3] rms 7 is a CLASS ESTIMATE for 'Extremely Fine' at ISO 32.
         # F-5 prints no rms for this film.
-        grain=GrainSpec(7.0, 11.0, 11.0, 11.0, clump_gain=0.70, fog_grain=0.12),
+        grain=GrainSpec(7.0, 3.548, 3.548, 3.548, clump_gain=0.70, fog_grain=0.12),
         default_format="ff35",
         # [T3] MTF f50 ESTIMATED, RP 200 high-contrast x 0.50. The 0.50 ratio is not
         # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
@@ -14047,7 +16877,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # equal to KODAK_PLUS_X_125 because DS 22 itself says the two films
         # have similar characteristics. That is a documented similarity used to
         # place an estimate -- not a documented rms.
-        grain=GrainSpec(10.0, 15.0, 15.0, 15.0, clump_gain=0.80, fog_grain=0.16),
+        grain=GrainSpec(10.0, 4.839, 4.839, 4.839, clump_gain=0.80, fog_grain=0.16),
         default_format="ff35",
         # [T3] MTF f50 ESTIMATED, RP 100 high-contrast x 0.50. The 0.50 ratio is not
         # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
@@ -14084,7 +16914,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # shoulder_x sits high; the numbers are still not a trace.
         curves=_mono(ToneCurve(0.16, 0.66, -1.70, 0.30, 1.95, 0.40)),
         # [T3] rms 13 is a CLASS ESTIMATE for 'Fine' at ISO 200.
-        grain=GrainSpec(13.0, 19.0, 19.0, 19.0, clump_gain=0.95, fog_grain=0.16),
+        grain=GrainSpec(13.0, 6.129, 6.129, 6.129, clump_gain=0.95, fog_grain=0.16),
         default_format="large4x5",
         # [T3] MTF f50 ESTIMATED, RP 100 high-contrast x 0.50. The 0.50 ratio is not
         # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
@@ -14121,7 +16951,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # the toes across these stocks is documented; the values are not.
         curves=_mono(ToneCurve(0.16, 0.62, -1.85, 0.42, 1.75, 0.50)),
         # [T3] rms 14 is a CLASS ESTIMATE for 'Fine' at ISO 400.
-        grain=GrainSpec(14.0, 20.0, 20.0, 20.0, clump_gain=1.00, fog_grain=0.17),
+        grain=GrainSpec(14.0, 6.452, 6.452, 6.452, clump_gain=1.00, fog_grain=0.17),
         default_format="large4x5",
         # [T3] MTF f50 ESTIMATED, RP 80 high-contrast x 0.50. The 0.50 ratio is not
         # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
@@ -14167,7 +16997,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # [T3] rms 22 is a CLASS ESTIMATE at ISO 1250, following the sheet's
         # PROSE ('medium-grain'), not its table word ('Fine'). See the
         # contradiction noted in the description.
-        grain=GrainSpec(22.0, 30.0, 30.0, 30.0, clump_gain=1.40, fog_grain=0.26),
+        grain=GrainSpec(22.0, 9.677, 9.677, 9.677, clump_gain=1.40, fog_grain=0.26),
         default_format="large4x5",
         # [T3] MTF f50 ESTIMATED, RP 100 high-contrast x 0.50 -- see caveat. The 0.50 ratio is not
         # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
@@ -14211,7 +17041,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # [T3] rms 30 is a CLASS ESTIMATE for the sheet's 'coarse-grain' word --
         # the only F-5 film in this batch given that class, and the coarsest
         # B&W grain in this database. F-5 prints no rms figure.
-        grain=GrainSpec(30.0, 40.0, 40.0, 40.0, clump_gain=1.70, fog_grain=0.34,
+        grain=GrainSpec(30.0, 12.903, 12.903, 12.903, clump_gain=1.70, fog_grain=0.34,
                         anisotropy=1.06),
         default_format="ff35",
         # [T3] MTF f50 ESTIMATED, NO RP printed on DS 14; pure class estimate. The 0.50 ratio is not
@@ -14238,7 +17068,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.18, 0.68, -1.60, 0.30, 1.80, 0.36)),
-        grain=GrainSpec(17.0, 19.0, 19.0, 19.0, clump_gain=1.00, fog_grain=0.22),
+        grain=GrainSpec(17.0, 6.129, 6.129, 6.129, clump_gain=1.00, fog_grain=0.22),
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
@@ -14364,7 +17194,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=320,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.17, 0.66, -1.75, 0.34, 1.85, 0.36)),
-        grain=GrainSpec(16.0, 19.0, 19.0, 19.0, clump_gain=0.95, fog_grain=0.21),
+        grain=GrainSpec(16.0, 6.129, 6.129, 6.129, clump_gain=0.95, fog_grain=0.21),
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
         default_format="large4x5",
         features=Feature.NONE,
@@ -14383,7 +17213,11 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=125,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.15, 0.70, -1.50, 0.26, 1.80, 0.36)),
-        grain=GrainSpec(10.0, 15.0, 15.0, 15.0, clump_gain=0.80, fog_grain=0.16),
+        # ⚠ rms 10.0 -> 9.51 on 2026-09-01: an estimate replaced by a
+        # MEASUREMENT, converted from BBC T-101/2 Table 1's Wiener
+        # spectrum through the three-step chain in bbc_t101_2.py. See
+        # the ParamSource; the chain's control lands within 11 %.
+        grain=GrainSpec(9.51, 4.839, 4.839, 4.839, clump_gain=0.80, fog_grain=0.16),
         mtf=MTFSpec(62.0, 62.0, 62.0, adjacency=0.10, adjacency_um=15.0),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
@@ -14433,7 +17267,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.18, 0.62, -1.80, 0.30, 2.00, 0.38)),
-        grain=GrainSpec(9.0, 13.0, 13.0, 13.0, clump_gain=0.20, fog_grain=0.14,
+        grain=GrainSpec(9.0, 4.194, 4.194, 4.194, clump_gain=0.20, fog_grain=0.14,
                         dye_cloud_um=9.0),
         mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.11, adjacency_um=16.0),
         silver_tone=0.0,
@@ -14482,7 +17316,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.24, 0.62, -1.80, 0.30, 2.00, 0.38)),
-        grain=GrainSpec(9.5, 13.0, 13.0, 13.0, clump_gain=0.20, fog_grain=0.14,
+        grain=GrainSpec(9.5, 4.194, 4.194, 4.194, clump_gain=0.20, fog_grain=0.14,
                         dye_cloud_um=9.0),
         mtf=MTFSpec(64.0, 64.0, 64.0, adjacency=0.11, adjacency_um=16.0),
         base_tint=(1.000, 0.930, 0.820),
@@ -14533,10 +17367,131 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         exposure_index=100,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.14, 0.64, -1.60, 0.30, 1.85, 0.36)),
-        grain=GrainSpec(12.0, 16.0, 16.0, 16.0, clump_gain=0.85, fog_grain=0.17),
+        grain=GrainSpec(12.0, 5.161, 5.161, 5.161, clump_gain=0.85, fog_grain=0.17),
         mtf=MTFSpec(55.0, 55.0, 55.0, adjacency=0.08, adjacency_um=16.0),
         default_format="large4x5",
         features=Feature.NONE,
+    ),
+    # =======================================================================
+    # ADDED 2026-08-31, owner-approved. KODAK EKTAR 125 -- the queue's C14
+    # stock, created on ONE measured number and a prose layer description.
+    #
+    # ⚠ C14 SAID THIS FILM HAD "NO SENSITOMETRY WHATSOEVER" AND THAT IS NO
+    # LONGER TRUE. US Patent 5,334,491 (Foster, Stephen & Craver, Eastman
+    # Kodak, 2 Aug 1994) uses Ektar 125 as a test film for nine experimental
+    # bleaches and prints its BLUE D-MIN for each one. That is a Kodak
+    # measurement of this film, and it is the only sensitometric number the
+    # corpus holds for it.
+    #
+    # ⚠ IT IS AN UPPER BOUND, NOT A POINT VALUE, AND THE DISTINCTION IS THE
+    # WHOLE POINT. The patent's D-min column exists to score BLEACH-INDUCED
+    # STAIN: a worse bleach leaves more, so the number rises. The film's own
+    # blue D-min is therefore the asymptote as stain goes to zero, and the
+    # lowest figure observed still contains whatever the best bleach leaves.
+    # Read the stored 0.849 as "<= 0.849", never as "= 0.849".
+    #
+    # The nine printed values, by bleach slot:
+    #     1: 0.910   2: 1.340   3: 0.850   4: 0.958   5: 0.897
+    #     6: 0.903   7: 0.862   8: 0.849   9: 0.852
+    # Slot 2 is a prior-art comparative at pH 6 that the patent includes to
+    # show a bleach that stains; excluding it the other eight span 0.109 D,
+    # and the FOUR the patent presents as its own optimised formulations
+    # (slots 3, 7, 8, 9) span 0.013 D about a mean of 0.8532. Four independent
+    # formulations agreeing to thirteen thousandths is what makes this worth
+    # storing at all.
+    # ⚠ Conditions the patent does NOT state: densitometer status, aperture,
+    # illuminant. "Determined in accordance with the state of the art" is its
+    # entire method statement. Status M is near-certain for a 1991 C-41
+    # negative and is NOT asserted here.
+    #
+    # ⚠ EVERY OTHER NUMBER ON THIS PROFILE IS A CLASS ESTIMATE, and the
+    # description says so. The red and green D-min are the measured blue
+    # scaled by the mask ratios of the three nearest Kodak C-41 still
+    # negatives (GOLD 200 0.260/0.665/0.967, PORTRA 160NC 0.204/0.609/0.812,
+    # ULTRA MAX 400 0.291/0.697/0.985): mean r/b 0.272, g/b 0.715.
+    #
+    # ⚠ AND THE ELEVEN-LAYER ARCHITECTURE HAS NO CARRIER, so it is prose here
+    # and nowhere else. `LayerStack` is NOT a coating-architecture record --
+    # it holds per-layer RESOLVING POWER plus a layer order, and its
+    # `has_data` is `bool(order)`, so filling `order` alone would flip the
+    # "4 stocks carry a layer stack" counter on a stock that has no resolving
+    # powers. That would be a false claim and it is not made. What the source
+    # does license is `EmulsionSpec.habit`: the review names the T-grain
+    # emulsion in terms.
+    # =======================================================================
+    FilmProfile(
+        name="KODAK_EKTAR_125",
+        aliases=("ektar 125", "ektar125", "kodak ektar 125"),
+        description=(
+            "[T3 except where noted] Kodak EKTAR 125 (1989-1994), the "
+            "medium-speed member of the original Ektar family alongside "
+            "Ektar 25, Ektar 25 Professional and Ektar 1000. A T-grain C-41 "
+            "colour negative sold on sharpness, saturation and fine grain, "
+            "and on WIDER EXPOSURE LATITUDE than the 25-speed Ektars -- which "
+            "is the one behavioural claim its only descriptive source makes. "
+            "⚠ NOT TO BE CONFUSED WITH KODAK_EKTAR_100 (E-4046, 2008), a "
+            "different and later film. "
+            "⚠ ONE STORED NUMBER IS MEASURED: the blue D-min, and it is an "
+            "UPPER BOUND (<= 0.849) from US Patent 5,334,491, where this film "
+            "is a bleach test target. Everything else is a class estimate "
+            "anchored on the nearest Kodak C-41 still negatives. "
+            "Construction, from the 1989 review and carried as prose because "
+            "no carrier exists for it: ELEVEN layers -- two blue (one fast, "
+            "one slow, together slightly thicker than Ektar 25's single slow "
+            "blue layer); two green with an EXTRA INTERLAYER between them "
+            "that restricts coupler migration and is credited with the "
+            "sharpness gain; a then-new magenta coupler that raises the "
+            "T-grain emulsion's speed; and two red layers carrying the same "
+            "DIAR couplers as Ektar 25, which inhibit dye formation and raise "
+            "saturation."
+        ),
+        era="1989-1994",
+        exposure_index=125,
+        balance_kelvin=5500,
+        # ⚠ b = 0.849 IS THE MEASUREMENT (an upper bound). r and g are that
+        # value scaled by the family mask ratio -- estimates, not readings.
+        # Gamma sits between PORTRA 160NC (0.528/0.550/0.608, a portrait film)
+        # and EKTAR 100 (0.640/0.655/0.670): Ektar was the saturated,
+        # high-sharpness line, but this stock's stated selling point is wide
+        # latitude, which argues against the top of that range.
+        curves=RGBCurves(
+            r=_neg(0.231, 0.580),
+            g=_neg(0.607, 0.600),
+            b=_neg(0.849, 0.650),
+        ),
+        # [T3] rms 6.0: between EKTAR 100's 5.5 and GOLD 200's 9.0, a third of
+        # a stop faster than EKTAR 100 and described as "extremely fine grain".
+        grain=GrainSpec(6.0, 2.065, 2.258, 2.71, clump_gain=0.22, fog_grain=0.15),
+        # ⚠ [T3] AND THE LAYER RATIO IS AS UNEVIDENCED AS THE LEVEL. Queue C13
+        # measured the estimating rule to be wrong in FORM, not merely in
+        # scale -- red f50 is effectively constant near 36 c/mm across the
+        # measured family while green spreads 52 % and blue 70 %, so no fixed
+        # r/b ratio can be right. C24's 36.0 anchor was derived from Kodak
+        # CINE negatives and this project refused to extend it past that
+        # family, so it is not applied here either. These three numbers are
+        # the nearest sibling's estimate carried across, and they inherit that
+        # rule's known defect. Do not read the spread as a measurement.
+        mtf=MTFSpec(70.0, 76.0, 84.0, adjacency=0.13, adjacency_um=16.0),
+        # ⚠ [T3] DIAR couplers are DOCUMENTED for the two red layers; these
+        # four numbers are not. `CouplerSpec` is the 87-literal population
+        # queue C19 records as having no registry, no derivation and no tier,
+        # and this entry joins it. The source licenses the MECHANISM, not the
+        # magnitudes.
+        couplers=CouplerSpec(0.22, 48.0, 0.11, 10.0),
+        dye_matrix=_dye(-0.13),
+        base_tint=(1.000, 0.990, 0.968),
+        misregistration_um=3.5,
+        default_format="ff35",
+        features=Feature.NONE,
+        # [T2] The one emulsion fact the review states in terms.
+        emulsion=EmulsionSpec(
+            habit="tabular",
+            source=("Jack and Sue Drafahl, \"Ektar\", PHOTOgraphic, "
+                    "September 1989, pp 80-82 -- \"a new type of magenta "
+                    "color coupler ... has the ability to enhance the speed "
+                    "of the T-grain emulsion\". Grain size, aspect ratio and "
+                    "iodide content are NOT stated and are left at zero"),
+        ),
     ),
     FilmProfile(
         name="KODAK_EKTAR_100",
@@ -14566,7 +17521,7 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # direction. Treat this figure as an upper bound, not a measurement.
         # The per-layer triple is re-derived by _grain_v2 from the same stack
         # rule as before, so only the LEVEL moves.
-grain=GrainSpec(5.5, 6.0, 6.6, 8.0, clump_gain=0.20, fog_grain=0.15),
+grain=GrainSpec(5.5, 1.935, 2.129, 2.581, clump_gain=0.20, fog_grain=0.15),
                 # [T3] f50 RE-ANCHORED 2026-08-27 on this source's single
         # mtf50 = 80 lp/mm. WAS 78/84/92 -- our own estimate; mtf_measured is
         # False here and this profile has NO documented resolving-power pair,
@@ -14576,7 +17531,41 @@ grain=GrainSpec(5.5, 6.0, 6.6, 8.0, clump_gain=0.20, fog_grain=0.15),
         # ⚠ mtf_measured stays False. This is not an MTF trace, and the same
         # source prints Velvia 50's RESOLVING POWER (160 lp/mm) in its mtf50
         # field, so its grasp of that distinction is demonstrably unreliable.
-mtf=MTFSpec(74.3, 80.0, 87.6, adjacency=0.13, adjacency_um=16.0),
+# ⚠ [T1] MTF MEASURED 2026-09-02e (queue T2) AND THE ESTIMATE IT REPLACES WAS
+# 1.5x TOO SHARP ON EVERY RECORD. Source: KODAK PROFESSIONAL EKTAR 100 Film,
+# publication E-4046, February 2016 -- PDF/PROFILES/KODAK/e4046_ektar_100-2016.pdf
+# page 4, panel E4046D "Modulation Transfer Function", exposure Daylight,
+# process C-41. The panel is three VECTOR paths on a page with no embedded
+# images, so it is measured rather than estimated; traced by mtf_vector.py over
+# 2.5-80.7 c/mm, both axes log and least-squares fitted over every printed label
+# (11 frequency ticks to 0.66 pt, 12 response ticks to 0.77 pt).
+#   f50 74.3 / 80.0 / 87.6 -> 35.5 / 52.7 / 54.8. ⚠ THIS IS THE FIRST MEASURED
+# MTF FOR A STILL COLOUR NEGATIVE HERE -- every other traced sheet is a cine
+# stock -- and it lands in the same place as all of them: the estimating rule
+# runs too sharp. 5285 was 1.95x, 5222 1.33x, 5231 1.45x, this one 1.5x. The
+# layer order comes out R < G < B, the order MTFSpec's docstring predicts, which
+# no estimate produced.
+#   ⚠ "THE WORLD'S FINEST GRAIN COLOR NEGATIVE FILM" IS A GRAIN CLAIM, NOT A
+# SHARPNESS CLAIM, and the two were being conflated by the old estimate. The
+# sheet's own front page makes the fine-grain claim and this database stores
+# rms 5.5 for it, the finest colour negative here -- that is untouched. Its MTF
+# is simply not exceptional: 52.7 c/mm green is a hair above VISION2 50D's
+# measured 49.7 and well below EXR 50D 5245's 83.8, and far below the 80.0 that
+# was assumed here. Fine grain and high sharpness are separate properties and
+# the estimate had let one stand in for the other.
+#   q 3.10 is THIS FILM'S OWN GREEN FIT, not a family constant: the three
+# records fit 3.49 / 3.10 / 2.07 and the green value is stored, the same rule
+# GEVACHROME_600 states. Power law beats the Gaussian on all three (1.5x, 1.2x,
+# 1.3x in rms).
+#   adjacency 0.13 / 16.0 -> 0.2260 / 20.1, SOLVED not rescaled, by the
+# two-parameter method adopted in A4 on the same day: the green record peaks at
+# +18.3 % at 9.7 c/mm and this pair reproduces 1.1830 at 9.70 exactly. The old
+# 0.13 was an estimate that rendered a +6 % overshoot against a printed +18 %.
+#   ⚠ VERIFIED ON THE --overlay RENDER before adoption: the traced points sit on
+# the printed curves over the whole drawn extent, and the R/G/B assignment
+# matches the panel's own printed record labels.
+mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
+            mtf_rolloff_q=3.10, mtf_measured=True),
         couplers=CouplerSpec(0.20, 48.0, 0.10, 10.0),
         dye_matrix=_dye(-0.13),
         base_tint=(1.000, 0.990, 0.968),
@@ -14719,7 +17708,7 @@ mtf=MTFSpec(74.3, 80.0, 87.6, adjacency=0.13, adjacency_um=16.0),
             g=_neg(0.19, 0.574, toe_x=-1.76, toe_k=0.31, shoulder_x=2.14),
             b=_neg(0.19, 0.592, toe_x=-1.66, toe_k=0.29, shoulder_x=2.04),
         ),
-        grain=GrainSpec(3.6, 6.2, 6.8, 8.2, clump_gain=0.20, fog_grain=0.16),
+        grain=GrainSpec(3.6, 2, 2.194, 2.645, clump_gain=0.20, fog_grain=0.16),
         mtf=MTFSpec(70.0, 78.0, 88.0, adjacency=0.12, adjacency_um=17.0),
         couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
         dye_matrix=_dye(-0.11),
@@ -14789,7 +17778,7 @@ mtf=MTFSpec(74.3, 80.0, 87.6, adjacency=0.13, adjacency_um=16.0),
             g=_neg(0.19, 0.574, toe_x=-1.76, toe_k=0.31, shoulder_x=2.14),
             b=_neg(0.19, 0.592, toe_x=-1.66, toe_k=0.29, shoulder_x=2.04),
         ),
-        grain=GrainSpec(3.8, 6.2, 6.8, 8.2, clump_gain=0.2, fog_grain=0.16),
+        grain=GrainSpec(3.8, 2, 2.194, 2.645, clump_gain=0.2, fog_grain=0.16),
         # [T1] f50 TRACED from E-190 p9's own Modulation Transfer Function
         # panel, log-log, by kodak_still_curves.py. R 49.1 and G 73.3 cycles/mm are read; ⚠ BLUE IS CENSORED -- its curve is still at 55 % where the plot stops at 80 cycles/mm, so 60.0 is an ESTIMATE and the sheet gives only a lower bound of 80.
         # adjacency 0.135 is the MEASURED low-frequency overshoot of the green
@@ -14825,7 +17814,7 @@ mtf=MTFSpec(74.3, 80.0, 87.6, adjacency=0.13, adjacency_um=16.0),
             g=_neg(0.19, 0.574, toe_x=-1.76, toe_k=0.31, shoulder_x=2.14),
             b=_neg(0.19, 0.592, toe_x=-1.66, toe_k=0.29, shoulder_x=2.04),
         ),
-        grain=GrainSpec(3.8, 6.2, 6.8, 8.2, clump_gain=0.2, fog_grain=0.16),
+        grain=GrainSpec(3.8, 2, 2.194, 2.645, clump_gain=0.2, fog_grain=0.16),
         # [T1] f50 TRACED from E-190 p10's own Modulation Transfer Function
         # panel, log-log, by kodak_still_curves.py. All three channels cross 50 % inside the plotted range.
         # adjacency 0.148 is the MEASURED low-frequency overshoot of the green
@@ -14861,7 +17850,7 @@ mtf=MTFSpec(74.3, 80.0, 87.6, adjacency=0.13, adjacency_um=16.0),
             g=_neg(0.19, 0.574, toe_x=-1.76, toe_k=0.31, shoulder_x=2.18),
             b=_neg(0.19, 0.592, toe_x=-1.66, toe_k=0.29, shoulder_x=2.08),
         ),
-        grain=GrainSpec(6.5, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
+        grain=GrainSpec(6.5, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.17),
         # [T1] f50 TRACED from E-190 p11's own Modulation Transfer Function
         # panel, log-log, by kodak_still_curves.py. All three channels cross 50 % inside the plotted range.
         # adjacency 0.212 is the MEASURED low-frequency overshoot of the green
@@ -14897,7 +17886,7 @@ mtf=MTFSpec(74.3, 80.0, 87.6, adjacency=0.13, adjacency_um=16.0),
             g=_neg(0.19, 0.574, toe_x=-1.76, toe_k=0.31, shoulder_x=2.18),
             b=_neg(0.19, 0.592, toe_x=-1.66, toe_k=0.29, shoulder_x=2.08),
         ),
-        grain=GrainSpec(6.8, 6.8, 7.4, 8.8, clump_gain=0.22, fog_grain=0.17),
+        grain=GrainSpec(6.8, 2.194, 2.387, 2.839, clump_gain=0.22, fog_grain=0.17),
         # [T1] f50 TRACED from E-190 p12's own Modulation Transfer Function
         # panel, log-log, by kodak_still_curves.py. All three channels cross 50 % inside the plotted range, and this stock's rolloff IS adopted -- see the harvest entry.
         # adjacency 0.062 is the MEASURED low-frequency overshoot of the green
@@ -14937,7 +17926,7 @@ mtf=MTFSpec(74.3, 80.0, 87.6, adjacency=0.13, adjacency_um=16.0),
         # direction. Treat this figure as an upper bound, not a measurement.
         # The per-layer triple is re-derived by _grain_v2 from the same stack
         # rule as before, so only the LEVEL moves.
-grain=GrainSpec(11.0, 7.4, 8.0, 9.4, clump_gain=0.26, fog_grain=0.18),
+grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         mtf=MTFSpec(60.0, 68.0, 78.0, adjacency=0.12, adjacency_um=17.0),
         couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
         dye_matrix=_dye(-0.11),
@@ -15111,7 +18100,7 @@ grain=GrainSpec(11.0, 7.4, 8.0, 9.4, clump_gain=0.26, fog_grain=0.18),
         # 4.0 to 4.2 because the two sheets' 120-format PGI rows are directly
         # comparable and PRT is the grainier: <25 / 35 / 58 against PORTRA
         # 100T's <25 / 33 / 55, about half a just-noticeable difference.
-        grain=GrainSpec(4.2, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
+        grain=GrainSpec(4.2, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.17),
         mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
         couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
         dye_matrix=_dye(-0.11),
@@ -15194,7 +18183,7 @@ grain=GrainSpec(11.0, 7.4, 8.0, 9.4, clump_gain=0.26, fog_grain=0.18),
             g=_neg(0.20, 0.576, toe_x=-1.78, toe_k=0.31, shoulder_x=2.16),
             b=_neg(0.20, 0.594, toe_x=-1.68, toe_k=0.29, shoulder_x=2.06),
         ),
-        grain=GrainSpec(4.0, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.17),
+        grain=GrainSpec(4.0, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.17),
         mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
         couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
         dye_matrix=_dye(-0.11),
@@ -15257,7 +18246,7 @@ grain=GrainSpec(11.0, 7.4, 8.0, 9.4, clump_gain=0.26, fog_grain=0.18),
             g=_neg(0.20, 0.618, toe_x=-1.60, toe_k=0.29, shoulder_x=2.00),
             b=_neg(0.20, 0.636, toe_x=-1.52, toe_k=0.27, shoulder_x=1.92),
         ),
-        grain=GrainSpec(4.6, 6.8, 7.4, 8.8, clump_gain=0.24, fog_grain=0.17),
+        grain=GrainSpec(4.6, 2.194, 2.387, 2.839, clump_gain=0.24, fog_grain=0.17),
         mtf=MTFSpec(62.0, 70.0, 80.0, adjacency=0.11, adjacency_um=17.0),
         couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
         dye_matrix=_dye(-0.10),
@@ -15333,7 +18322,7 @@ grain=GrainSpec(11.0, 7.4, 8.0, 9.4, clump_gain=0.26, fog_grain=0.18),
         # direction. Treat this figure as an upper bound, not a measurement.
         # The per-layer triple is re-derived by _grain_v2 from the same stack
         # rule as before, so only the LEVEL moves.
-grain=GrainSpec(9.0, 7.0, 7.6, 9.0, clump_gain=0.26, fog_grain=0.17),
+grain=GrainSpec(9.0, 2.258, 2.452, 2.903, clump_gain=0.26, fog_grain=0.17),
                 # [T3] f50 RE-ANCHORED 2026-08-27 on this source's single
         # mtf50 = 50 lp/mm. WAS 60/68/78 -- our own estimate; mtf_measured is
         # False here and this profile has NO documented resolving-power pair,
@@ -15343,6 +18332,18 @@ grain=GrainSpec(9.0, 7.0, 7.6, 9.0, clump_gain=0.26, fog_grain=0.17),
         # ⚠ mtf_measured stays False. This is not an MTF trace, and the same
         # source prints Velvia 50's RESOLVING POWER (160 lp/mm) in its mtf50
         # field, so its grasp of that distinction is demonstrably unreliable.
+        # ⚠ AND THE MAKER'S OWN SHEET CANNOT FIX IT, established 2026-09-02e
+        # (queue T2). T2 asked for GOLD 200 to be cited to E-7022 and paired
+        # EKTAR 100 with it; EKTAR's E-4046 turned out to carry a vector MTF
+        # panel and was measured the same day. E-7022 DOES NOT CARRY AN MTF
+        # PANEL AT ALL. All three copies in this corpus were opened and searched
+        # page by page -- E7022-1.pdf (4 pp), E7022-Gold_100_200.pdf (6 pp) and
+        # the 2016 E7022_Gold_200-2016.pdf (4 pp) -- and the string "Modulation
+        # Transfer" appears in none of them. Their curve page prints exactly
+        # three panels: Characteristic Curves, Spectral-Sensitivity Curves and
+        # Spectral-Dye-Density Curves. There is no fourth. So this stock's f50
+        # cannot be measured from Kodak, and the estimate stays with the reason
+        # recorded rather than the gap left looking like an oversight.
 mtf=MTFSpec(44.1, 50.0, 57.4, adjacency=0.11, adjacency_um=17.0),
         couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
         dye_matrix=_dye(-0.10),
@@ -15497,7 +18498,7 @@ mtf=MTFSpec(44.1, 50.0, 57.4, adjacency=0.11, adjacency_um=17.0),
         # direction. Treat this figure as an upper bound, not a measurement.
         # The per-layer triple is re-derived by _grain_v2 from the same stack
         # rule as before, so only the LEVEL moves.
-grain=GrainSpec(10.0, 7.6, 8.2, 9.6, clump_gain=0.30, fog_grain=0.18),
+grain=GrainSpec(10.0, 2.452, 2.645, 3.097, clump_gain=0.30, fog_grain=0.18),
                 # [T3] f50 RE-ANCHORED 2026-08-27 on this source's single
         # mtf50 = 48 lp/mm. WAS 58/66/76 -- our own estimate; mtf_measured is
         # False here and this profile has NO documented resolving-power pair,
@@ -15645,7 +18646,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.22, 0.610, toe_x=-1.70, toe_k=0.31, shoulder_x=2.06),
             b=_neg(0.22, 0.628, toe_x=-1.62, toe_k=0.29, shoulder_x=1.98),
         ),
-        grain=GrainSpec(7.6, 8.2, 8.8, 10.2, clump_gain=0.34, fog_grain=0.20),
+        grain=GrainSpec(7.6, 2.645, 2.839, 3.29, clump_gain=0.34, fog_grain=0.20),
         mtf=MTFSpec(54.0, 62.0, 72.0, adjacency=0.11, adjacency_um=17.0),
         couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
         dye_matrix=_dye(-0.10),
@@ -15711,7 +18712,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.20, 0.556, toe_x=-1.84, toe_k=0.34, shoulder_x=2.14),
             b=_neg(0.20, 0.572, toe_x=-1.74, toe_k=0.32, shoulder_x=2.04),
         ),
-        grain=GrainSpec(5.0, 7.2, 7.8, 9.2, clump_gain=0.30, fog_grain=0.17),
+        grain=GrainSpec(5.0, 2.323, 2.516, 2.968, clump_gain=0.30, fog_grain=0.17),
         mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.10, adjacency_um=18.0),
         couplers=CouplerSpec(0.12, 52.0, 0.06, 11.0),
         dye_matrix=_dye(-0.10),
@@ -15737,7 +18738,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.21, 0.604, toe_x=-1.72, toe_k=0.31, shoulder_x=2.08),
             b=_neg(0.21, 0.622, toe_x=-1.64, toe_k=0.29, shoulder_x=2.00),
         ),
-        grain=GrainSpec(6.0, 7.4, 8.0, 9.4, clump_gain=0.30, fog_grain=0.18),
+        grain=GrainSpec(6.0, 2.387, 2.581, 3.032, clump_gain=0.30, fog_grain=0.18),
         mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=17.0),
         couplers=CouplerSpec(0.14, 50.0, 0.07, 10.0),
         dye_matrix=_dye(-0.10),
@@ -15763,7 +18764,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.20, 0.588, toe_x=-1.74, toe_k=0.31, shoulder_x=2.10),
             b=_neg(0.20, 0.606, toe_x=-1.66, toe_k=0.29, shoulder_x=2.00),
         ),
-        grain=GrainSpec(4.6, 6.8, 7.4, 8.8, clump_gain=0.24, fog_grain=0.17),
+        grain=GrainSpec(4.6, 2.194, 2.387, 2.839, clump_gain=0.24, fog_grain=0.17),
         mtf=MTFSpec(64.0, 72.0, 82.0, adjacency=0.11, adjacency_um=17.0),
         couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
         dye_matrix=_dye(-0.10),
@@ -15788,7 +18789,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.19, 0.636, toe_x=-1.58, toe_k=0.28, shoulder_x=1.96),
             b=_neg(0.19, 0.652, toe_x=-1.52, toe_k=0.26, shoulder_x=1.90),
         ),
-        grain=GrainSpec(4.4, 6.6, 7.2, 8.6, clump_gain=0.22, fog_grain=0.16),
+        grain=GrainSpec(4.4, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.16),
         mtf=MTFSpec(68.0, 76.0, 86.0, adjacency=0.12, adjacency_um=16.0),
         couplers=CouplerSpec(0.18, 48.0, 0.09, 10.0),
         dye_matrix=_dye(-0.12),
@@ -15812,7 +18813,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.20, 0.632, toe_x=-1.62, toe_k=0.29, shoulder_x=2.00),
             b=_neg(0.20, 0.648, toe_x=-1.56, toe_k=0.27, shoulder_x=1.94),
         ),
-        grain=GrainSpec(6.2, 7.4, 8.0, 9.4, clump_gain=0.28, fog_grain=0.18),
+        grain=GrainSpec(6.2, 2.387, 2.581, 3.032, clump_gain=0.28, fog_grain=0.18),
         mtf=MTFSpec(60.0, 68.0, 78.0, adjacency=0.12, adjacency_um=16.0),
         couplers=CouplerSpec(0.18, 48.0, 0.09, 10.0),
         dye_matrix=_dye(-0.12),
@@ -15837,9 +18838,125 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         exposure_index=200,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.10, 1.55, -0.72, 0.20, 0.88, 0.30)),
-        grain=GrainSpec(11.0, 15.0, 15.0, 15.0, clump_gain=0.60, fog_grain=0.12),
-        mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08, adjacency_um=15.0),
+        grain=GrainSpec(11.0, 4.839, 4.839, 4.839, clump_gain=0.60, fog_grain=0.12),
+        mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.0211, adjacency_um=15.0),
         default_format="ff35",
+        # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
+        # SUPPORTS. Agfa print 'Total layer thickness (without base)'
+        # beside every column and print nothing about crystal size,
+        # habit, aspect ratio or iodide, so those stay at zero rather
+        # than being inferred from the thickness.
+        # ⚠ `base_material` IS FILLED HERE AND NOWHERE ELSE IN THE AGFA SET,
+        # and the reason is a document the other nine films do not have. The
+        # range sheets say only «Die Filmunterlage besteht aus Acetylzellulose
+        # oder Polyester» -- an either/or with no per-film assignment, which is
+        # why every other Agfa profile leaves this empty. SCALA's own sheet,
+        # «Technical Data F-SW12-E6» 08/2000 p3, states it outright and by
+        # STANDARD: "Film base: safety film (acetyl cellulose) to DIN 15551",
+        # then "35 mm film: 120 um / Rollfilm: 95 um / Sheet film (polyester
+        # base): 175 um". So the 135 base this profile stores IS acetyl
+        # cellulose, and polyester is the sheet-film base only. The ambiguity
+        # was real and one document removed it for one film.
+        #
+        # ⚠ AND coated_um 7.0 IS NOT THE SAME QUANTITY AS THAT SHEET'S "Total
+        # thickness: 12 um". 7 um is «Schichtdicke», the emulsion layer, as the
+        # range sheets print it; 12 um is the whole five-layer coating --
+        # retouchable gelatine supercoat, emulsion, AHU, base and, on roll and
+        # sheet, a retouchable gelatine backing. They are not in conflict and
+        # they must not be averaged; `coated_um` means the emulsion and keeps
+        # the 7, with the total recorded in the ParamSource.
+        emulsion=EmulsionSpec(
+            sensitization="S",
+            coated_um=7.0,
+            base_um=120.0,
+            base_material="safety film (acetyl cellulose) to DIN 15551",
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf pp7-10, the per-film "
+                    "characteristic values printed beside each plotted "
+                    "column; base material and the five-layer total from "
+                    "Agfa-Gevaert AG, «AGFA SCALA 200x PROFESSIONAL -- "
+                    "Technical Data», F-SW12-E6, 6th edition, 08/2000 -- "
+                    "PDF/PROFILES/AGFA/agfa_scala.pdf p3, «Emulsion design». "
+                    "⚠ FILM BASE (schema v23): the range sheets print 'Film "
+                    "base: 135 = 120 um, 120 = 95 um', sheet film = PET 175 "
+                    "um, and F-SW12-E6 prints the same three thicknesses with "
+                    "the MATERIALS attached -- acetyl cellulose to DIN 15551 "
+                    "for 35 mm and rollfilm, polyester for sheet film, plus "
+                    "an extra NC layer on the roll and sheet backs. Only the "
+                    "135 figure is stored in `base_um`, because one float "
+                    "cannot hold three. ⚠ The total COATING is 12 um, not the "
+                    "7 um in `coated_um`: 7 is the emulsion layer alone"
+                    "⚠ `sensitization` IS NOT FROM THIS SHEET AND IS NOT A MEASUREMENT ON THIS FILM. It is a tier-3 CLASS DEFAULT from US 4,495,277 «Photographic silver halide emulsion» (Becker, Klötzer and Moisar; assignee Agfa-Gevaert AG, Leverkusen; filed 1983-08-01, granted 1985-01-22) -- PDF/PROFILES/RETRO/US4495277.pdf. Its worked emulsions are ripened with sodium thiosulphate pentahydrate, 80 umol per mol Ag, 120 min at 45 C, plus 42.5 mg of a triazaindolizine stabiliser -- SULPHUR ONLY. Gold and the other noble metals appear in that document solely in the boilerplate list of alternative sensitisers and are not used in any example. Agfa house practice at an AGFAPAN-era date is the whole of the grounds, which is why this is tier 3 and status `assumed`. ⚠ THREE FIELDS THIS PATENT DOES NOT LICENCE ARE LEFT EMPTY ON PURPOSE -- grain_um, habit, iodide_mol_pct -- because the patent itself declines to constrain them: «The silver halide grains may assume the known forms, for example, cubic, octahedral or even a combination of tetrahedral and decahedral. The absolute value of the mean grain size may vary within wide limits», then 0.3 to 2 um, which is the entire field. Its worked emulsions (A 0.65 um, K 0.67 um, B) are laboratory preparations tied to no product: AGFAPAN, APX, ISO, DIN and ASA appear nowhere in its six pages and its speeds 290 / 100 / 445 are a relative scale. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR, NOT BLACK AND WHITE. Example 3 coats emulsion A with a yellow coupler and processes it in a CD-3-type colour developer with a bleach-fix, and the emulsion is an iodide-free AgBr core / AgCl shell / AgBr shell structure at 10 mol % total AgCl -- not the AgBrI a B&W camera negative uses. The patent's subject is pressure-fog resistance in the wet state and speed through surface ripening, not granularity or tone. NOTHING NUMERIC IS TAKEN FROM IT."
+                    ),
+        ),
+        # ⚠ NO `layer_stack` FOR THIS FILM, THOUGH ITS SHEET DRAWS ONE.
+        # F-SW12-E6 p3 numbers five strata -- retouchable gelatine supercoat,
+        # emulsion layer, AHU layer, film base, retouchable gelatine backing
+        # (roll and sheet only) -- and `LayerStack.order` cannot hold them:
+        # that field means the SENSITISATION order of three colour records and
+        # validates as a permutation of blue/green/red. SCALA is monochrome and
+        # has ONE emulsion layer, so there is no such order to store. The five
+        # strata and the 12 um total are recorded in the emulsion source above,
+        # where they describe what they actually are.
+
+        reciprocity_table=ReciprocityTable(
+            times_s=(0.5, 1.0, 10.0, 100.0),
+            stops_correction=(0.0, 0.5, 1.0, 2.0),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p6, 'Reciprocity "
+                    "effect'. Printed as an exposure-reading interval "
+                    "against an f-stop correction; only the long end of the "
+                    "zero-correction interval is stored"),
+        ),
+        # ⚠ MAGNITUDES ARE DIGITISED, DIRECTIONS ARE PRINTED. The sheet's
+        # push/pull table states only that D-max falls on push and rises
+        # on pull; the numbers come from the five drawn curves beside it.
+        # base_fog_penalty_per_stop is left at zero and fog_penalty_stated
+        # FALSE, because all five curves share one D-min of 0.024 -- the
+        # artwork shows no fog penalty at all, which is a statement about
+        # the drawing and not a measurement that pushing is fog-free.
+        push=PushSpec(
+            max_push_stops=3.0,
+            max_pull_stops=1.0,
+            fog_penalty_stated=False,
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
+                    "films», 1st edition, 09/1998 -- "
+                    "PDF/PROFILES/AGFA/agfa_films.pdf p9. The push/pull "
+                    "TABLE gives the speed of each step (Pull 1 ISO 100/21, "
+                    "Standard 200/24, Push 1 400/27, Push 2 800/30, Push 3 "
+                    "1600/33) and states the DIRECTIONS only -- contrast "
+                    "'increasingly steeper' on push and 'flatter' on pull, "
+                    "maximum density 'decreasing' on push and 'increasing' "
+                    "on pull, granularity 'increasingly coarse-grained' / "
+                    "'finer'. The MAGNITUDES here are digitised from the "
+                    "Density curves panel beside it by agfa_1998_curves.py: "
+                    "D-max Pull 1 3.064, Standard 2.983, Push 1 2.740, Push "
+                    "2 2.456, Push 3 2.171, i.e. -0.223 D per stop, "
+                    "monotone over all four intervals. ⚠ agfa_bw_manual.pdf "
+                    "p11 redraws the same family and returns 3.012 / 2.800 "
+                    "/ 2.543 / 2.289 / 2.034 -- the same ordering and the "
+                    "same spacing, but Standard differs by 0.18 D, so treat "
+                    "the absolute level as edition-dependent and the "
+                    "per-stop slope as the measurement"),
+        ),
+        # Spectral sensitivity [T1], VECTOR-TRACED 2026-09-01 from
+        # agfa_films.pdf p9. Axis fit residual 0.00 nm / 0.0004 lg.
+        # ⚠ SCALA'S COLUMN DOES NOT USE THE SHEET'S PANEL LAYOUT. Having no
+        # spectral-density panel, Agfa moved its sharpness and density panels
+        # up one slot; only the spectral panel stays where the other eleven
+        # columns put theirs. Read with the shared bands it returns the
+        # sharpness panel's axis and calibrates to '1-37 nm'.
+        # ⚠ THE CURVE IS DRAWN FROM 380 TO 662 nm ONLY, and -4.00 above 660 is
+        # the off-scale sentinel marking where it is NOT DRAWN -- not a
+        # measured sensitivity of 1e-4. A B&W reversal film is panchromatic;
+        # the trace simply stops at the panel's right-hand edge.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-4.00, 0.00, -0.09, -0.18, -0.24, -0.28, -0.31, -0.35, -0.42, -0.50, -0.59, -0.66, -0.63, -0.53, -0.47, -0.45, -0.37, -0.26, -0.15, -0.19, -0.45, -0.58, -0.57, -0.56, -0.59, -0.61, -0.73, -1.31, -2.09, -4.00, -4.00, -4.00, -4.00),
+            criterion='relative_log',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p9, Spectral sensitivity panel; conditions from p5, equal-energy spectrum, reading density 1.0 above minimum density')),
         features=Feature.NONE,
     ),
 
@@ -15916,7 +19033,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # EST [C3]. Grain scaled coarser than KODACHROME_64 for the era; the
         # source says only that Kodachrome images are notably sharp, which the
         # MTF below carries rather than the grain.
-        grain=GrainSpec(9.0, 11.5, 11.0, 14.0, clump_gain=1.15, fog_grain=0.24),
+        grain=GrainSpec(9.0, 3.71, 3.548, 4.516, clump_gain=1.15, fog_grain=0.24),
         # 40 lines/mm limiting resolution (p152) is the best in the source's
         # own comparison set. MTF f50 is NOT that number: limiting resolution
         # and 50 %-modulation frequency are different measurements. The triple
@@ -15973,7 +19090,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_rev(0.21, 1.72, toe_x=-0.68, shoulder_x=0.74),
             b=_rev(0.24, 1.78, toe_x=-0.64, shoulder_x=0.72),
         ),
-        grain=GrainSpec(9.6, 12.2, 11.7, 14.8, clump_gain=1.15, fog_grain=0.24),
+        grain=GrainSpec(9.6, 3.935, 3.774, 4.774, clump_gain=1.15, fog_grain=0.24),
         mtf=MTFSpec(48.0, 53.0, 58.0, adjacency=0.02),
         halation=HalationSpec(
             radii_um=(18.0, 90.0, 420.0),
@@ -16026,7 +19143,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.62, 0.570, toe_x=-1.54, shoulder_x=1.64),
             b=_neg(1.00, 0.545, toe_x=-1.58, shoulder_x=1.60),
         ),
-        grain=GrainSpec(12.5, 15.0, 16.0, 19.0, clump_gain=1.38, fog_grain=0.27),
+        grain=GrainSpec(12.5, 4.839, 5.161, 6.129, clump_gain=1.38, fog_grain=0.27),
         # EST [C3] but pushed above the Agfacolor family baseline because the
         # source credits Type 3 with strict zonal separation and narrow bands.
         mtf=MTFSpec(34.0, 37.0, 40.0, adjacency=0.03, adjacency_um=22.0),
@@ -16079,7 +19196,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.64, 0.615, toe_x=-1.48, shoulder_x=1.54),
             b=_neg(1.02, 0.585, toe_x=-1.52, shoulder_x=1.50),
         ),
-        grain=GrainSpec(13.0, 15.8, 16.6, 19.8, clump_gain=1.42, fog_grain=0.28),
+        grain=GrainSpec(13.0, 5.097, 5.355, 6.387, clump_gain=1.42, fog_grain=0.28),
         # Scaled from the documented 48 lp/mm against Agfacolor negative's own
         # figures in the same source; relative ordering documented [C2].
         mtf=MTFSpec(36.0, 39.0, 42.0, adjacency=0.03, adjacency_um=23.0),
@@ -16132,7 +19249,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.66, 0.650, toe_x=-1.44, shoulder_x=1.52),
             b=_neg(1.06, 0.650, toe_x=-1.48, shoulder_x=1.48),
         ),
-        grain=GrainSpec(12.8, 15.4, 16.2, 19.4, clump_gain=1.44, fog_grain=0.29),
+        grain=GrainSpec(12.8, 4.968, 5.226, 6.258, clump_gain=1.44, fog_grain=0.29),
         # "Good resolving power" is asserted (p179) without a figure, and the
         # absence of a yellow filter layer supports it. Set above
         # GEVACOLOR_1952 but no number is claimed [C3].
@@ -16185,7 +19302,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.64, 0.615, toe_x=-1.48, shoulder_x=1.54),
             b=_neg(1.02, 0.585, toe_x=-1.52, shoulder_x=1.50),
         ),
-        grain=GrainSpec(12.6, 15.2, 16.0, 19.2, clump_gain=1.40, fog_grain=0.28),
+        grain=GrainSpec(12.6, 4.903, 5.161, 6.194, clump_gain=1.40, fog_grain=0.28),
         mtf=MTFSpec(34.0, 37.0, 40.0, adjacency=0.03, adjacency_um=23.0),
         halation=HalationSpec(
             radii_um=(16.0, 80.0, 370.0),
@@ -16231,7 +19348,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_rev(0.26, 1.66, toe_x=-0.66, shoulder_x=0.72),
             b=_rev(0.32, 1.60, toe_x=-0.62, shoulder_x=0.70),
         ),
-        grain=GrainSpec(10.6, 13.4, 12.8, 16.2, clump_gain=1.22, fog_grain=0.28),
+        grain=GrainSpec(10.6, 4.323, 4.129, 5.226, clump_gain=1.22, fog_grain=0.28),
         # 30 lp/mm (p152), scaled on the same 40:24 Kodachrome:Gevacolor anchor
         # used above so the whole reversal ladder stays consistent [C2].
         mtf=MTFSpec(36.0, 40.0, 44.0, adjacency=0.02),
@@ -16288,7 +19405,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.64, 0.720, toe_x=-1.44, shoulder_x=1.48),
             b=_neg(1.02, 0.690, toe_x=-1.48, shoulder_x=1.44),
         ),
-        grain=GrainSpec(13.4, 16.2, 17.0, 20.4, clump_gain=1.46, fog_grain=0.30),
+        grain=GrainSpec(13.4, 5.226, 5.484, 6.581, clump_gain=1.46, fog_grain=0.30),
         # 65 lp/mm on SR-13 (p175). Independently corroborated: Gurlev 1986
         # gives 63 lin/mm for DS-4, the later member of the same family. Scaled
         # onto the database's f50 convention [C2].
@@ -16332,7 +19449,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.64, 0.720, toe_x=-1.44, shoulder_x=1.48),
             b=_neg(1.02, 0.690, toe_x=-1.48, shoulder_x=1.44),
         ),
-        grain=GrainSpec(13.4, 16.2, 17.0, 20.4, clump_gain=1.46, fog_grain=0.30),
+        grain=GrainSpec(13.4, 5.226, 5.484, 6.581, clump_gain=1.46, fog_grain=0.30),
         mtf=MTFSpec(38.0, 41.0, 44.0, adjacency=0.03, adjacency_um=23.0),
         halation=HalationSpec(
             radii_um=(17.0, 84.0, 390.0),
@@ -16385,7 +19502,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.70, 0.630, toe_x=-1.50, shoulder_x=1.56),
             b=_neg(1.08, 0.610, toe_x=-1.54, shoulder_x=1.52),
         ),
-        grain=GrainSpec(12.0, 14.6, 15.4, 18.6, clump_gain=1.36, fog_grain=0.26),
+        grain=GrainSpec(12.0, 4.71, 4.968, 6, clump_gain=1.36, fog_grain=0.26),
         # Anchored on the documented 46 lp/mm of the MIDDLE (magenta) record,
         # since green carries most perceived sharpness; the 110/46/30 spread
         # itself cannot be stored [C2 for the anchor, C3 for the level].
@@ -16520,7 +19637,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # EST [C3]. No granularity figure is published for any Polaroid film in
         # this book -- only the definition of RMS granularity. Values reflect
         # "fine grain" prose plus the 28-32 lp/mm resolution.
-        grain=GrainSpec(6.5, 6.5, 6.5, 6.5, clump_gain=1.00, fog_grain=0.10),
+        grain=GrainSpec(6.5, 2.097, 2.097, 2.097, clump_gain=1.00, fog_grain=0.10),
         # From the documented 28-32 lp/mm. NOT entered in _RESOLVING_POWER:
         # that dict stores a (1.6:1, 1000:1) test-object-contrast PAIR and the
         # book gives a single range without stating the TOC it was measured at.
@@ -16567,7 +19684,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=ToneCurve(0.02, 1.35, -0.50, 0.24, 0.782, 0.32),
             b=ToneCurve(0.02, 1.35, -0.50, 0.24, 0.782, 0.32),
         ),
-        grain=GrainSpec(7.5, 7.5, 7.5, 7.5, clump_gain=1.02, fog_grain=0.12),
+        grain=GrainSpec(7.5, 2.419, 2.419, 2.419, clump_gain=1.02, fog_grain=0.12),
         # CORRECTED 2026-08-14 (second pass). Was MTFSpec(38,38,38), set from
         # the 1979 Photo-Lab-Index figure of "35-40 lines/mm". Polaroid's OWN
         # data sheet 52fds.pdf p1 states "Resolution (1000:1) 12 - 15 line
@@ -16643,7 +19760,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=ToneCurve(0.08, 1.30, -0.50, 0.24, 0.708, 0.32),
             b=ToneCurve(0.08, 1.30, -0.50, 0.24, 0.708, 0.32),
         ),
-        grain=GrainSpec(8.5, 8.5, 8.5, 8.5, clump_gain=1.05, fog_grain=0.14),
+        grain=GrainSpec(8.5, 2.742, 2.742, 2.742, clump_gain=1.05, fog_grain=0.14),
         mtf=MTFSpec(26.0, 26.0, 26.0, adjacency=0.0),   # from 25-28 lp/mm
         halation=HalationSpec(
             radii_um=(14.0, 55.0, 200.0),
@@ -16689,7 +19806,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         ),
         # EST [C3], scaled coarser than the slower types for a 2500-speed
         # emulsion. No granularity number is published.
-        grain=GrainSpec(15.0, 15.0, 15.0, 15.0, clump_gain=1.20, fog_grain=0.22),
+        grain=GrainSpec(15.0, 4.839, 4.839, 4.839, clump_gain=1.20, fog_grain=0.22),
         mtf=MTFSpec(21.0, 21.0, 21.0, adjacency=0.0),   # from 20-22 lp/mm
         halation=HalationSpec(
             radii_um=(18.0, 70.0, 260.0),
@@ -16755,7 +19872,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # EST [C3] but constrained hard by the documented 150-160 lp/mm: an
         # emulsion resolving that finely must be very fine grained. This is the
         # finest grain in the database and the resolution figure is why.
-        grain=GrainSpec(3.2, 3.2, 3.2, 3.2, clump_gain=0.90, fog_grain=0.30),
+        grain=GrainSpec(3.2, 1.032, 1.032, 1.032, clump_gain=0.90, fog_grain=0.30),
         # From the documented 150-160 lp/mm. As elsewhere in this batch, NOT
         # entered in _RESOLVING_POWER because the test-object contrast is not
         # stated. f50 is set well below the limiting resolution, as the
@@ -16826,7 +19943,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=ToneCurve(0.05, 1.80, -0.50, 0.24, 1.028, 0.32),
             b=ToneCurve(0.05, 1.80, -0.50, 0.24, 1.028, 0.32),
         ),
-        grain=GrainSpec(9.0, 9.0, 9.0, 9.0, clump_gain=1.08, fog_grain=0.12),
+        grain=GrainSpec(9.0, 2.903, 2.903, 2.903, clump_gain=1.08, fog_grain=0.12),
         mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.0),   # from 35-40 lp/mm
         halation=HalationSpec(
             radii_um=(12.0, 48.0, 180.0),
@@ -16874,7 +19991,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=ToneCurve(0.02, 3.00, -0.50, 0.24, 0.260, 0.32),
             b=ToneCurve(0.02, 3.00, -0.50, 0.24, 0.260, 0.32),
         ),
-        grain=GrainSpec(5.5, 5.5, 5.5, 5.5, clump_gain=0.95, fog_grain=0.08),
+        grain=GrainSpec(5.5, 1.774, 1.774, 1.774, clump_gain=0.95, fog_grain=0.08),
         mtf=MTFSpec(45.0, 45.0, 45.0, adjacency=0.0),   # from 40-50 lp/mm
         halation=HalationSpec(
             radii_um=(9.0, 35.0, 130.0),
@@ -16923,7 +20040,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         ),
         # EST [C3]. Coarsest grain in this batch, as a 10 000-speed emulsion
         # must be. No granularity figure is published.
-        grain=GrainSpec(26.0, 26.0, 26.0, 26.0, clump_gain=1.45, fog_grain=0.34),
+        grain=GrainSpec(26.0, 8.387, 8.387, 8.387, clump_gain=1.45, fog_grain=0.34),
         mtf=MTFSpec(24.0, 24.0, 24.0, adjacency=0.0),   # from 22-28 lp/mm
         halation=HalationSpec(
             radii_um=(22.0, 90.0, 320.0),
@@ -17160,7 +20277,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.15, 0.600, toe_x=-1.50, shoulder_x=2.05),
             b=_neg(0.15, 0.600, toe_x=-1.50, shoulder_x=2.05),
         ),
-        grain=GrainSpec(7.5, 7.5, 7.5, 7.5, clump_gain=0.98, fog_grain=0.18),
+        grain=GrainSpec(7.5, 2.419, 2.419, 2.419, clump_gain=0.98, fog_grain=0.18),
         mtf=MTFSpec(52.0, 52.0, 52.0, adjacency=0.02, adjacency_um=18.0),
         halation=HalationSpec(
             radii_um=(11.0, 44.0, 180.0),
@@ -17204,7 +20321,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             g=_neg(0.18, 0.650, toe_x=-1.44, shoulder_x=1.86),
             b=_neg(0.18, 0.650, toe_x=-1.44, shoulder_x=1.86),
         ),
-        grain=GrainSpec(13.5, 13.5, 13.5, 13.5, clump_gain=1.18, fog_grain=0.22),
+        grain=GrainSpec(13.5, 4.355, 4.355, 4.355, clump_gain=1.18, fog_grain=0.22),
         mtf=MTFSpec(38.0, 38.0, 38.0, adjacency=0.03, adjacency_um=22.0),
         halation=HalationSpec(
             radii_um=(16.0, 64.0, 240.0),
@@ -17265,7 +20382,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         curves=_mono(ToneCurve(0.12, 0.500, -1.30, 0.24, 1.90, 0.40)),
         # RMS 5 documented (Technidol LC) [C1]. Finest pictorial grain in the
         # database; clump EST [C3] scaled below ACROS (RMS 7).
-        grain=GrainSpec(5.0, 4.0, 4.0, 4.0, clump_gain=0.85, fog_grain=0.10),
+        grain=GrainSpec(5.0, 1.29, 1.29, 1.29, clump_gain=0.85, fog_grain=0.10),
         # EST [C3] -- see the resolving-power caveat in the description. Set
         # high (above ACROS at f50 104) but NOT entered in _RESOLVING_POWER,
         # which is reserved for documented TOC pairs.
@@ -18408,6 +21525,16 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED: rms "
         "granularity (stored 17.2 is an estimate), resolving power (stored 0.0/0.0 is correct), Dmin, Dmax",
     ),
+    "FUJI_NEOPAN_SS": (
+        "FUJIFILM DATA SHEET \"NEOPAN SS (135)\", Ref. No. AF3-411E(N) "
+        "(EIGI-99.3-HB4-8), Fuji Photo Film Co., Ltd., 4 pages -- "
+        "PDF/PROFILES/FUJI/SS35.pdf. Speed, colour sensitivity, the full "
+        "development matrix, the spectral sensitivity curve, the "
+        "characteristic-curve family with its printed average gradients, and "
+        "the time-Gbar curves. ⚠ IT HAS NO IMAGE-STRUCTURE SECTION: no rms "
+        "granularity, no resolving power, no MTF, no reciprocity and no base "
+        "thickness are printed anywhere in it.",
+    ),
     "FUJI_NEOPAN_ACROS_100": (
         "FUJI NEOPAN 100 ACROS datasheet (and ACROS II AF3-0258E), "
         "FUJIFILM Corporation",
@@ -18417,6 +21544,51 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "FUJICOLOR ETERNA Vivid 500 datasheet, FUJIFILM Corporation, 2009",
     ),
     # -- Agfa ------------------------------------------------------------------
+    # -- AGFA, added 2026-09-01 from the 1998 edition -----------------------
+    # ⚠ THE DOCUMENT THESE FOUR COME FROM WAS RECORDED AS A DUPLICATE AND
+    # IS NOT ONE. NotFound.md row 5 and queue G6 both state that the four Agfa
+    # candidates are "the same publication, two of them byte-identical". The
+    # byte-identical PAIR is real -- 'AGFA stocks.pdf' and 'FPD1e.pdf' share
+    # md5 bf9f0c1a85e42c3d50f60c00a9159690 -- but 'agfa_films.pdf' is md5
+    # edb3dd175821a6f9f2fd60bd43341bb4, a SEPARATE 1st edition of 09/1998
+    # against the others' 4th edition of 08/2004, and it is the only document
+    # in this corpus that plots ULTRA 50 or the RSX II line at all.
+    "AGFA_ULTRA_50": (
+        "Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p8, the AGFACOLOR ULTRA 50 column: ISO 50/18 deg, RMS 4.3, "
+        "resolving power 140 lines/mm at 1000:1 and 50 at 1.6:1, layer "
+        "thickness 27 um, plus four plotted panels -- spectral sensitivity, "
+        "spectral density, sharpness and colour density curves. Reciprocity "
+        "on p6. ⚠ DROPPED FROM THE 2004 EDITION, so this is the only "
+        "technical document for the stock in the corpus.",
+    ),
+    "AGFA_RSX_II_50": (
+        "Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p8, the AGFACHROME RSX II 50 column: ISO 50/18 deg, RMS 10.0, "
+        "resolving power 125 lines/mm at 1000:1 and 55 at 1.6:1, layer "
+        "thickness 25 um, four plotted panels. Reciprocity with CC filtration "
+        "on p6. ⚠ The 2004 edition revises the 1000:1 resolving power to "
+        "135 lines/mm; the 1998 figure is what is stored, because every other "
+        "number on this profile is 1998.",
+    ),
+    "AGFA_RSX_II_100": (
+        "Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p9, the AGFACHROME RSX II 100 column: ISO 100/21 deg, RMS 10.0, "
+        "resolving power 125 lines/mm at 1000:1 and 50 at 1.6:1, layer "
+        "thickness 25 um, sheet-film base Acetate 190 um, four plotted "
+        "panels. Reciprocity with CC filtration on p6. ⚠ Its SPECTRAL "
+        "panel is the same drawing as RSX II 50's -- the two trace to within "
+        "0.002 lg at every sampled wavelength -- so that one set is a single "
+        "measurement serving two stocks. The density and sharpness panels are "
+        "genuinely distinct. The 2004 edition revises the 1000:1 resolving "
+        "power to 130 lines/mm.",
+    ),
+    "AGFA_RSX_II_200": (
+        "Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p9, the AGFACHROME RSX II 200 column: ISO 200/24 deg, RMS 12.0, "
+        "resolving power 110 lines/mm at 1000:1 and 50 at 1.6:1, layer "
+        "thickness 27 um, four plotted panels, and a push/pull table giving "
+        "ISO 100 / 200 / 400 / 800 / 1600 for Pull 1 through Push 3. "
+        "Reciprocity on p6, whose CC row is YELLOW and CYAN where its two "
+        "siblings' are BLUE. The 2004 edition revises the 1000:1 resolving "
+        "power to 120 lines/mm.",
+    ),
     "AGFA_APX_25": (
         "Agfa Professional Films Technical Data, Agfa-Gevaert AG",
         "AGFAPAN APX 25 PROFESSIONAL datasheet (agfapanapx25.pdf), "
@@ -18783,6 +21955,10 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "KODAK_EKTAPAN_100": ("KODAK EKTAPAN Film 4162, publication F-10, Eastman Kodak Company",
         "KODAK F-5, «Technical Information -- KODAK Professional Black-and-White Films», AUGUST 1979, (c) Eastman Kodak Company 1979 -- PDF/PROFILES/KODAK/kodak-professional-b-w-film/ (88-page JPG scan set, JPG n = DS n-32), read visually. PROVENANCE CLASS: vendor-measured TYPICAL data. DS 1 states the curves and data \"are averages of a number of production coatings and, therefore, do not apply directly to a particular box or roll of film. They do not represent standards or specifications which must be met by Eastman Kodak Company.\" DS 1 also states that for black-and-white films \"the ISO speeds are identical to the ANSI speeds\". DS 5: ISO 100/21 deg; 'long toe' panchromatic antihalation film; grain 'Fine'; resolving 80 high (class 'Medium') / 40 low; development table of 6 developers x 5 temperatures x 2 agitation regimes; characteristic curves for HC-110 Dilution B carrying PRINTED contrast indices 5 min CI .54, 7 min .62, 8 min .68, 12 min .80; CI-vs-time curves for DK-50 (1:1), HC-110 (Dil B), D-76, POLYDOL, MICRODOL-X. Speed matches the held profile exactly, so resolving power is a gap fill, not a graft",
     ),
+    # ---- queue T3, 2026-09-02e ----
+    "FUJI_PROVIA_100F": ("FUJIFILM DATA SHEET, FUJICHROME PROVIA 100F Professional [RDP III], Ref. No. AF3-036E, Fuji Photo Film Co., Ltd.",),
+    "FUJICOLOR_SUPERIA_XTRA_400": ("FUJIFILM PRODUCT INFORMATION BULLETIN, FUJICOLOR SUPERIA X-TRA 400 [CH], Ref. No. AF3-151E, Fuji Photo Film Co., Ltd.",),
+    "FUJICOLOR_PRO_400H": ("FUJIFILM PRODUCT INFORMATION BULLETIN, FUJICOLOR PRO 400H PROFESSIONAL, Ref. No. AF3-176E, Fuji Photo Film Co., Ltd.",),
     "KODAK_EKTAR_100": ("KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company",
                           "⚠ THIRD-PARTY, NON-MANUFACTURER, NOT A MEASUREMENT [T3]. FilmLab Pro v2.1 «published data» browser emulator, https://filmlabpro.com/published-data, engine values read out of its application bundle /assets/index-DdvumSO0.js and archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json (harvested 2026-08-27). USED FOR ONE PARAMETER ONLY on this profile -- halation gain and threshold, which were previously at the schema default 0/0/0 with Feature.HALATION unset. The site claims its numbers are digitized from manufacturer publications but names NO instrument, operator, date or laboratory, and its rms granularity contradicts the very datasheets it cites wherever this project holds the same document (Portra 400 6.5 vs E-4050's 4, Acros 100 4.5 vs Fuji's 7, Velvia 50 3.8 vs Fuji's 9, Kodachrome 64 6 vs Kodak's 10). Treat as a reconstruction, never as manufacturer data. Full assessment: doc/NotFound.md §7.1.",),
     "KODAK_PORTRA_160": ("KODAK PROFESSIONAL PORTRA 160 Film, publication E-4051 (2016), Eastman Kodak Company",),
@@ -18797,6 +21973,9 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # stocks that have one. That is the reverse of the defect this file usually
     # catches: not an estimate wearing a citation, but a measurement wearing a
     # placeholder that says it has none.
+    "KODAK_EKTAR_125": (
+        'Foster, Stephen and Craver, "Photographic bleach compositions and methods of photographic processing", US Patent 5,334,491, Eastman Kodak Company, filed 22 Sep 1993 (continuation of Ser. No. 797,663, 25 Nov 1991), granted 2 Aug 1994 -- PDF/PROFILES/KODAK/\'US5334491 (EKTAR-125).pdf\', the Table at col 3-4. ⚠ A BLEACH-CHEMISTRY PATENT, NOT AN EMULSION ONE. Ektar 125 is one of three Kodak colour negatives (with Gold 400 and Kodacolor II / 5035) used to score nine experimental ferric-methyliminodiacetic-acid bleaches. Its BLUE D-MIN is printed for each: 0.910 / 1.340 / 0.850 / 0.958 / 0.897 / 0.903 / 0.862 / 0.849 / 0.852 for slots 1-9. ⚠ THE COLUMN MEASURES BLEACH-INDUCED STAIN, so the film\'s own D-min is the asymptote as stain goes to zero and the lowest reading is an UPPER BOUND that still contains the best bleach\'s residual. Slot 2 is a prior-art comparative at pH 6 included to show a bleach that stains; the other eight span 0.109 D and the four optimised formulations (slots 3, 7, 8, 9) span 0.013 D about a mean of 0.8532. ⚠ Method statement in full: "The blue Dmin value was determined for Ektar 125 film in accordance with the state of the art." No densitometer status, no aperture, no illuminant is given.',
+        'Jack and Sue Drafahl, "Ektar", PHOTOgraphic, September 1989, pp 80-82 -- PDF/PROFILES/KODAK/\'Kodak Ektar 125 - Jack and Sue Drafahl.pdf\'. ⚠ A MAGAZINE REVIEW WITH NO SENSITOMETRY: no rms, no gamma, no D-max, no MTF, no resolving power, no spectral data, no reciprocity, no processing table. What it does document, in terms, is the construction: ELEVEN layers; two blue layers, one fast and one slow, together slightly thicker than Ektar 25\'s single slow blue layer; an EXTRA INTERLAYER between the two green layers which "restricts color couplers from migrating into each other, thus increasing the film\'s sharpness"; a then-new magenta coupler which "has the ability to enhance the speed of the T-grain emulsion"; and two red layers carrying "the same DIAR couplers found in Ektar 25, which inhibit dye formation wherever appropriate, increasing color saturation". Also states wider exposure latitude than the 25-speed Ektars. ⚠ None of that has a numeric carrier in this schema and none of it is stored as a number.',),
     "KODAK_PORTRA_160NC": ("KODAK PROFESSIONAL PORTRA 160NC / 160VC / 400NC / 400VC and 800 Films, "
                           "publication E-190, May 2003, Eastman Kodak Company -- "
                           "PDF/PROFILES/KODAK/e190-Portra-2006.pdf p9, the PORTRA 160NC page (natural colour, ISO 160). "
@@ -19065,6 +22244,18 @@ _FILMLABPRO_HALATION_IMPORT = frozenset({
 #: the tier is left wherever it was.
 _VENDOR_TRACED_CURVES = frozenset({
     "CINESTILL_800T",
+    # ⚠ FOURTH USE OF THE HOOK, 2026-09-01. The four AGFA stocks created from
+    # the 1998 «Technical Data PF» carry curves and a spectral set traced off
+    # the manufacturer's own vector plots, so `fitted_from` must say
+    # "datasheet_curve". The tier tag on each description is [T1] and it is
+    # earned by exactly those two things -- the grain clump diameters, the f50
+    # triple, the coupler strengths and the dye matrix on all four are class
+    # estimates, which is why every description says so in its first sentence
+    # and why the ParamSource records grade them separately.
+    "AGFA_ULTRA_50",
+    "AGFA_RSX_II_50",
+    "AGFA_RSX_II_100",
+    "AGFA_RSX_II_200",
 })
 
 
@@ -19150,6 +22341,1147 @@ _PROGRESS_CONSTANTS = {
 #: project touched or verified on 2026-08-27. ABSENCE OF AN ENTRY IS NOT A
 #: CLAIM: it means only the profile-level tier applies.
 _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
+    # -- AGFA, 2026-09-01: the 1998 «Technical Data PF» harvest ------------
+    # ⚠ THESE ARE HAND ENTRIES AND THEY EXIST TO DISPLACE A DERIVED ONE.
+    # `_PARAM_SOURCES_DERIVED` gave all eight pre-existing Agfa profiles a
+    # `grain.rms_granularity` record reading «No published rms for this stock
+    # in the corpus». That was false for every one of them: Agfa print the
+    # figure beside every plotted column of a document each profile's own
+    # provenance already named. The merge below is per (profile, param), so a
+    # hand entry replaces exactly that one cell and leaves the rest derived.
+    'AGFA_APX_25': (
+        ParamSource(
+            param='processing.developer', tier=1, status='stated',
+            unit='',
+            conditions='REFINAL, stock dilution, small tank / tray, 20 C, 6 min, to gamma 0.65',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the closing processing paragraph; and Agfa-Gevaert, «Technical Data P-16-C», 08/1999 -- PDF/PROFILES/AGFA/agfa_film_chem.pdf, the REFINAL / small tank, tray row'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE. This cell inherited '
+                '«NO DEVELOPER RECORDED» from _PARAM_SOURCES_DERIVED, which was written before the '
+                'AGFA harvest and was never revisited when the harvest gave this stock a populated '
+                'ProcessingSpec. The developer IS published, in two independent documents that agree: '
+                'agfa_films.pdf p11 names REFINAL 6 min at 20 C as the reference development for the '
+                'rated speed, and P-16-C prints the same 6 min in its REFINAL / small tank, tray row '
+                'at gamma 0.65. ⚠ WHAT IS STILL NOT KNOWN is which development the stored '
+                'CHARACTERISTIC CURVE was drawn at: p10 states no development beside the curve and '
+                'the traced gamma is 0.70-0.74, above the 0.65 this row describes. That gap is not '
+                'papered over -- `processing_family` carries the gamma-vs-time mapping (REFINAL 3 / 5 '
+                '/ 8 min for gamma 0.55 / 0.65 / 0.75, rotary drum) so the distance between the '
+                'reference condition and the plotted one is traversable rather than averaged away.'),),
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p10, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 7.0 x1000 "
+                "(p10). Printed with its developer: 'RMS 7.0 (REFINAL, 6 min, 20 C)'. ⚠ THE "
+                "CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p10, 'Layer thickness: 3 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p10, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 105.1 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 78.2 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.39 (78.2 / 200). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+        ParamSource("emulsion.sensitization", 3, "assumed",
+                    unit="category",
+                    conditions="Agfa house practice at a 1983 filing date; not measured on this film",
+                    source='US 4,495,277 «Photographic silver halide emulsion», M. Becker, S. Klötzer and E. Moisar, assignee Agfa-Gevaert AG, Leverkusen; appl. 519,150 filed 1983-08-01, granted 1985-01-22 -- PDF/PROFILES/RETRO/US4495277.pdf, Example 1',
+                    confidence="low",
+                    note="⚠ CLASS DEFAULT FROM AN ASSIGNEE AND A DATE, NOT A MEASUREMENT ON THIS EMULSION, and stored as one at the owner's explicit instruction after that was said in as many words. The grounds are that US 4,495,277 is Agfa-Gevaert's own filing from the AGFAPAN era and its worked emulsions are ripened with sodium thiosulphate pentahydrate alone -- gold appears only in that patent's boilerplate list of alternatives. ⚠ THE PATENT NAMES NO PRODUCT: no AGFAPAN, no APX, no ISO, DIN or ASA in six pages, and its speeds 290 / 100 / 445 are a relative scale, so nothing numeric may be taken from it and nothing is -- grain_um, habit and iodide_mol_pct stay empty, the patent's own text permitting every habit and a 0.3-2 um size range. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR: Example 3 coats the emulsion with a yellow coupler and runs a CD-3 developer and bleach-fix, on an iodide-free AgBr/AgCl/AgBr core-shell grain at 10 mol % AgCl, which is not what a B&W camera negative is. Sulphur ripening is also near-universal across makers and both product types, so this field carries little discriminating power; it is recorded so that EmulsionSpec.source can carry the patent's real content for a future derivation step. EmulsionSpec is INERT -- no stage in either renderer reads it -- so this cannot move a pixel."),
+    ),
+    'AGFA_APX_100': (
+        ParamSource(
+            param='exposure_index', tier=1, status='stated',
+            unit='ISO',
+            conditions='REFINAL, small tank, 20 C, 6 min -- the reference development for the rated speed',
+            source=('Agfa-Gevaert, «Technical Data PF», 1st edition, 09/1998 p11 and '
+                'Agfa-Gevaert AG, «Technical Data: Agfa Professional Films», F-PF-E4, 4th edition, '
+                '08/2004 p10 -- PDF/PROFILES/AGFA/agfa_films.pdf and '
+                'PDF/PROFILES/AGFA/AGFA stocks.pdf, the «Exposure index AGFAPAN APX 100» tables'),
+            confidence='high',
+            note=('The nominal rating is ISO 100/21° and the DEVELOPED speed is higher in every '
+                'developer Agfa list. ⚠ TWO OF THE FIVE ROWS WERE RE-RATED BETWEEN THE EDITIONS AT '
+                'UNCHANGED DEVELOPING TIMES, which is a measurement revision and not a process '
+                'change: RODINAL 1+25 at 8 min reads ISO 100/21° in 1998 and ISO 125/22° in 2003, '
+                'and RODINAL 1+50 at 17 min reads ISO 125/22° then and ISO 160/23° now. REFINAL '
+                '6 min, RODINAL SPECIAL 4 min and STUDIONAL LIQUID 4 min give ISO 125/22° in both. '
+                'The development-time tables behind them are identical across the two editions in '
+                'all 7 comparable rows -- tray/small-tank REFINAL 8/6/4.5/4 min at 18/20/22/24 C, '
+                'RODINAL 1+25 10/8/6/5, RODINAL 1+50 20/17/14/12, RODINAL SPECIAL and STUDIONAL '
+                'LIQUID 5/4/3/-, tank ATOMAL FF 10/8/6/5 and REFINAL 9/7/5/4 -- so the film did not '
+                'move and its speed measurement did. ⚠ THIS IS ALSO THE CONTROL FOR APX 400: because '
+                'these tables held still, the fact that every APX 400 row moved is evidence of the '
+                '«Neue Generation (ab 2003)» and not of a re-typeset sheet.'),),
+        ParamSource(
+            param='mtf.f50_g', tier=3, status='estimated',
+            unit='cycles/mm',
+            conditions='n/a -- see the note; no per-film sharpness measurement exists for this stock',
+            source=('Agfa-Gevaert AG, «Technical Data PF», 1st edition 09/1998 p10 and «Technical '
+                'Data: Agfa Professional Films», F-PF-E4 4th edition 08/2004 p9 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf and PDF/PROFILES/AGFA/AGFA stocks.pdf'),
+            confidence='low',
+            note=('⚠ THE SHEET DOES PLOT A SHARPNESS PANEL FOR THIS FILM AND IT MUST NOT BE ADOPTED, '
+                'because it is not this film\'s. Agfa drew ONE sharpness curve and printed it under '
+                'both AGFAPAN columns: on the 4th edition p9 the APX 100 and APX 400 panels are the '
+                'same 73-point path translated 175.21 pt to the right -- every y offset identical to '
+                '0.0000 pt, every x offset agreeing to 0.096 pt -- and the 1st edition p10 does the '
+                'same, returning f50 57.6 lines/mm for both films where the 4th returns 59.6 for '
+                'both. Two different films cannot share a measured MTF, so the panel is a line-'
+                'generic illustration and an f50 read off it would be a fabricated per-film number. '
+                'Found 2026-09-01 by a duplicate-artwork scan over all ten columns x four panels of '
+                'both editions; the ONLY other duplicate it found is the RSX II 50 / RSX II 100 '
+                'spectral-density panel, which was already documented in _MEASURED_DYE_MATRIX. This '
+                'cell therefore stays the era-and-class heuristic estimate ON PURPOSE.'),),
+        ParamSource(
+            param='processing.developer', tier=1, status='stated',
+            unit='',
+            conditions='REFINAL, stock dilution, small tank / tray, 20 C, 6 min, to gamma 0.65',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the closing processing paragraph; and Agfa-Gevaert, «Technical Data P-16-C», 08/1999 -- PDF/PROFILES/AGFA/agfa_film_chem.pdf, the REFINAL / small tank, tray row'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE. This cell inherited '
+                '«NO DEVELOPER RECORDED» from _PARAM_SOURCES_DERIVED, which was written before the '
+                'AGFA harvest and was never revisited when the harvest gave this stock a populated '
+                'ProcessingSpec. The developer IS published, in two independent documents that agree: '
+                'agfa_films.pdf p11 names REFINAL 6 min at 20 C as the reference development for the '
+                'rated speed, and P-16-C prints the same 6 min in its REFINAL / small tank, tray row '
+                'at gamma 0.65. ⚠ WHAT IS STILL NOT KNOWN is which development the stored '
+                'CHARACTERISTIC CURVE was drawn at: p10 states no development beside the curve and '
+                'the traced gamma is 0.70-0.74, above the 0.65 this row describes. That gap is not '
+                'papered over -- `processing_family` carries the gamma-vs-time mapping (REFINAL 3 / 5 '
+                '/ 8 min for gamma 0.55 / 0.65 / 0.75, rotary drum) so the distance between the '
+                'reference condition and the plotted one is traversable rather than averaged away.'),),
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p10, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 9.0 x1000 "
+                "(p10). Printed with its developer: 'RMS 9.0 (REFINAL, 6 min, 20 C)'. ⚠ THE "
+                "CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p10, 'Layer thickness: 7 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p10, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 110.0 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 57.6 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.38 (57.6 / 150). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+        ParamSource("emulsion.sensitization", 3, "assumed",
+                    unit="category",
+                    conditions="Agfa house practice at a 1983 filing date; not measured on this film",
+                    source='US 4,495,277 «Photographic silver halide emulsion», M. Becker, S. Klötzer and E. Moisar, assignee Agfa-Gevaert AG, Leverkusen; appl. 519,150 filed 1983-08-01, granted 1985-01-22 -- PDF/PROFILES/RETRO/US4495277.pdf, Example 1',
+                    confidence="low",
+                    note="⚠ CLASS DEFAULT FROM AN ASSIGNEE AND A DATE, NOT A MEASUREMENT ON THIS EMULSION, and stored as one at the owner's explicit instruction after that was said in as many words. The grounds are that US 4,495,277 is Agfa-Gevaert's own filing from the AGFAPAN era and its worked emulsions are ripened with sodium thiosulphate pentahydrate alone -- gold appears only in that patent's boilerplate list of alternatives. ⚠ THE PATENT NAMES NO PRODUCT: no AGFAPAN, no APX, no ISO, DIN or ASA in six pages, and its speeds 290 / 100 / 445 are a relative scale, so nothing numeric may be taken from it and nothing is -- grain_um, habit and iodide_mol_pct stay empty, the patent's own text permitting every habit and a 0.3-2 um size range. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR: Example 3 coats the emulsion with a yellow coupler and runs a CD-3 developer and bleach-fix, on an iodide-free AgBr/AgCl/AgBr core-shell grain at 10 mol % AgCl, which is not what a B&W camera negative is. Sulphur ripening is also near-universal across makers and both product types, so this field carries little discriminating power; it is recorded so that EmulsionSpec.source can carry the patent's real content for a future derivation step. EmulsionSpec is INERT -- no stage in either renderer reads it -- so this cannot move a pixel."),
+    ),
+    'AGFA_APX_400': (
+        ParamSource(
+            param='exposure_index', tier=1, status='stated',
+            unit='ISO',
+            conditions='REFINAL, small tank, 20 C -- the reference development for the rated speed',
+            source=('Agfa-Gevaert, «Technical Data PF», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p11, «Exposure index AGFAPAN APX 400»'),
+            confidence='high',
+            note=('⚠ THIS PROFILE IS THE PRE-2003 AGFAPAN APX 400, AND A LATER, DIFFERENT FILM SHARES '
+                'ITS NAME. F-PF-D4/E4 p1 marks the entry «Agfapan APX 400 *» with the footnote '
+                '«* Neue Generation (ab 2003)» / "* new generation (as of 2003)", and the 4th '
+                'edition\'s processing tables are different in EVERY row: REFINAL small tank/tray '
+                '18/20/22/24 C reads 8/6/4.5/4 min in 1998 and 7/5/4/3 in 2003; RODINAL 1+25 goes '
+                '8/7/5.5/4 -> 11.5/10/9/8; RODINAL 1+50 goes 13/11/9/8 -> -/30/27.5/25; the tank '
+                'rows move too. The exposure indices move with them -- REFINAL 6 min -> 5 min, '
+                'RODINAL 1+25 7 -> 10 min, RODINAL 1+50 11 -> 30 min, all at the same rated speed. '
+                '⚠ THE CONTROL THAT MAKES THIS A PRODUCT CHANGE AND NOT A TABLE REVISION IS APX 100, '
+                'whose tables are identical across the two editions in all 7 comparable rows. '
+                'What did NOT change is everything this profile actually stores: RMS 14.0, 110 '
+                'lines/mm at 1000:1, 10 um coating, and the characteristic curve itself -- '
+                '`agfa_2003_curves.py` traces the 4th edition\'s p9 panel and it reproduces the 1998 '
+                'one to 0.0010 D rms, because Agfa reprinted the same drawing. So the new generation '
+                'is visible ONLY in the processing tables, and this profile is deliberately left as '
+                'the earlier film rather than merged with the later one.'),),
+        ParamSource(
+            param='mtf.f50_g', tier=3, status='estimated',
+            unit='cycles/mm',
+            conditions='n/a -- see the note; no per-film sharpness measurement exists for this stock',
+            source=('Agfa-Gevaert AG, «Technical Data PF», 1st edition 09/1998 p10 and «Technical '
+                'Data: Agfa Professional Films», F-PF-E4 4th edition 08/2004 p9 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf and PDF/PROFILES/AGFA/AGFA stocks.pdf'),
+            confidence='low',
+            note=('⚠ THE SHEET DOES PLOT A SHARPNESS PANEL FOR THIS FILM AND IT MUST NOT BE ADOPTED, '
+                'because it is not this film\'s. Agfa drew ONE sharpness curve and printed it under '
+                'both AGFAPAN columns: on the 4th edition p9 the APX 100 and APX 400 panels are the '
+                'same 73-point path translated 175.21 pt to the right -- every y offset identical to '
+                '0.0000 pt, every x offset agreeing to 0.096 pt -- and the 1st edition p10 does the '
+                'same, returning f50 57.6 lines/mm for both films where the 4th returns 59.6 for '
+                'both. Two different films cannot share a measured MTF, so the panel is a line-'
+                'generic illustration and an f50 read off it would be a fabricated per-film number. '
+                'Found 2026-09-01 by a duplicate-artwork scan over all ten columns x four panels of '
+                'both editions; the ONLY other duplicate it found is the RSX II 50 / RSX II 100 '
+                'spectral-density panel, which was already documented in _MEASURED_DYE_MATRIX. This '
+                'cell therefore stays the era-and-class heuristic estimate ON PURPOSE.'),),
+        ParamSource(
+            param='processing.developer', tier=1, status='stated',
+            unit='',
+            conditions='REFINAL, stock dilution, small tank / tray, 20 C, 6 min, to gamma 0.65',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the closing processing paragraph; and Agfa-Gevaert, «Technical Data P-16-C», 08/1999 -- PDF/PROFILES/AGFA/agfa_film_chem.pdf, the REFINAL / small tank, tray row'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE. This cell inherited '
+                '«NO DEVELOPER RECORDED» from _PARAM_SOURCES_DERIVED, which was written before the '
+                'AGFA harvest and was never revisited when the harvest gave this stock a populated '
+                'ProcessingSpec. The developer IS published, in two independent documents that agree: '
+                'agfa_films.pdf p11 names REFINAL 6 min at 20 C as the reference development for the '
+                'rated speed, and P-16-C prints the same 6 min in its REFINAL / small tank, tray row '
+                'at gamma 0.65. ⚠ WHAT IS STILL NOT KNOWN is which development the stored '
+                'CHARACTERISTIC CURVE was drawn at: p10 states no development beside the curve and '
+                'the traced gamma is 0.70-0.74, above the 0.65 this row describes. That gap is not '
+                'papered over -- `processing_family` carries the gamma-vs-time mapping (REFINAL 3 / 5 '
+                '/ 8 min for gamma 0.55 / 0.65 / 0.75, rotary drum) so the distance between the '
+                'reference condition and the plotted one is traversable rather than averaged away.'),),
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p10, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 14.0 x1000 "
+                "(p10). Printed with its developer: 'RMS 14.0 (REFINAL, 6 min, 20 C)'. ⚠ THE "
+                "CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p10, 'Layer thickness: 10 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p10, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 110.0 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 57.6 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.52 (57.6 / 110). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+        ParamSource("emulsion.sensitization", 3, "assumed",
+                    unit="category",
+                    conditions="Agfa house practice at a 1983 filing date; not measured on this film",
+                    source='US 4,495,277 «Photographic silver halide emulsion», M. Becker, S. Klötzer and E. Moisar, assignee Agfa-Gevaert AG, Leverkusen; appl. 519,150 filed 1983-08-01, granted 1985-01-22 -- PDF/PROFILES/RETRO/US4495277.pdf, Example 1',
+                    confidence="low",
+                    note="⚠ CLASS DEFAULT FROM AN ASSIGNEE AND A DATE, NOT A MEASUREMENT ON THIS EMULSION, and stored as one at the owner's explicit instruction after that was said in as many words. The grounds are that US 4,495,277 is Agfa-Gevaert's own filing from the AGFAPAN era and its worked emulsions are ripened with sodium thiosulphate pentahydrate alone -- gold appears only in that patent's boilerplate list of alternatives. ⚠ THE PATENT NAMES NO PRODUCT: no AGFAPAN, no APX, no ISO, DIN or ASA in six pages, and its speeds 290 / 100 / 445 are a relative scale, so nothing numeric may be taken from it and nothing is -- grain_um, habit and iodide_mol_pct stay empty, the patent's own text permitting every habit and a 0.3-2 um size range. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR: Example 3 coats the emulsion with a yellow coupler and runs a CD-3 developer and bleach-fix, on an iodide-free AgBr/AgCl/AgBr core-shell grain at 10 mol % AgCl, which is not what a B&W camera negative is. Sulphur ripening is also near-universal across makers and both product types, so this field carries little discriminating power; it is recorded so that EmulsionSpec.source can carry the patent's real content for a future derivation step. EmulsionSpec is INERT -- no stage in either renderer reads it -- so this cannot move a pixel."),
+    ),
+    'AGFA_OPTIMA_100': (
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p7, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 4.0 x1000 (p7). "
+                "⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p7, 'Layer thickness: 16 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p7, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 110.9 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 43.7 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.31 (43.7 / 140). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'AGFA_OPTIMA_200': (
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p7, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. ⚠ CORRECTED AGAIN 2026-09-01, AND THIS TIME THE CITATION WAS WRONG RATHER THAN THE VALUE. 4.3 is right and the document named is not: «Technical Data PF» (09/1998) p7 prints RMS 4.5 in the Optima II 200 column -- verified by word coordinates, RMS at x 347.0 and the value at x 367.6, inside that column's own x band -- and 4.3 is what the 4th edition, F-PF-E4 08/2004 p7 (and its German twin F-PF-D4 07/2003), prints. Agfa improved the figure between the editions. The citation of record for this cell is therefore the 4th edition, not the 1st, and Optima 200 is the only one of the ten films whose RMS moved. Published: RMS 4.3 x1000 (F-PF-E4 p7); RMS 4.5 x1000 (Technical Data PF 09/1998 p7).  "
+                "⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted. ⚠ THE TWO '
+                'EDITIONS DISAGREE HERE AND ONLY HERE: 1998 prints 4.5, 2004 prints 4.3, and 4.3 is '
+                'what is stored -- this profile is the 2004 emulsion. It also happens to equal '
+                "AGFA_VISTA_200's 4.3, which is a coincidence of two different sheets and not a "
+                'shared template: Vista 200 has always been 4.3 and Optima II 200 was 4.5 before the '
+                'revision.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p7, 'Layer thickness: 18 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p7, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 109.2 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 46.9 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.36 (46.9 / 130). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'AGFA_OPTIMA_400': (
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p7, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 4.5 x1000 (p7). "
+                "⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p7, 'Layer thickness: 19 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p7, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 106.5 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 47.4 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.36 (47.4 / 130). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'AGFA_PORTRAIT_160': (
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p8, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 3.5 x1000 (p8). "
+                "⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p8, 'Layer thickness: 18 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p8, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 106.5 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 36.0 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.24 (36.0 / 150). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'AGFA_SCALA_200X': (
+        ParamSource(
+            param='emulsion.base_material', tier=1, status='stated',
+            unit='',
+            conditions='35 mm and rollfilm base; sheet film is polyester, 175 um',
+            source=('Agfa-Gevaert AG, «AGFA SCALA 200x PROFESSIONAL -- Technical Data», '
+                'F-SW12-E6, 6th edition, 08/2000 -- PDF/PROFILES/AGFA/agfa_scala.pdf p3, '
+                '«Emulsion design»'),
+            confidence='high',
+            note=('⚠ THE ONLY AGFA STOCK IN THIS DATABASE WHOSE BASE MATERIAL IS DOCUMENTED, and it '
+                'took a document the other nine films do not have. The range sheets say only «Die '
+                'Filmunterlage besteht aus Acetylzellulose oder Polyester» -- an either/or with no '
+                'per-film assignment -- which is why every other Agfa profile leaves this field '
+                'empty rather than guessing. This film\'s own sheet states it and cites a standard: '
+                '"Film base: safety film (acetyl cellulose) to DIN 15551", with polyester named '
+                'separately and only for the 175 um sheet-film base, and an extra NC layer on the '
+                'roll and sheet backs. The 120 um 35 mm base this profile stores is therefore acetyl '
+                'cellulose, stated, not inferred.'),),
+        ParamSource(
+            param='push.max_pull_stops', tier=1, status='stated',
+            unit='stops',
+            conditions='SCALA process, pulled first development',
+            source=('Agfa-Gevaert AG, «AGFA SCALA 200x PROFESSIONAL -- Technical Data», '
+                'F-SW12-E6, 6th edition, 08/2000 -- PDF/PROFILES/AGFA/agfa_scala.pdf pp2-3'),
+            confidence='high',
+            note=('The push/pull ladder itself (Pull 1 ISO 100, Standard 200, Push 1/2/3 = 400 / 800 '
+                '/ 1600) is now printed in THREE independent documents -- «Technical Data PF» 09/1998 '
+                'p9, this sheet 08/2000 p2, and F-PF-D4/E4 2003/04 p4 -- and they agree. ⚠ WHAT THIS '
+                'SHEET ADDS IS NUMBERS WHERE THE OTHERS GIVE DIRECTIONS. Exposure latitude is stated '
+                'and is SPEED-DEPENDENT: "ISO 200/24° to ISO 1600/33° ± ½ stop, ISO 100/21° ± 1 '
+                'stop" -- so pulling to ISO 100 buys a stop of latitude, which is the quantitative '
+                'form of the range sheets\' bare word "flatter". And the pulled granularity gain is '
+                'a figure, "- 10 % at ISO 100/21°", where the range sheets say only "finer". '
+                '⚠ NEITHER IS STORED IN A FIELD, because the schema has no speed-dependent latitude '
+                'and no per-step granularity scale; they are recorded here so that the gap is a '
+                'known one rather than an unread page.'),),
+        ParamSource(
+            param='processing.developer', tier=1, status='stated',
+            unit='',
+            conditions='Agfa SCALA process; no time, temperature or composition published',
+            source=('Agfa-Gevaert, «Schwarzweiss-Handbuch» -- PDF/PROFILES/AGFA/agfa_bw_manual.pdf p10'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01. The inherited «NO DEVELOPER RECORDED» was wrong in kind: '
+                'the process IS named and named exclusively -- "Processing is carried out solely in '
+                'the original Agfa Scala process, which is only available in authorized commercial '
+                'laboratories" -- so there is no ambiguity about WHICH development the curve refers '
+                'to, which is the ambiguity that note exists to flag. What is unpublished is the '
+                'process INTERIOR: no developer composition, time or temperature appears anywhere in '
+                'the corpus, so `minutes` and `celsius` stay 0.0 and only the process name is '
+                'stored. A named proprietary process with unpublished parameters is a different '
+                'state from an unknown developer and is recorded as such.'),),
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p9, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 11.0 x1000 "
+                "(p9). ⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's "
+                'own convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p9, 'Layer thickness: 7 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p9, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0067 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 102.1 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 30.5 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.25 (30.5 / 120). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+        ParamSource("emulsion.sensitization", 3, "assumed",
+                    unit="category",
+                    conditions="Agfa house practice at a 1983 filing date; not measured on this film",
+                    source='US 4,495,277 «Photographic silver halide emulsion», M. Becker, S. Klötzer and E. Moisar, assignee Agfa-Gevaert AG, Leverkusen; appl. 519,150 filed 1983-08-01, granted 1985-01-22 -- PDF/PROFILES/RETRO/US4495277.pdf, Example 1',
+                    confidence="low",
+                    note="⚠ CLASS DEFAULT FROM AN ASSIGNEE AND A DATE, NOT A MEASUREMENT ON THIS EMULSION, and stored as one at the owner's explicit instruction after that was said in as many words. The grounds are that US 4,495,277 is Agfa-Gevaert's own filing from the AGFAPAN era and its worked emulsions are ripened with sodium thiosulphate pentahydrate alone -- gold appears only in that patent's boilerplate list of alternatives. ⚠ THE PATENT NAMES NO PRODUCT: no AGFAPAN, no APX, no ISO, DIN or ASA in six pages, and its speeds 290 / 100 / 445 are a relative scale, so nothing numeric may be taken from it and nothing is -- grain_um, habit and iodide_mol_pct stay empty, the patent's own text permitting every habit and a 0.3-2 um size range. ⚠ AND ITS DEMONSTRATION MATERIAL IS COLOUR: Example 3 coats the emulsion with a yellow coupler and runs a CD-3 developer and bleach-fix, on an iodide-free AgBr/AgCl/AgBr core-shell grain at 10 mol % AgCl, which is not what a B&W camera negative is. Sulphur ripening is also near-universal across makers and both product types, so this field carries little discriminating power; it is recorded so that EmulsionSpec.source can carry the patent's real content for a future derivation step. EmulsionSpec is INERT -- no stage in either renderer reads it -- so this cannot move a pixel."),
+    ),
+    'AGFA_ULTRA_50': (
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p8, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 4.3 x1000 (p8). "
+                "⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's own "
+                'convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p8, 'Layer thickness: 27 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p8, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 114.4 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 42.6 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.30 (42.6 / 140). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'AGFA_RSX_II_50': (
+        ParamSource(
+            param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+            unit='lines/mm',
+            conditions='test-object contrast 1000 : 1; Agfa print lines/mm and the cycles-vs-line-pairs question is queue G6',
+            source=('Agfa-Gevaert AG, «Technical Data: Agfa Professional Films», publication F-PF-E4, 4th edition, 08/2004 -- PDF/PROFILES/AGFA/AGFA stocks.pdf p8; the same figure is printed in the German twin F-PF-D4, 4. Auflage 07/2003 -- PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p8, as «135 Linien/mm»'),
+            confidence='high',
+            note=('⚠ RAISED FROM 125 TO 135 lines/mm ON 2026-09-01, AND THE OLD VALUE WAS NOT WRONG -- '
+                'IT WAS OLDER. «Technical Data PF», 1st edition 09/1998, prints 125 for this film; '
+                'the 4th edition prints 135. RMS, the 1.6:1 figure (55 lines/mm) and the layer '
+                'thickness are unchanged in both editions and on all three RSX II films, so this is a '
+                'targeted revision and not a re-typeset. ⚠ THE CURVES DID NOT MOVE WITH IT, and that '
+                'was checked rather than assumed: `agfa_2003_curves.py` traces the 4th edition\'s own '
+                'p8 panels and compares them against the 1st edition\'s, and once each edition\'s '
+                'label-box offset is removed the two agree to 0.001-0.006 D rms on the colour-density '
+                'records and 0.001-0.004 lg on the spectral ones. Agfa reused the identical artwork. '
+                'So a LATER MEASUREMENT of an UNCHANGED emulsion is what is stored, the 1st edition '
+                'figure is recorded here, and the traced curve beside it stays the 1998 one it has '
+                'always been -- there is no mixing of editions, because there is only one drawing.'),),
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p8, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 10.0 x1000 "
+                "(p8). ⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's "
+                'own convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p8, 'Layer thickness: 25 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p8, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0066 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 104.4 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 29.2 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.23 (29.2 / 125). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'AGFA_RSX_II_100': (
+        ParamSource(
+            param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+            unit='lines/mm',
+            conditions='test-object contrast 1000 : 1; Agfa print lines/mm and the cycles-vs-line-pairs question is queue G6',
+            source=('Agfa-Gevaert AG, «Technical Data: Agfa Professional Films», publication F-PF-E4, 4th edition, 08/2004 -- PDF/PROFILES/AGFA/AGFA stocks.pdf p8; the same figure is printed in the German twin F-PF-D4, 4. Auflage 07/2003 -- PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p8, as «130 Linien/mm»'),
+            confidence='high',
+            note=('⚠ RAISED FROM 125 TO 130 lines/mm ON 2026-09-01, AND THE OLD VALUE WAS NOT WRONG -- '
+                'IT WAS OLDER. «Technical Data PF», 1st edition 09/1998, prints 125 for this film; '
+                'the 4th edition prints 130. RMS, the 1.6:1 figure (50 lines/mm) and the layer '
+                'thickness are unchanged in both editions and on all three RSX II films, so this is a '
+                'targeted revision and not a re-typeset. ⚠ THE CURVES DID NOT MOVE WITH IT, and that '
+                'was checked rather than assumed: `agfa_2003_curves.py` traces the 4th edition\'s own '
+                'p8 panels and compares them against the 1st edition\'s, and once each edition\'s '
+                'label-box offset is removed the two agree to 0.001-0.006 D rms on the colour-density '
+                'records and 0.001-0.004 lg on the spectral ones. Agfa reused the identical artwork. '
+                'So a LATER MEASUREMENT of an UNCHANGED emulsion is what is stored, the 1st edition '
+                'figure is recorded here, and the traced curve beside it stays the 1998 one it has '
+                'always been -- there is no mixing of editions, because there is only one drawing.'),),
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p9, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 10.0 x1000 "
+                "(p9). ⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's "
+                'own convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p9, 'Layer thickness: 25 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p9, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0065 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 108.3 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 31.8 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.25 (31.8 / 125). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'AGFA_RSX_II_200': (
+        ParamSource(
+            param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+            unit='lines/mm',
+            conditions='test-object contrast 1000 : 1; Agfa print lines/mm and the cycles-vs-line-pairs question is queue G6',
+            source=('Agfa-Gevaert AG, «Technical Data: Agfa Professional Films», publication F-PF-E4, 4th edition, 08/2004 -- PDF/PROFILES/AGFA/AGFA stocks.pdf p8; the same figure is printed in the German twin F-PF-D4, 4. Auflage 07/2003 -- PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p8, as «120 Linien/mm»'),
+            confidence='high',
+            note=('⚠ RAISED FROM 110 TO 120 lines/mm ON 2026-09-01, AND THE OLD VALUE WAS NOT WRONG -- '
+                'IT WAS OLDER. «Technical Data PF», 1st edition 09/1998, prints 110 for this film; '
+                'the 4th edition prints 120. RMS, the 1.6:1 figure (50 lines/mm) and the layer '
+                'thickness are unchanged in both editions and on all three RSX II films, so this is a '
+                'targeted revision and not a re-typeset. ⚠ THE CURVES DID NOT MOVE WITH IT, and that '
+                'was checked rather than assumed: `agfa_2003_curves.py` traces the 4th edition\'s own '
+                'p8 panels and compares them against the 1st edition\'s, and once each edition\'s '
+                'label-box offset is removed the two agree to 0.001-0.006 D rms on the colour-density '
+                'records and 0.001-0.004 lg on the spectral ones. Agfa reused the identical artwork. '
+                'So a LATER MEASUREMENT of an UNCHANGED emulsion is what is stored, the 1st edition '
+                'figure is recorded here, and the traced curve beside it stays the 1998 one it has '
+                'always been -- there is no mixing of editions, because there is only one drawing.'),),
+        ParamSource(
+            param='grain.rms_granularity', tier=2, status='stated',
+            unit='sigma(D) x 1000',
+            conditions=('daylight exposure; visual filter (Vlambda) densitometry; diffuse density 1.0; 48 um '
+                'reading aperture -- as printed on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p9, the characteristic values printed beside the '
+                'plotted column; conditions from p5'),
+            confidence='high',
+            note=('⚠ CORRECTED 2026-09-01, AND THE PREVIOUS TEXT WAS FALSE ON EIGHT PROFILES AT ONCE. '
+                'This cell used to read «No published rms for this stock in the corpus», inherited '
+                'from _PARAM_SOURCES_DERIVED. Agfa print the figure beside every plotted column, on a '
+                "document this profile's own provenance already named. Published: RMS 12.0 x1000 "
+                "(p9). ⚠ THE CONDITIONS ARE PRINTED TOO, on p5, and they nearly match this project's "
+                'own convention: daylight exposure, densitometry through a visual filter (Vlambda), '
+                'measurement at DIFFUSE DENSITY 1.0 with a 48 um reading aperture. The one gap '
+                'keeping this at tier 2 rather than tier 1 is net-vs-total -- the project convention '
+                'says NET density 1.0 and Agfa do not say whether base+fog is subtracted.')),
+        ParamSource(
+            param='emulsion.coated_um', tier=1, status='stated',
+            unit='um',
+            conditions='total layer thickness excluding the base',
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                "PDF/PROFILES/AGFA/agfa_films.pdf p9, 'Layer thickness: 27 um'"),
+            confidence='high',
+            note=('⚠ THE ONLY EmulsionSpec FIELD THIS SOURCE SUPPORTS. Agfa print the total coated '
+                'thickness beside every column and print nothing about crystal size, habit, aspect '
+                'ratio, iodide content or sensitisation, so those stay at zero rather than being '
+                'inferred from a thickness. Both editions agree on this figure for all ten films they '
+                'share.')),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='measured',
+            unit='fraction above unity response',
+            conditions=('peak of the printed transfer-factor curve minus 1; exposure daylight, densitometry '
+                'visual filter (Vlambda) as stated on p5'),
+            source=('Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- '
+                'PDF/PROFILES/AGFA/agfa_films.pdf p9, the Sharpness panel, digitised by '
+                'agfa_1998_curves.py; axis fit residual 0.0105/0.0065 decades'),
+            confidence='medium',
+            note=('⚠ THE PANEL IS A CTF, NOT AN MTF, AND THAT IS WHY THIS NUMBER IS ADOPTABLE WHILE f50 '
+                'IS NOT. The curve peaks at 110.4 %, above the 100 % a true modulation transfer '
+                'function cannot exceed, so what Agfa plot is an adjacency-enhanced response and the '
+                'overshoot is a direct reading of the adjacency effect. An overshoot is a RATIO and '
+                'carries no unit, so it survives the open question about the abscissa. f50 reads 21.2 '
+                "on the panel's own 'Lines (mm)' axis and is NOT stored: queue G6 asks whether Agfa's "
+                'lines/mm are cycles or line pairs, and a factor of two is not a rounding difference. '
+                '⚠ EVIDENCE FILED AGAINST G6: this sheet prints an MTF and a resolving power for the '
+                "same film on the same page, so the ratio f50/RP can be tested against Tani's MTF-50 "
+                '~ RP/2. Here it is 0.19 (21.2 / 110). Across all twelve films on the sheet the ratio '
+                'runs 0.19-0.52 with a median of 0.30; reading the axis as HALF-cycles would halve '
+                'every one of those, i.e. move them further from 0.5, not closer. The evidence '
+                'favours lines/mm = cycles/mm and does not prove it.')),
+    ),
+    'KODAK_EKTAR_125': (
+        ParamSource(
+            param='curves.b.dmin', tier=1, status='measured',
+            unit='density',
+            conditions='blue record, base+fog including the orange mask; C-41-type process, bleach as tabulated. Densitometer status, aperture and illuminant NOT stated by the source',
+            source="US Patent 5,334,491 (Foster, Stephen & Craver, Eastman Kodak, granted 2 Aug 1994), the Table at col 3-4 -- PDF/PROFILES/KODAK/'US5334491 (EKTAR-125).pdf'",
+            confidence='medium',
+            note="⚠ AN UPPER BOUND, NOT A POINT VALUE, AND THE ONLY MEASURED NUMBER ON THIS PROFILE. The patent's D-min column scores BLEACH-INDUCED STAIN, so the film's own blue D-min is the asymptote as stain goes to zero and 0.849 -- the lowest of nine formulations -- still contains whatever residual the best bleach leaves. Read it as '<= 0.849'. Four independent optimised formulations (slots 3, 7, 8, 9) agree to 0.013 D about a mean of 0.8532, which is what makes it worth storing; the full nine-slot range of 0.491 D is the EXPERIMENT'S variable, not this measurement's noise, and quoting it as such would misrepresent the source."),
+        ParamSource(
+            param='curves.r.dmin', tier=3, status='estimated',
+            unit='density',
+            conditions='red record, base+fog including the orange mask',
+            source="US Patent 5,334,491 (Foster, Stephen & Craver, Eastman Kodak, granted 2 Aug 1994), the Table at col 3-4 -- PDF/PROFILES/KODAK/'US5334491 (EKTAR-125).pdf'",
+            confidence='low',
+            note='NOT MEASURED. The measured blue bound scaled by the mean red/blue mask ratio of the three nearest Kodak C-41 still negatives -- GOLD 200 0.260/0.665/0.967, PORTRA 160NC 0.204/0.609/0.812, ULTRA MAX 400 0.291/0.697/0.985, mean r/b 0.272. The ANCHOR is measured; this scaling is a class assumption.'),
+        ParamSource(
+            param='curves.g.dmin', tier=3, status='estimated',
+            unit='density',
+            conditions='green record, base+fog including the orange mask',
+            source="US Patent 5,334,491 (Foster, Stephen & Craver, Eastman Kodak, granted 2 Aug 1994), the Table at col 3-4 -- PDF/PROFILES/KODAK/'US5334491 (EKTAR-125).pdf'",
+            confidence='low',
+            note="NOT MEASURED. As curves.r.dmin, using the mean green/blue mask ratio 0.715 of the same three stocks. ⚠ 14 of this database's 74 colour negatives store a blue D-min below 0.35, i.e. they do NOT carry the orange mask at all -- KODAK_EKTAR_100 among them at 0.19. This profile follows the 60-stock majority and the measurement; the inconsistency in the other 14 is recorded, not copied."),
+        ParamSource(
+            param='curves.g.gamma', tier=3, status='estimated',
+            unit='dimensionless',
+            conditions='green record, softplus fit; see ToneCurve.is_degenerate before reading gamma as a slope',
+            source='Jack and Sue Drafahl, "Ektar", PHOTOgraphic, September 1989, pp 80-82 -- PDF/PROFILES/KODAK/\'Kodak Ektar 125 - Jack and Sue Drafahl.pdf\'',
+            confidence='low',
+            note="NOT MEASURED -- no characteristic curve for this film exists in the corpus. Placed between PORTRA 160NC (0.550, a portrait film) and EKTAR 100 (0.655): Ektar was the saturated, high-sharpness line, but the review's one behavioural claim for this stock is WIDER EXPOSURE LATITUDE than the 25-speed Ektars, which argues against the top of that range."),
+        ParamSource(
+            param='grain.rms_granularity', tier=3, status='estimated',
+            unit='sigma(D) x 1000',
+            conditions='48 um aperture, NET density 1.0 (schema v9 convention)',
+            source='Jack and Sue Drafahl, "Ektar", PHOTOgraphic, September 1989, pp 80-82 -- PDF/PROFILES/KODAK/\'Kodak Ektar 125 - Jack and Sue Drafahl.pdf\'',
+            confidence='low',
+            note="NOT MEASURED. Between EKTAR 100's 5.5 and GOLD 200's 9.0: a third of a stop faster than EKTAR 100 and described by the review as extremely fine grain. ⚠ A granularity figure without its aperture and density is not a number; this one follows the project convention and must not be compared with a maker's figure read under another."),
+        ParamSource(
+            param='mtf.f50_g', tier=3, status='estimated',
+            unit='cycles/mm',
+            conditions='per-layer 50 % modulation frequency',
+            source='Jack and Sue Drafahl, "Ektar", PHOTOgraphic, September 1989, pp 80-82 -- PDF/PROFILES/KODAK/\'Kodak Ektar 125 - Jack and Sue Drafahl.pdf\'',
+            confidence='low',
+            note="NOT MEASURED, AND THE LAYER RATIO IS AS UNEVIDENCED AS THE LEVEL. Queue C13 measured the estimating rule to be wrong in FORM rather than scale (this record stands for all three of f50_r/g/b) -- red f50 is effectively constant near 36 c/mm across the measured family while green spreads 52 % and blue 70 %, so no fixed r/b ratio can be right. C24's 36.0 anchor was derived from Kodak CINE negatives and this project refused to extend it past that family, so it is not applied here. These three numbers carry the nearest sibling's estimate across and inherit that rule's known defect."),
+        ParamSource(
+            param='emulsion.habit', tier=2, status='stated',
+            unit='crystal habit',
+            conditions='as described in prose by the source',
+            source='Jack and Sue Drafahl, "Ektar", PHOTOgraphic, September 1989, pp 80-82 -- PDF/PROFILES/KODAK/\'Kodak Ektar 125 - Jack and Sue Drafahl.pdf\'',
+            confidence='medium',
+            note='The review names the T-grain emulsion in terms. Grain size, aspect ratio and iodide content are NOT stated and are left at zero. ⚠ The ELEVEN-LAYER architecture the same paragraph describes has NO carrier in this schema and is prose on the profile only: `LayerStack` holds per-layer RESOLVING POWER plus an order, and its has_data is bool(order), so filling order alone would flip the layer-stack counter on a stock with no resolving powers.'),
+    ),
+    # ---- queue C4, 2026-09-02 ---------------------------------------------
+    "FUJI_NEOPAN_SS": (
+        ParamSource("exposure_index", 1, "stated",
+                    unit="ISO",
+                    conditions="AF3-411E(N) §3 SPEED",
+                    source='Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET "NEOPAN SS (135)", Ref. No. AF3-411E(N) (EIGI-99.3-HB4-8), 4 pages -- PDF/PROFILES/FUJI/SS35.pdf, supplied by the owner 2026-09-02. Sections: 1 features, 2 sizes, 3 speed, 4 colour sensitivity, 5 exposure guide, 6 safelight, 7 processing, 8 spectral sensitivity curve, 9 characteristic curves, 10 time-Gbar curves. ⚠ THE SHEET HAS NO IMAGE-STRUCTURE SECTION: no rms granularity, no resolving power, no MTF, no reciprocity, no base thickness. All four pages searched.',
+                    confidence="high",
+                    note="«ISO 100/21°», printed as a bare speed with no development qualifier. §4 states the colour sensitivity as «Orthopanchromatic» in the same block."),
+        ParamSource("curves", 1, "traced",
+                    unit="density vs log H (lux-seconds)",
+                    conditions="AF3-411E(N) §9, Microfine 20 C (68 F), small tank, 10 min",
+                    source='Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET "NEOPAN SS (135)", Ref. No. AF3-411E(N) (EIGI-99.3-HB4-8), 4 pages -- PDF/PROFILES/FUJI/SS35.pdf, supplied by the owner 2026-09-02. Sections: 1 features, 2 sizes, 3 speed, 4 colour sensitivity, 5 exposure guide, 6 safelight, 7 processing, 8 spectral sensitivity curve, 9 characteristic curves, 10 time-Gbar curves. ⚠ THE SHEET HAS NO IMAGE-STRUCTURE SECTION: no rms granularity, no resolving power, no MTF, no reciprocity, no base thickness. All four pages searched.',
+                    confidence="high",
+                    note="⚠ SELF-CHECKING, BECAUSE THE PANEL PRINTS THE AVERAGE GRADIENT ON EVERY CURVE: 4 min 0.28, 6 min 0.37, 8 min 0.45, 10 min 0.53, 12 min 0.61. The traced straight-line slopes come out 0.293/0.393/0.478/0.585/0.680 -- 5-11 % above the printed averages, which is what an average gradient measured over a span INCLUDING the toe must be, and monotone in the same order. The stored 10 min curve's model Gbar over dlogH 2.0 is 0.552 against a printed 0.53. Fit rms 0.0235 D, max 0.0984 D over 710 columns. ⚠ dmin 0.245 is the sheet's own printed «Base Density» rule, not a fitted value; ⚠ the SHOULDER is not measured at all -- the panel stops at D 1.82 with the curve still straight -- so Dmax is pinned at a class 2.70 [T3] and refitting at 2.5 or 3.0 moves the rms by 0.0002 D."),
+        ParamSource("spectral", 1, "traced",
+                    unit="relative log sensitivity",
+                    conditions="AF3-411E(N) §8, wedge spectrogram to daylight 5400 K",
+                    source='Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET "NEOPAN SS (135)", Ref. No. AF3-411E(N) (EIGI-99.3-HB4-8), 4 pages -- PDF/PROFILES/FUJI/SS35.pdf, supplied by the owner 2026-09-02. Sections: 1 features, 2 sizes, 3 speed, 4 colour sensitivity, 5 exposure guide, 6 safelight, 7 processing, 8 spectral sensitivity curve, 9 characteristic curves, 10 time-Gbar curves. ⚠ THE SHEET HAS NO IMAGE-STRUCTURE SECTION: no rms granularity, no resolving power, no MTF, no reciprocity, no base thickness. All four pages searched.',
+                    confidence="medium",
+                    note="⚠ RELATIVE, WITH NO ZERO. The ordinate carries a single «1.0» bracket and no absolute scale, so the curve is peak-normalised at 410 nm and no absolute sensitivity is claimed. The orthopanchromatic signature §4 states in words is the check the trace reproduces: blue peak 410, trough 490-500, secondary red lobe peaking 590, hard cut past 650. 380/400/650/660 nm are extrapolated, interpolated across the panel's own gridline, and cut-off markers respectively."),
+        ParamSource("grain.rms_granularity", 3, "estimated",
+                    unit="diffuse rms x1000, 48 um",
+                    conditions="class estimate from the cubic ISO 100-125 peers",
+                    source='Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET "NEOPAN SS (135)", Ref. No. AF3-411E(N) (EIGI-99.3-HB4-8), 4 pages -- PDF/PROFILES/FUJI/SS35.pdf, supplied by the owner 2026-09-02. Sections: 1 features, 2 sizes, 3 speed, 4 colour sensitivity, 5 exposure guide, 6 safelight, 7 processing, 8 spectral sensitivity curve, 9 characteristic curves, 10 time-Gbar curves. ⚠ THE SHEET HAS NO IMAGE-STRUCTURE SECTION: no rms granularity, no resolving power, no MTF, no reciprocity, no base thickness. All four pages searched.',
+                    confidence="low",
+                    note="⚠ NOT ON THE SHEET, AND NOT TAKEN FROM THE MEASUREMENTS THIS CORPUS HOLDS UNDER THE SAME NAME. Ooue 1959 (Wiener spectrum, Minidol; and sigma-vs-D at a stated 10 um aperture, Microfine) and Takano 1969 Fig. 8 (Selwyn granularity at thirteen apertures) all measure a film called Neopan SS -- the coating sold in 1959-1969. This profile is the 1999 sheet. One trade name, two products, forty years apart, exactly as EASTMAN_5247 1974 against 1983 and ILFORD PAN F against PAN F PLUS. The stored 9.0 is the band AGFA_APX_100 (9.0) and KODAK_PLUS_X_125 (9.5) occupy."),
+        ParamSource("mtf.f50_g", 3, "estimated",
+                    unit="cycles/mm",
+                    conditions="class estimate; the sheet prints no MTF and no resolving power",
+                    source='Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET "NEOPAN SS (135)", Ref. No. AF3-411E(N) (EIGI-99.3-HB4-8), 4 pages -- PDF/PROFILES/FUJI/SS35.pdf, supplied by the owner 2026-09-02. Sections: 1 features, 2 sizes, 3 speed, 4 colour sensitivity, 5 exposure guide, 6 safelight, 7 processing, 8 spectral sensitivity curve, 9 characteristic curves, 10 time-Gbar curves. ⚠ THE SHEET HAS NO IMAGE-STRUCTURE SECTION: no rms granularity, no resolving power, no MTF, no reciprocity, no base thickness. All four pages searched.',
+                    confidence="low",
+                    note="Between its two cubic peers, AGFA_APX_100 at 80 and KODAK_PLUS_X_125 at 62."),
+    ),
+    "SVEMA_CO_90L": (
+        ParamSource("exposure_index", 1, "stated",
+                    unit="GOST units, 3200 K",
+                    conditions="ТУ 6-42-1514-90 табл. 3 item 1, «не менее» -- a FLOOR, not a measurement",
+                    source='«КИНОПЛЕНКА И ФОТОПЛЕНКА ЦВЕТНЫЕ ОБРАЩАЕМЫЕ МАРОК ЦО-90Л. Технические условия. ТУ 6-42-1514-90», registered at the Sumy TsSM 1990, «Вводятся впервые», 20 pages -- PDF/PROFILES/SOVIET STANDARDS/tu_642151490_*.pdf',
+                    confidence="high",
+                    note="⚠ EVERY FIGURE FROM THIS DOCUMENT IS AN ACCEPTANCE LIMIT, NOT A MEASUREMENT. «Общая светочувствительность (S_м), ед. ГОСТ 9160-82, не менее 80» is the floor a batch must clear to be sold, so the true speed of a good coating is at or above 80 and the stored 80 is the pessimistic end of the legal band. That is the third marking class FilmActiveProfiles.md carries for the Soviet TU stocks. ⚠ AND THE C4 QUEUE ROW WAS WRONG ABOUT THE SOURCE: it recorded «ЦО-90Д / ЦО-90Л ... two documents with near-identical norms». There is one document. Both files in the corpus are scans of the same specification -- same title, same TU number, same «Вводятся впервые», same signatories, same 1990 stamp -- and «ЦО-90Д» is an OCR misread of Л as Д on a typewritten page, which the same OCR performs inconsistently within a single file. No ЦО-90Д exists here."),
+        ParamSource("curves.g.gamma", 1, "stated",
+                    unit="dimensionless",
+                    conditions="ТУ 6-42-1514-90 табл. 3 item 3, «Общий коэффициент контрастности 1,6 - 2,2»",
+                    source='ТУ 6-42-1514-90 табл. 3, read visually from the page images of both scans, which agree line for line',
+                    confidence="medium",
+                    note="⚠ THE STORED 1.9 IS THE MIDPOINT OF A 0.6-WIDE RANGE AND ALL THREE LAYERS GET IT. The TU gives ONE overall contrast coefficient and caps the between-layer balance at 0.4 (item 4); it never says which layer is steeper. ЦО-32Д's TU does specify its upper layer separately and that profile splits its gammas accordingly -- this one may not, so a legal coating can sit anywhere in a 0.6 band around what is stored and can spread its layers by up to 0.4. Both facts are recorded rather than smoothed into a fabricated split."),
+        ParamSource("curves.g.dmin", 1, "stated",
+                    unit="density (B)",
+                    conditions="ТУ 6-42-1514-90 табл. 3 item 5, «Минимальная плотность не более 0,25»",
+                    source='ТУ 6-42-1514-90 табл. 3',
+                    confidence="high",
+                    note="A CEILING used as the stated value, the same treatment the other Soviet TU stocks get. Item 6 sets Dmax >= 2.0 B in every layer, which is what sizes the throw; the shoulder shape itself is [T3] carried from SVEMA_CO_32D."),
+        ParamSource("mtf.f50_g", 2, "derived",
+                    unit="cycles/mm",
+                    conditions="inferred from the documented resolving power >= 75 mm^-1 per ГОСТ 2819-84",
+                    source='ТУ 6-42-1514-90 табл. 3 item 7',
+                    confidence="low",
+                    note="⚠ RESOLVING POWER IS NOT AN MTF AND THE TU PRINTS NO CURVE. The triple is inferred by the same route as the other Soviet stocks, scaled up from SVEMA_CO_32D in proportion to 75 against its 68. It is [T2] at best and is flagged so that a future MTF document replaces it rather than agreeing with it."),
+        ParamSource("processing", 1, "stated",
+                    unit="",
+                    conditions="ТУ 6-42-1514-90 табл. 5, the 30 degC regime",
+                    source='ТУ 6-42-1514-90 табл. 5 and табл. 6',
+                    confidence="high",
+                    note="Eleven steps at 30 degC: black-and-white first development 4.5-6.0 min at 30.0 +/- 0.3, stop, wash, RE-EXPOSURE BY TWO 100 W LAMPS AT 0.3 m onto the emulsion side for 1-2 min, colour development 8 min at 30.0 +/- 0.3, bleach 3 min, two fixes. Табл. 6 gives an alternative 20 degC regime. ⚠ NO DEVELOPER TRADE NAME IS PRINTED -- табл. 4 gives the formulae by composition -- so the field names the specification, not a product. The first developer is recorded at the midpoint of its stated range because that is the step that sets reversal contrast."),
+    ),
+    # ---- queue G2, 2026-09-02: the four raster plot sets of Rens & Van Bets
+    # 1968.  The text of this paper was harvested in G1; these are the PLOTS.
+    "GEVACHROME_600": (
+        ParamSource("mtf.f50_r", 1, "traced",
+                    unit="cycles/mm",
+                    conditions="Bild 1b, red light, sinusoidal test object, Typ 6.00 solid curve",
+                    source='J. E. Rens and K. Van Bets, «Gevachrome-Farbumkehrfilme für Farbfernsehen», KINO-TECHNIK 1968 Nr. 10, Bild 1a/b/c, printed p260 -- PDF/PROFILES/GEVAERT/Rens_vanBets1968Gevachr6.00.pdf; traced by gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="⚠ THIS REPLACES A [T3] CLASS ESTIMATE OF 58 AND IT MOVES PIXELS. The measured f50 is 20.4 / 23.5 / 44.4 c/mm (red/green/blue) against a stored 58 / 62 / 66, i.e. the estimates were two to three times too high. ⚠ THE PAGE IS 100 % RASTER at about 115 ppi and its right edge curls, so the abscissa decade width runs 174 px between 2 and 10 c/mm and about 99 px in the last stretch; the trace therefore interpolates PIECEWISE between the nine printed gridlines rather than fitting one log scale, and an earlier attempt that fitted one scale put 100 c/mm off the panel. ⚠ THE ORDINATE, BY CONTRAST, IS UNIFORM: all three panels independently return 176.5 px per decade and the six labelled levels fall on it to under a pixel -- which is what a sheet curling about a vertical axis does, and is the reason to trust the abscissa anchors. WHAT MAKES THE CORRECTION BELIEVABLE, none of it enforced by the tracer: blue comes out sharpest and red softest on both films, which is the Tab. I layer order (blue on top, red at the bottom of the pack) at a ratio of 2.2 where the class estimates had 1.14; Typ 6.05, the faster film, comes out softer in all three channels; and the adopted rolloff law 1/(1+(f/f50)^q) fits all six curves with q 1.90-2.12 at rms 0.006-0.025 -- each film keeping its OWN median q (2.09 here, 2.00 on Typ 6.05) rather than a shared constant, which verify.py refuses on the ground that a shared exponent is how a class rule gets laundered into measured data. ⚠ L/mm IS CYCLES/mm HERE: the axis reads «Frequenz L/mm» and the text states the test object had a SINUSOIDAL density variation, which has no line pairs to count -- the same reading queue G6 asks for."),
+        ParamSource("mtf.f50_g", 1, "traced",
+                    unit="cycles/mm",
+                    conditions="Bild 1a, green light, sinusoidal test object, Typ 6.00 solid curve",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 1a, p260; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="See mtf.f50_r on this profile for the calibration and for why a [T3] class estimate was replaced. Fitted rolloff q 2.09, rms 0.025."),
+        ParamSource("mtf.f50_b", 1, "traced",
+                    unit="cycles/mm",
+                    conditions="Bild 1c, blue light, sinusoidal test object, Typ 6.00 solid curve",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 1c, p260; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="See mtf.f50_r. ⚠ BILD 1c IS THE ONE PANEL WHOSE HORIZONTAL GRIDLINES ARE INKED DARK ENOUGH TO BE MISTAKEN FOR CURVE, and the only one whose «Typ 6.0x» legends sit at the same height as the 50 % crossing; both are removed before tracing. Fitted rolloff q 2.12, rms 0.021."),
+        ParamSource("spectral", 1, "traced",
+                    unit="relative log sensitivity, peak 0.0",
+                    conditions="Bild 2a, 350-800 nm, no filtration stated",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 2a, printed p262; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="⚠ THE ORDINATE IS NOT LABELLED «log». It reads «relative Empfindlichkeit» over 0-3.0 with each layer running down to the axis at its band edges. It is read as LOG, on two grounds stated so the reading can be challenged: a linear relative scale normalised into a 0-3 range with peaks at 1.71-1.83 has no sensible interpretation, and on the log reading the band edges mean 10^-3 of peak rather than exactly zero, which is what a dye-sensitised layer does. Peaks 430 / 570 / 660 nm. -4.0 marks wavelengths where NO CURVE IS DRAWN (blue 367-529, green 488-608, red 561-681 nm); inside those extents the traced values run down to the plotted floor and are kept. ⚠ SpectralSensitivity feeds the derived mono weights and taking matrix, so this is not inert."),
+        ParamSource("dye_density", 1, "traced",
+                    unit="density as printed",
+                    conditions="Bild 4, 400-700 nm of a 350-800 nm panel; ONE curve set captioned for both Typ 6.00 and Typ 6.05",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 4, printed p262; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="⚠ ONE MEASUREMENT SERVES TWO PROFILES. The caption reads «... der Gevachrome-Farbumkehrfilme Typ 6.00 und Typ 6.05» and exactly three curves are drawn, so the identical set is stored on both stocks; it is NOT two independent measurements and must not be counted as such. Peaks 2.00 D at 450 (yellow), 2.04 at 530 (magenta), 1.98 at 670-680 nm (cyan), on the printed 0-3.0 «Dichte» scale with no stated normalisation. ⚠ THE CYAN AND MAGENTA BRANCHES CROSS AT ABOUT 420 nm and merge into a single blob at this resolution; 400/410/420 nm are assigned from the unambiguous branches on either side and the assignment is asserted in the reader rather than left implicit. ⚠ NOT STORED: the cyan trace continues past the corpus grid to 0.15 D at 795 nm, and below about 0.06 D the yellow tail lies on the axis rule and cannot be separated from it."),
+        ParamSource("processing", 1, "stated",
+                    unit="",
+                    conditions="Tab. IV 25 degC column; the Bild 5a caption's own times for the traced curves",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Tab. IV printed p264 and the Bild 5a caption; §3.1.1 gives the GP 110 formula and pH',
+                    confidence="high",
+                    note="Twelve-step reversal chain, both a 21 degC and a 25 degC column. The stored curve is the 25 degC one: GP 110 first (B&W) developer 2 1/2 min, GP 332 stop, wash / re-exposure / dry, GP 26 colour developer 5-6 min, rinse, GP 308 first fix, wash, GP 446 bleach, rinse, GP 308 second fix, wash, GP 660 stabiliser. The Bild 5a caption states 2.5 min GP 110 and 6 min GP 26 for the curves that were traced, which is what is recorded here. ProcessingSpec is DESCRIPTIVE -- no render stage reads it."),
+    ),
+    "GEVACHROME_605": (
+        ParamSource("mtf.f50_r", 1, "traced",
+                    unit="cycles/mm",
+                    conditions="Bild 1b, red light, sinusoidal test object, Typ 6.05 dashed curve",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 1b, p260; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="⚠ REPLACES A [T3] CLASS ESTIMATE OF 50; measured 15.8 / 20.3 / 35.9 c/mm. See GEVACHROME_600's mtf.f50_r for the calibration argument. ⚠ THE DASHED CURVE IS THE HARD ONE: in Bild 1c its dash gaps between 28 and 38 c/mm are wide enough to hide it, and a nearest-ink follower walks off it onto the solid Typ 6.00 curve and returns 6.00's f50 twice without complaining. The tracer therefore predicts from the local slope and is forbidden to land on the already-traced solid curve; that defect and its fix are recorded in the reader, because a silent duplicate is exactly the failure this project's method rules exist to catch. Residuals are BETTER than Typ 6.00's -- rms 0.007 / 0.013 / 0.006 -- because the dashed stroke is the thinner of the two."),
+        ParamSource("mtf.f50_g", 1, "traced",
+                    unit="cycles/mm",
+                    conditions="Bild 1a, green light, sinusoidal test object, Typ 6.05 dashed curve",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 1a, p260; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="See mtf.f50_r on this profile. Fitted rolloff q 2.00, rms 0.013."),
+        ParamSource("mtf.f50_b", 1, "traced",
+                    unit="cycles/mm",
+                    conditions="Bild 1c, blue light, sinusoidal test object, Typ 6.05 dashed curve",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 1c, p260; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="See mtf.f50_r on this profile. Fitted rolloff q 2.00, rms 0.006."),
+        ParamSource("spectral", 1, "traced",
+                    unit="relative log sensitivity, peak 0.0",
+                    conditions="Bild 2b, 350-800 nm, no filtration stated",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 2b, printed p262; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="Same panel design and same log reading as GEVACHROME_600's Bild 2a; the argument for reading the unlabelled 0-3.0 «relative Empfindlichkeit» axis as log is recorded there. ⚠ 6.05's RED CURVE IS CUT IN TWO by the green layer's descent crossing it at about 597 nm and 1.0 relative, so its 536-597 nm half is seeded and traced separately and merged. ⚠ THE TWO FILMS ARE NOT SENSITISED ALIKE AND THAT IS WHY BOTH ARE STORED: 6.05's green-sensitive layer begins at 452 nm against 6.00's 488, so the fast film's magenta record reaches nearly 40 nm further into the blue. Drawn extents blue 369-536, green 452-601, red 536-684 nm."),
+        ParamSource("dye_density", 1, "traced",
+                    unit="density as printed",
+                    conditions="Bild 4, the SAME curve set as GEVACHROME_600 -- one figure captioned for both types",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Bild 4, printed p262; gevachrome_1968_raster.py',
+                    confidence="medium",
+                    note="⚠ NOT AN INDEPENDENT MEASUREMENT. Bild 4 draws one set of three curves and captions it for Typ 6.00 AND Typ 6.05; the identical arrays are stored on both profiles so each citation stands alone, but any count of distinct dye measurements must treat these two as one. Details of the trace, the 420 nm cyan/magenta crossing and the unstored 700-800 nm cyan tail are on the GEVACHROME_600 entry."),
+        ParamSource("processing", 1, "stated",
+                    unit="",
+                    conditions="Tab. IV 25 degC column, NORMAL rating",
+                    source='Rens and Van Bets, KINO-TECHNIK 1968 Nr. 10, Tab. IV printed p264',
+                    confidence="high",
+                    note="Same twelve-step chain as Typ 6.00. ⚠ THE STORED CONDITION IS THE NORMAL ONE. Tab. IV's own footnote adds about 45 s to the GP 110 step for the 26 DIN (320 ASA) rating, and Bild 6 prints the pushed curves; neither is stored, because this database has no carrier for a developer-time / speed family on a reversal stock."),
+    ),
+    "TECHNICOLOR_THREE_STRIP": (
+        ParamSource("dye_density", 2, "traced",
+                    unit="absorbance, normalised to unit peak",
+                    conditions="24 points of intense colour on a 1949 imbibition print, SHIMADZU UV-1800, separated by Ohta PCA; ordinate unscaled",
+                    source='B. Flueckiger, D. Pfluger, G. Trumpy, S. Croci, T. Aydın and A. Smolic, «Investigation of Film Material–Scanner Interaction», University of Zurich / DIASTOR, v1.1, 18 February 2018 -- PDF/PROFILES/RETRO/flueckigeretal_investigationfilmmaterialscannerinteraction_2018_v_1-1b.pdf; traced by flueckiger_2018.py, §2.8.2 Figure 16 (journal p22)',
+                    confidence="medium",
+                    note="⚠ THE FIRST MEASUREMENT THIS PROFILE HAS EVER CARRIED. It was one of the nine stocks NotFound.md §1 lists as having no source of any kind, and its provenance read «No official manufacturer datasheet available». §2.8.2 Figure 16 gives the analytical densities of the three imbibition transfer dyes, measured on a SHIMADZU UV-1800 at 24 points of a Technicolor trailer print of SAMSON AND DELILAH (USA 1949) and separated by the Ohta (1973) PCA method. ⚠ SHAPE ONLY: Figure 16's ordinate has no scale, no ticks and no label, so the curves are stored normalised to unit peak with the bottom axis assumed to be zero absorbance. That assumption is not verifiable from the figure and is why this is tier 2 rather than tier 1. ⚠ WHAT MAKES THE TRACE CHECKABLE is the peak list printed in §2.8.2's running text, which the trace never saw: yellow ≈ 460, magenta ≈ 540 main / 575 secondary, cyan ≈ 660 main / 720 secondary. The trace returns 460 / 540 / 660 / 720 exactly; the magenta 575 secondary is a shoulder at this raster resolution and is deliberately not claimed. ⚠ ONE PRINT OF ONE 1949 TITLE. §2.8.2 states that «a variety of dyes were applied» over Technicolor's production decades and that their development «has not been documented to date», so this samples the process rather than defining it. ⚠ SpectralDyeDensity is INERT -- no stage of either renderer reads it -- so this cannot move a pixel; its value is that a future derivation step now has a real dye set for this stock instead of none."),
+    ),
+    "DUFAYCOLOR_1937": (
+        ParamSource("reseau.filter_matrix", 2, "measured",
+                    unit="band-averaged transmittance",
+                    conditions="B 420-490 / G 500-580 / R 600-700 nm; Leitz DIALUX 40x through 16 interference filters",
+                    source='B. Flueckiger, D. Pfluger, G. Trumpy, S. Croci, T. Aydın and A. Smolic, «Investigation of Film Material–Scanner Interaction», University of Zurich / DIASTOR, v1.1, 18 February 2018 -- PDF/PROFILES/RETRO/flueckigeretal_investigationfilmmaterialscannerinteraction_2018_v_1-1b.pdf; traced by flueckiger_2018.py, §2.8.3 Figures 21 and 22 (journal p26)',
+                    confidence="medium",
+                    note="⚠ RECORDED AS A DISAGREEMENT WITH A SECOND MEASUREMENT; THE STORED MATRIX IS UNCHANGED. `reseau.filter_matrix` was derived from the NSMM Bradford absorbance curves of three surviving prints and then multiplied by an INVENTED UNIFORM FACTOR OF 4.05, because those absolute densities carried base and eight decades of dye ageing; rows were then normalised to a common sum of 0.80. Flueckiger et al. 2018 §2.8.3 Figure 21 measures the same quantity on a DIFFERENT print by a different method -- a Leitz DIALUX microscope through 16 bandpass interference filters -- and needs no scale factor at all: band-averaged over the same B 420-490 / G 500-580 / R 600-700 windows it gives row sums 0.94 / 0.91 / 0.71 unaided, and diagonals 0.715 / 0.404 / 0.345 against the stored 0.700 / 0.460 / 0.354. ⚠ THE SIGNATURE AGREES AND THE LEAKAGE DOES NOT: red is by far the cleanest element in both, and the blue element's red leak matches to 2 % (0.604 measured against 0.593 stored), but the measured red element leaks about twice as much as the stored one (0.176/0.135 against 0.091/0.051) and the measured green element leaks asymmetrically toward red (0.691/0.563) where the stored one is symmetric (0.370/0.370). ⚠ THIS FIELD MOVES PIXELS through the mosaic reconstruction and the two sources are different prints of different age, so nothing is changed on one trace; queue C46 carries the decision. The digitised curves are in `_DUFAYCOLOR_RESEAU_T_PCT` and the band averages in `_DUFAYCOLOR_RESEAU_FLUECKIGER_BANDS`. ⚠ The Figure 21 trace is itself validated: recomputing the report's equation (7), integral_T% = 0.28 B + 0.32 G + 0.40 R, from it reproduces Figure 22's independently plotted markers to rms 0.29 transmittance points with no free parameter."),
+    ),
     "AGFA_VISTA_200": (
         ParamSource("grain.rms_granularity", 1, "measured",
                     unit="sigma(D) x 1000",
@@ -19307,6 +23639,13 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
                     note="Halation gain and threshold imported 2026-08-27 where this profile previously had NO halation at all -- gains 0/0/0 with Feature.HALATION unset, i.e. the effect switched OFF. Conversion and undo path in NotFound.md 7.1a. radii_um remain the schema default because the source's radius is a fraction of the IMAGE DIMENSION and is not convertible."),
     ),
     "ILFORD_HPS": (
+        ParamSource(
+            param='grain.rms_granularity', tier=1, status='derived',
+            unit='sigma(D) x 1000',
+            conditions=("converted to this project's convention -- net density 1.0, development gamma 0.65, 48 um circular aperture, diffuse. MEASURED at D 0.48 above base, gamma 1.0, tungsten illumination, as the mean level of the Wiener spectrum over 0-20 cycles/mm"),
+            source=('K. Hacking, «Photographic film grain: an analysis of granularity in television», BBC Research Department Report No. T-101/2 (1964/4), Table 1 p13 -- PDF/PROFILES/RETRO/BBC Photographic film grain. 1964-04.pdf; re-derived by bbc_t101_2.py'),
+            confidence='medium',
+            note=("⚠ WAS AN ESTIMATE READING «No published rms for this stock in the corpus», AND THAT WAS FALSE. BBC T-101/2 Table 1 prints this emulsion's measured grain Wiener spectrum as 0.62 square microns. The report is the sequel to the T-101 this corpus already cites on ILFORD_HPS, KODAK_TRI_X_400TX and EASTMAN_TRI_X_5223, so the document family was on file and this table was not. ⚠ A WIENER SPECTRUM IS NOT AN rms GRANULARITY, and the corpus already contains one place where that was skated over: TRI-X's 0.555 um^2 was converted as sqrt(W/A) = 17.5 and compared against a stored 17.0 'at net 1.0', although the BBC figure is measured at D 0.48 and gamma 1.0. Two errors cancelled. The conversion here is stated in three steps: 1000*sqrt(W/A) with A the 48 um circular aperture area 1809.6 um^2, then *sqrt(0.65/1.0) for development gamma and *(1.0/0.48)^0.4 for density. STEP 1 is exact by Parseval when the spectrum is flat across the aperture passband, and Fig. 8 was TRACED to check that rather than assume it: W(25.4 c/mm)/W(0) is 0.978-0.999 on all four curves, and the trace reproduces Table 1's printed means to 0.1-0.7 %. STEP 2 is the report's own section 5.2 -- mean grain diameter proportional to the square root of the point gamma -- which T-101 Table 3 measures directly to about 5 %. STEP 3 is the exponent Higgins and Stultz measured, quoted in this report's discussion of equation (4), and it is corroborated INSIDE the corpus at 0.355 by T-101 Table 3's own grain-diameter-versus-density pairs (2.40 um at D 0.23 against 2.12 um at D 0.54, at development gamma 0.56). ⚠ THE CHAIN IS VALIDATED ON A CONTROL AND THAT IS WHAT LICENSES THIS VALUE: KODAK_TRI_X_400TX carries 17.0 from Kodak's own published rms, and the same chain returns 18.9 from a BBC spectrum measured in another decade by another laboratory -- 11 %. This stock lands +5.3 % from the estimate it replaces. Tri-X itself is NOT changed: a maker's own published figure outranks a derived chain. ⚠ ILFORD_PAN_F IS IN THE SAME TABLE AND IS REFUSED. Its chain value is 61 % above the stored figure, the only outlier of four, and its speed does not reconcile the way the others do: the table's footnote says these are pre-revision ratings, and ASA 64 -> EI 125, ASA 250 -> EI 400 and ASA 320 -> EI 400 all follow, while Pan F's ASA 16 doubles to about 32 against a profile rated EI 50 -- Pan F PLUS, a later emulsion. Same trap the corpus documents between TRI-X 5223 and the still Tri-X: one trade name, two products."),),
         ParamSource("processing.partial_fill_fraction", 2, "traced",
                     unit="fraction of grains",
                     conditions="sulfur-sensitized cubic AgBr 0.86 um, 0.1 s exposure",
@@ -19400,6 +23739,15 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
                     confidence="low",
                     note="Halation gain and threshold imported 2026-08-27 where this profile previously had NO halation at all -- gains 0/0/0 with Feature.HALATION unset, i.e. the effect switched OFF. Conversion and undo path in NotFound.md 7.1a. radii_um remain the schema default because the source's radius is a fraction of the IMAGE DIMENSION and is not convertible."),
     ),
+    "KODAK_PLUS_X_125": (
+        ParamSource(
+            param='grain.rms_granularity', tier=1, status='derived',
+            unit='sigma(D) x 1000',
+            conditions=("converted to this project's convention -- net density 1.0, development gamma 0.65, 48 um circular aperture, diffuse. MEASURED at D 0.48 above base, gamma 1.0, tungsten illumination, as the mean level of the Wiener spectrum over 0-20 cycles/mm"),
+            source=('K. Hacking, «Photographic film grain: an analysis of granularity in television», BBC Research Department Report No. T-101/2 (1964/4), Table 1 p13 -- PDF/PROFILES/RETRO/BBC Photographic film grain. 1964-04.pdf; re-derived by bbc_t101_2.py'),
+            confidence='medium',
+            note=("⚠ WAS AN ESTIMATE READING «No published rms for this stock in the corpus», AND THAT WAS FALSE. BBC T-101/2 Table 1 prints this emulsion's measured grain Wiener spectrum as 0.14 square microns. The report is the sequel to the T-101 this corpus already cites on ILFORD_HPS, KODAK_TRI_X_400TX and EASTMAN_TRI_X_5223, so the document family was on file and this table was not. ⚠ A WIENER SPECTRUM IS NOT AN rms GRANULARITY, and the corpus already contains one place where that was skated over: TRI-X's 0.555 um^2 was converted as sqrt(W/A) = 17.5 and compared against a stored 17.0 'at net 1.0', although the BBC figure is measured at D 0.48 and gamma 1.0. Two errors cancelled. The conversion here is stated in three steps: 1000*sqrt(W/A) with A the 48 um circular aperture area 1809.6 um^2, then *sqrt(0.65/1.0) for development gamma and *(1.0/0.48)^0.4 for density. STEP 1 is exact by Parseval when the spectrum is flat across the aperture passband, and Fig. 8 was TRACED to check that rather than assume it: W(25.4 c/mm)/W(0) is 0.978-0.999 on all four curves, and the trace reproduces Table 1's printed means to 0.1-0.7 %. STEP 2 is the report's own section 5.2 -- mean grain diameter proportional to the square root of the point gamma -- which T-101 Table 3 measures directly to about 5 %. STEP 3 is the exponent Higgins and Stultz measured, quoted in this report's discussion of equation (4), corroborated INSIDE the corpus at 0.355 by T-101 Table 3's own grain-diameter-versus-density pairs. ⚠ THE CHAIN IS VALIDATED ON A CONTROL: KODAK_TRI_X_400TX carries 17.0 from Kodak's own published rms and the same chain returns 18.9 from the BBC spectrum -- 11 %. This stock lands -4.9 % from the estimate it replaces. Tri-X itself is NOT changed: a maker's own published figure outranks a derived chain. ⚠ ILFORD_PAN_F IS IN THE SAME TABLE AND IS REFUSED -- 61 % out, and its ASA 16 doubles under the table's pre-revision footnote to about 32 against a profile rated EI 50, which is Pan F PLUS, a later emulsion."),),
+    ),
     "KODAK_PORTRA_400": (
         ParamSource("grain.rms_granularity", 3, "estimated",
                     unit="sigma(D) x 1000",
@@ -19474,7 +23822,7 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
         ParamSource("grain.rms_granularity", 1, "traced",
                     unit="sigma(D) x 1000",
                     conditions="48 um equivalent, ECN-2, read off the sheet's own Diffuse rms Granularity Curves",
-                    source="Kodak H-1 technical data, granularity curve panel",
+                    source="Eastman Kodak Company, KODAK VISION3 250D Color Negative Film 5207 / 7207, publication H-1-5207, MARCH 2026 -- PDF/PROFILES/KODAK/KODAK-VISION3-250D-5207-7207-technical-information.pdf page 3, panel \"Diffuse RMS Granularity\". Staged and cited 2026-09-02e (queue T1), replacing the generic \"Kodak H-1 technical data\" this row carried since it was written. The sheet also prints, and this profile is consistent with: exposure indexes Daylight 5500 K 250 / Tungsten 3200 K 64 with an 80A filter, ACETATE SAFETY BASE WITH NO REM-JET (unlike its 500T sister 5219, which has it -- a real construction difference between two stocks of one family and one this database's halation parameters should reflect), process ECN-2, no safelight. \u26a0 THE PANEL IS A RASTER IMAGE, NOT VECTOR ART -- pages 3 and 4 carry three embedded images each, so nothing on this sheet can be traced. T1 closes as a citation, not a measurement.",
                     confidence="medium",
                     note="PER-LAYER RATIOS are traced; the ABSOLUTE LEVEL is this project's pooled anchor. An attempt to replace the level with a third-party figure was made and REVERTED on 2026-08-27 when verify.py failed four pinned invariants."),
         ParamSource("mtf.f50_r", 1, "measured",
@@ -19488,7 +23836,7 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
         ParamSource("grain.rms_granularity", 1, "traced",
                     unit="sigma(D) x 1000",
                     conditions="48 um equivalent, ECN-2, read off the sheet's own Diffuse rms Granularity Curves",
-                    source="Kodak H-1 technical data, granularity curve panel",
+                    source="Eastman Kodak Company, KODAK VISION3 500T Color Negative Film 5219 / 7219, publication H-1-5219, MARCH 2022 -- PDF/PROFILES/KODAK/VISION3_5219_7219_Technical-data.pdf page 3, panel \"Diffuse RMS Granularity\". Staged and cited 2026-09-02e (queue T1), replacing the generic \"Kodak H-1 technical data\" this row carried since it was written. The sheet also prints, and this profile is consistent with: exposure indexes Tungsten 3200 K 500 / Daylight 320 with an 85 filter, ACETATE SAFETY BASE WITH REM-JET BACKING, process ECN-2, no safelight. \u26a0 THE PANEL IS A RASTER IMAGE, NOT VECTOR ART -- pages 3 and 4 carry three embedded images each and two drawing objects, so the granularity, MTF and spectral-sensitivity curves on this sheet CANNOT be traced the way the 1990s H-1 sheets were. That is why T1 closes as a citation and not as a measurement, and it is the reason the level below is still the pooled anchor.",
                     confidence="medium",
                     note="PER-LAYER RATIOS are traced; the ABSOLUTE LEVEL is this project's pooled anchor. An attempt to replace the level with a third-party figure was made and REVERTED on 2026-08-27 when verify.py failed four pinned invariants."),
         ParamSource("mtf.f50_r", 1, "measured",
@@ -20237,11 +24585,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source='Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p9, Spectral sensitivity panel; conditions from p5, equal-energy spectrum, reading density 1.0 above minimum density',
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.270, 0.351, 0.379), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_VISTA_200': (
         ParamSource(
@@ -29007,6 +33356,281 @@ _TI0835_F50_VISUAL_NOT_ADOPTED = 46.9
 _TI0835_DMIN = (0.173, 0.531, 0.962)
 
 _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
+    # -- GEVACHROME 6.05, 2026-09-03, queue G5 --------------------------------
+    # ⚠ THE ONLY MEASURED PUSH OF A REVERSAL STOCK IN THIS DATABASE, and the
+    # only one where the maker printed the pushed curve set rather than a
+    # recommendation. Bild 6, p264: Typ 6.05 exposed at 26 DIN (320 ASA), one
+    # stop over its 23 DIN box speed, reached by extending the GP 110 first
+    # development.
+    #
+    # ⚠ THE PUSH GOES THE OPPOSITE WAY FROM A NEGATIVE'S AND THAT IS THE POINT.
+    # Pushing a colour NEGATIVE raises contrast. Here one stop of extra first
+    # development LOWERS it: the straight-line gamma of the cyan record falls
+    # 1.376 -> 1.156 (-16 %) and Dmax falls 2.505 -> 2.223 (-0.28 D), because
+    # on a reversal film the first developer consumes the silver that would
+    # otherwise become the positive image. Both numbers are traced from the
+    # SAME PAGE with the SAME estimator, so the ratio is the least
+    # model-dependent quantity available and is what licenses this record.
+    #
+    # ⚠ TWO DEVELOPMENT TIMES ARE PRINTED FOR THIS ONE CONDITION AND THEY
+    # DISAGREE. p262 says the first development "betrug dabei 3,5 Minuten";
+    # p264's Tab. IV footnote 1 says the 2.5 min at 25 C must be extended "um
+    # etwa 45 Sekunden", i.e. 3.25 min. Fifteen seconds apart, in one paper,
+    # for one measurement. METHOD RULE 4: recorded, not averaged. The stored
+    # 3.5 is the figure printed in the running text beside the curve set
+    # itself; the footnote's 3.25 is in the source string so neither is lost.
+    #
+    # ⚠ dmin IS INHERITED, NOT TRACED, AND THIS IS THE RECORD'S WEAK POINT.
+    # Bild 6's right-hand decade lies under the page-curl shadow. A per-column
+    # background normalisation recovers the ink out to about lgE 2.7, where
+    # the merged tail reads 0.096 and is still descending -- consistent with
+    # the parent's 0.12 / 0.10 / 0.09 but not a measurement of it, and the
+    # lgE 3 gridline never comes back, so the tail cannot be placed on the
+    # abscissa. The three dmin values are therefore the parent's.
+    # ⚠ AND THE MAGENTA GAMMA IS THE YELLOW'S. Curves b and c merge below
+    # lgE 0.4 exactly as they do on Bilder 5a/5b, so only two straight-line
+    # slopes are measurable on three curves; b is separated from c by its
+    # Dmax at the left edge (1.925 against 1.824) and by nothing else.
+    "GEVACHROME_605": (
+        ProcessVariant(
+            name="23 DIN / 160 ASA (box speed)",
+            process="Gevachrome",
+            is_default=True,
+            exposure_index=160,
+            processing=ProcessingSpec(
+                developer="GP 110 (first, B&W) + GP 26 (colour)",
+                dilution="stock", minutes=2.5, celsius=25.0,
+                agitation="continuous, machine"),
+            source=(
+                "Rens, J.E. / Van Bets, K., «Gevachrome-Farbumkehrfilme fuer "
+                "Farbfernsehen», Kino-Technik 1968 Nr. 10, p262 Tab. II "
+                "(«Kunstlicht 3200-3400 K ... 23 DIN (160 ASA)») and p264 "
+                "Bild 5b, whose curves ARE this profile's stored set -- traced "
+                "2026-09-03 by gevachrome_1968_raster.py. Carries no curves "
+                "for that reason: restating them here would be a copy that "
+                "can drift. Its purpose is to say WHICH process and WHICH "
+                "panel the stored curves belong to"),
+        ),
+        ProcessVariant(
+            name="26 DIN / 320 ASA (push 1, extended first development)",
+            process="Gevachrome",
+            push_stops=1,
+            exposure_index=320,
+            curves=RGBCurves(
+                r=ToneCurve(0.12, 1.156, -0.810, 0.197, 1.010, 0.038),
+                g=ToneCurve(0.10, 0.979, -0.852, 0.158, 1.012, 0.049),
+                b=ToneCurve(0.09, 0.979, -0.826, 0.158, 0.946, 0.049),
+            ),
+            processing=ProcessingSpec(
+                developer="GP 110 (first, B&W) + GP 26 (colour)",
+                dilution="stock", minutes=3.5, celsius=25.0,
+                agitation="continuous, machine"),
+            source=(
+                "Rens, J.E. / Van Bets, K., «Gevachrome-Farbumkehrfilme fuer "
+                "Farbfernsehen», Kino-Technik 1968 Nr. 10, p264 Bild 6, «der "
+                "wie 26 DIN (320 ASA) belichtet wurde»; traced 2026-09-03 by "
+                "gevachrome_1968_raster.py, fit rms 0.030 (a) / 0.038 (c) D "
+                "over lg i.t 0.05-1.97. Straight-line gammas by least squares "
+                "over D 0.5-2.0: a 1.156, c 0.979, against 1.376 and 1.206 "
+                "measured the same way on the unpushed Bild 5b. Dmax at the "
+                "panel's left edge 2.223 / 1.925 / 1.824 against 2.505 / "
+                "2.266 / 2.096. ⚠ DEVELOPMENT TIME CONFLICTS INSIDE THE "
+                "PAPER: p262 prints 3,5 Minuten, p264 Tab. IV footnote 1 "
+                "prints 2.5 min + about 45 s = 3.25 min; the running text "
+                "beside the curve set is stored and the footnote is recorded "
+                "here rather than averaged. ⚠ dmin inherited from the box- "
+                "speed record, not traced -- the panel's right-hand decade is "
+                "under the page-curl shadow and its lgE 3 gridline does not "
+                "survive background normalisation. ⚠ The magenta gamma is the "
+                "yellow's: curves b and c merge below lgE 0.4 and only two of "
+                "the three slopes are measurable"),
+        ),
+    ),
+    # -- AGFA AGFAPAN, 2026-09-01 ---------------------------------------------
+    # ⚠ SPEED IS DEVELOPER-DEPENDENT AND AGFA PUBLISH THE WHOLE TABLE, so this
+    # is the carrier for it rather than a note. Five developers per film, each
+    # with the time that reaches gamma 0.65 and the exposure index the film then
+    # has: p11 «Exposure index» and «Processing». APX 100 in REFINAL is ISO 125
+    # against a nominal 100 -- a third of a stop, printed by the manufacturer.
+    # ⚠ AGFA ALSO PUBLISH THIS FOR SEVENTEEN FUJI, ILFORD AND KODAK STOCKS in
+    # the 2004 handbook. That is one maker measuring a competitor's product in
+    # its own chemistry: legitimate as a ProcessVariant, illegitimate as anyone
+    # else's nominal speed, and a separate decision deliberately NOT taken here.
+    # ⚠ NO CURVES ARE ATTACHED. A ProcessVariant may carry its own RGBCurves;
+    # these do not, because Agfa plot ONE characteristic curve per film and not
+    # one per developer. What varies here is speed and time, and that is all
+    # that is claimed.
+    'AGFA_APX_25': (
+        ProcessVariant(
+            name='REFINAL', process="BW-negative",
+            is_default=True, exposure_index=25,
+            processing=ProcessingSpec(
+                developer='REFINAL', dilution='stock', minutes=6.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: REFINAL at "
+                    "6 min, 20 C, small tank -> ISO 25. Nominal rating "
+                    "ISO 25")),
+        ProcessVariant(
+            name='RODINAL 1+25', process="BW-negative",
+            is_default=False, exposure_index=20,
+            processing=ProcessingSpec(
+                developer='RODINAL 1+25', dilution='1+25', minutes=6.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL 1+25 at "
+                    "6 min, 20 C, small tank -> ISO 20. Nominal rating "
+                    "ISO 25")),
+        ProcessVariant(
+            name='RODINAL 1+50', process="BW-negative",
+            is_default=False, exposure_index=25,
+            processing=ProcessingSpec(
+                developer='RODINAL 1+50', dilution='1+50', minutes=10.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL 1+50 at "
+                    "10 min, 20 C, small tank -> ISO 25. Nominal rating "
+                    "ISO 25")),
+        ProcessVariant(
+            name='RODINAL SPECIAL', process="BW-negative",
+            is_default=False, exposure_index=25,
+            processing=ProcessingSpec(
+                developer='RODINAL SPECIAL', dilution='1+15', minutes=4.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL SPECIAL at "
+                    "4 min, 20 C, small tank -> ISO 25. Nominal rating "
+                    "ISO 25")),
+        ProcessVariant(
+            name='STUDIONAL LIQUID', process="BW-negative",
+            is_default=False, exposure_index=25,
+            processing=ProcessingSpec(
+                developer='STUDIONAL LIQUID', dilution='1+15', minutes=4.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: STUDIONAL LIQUID at "
+                    "4 min, 20 C, small tank -> ISO 25. Nominal rating "
+                    "ISO 25")),
+    ),
+    'AGFA_APX_100': (
+        ProcessVariant(
+            name='REFINAL', process="BW-negative",
+            is_default=True, exposure_index=125,
+            processing=ProcessingSpec(
+                developer='REFINAL', dilution='stock', minutes=6.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: REFINAL at "
+                    "6 min, 20 C, small tank -> ISO 125. Nominal rating "
+                    "ISO 100")),
+        ProcessVariant(
+            name='RODINAL 1+25', process="BW-negative",
+            is_default=False, exposure_index=100,
+            processing=ProcessingSpec(
+                developer='RODINAL 1+25', dilution='1+25', minutes=8.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL 1+25 at "
+                    "8 min, 20 C, small tank -> ISO 100. Nominal rating "
+                    "ISO 100")),
+        ProcessVariant(
+            name='RODINAL 1+50', process="BW-negative",
+            is_default=False, exposure_index=125,
+            processing=ProcessingSpec(
+                developer='RODINAL 1+50', dilution='1+50', minutes=17.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL 1+50 at "
+                    "17 min, 20 C, small tank -> ISO 125. Nominal rating "
+                    "ISO 100")),
+        ProcessVariant(
+            name='RODINAL SPECIAL', process="BW-negative",
+            is_default=False, exposure_index=125,
+            processing=ProcessingSpec(
+                developer='RODINAL SPECIAL', dilution='1+15', minutes=4.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL SPECIAL at "
+                    "4 min, 20 C, small tank -> ISO 125. Nominal rating "
+                    "ISO 100")),
+        ProcessVariant(
+            name='STUDIONAL LIQUID', process="BW-negative",
+            is_default=False, exposure_index=125,
+            processing=ProcessingSpec(
+                developer='STUDIONAL LIQUID', dilution='1+15', minutes=4.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: STUDIONAL LIQUID at "
+                    "4 min, 20 C, small tank -> ISO 125. Nominal rating "
+                    "ISO 100")),
+    ),
+    'AGFA_APX_400': (
+        ProcessVariant(
+            name='REFINAL', process="BW-negative",
+            is_default=True, exposure_index=400,
+            processing=ProcessingSpec(
+                developer='REFINAL', dilution='stock', minutes=6.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: REFINAL at "
+                    "6 min, 20 C, small tank -> ISO 400. Nominal rating "
+                    "ISO 400")),
+        ProcessVariant(
+            name='RODINAL 1+25', process="BW-negative",
+            is_default=False, exposure_index=320,
+            processing=ProcessingSpec(
+                developer='RODINAL 1+25', dilution='1+25', minutes=7.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL 1+25 at "
+                    "7 min, 20 C, small tank -> ISO 320. Nominal rating "
+                    "ISO 400")),
+        ProcessVariant(
+            name='RODINAL 1+50', process="BW-negative",
+            is_default=False, exposure_index=320,
+            processing=ProcessingSpec(
+                developer='RODINAL 1+50', dilution='1+50', minutes=11.0,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL 1+50 at "
+                    "11 min, 20 C, small tank -> ISO 320. Nominal rating "
+                    "ISO 400")),
+        ProcessVariant(
+            name='RODINAL SPECIAL', process="BW-negative",
+            is_default=False, exposure_index=400,
+            processing=ProcessingSpec(
+                developer='RODINAL SPECIAL', dilution='1+15', minutes=4.5,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: RODINAL SPECIAL at "
+                    "4.5 min, 20 C, small tank -> ISO 400. Nominal rating "
+                    "ISO 400")),
+        ProcessVariant(
+            name='STUDIONAL LIQUID', process="BW-negative",
+            is_default=False, exposure_index=400,
+            processing=ProcessingSpec(
+                developer='STUDIONAL LIQUID', dilution='1+15', minutes=4.5,
+                celsius=20.0, agitation="small tank",
+                contrast_index=0.65),
+            source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998 -- PDF/PROFILES/AGFA/agfa_films.pdf p11, the "
+                    "«Exposure index» and «Processing» tables: STUDIONAL LIQUID at "
+                    "4.5 min, 20 C, small tank -> ISO 400. Nominal rating "
+                    "ISO 400")),
+    ),
     "CINESTILL_800T": (
         ProcessVariant(
             name="C-41 cross-process, as shipped",
@@ -29389,6 +34013,11 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
+    # ---- queue T3, 2026-09-02e: printed at both test-object contrasts on the
+    # three Fuji sheets, in the same (low, high) shape this dict wants.
+    "FUJI_PROVIA_100F": (60.0, 140.0),
+    "FUJICOLOR_SUPERIA_XTRA_400": (50.0, 125.0),
+    "FUJICOLOR_PRO_400H": (50.0, 125.0),
     # ---- 2026-08-17: KODAK F-5, August 1979, DS data sheets ----
     # Every F-5 DS sheet prints resolving power at BOTH test-object contrasts in
     # its "Emulsion Characteristics" block, which is exactly the (low, high)
@@ -29577,7 +34206,11 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     # the high-contrast slot per the Foma precedent. Do not compare against
     # modern figures; the same emulsion class scores very differently under
     # the two regimes.
-    "EASTMAN_SUPER_XX_1938": (0.0, 55.0),        # 1942 book, Type 1232, PDF p49
+    "EASTMAN_SUPER_XX_1938": (0.0, 55.0),        # 1942 book, Type 1232, PDF p50
+    #   ⚠ page corrected from 49 to 50 on 2026-09-02e (queue E4), verified
+    #   against the book's own contents list; PDF 49 is Plus-X Type 1231.
+    #   The figure is "55 lines per mm. in Kodak SD-21" -- a SEASONED D-76,
+    #   not fresh D-76; see the profile comment for the formula.
 }
 
 
@@ -29665,6 +34298,78 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # -- GEVAERT, queue G2, 2026-09-02 ---------------------------------------
+    # ⚠ THE INLINE FilmProfile FIELD IS IGNORED: `processing` is installed from
+    # this table in _apply_schema_v2, so a ProcessingSpec written on the profile
+    # literal is silently discarded. That is why these two live here.
+    # Rens & Van Bets 1968 Tab. IV, printed p264: a twelve-step reversal chain
+    # with a 21 degC and a 25 degC column. The Bild 5a/5b caption gives the
+    # times the TRACED CURVES were developed at -- 2.5 min in the black-and-
+    # white first developer GP 110 and 6 min in the colour developer GP 26 --
+    # which is the 25 degC column, so that is the condition recorded. §3.1.1
+    # prints the GP 110 formula (metol 3 g, hydroquinone 6 g, sulphite 50 g,
+    # carbonate 40 g, thiocyanate 5 ml, KBr 2 g, KI 6 ml) at pH 10.20 +/- 0.10.
+    # ⚠ NOT RECORDED HERE: the 26 DIN push on Typ 6.05, which Tab. IV's own
+    # footnote sets at about 45 s more in GP 110 -- this database has no carrier
+    # for a developer-time / speed family on a reversal stock, and Bild 6 prints
+    # curves rather than a gamma table.
+    # -- SVEMA, queue C4, 2026-09-02 -----------------------------------------
+    # ТУ 6-42-1514-90 табл. 5: eleven steps at 30 degC -- black-and-white first
+    # development 4.5-6.0 min at 30.0 +/- 0.3, stop bath, re-exposure by two
+    # 100 W lamps at 0.3 m onto the emulsion side, colour development 8 min at
+    # 30.0 +/- 0.3, bleach, two fixes. Табл. 6 gives an alternative 20 degC
+    # regime. The FIRST developer is what is recorded, at the midpoint of its
+    # stated range, because it is the step that sets the reversal contrast.
+    # ⚠ NO DEVELOPER TRADE NAME IS PRINTED -- табл. 4 gives the formulae by
+    # composition -- so the field names the specification, not a product.
+    "SVEMA_CO_90L": ProcessingSpec(
+        developer="ТУ 6-42-1514-90 табл. 5 (first, B&W) + colour developer",
+        dilution="stock", minutes=5.25, celsius=30.0,
+        agitation="continuous, machine"),
+    # -- FUJI NEOPAN SS, queue N1, 2026-09-02 --------------------------------
+    # ⚠ THIS IS THE CONDITION THE STORED CURVE IS DRAWN AT, and it is one step
+    # off the sheet's own recommendation. AF3-411E's §9 panel is Microfine at
+    # 20 C small tank and draws 4/6/8/10/12 min; its §7 development table puts
+    # Microfine at 20 C / EI 100 at 9 1/2 min. 10 min is the nearest DRAWN
+    # curve, so that is what the profile's tone curve is, and the half-minute
+    # difference is recorded here rather than papered over.
+    "FUJI_NEOPAN_SS": ProcessingSpec(
+        developer="Fuji Microfine", dilution="stock", minutes=10.0,
+        celsius=20.0, agitation="continuous 1 min, then 5 s each minute"),
+    "GEVACHROME_600": ProcessingSpec(
+        developer="GP 110 (first, B&W) + GP 26 (colour)", dilution="stock",
+        minutes=2.5, celsius=25.0, agitation="continuous, machine"),
+    "GEVACHROME_605": ProcessingSpec(
+        developer="GP 110 (first, B&W) + GP 26 (colour)", dilution="stock",
+        minutes=2.5, celsius=25.0, agitation="continuous, machine"),
+    # -- AGFA, 2026-09-01 -----------------------------------------------------
+    # ⚠ THIS IS THE REFERENCE CONDITION, NOT THE CONDITION THE STORED CURVE IS
+    # DRAWN AT, and the two are different on all three AGFAPAN films. p11 gives
+    # REFINAL 6 min at 20 C as the reference for the rated speed, and
+    # `agfa_bw_manual.pdf` heads every one of its speed tables «(gamma = 0.65)»
+    # -- so contrast_index 0.65 here is Agfa's own printed specification, not a
+    # reading. The characteristic curve on p10 measures gamma 0.70-0.74 and
+    # states no development at all. Both facts are stored; `processing_family`
+    # on each profile carries the gamma-vs-time mapping between them, so the
+    # gap is visible and traversable rather than averaged away.
+    "AGFA_APX_25": ProcessingSpec(
+        developer="REFINAL", dilution="stock", minutes=6.0, celsius=20.0,
+        agitation="small tank", contrast_index=0.65),
+    "AGFA_APX_100": ProcessingSpec(
+        developer="REFINAL", dilution="stock", minutes=6.0, celsius=20.0,
+        agitation="small tank", contrast_index=0.65),
+    "AGFA_APX_400": ProcessingSpec(
+        developer="REFINAL", dilution="stock", minutes=6.0, celsius=20.0,
+        agitation="small tank", contrast_index=0.65),
+    # SCALA is processed only in Agfa's own proprietary reversal line, which the
+    # sheet names and does not describe: "Processing is carried out solely in
+    # the original Agfa Scala process, which is only available in authorized
+    # commercial laboratories" (agfa_bw_manual.pdf p10). No time, no
+    # temperature, no developer composition is published anywhere in the
+    # corpus, so only the process name is stored.
+    "AGFA_SCALA_200X": ProcessingSpec(
+        developer="Agfa SCALA process", dilution="", minutes=0.0,
+        celsius=0.0, agitation=""),
     # ---- 2026-08-31, queue E3 ----------------------------------------------
     # ⚠ THE FIRST NON-EMPTY PROCESSING SPEC THIS STOCK HAS EVER HAD, and it
     # arrives with the curve it belongs to rather than beside a curve of
@@ -30929,6 +35634,653 @@ def _interimage_for(p: FilmProfile) -> InterimageSpec:
     )
 
 
+#: MANUFACTURER EMULSION DESIGNATIONS (schema v23, 2026-09-01).
+#:
+#: ⚠ EVERY VALUE HERE IS COPIED FROM A DOCUMENT, NOT DERIVED FROM A PROFILE
+#: NAME. That distinction is the field's entire value. `KODAK_VISION3_500T_5219`
+#: contains the string "5219", but what licenses storing it is that Kodak print
+#: "KODAK VISION3 500T Color Negative Film 5219/7219" on the sheet this profile
+#: cites -- and the SAME evidence is what lets CINESTILL_800T, whose name
+#: contains no code at all, carry 5219 too, because CineStill say so in print.
+#: A rule that scraped names would have got the first right by luck and the
+#: second wrong, and would have invented codes for the Soviet and Agfa stocks
+#: whose names also end in numbers.
+#:
+#: ⚠ THE 35 mm / 16 mm PAIR IS ONE EMULSION AND IS STORED AS PRINTED. Kodak
+#: coat a single emulsion and perforate it two ways: 5219 is the 35 mm slitting
+#: and 7219 the 16 mm one. The pair is written "5219/7219" exactly as the sheet
+#: writes it, because collapsing it to one number would lose the fact this
+#: field exists to record.
+#:
+#: Absent entries are deliberate. A film with no printed designation gets "",
+#: which FilmActiveProfiles.md renders as `-`.
+_EMULSION_DESIGNATION: dict[str, str] = {
+    # -- AGFA: the "Negative code" printed beside each colour-negative column
+    #    of «Technical Data: Agfa Professional Films» F-PF-E4 p6-p7. ⚠ ONLY THE
+    #    FOUR COLOUR NEGATIVES CARRY ONE. Agfa print a DX cartridge code for the
+    #    slide and B&W films instead, which identifies the PACKAGING, not the
+    #    emulsion, and is not stored here.
+    "AGFA_PORTRAIT_160": "49-02",
+    "AGFA_OPTIMA_100": "49-14",
+    "AGFA_OPTIMA_200": "49-15",
+    "AGFA_OPTIMA_400": "49-10",
+
+    # -- KODAK and EASTMAN cine: the film code, as the sheet prints it --------
+    # ⚠ EVERY ONE OF THESE IS ATTESTED IN THE PROFILE'S OWN CITED SOURCE TEXT,
+    # not scraped from its name -- and the difference is not academic. A rule
+    # that read four-digit groups out of names produced "1936" for
+    # AGFACOLOR_NEU_1936, "3200" for ILFORD_DELTA_3200 and "1952" for four
+    # different Kodak sheet films: two years, a speed and a Data Book edition,
+    # none of them an emulsion. Nineteen of fifty-five candidates were junk of
+    # that kind. Years (1900-2030), values equal to the profile's own
+    # `exposure_index`, and codes absent from the cited text are all excluded,
+    # and the survivors are written out here as a literal rather than left to
+    # a rule that could drift.
+    # ⚠ THE PAIRS ARE ONE EMULSION SLIT TWO WAYS and are written as the sheet
+    # writes them: 5219 is the 35 mm perforation of the same coating 7219 is
+    # the 16 mm perforation of. Collapsing "5219/7219" to one number would
+    # discard exactly the correlation this field exists to record.
+    "EASTMANCOLOR_5248_1953": "5248",
+    "EASTMAN_5247_1974": "5247",
+    "EASTMAN_5247_1983": "5247",
+    "EASTMAN_5250_1959": "5250",
+    "EASTMAN_5254_1968": "5254",
+    "EASTMAN_5294_1983": "5294",
+    "EASTMAN_DOUBLE_X_5222": "5222/7222",
+    "EASTMAN_EKTACHROME_5239": "5239/7239",
+    "EASTMAN_EKTACHROME_7239": "7239",
+    "EASTMAN_EXR_100T_5248": "5248/7248",
+    "EASTMAN_EXR_200T_5293": "5293/7293",
+    "EASTMAN_EXR_500T_5296": "5296",
+    "EASTMAN_EXR_50D_5245": "5245/7245",
+    "EASTMAN_PLUS_X_5231": "5231/7231",
+    "EASTMAN_TRI_X_5223": "5223",
+    "FUJICOLOR_SUPER_F500_8572": "8572",
+    "FUJI_F125_8530": "8530",
+    "FUJI_SUPER_F125_8532": "8532",
+    "KODAK_8374": "8374",
+    "KODAK_EKTACHROME_100D_5285": "5285/7285",
+    "KODAK_RECORDING_2475": "2475",
+    "KODAK_ROYAL_PAN_4141": "4141",
+    "KODAK_ROYAL_X_PAN_4166": "4166",
+    "KODAK_SUPER_XX_PAN_4142": "4142",
+    "KODAK_VISION2_200T_5217": "5217/7217",
+    "KODAK_VISION2_250D_5205": "5205/7205",
+    "KODAK_VISION2_500T_5218": "5218/7218",
+    "KODAK_VISION2_50D_5201": "5201/7201",
+    "KODAK_VISION3_200T_5213": "5213/7213",
+    "KODAK_VISION3_250D_5207": "5207/7207",
+    "KODAK_VISION3_500T_5219": "5219/7219",
+    "KODAK_VISION3_50D_5203": "5203/7203",
+    "KODAK_VISION_200T_5274": "5274/7274",
+    "KODAK_VISION_250D_5246": "5246/7246",
+    "KODAK_VISION_500T_5279": "5279/7279",
+    # ⚠ CINESTILL_800T'S NAME CONTAINS NO CODE AND IT CARRIES ONE ANYWAY. It is
+    # KODAK VISION3 500T with the remjet stripped, CineStill say so in print,
+    # and this field is the only place in the schema where that relationship is
+    # machine-readable. A name-derived rule would have missed it -- which is the
+    # positive half of the argument for a literal table.
+    "CINESTILL_800T": "5219/7219",
+
+    # -- KODAK still B&W: the two- and three-letter emulsion codes ------------
+    # Kodak's own designations, printed on each film's sheet and on the film
+    # edge. ⚠ NOT DERIVED FROM SPEED. KODAK_TMAX_P3200's four-digit group is
+    # 3200, which is the PUSH speed the product is named for and not a code at
+    # all -- its emulsion is TMZ, and the numeric rule had to be overridden by
+    # hand for that one stock.
+    "KODAK_TMAX_100": "TMX",
+    "KODAK_TMAX_400": "TMY",
+    "KODAK_TMAX_P3200": "TMZ",
+    "KODAK_TRI_X_400TX": "TX",
+    "KODAK_PLUS_X_125": "PX",
+}
+
+
+# ---------------------------------------------------------------------------
+#  DUFAYCOLOR RESEAU -- A SECOND, INDEPENDENT MEASUREMENT OF A LIVE PARAMETER
+# ---------------------------------------------------------------------------
+#: Transmittance (per cent) of the three Dufaycolor reseau filter elements,
+#: 400-700 nm at 20 nm, digitised 2026-09-01d from Flueckiger et al. 2018
+#: Figure 21 by `flueckiger_2018.py`. Rows are (wavelength_nm, red, green, blue).
+#:
+#: MEASUREMENT: a LEITZ DIALUX 20 microscope at 40x with a Carl-Zeiss AxioCam
+#: HR camera, through 16 Andover bandpass interference filters of 10 nm width
+#: at 20 nm spacing; 14-bit linear capture, transmittance formed against a
+#: white and a black reference by the report's equation (6); the reseau pixels
+#: were then segmented by colour and averaged per element.
+#:
+#: ⚠ FIGURE 21'S CAPTION CALLS THESE "absorbance curves" AND THEY ARE NOT.
+#: The figure's own ordinate reads "TRANSMITTANCE %" and its series are named
+#: transRED / transGREEN / transBlue. Transmittance is what is stored.
+#:
+#: ⚠ TWO OF THE 48 MARKERS ARE OCCLUDED IN THE FIGURE and are recovered by
+#: inverting the report's equation (7) against Figure 22 -- red at 560 nm and
+#: green at 640 nm. The method is validated where it can be: at 640 nm a
+#: partially visible green blob reads 9.7 % and the inversion returns 9.4 %.
+_DUFAYCOLOR_RESEAU_T_PCT: tuple[tuple[float, float, float, float], ...] = (
+    (400,  14.11,  21.53,  39.55),
+    (420,   9.86,  14.36,  34.72),
+    (440,   8.49,  13.09,  30.90),
+    (460,   9.59,  19.65,  33.50),
+    (480,  10.58,  43.79,  39.00),
+    (500,   9.10,  57.10,  33.36),
+    (520,   7.71,  52.24,  19.86),
+    (540,   6.18,  40.68,   9.84),
+    (560,   8.30,  30.71,   6.92),
+    (580,  31.59,  21.05,   7.32),
+    (600,  60.15,  13.87,   8.06),
+    (620,  61.37,  10.25,   7.86),
+    (640,  61.94,   9.60,   8.07),
+    (660,  71.88,  14.51,  11.92),
+    (680,  82.40,  38.85,  28.35),
+    (700,  91.52,  80.25,  60.82),
+)
+
+#: The same data band-averaged over the bands `ReseauSpec.filter_matrix` uses
+#: (B 420-490, G 500-580, R 600-700 nm), as M[element][band] transmittance.
+#:
+#: ⚠ THIS IS NOT WHAT THE PROFILE STORES, AND THE DIFFERENCE IS THE POINT.
+#: `DUFAYCOLOR_1937.reseau.filter_matrix` was derived from the NSMM Bradford
+#: absorbance curves of three OTHER surviving prints and then multiplied by an
+#: invented uniform factor of 4.05, because those absolute densities included
+#: base and eight decades of dye ageing. This measurement needs no such factor:
+#: its row sums come out at 0.94 / 0.91 / 0.71 unaided. The two agree on the
+#: signature -- red is by far the cleanest element, the blue element leaks red
+#: strongly (ratio 0.604 here against 0.593 stored) -- and disagree on how much
+#: the red and green elements leak. ⚠ `filter_matrix` MOVES PIXELS through the
+#: mosaic reconstruction, so nothing is changed here; see queue C46.
+_DUFAYCOLOR_RESEAU_FLUECKIGER_BANDS: tuple[tuple[float, float, float], ...] = (
+    (0.7154, 0.1258, 0.0963),   # red element
+    (0.2789, 0.4036, 0.2272),   # green element
+    (0.2085, 0.1546, 0.3453),   # blue element
+)
+
+# ---------------------------------------------------------------------------
+#  CALLIER Q AGAINST DENSITY -- A REFERENCE CURVE, NOT A PROFILE FIELD
+# ---------------------------------------------------------------------------
+#: Measured Callier Q as a function of DIFFUSE density for a typical
+#: silver-based film, digitised 2026-09-01 from Trumpy & Gschwind 2015 Fig. 5,
+#: itself redrawn after Streiffert 1947. Re-derived every build by
+#: `trumpy_callier_q.py`, which owns the trace and the checks.
+#:
+#: ⚠ THIS IS NOT A PROFILE FIELD AND MUST NOT BECOME ONE BY COPYING. The source
+#: names no product -- its caption says "a silver-based film" -- so writing any
+#: of it onto a stock would invent a per-film measurement out of a class curve.
+#: It lives here as a REFERENCE the renderer can be checked against.
+#:
+#: ⚠ WHAT IT IS FOR. `FilmProfile.callier_q` is a single number per stock and
+#: `film_sim.callier_net` turns it into a density-dependent Q through
+#: Silberstein & Tuttle. Until this curve there was no measured Q(D) in the
+#: corpus other than Mees FIG. 179 (`mees_callier_q.py`), and no way to ask
+#: whether the law's SHAPE is right. It is, above the toe: fitting the law to
+#: these points returns E = 0.147 and beta = 1.675 with an rms of 0.009 Q over
+#: D = 0.3 to 2.0. Below the toe it is not -- see the two constants below.
+#:
+#: ⚠ AND IT DISAGREES WITH WHAT IS STORED. beta IS `callier_q`, the database
+#: gives every B&W negative the class constant 1.3, and this curve says 1.675.
+#: BBC T-101 Fig. 25 (cited on EASTMAN_TRI_X_5223) says 2.0-2.34 at a 0.0016 sr
+#: collection angle, where Q -> beta. Two measurements, both above 1.3. NOTHING
+#: IS CHANGED HERE: callier_q moves a pixel on ~90 stocks.
+_CALLIER_Q_REFERENCE: tuple[tuple[float, float], ...] = (
+    (0.050, 1.0806),
+    (0.075, 1.2249),
+    (0.100, 1.3573),
+    (0.125, 1.4276),
+    (0.150, 1.4716),
+    (0.200, 1.5214),
+    (0.250, 1.5442),
+    (0.300, 1.5537),
+    (0.350, 1.5568),
+    (0.400, 1.5562),
+    (0.500, 1.5468),
+    (0.600, 1.5329),
+    (0.800, 1.5029),
+    (1.000, 1.4761),
+    (1.200, 1.4511),
+    (1.500, 1.4210),
+    (1.750, 1.4013),
+    (2.000, 1.3895),
+)
+
+#: Silberstein & Tuttle parameters fitted to `_CALLIER_Q_REFERENCE` over
+#: D >= 0.30, by `trumpy_callier_q.py`. `_CALLIER_FIT_BETA` is what
+#: `FilmProfile.callier_q` means; `_CALLIER_FIT_E` is the instrument's collected
+#: scattered fraction, i.e. 1 - `scanner_specular`, and belongs to Streiffert's
+#: densitometer rather than to any film.
+_CALLIER_FIT_E: float = 0.1471
+_CALLIER_FIT_BETA: float = 1.6746
+
+#: ⚠ THE TOE. The law's small-D limit on NET density is the CONSTANT
+#: E + (1-E)*beta = 1.567, so it cannot fall towards 1 at all, while this curve
+#: measures Q 1.081 at D 0.05 and Mees FIG. 179 measures 1.042 at D 0.055.
+#: For three weeks that gap -- +0.49 Q -- was recorded here as a MODEL DEFECT.
+#: ⚠ IT IS NOT. QUEUE C44, CLOSED 2026-09-02: IT IS A DENSITY-REFERENCE
+#: ARTEFACT, and the mechanism is printed in Sayanagi 1959. See
+#: `_CALLIER_SAYANAGI_*` below and `sayanagi_callier.py`, which derives the
+#: whole of it and asserts it every build.
+_CALLIER_TOE_MEASURED: tuple[float, float] = (0.05, 1.0806)
+
+# ---------------------------------------------------------------------------
+#  OOUE 1959 -- MEASURED GRAIN SPECTRA, AND WHAT THEY SAY ABOUT THE MODEL
+# ---------------------------------------------------------------------------
+#: Shingo Ooue, Fuji Photo Film Research Laboratory, «写真感光材料の粒状性»
+#: Parts 1 and 2, J. Soc. Phot. Sci. Japan 22(1) 38-47 and 22(2) 91-99 (1959) --
+#: PDF/PROFILES/RETRO/JAPAN/22_38.pdf and 22_91.pdf. Traced and re-derived every
+#: build by `ooue_1959_granularity.py`, which owns the checks.
+#:
+#: ⚠ REFERENCE ONLY, NOT PROFILE FIELDS. None of the samples is a stock in this
+#: file -- Neopan SS and Process Plate are 1950s emulsions, Fuji positive FD-3
+#: is a print stock -- so copying any of it onto a profile would invent a
+#: per-film measurement out of somebody else's sample.
+#:
+#: Part 2 Fig. 26 is a measured WIENER SPECTRUM on three NAMED samples with
+#: stated developer, time and density. Each entry is (f_half in lines/mm, n),
+#: the half-power frequency and the exponent of `P0 exp(-ln2 (f/f_half)^n)`
+#: fitted to the falling limb:
+#:     1  Neopan SS / Minidol 20C 10 min, D 1.03
+#:     2  Neopan SS / Minidol 20C 10 min, D 0.45
+#:     3  Process Plate / D-72 (1:1) 20C 4 min, D 0.44
+#:
+#: ⚠ EVERY EXPONENT IS BELOW 2, AND THE ENGINE ASSUMES 2. `make_grain_field`
+#: shapes grain with h(f) = exp(-(f/f_hi)^2) (times the clump bump), so the
+#: Wiener spectrum it produces is a Gaussian of exponent 2. The measured limbs
+#: are SHALLOWER -- 0.71 to 1.36 -- and a pure Gaussian fits them three to six
+#: times worse (rms in log10 0.09-0.56 against 0.035-0.107). A Gaussian
+#: therefore under-estimates grain energy at high frequency, which is the same
+#: defect MTFSpec's docstring already records for the MTF tail, now measured on
+#: the grain spectrum too. ⚠ NOTHING IS CHANGED ON IT: Fig. 26's ordinate is
+#: unlabelled "POWER LEVEL", its abscissa says "LINES/mm" without defining a
+#: line, and it is a redrawing rather than Ooue's own plate -- shape is usable,
+#: level is not, and the grain spectrum moves a pixel on all 171 stocks.
+#:
+#: ⚠ THE RESULT THAT NEEDS NO CALIBRATION AT ALL is entries 1 and 2: the SAME
+#: FILM at two densities, same developer, same time, and f_half moves 45.6 ->
+#: 70.8. The clump gets COARSER as density rises, by 55 % in cutoff frequency,
+#: and `GrainSpec` carries ONE clump size per stock.
+_OOUE_WIENER_1959: tuple[tuple[float, float], ...] = (
+    (45.6, 0.71), (70.8, 0.89), (140.7, 1.36))
+
+#: Part 2 Fig. 24, autocorrelation of grain structure, Neopan S at D 1.04:
+#: (half-width in um, the tau at which the traced positive lobe ends).
+#: Under this engine's Gaussian model tau_half = 374.8 / f_hi, so 3.4 um is
+#: f_hi 110 c/mm and `clump_um` 4.6 um -- an independent scale for the same
+#: quantity Fig. 26 measures in the frequency domain (3.48 um -> f_hi 108
+#: c/mm -> clump_um 4.65 um).
+#: ⚠ AND AN INDEPENDENT REFUTATION OF THE SHAPE: past its first zero the curve
+#: goes NEGATIVE and stays negative for about 8 um, an anti-correlated ring
+#: meaning the grains are more evenly spaced than a Poisson field. A Gaussian
+#: autocorrelation is positive everywhere and cannot produce it, and neither can
+#: Sayanagi's Poisson placement above. Recorded as a limitation of both models.
+_OOUE_AUTOCORR_1959: tuple[float, float] = (3.48, 11.8)
+
+#: Part 1 Fig. 2, mean DEVELOPED grain area in um^2 against density, Fuji
+#: positive film FD-3 (1:1) at 20 C: ((32 min: area at D 1.4, at D 4.0),
+#: (1 min: area at D 0.2, at D 2.4)).
+#: ⚠ IT FALLS WITH DENSITY on both development times -- the same direction BBC
+#: T-101 Table 3 measures from another laboratory, and the opposite of what most
+#: people expect. Equivalent diameters 1.21 down to 0.85 um.
+#: ⚠ AND THAT IS BELOW THE FLOOR OF EVERY STORED `emulsion.grain_um`. All 17 of
+#: them are 1.3-6.5 um and all 17 come from one third-party aggregator. This is
+#: a positive film, the finest-grained class there is, so it is a floor rather
+#: than a typical value -- but it is independent evidence that the stored range
+#: is too coarse. Nothing is changed: no profile here is Fuji positive FD-3.
+_OOUE_GRAIN_AREA_1959: tuple[tuple[float, float], tuple[float, float]] = (
+    (1.103, 0.925), (1.159, 0.571))
+
+# ---------------------------------------------------------------------------
+#  TAKANO 1969 -- THE APERTURE LAW, THE CLUMP SCALE, AND sigma(D) SHAPE
+# ---------------------------------------------------------------------------
+#: Kiyoshi Takano (高野潔), «写真フィルムの粒状性» / "Granularity of Photographic
+#: Film", テレビジョン (J. Inst. Telev. Engrs. Japan) 23(1) 13-23 (1969) --
+#: PDF/PROFILES/RETRO/JAPAN/23_13.pdf. A review, like Ooue's, so almost all of
+#: it is other people's work redrawn; four items are not incidental here.
+#:
+#: Fig. 8, Selwyn granularity G = sqrt(A)*sigma(D) against the scanning
+#: aperture's sqrt(A) in um, two named samples. Stored as
+#: ((sqrt_A_um, G) ...) for the colour negative and for Neopan-SS.
+#: ⚠ WHY IT MATTERS: this is the SATURATION Selwyn's law does not have. G is
+#: supposed to be aperture-independent; it is not, once the aperture stops being
+#: large compared with the grain. `film_sim.grain_reference_energy` already
+#: models exactly that -- it integrates (h*a)^2 with a Gaussian aperture of
+#: sigma = size/4 -- and fitting THAT law, unchanged, to these two traces
+#: reproduces them to rms 0.007-0.020 in G over a 0.2-1.04 range. The aperture
+#: term nobody had checked against a measurement now has one, and it fits.
+_TAKANO_SELWYN_APERTURE_1969_NEG: tuple[tuple[float, float], ...] = (
+    (3.2, 0.301), (9.9, 0.560), (16.7, 0.734), (23.4, 0.840), (30.2, 0.910),
+    (36.9, 0.952), (43.7, 0.980), (50.4, 0.998), (57.2, 1.012),
+    (63.9, 1.022), (70.7, 1.030), (77.4, 1.034), (84.2, 1.036))
+_TAKANO_SELWYN_APERTURE_1969_NEOPAN: tuple[tuple[float, float], ...] = (
+    (4.9, 0.235), (11.7, 0.404), (18.4, 0.504), (25.2, 0.559), (31.9, 0.592),
+    (38.7, 0.609), (45.4, 0.618), (52.2, 0.623), (58.9, 0.627),
+    (65.7, 0.628), (72.4, 0.629), (79.2, 0.628), (85.9, 0.625))
+
+#: The clump size that fit returns, as (clump_gain, clump_um_colour_negative,
+#: clump_um_neopan_ss). Three rows because ⚠ THE PAIR IS NOT IDENTIFIABLE from
+#: an aperture series alone: over the corpus's whole clump_gain range 0.30-1.50
+#: the fitted clump_um moves by a factor of 2.6 while the residual moves from
+#: 0.020 to 0.007 G. That is the same degeneracy the Takano Fig. 8 / JPS 1965
+#: work already recorded, quantified here rather than asserted.
+_TAKANO_APERTURE_FIT_1969: tuple[tuple[float, float, float], ...] = (
+    (0.30, 6.20, 4.78), (0.85, 3.22, 2.46), (1.50, 2.38, 1.88))
+
+#: Fig. 13, optical autocorrelation phi(tau,0), half-widths in um:
+#: (Neopan-SSS at D 2.0 in Minidol 20 C 10 min, cine POSITIVE film at D 1.7 in
+#: D-16 20 C 6 min). Under this engine's Gaussian model clump_um =
+#: 1.334 * tau_half, giving 1.77 um and 0.87 um.
+#: ⚠ AND IT DOES NOT GO NEGATIVE, where Ooue's Fig. 24 does. Same quantity, two
+#: papers ten years apart, two instruments: Ooue's microdensitometer trace shows
+#: an anti-correlated ring past 12 um, Takano's optical autocorrelator shows
+#: both curves approaching zero from above. The engine's Gaussian can reproduce
+#: Takano's shape and cannot reproduce Ooue's; the disagreement is between the
+#: two measurements, not between either and the model, and is left standing.
+_TAKANO_AUTOCORR_1969: tuple[float, float] = (1.33, 0.65)
+
+#: ⚠ THE CLUMP CENSUS THAT QUEUE C45 NEEDS, and the reason nothing here is
+#: applied. Every direct measurement of grain correlation length the corpus now
+#: holds, converted to this engine's `clump_um` by its own laws:
+#:     0.87 um   Takano Fig. 13, cine positive, D-16
+#:     1.77 um   Takano Fig. 13, Neopan-SSS, Minidol
+#:     2.46 um   Takano Fig. 8, Neopan-SS      (at clump_gain 0.85)
+#:     3.22 um   Takano Fig. 8, colour negative (at clump_gain 0.85)
+#:     4.64 um   Ooue Part 2 Fig. 24, Neopan S
+#: median 2.46 um. The 171 stored `clump_um_g` values run 0.66-40.0 with median
+#: 13.0 and only 10 stocks below 5. ⚠ THE STORED SCALE IS ABOUT FIVE TIMES EVERY
+#: MEASUREMENT IN THE CORPUS. That is not a rounding disagreement and it is not
+#: fixed here: `clump_um` moves a pixel on 168 stocks, none of the five samples
+#: is a stock in this file, and the aperture fit above shows the value is only
+#: as well determined as `clump_gain`, which is itself an estimate on most
+#: stocks. C45 owns the decision; this table is the number it was missing.
+_TAKANO_CLUMP_CENSUS_1969: tuple[float, ...] = (0.87, 1.77, 2.46, 3.22, 4.64)
+
+#: ---- Masao TAKANO 1968 Part 2, Fig. 11 -- queue: owner addendum 2026-09-02e --
+#: `PDF/PROFILES/RETRO/JAPAN/31_209.pdf`, «写真像の粒状性(第2報)», J. Soc. Phot.
+#: Sci. Japan 31(4) 209-214. ⚠ A DIFFERENT AUTHOR FROM THE 1969 CONSTANTS ABOVE:
+#: those are Kiyoshi Takano's review in the television journal, these are Masao
+#: Takano's own experiment at Fuji's Ashigara laboratory. Traced by
+#: `takano_1968_mottle.py`, registered in the build audit.
+#:
+#: EXPECTED MOTTLE SIZE in micrometres for ONE unnamed ASA 100 B&W negative,
+#: keyed (developer, route) -> (D 0.5, D 1.5). Routes:
+#:   VTD -- exposure fixed, DEVELOPMENT TIME varied to reach the density
+#:   VE  -- development time fixed, EXPOSURE varied to reach it
+#: ⚠ THE PAIR IS THE POINT. Same film, same developer, same final density, two
+#: different grain patterns -- a variable this schema does not carry at all.
+_TAKANO_MOTTLE_1968: dict[tuple[str, str], tuple[float, float]] = {
+    ("p-p",   "VE"):  (4.42, 4.80), ("p-p",   "VTD"): (3.98, 4.16),
+    ("p-Q",   "VE"):  (4.98, 5.55), ("p-Q",   "VTD"): (4.37, 4.59),
+    ("Monol", "VE"):  (5.78, 6.13), ("Monol", "VTD"): (4.62, 4.94),
+    ("M-Q",   "VE"):  (6.32, 6.81), ("M-Q",   "VTD"): (4.57, 5.30),
+}
+
+#: The same figure's two D = 0 envelope lines, (p-p end, M-Q end) in um.
+#: ⚠ THESE, NOT THE MARKERS, ARE WHAT THE PAPER'S "30-40 %" DESCRIBES: 3.35/5.22
+#: is 36 % and 4.37/7.29 is 40 %. On the density-0.5-1.5 markers the same ratio
+#: is 10 / 12 / 20 / 28 %, mean 17 %. Reading the prose onto the markers
+#: overstates the effect by about two.
+_TAKANO_MOTTLE_ENVELOPE_1968: dict[str, tuple[float, float]] = {
+    "VE": (5.22, 7.29), "VTD": (3.35, 4.37)}
+
+#: The paper's own statement that converts its mottle sizes into a GRAIN size:
+#: "二次的集落の大きさは平均の現像銀粒子サイズの5~8倍" -- the secondary
+#: aggregate is 5 to 8 times the mean developed silver grain.
+#: ⚠ AND THAT IS THE CROSS-CHECK THAT MAKES THIS DOCUMENT WORTH HAVING. Divide
+#: the traced 3.98-6.81 um of mottle by 5-8 and the grain is 0.50-1.36 um. BBC
+#: Report T-101 Table 2, a different maker, country, decade and instrument,
+#: PRINTS 0.59-1.43 um for its six emulsions. Two independent documents land on
+#: one band. ⚠ THE 171 STORED `clump_um_g` VALUES HAVE MEDIAN 13.0, outside both
+#: by an order of magnitude -- the third statement of the C45 finding and the
+#: first from a non-BBC source. Still NOT applied here: C45 owns that decision
+#: and refused it on measured render cost, and this paper names no film.
+_TAKANO_MOTTLE_TO_GRAIN_1968: tuple[float, float] = (5.0, 8.0)
+
+#: ---- queue C45, CLOSED 2026-09-03 by owner decision -------------------------
+#: THE CORPUS-WIDE `clump_um` RESCALE. Every ESTIMATED clump_um_r/g/b in this
+#: file was divided by 3.1 on 2026-09-03; the five stocks with a MEASURED value
+#: were left untouched. Corpus median 13.00 -> 4.19 um, maximum 40.0 -> 12.90,
+#: minimum unchanged at 0.655 (ILFORD_PAN_F, measured).
+#:
+#: WHY IT WAS REFUSED BEFORE, AND WHAT CHANGED. C45 was closed "refused, with
+#: the cost of the alternative measured" on 2026-09-02c. Its reason was that the
+#: rescale makes rendered grain markedly more resolution-dependent, "a change in
+#: how the product behaves on 168 stocks that the data alone cannot authorise".
+#: ⚠ THAT REASON DOES NOT SURVIVE MEASUREMENT. `rms_granularity` is DEFINED
+#: through a 48 um aperture, and the aperture-referred rms is INVARIANT under
+#: the rescale -- measured on KODAK_VISION3_250D_5207, a flat 0.18 patch, green
+#: record, x1000:
+#:        clump/gain    960 px    2000 px    4000 px
+#:        13.00 / 0.25   5.263      5.203      5.228
+#:         2.46 / 0.00   5.194      5.145      5.164
+#: 1.3 % across the whole range and every render size. The film still measures
+#: what its datasheet says through the aperture its datasheet specifies; only
+#: the sub-aperture detail moves, and the datasheet number never described that.
+#: The change is therefore "same film, correctly resolved", not "more grain" --
+#: and `grain_reference_energy`'s own docstring had already ruled on the
+#: direction: "a 2K render genuinely shows less granularity than a 6K render of
+#: the same negative ... That is not a modelling artefact."
+#:
+#: THE ANCHOR, AND WHY THIS ONE. Ooue Fig. 26 is the strongest evidence class in
+#: the corpus for this quantity: three DIRECTLY MEASURED Wiener spectra on NAMED
+#: stocks with stated developer, time and density, needing no conversion chain.
+#: Through the engine's own closed form clump_um = 294.35 / u_half they give
+#: 6.46, 4.16 and 2.09 um, median 4.16. The stored estimate median was 13.00, so
+#: k = 13.00 / 4.16 = 3.1. ⚠ THE FULL CENSUS WOULD HAVE GIVEN k = 5.3 and was
+#: NOT used: it mixes directly-measured spectra with values that arrived through
+#: a conversion, and the conservative anchor still lands inside the band every
+#: other source brackets.
+_CLUMP_RESCALE_C45_2026_09_03: float = 3.1
+
+#: The measured census, in the model's own parameter. ⚠ EVERY ENTRY IS A
+#: clump_um, converted from whatever the source measured by the engine's own
+#: laws -- NOT a mixture of grain diameters, cluster sizes and half-powers.
+#:   Ooue 1959 Fig. 26      2.09, 4.16, 6.46   measured Wiener spectra, named
+#:                                             stocks, stated developer/density
+#:   Takano 1969 Figs 8,13  0.87, 1.77, 2.46, 3.22, 4.64
+#:   BBC T-101 Table 2      0.59 - 1.43        six emulsions, printed D_eq/1.7473
+#:   Takano 1968 Fig. 11    0.66 - 1.14        mottle 3.98-6.81 um / the model's
+#:                                             own 6x lobe ratio
+#:   JPS 1965               2.73 - 3.69        five emulsions, relative ordinate
+#: ⚠ AND THE ONE CHECK THAT PROVES THIS IS NOT A PARAMETER-BASIS ARGUMENT: a
+#: `clump_gain` lobe can only push the spectrum's half-power DOWN, never up.
+#: clump 13.0 gives 22.6 c/mm at gain 0 and 13.7 at gain 0.25, against Ooue's
+#: measured 45.6 / 70.8 / 140.7. No choice of gain reaches the measurements, so
+#: the stored estimates were not an equivalent description of the same spectrum.
+_CLUMP_MEASURED_BAND_UM: tuple[float, float] = (0.59, 6.46)
+
+#: The five stocks EXEMPT from the rescale: their clump_um is measured, from BBC
+#: Report T-101 Table 2's printed equivalent grain diameters. All five carry
+#: clump_gain 0.00, which is not a coincidence -- a free two-parameter fit drove
+#: the lobe to exactly zero on all six T-101 emulsions and the report says in
+#: words that grain correlation is "substantially confined to about plus or
+#: minus one equivalent grain diameter".
+#: ⚠ `clump_gain` WAS DELIBERATELY LEFT UNTOUCHED ON THE OTHER 170, and the
+#: reason is a conflict between two sources, not an oversight. T-101 says there
+#: is no long-range lobe; Takano 1968 measures a real aggregate at 5-8x the
+#: grain, i.e. that there is one. Method rule 4: record the conflict, do not
+#: average it. Scaling clump_um alone is ONE change; zeroing the lobe as well
+#: would have picked a winner between two disagreeing measurements. The
+#: consequence is stated rather than hidden: TK1 showed clump_um and clump_gain
+#: are not separately identifiable, so each rescaled value is conditional on
+#: that stock's stored gain.
+_CLUMP_MEASURED_STOCKS: tuple[str, ...] = (
+    "ILFORD_PAN_F", "KODAK_8374", "EASTMAN_PLUS_X_5231",
+    "EASTMAN_TRI_X_5223", "ILFORD_HPS")
+
+#: Developer ordering by mottle size and by Wiener spectrum level F(20,0),
+#: finest first, identical on both measures (Figs. 7, 8 and 11).
+#: ⚠ RECORDED AS AN ORDERING, NOT AS NUMBERS: Figs. 7, 8 and 10 plot F(20,0) in
+#: an unlabelled instrument unit with no printed constant, so their level cannot
+#: be converted into anything this schema stores. The ordering survives the
+#: missing constant; the values do not.
+_TAKANO_DEVELOPER_ORDER_1968: tuple[str, ...] = (
+    "para-phenylenediamine", "PQ", "Monol", "MQ")
+
+#: Fig. 9, RMS granularity of a colour negative against mean integral colour
+#: density, 16 x 16 um aperture, read through blue / green / red filters
+#: (yellow / magenta / cyan layers). Stored as the MAGENTA layer's traced
+#: sigma(D) reduced to this schema's own anchor form:
+#: (toe_at, toe, mid, dmax_at, dmax, peak, peak_at), multipliers relative to
+#: the D = 1.0 value exactly as `GrainSpec.sigma_shape_*` defines them.
+#: ⚠ IT IS A FOURTH INDEPENDENT CONFIRMATION OF THE 2026-08-17 CORRECTION.
+#: `GrainSpec`'s docstring used to say colour negatives are monotone rising;
+#: four VISION3 sheets said otherwise and the docstring was corrected. This is a
+#: JAPANESE colour negative measured in 1969 by another laboratory on another
+#: instrument, and it turns over too: sigma rises to a maximum near D 1.0 and
+#: falls to 0.31 of it by D 2.5.
+#: ⚠ AND IT DISAGREES ON WHERE THE MAXIMUM SITS. All ten measured colour
+#: negatives here peak at D 0.65-0.80 at 1.20-1.62x the D = 1.0 value; this one
+#: peaks at D 1.04 at 1.00x, i.e. it has no interior peak above the mid anchor
+#: at all. All eleven are Kodak ECN stocks of the 1990s-2000s. `sigma_shape_peak`
+#: is therefore a Kodak-family measurement and not a corpus-wide law, which is
+#: what `sigma_shape_measured` already refuses to let a renderer assume.
+#: ⚠ NOTHING IS WRITTEN TO A PROFILE: the sample is named only "カラーネガフィルム".
+_TAKANO_SIGMA_SHAPE_1969: tuple[float, ...] = (
+    0.30, 0.301, 1.000, 2.50, 0.301, 1.002, 1.04)
+
+#: The three layers at their maxima, as (yellow, magenta, cyan) sigma_D.
+#: Magenta is traced (its curve is one unbroken stroke); ⚠ YELLOW AND CYAN ARE
+#: GRID READINGS, +/- 0.002, because their curves are dash-dot and dash and the
+#: figure's scatter of triangles and crosses cannot be separated from the dashes
+#: reliably. The figure's ordinate is also BROKEN between 0.03 and 0.06 with a
+#: 2.04x scale change across the break, and the yellow curve's tail runs into
+#: the break where it cannot be read at all.
+#: ⚠ THE RATIOS ARE THE POINT, AND ONE OF THEM DISAGREES WITH THE CORPUS.
+#: Both disagree with the corpus's nine per-layer sheets, and by amounts that
+#: rank the way the explanation predicts. cyan/magenta = 1.15 against their r/g
+#: range 0.75-1.05 -- 10 % above the highest. yellow/magenta = 4.60 against
+#: their b/g range 1.81-2.79 -- 65 % above the highest. The caption says why:
+#: Takano reads INTEGRAL colour density through a filter, so each reading
+#: carries the orange mask and every layer's absorption in that band, while the
+#: corpus's ratios come from per-layer ANALYTICAL densities. The mask absorbs
+#: mostly blue, which is exactly why the blue reading is inflated far more than
+#: the red one. Two different quantities, recorded as such and not reconciled.
+_TAKANO_LAYER_SIGMA_1969: tuple[float, float, float] = (0.120, 0.0261, 0.030)
+
+# ---------------------------------------------------------------------------
+#  SAYANAGI 1959 -- WHY THE TOE COLLAPSES, AND WHY NOTHING IN THE ENGINE MOVES
+# ---------------------------------------------------------------------------
+#: Kazuo Sayanagi, Canon Camera Co., «Callier Q Factor と粒状» / "A Theory on
+#: Callier Q Factor and Granularity", J. Soc. Phot. Sci. Japan 23(1) 20-24
+#: (received 15 Dec 1959) -- PDF/PROFILES/RETRO/JAPAN/23_20.pdf.
+#:
+#: THE MODEL, from his own assumptions (I)-(III): the base has intensity
+#: transmittance Ib and amplitude Ab with Ib = Ab^2; a developed silver grain
+#: has FINITE intensity transmittance Ig and amplitude Ag with Ig = Ag^2 (finite
+#: because the electron microscope shows the developed grain to be filamentary);
+#: grains are circles of radius r0 whose centres are POISSON-distributed over
+#: the film plane with area coverage 𝔅. Savelli's Poisson averages then give
+#:
+#:      mean intensity   Ibar = Ib   * exp{-𝔅 (1 - Ig  )}        ... his (7)
+#:      mean amplitude   Abar = Ib^½ * exp{-𝔅 (1 - Ig^½)}        ... his (8)
+#:
+#: so DIFFUSE density is Db + 0.4343*𝔅*(1-Ig) and SPECULAR density, which is the
+#: DC term Abar^2, is Db + 2*0.4343*𝔅*(1-Ig^½). Dividing the two AFTER removing
+#: the base gives his (10):
+#:
+#:      Q_II = 2 (1 - Ig^½) / (1 - Ig) = 2 / (1 + Ig^½)
+#:
+#: ⚠ THREE CONSEQUENCES, AND EVERY ONE OF THEM SETTLES SOMETHING THIS PROJECT
+#: HAD OPEN.
+#:
+#: 1. **Q ON BASE-SUBTRACTED DENSITY HAS NO DENSITY DEPENDENCE AT ALL.** Q_II
+#:    contains only Ig -- not 𝔅, not r0, not D. His §2.3 calls the two options
+#:    Q_I (base left in) and Q_II (base taken out) and §3.2 states outright that
+#:    Q_II is the rational one. This engine computes Callier on NET density,
+#:    which C22 argued from first principles while recording that NO SOURCE
+#:    STATED A CONVENTION. One does, from 1959, and it agrees.
+#:
+#: 2. **THE PUBLISHED Q(D) CURVES ARE Q_I, AND THEIR TOE IS THE BASE TERM.**
+#:    With the base left in, Q_I(D) = [Db + Q_inf*(D - Db)] / D, which is 1 at
+#:    D = Db by construction and climbs to Q_inf. Fitting Db to the two measured
+#:    curves independently:
+#:        Trumpy/Streiffert Fig. 5   Db = 0.045, beta = 1.809, E = 0.176,
+#:                                   rms 0.019 Q over the WHOLE curve
+#:                                   (the shipped fit, with no base term,
+#:                                    manages rms 0.156 and misses the toe by
+#:                                    +0.49 Q)
+#:        Mees FIG. 179              Db = 0.050 reconciles all five gamma curves
+#:                                   with the SHARED toe stroke; their predicted
+#:                                   Q at D 0.055 becomes 1.018-1.072 against a
+#:                                   measured 1.042, where Db = 0 predicts
+#:                                   1.16-1.71
+#:    ⚠ TWO LABORATORIES, TWO DECADES, TWO FIGURES, AND THE SAME BASE DENSITY TO
+#:    HALF A PERCENT OF D. That is the check the conclusion rests on.
+#:    ⚠ AND IT EXPLAINS THE ONE THING NOTHING ELSE COULD: why FIG. 179 draws all
+#:    FIVE gamma curves as a SINGLE stroke below D = 0.25. Q_I -> 1 at D = Db
+#:    for every curve whatever its Q_inf, so at the toe they genuinely coincide.
+#:    Five emulsions of five different contrasts sharing one measured toe is
+#:    impossible under any model in which Q is a film property alone.
+#:
+#: 3. **THEREFORE NO TOE CORRECTION GOES INTO `film_sim.callier_net`.** The
+#:    engine's argument is NET density; the base has already been removed; a toe
+#:    term fitted to Q_I data would subtract it a second time and make the render
+#:    wrong in the shadows -- the exact region C44 was opened to protect. C44 is
+#:    closed by a NULL CODE CHANGE, and the reason it is null is that the code
+#:    was already right. The three implementations stay bit-identical.
+_CALLIER_SAYANAGI_BASE_D: tuple[float, float] = (0.045, 0.050)
+
+#: Sayanagi's inversion, Q_II = 2/(1+Ig^½), read backwards: Ig = (2/beta - 1)^2.
+#: ⚠ IT BOUNDS beta AT 2.0 -- opaque grains, Ig = 0 -- and every base-corrected
+#: measurement in this corpus lands under it, which is a non-trivial thing for a
+#: model to survive. It also makes the fitted betas physically readable: the
+#: five Mees curves invert to grain transmittances of 11.7 % at gamma 0.21 down
+#: to 0.9 % at gamma 1.65, i.e. grains that get more opaque as development
+#: proceeds, which is what his own assumption (II) says they do.
+#: ⚠ THE ONE MEASUREMENT THAT DOES NOT FIT UNDER THE CEILING is BBC T-101
+#: Fig. 25, cited on EASTMAN_TRI_X_5223: Q 2.00-2.34 at a 0.0016 sr collection
+#: angle, where Q -> beta. 2.34 is above Sayanagi's absolute maximum. Recorded
+#: as an open tension, not resolved: either the circular-grain model
+#: underestimates scattering for a real filamentary grain, or T-101's quotient
+#: is not on the same density reference. Nothing here is fitted to it.
+_CALLIER_SAYANAGI_BETA_MAX: float = 2.0
+
+#: Base-corrected beta against DEVELOPMENT GAMMA, from Mees FIG. 179's five
+#: curves refitted with Db held at 0.050 (`sayanagi_callier.py`).
+#: ⚠ THIS IS WHY `callier_q` IS NO LONGER A CLASS CONSTANT (queue C43, decided
+#: 2026-09-02). beta rises with gamma by 0.34 over the measured range, which a
+#: single number cannot express, and the class rule that produced 1.3 had no
+#: document behind it at all.
+_CALLIER_BETA_VS_GAMMA: tuple[tuple[float, float], ...] = (
+    (0.21, 1.491), (0.37, 1.495), (0.69, 1.729), (1.20, 1.822), (1.65, 1.828))
+
+#: The two coefficients of `beta(gamma) = 1 + A*gamma/(gamma + K)` fitted to the
+#: table above, rms 0.045 beta.
+#: ⚠ THE FORM WAS CHOSEN FOR ITS ENDPOINTS, NOT FOR ITS RESIDUAL. It gives
+#: beta(0) = 1 exactly -- a film with no developed silver scatters nothing and
+#: has no Callier effect -- and beta(inf) = 1.971, just under Sayanagi's ceiling
+#: of 2.0. Both are right with no parameter spent on either. A decaying
+#: exponential fits the same five points equally well (rms 0.043) and gets both
+#: endpoints wrong, so the residual did not decide this.
+_CALLIER_BETA_GAMMA_A: float = 0.9706
+_CALLIER_BETA_GAMMA_K: float = 0.2558
+
+
+def _callier_beta_for(p: FilmProfile) -> float:
+    """`callier_q` for a silver stock, from its own contrast (queue C43).
+
+    ⚠ WHAT THIS REPLACES: `1.25 if p.is_reversal else 1.3`, a class constant
+    with no source behind it, applied to every monochrome stock in the file.
+    Three independent measurements now put beta well above it -- Mees FIG. 179
+    base-corrected (1.49-1.83 across gamma 0.21-1.65), Trumpy/Streiffert Fig. 5
+    base-corrected (1.809), and BBC T-101 Fig. 25 at 0.0016 sr (2.0-2.34) -- and
+    none of them is near 1.3.
+
+    ⚠ MID SLOPE, NOT `gamma`. `ToneCurve.gamma` is a softplus MODEL COEFFICIENT
+    and on a strongly shouldered curve it is not a slope at all; three profiles
+    in this file are flagged `is_degenerate` and their gamma reads 3.0-3.35
+    where the actual mid slope is 1.2-1.8. Mees's parameter is a sensitometric
+    gamma, i.e. a slope, so the slope is what is fed in.
+
+    ⚠ INERT AT THE SHIPPED DEFAULT. Callier is applied only when the render
+    control `scanner_specular` is above zero, and it is zero by default, so this
+    changes no shipped render. It changes what a user sees when they dial a
+    condenser in, and there it is a large change: 1.3 -> about 1.64-1.87.
+    """
+    g = float(p.curves.g.mid_slope)
+    g = min(max(g, 0.0), 4.0)
+    return round(1.0 + _CALLIER_BETA_GAMMA_A * g
+                 / (g + _CALLIER_BETA_GAMMA_K), 4)
+
+
 def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
     """Fill every schema-v2 field from the rules and tables above."""
     y = _era_start(p.era)
@@ -30936,7 +36288,9 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
     if p.is_monochrome:
         density_metric = "visual_iso"
         speed_criterion = "iso6"
-        callier_q = 1.25 if p.is_reversal else 1.3
+        # queue C43, 2026-09-02: from the stock's own contrast, not a class
+        # constant. See `_callier_beta_for` and the Sayanagi block above.
+        callier_q = _callier_beta_for(p)
         mask_encoding = "none"
     elif p.is_reversal:
         density_metric = "status_a"
@@ -31735,6 +37089,56 @@ FILM_PROFILES = tuple(
 #: Unit row sums are preserved -- see `_dye()` for why that contract matters,
 #: and `dye_matrix_from_spectra` for why normalising rows loses no colour.
 _MEASURED_DYE_MATRIX: dict[str, Matrix3] = {
+    # -- GEVAERT, 2026-09-02 (queue G2) ---------------------------------------
+    # ⚠ ONE MEASUREMENT, TWO ROWS, AND THE TWO ARE IDENTICAL BY CONSTRUCTION.
+    # Rens & Van Bets 1968 Bild 4 draws ONE dye set and captions it for both Typ
+    # 6.00 and Typ 6.05, so these two rows are the same measurement written
+    # twice -- exactly the RSX II 50 / 100 situation noted below, and for the
+    # same reason: agreement here is not corroboration.
+    # ⚠ WHAT IS CORROBORATION is that the derived magenta-into-blue, 0.2232,
+    # lands inside the Soviet manufacturing band 0.15-0.25 without being fitted
+    # to it -- a 1968 Belgian reversal emulsion and four Soviet specifications
+    # agreeing on what an early magenta dye leaks into blue.
+    # ⚠ INERT, like every other row here.
+    "GEVACHROME_600": (
+        (0.877003, 0.099667, 0.023330),
+        (0.128883, 0.778227, 0.092890),
+        (0.116277, 0.161245, 0.722478),
+    ),
+    "GEVACHROME_605": (
+        (0.877003, 0.099667, 0.023330),
+        (0.128883, 0.778227, 0.092890),
+        (0.116277, 0.161245, 0.722478),
+    ),
+    # -- AGFA, 2026-09-01: the first Agfa entries in this table ---------------
+    # ⚠ ADOPTING A THREE-DYE SET OBLIGES DERIVING THIS, and the build says so:
+    # `dye_matrix_from_spectra.py` fails outright if a profile carries
+    # cyan/magenta/yellow and no row here. That is the right coupling -- the
+    # dye spectra are the evidence and this matrix is what they imply through
+    # ISO 5-3, so a stored set with no derived matrix would mean the evidence
+    # had been filed and not read.
+    # ⚠ RSX II 50 AND RSX II 100 AGREE TO 6e-5 BECAUSE THEY SHARE ONE DRAWING.
+    # Agfa printed a single Spectral density panel for both films; the two
+    # matrices are therefore ONE measurement, not two, and the agreement is not
+    # corroboration. RSX II 200's panel is its own and its red row differs in
+    # the second decimal.
+    # ⚠ INERT, like every other row here: `_MEASURED_DYE_MATRIX_ADOPTED` is
+    # False, so nothing reads these and no render moves.
+    "AGFA_RSX_II_50": (
+        (0.847359, 0.131705, 0.020936),
+        (0.130810, 0.789235, 0.079955),
+        (0.057780, 0.144211, 0.798010),
+    ),
+    "AGFA_RSX_II_100": (
+        (0.847417, 0.131645, 0.020938),
+        (0.130785, 0.789258, 0.079957),
+        (0.057766, 0.144242, 0.797992),
+    ),
+    "AGFA_RSX_II_200": (
+        (0.826715, 0.153745, 0.019539),
+        (0.130223, 0.794604, 0.075173),
+        (0.055428, 0.142518, 0.802054),
+    ),
     "EASTMAN_EKTACHROME_7239": (
         (0.852294, 0.131054, 0.016652),
         (0.108396, 0.823851, 0.067753),
@@ -31992,6 +37396,20 @@ FILM_PROFILES = tuple(
 )
 FILM_PROFILES = tuple(
     replace(_p, param_sources=_PARAM_SOURCES.get(_p.name, ()))
+    for _p in FILM_PROFILES
+)
+
+# ⚠ THE EMULSION DESIGNATION IS MERGED, NOT ASSIGNED, so a value written into a
+# profile literal is never silently replaced by the table. Nothing writes one
+# into a literal today; the guard exists because `processing` and
+# `process_variants` above ARE assigned unconditionally, and a kwarg the loader
+# throws away is a lie in the source that reads as a working edit. That mistake
+# was made once on 2026-09-01, on these same three AGFAPAN profiles.
+FILM_PROFILES = tuple(
+    _p if _p.emulsion.designation
+    else replace(_p, emulsion=replace(
+        _p.emulsion,
+        designation=_EMULSION_DESIGNATION.get(_p.name, "")))
     for _p in FILM_PROFILES
 )
 
@@ -32727,6 +38145,95 @@ def grain_sigma(grain: GrainSpec, dmin: float, dmax: float, density):
         return float(out) if scalar else out.astype(_np.float32)
     return out                                             # pragma: no cover
 
+
+
+#: Two-Gaussian separable equivalent of the measured MTF rolloff, keyed on q.
+#:
+#: ⚠ THIS EXISTS BECAUSE THE C++ ENGINE HAS NO FFT AND THE MEASURED LAW IS A
+#: FREQUENCY-DOMAIN FORM. `mtf_response` applies 1/(1+(f/f50)^q) directly; the
+#: renderer's C++ twin convolves a SEPARABLE SPATIAL GAUSSIAN and cannot express
+#: that law at all. Until 2026-09-03 the consequence was recorded in
+#: `cpp_parity.LAW_BYPASS_BASELINE` and left standing: every stock with a
+#: measured q rendered on the legacy single Gaussian, correct at f50 by
+#: construction and up to 3.8x too much modulation at 2x f50.
+#:
+#: The fix is a weighted pair of Gaussians, which the blur stage ALREADY
+#: supports -- it takes up to `ALGO_BLUR_MAX_LOBES` lobes with weights summing
+#: to one, because the adjacency band-pass needed exactly that. So the law
+#: crosses into C++ as two more lobes and no new machinery.
+#:
+#: Each row is (w1, s1, s2) with the second weight implied as 1 - w1, and the
+#: sigmas expressed as MULTIPLES of the legacy Gaussian's sigma, i.e. the
+#: transfer is  w1*exp(-ln2 (f s1/f50)^2) + (1-w1)*exp(-ln2 (f s2/f50)^2).
+#: A row therefore scales to any f50 and any render resolution by multiplying
+#: both sigmas by the base sigma the legacy path already computes.
+#:
+#: ⚠ KEYED ON THE EXACT STORED q AND **NOT INTERPOLATED**, and that is a
+#: measured property of the fit rather than caution. The two-lobe family has TWO
+#: DISJOINT OPTIMAL BASINS: below q ~ 3.0 the best fit is a small tight lobe on a
+#: wide one (w1 ~ 0.005-0.36), above it the best fit flips to a slightly
+#: OVER-weighted narrow lobe minus a very wide one (w1 ~ 1.00-1.08, s2 ~ 5.7-8.9).
+#: Interpolating a table across that switch produces a kernel that fits neither
+#: side. Every q in this table is a literal stored on a profile, so exact lookup
+#: is all that is ever needed; a new measured q adds a row.
+#:
+#: Worst max|error| over the 22 rows: **0.0384**, against **0.1737** for the
+#: single Gaussian the C++ side used before. Every stock improves, by 1.4x to
+#: 10.0x.
+_MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
+    1.7000: (+0.364360, 0.362758, 1.478273),   # max|err| 0.0322  vs Gaussian 0.1737
+    1.8400: (+0.333362, 0.374690, 1.372429),   # max|err| 0.0257  vs Gaussian 0.1564
+    1.9150: (+0.315192, 0.379239, 1.323537),   # max|err| 0.0227  vs Gaussian 0.1476
+    2.0000: (+0.293949, 0.383232, 1.274738),   # max|err| 0.0195  vs Gaussian 0.1379
+    2.0900: (+0.271601, 0.386660, 1.230938),   # max|err| 0.0166  vs Gaussian 0.1281
+    2.1700: (+0.252649, 0.389561, 1.198798),   # max|err| 0.0143  vs Gaussian 0.1197
+    2.2000: (+0.245871, 0.390697, 1.188320),   # max|err| 0.0136  vs Gaussian 0.1166
+    2.3800: (+0.209678, 0.398716, 1.141156),   # max|err| 0.0099  vs Gaussian 0.0991
+    2.3900: (+0.203068, 0.393025, 1.135008),   # max|err| 0.0102  vs Gaussian 0.0982
+    2.5000: (+0.137869, 0.325088, 1.076711),   # max|err| 0.0145  vs Gaussian 0.0883
+    2.5100: (+0.132715, 0.318287, 1.072267),   # max|err| 0.0149  vs Gaussian 0.0874
+    2.6200: (+0.085109, 0.239422, 1.031378),   # max|err| 0.0195  vs Gaussian 0.0782
+    2.6800: (+0.065020, 0.188904, 1.014021),   # max|err| 0.0221  vs Gaussian 0.0734
+    2.6900: (+0.062077, 0.180213, 1.011430),   # max|err| 0.0225  vs Gaussian 0.0726
+    2.8400: (+0.028633, 0.030000, 0.980809),   # max|err| 0.0294  vs Gaussian 0.0615
+    2.8800: (+0.025154, 0.179143, 0.975878),   # max|err| 0.0313  vs Gaussian 0.0587
+    2.9400: (+0.014066, 0.115885, 0.966497),   # max|err| 0.0341  vs Gaussian 0.0548
+    3.0000: (+0.005414, 0.101775, 0.958757),   # max|err| 0.0369  vs Gaussian 0.0509
+    3.0600: (+1.002677, 0.957027, 8.868426),   # max|err| 0.0384  vs Gaussian 0.0520
+    3.1000: (+1.008396, 0.963362, 8.466455),   # max|err| 0.0374  vs Gaussian 0.0547
+    3.2300: (+1.028498, 0.984242, 8.697727),   # max|err| 0.0343  vs Gaussian 0.0630
+    3.5000: (+1.077656, 1.028618, 5.678378),   # max|err| 0.0291  vs Gaussian 0.0793
+}
+
+
+def mtf_kernel(q: float) -> tuple[float, float, float] | None:
+    """(w1, s1, s2) for a measured rolloff exponent, or None if not tabulated.
+
+    ⚠ EXACT LOOKUP BY DESIGN -- see the table's own note on the two basins.
+    Returning None is the signal to fall back to the legacy single Gaussian,
+    which is what an untabulated stock rendered as before this existed.
+    """
+    return _MTF_KERNEL_TABLE.get(round(float(q), 4))
+
+
+def mtf_kernel_response(mtf: MTFSpec, channel: int, f):
+    """The transfer the SEPARABLE KERNEL actually realises, for guards.
+
+    This is what both renderers now apply on a measured stock. It is a
+    deliberately separate function from `mtf_response`: that one is the law,
+    this one is the approximation, and a guard that compared the law with itself
+    would prove nothing.
+    """
+    import numpy as _np
+    f50 = (mtf.f50_r, mtf.f50_g, mtf.f50_b)[channel]
+    k = mtf_kernel(mtf.mtf_rolloff_q) if mtf.mtf_measured else None
+    if f50 <= 0.0 or k is None:
+        return mtf_response(mtf, channel, f)
+    w1, s1, s2 = k
+    x = _np.asarray(f, dtype=_np.float64) / float(f50)
+    l2 = _np.log(2.0)
+    return (w1 * _np.exp(-l2 * (x * s1) ** 2)
+            + (1.0 - w1) * _np.exp(-l2 * (x * s2) ** 2))
 
 def mtf_response(mtf: MTFSpec, channel: int, f):
     """Modulation transfer at spatial frequency ``f`` -- THE ONE DEFINITION (v10).

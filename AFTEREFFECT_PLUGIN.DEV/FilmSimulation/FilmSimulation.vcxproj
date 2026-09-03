@@ -190,6 +190,7 @@
     <ClInclude Include="include\AlgoPrFormatEgress.hpp" />
     <ClInclude Include="include\AlgoPrFormatIngest.hpp" />
     <ClInclude Include="include\AlgoPrFormatMath.hpp" />
+    <ClInclude Include="include\AlgoProcessVariant.hpp" />
     <ClInclude Include="include\AlgoReciprocity.hpp" />
     <ClInclude Include="include\AlgoRelativeExposure.hpp" />
     <ClInclude Include="include\AlgoReseauReconstruct.hpp" />
@@ -259,6 +260,7 @@
     <ClCompile Include="src\film_profiles_data_14.cpp" />
     <ClCompile Include="src\film_profiles_data_15.cpp" />
     <ClCompile Include="src\film_profiles_data_16.cpp" />
+    <ClCompile Include="src\film_profiles_data_17.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\LoadFilmDataBase.cpp" />
   </ItemGroup>
@@ -289,8 +291,16 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
     <None Include="python\old_films_analyzing\README_v21.md" />
+    <None Include="python\profiles_generator\adopt_agfa_1998.py" />
+    <None Include="python\profiles_generator\adopt_agfa_full.py" />
+    <None Include="python\profiles_generator\agfa_1998_curves.py" />
+    <None Include="python\profiles_generator\agfa_2003_curves.py" />
+    <None Include="python\profiles_generator\agfa_2003_sheet.py" />
     <None Include="python\profiles_generator\agfa_2004_curves.py" />
+    <None Include="python\profiles_generator\agfa_p16c.py" />
+    <None Include="python\profiles_generator\agfa_scala_sheet.py" />
     <None Include="python\profiles_generator\agfa_vista.py" />
+    <None Include="python\profiles_generator\bbc_t101_2.py" />
     <None Include="python\profiles_generator\build.py" />
     <None Include="python\profiles_generator\callier_silberstein_tuttle.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
@@ -305,15 +315,20 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\film_ids.lock" />
     <None Include="python\profiles_generator\film_profiles.py" />
     <None Include="python\profiles_generator\film_sim.py" />
+    <None Include="python\profiles_generator\flueckiger_2018.py" />
+    <None Include="python\profiles_generator\fuji_neopan_ss.py" />
+    <None Include="python\profiles_generator\fuji_t3_2026.py" />
     <None Include="python\profiles_generator\gen_active_profiles.py" />
     <None Include="python\profiles_generator\gen_film_curves_md.py" />
     <None Include="python\profiles_generator\gen_film_names.py" />
     <None Include="python\profiles_generator\gen_ref.py" />
+    <None Include="python\profiles_generator\gevachrome_1968_raster.py" />
     <None Include="python\profiles_generator\gevaert_curves.py" />
     <None Include="python\profiles_generator\granularity_vector.py" />
     <None Include="python\profiles_generator\interimage_parity.py" />
     <None Include="python\profiles_generator\iso5_3_density.py" />
     <None Include="python\profiles_generator\iso_5_3_status.py" />
+    <None Include="python\profiles_generator\jp_jps_1965_269.py" />
     <None Include="python\profiles_generator\kodak_1952_curves.py" />
     <None Include="python\profiles_generator\kodak_aim_density.py" />
     <None Include="python\profiles_generator\kodak_sensitometry.py" />
@@ -322,26 +337,39 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\konica_raster.py" />
     <None Include="python\profiles_generator\make_period_chart.py" />
     <None Include="python\profiles_generator\make_test_chart.py" />
+    <None Include="python\profiles_generator\MANIFEST.md" />
     <None Include="python\profiles_generator\mees_callier_q.py" />
     <None Include="python\profiles_generator\mees_granularity.py" />
     <None Include="python\profiles_generator\mtf_vector.py" />
+    <None Include="python\profiles_generator\ooue_1959_granularity.py" />
     <None Include="python\profiles_generator\plot_inventory.py" />
     <None Include="python\profiles_generator\polaroid_spectral.py" />
     <None Include="python\profiles_generator\README.md" />
     <None Include="python\profiles_generator\render.cmd" />
     <None Include="python\profiles_generator\run.cmd" />
+    <None Include="python\profiles_generator\sayanagi_callier.py" />
+    <None Include="python\profiles_generator\sehlin_kennel_1985.py" />
     <None Include="python\profiles_generator\sheet.py" />
     <None Include="python\profiles_generator\sort_profiles.py" />
     <None Include="python\profiles_generator\spectral_mono_parity.py" />
     <None Include="python\profiles_generator\spectral_vector.py" />
     <None Include="python\profiles_generator\spectral_weight_provenance.py" />
+    <None Include="python\profiles_generator\takano_1968_mottle.py" />
+    <None Include="python\profiles_generator\takano_1969_granularity.py" />
     <None Include="python\profiles_generator\ti0835_plates.py" />
+    <None Include="python\profiles_generator\trumpy_callier_q.py" />
     <None Include="python\profiles_generator\verify.py" />
     <None Include="python\profiles_generator\vision3_granularity.py" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="include\film_names.txt" />
+    <Text Include="python\profiles_generator\MANIFEST.txt" />
     <Text Include="python\profiles_generator\Readme!.txt" />
+    <Text Include="python\profiles_generator\README.txt" />
+    <Text Include="python\profiles_generator\README_ARCHIVES.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="python\profiles_generator\Lady.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -47,6 +47,23 @@ sys.path.insert(0, str(HERE))
 import film_profiles as fp  # noqa: E402
 
 
+def _stage_count() -> int:
+    """Stage entry points the engine actually calls, read from the driver.
+
+    Not from the stage translation units: a stage whose body is an inline
+    header function (12b Callier) has no `Algo_NN_Sim.cpp` to grep. The
+    driver calls every stage exactly once, so it is the honest source.
+    """
+    import re as _re
+    pat = r"AlgoStage\d+[a-c]?_[A-Za-z]+"
+    for cand in (HERE / "AlgorithmMain.cpp",
+                 HERE.parent / "tst" / "AlgorithmMain.cpp"):
+        if cand.is_file():
+            txt = cand.read_text(encoding="utf-8", errors="replace")
+            return len(set(_re.findall(pat, txt)))
+    return 0
+
+
 def live() -> dict:
     """Every quantity the registry may refer to, computed from the database."""
     P = fp.FILM_PROFILES
@@ -69,6 +86,17 @@ def live() -> dict:
         # could not drift and the number next to them could. Registering it
         # closes the hole; a value in a guarded sentence is not itself guarded.
         "schema": fp.SCHEMA_VERSION,
+        # ⚠ ADDED 2026-08-31, AFTER A DOCUMENTED COUNT WAS WRONG FOR AN HOUR.
+        # Four documents and two archive manifests said the pipeline has 25
+        # stage entry points. It has 26. The count had been derived by grepping
+        # `AlgoStage[0-9]+[a-c]?_` across `Algo_*_Sim.cpp`, and
+        # `AlgoStage12b_Callier` is defined INLINE IN A HEADER (AlgoCallier.hpp)
+        # rather than in a stage translation unit, so the grep could not see it
+        # -- while the running engine profiles it as "12b  Callier" every frame.
+        # ⚠ THE FIX IS THE SOURCE, NOT THE PATTERN: count the stages the DRIVER
+        # actually calls. AlgorithmMain.cpp must name every stage exactly once,
+        # so it cannot omit one the engine runs.
+        "stages": _stage_count(),
         "param_sources": sum(len(q.param_sources) for q in P),
         "developers": sum(1 for q in P if q.processing.developer),
         "mtf_measured": sum(1 for q in P if q.mtf.mtf_measured),
@@ -85,6 +113,28 @@ def live() -> dict:
         "crit_d04": sum(v for k, v in crit.items() if "D0.4_above_dmin" in k),
         "mixed_tag": sum(1 for q in P
                          if re.match(r"\[T[123]/T[123]\]", q.description)),
+        # ⚠ ADDED 2026-09-01 BECAUSE ALL FIVE WERE FOUND STALE AT ONCE, AND
+        # THEY WERE STALE FOR THE REASON THIS MODULE EXISTS. NotFound.md's
+        # headline sentence reads "170 film stocks, 11 print stocks, 14 gauges,
+        # schema v22." on one line and "131 negative / 39 reversal; 68
+        # monochrome. Provenance tiers: 84 T1, 45 T2, 41 T3." on the next. Only
+        # the FIRST line was registered. KODAK_EKTAR_125 moved the negative
+        # count and the T3 count on 2026-08-31, the build stayed green, and the
+        # second line quietly described a database that no longer existed.
+        # A number is only maintained if something fails when it drifts.
+        "negative": sum(1 for q in P if q.kind is fp.StockKind.NEGATIVE),
+        "reversal": sum(1 for q in P if q.kind is fp.StockKind.REVERSAL),
+        "monochrome": sum(1 for q in P if q.is_monochrome),
+        "tier1": sum(1 for q in P if q.provenance.tier == 1),
+        "tier2": sum(1 for q in P if q.provenance.tier == 2),
+        "tier3": sum(1 for q in P if q.provenance.tier == 3),
+        # Carriers the AGFA harvest populated, registered in the same edit as
+        # the sentence that reports them.
+        "coated": sum(1 for q in P if q.emulsion.coated_um > 0.0),
+        "proc_families": sum(1 for q in P if q.processing_family.has_data),
+        "base_um": sum(1 for q in P if q.emulsion.base_um > 0.0),
+        "neutral_pairs": sum(1 for q in P if q.dye_density.has_neutral_pair),
+        "designations": sum(1 for q in P if q.emulsion.designation),
     }
 
 
@@ -107,10 +157,16 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
      r"\*\*(\d+) parameters across \d+ profiles now carry `ParamSource`",
      "param_sources", "the ParamSource coverage claim"),
     ("doc/PROGRESS.md",
-     r"52 \u2192 (\d+) entries, 26 \u2192 161 profiles",
+     r"52 \u2192 (\d+) entries, 26 \u2192 \d+ profiles",
      "param_sources", "PROGRESS item 17's ParamSource count"),
     ("doc/NotFound.md",
-     r"\*\*(\d+) of \d+\*\* measured, and every one is Kodak",
+     # ⚠ THE TAIL OF THIS PATTERN CHANGED ON 2026-09-02c AND THE PATTERN HAD TO
+     # CHANGE WITH IT. It used to read "measured, and every one is Kodak"; queue
+     # E5 made one of them a JOURNAL plate rather than a vendor sheet, so the
+     # sentence was rewritten and the anchor moved to the part that is about the
+     # count. An unmatched pattern stops checking silently, which is why
+     # doc_consistency fails on a pattern miss and not only on a stale number.
+     r"\*\*(\d+) of \d+\*\* measured -- \d+ colour negatives",
      "sigma_measured", "the measured sigma(D) count in the one-screen table"),
     # ⚠ PATTERN UPDATED 2026-08-26 IN THE SAME EDIT AS THE SENTENCE, which is
     # the discipline this module exists to enforce. DOUBLE-X 5222 became the
@@ -139,6 +195,12 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
     # NotFound.md's headline had the version guarded; these two did not, so they
     # are registered now. The lesson is the one this registry exists for: a
     # number is only maintained if something fails when it drifts.
+    ("doc/README.md",
+     r"has \*\*(\d+) stage entry points\*\*",
+     "stages", "the README pipeline stage count"),
+    ("doc/PROGRESS.md",
+     r"\*\*(\d+) stage entry points\*\*, and \*\*all \d+ exist",
+     "stages", "the PROGRESS engine stage count"),
     ("doc/DATASHEET_VERIFICATION_REPORT.md",
      r"the database holds \d+ film stocks, \d+ print stocks, schema v(\d+)\.",
      "schema", "the verification report's schema version"),
@@ -160,6 +222,46 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
     ("doc/NotFound.md",
      r"\*\*(\d+) carry a measured MTF\*\*",
      "mtf_measured", "the carrier census: measured MTF"),
+    # ---- 2026-09-01. The second line of NotFound.md's headline, and the
+    # PROGRESS build-facts row that repeats it. Both were stale before this
+    # registration and neither failed anything.
+    ("doc/NotFound.md",
+     r"\*\*\d+ film stocks, \d+ print stocks, \d+ gauges, schema v\d+\.\*\* (\d+) negative",
+     "negative", "the headline negative/reversal split: negatives"),
+    ("doc/NotFound.md",
+     r"schema v\d+\.\*\* \d+ negative / (\d+) reversal",
+     "reversal", "the headline negative/reversal split: reversals"),
+    ("doc/NotFound.md",
+     r"Provenance tiers: \*\*(\d+) T1, \d+ T2, \d+ T3\*\*",
+     "tier1", "the headline provenance tiers: T1"),
+    ("doc/NotFound.md",
+     r"Provenance tiers: \*\*\d+ T1, (\d+) T2, \d+ T3\*\*",
+     "tier2", "the headline provenance tiers: T2"),
+    ("doc/NotFound.md",
+     r"Provenance tiers: \*\*\d+ T1, \d+ T2, (\d+) T3\*\*",
+     "tier3", "the headline provenance tiers: T3"),
+    ("doc/NotFound.md",
+     r"\*\*(\d+) stocks carry a published coated thickness\*\*",
+     "coated", "the carrier census: published coated thickness"),
+    ("doc/NotFound.md",
+     r"\*\*(\d+) carry a manufacturer reciprocity table\*\*",
+     "recip_tables", "the carrier census: manufacturer reciprocity tables"),
+    ("doc/NotFound.md",
+     r"\*\*(\d+) carry a\s+processing family\*\*",
+     "proc_families", "the carrier census: processing families"),
+    ("doc/NotFound.md",
+     r"\*\*(\d+) carry a published base thickness\*\*",
+     "base_um", "the carrier census: published base thickness (schema v23)"),
+    ("doc/NotFound.md",
+     r"\*\*(\d+) carry a neutral \+ D-min pair\*\*",
+     "neutral_pairs", "the carrier census: neutral + D-min pairs"),
+    ("doc/NotFound.md",
+     r"\*\*(\d+) carry the manufacturer's own\s+emulsion designation\*\*",
+     "designations", "the carrier census: emulsion designations (schema v23)"),
+    ("doc/PROGRESS.md",
+     r"schema \*\*v\d+\*\* \(re-measured from the live module [\d-]+: `SCHEMA_VERSION`, "
+     r"`len\(FILM_PROFILES\)`, `len\(PRINT_STOCKS\)`, `len\(FORMATS\)`\)\. (\d+) negative",
+     "negative", "the PROGRESS build-facts negative count"),
 )
 
 

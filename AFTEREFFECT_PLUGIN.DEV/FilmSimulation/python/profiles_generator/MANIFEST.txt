@@ -1,0 +1,19 @@
+Python source — film simulation generator, renderer and audit suite
+===================================================================
+Schema v22.  165 film stocks, 11 print stocks, 14 gauges.
+
+  build.py            the entry point: audit -> verify -> codegen -> sync -> docs -> compile
+                      python build.py --root <project root>      (--check is read-only)
+  film_profiles.py    the database and the schema. The SCHEMA_VERSION log at the top is
+                      the authority on what each version added.
+  film_sim.py         the 25-stage pipeline, 16-bit PNG writer, CLI
+  cpp_codegen.py      emits the C++ database (see the "database" archive)
+  verify.py           462 checks; 461 PASS / 1 FAIL by design (saturation hierarchy)
+  <28 audit scripts>  each re-derives adopted numbers from the source PDFs
+
+Dependencies: numpy and Pillow only for the RENDERER and the GENERATOR.
+The audit scripts additionally need PyMuPDF, because they re-open the source documents.
+agfa_2004_curves.py will use SciPy for one curve re-fit if present and skips that one
+check with a printed message if not.
+
+NOT INCLUDED: PDF/PROFILES.  Five of the 28 audits SKIP without it.
