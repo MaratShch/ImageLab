@@ -1498,6 +1498,28 @@ struct PrintStock {
     /// that matrix: 164 of 165 profiles render through SCAN_DI, whose reader
     /// is a scanner and not this film.
     SpectralSensitivity spectral;
+    // -- schema v25 (2026-09-03), LIVE ON THE RENDER PATH --------------------
+    /// EFFECTIVE INTEGRAL PRINTING DENSITY: the 3x3 that turns the negative's
+    /// STORED status densities into the exposure densities this print
+    /// emulsion's three layers actually see. Applied BEFORE the print
+    /// characteristic curve, and to the neutral anchor as well as the image.
+    ///
+    /// ⚠ NOT THE SAME THING AS `dye_matrix` ABOVE, AND BOTH ARE NEEDED.
+    /// `dye_matrix` is the print's own dye impurity and acts on the print's
+    /// OUTPUT densities; this one is the printer lamp, the filter pack, the
+    /// negative's dye transmittances and this film's sensitisation, and acts
+    /// on what goes IN. A per-channel `offset - D` cannot express either.
+    ///
+    /// ⚠ ROWS SUM TO 1.0 BY CONSTRUCTION, so a neutral negative still prints
+    /// neutral and the printer-light solve is unchanged. The per-channel gain
+    /// in the raw product is deliberately normalised out: the printer lights
+    /// already set it, and leaving it in would apply a channel gamma twice.
+    ///
+    /// Identity on ten of the eleven print stocks -- only KODAK_2383_RELEASE
+    /// carries the spectral sensitivity the derivation needs.
+    Matrix3 printing_density_matrix;
+    bool printing_matrix_measured;   ///< derived from measured spectra
+    std::string printing_matrix_source;
 
 };
 
@@ -2241,7 +2263,10 @@ def _print_block(s: PrintStock) -> str:
             {_dye_stability(s.dye_stability)},
             {_f(s.mtf_f50_r)}, {_f(s.mtf_f50_g)}, {_f(s.mtf_f50_b)},
             {_f(s.mtf_f50_bound)}, {"true" if s.mtf_measured else "false"},
-            {_spectral(s.spectral)}
+            {_spectral(s.spectral)},
+            {_matrix(s.printing_density_matrix)},
+            {"true" if s.printing_matrix_measured else "false"},
+            "{_escape(s.printing_matrix_source)}"
         }},
 """
 

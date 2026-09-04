@@ -92,6 +92,7 @@ and the rms triples stay marked as estimates. That is a smaller result than
 from __future__ import annotations
 
 import argparse
+import itertools
 import math
 import os
 import sys
@@ -438,6 +439,100 @@ def _tick_candidates(page, box, axis):
     return sorted(out)
 
 
+#: A chain is a ROW OF SEPARATE STROKES rather than a data trace when it is
+#: both sparse and mostly vertical. Both conditions are required and the
+#: margins are wide in each direction; see `_is_stroke_row`.
+STROKE_ROW_MAX_VERTS = 20
+STROKE_ROW_FLAT_FRAC = 0.25
+
+
+def _is_stroke_row(chain):
+    """True when ``chain`` is a row of unrelated strokes welded by the chainer.
+
+    ⚠ WHAT THIS REJECTS, AND WHY THE SPAN TEST CANNOT. E-4035 (May 2007) p6's
+    spectral panel carries a three-line caption box whose text underlines are
+    drawn as four separate VERTICAL strokes at x 76.6, 139.8, 154.2 and 183.1.
+    `chain_fragments` welds them into one 9-vertex chain that crosses 53 % of
+    the frame, so it passes the span test, and the panel then reported FOUR
+    traces where three were wanted -- which blocked the chained reading and
+    left the cyan-forming layer's curve unread. The same artefact appears on
+    E-7024 p3 and inside several MTF panels.
+
+    The discriminator is that a data trace advances in x at nearly every
+    vertex, while a row of vertical strokes does not advance at most of them.
+    Measured over all 602 candidate chains in the 14-document corpus, the
+    zero-x-advance fraction splits them cleanly:
+
+        real traces          0.000 - 0.200   (the 0.200 case has 276 vertices)
+        stroke rows          0.333 - 0.800   (every one has 13 vertices or fewer)
+
+    ⚠ BOTH CONDITIONS ARE REQUIRED because either alone would misfire. A bare
+    vertex count would throw away E-4050's genuine 38-vertex curves -- the
+    mistake `MIN_TRACE_VERTS` already made once, recorded in `keep`'s own
+    comment. A bare zero-advance fraction would throw away E-7019's
+    spectral-sensitivity traces, which reach 0.199 and 0.200 legitimately
+    because they are drawn with 182 and 276 vertices including repeats. Taken
+    together the gap is an order of magnitude on the vertex count (13 against
+    133) and a third on the fraction, so nothing here sits near a boundary.
+    """
+    n = len(chain)
+    if n > STROKE_ROW_MAX_VERTS:
+        return False
+    flat = sum(1 for i in range(n - 1)
+               if abs(chain[i + 1][0] - chain[i][0]) < 0.01)
+    return flat / max(n - 1, 1) >= STROKE_ROW_FLAT_FRAC
+
+
+#: A gridline must cross at least this fraction of the panel's other dimension
+#: to count as one. The spectral-sensitivity panels' gridlines cross 100 % of
+#: the frame; the longest non-gridline vertical segment inside E-4035 p6's
+#: panel crosses 17 %, so the two do not overlap and the threshold is not
+#: fitted to a boundary case.
+GRID_MIN_SPAN_FRAC = 0.60
+
+
+def _grid_candidates(page, box, axis):
+    """Positions of RULED GRIDLINES and frame edges along ``axis``.
+
+    ⚠ A SEPARATE SOURCE FROM `_tick_candidates`, ON PURPOSE, AND NOT MERGED
+    INTO IT. That function rejects any perpendicular line longer than
+    `TICK_MAX_LEN_PT` precisely so a data trace cannot pose as a tick, which
+    also throws away every gridline. On the spectral-sensitivity panels that
+    leaves nothing usable: E-4035 (May 2007) p6's wavelength labels are typeset
+    with a spacing that wanders from 22.3 to 27.5 pt where the ruling is an
+    exact 25.07, so the labels miss a straight line by 2.8 pt and the panel is
+    skipped -- while the seven drawn gridlines (x 99.51 to 249.92) plus the
+    frame rectangle's own edges (74.54 and 275.08) give the axis to the
+    hundredth of a point. The gridline IS the position, in the same sense the
+    module already grants a tick.
+    """
+    lo, hi = (box[1], box[3]) if axis == "x" else (box[0], box[2])
+    need = GRID_MIN_SPAN_FRAC * max(hi - lo, 1e-6)
+    out = []
+    for dr in page.get_drawings():
+        r = dr["rect"]
+        if r.x1 < box[0] - 12 or r.x0 > box[2] + 12:
+            continue
+        if r.y1 < box[1] - 12 or r.y0 > box[3] + 12:
+            continue
+        for it in dr["items"]:
+            if it[0] == "l":
+                a, b = it[1], it[2]
+                if axis == "x":
+                    if abs(a.x - b.x) < 0.35 and abs(a.y - b.y) >= need:
+                        out.append(a.x)
+                else:
+                    if abs(a.y - b.y) < 0.35 and abs(a.x - b.x) >= need:
+                        out.append(a.y)
+            elif it[0] == "re":
+                rr = it[1]
+                if axis == "x" and (rr.y1 - rr.y0) >= need:
+                    out += [rr.x0, rr.x1]
+                elif axis == "y" and (rr.x1 - rr.x0) >= need:
+                    out += [rr.y0, rr.y1]
+    return sorted(out)
+
+
 def _snap_all(pos, cands, tol=TICK_SNAP_PT):
     if not cands:
         return list(pos)
@@ -448,7 +543,104 @@ def _snap_all(pos, cands, tol=TICK_SNAP_PT):
     return out
 
 
-def _best_axis(pos, mag, cands, log_axis, want_slope):
+#: How many tick candidates a single label may be tried against in the
+#: collinear fallback. A wavelength axis inside a 6 pt window offers at most a
+#: handful; the cap exists so a pathologically ruled panel cannot turn the
+#: search into a combinatorial explosion.
+SNAP_FANOUT = 4
+
+#: Product of per-label candidate counts above which the collinear fallback
+#: gives up rather than enumerate. 5 labels x 4 candidates = 1024, well inside.
+SNAP_COMBOS_MAX = 20000
+
+
+def _snap_collinear(pos, mag, cands, grid, log_axis, want_slope,
+                    tol=TICK_SNAP_PT):
+    """Assign each label to a drawn tick BY COLLINEARITY, not by proximity.
+
+    ⚠ WHY NEAREST-NEIGHBOUR SNAPPING IS NOT ENOUGH, AND WHERE IT WAS CAUGHT.
+    E-4035 (May 2007) page 7 draws both 400UC characteristic panels with the
+    DENSITY labels typeset 0 / -2.9 / -2.9 / -1.9 / 0 pt off a straight line.
+    Fitting the labels leaves a 2.9 pt worst residual and the panel is skipped.
+    `_snap_all` does not rescue it either: the "1.0" label sits at 218.9 and
+    there are three tick candidates in its window -- 218.6, 218.8 and 221.0 --
+    so nearest-neighbour takes 218.8, keeps the 2.25 pt error and the panel is
+    STILL skipped, while 221.0 is the one a ruled axis wants (it lands 0.05 pt
+    off the line through the other four). Two complete three-channel figures,
+    one of them the only EI 800 push this emulsion has, were being lost to a
+    tick chosen by the wrong criterion.
+
+    The criterion here is that a ruled axis IS linear by construction, so among
+    the candidates inside the snap window the correct one is the one that makes
+    the run collinear. Enumerated exhaustively and scored by the same
+    `_sign_ticks` test everything else uses, so a run this accepts is collinear
+    to the same 1.5 pt as one the other two paths accept -- this widens WHICH
+    positions are considered, never the tolerance they must meet.
+
+    ⚠ TRIED LAST, AFTER PLAIN SNAPPING AND AFTER THE RAW LABELS. Every panel
+    that already fitted keeps its previous reading bit for bit; this only sees
+    inputs all earlier paths rejected.
+
+    ⚠ TWO CANDIDATE SETS, RULED FIRST. `grid` (drawn gridlines and frame edges,
+    from `_grid_candidates`) is tried before `cands` (short tick marks) because
+    on the panels that reach this function the tick list is not a tick list:
+    E-4035 p6's spectral panel offers 100+ candidates within a few points of
+    each other -- the curve's own near-vertical segments, which are short
+    enough to pass for ticks -- and nine labels against four of those apiece is
+    262144 combinations, over `SNAP_COMBOS_MAX`, so the search would decline.
+    The nine ruled positions are unambiguous and give one candidate per label.
+    """
+    # ⚠ BOTH SOURCES ARE SEARCHED AND THE BETTER RESIDUAL WINS, rather than
+    # ruled-first. Trying the gridlines first looked right and was not: on
+    # E-4035 p7's characteristic panels there are no internal gridlines, so the
+    # ruled set is just the two frame edges, and an assignment that snaps only
+    # the extreme labels is collinear enough to be returned while the
+    # tick-based assignment is the exact one. That cost the panel its exact
+    # axis (y 0.000..4.000 became -0.028..3.981) and moved its dmins by 0.026 --
+    # away from E-190 (2003) p13's independent reading of the same emulsion,
+    # which is the check that says which of the two is right.
+    best = None
+    for src in (grid, cands):
+        got = _snap_collinear_one(pos, mag, src, log_axis, want_slope, tol)
+        if got and (best is None or got[0][2] < best[0][2]):
+            best = got
+    return best
+
+
+def _snap_collinear_one(pos, mag, cands, log_axis, want_slope, tol):
+    """One pass of the collinear search over a single candidate set."""
+    if not cands:
+        return None
+    opts = []
+    for p in pos:
+        near = sorted((c for c in cands if abs(c - p) <= tol),
+                      key=lambda c: abs(c - p))[:SNAP_FANOUT]
+        # The label's own centre stays a candidate: a panel where only SOME
+        # labels are misplaced must be able to keep the good ones.
+        opts.append([p] + [c for c in near if abs(c - p) > 1e-9])
+    total = 1
+    for o in opts:
+        total *= len(o)
+    if total > SNAP_COMBOS_MAX:
+        return None
+    best = None
+    for combo in itertools.product(*opts):
+        cand = list(combo)
+        # A tick cannot serve two labels.
+        if len(set(round(v, 4) for v in cand)) != len(cand):
+            continue
+        fit = _sign_ticks(cand, mag, log_axis=log_axis,
+                          want_slope=want_slope, with_residual=True)
+        if fit is None:
+            continue
+        if best is None or fit[2] < best[0][2]:
+            best = (fit, cand)
+    if best is None:
+        return None
+    return best[0], best[1]
+
+
+def _best_axis(pos, mag, cands, grid, log_axis, want_slope):
     """Fit the axis from label centres AND from tick-snapped centres; keep the
     better of the two.
 
@@ -466,12 +658,28 @@ def _best_axis(pos, mag, cands, log_axis, want_slope):
     accurate reading even if its residual is marginally larger. Falling back to
     the labels happens only when snapping has visibly gone wrong -- i.e. when it
     destroys collinearity, which is exactly the mis-snap case.
+
+    ⚠ AND THE COLLINEAR SEARCH IS TRIED LAST, NOT SECOND. Inserting it between
+    the two existing paths moved five already-adopted readings -- e4050 (2016)
+    p4's three gammas by 0.004, PORTRA-2003 p9's MTF green f50 by 0.6 cy/mm,
+    E-7023 p4's dye peaks by 0.012 -- because those panels reach the RAW path
+    today and the search would have intercepted them. None of those five is a
+    panel anybody complained about, and there is no evidence the intercepted
+    reading is the better one, so the order here guarantees the search sees
+    only inputs that both older paths REJECTED: a panel that fits today keeps
+    its number bit for bit, and the only panels this can change are ones that
+    were being skipped outright.
     """
     for p in (_snap_all(pos, cands), list(pos)):
         fit = _sign_ticks(p, mag, log_axis=log_axis, want_slope=want_slope,
                           with_residual=True)
         if fit:
             return fit[0], fit[1], p
+    # ⚠ LAST RESORT, ADDED 2026-09-03 FOR E-4035 p7. See `_snap_collinear`.
+    got = _snap_collinear(pos, mag, cands, grid, log_axis, want_slope)
+    if got:
+        fit, cand = got
+        return fit[0], fit[1], cand
     return None
 
 
@@ -536,6 +744,10 @@ def _numeric_axes(page, box, log_x=False, log_y=False):
 
     tx = _tick_candidates(page, box, "x")
     ty = _tick_candidates(page, box, "y")
+    # Ruled gridlines, used ONLY by the collinear last resort inside
+    # `_best_axis`; see `_grid_candidates` for why they are kept apart.
+    gx = _grid_candidates(page, box, "x")
+    gy = _grid_candidates(page, box, "y")
 
     # --- x axis: numbers sharing a y centre, spread in x -------------------
     best_x = None
@@ -545,7 +757,7 @@ def _numeric_axes(page, box, log_x=False, log_y=False):
         if len(row) < 3:
             continue
         pos = [(n[0] + n[2]) / 2.0 for n in row]
-        fit = _best_axis(pos, [n[4] for n in row], tx, log_x, +1)
+        fit = _best_axis(pos, [n[4] for n in row], tx, gx, log_x, +1)
         if fit and (best_x is None or len(row) > best_x[1]):
             best_x = (Axis(fit[0], fit[1]), len(row), (min(fit[2]), max(fit[2])))
 
@@ -556,7 +768,7 @@ def _numeric_axes(page, box, log_x=False, log_y=False):
         if len(col) < 3:
             continue
         pos = [(n[1] + n[3]) / 2.0 for n in col]
-        fit = _best_axis(pos, [n[4] for n in col], ty, log_y, -1)
+        fit = _best_axis(pos, [n[4] for n in col], ty, gy, log_y, -1)
         if fit and (best_y is None or len(col) > best_y[1]):
             best_y = (Axis(fit[0], fit[1]), len(col), (min(fit[2]), max(fit[2])))
 
@@ -655,6 +867,8 @@ def extract_panel(page, box, letters=("R", "G", "B"), min_verts=MIN_TRACE_VERTS,
             if (max(p[0] for p in c)
                     - min(p[0] for p in c)) < TRACE_MIN_SPAN * span_x:
                 continue
+            if _is_stroke_row(c):
+                continue
             out.append(c)
         return out
 
@@ -673,11 +887,35 @@ def extract_panel(page, box, letters=("R", "G", "B"), min_verts=MIN_TRACE_VERTS,
     # characteristic curve). Refusing to chain when chaining is unnecessary is
     # the same instinct as dashtrace's merge coast: do not decide what you were
     # not asked to decide.
+    def cover(chains):
+        return sum(max(p[0] for p in c) - min(p[0] for p in c) for c in chains)
+
     raw = keep(frags)
+    chained = keep(chain_fragments(frags))
     if expect and len(raw) != expect:
-        chained = keep(chain_fragments(frags))
-        if not expect or abs(len(chained) - expect) < abs(len(raw) - expect):
+        if abs(len(chained) - expect) < abs(len(raw) - expect):
             raw = chained
+    # ⚠ A CORRECT TRACE COUNT IS NOT A COMPLETE READING, AND THAT WAS COSTING
+    # DATA SILENTLY. E-4035 (May 2007) page 6 draws 100UC's red characteristic
+    # curve as TWO subpaths meeting exactly at (210.76, 228.67), spanning
+    # x 114.8-210.8 and 210.8-262.4. The first half covers 52 % of the frame
+    # and survives `keep`; the second covers 28 % and does not. The unchained
+    # reading therefore returned THREE traces on a three-curve panel -- exactly
+    # the count the panel demands -- with the red curve stopping at log H -0.54
+    # instead of +0.86, losing the upper half of its straight line and its
+    # shoulder entirely. `measure_char` declined it outright and the tone fit
+    # that did run took its gamma off the toe. The count test could not see
+    # any of this: it was already satisfied.
+    #
+    # So when chaining returns the SAME number of traces and covers MORE of the
+    # x axis, the chained reading is the better one and is taken. Equal-count is
+    # the whole safeguard, and it is what keeps the crossing panels safe: on the
+    # spectral-sensitivity panels chaining welds the blue layer's descent onto
+    # the green layer's ascent and collapses three traces to two, so the counts
+    # differ and this branch cannot fire.
+    elif (expect and len(chained) == len(raw) == expect
+            and cover(chained) > cover(raw) + 1e-6):
+        raw = chained
 
     # Channel assignment by proximity to the printed legend letter, evaluated
     # at that letter's own x -- never by density order (see docstring fact 3).
@@ -755,6 +993,13 @@ def assign_layers(traces):
     return {"b": order[0], "g": order[1], "r": order[2]}
 
 
+#: The wavelength range every spectral-dye-density panel in this corpus is
+#: drawn over, and how far a traced extent may fall from it. 2.5 nm is about
+#: 1.5 pt on these panels -- wider than any correct reading's error (the worst
+#: is 0.2 nm) and far narrower than the 4.6 nm mis-calibration it must catch.
+DYE_NM_LO, DYE_NM_HI, DYE_NM_TOL = 400.0, 700.0, 2.5
+
+
 def assign_dye_pair(traces):
     """Name two spectral-dye-density traces neutral/dmin.
 
@@ -766,6 +1011,21 @@ def assign_dye_pair(traces):
     checked pointwise -- if the two ever cross, this returns None rather than
     label them, because a crossing would mean one of them is not what the
     caption says.
+
+    ⚠ AND THE WAVELENGTH EXTENT IS CHECKED, BECAUSE A COLLINEAR AXIS FIT CAN
+    STILL BE THE WRONG ONE. Every spectral-dye-density panel in this corpus is
+    drawn 400 to 700 nm with both curves crossing the whole frame, so a traced
+    extent that falls outside `DYE_NM_TOL` of those two numbers is not a
+    narrower panel -- it is a mis-calibrated axis, and the reader must decline
+    it rather than hand back a shifted array.
+
+    E-4035 (May 2007) p7 is exactly that case and is why this check exists. Its
+    "400" tick label centre sits 3.7 pt right of the drawn tick, while four
+    vertices of the near-vertical D-min curve pass the tick test 1.0-2.0 pt from
+    the label. `_snap_all` takes one of those, the resulting run is collinear
+    enough to be accepted, and the panel reads 395.4-697.6 nm -- a 4.6 nm error
+    that nothing else in the pipeline would have questioned. The 100UC panel on
+    p6 of the same document reads 399.8-700.2 and passes.
     """
     if len(traces) != 2:
         return None
@@ -774,6 +1034,10 @@ def assign_dye_pair(traces):
     for x, y in lo:
         yh = _at_x(hi, x)
         if yh is not None and yh < y - 0.02:
+            return None
+    for t in (hi, lo):
+        if (abs(min(p[0] for p in t) - DYE_NM_LO) > DYE_NM_TOL
+                or abs(max(p[0] for p in t) - DYE_NM_HI) > DYE_NM_TOL):
             return None
     return {"neutral": hi, "dmin": lo}
 
@@ -1051,11 +1315,61 @@ COL_TOL_PT = 100.0
 #: purpose: relaxing the scan to "any panel with a DENSITY axis" would start
 #: matching axis titles across the whole corpus and trade one named exception
 #: for an unbounded number of silent ones.
+#:
+#: ⚠ SECOND ENTRY GROUP, 2026-09-03, FOR A DIFFERENT DEFECT: E-4035's captions
+#: are CENTRED over their panels where every other sheet in the corpus
+#: left-aligns them near the y-axis labels. The caption-relative box therefore
+#: lands about 30 pt right of where it should, and the consequence is not a
+#: skip but something worse -- a panel that reads with a slightly wrong axis.
+#: E-4035 p7's EI 400 panel read dmin 0.3095 / 0.7409 / 1.0289 from the
+#: caption box against 0.3364 / 0.7670 / 1.0543 from the boxes below, and the
+#: second set is the right one: E-190 (2003) p13 reads the SAME emulsion
+#: independently at 0.3338 / 0.7630 / 1.0508, agreeing with it to 0.004 D and
+#: disagreeing with the caption-box reading by 0.024. The boxes here are
+#: anchored on the figure code each panel prints at its own bottom-left
+#: (F009_0585AC and its siblings) plus the caption's baseline, so they are read
+#: off the page rather than offset from a caption.
+#:
+#: ⚠ AND THEY SUPPRESS the caption-derived panels for those pages -- see
+#: PANEL_SUPPRESS -- because otherwise every panel would be found twice.
 PANEL_OVERRIDES = {
     ("E7022-1.pdf", 4): [
         ("char", "Characteristic Curves [uncaptioned in source]",
          (40.0, 50.0, 300.0, 296.0), False, False, ("R", "G", "B"), 3),
     ],
+    ("e4035-100UC_400UC.pdf", 6): [
+        ("char", "100UC Characteristic Curves",
+         (46.0, 92.0, 300.0, 304.0), False, False, ("R", "G", "B"), 3),
+        ("dye", "100UC Spectral-Dye-Density Curves",
+         (320.0, 92.0, 580.0, 303.0), False, False, (), 2),
+        ("sens", "100UC Spectral-Sensitivity Curves",
+         (41.0, 336.0, 300.0, 545.0), False, False, (), 3),
+        ("mtf", "100UC Modulation Transfer Function",
+         (320.0, 336.0, 580.0, 539.0), True, True, ("R", "G", "B"), 3),
+    ],
+    ("e4035-100UC_400UC.pdf", 7): [
+        ("char", "400UC Characteristic Curves, EI 400",
+         (46.0, 76.0, 300.0, 284.0), False, False, ("R", "G", "B"), 3),
+        ("char", "400UC Characteristic Curves, EI 800 (Push 1)",
+         (320.0, 75.0, 580.0, 282.0), False, False, ("R", "G", "B"), 3),
+        ("sens", "400UC Spectral-Sensitivity Curves",
+         (41.0, 320.0, 300.0, 520.0), False, False, (), 3),
+        ("dye", "400UC Spectral-Dye-Density Curves",
+         (320.0, 310.0, 580.0, 517.0), False, False, (), 2),
+    ],
+    ("e4035-100UC_400UC.pdf", 8): [
+        ("mtf", "400UC Modulation Transfer Function",
+         (44.0, 93.0, 300.0, 281.0), True, True, ("R", "G", "B"), 3),
+    ],
+}
+
+#: (pdf basename, page) whose caption-derived panels are DISCARDED in favour of
+#: the PANEL_OVERRIDES boxes above. Only E-4035, and only because its captions
+#: are centred rather than left-aligned; see the note on PANEL_OVERRIDES.
+PANEL_SUPPRESS = {
+    ("e4035-100UC_400UC.pdf", 6),
+    ("e4035-100UC_400UC.pdf", 7),
+    ("e4035-100UC_400UC.pdf", 8),
 }
 
 
@@ -1096,6 +1410,8 @@ def find_panels(page, pdf_name=None):
         box = (cx + BOX_DX0, cy + BOX_DY0, cx + BOX_DX1, y1)
         out.append((kind, txt, box, lx, ly, letters, expect))
     if pdf_name is not None:
+        if (pdf_name, page.number + 1) in PANEL_SUPPRESS:
+            out = []
         out += PANEL_OVERRIDES.get((pdf_name, page.number + 1), [])
     return out
 
@@ -1122,6 +1438,12 @@ DOCS = [
     ("E7022-1.pdf", "E-7022", "2022-03", "GOLD 200"),
     ("E7022-Gold_100_200.pdf", "E-7022", "2007-02", "GOLD 100 + GOLD 200"),
     ("e29-Pro_100T_PRT.pdf", "E-29", "1999-04", "Pro 100T / PRT"),
+    # ⚠ ADDED 2026-09-03. Supplied by the owner after the 2026-08-26 pass, and
+    # it is the sheet BOTH ULTRA COLOR profiles already cited while it was not
+    # in the corpus -- `_PROCESS_VARIANTS["KODAK_ULTRA_COLOR_400UC"]` says so in
+    # as many words. Nine panels, all nine now reading.
+    ("e4035-100UC_400UC.pdf", "E-4035", "2007-05",
+     "ULTRA COLOR 100UC + 400UC"),
 ]
 
 
@@ -1198,8 +1520,17 @@ EXPECTED = {
         "R": (0.2482, 0.5562), "G": (0.6653, 0.5486), "B": (0.8805, 0.6360)},
     ("E7023_max_400.pdf", 4, "char"): {
         "R": (0.2908, 0.5071), "G": (0.6968, 0.5299), "B": (0.9849, 0.6023)},
+    # ⚠ RED REPINNED 2026-09-03: dmin 0.3313 -> 0.3128, gamma unchanged at
+    # 0.5185. This panel draws its red curve as a 9-vertex flat base+fog stub
+    # (x 378.5-400.7) plus the curve proper (x 400.7-526.1); the stub spans 15 %
+    # of the frame, the span filter dropped it, and the surviving piece made the
+    # trace count correct -- so nothing complained while `measure_char` read the
+    # plateau off a trace that did not contain the plateau. With the stub
+    # chained back on, dmin is the drawn plateau. Gamma never depended on it.
+    # ⚠ KODAK_ULTRA_MAX_800's stored red dmin is the OLD value and is NOT
+    # changed here: that is a database edit and the owner decides it.
     ("E7024-Ultra_Max_800.pdf", 3, "char"): {
-        "R": (0.3313, 0.5185), "G": (0.7093, 0.5276), "B": (1.0267, 0.6103)},
+        "R": (0.3128, 0.5185), "G": (0.7093, 0.5276), "B": (1.0267, 0.6103)},
     ("E7022-1.pdf", 4, "char"): {
         "R": (0.2601, 0.4922), "G": (0.6652, 0.5086), "B": (0.9674, 0.5970)},
     ("e190-Portra-2006.pdf", 12, "char"): {
@@ -1242,10 +1573,17 @@ EXPECTED_SECOND_CHAR = {
     ("E7022-Gold_100_200.pdf", 4, "GOLD 200"): {
         "R": (0.2593, 0.5003), "G": (0.6640, 0.5157), "B": (0.9687, 0.5974)},
     # ---- ADOPTED: PORTRA 800's pushes, E-190 (2006) p12 --------------------
+    # ⚠ RED REPINNED 2026-09-03 ON BOTH PANELS, same cause as E-7024 p3 above:
+    # a dropped flat base+fog stub on the red trace. EI 1600 dmin 0.2779 ->
+    # 0.2569 (gamma 0.6100 -> 0.6094); EI 3200 dmin 0.3173 -> 0.3011 (gamma
+    # 0.6918 -> 0.6907). ⚠ THESE TWO ARE ADOPTED -- `_PROCESS_VARIANTS` stores
+    # them for PORTRA 800 -- and the stored records still carry the OLD red
+    # dmins. Left as they are pending the owner's decision; the gamma shift is
+    # inside G_TOL's spirit but the 0.021 / 0.016 D dmin shift is not.
     ("e190-Portra-2006.pdf", 12, "Characteristic Curves, EI 1600 (Push 1)"): {
-        "R": (0.2779, 0.6100), "G": (0.6631, 0.6019), "B": (1.0030, 0.7050)},
+        "R": (0.2569, 0.6094), "G": (0.6631, 0.6019), "B": (1.0030, 0.7050)},
     ("e190-Portra-2006.pdf", 12, "Characteristic Curves, EI 3200 (Push 2)"): {
-        "R": (0.3173, 0.6918), "G": (0.6938, 0.7162), "B": (1.0468, 0.7872)},
+        "R": (0.3011, 0.6907), "G": (0.6938, 0.7162), "B": (1.0468, 0.7872)},
     # ⚠ THE ANCHOR THAT MAKES THOSE TWO A PUSH. This page's EI 800 panel must
     # keep reproducing the profile's own stored curves; if it stops, the two
     # records above are no longer a delta from anything.
@@ -1272,6 +1610,32 @@ EXPECTED_SECOND_CHAR = {
         "R": (0.2404, 0.6341), "G": (0.6614, 0.6364), "B": (1.0139, 0.7282)},
     ("e4040_portra_800.pdf", 4, "Characteristic Curves, EI 3200 (Push 2)"): {
         "R": (0.3050, 0.6909), "G": (0.7049, 0.7177), "B": (1.0625, 0.7855)},
+    # ---- E-4035 (May 2007), ULTRA COLOR 100UC and 400UC, added 2026-09-03 ---
+    # ⚠ THE SHEET BOTH PROFILES ALREADY CITED. Neither stored curve set matches
+    # it: 100UC and 400UC both store dmin near 0.20 / 0.19 / 0.19 -- three
+    # near-equal values, i.e. NO ORANGE MASK -- against the 0.30 / 0.71 / 1.00
+    # and 0.34 / 0.77 / 1.05 below, and the stored pair differs from each other
+    # by a flat +0.01 dmin / -0.004 gamma on all three channels, which is one
+    # hand edit rather than two readings. Both profiles' provenance says
+    # `fitted_from = 'analogy'`, so that is consistent -- the curves were never
+    # from this document.
+    # ⚠ THE 400UC EI 400 PANEL IS THE CROSS-DOCUMENT CHECK, and it is what says
+    # the reading is the film and not the fit: E-190 (2003) p13 reads the same
+    # emulsion independently at 0.3338 / 0.7630 / 1.0508 and 0.5505 / 0.5761 /
+    # 0.6655, agreeing with this sheet to 0.004 in dmin and 0.001 in gamma
+    # across two publications four years apart.
+    # ⚠ AND THE TWO FILMS DO DIFFER, in the direction the database has backwards:
+    # 400UC is HIGHER in base density (+0.037 / +0.061 / +0.059) and CONTRASTIER
+    # (+0.030 / +0.010 / +0.014), where the stored pair makes 400UC the softer
+    # of the two. The gamma difference being channel-dependent is what rules out
+    # an axis or tracing error, which would move all three the same way.
+    ("e4035-100UC_400UC.pdf", 6, "100UC Characteristic Curves"): {
+        "R": (0.2992, 0.5212), "G": (0.7064, 0.5654), "B": (0.9958, 0.6510)},
+    ("e4035-100UC_400UC.pdf", 7, "400UC Characteristic Curves, EI 400"): {
+        "R": (0.3364, 0.5511), "G": (0.7670, 0.5754), "B": (1.0543, 0.6652)},
+    ("e4035-100UC_400UC.pdf", 7,
+     "400UC Characteristic Curves, EI 800 (Push 1)"): {
+        "R": (0.4083, 0.6367), "G": (0.8032, 0.6729), "B": (1.0851, 0.7831)},
 }
 
 #: ⚠ A PANEL THAT MUST STAY UNREADABLE, AND WHY THAT IS AN ASSERTION RATHER
@@ -1303,7 +1667,50 @@ EXPECTED_MTF = {
     ("e4050_portra_400.pdf", 4): (38.2, 58.6, 69.3),
     ("e4040_portra_800.pdf", 5): (33.7, 54.8, 72.1),
     ("KODAK PROFESSIONAL PORTRA - 2003 year.pdf", 9): (49.1, 73.3, None),
+    # ⚠ E-4035's BLUE IS CENSORED, NOT MISSING, on both pages: the blue trace is
+    # still above 50 % where the plotted frequency range ends, exactly as on
+    # E-190 (2003) p9. 100UC is the sharper film of the two on every channel
+    # that yields a number, which is the expected direction for the slower
+    # emulsion and is the only thing here the stored MTFSpecs already get right.
+    ("e4035-100UC_400UC.pdf", 6): (40.4, 69.0, None),
+    ("e4035-100UC_400UC.pdf", 8): (37.5, 62.3, None),
 }
+
+#: The two dye panels RECOVERED on 2026-09-03 by `_is_stroke_row`, pinned as
+#: readings rather than adoptions. Both had been recorded as refusals because a
+#: welded row of caption-underline strokes made the panel report three traces;
+#: neither refusal was about the curves. Peaks are (neutral, D-min).
+#:
+#: ⚠ E-4050 p4 IS VERIFIED AGAINST THE PAGE: printed neutral 1.89 at about
+#: 448 nm reads 1.890 at 448.3, printed D-min 0.82 at about 443 reads 0.820 at
+#: 443.7, both curves spanning the full 400-700 nm at 721 vertices each.
+RECOVERED_DYE = {
+    ("e4050_portra_400.pdf", 4): (1.890, 0.820),
+    # ⚠ E-4035 p6 (100UC) reads; p7 (400UC) does NOT -- see DECLINED_DYE. One
+    # sheet, one panel good and one mis-calibrated, which is why the extent
+    # check in `assign_dye_pair` is per panel and not per document.
+    ("e4035-100UC_400UC.pdf", 6): (1.940, 1.436),
+}
+
+#: Dye panels that STILL decline, each for a reason that is about the trace
+#: rather than about the reader, asserted so that a later change which starts
+#: accepting one has to say so.
+#:
+#: ⚠ E-7019 p4 is the near miss. `_is_stroke_row` recovered its two curves and
+#: they order correctly -- neutral peak 2.434, D-min 1.837, both at 400.1 nm --
+#: but the D-min trace stops at 650.9 nm where the neutral reaches 699.8, so
+#: 49 nm of the red end is missing and `assign_dye_pair`'s extent check
+#: declines the pair. That is the right answer: half a curve resampled onto a
+#: 5 nm grid would silently invent nothing and silently omit a fifth of the
+#: spectrum.
+#: ⚠ E-4035 p7 (400UC) is the mis-calibrated one, described in
+#: `assign_dye_pair`: the axis fit lands 4.6 nm wide because a D-min vertex
+#: passes for the 400 nm tick. 100UC's panel on p6 of the same sheet is fine,
+#: so this is one panel's typesetting, not the document's.
+DECLINED_DYE = (
+    ("E7019_en-Ultra_Max_400.pdf", 4),
+    ("e4035-100UC_400UC.pdf", 7),
+)
 
 #: Peak diffuse spectral density of the neutral and D-min curves for the four
 #: adopted dye pairs. Cross-checked against 300 dpi renders of the panels:
@@ -1322,13 +1729,19 @@ EXPECTED_DYE = {
     # over 59 resampled points of BOTH curves. That is what fixes the shared
     # panel's identity as GOLD 200's and keeps GOLD 100 honestly empty.
     ("E7022-Gold_100_200.pdf", 4): (1.842, 0.988),
-    # ⚠ 0.871, NOT the 0.869 the STORED array holds, and the difference is the
-    # point rather than a discrepancy. EXPECTED_DYE checks the RAW TRACE's
-    # maximum; the profile stores a 5 nm resample, whose largest sample sits at
-    # 450 nm and reads 0.869. The true peak falls between grid points. Pinning
-    # the raw value keeps this audit a check on the TRACE rather than on the
-    # resampling, which is what makes it able to catch a reader regression.
-    ("e29-Pro_100T_PRT.pdf", 4): (1.616, 0.871),
+    # ⚠ REPINNED 2026-09-03 FROM (1.616, 0.871) TO (2.121, 1.611), AND THE OLD
+    # PAIR WAS NOT THIS PANEL'S PEAK AT ALL. Both curves on E-29 p4 rise almost
+    # vertically at the left edge -- the panel's own 400 nm samples are 2.12 and
+    # 1.61, verified on a 150 dpi render of the page -- and that rise is drawn
+    # as five short subpaths (spans 18, 13, 12, 4 and 2 pt) which the span
+    # filter discarded. What survived began at 373 and 385 pt, so the pinned
+    # "peaks" were the values at roughly 420 nm and the real ones were 0.51 and
+    # 0.74 D higher. The reading changed because `extract_panel` now prefers a
+    # chained reading that covers more of the x axis at equal trace count; see
+    # the comment there. ⚠ THE STORED ARRAY FOR THIS FILM IS THEREFORE SHORT AT
+    # ITS BLUE END and has NOT been touched here -- that is a database change
+    # and needs the owner's decision, not a reader commit.
+    ("e29-Pro_100T_PRT.pdf", 4): (2.121, 1.611),
 }
 
 D_TOL, G_TOL, F_TOL, DYE_TOL = 0.002, 0.003, 0.5, 0.002
@@ -1459,11 +1872,19 @@ def run_assert():
                        "even located" % (pdf, pno, want))
         doc.close()
 
-    # The two REFUSALS are asserted as refusals. A later change that starts
-    # accepting them must say so here, rather than quietly adopting a pair the
-    # reader was built to reject.
-    for pdf, pno in (("e4050_portra_400.pdf", 4),
-                     ("E7019_en-Ultra_Max_400.pdf", 4)):
+    # ⚠ THE TWO "REFUSALS" WERE NEVER ABOUT THE DATA, AND ON 2026-09-03 THEY
+    # STOPPED BEING REFUSALS. Both panels were rejected by `assign_dye_pair`
+    # for returning three traces instead of two -- the third being a welded row
+    # of caption-underline strokes, the artefact `_is_stroke_row` now removes.
+    # With it gone both read cleanly and were checked against 150 dpi renders of
+    # their pages: E-4050 p4's neutral peaks 1.890 at 448.3 nm against a printed
+    # 1.89 at about 448, its D-min 0.820 at 443.7 against 0.82, both spanning
+    # the full 400-700 nm. So these are two spectral-dye-density pairs the
+    # corpus can now use, not two panels that had to be declined.
+    # ⚠ NEITHER IS ADOPTED HERE. They are pinned below as READINGS; putting
+    # them into PORTRA 400's and ULTRA MAX 400's profiles is a database change
+    # and needs the owner's decision.
+    for pdf, pno in sorted(RECOVERED_DYE):
         doc = pymupdf.open(os.path.join(PDF_DIR, pdf))
         page = doc[pno - 1]
         for k, _t, box, lx, ly, letters, exp in find_panels(page, pdf):
@@ -1473,19 +1894,54 @@ def run_assert():
                                expect=exp)
             pr = assign_dye_pair(pan.unlabelled) if pan else None
             checked += 1
-            if pr is not None:
-                bad.append("%s p%d dye: now ACCEPTED, was a documented refusal"
-                           % (pdf, pno))
+            if pr is None:
+                bad.append("%s p%d dye: no longer reads; it was recovered on "
+                           "2026-09-03 and must stay recovered" % (pdf, pno))
+                break
+            want = RECOVERED_DYE[(pdf, pno)]
+            got = (max(p[1] for p in pr["neutral"]),
+                   max(p[1] for p in pr["dmin"]))
+            if (abs(got[0] - want[0]) > DYE_TOL
+                    or abs(got[1] - want[1]) > DYE_TOL):
+                bad.append("%s p%d dye: peaks %.3f/%.3f vs %.3f/%.3f"
+                           % (pdf, pno, got[0], got[1], want[0], want[1]))
+            break
+        doc.close()
+
+    for pdf, pno in DECLINED_DYE:
+        path = os.path.join(PDF_DIR, pdf)
+        if not os.path.exists(path):
+            continue
+        doc = pymupdf.open(path)
+        page = doc[pno - 1]
+        for k, _t, box, lx, ly, letters, exp in find_panels(page, pdf):
+            if k != "dye":
+                continue
+            pan = extract_panel(page, box, letters=letters, log_x=lx, log_y=ly,
+                               expect=exp)
+            checked += 1
+            if pan is not None and assign_dye_pair(pan.unlabelled) is not None:
+                bad.append("%s p%d dye: now ACCEPTED, and it is recorded as "
+                           "declined for a reason about the trace" % (pdf, pno))
             break
         doc.close()
 
     if bad:
         print("[FAIL] " + "; ".join(bad))
         return 1
-    print("[OK] %d values re-derived from 13 KODAK still-film sheets: 69 "
-          "characteristic dmin/gamma pairs across 23 panels, 12 MTF f50 "
-          "readings with the censored one kept censored, 14 dye-pair peaks, 2 "
-          "refusals still refusing and 1 panel still unreadable. Six of the "
+    # ⚠ COUNTED FROM THE TABLES, NOT TYPED. Every one of these numbers was
+    # wrong at least once while this module was being extended, and a summary
+    # that overstates its own coverage is worse than no summary.
+    n_panels = len(EXPECTED) + len(EXPECTED_SECOND_CHAR)
+    n_pairs = 3 * n_panels
+    n_dye = len(EXPECTED_DYE) + len(RECOVERED_DYE)
+    n_docs = len({pdf for pdf, *_ in list(EXPECTED) + list(EXPECTED_MTF)
+                  + list(EXPECTED_DYE) + list(RECOVERED_DYE)
+                  + list(EXPECTED_SECOND_CHAR)})
+    print("[OK] %d values re-derived from %d KODAK still-film sheets: %d "
+          "characteristic dmin/gamma pairs across %d panels, %d MTF f50 "
+          "readings with the censored ones kept censored, %d dye-pair peaks, %d "
+          "dye panels still declining and 1 panel still unreadable. Six of the "
           "checks are cross-document rather than per-number: PORTRA 160NC read "
           "independently from both E-190 vintages; GOLD 200 read from the 2007 "
           "sheet by CAPTION and from the 2022 sheet by GEOMETRY OVERRIDE, "
@@ -1500,7 +1956,8 @@ def run_assert():
           "because Kodak printed its exposure axis -4.0 / -2.0 / -3.0 / -1.0 "
           "/ 0.0 / 1.0 and a fitter that accepted that would be wrong by a "
           "decade mid-plot"
-          % checked)
+          % (checked, n_docs, n_pairs, n_panels, 3 * len(EXPECTED_MTF),
+             n_dye, len(DECLINED_DYE)))
     return 0
 
 

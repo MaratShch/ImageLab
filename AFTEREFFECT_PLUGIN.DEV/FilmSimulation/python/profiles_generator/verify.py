@@ -408,6 +408,77 @@ if _sec_on():
         ", ".join(p.name for p in FILM_PROFILES
                   if p.default_print == "KODAK_2383_RELEASE"))
 
+    # ---- schema v25: the printing-density matrix, 2026-09-03 ---------------
+    # ⚠ THE SAME SPECTRA, A DIFFERENT FIELD, AND THE DISTINCTION IS THE POINT.
+    # The guard directly above says the derived matrix must NOT become a
+    # negative's `dye_matrix`, because there the reader is a scanner. On the
+    # print stage's EXPOSURE side the print film's own response is not a
+    # stand-in for anything -- it is the quantity. Both statements are true at
+    # once and both are asserted, so neither can be quietly relaxed into the
+    # other.
+    _pdm = np.asarray(_2383.printing_density_matrix, dtype=float)
+    chk("the release print stock carries a printing-density matrix, and it is "
+        "flagged as derived from measurement",
+        not np.allclose(_pdm, np.eye(3)) and _2383.printing_matrix_measured
+        and bool(_2383.printing_matrix_source),
+        "max|P - I| = %.4f" % float(np.abs(_pdm - np.eye(3)).max()))
+    # ⚠ UNIT ROWS ARE THE WHOLE SAFETY ARGUMENT. They are what makes a neutral
+    # negative still print neutral, so the printer-light solve is unchanged and
+    # switching the operator on re-times nothing. A row sum drifting off 1.0
+    # would put a per-channel gain back on top of the printer lights -- the
+    # same double count `dye_matrix_from_spectra.py` refused for stage 12.
+    chk("its rows sum to 1.0, so the operator is crosstalk and not gain",
+        float(np.abs(_pdm.sum(axis=1) - 1.0).max()) <= 5e-4,
+        "row sums %s" % np.array2string(_pdm.sum(axis=1), precision=6))
+    # ⚠ AND A NEUTRAL MUST COME THROUGH UNCHANGED, checked as arithmetic rather
+    # than as a property of the row sums, because that is what a reader will
+    # actually want to know.
+    _neu = _pdm @ np.array([1.2, 1.2, 1.2])
+    chk("a neutral negative density passes through the printing matrix intact",
+        float(np.abs(_neu - 1.2).max()) <= 1e-3,
+        "1.200/1.200/1.200 -> %s" % np.array2string(_neu, precision=4))
+    # ⚠ THE SIGN PATTERN IS PHYSICS AND IS ENFORCED, not merely reported. The
+    # negative's magenta dye must ADD to the print's red-sensitive layer and its
+    # yellow dye must ADD to the green-sensitive one; a sign flip here would
+    # SATURATE the print instead of desaturating it, which is the wrong
+    # direction for an unwanted absorption and would still render plausibly.
+    chk("the printing matrix desaturates: magenta into red and yellow into "
+        "green are both positive",
+        _pdm[0][1] > 0.0 and _pdm[1][2] > 0.0 and _pdm[2][1] > 0.0,
+        "r<-m %+.4f, g<-y %+.4f, b<-m %+.4f"
+        % (_pdm[0][1], _pdm[1][2], _pdm[2][1]))
+    # ⚠ THE TWO STABLE TERMS ARE PINNED TO THE VALUES SEVEN INDEPENDENT DYE
+    # SETS AGREE ON. g<-y spans 0.0465..0.0641 across the reference set and
+    # b<-m 0.0352..0.0434; the medians must stay inside those spans or the
+    # reference set has changed without anyone saying so.
+    chk("the two stable off-diagonals are the medians of the seven-negative "
+        "reference set",
+        abs(_pdm[1][2] - 0.0497) < 5e-4 and abs(_pdm[2][1] - 0.0407) < 5e-4,
+        "g<-y %.4f (want 0.0497), b<-m %.4f (want 0.0407)"
+        % (_pdm[1][2], _pdm[2][1]))
+    # ⚠ AND THE ONE UNSTABLE TERM IS PINNED TO THE MEDIAN AND NOT THE OUTLIER.
+    # 5218's r<-m is 0.1077, eight times the smallest in the set; the median
+    # 0.0225 deliberately does not follow it, and a value up near 0.1 here
+    # would mean the median has silently become a mean or the set has shrunk.
+    chk("the unstable r<-m term follows the median, not 5218's 0.108 outlier",
+        abs(_pdm[0][1] - 0.0225) < 5e-4,
+        "r<-m %.4f (want 0.0225, set spans 0.0114..0.1077)" % _pdm[0][1])
+    # ⚠ TEN OF ELEVEN PRINT STOCKS MUST STAY IDENTITY. None of them carries a
+    # spectral sensitivity, so no printing matrix can be DERIVED for them, and
+    # an invented one would be a per-stock estimate wearing a measured field.
+    _nonid = [s.name for s in PRINT_STOCKS
+              if s.name != "KODAK_2383_RELEASE"
+              and s.printing_density_matrix != film_profiles.IDENTITY3]
+    chk("the other ten print stocks keep an identity printing matrix",
+        not _nonid, ", ".join(_nonid) or "10/10 identity")
+    # ⚠ AND THE FLAG CANNOT BE SET WITHOUT THE DERIVATION BEHIND IT. Same gate
+    # idiom as mtf_measured and sigma_shape_measured.
+    _badflag = [s.name for s in PRINT_STOCKS
+                if s.printing_matrix_measured
+                and s.printing_density_matrix == film_profiles.IDENTITY3]
+    chk("printing_matrix_measured is never set on an identity matrix",
+        not _badflag, ", ".join(_badflag) or "clean")
+
     # ---- queue E2, 2026-08-31: the POLAROID family reads as SENSITIVITY ----
     # ⚠ THE CHECK THAT WOULD CATCH A MIRRORED ADOPTION. Queue E2 prescribed
     # negating these curves, on the strength of the sheets' prose ("the
@@ -1731,7 +1802,13 @@ if _sec_on():
     # beside the exposure one on the same time cells. Additive and inert --
     # nothing reads the dataclass -- so a v24 database renders bit-identically
     # to a v23 one and no film index moves.
-    chk("schema version is 24", _fpm.SCHEMA_VERSION == 24, f"v={_fpm.SCHEMA_VERSION}")
+    # ⚠ VERSION PIN 24 -> 25 on 2026-09-03, AND THIS ONE IS NOT INERT. Every
+    # bump since v19 has been a carrier nothing read; v25 adds
+    # `PrintStock.printing_density_matrix` and stage 13 reads it on the
+    # EXPOSURE side of the print. Ten of the eleven print stocks keep an
+    # identity matrix, so only a render through KODAK_2383_RELEASE moves --
+    # and there it moves because that stock now has a derivation behind it.
+    chk("schema version is 25", _fpm.SCHEMA_VERSION == 25, f"v={_fpm.SCHEMA_VERSION}")
 
     # ==== 2026-09-01: THE TWO CARRIERS THAT STOPPED BEING INERT =============
     # `reciprocity_table` and `process_variants` were both listed as "carried,
@@ -2546,13 +2623,33 @@ if _sec_on():
                 if _lower:
                     ref = max(_lower, key=lambda w: w.push_stops).curves
             elif p.name == "KODAK_ULTRA_COLOR_400UC":
-                # ⚠ THIS STOCK'S BASE IS NOT ITS OWN PROFILE. Its stored curves
-                # are cited to E-4035; the push is on E-190 (2003) p13 beside
-                # that sheet's OWN EI 400 panel, which is stored as a variant
-                # for exactly this reason. Comparing the push to the profile
-                # would compare two publications.
-                ref = [w for w in p.process_variants
-                       if w.push_stops == 0 and w.curves is not None][0].curves
+                # ⚠ THIS STOCK NOW CARRIES TWO READINGS OF THE SAME PUSH, FROM
+                # TWO PUBLICATIONS, AND EACH IS MEASURED AGAINST ITS OWN.
+                # E-4035 (May 2007) is the sheet for this product and the
+                # profile's curves ARE its EI 400 panel; E-190 (2003) p13 also
+                # prints the film, and its EI 400 panel is stored as a variant.
+                # The two box speeds agree to 0.004 D, so either would pass --
+                # which is precisely why the pairing is made explicitly instead
+                # of being left to whichever variant comes first in the tuple.
+                #
+                # ⚠ THIS BRANCH USED TO READ "this stock's base is NOT its own
+                # profile" and routed every push to the E-190 variant, because
+                # E-4035 was not in the corpus and the stored curves matched no
+                # panel anywhere. The owner supplied E-4035 on 2026-09-03; the
+                # profile's curves are now traced from it.
+                # ⚠ MATCHED ON THE RECORD'S NAME, NOT ITS SOURCE PROSE. Both
+                # records CITE both publications -- each one's note quotes the
+                # other's numbers, which is the point of storing a conflict --
+                # so a substring test against `source` finds E-4035 in the
+                # E-190 record and pairs it with itself. The name states which
+                # sheet the record IS.
+                _pub = "E-190" if "E-190" in v.name else "E-4035"
+                if _pub != "E-4035":
+                    _same = [w for w in p.process_variants
+                             if w.push_stops == 0 and w.curves is not None
+                             and _pub in w.name]
+                    if _same:
+                        ref = _same[0].curves
             for _ch in "rgb":
                 a, b = getattr(ref, _ch), getattr(v.curves, _ch)
                 if p.is_reversal:
@@ -2584,6 +2681,165 @@ if _sec_on():
                                f"{a.dmin:.4f} -> {b.dmin:.4f}")
     chk("negative pushes gain contrast, reversal pushes lose it -- each in "
         "its own direction", not _pw, "; ".join(_pw[:4]))
+
+    # ---- 2026-09-03: E-4035, the ULTRA COLOR pair --------------------------
+    # ⚠ WHAT THESE GUARD IS A CLASS OF ERROR, NOT A PAIR OF NUMBERS. Both
+    # profiles previously carried ANALOGY curves that had been cited to E-4035
+    # for as long as the profiles existed, while E-4035 was not in the corpus.
+    # Nothing failed, because an analogy curve is a valid curve. What made it
+    # findable was the OWNER noticing that the two films rendered identically,
+    # and the reason they did is in the numbers below.
+    _uc100 = get_profile("KODAK_ULTRA_COLOR_100UC")
+    _uc400 = get_profile("KODAK_ULTRA_COLOR_400UC")
+
+    # 1. THE ORANGE MASK. The old triples were dmin 0.20 / 0.19 / 0.19 and
+    #    0.21 / 0.20 / 0.20 -- three near-equal base densities on a MASKED
+    #    colour negative, which is no mask at all, the same signature queue row
+    #    B4 found on 5247_1983. A real C-41 negative's blue base sits far above
+    #    its red base. 0.5 D is well inside the measured 0.70 and comfortably
+    #    outside anything a flat triple could reach.
+    _flat = [q.name for q in (_uc100, _uc400)
+             if q.curves.b.dmin - q.curves.r.dmin < 0.50]
+    chk("both ULTRA COLOR stocks carry a real orange mask, not three equal "
+        "base densities", not _flat, ", ".join(_flat))
+
+    # 2. THE DIRECTION THE SHEET ESTABLISHES, WHICH THE OLD PAIR HAD BACKWARDS.
+    #    E-4035 has 400UC denser at base AND contrastier on every layer; the
+    #    stored pair made it uniformly SOFTER by 0.004 on all three, which is
+    #    one hand nudge rather than two readings. The gamma difference being
+    #    channel-dependent (+0.030 / +0.010 / +0.014) is also what rules out an
+    #    axis or tracing error, since either would move all three alike.
+    _dir = []
+    for _ch in "rgb":
+        a, b = getattr(_uc100.curves, _ch), getattr(_uc400.curves, _ch)
+        if not (b.dmin > a.dmin and b.gamma > a.gamma):
+            _dir.append(f"{_ch}: 100UC {a.dmin:.4f}/{a.gamma:.4f} vs "
+                        f"400UC {b.dmin:.4f}/{b.gamma:.4f}")
+    chk("400UC is denser at base and contrastier than 100UC on all three "
+        "layers, as E-4035 prints them", not _dir, "; ".join(_dir))
+    chk("and the gamma difference is channel-dependent, which is what a film "
+        "difference looks like and a uniform nudge does not",
+        len({round(getattr(_uc400.curves, c).gamma
+                   - getattr(_uc100.curves, c).gamma, 3) for c in "rgb"}) == 3,
+        ", ".join("%s %+.4f" % (c, getattr(_uc400.curves, c).gamma
+                                - getattr(_uc100.curves, c).gamma)
+                  for c in "rgb"))
+
+    # 3. THE CROSS-DOCUMENT AGREEMENT, which is the whole reason the reading is
+    #    trusted over the analogy set it replaced. E-190 (2003) p13 reads the
+    #    same emulsion four years earlier in a different publication. If these
+    #    two ever part company, one of them has been re-traced wrongly.
+    # ⚠ SELECTED BY NAME. Every one of these records quotes the other sheet's
+    # numbers in its own note -- that is what storing a conflict looks like --
+    # so a substring test against `source` matches both records for both
+    # publications. The name is the record's identity.
+    _e190 = [w for w in _uc400.process_variants
+             if w.curves is not None and w.push_stops == 0
+             and "E-190" in w.name]
+    chk("400UC's box speed is stored from two publications", len(_e190) == 1,
+        "%d E-190 box-speed variants" % len(_e190))
+    if _e190:
+        _gap = max(max(abs(getattr(_e190[0].curves, c).dmin
+                           - getattr(_uc400.curves, c).dmin),
+                       abs(getattr(_e190[0].curves, c).gamma
+                           - getattr(_uc400.curves, c).gamma))
+                   for c in "rgb")
+        chk("E-4035 and E-190 (2003) agree on 400UC's box speed to 0.005",
+            _gap < 0.005, "worst channel disagreement %.4f" % _gap)
+
+    # 4. ⚠ AND THE TWO PUSH READINGS DISAGREE BY MORE THAN THAT, WHICH IS
+    #    RECORDED RATHER THAN AVERAGED (method rule 4). A push panel is the
+    #    most process-sensitive figure on either sheet. This asserts the
+    #    conflict still exists, so that a later edit cannot quietly reconcile
+    #    it by dropping one record or splitting the difference.
+    _p4035 = [w for w in _uc400.process_variants
+              if w.push_stops == 1 and "E-4035" in w.name]
+    _p190 = [w for w in _uc400.process_variants
+             if w.push_stops == 1 and "E-190" in w.name]
+    chk("400UC's EI 800 push is stored from both sheets",
+        len(_p4035) == 1 and len(_p190) == 1,
+        "E-4035 %d, E-190 %d" % (len(_p4035), len(_p190)))
+    if _p4035 and _p190:
+        _dg = max(abs(getattr(_p4035[0].curves, c).gamma
+                      - getattr(_p190[0].curves, c).gamma) for c in "rgb")
+        _dd = max(abs(getattr(_p4035[0].curves, c).dmin
+                      - getattr(_p190[0].curves, c).dmin) for c in "rgb")
+        chk("the two push readings still disagree on gamma by more than the "
+            "two box-speed readings do -- recorded, not averaged",
+            _dg > 0.015 and _dd < 0.02,
+            "gamma worst %.4f, dmin worst %.4f" % (_dg, _dd))
+
+    # 5. THE TRUNCATED-TRACE CLASS, ON THE THREE PROFILES IT ACTUALLY MOVED.
+    # ⚠ ALL THREE WERE CAUGHT BY THE SAME READER DEFECT and all three failed
+    # SILENTLY, because a trace whose flat base+fog stub was dropped still
+    # yields the right number of traces -- so `measure_char` estimated a
+    # plateau off a trace containing no plateau, always high. These pin the
+    # corrected values; the reader's own EXPECTED tables pin the readings.
+    chk("ULTRA MAX 800's red base is the drawn plateau, not one estimated "
+        "from a trace missing its plateau",
+        abs(get_profile("KODAK_ULTRAMAX_800").curves.r.dmin - 0.3128) < 5e-4,
+        "%.4f" % get_profile("KODAK_ULTRAMAX_800").curves.r.dmin)
+    _p800v = {w.exposure_index: w for w in get_profile(
+        "KODAK_PORTRA_800").process_variants if w.curves is not None}
+    chk("PORTRA 800's two push records carry the corrected red base",
+        abs(_p800v[1600].curves.r.dmin - 0.2569) < 5e-4
+        and abs(_p800v[3200].curves.r.dmin - 0.3011) < 5e-4,
+        "EI1600 %.4f, EI3200 %.4f" % (_p800v[1600].curves.r.dmin,
+                                      _p800v[3200].curves.r.dmin))
+
+    # 6. Pro 100T's dye pair, which was short by a fifth of the spectrum.
+    # ⚠ ITS OWN COMMENT ASSERTED THE ERROR -- "neither reaches 400 nm on this
+    # sheet" -- and both curves do. The 450-700 nm tail is unchanged, so this
+    # checks the two things that moved: where the array starts, and the peak.
+    _d29 = get_profile("KODAK_PRO_100T_PRT").dye_density
+    chk("Pro 100T's dye pair starts at 400 nm and spans the panel",
+        _d29.lambda_start_nm == 400.0 and len(_d29.d_neutral) == 61
+        and len(_d29.d_dmin) == 61,
+        "start %.0f, n %d/%d" % (_d29.lambda_start_nm, len(_d29.d_neutral),
+                                 len(_d29.d_dmin)))
+    chk("and its peaks are the panel's 400 nm values, not its 450 nm ones",
+        abs(max(_d29.d_neutral) - 2.121) < 5e-4
+        and abs(max(_d29.d_dmin) - 1.611) < 5e-4,
+        "%.3f / %.3f" % (max(_d29.d_neutral), max(_d29.d_dmin)))
+    chk("the 450-700 nm tail is byte-identical to the pre-2026-09-03 array, "
+        "which is what makes this an extension and not a re-reading",
+        _d29.d_neutral[10] == 1.616 and _d29.d_dmin[10] == 0.869
+        and _d29.d_neutral[-1] == 1.286 and _d29.d_dmin[-1] == 0.247,
+        "%.3f / %.3f at 450 nm" % (_d29.d_neutral[10], _d29.d_dmin[10]))
+
+    # ---- 2026-09-03: the Jones 1958 sigma(D) class shape -------------------
+    # ⚠ THE OLD PLACEHOLDER POINTED THE WRONG WAY AND NOTHING CAUGHT IT,
+    # because nothing reads an unmeasured shape. These guards assert the
+    # DIRECTION the measurement establishes, so a future edit cannot quietly
+    # put the old shape back: sigma rises steeply out of the toe and then
+    # FLATTENS, it does not keep climbing.
+    import pse_jones_1958 as _pj
+    _mono = [q for q in FILM_PROFILES if q.is_monochrome and not q.is_reversal]
+    _cls = [q for q in _mono
+            if abs(q.grain.sigma_shape_toe - _pj.ADOPTED_TOE) < 1e-9]
+    chk("the monochrome-negative block carries the Jones 1958 class shape",
+        len(_cls) >= 50, "%d of %d" % (len(_cls), len(_mono)))
+    _wrong = [q.name for q in _cls
+              if not (0.45 < q.grain.sigma_shape_toe < 0.56
+                      and 0.95 < q.grain.sigma_shape_dmax < 1.10)]
+    chk("that shape flattens above D 1.0 instead of climbing -- the old 1.20 "
+        "placeholder is refuted by all four measured films",
+        not _wrong, ", ".join(_wrong[:3]))
+    # the anchor densities must be the MEASURED range, not a stock's Dmax
+    _bad_at = [q.name for q in _cls
+               if abs(q.grain.sigma_shape_dmax_at - 1.40) > 1e-9
+               or abs(q.grain.sigma_shape_toe_at - 0.07) > 1e-9]
+    chk("the class shape's anchor densities are where Jones measured, not "
+        "where a stock's curve ends", not _bad_at, ", ".join(_bad_at[:3]))
+    # ⚠ and it must stay inert until someone decides otherwise, in the open
+    _live = [q.name for q in _cls if q.grain.sigma_shape_measured]
+    chk("the class shape is still gated off -- a class inference must not set "
+        "the per-stock measured flag", not _live, ", ".join(_live[:3]))
+    _sel = _pj.selwyn_ratios()
+    chk("Jones's three apertures still confirm Selwyn to within 10 %",
+        abs(float(_sel.mean()) - 1.0) < 0.10,
+        "mean sigma10/(2 sigma20) = %.3f over %d pairs"
+        % (_sel.mean(), len(_sel)))
 
     # ---- 2026-09-03: the separable MTF kernel, and the bound it carries ----
     # ⚠ THIS GUARD ASSERTS AN APPROXIMATION, WHICH IS UNUSUAL HERE AND
@@ -3102,8 +3358,16 @@ if _sec_on():
              # nothing checks. KODAK_PORTRA_400 is one of the 13 stocks queue
              # K2 populated, so it holds a real AimDensity record.
              "aim_density"))
-        and film_profiles.SCHEMA_VERSION == 24
-        and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS),
+        and film_profiles.SCHEMA_VERSION == 25
+        and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS)
+        # ⚠ v25, and it is the first entry in this probe that is NOT a carrier.
+        # The others are here to prove an inert field is reachable; this one is
+        # read by stage 13 on every print, so the check is that it exists AND
+        # that its gate flag exists beside it -- a matrix with no
+        # `printing_matrix_measured` could not be told from an estimate.
+        and all(hasattr(_ps, "printing_density_matrix")
+                and hasattr(_ps, "printing_matrix_measured")
+                for _ps in film_profiles.PRINT_STOCKS),
         "SCHEMA_VERSION=%d" % film_profiles.SCHEMA_VERSION)
 
     # ---- 2026-08-17: measured per-channel grain must survive _grain_v2 ----
@@ -3248,12 +3512,27 @@ if _sec_on():
     # 0.65/1.00/1.65 (rising), confirmed 67 gives 1.13/1.00/1.02 (flat). Bin
     # edges are absolute offsets from d_base and the two d_base values differ
     # by 0.024 D, so it is not a binning artefact. Conflict recorded, neither
-    # adopted; the fallback 0.4/1.0/1.2 is _grain_v2's [T3] sqrt(D) rise,
-    # which is the textbook result for a B&W SILVER negative.
-    chk("SVEMA_FOTO_65 sigma(D) is the B&W default, not either scan run",
-        (_s65.grain.sigma_shape_toe, _s65.grain.sigma_shape_mid,
-         _s65.grain.sigma_shape_dmax) == (0.4, 1.0, 1.2)
-        and _s65.grain.sigma_shape_dmax > _s65.grain.sigma_shape_mid,
+    # adopted; the stock keeps whatever the class rule gives it.
+    #
+    # ⚠ THIS GUARD USED TO PIN THE LITERAL 0.4/1.0/1.2 AND TO ASSERT THAT dmax
+    # EXCEEDS mid, on the stated grounds that a rising sqrt(D) is "the textbook
+    # result for a B&W SILVER negative". Jones 1958 measured four Kodak
+    # negatives and the textbook is wrong at the top: sigma FLATTENS above
+    # D 1.0 (1.016 at D 1.40) rather than climbing. The property this guard
+    # exists to protect is that SVEMA takes the CLASS DEFAULT and not either of
+    # its own two conflicting scans; that property is asserted here, and the
+    # direction claim is gone with the placeholder that carried it.
+    #
+    # ⚠ AND THE CONFLICT PARTLY RESOLVES ITSELF. Of the two scan runs, the one
+    # set aside as "flat" -- confirmed 67, 1.13/1.00/1.02 -- is the one that
+    # AGREES with Kodak's measurement. That is the owner's own scan
+    # corroborating a 1958 laboratory result, and it makes the mixed-509 rising
+    # run the odd one out rather than a coin toss between two.
+    import pse_jones_1958 as _pj65
+    chk("SVEMA_FOTO_65 sigma(D) is the class default, not either scan run",
+        (abs(_s65.grain.sigma_shape_toe - _pj65.ADOPTED_TOE) < 1e-9
+         and abs(_s65.grain.sigma_shape_mid - 1.0) < 1e-9
+         and abs(_s65.grain.sigma_shape_dmax - _pj65.ADOPTED_DMAX) < 1e-9),
         "toe/mid/dmax %.2f/%.2f/%.2f" % (_s65.grain.sigma_shape_toe,
                                          _s65.grain.sigma_shape_mid,
                                          _s65.grain.sigma_shape_dmax))
@@ -5765,6 +6044,167 @@ if _sec_on():
         and _p2383.dye_density.normalisation == "visual_neutral_1.0_xenon_arc",
         "%d samples, %s" % (len(_p2383.dye_density.d_cyan),
                             _p2383.dye_density.normalisation))
+
+    # ---- EASTMANCOLOR_5382_1953 dye deposits, adopted 2026-09-03d -----------
+    # ⚠ THE SECOND PrintStock TO CARRY DYE DENSITY, AND THE FIRST PRE-STATUS
+    # ONE. Everything below exists because this set is easy to misuse in a way
+    # nothing else in the corpus can be: it is a 1954 "dye deposit", not a
+    # densitometric level, and the temptation to normalise it to a neutral or
+    # to a stated density would silently invent a calibration the paper does
+    # not contain.
+    _p5382 = [q for q in PRINT_STOCKS if q.name == "EASTMANCOLOR_5382_1953"][0]
+    _d5382 = _p5382.dye_density
+    chk("EASTMANCOLOR_5382_1953 carries the 1954 dye-deposit set",
+        _d5382.has_data and len(_d5382.d_cyan) == 59
+        and _d5382.lambda_start_nm == 410.0 and _d5382.lambda_step_nm == 5.0,
+        "%d samples, %.0f nm +%.0f" % (len(_d5382.d_cyan),
+                                       _d5382.lambda_start_nm,
+                                       _d5382.lambda_step_nm))
+    # ⚠ THE GRID IS DELIBERATELY OFF THE CORPUS STANDARD (400-700 at 10 nm) AND
+    # THE REASON IS THE FIGURE'S OWN PLOT BOX, which begins at 406.1 nm. 400 and
+    # 405 are not on the page; 5 nm is the owner's stated minimum resolution.
+    chk("5382's grid starts at 410 nm because the 1954 plot box does",
+        _d5382.lambda_start_nm == 410.0
+        and "406.1" not in _d5382.source[:0] + "",
+        "%.0f nm" % _d5382.lambda_start_nm)
+    # ⚠ THE UNCALIBRATED-LEVEL WARNING IS LOAD-BEARING, so it is asserted as
+    # text and not merely written in a comment. A future edit that normalises
+    # this set must delete these words to pass, which is the point.
+    chk("5382's normalisation says in words that the level is uncalibrated",
+        "UNCALIBRATED" in _d5382.normalisation
+        and "1954 predates Status A/M" in _d5382.normalisation
+        and "not be rescaled" in _d5382.normalisation,
+        _d5382.normalisation[:60])
+    # ⚠ NOT A NEUTRAL, AND THAT IS CHECKABLE. A neutral set has its three peaks
+    # near-equal by construction; this one runs 0.876 / 0.869 / 1.118, a 29 %
+    # spread. If a future edit ever flattens that, the set has been renormalised.
+    _pk5382 = (max(_d5382.d_yellow), max(_d5382.d_magenta), max(_d5382.d_cyan))
+    chk("5382's three peaks keep the printed 0.876 / 0.869 / 1.118 ratio",
+        abs(_pk5382[0] - 0.876) < 0.002 and abs(_pk5382[1] - 0.869) < 0.002
+        and abs(_pk5382[2] - 1.118) < 0.002
+        and max(_pk5382) / min(_pk5382) > 1.20,
+        "%.3f / %.3f / %.3f, spread %.2fx"
+        % (_pk5382 + (max(_pk5382) / min(_pk5382),)))
+    # ⚠ THE ~430 nm CROSSING, WHICH THE FIRST READING OF THIS FIGURE GOT WRONG.
+    # Below it cyan is above magenta; above it, below. The failure mode this
+    # catches is the two branches being swapped back, which leaves both curves
+    # smooth and every peak correct -- no other guard here would see it.
+    chk("5382's magenta and cyan are on the right side of the ~430 nm crossing",
+        _d5382.d_cyan[0] > _d5382.d_magenta[0] + 0.10      # 410 nm
+        and _d5382.d_cyan[8] < _d5382.d_magenta[8],        # 450 nm
+        "410 nm C %.3f / M %.3f, 450 nm C %.3f / M %.3f"
+        % (_d5382.d_cyan[0], _d5382.d_magenta[0],
+           _d5382.d_cyan[8], _d5382.d_magenta[8]))
+    # ⚠ THE YELLOW TAIL EXISTS. Before the tail repair yellow ended at 526.7 nm
+    # still at 0.158 D -- a dye stopping mid-descent, which is a tracking
+    # failure and not a measurement. It must now reach the axis on its own.
+    _ylast = max(i for i, v in enumerate(_d5382.d_yellow) if v > 0.0)
+    chk("5382's yellow descends to the axis instead of stopping mid-fall",
+        410 + 5 * _ylast >= 575 and _d5382.d_yellow[_ylast] < 0.02,
+        "last non-zero %.3f D at %d nm" % (_d5382.d_yellow[_ylast],
+                                           410 + 5 * _ylast))
+    # ⚠ ZERO MEANS "AT THE DRAWN AXIS", AND ONLY OUTSIDE EACH DYE'S OWN SPAN.
+    # A zero appearing INSIDE a dye's descent would mean the trace dropped out
+    # mid-curve and was padded, which is exactly what must never be adopted.
+    for _nm, _tr in (("yellow", _d5382.d_yellow), ("magenta", _d5382.d_magenta),
+                     ("cyan", _d5382.d_cyan)):
+        _nz = [i for i, v in enumerate(_tr) if v > 0.0]
+        chk("5382 %s has no interior zero -- every zero is past its own descent"
+            % _nm,
+            _nz and all(_tr[i] > 0.0 for i in range(_nz[0], _nz[-1] + 1)),
+            "non-zero %d..%d nm" % (410 + 5 * _nz[0], 410 + 5 * _nz[-1]))
+    # ⚠ AND THE PRINT STOCK'S OWN 1953 NEGATIVE IS STILL WITHOUT A DYE SET.
+    # Recorded as a guard rather than a note because it is the standing gap the
+    # Hanson & Kisner acquisition was meant to close and did not: 5248's primary
+    # paper contains neither spectral sensitivity nor dye density.
+    _p5248 = [q for q in FILM_PROFILES if q.name == "EASTMANCOLOR_5248_1953"]
+    chk("the 1953 pair is still asymmetric: 5382 has dyes, 5248 has none",
+        bool(_p5248) and not _p5248[0].dye_density.has_data,
+        "5248 dye set present" if _p5248 and _p5248[0].dye_density.has_data
+        else "5248 still empty, as Hanson & Kisner 1953 leaves it")
+
+    # ---- AGFACOLOR_NEU_1936: Eggert 1937, adopted 2026-09-04 ---------------
+    # ⚠ THE FIRST MEASURED NUMBERS THIS PROFILE HAS EVER CARRIED, and the guard
+    # exists because of how nearly they were missed: the document arrived on
+    # 2026-09-03 and the first pass filed the inventor's own seven-page article
+    # as a bare provenance citation without reading it, while the profile's own
+    # provenance went on asserting that no photometric figure for this film
+    # existed anywhere.
+    _neu = get_profile("AGFACOLOR_NEU_1936")
+    chk("AGFACOLOR_NEU_1936 carries Eggert's measured layer geometry",
+        abs(_neu.emulsion.coated_um - 19.0) < 1e-9
+        and _neu.layer_stack.order == ("blue", "green", "red")
+        and "Eggert" in _neu.emulsion.source,
+        "coated %.1f um, order %s" % (_neu.emulsion.coated_um,
+                                      "/".join(_neu.layer_stack.order)))
+    # ⚠ 19 um IS 3 x 5 + 2 x 2 AND THE ARITHMETIC IS ASSERTED, not the total,
+    # so an edit that changes the total without a source has to change this too.
+    chk("and 19 um is exactly three 5 um emulsions plus two 2 um interlayers",
+        abs(_neu.emulsion.coated_um - (3.0 * 5.0 + 2.0 * 2.0)) < 1e-9,
+        "%.1f um" % _neu.emulsion.coated_um)
+    # ⚠ EVERYTHING ELSE IN EmulsionSpec MUST STAY EMPTY. The article names no
+    # crystal size, no habit, no iodide, no chemical sensitisation and no base
+    # material; the profile's NITRATE_BASE feature is this project's period
+    # assumption, and letting it leak into `base_material` beside an Eggert
+    # citation would turn an assumption into a source.
+    chk("and nothing Eggert does not print has leaked into EmulsionSpec",
+        not (_neu.emulsion.grain_um or _neu.emulsion.habit
+             or _neu.emulsion.iodide_mol_pct or _neu.emulsion.sensitization
+             or _neu.emulsion.base_material or _neu.emulsion.base_um),
+        "grain_um %.1f, habit %r, base %r" % (_neu.emulsion.grain_um,
+                                              _neu.emulsion.habit,
+                                              _neu.emulsion.base_material))
+    # ⚠ AND THE SPEED CONFLICT IS NOT QUIETLY SETTLED. Eggert's sunshine
+    # exposure gives ISO 2.5-6.1 depending on which 16 mm frame rate is meant;
+    # the stored 8 sits above all of it. Method rule 4: recorded, not averaged.
+    # If a future edit moves the EI it must come with a real speed measurement,
+    # and this guard is what makes that edit announce itself.
+    chk("AGFACOLOR_NEU_1936's exposure_index is still the analogy 8, with the "
+        "Eggert conflict recorded rather than averaged in",
+        _neu.exposure_index == 8
+        and any("0.4 to 1.7 stops fast" in s for s in _neu.provenance.sources),
+        "EI %d" % _neu.exposure_index)
+    # ⚠ THE OLD CLAIM SURVIVES ONLY AS A QUOTATION OF ITSELF, and that is
+    # deliberate: the note records what it used to say and why that stopped
+    # being true, rather than deleting the error. So this guard cannot simply
+    # look for the absence of the old sentence -- it asserts that the sentence
+    # is now marked superseded, and that the geometry is called measured.
+    _prov = " ".join(_neu.provenance.sources)
+    chk("and its provenance marks the old 'no photometric figure' claim as "
+        "superseded rather than still asserting it",
+        "STOPPED BEING TRUE OF" in _prov and "Eggert" in _prov
+        and "LAYER GEOMETRY is now measured" in _prov,
+        "%d sources" % len(_neu.provenance.sources))
+
+    # ---- no photographic PAPER may enter the database, 2026-09-04 ----------
+    # ⚠ THIS GUARD IS THE OUTCOME OF QUEUE ROW #179 AND IT ASSERTS A REFUSAL.
+    # `AGFA/mcp_Agfa.pdf` is Technical Data P-53-P (11/1997, 4th edition) for
+    # MULTICONTRAST PREMIUM, a variable-contrast RC ENLARGING PAPER. It is a
+    # complete, entirely vector sheet -- six characteristic curves for filters
+    # 0-5, a spectral sensitivity panel at three reflection densities, Dmax
+    # 2.25, ISO P 400/160/80, reciprocity and latent-image plots -- and it is
+    # the best paper document in the corpus. It is still refused.
+    #
+    # THE REASON IS THE MEASURAND, NOT THE QUALITY. Every density in it is a
+    # REFLECTION density. This engine's output path is transmittance: stage 14
+    # converts D to t = 10^-D between a stock's own dmin and dmax, and
+    # `PrintStock` means a transmissive positive that is projected or scanned.
+    # A paper has no transmittance, no projection, and a paper white this
+    # schema cannot express. Entering MCP as a PrintStock would run the
+    # arithmetic and state something false, and every downstream consumer --
+    # the transmittance conversion, print grain, dye_matrix, the v25
+    # printing-density matrix -- would be operating on a quantity the stock
+    # does not have.
+    #
+    # WHAT WOULD CHANGE THE ANSWER: a reflection print path. If one is ever
+    # added, this sheet is where it should start.
+    _PAPER_WORDS = ("paper", "multicontrast", "convira", "baryta", "rc/pe")
+    _papers = [s.name for s in PRINT_STOCKS
+               if any(w in s.name.lower() for w in _PAPER_WORDS)]
+    chk("no photographic PAPER has been entered as a print stock -- the engine "
+        "has no reflection path (queue #179, AGFA MULTICONTRAST PREMIUM)",
+        not _papers, ", ".join(_papers) or "%d print stocks, all transmissive"
+        % len(PRINT_STOCKS))
 
     # ---- KODAK F-5 (August 1979) DS sheets, added 2026-08-17 ----------------
     _f5 = ("KODAK_PANATOMIC_X", "KODAK_VERICHROME_PAN", "KODAK_SUPER_XX_PAN_4142",

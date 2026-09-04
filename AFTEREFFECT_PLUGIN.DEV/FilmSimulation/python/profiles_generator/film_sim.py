@@ -3008,6 +3008,32 @@ def simulate(
         targets = [
             settings.grey_target / _tint_factor(profile, c) for c in range(3)
         ]
+
+        # ---- THE EXPOSURE SIDE OF THE PRINT (schema v25, 2026-09-03) -------
+        # ⚠ WHAT COMES OUT OF THE NEGATIVE IS NOT WHAT THE PRINT SEES. `dens`
+        # holds STATUS densities -- what a densitometer reads. The print
+        # emulsion reads the negative through the printer lamp, the filter
+        # pack and its own three sensitisations, and that product puts the
+        # negative's magenta dye into the print's RED-sensitive layer and its
+        # yellow dye into the GREEN-sensitive one. `offset - D` per channel
+        # cannot express any of that; a 3x3 on the way IN can, and Hanson &
+        # Kisner 1953 name it: "effective integral printing density".
+        #
+        # ⚠ THE ANCHOR MUST GO THROUGH THE SAME OPERATOR, and this is the
+        # whole reason it is applied here rather than folded in later. The
+        # printer-light solve centres a NEUTRAL; if the neutral reference and
+        # the image were transformed differently the print would be timed
+        # against a grey that no pixel in the frame corresponds to. Rows sum
+        # to 1.0 by construction, so on a neutral this changes nothing at all
+        # and the offsets come out identical -- which is exactly the property
+        # that lets it be switched on without re-timing anything.
+        pdm = np.asarray(print_stock.printing_density_matrix, dtype=np.float64)
+        if not np.allclose(pdm, np.eye(3)):
+            d_mid = list(pdm @ np.asarray(d_mid, dtype=np.float64))
+            dens = np.ascontiguousarray(
+                (dens.reshape(-1, 3) @ pdm.T.astype(np.float32)
+                 ).reshape(h, w, 3), dtype=np.float32)
+
         offsets = solve_stage_offsets(
             d_mid, pcurves, print_stock.dye_matrix, targets
         )

@@ -440,6 +440,25 @@ EXPECTED_STAGE12 = {
 #: How far a pinned stage-12 offset may move before this is called drift.
 STAGE12_TOL = 0.004
 
+#: The negatives whose dye sets define `KODAK_2383_RELEASE`'s printing-density
+#: matrix (schema v25, 2026-09-03).
+#:
+#: ⚠ THE SET IS CHOSEN BY WHAT 2383 IS ACTUALLY PRINTED FROM, not by which
+#: panels happen to trace. Every member is a Kodak VISION-family ECN camera
+#: negative with a traced three-dye panel. The two EXR stocks that also carry
+#: panels (5245, 5293) are deliberately EXCLUDED: they are 1990s emulsions
+#: printed on 5384/2386, and folding them in would widen the class to a set of
+#: pairs that never existed in a laboratory.
+PRINTING_REFERENCE = (
+    "KODAK_VISION2_50D_5201",
+    "KODAK_VISION2_250D_5205",
+    "KODAK_VISION2_200T_5217",
+    "KODAK_VISION2_500T_5218",
+    "KODAK_VISION3_500T_5219",
+    "KODAK_VISION_200T_5274",
+    "KODAK_VISION_500T_5279",
+)
+
 
 def reader_response():
     """{band: linear sensitivity on GRID} for the print stock, or None.
@@ -742,6 +761,82 @@ def main(argv=None) -> int:
                       "contradicts the argument this module rests on" % p.name)
                 bad += 1
 
+    # ---- 2026-09-03, schema v25: the SAME arithmetic, a DIFFERENT field -----
+    # ⚠ THE REFUSAL ABOVE STANDS AND THIS IS NOT AN EXCEPTION TO IT. Stage 12's
+    # `dye_matrix` asks "what does the READER see that the stored status
+    # densities do not", and for 164 of 165 profiles the reader is a scanner,
+    # so a print film's response is the wrong answer. Stage 13's EXPOSURE side
+    # asks a different question -- "what do THIS PRINT FILM'S three layers see
+    # when they are exposed through the negative" -- and there the print film's
+    # response is not a substitution for the right quantity, it IS the right
+    # quantity. Same matrix, same derivation, opposite verdict, because the two
+    # fields mean different things.
+    if resp is not None:
+        print("")
+        print("  rownorm(M_print . M_status^-1) -- PrintStock."
+              "printing_density_matrix, over the %d VISION-family ECN "
+              "negatives %s actually prints"
+              % (len(PRINTING_REFERENCE), PRINT_READER))
+        acc, missing = [], []
+        for name in PRINTING_REFERENCE:
+            hit = [q for q in FILM_PROFILES if q.name == name]
+            if not hit or not hit[0].dye_density.has_data:
+                missing.append(name)
+                continue
+            _lam, cols = dye_curves(hit[0])
+            s12, err = stage12_matrix(hit[0], cols, resp)
+            if s12 is None:
+                missing.append("%s (%s)" % (name, err))
+                continue
+            acc.append(normalise_rows(s12))
+        if missing:
+            print("[!] the printing-matrix reference set is incomplete: %s"
+                  % ", ".join(missing))
+            bad += 1
+        if acc:
+            arr = np.asarray(acc)
+            med = np.median(arr, axis=0)
+            med = med / med.sum(axis=1, keepdims=True)
+            for i in range(3):
+                print("        " + "  ".join("%8.4f" % v for v in med[i]))
+            # ⚠ THE SPREAD IS REPORTED BECAUSE THE MEDIAN HIDES IT, and one
+            # element genuinely disagrees: 5218's cyan-band term is an
+            # eight-fold outlier the median deliberately does not follow.
+            for lbl, i, j in (("r<-m", 0, 1), ("g<-y", 1, 2),
+                              ("b<-m", 2, 1), ("r<-y", 0, 2)):
+                print("     %s  %+.4f .. %+.4f   median %+.4f"
+                      % (lbl, arr[:, i, j].min(), arr[:, i, j].max(),
+                         med[i, j]))
+            stock = [s for s in PRINT_STOCKS if s.name == PRINT_READER][0]
+            stored = np.asarray(stock.printing_density_matrix, float)
+            e = float(np.abs(stored - med).max())
+            ok = e <= 5e-5
+            bad += (not ok)
+            print("  %s the stored printing_density_matrix reproduces the "
+                  "derivation to %.2e" % ("[OK  ]" if ok else "[FAIL]", e))
+            if not stock.printing_matrix_measured:
+                print("[!] %s carries a derived printing matrix but "
+                      "printing_matrix_measured is False" % PRINT_READER)
+                bad += 1
+            # ⚠ AND IT MUST STAY A CROSSTALK-ONLY OPERATOR. Unit rows are what
+            # keeps a neutral negative printing neutral; a row sum drifting off
+            # 1.0 would put a per-channel gain back in, on top of the printer
+            # lights that already set it.
+            if float(np.abs(stored.sum(axis=1) - 1.0).max()) > 5e-4:
+                print("[!] the stored printing matrix no longer has unit rows")
+                bad += 1
+        # ⚠ EVERY OTHER PRINT STOCK MUST STILL BE IDENTITY. Ten of the eleven
+        # have no spectral sensitivity at all, so no printing matrix can be
+        # derived for them and none may be invented.
+        for s in PRINT_STOCKS:
+            if s.name == PRINT_READER:
+                continue
+            if s.printing_density_matrix != fp.IDENTITY3:
+                print("[!] %s carries a non-identity printing_density_matrix "
+                      "but has no spectral sensitivity to derive one from"
+                      % s.name)
+                bad += 1
+
     if fp._MEASURED_DYE_MATRIX_ADOPTED:
         print("[!] _MEASURED_DYE_MATRIX has been ADOPTED into dye_matrix. It "
               "double-counts crosstalk already present in the status-M/A "
@@ -766,8 +861,16 @@ def main(argv=None) -> int:
               "%s's traced sensitivity, M_reader . M_status^-1 lands 0.048 to "
               "0.116 from identity against raw off-diagonals reaching 0.24, "
               "which is this module's own argument measured. Still NOT "
-              "adopted -- no stock in this database renders through that print "
-              "stock" % (len(done), len(refused), PRINT_READER))
+              "adopted into dye_matrix -- no stock in this database renders "
+              "through that print stock. ⚠ THE SAME ARITHMETIC IS ADOPTED "
+              "ELSEWHERE, and the two verdicts are consistent: row-normalised "
+              "and medianed over the %d VISION-family ECN negatives 2383 "
+              "actually prints, it is that stock's schema-v25 "
+              "printing_density_matrix, read by stage 13 on the EXPOSURE side "
+              "-- where a print film's own response is the right quantity "
+              "rather than a stand-in for a scanner's"
+              % (len(done), len(refused), PRINT_READER,
+                 len(PRINTING_REFERENCE)))
     return 0
 
 

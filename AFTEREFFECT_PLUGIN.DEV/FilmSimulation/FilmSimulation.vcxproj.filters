@@ -623,6 +623,18 @@
     <None Include="python\profiles_generator\trumpy_callier_q.py">
       <Filter>python\profiles_generator</Filter>
     </None>
+    <None Include="python\profiles_generator\agfa_mpt_1937.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\pse_jones_1958.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\smpte_1953_hanson_kisner.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\smpte_1954_5382.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\profiles_generator\Readme!.txt">

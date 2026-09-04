@@ -403,7 +403,35 @@ _SENSITIZATIONS = frozenset({"S", "S+Au", "reduction"})
 # ordering for eight stocks that previously had only analogy estimates, and a
 # permanent record of WHY the rms fields could not be upgraded from the same
 # sources. Read by nothing on the render path.
-SCHEMA_VERSION = 24
+#
+# ---------------------------------------------------------------------------
+# v25 (2026-09-03) -- PrintStock.printing_density_matrix, and it is LIVE.
+# ---------------------------------------------------------------------------
+# ⚠ THE FIRST SCHEMA ADDITION IN SIX VERSIONS THAT MOVES A PIXEL. v19 to v24
+# were all carriers: dye density, aging, per-record f50, print-stock spectral
+# sensitivity, print grain index -- real data with nothing reading it. This one
+# is read by stage 13 on every colour render that goes through a print stock.
+#
+# WHAT IT IS. The print stage was per-channel and non-spectral end to end:
+# log_e_print[c] = offset[c] - D_negative[c], then the print curve, then the
+# print's own dye_matrix on the OUTPUT. The output matrix is correctly placed --
+# it is the print's dye impurity and it acts on print densities. What had no
+# representation at all was the EXPOSURE side: the printer lamp, the filter
+# pack, the negative's dye transmittances and the print layers' own
+# sensitisation multiply out to a 3x3 that is not the identity, and no
+# per-channel subtraction can express it. Hanson and Kisner 1953 name the
+# quantity: "effective integral printing density to Eastman Color Print Film".
+#
+# WHY IT IS NOT A SPECTRAL PRINT STAGE. A full spectral print would need every
+# print stock's spectral sensitivity (1 of 11 has one) and every negative's dye
+# density (18 of 173), and 174 of 175 profiles default to SCAN_DI, where a
+# spectral print changes nothing. A 3x3 on the exposure side is the operator
+# the era's own literature describes, costs three multiply-adds per pixel, and
+# is derivable TODAY from spectra already in the database.
+#
+# DEFAULT IS IDENTITY ON ALL ELEVEN PRINT STOCKS BUT ONE, so no existing render
+# moves except the one that now has a measurement behind it.
+SCHEMA_VERSION = 25
 
 
 # ---------------------------------------------------------------------------
@@ -3700,9 +3728,64 @@ class PrintStock:
     #: `dye_matrix_from_spectra`. 164 of 165 profiles render through SCAN_DI,
     #: so their reader is a scanner, not this film.
     spectral: SpectralSensitivity = field(default_factory=SpectralSensitivity)
+    # -- schema v25 (2026-09-03), LIVE ON THE RENDER PATH --------------------
+    #: EFFECTIVE INTEGRAL PRINTING DENSITY: the 3x3 that turns the negative's
+    #: STORED densities into the exposure densities THIS print emulsion's three
+    #: layers actually see, applied BEFORE the print characteristic curve.
+    #:
+    #: ⚠ WHY THE PRINT STAGE NEEDED A SECOND MATRIX, AND WHY THE ONE IT HAD IS
+    #: IN THE RIGHT PLACE AND CANNOT DO THIS JOB. Stage 13 already ends with
+    #: `dye_matrix`, applied to the print's OUTPUT densities -- that is the
+    #: print's own dye impurity, it acts on what comes out, and it is correctly
+    #: placed. What was missing is the operator on the way IN. Between the
+    #: negative and the print emulsion sit the printer lamp, the filter pack,
+    #: the negative's own dye transmittances and the print layers' spectral
+    #: sensitisation, and their product is not the identity: the negative's
+    #: magenta dye puts density into the print's RED-sensitive layer, its
+    #: yellow dye into the GREEN-sensitive layer, and a per-channel
+    #: `offset - D` cannot express any of it. Hanson and Kisner 1953 call the
+    #: quantity by name -- "effective integral printing density to Eastman
+    #: Color Print Film" -- and it is a printing-system property, which is why
+    #: it lives on PrintStock and not on the negative.
+    #:
+    #: ⚠ ROWS SUM TO 1.0 BY CONSTRUCTION, AND THAT IS A DELIBERATE LIMIT ON
+    #: WHAT IS CLAIMED. The raw `M_print . M_status^-1` has row sums 1.016 /
+    #: 1.041 / 1.049, i.e. it also carries a per-channel GAIN -- the ratio of
+    #: the print layer's band response to the status band's. A laboratory
+    #: calibrates that gain out with the printer lights, and the anchor solve
+    #: in this engine does the same thing at the neutral; leaving it in the
+    #: matrix would apply a channel gamma twice, which is exactly the double
+    #: count `dye_matrix_from_spectra.py` refused for stage 12. Row
+    #: normalisation keeps the CROSSTALK and drops the gain, so a neutral
+    #: negative still prints neutral and only colours move.
+    printing_density_matrix: Matrix3 = IDENTITY3
+    #: True only when the matrix was DERIVED FROM MEASURED SPECTRA. Same gate
+    #: idiom as `mtf_measured` and `sigma_shape_measured`: a class inference
+    #: must never be able to pass itself off as a per-stock measurement.
+    printing_matrix_measured: bool = False
+    printing_matrix_source: str = ""
 
     def validate(self) -> None:
         self.spectral.validate(self.name)
+        _pdm = self.printing_density_matrix
+        if _pdm != IDENTITY3:
+            if not self.printing_matrix_source:
+                raise ValueError(
+                    f"{self.name}: a non-identity printing_density_matrix "
+                    f"requires printing_matrix_source")
+            for _r in _pdm:
+                if abs(sum(_r) - 1.0) > 5e-4:
+                    raise ValueError(
+                        f"{self.name}: printing_density_matrix rows must sum "
+                        f"to 1.0 -- a row sum carries a per-channel gain the "
+                        f"printer lights already set (got {sum(_r):.4f})")
+            for _i in range(3):
+                if _pdm[_i][_i] < 0.80:
+                    raise ValueError(
+                        f"{self.name}: printing_density_matrix diagonal "
+                        f"{_pdm[_i][_i]:.3f} is below 0.80 -- a print layer "
+                        f"that responds less to its own record than to the "
+                        f"other two is not a printing density")
         self.dye_density.validate(self.name)
         self.dye_stability.validate(self.name)
         self.curves.validate(self.name)
@@ -4013,6 +4096,68 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         misregistration_um=9.0,
         default_flare=0.09,
         default_format="ff35",
+        # [T1] LAYER GEOMETRY, ADOPTED 2026-09-04 FROM THE INVENTOR'S OWN
+        # ARTICLE -- Prof. Dr. J. Eggert, "The New Agfacolor Process", Agfa
+        # Motion Picture Topics Vol. I pp 44-53, read by `agfa_mpt_1937.py`.
+        #
+        # ⚠ THE FIRST MEASURED NUMBERS THIS PROFILE HAS EVER HELD. Until today
+        # its provenance said in as many words that no photometric figure for
+        # this film existed anywhere, and every value here was an analogy. That
+        # was true of the two citations it carried; it was not true of the
+        # corpus, because the document arrived on 2026-09-03 and the first pass
+        # through it filed Eggert as a bare citation without reading the
+        # article. Everything else in this profile is STILL an analogy -- the
+        # curves, the sensitisation, dmin, dmax, gamma, halation, grain.
+        #
+        # p48, verbatim: "three emulsion layers, one on top of each other, each
+        # .005 mm. thick, and separated by plain gelatine layers .002 mm.
+        # thick." Three at 5 um plus two at 2 um is 19 um coated.
+        #
+        # ⚠ AND THE ARTICLE CHECKS THAT FIGURE AGAINST ITSELF ON A DIFFERENT
+        # PAGE. p53 says the tripack's "overall thickness ... [is] only about
+        # that of a normal one-layer film", which 19 um satisfies. Two
+        # independent statements, neither derived from the other.
+        #
+        # ⚠ ONLY `coated_um` IS SET, AND THE EMPTY FIELDS BESIDE IT ARE THE
+        # POINT. `sensitization` is a controlled vocabulary for CHEMICAL
+        # sensitisation (S / S+Au / reduction) and Eggert names none; the
+        # process description he does give belongs in `provenance`, where it
+        # already is. `base_material` stays empty because the article never
+        # says what the base is -- the profile's NITRATE_BASE feature is a
+        # period assumption of this project's, and attributing it to Eggert
+        # would turn an assumption into a citation. grain_um, habit,
+        # aspect_ratio and iodide are likewise absent from the article.
+        emulsion=EmulsionSpec(
+            coated_um=19.0,
+            source=(
+                "Eggert 1937, Agfa Motion Picture Topics Vol. I p48: three "
+                "emulsion layers 0.005 mm each, separated by plain gelatine "
+                "layers 0.002 mm -- 3 x 5 + 2 x 2 = 19 um coated. Cross-checked "
+                "against p53, 'the overall thickness of the three emulsion "
+                "layers being only about that of a normal one-layer film'. "
+                "⚠ EVERY OTHER EmulsionSpec FIELD IS ABSENT FROM THE ARTICLE "
+                "and stays empty rather than being guessed from the period: "
+                "no crystal size, no habit, no iodide, no chemical "
+                "sensitisation, and no statement of the base material"),
+        ),
+        # ⚠ THE ORDER IS PRINTED, NOT INFERRED FROM THE CONVENTION, and on this
+        # film that distinction has teeth: `LayerStack`'s own docstring records
+        # six stocks in Cheltsov & Bongard that stack unconventionally, one of
+        # them (Eastmancolor positive 5382) with blue at the BOTTOM. Eggert p48
+        # states it directly -- "A yellow-dyed gelatine layer between the top
+        # (blue-sensitive) emulsion and second (green-yellow sensitive)
+        # emulsion layer insures that no blue light reaches the two lower
+        # emulsion layers" -- so top is blue, second is green, and red is the
+        # remaining lower layer.
+        layer_stack=LayerStack(
+            order=("blue", "green", "red"),
+            source=(
+                "Eggert 1937, Agfa Motion Picture Topics Vol. I p48 -- the "
+                "yellow filter layer is placed between the top blue-sensitive "
+                "and the second green-sensitive emulsion, which fixes the "
+                "order. No per-layer resolving power is printed anywhere in "
+                "the article, so the three resolving fields stay zero"),
+        ),
         features=Feature.HALATION | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE,
     ),
     FilmProfile(
@@ -18110,12 +18255,33 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         # [T1] SPECTRAL DYE DENSITY TRACED from E-29 p4, "Spectral-Dye-Density
         # Curves". The panel prints a MIDSCALE NEUTRAL and a MINIMUM DENSITY
         # curve, which is the schema-v14 neutral+D-min pair and not three
-        # separated dyes. 5 nm grid over 450-700 nm -- the range BOTH curves
-        # cover; neither reaches 400 nm on this sheet, unlike the PORTRA and
-        # GOLD panels, so the array is 51 samples rather than 59.
+        # separated dyes. 5 nm grid over 400-700 nm, 61 samples.
+        #
+        # ⚠ EXTENDED FROM 450 nm TO 400 nm ON 2026-09-03, AND THE OLD ARRAY'S
+        # OWN COMMENT WAS THE ERROR. It said "neither reaches 400 nm on this
+        # sheet, unlike the PORTRA and GOLD panels". Both curves DO reach
+        # 400 nm; what they do there is rise almost vertically, and that rise
+        # is drawn as five short subpaths -- spans 18, 13, 12, 4 and 2 pt --
+        # every one of which the span filter discarded. What survived began at
+        # 373 and 385 pt, so the array started where the surviving fragments
+        # did, and the values recorded as the panel's PEAKS (neutral 1.616,
+        # D-min 0.869) were in fact its values at 450 nm. The real peaks are
+        # 2.121 and 1.611 at 400 nm -- 0.51 and 0.74 D higher -- verified
+        # against a 150 dpi render of the page, where the neutral curve visibly
+        # leaves the top-left of the frame. The 450-700 nm tail below is
+        # UNCHANGED and still reproduces the old array sample for sample, which
+        # is what says this is an extension and not a re-reading.
+        #
+        # ⚠ A FIFTH OF THE VISIBLE SPECTRUM WAS MISSING FROM A [T1] ARRAY, and
+        # nothing flagged it because a truncated array is a valid array. The
+        # reader now prefers a chained reading that covers more of the x axis
+        # (see `extract_panel`) and refuses any dye pair whose extent is not
+        # 400-700 nm (see `assign_dye_pair`), so this class of loss fails loudly.
         dye_density=SpectralDyeDensity(
-            lambda_start_nm=450.0, lambda_step_nm=5.0,
-            d_neutral=(1.616, 1.611, 1.595, 1.569, 1.533, 1.492, 1.451,
+            lambda_start_nm=400.0, lambda_step_nm=5.0,
+            d_neutral=(2.121, 1.793, 1.503, 1.431, 1.436, 1.489, 1.552,
+                       1.586, 1.606, 1.613,
+                       1.616, 1.611, 1.595, 1.569, 1.533, 1.492, 1.451,
                        1.414, 1.389, 1.379, 1.387, 1.409, 1.439, 1.468,
                        1.497, 1.527, 1.557, 1.586, 1.607, 1.613, 1.601,
                        1.570, 1.521, 1.455, 1.375, 1.284, 1.183, 1.075,
@@ -18123,7 +18289,9 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
                        0.814, 0.846, 0.882, 0.921, 0.963, 1.005, 1.047,
                        1.088, 1.128, 1.164, 1.198, 1.226, 1.249, 1.266,
                        1.278, 1.286),
-            d_dmin=(0.869, 0.860, 0.844, 0.822, 0.796, 0.766, 0.735, 0.702,
+            d_dmin=(1.611, 1.262, 0.928, 0.814, 0.796, 0.814, 0.838, 0.853,
+                    0.865, 0.871,
+                    0.869, 0.860, 0.844, 0.822, 0.796, 0.766, 0.735, 0.702,
                     0.674, 0.651, 0.636, 0.627, 0.621, 0.611, 0.599, 0.587,
                     0.579, 0.575, 0.577, 0.582, 0.592, 0.606, 0.619, 0.629,
                     0.627, 0.609, 0.569, 0.506, 0.431, 0.357, 0.293, 0.248,
@@ -18135,9 +18303,15 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
                 "Eastman Kodak Company, KODAK Pro 100T Film / PRT, publication "
                 "E-29, April 1999 -- PDF/PROFILES/KODAK/e29-Pro_100T_PRT.pdf "
                 "page 4, panel \"Spectral-Dye-Density Curves\". Traced from the "
-                "page vectors by kodak_still_curves.py on 2026-08-26; midscale "
-                "neutral peak 1.616 D and minimum-density peak 0.869 D, both at "
-                "450 nm where the traces begin."),
+                "page vectors by kodak_still_curves.py; 5 nm grid over "
+                "400-700 nm, 61 samples. ⚠ RE-TRACED 2026-09-03 AND EXTENDED "
+                "BY 50 nm AT THE BLUE END: the 2026-08-26 reading began at "
+                "450 nm because the near-vertical 400-445 nm rise is drawn as "
+                "five short subpaths that the span filter discarded, and it "
+                "recorded 1.616 / 0.869 as the panel's peaks when those are "
+                "its 450 nm values. The printed peaks are neutral 2.121 and "
+                "minimum density 1.611, both at 400 nm. The 450-700 nm tail is "
+                "byte-identical to the earlier array"),
         ),
         # ⚠ NO SPECTRAL SENSITIVITY. E-29 p4 prints a Spectral-Sensitivity
         # panel and this reader recovers NOTHING usable from it: the traces are
@@ -18777,17 +18951,40 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         name="KODAK_ULTRA_COLOR_100UC",
         aliases=("100uc", "ultra color 100"),
         description=(
-            "[T3] Kodak Professional ULTRA COLOR 100UC (E-4035): the "
-            "saturated 'punch' professional negative, Ektar's immediate "
-            "ancestor. PGI only; rms [C4]."
+            "[T2] Kodak Professional ULTRA COLOR 100UC: the saturated 'punch' "
+            "professional negative, Ektar's immediate ancestor. ⚠ CURVES "
+            "TRACED FROM E-4035 ON 2026-09-03, replacing an analogy set that "
+            "carried NO ORANGE MASK -- see the curve note. PGI only; rms [C4]."
         ),
         era="2003-2008",
         exposure_index=100,
         balance_kelvin=5500,
+        # ⚠ TRACED 2026-09-03 FROM THE SHEET THIS PROFILE ALWAYS CITED, WHICH
+        # UNTIL NOW WAS NOT IN THE CORPUS. Eastman Kodak, «KODAK PROFESSIONAL
+        # ULTRA COLOR 100UC and 400UC Films», publication E-4035, May 2007,
+        # page 6, panel "Characteristic Curves" (figure F009_0585AC); daylight
+        # exposure, Status M densitometry, Log H Ref -1.14. Traced by
+        # kodak_still_curves.py; dmin and gamma are `measure_char`'s, the
+        # shoulder is this profile's own, the toe refit per channel. Fit rms
+        # 0.017 / 0.016 / 0.024 D over log H -3.15..+0.82.
+        #
+        # ⚠ WHAT THIS REPLACED WAS NOT A MEASUREMENT AND WAS NOT EVEN THE RIGHT
+        # KIND OF FILM. The previous triple was dmin 0.20 / 0.19 / 0.19 with
+        # gamma 0.620 / 0.636 / 0.652, tagged `fitted_from='analogy'` in its own
+        # provenance. Three near-equal dmins on a masked colour negative means
+        # NO MASK AT ALL -- the signature queue row B4 found on 5247_1983 --
+        # where the sheet prints 0.30 / 0.71 / 1.00, a full orange mask. The
+        # gamma order was inverted too: the sheet has red the LOWEST-contrast
+        # layer (0.521) and blue the highest (0.651), a 0.13 spread, against a
+        # stored 0.03 spread in the same direction but a quarter of the size.
+        #
+        # ⚠ AND IT SETTLES A QUESTION THE VARIANT RECORD FOR 400UC HAD LEFT
+        # OPEN. That record notes the stored triple's missing mask as "worth a
+        # second look by whoever gets there next". It was.
         curves=RGBCurves(
-            r=_neg(0.20, 0.620, toe_x=-1.64, toe_k=0.29, shoulder_x=2.02),
-            g=_neg(0.19, 0.636, toe_x=-1.58, toe_k=0.28, shoulder_x=1.96),
-            b=_neg(0.19, 0.652, toe_x=-1.52, toe_k=0.26, shoulder_x=1.90),
+            r=ToneCurve(0.2992, 0.5212, -2.4189, 0.0771, 2.02, 0.1079),
+            g=ToneCurve(0.7064, 0.5654, -2.3506, 0.1324, 1.96, 0.1853),
+            b=ToneCurve(0.9958, 0.6510, -2.3147, 0.1674, 1.90, 0.2344),
         ),
         grain=GrainSpec(4.4, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.16),
         mtf=MTFSpec(68.0, 76.0, 86.0, adjacency=0.12, adjacency_um=16.0),
@@ -18802,16 +18999,42 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         name="KODAK_ULTRA_COLOR_400UC",
         aliases=("400uc", "ultra color 400"),
         description=(
-            "[T3] Kodak Professional ULTRA COLOR 400UC (E-4035). PGI only; "
-            "rms [C4]."
+            "[T2] Kodak Professional ULTRA COLOR 400UC. ⚠ CURVES TRACED FROM "
+            "E-4035 ON 2026-09-03 and cross-checked against E-190 (2003) p13 "
+            "to 0.004 D -- see the curve note. PGI only; rms [C4]."
         ),
         era="2003-2008",
         exposure_index=400,
         balance_kelvin=5500,
+        # ⚠ TRACED 2026-09-03. Eastman Kodak, «KODAK PROFESSIONAL ULTRA COLOR
+        # 100UC and 400UC Films», publication E-4035, May 2007, page 7, panel
+        # "Characteristic Curves, EI 400" (figure F009_0589AC); daylight
+        # exposure, Status M densitometry, Log H Ref -1.44. Traced by
+        # kodak_still_curves.py; dmin and gamma from `measure_char`, shoulder
+        # kept from this profile, toe refit per channel. Fit rms
+        # 0.008 / 0.009 / 0.012 D over log H -3.44..+0.56.
+        #
+        # ⚠ THIS IS THE ONE CURVE SET IN THE PROFILE THAT TWO PUBLICATIONS
+        # AGREE ON. E-190 (2003) p13 reads the same emulsion independently at
+        # dmin 0.3338 / 0.7630 / 1.0508 and gamma 0.5505 / 0.5761 / 0.6655 --
+        # 0.004 D and 0.001 gamma from the values below, four years and two
+        # documents apart. The `_PROCESS_VARIANTS` record that holds the E-190
+        # reading was written while E-4035 was NOT in the corpus and says so;
+        # it is now a second reading that CONFIRMS rather than contradicts.
+        #
+        # ⚠ WHAT THIS REPLACED had dmin 0.21 / 0.20 / 0.20 -- no orange mask --
+        # and made 400UC the SOFTER of the two ULTRA COLOR films (gamma 0.616 /
+        # 0.632 / 0.648 against 100UC's 0.620 / 0.636 / 0.652, a flat -0.004 on
+        # every channel). The sheet has it the other way round and by more:
+        # 400UC is contrastier by +0.030 / +0.010 / +0.014 and denser at base
+        # by +0.037 / +0.061 / +0.059. The difference being channel-dependent
+        # is what rules out a tracing or axis error, which would move all three
+        # the same way. The old pair differed from each other by one uniform
+        # hand nudge, which is not two readings of two films.
         curves=RGBCurves(
-            r=_neg(0.21, 0.616, toe_x=-1.68, toe_k=0.30, shoulder_x=2.06),
-            g=_neg(0.20, 0.632, toe_x=-1.62, toe_k=0.29, shoulder_x=2.00),
-            b=_neg(0.20, 0.648, toe_x=-1.56, toe_k=0.27, shoulder_x=1.94),
+            r=ToneCurve(0.3364, 0.5511, -2.6334, 0.1290, 2.06, 0.1806),
+            g=ToneCurve(0.7670, 0.5754, -2.6268, 0.1324, 2.00, 0.1854),
+            b=ToneCurve(1.0543, 0.6652, -2.6104, 0.1515, 1.94, 0.2121),
         ),
         grain=GrainSpec(6.2, 2.387, 2.581, 3.032, clump_gain=0.28, fog_grain=0.18),
         mtf=MTFSpec(60.0, 68.0, 78.0, adjacency=0.12, adjacency_um=16.0),
@@ -22036,14 +22259,41 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "in Photography and Film, page 'Agfacolor Neu / Agfacolor')",
         "Hatschek, Paul (1936): 'Der neue deutsche Agfa-Farbenfilm'. Die "
         "Kinotechnik 18(21), 5 Nov. 1936, pp. 345-346 (in German)",
-        "PROVENANCE LIMIT: these two citations establish the process and the "
-        "date only -- subtractive three-colour chromogenic monopack, reversal "
-        "from 1936, colour formers incorporated in the superposed emulsion "
-        "layers instead of added to the developer, silver later dissolved out "
-        "leaving pure dye images. Neither carries a photometric figure: no "
-        "speed, no gamma, no spectral sensitisation, no dmin or dmax. Every "
-        "numeric value in this profile is therefore still an analogy, which is "
-        "why the tier remains 3. Do NOT borrow the quantitative Agfacolor "
+        "Eggert, Prof. Dr. J. (1937): 'The New Agfacolor Process'. Agfa "
+        "Motion Picture Topics, C. King Charney / Agfa Ansco, Vol. I, pp "
+        "44-53 -- PDF/PROFILES/AGFA/agfamotionpictur00ckin.pdf, read 2026-09-04 "
+        "by agfa_mpt_1937.py. ⚠ THE INVENTOR'S OWN ACCOUNT, AND IT PRINTS "
+        "CONSTRUCTION FIGURES: three emulsion layers 0.005 mm each separated "
+        "by plain gelatine layers 0.002 mm (p48), the yellow filter layer "
+        "between the top blue-sensitive emulsion and the second "
+        "green-sensitive one (p48, which is what fixes the coating ORDER), "
+        "and on p53 the tripack's total thickness being 'only about that of a "
+        "normal one-layer film' -- an independent check on the 19 um those "
+        "two figures sum to",
+        "PROVENANCE LIMIT, REWRITTEN 2026-09-04 AND NARROWED. ⚠ THE PREVIOUS "
+        "VERSION OF THIS NOTE SAID 'Neither carries a photometric figure ... "
+        "Every numeric value in this profile is therefore still an analogy'. "
+        "That was true of the two citations above it and STOPPED BEING TRUE OF "
+        "THE CORPUS on 2026-09-03, when agfamotionpictur00ckin.pdf arrived "
+        "carrying Eggert's own article -- which the first pass through that "
+        "document filed as a bare provenance citation without reading it. The "
+        "LAYER GEOMETRY is now measured [T1] and lives in `emulsion` and "
+        "`layer_stack`. What is STILL analogy: the curves, the spectral "
+        "sensitisation, dmin, dmax, gamma, halation and every grain figure. "
+        "⚠ AND TWO PRINTED STATEMENTS ARE RECORDED WITHOUT BEING ADOPTED, "
+        "under method rule 4. (1) SPEED: p53 gives 'In sunshine 16 mm. motion "
+        "pictures may be made using a lens opening of F:4.5 to F:5.6', which "
+        "sunny-16 turns into ISO 2.5-3.9 at 16 fps or 4.0-6.1 at 24 fps -- the "
+        "article does not say which, and the stored exposure_index 8 sits "
+        "above the whole of BOTH ranges, so the analogy is 0.4 to 1.7 stops "
+        "fast and the two readings agree on that even while disagreeing with "
+        "each other. A speed inferred from exposure advice is not a measured "
+        "speed, so 8 stands and the conflict is asserted in agfa_mpt_1937.py. "
+        "(2) GRAIN: p53 says 'there is no silver in the finished film, and the "
+        "dye image is practically grainless and does not show any clumping' -- "
+        "a launch article's superlative, but the process fact inside it is "
+        "real and means this stock's grain is DYE-CLOUD grain, not silver "
+        "grain. Do NOT borrow the quantitative Agfacolor "
         "data printed on that same page (15/10 Din, the Type B / Type G "
         "red-sensitivity trade, the Abb. 58-59 layer sensitisation curves): "
         "all of it describes the 1939+ NEGATIVE/POSITIVE system, a different "
@@ -33741,7 +33991,7 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
             push_stops=1,
             exposure_index=1600,
             curves=RGBCurves(
-                r=ToneCurve(0.2779, 0.6100, -3.0346, 0.13, 2.24, 0.182),
+                r=ToneCurve(0.2569, 0.6094, -3.0548, 0.1693, 2.24, 0.2370),
                 g=ToneCurve(0.6631, 0.6019, -3.1006, 0.11, 2.18, 0.154),
                 b=ToneCurve(1.0030, 0.7050, -2.9498, 0.24, 2.08, 0.336),
             ),
@@ -33749,7 +33999,16 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
                 "Eastman Kodak Company, 'KODAK PROFESSIONAL PORTRA Films', "
                 "publication E-190, October 2006, p12, panel 'Characteristic "
                 "Curves, EI 1600 (Push 1)'; traced by kodak_still_curves.py, "
-                "fit rms 0.013 / 0.030 / 0.021 D over log H -3.75..+0.27. "
+                "fit rms 0.009 / 0.030 / 0.021 D over log H -3.75..+0.27. "
+                "⚠ RED RE-READ 2026-09-03: dmin 0.2779 -> 0.2569, gamma 0.6100 "
+                "-> 0.6094. Its red curve is drawn as a flat base+fog stub plus "
+                "the curve proper, the stub was below the span filter, and the "
+                "surviving piece kept the trace count correct -- so the "
+                "plateau was being estimated off a trace that did not contain "
+                "it, 0.021 D too high. Gamma barely moved because it never "
+                "depended on the stub, and the red fit improved from 0.013 to "
+                "0.009 rms. Same defect as E-7024 p3 and E-190 (2003) p13; see "
+                "`extract_panel`'s coverage rule. "
                 "⚠ READ FROM THE SAME PAGE AS THE PROFILE'S OWN CURVES "
                 "AND THAT IS THE REASON THIS EDITION WAS CHOSEN: p12's EI 800 "
                 "panel reproduces the stored set to four decimals (0.2200 / "
@@ -33773,7 +34032,7 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
             push_stops=2,
             exposure_index=3200,
             curves=RGBCurves(
-                r=ToneCurve(0.3173, 0.6918, -2.9936, 0.18, 2.24, 0.252),
+                r=ToneCurve(0.3011, 0.6907, -3.0397, 0.1745, 2.24, 0.2443),
                 g=ToneCurve(0.6938, 0.7162, -3.0656, 0.13, 2.18, 0.182),
                 b=ToneCurve(1.0468, 0.7872, -2.9668, 0.20, 2.08, 0.280),
             ),
@@ -33781,8 +34040,11 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
                 "Eastman Kodak Company, 'KODAK PROFESSIONAL PORTRA Films', "
                 "publication E-190, October 2006, p12, panel 'Characteristic "
                 "Curves, EI 3200 (Push 2)'; traced by kodak_still_curves.py, "
-                "fit rms 0.020 / 0.053 / 0.033 D, worst 0.056 / 0.216 / 0.117 "
-                "over log H -3.71..+0.24. ⚠ THE GREEN CHANNEL IS THE "
+                "fit rms 0.015 / 0.053 / 0.033 D, worst 0.068 / 0.216 / 0.117 "
+                "over log H -3.71..+0.24. ⚠ RED RE-READ 2026-09-03: dmin "
+                "0.3173 -> 0.3011, gamma 0.6918 -> 0.6907, same dropped "
+                "base+fog stub as the EI 1600 record above. ⚠ THE GREEN "
+                "CHANNEL IS THE "
                 "WORST FIT IN THIS BATCH and the number is recorded rather "
                 "than smoothed: 0.216 D at one point, against 0.033 for red. "
                 "It is a toe effect -- this is the most pushed panel on the "
@@ -33791,36 +34053,41 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
                 "from spans -2.37..-0.89"),
         ),
     ),
-    # ⚠ 400UC CARRIES ITS OWN EI 400 RECORD AND THE PROFILE'S CURVES ARE NOT
-    # IT. This is the case the "same panel group" rule exists for. The stored
-    # curves are cited to E-4035, which is not in the corpus; the push panel is
-    # on E-190 (2003) p13 beside an EI 400 panel that reads dmin 0.3338 /
-    # 0.7630 / 1.0508 against the stored 0.21 / 0.20 / 0.20. Storing only the
-    # push would make the difference between profile and variant a difference
-    # between two publications wearing the label "Push 1", so BOTH panels from
-    # that page are stored and the pair is internally consistent.
-    # ⚠ And the stored triple is worth a second look by whoever gets there
-    # next -- 0.21 / 0.20 / 0.20 is three near-equal dmins on a MASKED colour
-    # negative, i.e. no mask at all, which is the signature B4 found on
-    # 5247_1983. Recorded as an observation; nothing here changes those curves.
+    # ⚠ REWRITTEN 2026-09-03, AND THE THING THIS BLOCK USED TO BE ABOUT IS GONE.
+    # It existed to record that the profile's stored curves were cited to E-4035
+    # while E-4035 was NOT IN THE CORPUS, and that a different sheet -- E-190
+    # (2003) p13 -- read the same box speed and disagreed with them. The owner
+    # supplied E-4035 on 2026-09-03. Tracing it settled the disagreement in the
+    # way the old note suspected: E-4035 and E-190 AGREE with each other to
+    # 0.004 D and 0.001 gamma, and it was the stored triple -- 0.21 / 0.20 /
+    # 0.20, no orange mask -- that matched neither. The profile's curves are now
+    # E-4035's own, so the box-speed records below no longer disagree with the
+    # profile; they corroborate it from two publications.
+    # ⚠ The old note's parting line was "worth a second look by whoever gets
+    # there next". This is that second look, and the missing mask was real.
     "KODAK_ULTRA_COLOR_400UC": (
         ProcessVariant(
-            name="EI 400 (box speed), the profile's own curves",
+            name="EI 400 (box speed), as E-4035 prints it",
             process="C-41",
             is_default=True,
             exposure_index=400,
             source=(
-                "KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, "
-                "publication E-4035, Eastman Kodak Company -- the citation the "
-                "profile's own provenance carries. ⚠ THAT DOCUMENT IS NOT IN "
-                "THE CORPUS, so this record states which process and rating "
-                "the stored curves belong to and nothing more; it carries no "
-                "curves of its own. The next record is a DIFFERENT sheet's "
-                "reading of the same box speed and disagrees with the stored "
-                "one -- see its note"),
+                "Eastman Kodak Company, «KODAK PROFESSIONAL ULTRA COLOR 100UC "
+                "and 400UC Films», publication E-4035, May 2007, p7, panel "
+                "'Characteristic Curves, EI 400' (figure F009_0589AC); traced "
+                "by kodak_still_curves.py 2026-09-03, fit rms 0.008 / 0.009 / "
+                "0.012 D over log H -3.44..+0.56. ⚠ THE PROFILE'S OWN CURVES "
+                "ARE NOW THIS PANEL, which is why this record carries none of "
+                "its own -- it states the process and rating they belong to. "
+                "Reading it needed two fixes to the reader, both of which "
+                "turned out to be corpus-wide defects rather than E-4035 "
+                "quirks: this page's density labels are typeset up to 2.9 pt "
+                "off a straight line, and the nearest drawn tick is not the "
+                "right one either, so ticks are now assigned by collinearity "
+                "(see `_snap_collinear`)"),
         ),
         ProcessVariant(
-            name="EI 400, as E-190 (2003) prints it",
+            name="EI 400, as E-190 (2003) prints it -- the cross-check",
             process="C-41",
             exposure_index=400,
             curves=RGBCurves(
@@ -33832,15 +34099,47 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
                 "Eastman Kodak Company, 'KODAK PROFESSIONAL PORTRA Films', "
                 "publication E-190, May 2003, p13, panel 'Characteristic "
                 "Curves, EI 400'; traced by kodak_still_curves.py, fit rms "
-                "0.007 / 0.009 / 0.017 D over log H -3.44..+0.56. ⚠ NOT "
-                "is_default: the profile's own curves are cited to E-4035 and "
-                "do not match this panel. This record exists so the EI 800 "
-                "push beside it has a same-document box speed to be a push "
-                "FROM; on its own it is a second, later reading of this "
-                "emulsion and is not adopted over the profile's"),
+                "0.007 / 0.009 / 0.017 D over log H -3.44..+0.56. ⚠ THIS IS NO "
+                "LONGER A DISAGREEMENT AND ITS VALUE HAS CHANGED ACCORDINGLY. "
+                "It was stored because it contradicted the profile; it is kept "
+                "because it CONFIRMS the profile: dmin 0.3338 / 0.7630 / "
+                "1.0508 against E-4035's 0.3364 / 0.7670 / 1.0543 and gamma "
+                "0.5505 / 0.5761 / 0.6655 against 0.5511 / 0.5754 / 0.6652 -- "
+                "two publications four years apart, agreeing to 0.004 D. Not "
+                "is_default: E-4035 is the sheet for this product, E-190 is a "
+                "PORTRA sheet that also prints it"),
         ),
         ProcessVariant(
-            name="EI 800 (Push 1)",
+            name="EI 800 (Push 1), as E-4035 prints it",
+            process="C-41",
+            push_stops=1,
+            is_default=False,
+            exposure_index=800,
+            curves=RGBCurves(
+                r=ToneCurve(0.4083, 0.6367, -2.6560, 0.1353, 2.06, 0.1894),
+                g=ToneCurve(0.8032, 0.6729, -2.7059, 0.0860, 2.00, 0.1204),
+                b=ToneCurve(1.0851, 0.7831, -2.6088, 0.1584, 1.94, 0.2217),
+            ),
+            source=(
+                "Eastman Kodak Company, «KODAK PROFESSIONAL ULTRA COLOR 100UC "
+                "and 400UC Films», publication E-4035, May 2007, p7, panel "
+                "'Characteristic Curves, EI 800 (Push 1)' (figure F009_0590AC); "
+                "traced by kodak_still_curves.py 2026-09-03, fit rms 0.025 / "
+                "0.017 / 0.017 D over log H -3.41..+0.47. ⚠ THIS IS THE PUSH "
+                "THAT BELONGS WITH THE PROFILE'S OWN CURVES -- same document, "
+                "same page, same figure family as the EI 400 panel the profile "
+                "now carries, so the delta between them is a PROCESS "
+                "difference and not an edition difference. Against E-4035's "
+                "own EI 400 it is +0.072 / +0.036 / +0.031 in dmin and +0.086 "
+                "/ +0.098 / +0.118 in gamma: contrastier and more fogged, "
+                "which is what a first-developer push does to a C-41 negative. "
+                "⚠ Its red trace was HALF-LENGTH until 2026-09-03 -- the curve "
+                "is drawn as two subpaths and the reader was dropping the "
+                "shorter one while still reporting the right number of traces; "
+                "see `extract_panel`'s coverage rule"),
+        ),
+        ProcessVariant(
+            name="EI 800 (Push 1), as E-190 (2003) prints it",
             process="C-41",
             push_stops=1,
             exposure_index=800,
@@ -33854,7 +34153,14 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
                 "publication E-190, May 2003, p13, panel 'Characteristic "
                 "Curves, EI 800 (Push 1)'; traced by kodak_still_curves.py, "
                 "fit rms 0.021 / 0.015 / 0.019 D over log H -3.44..+0.56. "
-                "⚠ THIS IS THE PANEL THAT CAUGHT A LIVE MIRRORED AXIS: "
+                "⚠ THE SECOND READING OF THE SAME PUSH, and it agrees less "
+                "well than the two box-speed panels do: dmin within 0.010 / "
+                "0.011 / 0.010 but gamma 0.6149 / 0.6582 / 0.7570 against "
+                "E-4035's 0.6367 / 0.6729 / 0.7831, i.e. up to 0.026 apart. "
+                "Recorded as a conflict rather than averaged (method rule 4); "
+                "a push panel is the most process-sensitive figure on either "
+                "sheet and two editions need not have used one developer run. "
+                "⚠ THIS IS ALSO THE PANEL THAT CAUGHT A LIVE MIRRORED AXIS: "
                 "before `want_slope` was added it calibrated to x 4.000..0.003 "
                 "-- perfectly collinear, perfectly left-handed -- and returned "
                 "its traces reversed. See the `_sign_ticks` docstring"),
@@ -35276,8 +35582,40 @@ def _grain_v2(p: FilmProfile) -> GrainSpec:
             kw.update(sigma_shape_toe=0.21, sigma_shape_mid=1.0,
                       sigma_shape_dmax=2.97)
         elif p.is_monochrome:
-            kw.update(sigma_shape_toe=0.4, sigma_shape_mid=1.0,
-                      sigma_shape_dmax=1.2)
+            # ⚠ MEASURED FROM 2026-09-03, AND THIS IS THE ROW F2b OPENED FOR.
+            # R. Clark Jones, PS&E 2(2) August 1958, Table C: Eastman Kodak's
+            # own sigma at four densities for Royal-X, Tri-X, Plus-X and Pan-X,
+            # coatings of February 1957, 2000 density readings behind each
+            # value. Normalising each film at D = 1.0 puts four emulsions
+            # spanning roughly ASA 32 to ASA 1250 on ONE curve to a standard
+            # deviation of 0.042-0.058 -- which is what licenses a class shape
+            # where the old triple was an admission of having none.
+            #
+            # ⚠ THE OLD PLACEHOLDER POINTED THE WRONG WAY AT BOTH ENDS: it
+            # implied 0.400 at D 0.07 against a measured 0.507 (-21 %) and
+            # 0.647 at D 0.50 against 0.874 (-26 %). The legacy sqrt(D) law
+            # these stocks ACTUALLY render on is worse still -- -48 % at
+            # D 0.07 and +17 % at D 1.40 -- i.e. black-and-white shadows are
+            # rendered far too clean and highlights too grainy.
+            #
+            # ⚠ THE ANCHOR DENSITIES ARE STORED BECAUSE THE MEASUREMENT STOPS
+            # WHERE IT STOPS. 1.40 is the highest density Jones tabulates, not
+            # any film's Dmax, and `sigma_anchors` holds the shape flat above
+            # its top anchor. Storing dmax_at = 1.40 says "measured this far";
+            # leaving it at the stock's Dmax would extrapolate a decade of
+            # density nobody measured.
+            #
+            # ⚠ STILL INERT, AND DELIBERATELY. `sigma_measured_usable` gates on
+            # `sigma_shape_measured`, which means measured ON THIS STOCK -- 13
+            # of them, a count that guards and documentation both carry. These
+            # four films are not in the database (Royal-X and Pan-X not at all;
+            # the Tri-X and Plus-X here are a 1999 cine coating and a modern
+            # still, not the February 1957 ones). Setting the flag from a class
+            # rule would redefine it silently on 52 stocks. The numbers are now
+            # true; turning them on is a separate, owner-visible decision.
+            kw.update(sigma_shape_toe=0.507, sigma_shape_mid=1.0,
+                      sigma_shape_dmax=1.016,
+                      sigma_shape_toe_at=0.07, sigma_shape_dmax_at=1.40)
         else:
             # ⚠ NO sigma_shape_peak HERE, AND A GUARD CAUGHT THE FIRST
             # ATTEMPT TO SET ONE. The eleven measurements all carry an
@@ -36771,9 +37109,22 @@ _KODAK_STILL_HARVEST: dict = {
     ),
 # ---- KODAK_ULTRAMAX_800
 #   char from E7024-Ultra_Max_800.pdf p3 (Characteristic Curves)
-#     R dmin=0.3313 gamma=0.5185 toe_x=-2.8427 toe_k=0.1600 rms=0.0080 worst=0.0203 logE -3.14..0.26
+#     R dmin=0.3128 gamma=0.5185 toe_x=-2.8923 toe_k=0.1650 rms=0.0049 worst=0.0119 logE -3.74..0.26
 #     G dmin=0.7093 gamma=0.5276 toe_x=-3.0405 toe_k=0.1000 rms=0.0110 worst=0.0412 logE -3.74..0.26
 #     B dmin=1.0267 gamma=0.6103 toe_x=-2.8904 toe_k=0.1800 rms=0.0070 worst=0.0141 logE -3.74..0.26
+#
+# ⚠ THE RED CHANNEL WAS RE-READ ON 2026-09-03 AND THE OLD VALUES WERE TAKEN
+# FROM HALF A TRACE. This panel draws its red curve as a 9-vertex flat
+# base+fog stub (x 378.5-400.7 pt) plus the curve proper (400.7-526.1); the
+# stub crosses 15 % of the frame, `keep`'s span filter dropped it, and the
+# surviving piece left the trace COUNT correct at three, so nothing complained.
+# The tell was in this very block and went unnoticed: red's logE range read
+# -3.14..0.26 where green and blue both read -3.74..0.26. `measure_char` was
+# reading a plateau off a trace with no plateau in it, giving dmin 0.3313
+# against the drawn 0.3128 -- 0.019 D of invented base density. Gamma never
+# depended on the stub and is unchanged at 0.5185; the fit is now better as
+# well (rms 0.0080 -> 0.0049, worst 0.0203 -> 0.0119) because it is fitting the
+# whole curve. See `extract_panel`'s equal-count / greater-coverage rule.
     "KODAK_ULTRAMAX_800": dict(
         reciprocity_table=ReciprocityTable(
             times_s=(1.0,),
@@ -36785,13 +37136,17 @@ _KODAK_STILL_HARVEST: dict = {
                 "1/10,000 second to 1 second.\""),
         ),
         curves={
-            "r": (0.3313, 0.5185, -2.8427, 0.160),
+            "r": (0.3128, 0.5185, -2.8923, 0.165),
             "g": (0.7093, 0.5276, -3.0405, 0.100),
             "b": (1.0267, 0.6103, -2.8904, 0.180),
         },
-        curve_rms=(0.0080, 0.0110, 0.0070),
-        curve_worst=(0.0203, 0.0412, 0.0141),
-        curve_logE=(-3.140, 0.261),
+        curve_rms=(0.0049, 0.0110, 0.0070),
+        curve_worst=(0.0119, 0.0412, 0.0141),
+        # ⚠ WAS (-3.140, 0.261) AND THAT WAS THE RED CHANNEL'S TRUNCATION
+        # SHOWING THROUGH: this field is one range for all three channels, so a
+        # short red trace narrowed it for green and blue too. All three now
+        # span the panel.
+        curve_logE=(-3.741, 0.261),
     ),
 }
 
@@ -37546,6 +37901,65 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
                     "same figure in 'Kodak Color Print Film 2383.pdf' (rms "
                     "0.015 / 0.032 / 0.031 decades)"),
         ),
+        # [T1] PRINTING-DENSITY MATRIX, DERIVED 2026-09-03 (schema v25) from
+        # spectra already in this database -- no new source, no new estimate.
+        #
+        # THE DERIVATION, and it is the same arithmetic `dye_matrix_from_
+        # spectra.py` already performs and pins:
+        #
+        #     M_print[i][j]  = the density dye j puts into THIS film's layer i,
+        #                      at the amount that gives dye j unit density in
+        #                      its own ISO 5-3 status band
+        #     M_status[i][j] = the same, read by the status densitometer the
+        #                      negative's curves are stored in (status M here)
+        #     P              = rownorm( M_print . M_status^-1 )
+        #
+        # `M_print` uses the spectral sensitivity traced above -- the only one
+        # on any print stock in this database, which is precisely why this
+        # matrix can exist at all.
+        #
+        # ⚠ P DEPENDS ON THE NEGATIVE, SO THIS IS A CLASS VALUE AND IS GATED AS
+        # ONE. It is the ELEMENT-WISE MEDIAN over the seven Kodak VISION-family
+        # ECN negatives in this database that carry a traced three-dye panel and
+        # that 2383 is actually printed from: 5201, 5205, 5217, 5218, 5219,
+        # 5274, 5279. Measured spread across those seven, element by element:
+        #
+        #     r<-m  0.0114 .. 0.1077   (median 0.0225)   ⚠ 5218 is the 0.1077
+        #     g<-y  0.0465 .. 0.0641   (median 0.0497)
+        #     b<-m  0.0352 .. 0.0434   (median 0.0407)
+        #     r<-y -0.0236 .. -0.0003  (median -0.0040)
+        #
+        # The two off-diagonals that matter are stable to a few thousandths
+        # across seven independent dye sets; the r<-m term is not, and 5218's
+        # 0.108 is an eight-fold outlier that the median deliberately does not
+        # follow. `printing_matrix_measured` is True because every input is a
+        # measurement, but the MEDIAN is a class law over one manufacturer's
+        # ECN family and must not be read as 2383's response to some other
+        # negative.
+        #
+        # ⚠ WHAT IT DOES TO A PIXEL, measured rather than argued. On a neutral
+        # it does nothing at all (rows sum to 1.0). On a saturated negative at
+        # densities 1.5 / 1.0 / 0.7 it moves them to 1.492 / 0.982 / 0.719 --
+        # up to 0.019 D of cross-contamination, always in the direction that
+        # DESATURATES, which is what unwanted absorption at the printing step
+        # physically does.
+        printing_density_matrix=(
+            (0.9815,  0.0225, -0.0040),
+            (-0.0065, 0.9568,  0.0497),
+            (0.0083,  0.0407,  0.9510),
+        ),
+        printing_matrix_measured=True,
+        printing_matrix_source=(
+            "Derived 2026-09-03 by dye_matrix_from_spectra.printing_matrix() "
+            "as rownorm(M_print . M_status^-1): M_print from this stock's own "
+            "spectral sensitivity above (2383 p6, traced 2026-08-31), "
+            "M_status from ISO 5-3 status M, and the dye spectra of the seven "
+            "Kodak VISION-family ECN negatives in this database that carry a "
+            "traced three-dye panel (5201, 5205, 5217, 5218, 5219, 5274, "
+            "5279). Element-wise median; the spread is recorded in the comment "
+            "and pinned in verify.py. Rows normalised to 1.0 so the operator "
+            "carries crosstalk only -- the per-channel gain in the raw product "
+            "(row sums 1.016 / 1.041 / 1.049) is what the printer lights set"),
     ),
     PrintStock(
         name="DUPE_FINE_GRAIN",
@@ -37910,6 +38324,102 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
         # absorption curves but no matrix, so the sign is documented and the
         # magnitude is EST [C3].
         dye_matrix=_dye(-0.05),
+        # [T1] SPECTRAL DYE DENSITY, VECTOR-TRACED 2026-09-03 by
+        # `smpte_1954_5382.py` from Lovick & White, "Factors in Applying Color
+        # Soundtrack Developers", Journal of the SMPTE 63(5), November 1954,
+        # p.189, Figure 2: "Spectral density of dye deposits of Eastman Color
+        # Print Film, Type 5382."
+        #
+        # ⚠ WHAT THIS SET IS AND IS NOT, because the caption is the whole of
+        # the metrology the paper supplies:
+        #   * "DYE DEPOSITS" -- no concentration, no reference density, no
+        #     stated exposure. The peaks 0.876 / 0.869 / 1.118 are NOT a
+        #     neutral (a neutral would have the three near-equal by
+        #     construction) and NOT a normalised set. What the figure fixes is
+        #     each dye's SHAPE and the three peaks' RATIO at whatever deposit
+        #     the authors used, so this must never be rescaled to a stated
+        #     density or read as an absolute densitometric level.
+        #   * NO STATUS, NO ILLUMINANT, NO DENSITOMETER -- 1954 predates
+        #     Status A and Status M entirely. `density_metric` on this stock
+        #     still says status_a because that is what its CURVES are; the dye
+        #     set below is not Status anything and does not make it so.
+        #   * The paper is about soundtrack chemistry. Fig. 2 exists to argue
+        #     that dyes alone give no infrared density, which is precisely why
+        #     it runs to 1000 nm where a data sheet would stop at 700.
+        #
+        # ⚠ THE GRID STARTS AT 410 nm, NOT 400, AND THAT IS THE FIGURE'S OWN
+        # LIMIT: the plot box begins at 406.1 nm, so 400 and 405 are off the
+        # page and are not invented here.
+        #
+        # ⚠ ZERO IS A READING, NOT A PAD. Yellow past 585 nm and magenta past
+        # 665 nm have descended into the drawn axis, where the figure says "at
+        # most 0.005 D"; the schema requires the three dyes to share one grid,
+        # so those wavelengths carry 0.0 rather than being cut -- cutting the
+        # grid to the span all three are non-trivial on would throw away the
+        # whole of yellow's 410-460 nm rise.
+        #
+        # ⚠ MAGENTA AND CYAN CROSS AT ABOUT 430 nm, and the first reading of
+        # this figure got that wrong in a way worth recording: the joint
+        # three-track pass traced magenta as the axis below 455 nm and HELD
+        # cyan at 0.103 (410-430) and 0.049 (435-455), so the numbers it
+        # emitted across 415-455 were interpolations between two frozen values
+        # and not readings of anything. The tails are now re-traced one
+        # crossing at a time and checked against twelve column readings taken
+        # off the raw page by code that shares nothing with the tracker; worst
+        # disagreement 0.001 D. Under the adopted assignment cyan rises
+        # monotonically to 0.224 at 410 nm and magenta has a flat 0.13
+        # shoulder -- both branches smooth; under the swap magenta has a kink
+        # and cyan a cusp at the crossing, which is the independent argument
+        # for it. The 430 nm sample itself is an interpolation across the three
+        # columns the merge coast refuses to decide.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=410.0, lambda_step_nm=5.0,
+            d_cyan=(
+                0.224, 0.198, 0.174, 0.152, 0.131, 0.110, 0.092, 0.074, 0.060,
+                0.049, 0.040, 0.033, 0.028, 0.023, 0.022, 0.021, 0.022, 0.024,
+                0.029, 0.033, 0.041, 0.049, 0.057, 0.069, 0.083, 0.097, 0.111,
+                0.128, 0.147, 0.170, 0.197, 0.225, 0.261, 0.300, 0.347, 0.396,
+                0.452, 0.509, 0.565, 0.622, 0.678, 0.734, 0.791, 0.847, 0.903,
+                0.956, 0.997, 1.034, 1.066, 1.091, 1.107, 1.117, 1.118, 1.111,
+                1.096, 1.072, 1.040, 1.000, 0.944,
+            ),
+            d_magenta=(
+                0.100, 0.109, 0.117, 0.124, 0.129, 0.133, 0.130, 0.126, 0.125,
+                0.130, 0.139, 0.152, 0.170, 0.193, 0.222, 0.256, 0.296, 0.341,
+                0.393, 0.449, 0.506, 0.562, 0.619, 0.675, 0.731, 0.788, 0.828,
+                0.854, 0.865, 0.869, 0.855, 0.821, 0.768, 0.698, 0.616, 0.546,
+                0.490, 0.434, 0.378, 0.322, 0.265, 0.209, 0.153, 0.104, 0.083,
+                0.065, 0.050, 0.037, 0.027, 0.019, 0.012, 0.006, 0.000, 0.000,
+                0.000, 0.000, 0.000, 0.000, 0.000,
+            ),
+            d_yellow=(
+                0.545, 0.594, 0.639, 0.687, 0.731, 0.772, 0.810, 0.840, 0.863,
+                0.876, 0.876, 0.860, 0.825, 0.770, 0.700, 0.625, 0.557, 0.501,
+                0.444, 0.388, 0.331, 0.275, 0.219, 0.168, 0.139, 0.114, 0.100,
+                0.075, 0.060, 0.045, 0.035, 0.025, 0.018, 0.013, 0.008, 0.000,
+                0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000,
+                0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000,
+                0.000, 0.000, 0.000, 0.000, 0.000,
+            ),
+            normalisation=(
+                'as printed -- "spectral density of dye deposits", an '
+                'UNCALIBRATED deposit level: no concentration, no reference '
+                'density, no status and no illuminant are stated anywhere in '
+                'the paper, and 1954 predates Status A/M. Shape and the three '
+                "peaks' ratio (0.876 / 0.869 / 1.118) are what this fixes; "
+                'the absolute level is not a densitometric quantity and must '
+                'not be rescaled to one'),
+            source=(
+                'R. G. Lovick and D. R. White, «Factors in Applying Color '
+                'Soundtrack Developers», Journal of the SMPTE 63(5), November '
+                '1954, p.189, Figure 2 -- PDF/PROFILES/RETRO/'
+                'sim_smpte-motion-imaging-journal_1954-11_63_5.pdf page 23, '
+                'Internet Archive microfilm scan; vector-traced by '
+                'smpte_1954_5382.py. Axis calibration cross-checked against '
+                "the scan's own text layer: 2.7 nm on wavelength, 0.012 D on "
+                'density. Tails re-traced per crossing and checked against 12 '
+                'independent raw-ink column readings, worst 0.001 D'),
+        ),
     ),
     # -----------------------------------------------------------------------
     # 2026-08-25, queue item C15. The first stock in this database that exists
