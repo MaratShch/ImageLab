@@ -330,6 +330,30 @@ def pick(pg, ax):
     return None if best is None else best[1]
 
 def ticks(pg, fr):
+    """Numeric tick labels against one frame, as {value: pixel}.
+
+    ⚠ THE OVERBAR MINUS, A TRAP THIS FUNCTION CANNOT SEE (found 2026-09-05).
+    Kodak's SPECTRAL-SENSITIVITY panels run their ordinate to -1.0 or -2.0, and
+    print the minus as an OVERBAR above the digits rather than a hyphen before
+    them. The PDF text layer carries only the digits. On 5248 p3, whose axis
+    reads +2.0 / +1.0 / 0.0 / -1.0 / -2.0 down the page, this harvests
+
+        2.0 -> y 57,  1.0 -> y 95,  0.0 -> y 132,  1.0 -> y 171,  2.0 -> y 209
+
+    and `setdefault` keeps the FIRST of each duplicate, so the ladder collapses
+    to 2.0 / 1.0 / 0.0 and the two negative rungs vanish. The fit that follows
+    covers the top half of the axis only.
+    ⚠ IT DOES NOT ANNOUNCE ITSELF: three ticks still fit a line perfectly, and
+    `_fit_axis`'s outlier drop removes what little disagreement is left.
+    Measured on 5248 -- the collapsed ladder returns layer peaks at
+    600 / 530 / 470 nm, the axis pinned by hand returns 470 / 550 / 640, which
+    is the stored set to within one grid step. On 5293 p4 the same fault loses
+    the blue curve outright.
+    ⚠ NONE OF THE TWELVE SHEETS ASSERTED IN THIS MODULE IS AFFECTED -- every one
+    of their DYE panels has a non-negative ordinate, which is why it has never
+    fired here. It bites the SENSITIVITY panels; the reconstruction is
+    `signed_ticks` below, and it is opt-in for exactly that reason.
+    """
     xs={}; ys={}
     for a,b,c,d,t,*_ in pg.get_text("words"):
         if not re.fullmatch(r'-?\d+(\.\d+)?', t): continue
@@ -339,6 +363,48 @@ def ticks(pg, fr):
         if fr.x0-40<=cx<fr.x0-1 and fr.y0-8<=cy<=fr.y1+8 and 0<=v<=5:
             ys.setdefault(v,cy)
     return xs, ys
+
+
+def signed_ticks(pg, fr):
+    """Y ticks with an overbar minus reconstructed from POSITION.
+
+    Returns (ys, n_negated) on success, or (None, reason). Harvests every
+    numeric label in the y gutter WITHOUT collapsing duplicates, then negates
+    each label sitting below the one reading 0.0 -- density and log sensitivity
+    both increase upward on every panel in this corpus, so "below the zero rung"
+    is the whole of the rule.
+
+    ⚠ IT REFUSES RATHER THAN GUESSES. No unique 0.0 rung, a value repeating
+    after signing, or a signed ladder that is not monotonic against pixel
+    position, and it returns a reason instead of a fit. A mis-signed axis
+    produces a smooth, plausible, wrong curve, which is the exact failure this
+    exists to stop.
+    """
+    got=[]
+    for a,b,c,d,t,*_ in pg.get_text("words"):
+        if not re.fullmatch(r'\d+(\.\d+)?', t): continue
+        cx=(a+c)/2; cy=(b+d)/2
+        if fr.x0-40<=cx<fr.x0-1 and fr.y0-12<=cy<=fr.y1+12:
+            got.append((cy, float(t)))
+    if len(got) < 3:
+        return None, f"only {len(got)} y labels in the gutter"
+    got.sort()                                   # top of the page first
+    zero=[i for i,(_cy,v) in enumerate(got) if v == 0.0]
+    if len(zero) != 1:
+        return None, f"{len(zero)} labels read 0.0; the zero rung must be unique"
+    z=zero[0]
+    ys={}; neg=0
+    for i,(cy,v) in enumerate(got):
+        sv = -v if i > z else v
+        if i > z and v != 0.0:
+            neg += 1
+        if sv in ys:
+            return None, f"value {sv} appears twice after signing"
+        ys[sv]=cy
+    order=[ys[k] for k in sorted(ys, reverse=True)]   # high value -> low y
+    if any(b <= a for a, b in zip(order, order[1:])):
+        return None, "signed ladder is not monotonic against pixel position"
+    return ys, neg
 
 #: An axis calibration is only trusted if EVERY harvested tick sits this close
 #: to the fitted line. Both axes on these sheets are exactly linear, so a real

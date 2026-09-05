@@ -114,6 +114,7 @@
 #include "AlgoInterimage.hpp"            // stage 8b
 #include "AlgoDirCoupler.hpp"            // stage 9
 #include "AlgoNegativeDefects.hpp"       // stage 9b   IMPLEMENTED
+#include "AlgoBromideDrag.hpp"           // stage 9c   IMPLEMENTED
 #include "AlgoScanMtf.hpp"               // stage 10
 #include "AlgoEdgeFog.hpp"               // stage 10b
 #include "AlgoGrain.hpp"                 // stage 11
@@ -1081,6 +1082,39 @@ void Algorithm_Main
                                  profile, algoCtrl,
                                  negWidthMm, negHeightMm, framePitchMm, pxPerMm,
                                  frameIndex, frameRate, ALGO_SALT_NEG_DEFECTS);
+
+    // -----------------------------------------------------------------------
+    // 9c. BROMIDE DRAG                                     S09b -> S09b, in place
+    //
+    //     The processing MACHINE's directional restraint, and the only stage in the
+    //     chain that belongs to the lab rather than to the film. Bromide released by
+    //     development restrains further development; the film moves through the
+    //     bath, so the loaded solution is dragged along the transport axis and keeps
+    //     restraining where it lands. The result is a one-sided streak trailing
+    //     every dense region, aligned with the web - the archival lab-print
+    //     signature.
+    //
+    //     ⚠ NOT A SECOND HELPING OF STAGE 9. That is inhibitor diffusing inside the
+    //     gelatin: isotropic, tens of micrometres, a property of the coating. This
+    //     is loaded developer sliding across the outside of it: one-sided,
+    //     millimetres to centimetres, a property of the machine, and it therefore
+    //     reads ProcessingSpec and not FilmProfile's own fields. The two are
+    //     adjacent because the density stage 9 leaves is what releases the bromide.
+    //
+    //     ⚠ IN PLACE, like stage 12b. It is a multiply by a scalar field, so a
+    //     destination plane set would buy a copy and nothing else. Scr_Dbar and
+    //     Scr_DbarBlur are both dead after stage 9 and carry the source field and
+    //     the accumulator.
+    //
+    //     Inert on every stock in the database: no document in the corpus
+    //     quantifies a bromide gradient, so every BromideDragSpec ships at zero and
+    //     the stage returns on its first branch. See queue row C23.
+    // -----------------------------------------------------------------------
+    ALGO_PROF_MARK("09c  bromide drag");
+    (void)AlgoStage09c_BromideDrag(s09bR, s09bG, s09bB,
+                                   memHandler.Scr_Dbar, memHandler.Scr_DbarBlur,
+                                   sizeX, sizeY, pitch,
+                                   profile, pxPerMm);
 
     // -----------------------------------------------------------------------
     // 10. SCAN MTF AND MISREGISTRATION                     S09b -> S10

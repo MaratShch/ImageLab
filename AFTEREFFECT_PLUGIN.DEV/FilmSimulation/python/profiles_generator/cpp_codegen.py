@@ -620,6 +620,57 @@ enum class DevelopmentProgress : int32_t
 };
 
 
+/// Directional restraint of development by transported reaction byproducts
+/// (schema v27, queue C23, 2026-09-05). READ BY STAGE 9c.
+///
+/// ⚠ IT IS A PROPERTY OF THE PROCESSING MACHINE, NOT OF THE EMULSION, which is
+/// why it lives on ProcessingSpec and not on FilmProfile. Transport direction
+/// and speed, continuous versus rack-and-tank, replenishment, agitation: the
+/// same film through two machines shows two different amounts of it, and
+/// through a well-agitated tank shows none.
+///
+/// THE PHYSICS. Reducing silver halide releases bromide, and bromide restrains
+/// development. Where a lot of silver develops, the solution against the
+/// emulsion becomes loaded and locally exhausted; in a machine the film moves
+/// through the bath, so that layer is dragged along the transport axis and
+/// keeps restraining where it lands - BEHIND the dense area and only behind it.
+/// A one-sided streak, aligned with the web, trailing every heavily developed
+/// region.
+///
+/// ⚠ NOT STAGE 9. DIR inhibitor diffusion is chemical, ISOTROPIC and tens of
+/// micrometres; MTFSpec adjacency is the edge overshoot, smaller still. This is
+/// millimetres to centimetres, ONE-SIDED, and locked to the transport axis.
+///
+/// ⚠ THE SIGN INVERTS ON A REVERSAL FILM. The bromide comes from the silver the
+/// FIRST developer reduces, which on a reversal stock is the NEGATIVE image, so
+/// the streaks trail the CLEAR areas of a slide and the DENSE areas of a
+/// negative. Stage 9c inverts the source field on isReversal().
+///
+/// ⚠ INERT ON EVERY STOCK IN THIS DATABASE. No source in the corpus quantifies
+/// a bromide gradient; the nearest is Hariharan, PS&E 2(2) p77 (1958), which
+/// measures the KOSTINSKY effect - the short-range, two-sided cousin.
+struct BromideDragSpec
+{
+    /// Peak fraction of NET density removed at full upstream saturation.
+    /// 0 = the stage does not run. Archival range 0.02-0.08; above 0.5 is
+    /// refused by the generator as a look rather than a measurement.
+    float   strength;
+    /// 1/e decay distance of the dragged restraint, ON THE FILM, millimetres.
+    /// ⚠ MILLIMETRES AND NOT PIXELS, so one record renders the same physical
+    /// streak at every resolution and on every gauge.
+    float   length_mm;
+    /// Frame axis the film transports along. 0 = the frame HEIGHT, a
+    /// motion-picture gate, and the only value the generator accepts today.
+    int32_t axis;
+    /// +1 = restraint trails towards INCREASING pixel index along `axis`.
+    int32_t direction;
+    std::string source;
+
+    /// True when the record describes a real restraint.
+    bool hasData() const { return strength > 0.0f && length_mm > 0.0f; }
+};
+
+
 struct ProcessingSpec
 {
     std::string developer;      ///< as printed, e.g. "ID-11"; "" = not stated
@@ -646,6 +697,10 @@ struct ProcessingSpec
     /// points of Tani Fig. 7.12. ⚠ MEANINGLESS FOR GRANULAR development, whose
     /// rate is nearly INDEPENDENT of grain size -- 0 there, never a number.
     float rate_size_coeff_um_min;
+    // -- schema v27 (C23, 2026-09-05): THE FIRST FIELD ON THIS RECORD THAT THE
+    // -- RENDERER READS. Everything above is descriptive. Stage 9c consumes
+    // -- this one; it is inert on every stock in the database.
+    BromideDragSpec bromide_drag;
 };
 
 
@@ -704,11 +759,16 @@ struct ProcessVariant
     float       gamma_scale;      ///< 1.0 = unchanged; ignored when has_curves
     float       dmin_shift;
     /// Stops of push (+) or pull (-) from the profile's own EI; 0 = this is a
-    /// CHEMISTRY variant, not a push (schema v21). ⚠ Redundant with
-    /// exposure_index on purpose: the stop count is what the sheet PRINTS, and
-    /// deriving it from the EI ratio would turn a printed label into
-    /// arithmetic. A push record always carries its own curves.
-    int32_t     push_stops;
+    /// CHEMISTRY variant, not a push (schema v21; widened int32 -> float at
+    /// v26). ⚠ Redundant with exposure_index on purpose: the stop count is
+    /// what the sheet PRINTS, and deriving it from the EI ratio would turn a
+    /// printed label into arithmetic. A push record always carries its own
+    /// curves. ⚠ FLOAT BECAUSE A DEVELOPMENT LADDER NEED NOT MOVE IN WHOLE
+    /// STOPS: Gifford & Gerhardt 1957 label Super Anscochrome's four
+    /// developments EI 80 / 100 / 150 / 200, i.e. -0.322 / 0 / +0.585 / +1.000
+    /// stops, and an int could hold one of the four. Rounding is not the
+    /// alternative -- 0 already means "different chemistry".
+    float       push_stops;
     ProcessingSpec processing;
     std::string source;
 };
@@ -1926,7 +1986,7 @@ def _process_variants(seq) -> str:
                 str(v.exposure_index),
                 _f(v.gamma_scale),
                 _f(v.dmin_shift),
-                str(v.push_stops),
+                _f(v.push_stops),
                 _processing(v.processing),
                 f'"{_escape(v.source)}"',
             ])
@@ -2046,8 +2106,26 @@ def _processing(x) -> str:
                 _PROGRESS_CPP[x.progress.value],
                 _f(x.partial_fill_fraction),
                 _f(x.rate_size_coeff_um_min),
+                _bromide_drag(x.bromide_drag),
             ]
         )
+        + " }"
+    )
+
+
+def _bromide_drag(b) -> str:
+    """BromideDragSpec initialiser (schema v27, queue C23).
+
+    ⚠ EMITTED FOR EVERY STOCK EVEN THOUGH EVERY STOCK IS INERT. The alternative
+    -- omitting the member on the zero case -- would make the aggregate
+    initialiser's field count depend on the data, which is exactly how a
+    generated table starts filling the wrong members when the next field lands.
+    """
+    return (
+        "{ "
+        + ", ".join([_f(b.strength), _f(b.length_mm),
+                     str(int(b.axis)), str(int(b.direction)),
+                     f'"{_escape(b.source)}"'])
         + " }"
     )
 

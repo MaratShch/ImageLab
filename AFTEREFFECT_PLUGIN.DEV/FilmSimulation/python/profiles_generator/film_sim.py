@@ -1720,6 +1720,122 @@ def apply_dir_couplers(dens, cp, grid, coupler_scale, is_monochrome):
     return dens
 
 
+#: Hard ceiling on the fraction of net density stage 9c may remove, whatever
+#: `strength` and the accumulated restraint multiply out to.
+#:
+#: ⚠ IT IS A NUMERICAL FLOOR AND NOT A SECOND STRENGTH KNOB. Without it a
+#: saturated streak could drive net density to exactly zero and, with the
+#: multiply applied in float, slightly through it -- and the stage sits UPSTREAM
+#: of the only clamp in the chain, so a negative net density would travel into
+#: the scan MTF and be spread around by it before anything caught it.
+#: `BromideDragSpec.validate` already refuses `strength` above 0.5, so on any
+#: legal record this ceiling never binds; it exists so that the arithmetic
+#: cannot, not so that the model can be tuned.
+BROMIDE_DRAG_MAX_REMOVED = 0.95
+
+
+def bromide_drag_alpha(length_mm: float, px_per_mm: float) -> float:
+    """The one-pole coefficient for a 1/e decay of `length_mm` on the FILM.
+
+    ⚠ THE POINT IS THAT THE RECORD IS IN MILLIMETRES AND THE FILTER IS IN
+    PIXELS. A drag length stored in pixels would render a different physical
+    streak at every output resolution and on every gauge, which is the bug this
+    project keeps designing out -- every other spatial quantity in the database
+    is in micrometres or cycles per millimetre for the same reason. One pixel
+    step is 1/px_per_mm millimetres, so the per-step retention is
+    exp(-pitch/length) and the stage's output is resolution-independent by
+    construction rather than by calibration.
+    """
+    if length_mm <= 0.0 or px_per_mm <= 0.0:
+        return 0.0
+    return float(np.exp(-(1.0 / px_per_mm) / length_mm))
+
+
+def apply_bromide_drag(dens, spec, dmin, dmax, px_per_mm, reversal):
+    """Stage 9c -- directional restraint by transported development byproducts.
+
+    Runs IN PLACE on an (h, w, 3) plane of ABSOLUTE density, between stage 9 and
+    stage 10. Returns True if it did anything, False if the record is inert.
+
+    THE MODEL, and every choice in it is forced by the physics rather than
+    picked:
+
+      1. ONE SOURCE FIELD FOR ALL THREE CHANNELS. The bromide from all three
+         layers goes into the same developer, so the restraint a point suffers
+         does not depend on which dye it was going to make. The source is the
+         mean net density across the three records, normalised by the mean
+         (dmax - dmin) so that it is a fraction of full development and not a
+         density -- which is what makes `strength` a pure fraction and
+         comparable between stocks.
+      2. ⚠ INVERTED ON A REVERSAL FILM. The bromide comes from the silver the
+         FIRST developer reduces, which on a reversal stock is the negative
+         image. So the streaks trail the CLEAR areas of a slide and the DENSE
+         areas of a negative. This is the easiest thing in the stage to get
+         backwards and it is the one line that decides it.
+      3. A ONE-SIDED EXPONENTIAL ALONG THE TRANSPORT AXIS, as a one-pole
+         recursion. One-sided because the solution is carried in one direction
+         and cannot restrain what the film has not reached yet; exponential
+         because the loaded layer is continuously diluted and replenished as it
+         travels, which is a first-order loss. The recursion costs two flops per
+         pixel regardless of `length_mm`, where an explicit kernel of a
+         centimetre-long tail would cost hundreds.
+      4. MULTIPLICATIVE ON NET DENSITY, not subtractive. Restraint slows
+         development; it cannot remove density that was never going to form. A
+         subtractive term drives base+fog negative in the shadows of a streak,
+         which is not a subtle error -- it inverts the effect there.
+
+    ⚠ THE FRAME EDGE IS SEEDED, NOT ZEROED, and the alternative is visibly
+    wrong. Real film has more film upstream of the frame, which released its own
+    bromide; starting the recursion at zero asserts that the frame's leading
+    edge entered clean developer and draws a bright band across it that no
+    machine produces. `s` is therefore seeded with the edge row's own source
+    value, i.e. a semi-infinite uniform upstream at that value, which makes a
+    uniform field give s == e exactly and leaves no band at all.
+
+    ⚠ WHAT THIS STAGE CANNOT KNOW is what was in the frames BEFORE this one. A
+    real streak is fed by the whole preceding length of film, so a bright object
+    in the previous frame trails into this one. That is a temporal coupling and
+    this pipeline renders frames independently; the seed above is the best a
+    single-frame model can do, and the residual is a real limitation rather than
+    an approximation with a bound.
+    """
+    if not spec.has_data:
+        return False
+    ref = float(np.mean([dmax[c] - dmin[c] for c in range(3)]))
+    if ref <= 0.0:
+        return False
+    a = bromide_drag_alpha(spec.length_mm, px_per_mm)
+    if a <= 0.0:
+        return False
+
+    h = dens.shape[0]
+    dmin_v = np.asarray(dmin, dtype=np.float32)
+    e = (dens - dmin_v).mean(axis=2, dtype=np.float32) * np.float32(1.0 / ref)
+    np.clip(e, np.float32(0.0), np.float32(1.0), out=e)
+    if reversal:
+        e = np.float32(1.0) - e
+
+    af = np.float32(a)
+    bf = np.float32(1.0 - a)
+    s = np.empty_like(e)
+    if spec.direction >= 0:
+        s[0] = e[0]
+        for y in range(1, h):
+            s[y] = af * s[y - 1] + bf * e[y - 1]
+    else:
+        s[h - 1] = e[h - 1]
+        for y in range(h - 2, -1, -1):
+            s[y] = af * s[y + 1] + bf * e[y + 1]
+
+    r = s * np.float32(spec.strength)
+    np.clip(r, np.float32(0.0), np.float32(BROMIDE_DRAG_MAX_REMOVED), out=r)
+    keep = (np.float32(1.0) - r)[:, :, None]
+    dens -= dmin_v
+    dens *= keep
+    dens += dmin_v
+    return True
+
+
 def apply_transfer(plane: np.ndarray, transfer: np.ndarray) -> np.ndarray:
     """Filter one 2D plane by a half-spectrum transfer function."""
     h, w = plane.shape
@@ -2802,6 +2918,21 @@ def simulate(
     # -- 9. DIR coupler inter-image effects ---------------------------------
     apply_dir_couplers(dens, profile.couplers, grid,
                        settings.coupler_scale, profile.is_monochrome)
+
+    # -- 9c. bromide drag: the machine's directional restraint ---------------
+    # ⚠ HERE, AND NOT NEXT TO STAGE 9, EVEN THOUGH BOTH ARE DEVELOPMENT
+    # BYPRODUCTS. Stage 9 is inhibitor diffusing through the gelatin -- inside
+    # the coating, isotropic, tens of micrometres. This is loaded developer
+    # being dragged across the outside of it -- in the bath, one-sided,
+    # millimetres to centimetres, and a property of the machine rather than of
+    # the film. They are adjacent in the chain because the density stage 9
+    # leaves IS what releases the bromide; they are separate stages because
+    # nothing about their scale, symmetry or ownership is shared.
+    # Inert on all 176 stocks (queue C23): no source in this corpus measures it.
+    apply_bromide_drag(dens, profile.processing.bromide_drag,
+                       tuple(c.dmin for c in curves),
+                       tuple(c.dmax for c in curves),
+                       px_per_mm, reversal)
 
     np.maximum(dens, np.float32(0.0), out=dens)
 

@@ -252,6 +252,9 @@
     <ClInclude Include="include\AlgoProcessVariant.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoBromideDrag.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -635,6 +638,24 @@
     <None Include="python\profiles_generator\smpte_1954_5382.py">
       <Filter>python\profiles_generator</Filter>
     </None>
+    <None Include="python\profiles_generator\anscochrome_1957.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\bromide_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_konica_dye.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_project_state.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\scan_repeat.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\spectral_sampling.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\profiles_generator\Readme!.txt">
@@ -646,16 +667,5 @@
     <Text Include="python\profiles_generator\MANIFEST.txt">
       <Filter>python\profiles_generator</Filter>
     </Text>
-    <Text Include="python\profiles_generator\README.txt">
-      <Filter>python\profiles_generator</Filter>
-    </Text>
-    <Text Include="python\profiles_generator\README_ARCHIVES.txt">
-      <Filter>python\profiles_generator</Filter>
-    </Text>
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="python\profiles_generator\Lady.png">
-      <Filter>python\profiles_generator</Filter>
-    </Image>
   </ItemGroup>
 </Project>

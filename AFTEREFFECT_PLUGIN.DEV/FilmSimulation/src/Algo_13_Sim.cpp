@@ -499,6 +499,58 @@ void AlgoStage13_Duplication
         target[c] = static_cast<HighPrecType>(params.greyTarget)
                   / AlgoTintFactor(profile, c);
 
+    // ----------------------------------------------------------------------
+    //  THE EXPOSURE SIDE OF THE PRINT - schema v25, 2026-09-03.
+    //
+    //  ⚠ WHAT LEAVES THE NEGATIVE IS NOT WHAT THE PRINT SEES. `work` holds
+    //  STATUS densities, which is what a densitometer reads. The print emulsion
+    //  reads the negative through the printer lamp, the filter pack and its own
+    //  three sensitisations, and that product is not diagonal: the negative's
+    //  magenta dye puts density into the print's RED-sensitive layer and its
+    //  yellow dye into the GREEN-sensitive one. The per-channel `offset - D`
+    //  below cannot express any of that. Hanson and Kisner 1953 name the
+    //  quantity - "effective integral printing density".
+    //
+    //  ⚠ THE NEUTRAL ANCHOR GOES THROUGH THE SAME OPERATOR, and that is why
+    //  this sits here and not later. The printer-light solve centres a NEUTRAL;
+    //  transforming the image but not the reference would time the print
+    //  against a grey no pixel corresponds to. The matrix has unit rows by
+    //  construction, so on a neutral it changes nothing and the offsets come
+    //  out identical - which is exactly what lets it be switched on without
+    //  re-timing anything.
+    //
+    //  ⚠ THE ANCHOR ARITHMETIC IS HighPrecType IN BOTH TWINS, not AlgoType.
+    //  dMid feeds the offset solve, whose result is subtracted from every
+    //  pixel; a float rounding here would move the whole print, so the AVX2
+    //  twin does this scalar step in double exactly as the scalar twin does.
+    //  Only the per-pixel matrix multiply is vectorised, inside
+    //  AlgoApplyDensityMatrix, which both twins already share for dye_matrix.
+    //
+    //  Identity on ten of the eleven print stocks, so this is a branch and not
+    //  a cost on the paths that have no measurement behind them.
+    // ----------------------------------------------------------------------
+    if (!AlgoIsIdentityMatrix(pPrintStock->printing_density_matrix))
+    {
+        const film::Matrix3& pdm = pPrintStock->printing_density_matrix;
+
+        AlgoApplyDensityMatrix(work[0], work[1], work[2],
+                               tmp[0], tmp[1], tmp[2],
+                               sizeX, sizeY, pitch, pdm);
+
+        AlgoCopyImage(tmp[0], tmp[1], tmp[2],
+                      work[0], work[1], work[2], sizeX, sizeY, pitch);
+
+        HighPrecType printed[3];
+
+        for (int32_t i = 0; i < 3; i++)
+            printed[i] = static_cast<HighPrecType>(pdm[i][0]) * dMid[0]
+                       + static_cast<HighPrecType>(pdm[i][1]) * dMid[1]
+                       + static_cast<HighPrecType>(pdm[i][2]) * dMid[2];
+
+        for (int32_t i = 0; i < 3; i++)
+            dMid[i] = printed[i];
+    }
+
     // The printer-light setting. Re-solved here rather than reused from stage 8,
     // because the dupe chain above has moved the neutral density.
     HighPrecType offsets[3];

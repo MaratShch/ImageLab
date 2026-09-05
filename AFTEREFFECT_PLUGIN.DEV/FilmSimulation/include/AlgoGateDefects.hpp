@@ -190,9 +190,96 @@ constexpr HighPrecType ALGO_GATE_INITIAL_COUNT = 4.0;
 //  screening goes on.
 //
 //  Engineering estimates. See the grading note in the file header.
+//
+//  ⚠ RETUNED 2026-09-04, AND THE OLD PAIR IS THE REASON THE DEFECT LAYER READ AS
+//  A DIRTY MONITOR RATHER THAN AS FILM. Shed 2e-4 is a mean identity lifetime of
+//  FIVE THOUSAND FRAMES - three minutes and twenty-eight seconds at 24 fps. For
+//  all that time a gate mark held the same pixel, the same outline, the same
+//  opacity, because every one of those is drawn once from the slot's own stream
+//  and never touched again. A ten-second clip is 240 frames, so nothing in the
+//  gate population changed at all over an entire shot: the population model was
+//  right and its TIME CONSTANT was two orders of magnitude too slow to be seen
+//  as anything but a stain on the glass.
+//
+//  Both rates now sit at the TOP of their documented ranges (1e-4 to 1e-2 for
+//  accretion, 1e-4 to 1e-3 for shed) rather than in the middle. Mean identity
+//  lifetime becomes 1000 frames - 42 seconds - and the steady state is
+//  1e-2 x 1000 = 10 particles, still inside the documented 0 - 20 and still
+//  above the initial count, so the gate still visibly dirties through a reel.
+//
+//  ⚠ AND THE LIFETIME ALONE WAS NEVER GOING TO BE ENOUGH. Even at 42 seconds a
+//  mark is pixel-identical while it lives, which is exactly what the eye reads
+//  as a display defect. The per-frame jitter below is the other half of the fix
+//  and is the part that matters most on a short clip.
 // ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_GATE_ACCRETION_PER_FRAME = 4.0e-3;
-constexpr HighPrecType ALGO_GATE_SHED_PER_FRAME      = 2.0e-4;
+constexpr HighPrecType ALGO_GATE_ACCRETION_PER_FRAME = 1.0e-2;
+constexpr HighPrecType ALGO_GATE_SHED_PER_FRAME      = 1.0e-3;
+
+// ---------------------------------------------------------------------------
+//  The stock's own dirt-event rate at which the three constants above describe
+//  the gate population.
+//
+//  3.0 events per frame, which is what TemporalSpec carries for 1930s and 1940s
+//  material - the dirtiest thing in the database.
+//
+//  ⚠ THIS EXISTS BECAUSE THE GATE POPULATION WAS NOT SCALED BY THE STOCK AT ALL,
+//  AND THAT IS A DEFECT RATHER THAN A TASTE DECISION. The one-frame class below
+//  multiplies by profile.temporal.dirt_events_per_frame, which spans 0.05 to 3.0
+//  across the database - a factor of sixty. The gate class multiplied by the USER
+//  LEVEL only, so a pristine 2010s VISION3 negative and a 1937 nitrate print were
+//  given the SAME twenty gate particles. Measured on the live database: 68 stocks
+//  carry 0.1 events per frame, so on the most common stock in the corpus the gate
+//  produced roughly twenty standing marks against 0.075 one-frame specks - a
+//  ratio of 267 to 1, when the project's own temporal taxonomy puts 50 to 80 per
+//  cent of all dirt in the ONE-FRAME population.
+//
+//  Dividing by this reference restores the taxonomy without touching either
+//  class's own statistics: at 3.0 the gate behaves exactly as the constants
+//  above describe, at 0.1 it produces about a third of one standing particle,
+//  and the one-frame population dominates on modern stock as it must.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_GATE_RATE_REFERENCE = 3.0;
+
+// ---------------------------------------------------------------------------
+//  PER-FRAME JITTER OF A LIVING GATE MARK.
+//
+//  ⚠ WHAT THIS FIXES, STATED AS THE FAILURE IT IS. A gate particle used to be a
+//  dead stamp: position, aspect, angle, harmonic phases, radius and opacity were
+//  all drawn once when the slot was created and reproduced bit for bit on every
+//  frame the particle survived. Rendered as a sequence that is not a photographic
+//  defect at all - it is a scratch on the lens of the projector, or a dead spot on
+//  a monitor, and the eye names it as such immediately.
+//
+//  A real particle wedged at the aperture edge is being scraped by film moving
+//  past it at 456 mm per second. It shifts within its lodging, it rocks, it partly
+//  lifts and re-seats, and its effective opacity changes as it does. It stays in
+//  the SAME REGION - that is what makes it gate dirt rather than loose dirt - but
+//  it is never in the same place twice.
+//
+//  All three quantities are pure functions of (slot counter, frameIndex), so the
+//  statelessness requirement is untouched: any frame still renders alone, out of
+//  order, on any thread.
+//
+//  WANDER  60 micrometres of positional wobble, peak, in each axis. Chosen as
+//          half the median particle diameter (0.12 mm): enough that the mark is
+//          visibly alive, small enough that it stays the same piece of dirt in
+//          the same corner of the frame rather than wandering across it.
+//  ANGLE   0.35 radians of rocking, peak - about twenty degrees. An irregular
+//          lump seated on a moving surface rocks; it does not spin.
+//  ALPHA   modulated between 0.55 and 1.00 of its own drawn opacity, so the mark
+//          breathes rather than pulsing between visible and invisible.
+//  BLINK   0.10 - one frame in ten the film lifts the particle clear of the
+//          aperture entirely and it is simply absent. This is what breaks the
+//          last of the stamp: a defect that is present on every single frame of a
+//          shot cannot read as physical however much it wobbles.
+//
+//  Engineering estimates, every one of them. Nothing measures the motion of dirt
+//  inside a projector gate, and the file header's grading note applies.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_GATE_JITTER_UM        = 60.0;
+constexpr HighPrecType ALGO_GATE_JITTER_ANGLE_RAD = 0.35;
+constexpr HighPrecType ALGO_GATE_JITTER_ALPHA_MIN = 0.55;
+constexpr HighPrecType ALGO_GATE_BLINK_PROB       = 0.10;
 
 // ---------------------------------------------------------------------------
 //  Inward decay of the edge bias, millimetres.
@@ -344,6 +431,10 @@ constexpr HighPrecType ALGO_GATE_LOBE_DEPTH = 0.28;
 constexpr uint32_t ALGO_GATE_TAG_SLOT    = 0x0A7ED17u;
 constexpr uint32_t ALGO_GATE_TAG_SPARKLE = 0x05A2C1Eu;
 constexpr uint32_t ALGO_GATE_TAG_SPLICE  = 0x05911CEu;
+//: Per-frame jitter of a LIVING slot, 2026-09-04. Its own tag so that the
+//: wobble stream cannot disturb the birth, lifetime and shape draws above -
+//: turning the jitter off must leave every particle exactly where it was.
+constexpr uint32_t ALGO_GATE_TAG_JITTER  = 0x0117E20u;
 
 
 // ---------------------------------------------------------------------------

@@ -435,6 +435,32 @@ EXPECTED_STAGE12 = {
     "KODAK_VISION3_500T_5219": 0.0521,
     "KODAK_VISION_200T_5274": 0.0844,
     "KODAK_VISION_500T_5279": 0.0519,
+    # ⚠ THE SEVEN FUJI / KONICA / VISION3-200T SETS, 2026-09-04, AND THEY SPLIT
+    # THIS TABLE ALONG A LINE IT DID NOT HAVE BEFORE. The five E-6 REVERSAL sets
+    # land at 0.072-0.093, at the top of the range beside Gevachrome and Agfa;
+    # the one ECN NEGATIVE, VISION3 200T 5213, lands at 0.0501, in among the
+    # other VISION negatives. That is not a property of the extraction -- it is
+    # what reading a REVERSAL dye set through a release print's own sensitivity
+    # means, and the reason those figures are larger is that 2383 was never
+    # designed to see those dyes.
+    # ⚠ THE TWO SHARED DRAWINGS AGREE TO 1.5e-3 AND 2e-4 HERE while their
+    # matrices in _MEASURED_DYE_MATRIX differ by 5-6e-3, because this is a
+    # single scalar over a matrix whose independent errors partly cancel.
+    # Neither figure is corroboration: both pairs are one drawing.
+    "FUJI_PROVIA_100F": 0.0837,
+    "FUJI_SENSIA_100": 0.0852,
+    "FUJI_VELVIA_50": 0.0717,
+    "FUJI_PROVIA_400X": 0.0734,
+    "KONICA_CHROME_CENTURIA_100": 0.0926,
+    "KONICA_CHROME_R100": 0.0928,
+    "KODAK_VISION3_200T_5213": 0.0501,
+    # ⚠ VISION3 50D AND 250D, 2026-09-04c, AND THEY LAND WHERE THE FAMILY DOES:
+    # 0.0513 and 0.0503 against 5213's 0.0501 and 5219's 0.0521. Four stocks of
+    # one generation, read through the release print they are actually printed
+    # on, agreeing to 0.002 -- and two of the four were traced off RASTER panels
+    # and two off vector paths, so that agreement crosses extraction methods.
+    "KODAK_VISION3_50D_5203": 0.0513,
+    "KODAK_VISION3_250D_5207": 0.0503,
 }
 
 #: How far a pinned stage-12 offset may move before this is called drift.
@@ -573,16 +599,192 @@ def derive(p):
                            status=status_of(p), row_sums=raw.sum(axis=1))
 
 
+# ===========================================================================
+#  The NON-NEUTRAL test -- queue M1a, 2026-09-05d
+# ===========================================================================
+#: What the M1a test found on 2026-09-05d, pinned so a rerun that disagrees
+#: fails. (positive-sign count, |T-I| median, asymmetry median, worst T-vs-
+#: rownorm). ⚠ THE SIGN COUNT IS THE ONE THAT MATTERS: unwanted absorption only
+#: ever ADDS density to a neighbouring band, so every derived off-diagonal must
+#: be positive. A negative one would mean the derivation, the traced panel or
+#: the status response is wrong -- it is not a tolerance, it is a physical
+#: impossibility, and it must fail loudly.
+EXPECTED_M1A = dict(n=27, positive=27, t_off_median=0.2127,
+                    t_asym_median=0.0809, vs_rownorm_max=0.1405)
+M1A_TOL = 0.002
+
+
+def neutral_fixed_matrix(raw):
+    """The operator stage 12 should hold: measured off-diagonals, neutral fixed.
+
+    ⚠ THIS RESOLVES THIS MODULE'S OWN REFUSAL, WHICH WAS RIGHT ABOUT NEUTRALS
+    AND WRONG ABOUT EVERYTHING ELSE. The refusal says the crosstalk "is already
+    in the status densities". Worked through, that is true on ONE RAY and false
+    off it:
+
+      * the characteristic curves were measured on a NEUTRAL wedge, where the
+        three dye amounts hold a fixed ratio u. Curve j therefore maps exposure
+        to (M u)_j n -- the full densitometer reading, every dye's unwanted
+        absorption included. On a neutral the crosstalk IS counted, and
+        multiplying by M again would count it twice. The refusal is correct.
+      * off the neutral the three curves are evaluated INDEPENDENTLY, and
+        nothing couples them. Feed a red-only scene: the pipeline gives a high
+        D_r and low D_g, D_b. The truth is D = M a with only a_c developed, so
+        D_g and D_b are LIFTED by the cyan dye's unwanted absorption. The
+        pipeline cannot produce that lift, because no per-channel curve can.
+
+    So neither M nor identity is the answer. The operator must be the identity
+    ON the neutral and carry M's measured asymmetry OFF it.
+
+    DERIVATION. Let u be the dye mixture that reads neutral, u = M^-1 (1,1,1).
+    On a neutral the pipeline's output is D = (M u) n and layer j holds dye
+    a_j = u_j n, so the pipeline's per-channel density implies
+    a_j = D_j / s_j with s_j = (M u)_j / u_j. The true reading of that dye
+    vector is M a, hence
+
+        T = M . diag(1/s) = M . diag(u) / c ,      c = (M u)_j , all j equal
+
+    and T's rows sum to (M u)_j / c = 1.
+
+    ⚠ SO THE OPERATOR HAS UNIT ROW SUMS -- WHICH IS THE FORM `_dye` HAS USED ALL
+    ALONG, chosen for a different and shallower reason (keeping the matrix out
+    of the density domain). The project's guessed form is the derivable one.
+    What `_dye` never had was the MAGNITUDE or the ASYMMETRY; T has both, from
+    the traced dye spectra.
+
+    ⚠ AND IT IS NOT `normalise_rows(raw)`, which this module already computes.
+    That fixes the vector (1,1,1) too, but weights every column equally instead
+    of by the neutral dye amounts u_k. The two agree only when u is uniform.
+    Both are reported below so the difference is a number and not a claim.
+    """
+    try:
+        u = np.linalg.solve(raw, np.ones(3))
+    except np.linalg.LinAlgError:
+        return None, "the status matrix is singular"
+    if np.any(u <= 0.0):
+        # ⚠ A NEGATIVE NEUTRAL DYE AMOUNT IS NOT A SMALL ERROR. It says no
+        # non-negative mixture of these three dyes reads neutral to this
+        # densitometer, which means the traced panel and the assumed status
+        # response disagree about the film. Refuse rather than return a matrix
+        # built on an impossible mixture.
+        return None, ("no non-negative dye mixture reads neutral: u = %s"
+                      % np.array2string(u, precision=4))
+    t = raw @ np.diag(u)
+    return normalise_rows(t), None
+
+
+def nonneutral_test():
+    """Run the whole argument and print it. Returns (rows, n_bad)."""
+    rows, bad = [], 0
+    for p in FILM_PROFILES:
+        if not p.dye_density.has_data or p.is_monochrome:
+            continue
+        lam, cols = dye_curves(p)
+        raw, err = raw_matrix(p, cols)
+        if raw is None:
+            continue
+        t, err = neutral_fixed_matrix(raw)
+        if t is None:
+            rows.append(dict(name=p.name, refused=err))
+            bad += 1
+            continue
+        rn = normalise_rows(raw)
+        stored = np.asarray(p.dye_matrix, dtype=float)
+        rows.append(dict(
+            name=p.name, T=t, rownorm=rn, stored=stored,
+            t_off=float(np.abs(t - np.eye(3)).max()),
+            s_off=float(np.abs(stored - np.eye(3)).max()),
+            t_asym=float(np.abs(t - t.T).max()),
+            s_asym=float(np.abs(stored - stored.T).max()),
+            t_sign=float(np.sign(t[0, 1])), s_sign=float(np.sign(stored[0, 1])),
+            neutral_err=float(np.abs(t @ np.ones(3) - np.ones(3)).max()),
+            vs_rownorm=float(np.abs(t - rn).max())))
+    return rows, bad
+
+
+def report_nonneutral(rows):
+    print("")
+    print("  M1a -- the NON-NEUTRAL test: is the refusal right off the "
+          "neutral axis?")
+    print("  T = rownorm(M . diag(u)), u = M^-1 (1,1,1). Identity on a "
+          "neutral, measured asymmetry off it.")
+    print("  %-28s %8s %8s %8s %8s %9s" %
+          ("stock", "|T-I|", "|store-I|", "T asym", "st asym", "T vs rn"))
+    ok = [r for r in rows if "refused" not in r]
+    for r in ok:
+        print("  %-28s %8.4f %8.4f %8.4f %8.4f %9.4f"
+              % (r["name"], r["t_off"], r["s_off"], r["t_asym"], r["s_asym"],
+                 r["vs_rownorm"]))
+    for r in rows:
+        if "refused" in r:
+            print("  %-28s REFUSED  %s" % (r["name"], r["refused"]))
+    if not ok:
+        return
+    print("")
+    print("  neutral is fixed to %.2e on every derived matrix (it is fixed by "
+          "construction; this is the arithmetic check)"
+          % max(r["neutral_err"] for r in ok))
+    # ⚠ THE SIGN IS THE HEADLINE. Unwanted absorption only ever ADDS density to
+    # a neighbouring band, so a dye-purity operator's off-diagonals are
+    # POSITIVE and it can only ever DESATURATE. A negative off-diagonal
+    # increases channel separation, which no dye impurity can do.
+    tpos = sum(1 for r in ok if r["t_sign"] > 0)
+    spos = sum(1 for r in ok if r["s_sign"] > 0)
+    print("  ⚠ SIGN: derived T has a POSITIVE off-diagonal on %d of %d "
+          "(dye impurity can only DESATURATE);" % (tpos, len(ok)))
+    print("     the stored matrix is positive on only %d of %d -- the rest "
+          "store a SEPARATION BOOST," % (spos, len(ok)))
+    print("     which no dye-purity operator can produce.")
+    print("  magnitude: derived |T-I| median %.4f, stored median %.4f"
+          % (float(np.median([r["t_off"] for r in ok])),
+             float(np.median([r["s_off"] for r in ok]))))
+    print("  asymmetry: derived median %.4f, stored median %.4f  (stored is "
+          "symmetric by construction)"
+          % (float(np.median([r["t_asym"] for r in ok])),
+             float(np.median([r["s_asym"] for r in ok]))))
+    print("  ⚠ T differs from this module's existing normalise_rows(raw) by "
+          "up to %.4f -- the two fix the same neutral and weight the columns "
+          "differently" % max(r["vs_rownorm"] for r in ok))
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=None, help="accepted and unused; this "
                     "reads the database, not the corpus")
     ap.add_argument("--assert", dest="assert_", action="store_true")
+    ap.add_argument("--nonneutral", action="store_true",
+                    help="run the queue M1a test of this module's own refusal")
     args = ap.parse_args(argv)
 
     if iso.self_check():
         print("[!] the ISO 5-3 tables do not self-check; refusing to derive")
         return 1
+
+    if args.nonneutral:
+        _rows, _bad = nonneutral_test()
+        report_nonneutral(_rows)
+        _ok = [r for r in _rows if "refused" not in r]
+        _got = dict(n=len(_ok),
+                    positive=sum(1 for r in _ok if r["t_sign"] > 0),
+                    t_off_median=float(np.median([r["t_off"] for r in _ok])),
+                    t_asym_median=float(np.median([r["t_asym"] for r in _ok])),
+                    vs_rownorm_max=max(r["vs_rownorm"] for r in _ok))
+        for _k, _want in EXPECTED_M1A.items():
+            _v = _got[_k]
+            _drift = (_v != _want) if isinstance(_want, int) \
+                else abs(_v - _want) > M1A_TOL
+            if _drift:
+                print("  [!] M1a %s drifted: %s against a recorded %s"
+                      % (_k, _v, _want))
+                _bad += 1
+        if _got["positive"] != _got["n"]:
+            print("  [!] a derived off-diagonal is NEGATIVE. Unwanted "
+                  "absorption cannot increase channel separation, so the "
+                  "panel, the layer assignment or the status response is "
+                  "wrong -- not the tolerance.")
+            _bad += 1
+        print("\n" + ("OK" if not _bad else "FAIL"))
+        return 1 if (_bad and args.assert_) else 0
 
     have = [p for p in FILM_PROFILES if p.dye_density.has_data]
     bad = 0
@@ -760,6 +962,63 @@ def main(argv=None) -> int:
                 print("[!] %s: the stage-12 matrix is not near identity, which "
                       "contradicts the argument this module rests on" % p.name)
                 bad += 1
+
+    # ---- queue M1, 2026-09-05b: the READER CENSUS, and it is a deadlock -----
+    # ⚠ THE ROW'S OWN CLOSING CONDITION IS ALREADY SATISFIED AND CLOSES NOTHING,
+    # which is worth finding out before anybody spends a week on it. M1 says it
+    # is closed by "a scanner's channel responses, OR a profile that actually
+    # renders through a print stock we have". One profile does exactly that --
+    # TECHNICOLOR_THREE_STRIP renders through TECHNICOLOR_IB -- and it buys
+    # nothing, because the condition is mis-stated: what the derivation needs is
+    # not a profile pointed at a print stock, it is a print stock carrying a
+    # SPECTRAL SENSITIVITY. The census below prints the three-way deadlock.
+    print("")
+    print("  M1 -- the reader census: who reads through what, and which "
+          "reader has a measured response")
+    _dead = []
+    for _ps in PRINT_STOCKS:
+        _users = [q.name for q in FILM_PROFILES if q.default_print == _ps.name]
+        _sp = getattr(_ps, "spectral", None)
+        _has = bool(_sp is not None and _sp.has_data)
+        if not _users and not _has:
+            continue
+        print("    %-24s spectral=%-5s  users=%3d" % (_ps.name, _has, len(_users)))
+        if _users and not _has:
+            _dead.append(_ps.name)
+    print("    ⚠ THE ONE PRINT STOCK WITH A MEASURED READER RESPONSE HAS NO "
+          "USERS, AND EVERY")
+    print("      PRINT STOCK WITH USERS HAS NO RESPONSE: %s."
+          % ", ".join(_dead))
+    print("      So M1 cannot close by pointing an existing profile anywhere. "
+          "It closes only")
+    print("      when a reader that somebody actually uses acquires a spectral "
+          "sensitivity --")
+    print("      i.e. a SCANNER measurement, or a decision about what SCAN_DI's "
+          "response IS.")
+
+    # ⚠ AND THE STORED APPROXIMATION IS THE RIGHT SIZE, WHICH NARROWS WHAT M1
+    # WOULD BUY. `_dye(k)` builds every colour matrix from one scalar, so it is
+    # symmetric by construction; the derivation above is asymmetric. Until now
+    # the case against the stored matrices was purely structural. Measured here:
+    # the derived matrices sit 0.048 to 0.093 from identity and the stored ones
+    # have a median of 0.073, so the two agree in MAGNITUDE and differ in SHAPE.
+    # M1 would therefore buy the direction of the crosstalk, not its amount --
+    # which is a real gain and a smaller one than "97 stocks are wrong" suggests.
+    _col = [q for q in FILM_PROFILES if not q.is_monochrome]
+    _off = [float(np.abs(np.array(q.dye_matrix, dtype=float).reshape(3, 3)
+                         - np.eye(3)).max()) for q in _col]
+    _asym = max(float(np.abs(np.array(q.dye_matrix, dtype=float).reshape(3, 3)
+                             - np.array(q.dye_matrix,
+                                        dtype=float).reshape(3, 3).T).max())
+                for q in _col)
+    print("    stored _dye(k) over %d colour stocks: max|M-I| median %.4f, "
+          "range %.4f..%.4f" % (len(_col), float(np.median(_off)),
+                                min(_off), max(_off)))
+    print("    stored asymmetry |M - M^T|: %.4f  (0 = symmetric by "
+          "construction)" % _asym)
+    print("    ⚠ SAME MAGNITUDE AS THE DERIVATION, OPPOSITE IN SHAPE. What M1 "
+          "buys is the")
+    print("      DIRECTION of the crosstalk, not its size.")
 
     # ---- 2026-09-03, schema v25: the SAME arithmetic, a DIFFERENT field -----
     # ⚠ THE REFUSAL ABOVE STANDS AND THIS IS NOT AN EXCEPTION TO IT. Stage 12's

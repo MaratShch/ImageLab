@@ -109,6 +109,7 @@ __all__ = [
     "ReseauSpec",
     "TemporalSpec",
     "ReciprocitySpec",
+    "BromideDragSpec",
     "ProcessingSpec",
     "AgingSpec",
     "DyeStabilitySpec",
@@ -431,7 +432,76 @@ _SENSITIZATIONS = frozenset({"S", "S+Au", "reduction"})
 #
 # DEFAULT IS IDENTITY ON ALL ELEVEN PRINT STOCKS BUT ONE, so no existing render
 # moves except the one that now has a measurement behind it.
-SCHEMA_VERSION = 25
+#
+# ---------------------------------------------------------------------------
+# v26 (2026-09-05, queue #215) -- ProcessVariant.push_stops becomes a FLOAT.
+# ---------------------------------------------------------------------------
+# ⚠ A WIDENING, NOT AN ADDITION, AND IT IS THE FIRST OF THOSE IN THIS LOG. The
+# field was an int32 at v21 because every push then in the corpus was published
+# as a whole stop -- PORTRA 800 at "Push 1" and "Push 2", 400UC at "Push 1".
+# That was a property of two Kodak datasheets, not of processing, and the first
+# source outside that pair broke it immediately.
+#
+# WHAT BROKE IT. Gifford & Gerhardt, PS&E 1(1) p12 (1957), print FOUR
+# development points for Super Anscochrome and label them by EXPOSURE INDEX,
+# not by stops: EI 80 / 100 / 150 / 200 at 14 / 16 / 19 / 22 minutes of first
+# development. Against the film's own EI 100 those are -0.322, 0, +0.585 and
+# +1.000 stops. An int field can hold the last one and nothing else, so three
+# quarters of the only four-point reversal push ladder in this corpus had no
+# legal encoding -- and the illegal ones are exactly the fractional ratings a
+# laboratory actually prints.
+#
+# ⚠ AND `push_stops == 0` STILL MEANS "different chemistry", so rounding was
+# never an option: A at -0.322 stops would round to 0 and thereby claim to be a
+# different process, which is the opposite of what the paper says. The
+# discriminator only survives if the field can hold a value that is neither
+# zero nor an integer.
+#
+# ⚠ WHAT DOES NOT CHANGE. `validate()` still requires the stop count and the
+# stated EI to agree to 2 %, which is the check that catches a push transcribed
+# from the wrong panel. And the field is still what the SOURCE says wherever
+# the source says it: a sheet printing "Push 1" stores 1.0. Where a source
+# prints only the EI, as this one does, the field carries log2 of the EI ratio
+# and the record's `source` string says so in words -- the alternative is
+# discarding three measured curve sets to protect a type.
+#
+# C++ SIDE: `int32_t push_stops` becomes `float push_stops` in
+# `FilmProcessVariant`. Same width, same offset, so every field after it keeps
+# its position; nothing on the render path reads the struct at all.
+#
+# ---------------------------------------------------------------------------
+# v27 (2026-09-05, queue C23) -- ProcessingSpec.bromide_drag, and it is LIVE.
+# ---------------------------------------------------------------------------
+# ⚠ THE FIRST FIELD ON `ProcessingSpec` THAT ANY RENDERER READS. That record has
+# been purely descriptive since v6 -- it says which development condition the
+# stored curve represents. `bromide_drag` is a `BromideDragSpec` and stage 9c
+# consumes it in all three engines.
+#
+# WHAT IT IS. Reducing silver halide releases bromide, bromide restrains
+# development, and in a processing machine the film moves through the bath, so
+# the loaded solution is dragged along the transport axis and keeps restraining
+# where it lands. The visible result is a one-sided streak trailing every dense
+# region, aligned with the web -- the archival lab-print signature.
+#
+# ⚠ WHY IT IS NOT ON `FilmProfile`. It is a property of the MACHINE, not of the
+# coating: transport direction and speed, continuous versus rack-and-tank,
+# replenishment, agitation. The same emulsion shows different amounts of it in
+# different labs and none at all in a well-agitated tank. Queue C23 said this
+# and the placement is that statement made structural.
+#
+# ⚠ AND IT IS NOT STAGE 9. Three effects, three scales, three symmetries: DIR
+# inhibitor diffusion (stage 9) is chemical, isotropic, tens of micrometres;
+# `MTFSpec.adjacency` is the edge overshoot, smaller still; bromide drag is
+# millimetres to centimetres, one-sided, and locked to the transport axis.
+#
+# ⚠ INERT ON ALL 176 STOCKS, AND THAT IS A STATEMENT ABOUT THE LITERATURE. The
+# corpus holds no quantified bromide gradient; the nearest thing in it measures
+# the KOSTINSKY effect, which is the short-range two-sided cousin. So every
+# render is bit-identical to a v26 one. What the bump buys is that the effect
+# now has a carrier, a model, a stage in three engines and a parity audit, so
+# the day a reference frame arrives the work is fitting a number and not
+# building a pipeline.
+SCHEMA_VERSION = 27
 
 
 # ---------------------------------------------------------------------------
@@ -1466,8 +1536,17 @@ class ProcessingSpec:
     #: development, where the same figure's companion text states the rate is
     #: nearly INDEPENDENT of grain size -- store 0.0 there, not a number.
     rate_size_coeff_um_min: float = 0.0
+    # -- schema v27 (C23, 2026-09-05): the machine's directional restraint.
+    #: ⚠ THE FIRST FIELD ON THIS RECORD THAT THE RENDERER READS. Everything
+    #: above is descriptive -- it says which condition the stored curve
+    #: represents. This one is consumed by stage 9c in all three engines, and it
+    #: is here rather than on `FilmProfile` because bromide drag is a property
+    #: of the PROCESSING MACHINE and not of the coating. Default is inert.
+    bromide_drag: "BromideDragSpec" = field(
+        default_factory=lambda: BromideDragSpec())
 
     def validate(self, label: str = "") -> None:
+        self.bromide_drag.validate(f"{label} bromide_drag")
         if not 0.0 <= self.partial_fill_fraction <= 1.0:
             raise ValueError(
                 f"{label}: ProcessingSpec partial_fill_fraction "
@@ -1487,6 +1566,127 @@ class ProcessingSpec:
             raise ValueError(
                 f"{label}: ProcessingSpec carries progress-type numbers but "
                 "leaves `progress` UNKNOWN")
+
+
+# ---------------------------------------------------------------------------
+# Bromide drag (schema v27, queue C23, 2026-09-05) -- LIVE, and inert on every
+# stock in this corpus.
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class BromideDragSpec:
+    """Directional restraint of development by transported reaction byproducts.
+
+    ⚠ IT IS NOT A PROPERTY OF THE EMULSION, WHICH IS WHY IT LIVES ON
+    `ProcessingSpec` AND NOT ON `FilmProfile`. Bromide drag is a property of the
+    PROCESSING MACHINE: transport direction and speed, continuous versus
+    rack-and-tank, replenishment rate, agitation. The same film through two
+    machines shows two different amounts of it, and through a well-agitated
+    tank shows none. Queue row C23 said so and this record is where that
+    statement becomes structural.
+
+    THE PHYSICS, in one paragraph. Reducing silver halide releases bromide ion
+    into the developer, and bromide is a restrainer. Where a lot of silver
+    develops, the solution immediately against the emulsion becomes locally
+    loaded and locally exhausted. In a machine the film moves through the bath,
+    so that loaded layer is dragged along the transport axis and keeps
+    restraining development where it lands -- BEHIND the dense area, and only
+    behind it. The result is a one-sided streak, aligned with the web, trailing
+    every heavily developed region: the archival lab-print signature this record
+    exists to reproduce.
+
+    ⚠ AND IT IS NOT STAGE 9. `CouplerSpec` / stage 9 is inhibitor released by
+    the DIR couplers, diffusing through the gelatin: chemical, ISOTROPIC, and
+    tens of micrometres across. `MTFSpec.adjacency` is the edge overshoot at a
+    smaller scale still. Bromide drag is millimetres to centimetres, ONE-SIDED,
+    and locked to the transport direction. Three different lengths, three
+    different symmetries, three different mechanisms; folding any of them into
+    another would make all of them wrong.
+
+    ⚠ THE SIGN INVERTS ON A REVERSAL FILM, and this is the easiest thing here to
+    get backwards. The bromide comes from the silver the FIRST developer
+    reduces, which on a reversal stock is the NEGATIVE image -- complementary to
+    the positive the viewer sees. So on a negative the streaks trail the DENSE
+    areas, and on a reversal they trail the CLEAR ones. Stage 9c inverts the
+    source field on `is_reversal` for exactly that reason.
+
+    ⚠ NO STOCK IN THIS CORPUS CARRIES A NON-ZERO RECORD, and that is a statement
+    about the literature rather than about the effect. The corpus was searched
+    for a quantified bromide gradient on 2026-09-05 and the nearest thing in it
+    is Hariharan, PS&E 2(2) p77 (1958), which measures the KOSTINSKY effect --
+    developer byproducts accumulating BETWEEN two close lines -- in micrometres
+    of line-width shift on a high-contrast plate. That is the short-range,
+    two-sided, symmetric cousin, not this. See `doc/NotFound.md`.
+
+    Attributes:
+        strength: Peak fraction of NET density removed where the upstream
+            restraint is fully saturated. 0.0 = the stage does not run. A
+            visible archival streak is of order 0.02-0.08; above 0.5 the model
+            is being used as an effect rather than as physics, and `validate`
+            refuses it.
+        length_mm: Distance over which the dragged restraint decays to 1/e,
+            measured ON THE FILM in millimetres -- not in pixels, so the same
+            record renders the same physical streak at any resolution and on
+            any gauge. Must be > 0 whenever `strength` is.
+        axis: Which frame axis the film transports along. 0 = the frame's
+            HEIGHT, which is what a motion-picture gate does and the only value
+            this schema accepts today; see `validate` for why 1 is refused
+            rather than shipped.
+        direction: +1 = the restraint trails towards INCREASING pixel index
+            along `axis`, -1 = decreasing. Which one a machine gives depends on
+            which way the film runs through it, and both exist.
+        source: Required whenever `strength` is non-zero. A number here without
+            a document behind it is exactly what this schema refuses elsewhere.
+    """
+
+    strength: float = 0.0
+    length_mm: float = 0.0
+    axis: int = 0
+    direction: int = 1
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return self.strength > 0.0 and self.length_mm > 0.0
+
+    def validate(self, label: str = "") -> None:
+        if self.strength < 0.0:
+            raise ValueError(f"{label}: BromideDragSpec negative strength")
+        if self.strength > 0.5:
+            raise ValueError(
+                f"{label}: BromideDragSpec strength {self.strength} removes "
+                "more than half the net density. That is a look, not a "
+                "measured restraint; 0.02-0.08 is the archival range")
+        if self.length_mm < 0.0:
+            raise ValueError(f"{label}: BromideDragSpec negative length_mm")
+        if self.strength and self.length_mm <= 0.0:
+            raise ValueError(
+                f"{label}: BromideDragSpec has strength {self.strength} and no "
+                "length. A restraint with no decay distance is a global "
+                "density change, which the characteristic curve already owns")
+        if self.length_mm and not self.strength:
+            raise ValueError(
+                f"{label}: BromideDragSpec states a length with zero strength, "
+                "which renders as nothing and reads as data. Store neither")
+        if self.axis != 0:
+            # ⚠ REFUSED RATHER THAN SHIPPED UNTESTED. A still camera transports
+            # across the frame's WIDTH, so axis 1 is a real machine geometry and
+            # will eventually be needed. It is refused because the recursion
+            # then runs along the CONTIGUOUS memory axis, which is a different
+            # AVX2 kernel from the one stage 9c ships -- a parallel prefix scan
+            # inside the register instead of eight independent columns -- and
+            # accepting the value today would mean the scalar and vector twins
+            # silently disagree on the only orientation nothing tests.
+            raise ValueError(
+                f"{label}: BromideDragSpec axis {self.axis}; only 0 (transport "
+                "along the frame height, i.e. a motion-picture gate) is "
+                "implemented. Axis 1 needs the other AVX2 kernel")
+        if self.direction not in (1, -1):
+            raise ValueError(
+                f"{label}: BromideDragSpec direction {self.direction} must be "
+                "+1 or -1")
+        if self.has_data and not self.source:
+            raise ValueError(
+                f"{label}: BromideDragSpec carries a measurement and no source")
 
 
 # ---------------------------------------------------------------------------
@@ -2355,6 +2555,15 @@ _PROCESS_FAMILIES = frozenset({
     # assert a chemistry the source contradicts; the set is a validation
     # whitelist read nowhere else, so widening it costs nothing.
     "Gevachrome",
+    # ⚠ ADDED 2026-09-05 (queue #215), and for the same reason as Gevachrome:
+    # Ansco's 1957 reversal chain is neither E-6 (1976) nor the Agfacolor
+    # reversal process. Gifford & Gerhardt, PS&E 1(1) p12, print it as Table I
+    # -- first developer, rinse, hardener, wash, RE-EXPOSURE, colour developer,
+    # rinse, bleach, fix, wash, stabiliser -- with Ansco's own baths and a
+    # 68 degF first development whose time IS the variable this stock's four
+    # curve sets are indexed by. Filing it under E-6 would assert a chemistry
+    # nineteen years too late.
+    "Ansco reversal",
 })
 
 
@@ -2422,6 +2631,17 @@ class ProcessVariant:
             the EI ratio would silently turn a sheet's own label into an
             arithmetic result, which is the kind of quiet substitution this
             schema keeps refusing elsewhere. `validate` checks the two agree.
+            ⚠ FLOAT SINCE v26, AND NOT FOR CONVENIENCE. Some sources label a
+            development ladder by EXPOSURE INDEX ONLY -- Gifford & Gerhardt
+            1957 print EI 80 / 100 / 150 / 200 for Super Anscochrome against
+            development times, and never a stop count. Those are -0.322, 0,
+            +0.585 and +1.000 stops; an int could hold one of the four. Where a
+            source prints only the EI, this field carries log2 of the EI ratio
+            and the record's `source` says so in words. Where it prints the
+            stop count, that is still what is stored, unrounded and underived.
+            ⚠ ROUNDING WAS NOT AN ALTERNATIVE: 0 means "different chemistry",
+            so a -0.322-stop pull rounded to 0 would claim to be a different
+            process.
         processing: The development condition, as printed.
         source: Required.
     """
@@ -2433,7 +2653,8 @@ class ProcessVariant:
     exposure_index: int = 0
     gamma_scale: float = 1.0
     dmin_shift: float = 0.0
-    push_stops: int = 0
+    #: -- schema v26 (2026-09-05): int32 -> float, see the class docstring.
+    push_stops: float = 0.0
     processing: ProcessingSpec = field(default_factory=lambda: ProcessingSpec())
     source: str = ""
 
@@ -2465,7 +2686,7 @@ class ProcessVariant:
             if self.curves is None:
                 raise ValueError(
                     f"{label}: ProcessVariant {self.name!r} is a push "
-                    f"({self.push_stops:+d} stops) but carries no curves")
+                    f"({self.push_stops:+.3f} stops) but carries no curves")
             if self.exposure_index <= 0:
                 raise ValueError(
                     f"{label}: ProcessVariant {self.name!r} is a push but "
@@ -3602,7 +3823,7 @@ class FilmProfile:
             if abs(_pv.exposure_index - _want) > 0.02 * _want:
                 raise ValueError(
                     f"{self.name}: ProcessVariant {_pv.name!r} says "
-                    f"{_pv.push_stops:+d} stops from EI {self.exposure_index}, "
+                    f"{_pv.push_stops:+.3f} stops from EI {self.exposure_index}, "
                     f"which is EI {_want:.0f}, but states EI "
                     f"{_pv.exposure_index}")
         _eis: list[int] = []
@@ -4436,10 +4657,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # gives the calibration directly.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(0.00, -0.07, -0.16, -0.25, -0.31, -0.35, -0.38, 
-                     -0.42, -0.49, -0.57, -0.66, -0.73, -0.69, -0.59, 
-                     -0.54, -0.52, -0.43, -0.32, -0.20, -0.27, -0.54, 
-                     -0.65, -0.64, -0.63, -0.66, -0.69, -0.82, -1.49, 
+            log_s_pan=(0.00, -0.07, -0.16, -0.25, -0.31, -0.35, -0.38,
+                     -0.42, -0.49, -0.57, -0.66, -0.73, -0.69, -0.59,
+                     -0.54, -0.52, -0.43, -0.32, -0.20, -0.27, -0.54,
+                     -0.65, -0.64, -0.63, -0.66, -0.69, -0.82, -1.49,
                      -2.22, -4.00, -4.00, -4.00, -4.00),
             criterion="relative_log",
             source=(
@@ -4749,10 +4970,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # gives the calibration directly.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(0.00, -0.18, -0.32, -0.42, -0.46, -0.51, -0.58, 
-                     -0.68, -0.75, -0.82, -0.97, -1.06, -0.98, -0.88, 
-                     -0.76, -0.69, -0.67, -0.61, -0.40, -0.22, -0.34, 
-                     -0.59, -0.69, -0.67, -0.63, -0.65, -0.76, -1.12, 
+            log_s_pan=(0.00, -0.18, -0.32, -0.42, -0.46, -0.51, -0.58,
+                     -0.68, -0.75, -0.82, -0.97, -1.06, -0.98, -0.88,
+                     -0.76, -0.69, -0.67, -0.61, -0.40, -0.22, -0.34,
+                     -0.59, -0.69, -0.67, -0.63, -0.65, -0.76, -1.12,
                      -1.79, -4.00, -4.00, -4.00, -4.00),
             criterion="relative_log",
             source=(
@@ -5041,10 +5262,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # gives the calibration directly.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(0.00, -0.09, -0.23, -0.37, -0.51, -0.62, -0.69, 
-                     -0.75, -0.81, -0.87, -0.89, -0.86, -0.80, -0.73, 
-                     -0.67, -0.62, -0.59, -0.58, -0.59, -0.61, -0.65, 
-                     -0.69, -0.71, -0.72, -0.88, -1.16, -1.50, -2.01, 
+            log_s_pan=(0.00, -0.09, -0.23, -0.37, -0.51, -0.62, -0.69,
+                     -0.75, -0.81, -0.87, -0.89, -0.86, -0.80, -0.73,
+                     -0.67, -0.62, -0.59, -0.58, -0.59, -0.61, -0.65,
+                     -0.69, -0.71, -0.72, -0.88, -1.16, -1.50, -2.01,
                      -2.57, -4.00, -4.00, -4.00, -4.00),
             criterion="relative_log",
             source=(
@@ -8616,6 +8837,37 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
             source=("Fujifilm, 'FUJICHROME PROVIA 400X Professional [RXP]' "
                     "Product Information Bulletin, AF3-0213E, 2006"),
         ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.091, 0.079, 0.068, 0.057, 0.047, 0.039, 0.033, 0.033,
+                     0.035, 0.038, 0.044, 0.051, 0.060, 0.074, 0.097, 0.134,
+                     0.180, 0.239, 0.317, 0.422, 0.539, 0.653, 0.754, 0.840,
+                     0.908, 0.964, 1.000, 0.974, 0.888, 0.752, 0.578),
+            d_magenta=(0.048, 0.041, 0.037, 0.039, 0.048, 0.063, 0.089,
+                     0.134, 0.201, 0.290, 0.416, 0.563, 0.704, 0.827, 0.925,
+                     0.993, 0.983, 0.868, 0.672, 0.465, 0.299, 0.187, 0.125,
+                     0.085, 0.057, 0.037, 0.024, 0.016, 0.015, 0.015, 0.014),
+            d_yellow=(0.640, 0.736, 0.836, 0.925, 0.988, 0.993, 0.917, 0.775,
+                     0.587, 0.394, 0.258, 0.156, 0.097, 0.060, 0.037, 0.024,
+                     0.018, 0.016, 0.016, 0.016, 0.016, 0.015, 0.015, 0.015,
+                     0.014, 0.014, 0.014, 0.014, 0.013, 0.013, 0.013),
+            normalisation="peak_1.0",
+            source=(
+                "Fujifilm, PROVIA 400X Product Information Bulletin "
+                "AF3-1007E (Provia_400X_PIB_1007.pdf), SPECTRAL DYE "
+                "DENSITY CURVES, p7. VECTOR extraction 2026-09-04 by "
+                "fuji_konica_dye.py. ⚠ ALL THREE DYES ARE ONE PATH of 19 "
+                "bezier segments carrying three disconnected subpaths, "
+                "which is why dye_density.py returns a single curve for "
+                "this panel: the subpaths are separated on the pen lift "
+                "(segment 6 starts at 341.6, 542.7 while segment 5 ended "
+                "at 528.8, 547.5) and nothing else distinguishes them. "
+                "Axis worst tick residual 0.89 pt in x and 0.66 pt in y. "
+                "Peaks 450 / 550 / 660 nm, |peak - 1.000| <= 0.0070. "
+                "Independent of the PROVIA 100F drawing: rms 0.085 against "
+                "it, and the unwanted blue absorption of the magenta is "
+                "0.048 here against 0.170 there."),
+        ),
     ),
     # ======================================================================
     # queue T3, 2026-09-02e -- THREE NEW STOCKS from the three Fuji datasheets
@@ -8708,6 +8960,40 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         misregistration_um=4.0,
         default_format="ff35",
         features=Feature.TABULAR_GRAIN,
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.241, 0.217, 0.198, 0.180, 0.163, 0.147, 0.135, 0.124,
+                     0.114, 0.110, 0.111, 0.119, 0.134, 0.160, 0.202, 0.250,
+                     0.306, 0.370, 0.446, 0.529, 0.621, 0.717, 0.810, 0.889,
+                     0.948, 0.989, 0.998, 0.974, 0.923, 0.856, 0.763),
+            d_magenta=(0.170, 0.183, 0.203, 0.217, 0.214, 0.206, 0.222,
+                     0.266, 0.337, 0.441, 0.571, 0.706, 0.847, 0.951, 0.996,
+                     0.981, 0.913, 0.787, 0.634, 0.475, 0.354, 0.255, 0.188,
+                     0.143, 0.112, 0.089, 0.070, 0.056, 0.045, 0.038, 0.033),
+            d_yellow=(0.556, 0.697, 0.839, 0.937, 0.993, 0.985, 0.914, 0.779,
+                     0.616, 0.454, 0.309, 0.206, 0.127, 0.082, 0.057, 0.046,
+                     0.039, 0.035, 0.032, 0.032, 0.032, 0.031, 0.030, 0.032,
+                     0.032, 0.034, 0.031, 0.026, 0.020, 0.016, 0.014),
+            normalisation="peak_1.0",
+            source=(
+                "Fujifilm, PROVIA 100F datasheet "
+                "(provia_100f_datasheet.pdf), SPECTRAL DYE DENSITY CURVES, "
+                "p6; the panel states 'Exposure: Separated Light, Process: "
+                "E-6/CR-56'. RASTER panel -- no vector path exists -- "
+                "traced 2026-09-04 by fuji_konica_dye.py from the three "
+                "process-coloured inks at 600 dpi, axis calibrated on the "
+                "drawn gridlines: worst tick residual 1.30 nm and 0.0043 "
+                "D. Peaks 440 / 540 / 660 nm, |peak - 1.000| <= 0.0075. ⚠ "
+                "THIS DRAWING IS SHARED WITH FUJI_SENSIA_100. The two "
+                "panels are different raster images (972x734 against "
+                "938x853) on different sheets, one colour-coded and one "
+                "black, and they were traced by two unrelated methods -- "
+                "ink-mask centroid here, slope-predictive tracking there. "
+                "They reproduce each other to rms 0.005 / 0.010 / 0.005 D "
+                "for cyan / magenta / yellow. ONE MEASUREMENT ON TWO "
+                "PROFILES: it must not be counted as two, and a verify.py "
+                "guard holds the pair identical."),
+        ),
     ),
     FilmProfile(
         name="FUJICOLOR_SUPERIA_XTRA_400",
@@ -8775,6 +9061,37 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         misregistration_um=4.0,
         default_format="ff35",
         features=Feature.TABULAR_GRAIN,
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.509, 1.549, 1.642, 1.839, 1.937, 1.965, 1.932,
+                     1.823, 1.667, 1.538, 1.491, 1.520, 1.590, 1.672, 1.737,
+                     1.765, 1.709, 1.574, 1.410, 1.237, 1.104, 1.085, 1.167,
+                     1.275, 1.387, 1.496, 1.597, 1.686, 1.758, 1.806, 1.820),
+            d_dmin=(0.895, 0.822, 0.815, 0.835, 0.844, 0.829, 0.805, 0.777,
+                     0.745, 0.713, 0.682, 0.657, 0.638, 0.620, 0.598, 0.573,
+                     0.546, 0.503, 0.429, 0.352, 0.283, 0.239, 0.227, 0.227,
+                     0.235, 0.249, 0.264, 0.270, 0.259, 0.245, 0.230),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "Fujifilm, FUJICOLOR SUPERIA X-TRA 400 Product Information "
+                "Bulletin AF3-151E (superia_xtra400_datasheet.pdf), 20. "
+                "SPECTRAL DYE DENSITY CURVES, p6; 'Typical densities for a "
+                "mid-scale neutral subject and for D-mini.', process "
+                "CN-16, Status M. VECTOR extraction 2026-09-04 by "
+                "fuji_konica_dye.py, axis worst residual 0.56 pt in x and "
+                "0.37 pt in y. ⚠ THIS IS THE SHEET WHOSE PAGE ANSWERS A "
+                "TEXT SEARCH FOR 'Cyan' AND HAS NO CYAN CURVE. The token "
+                "is a typo in the SPECTRAL SENSITIVITY panel beside this "
+                "one -- 'Cyan Sesitive Layer', where the other three read "
+                "Blue / Green / Red Sensitive Layer -- and it is what put "
+                "this stock on a three-dye list. Counting dye panels by "
+                "text search over-reports ⚠ d_dmin ON A MASKED COLOUR "
+                "NEGATIVE IS THE ORANGE MASK, MEASURED. It falls 0.895 -> "
+                "0.230 D across 400-700 nm, and that fall is the physics "
+                "gate the reader and verify.py both apply: a pair stored "
+                "the wrong way round passes every other check. This is the "
+                "first spectral record of the mask on this stock"),
+        ),
     ),
     FilmProfile(
         name="FUJICOLOR_PRO_400H",
@@ -8849,6 +9166,37 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         misregistration_um=4.0,
         default_format="ff35",
         features=Feature.TABULAR_GRAIN,
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.995, 1.650, 1.706, 1.831, 1.896, 1.908, 1.878,
+                     1.796, 1.676, 1.584, 1.523, 1.516, 1.547, 1.585, 1.596,
+                     1.557, 1.466, 1.338, 1.180, 0.987, 0.825, 0.757, 0.764,
+                     0.812, 0.877, 0.946, 1.011, 1.066, 1.097, 1.115, 1.116),
+            d_dmin=(1.426, 1.087, 1.041, 1.046, 1.039, 1.017, 0.986, 0.951,
+                     0.912, 0.873, 0.838, 0.813, 0.789, 0.764, 0.738, 0.707,
+                     0.690, 0.667, 0.577, 0.440, 0.318, 0.245, 0.225, 0.221,
+                     0.221, 0.222, 0.217, 0.211, 0.205, 0.199, 0.193),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "Fujifilm, FUJICOLOR PRO 400H datasheet "
+                "(pro_400h_datasheet.pdf), SPECTRAL DYE DENSITY, p8; the "
+                "panel is captioned 'Typical densities for a mid-scale "
+                "neutral subject and for D-mini.' -- Fujifilm's own typo "
+                "for D-min. VECTOR extraction 2026-09-04 by "
+                "fuji_konica_dye.py. ⚠ THIS SHEET HAS NO TICK LABELS IN "
+                "ITS TEXT LAYER AT ALL: its axis numbers are drawn as "
+                "outlined vector paths, so no frame can be found by tick "
+                "text and the calibration comes from the drawn GRIDLINES "
+                "instead -- worst residual 0.24 nm and 0.0059 D. ⚠ The "
+                "frame bottom is NOT the zero line; fitted on the four "
+                "horizontals it sits at D = 0.023, recorded rather than "
+                "snapped ⚠ d_dmin ON A MASKED COLOUR NEGATIVE IS THE "
+                "ORANGE MASK, MEASURED. It falls 1.426 -> 0.193 D across "
+                "400-700 nm, and that fall is the physics gate the reader "
+                "and verify.py both apply: a pair stored the wrong way "
+                "round passes every other check. This is the first "
+                "spectral record of the mask on this stock"),
+        ),
     ),
     FilmProfile(
         name="FUJI_SENSIA_100",
@@ -8894,6 +9242,43 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
             criterion="log_reciprocal_J_cm2_D1.0_above_Dmin",
             source=("Fujifilm, 'FUJICHROME Sensia 100 [RA]' data sheet, "
                     "AF3-091E, 2001"),
+        ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.248, 0.223, 0.201, 0.181, 0.163, 0.149, 0.137, 0.125,
+                     0.114, 0.109, 0.110, 0.119, 0.134, 0.164, 0.202, 0.251,
+                     0.309, 0.374, 0.453, 0.540, 0.631, 0.723, 0.813, 0.897,
+                     0.957, 0.993, 1.002, 0.979, 0.927, 0.854, 0.766),
+            d_magenta=(0.166, 0.181, 0.200, 0.215, 0.215, 0.201, 0.222,
+                     0.267, 0.344, 0.448, 0.577, 0.732, 0.876, 0.961, 1.000,
+                     0.983, 0.900, 0.771, 0.614, 0.475, 0.358, 0.269, 0.197,
+                     0.148, 0.114, 0.091, 0.073, 0.060, 0.048, 0.041, 0.036),
+            d_yellow=(0.567, 0.702, 0.835, 0.943, 0.998, 0.991, 0.924, 0.791,
+                     0.618, 0.444, 0.314, 0.208, 0.134, 0.086, 0.060, 0.048,
+                     0.040, 0.036, 0.034, 0.034, 0.033, 0.034, 0.034, 0.034,
+                     0.034, 0.034, 0.034, 0.032, 0.028, 0.024, 0.020),
+            normalisation="peak_1.0",
+            source=(
+                "Fujifilm, SENSIA 100 datasheet "
+                "(sensia_100_datasheet.pdf), SPECTRAL DYE DENSITY CURVES, "
+                "p5; 'Exposure: Separated Light, Process: E-6/CR56'. "
+                "RASTER panel, all traces black, traced 2026-09-04 by "
+                "fuji_konica_dye.py with dashtrace.trace_predictive in "
+                "four seeded passes (rightward and leftward from 401 nm, "
+                "both directions from 560 nm). Worst disagreement between "
+                "passes where they overlap: 0.016 D. Axis worst tick "
+                "residual 1.33 nm and 0.0033 D. Peaks 440 / 540 / 660 nm, "
+                "|peak - 1.000| <= 0.0023. ⚠ THE SHEET CAPTIONS ITS "
+                "ORDINATE 'Spectral Reflection Density'. That is a "
+                "Fujifilm caption error and NOT a measurand problem: "
+                "SENSIA 100 is an E-6 transparency, which has no "
+                "reflection density, and this panel is the same drawing as "
+                "PROVIA 100F's, where the identical curves are captioned "
+                "'Spectral Diffuse Density'. Recorded so the sheet is not "
+                "later refused on measurand grounds the way AGFA "
+                "MULTICONTRAST PREMIUM, a genuine reflection print paper, "
+                "correctly was. ⚠ SHARED DRAWING with FUJI_PROVIA_100F -- "
+                "see that profile's note. One measurement, two profiles."),
         ),
     ),
     FilmProfile(
@@ -9201,6 +9586,46 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
             criterion="log_reciprocal_J_cm2_D1.0_above_Dmin",
             source=("Fujifilm, 'FUJICHROME Velvia 50 Professional [RVP50]' "
                     "Product Information Bulletin, AF3-0221E2, 2007"),
+        ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.169, 0.127, 0.105, 0.085, 0.069, 0.056, 0.050, 0.048,
+                     0.048, 0.054, 0.065, 0.082, 0.105, 0.148, 0.183, 0.232,
+                     0.289, 0.353, 0.427, 0.508, 0.612, 0.714, 0.811, 0.893,
+                     0.954, 0.991, 1.003, 0.989, 0.947, 0.882, 0.791),
+            d_magenta=(0.109, 0.124, 0.154, 0.186, 0.197, 0.191, 0.212,
+                     0.260, 0.335, 0.444, 0.585, 0.722, 0.854, 0.952, 0.999,
+                     0.997, 0.939, 0.821, 0.661, 0.509, 0.352, 0.239, 0.162,
+                     0.112, 0.081, 0.057, 0.042, 0.031, 0.023, 0.018, 0.017),
+            d_yellow=(0.514, 0.637, 0.780, 0.911, 0.983, 1.002, 0.941, 0.821,
+                     0.662, 0.501, 0.357, 0.267, 0.204, 0.152, 0.117, 0.085,
+                     0.059, 0.039, 0.023, 0.012, 0.000, 0.000, 0.000, 0.000,
+                     0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000),
+            normalisation="peak_1.0",
+            source=(
+                "Fujifilm, VELVIA 50 datasheet (velvia_50_datasheet.pdf), "
+                "SPECTRAL DYE DENSITY CURVES, p8; 'Exposure: Separated, "
+                "Process: E-6/CR-56'. RASTER panel, all traces black, "
+                "traced 2026-09-04 by fuji_konica_dye.py in five seeded "
+                "passes. ⚠ TWO OF THE FIVE EXIST BECAUSE CYAN AND MAGENTA "
+                "CROSS AT 590 nm: the tracker coasts through a crossing by "
+                "design, so a pass seeded to its left cannot say which "
+                "branch is which on the far side, and the identity is "
+                "settled by seeding at 620 nm where the two are 0.65 D "
+                "apart. Worst disagreement between passes: 0.017 D, at "
+                "that crossing. Axis worst tick residual 0.34 nm and "
+                "0.0003 D -- the cleanest of the six panels. Peaks 450 / "
+                "540 / 660 nm, |peak - 1.000| <= 0.0032. ⚠ THE YELLOW "
+                "BEYOND 600 nm IS A FLOOR, NOT A MEASUREMENT. The sheet "
+                "draws the yellow trace down onto the axis: its last "
+                "separate ink run is 0.0080 D and ONE pixel thick at 598 "
+                "nm, and at 602 nm the panel carries two runs rather than "
+                "three. 600-700 nm is therefore stored as 0.000 with the "
+                "printed line width, 0.008 D, as the error bar -- the same "
+                "convention used for the 1953 Eastmancolor 5382 tails. "
+                "That the last measured value equals the line width is the "
+                "evidence that the trace ends by reaching the axis and not "
+                "by the tracker losing it."),
         ),
     ),
 
@@ -10010,25 +10435,25 @@ mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0),
         # These curves are what that scalar cannot express.
         dye_density=SpectralDyeDensity(
             lambda_start_nm=400.0, lambda_step_nm=10.0,
-            d_cyan=(0.142, 0.114, 0.088, 0.067, 0.054, 0.045, 0.038, 0.034, 
-                     0.033, 0.037, 0.045, 0.059, 0.079, 0.105, 0.140, 
-                     0.184, 0.240, 0.309, 0.390, 0.483, 0.582, 0.676, 
-                     0.764, 0.837, 0.888, 0.916, 0.921, 0.902, 0.861, 
+            d_cyan=(0.142, 0.114, 0.088, 0.067, 0.054, 0.045, 0.038, 0.034,
+                     0.033, 0.037, 0.045, 0.059, 0.079, 0.105, 0.140,
+                     0.184, 0.240, 0.309, 0.390, 0.483, 0.582, 0.676,
+                     0.764, 0.837, 0.888, 0.916, 0.921, 0.902, 0.861,
                      0.803, 0.738),
-            d_magenta=(0.066, 0.085, 0.106, 0.127, 0.134, 0.133, 0.156, 
-                     0.200, 0.264, 0.351, 0.460, 0.584, 0.707, 0.809, 
-                     0.876, 0.895, 0.861, 0.776, 0.652, 0.507, 0.368, 
-                     0.256, 0.173, 0.114, 0.074, 0.048, 0.030, 0.018, 
+            d_magenta=(0.066, 0.085, 0.106, 0.127, 0.134, 0.133, 0.156,
+                     0.200, 0.264, 0.351, 0.460, 0.584, 0.707, 0.809,
+                     0.876, 0.895, 0.861, 0.776, 0.652, 0.507, 0.368,
+                     0.256, 0.173, 0.114, 0.074, 0.048, 0.030, 0.018,
                      0.010, 0.004, -0.001),
-            d_yellow=(0.498, 0.627, 0.750, 0.848, 0.907, 0.897, 0.833, 
-                     0.725, 0.591, 0.451, 0.321, 0.212, 0.130, 0.072, 
-                     0.035, 0.014, 0.003, -0.003, -0.004, -0.004, -0.005, 
-                     -0.005, -0.004, -0.004, -0.003, -0.002, -0.001, 
+            d_yellow=(0.498, 0.627, 0.750, 0.848, 0.907, 0.897, 0.833,
+                     0.725, 0.591, 0.451, 0.321, 0.212, 0.130, 0.072,
+                     0.035, 0.014, 0.003, -0.003, -0.004, -0.004, -0.005,
+                     -0.005, -0.004, -0.004, -0.003, -0.002, -0.001,
                      -0.001, -0.000, 0.001, 0.002),
-            d_neutral=(0.715, 0.836, 0.953, 1.052, 1.106, 1.088, 1.037, 
-                     0.967, 0.898, 0.849, 0.835, 0.864, 0.924, 0.995, 
-                     1.060, 1.102, 1.114, 1.091, 1.045, 0.994, 0.953, 
-                     0.937, 0.942, 0.956, 0.969, 0.972, 0.959, 0.929, 
+            d_neutral=(0.715, 0.836, 0.953, 1.052, 1.106, 1.088, 1.037,
+                     0.967, 0.898, 0.849, 0.835, 0.864, 0.924, 0.995,
+                     1.060, 1.102, 1.114, 1.091, 1.045, 0.994, 0.953,
+                     0.937, 0.942, 0.956, 0.969, 0.972, 0.959, 0.929,
                      0.880, 0.817, 0.749),
             normalisation="as_printed_diffuse_spectral_density",
             source=(
@@ -10487,6 +10912,44 @@ grain=GrainSpec(6.5, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.17),
                     "Film 5213/7213 Technical Information', publication "
                     "H-1-5213, revised March 2026 (film introduced 2007)"),
         ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.213, 0.169, 0.129, 0.095, 0.069, 0.051, 0.043, 0.039,
+                     0.037, 0.038, 0.044, 0.051, 0.061, 0.080, 0.107, 0.143,
+                     0.180, 0.223, 0.281, 0.366, 0.465, 0.562, 0.656, 0.744,
+                     0.819, 0.887, 0.942, 0.981, 0.997, 0.987, 0.950),
+            d_magenta=(0.011, 0.016, 0.026, 0.038, 0.021, 0.036, 0.089,
+                     0.171, 0.291, 0.443, 0.604, 0.758, 0.888, 0.978, 0.989,
+                     0.903, 0.741, 0.554, 0.388, 0.263, 0.183, 0.131, 0.098,
+                     0.075, 0.060, 0.051, 0.044, 0.038, 0.034, 0.032, 0.030),
+            d_yellow=(0.532, 0.683, 0.827, 0.939, 0.993, 0.986, 0.904, 0.759,
+                     0.586, 0.419, 0.281, 0.178, 0.114, 0.072, 0.047, 0.031,
+                     0.022, 0.014, 0.011, 0.009, 0.007, 0.006, 0.006, 0.005,
+                     0.004, 0.004, 0.003, 0.003, 0.003, 0.003, 0.004),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, KODAK VISION3 200T Color Negative "
+                "Film 5213/7213, "
+                "VISION3-200T-Color-Negative-Film-7213-TECHNICAL-DATA.pdf, "
+                "Spectral Dye Density Curves, p5; 'Process: ECN-2, D-mins "
+                "subtracted', Status M, and the sheet's own note 'Cyan, "
+                "Magenta, and Yellow Dye Curves are peak-normalized'. "
+                "Extracted 2026-09-04 through dye_density.py's family-B "
+                "machinery, residual 0.0112. ⚠ THE FRAME HAD TO BE CHOSEN "
+                "BY TICK COUNT, NOT BY PROXIMITY: on this page each of the "
+                "three dye traces has a bounding box that satisfies "
+                "dye_density.frames(), and three of them start 0.01-0.03 "
+                "pt closer to the rotated caption than the real plot frame "
+                "does, so pick() returned a curve and the extraction "
+                "reported 'only 0 x ticks against the frame'. Peaks 440 / "
+                "540 / 680 nm. The panel's midscale-neutral (peak 1.581) "
+                "and minimum-density (peak 0.847) traces are AS PRINTED, "
+                "not peak-normalised, and are deliberately not stored here "
+                "-- the same policy as 5217 and 5218, since one record "
+                "cannot carry two conventions. Distinct from the adopted "
+                "VISION3 500T 5219 set at rms 0.0165, so this is a second "
+                "drawing and not a reuse."),
+        ),
     ),
     FilmProfile(
         name="KODAK_VISION3_250D_5207",
@@ -10684,6 +11147,46 @@ mtf=MTFSpec(36.0, 70.0, 80.0, adjacency=0.11, adjacency_um=19.0),
             source=("FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, key kodak_vision3_250d, harvested 2026-08-27; archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. TIER 3 -- hand-authored engine values, NOT a manufacturer specification and NOT a measurement (assessment: NotFound.md 7.1). Adopted under the owner rule of 2026-08-27: where a parameter is OUR OWN ESTIMATE and no T1 datasheet or T2 book figure exists, the one published third-party number is preferred over an in-house analogy. Fields verbatim: dmax, latitude_stops, speed_offset, saturation, vignette, halation, orange_mask, crosstalk, color_matrix, layer_curves, grain bias terms."),
         ),
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.179, 0.179, 0.138, 0.103, 0.074, 0.055, 0.044, 0.037,
+                     0.031, 0.028, 0.029, 0.032, 0.040, 0.054, 0.081, 0.116,
+                     0.153, 0.196, 0.253, 0.340, 0.443, 0.542, 0.637, 0.729,
+                     0.807, 0.877, 0.935, 0.979, 1.000, 0.999, 0.968),
+            d_magenta=(-0.007, -0.007, -0.008, 0.004, -0.017, -0.012, 0.041,
+                     0.116, 0.233, 0.389, 0.556, 0.718, 0.858, 0.965, 1.000,
+                     0.936, 0.788, 0.601, 0.431, 0.301, 0.217, 0.163, 0.129,
+                     0.107, 0.094, 0.085, 0.081, 0.076, 0.073, 0.070, 0.065),
+            d_yellow=(0.656, 0.656, 0.807, 0.929, 0.996, 1.000, 0.931, 0.801,
+                     0.632, 0.462, 0.321, 0.211, 0.145, 0.101, 0.072, 0.056,
+                     0.040, 0.027, 0.018, 0.012, 0.007, 0.004, 0.003, -0.001,
+                     -0.001, -0.004, -0.004, -0.004, -0.004, -0.004, -0.003),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, KODAK VISION3 250D Color Negative "
+                "Film 5207/7207, "
+                "KODAK-VISION3-250D-5207-7207-technical-information.pdf, "
+                "Spectral Dye Density Curves, p4; 'Process: ECN-2; D-mins "
+                "subtracted', dyes peak-normalised by the sheet's own "
+                "note. RASTER panel, traced 2026-09-04 by "
+                "fuji_konica_dye.py at 600 dpi; axis from the tick comb, "
+                "worst residual 0.00 nm and 0.0018 D -- the cleanest "
+                "calibration in this batch. Peaks 450 / 540 / 680 nm, "
+                "|peak - 1.000| <= 0.0004. Cross-checked from a second "
+                "seed column at 650 nm: cyan, yellow and neutral agree to "
+                "0.003 D, magenta to 0.0195 D at 490 nm, which is where it "
+                "crosses the yellow and both passes are coasting. ⚠ SAME "
+                "REFUSAL AS 5203 for the neutral + D-min pair: the dashed "
+                "D-min chain starts at 439 nm because the dashes that "
+                "cross a solid curve fuse into it. The family-C identity "
+                "over 439-782 nm gives k spread 0.153, at the 0.15 bound "
+                "and far inside 5218's 0.307 and 5293's 0.215, which that "
+                "bound rejected. ⚠ DISTINCT FROM 5203 BY 0.0162 D rms -- "
+                "the tightest DISTINCT figure in this reader, and "
+                "deliberately so: two speeds of one VISION3 generation on "
+                "one process genuinely resemble each other. It is still 3x "
+                "the Fuji shared DRAWING and 200x the Konica one"),
+        ),
     ),
     FilmProfile(
         name="KODAK_VISION3_500T_5219",
@@ -11014,6 +11517,54 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             source=("Eastman Kodak Company, 'KODAK VISION3 50D Color Negative "
                     "Film 5203/7203 Technical Information', publication "
                     "H-1-5203, revised March 2026 (film introduced 2012)"),
+        ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.201, 0.201, 0.155, 0.120, 0.091, 0.069, 0.056, 0.048,
+                     0.043, 0.040, 0.040, 0.044, 0.054, 0.069, 0.093, 0.126,
+                     0.161, 0.202, 0.256, 0.343, 0.431, 0.530, 0.622, 0.703,
+                     0.791, 0.868, 0.928, 0.974, 0.998, 0.998, 0.972),
+            d_magenta=(0.000, 0.000, 0.001, 0.001, 0.001, 0.001, 0.027,
+                     0.088, 0.208, 0.363, 0.540, 0.713, 0.864, 0.968, 0.998,
+                     0.931, 0.785, 0.592, 0.428, 0.299, 0.224, 0.162, 0.118,
+                     0.095, 0.080, 0.069, 0.062, 0.057, 0.054, 0.051, 0.046),
+            d_yellow=(0.609, 0.609, 0.771, 0.901, 0.985, 1.001, 0.937, 0.803,
+                     0.634, 0.469, 0.322, 0.215, 0.141, 0.095, 0.067, 0.049,
+                     0.038, 0.029, 0.025, 0.024, 0.024, 0.024, 0.024, 0.025,
+                     0.025, 0.024, 0.023, 0.021, 0.019, 0.017, 0.016),
+            normalisation="peak_1.0",
+            source=(
+                "Eastman Kodak Company, KODAK VISION3 50D Color Negative "
+                "Film 5203/7203, "
+                "KODAK-VISION3-50D-5203-7203-technical-information.pdf, "
+                "Spectral Dye Density Curves, p4; 'Process: ECN-2; D-mins "
+                "subtracted' and the sheet's own note 'Cyan, Magenta, and "
+                "Yellow Dye Curves are peak-normalized'. RASTER panel, "
+                "traced 2026-09-04 by fuji_konica_dye.py at 600 dpi. ⚠ "
+                "THIS PANEL WAS FILED AS BLOCKED BECAUSE IT IS RASTER, AND "
+                "RASTER WAS NEVER THE BLOCKER. It draws no interior "
+                "gridlines, so the axis is calibrated on the TICK COMB "
+                "matched to an asserted uniform ladder with the frame "
+                "corners at the labelled extremes: worst residual 0.29 nm "
+                "and 0.0019 D. Peaks 450 / 540 / 690 nm, |peak - 1.000| <= "
+                "0.0017. ⚠ THE SEED COLUMN IS THE WHOLE PROBLEM ON THIS "
+                "SHEET. Seeded at 690 nm the CYAN track walks onto the "
+                "MAGENTA below 470 nm -- the two cross at about 478 and "
+                "run 0.04 D apart on either side -- and returns 0.000 at "
+                "400 nm instead of 0.228, a curve that looks perfectly "
+                "smooth. Seeded at 450 nm, where all four solid traces are "
+                "separated, every peak lands on 1.000 unfitted, and a "
+                "second pass seeded at 410 nm reproduces all four to "
+                "0.0000 D. ⚠ THE MIDSCALE NEUTRAL AND MINIMUM DENSITY ARE "
+                "MEASURED AND NOT STORED. The D-min is DASHED, and the "
+                "dashes that cross a solid curve fuse into it, so the "
+                "chain only starts at 429 nm and the pair would be three "
+                "of thirty-one samples short. Over the band it does cover, "
+                "the family-C identity Neutral - Dmin = k(C+M+Y) gives k "
+                "spread 0.073 against the 0.15 that bound allows -- and "
+                "that figure MOVED when the cyan mis-assignment above was "
+                "fixed, from 0.145 to 0.073, so it is a live test of the "
+                "assignment and not arithmetic"),
         ),
     ),
     FilmProfile(
@@ -12110,6 +12661,42 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             source=("Konica, 'Konica Color IMPRESA 50 Professional Film' "
                     "Technical Data Sheet, undated (PDF 1998)"),
         ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.335, 1.305, 1.385, 1.490, 1.560, 1.568, 1.526,
+                     1.426, 1.293, 1.173, 1.096, 1.080, 1.091, 1.106, 1.121,
+                     1.136, 1.103, 1.014, 0.925, 0.803, 0.643, 0.566, 0.551,
+                     0.569, 0.599, 0.636, 0.673, 0.706, 0.739, 0.765, 0.773),
+            d_dmin=(0.831, 0.717, 0.702, 0.720, 0.711, 0.691, 0.669, 0.646,
+                     0.622, 0.600, 0.584, 0.590, 0.580, 0.566, 0.551, 0.537,
+                     0.516, 0.478, 0.440, 0.370, 0.251, 0.200, 0.182, 0.182,
+                     0.190, 0.198, 0.209, 0.218, 0.226, 0.234, 0.237),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "Konica, Konica IMPRESA 50 technical data sheet "
+                "(IMP50.pdf), SPECTRAL DYE DENSITY CURVES, p3. RASTER "
+                "panel -- the whole page is one 2008x1184 scan -- read "
+                "2026-09-04 through konica_raster.PANELS['imp50_dye'], the "
+                "frame and gridline geometry that reader already carried, "
+                "so the two cannot drift apart. ⚠ konica_raster HAS "
+                "DESCRIBED THIS PANEL AS 'NOT A DYE TRIPLE' SINCE "
+                "2026-08-02 and sampled it only at the three status M "
+                "bands, because SpectralDyeDensity could not hold the "
+                "shape; schema v14 added the carrier and nothing came back "
+                "for it until now. ⚠ THE 400 nm SAMPLE IS A HELD ENDPOINT, "
+                "NOT A READING: panel_ink blanks each gridline with a 3 px "
+                "skirt and the 400 nm gridline IS the frame's left edge, "
+                "so the first column carrying two runs is at 401.6 nm and "
+                "the 400 nm sample repeats it. Over that 1.6 nm the two "
+                "curves move about 0.002 D, well under the line width, "
+                "which is why the hold is stated rather than the pair "
+                "refused ⚠ d_dmin ON A MASKED COLOUR NEGATIVE IS THE "
+                "ORANGE MASK, MEASURED. It falls 0.831 -> 0.237 D across "
+                "400-700 nm, and that fall is the physics gate the reader "
+                "and verify.py both apply: a pair stored the wrong way "
+                "round passes every other check. This is the first "
+                "spectral record of the mask on this stock"),
+        ),
     ),
     FilmProfile(
         name="KONICA_VX_100",
@@ -12160,6 +12747,30 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             criterion="log_relative_speed_D1.0_above_dmin_CNK4_StatusM",
             source=("Konica, 'Konica Color VX 100 Film' Technical Data "
                     "Sheet (Improved), undated (PDF 2000)"),
+        ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.994, 1.693, 1.750, 1.893, 1.985, 2.018, 1.996,
+                     1.897, 1.727, 1.553, 1.455, 1.451, 1.504, 1.580, 1.653,
+                     1.697, 1.668, 1.545, 1.345, 1.135, 0.989, 0.948, 0.971,
+                     1.027, 1.099, 1.175, 1.250, 1.315, 1.367, 1.399, 1.406),
+            d_dmin=(1.429, 0.978, 0.927, 0.927, 0.926, 0.913, 0.879, 0.828,
+                     0.767, 0.707, 0.664, 0.653, 0.650, 0.650, 0.641, 0.628,
+                     0.631, 0.624, 0.575, 0.440, 0.332, 0.273, 0.245, 0.237,
+                     0.236, 0.238, 0.241, 0.244, 0.246, 0.247, 0.246),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "Konica, Konica VX 100 (Improved) technical data sheet "
+                "(VX100Improved.pdf), SPECTRAL DYE DENSITY CURVES, p3; '* "
+                "Typical densities for a midscale neutral subject and D "
+                "min.' VECTOR extraction 2026-09-04 by fuji_konica_dye.py, "
+                "axis worst residual 0.19 pt in x and 0.31 pt in y ⚠ "
+                "d_dmin ON A MASKED COLOUR NEGATIVE IS THE ORANGE MASK, "
+                "MEASURED. It falls 1.429 -> 0.246 D across 400-700 nm, "
+                "and that fall is the physics gate the reader and "
+                "verify.py both apply: a pair stored the wrong way round "
+                "passes every other check. This is the first spectral "
+                "record of the mask on this stock"),
         ),
     ),
     FilmProfile(
@@ -12239,6 +12850,30 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             source=("Konica, 'Konica Color CENTURIA SUPER 1600 Film' "
                     "Technical Data Sheet, February 2002"),
         ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.997, 1.806, 1.864, 1.980, 2.009, 1.995, 1.945,
+                     1.854, 1.729, 1.613, 1.579, 1.617, 1.631, 1.652, 1.693,
+                     1.679, 1.589, 1.438, 1.242, 1.051, 0.915, 0.882, 0.916,
+                     0.979, 1.061, 1.148, 1.231, 1.301, 1.355, 1.387, 1.397),
+            d_dmin=(1.311, 1.045, 1.023, 1.050, 1.050, 1.025, 0.984, 0.935,
+                     0.886, 0.843, 0.819, 0.842, 0.818, 0.794, 0.803, 0.800,
+                     0.796, 0.766, 0.695, 0.533, 0.399, 0.345, 0.322, 0.315,
+                     0.318, 0.326, 0.337, 0.347, 0.356, 0.361, 0.362),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "Konica, Konica CENTURIA SUPER 1600 technical data sheet "
+                "(csuper1600.pdf), SPECTRAL DYE DENSITY CURVES, p2; "
+                "'Process: CNK-4', '* Typical densities for a midscale "
+                "neutral subject and D min.' VECTOR extraction 2026-09-04 "
+                "by fuji_konica_dye.py, axis worst residual 0.13 pt in x "
+                "and 0.23 pt in y ⚠ d_dmin ON A MASKED COLOUR NEGATIVE IS "
+                "THE ORANGE MASK, MEASURED. It falls 1.311 -> 0.362 D "
+                "across 400-700 nm, and that fall is the physics gate the "
+                "reader and verify.py both apply: a pair stored the wrong "
+                "way round passes every other check. This is the first "
+                "spectral record of the mask on this stock"),
+        ),
     ),
     FilmProfile(
         name="KONICA_CHROME_CENTURIA_100",
@@ -12280,6 +12915,41 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             source=("Konica, 'Konica Chrome CENTURIA 100 SRA Film' "
                     "Technical Data Sheet, undated (PDF 2002)"),
         ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.186, 0.156, 0.130, 0.107, 0.089, 0.074, 0.064, 0.058,
+                     0.059, 0.065, 0.077, 0.095, 0.119, 0.147, 0.181, 0.218,
+                     0.259, 0.304, 0.354, 0.437, 0.547, 0.663, 0.773, 0.865,
+                     0.934, 0.978, 0.994, 0.981, 0.938, 0.875, 0.800),
+            d_magenta=(0.141, 0.156, 0.172, 0.173, 0.171, 0.176, 0.207,
+                     0.251, 0.304, 0.365, 0.437, 0.580, 0.794, 0.917, 0.979,
+                     0.999, 0.983, 0.918, 0.794, 0.616, 0.414, 0.248, 0.161,
+                     0.122, 0.096, 0.076, 0.060, 0.048, 0.037, 0.029, 0.021),
+            d_yellow=(0.557, 0.700, 0.822, 0.925, 0.989, 0.994, 0.953, 0.852,
+                     0.688, 0.505, 0.354, 0.242, 0.163, 0.107, 0.075, 0.059,
+                     0.050, 0.042, 0.037, 0.032, 0.029, 0.026, 0.023, 0.021,
+                     0.019, 0.018, 0.017, 0.016, 0.015, 0.014, 0.014),
+            normalisation="peak_1.0",
+            source=(
+                "Konica, Konica Chrome CENTURIA 100 technical data sheet "
+                "(chrocen100.pdf), SPECTRAL CHARACTERISTIC OF DYES, p3; "
+                "'Process: CRK-2'. Curves labelled Y (solid), M (dashed), "
+                "C (dash-dot). VECTOR extraction 2026-09-04 by "
+                "fuji_konica_dye.py; the sheet carries no rotated axis "
+                "caption, so the plot frame is found by tick count rather "
+                "than by proximity to a caption. Axis worst tick residual "
+                "0.00 pt in x and 0.32 pt in y. Peaks 450 / 550 / 660 nm, "
+                "|peak - 1.000| <= 0.0058. A fourth path in the frame, "
+                "peaking 1.398 D at exactly 600 nm and made of straight "
+                "segments, is a leader line and is rejected twice -- on "
+                "frame-span and on the unit-peak test. ⚠ THE MAGENTA AND "
+                "CYAN ARE THE SAME DRAWING AS KONICA_CHROME_R100's: rms "
+                "0.00008 and 0.00006 D, which is float noise and not "
+                "similarity. Only the YELLOW was redrawn (rms 0.017, max "
+                "0.049). So these two profiles carry ONE magenta and ONE "
+                "cyan measurement between them and two yellows, and a "
+                "verify.py guard holds that identity."),
+        ),
     ),
     FilmProfile(
         name="KONICA_CHROME_R100",
@@ -12320,6 +12990,33 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
             criterion="log_relative_speed_D1.0_CRK2_StatusA",
             source=("Konica, 'Konica Chrome R-100 Film' Technical Data "
                     "Sheet, undated (PDF 1999)"),
+        ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(0.186, 0.156, 0.130, 0.107, 0.089, 0.074, 0.064, 0.058,
+                     0.059, 0.065, 0.077, 0.095, 0.119, 0.147, 0.181, 0.218,
+                     0.259, 0.304, 0.354, 0.437, 0.547, 0.663, 0.772, 0.865,
+                     0.934, 0.978, 0.994, 0.981, 0.938, 0.875, 0.800),
+            d_magenta=(0.141, 0.156, 0.172, 0.173, 0.171, 0.176, 0.207,
+                     0.251, 0.304, 0.365, 0.437, 0.580, 0.794, 0.917, 0.979,
+                     0.999, 0.983, 0.918, 0.795, 0.616, 0.414, 0.248, 0.161,
+                     0.122, 0.096, 0.076, 0.060, 0.048, 0.037, 0.029, 0.021),
+            d_yellow=(0.508, 0.659, 0.782, 0.891, 0.968, 0.999, 0.973, 0.875,
+                     0.700, 0.515, 0.368, 0.259, 0.179, 0.119, 0.078, 0.060,
+                     0.049, 0.041, 0.036, 0.031, 0.028, 0.025, 0.023, 0.021,
+                     0.019, 0.018, 0.017, 0.016, 0.015, 0.014, 0.014),
+            normalisation="peak_1.0",
+            source=(
+                "Konica, Konica Chrome R100 technical data sheet "
+                "(R100.pdf), SPECTRAL CHARACTERISTIC OF DYES, p3; "
+                "'Process: CRK-2'. Curves labelled Y (solid), M (dashed), "
+                "C (dash-dot). VECTOR extraction 2026-09-04 by "
+                "fuji_konica_dye.py. Axis worst tick residual 0.00 pt in x "
+                "and 0.32 pt in y. Peaks 450 / 550 / 660 nm, |peak - "
+                "1.000| <= 0.0057. ⚠ THE MAGENTA AND CYAN ARE THE SAME "
+                "DRAWING AS KONICA_CHROME_CENTURIA_100's -- see that "
+                "profile's note. One magenta and one cyan measurement "
+                "across the two profiles; the yellow here is its own."),
         ),
     ),
     FilmProfile(
@@ -16723,10 +17420,10 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -4.00, 0.00, -0.05, -0.12, -0.18, -0.23, 
-                     -0.29, -0.34, -0.40, -0.47, -0.52, -0.52, -0.48, 
-                     -0.43, -0.39, -0.39, -0.39, -0.39, -0.31, -0.34, 
-                     -0.38, -0.44, -0.50, -0.52, -0.50, -0.60, -1.13, 
+            log_s_pan=(-4.00, -4.00, 0.00, -0.05, -0.12, -0.18, -0.23,
+                     -0.29, -0.34, -0.40, -0.47, -0.52, -0.52, -0.48,
+                     -0.43, -0.39, -0.39, -0.39, -0.39, -0.31, -0.34,
+                     -0.38, -0.44, -0.50, -0.52, -0.50, -0.60, -1.13,
                      -1.81, -2.15, -2.54, -2.95, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
@@ -16774,10 +17471,10 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # the curve there (measured span 380-650 nm on this grid).
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-0.16, -0.17, -0.18, -0.21, -0.22, -0.23, -0.26, 
-                     -0.27, -0.30, -0.34, -0.39, -0.38, -0.34, -0.28, 
-                     -0.19, -0.15, -0.21, -0.15, -0.12, 0.00, -0.05, -0.17, 
-                     -0.31, -0.39, -0.36, -0.33, -0.75, -1.52, -4.00, 
+            log_s_pan=(-0.16, -0.17, -0.18, -0.21, -0.22, -0.23, -0.26,
+                     -0.27, -0.30, -0.34, -0.39, -0.38, -0.34, -0.28,
+                     -0.19, -0.15, -0.21, -0.15, -0.12, 0.00, -0.05, -0.17,
+                     -0.31, -0.39, -0.36, -0.33, -0.75, -1.52, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_dmin",
             source=(
@@ -16824,10 +17521,10 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # base+fog); the stored curve is the speed-defining D = 0.3 one.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -4.00, -4.00, -4.00, -0.00, -0.02, -0.05, 
-                     -0.09, -0.14, -0.22, -0.28, -0.29, -0.30, -0.29, 
-                     -0.25, -0.21, -0.19, -0.21, -0.22, -0.18, -0.14, 
-                     -0.18, -0.25, -0.32, -0.35, -0.36, -0.37, -0.71, 
+            log_s_pan=(-4.00, -4.00, -4.00, -4.00, -0.00, -0.02, -0.05,
+                     -0.09, -0.14, -0.22, -0.28, -0.29, -0.30, -0.29,
+                     -0.25, -0.21, -0.19, -0.21, -0.22, -0.18, -0.14,
+                     -0.18, -0.25, -0.32, -0.35, -0.36, -0.37, -0.71,
                      -1.39, -1.80, -2.21, -2.68, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
@@ -17235,10 +17932,10 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # base+fog); the stored curve is the speed-defining D = 0.3 one.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-0.00, -0.01, -0.02, -0.03, -0.04, -0.07, -0.11, 
-                     -0.15, -0.19, -0.29, -0.37, -0.45, -0.51, -0.50, 
-                     -0.44, -0.40, -0.35, -0.31, -0.28, -0.27, -0.27, 
-                     -0.31, -0.37, -0.32, -0.31, -0.42, -0.84, -1.81, 
+            log_s_pan=(-0.00, -0.01, -0.02, -0.03, -0.04, -0.07, -0.11,
+                     -0.15, -0.19, -0.29, -0.37, -0.45, -0.51, -0.50,
+                     -0.44, -0.40, -0.35, -0.31, -0.28, -0.27, -0.27,
+                     -0.31, -0.37, -0.32, -0.31, -0.42, -0.84, -1.81,
                      -2.46, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
@@ -17385,10 +18082,10 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-2.24, -0.84, -0.11, 0.00, -0.06, -0.11, -0.19, 
-                     -0.29, -0.37, -0.45, -0.54, -0.64, -0.72, -0.78, 
-                     -0.79, -0.75, -0.71, -0.69, -0.64, -0.60, -0.60, 
-                     -0.64, -0.69, -0.71, -0.69, -0.71, -0.96, -1.47, 
+            log_s_pan=(-2.24, -0.84, -0.11, 0.00, -0.06, -0.11, -0.19,
+                     -0.29, -0.37, -0.45, -0.54, -0.64, -0.72, -0.78,
+                     -0.79, -0.75, -0.71, -0.69, -0.64, -0.60, -0.60,
+                     -0.64, -0.69, -0.71, -0.69, -0.71, -0.96, -1.47,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
@@ -17433,10 +18130,10 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # base+fog); the stored curve is the speed-defining D = 0.3 one.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -4.00, -1.13, -0.56, -0.42, -0.42, -0.49, 
-                     -0.52, -0.55, -0.58, -0.56, -0.50, -0.47, -0.38, 
-                     -0.24, -0.21, -0.25, -0.19, -0.15, -0.00, -0.05, 
-                     -0.17, -0.29, -0.33, -0.29, -0.30, -0.89, -4.00, 
+            log_s_pan=(-4.00, -4.00, -1.13, -0.56, -0.42, -0.42, -0.49,
+                     -0.52, -0.55, -0.58, -0.56, -0.50, -0.47, -0.38,
+                     -0.24, -0.21, -0.25, -0.19, -0.15, -0.00, -0.05,
+                     -0.17, -0.29, -0.33, -0.29, -0.30, -0.89, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
@@ -17487,10 +18184,10 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -1.71, -1.15, -0.56, -0.41, -0.41, -0.48, 
-                     -0.51, -0.53, -0.56, -0.55, -0.49, -0.45, -0.38, 
-                     -0.25, -0.19, -0.25, -0.18, -0.15, 0.00, -0.03, -0.13, 
-                     -0.27, -0.31, -0.28, -0.27, -0.80, -1.74, -4.00, 
+            log_s_pan=(-4.00, -1.71, -1.15, -0.56, -0.41, -0.41, -0.48,
+                     -0.51, -0.53, -0.56, -0.55, -0.49, -0.45, -0.38,
+                     -0.25, -0.19, -0.25, -0.18, -0.15, 0.00, -0.03, -0.13,
+                     -0.27, -0.31, -0.28, -0.27, -0.80, -1.74, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
@@ -17734,20 +18431,20 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -1.73, -1.61, -0.82, 
-                     -0.50, -0.35, -0.30, -0.27, -0.20, -0.09, -0.00, 
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -1.73, -1.61, -0.82,
+                     -0.50, -0.35, -0.30, -0.27, -0.20, -0.09, -0.00,
                      -0.12, -0.75, -1.07, -1.56, -4.00),
-            log_s_g=(-4.00, -4.00, -0.85, -0.88, -0.97, -1.06, -1.21, 
-                     -1.21, -1.21, -1.20, -0.92, -0.56, -0.42, -0.34, 
-                     -0.23, -0.09, 0.00, -0.02, -0.04, -0.15, -0.50, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-4.00, -4.00, -0.85, -0.88, -0.97, -1.06, -1.21,
+                     -1.21, -1.21, -1.20, -0.92, -0.56, -0.42, -0.34,
+                     -0.23, -0.09, 0.00, -0.02, -0.04, -0.15, -0.50, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.98, -0.49, -0.15, -0.09, -0.12, -0.09, -0.06, 
-                     -0.14, -0.06, 0.00, -0.41, -1.54, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-0.98, -0.49, -0.15, -0.09, -0.12, -0.09, -0.06,
+                     -0.14, -0.06, 0.00, -0.41, -1.54, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -17878,20 +18575,20 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -1.94, -1.89, -1.78, 
-                     -1.69, -1.67, -1.68, -1.55, -1.31, -1.07, -0.63, 
-                     -0.36, -0.19, -0.07, -0.01, 0.00, -0.23, -0.86, -1.08, 
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -1.94, -1.89, -1.78,
+                     -1.69, -1.67, -1.68, -1.55, -1.31, -1.07, -0.63,
+                     -0.36, -0.19, -0.07, -0.01, 0.00, -0.23, -0.86, -1.08,
                      -4.00, -4.00, -4.00, -4.00),
-            log_s_g=(-4.00, -1.13, -0.79, -0.86, -0.90, -1.01, -1.02, 
-                     -1.08, -1.05, -1.00, -0.80, -0.63, -0.48, -0.41, 
-                     -0.32, -0.22, -0.09, -0.00, -0.11, -0.25, -0.63, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-4.00, -1.13, -0.79, -0.86, -0.90, -1.01, -1.02,
+                     -1.08, -1.05, -1.00, -0.80, -0.63, -0.48, -0.41,
+                     -0.32, -0.22, -0.09, -0.00, -0.11, -0.25, -0.63,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.93, -0.51, -0.10, -0.11, -0.10, -0.13, -0.07, 
-                     -0.13, -0.04, 0.00, -0.42, -1.29, -1.73, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-0.93, -0.51, -0.10, -0.11, -0.10, -0.13, -0.07,
+                     -0.13, -0.04, 0.00, -0.42, -1.29, -1.73, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -18096,20 +18793,20 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -2.64, -2.52, -2.32, 
-                     -2.16, -2.13, -2.11, -1.98, -1.74, -1.57, -0.97, 
-                     -0.57, -0.43, -0.35, -0.28, -0.19, -0.06, 0.00, -0.03, 
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -2.64, -2.52, -2.32,
+                     -2.16, -2.13, -2.11, -1.98, -1.74, -1.57, -0.97,
+                     -0.57, -0.43, -0.35, -0.28, -0.19, -0.06, 0.00, -0.03,
                      -0.54, -0.94, -1.41, -2.43),
-            log_s_g=(-4.00, -1.80, -1.46, -1.48, -1.54, -1.58, -1.66, 
-                     -1.63, -1.56, -1.57, -1.07, -0.68, -0.49, -0.41, 
-                     -0.31, -0.17, -0.04, 0.00, -0.06, -0.22, -0.48, -1.32, 
-                     -2.39, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-4.00, -1.80, -1.46, -1.48, -1.54, -1.58, -1.66,
+                     -1.63, -1.56, -1.57, -1.07, -0.68, -0.49, -0.41,
+                     -0.31, -0.17, -0.04, 0.00, -0.06, -0.22, -0.48, -1.32,
+                     -2.39, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.99, -0.50, -0.06, -0.00, -0.06, -0.08, -0.14, 
-                     -0.17, -0.13, -0.04, -0.36, -0.88, -1.46, -2.09, 
-                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-0.99, -0.50, -0.06, -0.00, -0.06, -0.08, -0.14,
+                     -0.17, -0.13, -0.04, -0.36, -0.88, -1.46, -2.09,
+                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -18382,20 +19079,20 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -1.76, -1.59, -1.40, -1.14, -0.65, 
-                     -0.29, -0.12, -0.03, -0.00, -0.12, -0.39, -0.77, 
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -1.76, -1.59, -1.40, -1.14, -0.65,
+                     -0.29, -0.12, -0.03, -0.00, -0.12, -0.39, -0.77,
                      -1.07, -1.09, -1.00, -4.00, -4.00),
-            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.73, 
-                     -1.68, -1.61, -1.48, -1.13, -0.72, -0.47, -0.34, 
-                     -0.23, -0.08, -0.00, -0.01, -0.05, -0.21, -0.76, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.73,
+                     -1.68, -1.61, -1.48, -1.13, -0.72, -0.47, -0.34,
+                     -0.23, -0.08, -0.00, -0.01, -0.05, -0.21, -0.76,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-1.71, -1.37, -0.76, -0.30, -0.16, -0.08, -0.02, 
-                     -0.11, -0.07, 0.00, -0.55, -1.19, -1.66, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-1.71, -1.37, -0.76, -0.30, -0.16, -0.08, -0.02,
+                     -0.11, -0.07, 0.00, -0.55, -1.19, -1.66, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -18448,20 +19145,20 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -1.85, -1.61, -1.72, -1.87, -2.02, -2.16, 
-                     -2.23, -2.25, -2.25, -2.25, -2.14, -2.03, -1.93, 
-                     -1.83, -1.77, -1.69, -1.59, -1.44, -1.30, -1.01, 
-                     -0.81, -0.68, -0.57, -0.43, -0.31, -0.13, -0.00, 
+            log_s_r=(-4.00, -1.85, -1.61, -1.72, -1.87, -2.02, -2.16,
+                     -2.23, -2.25, -2.25, -2.25, -2.14, -2.03, -1.93,
+                     -1.83, -1.77, -1.69, -1.59, -1.44, -1.30, -1.01,
+                     -0.81, -0.68, -0.57, -0.43, -0.31, -0.13, -0.00,
                      -0.13, -0.68, -1.14, -4.00, -4.00),
-            log_s_g=(-1.66, -1.30, -1.00, -1.05, -1.14, -1.24, -1.33, 
-                     -1.34, -1.33, -1.29, -1.04, -0.73, -0.56, -0.47, 
-                     -0.35, -0.18, -0.03, -0.00, -0.11, -0.38, -0.85, 
-                     -1.69, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-1.66, -1.30, -1.00, -1.05, -1.14, -1.24, -1.33,
+                     -1.34, -1.33, -1.29, -1.04, -0.73, -0.56, -0.47,
+                     -0.35, -0.18, -0.03, -0.00, -0.11, -0.38, -0.85,
+                     -1.69, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-1.09, -0.70, -0.30, -0.21, -0.25, -0.23, -0.17, 
-                     -0.21, -0.12, 0.00, -0.44, -1.52, -2.06, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-1.09, -0.70, -0.30, -0.21, -0.25, -0.23, -0.17,
+                     -0.21, -0.12, 0.00, -0.44, -1.52, -2.06, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -18545,20 +19242,20 @@ mtf=MTFSpec(44.1, 50.0, 57.4, adjacency=0.11, adjacency_um=17.0),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -1.85, -1.61, -1.72, -1.87, -2.02, -2.16, 
-                     -2.23, -2.25, -2.25, -2.25, -2.14, -2.03, -1.93, 
-                     -1.83, -1.77, -1.69, -1.59, -1.44, -1.30, -1.01, 
-                     -0.81, -0.68, -0.57, -0.43, -0.31, -0.13, -0.00, 
+            log_s_r=(-4.00, -1.85, -1.61, -1.72, -1.87, -2.02, -2.16,
+                     -2.23, -2.25, -2.25, -2.25, -2.14, -2.03, -1.93,
+                     -1.83, -1.77, -1.69, -1.59, -1.44, -1.30, -1.01,
+                     -0.81, -0.68, -0.57, -0.43, -0.31, -0.13, -0.00,
                      -0.13, -0.68, -1.14, -4.00, -4.00),
-            log_s_g=(-1.66, -1.30, -1.00, -1.05, -1.14, -1.24, -1.33, 
-                     -1.34, -1.33, -1.29, -1.04, -0.73, -0.56, -0.47, 
-                     -0.35, -0.18, -0.03, -0.00, -0.11, -0.38, -0.85, 
-                     -1.69, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-1.66, -1.30, -1.00, -1.05, -1.14, -1.24, -1.33,
+                     -1.34, -1.33, -1.29, -1.04, -0.73, -0.56, -0.47,
+                     -0.35, -0.18, -0.03, -0.00, -0.11, -0.38, -0.85,
+                     -1.69, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-1.09, -0.70, -0.30, -0.21, -0.25, -0.23, -0.17, 
-                     -0.21, -0.12, 0.00, -0.44, -1.52, -2.06, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-1.09, -0.70, -0.30, -0.21, -0.25, -0.23, -0.17,
+                     -0.21, -0.12, 0.00, -0.44, -1.52, -2.06, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -18702,20 +19399,20 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # there. Measured spans: b 380-520, g 390-590, r 490-690 nm.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -2.44, -2.30, -2.13, 
-                     -1.98, -1.93, -1.90, -1.78, -1.56, -1.42, -0.98, 
-                     -0.69, -0.58, -0.48, -0.37, -0.27, -0.10, -0.00, 
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -2.44, -2.30, -2.13,
+                     -1.98, -1.93, -1.90, -1.78, -1.56, -1.42, -0.98,
+                     -0.69, -0.58, -0.48, -0.37, -0.27, -0.10, -0.00,
                      -0.11, -0.57, -1.01, -1.43, -4.00),
-            log_s_g=(-4.00, -1.86, -1.56, -1.61, -1.68, -1.76, -1.84, 
-                     -1.82, -1.77, -1.73, -1.30, -0.79, -0.58, -0.48, 
-                     -0.35, -0.20, -0.06, -0.00, -0.08, -0.26, -0.56, 
-                     -1.54, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-4.00, -1.86, -1.56, -1.61, -1.68, -1.76, -1.84,
+                     -1.82, -1.77, -1.73, -1.30, -0.79, -0.58, -0.48,
+                     -0.35, -0.20, -0.06, -0.00, -0.08, -0.26, -0.56,
+                     -1.54, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.92, -0.51, -0.10, -0.02, -0.06, -0.06, -0.05, 
-                     -0.13, -0.11, -0.00, -0.38, -1.01, -1.67, -2.14, 
-                     -2.58, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-0.92, -0.51, -0.10, -0.02, -0.06, -0.06, -0.05,
+                     -0.13, -0.11, -0.00, -0.38, -1.01, -1.67, -2.14,
+                     -2.58, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -18845,20 +19542,20 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # above before converting back to absolute sensitivity.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -2.63, -2.51, -2.31, 
-                     -2.15, -2.13, -2.11, -1.97, -1.73, -1.54, -0.94, 
-                     -0.57, -0.42, -0.35, -0.27, -0.18, -0.05, 0.00, -0.08, 
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -2.63, -2.51, -2.31,
+                     -2.15, -2.13, -2.11, -1.97, -1.73, -1.54, -0.94,
+                     -0.57, -0.42, -0.35, -0.27, -0.18, -0.05, 0.00, -0.08,
                      -0.56, -0.96, -1.46, -2.47),
-            log_s_g=(-4.00, -1.78, -1.45, -1.48, -1.54, -1.58, -1.66, 
-                     -1.63, -1.56, -1.56, -1.03, -0.67, -0.48, -0.41, 
-                     -0.31, -0.17, -0.03, 0.00, -0.07, -0.22, -0.50, -1.38, 
-                     -2.40, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_g=(-4.00, -1.78, -1.45, -1.48, -1.54, -1.58, -1.66,
+                     -1.63, -1.56, -1.56, -1.03, -0.67, -0.48, -0.41,
+                     -0.31, -0.17, -0.03, 0.00, -0.07, -0.22, -0.50, -1.38,
+                     -2.40, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.99, -0.49, -0.06, -0.00, -0.06, -0.08, -0.14, 
-                     -0.17, -0.13, -0.04, -0.38, -0.89, -1.48, -2.09, 
-                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, 
+            log_s_b=(-0.99, -0.49, -0.06, -0.00, -0.06, -0.08, -0.14,
+                     -0.17, -0.13, -0.04, -0.38, -0.89, -1.48, -2.09,
+                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
                      -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
@@ -18866,6 +19563,37 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
                 "Sensitivity Curves, p3; PDF vector-path extraction 2026-08-16"),
         ),
         features=Feature.STRONG_DIR_COUPLERS,
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.350, 1.422, 1.584, 1.716, 1.756, 1.739, 1.689,
+                     1.598, 1.488, 1.398, 1.384, 1.412, 1.441, 1.460, 1.480,
+                     1.433, 1.309, 1.134, 0.941, 0.783, 0.699, 0.694, 0.737,
+                     0.803, 0.882, 0.963, 1.040, 1.104, 1.154, 1.179, 1.178),
+            d_dmin=(0.862, 0.862, 0.944, 0.998, 1.006, 0.977, 0.930, 0.867,
+                     0.800, 0.733, 0.699, 0.687, 0.650, 0.620, 0.608, 0.596,
+                     0.578, 0.538, 0.456, 0.343, 0.259, 0.221, 0.212, 0.213,
+                     0.221, 0.230, 0.241, 0.251, 0.259, 0.264, 0.263),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "Eastman Kodak Company, KODAK ULTRA MAX 800 Film, "
+                "publication E-7024 (E7024-Ultra_Max_800.pdf), Spectral "
+                "Dye Density Curves, p4; 'Typical densities for a midscale "
+                "neutral subject and D-min.', 'Process: C-41'. VECTOR "
+                "extraction 2026-09-04 by fuji_konica_dye.py, axis worst "
+                "residual 0.01 pt in x and 1.04 pt in y -- the loosest y "
+                "calibration of the six, 0.014 D on this sheet's 2.5 D "
+                "axis. ⚠ THIS IS THE ONE SHEET OF THE SIX WHERE THE "
+                "NEUTRAL IS DASHED AND THE D-MIN SOLID. The two are named "
+                "by LEVEL -- the neutral is the higher everywhere, being a "
+                "midscale subject read through the same mask -- precisely "
+                "so that no stroke-style rule has to be inverted for this "
+                "sheet alone ⚠ d_dmin ON A MASKED COLOUR NEGATIVE IS THE "
+                "ORANGE MASK, MEASURED. It falls 0.862 -> 0.263 D across "
+                "400-700 nm, and that fall is the physics gate the reader "
+                "and verify.py both apply: a pair stored the wrong way "
+                "round passes every other check. This is the first "
+                "spectral record of the mask on this stock"),
+        ),
     ),
     FilmProfile(
         name="KODAK_VERICOLOR_III_160",
@@ -19590,6 +20318,179 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         default_flare=0.085,
         default_format="ff35",
         features=Feature.HALATION | Feature.UNEVEN_EMULSION | Feature.NITRATE_BASE,
+    ),
+
+    FilmProfile(
+        name="SUPER_ANSCOCHROME_1957",
+        aliases=("super anscochrome", "anscochrome super", "ansco super",
+                 "super ansco chrome"),
+        description=(
+            "[T1] Super Anscochrome, Ansco's incorporated-coupler reversal "
+            "film, released APRIL 1957 at EI 100 daylight -- one and a half to "
+            "two stops over the Anscochrome of 1955, which it did not replace. "
+            "⚠ WHAT MAKES THIS STOCK WORTH HAVING IS NOT THE FILM, IT IS THE "
+            "PAPER: Gifford and Gerhardt print FOUR complete characteristic "
+            "curves for FOUR first-development times on one panel, with the "
+            "exposure index each one is rated at. That is the only four-point "
+            "development ladder on a reversal stock in this database, against "
+            "one two-point ladder (GEVACHROME_605) everywhere else, and all "
+            "four are carried -- three in `process_variants`, the normal one "
+            "here. ⚠ IT IS A VERY CONTRASTY, VERY SHORT-SCALE FILM AND THE "
+            "NUMBERS ARE NOT A TRACING FAULT: the normal curve falls from "
+            "Dmax 3.67 to Dmin 0.14 across 1.4 decades, straight-line gamma "
+            "3.94 over D 0.5-2.0 and a fitted 5.27, against a corpus reversal "
+            "median of 1.66. Measured max gradient on the trace itself is "
+            "4.94, and the printed panel's aspect ratio confirms it -- one "
+            "decade is 88.98 pt wide and one density unit 53.58 pt tall, so "
+            "the steep section stands at 73 degrees on the page. SOURCE "
+            "Gifford, H.C. / Gerhardt, W.J., «Characteristics of Super "
+            "Anscochrome Film», Photographic Science and Engineering 1(1) "
+            "p12, July 1957 (Ansco Development Department, Binghamton NY; "
+            "received 10 June 1957)."
+        ),
+        era="1957-1960s",
+        # p12, running text: "an exposure index of 100 for daylight".
+        exposure_index=100,
+        balance_kelvin=5500,   # daylight stock; 5500 K is this database's
+                               # daylight convention [C3 -- the paper says
+                               # "daylight", not a colour temperature]
+        kind=StockKind.REVERSAL,
+        # [T1] TRACED FROM FIG. 4, p12 -- queue #214/#215, 2026-09-05,
+        # anscochrome_1957.py. Curve B, "Normal": 16 min first developer,
+        # 14 min colour developer, 68 degF, EI 100.
+        #
+        # ⚠ ALL THREE CHANNELS CARRY THE SAME CURVE, AND THAT IS THE
+        # MEASUREMENT RATHER THAN A FALLBACK. Fig. 4 plots the THREE-LAYER
+        # AVERAGE, and it does so because Fig. 1 -- the same film, the same
+        # process, per layer -- draws cyan, magenta and yellow inside a single
+        # line width over almost the whole range. The paper's own words for
+        # that are "good curve conformity". Rendering the three layers apart
+        # would be inventing a separation the source shows is absent.
+        #
+        # AXIS. The panel's own tick labels were read from the page's OCR text
+        # layer WITH their positions, so the calibration comes from the
+        # document and not from pixel hunting: eight ordinate ticks 0.5-4.0 fit
+        # to a worst residual of 0.77 pt = 0.014 D, six abscissa ticks 7.5-9.0
+        # to 1.24 pt = 0.014 decade, all fourteen kept (no outlier dropped).
+        # 400 dpi grey render, ink threshold 195 -- 170 drops the dashed
+        # segments on this faded 1957 halftone and picks up the running text
+        # above the frame.
+        #
+        # TRACE. dashtrace.trace_predictive, four tracks seeded at x = 370 px
+        # (lg 7.78) where all four curves resolve into four separate runs, run
+        # rightward to the curve ends and leftward to their starts. THE CURVES
+        # NEVER CROSS -- more first development moves a reversal curve down AND
+        # left, so A is above B is above C is above D at every abscissa -- which
+        # is why a bidirectional trace is admissible here and was not on the
+        # VISION3 sheets. Ordering asserted at all 183 columns where all four
+        # carry a sample: zero violations. ⚠ AND CURVE B IS CHECKED AGAINST THE
+        # DRAWING ITSELF: it is the only SOLID curve, hence one connected
+        # component in the ink mask, and all 699 traced points of B fall inside
+        # it. Points 436 / 699 / 452 / 436 for A / B / C / D.
+        #
+        # FIT. kodak_still_curves.fit_tone_curve under shoulder_k <= 1.4*toe_k.
+        # rms 0.0245 / 0.0197 / 0.0240 / 0.0269 D, worst 0.063 / 0.040 / 0.063 /
+        # 0.059, for A / B / C / D. Fitted Dmax within 0.03 D of traced Dmax on
+        # all four.
+        #
+        # ⚠ THE ABSCISSA ORIGIN IS A CONVENTION AND THE PAPER CANNOT FIX IT.
+        # Fig. 4's axis is labelled "LOG EXPOSURE" 7.5-9.3 and the UNIT IS
+        # STATED NOWHERE in the paper -- no lux-seconds, no metre-candle-
+        # seconds, no speed point. x = 0 is therefore placed where curve B
+        # reaches D = 1.20, the Status A density a projected transparency
+        # renders metered mid-grey at; the corpus's 41 reversal stocks have a
+        # median D(x=0) of 1.345 with quartiles 0.97-1.51, so this lands inside
+        # the existing population rather than beside it. Anchor at traced
+        # lg 8.612. ⚠ EVERY MEASURED QUANTITY IS INVARIANT UNDER THE CHOICE --
+        # gamma, Dmax, Dmin, throw, and the spacing between the four curves --
+        # and only the absolute placement is not.
+        #
+        # ⚠ THAT THE ABSCISSA IS log10 IS CHECKED, NOT ASSUMED. The paper prints
+        # an EI for each of the four developments, and log10 of the EI ratios
+        # predicts where the four curves should sit relative to each other: A
+        # +0.097, C -0.176, D -0.301 decades from B. Measured over D 0.3-2.8 the
+        # shifts run A +0.072..+0.099, C -0.153..-0.206, D -0.316..-0.384. Mean
+        # ratio measured/predicted 1.006 over 36 comparisons. A base other than
+        # 10 would scale all
+        # three by one constant, and none does.
+        curves=RGBCurves(
+            r=ToneCurve(0.1444, 5.2706, -0.1809, 0.1163, 0.4893, 0.1295),
+            g=ToneCurve(0.1444, 5.2706, -0.1809, 0.1163, 0.4893, 0.1295),
+            b=ToneCurve(0.1444, 5.2706, -0.1809, 0.1163, 0.4893, 0.1295),
+        ),
+        # [T1] THE PAPER'S OWN TABLE, printed beside Fig. 4, joined to the
+        # gammas measured from the four traced curves. Ansco Color Film
+        # Developer, 68 degF; `minutes` is the FIRST developer, the colour
+        # developer time is in `dilution` because there is no field for it.
+        # `gamma` is the straight-line slope by least squares over D 0.5-2.0 on
+        # the trace; `base_fog` is the fitted Dmin.
+        # ⚠ THE LADDER IS MONOTONE IN ALL THREE QUANTITIES AT ONCE and that is
+        # the cross-check that licenses the whole extraction: more first
+        # development raises gamma (3.55 -> 4.57), lowers Dmax (3.88 -> 2.92)
+        # and lowers Dmin (0.153 -> 0.080), which is exactly what a reversal
+        # first developer does -- it consumes the silver that would otherwise
+        # become dye. Nothing in the tracer knows that, so four independent
+        # traces agreeing on it is evidence and not construction.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="Ansco first developer (A)",
+                                 dilution="colour developer 14 min",
+                                 minutes=14.0, celsius=20.0,
+                                 gamma=3.5469, exposure_index=80,
+                                 base_fog=0.1530),
+                DevelopmentPoint(developer="Ansco first developer (B, normal)",
+                                 dilution="colour developer 14 min",
+                                 minutes=16.0, celsius=20.0,
+                                 gamma=3.9368, exposure_index=100,
+                                 base_fog=0.1444),
+                DevelopmentPoint(developer="Ansco first developer (C)",
+                                 dilution="colour developer 18 min",
+                                 minutes=19.0, celsius=20.0,
+                                 gamma=4.3809, exposure_index=150,
+                                 base_fog=0.1161),
+                DevelopmentPoint(developer="Ansco first developer (D)",
+                                 dilution="colour developer 18 min",
+                                 minutes=22.0, celsius=20.0,
+                                 gamma=4.5702, exposure_index=200,
+                                 base_fog=0.0799),
+            ),
+            source=(
+                "Gifford & Gerhardt, PS&E 1(1) p12, July 1957 -- the table "
+                "printed beside Fig. 4 gives the four (first developer, colour "
+                "developer, Exposure Index) rows at 68 degF; the gammas and "
+                "base-fog figures are measured from the four curves of that "
+                "same figure, traced 2026-09-05 by anscochrome_1957.py. "
+                "⚠ 68 degF is stored as 20 degC (20.0 exactly), which is the "
+                "conversion, not a second reading"),
+        ),
+        # [T3] NO GRANULARITY FIGURE IS PRINTED -- the paper is a sensitometry
+        # and processing note and measures no grain at all. Estimated from the
+        # FOUR MAKERS in this corpus with a reversal stock of comparable speed:
+        # SVEMA_CO_90L (EI 80) 16.0, GEVACHROME_605 (EI 160) 16.0,
+        # EASTMAN_EKTACHROME_5239 (EI 160) 14.0, ORWO_CHROM_UT18 (EI 50) 13.0.
+        # 15.5 sits at the coarse end of that band, which is where a 1957
+        # emulsion pushed one and a half to two stops past its predecessor
+        # belongs -- but it is an estimate from a class, not a measurement, and
+        # the clump triple is SVEMA_CO_90L's outright, that stock being the
+        # nearest in speed. clump_gain follows the pre-DIR reversal group
+        # (FERRANIACOLOR 1.22, SVEMA 1.15, KODACHROME_1938 1.15).
+        grain=GrainSpec(15.5, 4.839, 5.161, 5.968, clump_gain=1.20,
+                        fog_grain=0.24),
+        # [T3] NO RESOLVING POWER AND NO MTF ARE PRINTED EITHER. Placed between
+        # SVEMA_CO_32D (30/34/38) and SVEMA_CO_90L (33/37/42), the two stocks
+        # here whose resolving powers come from a printed figure at a
+        # comparable speed. Nothing in this paper corroborates it.
+        mtf=MTFSpec(32.0, 36.0, 40.0, adjacency=0.02),
+        # ⚠ NO HALATION SET IS STORED, deliberately. The paper prints nothing
+        # about the base, the backing or flare, and HalationSpec's default is
+        # inert (all three gains 0.0), so the stock renders with no halo rather
+        # than with an invented one. Feature.HALATION is NOT set for the same
+        # reason: 29 other colour stocks are in the same position.
+        base_tint=(0.985, 1.000, 0.965),
+        misregistration_um=8.0,
+        default_flare=0.060,
+        default_format="ff35",
+        features=Feature.UNEVEN_EMULSION,
     ),
 
     FilmProfile(
@@ -21699,7 +22600,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # -- Ilford / HARMAN -----------------------------------------------------
     "ILFORD_HP5_PLUS_400": (
         "ILFORD HP5 PLUS technical datasheet, HARMAN technology Ltd",
-    
+
                           "⚠ THIRD-PARTY, NON-MANUFACTURER, NOT A MEASUREMENT [T3]. FilmLab Pro v2.1 «published data» browser emulator, https://filmlabpro.com/published-data, engine values read out of its application bundle /assets/index-DdvumSO0.js and archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json (harvested 2026-08-27). USED FOR ONE PARAMETER ONLY on this profile -- halation gain and threshold, which were previously at the schema default 0/0/0 with Feature.HALATION unset. The site claims its numbers are digitized from manufacturer publications but names NO instrument, operator, date or laboratory, and its rms granularity contradicts the very datasheets it cites wherever this project holds the same document (Portra 400 6.5 vs E-4050's 4, Acros 100 4.5 vs Fuji's 7, Velvia 50 3.8 vs Fuji's 9, Kodachrome 64 6 vs Kodak's 10). Treat as a reconstruction, never as manufacturer data. Full assessment: doc/NotFound.md §7.1.",),
     "ILFORD_DELTA_3200": (
         "ILFORD DELTA 3200 PROFESSIONAL technical datasheet, "
@@ -21761,7 +22662,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "FUJI_NEOPAN_ACROS_100": (
         "FUJI NEOPAN 100 ACROS datasheet (and ACROS II AF3-0258E), "
         "FUJIFILM Corporation",
-    
+
                           "⚠ THIRD-PARTY, NON-MANUFACTURER, NOT A MEASUREMENT [T3]. FilmLab Pro v2.1 «published data» browser emulator, https://filmlabpro.com/published-data, engine values read out of its application bundle /assets/index-DdvumSO0.js and archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json (harvested 2026-08-27). USED FOR ONE PARAMETER ONLY on this profile -- halation gain and threshold, which were previously at the schema default 0/0/0 with Feature.HALATION unset. The site claims its numbers are digitized from manufacturer publications but names NO instrument, operator, date or laboratory, and its rms granularity contradicts the very datasheets it cites wherever this project holds the same document (Portra 400 6.5 vs E-4050's 4, Acros 100 4.5 vs Fuji's 7, Velvia 50 3.8 vs Fuji's 9, Kodachrome 64 6 vs Kodak's 10). Treat as a reconstruction, never as manufacturer data. Full assessment: doc/NotFound.md §7.1.",),
     "FUJI_ETERNA_VIVID_500T_8547": (
         "FUJICOLOR ETERNA Vivid 500 datasheet, FUJIFILM Corporation, 2009",
@@ -21861,7 +22762,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "CINESTILL_800T": (
         "CineStill 800T product documentation, CineStill Film, 2012 "
         "(base stock: KODAK VISION3 5219)",
-    
+
                           "CineStill Film, «What makes 800T the original and only true 800 speed tungsten balanced film for still photography», cinestillfilm.com/blogs/news/, read 2026-08-27 (owner-supplied). VENDOR PRODUCT PAGE, qualitative: EI 800 box speed in tungsten light, optimised for 3200K, remjet removed by CineStill's «Premoval» process, «Xpro C-41» processing, 135/120/4x5, «red halation glow» as the signature trait, and «could even be push processed up to 3 stops further without any base fog issues». ⚠ NO NUMERIC halation radius, intensity, granularity, gamma or curve data is printed on this page. It CORROBORATES this profile's extreme halation and its 3200K/EI 800 balance; it does not ground any stored number. The +3-stop push latitude has no field in the schema yet (logged in NotFound.md).",
                           "CineStill Film, sensitometric figure `cs41curves_600x600.png` (cdn.shopify.com/s/files/1/0339/5113/files/, v=1712783069, 580x600 px), embedded in the 800T article on cinestillfilm.com/blogs/news/, digitised 2026-08-27. VENDOR-PUBLISHED PLOT -- not a technical data sheet, and NOT a third-party measurement. GROUNDS: all three characteristic curves. Chart title \u00abLog Exposure\u00bb; ordinate D 0.0-3.5 by 0.5 (nine printed labels); abscissa carries BOTH a log10-exposure axis -4.0..+1.0 (six labels) and a \u00abCamera Stops\u00bb axis -8..+8 (seventeen labels). 480 samples per layer, one per pixel column, separated by hue and tracked with a continuity constraint. ToneCurve fitted per layer: residual rms 0.0197 / 0.0248 / 0.0154 D, max 0.039 / 0.060 / 0.053 D. Traced base+fog ladder 0.187 / 0.526 / 0.876 D agrees with KODAK VISION3 500T 5219 (0.187 / 0.581 / 0.837, traced from Kodak H-1) to 0.06 D worst-channel, which is what identifies the plot as this emulsion. \u26a0 THE CHART'S TWO ABSCISSAE ARE MUTUALLY INCONSISTENT BY 3.7 % -- sixteen stops drawn across exactly 5.00 decades is 3.20 stops/decade where a stop is 0.30103 decades. The log axis was adopted; the stops axis was used only for its zero, which places metered mid-grey at log E -1.51681 and sets the +1.51681 shift applied to reach this database's mid-grey-at-zero convention. \u26a0 WHAT IT DOES NOT GROUND: nothing else on this profile. No granularity, MTF, spectral, halation magnitude or Dmax figure appears on the page. Archived at doc/thirdparty/cinestill_cs41_raw_px.txt and doc/thirdparty/cinestill_curves_2026-08-27.json. Second figure on the same page (`cs41vscs2curves2`) is calibrated and archived but NOT imported -- see NotFound.md \u00a77.2.",),
     # -- Soviet reference books (added 2026-08-02). Russian titles kept
@@ -22180,6 +23081,21 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     # ---- queue T3, 2026-09-02e ----
     "FUJI_PROVIA_100F": ("FUJIFILM DATA SHEET, FUJICHROME PROVIA 100F Professional [RDP III], Ref. No. AF3-036E, Fuji Photo Film Co., Ltd.",),
+    # ⚠ A JOURNAL PAPER AND NOT A DATASHEET, AND THAT IS THE WHOLE PROVENANCE.
+    # Ansco published no data sheet for this film that survives in this corpus;
+    # what exists is the manufacturer's own Development Department writing up
+    # its own product in a refereed journal three months after release, with the
+    # sensitometer, the filter, the densitometer and the full processing chain
+    # named. That is stronger than most data sheets, not weaker, which is why
+    # the profile is tier 1 -- but it means every number on it comes from ONE
+    # document and one figure, so `anscochrome_1957.py` is registered in
+    # build.py's audit list to keep that figure honest.
+    "SUPER_ANSCOCHROME_1957": (
+        "Gifford, H.C. / Gerhardt, W.J., «Characteristics of Super Anscochrome "
+        "Film», Photographic Science and Engineering 1(1) p12, July 1957 "
+        "(Ansco Development Department, Binghamton NY; received 10 June 1957) "
+        "-- Fig. 4 and the processing table beside it, Table I, and the "
+        "sensitometry described on the same page",),
     "FUJICOLOR_SUPERIA_XTRA_400": ("FUJIFILM PRODUCT INFORMATION BULLETIN, FUJICOLOR SUPERIA X-TRA 400 [CH], Ref. No. AF3-151E, Fuji Photo Film Co., Ltd.",),
     "FUJICOLOR_PRO_400H": ("FUJIFILM PRODUCT INFORMATION BULLETIN, FUJICOLOR PRO 400H PROFESSIONAL, Ref. No. AF3-176E, Fuji Photo Film Co., Ltd.",),
     "KODAK_EKTAR_100": ("KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company",
@@ -33476,6 +34392,84 @@ for _dname, _dsrcs in _PARAM_SOURCES_DERIVED.items():
 del _dname, _dsrcs, _have, _add
 
 
+# ---------------------------------------------------------------------------
+#  dye_matrix provenance -- generated, 2026-09-05c (queue M1a)
+# ---------------------------------------------------------------------------
+#: ⚠ `dye_matrix` HAD ZERO PROVENANCE RECORDS ON ALL 176 PROFILES UNTIL TODAY,
+#: AND BY THIS MODULE'S OWN RULE THAT MADE IT READ AS DATASHEET-GROUNDED.
+#: `ParamSource`'s docstring states the convention: outside the nine parameters
+#: `FilmActiveProfiles.md` prints, an ABSENCE means "the profile-level tier is
+#: the best statement available". 88 profiles are tier 1. So 88 stocks were
+#: implicitly claiming a datasheet behind a matrix that comes from `_dye(k)`
+#: with a hand-chosen scalar and no source at all.
+#:
+#: ⚠ THAT IS THE EXACT FAILURE MODE THE PROJECT'S RESEARCH POLICY NAMES: an
+#: unmeasured parameter reading as an established fact because nothing said
+#: otherwise. Method rule 23. The fix is not to change the values -- see below,
+#: emphatically -- it is to stop them overstating themselves.
+#:
+#: ⚠⚠ AND THE VALUES MUST NOT BE ZEROED TO "BE HONEST". Measured 2026-09-05c:
+#: forcing `dye_matrix` to identity on the 99 colour stocks that carry a
+#: non-identity one collapses the rendered saturation spread from 0.077-0.312
+#: to 0.117-0.174, putting AGFACOLOR_NEU_1936 -- a stock whose muddy dyes are
+#: why it is in this database -- within 10 % of VELVIA. Dye purity is a real
+#: per-stock physical property and the per-channel characteristic curves cannot
+#: carry it: they are measured on a NEUTRAL scale, so they encode contrast and
+#: speed and say nothing about cross-channel coupling. Deleting the operator
+#: because its numbers are unsourced would remove a real effect to win a
+#: provenance argument, which method rule 23 forbids in terms.
+#:
+#: WHAT IS TRUE, AND IS NOW SAID OUT LOUD ON EVERY COLOUR STOCK: the FORM is
+#: argued (`_dye`'s unit row sums keep the matrix out of the density domain),
+#: the MAGNITUDE is this project's own estimate, and no measurement of dye
+#: purity coupling has ever been adopted for any stock.
+# ⚠ THE NOTES ARE DELIBERATELY SHORT AND THE ARGUMENT LIVES ELSEWHERE. The
+# first version of this block carried ~900 characters per record; the emitter
+# writes `note` out PER STOCK, so 107 copies added ~96 KB to the generated table
+# and OVERFLOWED cpp_codegen's 17-slot ceiling -- which would have forced the
+# owner to add a file to the Visual Studio project to accommodate this module's
+# prose. The guard was right and the prose was wrong. The reasoning is in the
+# comment above, in method rule 23 and in NotFound.md row 12; a `note` says what
+# a reader needs AT THE POINT OF USE and points at the rest.
+_DYE_MATRIX_NOTE_PANEL = (
+    '\u26a0 NOT A DYE-PURITY MATRIX: sign is OPPOSITE to this stock\'s own '
+    'traced dyes (26 of 27 are, M1a 2026-09-05d). It stands in for the NET of '
+    'impurity (desaturates, |T-I| ~0.21, derivable) and interimage (saturates, '
+    'estimated on all 107). Rule 23.')
+_DYE_MATRIX_NOTE_BARE = (
+    '\u26a0 UNSOURCED MAGNITUDE: _dye(k) scalar; the FORM (unit row sums) is '
+    'now DERIVED-correct, the magnitude is not. Stands in for impurity NET of '
+    'interimage. No dye spectra for this stock -- NOT evidence its purity is '
+    'average. Rule 23.')
+_DYE_MATRIX_NOTE_IDENTITY = (
+    '\u26a0 IDENTITY, AND UNMEASURED. Asserts no cross-record dye coupling, '
+    'which no source states. Never read as measured-zero. Rule 23 pt 3.')
+
+for _p in FILM_PROFILES:
+    if _p.is_monochrome:
+        continue
+    _have = {_e.param for _e in _PARAM_SOURCES.get(_p.name, ())}
+    if 'dye_matrix' in _have:
+        continue
+    _m = _p.dye_matrix
+    _ident = all(abs(_m[_i][_j] - (1.0 if _i == _j else 0.0)) < 1e-9
+                 for _i in range(3) for _j in range(3))
+    if _ident:
+        _note, _conf = _DYE_MATRIX_NOTE_IDENTITY, 'low'
+    elif _p.dye_density.has_data:
+        _note, _conf = _DYE_MATRIX_NOTE_PANEL, 'low'
+    else:
+        _note, _conf = _DYE_MATRIX_NOTE_BARE, 'low'
+    _PARAM_SOURCES[_p.name] = _PARAM_SOURCES.get(_p.name, ()) + (
+        ParamSource(
+            param='dye_matrix', tier=3, status='estimated',
+            unit='dimensionless',
+            conditions='stage 12, on the stored status densities',
+            confidence=_conf, note=_note),
+    )
+del _p, _have, _m, _ident, _note, _conf
+
+
 
 #: PROCESS VARIANTS (schema v18). The same emulsion under a different
 #: chemistry -- NOT time-gamma points within one process, which is
@@ -33606,6 +34600,147 @@ _TI0835_F50_VISUAL_NOT_ADOPTED = 46.9
 _TI0835_DMIN = (0.173, 0.531, 0.962)
 
 _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
+    # -- SUPER ANSCOCHROME, 2026-09-05, queue #215 ----------------------------
+    # ⚠ THE FIRST FOUR-POINT DEVELOPMENT LADDER IN THIS DATABASE, and the first
+    # source anywhere in the corpus that labels a push by EXPOSURE INDEX ONLY.
+    # Gifford & Gerhardt print the table beside Fig. 4: first developer 14 / 16
+    # / 19 / 22 min against colour developer 14 / 14 / 18 / 18 min at 68 degF,
+    # rated EI 80 / 100 / 150 / 200. B is normal and IS the profile's own
+    # curves; A, C and D are here.
+    #
+    # ⚠ push_stops IS DERIVED HERE AND IS NOT A PRINTED NUMBER. The paper never
+    # writes "push 1" -- it writes an exposure index -- so these three carry
+    # log2(EI / 100): -0.3219, +0.5850, +1.0000. This is the case schema v26
+    # widened the field for; the alternative was storing D alone and discarding
+    # two measured curve sets for being fractional. `validate()` still checks
+    # the stop count against the stated EI, which is why the values are written
+    # to four decimals rather than rounded.
+    #
+    # ⚠ AND THESE CURVES SHARE ONE EXPOSURE AXIS WITH THE PROFILE'S OWN, which
+    # is the opposite of the GEVACHROME_605 record below -- read this before
+    # using them. All four Super Anscochrome curves are drawn on ONE panel with
+    # ONE abscissa, so the horizontal offsets between them ARE the measured
+    # speed differences and are preserved in toe_x / shoulder_x. Gevachrome's
+    # pushed set comes from a SEPARATE figure whose exposure was already made
+    # at the pushed rating, so its curve sits on its own metered axis. A
+    # consumer that re-meters at this variant's EI AND uses these curves would
+    # count the speed change twice. Nothing reads ProcessVariant today; this
+    # note exists for the day something does.
+    #
+    # ⚠ THE MEASURED OFFSETS AND THE PRINTED EI LADDER AGREE, BUT NOT PERFECTLY,
+    # AND THE DISAGREEMENT IS RECORDED RATHER THAN REMOVED. Predicted from the
+    # printed EIs: A +0.0969, C -0.1761, D -0.3010 decades from B. Measured
+    # from the trace, at density 2.0: +0.0781, -0.1537, -0.3164. Over the whole
+    # range D 0.3-2.8 the residual is smallest near D 2.2-2.5 (sum of squares
+    # 0.00097 there against 0.0042 at D 0.6), i.e. the ladder is most nearly
+    # self-consistent about 1.2-1.5 D below the normal curve's Dmax -- a
+    # shadow-referenced speed criterion, which is what a reversal speed point
+    # is. ⚠ D IS THE WORST OF THE THREE EVERYWHERE, running 0.02-0.08 decade
+    # faster than its printed EI 200 claims; nothing in the paper explains it
+    # and nothing here corrects it.
+    "SUPER_ANSCOCHROME_1957": (
+        ProcessVariant(
+            name="B -- 16 min first developer, EI 100 (Normal)",
+            process="Ansco reversal",
+            is_default=True,
+            exposure_index=100,
+            processing=ProcessingSpec(
+                developer="Ansco first developer + Ansco colour developer",
+                dilution="stock", minutes=16.0, celsius=20.0,
+                agitation="as Table I, p12"),
+            source=(
+                "Gifford & Gerhardt, PS&E 1(1) p12, July 1957 -- the row the "
+                "paper itself labels «Normal» (16 min first / 14 min colour "
+                "developer, 68 degF, Exposure Index 100) and curve B of "
+                "Fig. 4, whose 699 traced points ARE this profile's stored "
+                "curves. ⚠ CARRIES NO CURVES OF ITS OWN, deliberately: "
+                "restating them here would be a copy that can drift out of "
+                "step with the profile. Its whole purpose is to say WHICH of "
+                "the four developments the stored set belongs to -- exactly "
+                "the ambiguity `is_default` exists for, and one a four-point "
+                "ladder makes acute"),
+        ),
+        ProcessVariant(
+            name="A -- 14 min first developer, EI 80",
+            process="Ansco reversal",
+            push_stops=-0.3219,
+            exposure_index=80,
+            curves=RGBCurves(
+                r=ToneCurve(0.1530, 5.3801, -0.2430, 0.1322, 0.4502, 0.1278),
+                g=ToneCurve(0.1530, 5.3801, -0.2430, 0.1322, 0.4502, 0.1278),
+                b=ToneCurve(0.1530, 5.3801, -0.2430, 0.1322, 0.4502, 0.1278),
+            ),
+            processing=ProcessingSpec(
+                developer="Ansco first developer + Ansco colour developer",
+                dilution="stock", minutes=14.0, celsius=20.0,
+                agitation="as Table I, p12"),
+            source=(
+                "Gifford, H.C. / Gerhardt, W.J., «Characteristics of Super "
+                "Anscochrome Film», PS&E 1(1) p12, July 1957 -- the table "
+                "printed beside Fig. 4 (14 min first / 14 min colour "
+                "developer, 68 degF, Exposure Index 80) and curve A of that "
+                "figure, traced 2026-09-05 by anscochrome_1957.py. 436 points, "
+                "fit rms 0.0245 D, worst 0.063, traced Dmax 3.880 against a "
+                "fitted asymptote of 3.883. Straight-line gamma over D 0.5-2.0 "
+                "is 3.547, against 3.937 on the normal curve -- LESS first "
+                "development, LESS contrast, the reversal direction. ⚠ THIS IS "
+                "A PULL, NOT A PUSH: 14 min is shorter than the normal 16. "
+                "⚠ push_stops -0.3219 IS log2(80/100) AND THE PAPER PRINTS NO "
+                "STOP COUNT, only the index"),
+        ),
+        ProcessVariant(
+            name="C -- 19 min first developer, EI 150",
+            process="Ansco reversal",
+            push_stops=0.5850,
+            exposure_index=150,
+            curves=RGBCurves(
+                r=ToneCurve(0.1161, 5.5856, -0.0118, 0.1066, 0.5708, 0.1181),
+                g=ToneCurve(0.1161, 5.5856, -0.0118, 0.1066, 0.5708, 0.1181),
+                b=ToneCurve(0.1161, 5.5856, -0.0118, 0.1066, 0.5708, 0.1181),
+            ),
+            processing=ProcessingSpec(
+                developer="Ansco first developer + Ansco colour developer",
+                dilution="stock", minutes=19.0, celsius=20.0,
+                agitation="as Table I, p12"),
+            source=(
+                "Gifford & Gerhardt, PS&E 1(1) p12, July 1957 -- the table "
+                "beside Fig. 4 (19 min first / 18 min colour developer, "
+                "68 degF, Exposure Index 150) and curve C, traced 2026-09-05. "
+                "452 points, fit rms 0.0240 D, worst 0.063, traced Dmax 3.339. "
+                "Straight-line gamma over D 0.5-2.0 is 4.381. ⚠ push_stops "
+                "0.5850 IS log2(150/100), derived; the paper prints only the "
+                "index. ⚠ AND EI 150 IS THE REASON THE FIELD IS NO LONGER AN "
+                "int -- there is no whole number of stops between 100 and 150"),
+        ),
+        ProcessVariant(
+            name="D -- 22 min first developer, EI 200",
+            process="Ansco reversal",
+            push_stops=1.0000,
+            exposure_index=200,
+            curves=RGBCurves(
+                r=ToneCurve(0.0799, 5.9167, 0.1767, 0.1187, 0.6572, 0.0669),
+                g=ToneCurve(0.0799, 5.9167, 0.1767, 0.1187, 0.6572, 0.0669),
+                b=ToneCurve(0.0799, 5.9167, 0.1767, 0.1187, 0.6572, 0.0669),
+            ),
+            processing=ProcessingSpec(
+                developer="Ansco first developer + Ansco colour developer",
+                dilution="stock", minutes=22.0, celsius=20.0,
+                agitation="as Table I, p12"),
+            source=(
+                "Gifford & Gerhardt, PS&E 1(1) p12, July 1957 -- the table "
+                "beside Fig. 4 (22 min first / 18 min colour developer, "
+                "68 degF, Exposure Index 200) and curve D, traced 2026-09-05. "
+                "436 points, fit rms 0.0269 D, worst 0.059, traced Dmax 2.938. "
+                "Straight-line gamma over D 0.5-2.0 is 4.570 -- 16 % above the "
+                "normal curve's 3.937, and Dmax is 0.73 D below it. ⚠ THE ONLY "
+                "ONE OF THE THREE WHOSE RATIO IS A WHOLE STOP, so it is the "
+                "only one that could have been stored before schema v26; the "
+                "other two are why it changed. ⚠ ITS MEASURED OFFSET FROM B IS "
+                "-0.316 to -0.384 decade against the -0.301 its EI 200 "
+                "predicts, i.e. it traces FASTER than it is rated everywhere "
+                "on the curve. Recorded, not corrected"),
+        ),
+    ),
     # -- GEVACHROME 6.05, 2026-09-03, queue G5 --------------------------------
     # ⚠ THE ONLY MEASURED PUSH OF A REVERSAL STOCK IN THIS DATABASE, and the
     # only one where the maker printed the pushed curve set rather than a
@@ -34604,6 +35739,24 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # -- ANSCO, queue #215, 2026-09-05 ---------------------------------------
+    # The condition the stored curves were developed at: Gifford & Gerhardt's
+    # row B, "Normal" -- 16 min first developer, 14 min colour developer, both
+    # at 68 degF (20 degC). Table I on the same page prints the whole eleven-
+    # step chain including the re-exposure between the two developers; the two
+    # times are what distinguishes this row from the other three, so those are
+    # what is stored. ⚠ ProcessingSpec HAS NO `source` FIELD, so the citation
+    # lives on the profile and on its `processing_family`, which carries the
+    # same four rows with their measured gammas. Sensitometry behind the
+    # curves, from the same page: Ansco Rotating Drum Sensitometer Model 21,
+    # 1/20 s at 2350 K through a Corning DF 185 filter, read on an Ansco
+    # Recording Color Densitometer Model 3. 68 degF is stored as 20.0 degC --
+    # the conversion, not a second reading.
+    "SUPER_ANSCOCHROME_1957": ProcessingSpec(
+        developer="Ansco first developer + Ansco colour developer",
+        dilution="stock", minutes=16.0, celsius=20.0,
+        agitation="as Table I, p12",
+    ),
     # -- GEVAERT, queue G2, 2026-09-02 ---------------------------------------
     # ⚠ THE INLINE FilmProfile FIELD IS IGNORED: `processing` is installed from
     # this table in _apply_schema_v2, so a ProcessingSpec written on the profile
@@ -37539,10 +38692,94 @@ _MEASURED_DYE_MATRIX: dict[str, Matrix3] = {
         (0.027685, 0.856056, 0.116259),
         (0.026829, 0.073314, 0.899857),
     ),
+    # -- FUJI / KONICA / VISION3 200T, 2026-09-04 -----------------------------
+    # The seven dye sets adopted from the Fuji and Konica house styles oblige
+    # seven rows here, by the same coupling recorded above: a stored three-dye
+    # set with no derived matrix would mean the evidence had been filed and not
+    # read, and `dye_matrix_from_spectra.py` fails outright if one is missing.
+    # ⚠ THE TWO SHARED DRAWINGS DO **NOT** PRODUCE IDENTICAL ROWS HERE, and the
+    # difference is informative rather than a defect. Gevachrome and RSX II
+    # 50/100 agree to 6e-5 because one traced array was written twice; these
+    # pairs were traced INDEPENDENTLY from two renderings of the same drawing,
+    # so the rows differ by 5.2e-3 (PROVIA 100F against SENSIA 100) and 6.1e-3
+    # (the Konica pair, whose yellow really was redrawn).
+    # ⚠ THAT IS THIS BATCH'S END-TO-END EXTRACTION ERROR, MEASURED rather than
+    # asserted: two independent passes over one drawing, through tracing,
+    # resampling, ISO 5-3 band integration and row normalisation, separate by
+    # about half a percent. It is still ONE measurement in each pair.
+    # ⚠ INERT, like every other row here.
+    "FUJI_PROVIA_100F": (
+        (0.832020, 0.140720, 0.027259),
+        (0.169197, 0.768204, 0.062598),
+        (0.129789, 0.164077, 0.706134),
+    ),
+    "FUJI_SENSIA_100": (
+        (0.826845, 0.143869, 0.029286),
+        (0.169053, 0.766056, 0.064890),
+        (0.130236, 0.161663, 0.708101),
+    ),
+    # ⚠ VELVIA's yellow-into-red is EXACTLY zero and it is the only row in this
+    # table of which that is true. It is not a rounding: the sheet draws that
+    # dye onto the axis from 600 nm, so the stored trace is exact zeros across
+    # the whole red band and the integral has nothing to integrate. See the
+    # zero-floor note on FUJI_VELVIA_50.dye_density.
+    "FUJI_VELVIA_50": (
+        (0.878410, 0.121589, 0.000000),
+        (0.147167, 0.746375, 0.106457),
+        (0.059594, 0.163648, 0.776758),
+    ),
+    "FUJI_PROVIA_400X": (
+        (0.882818, 0.103481, 0.013701),
+        (0.099439, 0.851954, 0.048607),
+        (0.049401, 0.063097, 0.887502),
+    ),
+    "KONICA_CHROME_CENTURIA_100": (
+        (0.850684, 0.130189, 0.019128),
+        (0.155870, 0.764910, 0.079220),
+        (0.078695, 0.153861, 0.767443),
+    ),
+    "KONICA_CHROME_R100": (
+        (0.850628, 0.130180, 0.019192),
+        (0.154893, 0.759787, 0.085320),
+        (0.078727, 0.153856, 0.767417),
+    ),
+    "KODAK_VISION3_200T_5213": (
+        (0.934984, 0.060869, 0.004147),
+        (0.116882, 0.830096, 0.053023),
+        (0.056495, 0.081553, 0.861952),
+    ),
+    # -- VISION3 50D and 250D, 2026-09-04c ------------------------------------
+    # ⚠ THESE TWO COMPLETE THE VISION3 FAMILY HERE, and the family now says
+    # something no single stock could. All four -- 5203, 5207, 5213, 5219 -- are
+    # one generation on one process. Their cyan-into-green runs
+    # 0.128 / 0.113 / 0.141 / 0.127, a tight band; their magenta-into-blue runs
+    # 0.039 / 0.039 / 0.095 / 0.078, and the split falls exactly on balance: the
+    # two DAYLIGHT stocks (5203, 5207) at the bottom, the two TUNGSTEN ones
+    # (5213, 5219) at the top, better than 2:1.
+    # ⚠ That is not extraction scatter, and the reason is worth keeping: 5203
+    # and 5207 were traced off RASTER panels while 5213 and 5219 came off vector
+    # paths, so the two halves of the split do not share an extraction path.
+    # ⚠ INERT, like every other row here.
+    "KODAK_VISION3_50D_5203": (
+        (0.898062, 0.077877, 0.024061),
+        (0.105633, 0.824006, 0.070362),
+        (0.076808, 0.034873, 0.888319),
+    ),
+    "KODAK_VISION3_250D_5207": (
+        (0.907300, 0.095439, -0.002739),
+        (0.093919, 0.831802, 0.074280),
+        (0.062170, 0.035583, 0.902246),
+    ),
 }
 
-#: ⚠ TWO PANELS ARE DELIBERATELY ABSENT AND THEIR ABSENCE IS THE FINDING.
-#: Twelve stocks carry a three-dye panel; NINE are here. `EASTMAN_EXR_50D_5245`
+#: ⚠ FOUR PANELS ARE DELIBERATELY ABSENT AND THEIR ABSENCE IS THE FINDING.
+#: 25 stocks carry a three-dye panel as of 2026-09-04; 21 are here. Three are
+#: named in the tuple below and the fourth, TECHNICOLOR_THREE_STRIP, is refused
+#: on a ratio bound inside `dye_matrix_from_spectra.py` rather than listed here.
+#: ⚠ The seven sets adopted on 2026-09-04 ALL DERIVED CLEANLY -- no new refusal,
+#: which is worth recording because three of them were traced off raster art
+#: rather than vector paths and that was the obvious way for this batch to fail.
+#: `EASTMAN_EXR_50D_5245`
 #: derives with cyan reading 0.009 into green against yellow 0.030 into red --
 #: inverted against every other panel and all four Soviet manufacturing
 #: specifications. `KODAK_VISION2_500T_5218` derives magenta 0.363 into red,
@@ -37837,25 +39074,25 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
         # These curves are what that scalar cannot express.
         dye_density=SpectralDyeDensity(
             lambda_start_nm=400.0, lambda_step_nm=10.0,
-            d_cyan=(0.273, 0.233, 0.177, 0.121, 0.079, 0.051, 0.034, 0.025, 
-                     0.022, 0.022, 0.024, 0.031, 0.047, 0.072, 0.111, 
-                     0.161, 0.229, 0.315, 0.418, 0.536, 0.659, 0.780, 
-                     0.892, 0.983, 1.046, 1.080, 1.086, 1.064, 1.008, 
+            d_cyan=(0.273, 0.233, 0.177, 0.121, 0.079, 0.051, 0.034, 0.025,
+                     0.022, 0.022, 0.024, 0.031, 0.047, 0.072, 0.111,
+                     0.161, 0.229, 0.315, 0.418, 0.536, 0.659, 0.780,
+                     0.892, 0.983, 1.046, 1.080, 1.086, 1.064, 1.008,
                      0.926, 0.822),
-            d_magenta=(0.054, 0.064, 0.074, 0.084, 0.062, 0.072, 0.113, 
-                     0.179, 0.274, 0.400, 0.548, 0.684, 0.782, 0.850, 
-                     0.877, 0.835, 0.719, 0.553, 0.388, 0.255, 0.166, 
-                     0.108, 0.072, 0.049, 0.035, 0.025, 0.018, 0.012, 
+            d_magenta=(0.054, 0.064, 0.074, 0.084, 0.062, 0.072, 0.113,
+                     0.179, 0.274, 0.400, 0.548, 0.684, 0.782, 0.850,
+                     0.877, 0.835, 0.719, 0.553, 0.388, 0.255, 0.166,
+                     0.108, 0.072, 0.049, 0.035, 0.025, 0.018, 0.012,
                      0.007, 0.003, 0.001),
-            d_yellow=(0.405, 0.537, 0.667, 0.767, 0.807, 0.801, 0.742, 
-                     0.627, 0.485, 0.344, 0.228, 0.143, 0.088, 0.057, 
-                     0.040, 0.031, 0.023, 0.016, 0.011, 0.007, 0.003, 
-                     0.002, 0.002, 0.002, 0.004, 0.005, 0.005, 0.005, 
+            d_yellow=(0.405, 0.537, 0.667, 0.767, 0.807, 0.801, 0.742,
+                     0.627, 0.485, 0.344, 0.228, 0.143, 0.088, 0.057,
+                     0.040, 0.031, 0.023, 0.016, 0.011, 0.007, 0.003,
+                     0.002, 0.002, 0.002, 0.004, 0.005, 0.005, 0.005,
                      0.005, 0.004, 0.003),
-            d_neutral=(0.860, 0.959, 1.043, 1.094, 1.074, 1.034, 0.987, 
-                     0.925, 0.873, 0.860, 0.896, 0.955, 1.014, 1.074, 
-                     1.119, 1.118, 1.059, 0.969, 0.898, 0.880, 0.913, 
-                     0.977, 1.054, 1.125, 1.177, 1.203, 1.200, 1.171, 
+            d_neutral=(0.860, 0.959, 1.043, 1.094, 1.074, 1.034, 0.987,
+                     0.925, 0.873, 0.860, 0.896, 0.955, 1.014, 1.074,
+                     1.119, 1.118, 1.059, 0.969, 0.898, 0.880, 0.913,
+                     0.977, 1.054, 1.125, 1.177, 1.203, 1.200, 1.171,
                      1.106, 1.015, 0.906),
             normalisation="visual_neutral_1.0_xenon_arc",
             source=(

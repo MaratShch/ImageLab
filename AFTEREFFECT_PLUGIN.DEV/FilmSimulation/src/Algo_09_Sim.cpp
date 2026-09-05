@@ -22,6 +22,7 @@
 //
 //      AlgoStage09_DirCoupler        lateral inhibitor diffusion, two scales
 //      AlgoStage09b_NegativeDefects  embedded particulate: dust, debris, fibres
+//      AlgoStage09c_BromideDrag      the machine's directional restraint
 //
 //  Both belong to the same numbered pipeline stage and share this translation
 //  unit. Raw pointers, explicit geometry, no allocation, no mutable state, no
@@ -38,6 +39,7 @@
 #include "FastAriphmeticsAVX.hpp"
 #include <immintrin.h>
 #include "AlgoNegativeDefects.hpp"
+#include "AlgoBromideDrag.hpp"
 
 
 static_assert(sizeof(AlgoType) == 4,
@@ -1344,8 +1346,47 @@ void AlgoStage09b_NegativeDefects
     //  Everything downstream - orientation bias, the 90 degree rotation, the
     //  advance from frame to frame - follows from this one object.
     // ----------------------------------------------------------------------
-    const AlgoFilmWindow window = AlgoMakeFilmWindow(
+    AlgoFilmWindow window = AlgoMakeFilmWindow(
         negWidthMm, negHeightMm, framePitchMm, sizeX, sizeY, frameIndex);
+
+    // ----------------------------------------------------------------------
+    //  AN UNPERFORATED FORMAT MUST STILL ADVANCE IN A MOVING CLIP - 2026-09-04.
+    //
+    //  ⚠ THIS IS THE SECOND OF THE TWO REASONS THE DEFECT LAYER LOOKED LIKE A
+    //  DIRTY MONITOR, AND IT IS THE ONE THAT FREEZES EVERYTHING AT ONCE. Sheet,
+    //  pack and instant formats report framePitchMm = 0, and AlgoMakeFilmWindow
+    //  honours that exactly as its comment says it does: the along-film origin is
+    //  frameIndex * pitch, so with pitch zero EVERY FRAME LANDS ON THE SAME PATCH
+    //  OF FILM. Since this stage keys dust, debris and fibres on FILM coordinates,
+    //  every particle then sits at the same place in the same shape with the same
+    //  opacity for the entire clip. Thirteen stocks in the database default to
+    //  such a format - the 4x5 sheet stocks, medium format, and the three Polaroid
+    //  entries - and any user who selects one gets a completely frozen defect
+    //  layer no matter what the levels say.
+    //
+    //  ⚠ AND THE HELPER IS NOT WRONG. "A sheet is one piece of film, and rendering
+    //  the same sheet twice must give the same defects" is correct for a STILL.
+    //  It stops being correct the moment the host asks for a sequence: a clip
+    //  graded with a 4x5 look is not one sheet held up for ten seconds, it is a
+    //  succession of exposures. So the geometry helper keeps its literal
+    //  behaviour - including anisotropy zero, which is right, a sheet has no
+    //  transport direction - and only the ORIGIN is advanced, here, by the stage
+    //  that knows it is rendering a sequence.
+    //
+    //  One full along-extent per frame, so consecutive windows do not overlap at
+    //  all and no particle can survive into the next frame. A fraction of an
+    //  extent would give partial overlap, which is worse than either extreme: a
+    //  speck that slides a little and then vanishes reads as a tracking error.
+    // ----------------------------------------------------------------------
+    if (framePitchMm <= ALGO_FILM_MIN_PITCH_MM)
+    {
+        const HighPrecType step =
+            (window.alongMax - window.alongMin)
+            * static_cast<HighPrecType>(frameIndex);
+
+        window.alongMin += step;
+        window.alongMax += step;
+    }
 
     // ----------------------------------------------------------------------
     //  Edge transition width for every particle in this frame.
@@ -1422,4 +1463,217 @@ void AlgoStage09b_NegativeDefects
     (void)frameRate;
 
     return;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Sub-stage 9c: bromide drag -- AVX2.
+//
+//  ⚠ THE RECURSION IS WHAT MAKES THIS VECTORISABLE AT ALL, AND ONLY BECAUSE IT
+//  RUNS DOWN COLUMNS. A first-order IIR cannot be vectorised ALONG its own axis
+//  without an in-register parallel prefix scan. Here the axis is the frame
+//  HEIGHT, so eight ADJACENT COLUMNS are eight INDEPENDENT recursions sharing
+//  one contiguous load: the eight accumulator states live in one register, the
+//  step is a single fmadd, and nothing is ever shuffled across lanes. That is
+//  the entire reason the generator refuses axis 1 instead of accepting it and
+//  falling back to scalar on the vector path -- two twins that agree only where
+//  they are tested is the failure this project keeps designing out.
+//
+//  Same four passes, same order, same arithmetic as the scalar twin. Every
+//  access is unaligned and every partial vector is masked, per the file header.
+// ---------------------------------------------------------------------------
+bool AlgoStage09c_BromideDrag
+(
+    AlgoType* RESTRICT       pR,
+    AlgoType* RESTRICT       pG,
+    AlgoType* RESTRICT       pB,
+    AlgoType* RESTRICT       pScrSrc,
+    AlgoType* RESTRICT       pScrAcc,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const film::FilmProfile& profile,
+    const AlgoType           pxPerMm
+) noexcept
+{
+    const film::BromideDragSpec& drag = profile.processing.bromide_drag;
+
+    if (!drag.hasData() || pxPerMm <= 0.0f || sizeX <= 0 || sizeY <= 0)
+    {
+        return false;
+    }
+
+    const float dminR = profile.curves.r.dmin;
+    const float dminG = profile.curves.g.dmin;
+    const float dminB = profile.curves.b.dmin;
+
+    const float refNet = ((profile.curves.r.dmax() - dminR)
+                        + (profile.curves.g.dmax() - dminG)
+                        + (profile.curves.b.dmax() - dminB)) * (1.0f / 3.0f);
+    if (refNet <= 0.0f)
+    {
+        return false;
+    }
+
+    const int32_t  full = sizeX / ALGO_AVX2_LANES_LOCAL;
+    const int32_t  tail = sizeX - full * ALGO_AVX2_LANES_LOCAL;
+    const __m256i  mask = algoTailMaskLocal(tail);
+
+    const __m256 vDminR = _mm256_set1_ps(dminR);
+    const __m256 vDminG = _mm256_set1_ps(dminG);
+    const __m256 vDminB = _mm256_set1_ps(dminB);
+    const __m256 vScale = _mm256_set1_ps((1.0f / 3.0f) / refNet);
+    const __m256 vZero  = _mm256_setzero_ps();
+    const __m256 vOne   = _mm256_set1_ps(1.0f);
+
+    const bool reverse = profile.isReversal();
+
+    // ----------------------------------------------------------------------
+    //  Pass 1: the source field. Eight pixels of three channels per step.
+    // ----------------------------------------------------------------------
+    for (int32_t y = 0; y < sizeY; ++y)
+    {
+        const float* RESTRICT rowR = pR + static_cast<size_t>(y) * pitch;
+        const float* RESTRICT rowG = pG + static_cast<size_t>(y) * pitch;
+        const float* RESTRICT rowB = pB + static_cast<size_t>(y) * pitch;
+        float* RESTRICT       rowS = pScrSrc + static_cast<size_t>(y) * pitch;
+
+        int32_t x = 0;
+        for (int32_t v = 0; v < full; ++v, x += ALGO_AVX2_LANES_LOCAL)
+        {
+            __m256 e = _mm256_add_ps(
+                _mm256_add_ps(
+                    _mm256_sub_ps(_mm256_loadu_ps(rowR + x), vDminR),
+                    _mm256_sub_ps(_mm256_loadu_ps(rowG + x), vDminG)),
+                _mm256_sub_ps(_mm256_loadu_ps(rowB + x), vDminB));
+            e = _mm256_mul_ps(e, vScale);
+            e = _mm256_min_ps(_mm256_max_ps(e, vZero), vOne);
+            if (reverse)
+            {
+                e = _mm256_sub_ps(vOne, e);
+            }
+            _mm256_storeu_ps(rowS + x, e);
+        }
+        if (tail)
+        {
+            __m256 e = _mm256_add_ps(
+                _mm256_add_ps(
+                    _mm256_sub_ps(_mm256_maskload_ps(rowR + x, mask), vDminR),
+                    _mm256_sub_ps(_mm256_maskload_ps(rowG + x, mask), vDminG)),
+                _mm256_sub_ps(_mm256_maskload_ps(rowB + x, mask), vDminB));
+            e = _mm256_mul_ps(e, vScale);
+            e = _mm256_min_ps(_mm256_max_ps(e, vZero), vOne);
+            if (reverse)
+            {
+                e = _mm256_sub_ps(vOne, e);
+            }
+            _mm256_maskstore_ps(rowS + x, mask, e);
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    //  Pass 2: eight independent one-pole recursions per vector.
+    //
+    //  ⚠ THE COEFFICIENT IS COMPUTED IN HighPrecType AND THEN NARROWED, exactly
+    //  as the scalar twin does it, and not with a float exp. It is two scalar
+    //  operations for the whole frame, so the accuracy is free -- and a
+    //  different rounding here would put the two twins on different poles,
+    //  whose error COMPOUNDS down the column rather than staying local.
+    // ----------------------------------------------------------------------
+    const AlgoType pitchMm = 1.0f / pxPerMm;
+    const float    aCoef   = static_cast<float>(
+        std::exp(-static_cast<HighPrecType>(pitchMm)
+                 / static_cast<HighPrecType>(drag.length_mm)));
+    const float    bCoef   = 1.0f - aCoef;
+    const __m256   vA      = _mm256_set1_ps(aCoef);
+    const __m256   vB      = _mm256_set1_ps(bCoef);
+
+    const bool    forward = (drag.direction >= 0);
+    const int32_t yFirst  = forward ? 0 : (sizeY - 1);
+    const int32_t yStep   = forward ? 1 : -1;
+
+    {
+        const float* RESTRICT rowS =
+            pScrSrc + static_cast<size_t>(yFirst) * pitch;
+        float* RESTRICT rowA = pScrAcc + static_cast<size_t>(yFirst) * pitch;
+        int32_t x = 0;
+        for (int32_t v = 0; v < full; ++v, x += ALGO_AVX2_LANES_LOCAL)
+        {
+            _mm256_storeu_ps(rowA + x, _mm256_loadu_ps(rowS + x));
+        }
+        if (tail)
+        {
+            _mm256_maskstore_ps(rowA + x, mask,
+                                _mm256_maskload_ps(rowS + x, mask));
+        }
+    }
+    for (int32_t i = 1; i < sizeY; ++i)
+    {
+        const int32_t y    = yFirst + i * yStep;
+        const int32_t yPrv = y - yStep;
+        const float* RESTRICT prvS = pScrSrc + static_cast<size_t>(yPrv) * pitch;
+        const float* RESTRICT prvA = pScrAcc + static_cast<size_t>(yPrv) * pitch;
+        float* RESTRICT       rowA = pScrAcc + static_cast<size_t>(y) * pitch;
+
+        int32_t x = 0;
+        for (int32_t v = 0; v < full; ++v, x += ALGO_AVX2_LANES_LOCAL)
+        {
+            const __m256 acc = _mm256_fmadd_ps(vA, _mm256_loadu_ps(prvA + x),
+                                   _mm256_mul_ps(vB, _mm256_loadu_ps(prvS + x)));
+            _mm256_storeu_ps(rowA + x, acc);
+        }
+        if (tail)
+        {
+            const __m256 acc = _mm256_fmadd_ps(
+                vA, _mm256_maskload_ps(prvA + x, mask),
+                _mm256_mul_ps(vB, _mm256_maskload_ps(prvS + x, mask)));
+            _mm256_maskstore_ps(rowA + x, mask, acc);
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    //  Passes 3 and 4, fused.
+    // ----------------------------------------------------------------------
+    const __m256 vStrength = _mm256_set1_ps(drag.strength);
+    const __m256 vCeiling  = _mm256_set1_ps(ALGO_BROMIDE_MAX_REMOVED);
+
+    for (int32_t y = 0; y < sizeY; ++y)
+    {
+        const float* RESTRICT rowA = pScrAcc + static_cast<size_t>(y) * pitch;
+        float* RESTRICT       rowR = pR + static_cast<size_t>(y) * pitch;
+        float* RESTRICT       rowG = pG + static_cast<size_t>(y) * pitch;
+        float* RESTRICT       rowB = pB + static_cast<size_t>(y) * pitch;
+
+        int32_t x = 0;
+        for (int32_t v = 0; v < full; ++v, x += ALGO_AVX2_LANES_LOCAL)
+        {
+            __m256 r = _mm256_mul_ps(_mm256_loadu_ps(rowA + x), vStrength);
+            r = _mm256_min_ps(_mm256_max_ps(r, vZero), vCeiling);
+            const __m256 keep = _mm256_sub_ps(vOne, r);
+            _mm256_storeu_ps(rowR + x, _mm256_fmadd_ps(
+                _mm256_sub_ps(_mm256_loadu_ps(rowR + x), vDminR), keep, vDminR));
+            _mm256_storeu_ps(rowG + x, _mm256_fmadd_ps(
+                _mm256_sub_ps(_mm256_loadu_ps(rowG + x), vDminG), keep, vDminG));
+            _mm256_storeu_ps(rowB + x, _mm256_fmadd_ps(
+                _mm256_sub_ps(_mm256_loadu_ps(rowB + x), vDminB), keep, vDminB));
+        }
+        if (tail)
+        {
+            __m256 r = _mm256_mul_ps(_mm256_maskload_ps(rowA + x, mask),
+                                     vStrength);
+            r = _mm256_min_ps(_mm256_max_ps(r, vZero), vCeiling);
+            const __m256 keep = _mm256_sub_ps(vOne, r);
+            _mm256_maskstore_ps(rowR + x, mask, _mm256_fmadd_ps(
+                _mm256_sub_ps(_mm256_maskload_ps(rowR + x, mask), vDminR),
+                keep, vDminR));
+            _mm256_maskstore_ps(rowG + x, mask, _mm256_fmadd_ps(
+                _mm256_sub_ps(_mm256_maskload_ps(rowG + x, mask), vDminG),
+                keep, vDminG));
+            _mm256_maskstore_ps(rowB + x, mask, _mm256_fmadd_ps(
+                _mm256_sub_ps(_mm256_maskload_ps(rowB + x, mask), vDminB),
+                keep, vDminB));
+        }
+    }
+
+    return true;
 }

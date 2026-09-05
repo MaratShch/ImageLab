@@ -254,6 +254,66 @@ namespace
 
 
     // ----------------------------------------------------------------------
+    //  Move a living gate mark, for THIS frame only.
+    //
+    //  ⚠ THE ONE THING THAT STOPS A SURVIVING PARTICLE BEING A DEAD STAMP. Every
+    //  other property of a gate mark is drawn once from its slot's stream and is
+    //  therefore bit-identical on every frame the particle lives - which, before
+    //  this existed, meant the same pixels for up to five thousand consecutive
+    //  frames. That is not a photographic defect; it is a mark on the glass, and
+    //  the eye names it as such at once.
+    //
+    //  A real particle wedged at the aperture edge is being scraped by film moving
+    //  past it at 456 mm per second. It shifts within its lodging, it rocks, it
+    //  partly lifts and re-seats, and its effective opacity changes as it does. It
+    //  stays in the SAME REGION - that is what makes it gate dirt and not loose
+    //  dirt - but it is never in the same place twice.
+    //
+    //  Keyed on the slot counter AND the frame, so this stays a pure function of
+    //  (damageSeed, reel, ordinal, frameIndex): any frame still renders alone, out
+    //  of order, on any thread, with no history.
+    //
+    //  Returns false when the particle is absent from this frame entirely - the
+    //  film has momentarily lifted it clear of the aperture. Absence is deliberate
+    //  and is the strongest single cue: a mark present on EVERY frame of a shot
+    //  reads as static however much it wobbles.
+    // ----------------------------------------------------------------------
+    inline bool gateFrameJitter
+    (
+        const uint64_t     slotCounter,
+        const int32_t      frameIndex,
+        const HighPrecType scale,          // pixels per millimetre
+        GateMark&          m
+    ) noexcept
+    {
+        // A stream of this slot's own, advanced by the frame. The frame goes
+        // through the hash rather than being added to the counter, so adjacent
+        // frames land far apart in counter space.
+        const uint64_t fc = AlgoDefectHash(
+            static_cast<uint32_t>(slotCounter ^ (slotCounter >> 32)),
+            frameIndex, 0, ALGO_GATE_TAG_JITTER);
+
+        if (AlgoRngUniform01(fc) < ALGO_GATE_BLINK_PROB)
+            return false;
+
+        const HighPrecType wanderPx =
+            (ALGO_GATE_JITTER_UM / ALGO_GATE_UM_PER_MM) * scale;
+
+        m.pxX += wanderPx * (2.0 * AlgoRngUniform01(fc + 1u) - 1.0);
+        m.pxY += wanderPx * (2.0 * AlgoRngUniform01(fc + 2u) - 1.0);
+
+        m.angleRad += ALGO_GATE_JITTER_ANGLE_RAD
+                    * (2.0 * AlgoRngUniform01(fc + 3u) - 1.0);
+
+        m.alpha *= ALGO_GATE_JITTER_ALPHA_MIN
+                 + (1.0 - ALGO_GATE_JITTER_ALPHA_MIN)
+                 * AlgoRngUniform01(fc + 4u);
+
+        return true;
+    }
+
+
+    // ----------------------------------------------------------------------
     //  Place a gate particle, biased towards the aperture edge.
     //
     //  Gate dirt collects where the aperture plate contacts and scrapes the film,
@@ -415,11 +475,23 @@ void AlgoStage16_GateDefects
     //  arrivals of a Poisson accretion process, whose k-th arrival time is the sum
     //  of k exponential gaps.
     // ----------------------------------------------------------------------
-    if (dirtLevel > 0.0)
-    {
-        const HighPrecType initial = ALGO_GATE_INITIAL_COUNT * dirtLevel;
+    // ⚠ THE ERA TERM. profile.temporal.dirt_events_per_frame spans 0.05 to 3.0
+    // across the database; ALGO_GATE_RATE_REFERENCE is the 3.0 the gate constants
+    // were tuned at. Clamped above at 1.0 so a stock dirtier than the reference -
+    // there is none today - cannot drive the population past what the constants
+    // describe.
+    const HighPrecType eraGate = CLAMP_VALUE(
+        static_cast<HighPrecType>(profile.temporal.dirt_events_per_frame)
+            / ALGO_GATE_RATE_REFERENCE,
+        0.0, 1.0);
 
-        const HighPrecType accretion = ALGO_GATE_ACCRETION_PER_FRAME * dirtLevel;
+    if ((dirtLevel > 0.0) && (eraGate > 0.0))
+    {
+        const HighPrecType initial =
+            ALGO_GATE_INITIAL_COUNT * dirtLevel * eraGate;
+
+        const HighPrecType accretion =
+            ALGO_GATE_ACCRETION_PER_FRAME * dirtLevel * eraGate;
 
         const HighPrecType gapFrames =
             (accretion > 0.0) ? (1.0 / accretion) : reelFrames;
@@ -462,6 +534,13 @@ void AlgoStage16_GateDefects
             m.alpha = ALGO_GATE_ALPHA_MIN
                     + (ALGO_GATE_ALPHA_MAX - ALGO_GATE_ALPHA_MIN)
                     * AlgoRngUniform01(sc + 112u);
+
+            // ⚠ EVERYTHING ABOVE IS THE PARTICLE'S IDENTITY AND IS THE SAME ON
+            // EVERY FRAME IT LIVES. Everything the eye reads as motion is added
+            // here, and the false return is the particle being absent from this
+            // frame altogether.
+            if (!gateFrameJitter(sc, frameIndex, scale, m))
+                return;
 
             gateRasterise(m, pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
         };

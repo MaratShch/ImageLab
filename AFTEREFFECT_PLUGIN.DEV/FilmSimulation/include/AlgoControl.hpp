@@ -1951,10 +1951,11 @@ struct AlgoControls
      *  4  UNIT           none - boolean switch
      *  5  MIN            false, by type
      *  6  MAX            true, by type
-     *  7  DEFAULT        true   (AlgoControl.cpp, getAlgoControlsDefault)
-     *                    !! SEE THE DEFAULT CONFLICT BELOW - this is the
-     *                    implemented value, and it is not the value the project
-     *                    requirements specify
+     *  7  DEFAULT        false  (AlgoControl.cpp, getAlgoControlsDefault)
+     *                    Clean film is the default and damage is opt-in, which
+     *                    is what the project requirements always specified.
+     *                    Changed from true on 2026-09-04 - see the resolved
+     *                    conflict note below
      *  8  STEP           n/a
      *  9  PURPOSE        Hard gate for the entire FilmDamage block. false means
      *                    every damage generator is skipped at zero cost and the
@@ -1978,27 +1979,27 @@ struct AlgoControls
      * 14  FULL/LITE      PENDING. Expected Full only, since all three consuming
      *                    stages are on the Lite drop list.
      *
-     * !! DEFAULT CONFLICT - REPORTED, NOT RESOLVED
-     *   The implementation sets this to TRUE, and AlgoControl.cpp states the
-     *   choice deliberately: "This default is now DAMAGED FILM, not clean
-     *   film." A default render therefore shows embedded dust, coarse debris
-     *   and the occasional fibre.
+     * !! DEFAULT CONFLICT - RESOLVED 2026-09-04, IN FAVOUR OF THE REQUIREMENT
+     *   For several revisions the implementation set this TRUE while the
+     *   project requirements said a clean render must be the default and
+     *   damage must be opt-in. An earlier revision of this header asserted
+     *   DEFAULT false while the code assigned true; the revision before this
+     *   one recorded the disagreement and deliberately left the code alone,
+     *   per the rule that documented defaults must match the implementation.
      *
-     *   The project requirements state the opposite - that a clean render must
-     *   be the default and damage must be opt-in - and an earlier revision of
-     *   this header asserted DEFAULT false while the code assigned true.
+     *   The owner asked on 2026-09-04 for the defect layer to be explicitly
+     *   switchable, which is the decision this was waiting on.
+     *   `AlgoControl.cpp` now assigns FALSE and the DEFAULT line above says
+     *   false. A default render is the pure film-stock simulation and is
+     *   numerically identical to a build with no defect layer.
      *
-     *   This documentation records the IMPLEMENTED value, per the rule that
-     *   documented defaults must match the implementation rather than the
-     *   intent. It does not change the code. The conflict is an owner decision:
-     *   either the default returns to false, or the requirement is amended.
+     *   TO ENABLE THE DEFECT LAYER, one line - `filmDamageEnabled = true` -
+     *   and the working set already in `damage` takes effect.
      *
-     *   Two consequences of the current default, both easy to be caught by:
-     *   a caller wanting the pure film-stock simulation must now explicitly
-     *   clear this flag; and this is a deliberate divergence from
-     *   film_sim.RenderSettings, which has no damage group at all, so the
-     *   verification harness clears the flag before comparing and must keep
-     *   doing so.
+     *   Two consequences, both good: a caller wanting clean film gets it for
+     *   free again; and the divergence from film_sim.RenderSettings, which has
+     *   no damage group at all, is gone, so the verification harness's manual
+     *   clear is now redundant rather than load-bearing.
      */
     bool filmDamageEnabled;
 

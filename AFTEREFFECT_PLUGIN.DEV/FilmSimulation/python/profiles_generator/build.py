@@ -268,6 +268,50 @@ def audits(root: Path):
          "sheets' vector paths (5285 and 2383 are the validation pair; 7239, "
          "5217 and 5218 were recovered on 2026-08-18 from the FAILED list; "
          "5201 on 2026-08-25 by the ink-based family C)"),
+        ("fuji_konica_dye.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "provia_100f_datasheet.pdf",
+         "the 7 dye sets adopted 2026-09-04 from the FUJI and KONICA house "
+         "styles, which dye_density.py cannot read: three RASTER panels "
+         "(PROVIA 100F by process ink, SENSIA 100 and VELVIA 50 by "
+         "slope-predictive tracking), two VECTOR panels with no rotated axis "
+         "caption (the Konica pair), one whose three dyes are a single path of "
+         "three subpaths (PROVIA 400X), and VISION3 200T 5213, whose Kodak "
+         "layout still needed the frame chosen by TICK COUNT because three "
+         "curve bounding boxes sit closer to the caption than the plot does. "
+         "⚠ It also asserts the TWO SHARED DRAWINGS -- PROVIA 100F = "
+         "SENSIA 100, and the Konica pair's magenta and cyan -- so seven "
+         "profiles cannot start reading as seven independent measurements. "
+         "EXTENDED 2026-09-04c: the two RASTER VISION3 panels 5203 and 5207, "
+         "whose recorded blocker was that they are raster and whose real one "
+         "was a DASHED D-min; and the SIX neutral + D-min panels the sweep had "
+         "classified as wrong-shape and left unread -- PRO 400H, SUPERIA X-TRA "
+         "400, CENTURIA SUPER 1600, VX 100, IMPRESA 50, ULTRAMAX 800 -- each "
+         "gated on the orange mask FALLING towards the red, and all six "
+         "asserted to be six drawings rather than fewer"),
+        # ⚠ QUEUE #214/#215, 2026-09-05. Registered because SUPER_ANSCOCHROME_
+        # 1957 is a stock whose ENTIRE numeric content -- its own curves, three
+        # ProcessVariant curve sets and all four ProcessingFamily gammas -- comes
+        # off ONE traced figure, so nothing else in the tree can notice if the
+        # trace stops reproducing.
+        ("anscochrome_1957.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "PSE"
+         / "sim_journal-of-imaging-science_1957-07_1_1.pdf",
+         "the four development curves of Super Anscochrome from Gifford & "
+         "Gerhardt, PS&E 1(1) p12 Fig. 4 -- the only four-point development "
+         "ladder on a reversal stock in this database, and the source that "
+         "made ProcessVariant.push_stops a float at schema v26 because its "
+         "ratings are EI 80 / 100 / 150 / 200 and not whole stops. Guards the "
+         "three things a bad re-trace breaks: the A > B > C > D ordering at "
+         "every shared column (these curves never cross, so a violation is a "
+         "swap), curve B against the SOLID connected component that drew it, "
+         "and all six ToneCurve parameters plus the straight-line gamma of "
+         "each of the four against what the profile carries. ⚠ It also prints "
+         "the EI-ladder cross-check that shows the abscissa is log10 -- the "
+         "paper states no unit for it -- and that curve D traces 0.02-0.08 "
+         "decade FASTER than its printed EI 200, which is recorded and not "
+         "corrected"),
         ("spectral_vector.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "KODAK" / "Kodak VISION2 50D 5201.pdf",
@@ -1203,6 +1247,93 @@ def audits(root: Path):
          "fields, at two pixel scales. Reads sizeof(AlgoType) from the compiled "
          "probe and picks its tolerance from it, so the switchable double/float "
          "typedef stays switchable"),
+        # ⚠ QUEUE M1a, 2026-09-05d -- A MODULE AUDITING ITS OWN REFUSAL.
+        # dye_matrix_from_spectra declines to adopt its derived matrices on the
+        # ground that the crosstalk is already inside the stored status
+        # densities. Worked through, that is true on the NEUTRAL RAY and false
+        # off it, because the per-channel curves are evaluated independently and
+        # nothing couples them. This mode derives the operator that is identity
+        # ON the neutral and carries the measured asymmetry OFF it, and pins
+        # what it found. Registered because the SIGN result is a physical
+        # impossibility check, not a tolerance: unwanted absorption can only add
+        # density to a neighbouring band, so a negative derived off-diagonal
+        # means the panel, the layer assignment or the status response is wrong.
+        ("dye_matrix_from_spectra.py",
+         ["--nonneutral", "--assert"],
+         HERE / "film_profiles.py",
+         "queue M1a's test of this module's own refusal: T = rownorm(M.diag(u)) "
+         "fixes a neutral to 2.2e-16 by construction and carries the measured "
+         "asymmetry off it. ⚠ All 27 derived off-diagonals are POSITIVE -- dye "
+         "impurity can only DESATURATE -- against only 1 of 27 stored, so 26 "
+         "stocks store a SEPARATION BOOST their own dyes cannot produce. "
+         "Derived |T-I| median 0.213 against a stored 0.067, asymmetry 0.081 "
+         "against 0.000. ⚠ NOT ADOPTED: rendering with T costs Velvia 58 % of "
+         "its saturation, because _dye(k) stands in for the NET of impurity and "
+         "interimage, and interimage is measured on 0 of 107 colour stocks"),
+        # ⚠ QUEUE F3, CLOSED 2026-09-05b AS A MEASURED REFUSAL, AND REGISTERED
+        # BECAUSE A REFUSAL NEEDS GUARDING MORE THAN AN ADOPTION DOES. Nothing
+        # in the tree consumes this module's output -- that is the point of it,
+        # the answer being "no" -- so nothing would notice if the premise
+        # stopped holding. The premise is that spectral sampling barely moves
+        # the one render-path consumer, and the day that stops being true is the
+        # day F3 should reopen. Pinning both figures is how that day announces
+        # itself instead of passing unnoticed.
+        ("spectral_sampling.py",
+         ["--assert"],
+         HERE / "spectral_sampling.py",
+         "queue F3's answer, re-derived: FUJI_NEOPAN_1600's 5 nm trace against "
+         "its own 10 nm decimation moves the monochrome weight triple by "
+         "0.005649 -- 0.56 % of a triple that sums to 1.0, inside the band the "
+         "row quoted and never owned -- and decimating every 10 nm set to 20 nm "
+         "moves the worst by 0.016885. ⚠ It also counts the population F3 could "
+         "move at all: 28 monochrome stocks, against 57 whose three-layer r/g/b "
+         "curves NOTHING ON THE RENDER PATH READS, so a 5 nm re-trace of a "
+         "colour sheet would change a stored array and zero pixels"),
+        # ⚠ AN AUDIT OF CODE THAT HAS NO DATA YET (queue D1/D2a, 2026-09-05b),
+        # AND THAT IS EXACTLY WHY IT IS REGISTERED. `scan_repeat.py` analyses
+        # repeat scans the owner has not taken. Analysis written ahead of its
+        # data is the single most rot-prone thing in this tree -- nothing
+        # exercises it, so nothing notices when a refactor breaks it, and the
+        # day the files arrive is the worst possible day to discover that. Its
+        # `--synthetic` mode builds scans whose truth is known by construction
+        # and checks every estimator against it, so the audit needs no external
+        # source at all. It has already earned its place: the self-test caught a
+        # flatness test that rejected every window in the frame, and a high-pass
+        # that INVERTED the anisotropy verdict by attenuating the two axes
+        # differently -- both before any of the owner's data existed.
+        ("scan_repeat.py",
+         ["--synthetic"],
+         HERE / "scan_repeat.py",
+         "the D1/D2a repeat-scan estimators against synthetic scans whose truth "
+         "is known: an injected scanner sigma recovered through a real JPEG "
+         "encoder, an injected grain anisotropy recovered and correctly "
+         "attributed to the film by the 90-degree rotation test, the "
+         "auto-exposure verdict, and the fraction of the noise the codec "
+         "absorbs. ⚠ It reports that JPEG at quality 92 eats 29 % of the "
+         "scanner variance, which is why every sigma_scanner the real run "
+         "prints will be a LOWER BOUND -- the owner's files are coarser than "
+         "quality 92"),
+        # ⚠ ADDED 2026-09-05 WITH THE STAGE IT GUARDS (queue C23), AND THAT IS
+        # THE POINT OF IT. Stage 9c is inert on every stock in the database, so
+        # nothing in a normal render exercises it -- which is exactly the
+        # condition under which three engines drift apart unnoticed and the
+        # first person to fit a real number inherits three different laws
+        # wearing one name. The probe injects a record into a COPY of a real
+        # profile and runs the shipped stage on it, so the law is tested at full
+        # strength while the database stays inert.
+        ("bromide_parity.py",
+         ["--root", str(root), "--assert"],
+         root / "Algo_09_Sim.cpp",
+         "Python apply_bromide_drag() vs AlgoStage09c_BromideDrag() in BOTH the "
+         "scalar and the AVX2 build: a negative and a reversal stock, both "
+         "transport directions, two drag lengths, two pixel scales, and the "
+         "inert record every shipped stock actually takes. ⚠ Also asserts the "
+         "two things a tolerance cannot say -- that the streak trails on the "
+         "side `direction` names and not the other, which no symmetric field "
+         "can distinguish, and that one `length_mm` renders the SAME PHYSICAL "
+         "streak at 25 and at 100 px/mm, which is the whole reason the record "
+         "is in millimetres and which a pixel-denominated length would miss by "
+         "the ratio of the two resolutions"),
         # ⚠ THE THIRD CODE AUDIT, ADDED 2026-08-29, AND THE ONE THAT CAUGHT A
         # DIVERGENCE THAT WAS ALREADY SHIPPING. Algo_07_Sim.cpp derives the
         # monochrome collapse weights from the traced pan curve
@@ -1512,7 +1643,17 @@ def stage_docs(opts) -> list:
 
     for script, argv, produced in (
             ("gen_active_profiles.py", [], "doc/FilmActiveProfiles.md"),
-            ("gen_film_curves_md.py", [], "doc/FilmCurves.md")):
+            ("gen_film_curves_md.py", [], "doc/FilmCurves.md"),
+            # ⚠ THE ONLY DOCUMENT THAT STATES THE CURRENT STATE AS FACT, and it
+            # is generated for that reason. This tree has ~90 Markdown files and
+            # most are correctly HISTORICAL -- a dated RESULT_* record says what
+            # was true on its date and must not be rewritten, because it is the
+            # audit trail. Three bookkeeping failures in three days were all the
+            # same shape: a number restated somewhere else and never
+            # re-derived. This file is the structural answer, and it runs the
+            # release gate (ordering identity, scope preservation, carrier and
+            # provenance census) while it writes.
+            ("gen_project_state.py", ["--assert"], "doc/PROJECT_STATE.md")):
         rc, so, se = run(py(script, *argv))
         if rc == 0:
             res.append(Result(script, "OK", produced))

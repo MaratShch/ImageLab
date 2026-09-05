@@ -157,7 +157,7 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
      r"\*\*(\d+) parameters across \d+ profiles now carry `ParamSource`",
      "param_sources", "the ParamSource coverage claim"),
     ("doc/PROGRESS.md",
-     r"52 \u2192 (\d+) entries, 26 \u2192 \d+ profiles",
+     r"52 \u2192 (\d+) entries \(1529 at the time",
      "param_sources", "PROGRESS item 17's ParamSource count"),
     ("doc/NotFound.md",
      # ⚠ THE TAIL OF THIS PATTERN CHANGED ON 2026-09-02c AND THE PATTERN HAD TO
@@ -265,6 +265,98 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
 )
 
 
+
+# ---------------------------------------------------------------------------
+#  The QUEUE's own live-row set -- derived, never read from a sentence.
+# ---------------------------------------------------------------------------
+#: ⚠ ADDED 2026-09-05b AFTER THE SAME BUG BIT THREE TIMES IN THREE DAYS.
+#: `DIGITIZATION_QUEUE.md` states its live-row count in five places written on
+#: four different dates, and nothing re-derived any of them. What that cost:
+#:
+#:   * G5 (2026-09-05)  -- prose said "closed" in two places; the row id was
+#:                         never struck, so the live list counted it for 2 days
+#:   * E4 (2026-09-05b) -- closed 2026-09-02e at one line, still listed as live
+#:                         WORK at another, and in two group tables besides
+#:   * the headline     -- read "96 closed, 16 live" against a real 105 and 9
+#:
+#: Every one was found by parsing the file instead of trusting it. So the parse
+#: is now the check: the live set is DERIVED from each row id's own struck/✅
+#: state, and the sentence that names it has to agree.
+#:
+#: ⚠ IT GUARDS A SET, NOT A COUNT, ON PURPOSE. A count agrees by accident when
+#: one row closes and another opens; the names cannot.
+QUEUE = "doc/DIGITIZATION_QUEUE.md"
+_ROW_RE = re.compile(r'^\|\s*(~~)?(\*\*)?(~~)?([A-Z]{1,3}\d{1,2}[a-z]?)(~~)?(\*\*)?(~~)?\s*\|')
+
+
+def queue_live_rows(text: str) -> list[str]:
+    """Row ids with no struck-through and no ✅ occurrence anywhere in the file.
+
+    A row id may appear several times -- its own row, a group table, a
+    retrospective. ⚠ ONE ✅ ANYWHERE CLOSES IT, which is deliberate: a row whose
+    prose says closed in one place and stays unstruck in another is exactly the
+    E4 fault, and treating it as live would report a false positive forever
+    instead of the real bug, which is the unstruck duplicate.
+    """
+    seen: dict[str, bool] = {}
+    for line in text.splitlines():
+        m = _ROW_RE.match(line)
+        if not m:
+            continue
+        rid = m.group(4)
+        done = bool(m.group(1) or m.group(3)) or "\u2705" in line[:500]
+        seen[rid] = seen.get(rid, False) or done
+    return sorted(r for r, d in seen.items() if not d)
+
+
+def check_queue(root: Path) -> int:
+    """The derived live set against the sentence that claims it. 0 = agree."""
+    path = root / QUEUE
+    if not path.is_file():
+        print(f"  [SKIP] {QUEUE}: not present")
+        return 0
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    live = queue_live_rows(text)
+    bad = 0
+
+    m = re.search(r"\*\*The (?:nine|ten|eight|seven|six|five|\d+): ([^*]+?)\*\*", text)
+    if not m:
+        print(f"[FAIL] {QUEUE}: no sentence naming the live rows. Add one of the "
+              f"form '**The nine: A1, B2, ...**' beside the headline count -- "
+              f"an unnamed live set is one nobody re-derives")
+        return 1
+    named = sorted(x.strip() for x in m.group(1).split(",") if x.strip())
+    if named != live:
+        print(f"[FAIL] {QUEUE}: the named live set disagrees with the file's own "
+              f"row states")
+        print(f"         named:   {', '.join(named)}")
+        print(f"         derived: {', '.join(live)}")
+        for x in sorted(set(named) - set(live)):
+            print(f"         ⚠ {x} is named live but is struck or ✅ somewhere")
+        for x in sorted(set(live) - set(named)):
+            print(f"         ⚠ {x} is live in the file and missing from the "
+                  f"sentence")
+        bad += 1
+
+    # ⚠ ANY SENTENCE THAT NAMES A LIVE COUNT IS CHECKED, NOT JUST THE HEADLINE.
+    # The first version of this guard matched one phrasing and a FOURTH stale
+    # copy survived it, in §3, worded "114 rows total. 104 closed. 10 live." and
+    # six rows out of date. A guard that checks one wording of a claim the file
+    # makes in several wordings is a guard that teaches false confidence.
+    for m2 in re.finditer(r"(\d+)\s+closed[.,]\s+(\d+)\s+live", text):
+        nlive = int(m2.group(2))
+        if nlive != len(live):
+            print(f"[FAIL] {QUEUE}: a sentence says {nlive} live "
+                  f"({m2.group(0)!r}), derived {len(live)}")
+            bad += 1
+    if not bad:
+        print(f"[OK] {QUEUE}: {len(live)} live rows, derived from the file's own "
+              f"row states and matching the sentence that names them "
+              f"({', '.join(live)})")
+    return bad
+
+
+
 def check(root: Path, do_assert: bool) -> int:
     facts = live()
     bad = 0
@@ -296,6 +388,7 @@ def check(root: Path, do_assert: bool) -> int:
     print(f"[i] doc consistency: {checked} registered count(s) across "
           f"{len({r for r, _p, _k, _n in REGISTRY})} document(s), "
           f"{bad - missing} stale, {missing} pattern(s) no longer matching")
+    bad += check_queue(root)
     if bad == 0:
         print("[OK] every registered documentation count matches the database")
     return 1 if (bad and do_assert) else 0

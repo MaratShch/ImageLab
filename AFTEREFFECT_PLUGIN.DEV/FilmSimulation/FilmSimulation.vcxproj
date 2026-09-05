@@ -159,6 +159,7 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoBromideDrag.hpp" />
     <ClInclude Include="include\AlgoCallier.hpp" />
     <ClInclude Include="include\AlgoCharacteristicCurve.hpp" />
     <ClInclude Include="include\AlgoCoatingField.hpp" />
@@ -301,7 +302,9 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\agfa_p16c.py" />
     <None Include="python\profiles_generator\agfa_scala_sheet.py" />
     <None Include="python\profiles_generator\agfa_vista.py" />
+    <None Include="python\profiles_generator\anscochrome_1957.py" />
     <None Include="python\profiles_generator\bbc_t101_2.py" />
+    <None Include="python\profiles_generator\bromide_parity.py" />
     <None Include="python\profiles_generator\build.py" />
     <None Include="python\profiles_generator\callier_silberstein_tuttle.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
@@ -317,11 +320,13 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\film_profiles.py" />
     <None Include="python\profiles_generator\film_sim.py" />
     <None Include="python\profiles_generator\flueckiger_2018.py" />
+    <None Include="python\profiles_generator\fuji_konica_dye.py" />
     <None Include="python\profiles_generator\fuji_neopan_ss.py" />
     <None Include="python\profiles_generator\fuji_t3_2026.py" />
     <None Include="python\profiles_generator\gen_active_profiles.py" />
     <None Include="python\profiles_generator\gen_film_curves_md.py" />
     <None Include="python\profiles_generator\gen_film_names.py" />
+    <None Include="python\profiles_generator\gen_project_state.py" />
     <None Include="python\profiles_generator\gen_ref.py" />
     <None Include="python\profiles_generator\gevachrome_1968_raster.py" />
     <None Include="python\profiles_generator\gevaert_curves.py" />
@@ -350,12 +355,14 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\render.cmd" />
     <None Include="python\profiles_generator\run.cmd" />
     <None Include="python\profiles_generator\sayanagi_callier.py" />
+    <None Include="python\profiles_generator\scan_repeat.py" />
     <None Include="python\profiles_generator\sehlin_kennel_1985.py" />
     <None Include="python\profiles_generator\sheet.py" />
     <None Include="python\profiles_generator\smpte_1953_hanson_kisner.py" />
     <None Include="python\profiles_generator\smpte_1954_5382.py" />
     <None Include="python\profiles_generator\sort_profiles.py" />
     <None Include="python\profiles_generator\spectral_mono_parity.py" />
+    <None Include="python\profiles_generator\spectral_sampling.py" />
     <None Include="python\profiles_generator\spectral_vector.py" />
     <None Include="python\profiles_generator\spectral_weight_provenance.py" />
     <None Include="python\profiles_generator\takano_1968_mottle.py" />
@@ -369,11 +376,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <Text Include="include\film_names.txt" />
     <Text Include="python\profiles_generator\MANIFEST.txt" />
     <Text Include="python\profiles_generator\Readme!.txt" />
-    <Text Include="python\profiles_generator\README.txt" />
-    <Text Include="python\profiles_generator\README_ARCHIVES.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="python\profiles_generator\Lady.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

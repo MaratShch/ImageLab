@@ -1982,30 +1982,35 @@ def main() -> int:
                 # resolve to a different PROFILE, because the nineteen AGFAPAN
                 # developer records each state their own exposure index -- Agfa
                 # print one per developer -- and the resolver honours it even
-                # though no stage reads that field yet. Only FOUR change a
+                # though no stage reads that field yet. Only FIVE change a
                 # CURVE and therefore a pixel: PORTRA 800 and ULTRA COLOR 400UC
                 # carry traced push curves, CINESTILL 800T's Cs2 kit carries a
-                # gamma scale, and GEVACHROME_605 carries the 320 ASA reversal
-                # push traced from Bild 6 (queue G5, 2026-09-03). Pinning both
-                # numbers is what makes a future change legible: a variant
-                # losing its curves moves the first, a variant losing its EI
-                # moves the second.
+                # gamma scale, GEVACHROME_605 carries the 320 ASA reversal push
+                # traced from Bild 6 (queue G5, 2026-09-03), and
+                # SUPER_ANSCOCHROME_1957 carries THREE traced curve sets at once
+                # (queue #215, 2026-09-05) -- the corpus's only four-point
+                # development ladder, and the stock that made `push_stops` a
+                # float because its ratings are EI 80 / 150 / 200 against a box
+                # speed of 100. Pinning both numbers is what makes a future
+                # change legible: a variant losing its curves moves the first, a
+                # variant losing its EI moves the second.
                 curve_moved = set()
                 for k, (want, _, _) in vpy.items():
                     base_k = ("V", k[1], -1, k[3])
                     if vpy[base_k][0] != want:
                         curve_moved.add(k[1])
-                if stocks_moved != 7:
+                if stocks_moved != 8:
                     print(f"[FAIL] {stocks_moved} stocks resolve to a different "
-                          f"profile; 7 are expected -- 4 that change curves and "
+                          f"profile; 8 are expected -- 5 that change curves and "
                           f"the 3 AGFAPAN stocks whose developer records state "
                           f"their own exposure index")
                     bad += 1
-                if len(curve_moved) != 4:
+                if len(curve_moved) != 5:
                     print(f"[FAIL] {len(curve_moved)} stocks change a CURVE "
-                          f"({sorted(curve_moved)}); 4 are expected -- "
+                          f"({sorted(curve_moved)}); 5 are expected -- "
                           f"KODAK_PORTRA_800, KODAK_ULTRA_COLOR_400UC, "
-                          f"CINESTILL_800T and GEVACHROME_605. A change here "
+                          f"CINESTILL_800T, GEVACHROME_605 and "
+                          f"SUPER_ANSCOCHROME_1957. A change here "
                           f"means a variant gained or lost its measured curve "
                           f"set")
                     bad += 1
