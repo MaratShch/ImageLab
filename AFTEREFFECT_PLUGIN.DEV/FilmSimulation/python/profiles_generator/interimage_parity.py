@@ -263,8 +263,68 @@ int main(void)
 """
 
 
-def build_probe(root: Path, tmp: Path) -> Path:
-    """Compile the probe against the plugin's real TUs plus the generated data."""
+#: Headers and TUs that must NOT be copied into the flattened AVX2 tree,
+#: because the probe already compiles the profile_generator's own copies and a
+#: second definition in the include path is a redefinition error, not a
+#: divergence. Everything else in the plugin root is shared between the twins.
+_AVX2_TREE_SKIP = frozenset((
+    "film_profiles.hpp", "film_profiles_detail.hpp", "film_enum.hpp",
+    "LoadFilmDataBase.h", "film_profiles.cpp", "LoadFilmDataBase.cpp",
+))
+
+
+def stage_avx2_tree(root: Path, tmp: Path) -> Path | None:
+    """A FLATTENED tree where the AVX2 twins shadow their scalar counterparts.
+
+    ⚠ THIS EXISTS BECAUSE `-I <root>/AVX2` DOES NOT WORK, AND THE REASON IS a
+    C++ rule rather than a build-script bug: a quoted `#include "AlgoTypes.hpp"`
+    is resolved FIRST against the directory of the file doing the including, and
+    only then against `-I`. Every shared header lives in the scalar root, so
+    every one of them pulled in the scalar `AlgoTypes.hpp` -- `AlgoType` came
+    out as `double`, the AVX2 TU tried to `_mm256_loadu_ps` a `const double*`,
+    and the build failed on a type error that looks nothing like its cause.
+    Copying both sets into ONE directory, AVX2 last, makes the includer's own
+    directory the right answer for every file.
+
+    ⚠ AND THIS IS WHY THE 2026-09-08 REVERSAL SIGN DEFECT COULD SHIP. Until
+    today `cpp_parity.py` said in its own comment that "the AVX2 flavour is not
+    compiled by any audit in this flattened tree", so the AVX2 twin of stages
+    8b and 9 had a TEXTUAL token check and nothing else. A sign that was wrong
+    in both twins and in Python was invisible to a Python-vs-scalar comparison,
+    and a sign wrong in ONE twin would have been invisible entirely. Both twins
+    are now run against the same Python reference on every build.
+
+    Returns the staged directory, or None if this root carries no AVX2 twins.
+    """
+    src_dir = root / "AVX2"
+    if not src_dir.is_dir():
+        return None
+    twins = sorted(p for p in src_dir.iterdir() if p.is_file())
+    if not twins:
+        return None
+    dst = tmp / "avx2_tree"
+    dst.mkdir(parents=True, exist_ok=True)
+    for p in root.iterdir():
+        if not p.is_file() or p.name in _AVX2_TREE_SKIP:
+            continue
+        if p.name.startswith("film_profiles_data_"):
+            continue
+        if p.suffix not in (".hpp", ".h", ".cpp", ".inl"):
+            continue
+        shutil.copy(p, dst / p.name)          # follows symlinks, which proot uses
+    for p in twins:                            # AVX2 LAST: it must shadow
+        shutil.copy(p, dst / p.name)
+    return dst
+
+
+def build_probe(root: Path, tmp: Path, avx2: bool = False) -> Path:
+    """Compile the probe against the plugin's real TUs plus the generated data.
+
+    `avx2` builds the SAME probe against the vector twins in `<root>/AVX2`,
+    staged by `stage_avx2_tree`. The law under test is identical; what differs
+    is `AlgoType` (float, so the tolerance drops to 2e-3) and the execution
+    strategy, which is exactly the axis the twins are allowed to differ on.
+    """
     cxx = os.environ.get("CXX") or shutil.which("g++") or shutil.which("clang++")
     if not cxx:
         raise SystemExit("[!] no g++/clang++ on PATH (set CXX to override)")
@@ -279,17 +339,26 @@ def build_probe(root: Path, tmp: Path) -> Path:
     ), encoding="utf-8")
 
     gen = sorted(p.name for p in HERE.glob("film_profiles_data_*.cpp"))
+    tu_dir = root
+    extra: list[str] = []
+    if avx2:
+        staged = stage_avx2_tree(root, tmp)
+        if staged is None:
+            return None
+        tu_dir = staged
+        extra = ["-mavx2", "-mfma"]
     tus = ["probe.cpp"]
-    tus += [str(root / t) for t in PLUGIN_TUS]
+    tus += [str(tu_dir / t) for t in PLUGIN_TUS]
     tus += [str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
     tus += [str(HERE / g) for g in gen]
-    exe = tmp / "probe"
-    cmd = [cxx, "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
-           "-o", str(exe)] + tus
+    exe = tmp / ("probe_avx2" if avx2 else "probe")
+    cmd = [cxx, "-std=c++14", "-O1"] + extra + [
+        "-I", str(tu_dir), "-I", str(HERE), "-o", str(exe)] + tus
     r = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True)
     if r.returncode != 0:
         tail = (r.stderr or r.stdout).strip().splitlines()
-        raise SystemExit("[!] probe did not compile:\n  "
+        raise SystemExit("[!] %s probe did not compile:\n  "
+                         % ("AVX2" if avx2 else "scalar")
                          + "\n  ".join(tail[:12]))
     return exe
 
@@ -366,23 +435,85 @@ def main() -> int:
               f"{', '.join(missing)}")
         return 0
 
+    # ⚠ BOTH TWINS, ADDED 2026-09-08. The scalar flavour is the historic one;
+    # the AVX2 flavour used to be checked only by a token grep in cpp_parity.py,
+    # which is how a wrong reversal sign could sit in both twins unreported.
+    runs: list[tuple[str, int, dict]] = []
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        exe = build_probe(root, tmp)
-        r = subprocess.run([str(exe)], capture_output=True, text=True, cwd=tmp)
-        if r.returncode != 0:
-            print(f"  [FAIL] probe exited {r.returncode}: {r.stderr[:400]}")
-            return 1
-        size, blocks = parse(r.stdout)
+        for flavour, want_avx2 in (("scalar", False), ("AVX2", True)):
+            exe = build_probe(root, tmp, avx2=want_avx2)
+            if exe is None:
+                print(f"  [SKIP] no AVX2 twins under {root / 'AVX2'}")
+                continue
+            r = subprocess.run([str(exe)], capture_output=True, text=True,
+                               cwd=tmp)
+            if r.returncode != 0:
+                print(f"  [FAIL] {flavour} probe exited {r.returncode}: "
+                      f"{r.stderr[:400]}")
+                return 1
+            size, blocks = parse(r.stdout)
+            if size is None:
+                print(f"  [FAIL] {flavour} probe did not report "
+                      f"sizeof(AlgoType)")
+                return 1
+            runs.append((flavour, size, blocks))
 
-    if size is None:
-        print("  [FAIL] probe did not report sizeof(AlgoType)")
-        return 1
-    # ⚠ TOLERANCE FROM THE ACTIVE TYPE, never assumed. See the module note.
-    tol = 2e-6 if size >= 8 else 2e-3
-    print(f"[i] AlgoType is {size} bytes -> tolerance {tol:g} "
-          f"(the Python reference carries density in float32 either way)")
+    bad = 0
+    worst_all = 0.0
+    for flavour, size, blocks in runs:
+        # ⚠ TOLERANCE FROM THE ACTIVE TYPE, never assumed. See the module note.
+        tol = 2e-6 if size >= 8 else 2e-3
+        print(f"[i] {flavour}: AlgoType is {size} bytes -> tolerance {tol:g} "
+              f"(the Python reference carries density in float32 either way)")
+        bad += _compare(flavour, tol, blocks, ns)
+        worst_all = max(worst_all, _WORST[0])
+    if len(runs) == 2 and runs[0][1] == runs[1][1]:
+        print(f"  [FAIL] both flavours report sizeof(AlgoType) == "
+              f"{runs[0][1]}: the AVX2 tree did not shadow the scalar one, so "
+              f"this run proved nothing about the vector twin")
+        bad += 1
 
+    # ---- the shared sub-pixel gate, reported as a scale ---------------------
+    # BOTH sides now disable each coupler component below 0.25 px (C17, closed
+    # 2026-08-25d: the gate was C++-only until then). The crossover px/mm is
+    # still printed, because the scale at which a stored radius stops being
+    # rendered is worth stating -- it is a shared property now, not a divergence.
+    act = [q for q in fp.FILM_PROFILES if q.couplers.active]
+    if act:
+        worst = max(act, key=lambda q: q.couplers.radius_um)
+        thin = min(act, key=lambda q: min(q.couplers.edge_um or 1e9,
+                                          q.couplers.radius_um))
+
+        def crossover(um):
+            return 0.25 / (um * 0.001) if um > 0 else float("inf")
+        print(f"[i] SHARED gate ALGO_COUPLER_MIN_SIGMA_PX = 0.25 px: the long "
+              f"term switches off below {crossover(worst.couplers.radius_um):.1f} "
+              f"px/mm ({worst.name}, radius {worst.couplers.radius_um:.0f} um) and "
+              f"the edge term below "
+              f"{crossover(thin.couplers.edge_um):.1f} px/mm "
+              f"({thin.name}, edge {thin.couplers.edge_um:.0f} um). BOTH renderers "
+              f"now gate at this threshold (C17); the remaining C16 question is "
+              f"the threshold's value, not its one-sidedness")
+
+    print()
+    if bad:
+        print(f"[FAIL] {bad} disagreement(s), worst {worst_all:.3e}")
+        return 1 if ns.do_assert else 0
+    print(f"[OK] stages 8b and 9 agree between Python and the plugin's own C++ "
+          f"-- {len(runs)} flavour(s) "
+          f"({', '.join(f for f, _, _ in runs)}), worst {worst_all:.3e} over "
+          f"{len(STOCKS)} stocks x 2 fields x {SIZE_X*SIZE_Y*3} values")
+    return 0
+
+
+#: Worst absolute disagreement seen by the most recent `_compare` call. A list
+#: rather than a global rebind so the reader can see it is written in one place.
+_WORST = [0.0]
+
+
+def _compare(flavour: str, tol: float, blocks: dict, ns) -> int:
+    """One flavour's blocks against the Python reference. Returns the fail count."""
     bad = 0
     worst_all = 0.0
     for si, (pxmm, do_assert_scale) in enumerate(SCALES):
@@ -420,39 +551,12 @@ def main() -> int:
                     if not ok and hard:
                         bad += 1
                     tag = "OK  " if ok else ("FAIL" if hard else "note")
-                    print(f"  [{tag}] {stage:4s} {stock:24s} "
+                    print(f"  [{tag}] {flavour:6s} {stage:4s} {stock:24s} "
                           f"{'flat' if flat else 'ramp'}  worst {d:.3e} "
                           f"(limit {lim:g})")
 
-    # ---- the shared sub-pixel gate, reported as a scale ---------------------
-    # BOTH sides now disable each coupler component below 0.25 px (C17, closed
-    # 2026-08-25d: the gate was C++-only until then). The crossover px/mm is
-    # still printed, because the scale at which a stored radius stops being
-    # rendered is worth stating -- it is a shared property now, not a divergence.
-    act = [q for q in fp.FILM_PROFILES if q.couplers.active]
-    if act:
-        worst = max(act, key=lambda q: q.couplers.radius_um)
-        thin = min(act, key=lambda q: min(q.couplers.edge_um or 1e9,
-                                          q.couplers.radius_um))
-        def crossover(um):
-            return 0.25 / (um * 0.001) if um > 0 else float("inf")
-        print(f"[i] SHARED gate ALGO_COUPLER_MIN_SIGMA_PX = 0.25 px: the long "
-              f"term switches off below {crossover(worst.couplers.radius_um):.1f} "
-              f"px/mm ({worst.name}, radius {worst.couplers.radius_um:.0f} um) and "
-              f"the edge term below "
-              f"{crossover(thin.couplers.edge_um):.1f} px/mm "
-              f"({thin.name}, edge {thin.couplers.edge_um:.0f} um). BOTH renderers "
-              f"now gate at this threshold (C17); the remaining C16 question is "
-              f"the threshold's value, not its one-sidedness")
-
-    print()
-    if bad:
-        print(f"[FAIL] {bad} disagreement(s), worst {worst_all:.3e}")
-        return 1 if ns.do_assert else 0
-    print(f"[OK] stages 8b and 9 agree between Python and the plugin's own C++ "
-          f"-- worst {worst_all:.3e} over {len(STOCKS)} stocks x 2 fields x "
-          f"{SIZE_X*SIZE_Y*3} values")
-    return 0
+    _WORST[0] = worst_all
+    return bad
 
 
 if __name__ == "__main__":

@@ -1278,7 +1278,14 @@ struct AlgoControls
      *                    specular
      *  5  MIN            0
      *  6  MAX            1
-     *  7  DEFAULT        0 -- fully diffuse
+     *  7  DEFAULT        0.853   (AlgoControl.cpp, getAlgoControlsDefault) --
+     *                    1 - E with Streiffert's fitted E = 0.1471. ⚠ RAISED
+     *                    FROM 0 ON 2026-09-06 BY OWNER DECISION, and it moves
+     *                    pixels: a monochrome stock reads Q 1.485 at net
+     *                    density 1.0. ⚠ It is a DENSITOMETER geometry adopted
+     *                    as a provisional stand-in, NOT a measurement of any
+     *                    scanner. 0 remains the setting that reproduces the
+     *                    stored (diffuse) characteristic curves exactly
      *  8  STEP           0.01 [proposed] -- a 0..1 axis with 100 positions
      *  9  PURPOSE        Drives the Callier coefficient. A silver image
      *                    scatters light, so its measured density depends on
@@ -1291,7 +1298,9 @@ struct AlgoControls
      * 10  OUTPUT EFFECT  Raises effective contrast on silver images as the
      *                    setting moves toward specular. 0 reproduces the
      *                    pre-Callier behaviour exactly, which is the contract
-     *                    the field was added under.
+     *                    the field was added under -- but 0 is NO LONGER THE
+     *                    DEFAULT, so a render at defaults is no longer
+     *                    byte-identical to a pre-Callier one on monochrome.
      * 11  STAGES         12b (Callier)
      * 12  INTERACTIONS   Reads the profile's callier_q. Its effect is inherently
      *                    stock-dependent: a dye-only image has little silver

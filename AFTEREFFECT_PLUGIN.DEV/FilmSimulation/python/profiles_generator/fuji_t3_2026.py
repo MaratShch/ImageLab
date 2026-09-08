@@ -73,10 +73,12 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 import sys
 from pathlib import Path
 
 import numpy as np
+import pymupdf
 
 DPI = 600
 PT = DPI / 72.0
@@ -92,6 +94,34 @@ SHEETS = {
                 colour=True),
         mtf=dict(box=(60, 400, 320, 560), f=(1.0, 200.0), r=(2.0, 150.0)),
         spec=dict(box=(325, 120, 560, 290), lam=(400.0, 700.0),
+                  s=(-1.0, 1.0), colour=True),
+        # ⚠ VECTOR, 2026-09-06. This sheet's SPECTRAL SENSITIVITY panel is not
+        # raster like its neighbours -- the three layer curves are inked bezier
+        # paths and the ordinate carries THREE NUMBERED TICKS (1.0 / 0.0 / -1.0)
+        # in the text layer. That is exactly what the 2026-09-02e pass said it
+        # did not have: it refused all three sheets on the ground that "the
+        # ordinate carries no numbered ladder ... it is a bracketed arrow marked
+        # 1.0". True of superia400 and pro400h read as rasters; NOT true of this
+        # panel, whose labels are real text. Read by _spectral_vector().
+        spec_vector=dict(page_rect=(338.2, 172.0, 538.3, 348.9),
+                         xtick=(330, 545, 348, 364),
+                         ytick=(305, 340, 190, 330),
+                         label_band=(340, 540, 255, 295)),
+    ),
+    # ⚠ 2026-09-06, a NEW STOCK and the first TUNGSTEN-balanced Fuji reversal
+    # film in this database. Panels 18 / 19 / 20 are 300 dpi rasters like
+    # PROVIA 100F's; only panel 21 (dye density) is vector. The printed axis end
+    # values below are transcribed from the rendered panels, because this
+    # sheet's raster images carry their tick labels as PIXELS -- there is no
+    # text layer inside those three frames at all, which is why the abscissa and
+    # ordinate ranges have to be stated here rather than read.
+    "64t2": dict(
+        pdf="FUJI/RTPIIAF3-024E_1.pdf", page=6,
+        stock="FUJICHROME_64T_II", reversal=True,
+        hd=dict(box=(50, 110, 292, 340), x=(-3.0, 1.0), y=(0.0, 4.0),
+                colour=True),
+        mtf=dict(box=(54, 410, 282, 600), f=(1.0, 200.0), r=(2.0, 150.0)),
+        spec=dict(box=(300, 105, 550, 335), lam=(400.0, 700.0),
                   s=(-1.0, 1.0), colour=True),
     ),
     "superia400": dict(
@@ -270,6 +300,152 @@ def _logfit(pos: list[int], values: tuple[float, ...]) -> tuple[float, float, fl
     a, b = np.polyfit(xs, ys, 1)
     resid = float(np.max(np.abs((np.asarray(ys) - b) / a - np.asarray(xs))))
     return float(a), float(b), resid, len(xs)
+
+
+
+#: Ink -> record, and it is Fuji's convention as well as Kodak's: each trace is
+#: drawn in the COLOUR OF LIGHT the layer responds to.
+_FUJI_SPEC_INK = {"R": (0.92, 0.18, 0.18),
+                  "G": (0.00, 0.67, 0.31),
+                  "B": (0.20, 0.23, 0.59)}
+_SPEC_GRID = np.arange(380.0, 681.0, 10.0)
+
+#: Traced 2026-09-06 and pinned so the build re-derives them. Keys are SHEETS
+#: tags; each value is the peak-normalised log_s on _SPEC_GRID, floor -4.0.
+SPEC_EXPECTED: dict = {
+    # ✅ Traced and adopted 2026-09-06. Pinned so the build re-derives them from
+    # the page: if Fuji's artwork or this reader ever changes, the mismatch is
+    # loud rather than a quietly different curve.
+    "provia100f": {
+        "R": (-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.37, -1.01, -0.69, -0.56, -0.42, -0.21, 0.00, -0.11, -0.70, -1.54, -4.00),
+        "G": (-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.29, -0.96, -0.67, -0.46, -0.27, -0.12, 0.00, -0.01, -0.06, -0.03, -0.03, -0.58, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+        "B": (-4.00, -1.75, -0.85, -0.23, -0.13, -0.12, -0.09, -0.00, 0.00, -0.17, -0.59, -1.15, -1.71, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+    },
+}
+
+#: tag -> the full _spectral_vector() result, for callers and for adoption.
+spec_result: dict = {}
+
+
+def _flatten_items(items, n=24):
+    """Bezier/line drawing items -> a point array, in page coordinates."""
+    pts = []
+    for it in items:
+        if it[0] == "c":
+            p0, p1, p2, p3 = [np.array([q.x, q.y]) for q in it[1:5]]
+            for t in np.linspace(0.0, 1.0, n):
+                pts.append((1 - t) ** 3 * p0 + 3 * (1 - t) ** 2 * t * p1
+                           + 3 * (1 - t) * t ** 2 * p2 + t ** 3 * p3)
+        elif it[0] == "l":
+            pts.append(np.array([it[1].x, it[1].y]))
+            pts.append(np.array([it[2].x, it[2].y]))
+    return np.array(pts)
+
+
+def _spectral_vector(pg, cfg):
+    """The three layer curves off a VECTOR Fuji spectral panel.
+
+    ⚠ WHY THIS EXISTS AND WHAT IT OVERTURNS. The 2026-09-02e pass located this
+    panel as a raster and refused to read it, on the stated ground that "the
+    ordinate carries no numbered ladder ... it is a bracketed arrow marked 1.0",
+    so a peak-normalised curve built on a misread bracket "would be wrong by a
+    factor and look plausible". That reasoning was right for the two sheets it
+    was written against and WRONG for this one: PROVIA 100F's panel is inked
+    bezier art whose ordinate carries THREE NUMBERED TICKS as real text
+    (1.0 / 0.0 / -1.0). The refusal was a property of the reading method, not of
+    the document -- which is the same lesson the F-4001 edition mistake taught.
+
+    THE ASSIGNMENT IS BY INK AND IS CHECKED TWICE, neither check using the ink:
+      1. ⚠ THE LAYER NAMES ARE PRINTED INSIDE THE FRAME. Fuji sets "Blue /
+         Green / Red Sensitive Layer" over the curve each names, so the label's
+         own abscissa is an independent statement of which band the trace
+         belongs to. Kodak's sheets have no such thing.
+      2. The peaks must ascend B < G < R.
+    A failure of either raises rather than warns: a swapped record is a wrong
+    render that looks entirely plausible.
+
+    ⚠ THE SQUARE-PANEL PROPERTY IS ALSO CHECKED. Fuji draws 100 nm and one log
+    decade at the same length here, exactly as it does on the characteristic
+    panel, so the two independent axis fits must agree -- a cross-check on the
+    calibration that costs nothing and catches a mis-assigned tick.
+    """
+    xr = cfg["xtick"]; yr = cfg["ytick"]
+    xs, ys = {}, {}
+    for w in pg.get_text("words"):
+        cx, cy = (w[0] + w[2]) / 2.0, (w[1] + w[3]) / 2.0
+        if xr[0] < cx < xr[1] and xr[2] < cy < xr[3] and re.fullmatch(r"\d{3}", w[4]):
+            xs[float(w[4])] = cx
+        if yr[0] < cx < yr[1] and yr[2] < cy < yr[3] \
+                and re.fullmatch(r"[\u2013-]?\d\.\d", w[4]):
+            ys[float(w[4].replace("\u2013", "-"))] = cy
+    if len(xs) < 3 or len(ys) < 3:
+        raise ValueError("spectral ticks: %d wavelength, %d sensitivity"
+                         % (len(xs), len(ys)))
+
+    def _fit(m):
+        k = sorted(m)
+        a = np.array(k, dtype=float)
+        b = np.array([m[v] for v in k])
+        c = np.polyfit(a, b, 1)
+        return c, float(np.abs(np.polyval(c, a) - b).max()), len(k)
+
+    fx, rx, nx = _fit(xs)
+    fy, ry, ny = _fit(ys)
+    if rx > 1.0 or ry > 1.0:
+        raise ValueError("spectral axis residual %.2f / %.2f pt" % (rx, ry))
+    square = abs(abs(fx[0]) * 100.0 / abs(fy[0]) - 1.0)
+    if square > 0.05:
+        raise ValueError("spectral panel is not square: %.2f %%" % (square * 100))
+
+    frame = pymupdf.Rect(*cfg["page_rect"])
+    got = {}
+    for dr in pg.get_drawings():
+        col = dr.get("color")
+        if not col or not any(it[0] == "c" for it in dr["items"]):
+            continue
+        if not frame.contains(dr["rect"]):
+            continue
+        for rec, ref in _FUJI_SPEC_INK.items():
+            if all(abs(col[i] - ref[i]) < 0.06 for i in range(3)):
+                got[rec] = _flatten_items(dr["items"])
+    if set(got) != {"R", "G", "B"}:
+        raise ValueError("inked curves found: %s" % sorted(got))
+
+    lb = cfg["label_band"]
+    labels = {}
+    for w in pg.get_text("words"):
+        if w[4] in ("Blue", "Green", "Red") \
+                and lb[0] < w[0] < lb[1] and lb[2] < w[1] < lb[3]:
+            labels[w[4][0]] = ((w[0] + w[2]) / 2.0 - fx[1]) / fx[0]
+
+    out, peaks, spans = {}, {}, {}
+    for rec in "RGB":
+        P = got[rec]
+        lam = (P[:, 0] - fx[1]) / fx[0]
+        sen = (P[:, 1] - fy[1]) / fy[0]
+        o = np.argsort(lam)
+        lam, sen = lam[o], sen[o]
+        lu, idx = np.unique(np.round(lam, 3), return_index=True)
+        su = sen[idx]
+        peaks[rec] = float(lu[int(np.argmax(su))])
+        spans[rec] = (float(lam.min()), float(lam.max()))
+        v = np.interp(_SPEC_GRID, lu, su, left=np.nan, right=np.nan)
+        v = v - np.nanmax(v)
+        out[rec] = np.round(np.where(np.isnan(v), -4.0, np.maximum(v, -4.0)), 2)
+
+    # ⚠ CHECK 1 -- the printed label, which knows nothing about the ink.
+    for rec, want in labels.items():
+        if abs(peaks[rec] - want) > 60.0:
+            raise ValueError("record %s peaks at %.0f nm but its printed label "
+                             "sits at %.0f nm -- assignment disagrees with the "
+                             "sheet's own words" % (rec, peaks[rec], want))
+    # ⚠ CHECK 2 -- ascending peak order.
+    if not peaks["B"] < peaks["G"] < peaks["R"]:
+        raise ValueError("peaks do not ascend B<G<R: %s" % peaks)
+
+    return dict(out=out, peaks=peaks, spans=spans, labels=labels,
+                rx=rx, ry=ry, nx=nx, ny=ny, square=square,
+                px_per_nm=abs(fx[0]), px_per_dec=abs(fy[0]))
 
 
 def _panel(rgb: np.ndarray, box, uniform: bool = True) -> dict:
@@ -803,6 +979,34 @@ def main() -> int:
                             bad += 1
 
         # ---- spectral sensitivity -------------------------------------------
+        # ⚠ VECTOR FIRST WHERE THE SHEET HAS ONE. See _spectral_vector() for why
+        # the raster refusal below is correct for the sheets it was written
+        # against and wrong for a panel whose ticks are real text.
+        sv = sh.get("spec_vector")
+        if sv is not None:
+            _pgv = pymupdf.open(str(Path(root) / "PDF" / "PROFILES"
+                                     / sh["pdf"]))[sh["page"] - 1]
+            R = _spectral_vector(_pgv, sv)
+            print(f"    spectral panel: VECTOR, {R['nx']} wavelength ticks "
+                  f"(residual {R['rx']:.3f} pt) and {R['ny']} sensitivity ticks "
+                  f"(residual {R['ry']:.3f} pt); {R['px_per_nm']*100:.2f} px per "
+                  f"100 nm against {R['px_per_dec']:.2f} px per log decade, "
+                  f"{R['square']*100:.2f} % apart")
+            for _r in "BGR":
+                _lo, _hi = R["spans"][_r]
+                _lb = R["labels"].get(_r)
+                print(f"      {_r}: {_lo:.1f}-{_hi:.1f} nm, peak at "
+                      f"{R['peaks'][_r]:.0f} nm"
+                      + (f"; the sheet prints its layer name at {_lb:.0f} nm"
+                         if _lb is not None else ""))
+            spec_result[sh["stock"]] = R
+            exp = SPEC_EXPECTED.get(tag)
+            if exp:
+                for _r in "RGB":
+                    if list(R["out"][_r]) != list(exp[_r]):
+                        print(f"  [MISMATCH] spectral {_r} differs from the pin")
+                        bad += 1
+            continue
         sp = sh["spec"]
         try:
             S = _panel(rgb, sp["box"])

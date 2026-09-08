@@ -95,6 +95,7 @@ skipped and said to be skipped; every other reading still runs.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 from pathlib import Path
 
@@ -117,9 +118,34 @@ SOURCE = ("Agfa-Gevaert, «Technical Data PF -- Agfa range of films», "
           "images. NOT the same document as 'AGFA stocks.pdf' / FPD1e.pdf / "
           "Datasheet_F_PF_E4.pdf, which are the 4th edition of 08/2004.")
 
-# ⚠ The 1998 pages are drawn at 0.929 x the 2004 scale. Patch the shared
-# reader's width constants for the duration of this module.
-A4.CURVE_W, A4.FRAME_W, A4.W_TOL = 0.789, 0.2625, 0.02
+# ⚠ The 1998 pages are drawn at 0.929 x the 2004 scale, so the shared reader's
+# width constants have to be retuned for this sheet.
+#
+# ⚠⚠ THIS USED TO BE A BARE MODULE-LEVEL ASSIGNMENT AND THAT IS A LANDMINE.
+# `import agfa_1998_curves` silently reconfigured `agfa_2004_curves` FOR THE
+# WHOLE PROCESS. Any code importing both got a 2004 reader tuned to 1998 stroke
+# widths, and the 2004 sheet's 0.283 pt frames then match nothing -- so
+# `frames()` returns None and a caller that reads that as "this panel does not
+# exist" would silently drop real data. It has not bitten a stored value (the
+# constants are set back below, and the failure is loud rather than quiet), but
+# it was one careless `except` away from doing so. Found 2026-09-06k while
+# chasing an OPTIMA question that turned out to have a different answer.
+_A4_DEFAULTS = (A4.CURVE_W, A4.FRAME_W, A4.W_TOL)
+_AS_1998 = (0.789, 0.2625, 0.02)
+
+
+@contextlib.contextmanager
+def as_1998_widths():
+    """Retune the shared 2004 reader to this sheet's stroke widths, then undo it.
+
+    ⚠ EVERY ENTRY POINT OF THIS MODULE MUST HOLD THIS. The constants live on
+    `agfa_2004_curves`, which is a different module with its own users.
+    """
+    A4.CURVE_W, A4.FRAME_W, A4.W_TOL = _AS_1998
+    try:
+        yield
+    finally:
+        A4.CURVE_W, A4.FRAME_W, A4.W_TOL = _A4_DEFAULTS
 
 Panel = A4.Panel
 _fit = A4._fit
@@ -157,10 +183,14 @@ COLUMNS = (
     ("AGFA_OPTIMA_200",   "AGFACOLOR OPTIMA II 200",   7, (220.0, 378.5), "colour_neg"),
     ("AGFA_OPTIMA_400",   "AGFACOLOR OPTIMA II 400",   7, (396.0, 554.5), "colour_neg"),
     ("AGFA_PORTRAIT_160", "AGFACOLOR PORTRAIT XPS 160", 8, (27.0, 185.0), "colour_neg"),
-    (None,                "AGFACOLOR ULTRA 50",         8, (203.0, 361.5), "colour_neg"),
-    (None,                "AGFACHROME RSX II 50",       8, (379.0, 537.5), "reversal"),
-    (None,                "AGFACHROME RSX II 100",      9, (44.0, 202.0), "reversal"),
-    (None,                "AGFACHROME RSX II 200",      9, (220.0, 378.5), "reversal"),
+    # ⚠ THESE FOUR READ `None` UNTIL 2026-09-06i AND THE PROFILES HAD EXISTED
+    # SINCE 2026-09-01. This module's own harvest is what created them, and the
+    # mapping was never updated afterwards, so every later consumer -- the
+    # cross-reader check included -- silently skipped a third of the sheet.
+    ("AGFA_ULTRA_50",     "AGFACOLOR ULTRA 50",         8, (203.0, 361.5), "colour_neg"),
+    ("AGFA_RSX_II_50",    "AGFACHROME RSX II 50",       8, (379.0, 537.5), "reversal"),
+    ("AGFA_RSX_II_100",   "AGFACHROME RSX II 100",      9, (44.0, 202.0), "reversal"),
+    ("AGFA_RSX_II_200",   "AGFACHROME RSX II 200",      9, (220.0, 378.5), "reversal"),
     ("AGFA_SCALA_200X",   "AGFA SCALA 200x",            9, (396.0, 554.5), "bw_rev"),
     ("AGFA_APX_25",       "AGFAPAN APX 25",            10, (27.0, 185.0), "mono"),
     ("AGFA_APX_100",      "AGFAPAN APX 100",           10, (203.0, 361.5), "mono"),
@@ -671,16 +701,21 @@ def read_dye(page, ws, xlo, xhi, kind, lam0=400.0, step=10.0, n=31):
     return out, None
 
 
-def emit(doc, path):
-    """Write every adoptable reading to JSON, for the adoption script to splice.
+def collect(doc):
+    """Every adoptable reading, as a plain dict keyed on the printed name.
 
     ⚠ THE SPLICE IS A SEPARATE STEP ON PURPOSE. This reader is an AUDIT: it must
     be able to run against the source and disagree with the database. If it wrote
     `film_profiles.py` directly it could only ever agree with itself, and the
     build's audit stage would be checking the source against a copy of its own
     last output.
+
+    ⚠⚠ SPLIT OUT OF `emit` ON 2026-09-06i SO A SECOND MODULE CAN CONSULT IT.
+    `agfa_1998_sharpness.py` reads the same twelve Sharpness panels, and for
+    four days it disagreed with this module by 4 % on every one of them without
+    either noticing -- there was no in-process way to ask. A number that is
+    read twice and compared never is a number that was checked once.
     """
-    import json
     out = {"source": SOURCE, "films": {}}
     for profile, printed, pageno, (xlo, xhi), kind in COLUMNS:
         pg = doc[pageno - 1]
@@ -798,6 +833,13 @@ def emit(doc, path):
                 rec["gamma_time_residual"] = [round(p.xres, 4), round(p.yres, 4)]
 
         out["films"][printed] = rec
+    return out
+
+
+def emit(doc, path):
+    """Write `collect`'s reading to JSON, for the adoption script to splice."""
+    import json
+    out = collect(doc)
     Path(path).write_text(json.dumps(out, indent=1), encoding="utf-8")
     print(f"  [emit] {len(out['films'])} films -> {path}")
 
@@ -829,20 +871,21 @@ def main() -> int:
         return 1
     print(f"  [OK  ] 12 pages, {imgs} embedded images, p12 prints 09/1998 1st edition\n")
 
-    for profile, printed, pageno, (xlo, xhi), kind in COLUMNS:
-        if ns.only and ns.only.lower() not in printed.lower():
-            continue
-        pg = doc[pageno - 1]
-        ws = _words(pg)
-        tag = profile or "(no profile)"
-        print(f"  {printed}   [{tag}]   printed p{pageno}")
-        if kind == "mono":
-            _read_mono(pg, ws, xlo, xhi)
-        elif kind == "bw_rev":
-            _read_scala(pg, ws, xlo, xhi)
-        else:
-            _read_colour(pg, ws, xlo, xhi, kind)
-        print()
+    with as_1998_widths():
+        for profile, printed, pageno, (xlo, xhi), kind in COLUMNS:
+            if ns.only and ns.only.lower() not in printed.lower():
+                continue
+            pg = doc[pageno - 1]
+            ws = _words(pg)
+            tag = profile or "(no profile)"
+            print(f"  {printed}   [{tag}]   printed p{pageno}")
+            if kind == "mono":
+                _read_mono(pg, ws, xlo, xhi)
+            elif kind == "bw_rev":
+                _read_scala(pg, ws, xlo, xhi)
+            else:
+                _read_colour(pg, ws, xlo, xhi, kind)
+            print()
     if ns.emit:
         emit(doc, ns.emit)
     return 0

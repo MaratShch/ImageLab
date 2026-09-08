@@ -47,12 +47,12 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     PF_ADD_POPUP(
         itemNames[2],
         UnderlyingType(film::eFILM_PROFILE::eTOTAL_FILMS_PROFILES),
-        UnderlyingType(film::eFILM_PROFILE::eAGFACOLOR_NEG_TYPE_B_1943),
+        UnderlyingType(film::eFILM_PROFILE::eAGFA_APX_25),
         filmList,
-        UnderlyingType(FilmSimulationCtrl::SETUP_BUTTON));
+        UnderlyingType(FilmSimulationCtrl::FILM_STOCK));
     totalParams++;
 
-    AEFX_CLR_STRUCT_EX(def);
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_FILM_PROPERTIES));
     totalParams++;
 

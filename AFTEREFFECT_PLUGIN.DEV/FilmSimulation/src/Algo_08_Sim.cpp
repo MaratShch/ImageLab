@@ -1333,12 +1333,35 @@ void AlgoStage08b_Interimage
                     const __m256 le = _mm256_loadu_ps(rL + x);
 
                     // Back into the curve. A reversal stock negates the trimmed
-                    // log exposure and the correction is subtracted OUTSIDE that
-                    // negation, because inhibition reduces development in both
-                    // cases and the sign of the density response is what differs.
-                    // Branch on a frame constant, so it is hoisted out of the loop.
+                    // log exposure, and the correction is ADDED outside that
+                    // negation. Branch on a frame constant, so it is hoisted out
+                    // of the loop.
+                    //
+                    // ⚠ SIGN CORRECTED 2026-09-08, mirroring the scalar twin.
+                    // This read `- adj` until then, with a comment claiming
+                    // inhibition "reduces development in both cases". Three
+                    // independent internal reasons say otherwise; no database
+                    // value changed.
+                    //  1. THE COEFFICIENTS WERE NEVER SOLVED FOR THIS BRANCH.
+                    //     _iie_solve drives _iie_measure, which evaluates ONLY
+                    //     density(logE + adj) - no reversal branch, no
+                    //     density_weighting. FUJI_VELVIA_50 was solved to
+                    //     +42/+45/+25 % IIE and rendered -17.5/-17.9/-13.5 %.
+                    //     Sign inverted on 78/78 channels, all 26 reversal
+                    //     stocks.
+                    //  2. Every stored off-diagonal is NEGATIVE, so `- adj`
+                    //     RAISED density where the neighbour was dense -
+                    //     enhancement, not inhibition. `+ adj` lowers it.
+                    //  3. End to end the stage raised saturation on 80/80
+                    //     negatives and 0/26 reversals. After the fix, 26/26.
+                    // Cost: median |delta| 0.0205 linear over the 26 reversal
+                    // stocks, worst pixel 0.9998 on FUJI_PROVIA_400F.
+                    // ⚠ 5 stocks now OVERSHOOT their solved target because
+                    // _iie_measure still ignores density_weighting: 64T_II,
+                    // PROVIA_100F, PROVIA_400F, EKTACHROME_100D_5285,
+                    // SUPER_ANSCOCHROME_1957. Open gap in NotFound.md.
                     const __m256 arg = reversal
-                        ? _mm256_sub_ps(_mm256_sub_ps(_mm256_setzero_ps(),
+                        ? _mm256_add_ps(_mm256_sub_ps(_mm256_setzero_ps(),
                                                       _mm256_add_ps(le, vTr)),
                                         adj)
                         : _mm256_add_ps(le, adj);
@@ -1360,8 +1383,9 @@ void AlgoStage08b_Interimage
 
                     const __m256 le = _mm256_maskload_ps(rL + x, vTail);
 
+                    // Same sign correction as the main body above, 2026-09-08.
                     const __m256 arg = reversal
-                        ? _mm256_sub_ps(_mm256_sub_ps(_mm256_setzero_ps(),
+                        ? _mm256_add_ps(_mm256_sub_ps(_mm256_setzero_ps(),
                                                       _mm256_add_ps(le, vTr)),
                                         adj)
                         : _mm256_add_ps(le, adj);

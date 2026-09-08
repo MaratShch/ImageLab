@@ -262,6 +262,9 @@
     <ClCompile Include="src\film_profiles_data_15.cpp" />
     <ClCompile Include="src\film_profiles_data_16.cpp" />
     <ClCompile Include="src\film_profiles_data_17.cpp" />
+    <ClCompile Include="src\film_profiles_data_18.cpp" />
+    <ClCompile Include="src\film_profiles_data_19.cpp" />
+    <ClCompile Include="src\film_profiles_data_20.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\LoadFilmDataBase.cpp" />
   </ItemGroup>

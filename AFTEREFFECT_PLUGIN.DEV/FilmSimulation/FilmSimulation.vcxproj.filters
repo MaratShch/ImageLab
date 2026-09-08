@@ -401,6 +401,15 @@
     <ClCompile Include="src\film_profiles_data_17.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\film_profiles_data_18.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_19.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_20.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">

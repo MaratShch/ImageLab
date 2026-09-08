@@ -461,6 +461,18 @@ EXPECTED_STAGE12 = {
     # and two off vector paths, so that agreement crosses extraction methods.
     "KODAK_VISION3_50D_5203": 0.0513,
     "KODAK_VISION3_250D_5207": 0.0503,
+    # ⚠ THE TWO FUJI SETS ADOPTED 2026-09-06b, AND THEY LAND WHERE THE E-6
+    # REVERSAL GROUP ALREADY SITS: 0.0838 and 0.0844 against PROVIA 100F's
+    # 0.0837 and SENSIA 100's 0.0852. Neither is corroboration of the other --
+    # they are three separate drawings -- but the reversal/negative split this
+    # table grew on 2026-09-04 survives two more stocks read off two more
+    # sheets, which is the only thing a pinned scalar can say.
+    # ⚠ 64T TYPE II IS TUNGSTEN-BALANCED AND THAT DOES NOT SHOW HERE. Its
+    # spectral SENSITIVITY is skewed about seven to one towards blue; its dye
+    # DENSITIES are an ordinary E-6 set, and this figure reads the dyes. The
+    # two must not be conflated because both are "spectral" panels.
+    "FUJI_PROVIA_400F": 0.0838,
+    "FUJICHROME_64T_II": 0.0844,
 }
 
 #: How far a pinned stage-12 offset may move before this is called drift.
@@ -609,8 +621,16 @@ def derive(p):
 #: be positive. A negative one would mean the derivation, the traced panel or
 #: the status response is wrong -- it is not a tolerance, it is a physical
 #: impossibility, and it must fail loudly.
-EXPECTED_M1A = dict(n=27, positive=27, t_off_median=0.2127,
-                    t_asym_median=0.0809, vs_rownorm_max=0.1405)
+#: ⚠ REPINNED 2026-09-06b, 27 -> 29, FOR THE TWO FUJI DYE SETS. Both derive
+#: POSITIVE, so the sign result — the one assertion here that is physics and
+#: not a tolerance — now stands at 29 of 29 rather than 27 of 27, and the two
+#: new stocks are two more independent panels that could have broken it and
+#: did not. The medians moved because the sample moved (0.2127 -> 0.2232,
+#: 0.0809 -> 0.0817); `vs_rownorm_max` did NOT move at all, because its worst
+#: case is still TECHNICOLOR_THREE_STRIP at 0.1405 and neither Fuji set comes
+#: near it.
+EXPECTED_M1A = dict(n=29, positive=29, t_off_median=0.2232,
+                    t_asym_median=0.0817, vs_rownorm_max=0.1405)
 M1A_TOL = 0.002
 
 

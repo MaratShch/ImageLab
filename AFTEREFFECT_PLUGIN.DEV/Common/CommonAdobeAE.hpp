@@ -110,9 +110,6 @@ inline void EnableUI (PF_ParamUIFlags uiFlag) noexcept
 
 inline double image_lab_get_fps (const PF_InData* in_data) noexcept
 {
-    if (nullptr == in_data)
-        return 0.0;
-
     // Prefer local_time_step: documented as "constant from one frame to the
     // next", where time_step can vary per frame under time remapping.
     const A_long step = (0 == in_data->local_time_step) ? in_data->time_step : in_data->local_time_step;

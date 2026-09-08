@@ -316,7 +316,7 @@ def solve_anchors(
     print_stock: PrintStock,
     grey_target: float,
     coupler_scale: float = 1.0,
-    scanner_specular: float = 0.0,
+    scanner_specular: float = 0.853,
 ) -> tuple[float, float, float]:
     """Per-channel exposure anchors that land 18% scene grey on target.
 
@@ -1631,9 +1631,43 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
                 if j == c or m[c][j] == 0.0:
                     continue
                 adj += np.float32(m[c][j]) * delta[j]
+            # ⚠ REVERSAL SIGN CORRECTED 2026-09-08. `adj` is ADDED outside
+            # the negation, not subtracted. It used to read `- adj`, with a
+            # comment claiming inhibition "reduces development in both cases".
+            # Three independent internal reasons say otherwise; no external
+            # source was needed and no database value changed.
+            #
+            #  1. THE COEFFICIENTS WERE NEVER SOLVED FOR THIS BRANCH.
+            #     `_iie_solve` in film_profiles.py picks every coefficient by
+            #     driving `_iie_measure`, and that model evaluates ONLY
+            #     `density(logE + adj)` -- it has no reversal branch and no
+            #     density_weighting. Feeding its answer through
+            #     `-(logE + anchor) - adj` delivered the opposite of what was
+            #     solved for. FUJI_VELVIA_50 was solved to +42/+45/+25 % IIE
+            #     and rendered -17.5/-17.9/-13.5 %. Sign inverted on 78/78
+            #     channels across all 26 reversal stocks, no exceptions.
+            #  2. IT WAS NOT DOING WHAT ITS OWN COMMENT CLAIMED. Every stored
+            #     off-diagonal is NEGATIVE -- 26/26 reversal and 80/80
+            #     negative, one convention throughout -- so `- adj` RAISED
+            #     this layer's density where the neighbour was dense. That is
+            #     enhancement, not inhibition. `+ adj` lowers it, which is
+            #     what the comment always said the stage did.
+            #  3. IT INVERTED THIS FUNCTION'S DOCSTRING. Measured end to end
+            #     through simulate() on moderate-chroma patches, the stage
+            #     raised saturation on 80/80 negatives and on 0/26 reversals.
+            #     After the fix, 26/26 reversals raise it too.
+            #
+            # Cost, measured: median |delta| 0.0205 in linear light over the
+            # 26 reversal stocks, worst pixel 0.9998 on FUJI_PROVIA_400F.
+            # ⚠ 5 STOCKS NOW OVERSHOOT their solved target because
+            # `_iie_measure` still ignores density_weighting (0.65 on
+            # reversal): FUJICHROME_64T_II, FUJI_PROVIA_100F,
+            # FUJI_PROVIA_400F, KODAK_EKTACHROME_100D_5285,
+            # SUPER_ANSCOCHROME_1957. Recorded as an open gap in NotFound.md
+            # under owner instruction to leave the stored values untouched.
             if reversal:
                 dens[:, :, c] = density(
-                    -(log_e[:, :, c] + np.float32(anchors[c])) - adj,
+                    -(log_e[:, :, c] + np.float32(anchors[c])) + adj,
                     curves[c],
                 )
             else:
@@ -2221,13 +2255,33 @@ class RenderSettings:
     grain_scale: float = 1.0
     halation_scale: float = 1.0
     # -- C22, 2026-08-23: how DIRECTIONAL the reader's optics are. 0 = a diffuse
-    # -- integrating sphere (and the default, which reproduces every earlier
-    # -- render exactly); 1 = a condenser or point source, which sees the film's
-    # -- full Callier coefficient. Anything between mixes the two.
+    # -- integrating sphere; 1 = a condenser or point source, which sees the
+    # -- film's full Callier coefficient. Anything between mixes the two.
     # -- ⚠ IT DOES NOTHING ON COLOUR STOCK BY CONSTRUCTION -- Callier is silver
-    # -- scattering and a dye image has essentially none, so all 93 colour
-    # -- profiles carry Q = 1.0. It moves the 66 monochrome stocks only.
-    scanner_specular: float = 0.0
+    # -- scattering and a dye image has essentially none, so all 107 colour
+    # -- profiles carry Q = 1.0. It moves the 69 monochrome stocks only.
+    # --
+    # -- ⚠⚠ DEFAULT RAISED 0.0 -> 0.853 ON 2026-09-06, BY OWNER DECISION, AND IT
+    # -- MOVES PIXELS. 0.853 is 1 - E with E = 0.1471, the collected-scatter
+    # -- fraction fitted to Trumpy & Gschwind 2015 Fig. 5 (after Streiffert
+    # -- 1947) by `trumpy_callier_q.py` -- the same fit that gave beta 1.6746.
+    # -- At this setting a monochrome stock reads Q 1.485 at net density 1.0,
+    # -- i.e. +0.485 D, and Q 1.569 in the deep toe.
+    # -- ⚠ WHAT IT IS NOT: a measurement of any scanner. E is a property of
+    # -- STREIFFERT'S 1947 DENSITOMETER, and the owner adopted it as a stated
+    # -- provisional stand-in for a reader geometry rather than as a claim about
+    # -- his own rig. It is an ESTIMATE in the release vocabulary, not a
+    # -- measurement, and it is a RENDER CONTROL rather than film data -- no
+    # -- profile field changed.
+    # -- ⚠ THE FREE ROUTE TO A REAL NUMBER IS RECORDED SO THIS DOES NOT CALCIFY:
+    # -- scan one negative twice, once normally and once with a diffuser over
+    # -- the light source; the density difference across the tone scale IS Q(D)
+    # -- for that scanner, and with beta already stored it solves for s. Until
+    # -- then this value stands and says what it is.
+    # -- ⚠ 0.0 REMAINS THE VALUE THAT REPRODUCES THE STORED CHARACTERISTIC
+    # -- CURVES EXACTLY, because those are DIFFUSE densities. Anyone comparing a
+    # -- render against a datasheet must set it back to 0.
+    scanner_specular: float = 0.853
     coupler_scale: float = 1.0
     scanner_f50: float = 0.0        # 0 = take from print stock
 
@@ -3336,13 +3390,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--grain", type=float, default=1.0, dest="grain_scale")
     p.add_argument("--halation", type=float, default=1.0, dest="halation_scale")
-    p.add_argument("--scanner-specular", type=float, default=0.0,
+    p.add_argument("--scanner-specular", type=float, default=0.853,
                    dest="scanner_specular",
-                   help="reader optics: 0 = diffuse integrating sphere "
-                        "(default, and what every earlier render used), "
-                        "1 = condenser/point source, which applies the stock's "
-                        "full Callier coefficient. Monochrome stocks only -- "
-                        "colour carries Q = 1.0")
+                   help="reader optics: 0 = diffuse integrating sphere, which "
+                        "reproduces the stored (diffuse) characteristic curves "
+                        "exactly; 1 = condenser/point source, applying the "
+                        "stock's full Callier coefficient. DEFAULT 0.853 = "
+                        "1 - E with Streiffert's fitted E = 0.1471 (owner "
+                        "decision 2026-09-06; a densitometer geometry adopted "
+                        "as a provisional stand-in, NOT a scanner measurement). "
+                        "Monochrome stocks only -- colour carries Q = 1.0")
     p.add_argument("--couplers", type=float, default=1.0, dest="coupler_scale")
     p.add_argument("--scanner-f50", type=float, default=0.0, help="cycles/mm, 0=auto")
     p.add_argument(

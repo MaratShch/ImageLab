@@ -110,13 +110,36 @@ def ordering_check() -> tuple[list[str], list[str]]:
     if not same:
         bad.append("film_names.txt does not match the vector line for line")
 
+    # ⚠ RESTATED 2026-09-08. This used to report film_ids.lock as the live
+    # storage identity, "deliberately independent of display order". By owner
+    # decision the database is now STORED in natural-name order and the lock
+    # orders nothing. Reporting it as identity would be the most misleading
+    # line in this document: someone would map a saved project through it and
+    # land on the wrong film.
+    import re as _re
+
+    def _nat(s):
+        return tuple(int(t) if t.isdigit() else t.lower()
+                     for t in _re.split(r"(\d+)", s))
+
+    order = [p.name for p in FILM_PROFILES]
+    alpha = order == sorted(order, key=_nat)
+    facts.append(f"storage order IS natural-name order: **{alpha}** — "
+                 f"database index == `eFILM_PROFILE` == `film_names.txt` line, "
+                 f"and that index is alphabetical. ⚠ There is no separate "
+                 f"display order any more; `film_display_order.txt` is emitted "
+                 f"as the identity permutation and kept only as a check")
+    if not alpha:
+        bad.append("FILM_PROFILES is not in natural-name order")
+
     ids = fp.FILM_IDS
-    contiguous = sorted(ids.values()) == list(range(len(ids)))
-    facts.append(f"`film_ids.lock` holds {len(ids)} frozen storage ids, "
-                 f"contiguous from 0: **{contiguous}**  ⚠ these are STORAGE "
-                 f"identity and are deliberately independent of display order")
-    if not contiguous:
-        bad.append("film_ids.lock is not contiguous")
+    newidx = {n: i for i, n in enumerate(order)}
+    moved = sum(1 for n, o in ids.items() if newidx.get(n, o) != o)
+    facts.append(f"`film_ids.lock` holds {len(ids)} PRE-2026-09-08 ids and is "
+                 f"**no longer read for ordering** — it is the source of "
+                 f"`film_id_migration.txt`. ⚠ **{moved} of {len(order)} stocks "
+                 f"changed index at that cutover**, so a project saved earlier "
+                 f"selects a different film unless mapped through that file")
     return facts, bad
 
 

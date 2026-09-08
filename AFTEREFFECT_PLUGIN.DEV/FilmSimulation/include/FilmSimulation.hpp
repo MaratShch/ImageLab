@@ -65,4 +65,10 @@ PF_Err SetupControlElements
     PF_OutData* out_data
 );
 
+AlgoControls getAlgoControls
+(
+    PF_ParamDef* params[],
+    const double fps
+);
+
 #endif // __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__

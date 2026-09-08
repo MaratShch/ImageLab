@@ -81,7 +81,7 @@ if _sec_on():
     # 2026-08-02: 83 -> 89 (six Soviet stocks added from Gurlev 1986 / Iofis
     # 1980: SVEMA FOTO-32, FOTO-130, DS-4, TSNL-32, TSNL-65, TASMA OCH-45);
     # reversal count 20 -> 21 (TASMA_OCH_45 is a B&W reversal).
-    # 2026-08-04: 89 -> 93 (AGFACOLOR_NEG_TYPE_B_1943, FUJICOLOR_A250,
+    # 2026-08-04: 89 -> 93 (AGFA_NEG_TYPE_B_1943, FUJICOLOR_A250,
     # GEVACHROME_902, GEVACOLOR_NEG_682); reversal 21 -> 22 -- Gevachrome 902 is
     # a reversal camera/duplicating stock, the other three are negatives.
     # 2026-08-11: 93 -> 100 (Kodak Data Book 1952: VERICHROME_1952,
@@ -201,7 +201,9 @@ if _sec_on():
     # three MTF panels are TRACED (fuji_t3_2026.py); the rms granularity,
     # resolving power at both contrasts, base and speed are printed numbers.
     # Ids 172-174, appended, so no existing ListBox index moves.
-    chk("176 stocks load and validate", len(FILM_PROFILES) == 176, f"n={len(FILM_PROFILES)}")
+    # ⚠ 182 -> 184 on 2026-09-07: AGFA_VISTA_PLUS_200 and _400, from the
+    # AgfaPhoto licensed sheet. NOT Agfa-Gevaert films -- see G-VP1.
+    chk("184 stocks load and validate", len(FILM_PROFILES) == 184, f"n={len(FILM_PROFILES)}")
     # ⚠ AND THE THREE NEW ONES CARRY MEASURED CURVES, which is the point of the
     # row: a new stock added from a datasheet's PROSE only would have been a set
     # of estimates with a citation. Pinned so a later edit cannot quietly
@@ -324,7 +326,11 @@ if _sec_on():
     # between densities 0.3 and 2.1, which only makes sense for a positive).
     # 2026-09-01: 36 -> 39, the three AGFACHROME RSX II stocks (E-6 slide film).
     # 2026-09-02e: 40 -> 41, FUJI_PROVIA_100F (queue T3, E-6/CR-56).
-    chk("reversal stocks flagged", len(rev) == 42, ", ".join(rev))
+    # 2026-09-06: 42 -> 43, FUJI_PROVIA_400F from AF3-066E (its ISO 400
+    # sibling; same E-6/CR-56 chemistry, same RHP/RDP family).
+    # 2026-09-06: 43 -> 44, FUJICHROME_64T_II from AF3-024E -- the first
+    # TUNGSTEN-balanced Fuji reversal stock in the file.
+    chk("reversal stocks flagged", len(rev) == 44, ", ".join(rev))
 
     # alias resolution incl. the user's own phrasing
     cases = {
@@ -616,7 +622,7 @@ if _sec_on():
     # vignette and coating_scale are pinned off for the whole anchor section. The
     # grey patch of the test chart sits at r = 0.81 toward the frame corner, so
     # with the schema-v4 lens vignette active it legitimately receives up to a
-    # stop less light on period stocks -- measured 61% low on AGFACOLOR_NEU_1936,
+    # stop less light on period stocks -- measured 61% low on AGFA_NEU_1936,
     # which is correct physics, not a broken anchor. The anchor contract is about
     # the TONE SCALE, so it is tested with spatial falloff excluded; that the
     # frame CENTRE still lands on grey_target with the defects on was verified
@@ -629,7 +635,46 @@ if _sec_on():
         patch = o[615:665, 55:145].mean(axis=(0, 1))
         errs[p.name] = max(abs(float(v) - 0.18) / 0.18 for v in patch)
     worst_name = max(errs, key=errs.get)
-    chk("mid grey anchors to 18% for every stock", max(errs.values()) < 0.12,
+    # ⚠ THE PINNED EXCEPTION WAS REMOVED ON 2026-09-08, AND THE REASON IS THE
+    # BEST INDEPENDENT EVIDENCE THAT DAY'S STAGE 8b FIX WAS RIGHT.
+    #
+    # This used to read `_GREY_EXCEPT = {"FUJI_PROVIA_400F": 0.1233}`, with a
+    # long note arguing that the 12.3 % error was not a bad trace and not a
+    # failed solve: the anchor converged to -1.62 stops well inside its
+    # bracket, the characteristic fit had rms 0.0069 over 82 columns, and the
+    # blame was placed on the curve -- gamma 2.23 against 100F's 1.99 on a
+    # shorter arm -- amplifying the residual between the scalar solve and the
+    # full pixel pass. That reasoning was careful, it was checked, and it was
+    # WRONG ABOUT THE CAUSE.
+    #
+    # The cause was stage 8b's reversal branch subtracting the interimage
+    # correction instead of adding it. FUJI_PROVIA_400F is the stock that
+    # branch moved the most (worst pixel 0.9998 in linear light of the 26
+    # reversal stocks). Correcting the sign took its mid-grey error from
+    # 0.1233 to 0.0506 -- from the single worst stock in the database, 12.3 %
+    # and needing its own pin, to SEVENTH worst and comfortably inside the
+    # bound every other stock already met. Nothing about the anchor solve, the
+    # trace or the curve changed.
+    #
+    # ⚠ NOBODY WROTE THAT NUMBER DOWN AS A DEFECT, WHICH IS THE LESSON. A
+    # pinned exception is the right tool when a stock is genuinely different,
+    # and this project uses several correctly. But a pin also SILENCES the
+    # measurement that was trying to report an upstream bug, and this one did
+    # so for six days. When a single stock needs a bound three times looser
+    # than every other, prefer one more hour on the cause.
+    #
+    # Measured after the fix: no stock reaches 0.12; worst is
+    # SUPER_ANSCOCHROME_1957 at 0.0809. So the bound now applies to all 184
+    # with no exceptions, which is what it always claimed to.
+    _grey_bad = ["%s %.4f" % (_n, _e)
+                 for _n, _e in errs.items() if _e >= 0.12]
+    chk("mid grey anchors to 18% for every stock, NO exceptions "
+        "(the FUJI_PROVIA_400F pin was removed 2026-09-08 -- the stage 8b "
+        "reversal sign fix took it from 0.1233 to 0.0506)",
+        not _grey_bad, ", ".join(_grey_bad[:3]) if _grey_bad
+        else "all %d stocks under 12 %%, worst %s %.4f"
+             % (len(errs), worst_name, errs[worst_name]))
+    chk("SUPERSEDED mid grey bound", True,
         f"worst={worst_name} {errs[worst_name]*100:.1f}% off")
 
     # both print stocks, and grey_target honoured
@@ -1142,9 +1187,32 @@ if _sec_on():
                                   # being raised, so that the guard keeps
                                   # asserting WHICH stocks came after 171 and
                                   # not merely how many.
-                                  "SUPER_ANSCOCHROME_1957")
+                                  "SUPER_ANSCOCHROME_1957",
+                                  # ⚠ 176, appended 2026-09-06 from AF3-066E.
+                                  "FUJI_PROVIA_400F",
+                                  # ⚠ 177, appended 2026-09-06 from AF3-024E.
+                                  "FUJICHROME_64T_II",
+                                  # ⚠ 178, appended 2026-09-06 from AF3-177E.
+                                  "FUJICOLOR_PRO_800Z",
+                                  # ⚠ 179, appended 2026-09-06c from AF3-100E,
+                                  # whose four data panels are PRO 800Z's own
+                                  # drawings -- measured to 0.015 D and 0.9 %
+                                  # response, not assumed from the names.
+                                  "FUJICOLOR_PORTRAIT_NPZ_800",
+                                  # ⚠ 180 and 181, appended 2026-09-06e from
+                                  # AF3-068E and AF3-967E.
+                                  "FUJICOLOR_SUPERIA_XTRA_800",
+                                  "FUJICOLOR_SUPERIA_REALA",
+                                  # ⚠ 182 and 183, appended 2026-09-07 from
+                                  # the AgfaPhoto licensed sheet. NOT
+                                  # Agfa-Gevaert films -- see G-VP1 -- and
+                                  # named here rather than raising an id
+                                  # bound, so this guard keeps asserting
+                                  # WHICH stocks came after 171.
+                                  "AGFA_VISTA_PLUS_200",
+                                  "AGFA_VISTA_PLUS_400")
                 for n, v in _ids.items()),
-        "id %d of %d stocks, frozen in film_ids.lock; ids 172-175 are the "
+        "id %d of %d stocks, frozen in film_ids.lock; ids 172-183 are the "
         "stocks appended after it"
         % (_ids["FUJI_NEOPAN_SS"], len(film_profiles.FILM_PROFILES)))
     # The spectral curve is RELATIVE: peak-normalised, no absolute level.
@@ -1297,9 +1365,27 @@ if _sec_on():
         "ILFORD_HPS", "SVEMA_LN_9", "SVEMA_LN_9S", "SVEMA_LN_8", "SVEMA_DS_5M",
         "SVEMA_CNL_32", "SOVIET_PANCHROM_1939", "EASTMAN_ORTHO_1930",
         "FUJI_SUPER_F125_8532", "FUJICOLOR_SUPER_F500_8572", "GEVACHROME_605",
+        # ⚠ 2026-09-06: FUJI_PROVIA_400X joins the SAME class as the two Fuji
+        # stocks above, for the same stated reason. Its MTF panel was traced
+        # that day and the overshoot it measures is +0.047 at 1.0 cycles/mm --
+        # the very first plotted point, i.e. the panel's abscissa STARTS at the
+        # peak and cannot resolve where it actually lies. The stored adjacency
+        # 0.11 is left untouched (the peak-to-adjacency mapping is undocumented,
+        # see KODAK_TMAX_100), so the amplitude is measured, the frequency is
+        # not, and the renderer resolves no peak. Refused, not overlooked.
+        "FUJI_PROVIA_400X",
+        # ⚠ 2026-09-06h: AGFA_SCALA_200X joins on the AMPLITUDE side of the same
+        # argument. Its «Sharpness» panel was traced that day and the overshoot
+        # it measures is +2.1 % -- the SMALLEST of the twelve Agfa panels, and
+        # small enough that the stored `adjacency` of 0.0 is what the sheet
+        # actually shows rather than an omission. The other eleven Agfa stocks
+        # carry a non-zero adjacency digitised on 2026-09-01 and do resolve a
+        # peak; this one measures almost none. Refused, not overlooked.
+        "AGFA_SCALA_200X",
     }
-    chk("A4: exactly 11 stocks still render no overshoot, and they are the 11 "
-        "with a written refusal -- down from 12, and 5231 is no longer one",
+    chk("A4: exactly 13 stocks still render no overshoot, and they are the 13 "
+        "with a written refusal -- 11 until 2026-09-06, when PROVIA 400X's "
+        "trace put it in the same measured-amplitude class",
         set(_inert) == _expect_inert,
         "unexpected %s / missing %s"
         % (sorted(set(_inert) - _expect_inert),
@@ -1582,8 +1668,30 @@ if _sec_on():
         all(a > b for a, b in zip(_sats, _sats[1:])),
         " > ".join(f"{n}={v:.3f}" for n, v in zip(_order, _sats)))
 
-    # Dye matrices must be pure saturation operators: unit row sums, so they change
-    # colour without shifting neutral density.
+    # ---- dye matrix row sums, and what they do and do NOT guarantee ---------
+    # ⚠ THE RATIONALE ON THIS CHECK WAS FALSE AND WAS CORRECTED 2026-09-08.
+    # It used to read: "Dye matrices must be pure saturation operators: unit row
+    # sums, so they change colour without shifting neutral density." The test is
+    # right and stays; the reason given for it does not follow, and the database
+    # falsifies it 81 times over while the check passes.
+    #
+    # WHAT UNIT ROW SUMS ACTUALLY BUY. M has unit row sums exactly when
+    # M @ (k,k,k) == (k,k,k), i.e. it fixes an EQUAL-DENSITY triple. That is a
+    # real and worth-keeping property -- it is what stops the matrix from being
+    # a global density offset wearing a colour-matrix costume -- and it holds to
+    # 2.2e-16 across the whole database, which is machine exactness, not luck.
+    #
+    # WHAT THEY DO NOT BUY. A NEUTRAL on a masked colour negative is not an
+    # equal-density triple. The orange mask puts the three layers at very
+    # different densities at the same mid grey, so M fixes a colour the stock
+    # never produces and moves the one it does. Measured at mid grey over the
+    # 107 stocks whose matrix is not the identity:
+    #     > 0.01 D on 81 stocks, > 0.05 D on 26, median 0.0329 D,
+    #     worst 0.1338 D on SVEMA_CNL_32 (0.926/1.019/1.641 -> 1.007/1.072/1.508)
+    # The rendered consequence is far smaller (~0.004-0.005 linear) because the
+    # downstream anchor and balance solve absorb most of it. A real invariant
+    # violation with a small visible cost: pinned below, NOT fixed, and not a
+    # licence to change any stored matrix.
     _bad = {}
     for _p in FILM_PROFILES:
         for _r, _row in enumerate(_p.dye_matrix):
@@ -1594,7 +1702,33 @@ if _sec_on():
         for _row in _s.dye_matrix:
             if abs(sum(_row) - 1.0) > 1e-6:
                 _bad[_s.name] = round(sum(_row), 4)
-    chk("every dye matrix has unit row sums", not _bad, str(_bad))
+    chk("every dye matrix fixes an EQUAL-DENSITY triple (unit row sums)",
+        not _bad, str(_bad))
+
+    # The neutral-shift census, pinned so it cannot drift unnoticed. This is a
+    # WITNESS, not an aspiration: it asserts the measured state, so a silent
+    # worsening AND a silent improvement both report here and get read by a
+    # person. Move the numbers only together with the change that earned it.
+    _shift = []
+    for _p in FILM_PROFILES:
+        _m = np.array(_p.dye_matrix, dtype=float)
+        if np.allclose(_m, np.eye(3)):
+            continue
+        _cv = (_p.curves.r, _p.curves.g, _p.curves.b)
+        _d = np.array([float(fs.density_scalar(0.0, _cv[_c])) for _c in range(3)])
+        _shift.append((float(np.max(np.abs(_m @ _d - _d))), _p.name))
+    _shift.sort(reverse=True)
+    _n01 = sum(1 for _v, _ in _shift if _v > 0.01)
+    _n05 = sum(1 for _v, _ in _shift if _v > 0.05)
+    _med = float(np.median([_v for _v, _ in _shift])) if _shift else 0.0
+    chk("dye_matrix neutral-shift census is unchanged "
+        "(107 non-identity stocks, 81 over 0.01 D, 26 over 0.05 D, "
+        "median 0.0329 D, worst 0.1338 D on SVEMA_CNL_32)",
+        len(_shift) == 107 and _n01 == 81 and _n05 == 26
+        and abs(_med - 0.0329) < 5e-4
+        and _shift[0][1] == "SVEMA_CNL_32" and abs(_shift[0][0] - 0.1338) < 5e-4,
+        f"n={len(_shift)} over0.01={_n01} over0.05={_n05} "
+        f"median={_med:.4f} worst={_shift[0][0]:.4f} on {_shift[0][1]}")
     _, c_ag2 = sat_and_contrast("agfacolor", ramp)
     _, c_xx = sat_and_contrast("super xx", ramp)
     chk("Agfacolor Neu still runs high contrast", c_ag2 > c_xx,
@@ -1821,7 +1955,14 @@ if _sec_on():
     # four published ratings. v27 adds `ProcessingSpec.bromide_drag`, a
     # BromideDragSpec, and it is READ BY STAGE 9c in all three engines; it is
     # inert on all 176 stocks because no source in this corpus measures it.
-    chk("schema version is 27", _fpm.SCHEMA_VERSION == 27, f"v={_fpm.SCHEMA_VERSION}")
+    # ⚠ 27 -> 28 on 2026-09-06i: `DevelopmentPoint` gained `vessel`. The
+    # smallest bump in this log, and it exists because a stored record asked
+    # for it in prose -- the three AGFAPAN `processing_family.source` strings
+    # said, in their own words, that the drum and small-tank rows were
+    # "distinguishable only by their times". Additive and inert: nothing on any
+    # engine's path reads a development point, so a v28 database renders
+    # bit-identically to a v27 one and no film index moves.
+    chk("schema version is 28", _fpm.SCHEMA_VERSION == 28, f"v={_fpm.SCHEMA_VERSION}")
 
     # ==== 2026-09-01: THE TWO CARRIERS THAT STOPPED BEING INERT =============
     # `reciprocity_table` and `process_variants` were both listed as "carried,
@@ -1886,6 +2027,237 @@ if _sec_on():
         else "checked %d stocks with a printed RP pair" % sum(
             1 for _p in _fpm.FILM_PROFILES
             if _p.mtf.resolving_power_lp_mm_highc > 0 and not _p.mtf.mtf_measured))
+
+    # ---- G-MTFBW: the 2026-09-06 KODAK black-and-white MTF batch -----------
+    # Two adoptions and three refusals, all guarded. ⚠ THE REFUSALS ARE GUARDED
+    # HARDER THAN THE ADOPTIONS, on the principle spectral_sampling.py already
+    # applies to F3: nothing downstream consumes a refusal, so nothing would
+    # notice if its premise quietly stopped holding.
+    _bw = _fpm._BY_NAME
+    chk("G-MTFBW1  KODAK_TMAX_100 carries the traced f50 123.0, not the 95.0 "
+        "estimate",
+        (_bw["KODAK_TMAX_100"].mtf.f50s() == (123.0, 123.0, 123.0)
+         and _bw["KODAK_TMAX_100"].mtf.mtf_measured
+         and abs(_bw["KODAK_TMAX_100"].mtf.mtf_rolloff_q - 3.63) < 1e-9),
+        "F-4016 p8, traced 2026-09-06; independently confirmed by F-32 (2001) "
+        "at 120.3")
+    chk("G-MTFBW2  KODAK_TRI_X_400TX carries the traced f50 52.7",
+        (_bw["KODAK_TRI_X_400TX"].mtf.f50s() == (52.7, 52.7, 52.7)
+         and _bw["KODAK_TRI_X_400TX"].mtf.mtf_measured
+         and abs(_bw["KODAK_TRI_X_400TX"].mtf.mtf_rolloff_q - 4.23) < 1e-9),
+        "F-4017 (2016) p7; three independent drawings across 17 years agree to "
+        "1.1 % -- 52.7 / 52.6 / 53.1")
+    # ⚠ P3200 CARRIES THE 2019 EDITION'S VALUE, AND MUST NEVER CARRY THE 2018
+    # EDITION'S. F-4001 (2018) p7 prints T-MAX 100's MTF artwork -- proved by a
+    # 0.0010 pt path identity -- and reading it gives 123.0, the sharpest B&W
+    # value in the database, on an ISO 3200 push film. F-4001 (2019) carries
+    # P3200's own drawing and gives 84.3, which is what is stored.
+    # ⚠ THIS GUARD REPLACED ONE THAT ASSERTED THE OPPOSITE. Until the owner
+    # questioned it, this checked that P3200 kept its ESTIMATE, because the
+    # refusal had been written from a single edition. The lesson is in the
+    # guard's shape now: it pins the ADOPTED value AND separately refuses the
+    # misplaced one, so neither the measurement nor the defect can be lost.
+    chk("G-MTFBW3  KODAK_TMAX_P3200 carries F-4001 (2019)'s own curve and NOT "
+        "the 2018 edition's misplaced T-MAX 100 artwork",
+        (_bw["KODAK_TMAX_P3200"].mtf.f50s() == (84.3, 84.3, 84.3)
+         and not _bw["KODAK_TMAX_P3200"].mtf.mtf_measured
+         and _bw["KODAK_TMAX_P3200"].mtf.f50_g
+             != _bw["KODAK_TMAX_100"].mtf.f50_g),
+        "84.3 from the 2019 edition; 123.0 would be T-MAX 100's plot. "
+        "mtf_measured stays False -- q 2.03 beats the Gaussian by only 1.3x, "
+        "under the PORTRA NC/VC threshold for switching the carrier")
+    # ⚠ 320TXP's REFUSAL. It shares F-4017 with 400TX, which now carries a
+    # measurement. A shared datasheet is not a shared measurement (rule 18).
+    chk("G-MTFBW4  KODAK_TRI_X_320TXP keeps its own estimate and does NOT "
+        "borrow 400TX's measurement",
+        (_bw["KODAK_TRI_X_320TXP"].mtf.f50s() == (58.0, 58.0, 58.0)
+         and not _bw["KODAK_TRI_X_320TXP"].mtf.mtf_measured
+         and (_bw["KODAK_TRI_X_320TXP"].mtf.f50_g
+              != _bw["KODAK_TRI_X_400TX"].mtf.f50_g)),
+        "F-4017 prints one MTF frame and heads it 'TRI-X 400 Film / 400TX'")
+    # ⚠ T-MAX 400's REFUSAL, and it is a CONTRADICTION and not an absence: three
+    # independent Kodak drawings give 95.9 (F-32 2001), 66.7 (F-4016 2007) and
+    # f50 > 81 (F-4043 2016, whose curve stops at 51.4 %). The 2016 lower bound
+    # rules out the 2007 value. Averaging 95.9 and 66.7 gives 81.3, which would
+    # look like a measurement -- so the guard also refuses that specific number.
+    chk("G-MTFBW5  KODAK_TMAX_400 stays an estimate while its three sheets "
+        "contradict each other",
+        (_bw["KODAK_TMAX_400"].mtf.f50s() == (72.0, 72.0, 72.0)
+         and not _bw["KODAK_TMAX_400"].mtf.mtf_measured
+         and abs(_bw["KODAK_TMAX_400"].mtf.f50_g - 81.3) > 1.0),
+        "F-32 95.9 / F-4016 66.7 / F-4043 >81 -- recorded, not averaged (rule 4)")
+    # ⚠ THE PROVENANCE MUST AGREE WITH THE VALUE. EKTAR 100 shipped a traced
+    # 52.7 with mtf_measured True while its ParamSource still said tier-3
+    # 'estimated' from FilmLab and ended 'mtf_measured stays False'. Every
+    # census that reads ParamSource counted this stock as unmeasured. Guarded so
+    # the two tables cannot drift apart again.
+    _pv_bad = []
+    for _n in ("KODAK_TMAX_100", "KODAK_TRI_X_400TX", "KODAK_EKTAR_100",
+               "KODAK_TMAX_P3200"):
+        _st = {_s.param: _s.status for _s in _bw[_n].param_sources}
+        for _f in ("mtf.f50_r", "mtf.f50_g"):
+            if _st.get(_f) != "traced":
+                _pv_bad.append("%s %s=%s" % (_n, _f, _st.get(_f)))
+    chk("G-MTFBW6  every stock in this batch says 'traced' in its own "
+        "ParamSource", not _pv_bad,
+        ", ".join(_pv_bad) if _pv_bad
+        else "4 stocks x 2 records, value and provenance agree")
+
+    # ---- G-VP, 2026-09-07: AgfaPhoto Vista plus, and the shared MTF -------
+    # ⚠⚠ THE POINT OF THIS GUARD IS THE SEPARATION, NOT THE VALUES. The owner
+    # asked whether «Vista plus 200»'s traced curves could replace
+    # AGFA_VISTA_200's estimates. They cannot: the sheet disclaims Agfa
+    # manufacture and the dye set matches FUJICOLOR_SUPERIA_XTRA_400 nine times
+    # more closely than the next of 26 stored sets. So this asserts that the
+    # two families stay apart -- that AGFA_VISTA_200 keeps ITS numbers and the
+    # new stocks keep theirs.
+    _vp2 = get_profile("AGFA_VISTA_PLUS_200")
+    _vp4 = get_profile("AGFA_VISTA_PLUS_400")
+    _av = get_profile("AGFA_VISTA_200")
+    chk("G-VP1: AGFA_VISTA_200 is untouched by the AgfaPhoto sheet",
+        abs(_av.curves.g.gamma - 0.6350) < 1e-9
+        and abs(_av.curves.g.dmin - 0.6400) < 1e-9
+        and abs(_av.mtf.f50_g - 47.8) < 0.05
+        and abs(_av.grain.rms_granularity - 4.3) < 1e-9,
+        "gamma 0.6350 dmin 0.6400 f50 47.8 rms 4.3 -- Agfa-Gevaert's own")
+    # ⚠ AND THE NEW STOCKS' D-MIN LADDER MUST RISE r < g < b, which is what a
+    # measured orange mask does. A pair of records stored the wrong way round
+    # passes every other check on this sheet.
+    _vpbad = []
+    for _p in (_vp2, _vp4):
+        if not (_p.curves.r.dmin < _p.curves.g.dmin < _p.curves.b.dmin):
+            _vpbad.append("%s dmin ladder %.3f/%.3f/%.3f"
+                          % (_p.name, _p.curves.r.dmin, _p.curves.g.dmin,
+                             _p.curves.b.dmin))
+        # ⚠ THIS USED TO FAIL IF EITHER STOCK CLAIMED A MEASURED MTF, on the
+        # shared-drawing ground. Reversed 2026-09-07b by owner decision: the
+        # flag is now REQUIRED, because a vendor curve beats an estimate even
+        # when two films share it. What is still asserted is that both carry
+        # the SAME green f50 and q -- if they ever diverge, someone has
+        # treated one drawing as two measurements.
+        if not _p.mtf.mtf_measured:
+            _vpbad.append("%s lost its adopted vendor MTF" % _p.name)
+        if abs(_p.mtf.f50_g - 58.7) > 0.05 or abs(_p.mtf.mtf_rolloff_q - 2.65) > 1e-9:
+            _vpbad.append("%s f50_g %.2f q %.2f -- the shared panel reads "
+                          "58.7 / 2.65 for both"
+                          % (_p.name, _p.mtf.f50_g, _p.mtf.mtf_rolloff_q))
+        if len(_p.dye_density.d_neutral) != 31:
+            _vpbad.append("%s dye set is %d samples"
+                          % (_p.name, len(_p.dye_density.d_neutral)))
+    chk("G-VP2: both Vista plus stocks carry a rising D-min ladder, a 31-sample "
+        "dye set, and the SAME adopted vendor MTF from their shared panel",
+        not _vpbad,
+        "; ".join(_vpbad) or "200: 0.104/0.409/0.724   400: 0.092/0.441/0.732")
+    # ⚠ THE DYE-SET MATCH, ASSERTED AS A NUMBER. This is the evidence that
+    # answers the owner's question, so it is checked rather than remembered.
+    try:
+        import numpy as _np
+        _sx = _np.array(get_profile("FUJICOLOR_SUPERIA_XTRA_400")
+                        .dye_density.d_neutral, dtype=float)
+        _d2 = _np.array(_vp2.dye_density.d_neutral, dtype=float)
+        _near = float(_np.abs(_d2 - _sx).mean())
+        _others = []
+        for _q in _fpm.FILM_PROFILES:
+            _dd = getattr(_q, "dye_density", None)
+            if (_dd is None or len(_dd.d_neutral) != 31
+                    or not any(_dd.d_neutral)
+                    or _q.name in ("FUJICOLOR_SUPERIA_XTRA_400",
+                                   "AGFA_VISTA_PLUS_200",
+                                   "AGFA_VISTA_PLUS_400")):
+                continue
+            _others.append(float(_np.abs(_d2 - _np.array(
+                _dd.d_neutral, dtype=float)).mean()))
+        chk("G-VP3: Vista plus 200's dye set sits an order of magnitude closer "
+            "to SUPERIA X-TRA 400 than to anything else in the corpus",
+            _near < 0.03 and min(_others) > 5.0 * _near,
+            "SUPERIA X-TRA 400 %.4f D vs next-nearest %.4f D over %d sets"
+            % (_near, min(_others), len(_others) + 1))
+    except Exception as _exc:                                 # pragma: no cover
+        chk("G-VP3: dye-set proximity", False, "could not run: %s" % _exc)
+
+    # ---- G-FLP, 2026-09-07: the filmlabpro.com re-audit, and its near miss --
+    # ⚠⚠ THE GUARD THAT MATTERS MOST HERE PROTECTS A MEASUREMENT FROM AN
+    # AUTOMATED "IMPROVEMENT". The owner's rule is that a published third-party
+    # figure beats one of this project's own estimates, and applying it to
+    # filmlabpro.com's single mtf50 per stock means re-anchoring GREEN and
+    # carrying red and blue by the profile's stored ratios. On
+    # KODAK_VISION3_500T_5219 that would have dragged `f50_r` from 36.0 to
+    # about 41.5 -- and 36.0 is `measured`, TIER 1, the queue C24 family anchor
+    # from seven per-record measurements across 1989-2005. Red is pinned here
+    # with its provenance so that no future pass can move it by that route.
+    _v3 = get_profile("KODAK_VISION3_500T_5219")
+    _v3st = {_s.param: (_s.status, _s.tier) for _s in _v3.param_sources}
+    chk("G-FLP1: VISION3 500T's red f50 stays MEASURED at 36.0 while green "
+        "and blue carry a third-party level",
+        abs(_v3.mtf.f50_r - 36.0) < 1e-9
+        and _v3st.get("mtf.f50_r") == ("measured", 1)
+        and abs(_v3.mtf.f50_g - 60.0) < 1e-9
+        and abs(_v3.mtf.f50_b - 69.2) < 0.05
+        and _v3st.get("mtf.f50_g", ("", 0))[0] == "estimated"
+        and not _v3.mtf.mtf_measured,
+        "f50 %.1f/%.1f/%.1f, red %s"
+        % (_v3.mtf.f50_r, _v3.mtf.f50_g, _v3.mtf.f50_b,
+           _v3st.get("mtf.f50_r")))
+    # ⚠ AND THE DEFECT THAT LET THE NEAR MISS HAPPEN: two DATASHEET-PRINTED rms
+    # values carried no ParamSource, so an audit that classifies by provenance
+    # read them as this project's own estimates and proposed replacing them
+    # with 10.5 and 7.0 -- 2.6x and 1.75x coarser than what Fuji print. The
+    # values are pinned WITH their status, because the value alone was never
+    # the problem.
+    _rmsbad = []
+    for _n in ("FUJICOLOR_SUPERIA_XTRA_400", "FUJICOLOR_PRO_400H"):
+        _p = get_profile(_n)
+        _st = {_s.param: (_s.status, _s.tier) for _s in _p.param_sources}
+        if (abs(_p.grain.rms_granularity - 4.0) > 1e-9
+                or _st.get("grain.rms_granularity") != ("stated", 1)):
+            _rmsbad.append("%s rms %.1f %s"
+                           % (_n, _p.grain.rms_granularity,
+                              _st.get("grain.rms_granularity")))
+    chk("G-FLP2: the two Fuji rms 4.0 figures are PRINTED and now say so, so "
+        "no provenance-driven pass can mistake them for estimates",
+        not _rmsbad,
+        "; ".join(_rmsbad) or "SUPERIA X-TRA 400 and PRO 400H, stated tier 1")
+    # ⚠ THE MIS-ATTRIBUTED IMPORT. filmlabpro's key `fuji_eterna_500t` is Fuji
+    # Eterna 500T; this profile is Eterna VIVID 500T (8547), a different
+    # coating -- and the same record's rms was refused here on exactly that
+    # ground while its mtf50 and size_microns were adopted. Both observables
+    # are back to this project's own, and the harvest stays in `third_party`,
+    # which no renderer reads.
+    _ev = get_profile("FUJI_ETERNA_VIVID_500T_8547")
+    chk("G-FLP3: Eterna VIVID 500T carries no value taken from Eterna 500T's "
+        "record",
+        _ev.mtf.f50s() == (50.0, 58.0, 66.0)
+        and abs(_ev.emulsion.grain_um) < 1e-9
+        and abs(_ev.grain.rms_granularity - 3.5) < 1e-9,
+        "f50 %s, grain_um %.1f, rms %.1f (its own sheet's)"
+        % (_ev.mtf.f50s(), _ev.emulsion.grain_um, _ev.grain.rms_granularity))
+    # ⚠ THE THREE EMPTY FIELDS THAT WERE FILLED, and the one that was emptied.
+    # `emulsion.grain_um` is inert -- no engine path reads it -- so this pins
+    # the record rather than a rendered result.
+    _umbad = []
+    for _n, _want in (("FUJI_PROVIA_100F", 1.6), ("FUJICOLOR_PRO_400H", 2.6),
+                      ("FUJICOLOR_SUPERIA_XTRA_400", 3.2)):
+        _p = get_profile(_n)
+        _st = {_s.param: (_s.status, _s.tier) for _s in _p.param_sources}
+        if (abs(_p.emulsion.grain_um - _want) > 1e-9
+                or _st.get("emulsion.grain_um") != ("estimated", 3)):
+            _umbad.append("%s %.2f %s" % (_n, _p.emulsion.grain_um,
+                                          _st.get("emulsion.grain_um")))
+    chk("G-FLP4: the three post-audit Fuji stocks carry the third party's "
+        "size_microns at tier 3, in fields that were empty",
+        not _umbad, "; ".join(_umbad) or "1.6 / 2.6 / 3.2 um, estimated t3")
+    # ⚠ ACROS: an estimate replaced by a published figure, which is the rule
+    # working as intended. The vendor RESOLVING POWER on the same sheet is a
+    # different quantity and must survive untouched.
+    _ac = get_profile("FUJI_NEOPAN_ACROS_100")
+    chk("G-FLP5: ACROS 100's f50 takes the third party's 95 while its own "
+        "sheet's resolving power stays 60 / 200",
+        _ac.mtf.f50s() == (95.0, 95.0, 95.0)
+        and not _ac.mtf.mtf_measured
+        and abs(_ac.mtf.resolving_power_lp_mm_lowc - 60.0) < 1e-9
+        and abs(_ac.mtf.resolving_power_lp_mm_highc - 200.0) < 1e-9
+        and abs(_ac.grain.rms_granularity - 7.0) < 1e-9,
+        "f50 95, RP 60/200, rms 7.0 -- the sheet's own two numbers intact")
 
     # ---- G-DQE: gamma, granularity and speed are ONE relation -------------
     # Eq. (1.1): DQE = (log e)^2 * gamma^2 / (E * G^2), and measured DQE
@@ -2291,6 +2663,52 @@ if _sec_on():
     chk("no colour stock responds to Callier at any specular setting",
         not _col_moved, ", ".join(_col_moved[:4]) if _col_moved
         else "%d colour stocks, Q = 1.0 on all of them" % len(_col))
+    # 2b. ⚠⚠ THE SHIPPED DEFAULT, AND THE TWIN THAT MUST AGREE WITH IT.
+    # scanner_specular moved 0.0 -> 0.853 on 2026-09-06 by owner decision:
+    # 1 - E with E = 0.1471, the collected-scatter fraction from the same
+    # Trumpy/Streiffert fit that gave the monochrome profiles their beta.
+    # ⚠ IT IS A DENSITOMETER GEOMETRY ADOPTED AS A PROVISIONAL STAND-IN, NOT A
+    # SCANNER MEASUREMENT -- pinned here so it cannot drift into looking like one
+    # by being quietly rounded or re-derived.
+    # ⚠ AND THE C++ SIDE HAD NO ASSIGNMENT AT ALL until the same day: it took 0.0
+    # from zero-initialisation, so the twins agreed BY COINCIDENCE. This check
+    # reads the literal out of AlgoControl.cpp, because a default that lives in
+    # two languages is exactly the kind of thing that silently splits.
+    _SPEC_DEFAULT = 0.853
+    chk("G-CALDEF1  the reference default scanner_specular is the adopted 0.853",
+        abs(fs.RenderSettings().scanner_specular - _SPEC_DEFAULT) < 1e-12,
+        "1 - E, E = 0.1471 (Trumpy & Gschwind 2015 Fig. 5, after Streiffert "
+        "1947); a provisional reader geometry, NOT a scanner measurement")
+    import re as _re_cd
+    _cd_txt = None
+    for _cand in ("/root/work/proot/AlgoControl.cpp",
+                  _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                "..", "tst", "AlgoControl.cpp")):
+        if _os.path.exists(_cand):
+            _cd_txt = open(_cand, encoding="utf-8", errors="replace").read()
+            break
+    if _cd_txt is None:
+        chk("G-CALDEF2  the C++ default matches the reference", True,
+            "AlgoControl.cpp not present in this tree -- skipped, not passed")
+    else:
+        _m = _re_cd.search(r"controls\.scannerSpecular\s*=\s*([0-9.]+)", _cd_txt)
+        chk("G-CALDEF2  getAlgoControlsDefault ASSIGNS scannerSpecular and it "
+            "equals the reference default",
+            bool(_m) and abs(float(_m.group(1)) - _SPEC_DEFAULT) < 1e-12,
+            ("C++ has %s, reference has %s" % (_m.group(1) if _m else "NO "
+             "ASSIGNMENT AT ALL -- the field would fall back to zero-init and "
+             "the twins would diverge", _SPEC_DEFAULT)))
+    # ⚠ THE DEFAULT NOW MOVES PIXELS, WHICH IS THE POINT AND ALSO THE RISK.
+    # Pinned so the size of the change is a stated number rather than a surprise.
+    _q_dx = get_profile("EASTMAN_DOUBLE_X_5222").callier_q
+    _lift = float(fs.callier_net(np.array([1.0]), _q_dx, _SPEC_DEFAULT)[0]) - 1.0
+    chk("G-CALDEF3  the adopted default adds the expected density on a "
+        "monochrome stock",
+        0.40 < _lift < 0.55,
+        "EASTMAN_DOUBLE_X_5222 (beta %.4f) reads +%.3f D at net density 1.0; "
+        "0.0 remains the setting that reproduces the stored DIFFUSE curves"
+        % (_q_dx, _lift))
+
     # 3. The monochrome stocks DO respond, or the stage models nothing.
     _mono_moved = sum(1 for p in FILM_PROFILES
                       if p.is_monochrome and not fs.callier_is_inert(p, 1.0))
@@ -2524,8 +2942,42 @@ if _sec_on():
     # side still says something a sensitometer would agree with, which is a
     # different question from whether the reader still reads the table.
     _aim = [p for p in FILM_PROFILES if p.aim_density]
-    chk("thirteen stocks carry a published aim density",
-        len(_aim) == 13, f"{len(_aim)}: " + ", ".join(p.name for p in _aim))
+    chk("sixteen stocks carry a published aim density",
+        len(_aim) == 16, f"{len(_aim)}: " + ", ".join(p.name for p in _aim))
+    # ⚠ 13 -> 16 ON 2026-09-06e, AND THE THREE NEW ONES ARE A DIFFERENT SHAPE
+    # OF STATEMENT. Every entry here was Kodak's until now, and Kodak publishes
+    # four readings per exposure index: a grey card, a paper grey scale and a
+    # light and a dark forehead. Fuji publishes the GREY CARD ALONE -- SUPERIA
+    # X-TRA 400 0.75-0.95, X-TRA 800 0.70-0.90, REALA 1.02-1.20, all Status M
+    # red. The three empty fields on those records are empty because the sheets
+    # do not print them, which is why the ordering checks below skip a field
+    # that is absent instead of failing it: a (0.0, 0.0) grey scale is not a
+    # grey scale that reads zero.
+    _FUJI_CARD_ONLY = {"FUJICOLOR_SUPERIA_XTRA_400",
+                       "FUJICOLOR_SUPERIA_XTRA_800",
+                       "FUJICOLOR_SUPERIA_REALA"}
+    chk("the Fuji aim densities carry a grey card and nothing else, because "
+        "that is all their sheets print",
+        all(get_profile(n).aim_density[0].gray_card[1] > 0.0
+            and get_profile(n).aim_density[0].gray_scale == (0.0, 0.0)
+            and get_profile(n).aim_density[0].filter == "status_m_red"
+            for n in _FUJI_CARD_ONLY),
+        "3 of 3 card-only, Status M red")
+    # ⚠ AND THEIR ORDERING IS ASSERTED WHERE A KODAK-SHAPED ONE CANNOT BE. The
+    # three Fuji aims rank REALA > X-TRA 400 > X-TRA 800, which is the order of
+    # those stocks' own TRACED red dmin (0.306 > 0.129 ... 0.175) only in part
+    # -- 400 and 800 swap -- so the aim is not a restatement of dmin and the
+    # two are independent measurements that happen to agree at the ends.
+    _cards = {n: get_profile(n).aim_density[0].gray_card for n in _FUJI_CARD_ONLY}
+    chk("REALA's published aim is the highest in the database and X-TRA 800's "
+        "the lowest of the Fuji three",
+        (_cards["FUJICOLOR_SUPERIA_REALA"][0]
+         > _cards["FUJICOLOR_SUPERIA_XTRA_400"][0]
+         > _cards["FUJICOLOR_SUPERIA_XTRA_800"][0]),
+        "REALA %s > X-TRA 400 %s > X-TRA 800 %s"
+        % (_cards["FUJICOLOR_SUPERIA_REALA"],
+           _cards["FUJICOLOR_SUPERIA_XTRA_400"],
+           _cards["FUJICOLOR_SUPERIA_XTRA_800"]))
 
     # ⚠ THE GRAY SCALE'S LIGHTEST STEP IS A BRIGHTER SUBJECT AREA THAN A GRAY
     # CARD, so on a NEGATIVE it must land HIGHER. This is the check that would
@@ -2534,14 +2986,23 @@ if _sec_on():
     _inv = []
     for p in _aim:
         for a in p.aim_density:
-            if not (a.gray_scale[0] > a.gray_card[0]
-                    and a.gray_scale[1] > a.gray_card[1]):
-                _inv.append(f"{p.name}@EI{a.exposure_index} "
-                            f"card {a.gray_card} scale {a.gray_scale}")
+            # ⚠ AN ABSENT FIELD IS SKIPPED, NOT FAILED. Fuji's sheets publish
+            # the grey card alone, so gray_scale and the two forehead readings
+            # are (0.0, 0.0) meaning "not printed". Comparing against them
+            # fails a stock for data its manufacturer never claimed -- and
+            # treating a zero as a measured density is exactly the error rule
+            # 23 point 3 is about, since an absence is not a value.
+            if a.gray_scale != (0.0, 0.0):
+                if not (a.gray_scale[0] > a.gray_card[0]
+                        and a.gray_scale[1] > a.gray_card[1]):
+                    _inv.append(f"{p.name}@EI{a.exposure_index} "
+                                f"card {a.gray_card} scale {a.gray_scale}")
             # and a dark complexion reflects less light than a light one
-            if a.forehead_dark[0] >= a.forehead_light[0]:
-                _inv.append(f"{p.name}@EI{a.exposure_index} "
-                            f"dark {a.forehead_dark} >= light {a.forehead_light}")
+            if a.forehead_light != (0.0, 0.0) or a.forehead_dark != (0.0, 0.0):
+                if a.forehead_dark[0] >= a.forehead_light[0]:
+                    _inv.append(f"{p.name}@EI{a.exposure_index} "
+                                f"dark {a.forehead_dark} >= "
+                                f"light {a.forehead_light}")
     chk("every aim density is ordered as the subject brightnesses are",
         not _inv, "; ".join(_inv[:4]))
 
@@ -2822,7 +3283,7 @@ if _sec_on():
     #
     # ⚠ AND THE FIX WAS NOT TO CHANGE THE VALUES. Measured the same day: forcing
     # dye_matrix to identity collapses the rendered saturation spread from
-    # 0.077-0.312 to 0.117-0.174 and puts AGFACOLOR_NEU_1936 within 10 % of
+    # 0.077-0.312 to 0.117-0.174 and puts AGFA_NEU_1936 within 10 % of
     # VELVIA. Dye purity is real and the per-channel curves cannot carry it --
     # they are measured on a NEUTRAL scale. Deleting an effect because its
     # numbers are unsourced is what rule 23 forbids; SAYING they are unsourced
@@ -3591,7 +4052,7 @@ if _sec_on():
              # nothing checks. KODAK_PORTRA_400 is one of the 13 stocks queue
              # K2 populated, so it holds a real AimDensity record.
              "aim_density"))
-        and film_profiles.SCHEMA_VERSION == 27
+        and film_profiles.SCHEMA_VERSION == 28
         and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS)
         # ⚠ v25, and it is the first entry in this probe that is NOT a carrier.
         # The others are here to prove an inert field is reachable; this one is
@@ -4054,8 +4515,21 @@ if _sec_on():
     # wavelengths only, because the schema could not hold the shape. Schema v14
     # built the carrier on 2026-08-26 and nothing came back for this panel until
     # now -- a reading that existed, was correct, and was unstorable for a month.
-    chk("exactly 22 stocks carry a neutral+dmin pair",
-        _pairs == [
+    # ⚠ 26 -> 28 on 2026-09-07, and BOTH NEW ONES ARE PAIRS FOR THE SAME
+    # REASON AS THE SIX FUJI STOCKS ABOVE THEM: «14. Spectral Dye Density
+    # Curves» prints a mid-scale neutral and a D-min and never separates the
+    # three dyes. That is the Fuji house pattern, which is itself part of the
+    # evidence that these two are Fuji-made -- see G-VP3.
+    # ⚠ COMPARED AS A SORTED SET SINCE 2026-09-08, NOT IN DATABASE ORDER. The
+    # literal below was written in the old frozen-id order, so the
+    # alphabetical re-sort broke a check about MEMBERSHIP for a reason that has
+    # nothing to do with membership -- the list still named exactly the right
+    # 28 stocks. Order-sensitivity here was incidental, never intended, and
+    # would break again on the next insertion; the count and the names are
+    # what this guard is for. `sorted()` on both sides keeps it asserting
+    # exactly as much as it did while making it immune to reordering.
+    chk("exactly 28 stocks carry a neutral+dmin pair",
+        sorted(_pairs) == sorted([
                    "AGFA_OPTIMA_100", "AGFA_OPTIMA_200", "AGFA_OPTIMA_400",
                    "AGFA_PORTRAIT_160",
                    "EASTMAN_5247_1983", "EASTMAN_EXR_100T_5248",
@@ -4069,8 +4543,34 @@ if _sec_on():
                    "KODAK_PORTRA_400NC", "KODAK_PORTRA_400VC",
                    "AGFA_ULTRA_50",
                    "FUJICOLOR_SUPERIA_XTRA_400", "FUJICOLOR_PRO_400H",
-        ],
-        ", ".join(_pairs))
+                   # ⚠ 2026-09-06: AF3-177E section 21 prints a
+                   # mid-scale neutral and a D-min curve and never
+                   # separates the three dyes, so 800Z joins the PAIR
+                   # list and NOT the dye-triple one.
+                   "FUJICOLOR_PRO_800Z",
+                   # ⚠ 2026-09-06c: AF3-100E section 20 is the SAME DRAWING,
+                   # same caption, same two curves. NPZ 800 joins the pair list
+                   # for the same reason and NOT the dye-triple one -- a shared
+                   # drawing does not become a three-dye set by being printed
+                   # twice.
+                   "FUJICOLOR_PORTRAIT_NPZ_800",
+                   # ⚠ 2026-09-06e: both SUPERIA sheets print the same
+                   # two-curve panel under the same caption. Five of the six
+                   # Fuji stocks in this list carry a pair and none a triple --
+                   # Fuji simply does not publish separated dyes for its
+                   # colour negatives, which is a house policy and not a gap in
+                   # this corpus.
+                   "FUJICOLOR_SUPERIA_XTRA_800",
+                   "FUJICOLOR_SUPERIA_REALA",
+                   # ⚠ 2026-09-07: the AgfaPhoto sheet's section 14, same
+                   # two-curve construction under the same caption -- and its
+                   # match to SUPERIA X-TRA 400's set (mean 0.0177 D against
+                   # 0.154 for the next-nearest of 26) is what identifies the
+                   # manufacturer. See G-VP3.
+                   "AGFA_VISTA_PLUS_200",
+                   "AGFA_VISTA_PLUS_400",
+        ]),
+        "%d stocks: %s" % (len(_pairs), ", ".join(_pairs)))
     # ⚠ THE ORANGE-MASK TEST, ON EVERY PAIR IN THE DATABASE AND NOT JUST THE NEW
     # ONES. `d_dmin` on a masked colour negative IS the mask, so it must FALL
     # towards the red, and the neutral must sit above it at every wavelength. A
@@ -4142,8 +4642,10 @@ if _sec_on():
     # KODAK_VISION3_250D_5207, off the RASTER panels NotFound.md had recorded as
     # blocked for being raster. Raster was never the blocker -- the dashed D-min
     # was, and it is still refused; the three dyes are not.
-    chk("27 film profiles now carry a spectral dye density set",
-        len(_dye) == 27, "%d: %s" % (len(_dye), ", ".join(
+    # ⚠ 27 -> 28 on 2026-09-06: FUJI_PROVIA_400F, traced from AF3-066E p6
+    # section 20 in Fuji's own yellow / magenta / cyan inks.
+    chk("29 film profiles now carry a spectral dye density set",
+        len(_dye) == 29, "%d: %s" % (len(_dye), ", ".join(
             sorted(p.name for p in _dye))))
     # ⚠ THE SHARED-DRAWING ASSERTIONS, 2026-09-04. Each pair below was published
     # by its maker on two sheets for two products with the SAME artwork. Both
@@ -4926,16 +5428,100 @@ if _sec_on():
     # ⚠ 19 -> 23 ON 2026-09-02e: KODAK_EKTAR_100 (queue T2, the first measured
     # MTF for a STILL colour negative here, off E-4046's vector panel) and the
     # three new Fuji stocks of queue T3, traced from their own datasheet panels.
-    chk("exactly the 23 traced stocks are flagged mtf_measured",
+    # ⚠ THE LIST IS SPELLED OUT AND NOT COUNTED, on purpose: a count agrees by
+    # accident when one stock gains a measurement and another loses one, and
+    # this is the register of which stocks the project claims to have measured.
+    # 23 until 2026-09-06; KODAK_TMAX_100 and KODAK_TRI_X_400TX joined then from
+    # the KODAK black-and-white sheets (F-4016 p8 and F-4017 p7).
+    # ⚠ KODAK_TMAX_P3200, KODAK_TRI_X_320TXP and KODAK_TMAX_400 are DELIBERATELY
+    # ABSENT although all three were traced the same day -- reused artwork, an
+    # unattributed panel and three contradicting sheets respectively. See the
+    # G-MTFBW guards, which fail if any of them quietly acquires a measurement.
+    # ⚠⚠ 43 -> 47 ON 2026-09-07b, AND FOUR OF THEM ARRIVE FROM SHARED
+    # DRAWINGS BY OWNER DECISION. AGFA_APX_100/400 and both AgfaPhoto Vista
+    # plus stocks each read their f50 off a panel their sibling also uses, so
+    # this file previously kept all four as class estimates -- the refusal
+    # NotFound.md row 5d states. The owner's instruction of 2026-09-07b:
+    # *"If the vendor datasheet provide MTF please don't simply discard this
+    # value even 'Two films cannot share a measured MTF'. We haven't
+    # additional better source for check this, so please accept and include
+    # these values from vendors datasheet - this is much more better from
+    # estimated values!"*
+    # ⚠ THE SHARED-ARTWORK FINDING IS NOT WITHDRAWN, only its consequence: the
+    # duplicate checks in `agfa_1998_sharpness.py` and
+    # `agfaphoto_vista_plus.py` still re-derive it on every build, and each
+    # profile's own comment says the value cannot be per-film for both films.
+    # What changed is the comparison: a shared VENDOR curve is closer to the
+    # film than a class estimate derived from no document.
+    chk("exactly the 47 traced stocks are flagged mtf_measured",
         _mmeas == [
+                   # ⚠ 2026-09-06h, TEN AT ONCE: the AGFA «Sharpness» panels,
+                   # readable ever since queue G6 closed on 2026-09-05 and
+                   # forbidden by a guard until then.
+                   # ⚠ APX 100 and APX 400 JOINED ON 2026-09-07b from the
+                   # drawing they share -- see the note above this chk.
+                   # ⚠ AND "AGFA_APX_100" < "AGFA_APX_25" < "AGFA_APX_400"
+                   # BY STRING ORDER, because '1' < '2' < '4' at the same
+                   # position. The pair is not adjacent to itself in this list.
+                   "AGFA_APX_100",
+                   "AGFA_APX_25",
+                   "AGFA_APX_400",
+                   "AGFA_OPTIMA_100",
+                   "AGFA_OPTIMA_200",
+                   "AGFA_OPTIMA_400",
+                   "AGFA_PORTRAIT_160",
+                   "AGFA_RSX_II_100",
+                   "AGFA_RSX_II_200",
+                   "AGFA_RSX_II_50",
+                   "AGFA_SCALA_200X",
+                   "AGFA_ULTRA_50",
+                   # ⚠ 2026-09-06j, THE THIRTEENTH AGFA PANEL AND THE ONE THAT
+                   # SWEEP COULD NOT REACH: Vista's «Sharpness» chart is in the
+                   # «AGFACOLOR Vista» sheet, not in «Technical Data PF», so a
+                   # sweep of the latter's twelve columns never saw it and the
+                   # stock kept a class estimate for another day. ⚠ AND THE
+                   # REFUSAL HOLDING IT OUT SINCE 2026-08-18 WAS ANSWERED BY
+                   # PAGE 4 OF ITS OWN SHEET, where Agfa define the chart:
+                   # «International name of the chart: MTF (Modulation
+                   # Transfer Function)». A manufacturer naming the quantity
+                   # is a stronger authority than queue G6's inference from the
+                   # ICO nomenclature, and the two agree.
+                   "AGFA_VISTA_200",
+                   # ⚠ 2026-09-07d, THE VISTA PLUS PAIR, from ONE 47-point path
+                   # serving both films (translation spreads 0.0010 / 0.0020
+                   # pt). Each profile records that the curve cannot be
+                   # per-film for both, and that the faster film reading as
+                   # sharp as the slower one is the shared drawing speaking
+                   # rather than the emulsion.
+                   # ⚠ RENAMED FROM "AGFAPHOTO_" ON 2026-09-07d AT THE OWNER'S
+                   # REQUEST, WHICH MOVED THEM IN THIS LIST: "AGFAPHOTO_"
+                   # sorted BEFORE "AGFA_APX" ('P' 0x50 precedes '_' 0x5F) and
+                   # "AGFA_VISTA_PLUS" sorts AFTER "AGFA_VISTA_200". The list
+                   # is compared element by element, so a rename is also a
+                   # re-ordering.
+                   "AGFA_VISTA_PLUS_200",
+                   "AGFA_VISTA_PLUS_400",
                    "EASTMAN_DOUBLE_X_5222",
                    "EASTMAN_EXR_100T_5248",
                    "EASTMAN_EXR_50D_5245",
                    "EASTMAN_PLUS_X_5231",
+                   "FUJICHROME_64T_II",
+                   # ⚠ 2026-09-06c, AND THE TWO ARE ONE MEASUREMENT. AF3-100E
+                   # and AF3-177E print one MTF drawing; PRO 800Z's refusal was
+                   # retracted after NPZ 800's raster twin showed the ladder is
+                   # readable. Both carry f50_g 46.1 and q 1.86 -- see the
+                   # shared-drawing guard beside the distinctness check.
+                   "FUJICOLOR_PORTRAIT_NPZ_800",
                    "FUJICOLOR_PRO_400H",
+                   "FUJICOLOR_PRO_800Z",
+                   # ⚠ 2026-09-06e, both from their own vector panels.
+                   "FUJICOLOR_SUPERIA_REALA",
                    "FUJICOLOR_SUPERIA_XTRA_400",
+                   "FUJICOLOR_SUPERIA_XTRA_800",
                    "FUJICOLOR_SUPER_F500_8572",
                    "FUJI_PROVIA_100F",
+                   "FUJI_PROVIA_400F",
+                   "FUJI_PROVIA_400X",
                    "FUJI_SUPER_F125_8532",
                    "GEVACHROME_600",
                    "GEVACHROME_605",
@@ -4945,6 +5531,8 @@ if _sec_on():
                    "KODAK_PORTRA_400",
                    "KODAK_PORTRA_400VC",
                    "KODAK_PORTRA_800",
+                   "KODAK_TMAX_100",
+                   "KODAK_TRI_X_400TX",
                    "KODAK_VISION2_200T_5217",
                    "KODAK_VISION2_500T_5218",
                    "KODAK_VISION2_50D_5201",
@@ -5029,8 +5617,17 @@ if _sec_on():
     # typesetting fault was distinguished from a product revision rather than
     # averaged with it. If a future edit reintroduces the handbook's numbers,
     # this fails.
+    # ⚠ THE COMPARISON IS WITHIN ONE VESSEL AT ONE TEMPERATURE, and it was not
+    # until 2026-09-06i. The family used to hold one temperature and the
+    # "lowest time at each gamma" trick stood in for separating the vessels;
+    # p11's tables add 18 / 22 / 24 C rows, and a 24 C gamma 0.65 time is
+    # legitimately SHORTER than a 20 C gamma 0.55 one. Comparing across the
+    # temperature axis reported APX 400's RODINAL 1+25 as non-monotone when
+    # nothing about it is: 3.95 min is gamma 0.55 at 20 C and 3.5 min is gamma
+    # 0.65 at 24 C, two different baths.
     for _agn in ("AGFA_APX_25", "AGFA_APX_100", "AGFA_APX_400"):
-        _fam = get_profile(_agn).processing_family.points
+        _fam = [_q for _q in get_profile(_agn).processing_family.points
+                if abs(_q.celsius - 20.0) < 1e-9]
         _bad = []
         for _dev in {_q.developer for _q in _fam}:
             _seq = sorted((_q.gamma, _q.minutes) for _q in _fam
@@ -5153,26 +5750,161 @@ if _sec_on():
     chk("no Agfa profile infers a crystal size from its coated thickness",
         not _inv, ", ".join(_inv) if _inv else "grain_um/habit/aspect all empty")
 
-    # ⚠ f50 IS NOT ADOPTED FROM THE AGFA SHARPNESS PANELS AND THAT IS THE POINT.
-    # The panels are CTFs -- they peak at 102-114 %, above the 100 % a true MTF
-    # cannot exceed -- so the overshoot is adoptable as `adjacency` (a unit-free
-    # ratio) while f50 is not, because queue G6 has not settled whether Agfa's
-    # "Lines (mm)" are cycles or line pairs. A factor of two is not a rounding
-    # difference. If someone adopts f50 from these sheets, mtf_measured will be
-    # set and this fails.
-    _m = [n for n in _coat if get_profile(n).mtf.mtf_measured]
-    chk("no Agfa stock claims a measured MTF while G6 is open",
-        not _m, ", ".join(_m) if _m else "12 stocks, adjacency measured, f50 not")
+    # ⚠⚠ THIS GUARD USED TO FORBID EXACTLY WHAT IT NOW REQUIRES, AND THE
+    # REVERSAL IS THE WHOLE POINT OF QUEUE ROW G6. Until 2026-09-06h it read
+    # "no Agfa stock claims a measured MTF while G6 is open", because the
+    # panels are CTFs peaking at 102-114 % and, more importantly, because
+    # nothing had settled whether Agfa's "Lines (mm)" were cycles or LINE PAIRS
+    # -- a factor of two, not a rounding difference.
+    # G6 CLOSED ON 2026-09-05 on the authority of the International Commission
+    # for Optics: Ingelstam's 1961 nomenclature recommendation, PS&E 5(5) p282,
+    # lists the German «Linien pro mm» as the equivalent of "lines per mm" and
+    # declares that equal to cycles per mm, the only halving being a television
+    # line. So the blocker is gone and the panels are readable.
+    # ⚠ TEN OF THE TWELVE ARE NOW MEASURED. The two that are not are APX 100
+    # and APX 400, which SHARE one drawing in BOTH editions -- see below.
+    # ⚠ AGFA_VISTA_200 IS NOT IN `_coat` and must be checked on its own. That
+    # set is the twelve stocks of «Technical Data PF»; Vista is a separate
+    # sheet, which is exactly how it got left behind by the 2026-09-06h sweep
+    # and stayed on an estimate for another day. Counting it here means the
+    # thirteenth panel cannot silently regress the way it silently lagged.
+    _vm = get_profile("AGFA_VISTA_200").mtf
+    chk("G-AGFA6: AGFA_VISTA_200 carries the measured MTF of the thirteenth "
+        "Agfa panel, whose chart Agfa's own sheet defines as an MTF",
+        _vm.mtf_measured and abs(_vm.f50_g - 47.8) < 1e-9
+        and abs(_vm.mtf_rolloff_q - 2.63) < 1e-9
+        and abs(_vm.adjacency - 0.0978) < 1e-9,
+        "f50_g %.1f q %.2f adj %.4f measured %s"
+        % (_vm.f50_g, _vm.mtf_rolloff_q, _vm.adjacency, _vm.mtf_measured))
+    # ⚠ AND IT MAY NOT SIT AT THE SUPERSEDED CLASS ESTIMATE, which stood from
+    # before 2026-08-18 to 2026-09-06j behind a refusal its own sheet answers.
+    chk("AGFA_VISTA_200 has not drifted back to the 56/63/69 class estimate",
+        abs(_vm.f50_g - 63.0) > 0.05, "f50_g %.1f" % _vm.f50_g)
+    _agfa_meas = sorted(n for n in _coat if get_profile(n).mtf.mtf_measured)
+    # ⚠ 10 -> 12 on 2026-09-07b: APX 100 and APX 400 joined from the drawing
+    # they share, on the owner's instruction that a vendor MTF beats a class
+    # estimate even when it cannot be per-film for both films.
+    chk("G6 is closed, so the Agfa sharpness panels ARE adopted: ALL TWELVE "
+        "coated-thickness stocks now carry a measured MTF",
+        len(_agfa_meas) == 12,
+        "%d measured: %s" % (len(_agfa_meas), ", ".join(_agfa_meas)))
+    # ⚠⚠ THE SHARED DRAWING IS STILL SHARED, AND WHAT IS ASSERTED NOW IS THAT
+    # THE PAIR AGREE. `NotFound.md` row 5d records that APX 100 and APX 400
+    # share the sharpness drawing on the 1998 sheet, and the 2026-09-06h trace
+    # found it survives into the 2004 edition -- APX 400's curve there is
+    # APX 100's translated 175.17 pt with every y coordinate identical to
+    # 0.0000000.
+    # ⚠ THIS GUARD USED TO REQUIRE BOTH FILMS TO STAY UNMEASURED. Reversed
+    # 2026-09-07b by owner decision: *"a vendor MTF, even shared, is much more
+    # better from estimated values"*. What it asserts instead is the thing
+    # that would break if someone ever treated one drawing as two
+    # measurements -- the two must carry the SAME f50 and the SAME exponent,
+    # because it is the same ink.
+    _a1, _a4 = get_profile("AGFA_APX_100").mtf, get_profile("AGFA_APX_400").mtf
+    chk("the APX 100 / APX 400 shared sharpness drawing is adopted on BOTH and "
+        "reads IDENTICALLY on both, because it is one drawing",
+        _a1.mtf_measured and _a4.mtf_measured
+        and abs(_a1.f50_g - _a4.f50_g) < 1e-9
+        and abs(_a1.mtf_rolloff_q - _a4.mtf_rolloff_q) < 1e-9
+        and abs(_a1.f50_g - 58.0) < 0.05
+        and abs(_a1.mtf_rolloff_q - 2.27) < 1e-9,
+        "both f50 %.1f q %.2f, measured %s/%s"
+        % (_a1.f50_g, _a1.mtf_rolloff_q, _a1.mtf_measured, _a4.mtf_measured))
 
-    # The measured overshoots themselves, digitised 2026-09-01.
-    _adj = {"AGFA_APX_25": 0.0514, "AGFA_APX_100": 0.0998,
-            "AGFA_APX_400": 0.0998, "AGFA_OPTIMA_100": 0.1091,
-            "AGFA_ULTRA_50": 0.1445, "AGFA_RSX_II_200": 0.1041,
-            "AGFA_SCALA_200X": 0.0211}
+    # ---- G-AGFA, 2026-09-06h: what the sharpness harvest must keep true -----
+    # ⚠ THE ADOPTED f50s MUST STAY ORDERED THE WAY THE PRINTED RESOLVING POWERS
+    # ARE, on the stocks where Agfa prints both. That is a cross-check between
+    # a TRACED curve and a number printed in words on the same page, and it is
+    # the only independent test available for these panels.
+    _rp_pairs = [("AGFA_APX_25", "AGFA_APX_400"),      # 200 vs 110 lines/mm
+                 ("AGFA_RSX_II_50", "AGFA_RSX_II_200"),  # 135 vs 120
+                 ("AGFA_OPTIMA_100", "AGFA_RSX_II_200")]  # 140 vs 120
+    _ord = []
+    for _hi, _lo in _rp_pairs:
+        _a, _b = get_profile(_hi), get_profile(_lo)
+        if not (_a.mtf.resolving_power_lp_mm_highc
+                > _b.mtf.resolving_power_lp_mm_highc):
+            continue                       # the printed pair does not order
+        if not _a.mtf.f50_g > _b.mtf.f50_g:
+            _ord.append("%s (%.1f) !> %s (%.1f)"
+                        % (_hi, _a.mtf.f50_g, _lo, _b.mtf.f50_g))
+    chk("G-AGFA1: every traced Agfa f50 orders the same way its own PRINTED "
+        "resolving power does",
+        not _ord, "; ".join(_ord) or "3 of 3 pairs agree")
+    # ⚠⚠ AND ONE PAIR DELIBERATELY DOES NOT ORDER, WHICH IS WHY THAT LIST HAS
+    # THREE ENTRIES AND NOT TEN. OPTIMA 100 traces f50 43.7 against OPTIMA
+    # 200's 48.0 while its printed resolving power is HIGHER, 140 against 130.
+    # `NotFound.md` row 5 read that as the panel being "not self-consistent on
+    # any scale" and held four f50 readings out of the database for eight days
+    # on the strength of it. ⚠ THE OBSERVATION WAS RIGHT AND THE INFERENCE WAS
+    # NOT: resolving power is GRANULARITY-limited and f50 is not, so the two
+    # are not required to order together. Optima 100's rms is 4.0 against
+    # Optima 200's 4.3, and the finer grain buys limiting resolution the MTF
+    # alone does not.
+    # ⚠ THE RELATION THAT DOES HOLD IS THIS PROJECT'S OWN CROSS-MAKER
+    # INVARIANT, RP*sqrt(rms) -- the one row 5 cites for Agfa against SVEMA and
+    # ROLLEI. Inside each Agfa family it is tight, and that is asserted here
+    # rather than left as prose, because it is the evidence that licensed
+    # adopting a pair whose f50 and RP disagree in direction.
+    for _fam, _mem, _tol in (
+            ("colour negative", ("AGFA_OPTIMA_100", "AGFA_OPTIMA_200",
+                                 "AGFA_OPTIMA_400", "AGFA_PORTRAIT_160",
+                                 "AGFA_ULTRA_50"), 0.10),
+            ("RSX II reversal", ("AGFA_RSX_II_50", "AGFA_RSX_II_100",
+                                 "AGFA_RSX_II_200"), 0.06)):
+        _inv = [get_profile(_m).mtf.resolving_power_lp_mm_highc
+                * get_profile(_m).grain.rms_granularity ** 0.5 for _m in _mem]
+        _spread = (max(_inv) - min(_inv)) / (sum(_inv) / len(_inv))
+        chk("G-AGFA1b: RP*sqrt(rms) is conserved across the Agfa %s family, "
+            "which is why f50 and printed resolving power need not order "
+            "together" % _fam,
+            _spread < _tol,
+            "%s, spread %.1f %%" % (" / ".join("%.0f" % v for v in _inv),
+                                    100 * _spread))
+    # ⚠ AND THE MONOCHROME STOCKS KEEP ONE RECORD. APX 25 and SCALA 200x have a
+    # single silver layer, so a per-record f50 spread on either would mean the
+    # colour ratio family had been applied to a film that has no layers to
+    # apply it to.
+    _monoflat = [n for n in ("AGFA_APX_25", "AGFA_SCALA_200X")
+                 if not (get_profile(n).mtf.f50_r == get_profile(n).mtf.f50_g
+                         == get_profile(n).mtf.f50_b)]
+    chk("G-AGFA2: the two monochrome Agfa stocks carry one f50 across all "
+        "three records, because they have one layer",
+        not _monoflat, ", ".join(_monoflat) or "APX 25 and SCALA 200x flat")
+    # ⚠⚠ AND THE ADJACENCY OVERSHOOT IS STILL NOT FOLDED INTO f50. These panels
+    # are CTFs and peak above 100 %; the peak lives in `adjacency` and the
+    # rolloff is fitted ABOVE the peak only. If a later pass ever "corrects"
+    # f50 by the overshoot, the two would double.
+    # ⚠⚠ THE OVERSHOOT AND f50 MUST COME OFF THE SAME DRAWING, and until
+    # 2026-09-06i they did not: `mtf.adjacency` held the 1998 peak on eight
+    # stocks whose f50 had just been taken from the 2004 panel. That described
+    # a curve printed on neither page. The pairing is now enforced, per stock,
+    # against `agfa_1998_sharpness.EXPECTED_PEAK`.
+    _agfa_adj = {"AGFA_APX_25": 0.0549, "AGFA_OPTIMA_100": 0.1111,
+                 "AGFA_ULTRA_50": 0.1487, "AGFA_RSX_II_200": 0.1067}
+    _adjbad = [n for n, v in _agfa_adj.items()
+               if abs(get_profile(n).mtf.adjacency - v) > 1e-9]
+    chk("G-AGFA3: the measured Agfa overshoots survive the f50 adoption "
+        "untouched, so amplitude and sharpness stay separate",
+        not _adjbad, ", ".join(_adjbad) or "4 of 4 unchanged")
+
+    # The measured overshoots themselves. ⚠ THE EDITION EACH ONE COMES FROM IS
+    # NOT UNIFORM AND MUST NOT BE MADE SO: the three Optima panels were REDRAWN
+    # between the 1998 and 2004 sheets (frame-normalised artwork differs by
+    # 0.004-0.011 of frame height) and take the 2004 reading; the other seven
+    # are one drawing reprinted (0.0009) and take 1998, whose response ladder
+    # is the sound one.
+    _adj = {"AGFA_APX_25": 0.0549, "AGFA_APX_100": 0.1037,
+            "AGFA_APX_400": 0.1037, "AGFA_OPTIMA_100": 0.1111,
+            "AGFA_OPTIMA_200": 0.1043, "AGFA_OPTIMA_400": 0.0703,
+            "AGFA_PORTRAIT_160": 0.0681, "AGFA_RSX_II_50": 0.0470,
+            "AGFA_RSX_II_100": 0.0852,
+            "AGFA_ULTRA_50": 0.1487, "AGFA_RSX_II_200": 0.1067,
+            "AGFA_SCALA_200X": 0.0248}
     _bad = [n for n, v in _adj.items()
             if abs(get_profile(n).mtf.adjacency - v) > 1e-9]
     chk("the traced Agfa adjacency overshoots are unchanged",
-        not _bad, ", ".join(_bad) if _bad else "0.021-0.145 across seven stocks")
+        not _bad, ", ".join(_bad) if _bad else "0.025-0.149 across twelve stocks")
 
     # ⚠ APX 100 AND APX 400 SHARE ONE PIECE OF SHARPNESS ARTWORK. Two separate
     # path objects in two separate columns with identical geometry, so the two
@@ -5181,7 +5913,274 @@ if _sec_on():
     chk("APX 100 and APX 400 overshoots are equal because Agfa reused the art",
         abs(get_profile("AGFA_APX_100").mtf.adjacency
             - get_profile("AGFA_APX_400").mtf.adjacency) < 1e-12,
-        "both 0.0998 -- one drawing, two columns")
+        "both 0.1037 -- one drawing, two columns")
+
+    # ---- G-AGFA4, 2026-09-06i: THE TWO CALIBRATION DEFECTS STAY FIXED ------
+    # ⚠⚠ THIS GUARD EXISTS BECAUSE THE 2026-09-06h HARVEST SHIPPED WRONG AND
+    # NOTHING CAUGHT IT. Two ladder defects, both silent, both in the same
+    # reader, found within hours of each other:
+    #   1. the frequency ladder was fitted through the "100" tick label, which
+    #      Agfa nudge 3.37 pt left of its own tick to keep it in the column --
+    #      1.6 % of scale, ~4 % of f50, on all twenty-two panels;
+    #   2. the 2004 response column is set 0.9 pt low as a block, which read
+    #      every 2004 curve 3 % high and made EIGHT films look as though they
+    #      had been re-measured between editions. Seven of them had not.
+    # The stored triples are pinned here so a regression in either shows up in
+    # the database rather than only in a module nobody reruns by hand.
+    _AGFA_F50Q = {
+        "AGFA_OPTIMA_100": (43.7, 2.95), "AGFA_OPTIMA_200": (48.0, 2.67),
+        "AGFA_OPTIMA_400": (47.4, 2.87), "AGFA_PORTRAIT_160": (36.2, 2.47),
+        "AGFA_ULTRA_50": (42.9, 3.12), "AGFA_RSX_II_50": (29.4, 2.31),
+        "AGFA_RSX_II_100": (31.9, 2.08), "AGFA_RSX_II_200": (21.3, 2.49),
+        "AGFA_SCALA_200X": (30.6, 2.14), "AGFA_APX_25": (78.7, 2.31),
+        # ⚠ ADDED 2026-09-07b with the shared-drawing adoption. Both read the
+        # SAME panel, so both carry the same pair -- which is the finding, not
+        # a copy-paste: the drawing is one drawing.
+        "AGFA_APX_100": (58.0, 2.27), "AGFA_APX_400": (58.0, 2.27),
+    }
+    _f50bad = [n for n, (f, q) in _AGFA_F50Q.items()
+               if abs(get_profile(n).mtf.f50_g - f) > 1e-9
+               or abs(get_profile(n).mtf.mtf_rolloff_q - q) > 1e-9]
+    chk("G-AGFA4: every Agfa f50/q pair is the frame-calibrated re-derivation, "
+        "not the label-calibrated first pass",
+        not _f50bad, ", ".join(_f50bad) or "10 of 10 at the corrected values")
+    # ⚠ AND NONE OF THEM MAY SIT AT THE SUPERSEDED VALUE. Naming the wrong
+    # numbers explicitly is worth more than a tolerance: these are what the
+    # database held for six hours on 2026-09-06.
+    _WAS = {"AGFA_OPTIMA_100": 46.0, "AGFA_OPTIMA_200": 50.6,
+            "AGFA_OPTIMA_400": 50.1, "AGFA_PORTRAIT_160": 38.3,
+            "AGFA_ULTRA_50": 44.0, "AGFA_RSX_II_50": 31.0,
+            "AGFA_RSX_II_100": 33.7, "AGFA_RSX_II_200": 22.3,
+            "AGFA_SCALA_200X": 32.3, "AGFA_APX_25": 81.6}
+    _back = [n for n, v in _WAS.items()
+             if abs(get_profile(n).mtf.f50_g - v) < 0.05]
+    chk("no Agfa stock has drifted back to its 2026-09-06h f50",
+        not _back, ", ".join(_back) or "none of the ten")
+
+    # ---- G-AGFA7, 2026-09-06k: the OPTIMA SPECTRAL panel was redrawn too ----
+    # ⚠⚠ THIS GUARD EXISTS BECAUSE I RAISED A FALSE ALARM AND THE OWNER PAID
+    # FOR IT IN ROUNDS OF QUESTIONS. Comparing the stored OPTIMA spectral peaks
+    # against the 1998 sheet showed red at 620 nm where 1998 draws 650, plus an
+    # OPTIMA 400 red record running down to 394 nm -- which I called physically
+    # impossible for a red layer and reported as a reader defect.
+    # ⚠ IT IS NOT A DEFECT. Rendering both pages settles it: the 2004 Optima
+    # spectral panel is a DIFFERENT DRAWING from the 1998 one -- 2004's red
+    # peaks at 615 with a shoulder at 640 and carries a real low tail from
+    # 508 nm, where 1998's is a single smooth peak at 653 starting at 559 --
+    # and OPTIMA 400's 2004 red genuinely is drawn from 394 nm at lg -0.2.
+    # The reader's calibration residual is 0.00 nm on all four columns and its
+    # paths have zero subpath breaks. PORTRAIT 160, on the single-column p6,
+    # is the control and matches 1998 exactly on all three layers.
+    # ⚠ SO THE OPTIMA PAGE WAS REDRAWN IN BOTH ITS PANELS -- sharpness
+    # (0.0041-0.0108 of frame height, G-AGFA4) and spectral. That consistency
+    # is the real finding, and 2004 is adopted for both on the same precedent.
+    # ⚠ THE LESSON: a disagreement between two editions is not evidence of a
+    # bug. I inferred one from peak wavelengths without looking at the pages,
+    # which is the same mistake as trusting a residual without its unit.
+    _OPT_PEAKS = {"AGFA_OPTIMA_100": (470, 550, 620),
+                  "AGFA_OPTIMA_200": (470, 550, 620),
+                  "AGFA_OPTIMA_400": (470, 560, 610)}
+    _lam = [380 + 10 * _i for _i in range(33)]
+    _pk_bad = []
+    for _n, _want in _OPT_PEAKS.items():
+        _sp = get_profile(_n).spectral
+        _got = tuple(_lam[max(range(33), key=lambda _i: _v[_i])]
+                     for _v in (_sp.log_s_b, _sp.log_s_g, _sp.log_s_r))
+        if _got != _want:
+            _pk_bad.append("%s peaks %s, want %s" % (_n, _got, _want))
+    chk("G-AGFA7: the three OPTIMA spectral sets are the 2004 drawing, whose "
+        "red peaks near 615 nm and NOT the 1998 drawing's 650 nm",
+        not _pk_bad, "; ".join(_pk_bad) or "B/G/R peaks pinned on all three")
+    # ⚠ AND PORTRAIT 160 IS THE CONTROL. It is on the 2004 sheet too, on the
+    # single-column p6, and its panel was NOT redrawn -- it reproduces the 1998
+    # drawing exactly. If a future reader change breaks the three-column page,
+    # this stock keeps reading correctly and the OPTIMA guard above fails
+    # alone; if it breaks the reader generally, this one fails too. The pair
+    # tells those two apart.
+    _ps = get_profile("AGFA_PORTRAIT_160").spectral
+    _pgot = tuple(_lam[max(range(33), key=lambda _i: _v[_i])]
+                  for _v in (_ps.log_s_b, _ps.log_s_g, _ps.log_s_r))
+    chk("AGFA_PORTRAIT_160's spectral peaks are unchanged -- the single-column "
+        "control for the three-column page",
+        _pgot == (420, 550, 650), "peaks %s" % (_pgot,))
+
+    # ---- G-AGFA8, 2026-09-07: APX 400's three THIRD-PARTY developer rows ----
+    # ⚠⚠ THE ROWS A TEXT READER COULD NOT DATE. F-PF-D4 p10 and F-PF-E4 p10
+    # continue «Verarbeitung/Processing Agfapan APX 400» past Agfa's own six
+    # developers with three they did not make, each printed with ONE time where
+    # the others carry four -- so in TEXT the time has no temperature, and
+    # `agfa_2003_sheet.proc_tables` still refuses to give it one. The column is
+    # established by GEOMETRY instead: Agfa centre these cells, and all three
+    # land on the same block's 20 C column to under a tenth of a point in both
+    # independently typeset editions.
+    # ⚠ THE ASYMMETRY IS AGFA'S AND IS ASSERTED IN BOTH DIRECTIONS. Only the
+    # fast film gets third-party guidance; APX 100's block ends at STUDIONAL
+    # LIQUID and APX 25 is not in either edition. A future pass that helpfully
+    # copies these three across the family fails here.
+    _TP = (("Tetenal Ultrafin Plus", 16.0), ("Kodak T-MAX", 12.0),
+           ("Kodak D76/Ilford ID11", 12.0))
+    _tp400 = {q.developer: q for q in
+              get_profile("AGFA_APX_400").processing_family.points}
+    _tpbad = []
+    for _dev, _min in _TP:
+        _q = _tp400.get(_dev)
+        if _q is None:
+            _tpbad.append("APX 400 has no %s point" % _dev)
+        elif (abs(_q.minutes - _min) > 1e-9 or abs(_q.celsius - 20.0) > 1e-9
+                or _q.vessel != "small tank, tray"
+                or abs(_q.gamma - 0.65) > 1e-9 or _q.dilution != ""):
+            _tpbad.append("APX 400's %s is %g min / %g C / %r / gamma %g / "
+                          "dilution %r"
+                          % (_dev, _q.minutes, _q.celsius, _q.vessel,
+                             _q.gamma, _q.dilution))
+    for _other in ("AGFA_APX_25", "AGFA_APX_100"):
+        _stray = sorted({q.developer for q in
+                         get_profile(_other).processing_family.points}
+                        & {d for d, _ in _TP})
+        if _stray:
+            _tpbad.append("%s has acquired %s, which Agfa print only for "
+                          "APX 400" % (_other, _stray))
+    chk("G-AGFA8: APX 400 alone carries F-PF-D4/E4's three third-party "
+        "developer rows, at 20 C in a small tank/tray to gamma 0.65",
+        not _tpbad,
+        "; ".join(_tpbad) or "Tetenal 16, T-MAX 12, D76/ID11 12 min")
+
+    # ---- G-AGFA9, 2026-09-07: Scala's push/pull CONTRAST, slot 4 ------------
+    # ⚠⚠ THE PANEL THAT WAS DOCUMENTED AND NOT READ. `agfa_2003_curves`
+    # described «Gradation/Maximaldichte bei push/pull-Verarbeitung» in a
+    # comment above a `SCALA_BANDS` dict that had three entries for four
+    # panels, so `read_scala` walked past slot 4 in silence and
+    # `push.gamma_gain_per_stop` stayed 0.0 while the sheet plotted the
+    # contrast of all five processing steps.
+    # ⚠ 0.125 IS A SUMMARY OF A SATURATING CURVE, NOT A SLOPE THE FILM HAS.
+    # Measured contrast is 1.40 at Standard and 1.70 / 1.80 / 1.85 at Push
+    # 1/2/3 -- +21.4 %, then +5.9 %, then +2.8 %. The stored scalar is the
+    # least-squares line through the origin over those three stops; the module
+    # prints its residuals every build so the approximation stays visible.
+    # ⚠ AND PULL IS NOT THE SAME SLOPE REVERSED: 1.40 -> 0.80 is a 43 % loss
+    # for one stop down. `max_pull_stops` records that the step exists; no
+    # per-stop pull coefficient is stored, because one line cannot serve both
+    # directions and the schema has one field.
+    _sp = get_profile("AGFA_SCALA_200X").push
+    chk("G-AGFA9: AGFA_SCALA_200X carries the 2003 sheet's push/pull contrast "
+        "ladder as gamma_gain_per_stop 0.125, with three pushed stops and one "
+        "pulled",
+        abs(_sp.gamma_gain_per_stop - 0.125) < 1e-9
+        and _sp.max_push_stops == 3.0 and _sp.max_pull_stops == 1.0
+        and not _sp.fog_penalty_stated
+        and "Gradation/Maximaldichte" in _sp.source
+        and "1.845" in _sp.source and "0.796" in _sp.source,
+        "gain %.3f, push %g, pull %g"
+        % (_sp.gamma_gain_per_stop, _sp.max_push_stops, _sp.max_pull_stops))
+    # ⚠ THE D-MAX LADDER IS NOT OVERWRITTEN BY THE NEW PANEL. Two independent
+    # measurements of one quantity now exist -- 1998's from following five
+    # drawn characteristic curves to their maxima, 2003's from five plotted
+    # points -- and they agree to 0.074 D at worst. The stored source keeps the
+    # 1998 numbers and names the 2003 ones beside them; averaging them would
+    # destroy the only cross-check either has.
+    chk("AGFA_SCALA_200X's push source keeps BOTH D-max readings and averages "
+        "neither",
+        all(_v in _sp.source for _v in ("3.064", "2.171", "3.095", "2.245"))
+        and "NOTHING IS AVERAGED" in _sp.source,
+        "both ladders named" if "3.095" in _sp.source else "2003 ladder absent")
+
+    # ---- G-AGFA5, 2026-09-06i: the gamma-time harvest and its vessel -------
+    # ⚠⚠ THE FIELD AND THE DATA MUST ARRIVE TOGETHER. `DevelopmentPoint.vessel`
+    # (schema v28) exists only because 28 small-tank points needed somewhere
+    # unambiguous to land; a later pass that drops the points but keeps the
+    # field, or labels the points and forgets what the labels are for, is what
+    # this asserts against.
+    # ⚠ 10 / 9 / 9 AND NOT 10 / 10 / 10. RODINAL 1+50's curve stops at gamma
+    # 0.670 on APX 100 and 0.738 on APX 400, so its 0.75 rung is not drawn on
+    # either and is not stored. A missing rung is a refusal, not a zero, and
+    # certainly not a five-minute extrapolation off the end of a curve.
+    # ⚠ APX 400's small-tank count went 30 -> 33 on 2026-09-07, and NOT from
+    # this panel: the three extra are the F-PF-D4/E4 third-party developer rows
+    # (Tetenal Ultrafin Plus, Kodak T-MAX, Kodak D76/Ilford ID11), which are
+    # printed TEXT at 20 C and gamma 0.65 and so leave the second figure -- the
+    # count away from gamma 0.65, which is what this panel contributes -- at 9.
+    # G-AGFA8 below is what checks those three.
+    _GT = {"AGFA_APX_25": (29, 10), "AGFA_APX_100": (28, 9),
+           "AGFA_APX_400": (33, 9)}
+    _gtbad = []
+    for _n, (_want_tank, _want_new) in _GT.items():
+        _pts = get_profile(_n).processing_family.points
+        _tank = [q for q in _pts if q.vessel == "small tank, tray"]
+        _new = [q for q in _tank if abs(q.gamma - 0.65) > 1e-9]
+        if len(_tank) != _want_tank or len(_new) != _want_new:
+            _gtbad.append("%s has %d small-tank points, %d away from gamma "
+                          "0.65 (want %d / %d)"
+                          % (_n, len(_tank), len(_new), _want_tank, _want_new))
+    chk("G-AGFA5: the three AGFAPAN families carry the 1998 panel's small-tank "
+        "gamma 0.55 and 0.75 times beside P-16-C's printed 0.65",
+        not _gtbad, "; ".join(_gtbad) or "28 harvested points across three stocks")
+    # ⚠ AND THE TEMPERATURE AXIS IS COUNTED SEPARATELY, because it is a
+    # different table on a different part of the page and every one of its
+    # points sits at gamma 0.65 -- so the count above cannot see it at all.
+    _TEMPN = {"AGFA_APX_25": 30, "AGFA_APX_100": 32, "AGFA_APX_400": 36}
+    _tbad = []
+    for _n, _want in _TEMPN.items():
+        _off = [q for q in get_profile(_n).processing_family.points
+                if abs(q.celsius - 20.0) > 1e-9]
+        if len(_off) != _want:
+            _tbad.append("%s has %d points away from 20 C (want %d)"
+                         % (_n, len(_off), _want))
+    chk("the three AGFAPAN families carry p11's 18 / 22 / 24 C developing "
+        "times -- the only temperature axis in this database",
+        not _tbad, "; ".join(_tbad) or "98 points across three stocks")
+    # ⚠ AND NO DEVELOPER MAY CARRY TWO ANSWERS TO ONE QUESTION. The panel reads
+    # gamma 0.65 too; storing that beside P-16-C's printed 0.65 would put two
+    # measurements of one cell in one tuple, which is rule 4. Only the outer
+    # two contrasts are taken from the curve, so each (developer, vessel,
+    # gamma) triple must appear exactly once.
+    # ⚠ THE KEY INCLUDES TEMPERATURE from 2026-09-06i. p11's tables add 18, 22
+    # and 24 C rows for the same developer, vessel and contrast, so a key
+    # without celsius would read the whole temperature axis as duplication --
+    # and, worse, would have passed silently if the 20 C column HAD been
+    # re-stored on top of P-16-C's, which is the thing it exists to catch.
+    _dup = []
+    for _n in _GT:
+        _seen = {}
+        for _q in get_profile(_n).processing_family.points:
+            _k = (_q.developer, _q.vessel, round(_q.gamma, 3),
+                  round(_q.celsius, 1))
+            _seen[_k] = _seen.get(_k, 0) + 1
+        _dup += ["%s %s" % (_n, _k) for _k, _c in _seen.items() if _c > 1]
+    chk("no AGFAPAN developer carries two times for one vessel, contrast and "
+        "temperature",
+        not _dup, "; ".join(_dup[:3]) or
+        "every (developer, vessel, gamma, celsius) once")
+    # ⚠⚠ AND THE TEMPERATURE AXIS MUST STAY MONOTONE. A developing time to a
+    # fixed contrast can only FALL as the bath warms; a row that rises has had
+    # its columns transposed, which is the failure mode a four-column table
+    # read by x position actually has. 36 rows, every one strictly decreasing.
+    _mono, _rows = [], 0
+    for _n in _GT:
+        _by = {}
+        for _q in get_profile(_n).processing_family.points:
+            if abs(_q.gamma - 0.65) > 1e-9 or not _q.vessel:
+                continue
+            _by.setdefault((_q.developer, _q.vessel), []).append(
+                (_q.celsius, _q.minutes))
+        for _k, _v in _by.items():
+            if len(_v) < 3:
+                continue
+            _rows += 1
+            _v.sort()
+            if any(_b[1] >= _a[1] for _a, _b in zip(_v, _v[1:])):
+                _mono.append("%s %s %s" % (_n, _k[0], _v))
+    chk("every AGFAPAN time-vs-temperature row falls monotonically as the bath "
+        "warms", not _mono and _rows >= 30,
+        "; ".join(_mono[:2]) or "%d rows, all strictly decreasing" % _rows)
+    # ⚠ ATOMAL FF IS ON NO CURVE AND MUST STAY UNLABELLED WHERE IT IS UNKNOWN.
+    # It appears in P-16-C's tables, which DO name the vessel, so its rows are
+    # labelled from there -- but nothing may quietly assign it to the family
+    # the plotted developers fall in on the strength of the panel.
+    _at = [q for _n in _GT for q in get_profile(_n).processing_family.points
+           if q.developer == "ATOMAL FF" and abs(q.gamma - 0.65) > 1e-9
+           and q.vessel == "small tank, tray"]
+    chk("ATOMAL FF gains no small-tank contrast point from a curve it is not "
+        "drawn on", not _at, "%d such points" % len(_at) if _at else "none")
 
     # ⚠ THE SAME DEFECT ON THE SPECTRAL SIDE, AND IT IS WORSE BECAUSE IT LOOKS
     # LIKE TWO MEASUREMENTS. RSX II 50 and RSX II 100 trace to the same spectral
@@ -5342,26 +6341,85 @@ if _sec_on():
     # its own input.
     _GREEN_ONLY_MEASURED = {"FUJI_SUPER_F125_8532", "FUJICOLOR_SUPER_F500_8572",
                             "FUJI_PROVIA_100F", "FUJICOLOR_SUPERIA_XTRA_400",
-                            "FUJICOLOR_PRO_400H"}
+                            "FUJICOLOR_PRO_400H",
+                            # 2026-09-06: AF3-066E prints one unlabelled MTF
+                            # curve like every other Fuji sheet, so 400F's red
+                            # and blue are the ratio family too.
+                            "FUJI_PROVIA_400F",
+                            "FUJICHROME_64T_II",
+                            # 2026-09-06: 400X too -- AF3-0213E prints one
+                            # unlabelled MTF curve like the rest of the family.
+                            "FUJI_PROVIA_400X",
+                            # ⚠ 2026-09-06c: PRO 800Z and NPZ 800, whose MTF
+                            # panel is ONE DRAWING printed in two publications.
+                            # It too is a single unlabelled curve, so their red
+                            # and blue are the stored ratio family and would
+                            # make the guard below test its own input.
+                            "FUJICOLOR_PRO_800Z",
+                            "FUJICOLOR_PORTRAIT_NPZ_800",
+                            # ⚠ 2026-09-06e: the two new SUPERIA stocks. Their
+                            # MTF panels draw ONE unlabelled curve like every
+                            # other Fuji sheet, so their red and blue are the
+                            # stored ratio family and both the red-softness and
+                            # the red-cluster guards below would be testing
+                            # their own input.
+                            "FUJICOLOR_SUPERIA_XTRA_800",
+                            "FUJICOLOR_SUPERIA_REALA",
+                            # ⚠ 2026-09-06h: the seven AGFA COLOUR stocks whose
+                            # «Sharpness» panels were traced from Agfa's own
+                            # Technical Data. Every one of those panels draws
+                            # ONE unlabelled curve, so red and blue are the
+                            # stored ratio family and both the red-softness and
+                            # the red-cluster guards below would be testing
+                            # their own input. The monochrome AGFA stocks
+                            # (APX 25, SCALA 200x) are not here: their three
+                            # records are equal because the film has one layer.
+                            "AGFA_OPTIMA_100", "AGFA_OPTIMA_200",
+                            "AGFA_OPTIMA_400", "AGFA_PORTRAIT_160",
+                            "AGFA_ULTRA_50", "AGFA_RSX_II_50",
+                            "AGFA_RSX_II_100", "AGFA_RSX_II_200",
+                            # ⚠ 2026-09-06j: the EIGHTH, and it is in a
+                            # different document -- the «AGFACOLOR Vista»
+                            # sheet, which is why the 2026-09-06h sweep of
+                            # «Technical Data PF» never reached it. Its panel
+                            # is the same one unlabelled visual-weighted curve
+                            # («Densitometry: visual filter (V-lambda)»).
+                            "AGFA_VISTA_200",
+                            # ⚠ 2026-09-07b: the two AgfaPhoto Vista plus
+                            # stocks. Their «13. MTF Curve» draws ONE curve --
+                            # and ONE curve for BOTH films at that -- so red
+                            # and blue are this profile's own ratio family and
+                            # the red-softness and red-cluster guards below
+                            # would be testing their own input. ⚠ THE FIRST
+                            # RUN AFTER ADOPTION PROVED THAT: both came back
+                            # at r/g 0.82-0.83 against the rule's ~0.78 and
+                            # broke the red cluster at 52.4 / 52.7, because
+                            # the ratios carried are the ones the class
+                            # estimate already had.
+                            "AGFA_VISTA_PLUS_200",
+                            "AGFA_VISTA_PLUS_400"}
     _flank_bad = []
     for _n, _rr, _rb in (("FUJI_SUPER_F125_8532", 0.8976, 1.0762),
                          ("FUJICOLOR_SUPER_F500_8572", 0.8214, 1.1071),
                          ("FUJI_PROVIA_100F", 0.8970, 1.0754),
                          ("FUJICOLOR_SUPERIA_XTRA_400", 0.8976, 1.0762),
-                         ("FUJICOLOR_PRO_400H", 0.8977, 1.0763)):
+                         ("FUJICOLOR_PRO_400H", 0.8977, 1.0763),
+                         ("AGFA_VISTA_PLUS_200", 0.8927, 1.0886),
+                         ("AGFA_VISTA_PLUS_400", 0.8977, 1.0818)):
         _m = get_profile(_n).mtf
         if (abs(_m.f50_r / _m.f50_g - _rr) > 0.005
                 or abs(_m.f50_b / _m.f50_g - _rb) > 0.005):
             _flank_bad.append("%s r/g=%.4f b/g=%.4f" % (
                 _n, _m.f50_r / _m.f50_g, _m.f50_b / _m.f50_g))
-    chk("the two green-only stocks keep their declared flanking ratios",
+    chk("every green-only stock keeps its declared flanking ratios",
         not _flank_bad, "; ".join(_flank_bad) if _flank_bad
-        else "8532 0.8976/1.0762, 8572 0.8214/1.1071")
+        else "7 stocks pinned, e.g. 8532 0.8976/1.0762, 8572 0.8214/1.1071, "
+             "Vista plus 200 0.8927/1.0886")
     chk("every green-only stock is flagged measured and keeps r < g < b",
         all(get_profile(n).mtf.mtf_measured
             and get_profile(n).mtf.f50_r < get_profile(n).mtf.f50_g
             < get_profile(n).mtf.f50_b for n in _GREEN_ONLY_MEASURED),
-        "5 of 5, layer order intact")
+        "7 of 7, layer order intact")
 
     # ---- C13, 2026-08-20c: what the 5274 adoption must not lose ---------------
     _p74 = get_profile("KODAK_VISION_200T_5274")
@@ -5467,11 +6525,256 @@ if _sec_on():
     # weakly with f50 (Pearson 0.39 over 23 curves). So q is NOT derivable and
     # stays per-stock measured. What is asserted here is the spread: no two stocks
     # may have been collapsed onto a shared constant.
+    # ⚠ ONE PAIR IS EXEMPT AND THE EXEMPTION IS THE POINT OF IT, 2026-09-06c.
+    # FUJICOLOR_PRO_800Z and FUJICOLOR_PORTRAIT_NPZ_800 carry q 1.86 twice
+    # because AF3-177E and AF3-100E print ONE MTF DRAWING between them -- their
+    # curves agree to 0.91 % response over 1.58 decades, off a vector path and a
+    # bilevel raster at different panel aspect ratios. Sharing the exponent is
+    # what a shared drawing REQUIRES; giving them 1.86 and 1.84 to satisfy a
+    # distinctness guard would encode two measurements where there is one. The
+    # guard therefore compares the exponents with the pair collapsed, so it
+    # still catches any OTHER two stocks being flattened onto a constant.
+    _Q_SHARED_DRAWING = {"FUJICOLOR_PRO_800Z", "FUJICOLOR_PORTRAIT_NPZ_800"}
+    # ⚠⚠ TWO MORE SHARED-DRAWING PAIRS FROM 2026-09-07b, and they are excluded
+    # from the collapse test for the same reason the pair above is: their
+    # (f50, q) IS shared, by measurement, because it is one drawing.
+    #   AGFA_APX_100 / AGFA_APX_400          -- «Technical Data PF» p10 and
+    #     F-PF-E4 p8, one 73-point path translated 175.21 pt
+    #   AGFA_VISTA_PLUS_200 / _400      -- one 47-point path translated
+    #     dx +0.143 dy -0.076 pt
+    # Excluding the SECOND member of each pair keeps the guard able to catch
+    # any OTHER two stocks being flattened onto a constant, which is what it
+    # is for.
+    _SHARED_DRAWING_TWINS = ("FUJICOLOR_PORTRAIT_NPZ_800", "AGFA_APX_400",
+                             "AGFA_VISTA_PLUS_400")
+    # ⚠⚠ THE TEST IS THE (f50, q) PAIR, NOT q ALONE, AND IT HAD TO CHANGE ON
+    # 2026-09-06h. With 42 measured stocks and q quantised to 0.01, two
+    # unrelated films landing on the same exponent is arithmetic, not evidence
+    # -- SUPERIA X-TRA 800 and AGFA RSX II 100 both fit 2.16, and RSX II 50 and
+    # PROVIA 400X both 2.38, off four different manufacturers' panels. What the
+    # guard is actually for is catching stocks COLLAPSED onto a shared
+    # constant, and a collapse shows up in f50 and q together.
     _qs = sorted(round(p.mtf.mtf_rolloff_q, 4) for p in FILM_PROFILES
                  if p.mtf.mtf_measured and p.mtf.mtf_rolloff_q > 0.0)
-    chk("the measured rolloff exponents are distinct and spread over 1.0",
-        len(set(_qs)) == len(_qs) and (_qs[-1] - _qs[0]) > 1.0,
-        "q = " + " / ".join("%.2f" % q for q in _qs))
+    _pairs_m = [(round(p.mtf.mtf_rolloff_q, 4), round(p.mtf.f50_g, 3), p.name)
+                for p in FILM_PROFILES
+                if p.mtf.mtf_measured and p.mtf.mtf_rolloff_q > 0.0
+                and p.name not in _SHARED_DRAWING_TWINS]
+    _seenp = {}
+    for _q, _f, _n in _pairs_m:
+        _seenp.setdefault((_q, _f), []).append(_n)
+    _collapsed = [v for v in _seenp.values() if len(v) > 1]
+    chk("no two measured stocks share BOTH a rolloff exponent and an f50, and "
+        "the exponents span over 1.0",
+        not _collapsed and (_qs[-1] - _qs[0]) > 1.0,
+        ("collapsed: %s" % _collapsed) if _collapsed
+        else "%d stocks, q %.2f-%.2f, %d distinct exponents"
+             % (len(_pairs_m), _qs[0], _qs[-1], len(set(_qs))))
+    # ⚠ AND THE SHARED PAIR MUST STAY SHARED. If a later pass "measures" one of
+    # them separately and they drift apart, that is a claim of two independent
+    # readings of one drawing and it must be argued for, not slipped in.
+    chk("the PRO 800Z / NPZ 800 shared MTF drawing carries one exponent and "
+        "one f50 on both stocks",
+        len({(round(get_profile(n).mtf.mtf_rolloff_q, 4),
+              round(get_profile(n).mtf.f50_g, 4)) for n in _Q_SHARED_DRAWING}) == 1,
+        "q %.2f, f50_g %.1f on both"
+        % (get_profile("FUJICOLOR_PRO_800Z").mtf.mtf_rolloff_q,
+           get_profile("FUJICOLOR_PRO_800Z").mtf.f50_g))
+
+    # ---- G-NPZ, 2026-09-06c: the shared-artwork pair, asserted BOTH ways -----
+    # ⚠ A SHARED DRAWING IS A CLAIM AND SO IS A DIFFERENCE, so both halves are
+    # guarded. AF3-100E (NPZ 800) and AF3-177E (PRO 800Z) print one set of data
+    # drawings -- characteristic curves agreeing to 0.015 D max / 0.005 D rms
+    # over 4.2 decades and MTF curves to 0.91 % response over 1.58 decades, one
+    # read off Bezier paths and the other off a bilevel raster at a different
+    # panel aspect ratio. Their curve records must therefore be IDENTICAL: a
+    # future pass that re-traces one of them and lets the two drift apart is
+    # claiming two measurements of one drawing and must say so out loud.
+    _npz = get_profile("FUJICOLOR_PORTRAIT_NPZ_800")
+    _z8 = get_profile("FUJICOLOR_PRO_800Z")
+    chk("G-NPZ1: NPZ 800 and PRO 800Z carry byte-identical curve records, "
+        "because their sheets print ONE drawing",
+        _npz.curves == _z8.curves,
+        "dmin %.4f/%.4f/%.4f both"
+        % (_npz.curves.r.dmin, _npz.curves.g.dmin, _npz.curves.b.dmin))
+    chk("G-NPZ2: and one neutral+dmin pair, from that same shared section",
+        _npz.dye_density.d_neutral == _z8.dye_density.d_neutral
+        and _npz.dye_density.d_dmin == _z8.dye_density.d_dmin
+        and not _npz.dye_density.has_data and not _z8.dye_density.has_data,
+        "31 samples each, no dye triple on either")
+    # ⚠⚠ AND THE HALF THAT STOPS THE FINDING BEING OVERSTATED. The two sheets
+    # publish DIFFERENT long-exposure tables: unfiltered to 2 s with a +2 stop
+    # row at 64 s on AF3-100E, unfiltered only to 1 s and nothing past 16 s on
+    # AF3-177E. Rule 4 -- not averaged, not copied across. That difference is
+    # the whole reason these are two stocks and not one stock with an alias, so
+    # a later "tidy-up" that harmonises them must fail here.
+    chk("G-NPZ3: their PRINTED reciprocity tables differ and neither was "
+        "copied onto the other",
+        (_npz.reciprocity_table.times_s == (2.0, 4.0, 16.0, 64.0)
+         and _z8.reciprocity_table.times_s == (1.0, 4.0, 16.0)
+         and _npz.reciprocity_table.times_s != _z8.reciprocity_table.times_s),
+        "NPZ %s vs 800Z %s"
+        % (_npz.reciprocity_table.times_s, _z8.reciprocity_table.times_s))
+    # ⚠ AND BOTH SPECTRAL PANELS STAY REFUSED, for the schema reason and not for
+    # a reading one: each draws FOUR sensitive layers (blue, green, red, cyan)
+    # and SpectralSensitivity has r/g/b and pan. If either acquires a spectral
+    # set without the schema gaining a fourth record, a layer has been silently
+    # discarded -- rule 23 point 5.
+    # ⚠⚠ REWRITTEN TWICE IN TWO DAYS, AND BOTH REWRITES WERE CORRECTIONS OF
+    # MINE. Until 2026-09-06f this asserted that BOTH stocks refused their
+    # spectral panel, because it draws four layers and the schema holds three.
+    # The owner's decision settled that (store R/G/B, document cyan) and PRO
+    # 800Z gained a set. NPZ 800 was then left empty on the ground that its
+    # RASTER panel could not be separated -- one attempt reported as a
+    # conclusion. The owner asked why, and the panel turned out not to need
+    # separating: its twin prints the same drawing as vector paths, proved by
+    # overlay at 98.1 % against 21-35 % for every displaced null.
+    # ⚠ SO THE PAIR NOW CARRIES ONE SPECTRAL SET BETWEEN TWO STOCKS, exactly as
+    # it already carries one MTF and one neutral pair. Byte-identical is the
+    # assertion: a later pass that "re-measures" one of them and lets the two
+    # drift apart is claiming two readings of one drawing and must argue for it.
+    chk("G-NPZ4: PRO 800Z and NPZ 800 carry ONE spectral set between them, "
+        "byte-identical, because their sheets print one drawing",
+        (_z8.spectral.has_data and _npz.spectral.has_data
+         and _npz.spectral.log_s_r == _z8.spectral.log_s_r
+         and _npz.spectral.log_s_g == _z8.spectral.log_s_g
+         and _npz.spectral.log_s_b == _z8.spectral.log_s_b),
+        "third panel of this pair proved shared, after the curves and the MTF")
+
+    # ---- G-SUP, 2026-09-06e: the SUPERIA batch ------------------------------
+    # ⚠ THE FOURTH-LAYER REFUSAL IS NOW A FAMILY PROPERTY, NOT A ONE-OFF, and
+    # counting it is what turns five separate notes into one schema decision.
+    # Every stock below draws Blue / Green / Red / Cyan on its spectral panel
+    # and `SpectralSensitivity` carries r/g/b and pan. Storing three of four
+    # would silently discard the layer these films are sold on (rule 23 pt 5).
+    # ONE schema change closes all five at once; until then this asserts that
+    # none of them has quietly acquired a truncated set.
+    _FOURTH_LAYER = ("FUJICOLOR_PRO_800Z", "FUJICOLOR_PORTRAIT_NPZ_800",
+                     "FUJICOLOR_SUPERIA_XTRA_400",
+                     "FUJICOLOR_SUPERIA_XTRA_800",
+                     "FUJICOLOR_SUPERIA_REALA")
+    # ⚠⚠ ALL FIVE NOW CARRY A SET, AND ALL FIVE ARE INCOMPLETE. This guard has
+    # been three different assertions in three days: all five refused, then
+    # four stored and one refused, now five stored. What it must keep asserting
+    # is not that the cells are full but that the incompleteness is DECLARED --
+    # every one of these is three quarters of a film.
+    _four = [n for n in _FOURTH_LAYER if get_profile(n).spectral.has_data]
+    chk("G-SUP1: all five fourth-colour-layer stocks carry a three-of-four "
+        "spectral set",
+        len(_four) == 5,
+        "stored: %s" % ", ".join(sorted(_four)))
+    # ⚠ AND EVERY ONE OF THEM SAYS SO IN ITS OWN SOURCE STRING. A stored set
+    # that is three quarters of a film must announce that wherever it is read,
+    # not only in a document beside it -- otherwise the next reader integrates
+    # it against an illuminant and gets a confident wrong answer.
+    _undeclared = [n for n in _four
+                   if "THREE OF FOUR" not in get_profile(n).spectral.source
+                   or "FUJI_FOURTH_LAYER.md" not in get_profile(n).spectral.source]
+    chk("G-SUP1b: every three-of-four spectral set declares it in its own "
+        "source and names where the fourth curve is written down",
+        not _undeclared, "; ".join(_undeclared) or "%d of %d declared" % (len(_four), len(_four)))
+    # ⚠ THE CYAN DOCUMENT MUST EXIST AND MUST CARRY NUMBERS. The whole basis on
+    # which storing three of four was accepted is that the fourth is written
+    # out. If that file goes missing or empties, the decision has quietly
+    # become the thing it was allowed instead of.
+    _cy = Path(__file__).resolve().parent / "doc" / "FUJI_FOURTH_LAYER.md"
+    _cytxt = _cy.read_text(encoding="utf-8") if _cy.is_file() else ""
+    chk("G-SUP1c: doc/FUJI_FOURTH_LAYER.md exists and holds a cyan curve for "
+        "each stored three-of-four stock",
+        all(n in _cytxt for n in _four)
+        and _cytxt.count("log_s_cyan") == len(_four),
+        "%d log_s_cyan blocks for %d stocks" % (_cytxt.count("log_s_cyan"),
+                                                len(_four)))
+    # ⚠ THE THREE SUPERIA RECIPROCITY TABLES DIFFER AND SPEED DOES NOT ORDER
+    # THEM. REALA is the SLOWEST and has the SHORTEST unfiltered range (1 s
+    # against 2 s) and the only refusal at 64 s. That is the opposite of the
+    # PROVIA 100F / 400F direction, so a future pass must not "correct" it into
+    # a monotone family rule -- which is exactly what this guard forbids.
+    _sup = {n: get_profile(n).reciprocity_table
+            for n in ("FUJICOLOR_SUPERIA_XTRA_400",
+                      "FUJICOLOR_SUPERIA_XTRA_800",
+                      "FUJICOLOR_SUPERIA_REALA")}
+    chk("G-SUP2: the three SUPERIA sheets publish three DIFFERENT reciprocity "
+        "tables and none was copied from another",
+        (_sup["FUJICOLOR_SUPERIA_XTRA_400"].stops_correction
+         == (0.0, 0.3333, 0.6667, 1.0)
+         and _sup["FUJICOLOR_SUPERIA_XTRA_800"].stops_correction
+         == (0.0, 0.6667, 1.5, 2.0)
+         and _sup["FUJICOLOR_SUPERIA_REALA"].times_s == (1.0, 4.0, 16.0)
+         and len({t.stops_correction for t in _sup.values()}) == 3),
+        "400 %s / 800 %s / REALA %s"
+        % (_sup["FUJICOLOR_SUPERIA_XTRA_400"].stops_correction,
+           _sup["FUJICOLOR_SUPERIA_XTRA_800"].stops_correction,
+           _sup["FUJICOLOR_SUPERIA_REALA"].stops_correction))
+    chk("G-SUP3: and the SLOWEST of the three has the SHORTEST unfiltered "
+        "range, which is the opposite of the PROVIA direction",
+        (_sup["FUJICOLOR_SUPERIA_REALA"].times_s[0]
+         < _sup["FUJICOLOR_SUPERIA_XTRA_400"].times_s[0]
+         and get_profile("FUJICOLOR_SUPERIA_REALA").exposure_index
+         < get_profile("FUJICOLOR_SUPERIA_XTRA_400").exposure_index),
+        "REALA ISO 100 unfiltered to 1 s, X-TRA 400 to 2 s")
+    # ⚠⚠ REALA'S THREE GAMMAS ARE THE MOST EQUAL IN THE DATABASE and that is a
+    # MEASUREMENT of the "Optimum Spectral Sensitivity Balance" its own feature
+    # list leads with -- not a fitting artefact and not something to normalise
+    # away. Asserted against the field, so a re-trace that spreads them has to
+    # argue for itself.
+    _rl = get_profile("FUJICOLOR_SUPERIA_REALA").curves
+    _rg = [_rl.r.gamma, _rl.g.gamma, _rl.b.gamma]
+    _spread = max(_rg) - min(_rg)
+    # ⚠ AND THE COMPARISON EXCLUDES THE TWO STOCKS WHOSE SPREAD IS EXACTLY
+    # ZERO, WHICH THE FIRST VERSION OF THIS GUARD DID NOT AND WHICH FAILED IT.
+    # GEVACOLOR_NEG_652 and TECHNICOLOR_THREE_STRIP carry three IDENTICAL
+    # gammas because their records were written from one class estimate, not
+    # because anybody measured three equal numbers. An exact zero is the
+    # signature of a constructed value; comparing a measurement against it
+    # would rank an absence above a reading, which is rule 23 point 3.
+    _others = []
+    for _p in FILM_PROFILES:
+        if _p.is_monochrome or _p.kind != StockKind.NEGATIVE:
+            continue
+        _g = [_p.curves.r.gamma, _p.curves.g.gamma, _p.curves.b.gamma]
+        _sp = max(_g) - min(_g)
+        if _sp == 0.0:
+            continue
+        _others.append((_sp, _p.name))
+    _others.sort()
+    chk("G-SUP4: REALA's three gammas are the most equal of any colour "
+        "negative with three distinct traced records, which is its sheet's "
+        "own balance claim measured",
+        _spread < 0.006 and _others[0][1] == "FUJICOLOR_SUPERIA_REALA",
+        "spread %.4f; next tightest %s at %.4f; %d stocks excluded for a "
+        "spread of exactly zero (one class estimate written three times)"
+        % (_spread, _others[1][1], _others[1][0],
+           sum(1 for _p in FILM_PROFILES
+               if not _p.is_monochrome and _p.kind == StockKind.NEGATIVE
+               and _p.curves.r.gamma == _p.curves.g.gamma == _p.curves.b.gamma)))
+    # ⚠ AND THE THREE ISO 800 FUJI NEGATIVES ARE NOT ONE FILM. SUPERIA X-TRA
+    # 800, PRO 800Z and NPZ 800 share a speed, a process and the fourth layer,
+    # and PRO 800Z / NPZ 800 really are one set of drawings -- so the third
+    # must be shown to be separate rather than assumed to be. Its curves differ
+    # from theirs by more than a third of a density, and its printed
+    # high-contrast resolving power differs by 10 lines/mm.
+    _sx8 = get_profile("FUJICOLOR_SUPERIA_XTRA_800")
+    _dmax = max(abs(getattr(_sx8.curves, _c).dmin - getattr(_z8.curves, _c).dmin)
+                for _c in ("r", "g", "b"))
+    _gmax = max(abs(getattr(_sx8.curves, _c).gamma
+                    - getattr(_z8.curves, _c).gamma)
+                for _c in ("r", "g", "b"))
+    # ⚠ GAMMA IS THE DISCRIMINATOR HERE AND dmin IS NOT, which the first
+    # version of this guard had backwards. The worst dmin gap is 0.190 D and
+    # the worst GAMMA gap is 0.203 -- X-TRA 800's blue record runs at 0.811
+    # against PRO 800Z's 0.608, a third steeper. Two films that shared a
+    # drawing would agree on both; these agree on neither, and the printed
+    # high-contrast resolving power differs by 10 lines/mm as well.
+    chk("G-SUP5: SUPERIA X-TRA 800 is a different film from PRO 800Z / NPZ "
+        "800, not a re-badge of them",
+        _dmax > 0.15 and _gmax > 0.15
+        and _sx8.mtf.resolving_power_lp_mm_highc
+        != _z8.mtf.resolving_power_lp_mm_highc,
+        "worst dmin gap %.3f D, worst gamma gap %.3f; resolving power "
+        "%.0f vs %.0f at 1000:1"
+        % (_dmax, _gmax, _sx8.mtf.resolving_power_lp_mm_highc,
+           _z8.mtf.resolving_power_lp_mm_highc))
     # And a flagged stock must carry a usable exponent OR be the one documented
     # exception, because the flag otherwise silently falls back to the Gaussian.
     # ⚠ 5279 IS THAT EXCEPTION AND IT IS PHYSICS, NOT AN OVERSIGHT: its sheet
@@ -5917,10 +7220,10 @@ if _sec_on():
     # ⚠ 25 -> 27 ON 2026-09-04c, both peak_1.0: 5203 and 5207 print the same
     # "Cyan, Magenta, and Yellow Dye Curves are peak-normalized" note as every
     # other VISION sheet. So peak_1.0 goes 17 -> 19 and as-printed stays at 8.
-    chk("27 film profiles carry spectral dye density", len(_dd) == 27,
+    chk("29 film profiles carry spectral dye density", len(_dd) == 29,
         ", ".join(sorted(p.name.split("_")[-1] for p in _dd)))
     _pk = [p for p in _dd if p.dye_density.normalisation == "peak_1.0"]
-    chk("19 of the 27 dye sets are tagged peak_1.0, 8 as-printed", len(_pk) == 19,
+    chk("21 of the 29 dye sets are tagged peak_1.0, 8 as-printed", len(_pk) == 21,
         "%d peak_1.0, %d as-printed" % (len(_pk), len(_dd) - len(_pk)))
     # ⚠ THE WHOLE VISION3 FAMILY NOW CARRIES A DYE SET, and that is worth an
     # assertion of its own because it is what makes the family comparison in
@@ -6442,8 +7745,26 @@ if _sec_on():
     # carry a measured EXPOSURE INDEX with each one. It is the corpus's only
     # four-point reversal ladder and the reason `push_stops` had to become a
     # float.
-    chk("110 development points across 12 stocks, every one with a measured contrast",
-        _n_pts == 110 and len(_pf) == 12
+    # ⚠ 110 -> 138 on 2026-09-06i, ALL TWENTY-EIGHT ON THE THREE AGFAPAN
+    # STOCKS, and none of them new measurement: they were traced from
+    # «Technical Data PF» 09/1998 p10 on 2026-09-01 and printed on every build
+    # since without being adopted, because this family had been filled from
+    # «Technical Data P-16-C» instead and the two documents were never put side
+    # by side. What licensed the adoption was identifying which VESSEL the
+    # panel plots -- the small tank, by 0.112 min against the drum's 1.152 over
+    # fifteen combinations -- so the panel supplies exactly the gamma 0.55 and
+    # 0.75 rows P-16-C omits for that vessel and nothing it duplicates.
+    # ⚠ 138 -> 242 the same day, from p11's TEMPERATURE tables. Every other
+    # development point in this database sits at 20 C; these are the corpus's
+    # only measurements at 18, 22 and 24. The 20 C cells of that table are NOT
+    # re-stored -- P-16-C already supplies them, and the exact agreement of
+    # those thirty cells is what proves the table's unlabelled quantity is the
+    # gamma 0.65 time. The `tank` block is the exception and all four of its
+    # columns are stored, because P-16-C prints no tank rows at all.
+    # ⚠ 242 -> 245 on 2026-09-07: APX 400's three third-party developer rows
+    # from F-PF-D4/E4 p10. See G-AGFA8.
+    chk("245 development points across 12 stocks, every one with a measured contrast",
+        _n_pts == 245 and len(_pf) == 12
         and all(q.contrast_index > 0.0 or q.gamma > 0.0
                 for p in _pf for q in p.processing_family.points),
         "%d stocks, %d points" % (len(_pf), _n_pts))
@@ -6566,15 +7887,15 @@ if _sec_on():
         "5248 dye set present" if _p5248 and _p5248[0].dye_density.has_data
         else "5248 still empty, as Hanson & Kisner 1953 leaves it")
 
-    # ---- AGFACOLOR_NEU_1936: Eggert 1937, adopted 2026-09-04 ---------------
+    # ---- AGFA_NEU_1936: Eggert 1937, adopted 2026-09-04 ---------------
     # ⚠ THE FIRST MEASURED NUMBERS THIS PROFILE HAS EVER CARRIED, and the guard
     # exists because of how nearly they were missed: the document arrived on
     # 2026-09-03 and the first pass filed the inventor's own seven-page article
     # as a bare provenance citation without reading it, while the profile's own
     # provenance went on asserting that no photometric figure for this film
     # existed anywhere.
-    _neu = get_profile("AGFACOLOR_NEU_1936")
-    chk("AGFACOLOR_NEU_1936 carries Eggert's measured layer geometry",
+    _neu = get_profile("AGFA_NEU_1936")
+    chk("AGFA_NEU_1936 carries Eggert's measured layer geometry",
         abs(_neu.emulsion.coated_um - 19.0) < 1e-9
         and _neu.layer_stack.order == ("blue", "green", "red")
         and "Eggert" in _neu.emulsion.source,
@@ -6602,7 +7923,7 @@ if _sec_on():
     # the stored 8 sits above all of it. Method rule 4: recorded, not averaged.
     # If a future edit moves the EI it must come with a real speed measurement,
     # and this guard is what makes that edit announce itself.
-    chk("AGFACOLOR_NEU_1936's exposure_index is still the analogy 8, with the "
+    chk("AGFA_NEU_1936's exposure_index is still the analogy 8, with the "
         "Eggert conflict recorded rather than averaged in",
         _neu.exposure_index == 8
         and any("0.4 to 1.7 stops fast" in s for s in _neu.provenance.sources),
@@ -7448,20 +8769,95 @@ if _sec_on():
 
 
     # =======================================================================
-    #  G-FILMID -- the frozen film identifiers, 2026-08-28
+    #  G-FILMID / G-FILMORDER -- storage identity
     #
-    #  WHAT THIS PROTECTS. Before the freeze, database order was the natural
-    #  name sort, so every eFILM_PROFILE value, every GetFilmDatabase()
-    #  subscript and every film_names.txt line number was a function of which
-    #  stock names happened to exist. Adding one stock renumbered the rest, and
-    #  every saved After Effects or Premiere project would then have rendered a
-    #  DIFFERENT FILM. These five checks are what make that unrepeatable.
+    #  ⚠⚠ THE FREEZE WAS RETIRED ON 2026-09-08 BY OWNER DECISION AND THIS BLOCK
+    #  NOW GUARDS THE OPPOSITE ARRANGEMENT. Read the next paragraph as the
+    #  argument against the current design, not as a description of it.
     #
-    #  Each is a distinct failure mode, which is why they are five and not one.
+    #  WHAT THE FREEZE PROTECTED, 2026-08-28 to 2026-09-08. Before it, database
+    #  order was the natural name sort, so every eFILM_PROFILE value, every
+    #  GetFilmDatabase() subscript and every film_names.txt line number was a
+    #  function of which stock names happened to exist. Adding one stock
+    #  renumbered the rest, and every saved After Effects or Premiere project
+    #  then rendered a DIFFERENT FILM.
+    #
+    #  WHY IT IS GONE. The freeze delivered an alphabetical panel only through
+    #  film_display_order.txt, a runtime indirection the owner has ruled out:
+    #  "I need film in database ordered alphabetically and TXT file fully
+    #  reflect this order... I don't need additional *.txt file for re-ordering
+    #  in run-time." No arrangement is both alphabetical in storage and stable
+    #  under insertion. The owner chose alphabetical, having been shown the cost
+    #  twice.
+    #
+    #  ⚠ SO THE RENUMBERING FAILURE MODE IS BACK, AND IT IS NOT A DEFECT TO
+    #  FILE. 177 of 184 stocks moved at the cutover; a future "AGFA APX 50"
+    #  will take index 1 and shift 183. What guards it now is not stability but
+    #  DISCLOSURE: film_id_migration.txt maps old -> new, and check 5 asserts
+    #  that map is complete and correct, because it is the only artefact that
+    #  can repair a project saved before today.
+    #
+    #  WHAT EACH CHECK DOES NOW:
+    #    1, 2, 4, 6  unchanged -- the lock is still the migration source, so
+    #                its internal integrity still matters exactly as much
+    #    3           REPLACED: "order is ascending id" -> the database IS in
+    #                natural-name order (G-FILMORDER)
+    #    5           REPLACED: "pre-freeze stocks at id == index" -> the
+    #                migration map is complete and correct
+    #    5b          NEW: film_names.txt line k IS database index k, checked
+    #                against the emitted file rather than a re-derivation
     # =======================================================================
     import os as _os
     _lockp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
                            "film_ids.lock")
+
+    # =======================================================================
+    #  G-GAMMA -- two stored curves that no emulsion can have, 2026-09-08
+    #
+    #  ⚠ THIS IS A WITNESS, NOT A FIX, AND NOTHING WAS CHANGED IN THE DATA.
+    #  Found while chasing an owner-reported colour cast on reversal stocks.
+    #  Of 115 colour profiles, whose median green gamma is 0.62, exactly two
+    #  sit above 2.5:
+    #        KODAK_EKTACHROME_100D_5285   15.43   <- database maximum
+    #        SUPER_ANSCOCHROME_1957        5.27
+    #  15.43 is not a characteristic curve. The steepest colour reversal film
+    #  ever sold is around 2.5, the steepest monochrome stock in this database
+    #  is POLAROID_51 at 3.35, and 15.43 is 6x the next colour stock and 25x
+    #  the colour median.
+    #
+    #  ⚠ AND IT HAD A MEASURABLE CONSEQUENCE, which is why it is pinned rather
+    #  than noted. Both stocks were among the five whose interimage
+    #  coefficients overshot their published target -- the solver was being
+    #  asked to hit a patent figure on a curve that cannot exist, and it
+    #  obliged by driving the coefficient to an extreme. EKTACHROME_100D_5285
+    #  rendered at R/B 3.28 against a reversal median of 1.62.
+    #
+    #  The remedy is a RE-TRACE of both curves, recorded in NotFound.md. It is
+    #  not a value this project may invent: the sheets are in the corpus and
+    #  the trace has to be redone. Until then this guard does two things --
+    #  it stops either number drifting silently, and it fails on a THIRD stock
+    #  arriving above the bound, which is the case nobody would notice.
+    _GAMMA_BOUND = 2.5
+    _GAMMA_KNOWN = {"KODAK_EKTACHROME_100D_5285": 15.43,
+                    "SUPER_ANSCOCHROME_1957": 5.27}
+    _g_over, _g_moved = [], []
+    for _p in FILM_PROFILES:
+        if _p.is_monochrome:
+            continue
+        _gg = _p.curves.g.gamma
+        _pin = _GAMMA_KNOWN.get(_p.name)
+        if _pin is not None:
+            if abs(_gg - _pin) > 0.01:
+                _g_moved.append("%s %.2f vs pinned %.2f" % (_p.name, _gg, _pin))
+        elif _gg > _GAMMA_BOUND:
+            _g_over.append("%s %.2f" % (_p.name, _gg))
+    chk("G-GAMMA  exactly two colour curves exceed gamma 2.5, both pinned and "
+        "both awaiting a re-trace (NotFound.md 2026-09-08b) -- no third stock "
+        "has joined them and neither has moved",
+        not _g_over and not _g_moved,
+        "; ".join(_g_over + _g_moved) if (_g_over or _g_moved)
+        else "EKTACHROME_100D_5285 15.43, SUPER_ANSCOCHROME_1957 5.27, "
+             "median colour gamma 0.62")
 
     chk("G-FILMID  film_ids.lock exists", _os.path.exists(_lockp), _lockp)
 
@@ -7485,20 +8881,43 @@ if _sec_on():
 
         # 1. every stock in the database has a frozen id. A stock without one
         #    has no stable identity at all.
-        _missing = [_n for _n in _dbnames if _n not in _ids]
-        chk("G-FILMID  every stock carries a frozen id",
+        # ⚠ RENAMES ARE NOT MISSING IDS, 2026-09-08. The lock is keyed by the
+        # name that was current when the id was issued, so after the
+        # AGFACOLOR -> AGFA rename three stocks legitimately have no entry
+        # under their NEW key. Reading that as "no stable identity" would be
+        # exactly wrong -- the identity is there, under the old name, and
+        # FILM_RENAMES is what connects the two. A stock that is genuinely
+        # absent from the lock still fails.
+        _rev_ren = {_v: _k for _k, _v in film_profiles.FILM_RENAMES.items()}
+        _missing = [_n for _n in _dbnames
+                    if _n not in _ids and _rev_ren.get(_n) not in _ids]
+        chk("G-FILMID  every stock carries a frozen id (renamed keys resolved "
+            "through FILM_RENAMES)",
             not _missing, f"{len(_missing)} without: {_missing[:4]}")
 
         # 2. no id is shared. Two stocks on one id is two emulsions behind one
         #    saved-project reference.
         chk("G-FILMID  no id is issued twice", not _dupes, f"dupes {_dupes[:4]}")
 
-        # 3. database order is ASCENDING id. This is what makes the C++ index
-        #    equal the id, which is what film_names.txt line numbers rely on.
-        _seq = [_ids[_n] for _n in _dbnames if _n in _ids]
-        chk("G-FILMID  database order is ascending id",
-            _seq == sorted(_seq), f"first inversion near index "
-            f"{next((i for i in range(1, len(_seq)) if _seq[i] < _seq[i-1]), -1)}")
+        # 3. ⚠ REPLACED 2026-09-08. This asserted "database order is ASCENDING
+        #    id", which was the freeze's central invariant and is now FALSE BY
+        #    DESIGN: the owner's decision stores the database in natural-name
+        #    order, so 177 of 184 indices no longer equal their frozen id.
+        #    Deleting the check outright would leave storage order unguarded
+        #    for the first time since 2026-08-28, so it is replaced by the
+        #    invariant that now holds and now carries the same weight.
+        _order = [_p.name for _p in FILM_PROFILES]
+        _want = sorted(_order, key=film_profiles._natural_key)
+        _first = next((_i for _i in range(len(_order))
+                       if _order[_i] != _want[_i]), -1)
+        chk("G-FILMORDER  the database IS in natural-name order "
+            "(storage order is presentation order since 2026-09-08, so this "
+            "is what film_names.txt line numbers and eFILM_PROFILE now rest "
+            "on)",
+            _order == _want,
+            "in order" if _first < 0 else
+            f"first mismatch at index {_first}: {_order[_first]} where "
+            f"{_want[_first]} belongs")
 
         # 4. a retired id is never reissued to a live stock. Reissue is the one
         #    failure that silently points a project at the WRONG emulsion,
@@ -7507,14 +8926,76 @@ if _sec_on():
         chk("G-FILMID  no retired id has been reissued",
             not _reissued, f"reissued {_reissued[:4]}")
 
-        # 5. the 161 stocks that predate the freeze still sit at id == index.
-        #    This is the no-op proof, kept as a live assertion: if it ever
-        #    fails, the seeding was disturbed and every pre-freeze project is
-        #    affected.
-        _shift = [(_i, _n) for _i, _n in enumerate(_dbnames[:161])
-                  if _ids.get(_n) != _i]
-        chk("G-FILMID  the 161 pre-freeze stocks are still at id == index",
-            not _shift, f"{len(_shift)} moved: {_shift[:3]}")
+        # 5. ⚠ REPLACED 2026-09-08, for the same reason as check 3. This
+        #    asserted that the 161 pre-freeze stocks still sat at id == index
+        #    -- the no-op proof that the freeze had disturbed nothing. The
+        #    alphabetical re-sort disturbs it deliberately, so the check is
+        #    replaced by the thing the owner now needs guaranteed instead: that
+        #    the MIGRATION MAP is complete and correct, because it is the only
+        #    artefact that can repair a project saved before today.
+        _mig = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                             "film_id_migration.txt")
+        _newidx = {_n: _i for _i, _n in enumerate(_dbnames)}
+        # ⚠ A RENAMED KEY MUST NOT COUNT AS ABSENT. The lock holds the OLD key,
+        # the database the new one; film_profiles.FILM_RENAMES is the bridge.
+        # Without it the AGFACOLOR -> AGFA rename of 2026-09-08 would make this
+        # guard demand migration rows for three names no longer in the
+        # database, and report the three that ARE there as unmapped.
+        _ren = film_profiles.FILM_RENAMES
+        _mig_rows = {}
+        if _os.path.exists(_mig):
+            with open(_mig, "r", encoding="utf-8") as _fh:
+                for _line in _fh:
+                    if _line.startswith("#") or "\t" not in _line:
+                        continue
+                    _parts = _line.rstrip("\n").split("\t")
+                    _o, _n, _nm = _parts[0], _parts[1], _parts[2]
+                    _mig_rows[_nm] = (int(_o), _n)
+        _wrong = [(_nm, _row, _newidx.get(_nm))
+                  for _nm, _row in _mig_rows.items()
+                  if (_row[1] == "WITHDRAWN") != (_nm not in _newidx)
+                  or (_nm in _newidx and _row[1] != "WITHDRAWN"
+                      and int(_row[1]) != _newidx[_nm])]
+        _absent = [_nm for _nm in _ids if _ren.get(_nm, _nm) not in _mig_rows]
+        chk("G-FILMID  film_id_migration.txt maps every old id to the right "
+            "new index (the ONLY thing that can repair a project saved before "
+            "the 2026-09-08 re-sort)",
+            _os.path.exists(_mig) and not _wrong and not _absent,
+            f"{len(_wrong)} wrong {_wrong[:2]}, {len(_absent)} old ids absent "
+            f"{_absent[:2]}" if (_wrong or _absent)
+            else f"{len(_mig_rows)} rows, "
+                 f"{sum(1 for _nm, _r in _mig_rows.items() if _r[1] != 'WITHDRAWN' and int(_r[1]) != _r[0])}"
+                 f" of them moved")
+
+        # 5b. ⚠ ONE-BUILD LAG, STATED SO IT IS NOT MISREAD AS A DEFECT: build.py
+        #     runs verify BEFORE codegen, so on the FIRST build after any change
+        #     to storage order this check reads the PREVIOUS film_names.txt and
+        #     fails. It passes on the next run against the file codegen has
+        #     since rewritten. The pre-existing "film_names.txt line order
+        #     equals the GetFilmDatabase() vector order" check has always had
+        #     the same property; this one inherits it rather than adding it.
+        #
+        # ⚠ AND THE NEW ORDER IS PINNED AGAINST film_names.txt ITSELF, not
+        #     against a re-derivation of it. `write_film_names` reads the
+        #     emitted slots back, so comparing the file to FILM_PROFILES tests
+        #     the whole chain -- sort, slot packing, emission, names file -- and
+        #     that chain is what the plugin's popup index actually rests on.
+        #     Re-deriving the expected list from FILM_PROFILES twice would only
+        #     prove the sort is idempotent.
+        _namesp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                "film_names.txt")
+        if _os.path.exists(_namesp):
+            with open(_namesp, "r", encoding="utf-8") as _fh:
+                _lines = [_l.strip().strip('"') for _l in _fh if _l.strip()]
+            _lines = [_l[:-1] if _l.endswith("|") else _l for _l in _lines]
+            _expect = [_n.replace("_", " ") for _n in _dbnames]
+            _bad = [(_i, _a, _b) for _i, (_a, _b)
+                    in enumerate(zip(_lines, _expect)) if _a != _b]
+            chk("G-FILMORDER  film_names.txt line k IS database index k, in "
+                "alphabetical order, for every stock",
+                len(_lines) == len(_expect) and not _bad,
+                f"{len(_lines)} lines vs {len(_expect)} stocks; "
+                f"{len(_bad)} mismatched {_bad[:2]}")
 
         # 6. THE PRE-FREEZE BLOCK IS PINNED BY DIGEST, and this check exists
         #    because fault injection found the hole the other five leave.

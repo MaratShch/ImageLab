@@ -84,16 +84,31 @@
 //      AlgoSolveAnchors         the print offset that lands mid grey
 //      AlgoStage12b_Callier     the per-pixel pass
 //
-//  INERT BY DEFAULT. `scannerSpecular` is 0.0, the factor is exactly 1.0, both
-//  consumers return early, and every render made before this was wired is
-//  reproduced bit for bit.
+//  ⚠⚠ NO LONGER INERT BY DEFAULT, AS OF 2026-09-06. `scannerSpecular` now
+//  defaults to 0.853 (AlgoControl.cpp, getAlgoControlsDefault), so a render at
+//  defaults APPLIES this stage on every monochrome stock -- Q 1.485 at net
+//  density 1.0, i.e. +0.485 D. Setting it to 0.0 still reproduces a pre-Callier
+//  render bit for bit, and 0.0 is what a comparison against a stored
+//  characteristic curve requires, those being DIFFUSE densities. The early-out
+//  path is unchanged and still exact at 0.0; only the shipped value moved.
 //
-//  ⚠ THE FILM HALF OF THE PRODUCT IS A CLASS ESTIMATE. The two monochrome values
-//  (1.3 negative, 1.25 reversal) come from a class rule in the generator, not
-//  from any document in the corpus; the geometry half is exact. That asymmetry is
-//  why the control ships at zero rather than at some "typical scanner" value.
-//  What would fix it is one densitometer specification stating a
-//  diffuse-versus-specular ratio for a named emulsion.
+//  ⚠ BOTH HALVES OF THE PRODUCT ARE NOW SOURCED, AND THE PARAGRAPH THAT STOOD
+//  HERE IS SUPERSEDED. It said the film half was a class estimate of 1.3
+//  negative / 1.25 reversal, and that the control shipped at zero because of
+//  that asymmetry. Both statements are stale:
+//    * the film half, `callier_q` = beta, is PER-STOCK 1.639-1.871 across the 69
+//      monochrome profiles, anchored on beta 1.6746 fitted to Trumpy & Gschwind
+//      2015 Fig. 5 (after Streiffert 1947) at rms 0.0087 Q over D 0.3-2.0
+//      (queue C41/C43). Colour carries 1.0 by construction.
+//    * the geometry half now ships at E = 0.1471, from that same fit.
+//
+//  ⚠ AND THE GEOMETRY VALUE IS NOT A SCANNER MEASUREMENT. E belongs to
+//  STREIFFERT'S 1947 DENSITOMETER. It was adopted by owner decision as a stated
+//  provisional stand-in, in preference to shipping the stage inert. The free
+//  route to a real number is on record: scan one negative twice, once normally
+//  and once with a diffuser over the light source; the density difference across
+//  the tone scale IS Q(D) for that scanner, and solves for the specular fraction
+//  with beta already known.
 //
 //  ONE LAW, TWO LANGUAGES. film_sim._callier_factor() / callier_density() is the
 //  reference.

@@ -351,6 +351,153 @@ METHODS_1998 = ("Processing in trays", "Processing in drums", "Processing in tan
 TEMPS = (18, 20, 22, 24)
 
 
+#: ⚠⚠ THE THREE THIRD-PARTY ROWS, AND THE REFUSAL THAT `proc_tables` STILL
+#: MAKES ON PURPOSE. `proc_tables` reads text, and in text these three rows
+#: carry ONE time where Agfa's own six carry four -- so it stores the single
+#: cell without a temperature and its comment says, correctly for a text
+#: reader, that calling it 20 C "would be an inference the sheet does not
+#: make." IT IS NOT AN INFERENCE ON THE PAGE. Agfa set the table in columns,
+#: and a column is a coordinate: `third_party_column` below reads the x of
+#: each temperature header and the x of each printed value, and the three land
+#: on Agfa's own 20 C column to a third of a point.
+#:
+#: This is the 2026-09-06i calibration rule applied to a TABLE rather than a
+#: plot -- «the printed ladder says WHICH values an axis spans, the drawn frame
+#: says WHERE» -- and it is why the text reader's refusal is retired by
+#: geometry instead of by argument.
+#:
+#: (developer as printed, minutes, temperature the geometry must return)
+THIRD_PARTY_APX400 = (
+    ("Tetenal Ultrafin Plus", 16.0, 20),
+    ("Kodak T-MAX", 12.0, 20),
+    ("Kodak D76/Ilford ID11", 12.0, 20),
+)
+
+#: How far a cell's CENTRE may sit from a temperature column's centre and
+#: still be that column.
+#: ⚠⚠ CENTRES, NOT LEFT EDGES -- AND THAT IS THE WHOLE OF WHY A FIRST ATTEMPT
+#: AT THIS REFUSED ITS OWN CONTROL. Agfa CENTRE these cells: on the APX 400
+#: block a one-digit time sits at x 435.42-440.54 and a two-digit one at
+#: 432.78-442.98, so their LEFT edges differ by 2.6 pt while their centres
+#: agree to 0.10 pt. Comparing left edges makes "16" look like a different
+#: column from "5" and the geometry appears to contradict itself.
+#: ⚠ THE HEADER'S CENTRE IS THE «NN °C» PAIR'S, not the number's. "20" spans
+#: 426.90-437.19 and its "°C" continues to 449.10; the pair's centre is
+#: 438.00 and the cells beneath land at 437.88-437.98. Take the number alone
+#: and every cell looks 6-8 pt right of its own column.
+#: The columns are 39.5-39.6 pt apart, so 6 pt accepts one column and cannot
+#: reach the next.
+COL_TOL_PT = 6.0
+
+
+def third_party_column(page, heading_de_or_en):
+    """Assign each third-party row's single time to a temperature COLUMN.
+
+    Returns {developer: (minutes, celsius, dx_pt, ctrl_dx_pt)} or {} if the
+    block is not on this page. `dx_pt` is how far the cell's centre sat from
+    its column's centre, and `ctrl_dx_pt` the same measurement made on AGFA'S
+    OWN cells in the same column -- both reported, so a drifting layout shows
+    up as a number rather than as a silently different answer.
+    """
+    words = page.get_text("words")
+    first_word = heading_de_or_en.split()[0]
+    # ⚠ THE TWO FILMS' HEADINGS SHARE A BASELINE. «Verarbeitung Agfapan APX
+    # 100» and «... APX 400» are set side by side on ONE line, so a candidate
+    # heading cannot be identified by its y alone -- APX 100's heading sees
+    # APX 400's "400" token at the same y and 266 pt to its right. The window
+    # below is the heading's OWN width, and every candidate is tried rather
+    # than the first one accepted.
+    heads = []
+    for w in words:
+        if w[4] != first_word:
+            continue
+        same = [x[4] for x in words
+                if abs(x[1] - w[1]) < 1.5 and 0 <= x[0] - w[0] < 150]
+        if "400" in same and ("Agfapan" in same or "APX" in same):
+            heads.append((w[0], w[1]))
+    for x0, y0 in heads:
+        got = _third_party_block(words, x0, y0)
+        if got:
+            return got
+    return {}
+
+
+def _centre(w):
+    return 0.5 * (w[0] + w[2])
+
+
+def _third_party_block(words, x0, y0):
+    """The column assignment for ONE «... APX 400» processing block."""
+    # The four temperature columns of THIS block, each keyed on its
+    # temperature and valued by the CENTRE of its «NN °C» header pair.
+    # ⚠ THE PROCESSING TABLE IS WIDER THAN A SPEC BLOCK. `WIDTH` is 162.5 pt,
+    # the pitch of the three-column spec grid on pp6-9; this table's own 24 C
+    # header sits 215.9 pt right of its heading, so bounding the header search
+    # by WIDTH silently drops the last column and the 18/20/22/24 check then
+    # fails on a page that is perfectly legible.
+    hdr = {}
+    for w in words:
+        if w[1] < y0 or w[1] > y0 + 40 or not (x0 - 5 <= w[0] <= x0 + 260):
+            continue
+        if w[4] in ("18", "20", "22", "24"):
+            deg = [x for x in words
+                   if abs(x[1] - w[1]) < 1.5 and 0 < x[0] - w[0] < 14
+                   and x[4].startswith("\u00b0")]
+            if deg:
+                hdr[int(w[4])] = 0.5 * (w[0] + max(d[2] for d in deg))
+    if sorted(hdr) != [18, 20, 22, 24]:
+        return {}
+
+    # ⚠⚠ THE CONTROL, WITHOUT WHICH "THIS CELL IS IN THE 20 C COLUMN" IS ONLY
+    # AN ASSERTION ABOUT A HEADER. What the three rows under test have to match
+    # is where AGFA'S OWN 20 C cells sit on this same block -- rows that carry
+    # all four temperatures and so identify the column with no reference to
+    # the rows being tested. If the two disagree, this refuses rather than
+    # reporting a column.
+    # ⚠ THE CONTROL ROWS ARE NAMED, NOT COUNTED. Counting "rows with four
+    # numeric cells" looked simpler and is wrong: «Rodinal 1 + 25» puts the
+    # digits 1 and 25 in its own NAME, so a row's numeric tokens are not its
+    # time cells and the count comes out at 6 or 7 on a four-column row.
+    own = ("Refinal", "Rodinal", "Studional", "Atomal")
+    ctrl = []
+    for w in words:
+        if w[1] <= y0 or not (x0 - 5 <= w[0] <= x0 + 20) or w[4] not in own:
+            continue
+        # only tokens inside the numeric field, so a dilution in the developer
+        # name can never be mistaken for a time
+        vals = [x for x in words if abs(x[1] - w[1]) < 1.5
+                and _centre(x) >= hdr[18] - COL_TOL_PT
+                and _minutes(x[4]) is not None]
+        if not vals:
+            continue
+        v = min(vals, key=lambda x: abs(_centre(x) - hdr[20]))
+        if abs(_centre(v) - hdr[20]) <= COL_TOL_PT:
+            ctrl.append(_centre(v) - hdr[20])
+    if len(ctrl) < 3:
+        return {}
+    ctrl.sort()
+    ctrl_dx = ctrl[len(ctrl) // 2]
+
+    out = {}
+    for dev, _want_min, _want_c in THIRD_PARTY_APX400:
+        first = dev.split()[0]
+        cand = [w for w in words
+                if w[4] == first and w[1] > y0 and (x0 - 5 <= w[0] <= x0 + 20)]
+        for w in cand:
+            vals = [x for x in words if abs(x[1] - w[1]) < 1.5
+                    and _centre(x) >= hdr[18] - COL_TOL_PT
+                    and _minutes(x[4]) is not None]
+            if not vals:
+                continue
+            v = min(vals, key=lambda x: abs(_centre(x) - hdr[20]))
+            near = min(hdr, key=lambda t: abs(hdr[t] - _centre(v)))
+            dx = _centre(v) - hdr[near]
+            if abs(dx) <= COL_TOL_PT and abs(dx - ctrl_dx) <= 1.0:
+                out[dev] = (_minutes(v[4]), near, dx, ctrl_dx)
+            break
+    return out
+
+
 def proc_tables(doc, film_heading, methods):
     """{method: {developer: (t18, t20, t22, t24)}} for one film."""
     txt = "\n".join(p.get_text() for p in doc)
@@ -376,10 +523,18 @@ def proc_tables(doc, film_heading, methods):
                 b = c
         rows = {}
         # A developer row is a name followed by one to four time cells, each on
-        # its own line. Two rows on the 2003 APX 400 table carry ONE cell, not
-        # four -- Tetenal Ultrafin Plus, Kodak T-MAX and Kodak D76/Ilford ID11
-        # are printed with a single time and no temperature column, and reading
-        # them as a 20 C entry would be an inference the sheet does not make.
+        # its own line. THREE rows on the 2003 APX 400 table carry ONE cell,
+        # not four -- Tetenal Ultrafin Plus, Kodak T-MAX and Kodak D76/Ilford
+        # ID11 are printed with a single time, and in the TEXT that time has no
+        # temperature beside it.
+        # ⚠⚠ THIS COMMENT USED TO END "and reading them as a 20 C entry would
+        # be an inference the sheet does not make", AND SAID "Two rows" FOR
+        # THREE. The refusal was right about this reader and wrong about the
+        # page: `third_party_column` above reads the cell CENTRES against
+        # Agfa's own, and all three land on the 20 C column to 0.09 pt in both
+        # editions. The three points are adopted from that geometry, not from
+        # this text path -- which still declines to date them, because a text
+        # reader has no grounds to.
         lines = [ln.strip() for ln in body[a + len(meth):b].splitlines() if ln.strip()]
         k = 0
         while k < len(lines):
@@ -778,6 +933,81 @@ def main() -> int:
             print("        [FAIL] APX 400 is marked «Neue Generation (ab 2003)» "
                   "and its tables were expected to differ")
             bad += 1
+
+    # ---- the three third-party rows, by GEOMETRY ---------------------------
+    # ⚠ THE ONE THING ON THIS TABLE THE TEXT READER CANNOT DATE, and the
+    # 2026-09-07 adoption. Both editions are read independently and must agree
+    # with each other, with Agfa's own cells, and with the database.
+    print("\n  -- APX 400's three third-party developer rows: which "
+          "temperature column?")
+    tp = {}
+    for lang, heading in (("de", "Verarbeitung Agfapan APX 400"),
+                          ("en", "Processing Agfapan APX 400")):
+        for pg in doc[lang]:
+            got = third_party_column(pg, heading)
+            if got:
+                tp[lang] = got
+                break
+    for lang in ("de", "en"):
+        if lang not in tp:
+            print(f"     [FAIL] the {lang.upper()} edition's APX 400 "
+                  f"processing block no longer yields a column assignment")
+            bad += 1
+    if len(tp) == 2:
+        for dev, want_min, want_c in THIRD_PARTY_APX400:
+            row = [tp[lang].get(dev) for lang in ("de", "en")]
+            if any(r is None for r in row):
+                print(f"     [FAIL] {dev}: not found in both editions")
+                bad += 1
+                continue
+            (m_de, c_de, dx_de, ck_de), (m_en, c_en, dx_en, ck_en) = row
+            ok = (m_de == m_en == want_min and c_de == c_en == want_c)
+            print(f"     [{'OK  ' if ok else 'FAIL'}] {dev:24s} "
+                  f"{m_de:5.1f} min at {c_de} C   "
+                  f"cell-vs-column DE {dx_de:+.2f} pt / EN {dx_en:+.2f} pt, "
+                  f"against Agfa's own cells {ck_de:+.2f} / {ck_en:+.2f} pt")
+            if not ok:
+                bad += 1
+        print("            -> the cells land on Agfa's own 20 C column to "
+              "under a tenth of a point, in two independently typeset "
+              "editions. The text path cannot see this and declines to date "
+              "them, which is why it still says so")
+        # ---- against the database ----------------------------------------
+        try:
+            import film_profiles as _fp
+            pts = {d.developer: d for d in
+                   _fp.get_profile("AGFA_APX_400").processing_family.points}
+            drift = 0
+            for dev, want_min, want_c in THIRD_PARTY_APX400:
+                d = pts.get(dev)
+                if d is None:
+                    print(f"     [FAIL] AGFA_APX_400 stores no point for {dev}")
+                    drift += 1
+                elif (d.minutes != want_min or d.celsius != float(want_c)
+                        or d.vessel != "small tank, tray" or d.gamma != 0.65):
+                    print(f"     [FAIL] AGFA_APX_400's {dev} stores "
+                          f"{d.minutes} min / {d.celsius} C / "
+                          f"{d.vessel!r} / gamma {d.gamma}")
+                    drift += 1
+            bad += drift
+            if not drift:
+                print("     [OK  ] all three are stored on AGFA_APX_400 at "
+                      "20 C, small tank/tray, gamma 0.65 -- the page's own "
+                      "stated reference contrast")
+            # ⚠ AND THE ASYMMETRY IS AGFA'S. APX 100 must NOT acquire them.
+            p100 = {d.developer for d in
+                    _fp.get_profile("AGFA_APX_100").processing_family.points}
+            stray = sorted(p100 & {d for d, _, _ in THIRD_PARTY_APX400})
+            if stray:
+                print(f"     [FAIL] APX 100 has acquired third-party rows "
+                      f"Agfa print only for APX 400: {stray}")
+                bad += 1
+            else:
+                print("     [OK  ] APX 100 has none of them -- its block ends "
+                      "at STUDIONAL LIQUID in both editions, and the "
+                      "asymmetry is Agfa's")
+        except Exception as exc:                              # pragma: no cover
+            print(f"     [WARN] could not compare against film_profiles: {exc}")
 
     print("\n  -- exposure index per developer")
     for film in ("APX 100", "APX 400"):

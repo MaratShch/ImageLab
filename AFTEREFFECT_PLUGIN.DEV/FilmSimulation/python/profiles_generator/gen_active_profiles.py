@@ -23,13 +23,13 @@ DETECTION RULES, stated so a reader can audit them
                _NO_DATASHEET placeholder) OR its source block cites a document
                ("SOURCE ", "PDF/PROFILES/", "publication", "Technical Data").
   Per property, "+" requires has_doc AND property-specific evidence:
-    Spectral Sensitivity  digitised curves present, or a documented
+    Mono Weights          digitised curves present, or a documented
                           sensitisation range / limit in nm.
     H&D Curve             fitted_from == "datasheet_curve" with a real
                           citation, or an explicit trace/fit record
                           ("digitis", "traced", "Fit RMS", "sensitometric").
-    Spectral Response     digitised SpectralSensitivity arrays present. This
-                          is the stricter form of the first column: curve
+    Spectral Sensitivity  digitised SpectralSensitivity arrays present. This
+    Curves                is the stricter form of the first column: curve
                           DATA, not merely a documented range.
     Grain Characteristics documented crystal/clump/structure statement.
     RMS Granularity       an rms/granularity figure marked published,
@@ -147,9 +147,21 @@ _HALATION_THIRDPARTY = frozenset({
 })
 
 PROPS = [
-    ("Spectral Sensitivity", "spec_any"),
+    # ⚠⚠ RENAMED 2026-09-06k, HEADER ONLY -- no value, no colour, no stored
+    # datum touched. This column prints `spectral_weights`, the three-number
+    # RGB->silver collapse, and it was headed "Spectral Sensitivity" while the
+    # actual sensitivity CURVES sat two columns to its right. That misread the
+    # same way twice: on the APX stocks in August ("why were Agfa's datasheets
+    # ignored" -- they were not) and on AGFA OPTIMA on 2026-09-06k, costing the
+    # owner four rounds of questions. A column whose name describes a different
+    # quantity from its contents is a defect in the report, not a preference.
+    ("Mono Weights (RGB->grey)", "spec_any"),
     ("Characteristic (H&D) Curve", "hd"),
-    ("Spectral Response Curves", "spec_curve"),
+    # ⚠ AND THIS ONE TAKES THE NAME THE DATASHEETS USE. Agfa, Fuji and Kodak
+    # all caption the panel "Spectral sensitivity" / "Spektrale
+    # Empfindlichkeit"; this column is where that panel's numbers land, so it
+    # should be the column a reader looking for them finds first.
+    ("Spectral Sensitivity Curves", "spec_curve"),
     ("Spectral Curve Consumed By", "spec_used"),
     ("Film Grain Characteristics", "grain"),
     ("RMS Granularity", "rms"),
@@ -655,7 +667,7 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     #
     # ⚠ AND NOTE WHICH COLUMN THIS IS. The header calls it "Spectral
     # Sensitivity", but it prints the three-number RGB collapse triple, NOT
-    # the sensitisation curve -- that is "Spectral Response Curves", four
+    # the sensitisation curve -- that is "Spectral Sensitivity Curves", two
     # columns right. Two different things with confusable names, which is the
     # other half of how the report misled.
     #
@@ -807,7 +819,7 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
     # v23. A blank cell would read as "not checked"; `-` says "checked, and no
     # reliable identifier is published". Every populated value is copied from
     # the profile's own cited source text -- never synthesised from its name,
-    # which is how a first attempt produced "1936" for AGFACOLOR_NEU_1936 and
+    # which is how a first attempt produced "1936" for AGFA_NEU_1936 and
     # "3200" for ILFORD_DELTA_3200. It prints PLAIN when present because this
     # field can only ever hold a documented value: there is no heuristic that
     # fills it, and "" is the honest alternative.
@@ -1055,13 +1067,33 @@ def main() -> int:
       f"of them third-party gain/threshold imports (`NotFound.md` S7.1a). "
       f"⚠ CINESTILL_800T is the biggest single gap here -- its halation is the "
       f"whole point of the stock and remains an estimate |")
+    # ⚠ THIS CELL USED TO SAY "the only entry so far is CINESTILL_800T" and
+    # "those PushSpec fields are zero everywhere". Both went stale: five Agfa
+    # stocks carry a printed push/pull step table, and on 2026-09-07
+    # AGFA_SCALA_200X acquired a MEASURED gamma_gain_per_stop from the 2003
+    # sheet's «Gradation/Maximaldichte» panel. The counts are now derived from
+    # the database rather than written out, so the sentence cannot go stale
+    # again -- which is the whole point of method rule 24.
+    _pgain = sorted(q.name for q in fp.FILM_PROFILES
+                    if getattr(q, "push", None) and q.push.gamma_gain_per_stop)
+    _pspeed = sorted(q.name for q in fp.FILM_PROFILES
+                     if getattr(q, "push", None) and q.push.speed_gain_per_stop)
     w(f"| Push / pull latitude (schema v16) | **{_push}** | {_n - _push} | almost "
       f"nobody publishes one. Datasheets print a development condition, not a "
-      f"tolerance around it. The only entry so far is CINESTILL_800T, from a "
-      f"vendor product-page sentence (`NotFound.md` S7.2b) -- and note that a "
-      f"push RANGE is all it gives: the gamma and true-speed gain per pushed "
-      f"stop are unpublished on every stock in this database, so those PushSpec "
-      f"fields are zero everywhere |")
+      f"tolerance around it. The entries are CINESTILL_800T, from a vendor "
+      f"product-page sentence (`NotFound.md` S7.2b), and five Agfa stocks whose "
+      f"own sheets print a push/pull step table. ⚠ FOR ALL BUT ONE, A push "
+      f"RANGE IS ALL THE SOURCE GIVES. "
+      + (f"`gamma_gain_per_stop` is measured on **{len(_pgain)}** of them -- "
+         f"{', '.join(_pgain)}, whose 2003 sheet plots the CONTRAST of every "
+         f"processing step (`NotFound.md` row 5i) -- and zero on the rest. "
+         if _pgain else
+         "`gamma_gain_per_stop` is zero on every stock. ")
+      + (f"`speed_gain_per_stop` is measured on {len(_pspeed)}: "
+         f"{', '.join(_pspeed)} |" if _pspeed else
+         "`speed_gain_per_stop` is still zero everywhere -- a sheet that names "
+         "the ISO rating of each pushed step is stating the RATING, not how "
+         "much of that stop the emulsion returns as true speed |"))
     w("")
     w("**%d stocks carry no source at all** beyond the `_NO_DATASHEET` placeholder: "
       "%s. `GENERIC_BW` and `GENERIC_COLOR` are in that list by design -- they are "
@@ -1091,17 +1123,32 @@ def main() -> int:
       "produced the earlier +/- table; only the presentation distinguishes a "
       "specification ceiling from a measured value.")
     w("")
-    w("### ⚠ Two traps in the *Spectral Sensitivity* column, both fixed "
-      "2026-08-29")
+    w("### ⚠ The *Mono Weights* column, renamed 2026-09-06k")
     w("")
-    w("**It is not the curve.** The column headed *Spectral Sensitivity* prints "
-      "`spectral_weights` -- the three-number triple that collapses scene RGB "
-      "onto one silver record. The digitised **curve** is four columns to the "
-      "right, under *Spectral Response Curves*. Two different quantities with "
-      "confusable names, and the reason this file was read as saying that Agfa's "
-      "APX datasheets had been ignored. They had not: `apx100.pdf` and "
-      "`apx400.pdf` p2 were vector-traced on 2026-08-17 to 0.50 nm and "
-      "0.0034 log.")
+    w("**It is not the curve, and until 2026-09-06k its name said it was.** "
+      "This column prints `spectral_weights` -- the three-number triple that "
+      "collapses scene RGB onto ONE silver record -- and it was headed "
+      "*Spectral Sensitivity*, while the digitised sensitivity **curves** sat "
+      "two columns to its right under *Spectral Response Curves*. Two "
+      "quantities, and the wrong one wore the name a reader searches for.")
+    w("")
+    w("⚠⚠ **THAT MISLED TWICE, AND THE SECOND TIME WAS AFTER IT HAD ALREADY "
+      "BEEN NOTED AND HALF-FIXED.** In August this file was read as saying "
+      "Agfa's APX datasheets had been ignored -- they had not, `apx100.pdf` "
+      "and `apx400.pdf` p2 were vector-traced on 2026-08-17 to 0.50 nm and "
+      "0.0034 log. A note was added and the monochrome case tidied; the NAME "
+      "was left alone. On 2026-09-06k the identical reading happened on AGFA "
+      "OPTIMA, whose three-layer curves have been stored since the 2004 sheet "
+      "was traced, and it took four rounds of questions to unpick.")
+    w("")
+    w("**The fix is the header, not the contents.** *Mono Weights (RGB->grey)* "
+      "now names what the cell holds, and *Spectral Sensitivity Curves* -- the "
+      "phrase Agfa, Fuji and Kodak all print on the panel itself -- names the "
+      "column that answers *is this film's spectral sensitivity in the "
+      "database*. No stored value moved and no colour changed. ⚠ An earlier "
+      "attempt that day replaced the colour cell's contents with the words "
+      "`inert (colour)` was WRONG and was reverted: it hid a real number "
+      "behind a label, which is a worse report than a badly-named column.")
     w("")
     w("**A cell suffixed `derived` is a value no literal in the database "
       "holds.** For the %d monochrome stocks that carry a traced pan curve, "
@@ -1217,11 +1264,18 @@ def main() -> int:
     w("")
     w("| Column | Contents |")
     w("|---|---|")
-    w("| Spectral Sensitivity | renderer weights R/G/B, sum 1.0 |")
+    w("| Mono Weights (RGB->grey) | the three-number RGB->silver collapse "
+      "(`spectral_weights`), sum 1.0. ⚠ **NOT the sensitivity curve** -- that "
+      "is the next column but one. ⚠ Read ONLY where the stock is monochrome; "
+      "on a colour stock no renderer consults it and no datasheet publishes "
+      "it, because the quantity needs a single silver record to collapse onto "
+      "and a three-layer film has none |")
     w("| Characteristic (H&D) Curve | straight-line gamma and base+fog density; "
       "three values = per dye layer |")
-    w("| Spectral Response Curves | digitised points x layers, wavelength range, "
-      "sampling step |")
+    w("| Spectral Sensitivity Curves | **the manufacturer's spectral "
+      "sensitivity panel, digitised**: points x layers, wavelength range, "
+      "sampling step. This is the column that answers \"is this film's "
+      "spectral sensitivity in the database\" |")
     w("| Spectral Curve Consumed By | which render path actually reads the "
       "curve. `balance` = colour-temperature balance, live in both builds. "
       "`+mono` = the monochrome-weight derivation also passes the basis-reach "

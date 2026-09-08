@@ -1207,10 +1207,14 @@ void Algorithm_Main
     //
     //     ⚠ IN PLACE ON THE STAGE-12 PLANES, no scratch buffer: the operation is
     //     pointwise, so stage 13 reads the corrected values from the same pointers.
-    //     ⚠ AND IT IS INERT AT THE DEFAULT. scannerSpecular is 0, the factor is
-    //     exactly 1.0, the stage returns before touching a pixel, and every render
-    //     made before this stage existed is reproduced. It is also inert at ANY
-    //     setting for the colour stocks, whose dye images carry Q = 1.0.
+    //     ⚠⚠ IT IS NO LONGER INERT AT THE DEFAULT, AS OF 2026-09-06.
+    //     scannerSpecular now ships at 0.853 (owner decision; 1 - E with
+    //     Streiffert's fitted E = 0.1471), so at defaults this stage RUNS on
+    //     every monochrome stock and adds +0.485 D at net density 1.0. Setting
+    //     the control back to 0 still returns before touching a pixel and
+    //     reproduces every render made before the stage existed. It remains
+    //     inert at ANY setting for the colour stocks, whose dye images carry
+    //     Q = 1.0.
     //
     //     The anchor solve above sees the same factor, and it has to: a lab that
     //     switches to a condenser head RE-TIMES the print. Leave the solve blind

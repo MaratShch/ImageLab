@@ -1310,6 +1310,23 @@ LAW_EQUIVALENT_IMPL = {
 #: every long exposure differently from the scalar path and nothing would say
 #: so. Both the parameter and the broadcast are listed, because the failure
 #: that matters is a twin that takes the argument and never uses it.
+#:
+#: ⚠ TWO CLAIMS ABOVE WENT STALE ON 2026-09-08 AND ARE CORRECTED HERE RATHER
+#: THAN QUIETLY EDITED, because the reasoning they carry is still why these
+#: tokens exist. "The AVX2 flavour is not compiled by any audit in this
+#: flattened tree" and "a textual twin check is the ONLY automatic guard on
+#: this file" were both TRUE when written and are now FALSE for stages 8b and
+#: 9: `interimage_parity.py` builds the AVX2 twins numerically on every run
+#: (`stage_avx2_tree`) and compares them against the same Python reference as
+#: the scalar ones. The diagnosis embedded in the old text was exactly right
+#: and is worth keeping -- a quoted include resolves against the includer's OWN
+#: directory before any `-I`, which is why `-I <root>/AVX2` silently produced a
+#: `double` AlgoType and a type error in the vector twin. Staging both sets
+#: into ONE directory, AVX2 last, is what fixed it.
+#: WHAT IS STILL TRUE, and why every token below stays: the ANCHOR SOLVE in
+#: Algo_08_Sim.cpp and `recipShift` are NOT reached by that probe, which enters
+#: at stage 8b with fixed anchors. For those two the textual check really is
+#: the only automatic guard the AVX2 twin has.
 TWIN_LAW_TOKENS = {
     "Algo_11_Sim.cpp": ("AlgoGrainAmpBuild", "AlgoGrainAmpRaw"),
     "Algo_08_Sim.cpp": ("AlgoCallierApplyScalar", "callierQ", "recipShift"),

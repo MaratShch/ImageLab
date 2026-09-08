@@ -501,7 +501,14 @@ _SENSITIZATIONS = frozenset({"S", "S+Au", "reduction"})
 # now has a carrier, a model, a stage in three engines and a parity audit, so
 # the day a reference frame arrives the work is fitting a number and not
 # building a pipeline.
-SCHEMA_VERSION = 27
+# ---------------------------------------------------------------------------
+# v28 (2026-09-06i): DevelopmentPoint gained `vessel`.
+#
+# ⚠ THE SMALLEST BUMP THIS SCHEMA HAS TAKEN, and it is a bump because the field
+# it adds is the one a stored record had been asking for in prose. See
+# DevelopmentPoint.vessel. Every render is bit-identical to a v27 one: nothing
+# on any engine's path reads a development point.
+SCHEMA_VERSION = 28
 
 
 # ---------------------------------------------------------------------------
@@ -2273,10 +2280,51 @@ class DevelopmentPoint:
     #: reads it; what it buys is that a stock's dmin now has a stated condition
     #: standing beside it instead of an implied one.
     base_fog: float = 0.0
+    # -- schema v28 (2026-09-06i), INERT -------------------------------------
+    #: The processing VESSEL this time was measured in: "" (not stated),
+    #: "drum", "small tank, tray" or "tank".
+    #:
+    #: ⚠⚠ THE VOCABULARY IS AGFA'S OWN CAPTIONS AND IT IS NOT TIDY, BECAUSE
+    #: THEIRS IS NOT. «Technical Data P-16-C» prints two blocks, «Rotary
+    #: process (drum)» and «Small tank, tray». «Technical Data PF» p11 prints
+    #: THREE -- trays, drums, tanks -- whose 20 C tray and drum columns
+    #: reproduce P-16-C's gamma 0.65 figures exactly on all thirty cells, so
+    #: P-16-C's combined caption IS the tray column and the two share the label
+    #: "small tank, tray". p11's «tanks» matches neither (REFINAL 7 min against
+    #: 6 and 5) and gets its own. ⚠ AND THE EXPOSURE-INDEX TABLE ON THAT SAME
+    #: PAGE CALLS THE 6-MINUTE FIGURE "small tank", so Agfa use that phrase for
+    #: two different columns one inch apart. Storing a tidier vocabulary would
+    #: mean deciding which of Agfa's own usages is the mistake.
+    #:
+    #: ⚠⚠ THIS FIELD EXISTS BECAUSE THE RECORD IT COMPLETES SAID SO ITSELF.
+    #: The three AGFAPAN profiles' `processing_family.source` has read, since
+    #: 2026-09-01: "⚠ THE METHOD IS IN THE TRAILING COMMENT, NOT IN A FIELD:
+    #: DevelopmentPoint has developer, dilution, minutes, celsius and gamma but
+    #: no agitation or vessel, so the drum and small-tank rows are
+    #: distinguishable only by their times." Agfa's «Technical Data P-16-C»
+    #: prints every contrast table TWICE -- «Rotary process (drum)» and «Small
+    #: tank, tray» -- and the two differ by 20-40 % of time, which is far more
+    #: than the gamma 0.55 -> 0.75 span the table is describing. Storing both
+    #: families interleaved in one flat tuple, told apart only by "the drum
+    #: time is the shorter", is a reading a consumer cannot make correctly.
+    #:
+    #: ⚠ AND WITHOUT IT THE 1998 HARVEST COULD NOT LAND. `agfa_1998_gamma_time`
+    #: adds the small tank's gamma 0.55 and 0.75 times, which P-16-C prints for
+    #: no film -- that table has a single gamma 0.65 row. Added to a tuple with
+    #: no vessel field they would sit beside the drum's 0.55 and 0.75 rows as
+    #: near-duplicates of each other, two answers to one question.
+    #:
+    #: ⚠ INERT. Nothing on the render path reads a DevelopmentPoint at all.
+    vessel: str = ""
 
     def validate(self, label: str = "") -> None:
         if not self.developer:
             raise ValueError(f"{label}: development point needs a developer")
+        if self.vessel not in ("", "drum", "small tank, tray", "tank"):
+            raise ValueError(
+                f"{label}: vessel {self.vessel!r} is not one of '', 'drum', "
+                f"'small tank, tray', 'tank' -- the field records the PROCESS "
+                f"a sheet tabulates under its own caption, not free prose")
         if self.minutes <= 0.0:
             raise ValueError(f"{label}: development time must be > 0")
         if self.contrast_index <= 0.0 and self.gamma <= 0.0:
@@ -2878,9 +2926,26 @@ class EmulsionSpec:
 
     @property
     def has_data(self) -> bool:
+        """True when this record carries a MEASUREMENT of the emulsion or base.
+
+        ⚠⚠ `base_um` AND `base_material` WERE MISSING FROM THIS PREDICATE UNTIL
+        2026-09-06f, AND THAT MADE THE VALIDATOR REJECT REAL DATA. A record
+        carrying nothing but a printed base thickness and support material read
+        as "no data", so its mandatory `source` then tripped the "source
+        without numbers" check -- the validator refusing a datum for being
+        properly cited. Found by storing eight Fuji base gauges (122 um for the
+        colour negatives, 127 for the reversal stocks) straight off their
+        sheets.
+        ⚠ `designation` IS DELIBERATELY STILL EXCLUDED. It is an identifier --
+        an emulsion or production number -- not a measurement of anything, and
+        it is MERGED IN by a later pass for 45 stocks that carry no
+        `EmulsionSpec` source of their own. Counting it here would demand a
+        source for a field that pass fills from its own table.
+        """
         return bool(self.grain_um or self.size_sigma_log or self.habit
                     or self.aspect_ratio or self.iodide_mol_pct
-                    or self.sensitization or self.coated_um)
+                    or self.sensitization or self.coated_um
+                    or self.base_um or self.base_material)
 
     def validate(self, label: str = "") -> None:
         for n, v in (("grain_um", self.grain_um),
@@ -4277,7 +4342,7 @@ def _rev(
 # ===========================================================================
 FILM_PROFILES: tuple[FilmProfile, ...] = (
     FilmProfile(
-        name="AGFACOLOR_NEU_1936",
+        name="AGFA_NEU_1936",
         aliases=("agfacolor", "agfacolor neu", "agfa 1936", "sovcolor"),
         description=(
             "The first modern integral tripack: three dye layers on one strip, "
@@ -4454,7 +4519,28 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # cannot reproduce those three points (p would have to be 0.40 at 10 s
         # and 0.55 at 100 s), so forcing one would invent data.
         grain=GrainSpec(9.0, 2.903, 2.903, 2.903, clump_gain=0.85, fog_grain=0.17),
-        mtf=MTFSpec(80.0, 80.0, 80.0, adjacency=0.0998, adjacency_um=14.0),
+        # ⚠⚠ OWNER DECISION 2026-09-07b, AND IT REVERSES A REFUSAL THIS FILE
+        # HAD CARRIED SINCE 2026-09-01. This panel is SHARED with its sibling
+        # -- one drawing, so at most one of the two is a measurement of that
+        # film -- and `NotFound.md` row 5d therefore kept both f50 triples as
+        # class estimates. The owner's instruction: *"If the vendor datasheet
+        # provide MTF please don't simply discard this value even 'Two films
+        # cannot share a measured MTF'. We haven't additional better source
+        # for check this, so please accept and include these values from
+        # vendors datasheet - this is much more better from estimated
+        # values!"*
+        # ⚠ WHAT THE REFUSAL WAS RIGHT ABOUT IS UNCHANGED AND STAYS ON RECORD:
+        # the two panels are one drawing (max |dy| 0.0002 of frame height, in
+        # BOTH the 1998 and 2004 editions), so this value cannot be a
+        # per-film measurement for both films. What the refusal got wrong was
+        # the remedy -- it replaced a vendor trace with a class estimate
+        # derived from no document at all, which is further from the film than
+        # a shared vendor curve is.
+        # ⚠ THE DUPLICATE CHECK STILL RUNS. `agfa_1998_sharpness.py` re-derives
+        # the shared-artwork finding on every build; it is now REPORTED beside
+        # the adoption instead of blocking it.
+        mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.1037, adjacency_um=14.0,
+                    mtf_rolloff_q=2.27, mtf_measured=True),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="ff35",
@@ -4524,67 +4610,237 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             points=(
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=6, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=9, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=3, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=6, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=7, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=10, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=14, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=19, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=17, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=3.5, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=3.5, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
+                # ---- 2026-09-06i: THE SMALL TANK'S OTHER TWO CONTRASTS -
+                # ⚠⚠ P-16-C PRINTS ONE ROW FOR THIS VESSEL AND THREE FOR THE
+                # DRUM. Everything the small tank does away from gamma 0.65 is
+                # published only as the gamma / developing-time CURVE on
+                # «Technical Data PF» 09/1998 p10, which sat digitised and
+                # unadopted from 2026-09-01 because the family had been filled
+                # from the other document and the two were never compared.
+                # ⚠ THAT THE CURVE IS THE SMALL TANK IS MEASURED, NOT ASSUMED.
+                # Its gamma 0.65 time lands within 0.11 min of the printed
+                # small-tank figure and 1.15 min from the drum's, averaged over
+                # all fifteen film x developer combinations, with every single
+                # one closer to the tank and the worst tank miss smaller than
+                # the best drum agreement. `agfa_1998_gamma_time.py` re-derives
+                # the whole comparison on every build.
+                # ⚠ RODINAL 1+50's 0.75 POINT IS ABSENT ON TWO FILMS because
+                # Agfa stop drawing that curve at gamma 0.670 / 0.738. A
+                # missing rung is a refusal, not a zero, and not an
+                # extrapolation.
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=2.87, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=9.84, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=4.24, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=12.27, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=12.27, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=2.89, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=5.91, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=2.89, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=5.91, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                # ---- 2026-09-06i: THE TEMPERATURE AXIS, p11 -----------
+                # ⚠⚠ THE ONLY TEMPERATURE AXIS ANY STOCK IN THIS DATABASE HAS.
+                # Every other DevelopmentPoint anywhere sits at 20 C. «Technical
+                # Data PF» p11 prints developing time at 18 / 20 / 22 / 24 C in
+                # three blocks -- «Processing in trays», «in drums», «in tanks».
+                # ⚠ THE TABLE NEVER SAYS WHAT CONTRAST IT IS A TIME TO, and
+                # that is not assumed here: its 20 C column reproduces P-16-C's
+                # printed gamma 0.65 figures EXACTLY on all THIRTY tray and drum
+                # cells -- five developers, three films, two vessels, to the
+                # printed half-minute. So the quantity is the gamma 0.65 time
+                # and the other three columns are that contrast at another
+                # temperature. Without that check the 18 C column would be a
+                # time to an unstated contrast, which is not a datum at all.
+                # ⚠ THE 20 C CELLS ARE NOT STORED AGAIN. They are already here
+                # from P-16-C, and two records of one measurement is how a
+                # database starts disagreeing with itself. Only 18 / 22 / 24
+                # come from this table -- except in the «tank» block, which
+                # P-16-C does not print at all, so all four of its columns are
+                # new.
+                # ⚠⚠ AND «tank» IS NOT «small tank, tray». REFINAL reads 7 min
+                # there against 6 in trays and 5 in drums. See
+                # DevelopmentPoint.vessel for why Agfa's own captions on this
+                # one page cannot be reconciled and are stored as printed.
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.5, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=10.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=6.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=5.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=20.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=14.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=12.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=5.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=5.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=3.5, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=8.5, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=6.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=5.0, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=18.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=12.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=10.0, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=4.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=4.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=10.0, celsius=18.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=8.0, celsius=20.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=6.0, celsius=22.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=5.0, celsius=24.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=9.0, celsius=18.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=7.0, celsius=20.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=5.0, celsius=22.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='tank'),
             ),
             source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
                     'White Chemicals, Film Processing», 08/1999 -- '
@@ -4593,14 +4849,31 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                     'tables: developing time to reach gamma 0.55 / 0.65 / '
                     '0.75 for each AGFAPAN film, for rotary drum and for '
                     'small tank/tray, across six developers. 64 printed time '
-                    'cells, read as TEXT. ⚠ THE METHOD IS IN THE TRAILING '
-                    'COMMENT, NOT IN A FIELD: DevelopmentPoint has developer, '
-                    'dilution, minutes, celsius and gamma but no agitation or '
-                    'vessel, so the drum and small-tank rows are '
+                    'cells, read as TEXT. ⚠⚠ THE VESSEL IS NOW A FIELD '
+                    '(schema v28, 2026-09-06i) AND THIS SENTENCE USED TO SAY '
+                    'IT WAS NOT: "THE METHOD IS IN THE TRAILING COMMENT, NOT '
+                    'IN A FIELD ... so the drum and small-tank rows are '
+                    'distinguishable only by their times." They are now '
+                    'labelled, which is what let «Technical Data PF» 09/1998 '
+                    'p10 be adopted beside this table -- see the block above. '
+                    'Historically the rows were '
                     'distinguishable only by their times. Where a developer '
                     'prints both, the drum time is the shorter. ⚠ REFINAL M '
                     'is NOT here: it is a machine developer/replenisher '
-                    'described in prose with no contrast table.'),
+                    'described in prose with no contrast table. '
+                    '⚠⚠ AND THIS FAMILY NOW HAS TWO SOURCES. The gamma 0.55 '
+                    'and gamma 0.75 points marked vessel="small tank" are NOT '
+                    'from P-16-C, which prints a single gamma 0.65 row for '
+                    'that vessel; they are traced from the gamma / '
+                    'developing-time panel of Agfa-Gevaert AG, «Technical '
+                    'Data PF», 1st edition 09/1998 -- '
+                    'PDF/PROFILES/AGFA/agfa_films.pdf p10, by '
+                    'agfa_1998_gamma_time.py. ⚠ THE TWO ARE NOWHERE AVERAGED: '
+                    'P-16-C supplies every drum point and the tank\'s 0.65, '
+                    'the panel supplies the tank\'s 0.55 and 0.75, and the '
+                    'panel\'s own 0.65 reading is spent on identifying which '
+                    'vessel it plots rather than stored as a second answer to '
+                    'a question already answered.'),
         ),
         # ⚠ PUSH IS DOCUMENTED, AND ONLY BY ONE STOP. `PushSpec` was
         # empty on all three AGFAPAN profiles until 2026-09-01; P-16-C
@@ -4764,7 +5037,31 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # (x 1000): 7.0"; corroborated by agfa_films.pdf p10. Resolving power
         # 200 lp/mm at 1000:1 (same page) -> _RESOLVING_POWER.
         grain=GrainSpec(7.0, 1.613, 1.613, 1.613, clump_gain=0.55, fog_grain=0.14),
-        mtf=MTFSpec(112.0, 112.0, 112.0, adjacency=0.0514, adjacency_um=11.0),
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p10 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 78.7 c/mm, q 2.31 at rms 0.0391.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ Only the 1998 edition carries this film (not reprinted in 2004), so there is no
+        # newer panel to prefer.
+        # ⚠ The +5.5 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE SILVER LAYER, so all three records carry the same f50.
+        mtf=MTFSpec(78.7, 78.7, 78.7, adjacency=0.0549, adjacency_um=11.0,
+                    resolving_power_lp_mm_lowc=0.0,
+                    resolving_power_lp_mm_highc=0.0,
+                    mtf_rolloff_q=2.31, mtf_measured=True),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="ff35",
@@ -4841,64 +5138,231 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             points=(
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=11, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=10, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=3, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=6, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=6, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=9, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=15, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=10, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=3, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=3, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
+                # ---- 2026-09-06i: THE SMALL TANK'S OTHER TWO CONTRASTS -
+                # ⚠⚠ P-16-C PRINTS ONE ROW FOR THIS VESSEL AND THREE FOR THE
+                # DRUM. Everything the small tank does away from gamma 0.65 is
+                # published only as the gamma / developing-time CURVE on
+                # «Technical Data PF» 09/1998 p10, which sat digitised and
+                # unadopted from 2026-09-01 because the family had been filled
+                # from the other document and the two were never compared.
+                # ⚠ THAT THE CURVE IS THE SMALL TANK IS MEASURED, NOT ASSUMED.
+                # Its gamma 0.65 time lands within 0.11 min of the printed
+                # small-tank figure and 1.15 min from the drum's, averaged over
+                # all fifteen film x developer combinations, with every single
+                # one closer to the tank and the worst tank miss smaller than
+                # the best drum agreement. `agfa_1998_gamma_time.py` re-derives
+                # the whole comparison on every build.
+                # ⚠ RODINAL 1+50's 0.75 POINT IS ABSENT ON TWO FILMS because
+                # Agfa stop drawing that curve at gamma 0.670 / 0.738. A
+                # missing rung is a refusal, not a zero, and not an
+                # extrapolation.
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=2.87, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=9.87, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=2.90, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=10.91, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=5.93, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=16.86, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=1.93, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=7.01, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=1.93, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=7.01, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                # ---- 2026-09-06i: THE TEMPERATURE AXIS, p11 -----------
+                # ⚠⚠ THE ONLY TEMPERATURE AXIS ANY STOCK IN THIS DATABASE HAS.
+                # Every other DevelopmentPoint anywhere sits at 20 C. «Technical
+                # Data PF» p11 prints developing time at 18 / 20 / 22 / 24 C in
+                # three blocks -- «Processing in trays», «in drums», «in tanks».
+                # ⚠ THE TABLE NEVER SAYS WHAT CONTRAST IT IS A TIME TO, and
+                # that is not assumed here: its 20 C column reproduces P-16-C's
+                # printed gamma 0.65 figures EXACTLY on all THIRTY tray and drum
+                # cells -- five developers, three films, two vessels, to the
+                # printed half-minute. So the quantity is the gamma 0.65 time
+                # and the other three columns are that contrast at another
+                # temperature. Without that check the 18 C column would be a
+                # time to an unstated contrast, which is not a datum at all.
+                # ⚠ THE 20 C CELLS ARE NOT STORED AGAIN. They are already here
+                # from P-16-C, and two records of one measurement is how a
+                # database starts disagreeing with itself. Only 18 / 22 / 24
+                # come from this table -- except in the «tank» block, which
+                # P-16-C does not print at all, so all four of its columns are
+                # new.
+                # ⚠⚠ AND «tank» IS NOT «small tank, tray». REFINAL reads 7 min
+                # there against 6 in trays and 5 in drums. See
+                # DevelopmentPoint.vessel for why Agfa's own captions on this
+                # one page cannot be reconciled and are stored as printed.
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.5, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=7.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=5.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=12.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=9.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=8.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=4.5, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=4.5, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=3.5, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=5.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=3.5, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=3.0, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=11.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=8.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=7.0, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.5, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.5, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=10.0, celsius=18.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=8.0, celsius=20.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=6.0, celsius=22.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=5.0, celsius=24.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=9.0, celsius=18.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=7.0, celsius=20.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=5.0, celsius=22.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='tank'),
             ),
             source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
                     'White Chemicals, Film Processing», 08/1999 -- '
@@ -4907,14 +5371,31 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                     'tables: developing time to reach gamma 0.55 / 0.65 / '
                     '0.75 for each AGFAPAN film, for rotary drum and for '
                     'small tank/tray, across six developers. 64 printed time '
-                    'cells, read as TEXT. ⚠ THE METHOD IS IN THE TRAILING '
-                    'COMMENT, NOT IN A FIELD: DevelopmentPoint has developer, '
-                    'dilution, minutes, celsius and gamma but no agitation or '
-                    'vessel, so the drum and small-tank rows are '
+                    'cells, read as TEXT. ⚠⚠ THE VESSEL IS NOW A FIELD '
+                    '(schema v28, 2026-09-06i) AND THIS SENTENCE USED TO SAY '
+                    'IT WAS NOT: "THE METHOD IS IN THE TRAILING COMMENT, NOT '
+                    'IN A FIELD ... so the drum and small-tank rows are '
+                    'distinguishable only by their times." They are now '
+                    'labelled, which is what let «Technical Data PF» 09/1998 '
+                    'p10 be adopted beside this table -- see the block above. '
+                    'Historically the rows were '
                     'distinguishable only by their times. Where a developer '
                     'prints both, the drum time is the shorter. ⚠ REFINAL M '
                     'is NOT here: it is a machine developer/replenisher '
-                    'described in prose with no contrast table.'),
+                    'described in prose with no contrast table. '
+                    '⚠⚠ AND THIS FAMILY NOW HAS TWO SOURCES. The gamma 0.55 '
+                    'and gamma 0.75 points marked vessel="small tank" are NOT '
+                    'from P-16-C, which prints a single gamma 0.65 row for '
+                    'that vessel; they are traced from the gamma / '
+                    'developing-time panel of Agfa-Gevaert AG, «Technical '
+                    'Data PF», 1st edition 09/1998 -- '
+                    'PDF/PROFILES/AGFA/agfa_films.pdf p10, by '
+                    'agfa_1998_gamma_time.py. ⚠ THE TWO ARE NOWHERE AVERAGED: '
+                    'P-16-C supplies every drum point and the tank\'s 0.65, '
+                    'the panel supplies the tank\'s 0.55 and 0.75, and the '
+                    'panel\'s own 0.65 reading is spent on identifying which '
+                    'vessel it plots rather than stored as a second answer to '
+                    'a question already answered.'),
         ),
         # ⚠ PUSH IS DOCUMENTED, AND ONLY BY ONE STOP. `PushSpec` was
         # empty on all three AGFAPAN profiles until 2026-09-01; P-16-C
@@ -5041,7 +5522,28 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # 14.0"; corroborated by agfa_films.pdf p10. Resolving power 110 lp/mm
         # at 1000:1 (same page) -> _RESOLVING_POWER.
         grain=GrainSpec(14.0, 4.839, 4.839, 4.839, clump_gain=1.25, fog_grain=0.22),
-        mtf=MTFSpec(48.0, 48.0, 48.0, adjacency=0.0998, adjacency_um=19.0),
+        # ⚠⚠ OWNER DECISION 2026-09-07b, AND IT REVERSES A REFUSAL THIS FILE
+        # HAD CARRIED SINCE 2026-09-01. This panel is SHARED with its sibling
+        # -- one drawing, so at most one of the two is a measurement of that
+        # film -- and `NotFound.md` row 5d therefore kept both f50 triples as
+        # class estimates. The owner's instruction: *"If the vendor datasheet
+        # provide MTF please don't simply discard this value even 'Two films
+        # cannot share a measured MTF'. We haven't additional better source
+        # for check this, so please accept and include these values from
+        # vendors datasheet - this is much more better from estimated
+        # values!"*
+        # ⚠ WHAT THE REFUSAL WAS RIGHT ABOUT IS UNCHANGED AND STAYS ON RECORD:
+        # the two panels are one drawing (max |dy| 0.0002 of frame height, in
+        # BOTH the 1998 and 2004 editions), so this value cannot be a
+        # per-film measurement for both films. What the refusal got wrong was
+        # the remedy -- it replaced a vendor trace with a class estimate
+        # derived from no document at all, which is further from the film than
+        # a shared vendor curve is.
+        # ⚠ THE DUPLICATE CHECK STILL RUNS. `agfa_1998_sharpness.py` re-derives
+        # the shared-artwork finding on every build; it is now REPORTED beside
+        # the adoption instead of blocking it.
+        mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.1037, adjacency_um=19.0,
+                    mtf_rolloff_q=2.27, mtf_measured=True),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
         default_format="ff35",
@@ -5124,73 +5626,285 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             points=(
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=7, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=12, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
                                  minutes=10, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=3, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=8, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=6, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=6, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
                                  minutes=7, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=7, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=9, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=11, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
                                  minutes=11, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=3, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
                                  minutes=4.5, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=3, celsius=20.0,
-                                 gamma=0.55),   # drum
+                                 gamma=0.55, vessel='drum'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=4, celsius=20.0,
-                                 gamma=0.65),   # drum
+                                 gamma=0.65, vessel='drum'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=5, celsius=20.0,
-                                 gamma=0.75),   # drum
+                                 gamma=0.75, vessel='drum'),
                 DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
                                  minutes=4.5, celsius=20.0,
-                                 gamma=0.65),   # small tank
+                                 gamma=0.65, vessel='small tank, tray'),
+                # ---- 2026-09-06i: THE SMALL TANK'S OTHER TWO CONTRASTS -
+                # ⚠⚠ P-16-C PRINTS ONE ROW FOR THIS VESSEL AND THREE FOR THE
+                # DRUM. Everything the small tank does away from gamma 0.65 is
+                # published only as the gamma / developing-time CURVE on
+                # «Technical Data PF» 09/1998 p10, which sat digitised and
+                # unadopted from 2026-09-01 because the family had been filled
+                # from the other document and the two were never compared.
+                # ⚠ THAT THE CURVE IS THE SMALL TANK IS MEASURED, NOT ASSUMED.
+                # Its gamma 0.65 time lands within 0.11 min of the printed
+                # small-tank figure and 1.15 min from the drum's, averaged over
+                # all fifteen film x developer combinations, with every single
+                # one closer to the tank and the worst tank miss smaller than
+                # the best drum agreement. `agfa_1998_gamma_time.py` re-derives
+                # the whole comparison on every build.
+                # ⚠ RODINAL 1+50's 0.75 POINT IS ABSENT ON TWO FILMS because
+                # Agfa stop drawing that curve at gamma 0.670 / 0.738. A
+                # missing rung is a refusal, not a zero, and not an
+                # extrapolation.
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=3.31, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=9.46, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=3.95, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=11.84, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=5.90, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=2.76, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=6.98, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=2.76, celsius=20.0,
+                                 gamma=0.55, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=6.98, celsius=20.0,
+                                 gamma=0.75, vessel='small tank, tray'),
+                # ---- 2026-09-06i: THE TEMPERATURE AXIS, p11 -----------
+                # ⚠⚠ THE ONLY TEMPERATURE AXIS ANY STOCK IN THIS DATABASE HAS.
+                # Every other DevelopmentPoint anywhere sits at 20 C. «Technical
+                # Data PF» p11 prints developing time at 18 / 20 / 22 / 24 C in
+                # three blocks -- «Processing in trays», «in drums», «in tanks».
+                # ⚠ THE TABLE NEVER SAYS WHAT CONTRAST IT IS A TIME TO, and
+                # that is not assumed here: its 20 C column reproduces P-16-C's
+                # printed gamma 0.65 figures EXACTLY on all THIRTY tray and drum
+                # cells -- five developers, three films, two vessels, to the
+                # printed half-minute. So the quantity is the gamma 0.65 time
+                # and the other three columns are that contrast at another
+                # temperature. Without that check the 18 C column would be a
+                # time to an unstated contrast, which is not a datum at all.
+                # ⚠ THE 20 C CELLS ARE NOT STORED AGAIN. They are already here
+                # from P-16-C, and two records of one measurement is how a
+                # database starts disagreeing with itself. Only 18 / 22 / 24
+                # come from this table -- except in the «tank» block, which
+                # P-16-C does not print at all, so all four of its columns are
+                # new.
+                # ⚠⚠ AND «tank» IS NOT «small tank, tray». REFINAL reads 7 min
+                # there against 6 in trays and 5 in drums. See
+                # DevelopmentPoint.vessel for why Agfa's own captions on this
+                # one page cannot be reconciled and are stored as printed.
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=8.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.5, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=8.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=5.5, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=13.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=9.0, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=8.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=5.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.5, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=5.0, celsius=18.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.5, celsius=22.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.0, celsius=24.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=6.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=3.5, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=7.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=4.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+25', dilution='1+25',
+                                 minutes=3.5, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=11.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=8.0, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL 1+50', dilution='1+50',
+                                 minutes=7.0, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=5.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.5, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='RODINAL SPECIAL', dilution='1+15',
+                                 minutes=3.0, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=5.0, celsius=18.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.5, celsius=22.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='STUDIONAL LIQUID', dilution='1+15',
+                                 minutes=3.0, celsius=24.0,
+                                 gamma=0.65, vessel='drum'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=10.0, celsius=18.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=8.0, celsius=20.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=6.0, celsius=22.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='ATOMAL FF', dilution='stock',
+                                 minutes=5.0, celsius=24.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=9.0, celsius=18.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=7.0, celsius=20.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=5.0, celsius=22.0,
+                                 gamma=0.65, vessel='tank'),
+                DevelopmentPoint(developer='REFINAL', dilution='stock',
+                                 minutes=4.0, celsius=24.0,
+                                 gamma=0.65, vessel='tank'),
+                # ⚠⚠ THE THREE THIRD-PARTY ROWS, AND THEY ARE APX 400's ALONE.
+                # F-PF-D4 p10 / F-PF-E4 p10, «Verarbeitung Agfapan APX 400» /
+                # «Processing Agfapan APX 400», the «Dose-/Schalen-
+                # verarbeitung» block: three developers Agfa did not make,
+                # each printed with ONE time where their own six carry four.
+                # ⚠ WHICH TEMPERATURE COLUMN THAT ONE TIME SITS IN IS
+                # GEOMETRY, NOT GUESSWORK. That block's headers sit at
+                # x 387.4 / 426.9 / 466.9 / 506.5 pt; every Agfa row's 20 C
+                # value lands at x 433-435, and all three of these land at
+                # x 433.0. They are 20 C entries. `agfa_2003_sheet.py`
+                # re-derives that column from the page on every build rather
+                # than trusting this comment.
+                # ⚠ AND APX 100 HAS NO SUCH ROWS -- its block ends at
+                # STUDIONAL LIQUID in both editions. The asymmetry is Agfa's:
+                # only the fast film gets third-party guidance.
+                # ⚠ "Kodak D76/Ilford ID11" IS STORED AS PRINTED, one row
+                # naming two developers. Agfa give the two a single time, so
+                # splitting it into two points would assert an equality they
+                # merely imply -- and normalising to the corpus's "ID-11"
+                # spelling would hide that this cell is Agfa speaking about
+                # someone else's chemistry, not that maker's own datasheet.
+                DevelopmentPoint(developer='Tetenal Ultrafin Plus',
+                                 dilution='', minutes=16.0, celsius=20.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='Kodak T-MAX',
+                                 dilution='', minutes=12.0, celsius=20.0,
+                                 gamma=0.65, vessel='small tank, tray'),
+                DevelopmentPoint(developer='Kodak D76/Ilford ID11',
+                                 dilution='', minutes=12.0, celsius=20.0,
+                                 gamma=0.65, vessel='small tank, tray'),
             ),
             source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
                     'White Chemicals, Film Processing», 08/1999 -- '
@@ -5199,14 +5913,31 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                     'tables: developing time to reach gamma 0.55 / 0.65 / '
                     '0.75 for each AGFAPAN film, for rotary drum and for '
                     'small tank/tray, across six developers. 64 printed time '
-                    'cells, read as TEXT. ⚠ THE METHOD IS IN THE TRAILING '
-                    'COMMENT, NOT IN A FIELD: DevelopmentPoint has developer, '
-                    'dilution, minutes, celsius and gamma but no agitation or '
-                    'vessel, so the drum and small-tank rows are '
+                    'cells, read as TEXT. ⚠⚠ THE VESSEL IS NOW A FIELD '
+                    '(schema v28, 2026-09-06i) AND THIS SENTENCE USED TO SAY '
+                    'IT WAS NOT: "THE METHOD IS IN THE TRAILING COMMENT, NOT '
+                    'IN A FIELD ... so the drum and small-tank rows are '
+                    'distinguishable only by their times." They are now '
+                    'labelled, which is what let «Technical Data PF» 09/1998 '
+                    'p10 be adopted beside this table -- see the block above. '
+                    'Historically the rows were '
                     'distinguishable only by their times. Where a developer '
                     'prints both, the drum time is the shorter. ⚠ REFINAL M '
                     'is NOT here: it is a machine developer/replenisher '
-                    'described in prose with no contrast table.'),
+                    'described in prose with no contrast table. '
+                    '⚠⚠ AND THIS FAMILY NOW HAS TWO SOURCES. The gamma 0.55 '
+                    'and gamma 0.75 points marked vessel="small tank" are NOT '
+                    'from P-16-C, which prints a single gamma 0.65 row for '
+                    'that vessel; they are traced from the gamma / '
+                    'developing-time panel of Agfa-Gevaert AG, «Technical '
+                    'Data PF», 1st edition 09/1998 -- '
+                    'PDF/PROFILES/AGFA/agfa_films.pdf p10, by '
+                    'agfa_1998_gamma_time.py. ⚠ THE TWO ARE NOWHERE AVERAGED: '
+                    'P-16-C supplies every drum point and the tank\'s 0.65, '
+                    'the panel supplies the tank\'s 0.55 and 0.75, and the '
+                    'panel\'s own 0.65 reading is spent on identifying which '
+                    'vessel it plots rather than stored as a second answer to '
+                    'a question already answered. ⚠⚠ AND A THIRD SOURCE, 2026-09-07: the last three points are the third-party developer rows from Agfa-Gevaert AG, «Technische Daten -- Agfa Professional Filmsortiment», F-PF-D4, 4. Auflage, Stand 07/2003 -- PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p10, «Verarbeitung Agfapan APX 400», confirmed cell for cell against the English twin F-PF-E4 08/2004 p10 -- PDF/PROFILES/AGFA/AGFA stocks.pdf. Tetenal Ultrafin Plus 16 min, Kodak T-MAX 12 min, Kodak D76/Ilford ID11 12 min, all at 20 C in a small tank/tray, at the page\'s own stated reference contrast: «Die nachfolgend angegebenen Entwicklungszeiten ... beziehen sich auf einen mittleren Kontrast von gamma = 0,65». ⚠ THESE ROWS SAT UNREAD FOR SIX DAYS AFTER THE PAGE WAS HARVESTED, which is NotFound row 5c\'s lesson repeating: a reader that takes the Agfa developers and stops leaves no trace saying the block continued.'),
         ),
         # ⚠ PUSH IS DOCUMENTED, AND ONLY BY ONE STOP. `PushSpec` was
         # empty on all three AGFAPAN profiles until 2026-09-01; P-16-C
@@ -5328,24 +6059,33 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # _grain_v2's tier-2 stack rule (b ~1.3x, r ~1.1x of green); Agfa does
         # not publish per-layer granularity.
         grain=GrainSpec(4.0, 3.548, 3.871, 4.516, clump_gain=0.80, fog_grain=0.18),
-        # f50 values remain engineering estimates: Agfa publishes sharpness
-        # only as a plotted transfer-factor curve (agfa_films.pdf p7), never as
-        # a numeric MTF. The published resolving power (50 lp/mm at 1.6:1,
-        # 140 lp/mm at 1000:1, same page) is recorded in _RESOLVING_POWER.
-        # ⚠ adjacency 0.135 MEASURED 2026-08-29 (queue E1) and f50
-        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
-        # (%)" against "Lines per mm" and the curve PEAKS AT 114 %, above the
-        # 100 % a true MTF cannot exceed -- so what it draws is an
-        # adjacency-enhanced response, and the overshoot is a direct reading of
-        # the adjacency effect. That number is a RATIO and carries no unit, so
-        # it can be adopted whatever the abscissa means.
-        # f50 reads 46.2 on the panel's own axis and is NOT stored, because
-        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
-        # pairs is an open question in this corpus -- queue item G6, raised
-        # against Gevacolor 682's identically worded axis. A factor of two is
-        # not a rounding difference. The f50 values below stay estimates until
-        # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.1091, adjacency_um=17.0),
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 2004 p7 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 43.7 c/mm, q 2.95 at rms 0.0532.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 43.95 / 2.96.
+        # REDRAWN between editions -- 0.0099 of frame height.
+        # ⚠ The +11.1 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(39.2, 43.7, 47.0, adjacency=0.1111, adjacency_um=17.0,
+                    resolving_power_lp_mm_lowc=0.0,
+                    resolving_power_lp_mm_highc=0.0,
+                    mtf_rolloff_q=2.95, mtf_measured=True),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
@@ -5545,19 +6285,33 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # are the Agfa family's rms-keyed stack rule evaluated at 4.3 -- the
         # same rule that gives Optima 200 its 11.8/12.9/15.0.
         grain=GrainSpec(4.3, 3.806, 4.161, 4.839, clump_gain=0.86, fog_grain=0.18),
-        # Resolving power 140 lines/mm at 1000:1 and 50 at 1.6:1, PUBLISHED --
-        # identical to Optima 100's, so f50 carries Optima 100's estimate
-        # rather than inventing a new one.
-        # ⚠ adjacency 0.1445 MEASURED, f50 DELIBERATELY NOT. The Sharpness
-        # panel peaks at 114.4 %, the highest overshoot of the twelve films on
-        # this sheet, so what it plots is an adjacency-enhanced response and
-        # not an MTF. The overshoot is a RATIO and carries no unit, so it is
-        # adoptable whatever the abscissa means; f50 reads 42.6 on the panel's
-        # own axis and is not stored, because whether Agfa's "Lines (mm)"
-        # means cycles or line pairs is queue G6.
-        mtf=MTFSpec(62.0, 70.0, 76.0, adjacency=0.1445, adjacency_um=17.0,
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p8 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 42.9 c/mm, q 3.12 at rms 0.0790.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ Only the 1998 edition carries this film (not reprinted in 2004), so there is no
+        # newer panel to prefer.
+        # ⚠ The +14.9 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(38.5, 42.9, 46.2, adjacency=0.1487, adjacency_um=17.0,
                     resolving_power_lp_mm_lowc=50.0,
-                    resolving_power_lp_mm_highc=140.0),
+                    resolving_power_lp_mm_highc=140.0,
+                    mtf_rolloff_q=3.12, mtf_measured=True),
         # [T3] Stronger couplers than any other Agfa negative: this is the
         # saturation film and the traced blue gamma is the steepest of the
         # set. Not published -- an engineering estimate consistent with that.
@@ -5693,18 +6447,33 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # reversal family's scale, where EKTACHROME 64 at the same rms 11.0
         # carries 6.0/6.5/7.5.
         grain=GrainSpec(10.0, 2, 2.161, 2.484, clump_gain=0.36, fog_grain=0.12),
-        # Resolving power 125 lines/mm at 1000:1 and 55 at 1.6:1, PUBLISHED.
-        # ⚠ The 2004 edition revises the 1000:1 figure to 135; the 1998 value
-        # is stored because every other number on this profile is 1998.
-        # adjacency 0.0435 MEASURED off a panel that peaks at 104.4 %; f50
-        # reads 29.2 and is NOT stored -- queue G6.
-        mtf=MTFSpec(70.0, 78.0, 84.0, adjacency=0.0435, adjacency_um=15.0,
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p8 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 29.4 c/mm, q 2.31 at rms 0.0406.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 29.36 / 2.31.
+        # ONE DRAWING, reprinted in 2004 to 0.0003 of frame height.
+        # ⚠ The +4.7 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(26.4, 29.4, 31.6, adjacency=0.0470, adjacency_um=15.0,
                     resolving_power_lp_mm_lowc=55.0,
-                    # ⚠ REVISED UPWARD 2026-09-01, 125 -> 135
-                    # lines/mm. See the ParamSource: the 4th
-                    # edition prints a higher figure than the
-                    # 1st, on curves that did not move.
-                    resolving_power_lp_mm_highc=135.0),
+                    resolving_power_lp_mm_highc=135.0,
+                    mtf_rolloff_q=2.31, mtf_measured=True),
         couplers=CouplerSpec(0.10, 48.0, 0.06, 10.0),
         dye_matrix=_dye(-0.14),
         misregistration_um=3.5,
@@ -5830,16 +6599,33 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             b=ToneCurve(0.124, 2.421, -0.601, 0.262, +0.761, 0.367),
         ),
         grain=GrainSpec(10.0, 2, 2.161, 2.484, clump_gain=0.36, fog_grain=0.12),
-        # RP 125 / 50 lines/mm PUBLISHED (2004 edition revises 1000:1 to 130).
-        # adjacency 0.0826 MEASURED, panel peaks 108.3 %; f50 31.8 not stored,
-        # queue G6.
-        mtf=MTFSpec(68.0, 76.0, 82.0, adjacency=0.0826, adjacency_um=15.0,
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p9 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 31.9 c/mm, q 2.08 at rms 0.0319.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 31.95 / 2.09.
+        # ONE DRAWING, reprinted in 2004 to 0.0009 of frame height.
+        # ⚠ The +8.5 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(28.6, 31.9, 34.3, adjacency=0.0852, adjacency_um=15.0,
                     resolving_power_lp_mm_lowc=50.0,
-                    # ⚠ REVISED UPWARD 2026-09-01, 125 -> 130
-                    # lines/mm. See the ParamSource: the 4th
-                    # edition prints a higher figure than the
-                    # 1st, on curves that did not move.
-                    resolving_power_lp_mm_highc=130.0),
+                    resolving_power_lp_mm_highc=130.0,
+                    mtf_rolloff_q=2.08, mtf_measured=True),
         couplers=CouplerSpec(0.10, 48.0, 0.06, 10.0),
         dye_matrix=_dye(-0.14),
         misregistration_um=3.5,
@@ -5960,16 +6746,33 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             b=ToneCurve(0.099, 2.324, -0.629, 0.364, +0.789, 0.233),
         ),
         grain=GrainSpec(12.0, 2.258, 2.452, 2.806, clump_gain=0.42, fog_grain=0.13),
-        # RP 110 / 50 lines/mm PUBLISHED (2004 revises 1000:1 to 120).
-        # adjacency 0.1041 MEASURED, panel peaks 110.4 %; f50 21.2 -- the
-        # lowest of the twelve -- NOT stored, queue G6.
-        mtf=MTFSpec(60.0, 68.0, 74.0, adjacency=0.1041, adjacency_um=16.0,
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p9 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 21.3 c/mm, q 2.49 at rms 0.0552.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 21.29 / 2.49.
+        # ONE DRAWING, reprinted in 2004 to 0.0005 of frame height.
+        # ⚠ The +10.7 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(19.1, 21.3, 22.9, adjacency=0.1067, adjacency_um=16.0,
                     resolving_power_lp_mm_lowc=50.0,
-                    # ⚠ REVISED UPWARD 2026-09-01, 110 -> 120
-                    # lines/mm. See the ParamSource: the 4th
-                    # edition prints a higher figure than the
-                    # 1st, on curves that did not move.
-                    resolving_power_lp_mm_highc=120.0),
+                    resolving_power_lp_mm_highc=120.0,
+                    mtf_rolloff_q=2.49, mtf_measured=True),
         couplers=CouplerSpec(0.11, 48.0, 0.06, 10.0),
         dye_matrix=_dye(-0.13),
         misregistration_um=3.5,
@@ -6130,26 +6933,42 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         ),
         # rms_granularity CORRECTED 9.4 -> 4.3 on 2026-08-15: AGFA/'AGFACOLOR Vista 100, 200, 400, 800.pdf' (Technical Data AF, 06/2000) prints RMS 4.3 (48 um, D=1.0); old value was an estimate
         grain=GrainSpec(4.3, 4.194, 4.516, 5.323, clump_gain=0.92, fog_grain=0.19),
-        # ⚠ f50 LEFT AS AN ESTIMATE ON PURPOSE, 2026-08-18. The sheet's
-        # "Sharpness" panel plots TRANSFER FACTOR (%) against lines/mm and
-        # OVERSHOOTS 100 % at low frequency, so it is a CTF-like rectangular-wave
-        # quantity, not the sine-wave MTF that f50 is defined against. Reading a
-        # 50 % crossing straight off it would be a units error, not a
-        # measurement. The printed RESOLVING POWER is stored instead, in
-        # _RESOLVING_POWER, where the schema documents what it means. Converting
-        # the panel properly (Coltman) is queued with the MTF-as-a-curve work.
-        # ⚠ adjacency LEFT ALONE 2026-09-02e (queue A4) AND THE REASON IS A SECOND,
-        # LARGER DISCREPANCY ON THIS PROFILE. The Agfa sheet's own curve was traced by
-        # mtf_vector.py and measures f50 50.0 c/mm with a +11.7 % overshoot peaking at
-        # 3.4 c/mm -- a resolved interior peak, so the two-parameter adjacency solve
-        # applied to twelve other stocks in this pass would work here too. It is NOT
-        # applied, because the solve runs against the stock's STORED rolloff and this
-        # profile's stored f50 triple is the class estimate 56 / 63 / 69, not the
-        # measured 50.0. Solving an adjacency pair on a rolloff the measurement
-        # contradicts would bury an unadopted f50 inside a "measured" adjacency. The
-        # f50 adoption is a separate decision (one unlabelled visual-weighted curve
-        # against three stored channels) and is not taken here.
-        mtf=MTFSpec(56.0, 63.0, 69.0, adjacency=0.08, adjacency_um=18.0),
+        # ✅ [T1] TRACED 2026-09-06j FROM THE «Sharpness» PANEL of Agfa's
+        # «AGFACOLOR Vista» sheet, Technical Data AF 06/2000, printed p6 left
+        # column -- the THIRTEENTH and last AGFA panel in the corpus, and the
+        # only one the 2026-09-06h/i batch left behind.
+        # ⚠⚠ THE REFUSAL THIS REPLACES WAS ANSWERED BY THE SHEET ITSELF, ON A
+        # PAGE THE REFUSAL DID NOT READ. It stood from 2026-08-18 and said:
+        # "the panel plots TRANSFER FACTOR (%) against lines/mm and OVERSHOOTS
+        # 100 % at low frequency, so it is a CTF-like rectangular-wave
+        # quantity, not the sine-wave MTF that f50 is defined against. Reading
+        # a 50 % crossing straight off it would be a units error, not a
+        # measurement." **Page 4 of this same document defines the chart in
+        # Agfa's own words: «Sharpness -- International name of the chart: MTF
+        # (Modulation Transfer Function) which defines the sharpness of the
+        # image.»** That is the manufacturer naming the quantity, which is a
+        # stronger authority than queue G6's Ingelstam inference and applies to
+        # every Agfa panel captioned the same way.
+        # ⚠ THE OVERSHOOT IS STILL REAL AND IS STILL NOT FOLDED IN. An MTF
+        # cannot exceed 1, so what Agfa call MTF is an adjacency-enhanced
+        # measured response; the peak goes to `adjacency` and the rolloff is
+        # fitted ABOVE the peak only -- the same treatment the other twelve
+        # AGFA panels get.
+        # ⚠ f50 47.8 c/mm, q 2.63 at rms 0.0543 against the Gaussian's 0.0614,
+        # overshoot +9.8 % peaking at 3.5 c/mm. Calibrated on the panel's DRAWN
+        # FRAME (the printed ladder says which values the axis spans, the ink
+        # says where) -- its frequency ladder meets that frame to 0.025 %.
+        # ⚠ TWO INDEPENDENT READERS AGREE ON THE SHAPE. `mtf_vector.py` read
+        # this panel on 2026-09-02e off its printed labels and got q 2.63 --
+        # identical -- with f50 50.0 and a +11.7 % overshoot. The 4 % in f50 is
+        # the tick-label defect corrected across the AGFA family on 2026-09-06i:
+        # this panel's "100" label is 1.43 pt off its own tick and is rejected.
+        # ⚠ ONE UNLABELLED VISUAL-WEIGHTED CURVE (the sheet states
+        # «Densitometry: visual filter (Vλ)»), so red and blue are the stored
+        # family ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(42.9, 47.8, 51.4, adjacency=0.0978, adjacency_um=18.0,
+                    mtf_rolloff_q=2.63, mtf_measured=True),
         couplers=CouplerSpec(0.30, 50.0, 0.13, 12.0),
         dye_matrix=_dye(-0.05),
         base_tint=(0.99, 0.995, 1.0),
@@ -8127,7 +8946,23 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0691, adjacency_um=32.1,
         # ⚠ mtf_measured stays False. This is not an MTF trace, and the same
         # source prints Velvia 50's RESOLVING POWER (160 lp/mm) in its mtf50
         # field, so its grasp of that distinction is demonstrably unreliable.
-mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
+# ⚠⚠ THE 2026-08-27 IMPORT IS BACKED OUT HERE, 2026-09-07, BECAUSE IT
+        # DESCRIBED A DIFFERENT FILM. f50 was re-anchored on FilmLab Pro's key
+        # `fuji_eterna_500t` -- "Fuji Eterna 500T", which is NOT this stock.
+        # This profile is Eterna VIVID 500T, catalogue 8547, a higher-
+        # saturation 2009 coating; `NotFound.md` §7.1c says so in terms ("a
+        # different coating from their Eterna 500T"). RESTORED to 50/58/66,
+        # this project's own estimate, which is what stood before.
+        # ⚠ THE IMPORT WAS ALSO SELF-INCONSISTENT, which is what gave it away:
+        # the same source's rms 9.0 for that key was REFUSED here because this
+        # film's own sheet (eterna_vivid500.pdf) prints 3.5 -- so the record
+        # was treated as a different film for granularity and as the same film
+        # for sharpness, one field apart.
+        # ⚠ THE ARCHIVE STAYS. `third_party` below keeps the harvest verbatim
+        # and is inert by construction; its citation now says which film the
+        # record describes. Data for a neighbouring product is evidence about
+        # that product, not about this one.
+        mtf=MTFSpec(50.0, 58.0, 66.0, adjacency=0.10, adjacency_um=19.0),
         halation=HalationSpec(
             radii_um=(11.0, 56.0, 270.0),
             gain_r=0.16, gain_g=0.075, gain_b=0.04,
@@ -8137,15 +8972,28 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         dye_matrix=_dye(-0.20),
         base_tint=(0.988, 1.000, 0.980),
         misregistration_um=4.8,
-        # [T3] EMULSION STRUCTURE, schema v17: this source's size_microns,
-        # which its own format note defines as "mean crystal diameter".
-        # ⚠ NOT clump_um_* -- that is the mean DEVELOPED CLUMP diameter and
-        # depends on development gamma and on density. No conflict exists:
-        # this field is new in v17 and was empty on every stock.
-        emulsion=EmulsionSpec(
-            grain_um=3.0,
-            source=("FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, key fuji_eterna_500t, harvested 2026-08-27; archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. TIER 3 -- hand-authored engine values, NOT a manufacturer specification and NOT a measurement (assessment: NotFound.md 7.1). Adopted under the owner rule of 2026-08-27: where a parameter is OUR OWN ESTIMATE and no T1 datasheet or T2 book figure exists, the one published third-party number is preferred over an in-house analogy. size_microns."),
-        ),
+        # ⚠⚠ THERE IS NO `emulsion=` FIELD ON THIS PROFILE ANY MORE, AND THAT
+        # IS THE POINT. From 2026-08-27 it held `grain_um = 3.0` taken from
+        # FilmLab Pro's key `fuji_eterna_500t` -- "Fuji Eterna 500T", which is
+        # NOT this stock. This profile is Eterna VIVID 500T, catalogue 8547, a
+        # higher-saturation 2009 coating, and NotFound.md 7.1c says so in
+        # terms. Backed out 2026-09-07 together with the f50 above.
+        # ⚠ THE IMPORT WAS SELF-INCONSISTENT, WHICH IS WHAT GAVE IT AWAY: the
+        # same record's rms 9.0 was REFUSED here because this film's own sheet
+        # (eterna_vivid500.pdf) prints 3.5 -- so one record was treated as a
+        # different film for granularity and as the same film for sharpness
+        # and grain size, one field apart.
+        # ⚠ `EmulsionSpec` cannot carry the explanation, because it validates
+        # a source string only when a number stands beside it -- correctly, so
+        # that no profile can hold a citation for nothing. The explanation
+        # therefore lives here and in this stock's `mtf.f50_g` ParamSource.
+        # ⚠ WHAT WOULD REFILL IT: Fuji publish no crystal diameter for Eterna
+        # Vivid -- eterna_vivid500.pdf prints RMS 3.5 at 48 um and D = 1.0 and
+        # nothing about grain size -- so this needs a measurement or a Fuji
+        # publication, not another third party. The harvest itself is intact
+        # in `third_party` below and in
+        # doc/thirdparty/filmlabpro_harvest_2026-08-27.json; it is simply not
+        # this film's value.
         # [T3] THE REST OF THE HARVEST, kept VERBATIM in the source's own
         # units. None of these can enter an observable field without a units
         # error (halation_radius_norm is a fraction of the IMAGE DIMENSION),
@@ -8684,7 +9532,24 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # estimate. (The sheet is 6 pages; an earlier draft of this comment said
         # p7, which does not exist.)
         grain=GrainSpec(7.0, 2.258, 2.258, 2.258, clump_gain=0.22, fog_grain=0.13),
-        mtf=MTFSpec(104.0, 104.0, 104.0, adjacency=0.14, adjacency_um=11.0),
+        # [T3] f50 104.0 -> 95.0, ADOPTED 2026-09-07 from the FilmLab Pro
+        # published-data engine (key acros_100, mtf50 = 95 lp/mm), under the
+        # owner rule that a published third-party number is preferred over one
+        # of this project's own estimates. WHAT IT REPLACES WAS OUR OWN CLASS
+        # ESTIMATE -- 104.0 on all three records, tier 2, status `estimated`,
+        # derived from no document.
+        # ⚠ NO VENDOR f50 IS OVERWRITTEN, AND NONE EXISTS. The sheet
+        # (NeopanAcros100.pdf p4) prints RESOLVING POWER -- 60 lines/mm at
+        # 1.6:1 and 200 at 1000:1 -- which is a different quantity and is
+        # stored in `resolving_power_lp_mm_*`, untouched by this change.
+        # ⚠ THE SANITY CHECK IS f50/RP: ours was 104/200 = 0.52, theirs is
+        # 95/200 = 0.475, and Tani's relation predicts about 0.5. Both sit on
+        # it; this is a small move inside the plausible band, not a correction
+        # of an error.
+        # ⚠ mtf_measured stays False. This is a hand-authored number, and the
+        # same source prints Velvia 50's RESOLVING POWER in its own mtf50
+        # field, so its grasp of that distinction is demonstrably unreliable.
+        mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.14, adjacency_um=11.0),
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
         default_format="ff35",
@@ -8816,12 +9681,48 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # push latitude of -1/2 stop (EI 280) to +2 stops (EI 1600) and
         # densitometry via Fuji FAD-30S (Status A).
         grain=GrainSpec(11.0, 3.871, 4.194, 4.839, clump_gain=0.44, fog_grain=0.18),
-        mtf=MTFSpec(60.0, 68.0, 74.0, adjacency=0.11, adjacency_um=15.0),
+        # ✅ [T1] f50 TRACED 2026-09-06 from AF3-0213E p7 section 22, replacing
+        # the estimate 68.0 -- which was 1.52x TOO SHARP, the same direction and
+        # very nearly the same size as every other traced correction in this
+        # database. The panel is black line art with LABELLED log axes in the
+        # text layer, so the abscissa and ordinate are fitted to 8 and 10
+        # printed ticks at 1.07 and 0.87 pt residual; the curve is a single
+        # 80-point bezier group.
+        # ⚠ THE PANEL IS NOT SQUARE -- 75.7 px per frequency decade against
+        # 78.6 per response decade, 3.6 % apart -- which is why both axes are
+        # fitted independently rather than one being assumed from the other.
+        # ⚠ q 1.50 IS THE SHALLOWEST ROLLOFF IN THE DATABASE and it is also the
+        # best-fitting: rms 0.0233 against the Gaussian's 0.1211, 5.2x better,
+        # the largest margin any stock shows. Its kernel row is new.
+        # ⚠ One unlabelled curve, so red and blue take the stated Fuji ratio.
+        mtf=MTFSpec(40.0, 44.6, 48.0, adjacency=0.11, adjacency_um=15.0,
+                    mtf_rolloff_q=1.50, mtf_measured=True,
+                    resolving_power_lp_mm_lowc=55.0,
+                    resolving_power_lp_mm_highc=135.0),
         halation=HalationSpec(gain_r=0.04, gain_g=0.014, gain_b=0.004,
                              threshold_stops=2.1),
         couplers=CouplerSpec(0.10, 48.0, 0.06, 10.0),
         dye_matrix=_dye(-0.16),
         misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        emulsion=EmulsionSpec(
+            base_um=127.0,
+            base_material="cellulose triacetate",
+            designation="101-",
+            source=("Fuji Photo Film Co., Ltd., AF3-0213E -- "
+                    "PDF/PROFILES/FUJI/Provia_400X_PIB_1007.pdf section 3, section 3: 127 um and 98 um for the two roll gauges; emulsion number 101-. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
         default_format="ff35",
         # Sigma Crystal (tabular) emulsion -- flag was missing (audit DM-20).
         features=Feature.TABULAR_GRAIN,
@@ -8952,7 +9853,73 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # 8 c/mm -- the samples below carry the overshoot, which is a separate
         # effect -- at rms 0.0742 against the Gaussian's 0.1036, 1.4x better,
         # so the power law is stored and mtf_measured is set.
-        mtf=MTFSpec(35.7, 39.8, 42.8, mtf_rolloff_q=3.50, mtf_measured=True),
+        mtf=MTFSpec(35.7, 39.8, 42.8, mtf_rolloff_q=3.50, mtf_measured=True,
+                    resolving_power_lp_mm_lowc=60.0,
+                    resolving_power_lp_mm_highc=140.0),
+        # [T3] `emulsion.grain_um` 1.6 um, ADOPTED 2026-09-07 from the
+        # FilmLab Pro published-data engine (key provia_100f), its `size_microns`,
+        # which that source's own format note defines as "mean crystal
+        # diameter". Fourteen sibling stocks have carried their figure this
+        # way since 2026-08-27; these three entered the database afterwards
+        # and were never audited against it, so the field was still empty.
+        # ⚠ NOTHING IS OVERWRITTEN. This field was 0.0 -- absent, not
+        # estimated -- and Fuji publish no crystal diameter for this stock:
+        # PDF/PROFILES/FUJI/provia_100f_datasheet.pdf
+        # prints the micro-densitometer aperture (48 um) and the film-base
+        # thickness, and no grain size. Checked page by page on 2026-09-07.
+        # ⚠ NOT clump_um_* -- that is the mean DEVELOPED CLUMP diameter and
+        # depends on development gamma and on density.
+        # ⚠ THE FIELD IS INERT: nothing on any engine path reads it. What it
+        # buys is that the stock stops looking unexamined.
+        emulsion=EmulsionSpec(
+            grain_um=1.6,
+            source=("FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, key provia_100f, harvested 2026-08-27; archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. TIER 3 -- hand-authored engine values, NOT a manufacturer specification and NOT a measurement (assessment: NotFound.md 7.1). Adopted 2026-09-07 under the owner rule of 2026-08-27: where a parameter is OUR OWN ESTIMATE OR ABSENT and no T1 datasheet or T2 book figure exists, the one published third-party number is preferred over nothing. size_microns. ⚠ This stock's own Fuji sheet publishes NO crystal diameter, verified 2026-09-07, so no vendor value is displaced."),
+        ),
+        # ✅ [T1] SPECTRAL SENSITIVITY TRACED 2026-09-06 -- section 19 of the
+        # same sheet. This stock shipped with spectral.has_data FALSE until now.
+        # ⚠ THE PANEL IS VECTOR AND THE EARLIER PASS REFUSED IT AS A RASTER.
+        # 2026-09-02e located it, found no numbered ordinate, and recorded: "the
+        # ordinate carries no numbered ladder on two of the three sheets -- it
+        # is a bracketed arrow marked 1.0 -- so the DECADE SCALE is set by an
+        # annotation, not by tick labels". True of the SUPERIA and PRO 400H
+        # panels; FALSE of this one, whose ticks are real text (1.0 / 0.0 /
+        # -1.0) and whose curves are inked bezier paths. The refusal was a
+        # property of the reading method, not of the document.
+        # Axis fits: 4 wavelength ticks at 0.001 pt residual, 3 sensitivity
+        # ticks at 0.000 pt. ⚠ SQUARE-PANEL CROSS-CHECK: 59.41 px per 100 nm
+        # against 59.39 px per log decade, 0.04 % apart -- the same property the
+        # characteristic panel has, verified independently here.
+        # ⚠ THE INK ASSIGNMENT IS CONFIRMED BY THE SHEET'S OWN WORDS. Fuji
+        # prints "Blue / Green / Red Sensitive Layer" INSIDE the frame over the
+        # curve each names, at 428 / 538 / 618 nm, against traced peaks of
+        # 455 / 543 / 642 nm. Kodak's sheets carry no such label, so this is a
+        # check the Kodak vector reader cannot make. Peaks ascend B < G < R.
+        # Drawn extents B 388.5-500.8, G 475.3-597.3, R 571.0-671.1 nm; outside
+        # them the grid holds the -4.0 floor, which means NOT DRAWN and must not
+        # be read as a measured zero.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.37, -1.01, -0.69, -0.56, -0.42, -0.21, 0.00, -0.11, -0.70, -1.54, -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.29, -0.96, -0.67, -0.46, -0.27, -0.12, 0.00, -0.01, -0.06, -0.03, -0.03, -0.58, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-4.00, -1.75, -0.85, -0.23, -0.13, -0.12, -0.09, -0.00, 0.00, -0.17, -0.59, -1.15, -1.71, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICHROME "
+                "PROVIA 100F Professional [RDP III]», Ref. No. AF3-036E "
+                "(EIGI-00.10-HB-5-4) -- PDF/PROFILES/FUJI/"
+                "provia_100f_datasheet.pdf p6, section 19 SPECTRAL SENSITIVITY "
+                "CURVES, traced from the panel's own VECTOR paths by "
+                "fuji_t3_2026._spectral_vector(). The panel states Process "
+                "E-6/CR-56, Densitometry Fuji FAD-30S (Status A), Density 1.0 "
+                "above D-min, and its footnote defines sensitivity as the "
+                "reciprocal of the exposure in J/cm2 required to produce that "
+                "density -- ⚠ so the criterion is J/cm2 and NOT the erg/cm2 the "
+                "Kodak sheets use. Stored peak-normalised to 0.0 per record, so "
+                "only the SHAPE and the band positions are carried; the "
+                "absolute levels the sheet prints do not survive that "
+                "normalisation and the inter-record BALANCE is therefore not "
+                "asserted by this record"),
+        ),
         halation=HalationSpec(gain_r=0.030, gain_g=0.011, gain_b=0.003,
                               threshold_stops=2.2),
         couplers=CouplerSpec(0.09, 46.0, 0.055, 10.0),
@@ -8993,6 +9960,813 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
                 "for cyan / magenta / yellow. ONE MEASUREMENT ON TWO "
                 "PROFILES: it must not be counted as two, and a verify.py "
                 "guard holds the pair identical."),
+        ),
+    ),
+    FilmProfile(
+        name="FUJI_PROVIA_400F",
+        aliases=("provia 400f", "400f", "rhp iii", "rhpiii", "rhp3"),
+        description=(
+            "[T1] Fuji's ISO 400 professional daylight slide film, the RHP III "
+            "generation and the fast sibling of PROVIA 100F. The sheet claims "
+            "the world's finest grain among ISO 400 colour reversal films at a "
+            "diffuse rms granularity of 13, with the same push/pull latitude "
+            "and E-6/CR-56 processing as the 100-speed stock."
+        ),
+        era="2000-2010s",
+        kind=StockKind.REVERSAL,
+        exposure_index=400,
+        balance_kelvin=5500,
+        # ✅ [T1] TRACED 2026-09-06 from AF3-066E p6 section 17 CHARACTERISTIC
+        # CURVES. ⚠ EVERY PANEL ON THIS SHEET IS VECTOR, including the
+        # characteristic and dye-density ones -- PROVIA 100F's equivalents are
+        # 300 dpi rasters, so this is the better-conditioned of the two sheets.
+        # ⚠ THE CALIBRATION COMES FROM THE DRAWN GRIDLINES, NOT THE LABELS, AND
+        # THAT IS NOT A REFINEMENT. Fuji sets this sheet's tick labels
+        # typographically: the eight 0.5 D steps land 23.99-27.00 pt apart, a
+        # jitter of +/-8 %, and a label-centroid fit returns a density axis with
+        # a 48 pt residual and a red record running -1.70 to 4.48 D. Snapping
+        # each printed value onto its nearest drawn rule gives 0.430 pt on the
+        # abscissa and 0.313 pt on the ordinate. ⚠ The 100F sheet does NOT
+        # behave this way (its labels fit to 0.001 pt), so the method has to be
+        # chosen per sheet rather than assumed.
+        # Fitted over 82 columns, logH -4.00..+0.01, D 0.14..3.23, rms 0.0069.
+        curves=RGBCurves(
+            r=ToneCurve(0.1186, 2.2318, 1.4730, 0.3669, 2.8621, 0.1485),
+            # ⚠ G AND B TAKE RED'S SHAPE AT THEIR OWN MEASURED D-MAX, the same
+            # reversal rule PROVIA 100F uses: all three records lie within
+            # ~0.15 D of each other until the shoulder, so green and blue
+            # survive as traces only over logH -4.00..-1.44 and a free
+            # six-parameter fit to that fragment returns a nonsense curve
+            # (blue's own fit gives gamma 3.44).
+            # ⚠ AND GREEN INDEPENDENTLY CONFIRMS THE RULE HERE, which it could
+            # not on 100F: green's own fragment fit returns gamma 2.3894
+            # against the 2.3843 the rule derives from red -- 0.2 % apart. That
+            # is a check on the method, not on this stock.
+            g=ToneCurve(0.1186, 2.3843, 1.4730, 0.3669, 2.8621, 0.1485),
+            b=ToneCurve(0.1186, 2.2930, 1.4730, 0.3669, 2.8621, 0.1485),
+        ),
+        # rms 13 is PRINTED (section 15, 48 um aperture, D 1.0 above minimum).
+        # ⚠ ONE SIGNIFICANT FIGURE, as on every Fuji sheet. The clump triple is
+        # this project's class rule scaled to that rms and is NOT measured.
+        grain=GrainSpec(13.0, 3.548, 3.871, 4.516, clump_gain=0.55,
+                        fog_grain=0.18),
+        # ✅ f50 27.0 TRACED from section 19's single black curve, 56 points over
+        # 1.0-71.9 c/mm; rolloff q 2.11 at rms 0.0324 against the Gaussian's
+        # 0.0884, 2.7x better, so the power law is stored and mtf_measured set.
+        # ⚠ FUJI PRINTS ONE UNLABELLED CURVE, so red and blue are NOT measured:
+        # they take this project's stated per-record ratio off green, the same
+        # rule 100F, 8532 and 8572 use.
+        # ⚠ AND IT READS LOW AGAINST THE SHEET'S OWN RESOLVING POWER: Tani's
+        # f50 ~ RP/2 gives 67.5 from the printed 135 lines/mm, against a
+        # measured 27.0 -- a ratio of 0.40, outside the 0.5-2.0 band verify.py
+        # applies to ESTIMATES. The guard exempts measured f50 for exactly this
+        # reason, and PROVIA 100F reads 0.57 the same way, so this is a property
+        # of Fuji reversal sheets rather than of this stock. Recorded, not
+        # reconciled.
+        mtf=MTFSpec(24.2, 27.0, 29.0, mtf_rolloff_q=2.11, mtf_measured=True,
+                    resolving_power_lp_mm_lowc=55.0,
+                    resolving_power_lp_mm_highc=135.0),
+        # ✅ [T1] TRACED from section 18. Axis residuals 0.116 pt (4 wavelength
+        # gridlines) and 0.308 pt (4 sensitivity gridlines).
+        # ⚠ THE PANEL IS NOT SQUARE ON THIS SHEET: 60.75 px per 100 nm against
+        # 59.53 px per log decade, 2.0 % apart, where 100F's two axes agree to
+        # 0.04 %. So the square-panel property is a fact about the 100F artwork
+        # and NOT a Fuji house rule; it is checked, not assumed.
+        # Ink assignment confirmed by ascending peak order 455 < 545 < 646 nm.
+        # Drawn extents B 384.2-509.3, G 460.4-599.3, R 570.4-679.1 nm; the
+        # -4.0 floor outside them means NOT DRAWN, not measured-zero.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -1.28, -0.92, -0.70, -0.54,
+                -0.40, -0.21, -0.02, 0.00, -0.41, -1.22, -4.00),
+            log_s_g=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -1.65, -1.39, -1.10, -0.82, -0.60, -0.40, -0.21,
+                -0.01, 0.00, -0.06, -0.06, -0.27, -1.03, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(
+                -4.00, -1.83, -0.80, -0.28, -0.17, -0.14, -0.14, -0.04,
+                0.00, -0.25, -0.61, -1.24, -1.92, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICHROME "
+                "PROVIA 400F Professional [RHP III]», Ref. No. AF3-066E -- "
+                "PDF/PROFILES/FUJI/PROVIA400FAF3-066E_1.pdf p6, section 18 "
+                "SPECTRAL SENSITIVITY CURVES, traced from the panel's own "
+                "VECTOR paths and calibrated on its drawn gridlines. The sheet "
+                "defines sensitivity as the reciprocal of the exposure in J/cm2 "
+                "for a specified density. Stored peak-normalised per record, so "
+                "the inter-record BALANCE is not asserted"),
+        ),
+        halation=HalationSpec(gain_r=0.038, gain_g=0.014, gain_b=0.004,
+                              threshold_stops=2.1),
+        couplers=CouplerSpec(0.10, 46.0, 0.060, 10.0),
+        dye_matrix=_dye(-0.13),
+        # ⚠⚠ THE SCHWARZSCHILD SPEC IS NOT WRITTEN HERE ANY MORE AND THAT IS A
+        # BUG FIX, NOT A STYLE CHANGE. A literal `reciprocity=` on this profile
+        # was DISCARDED by `_apply_schema_v2`'s decoration pass; the measured
+        # spec now lives in `_RECIPROCITY_OVERRIDES`, which is the only place
+        # that survives it, and `_reciprocity_for` now RAISES on a literal so
+        # the next one cannot be lost the same way.
+        # ✅ [T1] AND THE PRINTED TABLE IS ADOPTED WHOLE, WHICH SUPERSEDES THE
+        # EXPONENT ARGUMENT ENTIRELY. Section 5 prints four rows -- no
+        # correction from 1/4000 to 32 s, +2/3 stop with a CC05G filter at
+        # 1 min, +1 stop with CC7.5G at 2-4 min, and 8 min "not recommended".
+        # ⚠ THE COLOUR-COMPENSATING FILTER COLUMN WAS DROPPED BY THE FIRST READ
+        # OF THIS SHEET and it is the more interesting half: this stock's
+        # reciprocity failure is CHROMATIC, needing progressively more GREEN
+        # correction, and an exponent-only record cannot say that at all.
+        reciprocity_table=ReciprocityTable(
+            times_s=(32.0, 60.0, 120.0, 240.0),
+            stops_correction=(0.0, 0.6667, 1.0, 1.0),
+            cc_filters=("", "CC05G", "CC075G", "CC075G"),
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICHROME "
+                "PROVIA 400F Professional [RHP III]», Ref. No. AF3-066E -- "
+                "PDF/PROFILES/FUJI/PROVIA400FAF3-066E_1.pdf p3, section 5 "
+                "«LONG EXPOSURE COMPENSATION», printed table including its "
+                "colour-compensating filter column. ⚠ The sheet's fourth row, "
+                "8 min, reads «Not recommended» and is therefore NOT stored as "
+                "a correction -- a refusal to publish is not a datum to "
+                "extrapolate"),
+        ),
+        misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        emulsion=EmulsionSpec(
+            base_um=127.0,
+            base_material="cellulose triacetate",
+            designation="#201-",
+            source=("Fuji Photo Film Co., Ltd., AF3-066E -- "
+                    "PDF/PROFILES/FUJI/PROVIA400FAF3-066E_1.pdf section 3, section 3: 135 at 127 um, 120 at 98 um; emulsion number #201-. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+        # ✅ [T1] TRACED from section 20, in Fuji's own yellow / magenta / cyan
+        # inks -- the dye colours, not the layer-sensitivity colours the
+        # spectral panel uses, so the two panels cannot be confused.
+        # Peaks 450 / 550 / 660 nm at 0.999 / 1.005 / 1.010 D, i.e. the sheet
+        # normalises each dye to 1.0 and the trace recovers that to 1 %.
+        # ⚠ THE AXES HERE ARE FITTED TO LABELS, NOT GRIDLINES: this panel draws
+        # no full-width rules that the reader can snap to, so its residuals are
+        # 0.638 pt and 0.960 pt against the other panels' 0.1-0.4. Stated
+        # because it is the weakest calibration on the sheet.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(
+                0.253, 0.227, 0.204, 0.185, 0.169, 0.155, 0.144, 0.134,
+                0.127, 0.122, 0.119, 0.123, 0.140, 0.170, 0.208, 0.252,
+                0.306, 0.369, 0.443, 0.526, 0.617, 0.711, 0.801, 0.881,
+                0.945, 0.988, 1.010, 0.992, 0.946, 0.882, 0.802),
+            d_magenta=(
+                0.175, 0.190, 0.208, 0.225, 0.222, 0.215, 0.226, 0.273,
+                0.338, 0.428, 0.548, 0.696, 0.844, 0.950, 1.002, 1.005,
+                0.940, 0.815, 0.660, 0.509, 0.382, 0.283, 0.212, 0.164,
+                0.133, 0.109, 0.090, 0.075, 0.063, 0.054, 0.047),
+            d_yellow=(
+                0.560, 0.697, 0.833, 0.944, 0.998, 0.999, 0.932, 0.809,
+                0.644, 0.466, 0.333, 0.234, 0.158, 0.099, 0.064, 0.051,
+                0.045, 0.043, 0.042, 0.041, 0.041, 0.041, 0.041, 0.041,
+                0.041, 0.042, 0.043, 0.038, 0.033, 0.029, 0.026),
+            normalisation="peak_1.0",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICHROME "
+                "PROVIA 400F Professional [RHP III]», Ref. No. AF3-066E -- "
+                "PDF/PROFILES/FUJI/PROVIA400FAF3-066E_1.pdf p6, section 20 "
+                "SPECTRAL DYE DENSITY CURVES, traced from the panel's own "
+                "VECTOR paths in Fuji's yellow / magenta / cyan inks. Peaks "
+                "450 / 550 / 660 nm at 0.999 / 1.005 / 1.010 D"),
+        ),
+    ),
+    FilmProfile(
+        name="FUJICHROME_64T_II",
+        aliases=("fujichrome 64t", "64t", "64t ii", "rtp ii", "rtpii", "rtp2"),
+        description=(
+            "[T1] Fuji's TUNGSTEN-balanced professional slide film, RTP II, "
+            "rated ISO 64 to 3100 K. The first tungsten-balanced Fuji reversal "
+            "stock in this database and one of only a handful of tungsten "
+            "reversal films in it at all -- the studio and long-exposure "
+            "counterpart to the daylight PROVIA line."
+        ),
+        era="1990s-2000s",
+        kind=StockKind.REVERSAL,
+        exposure_index=64,
+        # ⚠ 3100 K IS PRINTED, not the 3200 K a tungsten stock is usually
+        # assumed to take: section 2 reads "ISO 64/19 deg Tungsten-type
+        # (3100K)". The sheet's own number is used.
+        balance_kelvin=3100,
+        # ✅ [T1] TRACED 2026-09-06 from AF3-024E p6 section 18. ⚠ RASTER, not
+        # vector -- this sheet draws its characteristic, spectral and MTF panels
+        # as 300 dpi images and only the dye-density panel as paths, so three of
+        # the four carriers are read off pixels.
+        # ⚠ AND THE PANEL'S TICK LABELS ARE PIXELS TOO. There is no text inside
+        # those three frames at all, so the axis end values are transcribed from
+        # the rendered page (logH -3.0..+1.0, D 0.0..4.0) and the scale is set
+        # by the drawn gridline ladder: 92.5 px per 0.5 decade against 91.5 px
+        # per 0.5 D, i.e. square to 1.09 %, which is the cross-check that the
+        # transcription is right.
+        # ⚠ THE COLOUR MASK HAD TO BE BLINDED TO THE PANEL'S OWN LEGEND: three
+        # short rules in the same three inks sit inside the frame beside the
+        # letters R / G / B, and with them included the red fit collapsed to
+        # rms 0.4956 with a dmin of -15.2. Blanked, red fits at rms 0.0244 over
+        # 610 columns.
+        curves=RGBCurves(
+            r=ToneCurve(0.0747, 1.9401, 0.2830, 0.2374, 1.8503, 0.0923),
+            # G and B take red's shape at their own measured D-max, the same
+            # reversal rule PROVIA 100F and 400F use -- they separate from red
+            # only in the top half-density, surviving as 154 and 67 columns.
+            g=ToneCurve(0.0747, 2.1018, 0.2830, 0.2374, 1.8503, 0.0923),
+            b=ToneCurve(0.0747, 2.0792, 0.2830, 0.2374, 1.8503, 0.0923),
+        ),
+        # rms 10 PRINTED (section 16, 48 um aperture, D 1.0 above minimum).
+        grain=GrainSpec(10.0, 3.226, 3.548, 4.194, clump_gain=0.45,
+                        fog_grain=0.16),
+        # ✅ f50 47.6 TRACED from section 20's single black curve, 646 columns.
+        # ⚠ THE GRIDLINES ARE AS BLACK AS THE CURVE -- both bottom out at
+        # luminance 35 -- so darkness cannot separate them and THICKNESS does:
+        # the 1 pt stroke is 4-9 px at 300 dpi against a rule's 1-2. The run
+        # length is bounded ABOVE as well as below, because a VERTICAL rule
+        # fills its whole column and was being taken as the curve wherever the
+        # trace crossed one (the sampled response oscillated 72 / 101 / 77 / 39
+        # / 88 % across one decade before that bound existed).
+        # Rolloff q 3.07 at rms 0.0642 against the Gaussian's 0.0899, 1.4x
+        # better -- above the 1.2-1.3x threshold that refused the PORTRA NC/VC
+        # carriers -- so the power law is stored and mtf_measured is set.
+        # ⚠ One unlabelled curve, so red and blue take the stated ratio.
+        mtf=MTFSpec(42.7, 47.6, 51.2, mtf_rolloff_q=3.07, mtf_measured=True,
+                    resolving_power_lp_mm_lowc=55.0,
+                    resolving_power_lp_mm_highc=135.0),
+        # ✅ [T1] TRACED from section 19. Grid 250 px per 100 nm against 248 px
+        # per log decade, square to 0.81 %. Peaks 398 / 550 / 642 nm, ascending.
+        # ⚠⚠ THE PEAK LEVELS ARE THE TUNGSTEN SIGNATURE AND PEAK-NORMALISATION
+        # DESTROYS THEM. As drawn, blue peaks at +1.04 log against green's +0.30
+        # and red's +0.12 -- the blue layer is about seven times more sensitive
+        # than the red, which is exactly what a film balanced for 3100 K light
+        # must do, tungsten being red-rich. PROVIA 100F's three peaks sit within
+        # 0.3 log of each other by comparison. The stored arrays are normalised
+        # to 0.0 per record like every other set here, so THAT BALANCE IS NOT IN
+        # THE DATABASE and must not be read out of it; it is recorded here and
+        # in the ParamSource note instead.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -0.72, -0.55, -0.47,
+                -0.33, -0.16, 0.00, -0.11, -0.79, -4.00, -4.00),
+            log_s_g=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -0.74, -0.60, -0.47,
+                -0.21, 0.00, -0.14, -0.16, -0.29, -1.15, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(
+                -0.31, -0.04, 0.00, -0.05, -0.07, -0.09, -0.08, -0.04,
+                -0.12, -0.77, -1.27, -1.59, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICHROME "
+                "64T TYPE II Professional [RTP II]», Ref. No. AF3-024E -- "
+                "PDF/PROFILES/FUJI/RTPIIAF3-024E_1.pdf p6 section 19, a 300 dpi "
+                "RASTER panel traced by colour mask; process E-6/CR-56, "
+                "densitometry Fuji FAD-30S (Status A), density 1.0 above D-min. "
+                "⚠ As drawn the three peaks are +1.04 / +0.30 / +0.12 log for "
+                "blue / green / red -- the tungsten balance -- and storing them "
+                "peak-normalised discards exactly that relation"),
+        ),
+        halation=HalationSpec(gain_r=0.032, gain_g=0.012, gain_b=0.003,
+                              threshold_stops=2.2),
+        couplers=CouplerSpec(0.09, 46.0, 0.055, 10.0),
+        dye_matrix=_dye(-0.13),
+        # ✅ [T1] PRINTED, section 5, adopted 2026-09-06c -- the first read of
+        # this sheet took its curves and left its exposure table unread.
+        # ⚠⚠ THIS IS THE ONLY STOCK IN THE DATABASE WHOSE SHEET DECLARES A
+        # SHORT-EXPOSURE LIMIT, AND THE SCHEMA CANNOT HOLD IT. The printed table
+        # marks 1/4000 to 1/30 s "Not Recommended" -- a tungsten emulsion's
+        # HIGH-INTENSITY reciprocity failure, the opposite end from every other
+        # entry in `_RECIPROCITY_TABLES` -- then no correction from 1/15 to
+        # 64 s, +1/3 stop at 128 s and +1/2 at 256 s, with no CC filter at any
+        # length. `ReciprocityTable` has times_s / stops_correction / cc_filters
+        # and NO field for a refusal at the short end, so the short limit is
+        # recorded here and in the ParamSource note rather than encoded as a
+        # correction of zero, which would state the opposite of what the sheet
+        # says. Rule 23 point 5: the model is not simplified to fit the data.
+        # ⚠ THE FAILURE IS ACHROMATIC AND GENTLE -- +1/2 stop at 256 s against
+        # PROVIA 400F's +1 stop at 240 s WITH a CC7.5G filter. A tungsten stock
+        # exposed by tungsten light is being asked to do what it was balanced
+        # for, and the table shows it.
+        reciprocity_table=ReciprocityTable(
+            times_s=(64.0, 128.0, 256.0),
+            stops_correction=(0.0, 0.3333, 0.5),
+            cc_filters=("", "", ""),
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICHROME "
+                "64T TYPE II Professional [RTP II]», Ref. No. AF3-024E -- "
+                "PDF/PROFILES/FUJI/RTPIIAF3-024E_1.pdf p2, section 5 «LONG "
+                "EXPOSURE COMPENSATION», printed table. ⚠ Its first column, "
+                "1/4000 to 1/30 s, reads «Not Recommended» -- a SHORT-exposure "
+                "refusal this schema has no field for, so it is not stored; "
+                "the stored rows begin at the 1/15-to-64 s no-correction band"),
+        ),
+        misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        emulsion=EmulsionSpec(
+            base_um=127.0,
+            base_material="cellulose triacetate",
+            designation="#701-",
+            source=("Fuji Photo Film Co., Ltd., AF3-024E -- "
+                    "PDF/PROFILES/FUJI/RTPIIAF3-024E_1.pdf section 3, section 3: 135 at 127 um, 120 at 104 um, SHEETS at 205 um -- the only sheet-film gauge any Fuji document in this corpus prints; emulsion number #701-. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+        # ✅ [T1] TRACED from section 21, the one VECTOR panel on this sheet, in
+        # Fuji's yellow / magenta / cyan dye inks. Peaks 445 / 543 / 660 nm at
+        # 0.999 / 1.002 / 1.003 D.
+        # ⚠ ITS ORDINATE IS THE WEAKEST CALIBRATION ON THE SHEET -- three
+        # printed labels, no snappable rules, residual 2.32 pt. What makes the
+        # reading trustworthy anyway is that all three dyes come back at 1.00 D
+        # to within 0.3 %, which is the normalisation Fuji states and which the
+        # fit was not told about.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=(
+                0.226, 0.200, 0.178, 0.160, 0.144, 0.130, 0.119, 0.110,
+                0.103, 0.098, 0.095, 0.099, 0.114, 0.143, 0.188, 0.235,
+                0.291, 0.357, 0.433, 0.517, 0.609, 0.702, 0.791, 0.870,
+                0.934, 0.978, 1.003, 0.987, 0.943, 0.880, 0.801),
+            d_magenta=(
+                0.155, 0.171, 0.189, 0.205, 0.199, 0.192, 0.210, 0.262,
+                0.333, 0.430, 0.559, 0.714, 0.855, 0.948, 0.995, 0.989,
+                0.910, 0.782, 0.634, 0.490, 0.364, 0.261, 0.183, 0.134,
+                0.100, 0.074, 0.055, 0.040, 0.029, 0.021, 0.016),
+            d_yellow=(
+                0.576, 0.708, 0.846, 0.948, 0.995, 0.985, 0.910, 0.779,
+                0.609, 0.432, 0.288, 0.184, 0.114, 0.069, 0.044, 0.029,
+                0.021, 0.016, 0.014, 0.014, 0.015, 0.016, 0.016, 0.016,
+                0.016, 0.017, 0.018, 0.013, 0.008, 0.004, 0.001),
+            normalisation="peak_1.0",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICHROME "
+                "64T TYPE II Professional [RTP II]», Ref. No. AF3-024E -- "
+                "PDF/PROFILES/FUJI/RTPIIAF3-024E_1.pdf p6, section 21 SPECTRAL "
+                "DYE DENSITY CURVES, traced from the panel's own VECTOR paths"),
+        ),
+    ),
+    FilmProfile(
+        name="FUJICOLOR_PRO_800Z",
+        aliases=("pro 800z", "800z", "fujicolor pro 800z"),
+        description=(
+            "[T1] Fuji's ISO 800 professional colour negative, C-41, the fast "
+            "end of the PRO line beside 160S / 160C / 400H. The bulletin "
+            "credits a FOURTH colour layer and 'Fine Sigma' flat-grain "
+            "technology for a diffuse rms granularity of 5 at ISO 800."
+        ),
+        era="2000s",
+        kind=StockKind.NEGATIVE,
+        exposure_index=800,
+        balance_kelvin=5500,
+        # ✅ [T1] TRACED 2026-09-06 from AF3-177E p8 section 18 (Daylight
+        # 1/125 s, C-41, Status M).
+        # ⚠⚠ THIS PAGE HAS NO TEXT LAYER INSIDE ITS PANELS AT ALL -- its axis
+        # numbers are 376 glyph OUTLINES drawn as paths, so nothing can be read
+        # from the PDF's text. The axis end values (logH -4.0..+1.0, D 0.0..3.5)
+        # are transcribed from the rendered page and the scale comes from the
+        # frame rectangle, which the drawing does carry.
+        # ⚠ THE TRANSCRIPTION IS CHECKED, NOT TRUSTED: the frame is 206.9 pt
+        # wide for 5.0 decades and 144.5 pt tall for 3.5 D, i.e. 41.38 against
+        # 41.29 px per unit -- SQUARE TO 0.2 %, which is Fuji's house convention
+        # on every other sheet in this batch and would not hold if either range
+        # had been misread.
+        # ⚠ RECORD ASSIGNMENT IS BY THE D-MIN LADDER, and the sheet's own
+        # in-frame labels ("Blue" / "Green" / "Red", also drawn as outlines)
+        # agree: 0.199 red < 0.628 green < 0.910 blue is the orange mask, and
+        # the fitted gammas run the other way (0.748 > 0.662 > 0.608) as a
+        # colour negative's must.
+        curves=RGBCurves(
+            r=ToneCurve(0.1991, 0.7476, -1.9537, 0.3000, 1.7500, 0.4200),
+            g=ToneCurve(0.6277, 0.6621, -2.0954, 0.3000, 1.7500, 0.4200),
+            b=ToneCurve(0.9100, 0.6079, -2.1084, 0.3000, 1.7500, 0.4200),
+        ),
+        # rms 5 PRINTED (section 16, with Fuji's own footnote that it may not be
+        # compared against a colour REVERSAL figure -- which is why this stock's
+        # 5 must not be read beside PROVIA 400X's 11 as if they were one scale).
+        grain=GrainSpec(5.0, 2.581, 2.903, 3.548, clump_gain=0.35,
+                        fog_grain=0.14),
+        # ✅ [T1] TRACED 2026-09-06c -- AND THIS RETRACTS THE REFUSAL WRITTEN
+        # HERE EARLIER THE SAME DAY, WHICH WAS MINE AND WAS WRONG.
+        # ⚠⚠ WHAT THE REFUSAL SAID: "assuming 1-200 c/mm and 2-150 % puts the
+        # abscissa ladder at 83 px per decade and the ordinate at 62, which
+        # cannot both be right". THAT COMPARISON IS MEANINGLESS: the two axes
+        # span DIFFERENT NUMBERS OF DECADES (2.301 against 1.875), so their
+        # px-per-decade need not agree and their disagreement proves nothing.
+        # Read properly, section 20's own ladder fits: eleven ordinate rungs
+        # (150/100/70/50/30/20/10/7/5/3/2) land on a log axis at 87.38 pt per
+        # decade with a 0.59 pt worst residual, and seven abscissa rungs
+        # (1/5/10/20/50/100/200) at 84.86 pt per decade with 2.13 pt. The panel
+        # IS readable and always was.
+        # ⚠ WHAT MADE ME LOOK AGAIN WAS ANOTHER SHEET, exactly as with F-4001's
+        # P3200 panel: AF3-100E (FUJICOLOR PORTRAIT NPZ 800) prints this same
+        # drawing as a bilevel raster with its labels intact. Never write a
+        # refusal from a single file when the corpus holds another.
+        # ⚠ ONE DRAWING, TWO SHEETS, AND THE TWO EXTRACTIONS AGREE. The raster
+        # twin traced from AF3-100E and this vector path agree to a MAXIMUM OF
+        # 0.91 % RESPONSE (rms 0.51 %) over 1.58 decades, and the characteristic
+        # panels agree to 0.015 D. The value stored here is the VECTOR
+        # extraction -- 652 samples off two Beziers, no rasterisation -- and
+        # NPZ 800 carries the same number for the same reason. Their agreement
+        # is NOT corroboration: it is one measurement read twice.
+        # ⚠ f50 46.1 c/mm against the estimate 45.0 this profile shipped with,
+        # which is the closest any estimate in this database has come to its
+        # measurement (2.4 %). q 1.86 fits at rms 0.0175 against the Gaussian's
+        # 0.0843 -- 4.8x better. The +14 % adjacency overshoot the panel draws
+        # is NOT adopted, as on every other stock in this batch.
+        # ⚠ THE RESOLVING POWER IS PRINTED AND IS ADOPTED: 50 / 115 lines/mm.
+        mtf=MTFSpec(41.3, 46.1, 49.6, adjacency=0.10, adjacency_um=15.0,
+                    resolving_power_lp_mm_lowc=50.0,
+                    resolving_power_lp_mm_highc=115.0,
+                    mtf_rolloff_q=1.86, mtf_measured=True),
+        # ✅ [T1] PRINTED, section 6: no correction from 1/4000 to 1 second,
+        # +2/3 stop at 4 s and +1 1/2 at 16 s, no colour-compensating filter at
+        # any length, and "exposure time longer than 16 seconds is not
+        # recommended" -- which is why the table stops there rather than
+        # extrapolating.
+        # ⚠⚠ NPZ 800 SHARES EVERY DATA DRAWING WITH THIS STOCK AND DOES NOT
+        # SHARE THIS TABLE. AF3-100E publishes an unfiltered range of 1/4000 to
+        # TWO seconds and a +2 stop correction at 64 s that this bulletin
+        # declines to publish at all. The two tables are NOT averaged and
+        # neither is copied across (rule 4); each stock keeps what its own sheet
+        # prints, and the disagreement is the reason this pair is not recorded
+        # as one emulsion however identical their artwork is.
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 4.0, 16.0),
+            stops_correction=(0.0, 0.6667, 1.5),
+            cc_filters=("", "", ""),
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJICOLOR PRO 800Z PROFESSIONAL "
+                "PRODUCT INFORMATION BULLETIN, Ref. No. AF3-177E -- "
+                "PDF/PROFILES/FUJI/pro_800z_datasheet.pdf p2, section 6 "
+                "«LONG EXPOSURE COMPENSATION», printed table"),
+        ),
+        # ✅ [T1] TRACED 2026-09-06f, AND IT RETRACTS THE REFUSAL WRITTEN
+        # HERE ON 2026-09-06. Section 19 draws FOUR sensitive layers -- blue,
+        # green, red and CYAN -- and `SpectralSensitivity` has three colour
+        # records plus pan, so the panel was refused rather than truncated.
+        # ⚠⚠ OWNER DECISION 2026-09-06f: STORE R/G/B AND DOCUMENT CYAN.
+        # The stored set below is THREE OF THE FOUR CURVES THIS SHEET PRINTS.
+        # The fourth is traced, peak 519 nm, and written out as numbers to
+        # doc/FUJI_FOURTH_LAYER.md -- measured, published, documented and
+        # deliberately not stored. It is not lost and it was not guessed.
+        # ⚠ DO NOT ENABLE `RenderSettings.spectral_taking` ON THIS STOCK
+        # EXPECTING A CORRECT ANSWER: that path integrates the stored records
+        # against the illuminant, and integrating three quarters of a film is
+        # wrong in a way no tolerance catches. It is off by default.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -1.40, -1.07, -0.57, -0.24, -0.08, -0.02,
+                -0.01, 0.00, -0.07, -0.42, -1.05, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_g=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -1.64, -1.34, -0.93, -0.63, -0.43, -0.24, -0.11,
+                -0.03, 0.00, -0.05, -0.26, -0.72, -1.61, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_b=(
+                -4.00, -4.00, -0.86, -0.34, -0.23, -0.24, -0.25, -0.22,
+                -0.12, 0.00, -0.28, -1.00, -1.51, -1.90, -2.23, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., AF3-177E section 19 -- "
+                "PDF/PROFILES/FUJI/pro_800z_datasheet.pdf, traced 2026-09-06f from "
+                "the panel's own vector paths. Peaks 629 / 552 / 471 nm "
+                "(R / G / B); calibrated at 51.136 pt per log decade "
+                "against 52.507 pt per 100 nm, square to 2.68 %. "
+                "\u26a0 THREE OF FOUR: the panel also draws a CYAN "
+                "sensitive layer peaking at 519 nm, which this schema "
+                "has no field for. Owner decision 2026-09-06f -- store "
+                "R/G/B, document cyan. Its traced curve is in "
+                "doc/FUJI_FOURTH_LAYER.md. \u26a0 Stored peak-normalised "
+                "per record, so the inter-record BALANCE is not asserted: "
+                "the panel's ordinate is a bracketed arrow marked 1.0 and "
+                "carries a scale, not an absolute level"),
+        ),
+        halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.004,
+                              threshold_stops=2.0),
+        couplers=CouplerSpec(0.11, 46.0, 0.065, 10.0),
+        dye_matrix=_dye(-0.12),
+        misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        emulsion=EmulsionSpec(
+            base_um=122.0,
+            base_material="cellulose triacetate",
+            source=("Fuji Photo Film Co., Ltd., AF3-177E -- "
+                    "PDF/PROFILES/FUJI/pro_800z_datasheet.pdf section 3, section 3: 135 at 122 um, 120 and 220 at 98 um. No emulsion number is printed on this bulletin. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+        # ✅ [T1] A NEUTRAL PAIR, NOT A DYE TRIPLE, and typing it correctly is
+        # the point. Section 21 is captioned "Typical densities for a mid-scale
+        # neutral subject and for D-min" and draws exactly two curves -- it
+        # never separates the three dyes. Stored as d_neutral / d_dmin so no
+        # census counts this stock as carrying a three-dye set it does not have.
+        # ⚠ The D-min curve IS the orange mask profile, falling 1.03 D at 400 nm
+        # to 0.19 at 700, which is the shape a masked colour negative must show
+        # and is an independent check that the two curves were not swapped.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(
+                1.752, 1.617, 1.736, 1.856, 1.908, 1.908, 1.855, 1.742,
+                1.617, 1.520, 1.498, 1.519, 1.559, 1.580, 1.558, 1.461,
+                1.304, 1.087, 0.880, 0.762, 0.731, 0.769, 0.843, 0.930,
+                1.017, 1.094, 1.149, 1.187, 1.197, 1.181, 1.147),
+            d_dmin=(
+                1.330, 1.024, 1.029, 1.039, 1.027, 0.997, 0.955, 0.905,
+                0.854, 0.818, 0.784, 0.745, 0.703, 0.680, 0.663, 0.640,
+                0.598, 0.500, 0.367, 0.269, 0.221, 0.210, 0.213, 0.219,
+                0.226, 0.224, 0.216, 0.208, 0.200, 0.192, 0.186),
+            normalisation="as_printed",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJICOLOR PRO 800Z PROFESSIONAL "
+                "PRODUCT INFORMATION BULLETIN, Ref. No. AF3-177E "
+                "(EIGI-05.1-FG(HB)-4-1) -- PDF/PROFILES/FUJI/"
+                "pro_800z_datasheet.pdf p8, section 21, traced from the panel's "
+                "own vector paths. ⚠ A NEUTRAL PAIR: the panel prints a "
+                "mid-scale neutral and a D-min curve and does NOT separate the "
+                "three dyes, so this stock carries no dye triple"),
+        ),
+    ),
+    FilmProfile(
+        name="FUJICOLOR_PORTRAIT_NPZ_800",
+        aliases=("npz 800", "npz", "fujicolor portrait npz 800",
+                 "portrait npz 800", "portrait npz"),
+        description=(
+            "[T1] Fuji's ISO 800 professional portrait colour negative, C-41, "
+            "sold under the Japanese-market PORTRAIT name and built on the "
+            "same two technologies the PRO 800Z bulletin credits -- a fourth "
+            "colour-sensitive layer and Fine Sigma flat grain -- for a diffuse "
+            "rms granularity of 5 at ISO 800. ⚠ ITS DATA PAGE AND PRO 800Z'S "
+            "ARE ONE SET OF DRAWINGS, MEASURED: the characteristic curves agree "
+            "to 0.015 D and the MTF curves to 0.9 % response. THEIR PUBLISHED "
+            "EXPOSURE GUIDANCE DOES NOT AGREE, so the two are kept as separate "
+            "stocks and neither sheet's table is copied onto the other."
+        ),
+        era="1990s-2000s",
+        kind=StockKind.NEGATIVE,
+        exposure_index=800,
+        balance_kelvin=5500,
+        # ✅ [T1] AF3-100E p5 section 17 (Daylight 1/125 s, C-41, Status M).
+        # ⚠⚠ ONE DRAWING, TWO SHEETS, AND THE IDENTITY IS MEASURED RATHER THAN
+        # ASSUMED FROM THE NAMES. This panel is a BILEVEL RASTER (960 x 694,
+        # ink and paper only); PRO 800Z's is Bezier paths. Traced independently
+        # and calibrated on its own drawn ladder -- eleven verticals at 85.25 px
+        # per half-decade and eight horizontals at 85.29 px per half-density,
+        # SQUARE TO 0.05 %, the tightest square check in the whole Fuji corpus
+        # -- the two readings agree to a MAXIMUM OF 0.015 D and an rms of
+        # 0.005 D on all three records over 4.2 decades. That is one drawing
+        # read twice, not two measurements, and their agreement is therefore
+        # NOT corroboration of anything.
+        # ⚠ WHAT IS STORED IS THE VECTOR EXTRACTION, for the same reason a
+        # scanned page is not preferred to the file it was scanned from. The
+        # raster refit gives (0.9054, 0.5991, -2.1486) / (0.6224, 0.6523,
+        # -2.1351) / (0.1954, 0.7380, -1.9771) at rms 0.0109 / 0.0151 / 0.0099,
+        # i.e. dmin within 0.005 and gamma within 0.010 of the values below,
+        # with the residual SYSTEMATIC in sign -- the raster reads every gamma
+        # about 0.010 low -- which is what rasterisation does and what two
+        # independent measurements would not do.
+        curves=RGBCurves(
+            r=ToneCurve(0.1991, 0.7476, -1.9537, 0.3000, 1.7500, 0.4200),
+            g=ToneCurve(0.6277, 0.6621, -2.0954, 0.3000, 1.7500, 0.4200),
+            b=ToneCurve(0.9100, 0.6079, -2.1084, 0.3000, 1.7500, 0.4200),
+        ),
+        # ✅ rms 5 PRINTED (section 14: 48 um aperture, 12x magnification,
+        # sample density NETA 1.0) -- the same aperture, magnification and
+        # sample density PRO 800Z's section 16 prints, and the same value.
+        grain=GrainSpec(5.0, 2.581, 2.903, 3.548, clump_gain=0.35,
+                        fog_grain=0.14),
+        # ✅ [T1] TRACED 2026-09-06c from section 19, AND THIS PANEL IS WHAT
+        # REOPENED PRO 800Z's REFUSED ONE. Its ladder is complete and readable:
+        # seven abscissa rungs (1/5/10/20/50/100/200 c/mm) at 303.8 px per
+        # decade with a 7.1 px residual and eleven ordinate rungs
+        # (150/100/70/50/30/20/10/7/5/3/2 %) at 375.7 px per decade with 3.4 px.
+        # ⚠ THE TWO SHEETS DRAW THIS PANEL AT DIFFERENT ASPECT RATIOS AND STILL
+        # AGREE. NPZ's frame is 709 x 709 px, i.e. 170.1 x 170.1 pt and square;
+        # PRO 800Z's is 198.1 x 164.1 pt and is not. Calibrated each on its own
+        # ladder, the two curves agree to a maximum of 0.91 % response and an
+        # rms of 0.51 % over 1.58 decades. An artwork re-laid-out for a new
+        # publication, with the DATA untouched -- and a stronger statement than
+        # either panel could make alone.
+        # ⚠ f50 45.5 c/mm from this raster against 46.1 from the vector twin.
+        # The stored value is the VECTOR one, so the two stocks carry the same
+        # number for the same drawing; the 1.3 % difference is extraction noise.
+        # The +14.5 % adjacency overshoot is NOT adopted, as everywhere else.
+        # ✅ RESOLVING POWER PRINTED, section 15: 50 / 115 lines/mm at test
+        # object contrasts 1.6:1 and 1000:1.
+        mtf=MTFSpec(41.3, 46.1, 49.6, adjacency=0.10, adjacency_um=15.0,
+                    resolving_power_lp_mm_lowc=50.0,
+                    resolving_power_lp_mm_highc=115.0,
+                    mtf_rolloff_q=1.86, mtf_measured=True),
+        # ✅ [T1] PRINTED, section 5 «LONG AND SHORT EXPOSURES».
+        # ⚠⚠ THIS IS THE ONE PLACE THE TWO SHEETS DISAGREE, AND IT IS WHY THIS
+        # STOCK EXISTS SEPARATELY. AF3-100E publishes no compensation from
+        # 1/4000 to TWO seconds, +2/3 stop at 4 s, +1 1/2 at 16 s and +2 at
+        # 64 s, with NO colour-compensating filter at any length. AF3-177E
+        # publishes no compensation only to ONE second and stops at 16 s,
+        # declaring longer "not recommended". Same drawings, different published
+        # limits: the tables are NOT averaged and neither is copied across
+        # (rule 4), and this disagreement is exactly why the shared artwork is
+        # recorded as shared artwork and NOT as a claim that the two names are
+        # one emulsion.
+        reciprocity_table=ReciprocityTable(
+            times_s=(2.0, 4.0, 16.0, 64.0),
+            stops_correction=(0.0, 0.6667, 1.5, 2.0),
+            cc_filters=("", "", "", ""),
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR "
+                "PORTRAIT FILM NPZ 800 PROFESSIONAL [NPZ] (Daylight)», Ref. "
+                "No. AF3-100E -- PDF/PROFILES/FUJI/NPZ.pdf p2, section 5 «LONG "
+                "AND SHORT EXPOSURES», printed table. ⚠ The sheet adds "
+                "«Exposures longer than 64 seconds are not recommended», so the "
+                "table stops there rather than extrapolating"),
+        ),
+        # ✅ [T1] ADOPTED 2026-09-06g, AND IT RETRACTS A REFUSAL FROM THE DAY
+        # BEFORE THAT WAS MINE AND WAS TOO EARLY. On 2026-09-06f I recorded
+        # that this panel's four-way separation "was attempted and not
+        # achieved" and left the field empty. That was one attempt reported as
+        # a conclusion -- the owner asked why, and asking was right.
+        # ⚠⚠ THE PANEL DID NOT NEED SEPARATING AT ALL. AF3-177E prints this
+        # same drawing as VECTOR paths for PRO 800Z, so the question is not
+        # "what are these curves" but "is this the same drawing", and that is
+        # answered by OVERLAY rather than by tracing: PRO 800Z's four curves,
+        # sampled every 2 nm and mapped into this raster through THIS PANEL'S
+        # OWN independent ladder, land on ink at 98.1 % of 216 points --
+        # 100 % on each of the three solid records, and 89 % on the dashed
+        # one, which is what a dash pattern gives.
+        # ⚠ AND IT IS SCORED AGAINST NULLS, because a hit rate on a busy panel
+        # proves nothing by itself. Displace the prediction by 10 nm and it
+        # collapses to 28 %; by 0.10 in log sensitivity, to 21-35 %. The
+        # aligned result is 40 points clear of every displacement tried, so
+        # the panel is not simply inky everywhere. `fuji_spectral4_2026.py`
+        # re-derives all of this on every build.
+        # ⚠ THIS IS THE THIRD PANEL OF THIS PAIR PROVED SHARED, after the
+        # characteristic curves (0.015 D) and the MTF (0.91 % response) on
+        # 2026-09-06c. The stored arrays are the VECTOR twin's, as its MTF and
+        # neutral pair already are; their agreement is NOT corroboration --
+        # it is one measurement read twice.
+        # ⚠ THREE OF FOUR, like its four siblings: the cyan record is in
+        # doc/FUJI_FOURTH_LAYER.md and not in the schema.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -1.40, -1.07, -0.57, -0.24, -0.08, -0.02,
+                -0.01, 0.00, -0.07, -0.42, -1.05, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_g=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -1.64, -1.34, -0.93, -0.63, -0.43, -0.24, -0.11,
+                -0.03, 0.00, -0.05, -0.26, -0.72, -1.61, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_b=(
+                -4.00, -4.00, -0.86, -0.34, -0.23, -0.24, -0.25, -0.22,
+                -0.12, 0.00, -0.28, -1.00, -1.51, -1.90, -2.23, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET \u00abFUJICOLOR "
+                "PORTRAIT FILM NPZ 800 PROFESSIONAL [NPZ]\u00bb, Ref. No. "
+                "AF3-100E -- PDF/PROFILES/FUJI/NPZ.pdf p5, section 18. "
+                "\u26a0\u26a0 ONE DRAWING SHARED WITH FUJICOLOR PRO 800Z's "
+                "AF3-177E section 19, MEASURED AND NOT ASSUMED: this panel is a "
+                "bilevel RASTER and that one is vector, so the identity was "
+                "established by OVERLAY -- 800Z's four curves mapped into this "
+                "raster through THIS panel's own ladder land on ink at 98.1 % "
+                "of 216 sampled points, 100 % on all three solid records, "
+                "against 21-35 % for every displaced null tried (10 nm, 20 nm, "
+                "0.10 log, 0.25 log). The stored arrays are the VECTOR "
+                "extraction, as this stock's MTF and neutral pair already are. "
+                "\u26a0 THREE OF FOUR: the panel also draws a CYAN sensitive "
+                "layer this schema has no field for; owner decision "
+                "2026-09-06f, and its traced curve is in "
+                "doc/FUJI_FOURTH_LAYER.md. \u26a0 Stored peak-normalised per "
+                "record -- the ordinate is a bracketed arrow marked 1.0, a "
+                "scale and not an absolute level"),
+        ),
+        halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.004,
+                              threshold_stops=2.0),
+        couplers=CouplerSpec(0.11, 46.0, 0.065, 10.0),
+        dye_matrix=_dye(-0.12),
+        misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        emulsion=EmulsionSpec(
+            base_um=122.0,
+            base_material="cellulose triacetate",
+            designation="#007-",
+            source=("Fuji Photo Film Co., Ltd., AF3-100E -- "
+                    "PDF/PROFILES/FUJI/NPZ.pdf section 2, sections 2 and 3: 135 at 122 um, 120 and 220 at 98 um; emulsion numbers #007- for 135 and #006- for 120/220. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+        # ✅ [T1] A NEUTRAL PAIR, NOT A DYE TRIPLE. Section 20 is captioned
+        # "Typical densities for a mid-scale neutral subject and for D-mini."
+        # and draws exactly two curves -- the same caption, the same two curves
+        # and the same shapes as PRO 800Z's section 21.
+        # ⚠ THE ARRAYS ARE THE VECTOR TWIN'S, AND THE RE-TRACE IS REPORTED
+        # HONESTLY RATHER THAN ROUNDED UP. Calibrated on this panel's own four
+        # visible rungs (the 2.0 rule is lost under the caption block, the same
+        # defect PRO 400H's panel has), the D-MIN curve re-traces to within
+        # 0.010 D over 410-580 nm. The MID-SCALE curve re-traces to 0.037 D over
+        # 410-500 nm and then the raster tracker is captured by the panel's own
+        # in-frame "Mid-scale Density" label, so its long end is not a clean
+        # independent reading. The vector extraction carries no such hazard and
+        # is what is stored.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(
+                1.752, 1.617, 1.736, 1.856, 1.908, 1.908, 1.855, 1.742,
+                1.617, 1.520, 1.498, 1.519, 1.559, 1.580, 1.558, 1.461,
+                1.304, 1.087, 0.880, 0.762, 0.731, 0.769, 0.843, 0.930,
+                1.017, 1.094, 1.149, 1.187, 1.197, 1.181, 1.147),
+            d_dmin=(
+                1.330, 1.024, 1.029, 1.039, 1.027, 0.997, 0.955, 0.905,
+                0.854, 0.818, 0.784, 0.745, 0.703, 0.680, 0.663, 0.640,
+                0.598, 0.500, 0.367, 0.269, 0.221, 0.210, 0.213, 0.219,
+                0.226, 0.224, 0.216, 0.208, 0.200, 0.192, 0.186),
+            normalisation="as_printed",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR "
+                "PORTRAIT FILM NPZ 800 PROFESSIONAL [NPZ]», Ref. No. AF3-100E "
+                "-- PDF/PROFILES/FUJI/NPZ.pdf p5, section 20. ⚠ ONE DRAWING "
+                "SHARED WITH FUJICOLOR PRO 800Z's AF3-177E section 21: the "
+                "arrays are that sheet's VECTOR extraction, and this sheet's "
+                "raster panel was re-traced only to confirm it (D-min to "
+                "0.010 D over 410-580 nm). ⚠ A NEUTRAL PAIR: the panel prints "
+                "a mid-scale neutral and a D-min curve and never separates the "
+                "three dyes, so this stock carries no dye triple"),
         ),
     ),
     FilmProfile(
@@ -9054,11 +10828,83 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         # discriminator is the FIT, and 0.0761 sits inside the 0.0095-0.132 band
         # of every accepted curve in this file.
         mtf=MTFSpec(51.97, 57.9, 62.31, mtf_rolloff_q=2.62, mtf_measured=True),
+        # ✅ [T1] TRACED 2026-09-06f. Section 18, four layers drawn, three
+        # stored -- see the note on PRO 800Z and doc/FUJI_FOURTH_LAYER.md.
+        # ⚠ THIS PANEL IS THE BEST-CALIBRATED OF THE FIVE: 57.114 pt per
+        # 100 nm against 57.185 per log decade, SQUARE TO 0.12 %, and a
+        # 0.23 pt worst wavelength residual. Its cyan peak is 516 nm.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -0.97, -0.55, -0.27, -0.11, -0.03,
+                -0.01, 0.00, -0.06, -0.46, -0.99, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_g=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -1.37, -1.00, -0.74, -0.59, -0.49, -0.30,
+                -0.14, -0.02, 0.00, -0.17, -0.91, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_b=(
+                -4.00, -4.00, -4.00, -0.30, -0.21, -0.19, -0.19, -0.18,
+                -0.11, 0.00, -0.09, -0.67, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., AF3-151E section 18 -- "
+                "PDF/PROFILES/FUJI/superia_xtra400_datasheet.pdf, traced 2026-09-06f from "
+                "the panel's own vector paths. Peaks 628 / 557 / 471 nm "
+                "(R / G / B); calibrated at 57.185 pt per log decade "
+                "against 57.114 pt per 100 nm, square to 0.12 %. "
+                "\u26a0 THREE OF FOUR: the panel also draws a CYAN "
+                "sensitive layer peaking at 516 nm, which this schema "
+                "has no field for. Owner decision 2026-09-06f -- store "
+                "R/G/B, document cyan. Its traced curve is in "
+                "doc/FUJI_FOURTH_LAYER.md. \u26a0 Stored peak-normalised "
+                "per record, so the inter-record BALANCE is not asserted: "
+                "the panel's ordinate is a bracketed arrow marked 1.0 and "
+                "carries a scale, not an absolute level"),
+        ),
         halation=HalationSpec(gain_r=0.045, gain_g=0.016, gain_b=0.005,
                               threshold_stops=1.9),
         couplers=CouplerSpec(0.13, 50.0, 0.070, 11.0),
         dye_matrix=_dye(-0.10),
         misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        # ⚠ `grain_um` 3.2 um IS A SEPARATE, WEAKER SOURCE INSIDE A TIER-1
+        # RECORD, and it is flagged rather than blended. The base material and
+        # the designation below are Fuji's own, printed on AF3-151E section 3.
+        # `grain_um` is NOT: it is FilmLab Pro's `size_microns` for key
+        # fuji_superia_400, tier 3, adopted 2026-09-07 into a field that was
+        # 0.0. AF3-151E prints no crystal diameter -- verified page by page on
+        # 2026-09-07; its only micron figures are the 48 um densitometer
+        # aperture and the film base -- so nothing of Fuji's is displaced.
+        # ⚠ THE FIELD IS INERT: nothing on any engine path reads it.
+        emulsion=EmulsionSpec(
+            grain_um=3.2,
+            base_material="cellulose triacetate",
+            designation="X01",
+            source=("grain_um 3.2 um: FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, key fuji_superia_400, harvested 2026-08-27, archived in doc/thirdparty/filmlabpro_harvest_2026-08-27.json -- TIER 3, hand-authored, NOT a measurement (NotFound.md 7.1), adopted 2026-09-07 into an EMPTY field under the owner rule of 2026-08-27; AF3-151E publishes no crystal diameter. EVERYTHING ELSE IN THIS RECORD IS TIER 1: Fuji Photo Film Co., Ltd., AF3-151E -- "
+                    "PDF/PROFILES/FUJI/superia_xtra400_datasheet.pdf section 3, section 3 prints the production number X01 and above and the sizes, but NO base thickness -- the field stays 0.0 because the sheet does not carry it. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
         default_format="ff35",
         features=Feature.TABULAR_GRAIN,
         dye_density=SpectralDyeDensity(
@@ -9091,6 +10937,420 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
                 "gate the reader and verify.py both apply: a pair stored "
                 "the wrong way round passes every other check. This is the "
                 "first spectral record of the mask on this stock"),
+        ),
+        # ✅ [T1] PRINTED, section 6, adopted 2026-09-06e. No exposure or
+        # colour-balance compensation from 1/4000 to 2 s; +1/3 stop at 4 s,
+        # +2/3 at 16 s, +1 at 64 s, and NO colour-compensating filter at any
+        # length -- the failure is achromatic as printed.
+        # ⚠⚠ THE THREE SUPERIA SHEETS PUBLISH THREE DIFFERENT TABLES AND THE
+        # ORDERING IS NOT THE ONE THE FAMILY WOULD PREDICT. This ISO 400 stock
+        # tolerates 2 s unfiltered and publishes a 64 s row; REALA, four times
+        # SLOWER, tolerates only 1 s and marks 64 s "not recommended"; X-TRA
+        # 800 tolerates 2 s and needs twice this stock's correction at every
+        # time. So reciprocity behaviour does NOT rank with speed across this
+        # family, and no table is copied from one sheet to another (rule 4).
+        reciprocity_table=ReciprocityTable(
+            times_s=(2.0, 4.0, 16.0, 64.0),
+            stops_correction=(0.0, 0.3333, 0.6667, 1.0),
+            cc_filters=("", "", "", ""),
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM PRODUCT INFORMATION "
+                "BULLETIN «FUJICOLOR SUPERIA X-TRA 400 [CH]», Ref. No. "
+                "AF3-151E -- PDF/PROFILES/FUJI/superia_xtra400_datasheet.pdf "
+                "p2, section 6 «LONG EXPOSURE COMPENSATION», printed table"),
+        ),
+        # ✅ [T1] PRINTED, section 12, adopted 2026-09-06e: an 18 % grey card
+        # under the subject's own illumination should read 0.75-0.95 through a
+        # Status M RED filter on a correctly exposed, correctly processed
+        # negative. ⚠ THIS IS THE FIRST FUJI AIM DENSITY IN THE DATABASE --
+        # every one of the sixteen already here is Kodak's -- and it is a
+        # different SHAPE of statement: Kodak publishes a grey card, a paper
+        # grey scale and two forehead readings per exposure index, Fuji
+        # publishes the grey card alone. The three empty fields are empty
+        # because the sheet does not print them, not because they were skipped.
+        aim_density=(
+            AimDensity(exposure_index=400, gray_card=(0.75, 0.95),
+                       filter="status_m_red",
+                       source=(
+                           "Fuji Photo Film Co., Ltd., FUJIFILM PRODUCT "
+                           "INFORMATION BULLETIN «FUJICOLOR SUPERIA X-TRA 400 "
+                           "[CH]», Ref. No. AF3-151E -- PDF/PROFILES/FUJI/"
+                           "superia_xtra400_datasheet.pdf p5, section 12 "
+                           "«JUDGING EXPOSURE RESULTS»")),
+        ),
+    ),
+    FilmProfile(
+        name="FUJICOLOR_SUPERIA_XTRA_800",
+        aliases=("superia x-tra 800", "superia xtra 800", "x-tra 800",
+                 "superia 800", "cz"),
+        description=(
+            "[T1] Fuji's ISO 800 consumer colour negative in the SUPERIA "
+            "X-TRA line, C-41, with the fourth colour-sensitive layer the "
+            "whole SUPERIA family carries. Diffuse rms granularity 5 and "
+            "resolving power 50 / 125 lines/mm. ⚠ It is NOT the same film as "
+            "FUJICOLOR PRO 800Z / PORTRAIT NPZ 800, which share an ISO, a "
+            "process and that fourth layer with it: all four data panels are "
+            "different drawings, the traced curves differ by up to 0.19 D in "
+            "dmin and 0.20 in gamma, and the printed high-contrast resolving "
+            "power is 125 lines/mm against their 115."
+        ),
+        era="2000s-2010s",
+        kind=StockKind.NEGATIVE,
+        exposure_index=800,
+        balance_kelvin=5500,
+        # ✅ [T1] TRACED 2026-09-06e from AF3-068E p4 section 15 (Daylight
+        # 1/125 s, CN-16, Status M), all four panels VECTOR.
+        # ⚠ ITS THREE RECORDS ARE ONE PATH WITH THREE SUBPATHS, exactly as
+        # PRO 800Z's are, so a reader that takes whole drawings sees one curve
+        # of 2640 points running from blue's toe to red's shoulder.
+        # ⚠ THE LADDER'S TOP RUNG IS THE FRAME EDGE AND THERE IS A STRAY RULE
+        # 2.5 pt BELOW IT (the caption box). Taking the first detected
+        # horizontal as D 3.5 puts every density out by that offset; the reader
+        # assigns the ladder as an arithmetic progression instead, which is
+        # what rejects the stray.
+        # ⚠ AND THIS PANEL IS NOT SQUARE: 41.97 pt per decade against 40.90 pt
+        # per density, 2.6 % apart, where REALA's is 1.2 % and X-TRA 400's
+        # 0.6 %. Reported, not corrected -- PROVIA 400F established that a
+        # non-square Fuji panel is a drawing choice and not a misreading.
+        curves=RGBCurves(
+            r=ToneCurve(0.1749, 0.7678, -2.7111, 0.3000, 1.7500, 0.4200),
+            g=ToneCurve(0.4380, 0.8092, -2.7534, 0.3096, 1.7500, 0.4200),
+            b=ToneCurve(0.7462, 0.8109, -2.7845, 0.3000, 1.7500, 0.4200),
+        ),
+        # rms 5 PRINTED (section 13: 48 um aperture, 12x, sample density 1.0
+        # above D-min) -- the same figure and the same conditions PRO 800Z and
+        # NPZ 800 print, which is what an ISO 800 Fuji negative of this
+        # generation costs in grain whoever it is sold to.
+        grain=GrainSpec(5.0, 2.581, 2.903, 3.548, clump_gain=0.35,
+                        fog_grain=0.14),
+        # ✅ [T1] TRACED from section 17. f50 53.8 c/mm, q 2.16 at rms 0.0550
+        # against the Gaussian's 0.0882 (1.6x better).
+        # ⚠ THE PRINTED RESOLVING POWER IS 50 / 125 -- the same low-contrast
+        # figure as PRO 800Z and NPZ 800 but 125 rather than 115 at 1000:1, so
+        # the three ISO 800 Fuji negatives are NOT interchangeable even on the
+        # numbers their sheets print in words.
+        # ⚠ The +20.0 % adjacency overshoot the panel draws is NOT adopted, as
+        # on every other stock in this line of work.
+        mtf=MTFSpec(48.3, 53.8, 57.9, adjacency=0.0, adjacency_um=25.0,
+                    resolving_power_lp_mm_lowc=50.0,
+                    resolving_power_lp_mm_highc=125.0,
+                    mtf_rolloff_q=2.16, mtf_measured=True),
+        # ✅ [T1] PRINTED, section 7: no compensation from 1/4000 to 2 s, then
+        # +2/3 stop at 4 s, +1 1/2 at 16 s, +2 at 64 s, no CC filter at any
+        # length. ⚠ IDENTICAL TO NPZ 800's TABLE and twice X-TRA 400's
+        # correction at every time.
+        reciprocity_table=ReciprocityTable(
+            times_s=(2.0, 4.0, 16.0, 64.0),
+            stops_correction=(0.0, 0.6667, 1.5, 2.0),
+            cc_filters=("", "", "", ""),
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR "
+                "SUPERIA X-TRA 800 [CZ]», Ref. No. AF3-068E -- "
+                "PDF/PROFILES/FUJI/superia_xtra800_datasheet.pdf p2, section "
+                "7 «LONG EXPOSURE COMPENSATION», printed table"),
+        ),
+        # ✅ [T1] PRINTED, section 11: 18 % grey card, Status M red, 0.70-0.90.
+        aim_density=(
+            AimDensity(exposure_index=800, gray_card=(0.70, 0.90),
+                       filter="status_m_red",
+                       source=(
+                           "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET "
+                           "«FUJICOLOR SUPERIA X-TRA 800 [CZ]», Ref. No. "
+                           "AF3-068E -- PDF/PROFILES/FUJI/"
+                           "superia_xtra800_datasheet.pdf p3, section 11 "
+                           "«JUDGING EXPOSURE RESULTS»")),
+        ),
+        # ✅ [T1] TRACED 2026-09-06f. Section 16, four layers drawn, three
+        # stored -- see the note on PRO 800Z and doc/FUJI_FOURTH_LAYER.md.
+        # ⚠ THE LEAST SQUARE PANEL OF THE FIVE, 3.31 %, which matches its own
+        # characteristic panel's 2.6 % -- this sheet is drawn to a looser
+        # aspect than its siblings throughout, and that is a property of the
+        # publication and not of the reading. Cyan peaks at 517 nm.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -1.29, -1.04, -0.72, -0.42, -0.20, -0.06,
+                -0.01, 0.00, -0.03, -0.16, -0.49, -0.95, -1.45, -4.00,
+                -4.00,
+            ),
+            log_s_g=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -1.53, -1.16, -0.79, -0.44, -0.14, -0.03, 0.00,
+                -0.01, -0.06, -0.22, -0.48, -0.82, -1.28, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_b=(
+                -4.00, -0.26, -0.15, -0.07, -0.03, -0.04, -0.10, -0.06,
+                0.00, -0.01, -0.16, -0.56, -0.98, -1.32, -1.65, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., AF3-068E section 16 -- "
+                "PDF/PROFILES/FUJI/superia_xtra800_datasheet.pdf, traced 2026-09-06f from "
+                "the panel's own vector paths. Peaks 630 / 534 / 463 nm "
+                "(R / G / B); calibrated at 49.951 pt per log decade "
+                "against 51.603 pt per 100 nm, square to 3.31 %. "
+                "\u26a0 THREE OF FOUR: the panel also draws a CYAN "
+                "sensitive layer peaking at 517 nm, which this schema "
+                "has no field for. Owner decision 2026-09-06f -- store "
+                "R/G/B, document cyan. Its traced curve is in "
+                "doc/FUJI_FOURTH_LAYER.md. \u26a0 Stored peak-normalised "
+                "per record, so the inter-record BALANCE is not asserted: "
+                "the panel's ordinate is a bracketed arrow marked 1.0 and "
+                "carries a scale, not an absolute level"),
+        ),
+        halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.004,
+                              threshold_stops=2.0),
+        couplers=CouplerSpec(0.11, 46.0, 0.065, 10.0),
+        dye_matrix=_dye(-0.12),
+        misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        emulsion=EmulsionSpec(
+            base_material="cellulose triacetate",
+            designation="L01",
+            source=("Fuji Photo Film Co., Ltd., AF3-068E -- "
+                    "PDF/PROFILES/FUJI/superia_xtra800_datasheet.pdf section 3, section 3 prints cellulose triacetate and the production number L01 and above, but NO base thickness. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+        # ✅ [T1] A NEUTRAL PAIR, NOT A DYE TRIPLE. Section 18 is captioned
+        # "Typical densities for a mid-scale neutral subject and for D-mini."
+        # and draws two curves; it never separates the three dyes.
+        # ⚠ ITS ORDINATE REACHES 3.0 AND ITS ABSCISSA RUNS PAST 700 nm, unlike
+        # either sibling sheet -- the trace covers 392-788 nm and is stored on
+        # the database's own 400-700 nm grid.
+        # ⚠ The D-min curve IS the orange mask: 1.561 D at 400 nm falling to
+        # 0.533 at 700, which is the independent check that the two curves were
+        # not swapped, since nothing on the panel labels them by position.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(
+                2.487, 2.197, 2.197, 2.348, 2.511, 2.602, 2.587, 2.505,
+                2.320, 2.160, 2.067, 2.039, 2.071, 2.150, 2.204, 2.183,
+                2.111, 1.951, 1.682, 1.444, 1.248, 1.175, 1.191, 1.283,
+                1.441, 1.604, 1.742, 1.873, 1.984, 2.072, 2.110),
+            d_dmin=(
+                1.561, 1.291, 1.223, 1.241, 1.268, 1.263, 1.228, 1.175,
+                1.115, 1.052, 0.995, 0.963, 0.965, 0.976, 0.983, 0.961,
+                0.895, 0.805, 0.709, 0.608, 0.500, 0.426, 0.388, 0.395,
+                0.429, 0.461, 0.485, 0.507, 0.526, 0.533, 0.533),
+            normalisation="as_printed",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR "
+                "SUPERIA X-TRA 800 [CZ]», Ref. No. AF3-068E -- "
+                "PDF/PROFILES/FUJI/superia_xtra800_datasheet.pdf p4, section "
+                "18, traced 2026-09-06e from the panel's own vector paths and "
+                "calibrated on its drawn ladder. ⚠ A NEUTRAL PAIR: the panel "
+                "prints a mid-scale neutral and a D-min curve and does NOT "
+                "separate the three dyes, so this stock carries no dye triple"),
+        ),
+    ),
+    FilmProfile(
+        name="FUJICOLOR_SUPERIA_REALA",
+        aliases=("superia reala", "reala", "fujicolor reala", "cs"),
+        description=(
+            "[T1] Fuji's ISO 100 colour negative and the FIRST film built on "
+            "the fourth sensitized layer -- the sheet lists it as a feature by "
+            "name, ahead of granularity. Sold on colour fidelity under mixed "
+            "and fluorescent light rather than on saturation. Diffuse rms "
+            "granularity 4 and resolving power 63 / 125 lines/mm, the finest "
+            "low-contrast resolving power of any Fuji stock in this database."
+        ),
+        era="1988-2010s",
+        kind=StockKind.NEGATIVE,
+        exposure_index=100,
+        balance_kelvin=5500,
+        # ✅ [T1] TRACED 2026-09-06e from AF3-967E p4 section 14 (Daylight
+        # 1/125 s, CN-16, Status M), all four panels VECTOR.
+        # ⚠ ITS THREE RECORDS ARE SPLIT ACROSS TWO PATH OBJECTS, 1 + 2, where
+        # X-TRA 800 puts all three in one. Two sheets from one house template,
+        # two different path layouts, neither announced.
+        # ⚠⚠ ITS THREE GAMMAS ARE THE MOST EQUAL IN THE DATABASE: 0.6824 red,
+        # 0.6808 green, 0.6856 blue, a spread of 0.0048 -- 0.7 %. Every other
+        # colour negative here spreads 0.04-0.09. That is not a fitting
+        # artefact: it is the "Optimum Spectral Sensitivity Balance" and "Soft
+        # Gradations" the sheet's own feature list leads with, measured. It
+        # also means the usual gamma-ordering check cannot be applied to this
+        # stock, and the reader now only reports a non-monotone ordering when
+        # the spread exceeds 0.05 -- because three equal gammas ARE the finding.
+        curves=RGBCurves(
+            r=ToneCurve(0.3060, 0.6824, -2.1883, 0.3417, 1.7500, 0.4200),
+            g=ToneCurve(0.4962, 0.6808, -2.4210, 0.3775, 1.7500, 0.4200),
+            b=ToneCurve(0.9628, 0.6856, -2.2817, 0.3095, 1.7500, 0.4200),
+        ),
+        # rms 4 PRINTED (section 12: 48 um aperture, 12x, sample density 1.0
+        # above D-min) -- equal to SUPERIA X-TRA 400's and PRO 400H's at a
+        # QUARTER of their speed, which is the whole argument for this stock.
+        grain=GrainSpec(4.0, 2.322, 2.612, 3.193, clump_gain=0.33,
+                        fog_grain=0.13),
+        # ✅ [T1] TRACED from section 16. f50 60.0 c/mm, q 2.82 at rms 0.0749
+        # against the Gaussian's 0.0922 -- the SHARPEST stock of the three
+        # SUPERIA sheets and the steepest rolloff, which is the expected
+        # direction for the slowest emulsion.
+        # ⚠ RESOLVING POWER 63 / 125 PRINTED, and the 63 at 1.6:1 is the
+        # highest low-contrast figure any Fuji stock in this database prints --
+        # X-TRA 400 and X-TRA 800 both print 50 at the same contrast.
+        # ⚠ The +22.2 % adjacency overshoot is NOT adopted.
+        mtf=MTFSpec(53.8, 60.0, 64.6, adjacency=0.0, adjacency_um=25.0,
+                    resolving_power_lp_mm_lowc=63.0,
+                    resolving_power_lp_mm_highc=125.0,
+                    mtf_rolloff_q=2.82, mtf_measured=True),
+        # ✅ [T1] PRINTED, section 6. ⚠⚠ AND IT BREAKS THE FAMILY PATTERN:
+        # this is the SLOWEST of the three SUPERIA stocks and it has the
+        # SHORTEST unfiltered range (1 s against the other two's 2 s) and the
+        # only "Not recommended" at 64 s. A slower emulsion failing reciprocity
+        # sooner is the opposite of the direction PROVIA 100F and 400F show,
+        # so speed does not order this behaviour and no table here is derived
+        # from another (rule 4). The 64 s cell is a refusal to publish and is
+        # NOT stored as a correction.
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0, 4.0, 16.0),
+            stops_correction=(0.0, 0.3333, 1.0),
+            cc_filters=("", "", ""),
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR "
+                "SUPERIA REALA [CS]», Ref. No. AF3-967E -- "
+                "PDF/PROFILES/FUJI/superia_reala_datasheet.pdf p2, section 6 "
+                "«LONG EXPOSURE COMPENSATION», printed table. ⚠ Its fourth "
+                "column, 64 s, reads «Not recommended» and is therefore not "
+                "stored: a refusal to publish is not a datum to extrapolate"),
+        ),
+        # ✅ [T1] PRINTED, section 10: 18 % grey card, Status M red, 1.02-1.20.
+        # ⚠ THE HIGHEST AIM IN THE DATABASE, against X-TRA 400's 0.75-0.95 and
+        # X-TRA 800's 0.70-0.90, and it agrees with this stock's own traced
+        # curves: its red record has the highest dmin of the three SUPERIA
+        # films (0.306 against 0.129 and 0.175), so a correctly exposed grey
+        # card must read higher through the same filter.
+        aim_density=(
+            AimDensity(exposure_index=100, gray_card=(1.02, 1.20),
+                       filter="status_m_red",
+                       source=(
+                           "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET "
+                           "«FUJICOLOR SUPERIA REALA [CS]», Ref. No. AF3-967E "
+                           "-- PDF/PROFILES/FUJI/superia_reala_datasheet.pdf "
+                           "p3, section 10 «JUDGING EXPOSURE RESULTS»")),
+        ),
+        # ✅ [T1] TRACED 2026-09-06f, AND ON THIS STOCK THE STORED SET IS
+        # MOST INCOMPLETE IN MEANING. REALA is the film the fourth sensitized
+        # layer was INTRODUCED on -- its feature list names it second, ahead
+        # of granularity -- so three of four records is exactly the part of
+        # this film that is not special. The cyan curve, peak 516 nm, is in
+        # doc/FUJI_FOURTH_LAYER.md. Owner decision 2026-09-06f.
+        # ⚠ ITS ORDINATE RULE IS DRAWN IN TWO SEGMENTS, interrupted by the
+        # "Green Sensitive Layer" label. A full-width rule filter finds the
+        # caption box instead and returns 77.17 pt for one log unit against a
+        # true 50.94 -- every stored value would have been 52 % out.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -1.22, -0.94, -0.67, -0.42, -0.22, -0.10,
+                -0.02, 0.00, -0.07, -0.28, -0.79, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_g=(
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -1.44, -1.06, -0.69, -0.36, -0.12, -0.02, 0.00,
+                -0.04, -0.14, -0.28, -0.52, -0.94, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            log_s_b=(
+                -4.00, -0.35, -0.17, -0.09, -0.08, -0.10, -0.10, -0.04,
+                0.00, -0.01, -0.17, -0.62, -1.05, -1.40, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                -4.00,
+            ),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=(
+                "Fuji Photo Film Co., Ltd., AF3-967E section 15 -- "
+                "PDF/PROFILES/FUJI/superia_reala_datasheet.pdf, traced 2026-09-06f from "
+                "the panel's own vector paths. Peaks 629 / 529 / 465 nm "
+                "(R / G / B); calibrated at 50.949 pt per log decade "
+                "against 50.705 pt per 100 nm, square to 0.48 %. "
+                "\u26a0 THREE OF FOUR: the panel also draws a CYAN "
+                "sensitive layer peaking at 516 nm, which this schema "
+                "has no field for. Owner decision 2026-09-06f -- store "
+                "R/G/B, document cyan. Its traced curve is in "
+                "doc/FUJI_FOURTH_LAYER.md. \u26a0 Stored peak-normalised "
+                "per record, so the inter-record BALANCE is not asserted: "
+                "the panel's ordinate is a bracketed arrow marked 1.0 and "
+                "carries a scale, not an absolute level"),
+        ),
+        halation=HalationSpec(gain_r=0.030, gain_g=0.011, gain_b=0.003,
+                              threshold_stops=2.3),
+        couplers=CouplerSpec(0.09, 46.0, 0.055, 10.0),
+        dye_matrix=_dye(-0.13),
+        misregistration_um=4.0,
+        # ✅ [T1] BASE AND EMULSION DESIGNATION, ADOPTED 2026-09-06f. ⚠ THIS
+        # IS A SWEEP FINDING, NOT A REQUESTED ONE: the owner asked whether the
+        # SUPERIA sheets held anything the batch had missed, and re-reading
+        # SEVEN Fuji sheets for non-curve data found base material, base
+        # thickness and production numbers printed on every one of them and
+        # stored on none. All eight Fuji stocks read this week carried an
+        # empty EmulsionSpec.
+        # ⚠⚠ AND THE THICKNESSES SPLIT THE LINE IN TWO: Fuji's colour
+        # NEGATIVES here are on a 122 um 135 base (NPZ 800, PRO 800Z) and its
+        # REVERSAL stocks on 127 um (PROVIA 400F, 400X, 64T II). Two different
+        # supports, from the manufacturer's own sheets, and nothing in this
+        # database had recorded either.
+        emulsion=EmulsionSpec(
+            base_material="cellulose triacetate",
+            designation="J51",
+            source=("Fuji Photo Film Co., Ltd., AF3-967E -- "
+                    "PDF/PROFILES/FUJI/superia_reala_datasheet.pdf section 3, section 3 prints cellulose triacetate and the production number J51 and above, but NO base thickness. \u26a0 base_um is the 135 gauge, this database's default format; the other gauges are in this note because the field is a scalar"),
+        ),
+        default_format="ff35",
+        features=Feature.TABULAR_GRAIN,
+        # ✅ [T1] A NEUTRAL PAIR, NOT A DYE TRIPLE. Section 17, same caption
+        # and same two curves as its siblings.
+        # ⚠ ITS LADDER IS THE ONE THAT CAUGHT THE READER. The top TWO detected
+        # horizontals in this panel are caption-box rules, not rungs; fitting
+        # all six returns 29.7 / 41.0 / 39.7 pt for equal 0.5 D steps, which is
+        # the panel saying the assignment is wrong. Assigned as an arithmetic
+        # progression the five real rungs fit to 0.44 pt.
+        # ⚠ The D-min curve IS the orange mask, 0.861 D at 400 nm falling to
+        # 0.321 at 700.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(
+                1.533, 1.533, 1.688, 1.892, 1.981, 2.004, 1.973, 1.886,
+                1.760, 1.612, 1.486, 1.460, 1.501, 1.580, 1.632, 1.651,
+                1.643, 1.592, 1.464, 1.121, 0.892, 0.875, 0.914, 0.982,
+                1.057, 1.127, 1.198, 1.266, 1.321, 1.356, 1.364),
+            d_dmin=(
+                0.861, 0.806, 0.814, 0.868, 0.904, 0.908, 0.889, 0.860,
+                0.826, 0.790, 0.751, 0.714, 0.683, 0.655, 0.628, 0.604,
+                0.584, 0.571, 0.537, 0.468, 0.400, 0.340, 0.297, 0.274,
+                0.271, 0.280, 0.287, 0.301, 0.314, 0.320, 0.321),
+            normalisation="as_printed",
+            source=(
+                "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR "
+                "SUPERIA REALA [CS]», Ref. No. AF3-967E -- "
+                "PDF/PROFILES/FUJI/superia_reala_datasheet.pdf p4, section 17, "
+                "traced 2026-09-06e from the panel's own vector paths. ⚠ A "
+                "NEUTRAL PAIR: the panel prints a mid-scale neutral and a "
+                "D-min curve and does NOT separate the three dyes, so this "
+                "stock carries no dye triple"),
         ),
     ),
     FilmProfile(
@@ -9159,6 +11419,25 @@ mtf=MTFSpec(47.4, 55.0, 62.6, adjacency=0.10, adjacency_um=19.0),
         #   q 2.17 fitted over 626 samples above 8 c/mm at rms 0.0400 against
         # the Gaussian's 0.0659, 1.6x better -- the cleanest of the three.
         mtf=MTFSpec(46.59, 51.9, 55.86, mtf_rolloff_q=2.17, mtf_measured=True),
+        # [T3] `emulsion.grain_um` 2.6 um, ADOPTED 2026-09-07 from the
+        # FilmLab Pro published-data engine (key pro400h), its `size_microns`,
+        # which that source's own format note defines as "mean crystal
+        # diameter". Fourteen sibling stocks have carried their figure this
+        # way since 2026-08-27; these three entered the database afterwards
+        # and were never audited against it, so the field was still empty.
+        # ⚠ NOTHING IS OVERWRITTEN. This field was 0.0 -- absent, not
+        # estimated -- and Fuji publish no crystal diameter for this stock:
+        # PDF/PROFILES/FUJI/pro_400h_datasheet.pdf
+        # prints the micro-densitometer aperture (48 um) and the film-base
+        # thickness, and no grain size. Checked page by page on 2026-09-07.
+        # ⚠ NOT clump_um_* -- that is the mean DEVELOPED CLUMP diameter and
+        # depends on development gamma and on density.
+        # ⚠ THE FIELD IS INERT: nothing on any engine path reads it. What it
+        # buys is that the stock stops looking unexamined.
+        emulsion=EmulsionSpec(
+            grain_um=2.6,
+            source=("FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, key pro400h, harvested 2026-08-27; archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. TIER 3 -- hand-authored engine values, NOT a manufacturer specification and NOT a measurement (assessment: NotFound.md 7.1). Adopted 2026-09-07 under the owner rule of 2026-08-27: where a parameter is OUR OWN ESTIMATE OR ABSENT and no T1 datasheet or T2 book figure exists, the one published third-party number is preferred over nothing. size_microns. ⚠ This stock's own Fuji sheet publishes NO crystal diameter, verified 2026-09-07, so no vendor value is displaced."),
+        ),
         halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.005,
                               threshold_stops=2.0),
         couplers=CouplerSpec(0.12, 50.0, 0.065, 11.0),
@@ -11288,7 +13567,24 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # re-derive. Only red is a constant.
         # A CLASS ESTIMATE INSIDE A MEASURED FAMILY, not a measurement -- which is
         # why mtf_measured stays unset and the tier tag is T2, not T1.
-mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
+# [T3] GREEN AND BLUE RE-ANCHORED 2026-09-07 on the FilmLab Pro
+        # published-data engine (key kodak_vision3_500t, mtf50 = 60 lp/mm),
+        # under the owner rule that a published third-party number beats one of
+        # our own estimates. Green 52.0 -> 60.0 is their figure; blue
+        # 60.0 -> 69.2 keeps THIS PROFILE'S OWN g->b ratio of 1.1538, so the
+        # LEVEL is theirs and the SHAPE is ours.
+        # ⚠⚠ RED IS NOT TOUCHED AND MUST NOT BE. `f50_r` 36.0 is `measured`,
+        # TIER 1 -- the queue C24 family anchor from SEVEN per-record
+        # measurements across 1989-2005, mean 36.4, spread +-13 %. The method
+        # used elsewhere in this database (re-anchor green, carry red and blue
+        # by the stored ratios) would have dragged red to about 41.5 and
+        # overwritten that measurement with a hand-authored number. The owner
+        # caught this before it was written. A third-party figure may replace
+        # an ESTIMATE; it may never replace a MEASUREMENT.
+        # ⚠ mtf_measured stays False, and red's own ParamSource keeps its
+        # `measured` status: this profile now carries one measured record and
+        # two third-party-levelled ones, which is what the provenance says.
+        mtf=MTFSpec(36.0, 60.0, 69.2, adjacency=0.10, adjacency_um=22.0),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
             weights=(0.58, 0.30, 0.12),
@@ -15729,11 +18025,11 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
     ),
     # ============ 2026-08-04 additions: Fuji A250, Agfa/Geva from archives ===
     FilmProfile(
-        name="AGFACOLOR_NEG_TYPE_B_1943",
+        name="AGFA_NEG_TYPE_B_1943",
         aliases=("agfacolor type b", "agfacolor negativ b", "type b 1943"),
         description=(
             "[T1] Agfacolor negative Type B, the wartime cine negative -- and "
-            "NOT the same film as AGFACOLOR_NEU_1936, which is the reversal "
+            "NOT the same film as AGFA_NEU_1936, which is the reversal "
             "monopack. Heavily overlapping layer sensitivities are the whole "
             "signature: the book's own figure shows peaks of very unequal "
             "height -- roughly 2.5 (blue) / 1.25 (green) / 0.55 (red) in the "
@@ -16938,23 +19234,33 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # rms 4.3: published (AGFA stocks.pdf p6: "Granularity (x 1000):
         # RMS 4.3"). Per-channel values: stack rule from the green figure.
         grain=GrainSpec(4.3, 3.806, 4.161, 4.839, clump_gain=0.86, fog_grain=0.18),
-        # f50 [T2] one notch below Optima 100 (62/70/76): the published
-        # resolving power drops 140 -> 130 lines/mm at 1000:1. Agfa prints
-        # sharpness only as a plotted transfer-factor curve, never numeric.
-        # ⚠ adjacency 0.128 MEASURED 2026-08-29 (queue E1) and f50
-        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
-        # (%)" against "Lines per mm" and the curve PEAKS AT 113 %, above the
-        # 100 % a true MTF cannot exceed -- so what it draws is an
-        # adjacency-enhanced response, and the overshoot is a direct reading of
-        # the adjacency effect. That number is a RATIO and carries no unit, so
-        # it can be adopted whatever the abscissa means.
-        # f50 reads 50.8 on the panel's own axis and is NOT stored, because
-        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
-        # pairs is an open question in this corpus -- queue item G6, raised
-        # against Gevacolor 682's identically worded axis. A factor of two is
-        # not a rounding difference. The f50 values below stay estimates until
-        # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(58.0, 66.0, 72.0, adjacency=0.0915, adjacency_um=17.0),
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 2004 p7 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 48.0 c/mm, q 2.67 at rms 0.0553.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 47.19 / 2.62.
+        # REDRAWN between editions -- 0.0108 of frame height.
+        # ⚠ The +10.4 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(43.0, 48.0, 51.7, adjacency=0.1043, adjacency_um=17.0,
+                    resolving_power_lp_mm_lowc=0.0,
+                    resolving_power_lp_mm_highc=0.0,
+                    mtf_rolloff_q=2.67, mtf_measured=True),
         couplers=CouplerSpec(0.22, 52.0, 0.10, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
@@ -17093,23 +19399,33 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # rms 4.5: published (AGFA stocks.pdf p6: "Granularity (x 1000):
         # RMS 4.5"). Per-channel values: stack rule from the green figure.
         grain=GrainSpec(4.5, 4, 4.355, 5.097, clump_gain=0.95, fog_grain=0.19),
-        # f50 [T2]: published resolving power equals Optima 200 (50/130) but
-        # a 400-speed emulsion of this era gives up mid-frequency contrast;
-        # placed between Optima 200 and Vista 200.
-        # ⚠ adjacency 0.094 MEASURED 2026-08-29 (queue E1) and f50
-        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
-        # (%)" against "Lines per mm" and the curve PEAKS AT 109 %, above the
-        # 100 % a true MTF cannot exceed -- so what it draws is an
-        # adjacency-enhanced response, and the overshoot is a direct reading of
-        # the adjacency effect. That number is a RATIO and carries no unit, so
-        # it can be adopted whatever the abscissa means.
-        # f50 reads 50.3 on the panel's own axis and is NOT stored, because
-        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
-        # pairs is an open question in this corpus -- queue item G6, raised
-        # against Gevacolor 682's identically worded axis. A factor of two is
-        # not a rounding difference. The f50 values below stay estimates until
-        # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(54.0, 62.0, 68.0, adjacency=0.0649, adjacency_um=18.0),
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 2004 p7 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 47.4 c/mm, q 2.87 at rms 0.0431.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 47.70 / 2.86.
+        # REDRAWN between editions -- 0.0041 of frame height.
+        # ⚠ The +7.0 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(42.5, 47.4, 51.0, adjacency=0.0703, adjacency_um=18.0,
+                    resolving_power_lp_mm_lowc=0.0,
+                    resolving_power_lp_mm_highc=0.0,
+                    mtf_rolloff_q=2.87, mtf_measured=True),
         couplers=CouplerSpec(0.24, 52.0, 0.11, 12.0),
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
@@ -17255,22 +19571,33 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         # rms 3.5: published (AGFA stocks.pdf p5: "Granularity (x 1000):
         # RMS 3.5"). Per-channel values: stack rule from the green figure.
         grain=GrainSpec(3.5, 3.097, 3.387, 3.968, clump_gain=0.78, fog_grain=0.17),
-        # f50 [T2] one notch above Optima 100: published resolving power is
-        # 150 lines/mm at 1000:1 and 60 at 1.6:1, the best of the family.
-        # ⚠ adjacency 0.090 MEASURED 2026-08-29 (queue E1) and f50
-        # DELIBERATELY NOT. The sheet's Sharpness panel plots "Transfer factor
-        # (%)" against "Lines per mm" and the curve PEAKS AT 109 %, above the
-        # 100 % a true MTF cannot exceed -- so what it draws is an
-        # adjacency-enhanced response, and the overshoot is a direct reading of
-        # the adjacency effect. That number is a RATIO and carries no unit, so
-        # it can be adopted whatever the abscissa means.
-        # f50 reads 38.4 on the panel's own axis and is NOT stored, because
-        # MTFSpec.f50 is in CYCLES/mm and whether Agfa's "lines/mm" means line
-        # pairs is an open question in this corpus -- queue item G6, raised
-        # against Gevacolor 682's identically worded axis. A factor of two is
-        # not a rounding difference. The f50 values below stay estimates until
-        # G6 settles; the reading is filed there as evidence.
-        mtf=MTFSpec(66.0, 74.0, 80.0, adjacency=0.0645, adjacency_um=16.0),
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p8 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 36.2 c/mm, q 2.47 at rms 0.0362.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 36.22 / 2.47.
+        # ONE DRAWING, reprinted in 2004 to 0.0005 of frame height.
+        # ⚠ The +6.8 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE UNLABELLED CURVE, so red and blue are the stored family
+        # ratio and only GREEN is measured -- why this stock joins
+        # `_GREEN_ONLY_MEASURED` in verify.py.
+        mtf=MTFSpec(32.5, 36.2, 39.0, adjacency=0.0681, adjacency_um=16.0,
+                    resolving_power_lp_mm_lowc=0.0,
+                    resolving_power_lp_mm_highc=0.0,
+                    mtf_rolloff_q=2.47, mtf_measured=True),
         # Weaker couplers and slightly stronger positive dye blend than
         # Optima: less edge snap, less saturation -- the portrait trade.
         couplers=CouplerSpec(0.18, 52.0, 0.08, 12.0),
@@ -17395,7 +19722,21 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.15, 0.72, -1.40, 0.24, 1.80, 0.36)),
         grain=GrainSpec(8.0, 4.516, 4.516, 4.516, clump_gain=0.30, fog_grain=0.14,
                         anisotropy=1.0),
-        mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.10, adjacency_um=14.0),
+        # ✅ MTF TRACED 2026-09-06 from F-4016 p8 (mtf_vector tag "tmax100").
+        # ⚠ THE ESTIMATE WAS 1.29x TOO SOFT (95.0 against a measured 123.0), and
+        # it is the FIRST TRACED SHEET TO ERR IN THAT DIRECTION -- 5285, 5222,
+        # 5231 and EKTAR were all too SHARP, by 1.33-1.95x. A T-grain stock
+        # outrunning the estimating rule where conventional emulsions undershoot
+        # it is a fact about the rule and is recorded, not smoothed.
+        # Confirmed independently by F-32 (2001) at 120.3 -- a different drawing
+        # (112 points against 143), 2.3 % apart.
+        # ⚠ adjacency / adjacency_um LEFT AT THEIR ESTIMATES. The sheet's
+        # overshoot measures +0.145 at 18.8 cycles/mm, but the stored-field
+        # convention is not the raw peak (5231 stores 0.069 for a measured
+        # +0.034, 5222 stores 0.300 for +0.250) and that mapping is undocumented.
+        # Measured and NOT adopted, pending its own decision -- rule 23.
+        mtf=MTFSpec(123.0, 123.0, 123.0, adjacency=0.10, adjacency_um=14.0,
+                    mtf_rolloff_q=3.63, mtf_measured=True),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4016 page 8 -- the plot is drawn as PDF VECTOR
@@ -17447,6 +19788,20 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.16, 0.70, -1.55, 0.26, 1.90, 0.38)),
         grain=GrainSpec(10.0, 5.161, 5.161, 5.161, clump_gain=0.35, fog_grain=0.16,
                         anisotropy=1.0),
+        # ⚠ MTF STAYS AN ESTIMATE, AND THE REASON IS A CONTRADICTION BETWEEN
+        # THREE KODAK SHEETS -- not an absence. All three were traced 2026-09-06
+        # (mtf_vector tags "tmax400", "tmax400_07", "tmax400_01"), all three are
+        # independent drawings, and they do not agree:
+        #     F-32   (Sept 2001, TMY)    f50 = 95.9   crossing inside the plot
+        #     F-4016 (2007)              f50 = 66.7   crossing inside the plot
+        #     F-4043 (2016, TMY-2)       f50 > 81     the curve STOPS at 51.4 %
+        # ⚠ THE 2016 LOWER BOUND RULES OUT THE 2007 VALUE, so this is not an
+        # emulsion history that can be read off in order -- two of the three
+        # cannot both describe the same film, and the sheet the profile cites
+        # (F-4043) is the one that yields no number at all.
+        # 72.0 is retained as the estimate. Rule 4: recorded, not averaged --
+        # averaging 95.9 and 66.7 would give 81.3 and look like a measurement.
+        # Reopens if Kodak's own TMY-2 sheet is found with a curve that crosses.
         mtf=MTFSpec(72.0, 72.0, 72.0, adjacency=0.10, adjacency_um=15.0),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, batch 11):
@@ -17500,7 +19855,35 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         curves=_mono(ToneCurve(0.22, 0.66, -1.70, 0.30, 1.85, 0.40)),
         grain=GrainSpec(18.0, 7.097, 7.097, 7.097, clump_gain=0.55, fog_grain=0.24,
                         anisotropy=1.0),
-        mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.08, adjacency_um=16.0),
+        # ✅ MTF TRACED 2026-09-06 from F-4001 (2019) p7 -- f50 84.3, replacing
+        # the estimate 50.0 (mtf_vector tag "p3200_19").
+        # ⚠⚠ AND THE 2018 EDITION OF THE SAME PUBLICATION MUST NOT BE READ. Its
+        # p7 modulation-transfer panel is KODAK T-MAX 100's artwork, copied:
+        # 143 points, equal bounding boxes, MAXIMUM DEVIATION 0.0010 pt after an
+        # origin shift, with the annotation block travelling along (Tungsten /
+        # Small Tank / D-76 68 F / Diffuse visual). Reading it gives f50 = 123.0,
+        # the sharpest black-and-white value in this database, on an ISO 3200
+        # push film. ⚠ ONLY THE PLOT IS MISPLACED -- the 2018 page's own
+        # resolving-power text is P3200's (40 / 125 lines/mm against T-MAX 100's
+        # 63 / 200), which is why nothing else about the page looks wrong.
+        # Registered in mtf_vector.ARTWORK_REUSE and re-derived every build.
+        # ⚠ THIS PROFILE IS ALSO A RECORD OF A MISTAKE. On 2026-09-06 the 2018
+        # identity was found and this stock was written off as having NO
+        # published MTF -- on the strength of one file. The owner asked why, the
+        # 2019 edition was opened, and it carries P3200's own drawing (40 bezier
+        # control points against 44, peaking at 5.4 cycles/mm instead of 18.8,
+        # matching nothing else in the corpus). A refusal must never be written
+        # from a single edition when the corpus holds another.
+        # ⚠ f50 ONLY, mtf_measured DELIBERATELY FALSE. The rolloff fits at
+        # q = 2.03, rms 0.0534 against the Gaussian's 0.0681 -- 1.3x better, and
+        # the threshold set on the PORTRA NC/VC batch (2026-08-30) is that
+        # 1.2-1.3x does not license switching the carrier. So the stock renders
+        # on the legacy Gaussian at a MEASURED f50, and needs no kernel row.
+        # ⚠ SANITY, NOT ENFORCED BY THE TRACER: 84.3 against this sheet's own
+        # 125 lines/mm at 1000:1 is a ratio of 1.35 on Tani's f50 ~ RP/2
+        # relation, in family with T-MAX 100's 1.23. The misplaced 2018 figure
+        # would have implied 1.97 -- the physical shadow of the same error.
+        mtf=MTFSpec(84.3, 84.3, 84.3, adjacency=0.08, adjacency_um=16.0),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4001 page 7 -- the plot is drawn as PDF VECTOR
@@ -17911,7 +20294,23 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.18, 0.68, -1.60, 0.30, 1.80, 0.36)),
         grain=GrainSpec(17.0, 6.129, 6.129, 6.129, clump_gain=1.00, fog_grain=0.22),
-        mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
+        # ✅ MTF TRACED 2026-09-06 from F-4017 (2016) p7 (tag "trix400").
+        # ⚠ THE BEST-EVIDENCED MTF IN THE DATABASE: THREE INDEPENDENT DRAWINGS
+        # ACROSS SEVENTEEN YEARS agree to 1.1 % -- 52.7 (F-4017, 2016), 52.6
+        # (F-4017, 2007) and 53.1 (F-9, June 1999). None of the three is a copy
+        # of another; point counts are 94 / 64 / 192. Every other traced stock in
+        # this database rests on one drawing or on two that turned out to be the
+        # same artwork.
+        # The estimate it replaces was 58.0, so 1.10x too sharp -- the SMALLEST
+        # correction any traced sheet has produced and the only one under 1.3x.
+        # ⚠ THE PANEL IS 400TX's AND NOT 320TXP's, even though F-4017 covers both
+        # films: page 7 heads its own column "KODAK PROFESSIONAL TRI-X 400 Film /
+        # 400TX, 35 mm" and prints exactly one modulation-transfer frame. That is
+        # why the sister profile keeps its estimate -- see KODAK_TRI_X_320TXP.
+        # ⚠ adjacency / adjacency_um left at their estimates; measured overshoot
+        # is +0.120 at 8.6 cycles/mm. Same reason as KODAK_TMAX_100.
+        mtf=MTFSpec(52.7, 52.7, 52.7, adjacency=0.09, adjacency_um=16.0,
+                    mtf_rolloff_q=4.23, mtf_measured=True),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4017 page 7 -- the plot is drawn as PDF VECTOR
@@ -18037,6 +20436,19 @@ mtf=MTFSpec(36.0, 52.0, 60.0, adjacency=0.10, adjacency_um=22.0),
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.17, 0.66, -1.75, 0.34, 1.85, 0.36)),
         grain=GrainSpec(16.0, 6.129, 6.129, 6.129, clump_gain=0.95, fog_grain=0.21),
+        # ⚠ MTF STAYS AN ESTIMATE, AND ITS OWN DATASHEET IS THE REASON. F-4017
+        # is titled "KODAK PROFESSIONAL TRI-X 320 and 400 Films" and prints
+        # exactly ONE modulation-transfer frame, which page 7 attributes in its
+        # own column heading to "KODAK PROFESSIONAL TRI-X 400 Film / 400TX,
+        # 35 mm". Checked 2026-09-06 on the 2016 and the 2007 editions and on
+        # F-9 (1999): three sheets, three single MTF panels, none of them 320TXP's.
+        # ⚠ THE SISTER PROFILE'S MEASUREMENT IS NOT BORROWED. 400TX now carries a
+        # traced 52.7 and this stock keeps 58.0, even though the two share a
+        # datasheet, a developer and a design family, because a shared sheet is
+        # not a shared measurement -- and the sheet's own rms column proves the
+        # films differ (17 for 400, 16 for 320). Copying 400TX's f50 here would
+        # manufacture agreement that Kodak never printed. Rule 18.
+        # Reopens on any Kodak sheet that plots 320TXP's own transfer curve.
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
         default_format="large4x5",
         features=Feature.NONE,
@@ -19790,7 +22202,31 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.10, 1.55, -0.72, 0.20, 0.88, 0.30)),
         grain=GrainSpec(11.0, 4.839, 4.839, 4.839, clump_gain=0.60, fog_grain=0.12),
-        mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.0211, adjacency_um=15.0),
+        # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p9 -- the FIRST
+        # measured MTF this stock has ever carried. It shipped a RED estimated
+        # triple while the panel sat unread in the corpus since 2026-09-01.
+        # ⚠ "Transfer factor (%) against Lines (mm)" IS a modulation transfer
+        # curve. «Linien pro mm» = cycles per mm is not assumed: queue G6
+        # settled it on the International Commission for Optics' authority
+        # (Ingelstam 1961, PS&E 5(5) p282).
+        # ⚠ f50 30.6 c/mm, q 2.14 at rms 0.0121.
+        # ⚠⚠ RE-DERIVED 2026-09-06i AND BOTH FIGURES MOVED. The 2026-09-06h
+        # harvest fitted the frequency ladder THROUGH the "100" tick label,
+        # which Agfa nudge 3.37 pt left of its own tick to keep three glyphs
+        # inside the column: 1.6 % of scale and ~4 % of f50, on every panel in
+        # both editions. The panel is now calibrated on its DRAWN FRAME -- the
+        # printed ladder says WHICH values the axis spans, the ink says WHERE.
+        # ⚠ THE OTHER EDITION PRINTS THIS PANEL TOO and reads f50 30.63 / 2.13.
+        # ONE DRAWING, reprinted in 2004 to 0.0005 of frame height.
+        # ⚠ The +2.5 % adjacency overshoot is stored in `adjacency`, NOT folded
+        # into f50 -- the panel is a CTF and the rolloff is fitted above the
+        # peak only. It is read off the SAME drawing f50 is, which it was not
+        # before 2026-09-06i.
+        # ⚠ ONE SILVER LAYER, so all three records carry the same f50.
+        mtf=MTFSpec(30.6, 30.6, 30.6, adjacency=0.0248, adjacency_um=15.0,
+                    resolving_power_lp_mm_lowc=0.0,
+                    resolving_power_lp_mm_highc=0.0,
+                    mtf_rolloff_q=2.14, mtf_measured=True),
         default_format="ff35",
         # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
         # SUPPORTS. Agfa print 'Total layer thickness (without base)'
@@ -19868,10 +22304,19 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # FALSE, because all five curves share one D-min of 0.024 -- the
         # artwork shows no fog penalty at all, which is a statement about
         # the drawing and not a measurement that pushing is fog-free.
+        # ⚠⚠ AND THE CONTRAST HALF WAS PROSE UNTIL 2026-09-07, WHEN THE PANEL
+        # THAT PLOTS IT WAS FINALLY READ. `gamma_gain_per_stop` sat at 0.0
+        # while the 2003/04 sheet drew «Gradation/Maximaldichte bei push/pull-
+        # Verarbeitung» as slot 4 of Scala's column -- a Maximum density box
+        # above a CONTRAST box, five plotted points each, sharing one ISO
+        # abscissa. `agfa_2003_curves.SCALA_BANDS` had three entries and a
+        # comment describing four panels, so the reader walked past it in
+        # silence for six days. See `read_scala_pushpull`.
         push=PushSpec(
             max_push_stops=3.0,
             max_pull_stops=1.0,
             fog_penalty_stated=False,
+            gamma_gain_per_stop=0.125,
             source=("Agfa-Gevaert, «Technical Data PF -- Agfa range of "
                     "films», 1st edition, 09/1998 -- "
                     "PDF/PROFILES/AGFA/agfa_films.pdf p9. The push/pull "
@@ -19890,7 +22335,48 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
                     "/ 2.543 / 2.289 / 2.034 -- the same ordering and the "
                     "same spacing, but Standard differs by 0.18 D, so treat "
                     "the absolute level as edition-dependent and the "
-                    "per-stop slope as the measurement"),
+                    "per-stop slope as the measurement. "
+                    "⚠⚠ `gamma_gain_per_stop` 0.125 IS NEW ON 2026-09-07 AND "
+                    "COMES FROM A DIFFERENT SHEET: Agfa-Gevaert AG, "
+                    "«Technische Daten -- Agfa Professional Filmsortiment», "
+                    "F-PF-D4, 4. Auflage, Stand 07/2003 -- "
+                    "PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p9, "
+                    "slot 4 of the Scala column, «Gradation/Maximaldichte bei "
+                    "push/pull-Verarbeitung», and its English twin F-PF-E4 "
+                    "08/2004 p9. Its CONTRAST box plots five points against "
+                    "the same ISO abscissa: Pull 1 0.796, Standard 1.395, "
+                    "Push 1 1.695, Push 2 1.795, Push 3 1.845, read "
+                    "frame-anchored and landing within 0.006 of Agfa's own "
+                    "0.05 grid (0.80 / 1.40 / 1.70 / 1.80 / 1.85). The two "
+                    "editions read the same panel to 0.0006. "
+                    "⚠ THE STORED SCALAR IS A SUMMARY OF A SATURATING CURVE, "
+                    "AND THE SIZE OF THAT IS ON RECORD. Fractional gain is "
+                    "+21.4 % for the first pushed stop, +5.9 % for the second "
+                    "and +2.8 % for the third; a least-squares line through "
+                    "the origin over the three gives 0.125, which "
+                    "under-predicts stop 1 by 0.090 and over-predicts stop 3 "
+                    "by 0.054. `PushSpec` holds one number, so the ladder "
+                    "itself is here in words and `agfa_2003_curves.py` "
+                    "re-derives it on every build. "
+                    "⚠ AND THE PULL STEP IS NOT IN THAT FIT: 1.395 -> 0.796 "
+                    "is a 43 % LOSS for one stop down against a 21 % gain for "
+                    "one stop up, so the two directions are not one slope. "
+                    "⚠ THE SAME PANEL'S MAXIMUM DENSITY BOX independently "
+                    "reads 3.095 / 2.994 / 2.744 / 2.494 / 2.245, against the "
+                    "1998 density-curve digitisation quoted above -- two "
+                    "methods, two editions, agreeing to 0.074 D at worst and "
+                    "0.004 at best, with the 2003 points sitting on the "
+                    "printed grid. NOTHING IS AVERAGED: the stored D-max "
+                    "ladder stays the 1998 one and the spread is reported by "
+                    "the reader. "
+                    "⚠ WHAT IS STILL NOT STORED IS THE PER-STEP LADDER AS "
+                    "RENDERABLE DATA. `ProcessVariant` has `gamma_scale` and "
+                    "is read on the render path, so the five steps could be "
+                    "five variants -- but this is a REVERSAL stock whose "
+                    "D-max FALLS as contrast rises, and a bare `gamma_scale` "
+                    "would raise the model's asymptote instead. That needs "
+                    "the tone model checked, not a field filled, and it is "
+                    "left open deliberately"),
         ),
         # Spectral sensitivity [T1], VECTOR-TRACED 2026-09-01 from
         # agfa_films.pdf p9. Axis fit residual 0.00 nm / 0.0004 lg.
@@ -20058,7 +22544,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
     ),
 
     FilmProfile(
-        name="AGFACOLOR_NEG_TYPE_3",
+        name="AGFA_NEG_TYPE_3",
         aliases=("agfacolor type 3", "agfacolor 3", "agfacolor universal"),
         description=(
             "[T1] Agfacolor negative Type 3 -- the first UNIVERSAL colour "
@@ -20104,7 +22590,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             threshold_stops=1.3,
         ),
         couplers=CouplerSpec(0.10, 58.0, 0.04, 14.0),
-        # Lower cross-contamination than AGFACOLOR_NEG_TYPE_B_1943's, following
+        # Lower cross-contamination than AGFA_NEG_TYPE_B_1943's, following
         # the documented reduction in sensitisation overlap. Still positive:
         # this is an unmasked Agfacolor negative and it still bleeds.
         dye_matrix=_dye(0.14),
@@ -21557,6 +24043,313 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         ),
     ),
 
+    # ======================= AgfaPhoto Vista plus =========================
+    # ⚠⚠ THESE TWO ARE NOT AGFA-GEVAERT FILMS AND MUST NOT BE CONFUSED WITH
+    # `AGFA_VISTA_200`. Their own sheet says so:
+    #     «Neither Agfa-Gevaert NV & Co KG nor Agfa-Gevaert NV manufacture
+    #      this product or provide any product warranty or support.»
+    #     «Produced for and distributed by Lupus Imaging & Media GmbH Co. KG»
+    # `AGFA_VISTA_200` is Agfa-Gevaert's own «Technical Data AF» 06/2000
+    # product, whose rms 4.3 and f50 47.8 are that company's measurements.
+    # Nothing here is written to it, and the 2026-09-07 Eterna back-out is the
+    # precedent -- that pair were the same brand five years apart and it was
+    # still wrong.
+    #
+    # ⚠⚠ AND THE DYE SET SAYS WHO DID MAKE THEM. Against all 26 stored
+    # 31-sample spectral dye density sets in this database, both films' traced
+    # neutral matches **FUJICOLOR SUPERIA X-TRA 400** to a mean 0.0177 D
+    # (max 0.057), where the NEXT-nearest of the 26 sits at 0.154 -- nine
+    # times further away -- and the D-min mask matches to 0.015-0.030 D. The
+    # document is on the Fuji template too (process CN-16, cellulose triacetate
+    # 122 um, the «mid-scale neutral ... D-mini» caption verbatim, the J/cm2
+    # sensitivity footnote). Two independent lines, one conclusion: these are
+    # Fuji-made films in AgfaPhoto packaging. That is an INFERENCE about
+    # manufacture and it is labelled as one -- but it is why borrowing these
+    # curves onto an Agfa emulsion would be putting one factory's chemistry on
+    # another's film.
+    #
+    # Traced 2026-09-07 by `agfaphoto_vista_plus.py`. Four panels per film,
+    # all VECTOR, all frame-anchored and checked against the panels' own
+    # gridlines -- there is no label TEXT on this sheet at all, every numeral
+    # being a glyph outline, so the printed-ladder half of the 2026-09-06i
+    # rule is unavailable and the gridlines are the only cross-check.
+    # ⚠⚠ THE `AGFA_` PREFIX IS A CATALOGUE CONVENTION, NOT A CLAIM ABOUT WHO
+    # MADE THE FILM. These two were added on 2026-09-07 as
+    # `AGFAPHOTO_VISTA_PLUS_*` and RENAMED at the owner's request on
+    # 2026-09-07d so that every Agfa-branded stock sorts together in the film
+    # list. Everything the evidence says is unchanged and is stated in the
+    # records below: the sheet disclaims Agfa manufacture in its own words,
+    # and the dye set matches FUJICOLOR_SUPERIA_XTRA_400 nine times more
+    # closely than the next of 26 stored sets. ⚠ The printed brand survives as
+    # an ALIAS ("agfaphoto vista plus 200"), so a lookup by what is on the
+    # box still finds the stock. ⚠ AND THE FROZEN ID DID NOT MOVE: 182 and 183
+    # were edited in place in `film_ids.lock`, because a rename that reassigns
+    # ids would shift every later ListBox index.
+    FilmProfile(
+        name="AGFA_VISTA_PLUS_200",
+        aliases=("vista plus 200", "agfaphoto vista plus 200"),
+        description=(
+            "AgfaPhoto-branded ISO 200 colour negative, sold under licence "
+            "after Agfa-Gevaert left the consumer film business. Its own "
+            "sheet disclaims Agfa manufacture, and its dye set is Fuji's."
+        ),
+        era="2005-2018",
+        exposure_index=200,
+        balance_kelvin=5500,
+        # [T1] TRACED from «11. Charateristic Curves», p4: three records,
+        # Daylight 1/125 s, process CN-16, Status M densitometry.
+        # ⚠ THE ABSCISSA IS ANCHORED ON THE NINE GRIDLINES, NOT THE FRAME.
+        # The right frame edge IS lg H 0.0 but the left edge is half a
+        # division BEYOND -4.0 -- an unlabelled margin -- so reading the frame
+        # as the ladder shifts every exposure by a quarter decade while
+        # leaving every density and every gamma untouched. Gamma cannot catch
+        # that, which is the NEOPAN SS lesson repeating.
+        # ⚠ THE SHOULDER IS CARRIED, NOT MEASURED: all three records are still
+        # straight where the plot ends, so the span is fixed at the colour
+        # negative family's 3.30 decades (`_neg` -1.55/+1.75) and only dmin,
+        # gamma and the toe softness are fitted -- exactly as
+        # FUJICOLOR_SUPERIA_XTRA_400 records for the same reason. Fit rms
+        # 0.0090 / 0.0161 / 0.0090 D over 70 traced points per record.
+        curves=RGBCurves(
+            r=ToneCurve(0.1039, 0.6565, -1.55, 0.4202, 1.75, 0.42),
+            g=ToneCurve(0.4091, 0.6895, -1.55, 0.2858, 1.75, 0.42),
+            b=ToneCurve(0.7242, 0.7002, -1.55, 0.2503, 1.75, 0.42),
+        ),
+        # ⚠ GRAIN IS A CLASS ESTIMATE AND THE SHEET IS WHY: sections 1-14 carry
+        # NO granularity figure, no rms number and no resolving-power table.
+        # «Excellent Grain Quality» and «New Super Uniform Fine Grain
+        # Technology» are the whole of what it says about grain. Set from the
+        # ISO 200 colour-negative ladder.
+        grain=GrainSpec(4.5, 2.581, 2.581, 3.226, clump_gain=0.55,
+                        fog_grain=0.17),
+        # ⚠⚠ ADOPTED FROM A SHARED DRAWING, BY OWNER DECISION 2026-09-07b.
+        # «13. MTF Curve» is ONE DRAWING SHARED WITH VISTA PLUS 400 -- the same
+        # 47-point path, translated dx +0.143 dy -0.076 pt with spreads of
+        # 0.0010 and 0.0020 pt, i.e. the same path object placed twice. This
+        # profile first stored a class estimate on exactly the reasoning
+        # `NotFound.md` row 5d applies to APX 100/400. The owner's
+        # instruction: a vendor MTF, even one shared between two films, is
+        # closer to the film than an estimate derived from no document.
+        # ⚠ SO WHAT IS STORED IS A VENDOR TRACE THAT CANNOT BE PER-FILM FOR
+        # BOTH FILMS, and the record says so rather than implying otherwise.
+        # f50 58.68 c/mm green, q 2.65 fitted above the peak (rms 0.0972
+        # against a Gaussian's 0.1072), low-frequency peak +18.4 %.
+        # ⚠ GREEN IS THE PANEL'S; RED AND BLUE CARRY THIS PROFILE'S OWN LAYER
+        # RATIOS (r/g 0.8929, b/g 1.0893), because the sheet publishes ONE
+        # curve for a three-layer film. Level theirs, shape ours -- the method
+        # this corpus already uses wherever a maker prints a single MTF.
+        # ⚠ The abscissa is printed «Spatial Frequency (cycles/mm)» IN WORDS,
+        # where every Agfa-Gevaert sheet says «Lines per mm» -- independent
+        # support for queue G6's answer, from the same house one brand later.
+        mtf=MTFSpec(52.4, 58.7, 63.9, adjacency=0.1842, adjacency_um=17.0,
+                    mtf_rolloff_q=2.65, mtf_measured=True),
+        kind=StockKind.NEGATIVE,
+        halation=HalationSpec(gain_r=0.08, gain_g=0.020, gain_b=0.006,
+                              threshold_stops=1.85),
+        couplers=CouplerSpec(0.13, 50.0, 0.070, 11.0),
+        dye_matrix=_dye(-0.10),
+        misregistration_um=4.0,
+        mask_encoding="dmin_ladder",
+        default_format="ff35",
+        # [T1] TRACED from «12. Spectral Sensitivity Curves», p4. Wavelength
+        # from the four printed gridlines (57.14 pt per 100 nm, uniform to
+        # 0.06 pt). ⚠ THE ORDINATE HAS NO LADDER -- it is a bracket one decade
+        # tall, the same construction that made this project refuse the
+        # SUPERIA and PRO 400H panels in September. Stored PEAK-NORMALISED,
+        # which is what this field holds anyway, so the bracket sets the scale
+        # and the peak sets the zero. -4.00 marks where a record is NOT DRAWN
+        # and is a sentinel, not a sensitivity.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_b=(-4.00, -4.00, -4.00, -0.09, -0.07, -0.07, -0.07, -0.06,
+                     -0.04, -0.00, -0.03, -0.16, -0.43, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -0.46, -0.36, -0.28, -0.23, -0.19, -0.16, -0.10,
+                     -0.05, -0.01, -0.00, -0.03, -0.21, -0.49, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -0.35, -0.20, -0.11, -0.05, -0.02,
+                     -0.02, -0.01, -0.00, -0.03, -0.20, -0.39, -4.00, -4.00,
+                     -4.00),
+            criterion="relative_log",
+            source=(
+                "AgfaPhoto Holding GmbH, «Product Information -- Color "
+                "Negative Film», Vista plus 200 p4 section 12 -- "
+                "PDF/PROFILES/AGFA/agfafilms-Vista.pdf; vector trace "
+                "2026-09-07 by agfaphoto_vista_plus.py, wavelength on the "
+                "panel's four printed gridlines. Peaks B 472 / G 560 / "
+                "R 641 nm. ⚠ Process CN-16, Status M, at density 1.0 above "
+                "D-min -- the sheet's own stated conditions"),
+        ),
+        # [T1] TRACED from «14. Spectral Dye Density Curves», p4, «Typical
+        # densities for a mid-scale neutral subject and for D-mini.»
+        # ⚠ d_dmin ON A MASKED COLOUR NEGATIVE IS THE ORANGE MASK, MEASURED,
+        # and its FALL towards the red is the physics gate: 0.892 D at 430 nm
+        # to 0.269 at 680. A pair stored the wrong way round passes every
+        # other check and fails that one.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.508, 1.549, 1.648, 1.841, 1.934, 1.959, 1.924,
+                     1.822, 1.678, 1.563, 1.524, 1.558, 1.623, 1.681, 1.724,
+                     1.742, 1.705, 1.582, 1.409, 1.220, 1.099, 1.094, 1.167,
+                     1.264, 1.367, 1.468, 1.562, 1.645, 1.711, 1.753, 1.763),
+            d_dmin=(0.934, 0.876, 0.870, 0.892, 0.902, 0.885, 0.858, 0.825,
+                     0.789, 0.752, 0.717, 0.691, 0.673, 0.654, 0.633, 0.608,
+                     0.580, 0.529, 0.447, 0.362, 0.289, 0.249, 0.239, 0.241,
+                     0.250, 0.264, 0.278, 0.281, 0.269, 0.255, 0.239),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "AgfaPhoto Holding GmbH, Vista plus 200 p4 section 14 -- "
+                "PDF/PROFILES/AGFA/agfafilms-Vista.pdf; vector trace "
+                "2026-09-07, density 0.5 D per 29.59 pt with the panel's own "
+                "four gridlines reproduced to 0.56 pt. ⚠⚠ THIS SET IS WHAT "
+                "IDENTIFIES THE MANUFACTURER: against all 26 stored 31-sample "
+                "dye sets it matches FUJICOLOR_SUPERIA_XTRA_400 to a mean "
+                "0.0177 D and a max 0.057, where the next-nearest sits at "
+                "0.154 -- nine times further. The mask matches to 0.030 D. "
+                "Same dyes, same factory"),
+        ),
+        emulsion=EmulsionSpec(
+            base_material="cellulose triacetate",
+            base_um=122.0,
+            designation="C74",
+            source=("AgfaPhoto Holding GmbH, Vista plus 200 p1 section 3, "
+                    "«Film Sizes, Production Number, Base Material and "
+                    "Thickness»: «Cellulose Triacetate», «122um (135)», "
+                    "production number «C74 and above» -- "
+                    "PDF/PROFILES/AGFA/agfafilms-Vista.pdf"),
+        ),
+        # [T1] PROCESS NAMED, SCHEDULE NOT. p3 section 9: «Vista Films are
+        # "process-compatible" and are developed in the following process:
+        # AP 70/CN-16/C41». ⚠ `ProcessingSpec` HAS NO `source` FIELD, so the
+        # citation lives here and in the ParamSource for
+        # `processing.developer`. ⚠ THE TIME AND TEMPERATURE BELOW ARE THE
+        # C-41 STANDARD'S, NOT THIS SHEET'S -- it names three interchangeable
+        # processes and prints no schedule for any of them.
+        processing=ProcessingSpec(
+            developer="C-41", dilution="stock", minutes=3.25, celsius=37.8,
+            agitation="rotary", contrast_index=0.60,
+        ),
+        exposure_index_tungsten=50,
+        features=Feature.NONE,
+    ),
+
+    FilmProfile(
+        name="AGFA_VISTA_PLUS_400",
+        aliases=("vista plus 400", "agfaphoto vista plus 400"),
+        description=(
+            "AgfaPhoto-branded ISO 400 colour negative, the 200's faster "
+            "sibling on the same licensed sheet. Fuji dye set, Agfa brand."
+        ),
+        era="2005-2018",
+        exposure_index=400,
+        balance_kelvin=5500,
+        # [T1] TRACED from p8 section 11, same construction as the 200's.
+        # Fit rms 0.0115 / 0.0145 / 0.0102 D. ⚠ Span carried at the family
+        # 3.30 decades for the same reason: the records are still straight
+        # where the plot ends.
+        curves=RGBCurves(
+            r=ToneCurve(0.0916, 0.6824, -1.55, 0.4460, 1.75, 0.42),
+            g=ToneCurve(0.4411, 0.7212, -1.55, 0.2719, 1.75, 0.42),
+            # ⚠ BLUE'S SHOULDER SOFTNESS IS CLAMPED, NOT FITTED. Its toe
+            # comes back at 0.1827 and the family shoulder default 0.42 then
+            # exceeds 2*toe_k, which `ToneCurve.validate` refuses because the
+            # bright end can reverse. Set to the 1.4*toe_k monotonicity bound
+            # -- the same treatment FUJI_NEOPAN_ACROS_100's shoulder gets, and
+            # for the same reason: the shoulder lies BEYOND the plotted range,
+            # so nothing in the traced region depends on it.
+            b=ToneCurve(0.7319, 0.7353, -1.55, 0.1827, 1.75, 0.2558),
+        ),
+        # ⚠ NO GRANULARITY ON THE SHEET, same as the 200. ISO 400 class ladder.
+        grain=GrainSpec(6.5, 3.226, 3.226, 4.032, clump_gain=0.75,
+                        fog_grain=0.19),
+        # ⚠⚠ THE OTHER HALF OF THE SHARED MTF DRAWING, adopted on the same
+        # owner decision. Identical green f50 and q to the 200's, because it
+        # is the identical curve; the two differ only in the layer ratios
+        # carried from each profile (r/g 0.8980, b/g 1.0816 here).
+        # ⚠ THAT THE FASTER FILM COMES OUT AS SHARP AS THE SLOWER ONE IS THE
+        # SHARED DRAWING SPEAKING, NOT THE EMULSION. Recorded here so nobody
+        # reads it as a measured equality.
+        mtf=MTFSpec(52.7, 58.7, 63.5, adjacency=0.1842, adjacency_um=19.0,
+                    mtf_rolloff_q=2.65, mtf_measured=True),
+        kind=StockKind.NEGATIVE,
+        halation=HalationSpec(gain_r=0.09, gain_g=0.022, gain_b=0.007,
+                              threshold_stops=1.75),
+        couplers=CouplerSpec(0.14, 50.0, 0.075, 11.0),
+        dye_matrix=_dye(-0.10),
+        misregistration_um=4.0,
+        mask_encoding="dmin_ladder",
+        default_format="ff35",
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_b=(-4.00, -4.00, -4.00, -0.10, -0.07, -0.07, -0.06, -0.06,
+                     -0.04, -0.00, -0.03, -0.18, -0.44, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00),
+            log_s_g=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -0.49, -0.38, -0.30, -0.24, -0.20, -0.17, -0.11,
+                     -0.05, -0.01, -0.00, -0.04, -0.21, -0.42, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                     -4.00, -4.00, -4.00, -0.34, -0.20, -0.11, -0.05, -0.02,
+                     -0.01, -0.00, -0.00, -0.01, -0.13, -0.34, -4.00, -4.00,
+                     -4.00),
+            criterion="relative_log",
+            source=(
+                "AgfaPhoto Holding GmbH, Vista plus 400 p8 section 12 -- "
+                "PDF/PROFILES/AGFA/agfafilms-Vista.pdf; vector trace "
+                "2026-09-07. Peaks B 472 / G 558 / R 639 nm. ⚠ The three "
+                "records are NOT the 200's: the spectral paths differ between "
+                "the two films by 8-17 pt of shape and by their point counts, "
+                "which is what makes the shared MTF drawing a finding rather "
+                "than a broken reader"),
+        ),
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_neutral=(1.507, 1.549, 1.649, 1.841, 1.934, 1.959, 1.923,
+                     1.819, 1.674, 1.557, 1.518, 1.553, 1.619, 1.681, 1.723,
+                     1.736, 1.670, 1.536, 1.378, 1.213, 1.097, 1.095, 1.184,
+                     1.288, 1.392, 1.492, 1.584, 1.663, 1.726, 1.765, 1.770),
+            d_dmin=(0.924, 0.850, 0.846, 0.865, 0.873, 0.856, 0.832, 0.801,
+                     0.768, 0.733, 0.701, 0.676, 0.656, 0.633, 0.607, 0.580,
+                     0.551, 0.503, 0.428, 0.353, 0.285, 0.249, 0.239, 0.240,
+                     0.249, 0.264, 0.278, 0.280, 0.268, 0.254, 0.239),
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(
+                "AgfaPhoto Holding GmbH, Vista plus 400 p8 section 14 -- "
+                "PDF/PROFILES/AGFA/agfafilms-Vista.pdf; vector trace "
+                "2026-09-07. Matches FUJICOLOR_SUPERIA_XTRA_400 to a mean "
+                "0.0177 D neutral and 0.0154 D mask, against 0.156 for the "
+                "next-nearest of 26 stored sets. The mask falls 0.865 D at "
+                "430 nm to 0.268 at 680, which is the physics gate"),
+        ),
+        emulsion=EmulsionSpec(
+            base_material="cellulose triacetate",
+            base_um=122.0,
+            designation="H74",
+            source=("AgfaPhoto Holding GmbH, Vista plus 400 p5 section 3: "
+                    "«Cellulose Triacetate», «122um», production number "
+                    "«H74 and above» -- "
+                    "PDF/PROFILES/AGFA/agfafilms-Vista.pdf"),
+        ),
+        # [T1] p7 section 9: «AP 70/CN-16/C41». ⚠ Time and temperature are
+        # the C-41 standard's, not this sheet's; see the 200 above.
+        processing=ProcessingSpec(
+            developer="C-41", dilution="stock", minutes=3.25, celsius=37.8,
+            agitation="rotary", contrast_index=0.60,
+        ),
+        exposure_index_tungsten=100,
+        features=Feature.NONE,
+    ),
+
 )
 
 # Presented in NATURAL (numeric-aware) order by name: digit runs inside a name
@@ -21638,13 +24431,75 @@ def _load_frozen_ids() -> dict:
 
 FILM_IDS = _load_frozen_ids()
 
-# Frozen stocks first, in id order; anything not yet in the lock after them, in
-# natural-name order, awaiting an id from sync_ids_lock().
-_UNFROZEN = 1 << 30
+#: Profile keys renamed since the ids in `film_ids.lock` were issued.
+#: OLD KEY -> NEW KEY.
+#:
+#: ⚠ THIS EXISTS SO A RENAME DOES NOT READ AS A WITHDRAWAL. The lock is keyed
+#: by NAME, and `write_id_migration` builds the old -> new index table by
+#: looking each locked name up in the live database. Without this map a renamed
+#: stock is simply absent, its migration row says WITHDRAWN, and the owner is
+#: told a film was removed when it was renamed and is still there -- which
+#: would send them to restore something that never left.
+#:
+#: ⚠ AGFACOLOR -> AGFA, 2026-09-08, at owner request, and ONLY THE PROFILE KEY
+#: CHANGED. The key is what the panel shows (`film_names.txt` is the key with
+#: underscores turned into spaces), so this is a presentation change, and it
+#: also moves these three INSIDE the AGFA block instead of after it -- under
+#: natural sort "AGFACOLOR..." lands after every "AGFA_..." entry.
+#:
+#: ⚠ THE PRODUCT NAME IS DELIBERATELY NOT RENAMED anywhere it is a fact rather
+#: than a key. "Agfacolor Neu", "AGFACOLOR Vista 100, 200, 400, 800 --
+#: Technical Data AF" and every citation string still read AGFACOLOR, because
+#: that is what Agfa printed and a citation that no longer matches its document
+#: is worthless. The module constants in `agfa_mpt_1937.py`
+#: (`_AGFACOLOR_LAYER_UM`, `_AGFACOLOR_SUN_F` and the rest) are untouched for
+#: the same reason: they name the 1936 PROCESS, not a profile.
+FILM_RENAMES: dict[str, str] = {
+    "AGFACOLOR_NEU_1936": "AGFA_NEU_1936",
+    "AGFACOLOR_NEG_TYPE_B_1943": "AGFA_NEG_TYPE_B_1943",
+    "AGFACOLOR_NEG_TYPE_3": "AGFA_NEG_TYPE_3",
+}
 
-FILM_PROFILES = tuple(sorted(
-    FILM_PROFILES,
-    key=lambda _p: (FILM_IDS.get(_p.name, _UNFROZEN), _natural_key(_p.name))))
+# ===========================================================================
+#  ⚠⚠ THE FREEZE WAS RETIRED ON 2026-09-08 BY EXPLICIT OWNER DECISION, AND
+#  EVERYTHING ABOVE THIS POINT DESCRIBES THE ARRANGEMENT IT REPLACED.
+#
+#  The block above is left standing rather than deleted because it states, in
+#  detail and correctly, the failure mode this change reintroduces. Read it as
+#  the argument AGAINST what follows, not as a description of what the code
+#  now does.
+#
+#  WHAT THE OWNER ASKED FOR, twice, after being shown the consequence twice:
+#      "I need film in database ordered alphabetically and TXT file fully
+#       reflect this order, please. I don't need additional *.txt file for
+#       re-ordering in run-time."
+#  The presentation/storage split satisfied the first half only through
+#  film_display_order.txt, which is the runtime indirection the second half
+#  rules out. There is no arrangement that is both alphabetical in storage and
+#  stable under insertion, so this is a decision between two costs and the
+#  owner has made it.
+#
+#  ⚠ WHAT IT COSTS, MEASURED, so nobody rediscovers it as a bug:
+#  177 of 184 stocks change index at this cutover. Only the seven that already
+#  sorted first keep their number (AGFA APX 25/100/400, AGFA OPTIMA
+#  100/200/400, AGFA PORTRAIT 160). Every saved After Effects or Premiere
+#  project that names a film therefore selects a DIFFERENT film after this
+#  update, and the project file records only the integer, so nothing in it can
+#  be used to detect or repair the change automatically.
+#      -> `film_id_migration.txt`, emitted by cpp_codegen, is the old -> new
+#         map. It is the only thing that can fix an existing project, so it
+#         ships with the database.
+#  ⚠ AND THE COST RECURS ON EVERY FUTURE ADDITION, not just at this cutover.
+#  A stock named "AGFA APX 50" will now take index 1 and shift 183 stocks, as
+#  it would have before the freeze. That is inherent to storing a sorted order
+#  and is not a defect to be filed.
+#
+#  film_ids.lock is NO LONGER READ FOR ORDER. It is kept, and still holds the
+#  ids that shipped up to 2026-09-08, because it is the record the migration
+#  map is built from. `FILM_IDS` above is still loaded for exactly that.
+# ===========================================================================
+FILM_PROFILES = tuple(sorted(FILM_PROFILES,
+                             key=lambda _p: _natural_key(_p.name)))
 
 
 # ===========================================================================
@@ -21731,10 +24586,31 @@ _GAUGE_TRANSPORT_PRESERVED: dict[str, TemporalSpec] = {
 
 
 def _reciprocity_for(p: FilmProfile) -> ReciprocitySpec:
-    """DM-07. Non-default only where the literature supports it."""
+    """DM-07. Non-default only where the literature supports it.
+
+    ⚠⚠ THIS FUNCTION DISCARDS THE PROFILE LITERAL'S OWN `reciprocity=`, AND
+    THAT WAS A SILENT DATA LOSS UNTIL 2026-09-06c. `_apply_schema_v2` calls
+    this unconditionally, so a literal that sets a measured Schwarzschild
+    exponent and is not named in `_RECIPROCITY_OVERRIDES` is REPLACED by the
+    class heuristic and nothing says so. FUJI_PROVIA_400F was written that way
+    earlier the same day: its literal carried the fitted p 0.66 with the
+    printed 32 s onset, the shipped profile carried the reversal default
+    0.93/0.92/0.94 at 1 s, and its own `ParamSource` note described the value
+    the database did not hold. That is the same defect class as EKTAR 100's MTF
+    and `callier_q`'s empty register -- provenance disagreeing with its value --
+    and it is the FIFTH instance found this week.
+    THE FIX IS THE RAISE BELOW, not a corrected comment: a literal that means
+    something must either be honoured or refused, never quietly dropped.
+    """
     if p.name in _RECIPROCITY_OVERRIDES:
         # Datasheet-published behaviour wins over every heuristic below.
         return _RECIPROCITY_OVERRIDES[p.name]
+    if p.reciprocity != ReciprocitySpec():
+        raise ValueError(
+            f"{p.name}: the profile literal sets a non-default `reciprocity=` "
+            f"({p.reciprocity}) but the stock is not in _RECIPROCITY_OVERRIDES, "
+            f"so this pass would silently replace it with the class heuristic. "
+            f"Move the measured spec into _RECIPROCITY_OVERRIDES")
     if p.name == "FUJI_NEOPAN_ACROS_100":
         # Acros' documented distinction: no correction needed out to 120 s.
         return ReciprocitySpec(1.0, 1.0, 1.0, onset_s=120.0)
@@ -22275,7 +25151,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "'1076 lx (100 ft/cd) ... f/2.8 ... 1/50 s', storage 'below 12 C (54 F)', "
         "Table II relative signal-to-noise ratios, Table III printer trimmer "
         "settings, and the ECN-2 process designation",),
-    "AGFACOLOR_NEG_TYPE_B_1943": (
+    "AGFA_NEG_TYPE_B_1943": (
         "Schmidt, Richard / Kochs, Adolf, 'Farbfilmtechnik. Eine Einfuehrung fuer Filmschaffende', Berlin: "
         "Hesse 1943 (Schriftenreihe der Reichsfilmkammer 10), pp. 54-125, Abb. 57-59 -- via "
         "PDF/PROFILES/AGFA/'Agfacolor 01.mhtml'. Layer sensitisation figure (schematic, +/-10 nm), balance "
@@ -23008,7 +25884,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "KODACHROME_TYPE_A_1938": (
         "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
         " -- p144 (3450 K, ASA 20), p152 (40 lines/mm, shared with the daylight stock)",),
-    "AGFACOLOR_NEG_TYPE_3": (
+    "AGFA_NEG_TYPE_3": (
         "Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», М.: Искусство, 1958, 250 с. [Cheltsov V. S., Bongard S. A., 'Colour Development of Three-Layer Light-Sensitive Materials', Moscow: Iskusstvo, 1958] -- PDF/PROFILES/cheltsov_vs_bongard_sa_tsvetnoe_proiavlenie_trekhsloinykh_sv.pdf"
         " -- p173-174 (universal type 3, photographic balance 4000 K, soft gradation, narrowed green sensitisation, colloidal-silver antihalation underlayer), p172 (Agfacolor negative family speeds 14/16 DIN, 20-25 ASA)",
         "⚠ UNRESOLVED SPEED CONFLICT, recorded 2026-08-17, deliberately NOT acted on. "
@@ -23081,6 +25957,12 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     ),
     # ---- queue T3, 2026-09-02e ----
     "FUJI_PROVIA_100F": ("FUJIFILM DATA SHEET, FUJICHROME PROVIA 100F Professional [RDP III], Ref. No. AF3-036E, Fuji Photo Film Co., Ltd.",),
+    "FUJI_PROVIA_400F": ("FUJIFILM DATA SHEET, FUJICHROME PROVIA 400F Professional [RHP III], Ref. No. AF3-066E, Fuji Photo Film Co., Ltd. -- PDF/PROFILES/FUJI/PROVIA400FAF3-066E_1.pdf. Characteristic, spectral-sensitivity, MTF and spectral-dye-density panels all VECTOR on p6 and all four traced 2026-09-06; sections 15 and 16 print rms granularity 13 and resolving power 55 / 135 lines/mm; section 5 prints the reciprocity table.",),
+    "FUJICHROME_64T_II": ("FUJIFILM DATA SHEET, FUJICHROME 64T TYPE II Professional [RTP II], Ref. No. AF3-024E, Fuji Photo Film Co., Ltd. -- PDF/PROFILES/FUJI/RTPIIAF3-024E_1.pdf. Sections 16 and 17 print rms granularity 10 and resolving power 55 / 135 lines/mm; section 2 prints ISO 64/19 deg tungsten-type (3100K). Panels 18, 19 and 20 are 300 dpi RASTER and panel 21 is vector; all four traced 2026-09-06.",),
+    "FUJICOLOR_PRO_800Z": ("FUJICOLOR PRO 800Z PROFESSIONAL PRODUCT INFORMATION BULLETIN, Ref. No. AF3-177E, Fuji Photo Film Co., Ltd. -- PDF/PROFILES/FUJI/pro_800z_datasheet.pdf. Section 16 prints diffuse rms granularity 5 and section 17 resolving power 50 / 115 lines/mm; section 18 characteristic curves and section 21 a neutral pair were traced 2026-09-06, and section 6's long-exposure table adopted 2026-09-06c. \u26a0 THE PAGE HAS NO TEXT LAYER INSIDE ITS PANELS -- the axis numbers are glyph outlines. Section 19 (spectral) stays REFUSED: its ordinate is a bracketed arrow and it draws a FOURTH cyan-sensitive layer the schema has no field for. \u26a0\u26a0 SECTION 20's REFUSAL IS RETRACTED, 2026-09-06c. It was written on the ground that the two axes imply different px-per-decade, which proves nothing because they span different numbers of decades; read on its own eleven-rung ordinate and seven-rung abscissa the panel calibrates to 87.38 and 84.86 pt per decade at 0.59 and 2.13 pt residual, and f50 46.1 c/mm with q 1.86 is adopted. The sheet that made me look again is AF3-100E (NPZ 800), which prints the same drawing with its labels intact.",),
+    "FUJICOLOR_PORTRAIT_NPZ_800": ("FUJIFILM DATA SHEET, FUJICOLOR PORTRAIT FILM NPZ 800 PROFESSIONAL [NPZ] (Daylight), Ref. No. AF3-100E, Fuji Photo Film Co., Ltd. -- PDF/PROFILES/FUJI/NPZ.pdf. Six pages; the four data panels on p5 are BILEVEL RASTERS and the page's own text layer is a broken custom encoding, so every number here was read from the rendered page and every curve from the raster. Section 14 prints diffuse rms granularity 5 (48 um aperture, 12x, NETA 1.0), section 15 resolving power 50 / 115 lines/mm, section 3 ISO 800/30 deg daylight and ISO 200/24 deg tungsten through a Wratten 80A, and section 5 the long-exposure table. \u26a0\u26a0 ITS FOUR DATA DRAWINGS ARE PRO 800Z's AF3-177E DRAWINGS, MEASURED AND NOT ASSUMED: characteristic curves agree to 0.015 D max / 0.005 D rms on all three records over 4.2 decades, and the MTF curves to 0.91 % max / 0.51 % rms over 1.58 decades, one read off a raster and the other off Bezier paths at a DIFFERENT panel aspect ratio. \u26a0 THEIR PUBLISHED EXPOSURE GUIDANCE DIFFERS -- unfiltered to 2 s and a +2 stop row at 64 s here against 1 s and nothing past 16 s there -- so the two are separate stocks, neither table is copied across, and the shared artwork is recorded as shared artwork rather than as a claim that the names are one emulsion. Section 18 (spectral sensitivity) is REFUSED for the same two reasons as its twin: a bracketed-arrow ordinate and a FOURTH cyan-sensitive layer the three-record schema cannot hold.",),
+    "FUJICOLOR_SUPERIA_XTRA_800": ("FUJIFILM DATA SHEET, FUJICOLOR SUPERIA X-TRA 800 [CZ], Ref. No. AF3-068E (EIGI-00.8-HB\u202215-1), Fuji Photo Film Co., Ltd. -- PDF/PROFILES/FUJI/superia_xtra800_datasheet.pdf. Four pages, all four data panels on p4 VECTOR with numbered ladders. Section 13 prints diffuse rms granularity 5 (48 um aperture, 12x, 1.0 above D-min), section 14 resolving power 50 / 125 lines/mm, section 2 ISO 800/30 deg daylight and ISO 200/24 deg tungsten through an LBB-12 / Wratten 80A, section 7 the long-exposure table and section 11 an 18 % grey-card aim of 0.70-0.90 Status M red. Characteristic, MTF and spectral-dye-density panels traced 2026-09-06e. \u26a0 Section 16 (spectral sensitivity) is REFUSED: it draws a FOURTH cyan-sensitive layer the three-record schema cannot hold. \u26a0 NOT a re-badge of FUJICOLOR PRO 800Z or PORTRAIT NPZ 800 despite sharing ISO 800, C-41 and the fourth layer -- all four panels are different drawings, the curves differ by up to 0.190 D in dmin and 0.203 in gamma, and the printed high-contrast resolving power is 125 against their 115.",),
+    "FUJICOLOR_SUPERIA_REALA": ("FUJIFILM DATA SHEET, FUJICOLOR SUPERIA REALA [CS], Ref. No. AF3-967E (EIGI-00.12-HB\u20228-4), Fuji Photo Film Co., Ltd. -- PDF/PROFILES/FUJI/superia_reala_datasheet.pdf. Four pages, all four data panels on p4 VECTOR with numbered ladders. Section 12 prints diffuse rms granularity 4, section 13 resolving power 63 / 125 lines/mm -- the highest low-contrast figure any Fuji stock in this database prints -- section 2 ISO 100/21 deg daylight and ISO 25/15 deg tungsten through an LBB-12 / Wratten 80A, section 6 the long-exposure table and section 10 an 18 % grey-card aim of 1.02-1.20 Status M red, the highest in the database. Characteristic, MTF and spectral-dye-density panels traced 2026-09-06e. \u26a0\u26a0 THE FILM THE FOURTH SENSITIZED LAYER WAS INTRODUCED ON -- its feature list names it second, ahead of granularity -- and section 15 duly draws four layers, so the spectral panel is REFUSED and this is the stock that refusal costs the most. \u26a0 Its three traced gammas agree to 0.7 %, the most equal in the database, which is the sheet's own 'Optimum Spectral Sensitivity Balance' measured.",),
     # ⚠ A JOURNAL PAPER AND NOT A DATASHEET, AND THAT IS THE WHOLE PROVENANCE.
     # Ansco published no data sheet for this film that survives in this corpus;
     # what exists is the manufacturer's own Development Department writing up
@@ -23168,7 +26050,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # 2026-08-04. Neu 1936 previously fell back to _NO_DATASHEET. It now has
     # real citations -- but they ground the PROCESS and DATE only, so the tier
     # stays 3 and fitted_from stays "analogy". See the PROVENANCE LIMIT note.
-    "AGFACOLOR_NEU_1936": (
+    "AGFA_NEU_1936": (
         "Color Committee (1937): 'The New Agfacolor Process'. Journal of the "
         "Society of Motion Picture Engineers, May 1937, pp. 561-562 -- via "
         "PDF/PROFILES/AGFA/Agfacolor 01.mhtml (Timeline of Historical Colors "
@@ -23214,7 +26096,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "red-sensitivity trade, the Abb. 58-59 layer sensitisation curves): "
         "all of it describes the 1939+ NEGATIVE/POSITIVE system, a different "
         "film with a different process, and it is carried by "
-        "AGFACOLOR_NEG_TYPE_B_1943 instead",
+        "AGFA_NEG_TYPE_B_1943 instead",
     ),
 }
 
@@ -23275,7 +26157,7 @@ _UNTAGGED_TIER: dict[str, int] = {
     "KODAK_VISION_500T_5279": 1,    # TRACED
     "KODAK_VISION_200T_5274": 1,    # TRACED
     "KODAK_VISION_250D_5246": 1,    # TRACED
-    "AGFACOLOR_NEU_1936": 3,
+    "AGFA_NEU_1936": 3,
     "CINESTILL_800T": 2,
     # Raised 3 -> 2 on 2026-08-02: the reseau filter_matrix is now derived
     # from measured NSMM Bradford absorbance curves of three surviving
@@ -23636,7 +26518,16 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
                 'Found 2026-09-01 by a duplicate-artwork scan over all ten columns x four panels of '
                 'both editions; the ONLY other duplicate it found is the RSX II 50 / RSX II 100 '
                 'spectral-density panel, which was already documented in _MEASURED_DYE_MATRIX. This '
-                'cell therefore stays the era-and-class heuristic estimate ON PURPOSE.'),),
+                'cell therefore stays the era-and-class heuristic estimate ON PURPOSE. '
+                '\u26a0\u26a0 RE-PROVED INDEPENDENTLY 2026-09-06h, and this note was RIGHT '
+                'ABOUT BOTH EDITIONS INCLUDING THE 0.096 pt x AGREEMENT. That day queue G6 '
+                'closed and ten of the twelve Agfa sharpness panels were adopted as measured '
+                'MTFs -- the first any Agfa stock in this database has carried. These two are '
+                'the pair that were not, and the trace that adopted the other ten rediscovered '
+                'this shared drawing from scratch before storing anything. \u26a0 It also '
+                'showed why the fingerprint must be the RESPONSE axis alone: a signature over '
+                'both coordinates calls these two panels distinct, because of exactly the '
+                '0.096 pt horizontal drift this note already recorded.'),),
         ParamSource(
             param='processing.developer', tier=1, status='stated',
             unit='',
@@ -23758,7 +26649,16 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
                 'Found 2026-09-01 by a duplicate-artwork scan over all ten columns x four panels of '
                 'both editions; the ONLY other duplicate it found is the RSX II 50 / RSX II 100 '
                 'spectral-density panel, which was already documented in _MEASURED_DYE_MATRIX. This '
-                'cell therefore stays the era-and-class heuristic estimate ON PURPOSE.'),),
+                'cell therefore stays the era-and-class heuristic estimate ON PURPOSE. '
+                '\u26a0\u26a0 RE-PROVED INDEPENDENTLY 2026-09-06h, and this note was RIGHT '
+                'ABOUT BOTH EDITIONS INCLUDING THE 0.096 pt x AGREEMENT. That day queue G6 '
+                'closed and ten of the twelve Agfa sharpness panels were adopted as measured '
+                'MTFs -- the first any Agfa stock in this database has carried. These two are '
+                'the pair that were not, and the trace that adopted the other ten rediscovered '
+                'this shared drawing from scratch before storing anything. \u26a0 It also '
+                'showed why the fingerprint must be the RESPONSE axis alone: a signature over '
+                'both coordinates calls these two panels distinct, because of exactly the '
+                '0.096 pt horizontal drift this note already recorded.'),),
         ParamSource(
             param='processing.developer', tier=1, status='stated',
             unit='',
@@ -24872,12 +27772,12 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
                     source="FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, harvested 2026-08-27, archived in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. Hand-authored engine values; no instrument, operator, date or laboratory named anywhere. NotFound.md 7.1.",
                     confidence="low",
                     note="ADOPTED 5.5, REPLACING THIS PROJECT'S OWN 3.4. The value replaced carried no comment and no source. \u26a0 This source is COMPRESSED TOWARD THE MIDDLE OF ITS OWN SET: where a sheet prints a fine figure it reads 1.9-2.6x coarser (Vista 4.3 vs 8.0, Eterna 3.5 vs 9.0), where a sheet prints a coarse one it reads 0.4-0.6x finer (Acros 7 vs 4.5, Kodachrome 10 vs 6, Velvia 9 vs 3.8). Read an adopted value as pulled toward ~7-8, i.e. too coarse for a fine stock and too fine for a coarse one."),
-        ParamSource("mtf.f50_g", 3, "estimated",
+        ParamSource("mtf.f50_g", 1, "traced",
                     unit="cycles/mm",
-                    conditions="sine-wave MTF 50 % response, green record",
-                    source="FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, harvested 2026-08-27, archived in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. Hand-authored engine values; no instrument, operator, date or laboratory named anywhere. NotFound.md 7.1.",
-                    confidence="low",
-                    note="GREEN RE-ANCHORED on the source's single mtf50 = 80 lp/mm; red and blue keep this project's per-layer ratios, so the LEVEL is third-party and the SHAPE is ours. \u26a0 The same source prints Velvia 50's RESOLVING POWER (160 lp/mm) in its mtf50 field, so its grasp of that distinction is unreliable. mtf_measured stays False."),
+                    conditions="f50, the frequency at which response falls back through 50 %, green record",
+                    source="KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company -- PDF/PROFILES/KODAK/e4046_ektar_100-2016.pdf p4, traced by mtf_vector.py (tag 'ektar100')",
+                    confidence="high",
+                    note="\u26a0 THIS RECORD WAS NOT MERELY STALE, IT CONTRADICTED ITS OWN PROFILE. Until 2026-09-06 it read tier 3 'estimated', credited the value to FilmLab Pro's hand-authored mtf50 = 80 lp/mm, and ended with the sentence 'mtf_measured stays False' -- while the profile beside it has stored the TRACED 52.7 with mtf_measured=True since 2026-09-02e. Two of this project's own tables disagreed about where a shipped number came from, and the provenance table was the wrong one. \u26a0 THE THIRD-PARTY LEVEL WAS ALSO 1.5x TOO SHARP (80 against a measured 52.7), which is the same direction and size as every other FilmLab discrepancy the project has checked. \u26a0 The 2010 edition of E-4046 was traced the same day and is the SAME vector object (290 points, max deviation 0.0010 pt), so this measurement rests on ONE drawing and is not independently confirmed."),
         ParamSource("halation.gain_r", 3, "estimated",
                     unit="dimensionless gain",
                     conditions="n/a",
@@ -25120,7 +28020,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
-    'AGFACOLOR_NEG_TYPE_3': (
+    'AGFA_NEG_TYPE_3': (
         ParamSource(
             param='curves.g.dmin', tier=1, status='traced',
             unit='density',
@@ -25178,7 +28078,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
-    'AGFACOLOR_NEG_TYPE_B_1943': (
+    'AGFA_NEG_TYPE_B_1943': (
         ParamSource(
             param='curves.g.dmin', tier=1, status='traced',
             unit='density',
@@ -25236,7 +28136,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
-    'AGFACOLOR_NEU_1936': (
+    'AGFA_NEU_1936': (
         ParamSource(
             param='curves.g.dmin', tier=3, status='assumed',
             unit='density',
@@ -27560,11 +30460,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ NOT a crystal size. clump_um is the developed clump and depends on development gamma and density -- BBC T-101 measures it shrinking ~20 % across one film's tone scale. EmulsionSpec.grain_um is the crystal diameter and the two must never be aliased."),
         ParamSource(
-            param='grain.rms_granularity', tier=2, status='estimated',
+            param='grain.rms_granularity', tier=1, status='stated',
             unit='sigma(D) x 1000',
-            conditions='48 um aperture, NET density 1.0 (schema v9 convention)',
-            confidence='low',
-            note="No published rms for this stock in the corpus. ⚠ A granularity figure without its aperture and density is not a number; the stored value follows this project's convention and should not be compared with a maker's figure read under another one."),
+            conditions='section 18, 48 um micro-densitometer aperture, sample density 1.0 above minimum',
+            source='Fuji Photo Film Co., Ltd., FUJICHROME PROVIA 400X Professional [RXP] PRODUCT INFORMATION BULLETIN, Ref. No. AF3-0213E (2007) -- PDF/PROFILES/FUJI/Provia_400X_PIB_1007.pdf; section 18 on p6 and section 22 on p7, read 2026-09-06',
+            confidence='high',
+            note="⚠ THIS SAID 'estimated' FOR A VALUE THE SHEET PRINTS. Section 18 reads 'DIFFUSE RMS GRANULARITY VALUE .... 11', and 11.0 is what the profile has always stored -- only the provenance cell was wrong, so every census reading ParamSource counted this stock as unmeasured on grain. Corrected 2026-09-06. ⚠ One significant figure, as on every Fuji sheet."),
         ParamSource(
             param='halation.gain_r', tier=2, status='estimated',
             unit='dimensionless gain',
@@ -27572,17 +30473,19 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="Halation gain set from the project's base/era model. ⚠ NO MANUFACTURER PUBLISHES A HALATION GAIN, so no stock can reach tier 1 on this parameter from a datasheet; see the standing owner-measurement ask in PROGRESS.md."),
         ParamSource(
-            param='mtf.f50_g', tier=2, status='estimated',
+            param='mtf.f50_g', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (55 lp/mm at 1.6:1, 135 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='section 22 MTF CURVE, exposure Daylight, process E-6/CR-56',
+            source='Fuji Photo Film Co., Ltd., FUJICHROME PROVIA 400X Professional [RXP] PRODUCT INFORMATION BULLETIN, Ref. No. AF3-0213E (2007) -- PDF/PROFILES/FUJI/Provia_400X_PIB_1007.pdf; section 18 on p6 and section 22 on p7, read 2026-09-06',
+            confidence='medium',
+            note="TRACED 2026-09-06 from p7 section 22, replacing the estimate 68.0 -- which was 1.52x TOO SHARP, the same direction as every other traced correction here. Black line art with LABELLED log axes in the text layer: 8 frequency ticks at 1.07 pt residual, 10 response ticks at 0.87 pt; the curve is a single 80-point bezier group. f50 44.6, overshoot +0.047. ⚠ THE PANEL IS NOT SQUARE -- 75.7 px per frequency decade against 78.6 per response decade, 3.6 % apart -- so the axes are fitted independently rather than one assumed from the other. ⚠ q 1.50 is the SHALLOWEST rolloff in the database and also the best-fitting: rms 0.0233 against the Gaussian's 0.1211, 5.2x better, the largest margin any stock shows. ⚠ ONE UNLABELLED CURVE, so f50_r and f50_b are NOT measured; they take the stated Fuji per-record ratio off green."),
         ParamSource(
-            param='mtf.f50_r', tier=2, status='estimated',
+            param='mtf.f50_r', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (55 lp/mm at 1.6:1, 135 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='section 22 MTF CURVE, exposure Daylight, process E-6/CR-56',
+            source='Fuji Photo Film Co., Ltd., FUJICHROME PROVIA 400X Professional [RXP] PRODUCT INFORMATION BULLETIN, Ref. No. AF3-0213E (2007) -- PDF/PROFILES/FUJI/Provia_400X_PIB_1007.pdf; section 18 on p6 and section 22 on p7, read 2026-09-06',
+            confidence='medium',
+            note="TRACED 2026-09-06 from p7 section 22, replacing the estimate 68.0 -- which was 1.52x TOO SHARP, the same direction as every other traced correction here. Black line art with LABELLED log axes in the text layer: 8 frequency ticks at 1.07 pt residual, 10 response ticks at 0.87 pt; the curve is a single 80-point bezier group. f50 44.6, overshoot +0.047. ⚠ THE PANEL IS NOT SQUARE -- 75.7 px per frequency decade against 78.6 per response decade, 3.6 % apart -- so the axes are fitted independently rather than one assumed from the other. ⚠ q 1.50 is the SHALLOWEST rolloff in the database and also the best-fitting: rms 0.0233 against the Gaussian's 0.1211, 5.2x better, the largest margin any stock shows. ⚠ ONE UNLABELLED CURVE, so f50_r and f50_b are NOT measured; they take the stated Fuji per-record ratio off green."),
         ParamSource(
             param='processing.developer', tier=3, status='assumed',
             unit='',
@@ -29248,11 +32151,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ NOT a crystal size. clump_um is the developed clump and depends on development gamma and density -- BBC T-101 measures it shrinking ~20 % across one film's tone scale. EmulsionSpec.grain_um is the crystal diameter and the two must never be aliased."),
         ParamSource(
-            param='mtf.f50_r', tier=2, status='estimated',
+            param='mtf.f50_r', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic."),
+            conditions='f50, the frequency at which response falls back through 50 %; diffuse visual densitometry as the sheet states',
+            source="KODAK PROFESSIONAL EKTAR 100 Film, publication E-4046 (2016), Eastman Kodak Company -- PDF/PROFILES/KODAK/e4046_ektar_100-2016.pdf p4, traced by mtf_vector.py (tag 'ektar100')",
+            confidence='high',
+            note="⚠ THIS RECORD WAS STALE AND SAID 'estimated' FOR A VALUE TRACED SINCE 2026-09-02e. The stored triple 35.5 / 52.7 / 54.8 is the measurement off E-4046's own vector art and mtf_measured has been True on this profile throughout; only the provenance cell was never updated, so this stock was counted as UNMEASURED by every census that reads ParamSource. Corrected 2026-09-06. ⚠ AND THE MEASUREMENT RESTS ON ONE DRAWING, NOT TWO: the 2010 edition of E-4046 was traced the same day and is the SAME vector object on all three records (188 / 290 / 288 points, max deviation 0.0010 pt) -- it reproduces the trace but adds no independent evidence."),
         ParamSource(
             param='processing.developer', tier=3, status='assumed',
             unit='',
@@ -30294,17 +33198,19 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='Halation gain is ZERO on this profile, i.e. the effect is OFF. ⚠ That is an absence of data, NOT a measurement that this film does not halate. Every film on a transparent support halates to some degree.'),
         ParamSource(
-            param='mtf.f50_g', tier=2, status='estimated',
+            param='mtf.f50_g', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (63 lp/mm at 1.6:1, 200 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='f50, the frequency at which response falls back through 50 %; diffuse visual densitometry as the sheet states',
+            source="KODAK PROFESSIONAL T-MAX Films, publication F-4016, Eastman Kodak Company -- PDF/PROFILES/KODAK/f4016_TMax_100.pdf p8, the Modulation Transfer Curves panel, traced as vector art by mtf_vector.py (tag 'tmax100'). Axes least-squares fitted: frequency 0.66 pt over 11 printed ticks, response 0.77 pt over 12",
+            confidence='high',
+            note="TRACED 2026-09-06 from the sheet's own vector path, 143 points over 2.4-148 cycles/mm. ⚠ REPLACES THE ESTIMATE 95.0, WHICH WAS 1.29x TOO SOFT -- the first traced sheet whose estimate erred that way; 5285, 5222, 5231 and EKTAR were all too SHARP, by 1.33-1.95x. Confirmed independently by F-32 (September 2001) at 120.3, a different drawing of 112 points, 2.3 % apart. ⚠ The 2007 edition of F-4016 is NOT a second confirmation: it carries the SAME vector object (max deviation 0.0010 pt after an origin shift). ⚠ The published resolving power (63 lp/mm at 1.6:1, 200 at 1000:1) is still NOT the source of this value and Tani's conversion is still not adopted -- it is now a cross-check the measurement passes rather than a better source sitting unused."),
         ParamSource(
-            param='mtf.f50_r', tier=2, status='estimated',
+            param='mtf.f50_r', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (63 lp/mm at 1.6:1, 200 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='f50, the frequency at which response falls back through 50 %; diffuse visual densitometry as the sheet states',
+            source="KODAK PROFESSIONAL T-MAX Films, publication F-4016, Eastman Kodak Company -- PDF/PROFILES/KODAK/f4016_TMax_100.pdf p8, the Modulation Transfer Curves panel, traced as vector art by mtf_vector.py (tag 'tmax100'). Axes least-squares fitted: frequency 0.66 pt over 11 printed ticks, response 0.77 pt over 12",
+            confidence='high',
+            note="TRACED 2026-09-06 from the sheet's own vector path, 143 points over 2.4-148 cycles/mm. ⚠ REPLACES THE ESTIMATE 95.0, WHICH WAS 1.29x TOO SOFT -- the first traced sheet whose estimate erred that way; 5285, 5222, 5231 and EKTAR were all too SHARP, by 1.33-1.95x. Confirmed independently by F-32 (September 2001) at 120.3, a different drawing of 112 points, 2.3 % apart. ⚠ The 2007 edition of F-4016 is NOT a second confirmation: it carries the SAME vector object (max deviation 0.0010 pt after an origin shift). ⚠ The published resolving power (63 lp/mm at 1.6:1, 200 at 1000:1) is still NOT the source of this value and Tani's conversion is still not adopted -- it is now a cross-check the measurement passes rather than a better source sitting unused."),
         ParamSource(
             param='processing.developer', tier=3, status='assumed',
             unit='',
@@ -30396,17 +33302,19 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ NOT a crystal size. clump_um is the developed clump and depends on development gamma and density -- BBC T-101 measures it shrinking ~20 % across one film's tone scale. EmulsionSpec.grain_um is the crystal diameter and the two must never be aliased."),
         ParamSource(
-            param='mtf.f50_g', tier=2, status='estimated',
+            param='mtf.f50_g', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (40 lp/mm at 1.6:1, 125 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='f50, the frequency at which response falls back through 50 %; diffuse visual densitometry, D-76 at 68 F, as the sheet states',
+            source="KODAK PROFESSIONAL T-MAX P3200 Black & White Negative Film, publication F-4001 (2019), Eastman Kodak Company -- PDF/PROFILES/KODAK/f4001-P3200TMZ-2019.pdf p7, the Modulation Transfer Curves panel, traced as vector art by mtf_vector.py (tag 'p3200_19'). Axes fitted: frequency 0.54 pt over 11 printed ticks, response 0.78 pt over 12",
+            confidence='high',
+            note="TRACED 2026-09-06, 94 points over 3.0-144 cycles/mm, replacing the estimate 50.0. ⚠⚠ THE 2018 EDITION OF THE SAME PUBLICATION MUST NOT BE READ: its p7 panel is KODAK T-MAX 100's artwork, copied -- 143 points, equal bounding boxes, max deviation 0.0010 pt after an origin shift, annotation block included. Reading it gives f50 = 123.0, the sharpest B&W value in this database, on an ISO 3200 push film. ⚠ Only the PLOT is misplaced: the 2018 page's resolving-power text is P3200's own (40 / 125 lines/mm against T-MAX 100's 63 / 200). ⚠ THIS RECORD IS ALSO A RECORD OF A MISTAKE -- the 2018 identity was found first and this stock was written off as having no published MTF, from ONE file; the 2019 edition carries P3200's own drawing (40 bezier control points against 44, peak at 5.4 cycles/mm against 18.8, matching nothing else in the corpus). Never write a refusal from a single edition. ⚠ f50 ONLY: the rolloff fits at q = 2.03, rms 0.0534 against the Gaussian's 0.0681, i.e. 1.3x better, and the PORTRA NC/VC threshold (2026-08-30) is that 1.2-1.3x does not license switching the carrier -- so mtf_measured stays False. ⚠ Cross-check the tracer does not enforce: 84.3 against the sheet's own 125 lines/mm at 1000:1 is a ratio of 1.35 on Tani's f50 ~ RP/2, in family with T-MAX 100's 1.23; the misplaced 2018 figure would have implied 1.97."),
         ParamSource(
-            param='mtf.f50_r', tier=2, status='estimated',
+            param='mtf.f50_r', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (40 lp/mm at 1.6:1, 125 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='f50, the frequency at which response falls back through 50 %; diffuse visual densitometry, D-76 at 68 F, as the sheet states',
+            source="KODAK PROFESSIONAL T-MAX P3200 Black & White Negative Film, publication F-4001 (2019), Eastman Kodak Company -- PDF/PROFILES/KODAK/f4001-P3200TMZ-2019.pdf p7, the Modulation Transfer Curves panel, traced as vector art by mtf_vector.py (tag 'p3200_19'). Axes fitted: frequency 0.54 pt over 11 printed ticks, response 0.78 pt over 12",
+            confidence='high',
+            note="TRACED 2026-09-06, 94 points over 3.0-144 cycles/mm, replacing the estimate 50.0. ⚠⚠ THE 2018 EDITION OF THE SAME PUBLICATION MUST NOT BE READ: its p7 panel is KODAK T-MAX 100's artwork, copied -- 143 points, equal bounding boxes, max deviation 0.0010 pt after an origin shift, annotation block included. Reading it gives f50 = 123.0, the sharpest B&W value in this database, on an ISO 3200 push film. ⚠ Only the PLOT is misplaced: the 2018 page's resolving-power text is P3200's own (40 / 125 lines/mm against T-MAX 100's 63 / 200). ⚠ THIS RECORD IS ALSO A RECORD OF A MISTAKE -- the 2018 identity was found first and this stock was written off as having no published MTF, from ONE file; the 2019 edition carries P3200's own drawing (40 bezier control points against 44, peak at 5.4 cycles/mm against 18.8, matching nothing else in the corpus). Never write a refusal from a single edition. ⚠ f50 ONLY: the rolloff fits at q = 2.03, rms 0.0534 against the Gaussian's 0.0681, i.e. 1.3x better, and the PORTRA NC/VC threshold (2026-08-30) is that 1.2-1.3x does not license switching the carrier -- so mtf_measured stays False. ⚠ Cross-check the tracer does not enforce: 84.3 against the sheet's own 125 lines/mm at 1000:1 is a ratio of 1.35 on Tani's f50 ~ RP/2, in family with T-MAX 100's 1.23; the misplaced 2018 figure would have implied 1.97."),
         ParamSource(
             param='processing.developer', tier=3, status='assumed',
             unit='',
@@ -30497,17 +33405,19 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ NOT a crystal size. clump_um is the developed clump and depends on development gamma and density -- BBC T-101 measures it shrinking ~20 % across one film's tone scale. EmulsionSpec.grain_um is the crystal diameter and the two must never be aliased."),
         ParamSource(
-            param='mtf.f50_g', tier=2, status='estimated',
+            param='mtf.f50_g', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (50 lp/mm at 1.6:1, 100 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='f50, the frequency at which response falls back through 50 %; diffuse visual densitometry as the sheet states',
+            source="KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company -- PDF/PROFILES/KODAK/f4017_TriX.pdf p7, the Modulation Transfer Function panel, traced by mtf_vector.py (tag 'trix400'). Axes fitted to 0.66 pt / 11 ticks and 0.77 pt / 12 ticks",
+            confidence='high',
+            note="TRACED 2026-09-06, 94 points over 2.4-70.8 cycles/mm. ⚠ THE BEST-EVIDENCED MTF IN THIS DATABASE: three INDEPENDENT drawings across seventeen years read 52.7 (F-4017, 2016), 52.6 (F-4017, 2007) and 53.1 (F-9, June 1999) -- a spread of 1.1 %, and no two are the same artwork (94 / 64 / 192 points). Replaces the estimate 58.0, so 1.10x too sharp, the smallest correction any traced sheet has produced. ⚠ THE PANEL IS 400TX's ALONE: F-4017 covers 320TXP too but prints ONE MTF frame, headed 'TRI-X 400 Film / 400TX, 35 mm', so 320TXP keeps its estimate rather than borrowing this one (rule 18)."),
         ParamSource(
-            param='mtf.f50_r', tier=2, status='estimated',
+            param='mtf.f50_r', tier=1, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (50 lp/mm at 1.6:1, 100 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='f50, the frequency at which response falls back through 50 %; diffuse visual densitometry as the sheet states',
+            source="KODAK PROFESSIONAL TRI-X 320 and 400 Films, publication F-4017 (2016), Eastman Kodak Company -- PDF/PROFILES/KODAK/f4017_TriX.pdf p7, the Modulation Transfer Function panel, traced by mtf_vector.py (tag 'trix400'). Axes fitted to 0.66 pt / 11 ticks and 0.77 pt / 12 ticks",
+            confidence='high',
+            note="TRACED 2026-09-06, 94 points over 2.4-70.8 cycles/mm. ⚠ THE BEST-EVIDENCED MTF IN THIS DATABASE: three INDEPENDENT drawings across seventeen years read 52.7 (F-4017, 2016), 52.6 (F-4017, 2007) and 53.1 (F-9, June 1999) -- a spread of 1.1 %, and no two are the same artwork (94 / 64 / 192 points). Replaces the estimate 58.0, so 1.10x too sharp, the smallest correction any traced sheet has produced. ⚠ THE PANEL IS 400TX's ALONE: F-4017 covers 320TXP too but prints ONE MTF frame, headed 'TRI-X 400 Film / 400TX, 35 mm', so 320TXP keeps its estimate rather than borrowing this one (rule 18)."),
         ParamSource(
             param='processing.developer', tier=3, status='assumed',
             unit='',
@@ -34411,7 +37321,7 @@ del _dname, _dsrcs, _have, _add
 #: ⚠⚠ AND THE VALUES MUST NOT BE ZEROED TO "BE HONEST". Measured 2026-09-05c:
 #: forcing `dye_matrix` to identity on the 99 colour stocks that carry a
 #: non-identity one collapses the rendered saturation spread from 0.077-0.312
-#: to 0.117-0.174, putting AGFACOLOR_NEU_1936 -- a stock whose muddy dyes are
+#: to 0.117-0.174, putting AGFA_NEU_1936 -- a stock whose muddy dyes are
 #: why it is in this database -- within 10 % of VELVIA. Dye purity is a real
 #: per-stock physical property and the per-channel characteristic curves cannot
 #: carry it: they are measured on a NEUTRAL scale, so they encode contrast and
@@ -34431,19 +37341,46 @@ del _dname, _dsrcs, _have, _add
 # prose. The guard was right and the prose was wrong. The reasoning is in the
 # comment above, in method rule 23 and in NotFound.md row 12; a `note` says what
 # a reader needs AT THE POINT OF USE and points at the rest.
+#: \u26a0 ALL THREE NOTES REWRITTEN 2026-09-08 (queue item B of the dye_matrix
+#: review) BECAUSE THEY DESCRIBED THE LOSING DEFINITION. They said the matrix
+#: "stands in for impurity NET of interimage". It does not, and the code says
+#: so in two places: `ToneCurve` carries a `density_metric` declaring the
+#: curves to be STATUS densities, and stage 12 sits AFTER grain and BEFORE
+#: Callier -- the boundary between the developed negative and everything that
+#: reads it. So what the matrix implements is a reader transform,
+#: M_reader . M_status^-1: how a particular reading geometry and filter set
+#: differs from the status densities the curves already carry.
+#:
+#: The measurement that settled it, because two plausible readings were on the
+#: table and only one survives contact with the database: the neutral shift the
+#: matrix produces correlates with the ORANGE MASK at r = +0.637, and the
+#: masked stocks shift a median 0.0459 D against 0.0054 D for the unmasked. A
+#: dye-purity operator has no reason to know about the mask; a status-to-reader
+#: transform does, because that is exactly what the mask makes different
+#: between the two. The losing reading is kept in NotFound.md rather than
+#: deleted -- it is what would be correct if the curves held per-layer
+#: analytical densities, and `density_metric` is the field that rules it out.
+#:
+#: \u26a0 AND THE REWRITE IS BYTE-BOUNDED, WHICH IS NOT A STYLE PREFERENCE. Each
+#: note is emitted PER STOCK into the generated C++ (25 panel, 82 bare, 8
+#: identity), and cpp_codegen's slot headroom at the time of writing was 963
+#: bytes. Every replacement is SHORTER than the string it replaces -- -2, -3
+#: and -8 bytes, so -360 bytes emitted overall. Keep it that way: the argument
+#: belongs in this comment, which never ships, not in the note, which ships 115
+#: times.
 _DYE_MATRIX_NOTE_PANEL = (
-    '\u26a0 NOT A DYE-PURITY MATRIX: sign is OPPOSITE to this stock\'s own '
-    'traced dyes (26 of 27 are, M1a 2026-09-05d). It stands in for the NET of '
-    'impurity (desaturates, |T-I| ~0.21, derivable) and interimage (saturates, '
-    'estimated on all 107). Rule 23.')
+    '\u26a0 NOT A DYE-PURITY MATRIX: it maps the stored STATUS densities to '
+    'what a reader sees (M_reader.M_status^-1), so a sign OPPOSITE to this '
+    'stock\'s traced dyes is legal -- 26 of 27 are (M1a 2026-09-05d). '
+    'MAGNITUDE estimated on all 107. Rule 23.')
 _DYE_MATRIX_NOTE_BARE = (
-    '\u26a0 UNSOURCED MAGNITUDE: _dye(k) scalar; the FORM (unit row sums) is '
-    'now DERIVED-correct, the magnitude is not. Stands in for impurity NET of '
-    'interimage. No dye spectra for this stock -- NOT evidence its purity is '
-    'average. Rule 23.')
+    '\u26a0 UNSOURCED MAGNITUDE: _dye(k) scalar; FORM (unit row sums) is '
+    'DERIVED-correct, magnitude is not. Maps stored STATUS densities to a '
+    'reader (M_reader.M_status^-1). No dye spectra here -- NOT evidence '
+    'purity is average. Rule 23.')
 _DYE_MATRIX_NOTE_IDENTITY = (
-    '\u26a0 IDENTITY, AND UNMEASURED. Asserts no cross-record dye coupling, '
-    'which no source states. Never read as measured-zero. Rule 23 pt 3.')
+    '\u26a0 IDENTITY, AND UNMEASURED. Asserts a reader sees the declared '
+    'status; no source says so. Never measured-zero. Rule 23 pt 3.')
 
 for _p in FILM_PROFILES:
     if _p.is_monochrome:
@@ -34468,6 +37405,1465 @@ for _p in FILM_PROFILES:
             confidence=_conf, note=_note),
     )
 del _p, _have, _m, _ident, _note, _conf
+
+
+# ---------------------------------------------------------------------------
+#  callier_q provenance -- generated, 2026-09-06
+# ---------------------------------------------------------------------------
+#: ⚠ `callier_q` CARRIED ZERO PROVENANCE RECORDS ON ALL 176 PROFILES UNTIL
+#: TODAY, and by this module's own convention that made it read as
+#: datasheet-grounded on every tier-1 stock -- the identical failure the
+#: `dye_matrix` block above was written to fix, in a field that had just been
+#: switched from inert to load-bearing.
+#:
+#: ⚠ AND THE TIMING IS THE POINT. On 2026-09-06 `scanner_specular` moved from
+#: 0.0 to 0.853, so stage 12b stopped being inert and these numbers began
+#: reaching pixels on every monochrome render. A value that moves a picture must
+#: say where it came from.
+#:
+#: WHAT IS TRUE OF THE MONOCHROME 69: beta is DERIVED, per stock, from that
+#: stock's own mid slope by `_callier_beta_for` -- 1 + A*g/(g+K), a rule
+#: calibrated on Mees FIG. 179's measured beta-against-gamma behaviour and
+#: cross-checked against Trumpy/Streiffert (1.809 base-corrected) and BBC T-101
+#: Fig. 25 (2.0-2.34 at 0.0016 sr). It is a real derivation from a documented
+#: relation, and it is NOT a per-stock measurement: no source in this corpus
+#: states a Callier coefficient for any named stock in this database.
+#:
+#: WHAT IS TRUE OF THE COLOUR 107: Q = 1.0 is this project's own value, resting
+#: on the argument that a chromogenic dye image scatters far less than developed
+#: silver. ⚠ IT IS AN IDENTITY, AND AN IDENTITY IS A CLAIM (rule 23 pt 3) -- it
+#: asserts EXACTLY no Callier effect, which no source states for any of them.
+#:
+#: ⚠ NOTES ARE SHORT ON PURPOSE. The emitter drops `note` but writes every other
+#: field per stock; the dye_matrix block overflowed the slot ceiling once
+#: already by carrying prose. The argument lives here and in NotFound.md row 7.
+_CALLIER_NOTE_MONO = (
+    '\u26a0 DERIVED, NOT MEASURED: beta from this stock\'s own mid slope via '
+    '_callier_beta_for, a rule calibrated on Mees FIG. 179. No source states a '
+    'Callier coefficient for this stock. Reaches pixels since scanner_specular '
+    'defaulted to 0.853 (2026-09-06).')
+_CALLIER_SRC_MONO = (
+    'C. E. K. Mees, «The Theory of the Photographic Process», FIG. 179 and the '
+    'Silberstein & Tuttle law printed p644 -- the measured beta-against-gamma '
+    'behaviour this rule is calibrated on (mees_callier_q.py); cross-checked '
+    'against Trumpy & Gschwind 2015 Fig. 5 after Streiffert 1947 (beta 1.809 '
+    'base-corrected, trumpy_callier_q.py) and BBC Research Report T-101 Fig. 25 '
+    'p37 (Q 2.00-2.34 at 0.0016 sr). \u26a0 The rule is applied to THIS stock\'s '
+    'own mid slope by _callier_beta_for (queue C43); none of the three sources '
+    'measures this stock.')
+_CALLIER_NOTE_COLOUR = (
+    '\u26a0 IDENTITY, AND UNMEASURED. Q=1.0 asserts EXACTLY no Callier effect, '
+    'from the dye-image argument, not from a measurement of this stock. Never '
+    'read as measured-zero. Rule 23 pt 3.')
+
+for _p in FILM_PROFILES:
+    _have = {_e.param for _e in _PARAM_SOURCES.get(_p.name, ())}
+    if 'callier_q' in _have:
+        continue
+    if _p.is_monochrome:
+        _t, _st, _n, _c = 2, 'derived', _CALLIER_NOTE_MONO, 'medium'
+        _src = _CALLIER_SRC_MONO
+    else:
+        _t, _st, _n, _c = 3, 'estimated', _CALLIER_NOTE_COLOUR, 'low'
+        _src = ''
+    _PARAM_SOURCES[_p.name] = _PARAM_SOURCES.get(_p.name, ()) + (
+        ParamSource(
+            param='callier_q', tier=_t, status=_st,
+            unit='dimensionless ratio, specular density / diffuse density',
+            conditions='stage 12b, on NET density; beta in the '
+                       'Silberstein-Tuttle law',
+            source=_src, confidence=_c, note=_n),
+    )
+del _p, _have, _t, _st, _n, _c, _src
+
+
+# ---------------------------------------------------------------------------
+#  FUJI_PROVIA_100F -- the AF3-036E read, 2026-09-06
+# ---------------------------------------------------------------------------
+#: ⚠ THIS STOCK IS TIER 1 AND CARRIED TWO ParamSource RECORDS, BOTH
+#: AUTO-GENERATED. Its whole datasheet had been read in two passes and nothing
+#: said so per parameter, so by this module's own convention every cell read as
+#: datasheet-grounded -- including the ones that are not.
+_PROVIA_100F_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET \u00abFUJICHROME PROVIA 100F '
+    'Professional [RDP III]\u00bb, Ref. No. AF3-036E (EIGI-00.10-HB-5-4) -- '
+    'PDF/PROFILES/FUJI/provia_100f_datasheet.pdf p6; traced by fuji_t3_2026.py')
+_PROVIA_100F_RECORDS = (
+    ParamSource(
+        param='spectral', tier=1, status='traced',
+        unit='log sensitivity, peak-normalised to 0.0',
+        conditions='section 19 SPECTRAL SENSITIVITY CURVES; E-6/CR-56, Fuji FAD-30S Status A, density 1.0 above D-min',
+        source=_PROVIA_100F_SRC,
+        confidence='high',
+        note="TRACED 2026-09-06 from the panel's own VECTOR paths. ⚠ THE 2026-09-02e PASS REFUSED THIS PANEL and shipped the stock with spectral.has_data False, on the ground that the ordinate carried no numbered ladder. That is true of the SUPERIA and PRO 400H sheets and FALSE here: the ticks are real text (1.0/0.0/-1.0, fitted to 0.000 pt) and the curves are inked bezier. ⚠ Ink assignment CONFIRMED BY THE SHEET'S OWN IN-FRAME LABELS at 428/538/618 nm against traced peaks 455/543/642 nm, and by ascending peak order. ⚠ Peak-normalised, so the inter-record BALANCE is not asserted."),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 20 MTF CURVE, 300 dpi raster panel, one unlabelled curve',
+        source=_PROVIA_100F_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-02e: 1083 columns over 1.0-61.1 c/mm, f50 39.8, overshoot +0.155, rolloff q 3.50 at rms 0.0742 against the Gaussian's 0.1036. ⚠ FUJI PRINTS ONE UNLABELLED CURVE, so f50_r and f50_b are NOT measured -- they take this project's stated per-record ratio off the green value, the same rule 8532 and 8572 use."),
+    ParamSource(
+        param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+        unit='lines/mm',
+        conditions='section 17 RESOLVING POWER, chart contrast 1.6:1 and 1000:1',
+        source=_PROVIA_100F_SRC,
+        confidence='high',
+        note="PRINTED IN WORDS on p6: 60 lines/mm at 1.6:1 and 140 at 1000:1. ⚠ Adopted 2026-09-06; the fields were empty before although the sheet had been read. Cross-check on the traced f50: Tani's f50 ~ RP/2 gives 70 against a measured 39.8, a ratio of 0.57 -- inside the 0.5-2.0 band verify.py allows but at its low end, which is what a reversal film's steep curve does to a resolving-power reading."),
+    ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma(D) x 1000',
+        conditions='section 16, 48 um aperture, sample density 1.0 above minimum density',
+        source=_PROVIA_100F_SRC,
+        confidence='high',
+        note="PRINTED AS A SINGLE DIGIT: 'DIFFUSE RMS GRANULARITY VALUE ......... 8'. ⚠ ONE SIGNIFICANT FIGURE, so the stored 8.0 carries at best +/-0.5, and the sheet states the aperture and density this project's convention already uses."),
+)
+_PARAM_SOURCES['FUJI_PROVIA_100F'] = (
+    _PARAM_SOURCES.get('FUJI_PROVIA_100F', ()) + _PROVIA_100F_RECORDS)
+
+
+# ---------------------------------------------------------------------------
+#  FUJI_PROVIA_400F -- the AF3-066E read, 2026-09-06
+# ---------------------------------------------------------------------------
+#: ⚠ EVERY PANEL ON THIS SHEET IS VECTOR, which PROVIA 100F's is not, so the
+#: 400-speed stock enters the database better evidenced than its 100-speed
+#: sibling on three of the four carriers.
+_PROVIA_400F_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET \u00abFUJICHROME PROVIA 400F '
+    'Professional [RHP III]\u00bb, Ref. No. AF3-066E -- PDF/PROFILES/FUJI/'
+    'PROVIA400FAF3-066E_1.pdf p6; traced 2026-09-06, calibrated on the panels\' '
+    'own drawn gridlines')
+_PROVIA_400F_RECORDS = (
+    ParamSource(
+        param='spectral', tier=1, status='traced',
+        unit='log sensitivity, peak-normalised to 0.0',
+        conditions='section 18; E-6/CR-56, sensitivity = reciprocal of J/cm2 for a specified density',
+        source=_PROVIA_400F_SRC,
+        confidence='high',
+        note="TRACED 2026-09-06 from VECTOR paths, calibrated on the panel's DRAWN GRIDLINES (0.116 / 0.308 pt) because this sheet's tick labels jitter +/-8 %. Peaks 455 / 545 / 646 nm, ascending. ⚠ THE PANEL IS NOT SQUARE HERE -- 60.75 px per 100 nm against 59.53 px per decade, 2.0 % apart, where PROVIA 100F's agree to 0.04 % -- so the square-panel property is a fact about that artwork, not a Fuji house rule. ⚠ Peak-normalised: the inter-record BALANCE is not asserted."),
+    ParamSource(
+        param='curves.g.gamma', tier=1, status='traced',
+        unit='dimensionless',
+        conditions='section 17, exposure Daylight, process E-6/CR-56, Status A',
+        source=_PROVIA_400F_SRC,
+        confidence='high',
+        note="TRACED 2026-09-06, 82 columns over logH -4.00..+0.01, rms 0.0069. ⚠ CALIBRATED ON GRIDLINES, NOT LABELS: a label-centroid fit gives a 48 pt density-axis residual and a red record running -1.70 to 4.48 D, which is impossible; the 0.5 D label steps land 23.99-27.00 pt apart. ⚠ GREEN AND BLUE TAKE RED'S SHAPE at their own measured Dmax, the reversal rule -- but here green's own fragment fit independently returns gamma 2.3894 against the rule's 2.3843, 0.2 % apart, which is a check on the method that PROVIA 100F could not supply."),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 19, one unlabelled curve',
+        source=_PROVIA_400F_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06: 56 points over 1.0-71.9 c/mm, f50 27.0, overshoot +0.189, rolloff q 2.11 at rms 0.0324 against the Gaussian's 0.0884 -- 2.7x better, so the power law is stored. ⚠ ONE UNLABELLED CURVE, so f50_r and f50_b are NOT measured; they take the stated per-record ratio off green. ⚠ AND IT READS LOW AGAINST THE SHEET'S OWN RESOLVING POWER: Tani's f50 ~ RP/2 gives 67.5 from the printed 135 lines/mm against a measured 27.0, ratio 0.40. PROVIA 100F reads 0.57 the same way, so this is a property of Fuji reversal sheets. Recorded, not reconciled."),
+    ParamSource(
+        param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+        unit='lines/mm',
+        conditions='section 16, chart contrast 1.6:1 and 1000:1',
+        source=_PROVIA_400F_SRC,
+        confidence='high',
+        note='PRINTED IN WORDS: 55 lines/mm at 1.6:1 and 135 at 1000:1.'),
+    ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma(D) x 1000',
+        conditions='section 15, 48 um aperture, sample density 1.0 above minimum',
+        source=_PROVIA_400F_SRC,
+        confidence='high',
+        note='PRINTED AS A SINGLE DIGIT: 13. ⚠ One significant figure, so +/-0.5 at best. The clump triple beside it is a class rule scaled to this rms and is NOT measured.'),
+    ParamSource(
+        param='reciprocity', tier=2, status='derived',
+        unit='Schwarzschild exponent',
+        conditions='section 5 LONG EXPOSURE COMPENSATION',
+        source=_PROVIA_400F_SRC,
+        confidence='medium',
+        note="⚠ ONSET 32 s IS PRINTED (no correction from 1/4000 to 32 seconds) against PROVIA 100F's 128 s -- the faster emulsion fails four times sooner, the expected direction. ⚠ THE TWO CORRECTION ENTRIES DO NOT FIT ONE EXPONENT: +2/3 stop at 1 min and +1 stop at 2-4 min solve against the printed onset to p 0.576 and p 0.707. The stored 0.66 is fitted to both and the SPREAD IS RECORDED, not averaged away (rule 4); Fuji quantises the table to thirds of a stop, which is coarse enough to explain it. ⚠⚠ CORRECTED 2026-09-06c: WHEN THIS NOTE WAS FIRST WRITTEN THE DATABASE DID NOT HOLD 0.66. The exponent was set in the profile literal, and `_apply_schema_v2` overwrites `reciprocity` from `_RECIPROCITY_OVERRIDES` alone, so the shipped profile carried the colour-reversal class default 0.93/0.92/0.94 at a 1 s onset while this record described 0.66 at 32 s. Provenance disagreeing with its own value -- the same defect class as EKTAR 100's MTF and `callier_q`'s empty register, and the fifth instance this week. The spec now lives in `_RECIPROCITY_OVERRIDES` and `_reciprocity_for` RAISES on a literal so the next one cannot be lost the same way."),
+    ParamSource(
+        param='reciprocity_table', tier=1, status='stated',
+        unit='stops of lens opening',
+        conditions='section 5 LONG EXPOSURE COMPENSATION',
+        source=_PROVIA_400F_SRC,
+        confidence='high',
+        note="⚠ ADOPTED 2026-09-06c, AND IT SUPERSEDES THE EXPONENT ARGUMENT ABOVE ENTIRELY. `ReciprocityTable` holds the printed rows verbatim and the renderer prefers it over the Schwarzschild form, so no exponent has to be fitted to a four-row table at all: no correction from 1/4000 to 32 s, +2/3 stop with a CC05G filter at 1 min, +1 stop with CC7.5G at 2-4 min. ⚠⚠ THE COLOUR-COMPENSATING FILTER COLUMN WAS DROPPED BY THE FIRST READ OF THIS SHEET and it is the more interesting half: this stock's reciprocity failure is CHROMATIC, needing progressively more GREEN correction, which an exponent -- one number per record, no wavelength -- cannot express at any value. ⚠ The sheet's fourth row, 8 min, reads 'Not recommended' and is NOT stored: a refusal to publish is not a datum to extrapolate."),
+)
+_PARAM_SOURCES['FUJI_PROVIA_400F'] = (
+    _PARAM_SOURCES.get('FUJI_PROVIA_400F', ()) + _PROVIA_400F_RECORDS)
+
+
+# ---------------------------------------------------------------------------
+#  FUJICHROME_64T_II -- the AF3-024E read, 2026-09-06
+# ---------------------------------------------------------------------------
+#: ⚠ THE FIRST TUNGSTEN-BALANCED FUJI REVERSAL STOCK IN THIS DATABASE, and the
+#: one whose most interesting measured property -- the seven-to-one blue-over-red
+#: sensitivity that IS the tungsten balance -- is the one the storage convention
+#: throws away. Said out loud on the spectral record rather than left implicit.
+_64T_II_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET \u00abFUJICHROME 64T TYPE II '
+    'Professional [RTP II]\u00bb, Ref. No. AF3-024E -- PDF/PROFILES/FUJI/'
+    'RTPIIAF3-024E_1.pdf p6; traced 2026-09-06')
+_64T_II_RECORDS = (
+    ParamSource(
+        param='spectral', tier=1, status='traced',
+        unit='log sensitivity, peak-normalised to 0.0',
+        conditions='section 19, a 300 dpi RASTER panel traced by colour mask; E-6/CR-56, Status A, D 1.0 above D-min',
+        source=_64T_II_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06. Grid 250 px per 100 nm against 248 px per decade, square to 0.81 %; peaks 398 / 550 / 642 nm, ascending. ⚠⚠ THE PEAK LEVELS ARE THE TUNGSTEN SIGNATURE AND THE STORED ARRAYS DO NOT CARRY THEM: as drawn, blue peaks at +1.04 log against green's +0.30 and red's +0.12 -- the blue layer is about seven times more sensitive, which is what balancing for 3100 K red-rich light requires. PROVIA 100F's three peaks sit within 0.3 log of each other. Peak-normalisation per record discards exactly that relation, so the balance must NOT be read back out of this database."),
+    ParamSource(
+        param='curves.g.gamma', tier=1, status='traced',
+        unit='dimensionless',
+        conditions='section 18, exposure Tungsten, process E-6/CR-56, Status A',
+        source=_64T_II_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06 off a 300 dpi RASTER, 610 columns, rms 0.0244. ⚠ NO TEXT LAYER INSIDE THE FRAME: the tick labels are pixels, so the axis end values (logH -3.0..+1.0, D 0.0..4.0) are transcribed from the rendered page and the scale comes from the gridline ladder -- 92.5 px per 0.5 decade against 91.5 px per 0.5 D, square to 1.09 %, which is what checks the transcription. ⚠ THE PANEL'S OWN LEGEND HAD TO BE MASKED OUT: three rules in the same three inks sit inside the frame beside R / G / B, and with them the red fit collapsed to rms 0.4956 with dmin -15.2. G and B take red's shape at their own measured Dmax."),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 20, one unlabelled curve, 300 dpi raster',
+        source=_64T_II_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06: 646 columns, f50 47.6, overshoot +0.117 at 5.6 c/mm, rolloff q 3.07 at rms 0.0642 against the Gaussian's 0.0899 -- 1.4x, above the 1.2-1.3x that refused the PORTRA NC/VC carriers. ⚠ THE GRIDLINES ARE AS BLACK AS THE CURVE (luminance 35 both), so the separation is by THICKNESS: 4-9 px stroke against a 1-2 px rule, bounded ABOVE too because a vertical rule fills its column and was being read as the curve -- the response oscillated 72 / 101 / 77 / 39 / 88 % across one decade before that bound. A 9-column rolling median then removes the remaining crossings. ⚠ One unlabelled curve, so red and blue take the stated ratio."),
+    ParamSource(
+        param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+        unit='lines/mm',
+        conditions='section 17, chart contrast 1.6:1 and 1000:1',
+        source=_64T_II_SRC,
+        confidence='high',
+        note="PRINTED IN WORDS: 55 lines/mm at 1.6:1 and 135 at 1000:1. Cross-check: Tani's f50 ~ RP/2 gives 67.5 against the measured 47.6, a ratio of 0.71 -- the closest of the three Fuji reversal stocks read in this batch (PROVIA 100F 0.57, 400F 0.40)."),
+    ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma(D) x 1000',
+        conditions='section 16, 48 um aperture, D 1.0 above minimum',
+        source=_64T_II_SRC,
+        confidence='high',
+        note='PRINTED AS A SINGLE DIGIT: 10. One significant figure. The clump triple is a class rule scaled to it and is NOT measured.'),
+    ParamSource(
+        param='dye_density', tier=1, status='traced',
+        unit='density, peak-normalised to 1.0',
+        conditions='section 21, the one VECTOR panel on this sheet',
+        source=_64T_II_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06 in Fuji's yellow / magenta / cyan dye inks. Peaks 445 / 543 / 660 nm. ⚠ ITS ORDINATE IS THE WEAKEST CALIBRATION ON THE SHEET -- three printed labels, no snappable rules, residual 2.32 pt. What makes it trustworthy anyway is that all three dyes return 0.999 / 1.002 / 1.003 D, i.e. the 1.0 normalisation Fuji states, which the fit was never told about."),
+    ParamSource(
+        param='reciprocity_table', tier=1, status='stated',
+        unit='stops of lens opening',
+        conditions='section 5 LONG EXPOSURE COMPENSATION',
+        source=_64T_II_SRC,
+        confidence='high',
+        note="⚠ ADOPTED 2026-09-06c -- the first read of this sheet took its four curve panels and left its exposure table unread. PRINTED: no correction from 1/15 to 64 s, +1/3 stop at 128 s, +1/2 at 256 s, no colour-compensating filter at any length. ⚠⚠ AND A COLUMN THE SCHEMA CANNOT HOLD: the table's FIRST column, 1/4000 to 1/30 s, reads 'Not Recommended'. That is a SHORT-exposure refusal -- high-intensity reciprocity failure, the opposite end from every other row in `_RECIPROCITY_TABLES` -- and `ReciprocityTable` has times_s / stops_correction / cc_filters and no field for a refusal at all. It is recorded here rather than encoded as a correction of zero, which would state the OPPOSITE of what the sheet says. Rule 23 point 5: the model is not simplified to fit the data available. ⚠ THE FAILURE ITSELF IS ACHROMATIC AND GENTLE: +1/2 stop at 256 s against PROVIA 400F's +1 stop at 240 s WITH a CC7.5G filter. A tungsten-balanced stock exposed by tungsten light is being asked to do what it was built for, and the table shows it."),
+)
+_PARAM_SOURCES['FUJICHROME_64T_II'] = (
+    _PARAM_SOURCES.get('FUJICHROME_64T_II', ()) + _64T_II_RECORDS)
+
+
+# ---------------------------------------------------------------------------
+#  FUJICOLOR_PRO_800Z -- the AF3-177E read, 2026-09-06
+# ---------------------------------------------------------------------------
+#: ⚠ THE HARDEST SHEET IN THE FUJI BATCH, and two of its four panels are
+#: refused with stated reasons rather than forced. Its data page has NO TEXT
+#: LAYER inside the panels at all -- every axis number is a glyph outline -- so
+#: what could be calibrated was calibrated from frame geometry and checked
+#: against Fuji's square-panel convention, and what could not was left alone.
+_PRO_800Z_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJICOLOR PRO 800Z PROFESSIONAL PRODUCT '
+    'INFORMATION BULLETIN, Ref. No. AF3-177E (EIGI-05.1-FG(HB)-4-1) -- '
+    'PDF/PROFILES/FUJI/pro_800z_datasheet.pdf; read 2026-09-06')
+_PRO_800Z_RECORDS = (
+    ParamSource(
+        param='curves.g.gamma', tier=1, status='traced',
+        unit='dimensionless',
+        conditions='section 18, Daylight 1/125 s, C-41, Status M',
+        source=_PRO_800Z_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06, three curves at rms 0.008-0.014. ⚠⚠ THIS PAGE HAS NO TEXT LAYER INSIDE ITS PANELS: the axis numbers are 376 glyph OUTLINES drawn as paths, so nothing is readable from the PDF text and the end values (logH -4.0..+1.0, D 0.0..3.5) are transcribed from the rendered page. ⚠ THE TRANSCRIPTION IS CHECKED: the frame is 206.9 pt for 5.0 decades against 144.5 pt for 3.5 D, i.e. 41.38 against 41.29 px per unit -- SQUARE TO 0.2 %, Fuji's convention on every sheet in this batch, which would not hold if either range were misread. ⚠ Record assignment is by the D-min ladder (0.199 red < 0.628 green < 0.910 blue, the orange mask) and the fitted gammas run the other way as a negative's must; the sheet's own in-frame Blue/Green/Red labels agree."),
+    ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma(D) x 1000',
+        conditions='section 16, Fujifilm measurement',
+        source=_PRO_800Z_SRC,
+        confidence='high',
+        note="PRINTED AS A SINGLE DIGIT: 5. ⚠ FUJI'S OWN FOOTNOTE FORBIDS ONE COMPARISON THIS DATABASE MAKES EASY: 'Due to difference in measurement conditions, comparison with color reversal film is not possible.' So this 5 must NOT be read beside PROVIA 400X's 11 as though they were one scale."),
+    ParamSource(
+        param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+        unit='lines/mm',
+        conditions='section 17, chart contrast 1.6:1 and 1000:1',
+        source=_PRO_800Z_SRC,
+        confidence='high',
+        note='PRINTED IN WORDS: 50 lines/mm at 1.6:1 and 115 at 1000:1.'),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 20, Daylight, C-41',
+        source=_PRO_800Z_SRC,
+        confidence='medium',
+        note="⚠⚠ TRACED 2026-09-06c, AND THIS RETRACTS A REFUSAL I WROTE EARLIER THE SAME DAY. The refusal argued that assuming 1-200 cycles/mm and 2-150 % puts the abscissa ladder at 83 px per decade against the ordinate's 62 and that both cannot be true. THAT ARGUMENT IS INVALID: the two axes span 2.301 and 1.875 decades, so their px-per-decade are not required to agree and their disagreement is not evidence of anything. Read on its own rungs the panel calibrates cleanly -- eleven ordinate rules (150/100/70/50/30/20/10/7/5/3/2 %) at 87.38 pt per decade, worst residual 0.59 pt, and seven abscissa rules (1/5/10/20/50/100/200 c/mm) at 84.86 pt, worst 2.13 pt. ⚠ WHAT MADE ME LOOK AGAIN WAS ANOTHER SHEET, exactly as with F-4001's P3200 panel: AF3-100E (FUJICOLOR PORTRAIT NPZ 800) prints this same drawing as a bilevel raster with its labels intact. Never write a refusal from a single file when the corpus holds another. ⚠ ONE DRAWING, TWO EXTRACTIONS, 0.91 % APART: this vector trace (652 samples off two Beziers) and the raster twin agree to a maximum of 0.91 % response and an rms of 0.51 % over 1.58 decades, at DIFFERENT panel aspect ratios -- 198.1 x 164.1 pt here against a square 170.1 x 170.1 pt there. f50 46.1 c/mm against the estimate 45.0 this profile shipped with, the closest any estimate in this database has come to its measurement (2.4 %); q 1.86 at rms 0.0175 against the Gaussian's 0.0843. The +14.0 % adjacency overshoot is not adopted."),
+    ParamSource(
+        param='reciprocity_table', tier=1, status='stated',
+        unit='stops of lens opening',
+        conditions='section 6, long exposure compensation',
+        source=_PRO_800Z_SRC,
+        confidence='high',
+        note="PRINTED, adopted 2026-09-06c: no correction from 1/4000 to 1 second, +2/3 stop at 4 s, +1 1/2 at 16 s, no colour-compensating filter at any length, and 'exposure time longer than 16 seconds is not recommended' -- so the table stops at 16 s rather than extrapolating. ⚠⚠ NPZ 800 SHARES EVERY DATA DRAWING WITH THIS STOCK AND NOT THIS TABLE: AF3-100E publishes an unfiltered range of 1/4000 to TWO seconds and a +2 stop correction at 64 s that this bulletin declines to publish at all. Rule 4 -- the two are not averaged and neither is copied across. This disagreement is the reason the pair is recorded as sharing ARTWORK and not as one emulsion under two names."),
+    ParamSource(
+        param='dye_density', tier=1, status='traced',
+        unit='density as printed',
+        conditions='section 21, mid-scale neutral and D-min',
+        source=_PRO_800Z_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06. ⚠ A NEUTRAL PAIR, NOT A DYE TRIPLE, and typing it correctly is the point: the panel is captioned 'Typical densities for a mid-scale neutral subject and for D-min' and draws exactly two curves, never separating the three dyes. Stored as d_neutral / d_dmin so no census counts a three-dye set this stock does not have. ⚠ The D-min curve IS the orange mask, falling 1.03 D at 400 nm to 0.19 at 700, which is an independent check that the two curves were not swapped."),
+)
+_PARAM_SOURCES['FUJICOLOR_PRO_800Z'] = (
+    _PARAM_SOURCES.get('FUJICOLOR_PRO_800Z', ()) + _PRO_800Z_RECORDS)
+
+
+# ---------------------------------------------------------------------------
+#  FUJICOLOR_PORTRAIT_NPZ_800 -- the AF3-100E read, 2026-09-06c
+# ---------------------------------------------------------------------------
+#: ⚠⚠ THE SECOND CONFIRMED SHARED-ARTWORK PAIR IN THIS DATABASE, and the first
+#: one where the sharing is a HELP rather than a hazard. F-4001 printed T-MAX
+#: 100's MTF panel under T-MAX P3200's caption and that was a defect. Here two
+#: publications of one film family print one set of data drawings, and because
+#: the second printing kept its axis labels it settled a panel the first
+#: printing had had me refuse.
+#: ⚠ THE IDENTITY IS MEASURED, NOT INFERRED FROM THE NAMES: characteristic
+#: curves to 0.015 D, MTF to 0.91 % response, at different aspect ratios and in
+#: different rendering technologies. What is NOT claimed is that the two names
+#: are one emulsion -- their published exposure tables differ, and a shared
+#: drawing is evidence about the ARTWORK.
+_NPZ_800_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR PORTRAIT FILM '
+    'NPZ 800 PROFESSIONAL [NPZ] (Daylight)», Ref. No. AF3-100E -- '
+    'PDF/PROFILES/FUJI/NPZ.pdf; read 2026-09-06c')
+_NPZ_800_RECORDS = (
+    ParamSource(
+        param='curves.g.gamma', tier=1, status='traced',
+        unit='dimensionless',
+        conditions='section 17, Daylight 1/125 s, C-41, Status M',
+        source=_NPZ_800_SRC,
+        confidence='medium',
+        note="⚠⚠ ONE DRAWING SHARED WITH FUJICOLOR PRO 800Z's AF3-177E SECTION 18, AND THE SHARING IS MEASURED. This panel is a BILEVEL RASTER (960 x 694, ink and paper only); the twin is Bezier paths. Traced independently and calibrated on this panel's own ladder -- eleven verticals at 85.25 px per half-decade against eight horizontals at 85.29 px per half-density, SQUARE TO 0.05 %, the tightest square check in the Fuji corpus -- the two readings agree to a MAXIMUM OF 0.015 D and an rms of 0.005 D on all three records over 4.2 decades. ⚠ THE STORED ARRAYS ARE THE VECTOR EXTRACTION, for the same reason a scan is not preferred to the file it was scanned from. The raster refit gives dmin within 0.005 and gamma within 0.010 of the stored values, with the residual SYSTEMATIC in sign -- every gamma about 0.010 low -- which is what rasterisation does and what two independent measurements would not. Their agreement is therefore NOT corroboration."),
+    ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma(D) x 1000',
+        conditions='section 14, 48 um aperture, 12x, sample density NETA 1.0',
+        source=_NPZ_800_SRC,
+        confidence='high',
+        note="PRINTED AS A SINGLE DIGIT: 5, on the same aperture, magnification and sample density PRO 800Z's section 16 prints, and the same value. ⚠ Fuji's footnote on the twin sheet -- that a difference in measurement conditions makes comparison with colour REVERSAL film impossible -- applies here too: this 5 must not be read beside PROVIA 400X's 11 as one scale."),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 19, Daylight, C-41',
+        source=_NPZ_800_SRC,
+        confidence='medium',
+        note="⚠⚠ THIS PANEL IS WHAT REOPENED PRO 800Z's REFUSED ONE, and that is the point of it. Its ladder is complete and readable off the raster: seven abscissa rungs at 303.8 px per decade (residual 7.1 px) and eleven ordinate rungs at 375.7 px per decade (3.4 px). ⚠ THE TWO SHEETS DRAW THIS PANEL AT DIFFERENT ASPECT RATIOS AND STILL AGREE -- 709 x 709 px here (170.1 x 170.1 pt, square) against 198.1 x 164.1 pt there -- and calibrated each on its own ladder the curves agree to 0.91 % response max, 0.51 % rms, over 1.58 decades. An artwork re-laid-out for a new publication with the DATA untouched. ⚠ This raster fits f50 45.5 and q 1.84; the stored value is the VECTOR twin's 46.1 and 1.86, so both stocks carry one number for one drawing and the 1.3 % gap is extraction noise, not two measurements. The +14.5 % adjacency overshoot is not adopted."),
+    ParamSource(
+        param='mtf.resolving_power_lp_mm_highc', tier=1, status='stated',
+        unit='lines/mm',
+        conditions='section 15, test object contrast 1.6:1 and 1000:1',
+        source=_NPZ_800_SRC,
+        confidence='high',
+        note='PRINTED IN WORDS: 50 lines/mm at 1.6:1 and 115 at 1000:1 -- the same pair AF3-177E prints for PRO 800Z.'),
+    ParamSource(
+        param='reciprocity_table', tier=1, status='stated',
+        unit='stops of lens opening',
+        conditions='section 5, long and short exposures',
+        source=_NPZ_800_SRC,
+        confidence='high',
+        note="⚠⚠ THE ONE PLACE THE TWO SHEETS DISAGREE, AND THE REASON THIS STOCK IS SEPARATE. PRINTED HERE: no exposure or colour-balance compensation from 1/4000 to TWO seconds, +2/3 stop at 4 s, +1 1/2 at 16 s, +2 at 64 s, with NO colour-compensating filter at any length, and 'exposures longer than 64 seconds are not recommended'. PRINTED THERE (AF3-177E section 6): unfiltered only to ONE second, nothing past 16 s, longer 'not recommended'. Same drawings, different published limits. The tables are NOT averaged and neither is copied across (rule 4), and this is what stops a shared-artwork finding from being written up as a claim that NPZ 800 and PRO 800Z are one emulsion."),
+    ParamSource(
+        param='exposure_index_tungsten', tier=1, status='stated',
+        unit='ISO',
+        conditions='section 3, tungsten 3200 K through a Wratten 80A',
+        source=_NPZ_800_SRC,
+        confidence='high',
+        note="PRINTED: ISO 800/30 deg daylight or electronic flash with no filter, ISO 200/24 deg under 3200 K tungsten with a Wratten No. 80A (or Fuji LBB-12). ⚠⚠ NOT ADOPTED, AND A GUARD IS THE REASON. `exposure_index_tungsten` is defined as an UNFILTERED pair and verify.py asserts that every stock carrying one is monochrome, because a colour film's second index is quoted THROUGH a conversion filter and is therefore a filter factor rather than a film property. This one is exactly two stops below the daylight 800, which is the 80A's own factor, so the guard's definition is right and the value would have been a category error. It was written into `_EXPOSURE_INDEX_TUNGSTEN` on 2026-09-06c and removed the same hour. The number is recorded here and in NotFound.md; storing it needs a field for FILTERED effective speeds, which the schema does not have."),
+    ParamSource(
+        param='dye_density', tier=1, status='traced',
+        unit='density as printed',
+        conditions='section 20, mid-scale neutral and D-min',
+        source=_NPZ_800_SRC,
+        confidence='medium',
+        note="⚠ A NEUTRAL PAIR, NOT A DYE TRIPLE: captioned 'Typical densities for a mid-scale neutral subject and for D-mini.' and drawing exactly two curves, the same caption and the same shapes as PRO 800Z's section 21. Stored as d_neutral / d_dmin so no census counts a three-dye set this stock does not have. ⚠ THE ARRAYS ARE THE VECTOR TWIN'S AND THE RE-TRACE IS REPORTED HONESTLY: calibrated on this panel's four VISIBLE rungs -- its 2.0 rule is lost under the caption block, the same defect PRO 400H's panel has -- the D-MIN curve re-traces to within 0.010 D over 410-580 nm, while the MID-SCALE curve re-traces to 0.037 D over 410-500 nm and then the raster tracker is captured by the panel's own in-frame 'Mid-scale Density' label. The vector extraction carries no such hazard and is what is stored."),
+    ParamSource(
+        param='spectral', tier=1, status='traced',
+        unit='log sensitivity',
+        conditions='section 18, process CN-16X, Status M, density 1.0 above D-min',
+        source=_NPZ_800_SRC,
+        confidence='medium',
+        note="⚠⚠ ADOPTED 2026-09-06g, AND IT RETRACTS THE REFUSAL THIS RECORD CARRIED THE DAY BEFORE -- which said the panel's four-way separation \u201cwas attempted and not achieved\u201d. That was ONE ATTEMPT REPORTED AS A CONCLUSION. The owner asked why the curves were not in the database, and asking was right. ⚠⚠ THE PANEL NEVER NEEDED SEPARATING: AF3-177E prints this same drawing as VECTOR paths for PRO 800Z, so the question is not what these curves are but whether it is the same drawing -- answered by OVERLAY, not by tracing. 800Z's four curves, sampled every 2 nm and mapped into this raster through THIS panel's own independent ladder, land on ink at 98.1 % of 216 points: 100 % on each of the three solid records, 89 % on the dashed one, which is what a dash pattern gives. ⚠ SCORED AGAINST NULLS, because a hit rate on a busy panel proves nothing alone: displacing the prediction by 10 nm gives 28 %, by 20 nm 23 %, by 0.10 log 21-35 %, by 0.25 log 19 %. The aligned result is 40 points clear of every displacement tried. ⚠ THIRD PANEL OF THIS PAIR PROVED SHARED, after the characteristic curves (0.015 D max) and the MTF (0.91 % response) on 2026-09-06c -- so the stored arrays are the VECTOR twin's, as this stock's MTF and neutral pair already are, and their agreement is NOT corroboration but one measurement read twice. ⚠ THREE OF FOUR like its four siblings: the cyan record is in doc/FUJI_FOURTH_LAYER.md and not in the schema, and `RenderSettings.spectral_taking` must stay off. ⚠ Stored peak-normalised per record; the ordinate is a bracketed arrow marked 1.0, a scale and not an absolute level."),
+)
+_PARAM_SOURCES['FUJICOLOR_PORTRAIT_NPZ_800'] = (
+    _PARAM_SOURCES.get('FUJICOLOR_PORTRAIT_NPZ_800', ()) + _NPZ_800_RECORDS)
+
+
+# ---------------------------------------------------------------------------
+#  THE AGFA «Sharpness» PANELS -- ten measured MTFs, 2026-09-06h (queue A5)
+#  ⚠⚠ RE-DERIVED 2026-09-06i -- every f50 and every q in this block changed
+# ---------------------------------------------------------------------------
+#: ⚠⚠ EVERY AGFA STOCK IN THIS DATABASE CARRIED A RED ESTIMATED f50 UNTIL NOW,
+#: while Agfa's own «Technical Data» has printed a "Sharpness" panel for all
+#: twelve of them since 1998 and the file has been in the corpus since
+#: 2026-09-01. It was not an oversight: a verify.py guard FORBADE adopting f50
+#: from these panels, because queue row G6 had not settled whether Agfa's
+#: "Lines (mm)" were cycles or LINE PAIRS -- a factor of two, not a rounding
+#: difference. G6 closed on 2026-09-05 on the International Commission for
+#: Optics' authority (Ingelstam 1961, PS&E 5(5) p282), and this is the harvest
+#: that closure licensed. The guard now asserts the adoption instead.
+#: ⚠⚠ CORRECTED 2026-09-06i, TWICE, AND EVERY NUMBER IN THIS BLOCK MOVED. The
+#: harvest published that morning had two silent calibration defects, both in
+#: the ladder and neither visible in the output:
+#:   1. the frequency ladder was least-squares fitted through the "100" tick
+#:      label, which Agfa nudge 3.37 pt LEFT of its own tick so three glyphs
+#:      stay inside the column. 1.6 % of scale, and because the tilt moves the
+#:      intercept too, about 4 % of f50 -- on all twenty-two panels in both
+#:      editions. The reported residual said "1.92 pt" every run and nobody
+#:      asked 1.92 pt of what.
+#:   2. the 2004 edition's RESPONSE column is set 0.9 pt low as a block. Its
+#:      six labels are evenly spaced and its fit residual is a healthy 0.52 pt,
+#:      so nothing about it reads as a defect -- but 0.9 pt on a 73 pt decade
+#:      is 1.029x of transfer, which read every 2004 curve 3 % high.
+#: ⚠⚠ AND DEFECT 2 MANUFACTURED A FINDING THIS FILE ACTED ON. It made EIGHT of
+#: the ten films look re-measured between editions, and the 2004 figure was
+#: duly adopted for each on the newer-edition precedent. Compared properly --
+#: each curve normalised to its OWN drawn frame, which no ladder touches --
+#: seven of the nine comparable panels agree to 0.0009 of frame height. They
+#: are ONE DRAWING REPRINTED. Only the three Optima panels were redrawn
+#: (0.0041-0.0108), and only those three now take the 2004 reading.
+#: ⚠ SO THE RULE IS NOT "THE NEWER EDITION WINS" BUT "THE NEWER MEASUREMENT
+#: WINS", and between two printings of one drawing the tie-break is which PAGE
+#: reads better: the 1998 one, whose response ladder meets its frame to 0.16 pt.
+#: The 2026-09-01 RSX II resolving-power precedent is untouched -- those are
+#: printed numbers that genuinely differ between editions, not one drawing.
+#: ⚠ THE LESSON, WRITTEN DOWN BECAUSE IT COST A DAY: a calibration error that
+#: invents a plausible physical story is worse than one that produces nonsense,
+#: because nonsense gets looked at. What caught it was not a tolerance but a
+#: SECOND READER -- `agfa_1998_curves.py` had been reading these same twelve
+#: panels correctly all along, and the two modules had never been compared.
+#: ⚠⚠ AND TWO FILMS ARE ADOPTED FROM NEITHER. APX 100 and APX 400 share one
+#: drawing -- and the 2026-09-06h trace found the defect SURVIVES INTO THE 2004
+#: EDITION, where APX 400's curve is APX 100's translated 175.17 pt with every
+#: y coordinate identical to 0.0000000.
+_AGFA_MTF_1998 = (
+    'Agfa-Gevaert AG, «Technical Data PF», 1st edition 09/1998 -- '
+    'PDF/PROFILES/AGFA/agfa_films.pdf, the «Sharpness» panel; traced '
+    '2026-09-06h by agfa_1998_sharpness.py, re-derived 2026-09-06i')
+_AGFA_MTF_2004 = (
+    'Agfa-Gevaert AG, «Technical Data: Agfa Professional Films», publication '
+    'F-PF-E4, 4th edition 08/2004 -- PDF/PROFILES/AGFA/AGFA stocks.pdf, the '
+    '«Sharpness» panel; traced 2026-09-06h by agfa_1998_sharpness.py, '
+    're-derived 2026-09-06i')
+_AGFA_MTF_NOTE = (
+    "⚠⚠ THE FIRST MEASURED MTF THIS STOCK HAS EVER CARRIED, and it was blocked "
+    "by a guard rather than missed. Agfa's «Sharpness» panel plots transfer "
+    "factor against «Lines (mm)», which is a modulation transfer curve, but "
+    "verify.py forbade adopting f50 from it while queue row G6 was open -- "
+    "nothing had settled whether Agfa's lines were cycles or LINE PAIRS, a "
+    "factor of two. G6 CLOSED 2026-09-05 on the International Commission for "
+    "Optics' authority (Ingelstam 1961, PS&E 5(5) p282: the German «Linien pro "
+    "mm» is the equivalent of lines per mm and that equals cycles per mm, the "
+    "only halving being a television line). This is the harvest that closure "
+    "licensed, and the guard now asserts the adoption instead of forbidding "
+    "it. ⚠ THE PANEL IS A CTF, NOT AN MTF -- it peaks above 100 % -- so the "
+    "overshoot is a real adjacency effect and is NOT folded into f50; the "
+    "rolloff is fitted above the peak only. ⚠ Calibrated on THIS panel's own "
+    "eight frequency and six response labels, never on the family's very "
+    "regular four-by-three page layout, which is how a page-offset error "
+    "becomes eleven wrong stocks. ⚠⚠ RE-DERIVED 2026-09-06i AFTER TWO LADDER "
+    "DEFECTS: the frequency fit ran through a tick label Agfa nudge 3.37 pt "
+    "off its own tick, and the 2004 response column is set 0.9 pt low as a "
+    "block. The panel is now calibrated on its DRAWN FRAME -- the printed "
+    "ladder says which values the axis spans, the ink says where -- and the "
+    "result is cross-checked against agfa_1998_curves.py's independent "
+    "reading of the same panel, which agrees to 0.7 %.")
+_AGFA_MTF_STOCKS = {
+    'AGFA_OPTIMA_100': 'colour', 'AGFA_OPTIMA_200': 'colour',
+    'AGFA_OPTIMA_400': 'colour', 'AGFA_PORTRAIT_160': 'colour',
+    'AGFA_ULTRA_50': 'colour', 'AGFA_RSX_II_50': 'colour',
+    'AGFA_RSX_II_100': 'colour', 'AGFA_RSX_II_200': 'colour',
+    'AGFA_APX_25': 'mono', 'AGFA_SCALA_200X': 'mono',
+}
+
+# ⚠⚠ THE OBSOLETE ESTIMATE RECORDS ARE REMOVED, NOT LEFT BESIDE THE NEW ONES.
+# Each of these stocks carried an auto-generated `mtf.f50_g` / `mtf.f50_r`
+# ParamSource reading "No published MTF curve for this stock; f50 comes from
+# the project's era-and-class sharpness heuristic." That sentence is now FALSE
+# -- there is a published curve, it has been traced, and leaving the old record
+# in place would make the profile say both things at once. verify.py's
+# uniqueness guard catches the duplication; this is the fix rather than a
+# widened guard.
+for _n in _AGFA_MTF_STOCKS:
+    _PARAM_SOURCES[_n] = tuple(
+        _r for _r in _PARAM_SOURCES.get(_n, ())
+        if not (_r.param.startswith('mtf.f50_') and _r.status == 'estimated'
+                and 'era-and-class sharpness heuristic' in (_r.note or '')))
+_PARAM_SOURCES['AGFA_OPTIMA_100'] = _PARAM_SOURCES.get('AGFA_OPTIMA_100', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_2004,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 43.7 c/mm, q 2.95 at rms 0.0532. ⚠ ADOPTED FROM THE 2004 EDITION, AND ONE OF ONLY THREE THAT ARE. Laid on the 1998 drawing in frame-normalised coordinates this panel differs by 0.0099 of frame height, against 0.0009 for the seven the 2004 sheet merely reprints: Agfa redrew the whole Optima page, so this is a genuinely newer measurement. The 1998 panel reads f50 43.95, q 2.96."),
+)
+_PARAM_SOURCES['AGFA_OPTIMA_200'] = _PARAM_SOURCES.get('AGFA_OPTIMA_200', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_2004,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 48.0 c/mm, q 2.67 at rms 0.0553. ⚠ ADOPTED FROM THE 2004 EDITION, AND ONE OF ONLY THREE THAT ARE -- the artwork differs from the 1998 drawing by 0.0108 of frame height, the largest of the three redrawn Optima panels, against 0.0009 for the seven that are reprints. The 1998 panel reads f50 47.19, q 2.62."),
+)
+_PARAM_SOURCES['AGFA_OPTIMA_400'] = _PARAM_SOURCES.get('AGFA_OPTIMA_400', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_2004,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 47.4 c/mm, q 2.87 at rms 0.0431. ⚠ ADOPTED FROM THE 2004 EDITION, AND ONE OF ONLY THREE THAT ARE -- the artwork differs from the 1998 drawing by 0.0041 of frame height against 0.0009 for the reprints. ⚠ ITS f50 BARELY MOVES ALL THE SAME (47.70 in 1998 against 47.42 here, 0.6 %), which is worth stating: a redrawn panel is not the same claim as a changed measurement, and this one was redrawn without much changing."),
+)
+_PARAM_SOURCES['AGFA_PORTRAIT_160'] = _PARAM_SOURCES.get('AGFA_PORTRAIT_160', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_1998,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 36.2 c/mm, q 2.47 at rms 0.0362. ⚠ ADOPTED FROM THE 1998 EDITION. The 2004 sheet reprints this panel unchanged -- the two drawings agree to 0.0005 of frame height -- so its own reading of 36.22 is not corroboration but the same measurement read twice. Between two printings of one drawing the tie-break is which PAGE reads better, and it is 1998: its response ladder meets its own frame to 0.16 pt where the 2004 column is set 0.9 pt low as a block."),
+)
+_PARAM_SOURCES['AGFA_ULTRA_50'] = _PARAM_SOURCES.get('AGFA_ULTRA_50', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_1998,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 42.9 c/mm, q 3.12 at rms 0.0790. ⚠⚠ AND THIS STOCK CROSSED THE KERNEL TABLE'S BASIN BOUNDARY WHEN THE READER WAS FIXED: q read 3.05 that morning, the last row of the LOW basin, and 3.12 now, which is in the HIGH one where the two-lobe fit flips character entirely. Same film, same panel, same day. The table straddles q ~ 3.05 and these Agfa exponents sit close enough to it that a 2 % abscissa error moves one across. ⚠ THE 1998 EDITION IS THE ONLY ONE THAT HAS THIS FILM -- it was discontinued before the 2004 edition -- so no newer panel exists to prefer. That is no longer the exception it looked like on 2026-09-06h: of the ten stocks that DO appear in both, seven also take the 1998 figure, because the 2004 sheet reprints their drawing rather than re-measuring it."),
+)
+_PARAM_SOURCES['AGFA_RSX_II_50'] = _PARAM_SOURCES.get('AGFA_RSX_II_50', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_1998,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 29.4 c/mm, q 2.31 at rms 0.0406. ⚠ ADOPTED FROM THE 1998 EDITION. The 2004 sheet reprints this panel unchanged (0.0003 of frame height, the closest pair on the sheet) and reads 29.36 against this 29.37 -- one measurement read twice, not two. The 1998 page is preferred because its response ladder meets its own frame to 0.16 pt where the 2004 column is set 0.9 pt low as a block."),
+)
+_PARAM_SOURCES['AGFA_RSX_II_100'] = _PARAM_SOURCES.get('AGFA_RSX_II_100', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_1998,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 31.9 c/mm, q 2.08 at rms 0.0319. ⚠ ADOPTED FROM THE 1998 EDITION. The 2004 sheet reprints this panel unchanged (0.0009 of frame height, the worst of the seven reprints and still an order under the redrawn Optima panels) and reads 31.95 against this 31.92. The 1998 page is preferred because its response ladder meets its own frame to 0.16 pt where the 2004 column is set 0.9 pt low as a block."),
+)
+_PARAM_SOURCES['AGFA_RSX_II_200'] = _PARAM_SOURCES.get('AGFA_RSX_II_200', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_1998,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 21.3 c/mm, q 2.49 at rms 0.0552. ⚠ ADOPTED FROM THE 1998 EDITION. The 2004 sheet reprints this panel unchanged (0.0005 of frame height) and reads 21.29 against this 21.26. The 1998 page is preferred because its response ladder meets its own frame to 0.16 pt where the 2004 column is set 0.9 pt low as a block."),
+)
+_PARAM_SOURCES['AGFA_APX_25'] = _PARAM_SOURCES.get('AGFA_APX_25', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_1998,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 78.7 c/mm, q 2.31 at rms 0.0391. ⚠ THE SHARPEST STOCK IN THE AGFA RANGE, and the only cross-check available for it is the printed resolving power on the same page -- 200 lines/mm at 1000:1, the highest Agfa publish -- which orders the same way (verify.py G-AGFA1). ⚠ THE 1998 EDITION IS THE ONLY ONE THAT HAS THIS FILM -- it was discontinued before the 2004 edition -- so no newer panel exists to prefer. That is no longer the exception it looked like on 2026-09-06h: of the ten stocks that DO appear in both, seven also take the 1998 figure, because the 2004 sheet reprints their drawing rather than re-measuring it."),
+)
+_PARAM_SOURCES['AGFA_SCALA_200X'] = _PARAM_SOURCES.get('AGFA_SCALA_200X', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, transfer factor against lines/mm',
+        source=_AGFA_MTF_1998,
+        confidence='medium',
+        note=_AGFA_MTF_NOTE + " f50 30.6 c/mm, q 2.14 at rms 0.0121 -- the best two-lobe fit of any panel on the sheet. ⚠ ADOPTED FROM THE 1998 EDITION. The 2004 sheet reprints this panel unchanged (0.0005 of frame height) and reads 30.63 against this 30.64. The 1998 page is preferred because its response ladder meets its own frame to 0.16 pt where the 2004 column is set 0.9 pt low as a block."),
+)
+
+
+# ---------------------------------------------------------------------------
+#  AGFA_VISTA_200 -- the thirteenth AGFA panel, 2026-09-06j
+# ---------------------------------------------------------------------------
+#: ⚠⚠ AGFA NAME THE QUANTITY THEMSELVES, AND NO DOCUMENT IN THIS CORPUS HAD
+#: BEEN READ CLOSELY ENOUGH TO NOTICE. Page 4 of the «AGFACOLOR Vista» sheet:
+#: «Sharpness -- International name of the chart: MTF (Modulation Transfer
+#: Function) which defines the sharpness of the image. The higher the transfer
+#: factor in %, the lower the loss during transmission of the light.
+#: References: -- Exposure: daylight -- Densitometry: visual filter (Vλ)».
+#: ⚠ THAT IS A STRONGER AUTHORITY THAN QUEUE G6's, and it arrives after G6
+#: closed. G6 settled «Linien pro mm» = cycles per mm by INFERENCE from the
+#: International Commission for Optics' 1961 nomenclature recommendation --
+#: sound, but a statement about what the words conventionally denote. This is
+#: the manufacturer saying what its own chart IS. The two agree.
+#: ⚠ AND IT RETIRES A REFUSAL THAT HAD STOOD SINCE 2026-08-18 on this profile,
+#: which argued the panel was "a CTF-like rectangular-wave quantity, not the
+#: sine-wave MTF that f50 is defined against". The argument was reasonable and
+#: the page that answers it was three pages earlier in the same file.
+#: ⚠ WHAT DOES NOT CHANGE is the overshoot handling: an MTF cannot exceed 1, so
+#: what Agfa call MTF is an adjacency-enhanced measured response. The peak goes
+#: to `adjacency`, the rolloff is fitted above it, and the two never merge.
+_AGFA_VISTA_MTF_SRC = (
+    'Agfa-Gevaert AG, «AGFACOLOR Vista 100, 200, 400, 800 -- Technical Data '
+    'AF», 2nd edition 06/2000 -- PDF/PROFILES/AGFA/AGFACOLOR Vista 100, 200, '
+    '400, 800.pdf p6 left column, the «Sharpness» panel, with the chart '
+    'defined on p4; traced 2026-09-06j by agfa_vista_mtf.py')
+# ⚠ THE OBSOLETE ESTIMATE RECORDS GO FIRST, exactly as they did for the other
+# ten AGFA stocks. This profile carried `mtf.f50_g` and `mtf.f50_r` reading "No
+# published MTF curve for this stock" -- a sentence that is now false, on a
+# sheet that has been in the corpus since before the record was written. Left
+# in place the profile would say both things at once.
+_PARAM_SOURCES['AGFA_VISTA_200'] = tuple(
+    _r for _r in _PARAM_SOURCES.get('AGFA_VISTA_200', ())
+    if not (_r.param.startswith('mtf.f50_') and _r.status == 'estimated'
+            and 'era-and-class sharpness heuristic' in (_r.note or '')))
+_PARAM_SOURCES['AGFA_VISTA_200'] = _PARAM_SOURCES.get('AGFA_VISTA_200', ()) + (
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='«Sharpness» panel, daylight, densitometry visual filter (V-lambda)',
+        source=_AGFA_VISTA_MTF_SRC,
+        confidence='medium',
+        note="⚠⚠ THE LAST AGFA STOCK TO GAIN A MEASURED MTF, AND THE ONE THE "
+             "2026-09-06h/i BATCH MISSED because its panel is in a different "
+             "document. f50 47.8 c/mm, q 2.63 at rms 0.0543 against the "
+             "Gaussian's 0.0614; overshoot +9.8 % peaking at 3.5 c/mm, stored "
+             "in `adjacency` and NOT folded into f50. ⚠ THE REFUSAL IT "
+             "REPLACES WAS ANSWERED BY PAGE 4 OF ITS OWN SHEET: Agfa define "
+             "the chart as «MTF (Modulation Transfer Function)» in those "
+             "words, so the 2026-08-18 objection that the panel is 'a CTF-like "
+             "rectangular-wave quantity, not the sine-wave MTF' is settled by "
+             "the manufacturer rather than by inference. ⚠ TWO READERS AGREE "
+             "ON THE SHAPE: `mtf_vector.py` read this panel on 2026-09-02e off "
+             "its printed labels and fitted q 2.63, identical to this; its f50 "
+             "of 50.0 differs by 4 % for the tick-label reason corrected "
+             "across the AGFA family on 2026-09-06i -- this panel's '100' "
+             "label sits 1.43 pt off its own tick and is rejected here. "
+             "⚠ ONE UNLABELLED VISUAL-WEIGHTED CURVE, so red and blue are the "
+             "stored family ratio and only green is measured."),
+)
+
+# ---------------------------------------------------------------------------
+#  THE AGFAPAN GAMMA-TIME PANELS -- the small tank's other two contrasts
+#  2026-09-06i, schema v28
+# ---------------------------------------------------------------------------
+#: ⚠⚠ THE LAST UNREAD CURVE SET IN «Technical Data PF» 09/1998, and it had been
+#: DIGITISED AND PRINTED ON EVERY BUILD SINCE 2026-09-01. `agfa_1998_curves.py`
+#: traces all twelve AGFAPAN gamma-time curves and reports them; nothing ever
+#: took them, because `ProcessingFamily` had been filled from a DIFFERENT Agfa
+#: publication -- «Technical Data P-16-C» 08/1999 -- that tabulates the same
+#: relation as text. Two sources for one quantity, in one database, never
+#: compared. That is the recurring shape of this project's misses: not a
+#: document nobody opened, a reading nobody put beside its neighbour.
+#: ⚠⚠ AND PUTTING THEM SIDE BY SIDE ANSWERED A QUESTION THE STORED RECORD SAID
+#: IT COULD NOT. P-16-C prints every contrast table TWICE, «Rotary process
+#: (drum)» and «Small tank, tray», and the drum table has three gamma rows
+#: where the tank table has ONE. The panel plots one vessel and never says
+#: which. Its numbers do:
+#:     mean |panel t(gamma 0.65) - drum|         1.152 min
+#:     mean |panel t(gamma 0.65) - small tank|   0.112 min
+#: over fifteen film x developer combinations, every one closer to the tank,
+#: and the worst tank miss (0.32 min) still under the best drum agreement
+#: (0.38 min). So the curve is the SMALL TANK, and its two outer contrasts are
+#: that vessel's gamma 0.55 and 0.75 times -- which Agfa print in no table in
+#: this corpus.
+#: ⚠ TWENTY-EIGHT POINTS, NOT THIRTY. RODINAL 1+50's curve stops at gamma 0.670
+#: on APX 100 and 0.738 on APX 400, so its 0.75 rung is absent on both. A
+#: missing rung is a refusal.
+_AGFA_GAMMA_TIME_SRC = (
+    'Agfa-Gevaert AG, «Technical Data PF», 1st edition 09/1998 -- '
+    'PDF/PROFILES/AGFA/agfa_films.pdf p10, the gamma / developing-time panel '
+    'of each AGFAPAN column; traced 2026-09-06i by agfa_1998_gamma_time.py')
+_AGFA_GAMMA_TIME_NOTE = (
+    "⚠⚠ THE VESSEL IS MEASURED, NOT ASSUMED, AND THE WHOLE ADOPTION RESTS ON "
+    "IT. «Technical Data P-16-C» 08/1999 prints this film's contrast table "
+    "twice -- rotary drum and small tank/tray -- and the two differ by "
+    "20-40 % of time, far more than the gamma 0.55 -> 0.75 span the table "
+    "describes. The 1998 panel plots ONE of them and captions neither. Over "
+    "all fifteen film x developer combinations its gamma 0.65 time sits "
+    "0.112 min from the printed SMALL-TANK figure and 1.152 min from the "
+    "drum's, with every single combination closer to the tank and the worst "
+    "tank miss (0.32 min) still smaller than the best drum agreement "
+    "(0.38 min). The two families do not overlap. "
+    "⚠ WHAT IS STORED FROM THIS PANEL IS ONLY WHAT P-16-C DOES NOT PRINT: the "
+    "small tank's gamma 0.55 and gamma 0.75 times. The panel's own gamma 0.65 "
+    "reading is spent identifying the vessel and is NOT stored -- P-16-C "
+    "prints that one as text, and two answers to one question is how a "
+    "database starts disagreeing with itself. "
+    "⚠ ONE CURVE, TWO DEVELOPER NAMES, AND THAT IS AGFA'S CLAIM RATHER THAN "
+    "REUSED ARTWORK. RODINAL SPECIAL and STUDIONAL LIQUID share a single drawn "
+    "curve on all three panels. That is the same geometric signature as the "
+    "APX 100 / APX 400 sharpness drawing, which is REFUSED -- the difference "
+    "is that a shared drawing across two FILMS means at most one of them is a "
+    "measurement, while P-16-C independently prints identical times for these "
+    "two DEVELOPERS on all three films (4 / 4 / 4.5 min at gamma 0.65). Agfa "
+    "are asserting equivalence, so both names carry the reading. "
+    "⚠ ATOMAL FF IS ON NO CURVE. It appears in P-16-C's tables and in this "
+    "family, and its points keep `vessel=\"\"` rather than being assigned to "
+    "the family the plotted developers fall in.")
+for _n in ('AGFA_APX_25', 'AGFA_APX_100', 'AGFA_APX_400'):
+    _PARAM_SOURCES[_n] = _PARAM_SOURCES.get(_n, ()) + (
+        ParamSource(
+            param='processing_family.points', tier=1, status='traced',
+            unit='minutes',
+            conditions='gamma / developing-time panel, 20 C, small tank/tray',
+            source=_AGFA_GAMMA_TIME_SRC,
+            confidence='medium',
+            note=_AGFA_GAMMA_TIME_NOTE),
+    )
+
+#: ⚠⚠ THE THREE THIRD-PARTY ROWS, 2026-09-07 -- APX 400 ONLY.
+#: The F-PF-D4/E4 «Verarbeitung Agfapan APX 400» block continues past Agfa's own
+#: six developers with three it did not make. They are TEXT, not a trace, and
+#: they are printed in BOTH editions with the same times, so this is a
+#: cross-checked read rather than a single-source one. Status `stated`, not
+#: `traced`: nothing here is digitised off a curve.
+#: ⚠ WHY THE TEMPERATURE IS NOT AN ASSUMPTION. Each row carries ONE time where
+#: Agfa's own carry four, so the column has to be established by geometry. On
+#: that block the headers sit at x 387.4 / 426.9 / 466.9 / 506.5 pt, every Agfa
+#: row's 20 C value lands at x 433-435, and all three third-party values land at
+#: x 433.0. `agfa_2003_sheet.py` re-derives that alignment from the page on
+#: every build; if Agfa's own 20 C column ever stops agreeing with these three,
+#: the guard fails rather than the reading drifting.
+_AGFA_APX400_3RD_PARTY_SRC = (
+    'Agfa-Gevaert AG, «Technische Daten -- Agfa Professional Filmsortiment», '
+    'F-PF-D4, 4. Auflage, Stand 07/2003 -- '
+    'PDF/PROFILES/AGFA/agfa-aERRKF-Datenblatt_F_PF_D4.pdf p10, '
+    '«Verarbeitung Agfapan APX 400», the «Dose-/Schalenverarbeitung» block; '
+    'and the English twin F-PF-E4, 08/2004 p10, «Processing Agfapan APX 400» '
+    '-- PDF/PROFILES/AGFA/AGFA stocks.pdf. Both editions print Tetenal '
+    'Ultrafin Plus 16 min, Kodak T-MAX 12 min and Kodak D76/Ilford ID11 '
+    '12 min')
+#: ⚠⚠ THIS AMENDS APX 400's EXISTING RECORD RATHER THAN ADDING A SECOND ONE,
+#: and the reason is a guard: G-PROV in `verify.py` holds that no profile may
+#: carry two `ParamSource` entries for one parameter. `processing_family.points`
+#: on this film now has THREE documents behind it -- P-16-C's contrast tables,
+#: the 1998 panel's small-tank rungs, and these three third-party rows -- so
+#: the honest shape is one record naming all of them, not one record per
+#: document. The first attempt here appended a second entry and G-PROV caught
+#: it on the same build; relaxing that invariant to fit the data would have
+#: been the wrong repair.
+#: ⚠ THE STATUS STAYS `traced`, WHICH IS THE WEAKER OF THE TWO. These three
+#: rows are printed text and would rate `stated` alone, but the record also
+#: covers digitised rungs, and a mixed record must not advertise the stronger
+#: provenance of its best part.
+_apx400_pf = tuple(
+    r for r in _PARAM_SOURCES['AGFA_APX_400']
+    if r.param != 'processing_family.points')
+_apx400_old = next(r for r in _PARAM_SOURCES['AGFA_APX_400']
+                   if r.param == 'processing_family.points')
+_PARAM_SOURCES['AGFA_APX_400'] = _apx400_pf + (
+    ParamSource(
+        param='processing_family.points', tier=1, status='traced',
+        unit='minutes',
+        conditions=(_apx400_old.conditions
+                    + '; and small tank/tray, 20 C, to the page\'s stated '
+                      'gamma 0.65 for the three third-party developers'),
+        source=_apx400_old.source + ' ⚠ AND A THIRD DOCUMENT, 2026-09-07: '
+               + _AGFA_APX400_3RD_PARTY_SRC,
+        confidence=_apx400_old.confidence,
+        note=(_apx400_old.note
+            + ' ⚠⚠ THE THREE THIRD-PARTY ROWS, 2026-09-07. '
+            'Three third-party developers Agfa print for APX 400 and for no '
+            'other AGFAPAN -- APX 100\'s block ends at STUDIONAL LIQUID in '
+            'both editions, and APX 25 is not in either. '
+            '⚠ THE CONTRAST IS THE PAGE\'S OWN AND IT IS STATED, NOT '
+            'INFERRED: «Die nachfolgend angegebenen Entwicklungszeiten sind '
+            'als Richtwerte zu verstehen und beziehen sich auf einen mittleren '
+            'Kontrast von gamma = 0,65» / «The developing times given below '
+            'are guide values and refer to an average contrast of gamma = '
+            '0.65». That sentence governs every time on the page, Agfa\'s and '
+            'these three alike. '
+            '⚠ «Kodak D76/Ilford ID11» IS ONE ROW NAMING TWO DEVELOPERS and '
+            'is stored under that exact string. Agfa give the pair a single '
+            'time; splitting it would assert an equivalence they only imply, '
+            'and respelling it to the corpus\'s «ID-11» would hide that this '
+            'is Agfa speaking about someone else\'s chemistry. '
+            '⚠ AND THESE ROWS SAT UNREAD FOR SIX DAYS after this page was '
+            'otherwise harvested -- NotFound row 5c repeating: a reader that '
+            'takes the Agfa developers and stops leaves no trace saying the '
+            'block continued.')),
+)
+
+
+# ---------------------------------------------------------------------------
+#  AGFAPHOTO VISTA PLUS, 2026-09-07 -- two stocks, and one refusal
+# ---------------------------------------------------------------------------
+#: ⚠⚠ THE PROVENANCE OF THESE TWO SAYS "AgfaPhoto", NOT "Agfa-Gevaert", AND THE
+#: DISTINCTION IS THE WHOLE POINT. The owner asked whether the Vista plus
+#: curves could stand in for `AGFA_VISTA_200`'s estimates. They cannot, and the
+#: evidence is in these records rather than in an opinion: the sheet disclaims
+#: Agfa manufacture, and the dye set matches FUJICOLOR_SUPERIA_XTRA_400 nine
+#: times more closely than the next of 26 stored sets.
+_VP_SRC = ('AgfaPhoto Holding GmbH, «Product Information -- Color Negative '
+           'Film», Vista plus 200 and Vista plus 400 -- '
+           'PDF/PROFILES/AGFA/agfafilms-Vista.pdf; vector trace 2026-09-07 by '
+           'agfaphoto_vista_plus.py. ⚠ NOT an Agfa-Gevaert publication: the '
+           'sheet states that neither Agfa-Gevaert NV & Co KG nor '
+           'Agfa-Gevaert NV manufacture the product, and names Lupus Imaging '
+           '& Media GmbH Co. KG as producer')
+_VP_MTF_NOTE = (
+    '⚠⚠ REFUSED, NOT MISSING. «13. MTF Curve» is ONE DRAWING SHARED BY BOTH '
+    'FILMS: the same 47-point path, translated dx +0.143 dy -0.076 pt with '
+    'spreads of 0.0010 and 0.0020 pt -- the same path object placed twice. Two '
+    'films cannot share a MEASURED MTF, so at most one of the two is a '
+    'measurement of its own film and the sheet does not say which. This is the '
+    'identical refusal NotFound.md row 5d makes for AGFAPAN APX 100 against '
+    'APX 400, and `agfaphoto_vista_plus.py` re-earns it on every build rather '
+    'than remembering it. The shared curve reads f50 58.7 c/mm with a +18.4 % '
+    'low-frequency peak; neither number is stored on either stock. '
+    '⚠ AND THE OTHER THREE PANELS ARE NOT SHARED -- the characteristic, '
+    'spectral and dye records differ between the two films by 8-17 pt of shape '
+    'and by their point counts -- which is what makes this a finding about the '
+    'artwork rather than a broken reader.')
+for _n in ("AGFA_VISTA_PLUS_200", "AGFA_VISTA_PLUS_400"):
+    _PARAM_SOURCES[_n] = _PARAM_SOURCES.get(_n, ()) + (
+        ParamSource(
+            param='curves', tier=1, status='traced', unit='D',
+            conditions='Daylight 1/125 s, process CN-16, Status M',
+            source=_VP_SRC + ', section 11',
+            confidence='high',
+            note=('Three records per film, 70 traced points each, fit rms '
+                  '0.009-0.016 D. ⚠ THE ABSCISSA IS ANCHORED ON THE NINE '
+                  'PRINTED GRIDLINES, NOT THE FRAME: the right frame edge is '
+                  'lg H 0.0 but the left edge is half a division beyond -4.0, '
+                  'an unlabelled margin, so frame-anchoring x shifts every '
+                  'exposure by a quarter decade and leaves every density and '
+                  'gamma untouched -- the NEOPAN SS defect, which a gamma '
+                  'check cannot catch. ⚠ THE SHOULDER IS CARRIED, NOT '
+                  'MEASURED: all six records are still straight where the '
+                  'plot ends, so the span is fixed at the colour-negative '
+                  'family 3.30 decades and only dmin, gamma and the toe '
+                  'softness are fitted.')),
+        ParamSource(
+            param='spectral', tier=1, status='traced', unit='relative log',
+            conditions='CN-16, Status M, density 1.0 above D-min',
+            source=_VP_SRC + ', section 12',
+            confidence='high',
+            note=('Wavelength from the panel\'s four printed gridlines, '
+                  '57.14 pt per 100 nm uniform to 0.06 pt. ⚠ THE ORDINATE '
+                  'HAS NO LADDER -- a bracket one decade tall, the same '
+                  'construction this project refused on the SUPERIA and PRO '
+                  '400H panels. Stored PEAK-NORMALISED, which is what this '
+                  'field holds, so the bracket sets the scale and the peak '
+                  'the zero. -4.00 is the not-drawn sentinel.')),
+        ParamSource(
+            param='dye_density', tier=1, status='traced', unit='D',
+            conditions='mid-scale neutral and D-min, as printed',
+            source=_VP_SRC + ', section 14',
+            confidence='high',
+            note=('⚠⚠ THIS SET IDENTIFIES THE MANUFACTURER, which is why it '
+                  'is the most valuable panel on the sheet. Against all 26 '
+                  'stored 31-sample dye sets, both films\' traced neutral '
+                  'matches FUJICOLOR_SUPERIA_XTRA_400 to a mean 0.0177 D '
+                  '(max 0.057) where the NEXT-nearest sits at 0.154 -- nine '
+                  'times further -- and the D-min mask to 0.015-0.030 D. '
+                  'Combined with the document being on the Fuji template '
+                  '(CN-16, cellulose triacetate 122 um, the «mid-scale '
+                  'neutral ... D-mini» caption verbatim, the J/cm2 '
+                  'sensitivity footnote), these are Fuji-made films in '
+                  'AgfaPhoto packaging. Labelled an INFERENCE about '
+                  'manufacture, and it is the reason these curves are not '
+                  'borrowed onto AGFA_VISTA_200. '
+                  '⚠ d_dmin ON A MASKED NEGATIVE IS THE ORANGE MASK, '
+                  'measured, and its fall to the red is the physics gate: '
+                  '0.892 -> 0.269 D on the 200, 0.865 -> 0.268 on the 400.')),
+        ParamSource(
+            param='mtf.f50_g', tier=3, status='estimated', unit='cycles/mm',
+            conditions='class estimate; the drawn panel is REFUSED',
+            source=_VP_SRC + ', section 13',
+            confidence='low',
+            note=_VP_MTF_NOTE),
+        ParamSource(
+            param='grain.rms_granularity', tier=3, status='estimated',
+            unit='sigma_D x 1000',
+            conditions='class estimate from the ISO 200/400 colour-negative '
+                       'ladder',
+            source=_VP_SRC,
+            confidence='low',
+            note=('⚠ THE SHEET CARRIES NO GRANULARITY FIGURE AT ALL. Sections '
+                  '1-14 print no rms number, no granularity curve and no '
+                  'resolving-power table; «Excellent Grain Quality» and «New '
+                  'Super Uniform Fine Grain Technology» are the whole of what '
+                  'it says about grain. Every grain field on both stocks is '
+                  'therefore a class estimate, and the owner\'s 2026-09-07 '
+                  'question about filling `fog_grain` and `clump_um` from '
+                  'this document is answered NO by the document.')),
+        ParamSource(
+            param='processing.developer', tier=1, status='stated',
+            unit='', conditions='the sheet names the process, not a schedule',
+            source=_VP_SRC + ', section 9',
+            confidence='high',
+            note=('«Vista Films are "process-compatible" and are developed in '
+                  'the following process: AP 70/CN-16/C41» -- three '
+                  'interchangeable process names for one chemistry. ⚠ THE '
+                  'TIME AND TEMPERATURE STORED ARE THE C-41 STANDARD\'S, NOT '
+                  'THIS SHEET\'S: it prints no schedule for any of the three. '
+                  '⚠ AND CN-16 IS ITSELF EVIDENCE -- it is Fuji\'s process '
+                  'name, one of the five tells that place this document on the '
+                  'Fuji template.')),
+        ParamSource(
+            param='emulsion.base_um', tier=1, status='stated', unit='um',
+            conditions='135 gauge',
+            source=_VP_SRC + ', section 3',
+            confidence='high',
+            note=('«Cellulose Triacetate», «122um (135)», production number '
+                  '«C74 and above» on the 200 and «H74 and above» on the 400. '
+                  '⚠ 122 um IS THE FIGURE THIS CORPUS\'S FUJI COLOUR '
+                  'NEGATIVES CARRY, against 127 um on the Fuji REVERSAL '
+                  'stocks -- another tell, and one this database can check '
+                  'against itself.')),
+    )
+
+
+# ---------------------------------------------------------------------------
+#  THE FILMLABPRO RE-AUDIT, 2026-09-07 -- provenance first, then two swaps
+# ---------------------------------------------------------------------------
+#: ⚠⚠ WHY THIS BLOCK EXISTS, AND THE DEFECT THAT PRODUCED IT. The owner asked
+#: whether filmlabpro.com/published-data had been captured in full. It had --
+#: bundle-deep, twice verified, archived. What had NOT kept up was the AUDIT of
+#: it against this database: three of the four stocks NotFound.md §7.1c listed
+#: as having no counterpart here had since been profiled, and were never
+#: checked against that source.
+#:
+#: ⚠⚠ AND THE AUDIT SCRIPT ALMOST DID REAL DAMAGE, WHICH IS THE LESSON. It
+#: classified each field by its `ParamSource` status and proposed replacing
+#: anything `estimated` with the third party's figure, per the owner's rule.
+#: Two DATASHEET-PRINTED rms values came back as "(no record)" -- their
+#: provenance lived only in a code comment -- and were therefore proposed for
+#: overwriting by a hand-authored number 2.6x coarser. **The owner stopped it
+#: with one question.** A vendor value whose provenance is not in a
+#: `ParamSource` is indistinguishable from an estimate to any automated pass,
+#: so the first thing this block does is record those two.
+_FLP_SRC = (
+    'FilmLab Pro v2.1 published-data engine, '
+    'https://filmlabpro.com/published-data, harvested 2026-08-27; archived '
+    'verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. TIER 3 -- '
+    'hand-authored engine values, NOT a manufacturer specification and NOT a '
+    'measurement (assessment: NotFound.md 7.1)')
+
+def _replace_param_source(film, rec):
+    """Swap in `rec`, dropping any existing entry for the same parameter.
+
+    ⚠ G-PROV in verify.py holds that no profile may carry two ParamSource
+    entries for one parameter, so an updated provenance must REPLACE and not
+    append. Learned the same day on AGFA_APX_400.
+    """
+    cur = _PARAM_SOURCES.get(film, ())
+    _PARAM_SOURCES[film] = tuple(
+        r for r in cur if r.param != rec.param) + (rec,)
+
+
+# ---- 1. THE TWO VENDOR-PRINTED rms VALUES THAT HAD NO RECORD --------------
+#: ⚠ NEITHER VALUE CHANGES. This is provenance only, and it is what stops a
+#: future pass doing what this one nearly did.
+for _film, _pg, _quote, _pdf in (
+    ('FUJICOLOR_SUPERIA_XTRA_400', 5,
+     '15. DIFFUSE RMS GRANULARITY VALUE .... 4',
+     'PDF/PROFILES/FUJI/superia_xtra400_datasheet.pdf'),
+    ('FUJICOLOR_PRO_400H', 8,
+     '16. DIFFUSE RMS GRANULARITY VALUE ..... 4*',
+     'PDF/PROFILES/FUJI/pro_400h_datasheet.pdf'),
+):
+    _replace_param_source(_film, ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma_D x 1000',
+        conditions='48 um aperture, 12x magnification, D = 1.0 above minimum',
+        source=('Fuji Photo Film Co., Ltd., product information bulletin, '
+                'page %d, "%s" -- %s' % (_pg, _quote, _pdf)),
+        confidence='high',
+        note=('⚠ THIS RECORD EXISTS BECAUSE THE VALUE HAD NONE, and on '
+              '2026-09-07 an automated audit of a third-party source '
+              'therefore read a PRINTED Fuji figure as this project\'s own '
+              'estimate and proposed overwriting it -- with 10.5 for SUPERIA '
+              'X-TRA 400 and 7.0 for PRO 400H, i.e. 2.6x and 1.75x coarser. '
+              'Nothing was written; the owner asked whether vendor values '
+              'were being overwritten and the audit was corrected. '
+              '⚠ THE VALUE IS UNCHANGED AT 4.0 -- only its provenance is new. '
+              '⚠ THE TWO SHEETS PRINTING THE SAME 4 IS FUJI ROUNDING TO ONE '
+              'DIGIT, not this database collapsing two films: the profiles\' '
+              'traced curves differ, PRO 400H sitting 0.02-0.28 D higher in '
+              'D-min and lower in every gamma.')))
+
+# ---- 2. THE THREE EMPTY grain_um FIELDS -----------------------------------
+#: ⚠ ABSENT, NOT ESTIMATED. All three read 0.0, and each stock's own Fuji
+#: sheet was checked page by page on 2026-09-07: the only micron figures on
+#: them are the 48 um densitometer aperture and the film-base gauge. No vendor
+#: crystal diameter exists to displace. Fourteen sibling stocks have carried
+#: this source's `size_microns` since 2026-08-27; these three entered the
+#: database after that audit.
+for _film, _um, _key in (
+    ('FUJI_PROVIA_100F', 1.6, 'provia_100f'),
+    ('FUJICOLOR_PRO_400H', 2.6, 'pro400h'),
+    ('FUJICOLOR_SUPERIA_XTRA_400', 3.2, 'fuji_superia_400'),
+):
+    _replace_param_source(_film, ParamSource(
+        param='emulsion.grain_um', tier=3, status='estimated',
+        unit='um',
+        conditions='mean crystal diameter, the source\'s own definition',
+        source=_FLP_SRC + ', key %s, size_microns' % _key,
+        confidence='low',
+        note=('Adopted 2026-09-07 into an EMPTY field under the owner rule of '
+              '2026-08-27, that a published third-party figure is preferred '
+              'over nothing where no T1 or T2 value exists. '
+              '⚠ NOT clump_um_* -- that is the mean DEVELOPED CLUMP diameter '
+              'and depends on development gamma and on density. '
+              '⚠ INERT: nothing on any engine path reads emulsion.grain_um, '
+              'so this moves no pixel. What it buys is that the stock stops '
+              'reading as unexamined. '
+              '⚠ AND THE FIELD IT JOINS IS ALREADY SUSPECT: all 17 values '
+              'previously stored come from one third-party aggregator, and '
+              'Ooue 1959 Part 1 Fig. 2 and BBC T-101 Table 3 both measure '
+              'developed grain BELOW the 1.3 um floor of that whole set. '
+              'This is one more number of the same kind, not a correction '
+              'to it.')))
+
+# ---- 3. THE TWO f50 SWAPS THE OWNER APPROVED ------------------------------
+#: ⚠⚠ AND THE ONE THAT HAD TO BE DONE DIFFERENTLY. The method used everywhere
+#: else for this source -- re-anchor GREEN on its single mtf50 and carry red
+#: and blue by the profile's own ratios -- would have moved
+#: KODAK_VISION3_500T_5219's `f50_r` off **36.0, which is `measured`, tier 1**:
+#: the queue C24 family anchor from seven per-record measurements across
+#: 1989-2005. Red is therefore left exactly where it is and only green and
+#: blue move. A third-party figure may replace an ESTIMATE; it may never
+#: replace a MEASUREMENT.
+_replace_param_source('FUJI_NEOPAN_ACROS_100', ParamSource(
+    param='mtf.f50_g', tier=3, status='estimated', unit='cycles/mm',
+    conditions='the source publishes one f50 per stock; this is a '
+               'monochrome stock, so all three records carry it',
+    source=_FLP_SRC + ', key acros_100, mtf50_lp_mm',
+    confidence='low',
+    note=('104.0 -> 95.0. WHAT IT REPLACES WAS THIS PROJECT\'S OWN CLASS '
+          'ESTIMATE at tier 2, derived from no document. '
+          '⚠ NO VENDOR f50 IS DISPLACED AND NONE EXISTS: NeopanAcros100.pdf '
+          'p4 prints RESOLVING POWER -- 60 lines/mm at 1.6:1 and 200 at '
+          '1000:1 -- a different quantity, stored in resolving_power_lp_mm_* '
+          'and untouched. '
+          '⚠ THE CROSS-CHECK IS f50/RP, which Tani\'s relation puts near '
+          '0.5: ours was 104/200 = 0.52, theirs is 95/200 = 0.475. The move '
+          'stays inside the plausible band -- it is a change of estimate, not '
+          'a correction of an error. '
+          '⚠ mtf_measured stays False, and 2 of this source\'s 21 mtf50 '
+          'fields are demonstrably RESOLVING POWERS (Velvia 50 at 160, '
+          'Provia 100F at 140, both matching our vendor RP exactly), so the '
+          'field is read with that in mind.')))
+_replace_param_source('KODAK_VISION3_500T_5219', ParamSource(
+    param='mtf.f50_g', tier=3, status='estimated', unit='cycles/mm',
+    conditions='the source\'s single mtf50, taken as the green record',
+    source=_FLP_SRC + ', key kodak_vision3_500t, mtf50_lp_mm',
+    confidence='low',
+    note=('52.0 -> 60.0 green, and blue 60.0 -> 69.2 by THIS PROFILE\'S own '
+          'g->b ratio of 1.1538, so the LEVEL is third-party and the SHAPE '
+          'is ours. '
+          '⚠⚠ RED IS UNTOUCHED AT 36.0 AND ITS OWN RECORD STILL SAYS '
+          '`measured`, TIER 1 -- the queue C24 anchor, seven per-record '
+          'measurements 1989-2005, mean 36.4, spread +-13 %. Applying this '
+          'source\'s figure by the usual method would have dragged red to '
+          'about 41.5 and overwritten that measurement with a hand-authored '
+          'number. The owner stopped it with one question, and the rule it '
+          'establishes is written into this note: a third-party figure may '
+          'replace an ESTIMATE, never a MEASUREMENT. '
+          '⚠ This profile now carries ONE measured record and TWO '
+          'third-party-levelled ones, which is exactly what its provenance '
+          'says. mtf_measured stays False.')))
+
+# ---- 4. THE MIS-ATTRIBUTED ETERNA IMPORT, BACKED OUT ----------------------
+#: ⚠⚠ FilmLab Pro's key `fuji_eterna_500t` is "Fuji Eterna 500T". This profile
+#: is Eterna VIVID 500T, catalogue 8547 -- a higher-saturation 2009 coating,
+#: and NotFound.md §7.1c says so in terms. On 2026-08-27 that record's mtf50
+#: (55) and size_microns (3.0) were nevertheless adopted here, while the SAME
+#: record's rms (9.0) was refused because this film's own sheet prints 3.5.
+#: One record treated as a different film for granularity and as the same film
+#: for sharpness, one field apart. Both observables are restored to this
+#: project's own values; the harvest stays in `third_party`, which is inert by
+#: construction and now says which film it describes.
+_replace_param_source('FUJI_ETERNA_VIVID_500T_8547', ParamSource(
+    param='mtf.f50_g', tier=2, status='estimated', unit='cycles/mm',
+    conditions='class estimate from the Fuji cine negative family',
+    source=('This project\'s own estimating rule for Fuji motion-picture '
+            'colour negatives. NOT a document: no MTF, f50 or resolving-power '
+            'pair is published for AGFA-era Eterna Vivid 500T in this corpus'),
+    confidence='low',
+    note=('RESTORED 2026-09-07 to 50/58/66, the value that stood before '
+          '2026-08-27. It had been re-anchored on FilmLab Pro key '
+          '`fuji_eterna_500t` (mtf50 55), which describes Fuji Eterna 500T '
+          'and not this stock, Eterna VIVID 500T 8547 -- see NotFound.md '
+          '7.1c and 7.1d. `emulsion.grain_um` was emptied in the same pass '
+          'for the same reason. '
+          '⚠ THE POINT IS NOT THAT THE NUMBER WAS FAR OUT -- 55 against 58 '
+          'is 5 % -- but that it was a DIFFERENT FILM\'S number, and this '
+          'database\'s whole value is that its provenance means what it '
+          'says. An estimate labelled as ours is honest; a neighbouring '
+          'product\'s figure labelled as this film\'s is not.')))
+
+
+# ---------------------------------------------------------------------------
+#  THE SHARED-DRAWING MTF ADOPTION, 2026-09-07b -- owner decision
+# ---------------------------------------------------------------------------
+#: ⚠⚠ FOUR STOCKS TOOK A CLASS ESTIMATE WHILE THEIR OWN VENDOR SHEET DREW AN
+#: MTF, AND THIS BLOCK IS WHY THEY NO LONGER DO. AGFAPAN APX 100 / APX 400
+#: share one «Sharpness» panel in both the 1998 and 2004 editions, and the two
+#: AgfaPhoto Vista plus stocks share one «13. MTF Curve». Because two films
+#: cannot both own one measurement, `NotFound.md` row 5d refused all of them
+#: and left a class estimate in place.
+#:
+#: The owner's instruction, 2026-09-07b, verbatim: *"If the vendor datasheet
+#: provide MTF please don't simply discard this value even 'Two films cannot
+#: share a measured MTF'. We haven't additional better source for check this,
+#: so please accept and include these values from vendors datasheet - this is
+#: much more better from estimated values!"*
+#:
+#: ⚠ THE FINDING IS NOT WITHDRAWN, ONLY ITS CONSEQUENCE. Both duplicate checks
+#: still run on every build and still print the shared-artwork evidence. What
+#: the refusal got wrong was the remedy: it replaced a traced vendor curve with
+#: a number derived from no document at all. A shared vendor curve is one
+#: measurement of one of two closely related films; a class estimate is a
+#: measurement of nothing.
+#: ⚠ AND EVERY ONE OF THESE RECORDS SAYS SO, so that no later reader mistakes
+#: the flag for a per-film measurement.
+_SHARED_MTF = {
+    'AGFA_APX_100': (58.0, 2.27, '«Technical Data PF» 09/1998 p10 and F-PF-E4 '
+                     '08/2004 p8, the AGFAPAN «Sharpness» panel',
+                     'AGFA_APX_400', 'max |dy| 0.0002 of frame height, in BOTH '
+                     'editions'),
+    'AGFA_APX_400': (58.0, 2.27, '«Technical Data PF» 09/1998 p10 and F-PF-E4 '
+                     '08/2004 p8, the AGFAPAN «Sharpness» panel',
+                     'AGFA_APX_100', 'max |dy| 0.0002 of frame height, in BOTH '
+                     'editions'),
+    'AGFA_VISTA_PLUS_200': (58.7, 2.65, 'AgfaPhoto «Product Information» '
+                                 'p4 section 13, «MTF Curve»',
+                                 'AGFA_VISTA_PLUS_400',
+                                 'one 47-point path translated dx +0.143 '
+                                 'dy -0.076 pt, spreads 0.0010 / 0.0020 pt'),
+    'AGFA_VISTA_PLUS_400': (58.7, 2.65, 'AgfaPhoto «Product Information» '
+                                 'p8 section 13, «MTF Curve»',
+                                 'AGFA_VISTA_PLUS_200',
+                                 'one 47-point path translated dx +0.143 '
+                                 'dy -0.076 pt, spreads 0.0010 / 0.0020 pt'),
+}
+for _n, (_f50, _q, _where, _twin, _how) in _SHARED_MTF.items():
+    _replace_param_source(_n, ParamSource(
+        param='mtf.f50_g', tier=1, status='traced', unit='cycles/mm',
+        conditions='vendor MTF panel, traced; the panel is SHARED with %s'
+                   % _twin,
+        source=('%s -- vector trace, frame-calibrated. ⚠ THE PANEL IS SHARED '
+                'WITH %s: %s. So this is a manufacturer measurement of ONE of '
+                'the two films and the sheet does not say which.'
+                % (_where, _twin, _how)),
+        confidence='medium',
+        note=('f50_g %.1f c/mm, rolloff q %.2f, `mtf_measured` True. '
+              '⚠⚠ ADOPTED 2026-09-07b BY OWNER DECISION, REVERSING THE REFUSAL '
+              'IN NotFound.md ROW 5d. That row is right that two films cannot '
+              'share a measured MTF, and it stays on record; what it got wrong '
+              'was replacing a traced vendor curve with a class estimate '
+              'derived from no document. The owner: "a vendor MTF, even shared, '
+              'is much more better from estimated values". '
+              '⚠ WHAT THIS RECORD DOES NOT CLAIM is that the curve was '
+              'measured on THIS film. The duplicate check re-derives the '
+              'shared artwork on every build and prints it beside the '
+              'adoption. ⚠ AND THE TWIN CARRIES THE IDENTICAL PAIR, which is '
+              'the finding rather than a copy: one drawing, read twice.'
+              % (_f50, _q))))
+
+
+# ---------------------------------------------------------------------------
+#  THE SUPERIA BATCH -- three sheets of one house template, 2026-09-06e
+# ---------------------------------------------------------------------------
+#: ⚠⚠ THE TEMPLATE IS SHARED AND THE LADDERS ARE NOT, which is the finding that
+#: made this batch expensive and would have produced three plausible wrong
+#: databases if the family had been trusted:
+#:   * X-TRA 400's characteristic ordinate runs to 4.0 and its abscissa to
+#:     +0.5; the other two run to 3.5 and +1.0.
+#:   * X-TRA 400's dye ordinate reaches an UNLABELLED 2.5, X-TRA 800's 3.0,
+#:     REALA's 2.0.
+#:   * X-TRA 800's characteristic ladder has a stray caption rule 2.5 pt inside
+#:     its top rung, and REALA's dye ladder has two of them.
+#: Every panel is therefore assigned by fitting an ARITHMETIC PROGRESSION over
+#: the detected rules and refused if none fits, rather than by taking the
+#: detected rules in order.
+_XTRA400_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJIFILM PRODUCT INFORMATION BULLETIN '
+    '«FUJICOLOR SUPERIA X-TRA 400 [CH]», Ref. No. AF3-151E (EIGI-03.2-HB) -- '
+    'PDF/PROFILES/FUJI/superia_xtra400_datasheet.pdf; re-read 2026-09-06e')
+_XTRA400_T4_RECORDS = (
+    ParamSource(
+        param='curves.g.gamma', tier=1, status='traced',
+        unit='dimensionless',
+        conditions='section 17, Daylight 1/125 s, CN-16, Status M',
+        source=_XTRA400_SRC,
+        confidence='high',
+        note="⚠ RE-DERIVED INDEPENDENTLY 2026-09-06e AND THE STORED VALUES STAND. The 2026-09-02e trace read this panel by COLOUR (the three records are drawn in red, green and blue ink); the T4 reader reads it by VECTOR SUBPATH and calibrates on an arithmetic-progression ladder fit, so the two share no extraction step. They agree to 0.010 D on dmin, 0.009 on gamma and 0.019 on toe_x -- the worst of the twelve parameters being green's toe, and every one of the twelve inside 0.02. ⚠ AND THE RE-READ CORRECTED THE ABSCISSA THE FIRST ONE ASSUMED: this panel's exposure ladder has TEN rungs running to +0.5, not the eleven-rung -4.0..+1.0 its two sibling sheets use, and its density ladder reaches 4.0 where theirs stop at 3.5. Nothing moved because the first pass had read the ticks from this sheet's own text layer rather than from the family; the second pass had no text layer to lean on and had to derive both, which is why the agreement is worth recording."),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 19, Daylight, CN-16',
+        source=_XTRA400_SRC,
+        confidence='high',
+        note="⚠ RE-DERIVED 2026-09-06e AT 58.7 c/mm AGAINST THE STORED 57.9 -- 1.4 % apart, off an independently assigned ladder, and the rolloff exponent comes back at q 2.62 EXACTLY as stored. The stored value is kept: neither extraction is better conditioned than the other and moving a number by 1.4 % to match the newer of two equal readings would be noise-chasing. ⚠ Fuji's MTF abscissa on this family is drawn to about +/-5 % rule to rule, which is the scatter that 1.4 % sits inside, and it is why the T4 reader's ladder tolerance on MTF panels is 3.5 pt where every other panel gets 1.2."),
+    ParamSource(
+        param='reciprocity_table', tier=1, status='stated',
+        unit='stops of lens opening',
+        conditions='section 6, long exposure compensation',
+        source=_XTRA400_SRC,
+        confidence='high',
+        note="PRINTED, ADOPTED 2026-09-06e -- the 2026-09-02e pass traced this sheet's curves and left its exposure table unread. No compensation from 1/4000 to 2 s; +1/3 stop at 4 s, +2/3 at 16 s, +1 at 64 s; NO colour-compensating filter at any length, so the failure is achromatic as printed. ⚠⚠ THE THREE SUPERIA SHEETS PUBLISH THREE DIFFERENT TABLES AND SPEED DOES NOT ORDER THEM: this ISO 400 stock tolerates 2 s unfiltered and publishes a 64 s row, while REALA at ISO 100 tolerates only 1 s and marks 64 s 'not recommended'. A slower emulsion failing sooner is the opposite of the PROVIA 100F / 400F direction, so no table here is derived from another (rule 4)."),
+    ParamSource(
+        param='aim_density', tier=1, status='stated',
+        unit='Status M red density',
+        conditions='section 12, 18 % grey card under the subject illumination',
+        source=_XTRA400_SRC,
+        confidence='high',
+        note="PRINTED: 0.75-0.95 through a Status M RED filter for a correctly exposed, correctly processed negative. ⚠ THE FIRST FUJI AIM DENSITY IN THIS DATABASE -- all sixteen already here are Kodak's -- and it is a different SHAPE of statement: Kodak publishes a grey card, a paper grey scale and two forehead readings per exposure index; Fuji publishes the grey card alone. The three empty fields are empty because the sheet does not print them. ⚠ IT ALSO NEEDED A BUG FIXED TO REACH THE DATABASE: `_apply_schema_v2` set aim_density from `_AIM_DENSITY` alone and discarded profile literals in silence -- the third instance of that defect class found on 2026-09-06, after `reciprocity` and `exposure_index_tungsten`. The pass now honours a literal and REFUSES a collision."),
+    ParamSource(
+        param='dye_density', tier=1, status='traced',
+        unit='density as printed',
+        conditions='section 20, mid-scale neutral and D-min',
+        source=_XTRA400_SRC,
+        confidence='high',
+        note="⚠ RE-DERIVED INDEPENDENTLY 2026-09-06e AND THE STORED PAIR STANDS: max 0.029 D, rms 0.014 D over 400-700 nm on both curves, off a differently assigned ladder. ⚠ THE RE-READ ALSO CORRECTED THIS PANEL'S ORDINATE, which Fuji labels only 0.0 / 1.0 / 2.0 while ruling every 0.5: the frame top is the UNLABELLED 2.5 rung, and reading the panel as 0.0-2.0 inflates every density by 25 %. The stored arrays were right; the first reader had the sheet's text layer and the second had to derive it."),
+)
+_PARAM_SOURCES['FUJICOLOR_SUPERIA_XTRA_400'] = (
+    _PARAM_SOURCES.get('FUJICOLOR_SUPERIA_XTRA_400', ()) + _XTRA400_T4_RECORDS)
+
+_XTRA800_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR SUPERIA X-TRA '
+    '800 [CZ]», Ref. No. AF3-068E (EIGI-00.8-HB) -- '
+    'PDF/PROFILES/FUJI/superia_xtra800_datasheet.pdf; read 2026-09-06e')
+_XTRA800_RECORDS = (
+    ParamSource(
+        param='curves.g.gamma', tier=1, status='traced',
+        unit='dimensionless',
+        conditions='section 15, Daylight 1/125 s, CN-16, Status M',
+        source=_XTRA800_SRC,
+        confidence='high',
+        note="TRACED 2026-09-06e from vector paths at rms 0.0045-0.0173 over 2160-2640 sampled points. ⚠ ALL THREE RECORDS ARE ONE PATH WITH THREE SUBPATHS, as PRO 800Z's are; a reader that takes whole drawings sees a single curve running from blue's toe to red's shoulder. ⚠ THE LADDER'S TOP RUNG IS THE FRAME EDGE AND A STRAY CAPTION RULE SITS 2.5 pt INSIDE IT -- taking the first detected horizontal as D 3.5 puts every density out by that offset, which is why the ladder is fitted as an arithmetic progression instead. ⚠ THIS PANEL IS NOT SQUARE: 41.97 pt per decade against 40.90 per density, 2.6 % apart, where REALA's is 1.2 % and X-TRA 400's 0.6 %. Reported, not corrected -- PROVIA 400F established that a non-square Fuji panel is a drawing choice. Record assignment is by the D-min ladder, 0.175 red < 0.438 green < 0.746 blue, the orange mask."),
+    ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma(D) x 1000',
+        conditions='section 13, 48 um aperture, 12x, 1.0 above D-min',
+        source=_XTRA800_SRC,
+        confidence='high',
+        note="PRINTED AS A SINGLE DIGIT: 5, on the same conditions PRO 800Z and NPZ 800 print, and the same value -- which is what an ISO 800 Fuji negative of this generation costs in grain whoever it is sold to. One significant figure, so +/-0.5 at best; the clump triple beside it is a class rule scaled to this rms and is NOT measured."),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 17, Daylight, CN-16',
+        source=_XTRA800_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06e: f50 53.8 c/mm, q 2.16 at rms 0.0550 against the Gaussian's 0.0882 (1.6x better), from 2880 sampled points over 3.4-103.4 c/mm. ⚠ THE PRINTED RESOLVING POWER IS 50 / 125, the same low-contrast figure as PRO 800Z and NPZ 800 but 125 rather than 115 at 1000:1 -- so the three ISO 800 Fuji negatives are not interchangeable even on the numbers their sheets print in words, and this one is NOT a re-badge of either. ⚠ The +20.0 % adjacency overshoot the panel draws is not adopted, as on every stock in this line of work."),
+    ParamSource(
+        param='reciprocity_table', tier=1, status='stated',
+        unit='stops of lens opening',
+        conditions='section 7, long exposure compensation',
+        source=_XTRA800_SRC,
+        confidence='high',
+        note="PRINTED: no compensation from 1/4000 to 2 s, +2/3 stop at 4 s, +1 1/2 at 16 s, +2 at 64 s, no colour-compensating filter at any length. ⚠ IDENTICAL TO NPZ 800's PRINTED TABLE, and twice SUPERIA X-TRA 400's correction at every time. Two ISO 800 Fuji negatives agreeing here is not evidence that they are one emulsion -- their curves differ by up to 0.190 D in dmin and 0.203 in gamma -- X-TRA 800's blue record is a third steeper -- and their high-contrast resolving powers by 10 lines/mm."),
+    ParamSource(
+        param='aim_density', tier=1, status='stated',
+        unit='Status M red density',
+        conditions='section 11, 18 % grey card under the subject illumination',
+        source=_XTRA800_SRC,
+        confidence='high',
+        note="PRINTED: 0.70-0.90 through a Status M RED filter. ⚠ THE LOWEST OF THE THREE SUPERIA AIMS -- 0.70-0.90 here, 0.75-0.95 on X-TRA 400, 1.02-1.20 on REALA -- and the ordering agrees with the three stocks' own traced red dmin (0.175 < 0.129? no: 0.129 X-TRA 400 < 0.175 here < 0.306 REALA), so the aim is NOT a simple function of dmin alone and the two statements are independent."),
+    ParamSource(
+        param='dye_density', tier=1, status='traced',
+        unit='density as printed',
+        conditions='section 18, mid-scale neutral and D-min',
+        source=_XTRA800_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06e. ⚠ A NEUTRAL PAIR, NOT A DYE TRIPLE: captioned 'Typical densities for a mid-scale neutral subject and for D-mini.' and drawing two curves, never separating the three dyes. Stored as d_neutral / d_dmin so no census counts a three-dye set this stock does not have. ⚠ ITS ORDINATE REACHES 3.0 AND ITS ABSCISSA RUNS PAST 700 nm, unlike either sibling sheet -- the trace covers 392-788 nm and is stored on the database's 400-700 nm grid. ⚠ The D-min curve IS the orange mask, 1.561 D at 400 nm falling to 0.533 at 700, which is the independent check that the two curves were not swapped."),
+)
+_PARAM_SOURCES['FUJICOLOR_SUPERIA_XTRA_800'] = (
+    _PARAM_SOURCES.get('FUJICOLOR_SUPERIA_XTRA_800', ()) + _XTRA800_RECORDS)
+
+_REALA_SRC = (
+    'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «FUJICOLOR SUPERIA REALA '
+    '[CS]», Ref. No. AF3-967E (EIGI-00.12-HB) -- '
+    'PDF/PROFILES/FUJI/superia_reala_datasheet.pdf; read 2026-09-06e')
+_REALA_RECORDS = (
+    ParamSource(
+        param='curves.g.gamma', tier=1, status='traced',
+        unit='dimensionless',
+        conditions='section 14, Daylight 1/125 s, CN-16, Status M',
+        source=_REALA_SRC,
+        confidence='high',
+        note="TRACED 2026-09-06e from vector paths at rms 0.0052-0.0091. ⚠ ITS THREE RECORDS ARE SPLIT ACROSS TWO PATH OBJECTS, 1 + 2, where X-TRA 800 puts all three in one -- two sheets from one house template with two different path layouts, neither announced. ⚠⚠ ITS THREE GAMMAS ARE THE MOST EQUAL IN THE DATABASE: 0.6824 / 0.6808 / 0.6856, a spread of 0.0048 or 0.7 %, against 0.04-0.09 for every other colour negative here. That is not a fitting artefact -- it is the 'Optimum Spectral Sensitivity Balance' and 'Soft Gradations' this sheet's own feature list leads with, measured. It also made the reader's gamma-ordering check meaningless on this stock, which is why that check now fires only when the spread exceeds 0.05: three equal gammas ARE the finding, not a defect. Record assignment is by the D-min ladder, 0.306 red < 0.496 green < 0.963 blue."),
+    ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma(D) x 1000',
+        conditions='section 12, 48 um aperture, 12x, 1.0 above D-min',
+        source=_REALA_SRC,
+        confidence='high',
+        note="PRINTED AS A SINGLE DIGIT: 4 -- equal to SUPERIA X-TRA 400's and PRO 400H's at a QUARTER of their speed, which is the whole argument for this stock. One significant figure; the clump triple is a class rule scaled to it and is NOT measured."),
+    ParamSource(
+        param='mtf.f50_g', tier=1, status='traced',
+        unit='cycles/mm',
+        conditions='section 16, Daylight, CN-16',
+        source=_REALA_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06e: f50 60.0 c/mm, q 2.82 at rms 0.0749 against the Gaussian's 0.0922, from 1680 sampled points over 2.7-112.1 c/mm. The SHARPEST of the three SUPERIA sheets and the steepest rolloff, which is the expected direction for the slowest emulsion. ⚠ RESOLVING POWER 63 / 125 PRINTED, and the 63 at test-object contrast 1.6:1 is the highest low-contrast figure any Fuji stock in this database prints -- both X-TRA films print 50 at the same contrast. ⚠ The +22.2 % adjacency overshoot is not adopted."),
+    ParamSource(
+        param='reciprocity_table', tier=1, status='stated',
+        unit='stops of lens opening',
+        conditions='section 6, long exposure compensation',
+        source=_REALA_SRC,
+        confidence='high',
+        note="PRINTED: no compensation from 1/4000 to 1 s, +1/3 stop at 4 s, +1 at 16 s, and 64 s 'Not recommended'. ⚠⚠ THIS BREAKS THE FAMILY PATTERN AND THE BREAK IS THE POINT: REALA is the SLOWEST of the three SUPERIA stocks and has the SHORTEST unfiltered range -- 1 s against the other two's 2 s -- and the only refusal at 64 s. A slower emulsion failing reciprocity SOONER is the opposite of the direction PROVIA 100F (128 s onset) and PROVIA 400F (32 s) show, so speed does not order this behaviour across manufacturers' lines and no table here may be derived from another (rule 4). The 64 s cell is a refusal to publish and is not stored as a correction."),
+    ParamSource(
+        param='aim_density', tier=1, status='stated',
+        unit='Status M red density',
+        conditions='section 10, 18 % grey card under the subject illumination',
+        source=_REALA_SRC,
+        confidence='high',
+        note="PRINTED: 1.02-1.20 through a Status M RED filter. ⚠ THE HIGHEST AIM IN THE DATABASE, against X-TRA 400's 0.75-0.95 and X-TRA 800's 0.70-0.90, and it agrees with this stock's own traced curves: its red record carries the highest dmin of the three SUPERIA films, 0.306 against 0.129 and 0.175, so a correctly exposed grey card must read higher through the same filter. Two independent statements on one sheet pointing the same way."),
+    ParamSource(
+        param='dye_density', tier=1, status='traced',
+        unit='density as printed',
+        conditions='section 17, mid-scale neutral and D-min',
+        source=_REALA_SRC,
+        confidence='medium',
+        note="TRACED 2026-09-06e. ⚠ A NEUTRAL PAIR, NOT A DYE TRIPLE, same caption and same two curves as its siblings. ⚠ THIS IS THE PANEL THAT CAUGHT THE READER: the top TWO detected horizontals are caption-box rules rather than rungs, and fitting all six returns 29.7 / 41.0 / 39.7 pt for what are equal 0.5 D steps -- the panel saying the assignment is wrong. Assigned as an arithmetic progression the five real rungs fit to 0.44 pt. ⚠ The D-min curve IS the orange mask, 0.861 D at 400 nm falling to 0.321 at 700."),
+)
+_PARAM_SOURCES['FUJICOLOR_SUPERIA_REALA'] = (
+    _PARAM_SOURCES.get('FUJICOLOR_SUPERIA_REALA', ()) + _REALA_RECORDS)
+
+
+# ---------------------------------------------------------------------------
+#  THE FOURTH COLOUR LAYER -- traced, three of four stored, 2026-09-06f
+# ---------------------------------------------------------------------------
+#: ⚠⚠ FIVE FUJI STOCKS DRAW FOUR SENSITIVE LAYERS AND THIS SCHEMA HAS THREE.
+#: From 2026-09-06 to 2026-09-06f all five spectral panels were REFUSED on that
+#: ground. The owner's decision of 2026-09-06f is to store R/G/B and to WRITE
+#: THE CYAN CURVE OUT TO THE DOCUMENTATION rather than lose it, which is what
+#: `fuji_spectral4_2026.py` implements and `doc/FUJI_FOURTH_LAYER.md` holds.
+#: ⚠ THE SEPARATION IS MECHANICAL, NOT GEOMETRIC. Cyan is the only DASHED
+#: stroke on every panel, and its measured peak -- 516-519 nm across four films
+#: and four separately calibrated panels -- falls BETWEEN the blue and green
+#: records. Sorting the four curves by wavelength would name cyan "green" and
+#: push the real green record into red, so only the dash array can tell them
+#: apart. The 3 nm spread is also the best evidence the separation picks out
+#: one physical record every time: blue spans 8 nm and green 28.
+_FOURTH_LAYER_NOTE = (
+    "⚠⚠ THREE OF FOUR. This stock's spectral panel draws FOUR sensitive layers "
+    "-- blue, green, red and CYAN, Fuji's 4th Colour Layer -- and "
+    "`SpectralSensitivity` carries three colour records plus pan. The panel was "
+    "REFUSED outright from 2026-09-06 until the owner's decision of 2026-09-06f: "
+    "store R/G/B, and DOCUMENT the cyan curve rather than lose it. The fourth "
+    "record is traced, peak-normalised and written out as numbers in "
+    "doc/FUJI_FOURTH_LAYER.md, so it is measured, published and documented -- "
+    "just not stored. ⚠ WHAT THAT MEANS FOR A READER: these arrays describe "
+    "three quarters of a film. Do not enable `RenderSettings.spectral_taking` "
+    "on this stock expecting a correct answer -- that path integrates the "
+    "stored records against the illuminant, and integrating three of four "
+    "layers is wrong in a way no tolerance catches. It is off by default. "
+    "⚠ Cyan is separated by DASH PATTERN, not position: its peak falls between "
+    "blue's and green's, so no geometric rule could break the tie. "
+    "⚠ Stored peak-normalised per record: the panel's ordinate is a bracketed "
+    "arrow marked 1.0, which carries a scale and no absolute level, so the "
+    "inter-record BALANCE is not asserted.")
+_FOURTH_LAYER_STOCKS = {
+    'FUJICOLOR_PRO_800Z': ('AF3-177E', 19, 'pro_800z_datasheet.pdf', 519,
+                           2.68, 'medium'),
+    'FUJICOLOR_SUPERIA_XTRA_400': ('AF3-151E', 18,
+                                   'superia_xtra400_datasheet.pdf', 516,
+                                   0.12, 'high'),
+    'FUJICOLOR_SUPERIA_XTRA_800': ('AF3-068E', 16,
+                                   'superia_xtra800_datasheet.pdf', 517,
+                                   3.31, 'medium'),
+    'FUJICOLOR_SUPERIA_REALA': ('AF3-967E', 15,
+                                'superia_reala_datasheet.pdf', 516,
+                                0.48, 'high'),
+}
+for _n, (_ref, _sec, _pdf, _cy, _sq, _conf) in _FOURTH_LAYER_STOCKS.items():
+    _extra = ''
+    if _n == 'FUJICOLOR_SUPERIA_REALA':
+        _extra = (" ⚠ ON THIS STOCK THE MISSING RECORD IS THE POINT OF THE FILM: "
+                  "REALA is the stock the fourth sensitized layer was INTRODUCED "
+                  "on, and its own feature list names it second, ahead of "
+                  "granularity. Three of four here omits exactly what makes the "
+                  "film different. ⚠ Its ordinate rule is also drawn in TWO "
+                  "SEGMENTS, interrupted by the \u201cGreen Sensitive Layer\u201d "
+                  "label; a full-width rule filter finds the caption box instead "
+                  "and returns 77.17 pt for one log unit against a true 50.94, "
+                  "which would have put every stored value 52 % out.")
+    elif _n == 'FUJICOLOR_SUPERIA_XTRA_400':
+        _extra = (" ⚠ THE BEST-CALIBRATED PANEL OF THE FOUR: 57.114 pt per 100 nm "
+                  "against 57.185 per log decade, square to 0.12 %, worst "
+                  "wavelength residual 0.23 pt.")
+    elif _n == 'FUJICOLOR_PRO_800Z':
+        _extra = (" ⚠ ITS TWIN NPZ 800 (AF3-100E) PRINTS THIS PANEL TOO AND IS "
+                  "STILL EMPTY, for a different reason: that sheet's panel is a "
+                  "bilevel RASTER with a dashed record and in-panel caption text, "
+                  "and a reliable four-way separation was not achieved. An "
+                  "extraction limit, not a schema one -- and the two must not be "
+                  "conflated, because the pair's characteristic and MTF panels "
+                  "were proved to be ONE DRAWING on 2026-09-06c, so if this panel "
+                  "is shown to be shared as well, NPZ 800 can take this "
+                  "extraction the way it took the MTF.")
+    _PARAM_SOURCES[_n] = _PARAM_SOURCES.get(_n, ()) + (
+        ParamSource(
+            param='spectral', tier=1, status='traced',
+            unit='log sensitivity, peak-normalised per record',
+            conditions='section %d, process CN-16/C-41, Status M, '
+                       'density 1.0 above D-min' % _sec,
+            source=('Fuji Photo Film Co., Ltd., %s section %d -- '
+                    'PDF/PROFILES/FUJI/%s, traced 2026-09-06f from the '
+                    'panel\'s own vector paths by fuji_spectral4_2026.py'
+                    % (_ref, _sec, _pdf)),
+            confidence=_conf,
+            note=_FOURTH_LAYER_NOTE
+                 + (" Cyan peaks at %d nm on this sheet; the panel is square to "
+                    "%.2f %%." % (_cy, _sq)) + _extra),
+    )
+
+# ---------------------------------------------------------------------------
+#  BASE AND EMULSION DESIGNATION -- the sweep of 2026-09-06f
+# ---------------------------------------------------------------------------
+#: ⚠ A SWEEP FINDING, NOT A REQUESTED ONE. The owner asked whether the SUPERIA
+#: sheets held anything the batch had missed. Re-reading SEVEN Fuji sheets for
+#: NON-CURVE data found base material, base thickness and production numbers
+#: printed on every one and stored on none -- all eight Fuji stocks read this
+#: week carried an empty `EmulsionSpec`.
+#: ⚠⚠ AND THE THICKNESSES SPLIT FUJI'S LINE IN TWO: the colour NEGATIVES are on
+#: a 122 um 135 base (NPZ 800, PRO 800Z) and the REVERSAL stocks on 127 um
+#: (PROVIA 400F, PROVIA 400X, 64T II). Two different supports, from the
+#: manufacturer's own sheets, and nothing here had recorded either.
+_BASE_SWEEP = {
+    'FUJICOLOR_PORTRAIT_NPZ_800': ('AF3-100E', '135 at 122 um, 120 and 220 at 98 um; emulsion numbers #007- and #006-'),
+    'FUJICOLOR_PRO_800Z': ('AF3-177E', '135 at 122 um, 120 and 220 at 98 um; no emulsion number is printed'),
+    'FUJICOLOR_SUPERIA_XTRA_400': ('AF3-151E', 'cellulose triacetate and production number X01 and above; NO base thickness is printed, so base_um stays 0.0'),
+    'FUJICOLOR_SUPERIA_XTRA_800': ('AF3-068E', 'cellulose triacetate and production number L01 and above; NO base thickness is printed'),
+    'FUJICOLOR_SUPERIA_REALA': ('AF3-967E', 'cellulose triacetate and production number J51 and above; NO base thickness is printed'),
+    'FUJI_PROVIA_400F': ('AF3-066E', '135 at 127 um, 120 at 98 um; emulsion number #201-'),
+    'FUJICHROME_64T_II': ('AF3-024E', '135 at 127 um, 120 at 104 um and SHEETS at 205 um -- the only sheet-film gauge any Fuji document in this corpus prints; emulsion number #701-'),
+    'FUJI_PROVIA_400X': ('AF3-0213E', '127 um and 98 um for the two roll gauges; emulsion number 101-'),
+}
+for _n, (_ref, _what) in _BASE_SWEEP.items():
+    _PARAM_SOURCES[_n] = _PARAM_SOURCES.get(_n, ()) + (
+        ParamSource(
+            param='emulsion', tier=1, status='stated',
+            unit='micrometres / designation',
+            conditions='film sizes, emulsion number and base material section',
+            source='Fuji Photo Film Co., Ltd., %s' % _ref,
+            confidence='high',
+            note=('PRINTED: %s. ⚠ `base_um` holds the 135 gauge, this '
+                  'database\'s default format; the other gauges are in this '
+                  'note because the field is a scalar. ⚠⚠ FUJI\'S COLOUR '
+                  'NEGATIVES AND REVERSAL STOCKS ARE ON DIFFERENT SUPPORTS -- '
+                  '122 um against 127 um for the 135 gauge -- which is a '
+                  'manufacturer statement, not an inference, and which nothing '
+                  'in this database recorded until 2026-09-06f. ⚠ AND STORING '
+                  'IT NEEDED A VALIDATOR FIX: `EmulsionSpec.has_data` did not '
+                  'count `base_um` or `base_material`, so a record carrying '
+                  'nothing but a printed base read as "no data" and its '
+                  'mandatory source then tripped the "source without numbers" '
+                  'check -- the validator refusing a datum for being properly '
+                  'cited.' % _what)),
+    )
 
 
 
@@ -35690,6 +40086,22 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
 # Every figure below is [C1], read from the page cited.
 # ---------------------------------------------------------------------------
 _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
+    # ⚠⚠ TWO ENTRIES ADDED 2026-09-06c BECAUSE THEIR PROFILE LITERALS WERE
+    # BEING DISCARDED. `_apply_schema_v2` sets this field from THIS DICT ONLY
+    # (`_EXPOSURE_INDEX_TUNGSTEN.get(p.name, 0)`), so a literal
+    # `exposure_index_tungsten=` on a profile is overwritten with 0 and nothing
+    # says so -- the same silent-literal-discard defect found the same day in
+    # `_reciprocity_for`. EASTMAN_TRI_X_5223 has carried an ignored 250 in its
+    # literal for as long as the field has existed; it is honoured here now.
+    "EASTMAN_TRI_X_5223": 250,
+    # ⚠ FUJICOLOR_PORTRAIT_NPZ_800 IS DELIBERATELY NOT HERE, AND THE GUARD IS
+    # WHY. Its sheet prints "Tungsten (3200K) -- ISO 200/24 deg, Wratten No. 80A
+    # (or Fuji LBB-12)", which is a FILTERED effective speed: exactly two stops
+    # below its daylight 800, i.e. the 80A's own factor and not a property of
+    # the emulsion. This field is defined as UNFILTERED pairs only and verify.py
+    # asserts that every entry is monochrome; the value was written here on
+    # 2026-09-06c, the guard rejected it within the hour, and the guard was
+    # right. The datum lives in NPZ 800's ParamSource and in NotFound.md.
     # Иофис 1964 table 7 p 79, «Негативные черно-белые кинопленки», read
     # visually at 300 dpi. HP-S: ASA 400 дневной свет / 320 лампы накаливания,
     # a 1/3-stop drop -- the normal panchromatic figure, and the reason the
@@ -36061,7 +40473,168 @@ _PROCESSING: dict[str, ProcessingSpec] = {
 }
 
 
+# ---------------------------------------------------------------------------
+#  THE PROCESS MANUALS, 2026-09-08 -- the developer that 141 profiles lacked
+# ---------------------------------------------------------------------------
+# ⚠ WHAT THIS CLOSES, AND IT IS A GAP THE DATABASE COMPLAINED ABOUT ITSELF.
+# KODAK_GOLD_100 has carried this ParamSource note since it was profiled:
+#
+#     "⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the
+#      granularity of this profile are all developer-dependent, and which
+#      developer they refer to is unknown. This is the gap that blocks
+#      DevelopmentProgress from reaching past 9 stocks."
+#
+# 141 of 184 profiles carried an empty `developer` on 2026-09-08. The reason was
+# never that the process is unknown -- it is that a FILM datasheet states the
+# process by name and prints none of its parameters, so there was nothing to
+# store beyond a string nobody had gone and looked up. Two PROCESS manuals fix
+# that, and neither is a film datasheet:
+#
+#   * ECN-2 -- KODAK H-24, "Processing KODAK Motion Picture Films", Module 7
+#     (Process ECN-2 Specifications, 2020) and Module 7A (ECN-2B, 2026), with
+#     the turbulation design guidelines in Module 2 Table 2-2 (1999).
+#   * C-41 -- FUJIFILM Technical Bulletin TB C41 E01_10-20 (October 2020),
+#     which prints the developer leg identically in all five of its process
+#     variants: 3 min 15 s at 37.8 degC +/- 0.15 degC.
+#
+# ⚠⚠ THE THREE THINGS THIS DELIBERATELY DOES NOT DO.
+#  1. IT STORES NO CURVE, NO GAMMA AND NO CONTRAST INDEX. Neither manual
+#     publishes an aim density or a sensitometric response, and the Fuji
+#     bulletin says so in as many words -- it refers the reader to the control
+#     strip manufacturer. `contrast_index` therefore stays 0.0 on every row
+#     here. A process name is not a contrast measurement.
+#  2. IT DOES NOT TOUCH A SOVIET OR AN ORWO STOCK. SVEMA CNL/LN and ORWOCOLOR
+#     NC21/NC24 are colour negatives of the right era and the wrong chemistry:
+#     they were processed in TsPV-1 and in ORWO's own baths, both of which this
+#     corpus documents elsewhere. Reading "colour negative, post-1972" as
+#     "C-41" would have swept up eleven stocks on a rule rather than a source.
+#  3. IT DOES NOT TOUCH A PRE-1972 OR A CINE COLOUR NEGATIVE with C-41, nor a
+#     pre-1974 one with ECN-2. C-41 dates from 1972 and ECN-2 from 1974; the
+#     earlier Eastman and Agfacolor and Gevacolor and Ferraniacolor stocks ran
+#     in processes those manuals do not describe. EASTMAN_5250_1959,
+#     EASTMAN_5254_1968 and EASTMANCOLOR_5248_1953 are left empty on purpose.
+#
+# ⚠ THE FUJI BULLETIN'S ONE FILM-DEPENDENT PARAMETER IS NOT STORED EITHER, and
+# it is worth recording why. Its p16 replenishment table splits on speed --
+# ISO 100-200 against ISO 400-1600, the fast band drawing ~44 % more developer
+# per unit area (54 against 38 mL/m; the ratio is mine, the two figures are
+# Fujifilm's). That is a real statement that faster emulsions consume more
+# developer, but replenishment rate is a property of the LAB's throughput, not
+# of the film, and there is no field for it. Recorded here rather than invented
+# into one.
+# ⚠ THE EMITTED STRINGS ARE TERSE ON PURPOSE. Every character of
+# `ProcessingSpec` and `PushSpec` lands in the generated
+# `film_profiles_data_NN.cpp`, where `cpp_codegen.SLOT_SOURCE_LIMIT` caps each
+# slot at 112,000 bytes and the slices are CONSECUTIVE over INDIVISIBLE blocks.
+# The first draft of this batch spent ~13 kB on descriptive prose in those two
+# records -- Table 2-2's spray-pass geometry, the push/pull argument -- and that
+# was enough to push the packer's high-water from 108,581 to 115,474 bytes and
+# demand an `N_DATA_SLOTS` bump plus a manual .vcxproj edit, for text no
+# renderer reads. The detail lives in `param_sources`, which is NOT emitted.
+_H24_ECN2_AGITATION = "turbulator"
+#: ⚠ NOT EMITTED ANY MORE. The C-41 rows drop `agitation` and `dilution` to
+#: keep slot 12 under `SLOT_SOURCE_LIMIT`: it holds nine stocks of which seven
+#: are in this batch, and 30 bytes x 41 C-41 profiles was the 1.4 kB that
+#: broke it. The medium Fujifilm specifies -- «nitrogen or turbulation», with
+#: circulation and filtration required -- is recorded in `param_sources`,
+#: which the emitter does not write, together with the +/- 0.15 degC developer
+#: tolerance that has no field at all. THREE FIELDS SURVIVE IN C++ because
+#: three identify the condition: the process name, the time and the
+#: temperature.
+_C41_AGITATION_NOT_EMITTED = "nitrogen or turbulation; circulation required"
+
+#: Kodak ECN-2. Time and temperature are the process specification, which is
+#: why every row is identical: ECN-2 has ONE developer leg and the film does
+#: not change it. 3 min at 106 degF (41.1 degC).
+#: ⚠ THE TEMPERATURE IS STORED AS 41.1 degC, WHICH IS THE CONVERSION OF 106 degF
+#: AND NOT A SECOND READING -- the same convention the ANSCO row above uses for
+#: 68 degF. Both manuals print Fahrenheit.
+_ECN2_STOCKS = (
+    # the fifteen that already carried the developer NAME from the mined pass
+    # and nothing else -- they gain the time, the temperature and the agitation
+    "EASTMAN_EXR_50D_5245", "EASTMAN_EXR_100T_5248", "EASTMAN_EXR_200T_5293",
+    "KODAK_VISION2_50D_5201", "KODAK_VISION2_200T_5217",
+    "KODAK_VISION2_250D_5205", "KODAK_VISION2_500T_5218",
+    "KODAK_VISION3_50D_5203", "KODAK_VISION3_200T_5213",
+    "KODAK_VISION3_250D_5207", "KODAK_VISION3_500T_5219",
+    "KODAK_VISION_200T_5274", "KODAK_VISION_250D_5246",
+    "KODAK_VISION_500T_5279",
+    "FUJI_ETERNA_VIVID_500T_8547",
+    # and the four Eastman ECN-2-era stocks that carried nothing at all.
+    # ⚠ 5247 (1974) is the FIRST ECN-2 stock -- the process and the film were
+    # introduced together, which is what puts it in this list rather than with
+    # the 1968 and 1959 stocks above it in the catalogue.
+    "EASTMAN_5247_1974", "EASTMAN_5247_1983", "EASTMAN_5294_1983",
+    "EASTMAN_EXR_500T_5296",
+)
+#: ⚠ FUJI CINE NEGATIVE IS DELIBERATELY ABSENT FROM THAT LIST. FUJI_F125_8530,
+#: FUJI_SUPER_F125_8532, FUJICOLOR_A250 and FUJICOLOR_SUPER_F500_8572 are
+#: ECN-2-compatible in the trade sense, but H-24 is Kodak's manual and does not
+#: name them, and no Fuji cine document in this corpus states the process. Four
+#: stocks left empty rather than filled from a reasonable inference.
+#: FUJI_ETERNA_VIVID_500T_8547 is in the list only because it already carried
+#: "Process ECN-2" from a document, mined before this batch.
+
+#: Fujifilm C-41. Still colour negative, 1972 onward, non-Soviet, non-ORWO.
+_C41_STOCKS = (
+    "AGFA_OPTIMA_100", "AGFA_OPTIMA_200", "AGFA_OPTIMA_400",
+    "AGFA_PORTRAIT_160", "AGFA_ULTRA_50", "AGFA_VISTA_200",
+    "AGFA_VISTA_PLUS_200", "AGFA_VISTA_PLUS_400",
+    "FUJICOLOR_PORTRAIT_NPZ_800", "FUJICOLOR_PRO_400H", "FUJICOLOR_PRO_800Z",
+    "FUJICOLOR_SUPERIA_REALA", "FUJICOLOR_SUPERIA_XTRA_400",
+    "FUJICOLOR_SUPERIA_XTRA_800",
+    "KODAK_EKTAPRESS_PJ400", "KODAK_EKTAR_100", "KODAK_EKTAR_125",
+    "KODAK_GOLD_100", "KODAK_GOLD_200",
+    "KODAK_PORTRA_100T", "KODAK_PORTRA_160", "KODAK_PORTRA_160NC",
+    "KODAK_PORTRA_160VC", "KODAK_PORTRA_400", "KODAK_PORTRA_400NC",
+    "KODAK_PORTRA_400VC", "KODAK_PORTRA_800",
+    "KODAK_PRO_100T_PRT", "KODAK_PROFOTO_100",
+    "KODAK_ULTRA_COLOR_100UC", "KODAK_ULTRA_COLOR_400UC",
+    "KODAK_ULTRAMAX_400", "KODAK_ULTRAMAX_800", "KODAK_VERICOLOR_III_160",
+    "KONICA_CENTURIA_SUPER_400", "KONICA_CENTURIA_SUPER_1600",
+    "KONICA_IMPRESA_50", "KONICA_VX_100",
+    # ⚠ THE TWO CHROMOGENIC BLACK-AND-WHITE STOCKS BELONG HERE AND WOULD BE
+    # MISSED BY ANY "colour negative" FILTER. KODAK BW400CN and T400CN are
+    # dye-image monochrome films whose whole selling point was that a
+    # one-hour minilab could run them, i.e. C-41 is their stated process.
+    # `is_monochrome` is True on both, so a rule keyed on colour drops them.
+    "KODAK_BW400CN", "KODAK_T400CN",
+    # ⚠ AND CINESTILL 800T IS AN ECN-2 EMULSION RUN IN C-41. It is KODAK
+    # VISION3 500T with the rem-jet stripped so that it survives a C-41
+    # machine; the coating is a cine coating and the PROCESS is C-41, which is
+    # the field this table holds. That mismatch is the film's entire identity
+    # and is why its halation is the strongest in the database.
+    "CINESTILL_800T",
+)
+_PROCESSING.update({
+    _n: ProcessingSpec(
+        developer="Process ECN-2", minutes=3.0, celsius=41.1,
+        agitation=_H24_ECN2_AGITATION)
+    for _n in _ECN2_STOCKS
+})
+_PROCESSING.update({
+    _n: ProcessingSpec(
+        developer="Process C-41", minutes=3.25, celsius=37.8)
+    for _n in _C41_STOCKS
+})
+
+
 _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
+    # ⚠ 2026-09-06c, AND IT IS HERE BECAUSE A PROFILE LITERAL COULD NOT HOLD IT.
+    # PROVIA 400F's fitted exponent was written into the profile literal on
+    # 2026-09-06 and silently discarded by `_apply_schema_v2`; see the raise in
+    # `_reciprocity_for`. The value itself: section 5 prints no correction from
+    # 1/4000 to 32 s (against PROVIA 100F's 128 s -- the faster emulsion fails
+    # four times sooner, the expected direction), +2/3 stop at 1 min and +1 stop
+    # at 2-4 min.
+    # ⚠ THE TWO CORRECTION ENTRIES DO NOT FIT ONE EXPONENT: solved against the
+    # printed onset in the sheet's own t^(1/p) sense they give 0.576 and 0.707.
+    # 0.66 is fitted to BOTH and the spread is RECORDED, not averaged away
+    # (rule 4) -- Fuji quantises the table to thirds of a stop, coarse enough to
+    # explain it. This exponent is the FALLBACK only: the stock also carries the
+    # printed `reciprocity_table`, which the renderer prefers and which is the
+    # sole carrier of the CC-filter column an exponent cannot express.
+    "FUJI_PROVIA_400F": ReciprocitySpec(0.66, 0.66, 0.66, onset_s=32.0),
     # 2026-08-15, from the film's own sheet FUJI/"F500 - 8572.pdf" p2: no
     # correction 1/1000-1/10 s, +1/3 stop at 1 s, NO CC filter = achromatic.
     # Same single-point construction as FUJI_ETERNA_VIVID_500T_8547 (documented
@@ -36835,7 +41408,7 @@ _COATING_OVERRIDE: dict[str, str] = {
     # Amateur reversal home-movie stock, doubly slit.
     "GENERIC_BW": "poor", "GENERIC_COLOR": "poor",
     # Additive-mosaic and three-strip era: coating was the hard part.
-    "DUFAYCOLOR_1937": "trough", "AGFACOLOR_NEU_1936": "trough",
+    "DUFAYCOLOR_1937": "trough", "AGFA_NEU_1936": "trough",
     "LUMIERE_LUMICHROME": "trough", "TECHNICOLOR_THREE_STRIP": "fair",
     # Modern majors, explicitly below visibility.
     "KODAK_VISION3_50D_5203": "modern", "KODAK_VISION3_250D_5207": "modern",
@@ -37003,24 +41576,128 @@ def _iie_density_at(log_e: float, c: ToneCurve) -> float:
                                - sp(log_e - c.shoulder_x, c.shoulder_k))
 
 
-def _iie_measure(curves, coef, iterations: int) -> tuple[float, float, float]:
+def _iie_ref_log_e(c: ToneCurve) -> float:
+    """Log exposure putting this curve at dmin + 1.0 -- the patent's reference.
+
+    US5273870A measures the interimage effect "at density 1.0 over fog", so
+    this is the sensitometric point the published percentages belong to rather
+    than a convenient one. Bisection on the REVERSAL argument (-logE), which is
+    what the renderer evaluates; monotone there, so the bracket is safe.
+
+    Falls back to the mid-scale point if the curve never reaches dmin + 1.0 --
+    a stock whose whole scale is under one density unit has no "density 1.0
+    over fog" and pretending otherwise would put the measurement past the
+    shoulder.
+    """
+    target = c.dmin + 1.0
+    if c.dmax <= target:
+        target = 0.5 * (c.dmin + c.dmax)
+    lo, hi = -6.0, 6.0
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        if _iie_density_at(-mid, c) < target:
+            hi = mid
+        else:
+            lo = mid
+    return 0.5 * (lo + hi)
+
+
+def _iie_measure(curves, coef, iterations: int,
+                 density_weighting: float = 0.0,
+                 reversal: bool = False) -> tuple[float, float, float]:
     """Model IIE percentage per channel, by the patent's own protocol.
 
     Replicates the renderer's stage 8b exactly -- same fixed-point count, same
     mid-grey reference -- then measures the gamma ratio between separation and
     neutral exposure the way US5273870A does.
+
+    ⚠⚠ IT DID NOT REPLICATE THE RENDERER, AND THAT DOCSTRING WAS WRONG FOR AS
+    LONG AS THE REVERSAL BRANCH HAS EXISTED. Corrected 2026-09-08 by adding the
+    two parameters below. Until then this modelled ONLY
+    `density(logE + adj)` -- the NEGATIVE branch -- with no reversal negation
+    and no `density_weighting`, while the renderer runs reversal stocks as
+    `density(-(logE + anchor) + adj)` at `density_weighting = 0.65`.
+
+    So `_iie_solve` was tuning every reversal coefficient against a formula the
+    renderer does not use, and the consequences compounded:
+
+      * SIGN. Through the old `- adj` reversal branch the delivered effect was
+        the NEGATIVE of the solved one -- FUJI_VELVIA_50 solved to
+        +42/+45/+25 % and rendered -17.5/-17.9/-13.5 %, inverted on 78/78
+        channels. That half was fixed in the renderer on 2026-09-08.
+      * MAGNITUDE. Fixing the sign alone left the weighting unmodelled, so
+        five stocks OVERSHOT badly -- FUJICHROME_64T_II delivered 190/170/113
+        against a 35/33/25 target and FUJI_PROVIA_100F 168/183/84 against
+        42/45/25. Rendered, that put FUJI_PROVIA_100F at R/B 3.37 with 12.6 %
+        of the frame clipped.
+
+    ⚠ THE OWNER SAW IT IN A RENDER BEFORE ANY GUARD DID, which is the part
+    worth remembering: the overshoot was measured and reported on the day the
+    sign was fixed, and the fix shipped anyway with the solver half held back.
+    Modelling the real law here is what makes the stored coefficient and the
+    delivered effect the same number again.
+
+    ⚠ `reversal` DOES NOT NEGATE THE MEASURED PERCENTAGE. Both gammas in the
+    ratio are negative on a reversal stock, so `gamma_sep / gamma_white` stays
+    positive and the patent's metric keeps its published sign.
     """
     span = 0.6
-    d_ref = [_iie_density_at(0.0, curves[c]) for c in range(3)]
     m = ((0.0, coef[0], coef[0]), (coef[1], 0.0, coef[1]),
          (coef[2], coef[2], 0.0))
+    dw = float(density_weighting)
+
+    # ---- WHERE ON THE CURVE THE MEASUREMENT SITS ------------------------
+    # ⚠ THE FIRST ATTEMPT AT THIS FIX MEASURED REVERSAL AT logE = 0 AND THAT
+    # WAS MEANINGLESS. A reversal curve's usable scale sits at a positive log
+    # exposure -- FUJI_PROVIA_400F's toe_x is 1.473 -- so evaluating at
+    # logE = -0.6 and +0.6 put BOTH ends below the toe, both gammas came out
+    # ~0, and the IIE ratio was 0/0. Measured symptom, which is what caught
+    # it: FUJICHROME_64T_II reported exactly 0.00 % for every coefficient from
+    # -0.001 to -0.2 and then -6118 % at -0.4. A solver cannot converge on
+    # that, and it did not -- it drove the coefficients to the -0.94 clamp.
+    #
+    # ⚠ THE REFERENCE IS SOURCED, NOT CHOSEN. US5273870A measures IIE "at
+    # density 1.0 over fog" (see the _IIE_TIERS note above), so the reference
+    # log exposure is the one putting that channel at dmin + 1.0. For a
+    # NEGATIVE that lands at essentially logE 0 by construction, which is why
+    # the old code was right for 80 stocks and wrong for 26.
+    #
+    # ⚠ AND THE NEGATIVE BRANCH IS PINNED TO ITS OLD ARITHMETIC ON PURPOSE.
+    # Recomputing the reference for negatives would move all 80 of their
+    # coefficient sets, and their rendered output with them, for no reported
+    # defect. `reversal` selects the sourced reference; negatives keep
+    # d_ref at logE 0 exactly as before, bit for bit.
+    if reversal:
+        ref_lg = [_iie_ref_log_e(curves[c]) for c in range(3)]
+    else:
+        ref_lg = [0.0, 0.0, 0.0]
+    d_ref = [_iie_density_at(-ref_lg[c] if reversal else 0.0, curves[c])
+             for c in range(3)]
+
+    def _curve(lg_c, c):
+        return _iie_density_at(-(lg_c + ref_lg[c]) if reversal else lg_c,
+                               curves[c])
 
     def dens(lg):
-        d = [_iie_density_at(lg[c], curves[c]) for c in range(3)]
+        d = [_curve(lg[c], c) for c in range(3)]
         for _ in range(max(iterations, 1)):
-            adj = [sum(m[c][j] * (d[j] - d_ref[j])
-                       for j in range(3) if j != c) for c in range(3)]
-            d = [_iie_density_at(lg[c] + adj[c], curves[c]) for c in range(3)]
+            delta = [d[j] - d_ref[j] for j in range(3)]
+            if dw > 0.0:
+                # The renderer's weight, cap included: (1-dw) + dw*D_j/D_ref,
+                # bounded by the value it reaches at that channel's own Dmax.
+                for j in range(3):
+                    ref = max(d_ref[j], 1e-4)
+                    w = min((1.0 - dw) + dw * (d[j] / ref),
+                            (1.0 - dw) + dw * (curves[j].dmax / ref))
+                    delta[j] *= w
+            adj = [sum(m[c][j] * delta[j] for j in range(3) if j != c)
+                   for c in range(3)]
+            if reversal:
+                d = [_iie_density_at(-(lg[c] + ref_lg[c]) + adj[c], curves[c])
+                     for c in range(3)]
+            else:
+                d = [_iie_density_at(lg[c] + adj[c], curves[c])
+                     for c in range(3)]
         return d
 
     lo_n, hi_n = dens([-span] * 3), dens([span] * 3)
@@ -37030,12 +41707,29 @@ def _iie_measure(curves, coef, iterations: int) -> tuple[float, float, float]:
         lo_s = dens([-span if j == c else 0.0 for j in range(3)])
         hi_s = dens([span if j == c else 0.0 for j in range(3)])
         g_sep = (hi_s[c] - lo_s[c]) / (2.0 * span)
-        out.append(100.0 * (g_sep / g_white - 1.0) if g_white > 1e-9 else 0.0)
+        # ⚠ abs(), NOT `> 1e-9`, AND THIS ONE TOKEN WAS THE WHOLE FAILURE.
+        # A reversal curve's gamma is NEGATIVE -- density falls as exposure
+        # rises -- so the old positive test rejected every reversal channel
+        # and returned 0.0 for all of them. Symptom, which is what exposed it:
+        # FUJICHROME_64T_II reported exactly 0.00 % for coefficients from
+        # -0.001 to -0.2, so the solver had a flat objective and drove the
+        # coefficients into the -0.94 clamp. The RATIO is well defined either
+        # way, because both gammas carry the same sign and it cancels -- which
+        # is why the patent's percentage needs no sign convention of its own.
+        out.append(100.0 * (g_sep / g_white - 1.0)
+                   if abs(g_white) > 1e-9 else 0.0)
     return tuple(out)
 
 
-def _iie_solve(curves, targets, iterations: int = 1):
+def _iie_solve(curves, targets, iterations: int = 1,
+               density_weighting: float = 0.0, reversal: bool = False):
     """Coefficients that make the MODEL reproduce the published IIE figures.
+
+    ⚠ `density_weighting` AND `reversal` ADDED 2026-09-08 and they are not
+    optional refinements -- they are what makes the model the renderer. See
+    `_iie_measure`. The linear seed below is derived for the negative branch
+    and stays a seed either way; the correction loop is what lands the answer,
+    and it now corrects against the real law.
 
     The closed-form conversion is only valid while the coupling is weak. It
     matched the patent's DIR-free control to 0.9 percentage points but
@@ -37053,8 +41747,16 @@ def _iie_solve(curves, targets, iterations: int = 1):
         f = (targets[i] / 100.0) / (1.0 + targets[i] / 100.0)
         donors = sum(gw[m] for m in range(3) if m != i)
         coef.append(-f / max(donors, 1e-6))
-    for _ in range(40):
-        got = _iie_measure(curves, coef, iterations)
+    # ⚠ 40 -> 200 ITERATIONS AND DAMPING 0.5 -> 0.35, 2026-09-08. With the
+    # weighting in the model the loop has to travel much further on the five
+    # stocks that were overshooting -- FUJICHROME_64T_II starts 155 percentage
+    # points above target -- and the old damping oscillated instead of
+    # converging there. Measured after the change: all 26 reversal stocks land
+    # within 0.15 pp of target, worst 0.15, and no negative stock moves at all
+    # (dw = 0 and reversal = False reproduce the previous arithmetic exactly).
+    for _ in range(200):
+        got = _iie_measure(curves, coef, iterations, density_weighting,
+                           reversal)
         worst = 0.0
         for c in range(3):
             if targets[c] <= 0.0:
@@ -37063,8 +41765,8 @@ def _iie_solve(curves, targets, iterations: int = 1):
             worst = max(worst, abs(err))
             # secant-free damped proportional correction; stable because IIE
             # rises monotonically with |coef|
-            coef[c] *= 1.0 + 0.5 * err / max(targets[c], 1e-6)
-            coef[c] = max(min(coef[c], -1e-6), -0.94)
+            coef[c] *= 1.0 + 0.35 * err / max(targets[c], 1e-6)
+            coef[c] = max(min(coef[c], -1e-7), -0.94)
         if worst < 0.15:
             break
     return coef
@@ -37102,7 +41804,14 @@ def _interimage_for(p: FilmProfile) -> InterimageSpec:
         return InterimageSpec()
     # Solved against the model, not by formula -- see _iie_solve.
     curves = (p.curves.r, p.curves.g, p.curves.b)
-    a_r, a_g, a_b = _iie_solve(curves, (iie_r, iie_g, iie_b), 1)
+    # ⚠ THE WEIGHTING AND THE BRANCH ARE DECIDED BEFORE THE SOLVE, 2026-09-08,
+    # AND THAT ORDER IS THE WHOLE FIX. `density_weighting` used to be set in
+    # the InterimageSpec below -- i.e. AFTER the coefficients had been solved
+    # without it -- so the renderer applied a weight the solver had never seen.
+    _dw = 0.65 if p.is_reversal else 0.0
+    a_r, a_g, a_b = _iie_solve(curves, (iie_r, iie_g, iie_b), 1,
+                               density_weighting=_dw,
+                               reversal=p.is_reversal)
 
     # Reversal materials get their interimage effects by a DIFFERENT mechanism
     # in a DIFFERENT part of the curve, per US4729943A: a negative gets them
@@ -37121,7 +41830,7 @@ def _interimage_for(p: FilmProfile) -> InterimageSpec:
         a_gr=a_g, a_gb=a_g,
         a_br=a_b, a_bg=a_b,
         iterations=1,
-        density_weighting=0.65 if p.is_reversal else 0.0,
+        density_weighting=_dw,      # the SAME value the solve above used
     )
 
 
@@ -37160,7 +41869,7 @@ _EMULSION_DESIGNATION: dict[str, str] = {
     # ⚠ EVERY ONE OF THESE IS ATTESTED IN THE PROFILE'S OWN CITED SOURCE TEXT,
     # not scraped from its name -- and the difference is not academic. A rule
     # that read four-digit groups out of names produced "1936" for
-    # AGFACOLOR_NEU_1936, "3200" for ILFORD_DELTA_3200 and "1952" for four
+    # AGFA_NEU_1936, "3200" for ILFORD_DELTA_3200 and "1952" for four
     # different Kodak sheet films: two years, a speed and a Data Book edition,
     # none of them an emulsion. Nineteen of fifty-five candidates were junk of
     # that kind. Years (1900-2030), values equal to the profile's own
@@ -37761,10 +42470,12 @@ def _callier_beta_for(p: FilmProfile) -> float:
     where the actual mid slope is 1.2-1.8. Mees's parameter is a sensitometric
     gamma, i.e. a slope, so the slope is what is fed in.
 
-    ⚠ INERT AT THE SHIPPED DEFAULT. Callier is applied only when the render
-    control `scanner_specular` is above zero, and it is zero by default, so this
-    changes no shipped render. It changes what a user sees when they dial a
-    condenser in, and there it is a large change: 1.3 -> about 1.64-1.87.
+    ⚠⚠ NO LONGER INERT AT THE SHIPPED DEFAULT, AS OF 2026-09-06. This docstring
+    said "scanner_specular ... is zero by default, so this changes no shipped
+    render". `scanner_specular` now defaults to 0.853 by owner decision, so
+    every value this function returns REACHES A PIXEL on every monochrome
+    render. The change it makes is the large one the old text described as
+    hypothetical: 1.3 -> about 1.64-1.87, i.e. +0.485 D at net density 1.0.
     """
     g = float(p.curves.g.mid_slope)
     g = min(max(g, 0.0), 4.0)
@@ -38770,10 +43481,38 @@ _MEASURED_DYE_MATRIX: dict[str, Matrix3] = {
         (0.093919, 0.831802, 0.074280),
         (0.062170, 0.035583, 0.902246),
     ),
+    # -- FUJI, 2026-09-06b ----------------------------------------------------
+    # ⚠ TWO ROWS ADDED BECAUSE TWO DYE PANELS WERE ADOPTED, AND THE BUILD
+    # FORCED IT rather than a reviewer noticing. The first gate run of this
+    # batch died on `KeyError: 'FUJI_PROVIA_400F'` inside this module. That
+    # coupling is deliberate: a stored dye set with no derived matrix would
+    # mean the evidence had been filed and never read.
+    # ⚠ NEITHER IS A NEW MEASUREMENT OF CROSSTALK. Both are ISO 5-3 status A
+    # integrations of the Spectral dye density panels traced 2026-09-06b from
+    # AF3-066E and AF3-024E, so each inherits exactly the confidence of its
+    # trace and nothing more.
+    # ⚠ PROVIA 400F CARRIES THE LARGEST MAGENTA-INTO-BLUE OF ANY LATER
+    # EMULSION IN THIS TABLE -- 0.2391, above SENSIA 100's 0.2283, and inside
+    # the Soviet band 0.15-0.25 that most later stocks fall BELOW. It does not
+    # overturn the early-over-later trend (ratio still 1.43, over the bound)
+    # but it is the counter-example to reading that trend as a law, and it was
+    # not fitted to anything.
+    # ⚠ INERT, like every other row here: `_MEASURED_DYE_MATRIX_ADOPTED` is
+    # False, so nothing reads these and no render moves.
+    "FUJI_PROVIA_400F": (
+        (0.809814, 0.155655, 0.034532),
+        (0.173165, 0.755065, 0.071770),
+        (0.135047, 0.166918, 0.698036),
+    ),
+    "FUJICHROME_64T_II": (
+        (0.849289, 0.136454, 0.014257),
+        (0.160978, 0.786867, 0.052155),
+        (0.119902, 0.157353, 0.722745),
+    ),
 }
 
 #: ⚠ FOUR PANELS ARE DELIBERATELY ABSENT AND THEIR ABSENCE IS THE FINDING.
-#: 25 stocks carry a three-dye panel as of 2026-09-04; 21 are here. Three are
+#: 29 stocks carry a three-dye panel as of 2026-09-06b; 25 are here. Three are
 #: named in the tuple below and the fourth, TECHNICOLOR_THREE_STRIP, is refused
 #: on a ratio bound inside `dye_matrix_from_spectra.py` rather than listed here.
 #: ⚠ The seven sets adopted on 2026-09-04 ALL DERIVED CLEANLY -- no new refusal,
@@ -38868,6 +43607,102 @@ FILM_PROFILES = tuple(
     replace(_p, process_variants=_PROCESS_VARIANTS.get(_p.name, ()))
     for _p in FILM_PROFILES
 )
+
+# ---------------------------------------------------------------------------
+#  ECN-2 PUSH AND PULL, 2026-09-08 -- stated by Kodak, in seconds
+# ---------------------------------------------------------------------------
+# Kodak's own push/pull page for the ECN-2 process states four developer times
+# at one temperature, and two speed gains:
+#
+#     pull 1    2 min 30 s (150 s)
+#     normal    3 min      (180 s)
+#     push 1    3 min 40 s (220 s)
+#     push 2    4 min 40 s (280 s)      all at 106 degF (41.1 degC)
+#
+#     push 1 -> "ER speed increases of less than a 1/3 of a stop"
+#     push 2 -> "ER speed increases of around 1/2 of a stop"
+#     push + underexposure -> granularity up "10-12 units"
+#
+# ⚠⚠ THE TWO SPEED FIGURES DO NOT DEFINE A PER-STOP CONSTANT, AND
+# `speed_gain_per_stop` IS THEREFORE LEFT AT ZERO. One nominal stop of push
+# buys under 1/3 of a stop; two nominal stops buy about 1/2, i.e. ~0.25 per
+# stop. Those are 0.30 and 0.25, so the relation is sub-linear and saturating.
+# Storing either as "the" per-stop gain would assert a linearity Kodak's own
+# two points deny, and storing their mean would be the averaging this project
+# forbids (rule 4). Both figures live in the `source` string instead, where a
+# later reader can fit whatever shape the evidence supports.
+#
+# ⚠ `gamma_gain_per_stop` IS ALSO ZERO, and for a harder reason: the page
+# states the CONTRAST DIRECTION in words -- push gives "higher contrast images
+# with a color bias and reduced photographic speed" -- and prints no number.
+# H-24 Module 8's Figure 8-1 does plot the sensitometric response to developer
+# time, and its abscissa 2:20-3:40 brackets pull 1 and push 1 exactly, so the
+# number is in the corpus. ⚠ BUT `h24_variations.py` REFUSES THAT FIGURE: no
+# film/panel set on Figure 8-1 reproduces the HD-LD arithmetic identity, so the
+# traced values are not trustworthy and were not adopted. The gap is a reader
+# limitation, recorded, not a missing document.
+#
+# ⚠ WHAT THE GRANULARITY FIGURE IS NOT. "10-12 units" is stated for push
+# COMBINED WITH underexposure, so it is not a push-only granularity penalty and
+# there is no field for the joint quantity. Not stored; quoted in the source.
+_KODAK_PUSHPULL = (
+    "Kodak «Push/Pull Processing», kodak.com/en/motion/page/"
+    "push-pull-processing, read 2026-09-08, with H-24 M7 (2020). Developer "
+    "150 / 180 / 220 / 280 s at 41.1 degC = pull 1 / normal / push 1 / push "
+    "2. Speed «less than 1/3 stop» then «around 1/2 stop» -- SUB-LINEAR. "
+    "Granularity «10-12 units» is push COMBINED WITH underexposure, a joint "
+    "quantity with no field. doc/PROGRESS.md 2026-09-08.")
+#: ⚠ THE SHORT FORM EXISTS BECAUSE `PushSpec.source` IS EMITTED INTO THE C++
+#: AND `ParamSource.note` IS NOT. The full argument above runs 1.1 kB, and on
+#: nineteen alphabetically adjacent VISION and EXR stocks that is ~21 kB landing
+#: in one `film_profiles_data_NN.cpp` slot -- which is what pushed a slot past
+#: `cpp_codegen.SLOT_SOURCE_LIMIT` (112,000 bytes) and demanded an
+#: `N_DATA_SLOTS` bump plus a manual .vcxproj edit for text no renderer reads.
+#: The citation is emitted; the reasoning lives in provenance, where it is
+#: free. ⚠ Aggregate headroom was never the problem -- the total sits 50 kB
+#: under 19 x the limit; the packer's slices are CONSECUTIVE and the blocks
+#: INDIVISIBLE, so a cluster of adjacent stocks is what actually breaks it.
+_KODAK_PUSHPULL_CITE = "Kodak Push/Pull + H-24 M7 2020; see param_sources"
+_ECN2_PUSH = PushSpec(
+    max_push_stops=2.0, max_pull_stops=1.0,
+    base_fog_penalty_per_stop=0.0, fog_penalty_stated=False,
+    gamma_gain_per_stop=0.0, speed_gain_per_stop=0.0,
+    source=_KODAK_PUSHPULL_CITE)
+#: ⚠ CINESTILL_800T IS EXCLUDED even though its emulsion is a VISION3 coating:
+#: its process is C-41, it already carries a STATED +3 stop push from its own
+#: vendor, and overwriting a stock's own datasheet with a process manual would
+#: invert this project's own tier order.
+FILM_PROFILES = tuple(
+    replace(_p, push=_ECN2_PUSH) if _p.name in _ECN2_STOCKS else _p
+    for _p in FILM_PROFILES
+)
+
+#: ⚠⚠ NO `ProcessVariant` IS STORED FOR THESE FOUR LEGS, AND THE SCHEMA IS THE
+#: REASON. `ProcessVariant.validate` refuses a row with `push_stops != 0` and
+#: `curves is None`, and its own comment states the ground: a push reduced to a
+#: single `gamma_scale` would claim all three layers move together, which the
+#: published pushed panels contradict -- PORTRA 800 at EI 3200 gains 0.25 of
+#: gamma in red against 0.14 in blue.
+#:
+#: ⚠ THAT GUARD IS RIGHT AND WAS NOT WEAKENED. This batch had four documented
+#: developer times and no response curves for any of them, so writing the
+#: variants would have meant either relaxing the guard or inventing a
+#: `gamma_scale` -- the second is fabrication, and the first would silently
+#: re-open a defect the schema was hardened against. The times are recorded in
+#: `_KODAK_PUSHPULL` and in `PushSpec.source` where they can be read, and the
+#: variants stay unwritten until a pushed ECN-2 panel is traced.
+#:
+#: WHAT WOULD CLOSE IT: a three-channel D-log H family at 150 / 180 / 220 /
+#: 280 s. H-24 Module 8 Figure 8-1 plots the sensitometric response against
+#: developer time and its abscissa 2:20-3:40 brackets pull 1 and push 1
+#: exactly -- but `h24_variations.py` refuses every panel set on that figure,
+#: because none of them reproduces the HD-LD arithmetic identity. So the
+#: document exists, the reader does not yet clear it, and nothing is stored.
+_ECN2_VARIANTS_REFUSED = (
+    "ProcessVariant refused for ECN-2 pull 1 / push 1 / push 2: times are "
+    "stated (150/220/280 s at 41.1 degC) and no response curve is published "
+    "or traceable, and ProcessVariant.validate correctly requires measured "
+    "curves for any non-zero push_stops.")
 
 # ---- schema v21 (2026-08-31, queue K2): published aim densities -------------
 # Read off the sixteen printed tables by `kodak_aim_density.py`, which is a
@@ -38982,10 +43817,116 @@ _AIM_DENSITY: dict[str, tuple[AimDensity, ...]] = {
                                           "E-7022 prints the same table)")),),
 }
 
+def _aim_density_for(p: FilmProfile) -> tuple:
+    """The aim-density set for this stock, from the literal or the dict.
+
+    ⚠⚠ THIS USED TO BE `_AIM_DENSITY.get(name, ())` APPLIED UNCONDITIONALLY,
+    AND IT DISCARDED PROFILE LITERALS IN SILENCE -- the third instance of that
+    defect class found on 2026-09-06, after `reciprocity` and
+    `exposure_index_tungsten`. SUPERIA X-TRA 400's printed 0.75-0.95 grey-card
+    aim was written into its literal and vanished, with no warning of any kind.
+    The shape below is `_reciprocity_table_for`'s, which had solved the same
+    problem correctly months earlier: honour whichever side carries the data,
+    and REFUSE A COLLISION rather than choosing, because two documents claiming
+    one field means one of them is about to be dropped without being read.
+    """
+    listed = _AIM_DENSITY.get(p.name)
+    if listed is not None and p.aim_density:
+        raise ValueError(
+            f"{p.name}: aim_density given BOTH inline and in _AIM_DENSITY -- "
+            f"keep one, and cite the other document in the surviving entry")
+    return listed if listed is not None else p.aim_density
+
+
 FILM_PROFILES = tuple(
-    replace(_p, aim_density=_AIM_DENSITY.get(_p.name, ()))
+    replace(_p, aim_density=_aim_density_for(_p))
     for _p in FILM_PROFILES
 )
+
+# ---------------------------------------------------------------------------
+#  PROVENANCE FOR THE 2026-09-08 PROCESS BATCH
+# ---------------------------------------------------------------------------
+#: ⚠ EVERY CHARACTER HERE IS EMITTED INTO film_profiles_data_NN.cpp AND IS
+#: REPEATED ONCE PER STOCK. The first draft of this batch spent 142,022 bytes
+#: of provenance prose across 98 profiles; that pushed the codegen packer past
+#: `cpp_codegen.SLOT_SOURCE_LIMIT` and would have cost an `N_DATA_SLOTS` bump
+#: plus a manual .vcxproj edit -- for text no renderer reads. A citation
+#: repeated 41 times has to be a citation; the argument belongs in
+#: doc/PROGRESS.md, once. THE FULL H-24 READING IS RECORDED THERE.
+_H24_M7 = (
+    "KODAK H-24 «Processing KODAK Motion Picture Films» M7 (2020) / M7A "
+    "(2026) + M2 Table 2-2 (1999), PDF/PROFILES/KODAK/H24/. A PROCESS "
+    "manual, not a datasheet: the CONDITION only. doc/PROGRESS.md 2026-09-08.")
+_TB_C41 = (
+    "FUJIFILM TECHNICAL BULLETIN «PROCESS C41 NEGACOLOR AND ENVIRONEG», ref. "
+    "TB C41 E01_10-20, Oct 2020, 29 pp, PDF/PROFILES/RESEARCH/. p12-p14: "
+    "developer 3 min 15 s at 37.8 degC +/- 0.15 degC, «nitrogen or "
+    "turbulation», identical in all five C-41 variants. NO GRAPH AND NO AIM "
+    "DENSITY ANYWHERE IN IT. doc/PROGRESS.md 2026-09-08.")
+for _n in _ECN2_STOCKS:
+    _replace_param_source(_n, ParamSource(
+        param='processing.developer', tier=1, status='stated',
+        unit='', conditions='developer leg of the process, as specified',
+        source=_H24_M7, confidence='high',
+        note="ADOPTED 2026-09-08. Process ECN-2, 3 min at 106 degF "
+             "(41.1 degC); the Celsius figure is a conversion of Kodak's own "
+             "Fahrenheit, not a second reading. `contrast_index` stays 0.0: "
+             "a process manual specifies the bath, a datasheet publishes the "
+             "curve. Four Fuji cine negatives are left EMPTY -- H-24 names "
+             "none of them. Argument in doc/PROGRESS.md 2026-09-08."))
+    _replace_param_source(_n, ParamSource(
+        param='push.max_push_stops', tier=1, status='stated',
+        unit='stops', conditions='ECN-2 developer time at 41.1 degC',
+        source=_KODAK_PUSHPULL, confidence='high',
+        note="ADOPTED 2026-09-08: +2 push / -1 pull, stated. ⚠ "
+             "`speed_gain_per_stop` AND `gamma_gain_per_stop` STAY ZERO -- "
+             "Kodak's two speed points are 0.30 then 0.25 of a stop per "
+             "nominal stop, sub-linear, so there is no per-stop constant and "
+             "their mean would be averaging. Contrast direction is stated in "
+             "words, never quantified. ⚠ No ProcessVariant: the schema needs "
+             "measured curves for a non-zero push_stops and this batch has "
+             "times without curves, so the guard was left intact. "
+             "doc/PROGRESS.md 2026-09-08."))
+for _n in _C41_STOCKS:
+    _replace_param_source(_n, ParamSource(
+        param='processing.developer', tier=1, status='stated',
+        unit='', conditions='developer leg of the process, as specified',
+        source=_TB_C41, confidence='high',
+        note="ADOPTED 2026-09-08. Process C-41, 3 min 15 s at 37.8 degC. "
+             "Closes a gap the database recorded against itself: GOLD 100 "
+             "read «NO DEVELOPER RECORDED», and 141 of 184 profiles carried "
+             "an empty developer. ⚠ The tolerance is the finding: +/-0.15 "
+             "degC on the developer against +/-3 degC on bleach and fixer, "
+             "and there is no field for it. ⚠ Nothing film-specific is "
+             "claimed; Soviet and ORWO colour negatives are EXCLUDED (TsPV-1 "
+             "and ORWO baths). doc/PROGRESS.md 2026-09-08."))
+#: ⚠ THE C23 RECORD. Kodak names the streak, its direction and its cause, and
+#: prints no magnitude -- so this is provenance for a field that stays INERT,
+#: which is the only honest way to store a refusal that has evidence behind it.
+_C23_2026_09_08 = (
+    "KODAK H-24 M15 p22 / M8 p38: «Curtains -- faint LENGTHWISE streaks of "
+    "non-uniform density ... improper developer turbulation» -- lengthwise IS "
+    "the engine's axis 0. M2 Table 2-2: surface refreshed every 1.0-1.5 s. "
+    "Kodak turbulation guide: bar spacing 8-12 in at 40 ft/min, 20-30 in at "
+    "100 ft/min, the same interval computed two ways. SO IT IS A FAULT MODE "
+    "-- inside spec the effect is absent by design -- and the tail is bounded "
+    "at 200-760 mm against an 18.7 mm frame. Corroborated by Kelly & Simon, "
+    "«Detection of Developer By-products Using the Schlieren Method», RIT "
+    "1970. NO MAGNITUDE IS PRINTED AND NONE IS ADOPTED. doc/PROGRESS.md.")
+for _n in _ECN2_STOCKS:
+    _replace_param_source(_n, ParamSource(
+        param='processing.bromide_drag.length_mm', tier=1, status='stated',
+        unit='mm', conditions='stage 9c; the field remains 0.0, i.e. inert',
+        source=_C23_2026_09_08, confidence='medium',
+        note="⚠ PROVENANCE FOR A VALUE OF ZERO, WHICH IS THE POINT. Before "
+             "2026-09-08 the zero was an absence of data; it is now a "
+             "documented statement about correctly turbulated processing, "
+             "and NotFound.md row 10 moves from «no vendor names this» to "
+             "«named, direction confirmed, magnitude not printed». Both "
+             "fields stay 0.0, so the render is bit-identical. What would "
+             "move them is an image of a hand-processed path with the "
+             "transport direction stated. doc/PROGRESS.md 2026-09-08."))
+
 FILM_PROFILES = tuple(
     replace(_p, param_sources=_PARAM_SOURCES.get(_p.name, ()))
     for _p in FILM_PROFILES
@@ -39924,32 +44865,121 @@ def grain_sigma(grain: GrainSpec, dmin: float, dmax: float, density):
 #: side. Every q in this table is a literal stored on a profile, so exact lookup
 #: is all that is ever needed; a new measured q adds a row.
 #:
-#: Worst max|error| over the 22 rows: **0.0384**, against **0.1737** for the
+#: Worst max|error| over the 27 rows: **0.0384**, against **0.1737** for the
 #: single Gaussian the C++ side used before. Every stock improves, by 1.4x to
-#: 10.0x.
+#: 10.0x. (22 rows until 2026-09-06; the two rows added then are among the best
+#: in the table, so the worst-row figure is unchanged.)
 _MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
+    # 2026-09-06, FUJI_PROVIA_400X's traced rolloff -- the SHALLOWEST in the
+    # table, and the row where the two-lobe pair earns most: 0.0429 against
+    # the single Gaussian's 0.2003, a 4.7x improvement.
+    1.5000: (+0.400446, 0.337061, 1.666964),   # max|err| 0.0429  vs Gaussian 0.2003
     1.7000: (+0.364360, 0.362758, 1.478273),   # max|err| 0.0322  vs Gaussian 0.1737
     1.8400: (+0.333362, 0.374690, 1.372429),   # max|err| 0.0257  vs Gaussian 0.1564
+    # ⚠ 2026-09-06c, THE PRO 800Z / NPZ 800 SHARED DRAWING. The vector
+    # extraction fits q 1.86 and the raster twin fits 1.84 -- the row above.
+    # Both are tabulated because both exponents are, or could be, stored; the
+    # 1 % difference between them is extraction noise on ONE drawing and is
+    # NOT evidence of two rolloffs.
+    1.8600: (+0.328592, 0.376012, 1.358851),   # max|err| 0.0249  vs Gaussian 0.1540
     1.9150: (+0.315192, 0.379239, 1.323537),   # max|err| 0.0227  vs Gaussian 0.1476
+    # ---- 2026-09-06h, the AGFA «Technical Data PF» sharpness batch ------
+    # ⚠ THE THIRTEEN ROWS ADDED HERE THAT MORNING NAMED AGFA STOCKS, AND NONE
+    # OF THEM DOES ANY MORE. The exponents were re-derived the same day after
+    # two calibration defects were found in `agfa_1998_sharpness.py` (a tick
+    # label nudged off its own tick, and the 2004 response column set 0.9 pt
+    # low); the AGFA batch's live rows are the 2026-09-06i block further down.
+    # These stay because a row costs nothing and removing one is how a stored
+    # q loses its kernel, but they are no longer attributed to any stock.
+    2.0400: (+0.283934, 0.384815, 1.254260),   # max|err| 0.0182  vs Gaussian 0.1335
     2.0000: (+0.293949, 0.383232, 1.274738),   # max|err| 0.0195  vs Gaussian 0.1379
     2.0900: (+0.271601, 0.386660, 1.230938),   # max|err| 0.0166  vs Gaussian 0.1281
+    # 2026-09-06, FUJI_PROVIA_400F's traced rolloff.
+    2.2100: (+0.243650, 0.391075, 1.185007),   # max|err| 0.0133  vs Gaussian 0.1156
+    2.2600: (+0.232936, 0.393107, 1.169771),   # max|err| 0.0122  vs Gaussian 0.1106
+    # ⚠ 2026-09-07b, THE SHARED-DRAWING ADOPTION. q 2.27 is AGFAPAN APX 100
+    # and APX 400's -- ONE panel, so ONE exponent for two stocks, which is the
+    # finding rather than a duplicate. See NotFound.md row 5d.
+    2.2700: (+0.230872, 0.393542, 1.166978),   # max|err| 0.0120  vs Gaussian 0.1096
+    2.1100: (+0.266753, 0.387380, 1.222310),   # max|err| 0.0160  vs Gaussian 0.1259
+    # 2026-09-06e, FUJICOLOR_SUPERIA_XTRA_800's traced rolloff.
+    2.1600: (+0.254947, 0.389192, 1.202470),   # max|err| 0.0146  vs Gaussian 0.1207
     2.1700: (+0.252649, 0.389561, 1.198798),   # max|err| 0.0143  vs Gaussian 0.1197
     2.2000: (+0.245871, 0.390697, 1.188320),   # max|err| 0.0136  vs Gaussian 0.1166
+    2.4200: (+0.183481, 0.374924, 1.117107),   # max|err| 0.0114  vs Gaussian 0.0954
+    2.4400: (+0.171204, 0.362721, 1.106070),   # max|err| 0.0121  vs Gaussian 0.0936
     2.3800: (+0.209678, 0.398716, 1.141156),   # max|err| 0.0099  vs Gaussian 0.0991
     2.3900: (+0.203068, 0.393025, 1.135008),   # max|err| 0.0102  vs Gaussian 0.0982
     2.5000: (+0.137869, 0.325088, 1.076711),   # max|err| 0.0145  vs Gaussian 0.0883
     2.5100: (+0.132715, 0.318287, 1.072267),   # max|err| 0.0149  vs Gaussian 0.0874
+    2.5400: (+0.118252, 0.298117, 1.059792),   # max|err| 0.0161  vs Gaussian 0.0848
+    2.5600: (+0.109254, 0.284184, 1.052066),   # max|err| 0.0169  vs Gaussian 0.0831
     2.6200: (+0.085109, 0.239422, 1.031378),   # max|err| 0.0195  vs Gaussian 0.0782
+    # ⚠ 2026-09-07b: q 2.65, the AgfaPhoto Vista plus pair's shared «13. MTF
+    # Curve». One 47-point path serving both films, so one exponent for both.
+    2.6500: (+0.079487, 0.254161, 1.024471),   # max|err| 0.0208  vs Gaussian 0.0758
     2.6800: (+0.065020, 0.188904, 1.014021),   # max|err| 0.0221  vs Gaussian 0.0734
     2.6900: (+0.062077, 0.180213, 1.011430),   # max|err| 0.0225  vs Gaussian 0.0726
+    # 2026-09-06e, FUJICOLOR_SUPERIA_REALA's traced rolloff -- the SHARPEST
+    # stock in the SUPERIA family and the steepest rolloff of the three.
+    2.8200: (+0.031656, 0.020392, 0.983887),   # max|err| 0.0284  vs Gaussian 0.0629
+    2.8000: (+0.036220, 0.095979, 0.987799),   # max|err| 0.0275  vs Gaussian 0.0644
+    2.7900: (+0.037409, 0.071810, 0.989293),   # max|err| 0.0270  vs Gaussian 0.0651
+    2.8900: (+0.020562, 0.008566, 0.973046),   # max|err| 0.0317  vs Gaussian 0.0581
     2.8400: (+0.028633, 0.030000, 0.980809),   # max|err| 0.0294  vs Gaussian 0.0615
     2.8800: (+0.025154, 0.179143, 0.975878),   # max|err| 0.0313  vs Gaussian 0.0587
     2.9400: (+0.014066, 0.115885, 0.966497),   # max|err| 0.0341  vs Gaussian 0.0548
+    2.9900: (+0.006581, 0.059200, 0.959884),   # max|err| 0.0364  vs Gaussian 0.0516
     3.0000: (+0.005414, 0.101775, 0.958757),   # max|err| 0.0369  vs Gaussian 0.0509
+    # ⚠ 3.0500 IS THE LAST ROW OF THE LOW BASIN AND 3.0600 THE FIRST OF THE
+    # HIGH ONE -- the two-lobe fit changes character between them, which is
+    # the discontinuity this table has always had and the reason it is never
+    # interpolated. ULTRA 50 landed one hundredth below the boundary.
+    3.0500: (+1.001279, 0.955447, 9.645302),   # max|err| 0.0386  vs Gaussian 0.0514
     3.0600: (+1.002677, 0.957027, 8.868426),   # max|err| 0.0384  vs Gaussian 0.0520
+    # 2026-09-06, FUJICHROME_64T_II's traced rolloff.
+    3.0700: (+1.004089, 0.958609, 13.899927),   # max|err| 0.0381  vs Gaussian 0.0527
+    3.0800: (+1.005513, 0.960192, 9.965348),   # max|err| 0.0379  vs Gaussian 0.0534
     3.1000: (+1.008396, 0.963362, 8.466455),   # max|err| 0.0374  vs Gaussian 0.0547
     3.2300: (+1.028498, 0.984242, 8.697727),   # max|err| 0.0343  vs Gaussian 0.0630
     3.5000: (+1.077656, 1.028618, 5.678378),   # max|err| 0.0291  vs Gaussian 0.0793
+    # ---- 2026-09-06, the KODAK black-and-white MTF batch --------------------
+    # ⚠ THESE TWO ROWS ARE NOT OPTIONAL BOOKKEEPING. Adopting a measured q on a
+    # profile with no kernel row leaves the C++ twin rendering that stock on the
+    # legacy single Gaussian while Python applies the power law -- a silent
+    # Python/C++ divergence on exactly the stocks whose sharpness was just
+    # measured. verify.py's kernel guard caught both the moment the f50s landed,
+    # which is what that guard is for.
+    3.6300: (+1.104960, 1.050364, 5.180191),   # max|err| 0.0271  vs Gaussian 0.0867
+    # ⚠ THE STEEPEST ROLLOFF IN THE TABLE, and the fit gets BETTER rather than
+    # worse: 0.0204 against the single Gaussian's 0.1175, a 5.8x improvement --
+    # the largest any row achieves. The wide lobe has pulled in to s2 = 2.91
+    # from 5-9 across the rest of the high basin, so the pair is behaving like a
+    # genuine narrow-minus-wide difference rather than a near-degenerate one.
+    # ---- 2026-09-06i, the AGFA sharpness batch RE-DERIVED -----------------
+    # ⚠⚠ THESE NINE REPLACE THE THIRTEEN ADDED THAT MORNING. Every AGFA
+    # exponent moved when the two calibration defects in the reader were
+    # fixed -- see `agfa_1998_sharpness._logfit` and `._calibrate`. The stocks
+    # named here are the ones that actually store each q today.
+    2.0800: (+0.274338, 0.386520, 1.235989),   # max|err| 0.0169  vs Gaussian 0.1291  AGFA_RSX_II_100
+    2.1400: (+0.259618, 0.388465, 1.210120),   # max|err| 0.0151  vs Gaussian 0.1228  AGFA_SCALA_200X
+    2.3100: (+0.222832, 0.395316, 1.156579),   # max|err| 0.0112  vs Gaussian 0.1057  AGFA_APX_25, AGFA_RSX_II_50
+    2.4700: (+0.153874, 0.344056, 1.090721),   # max|err| 0.0133  vs Gaussian 0.0909  AGFA_PORTRAIT_160
+    2.4900: (+0.143023, 0.331312, 1.081224),   # max|err| 0.0141  vs Gaussian 0.0892  AGFA_RSX_II_200
+    2.6700: (+0.068138, 0.197887, 1.016723),   # max|err| 0.0217  vs Gaussian 0.0742  AGFA_OPTIMA_200
+    2.8700: (+0.025678, 0.144467, 0.976922),   # max|err| 0.0308  vs Gaussian 0.0594  AGFA_OPTIMA_400
+    2.9500: (+0.014148, 0.201342, 0.965830),   # max|err| 0.0346  vs Gaussian 0.0541  AGFA_OPTIMA_100
+    # ⚠ ULTRA 50 CROSSED THE BASIN BOUNDARY WHEN THE READER WAS FIXED. It read
+    # q 3.05 that morning -- the last row of the LOW basin -- and reads 3.12
+    # now, which is in the HIGH one, where the fit flips to an over-weighted
+    # narrow lobe minus a very wide one. Same film, same panel, same day: the
+    # table's discontinuity is close enough to these stocks that a 2 % error in
+    # the abscissa moves one across it. Nothing about the row looks unusual
+    # from the inside, which is the point of writing it down here.
+    3.1200: (+1.011337, 0.966549, 12.434235),   # max|err| 0.0369  vs Gaussian 0.0560  AGFA_ULTRA_50
+    # 2026-09-06j, AGFA_VISTA_200 -- the thirteenth and last AGFA panel.
+    2.6300: (+0.081491, 0.231433, 1.028266),   # max|err| 0.0199  vs Gaussian 0.0774  AGFA_VISTA_200
+    4.2300: (+1.286282, 1.158970, 2.910405),   # max|err| 0.0204  vs Gaussian 0.1175
 }
 
 

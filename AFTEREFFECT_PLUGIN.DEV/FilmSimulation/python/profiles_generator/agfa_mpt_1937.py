@@ -136,7 +136,7 @@ provenance citation and moved on. That was a mistake worth naming: it is a
 technical article, and it prints numbers.
 
 ⚠ **AND THE PROFILE IT DESCRIBES STATES IN ITS OWN PROVENANCE THAT NO SUCH
-DOCUMENT EXISTS.** `AGFACOLOR_NEU_1936` carries tier 3 and
+DOCUMENT EXISTS.** `AGFA_NEU_1936` carries tier 3 and
 `fitted_from='analogy'`, with a PROVENANCE LIMIT reading "Neither carries a
 photometric figure ... Every numeric value in this profile is therefore still
 an analogy." True of the two citations it had; not true of the corpus.
@@ -278,13 +278,13 @@ FOG_FLOOR_FRACTION = (0.30, 0.50)
 # THE EGGERT HARVEST, 2026-09-04 -- and this one IS adopted.
 # ---------------------------------------------------------------------------
 # ⚠ WHY IT TOOK A SECOND PASS TO SEE IT. The first pass filed page 44 in
-# `ERA_FACTS` as "provenance for AGFACOLOR_NEU_1936" -- a citation, nothing
+# `ERA_FACTS` as "provenance for AGFA_NEU_1936" -- a citation, nothing
 # more. It is not a note: it is a technical article by **Prof. Dr. J. Eggert**,
 # the process's own inventor, running pp 44-53, and it prints construction
 # figures, an exposure recommendation and a grain statement.
 #
 # ⚠ AND THE PROFILE IT DESCRIBES SAYS IN ITS OWN PROVENANCE THAT NO SUCH
-# DOCUMENT EXISTS. `AGFACOLOR_NEU_1936` is tier 3, `fitted_from='analogy'`, and
+# DOCUMENT EXISTS. `AGFA_NEU_1936` is tier 3, `fitted_from='analogy'`, and
 # its PROVENANCE LIMIT reads: "Neither carries a photometric figure: no speed,
 # no gamma, no spectral sensitisation, no dmin or dmax. Every numeric value in
 # this profile is therefore still an analogy." That was true of the two
@@ -468,7 +468,7 @@ ERA_FACTS = (
      "under 'Rolls and Packs' and 125 under the 'Press' grouping; the "
      "difference is the development standard, not the emulsion"),
     (44, "Agfacolor", "Prof. Dr. J. Eggert, 'The New Agfacolor Process' -- "
-     "the inventor's own account, provenance for AGFACOLOR_NEU_1936"),
+     "the inventor's own account, provenance for AGFA_NEU_1936"),
     (13, "direct duplicating", "'Within the last year, Agfa Ansco has "
      "introduced a completely novel type of film which, when exposed in a "
      "camera and normally developed, renders a positive instead of a "

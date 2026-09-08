@@ -14,8 +14,11 @@
 //  the reference re-run.
 // ---------------------------------------------------------------------------
 
+#include "Common.hpp"
+#include "CompileTimeUtils.hpp"
 #include "AlgoControl.hpp"
-
+#include "AlgoControlEnums.hpp"
+#include "AE_Effect.h"
 
 // ---------------------------------------------------------------------------
 //  getFilmDamageDefault
@@ -318,6 +321,31 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     controls.misregScale   = 1.0;   // film_sim: misreg_scale
     controls.coatingScale  = 1.0;   // film_sim: coating_scale
 
+    // film_sim: scanner_specular = 0.853
+    //
+    // ⚠⚠ THIS LINE IS NEW ON 2026-09-06 AND ITS ABSENCE WAS A LATENT TWIN
+    // DIVERGENCE. Until today this field was never assigned here at all: it
+    // took 0.0 from the `AlgoControls controls{}` zero-initialisation above,
+    // which happened to equal the reference default, so the twins agreed BY
+    // COINCIDENCE rather than by construction. The moment the reference default
+    // moved off zero, an unassigned field here would have rendered every
+    // monochrome stock differently in C++ than in Python, silently, with no
+    // parity test necessarily catching it -- cpp_parity drives the stage
+    // directly and would not have exercised getAlgoControlsDefault().
+    //
+    // ⚠ THE VALUE IS AN OWNER DECISION, NOT A MEASUREMENT OF ANY SCANNER.
+    // 0.853 is 1 - E with E = 0.1471, the collected-scatter fraction fitted to
+    // Trumpy & Gschwind 2015 Fig. 5 (after Streiffert 1947) -- the same fit that
+    // produced the beta 1.6746 the monochrome profiles carry. E belongs to
+    // STREIFFERT'S DENSITOMETER; adopting it as the shipped reader geometry is a
+    // stated provisional stand-in, chosen 2026-09-06 in preference to shipping
+    // the stage inert.
+    //
+    // ⚠ 0.0 STILL REPRODUCES THE STORED CHARACTERISTIC CURVES EXACTLY, because
+    // those are DIFFUSE densities. Any comparison of a render against a
+    // datasheet must set this back to 0.
+    controls.scannerSpecular = 0.853;  // film_sim: scanner_specular
+
     // ----------------------------------------------------------------------
     //  The two "auto" controls.
     //
@@ -356,29 +384,49 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     controls.seed       = 12345;
 
     // ----------------------------------------------------------------------
-    //  Damage: ON, with the working set from getFilmDamageDefault().
+    //  Damage: OFF, with the working set still populated by getFilmDamageDefault().
     //
-    //  This default is now DAMAGED FILM, not clean film. A default render shows
-    //  embedded dust, coarse debris and the occasional fibre, because those are the
-    //  three classes stage 9b consumes.
+    //  ⚠ CHANGED FROM true TO false ON 2026-09-04, WHICH SETTLES A CONFLICT THIS
+    //  FILE AND AlgoControl.hpp HAD BOTH BEEN RECORDING RATHER THAN RESOLVING.
+    //  The project requirements state that a clean render is the default and that
+    //  damage is opt-in; the code asserted the opposite, and the header carried the
+    //  disagreement under "DEFAULT CONFLICT - REPORTED, NOT RESOLVED". The owner
+    //  has now asked for the defect layer to be explicitly switchable, so the
+    //  requirement wins and the two agree again.
     //
-    //  Two consequences worth being explicit about, because both are easy to be
-    //  caught by:
+    //  WHAT A CALLER GETS NOW. A default render is the pure film-stock simulation:
+    //  no embedded dust, no coarse debris, no fibres, no gate dirt, no splices.
+    //  Numerically identical to a build with no defect layer at all, and that is
+    //  why the flag is tested ONCE PER FRAME rather than per pixel - a clean render
+    //  pays exactly one branch for the whole subsystem.
     //
-    //  A caller that wants the pure film-stock simulation with no defect layer must
-    //  now clear this flag. It used to get that for free. One line -
-    //  filmDamageEnabled = false - and the engine is numerically identical to the
-    //  clean build, verified: with the flag clear the whole-chain agreement against
-    //  the reference model is unchanged to the digit.
+    //  TO TURN THE DEFECT LAYER ON, one line:
     //
-    //  And this is a deliberate divergence from film_sim.RenderSettings, which
-    //  carries no damage group at all. Every other field in this function mirrors
-    //  the reference exactly so the two implementations stay diffable; this one
-    //  cannot, because the reference has nothing to mirror. The verification
-    //  harness therefore clears the flag before comparing, and must keep doing so.
+    //      controls.filmDamageEnabled = true;
+    //
+    //  and the working set already sitting in controls.damage takes effect. The
+    //  three-level gate chain is unchanged: this flag, then damageStrength > 0,
+    //  then at least one class level > 0.
+    //
+    //  It also removes a divergence from film_sim.RenderSettings, which carries no
+    //  damage group at all. Every other field in this function mirrors the
+    //  reference so the two implementations stay diffable; with the flag clear this
+    //  one mirrors it too, and the verification harness no longer has to clear it
+    //  by hand before comparing - though it still does, harmlessly.
     // ----------------------------------------------------------------------
     controls.filmDamageEnabled = false;
     controls.damage            = getFilmDamageDefault();
 
     return controls;
+}
+
+
+AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps)
+{
+    CACHE_ALIGN AlgoControls algoParams = getAlgoControlsDefault();
+
+    algoParams.filmProfile = static_cast<film::eFILM_PROFILE>(params[UnderlyingType(FilmSimulationCtrl::FILM_STOCK)]->u.pd.value - 1);;
+    algoParams.frameRate = fps;
+    
+    return algoParams;
 }

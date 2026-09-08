@@ -131,14 +131,50 @@ BANDS_MONO = dict(BANDS, curves=(461.0, 564.0))
 #: and fills slot 2 with the push/pull density family. Slot 4 holds
 #: «Gradation/Maximaldichte bei push/pull-Verarbeitung», drawn as a Maximum
 #: density box above a Contrast box sharing one ISO abscissa.
+#: ⚠⚠ AND FOR SIX DAYS THIS DICT HAD THREE ENTRIES WHILE THE COMMENT ABOVE
+#: DESCRIBED FOUR PANELS. Slot 4 was written down, named in Agfa's own German,
+#: and never read: `read_scala` iterated `SCALA_BANDS`, the band was absent,
+#: and nothing anywhere said a panel had been skipped. That is NotFound row
+#: 5c's lesson in its sharpest form yet -- not "a harvested document is not a
+#: read document" but "a DOCUMENTED panel is not a read panel". Slot 4 is read
+#: by `read_scala_pushpull` below, which needs no band because its abscissa is
+#: CATEGORICAL and `_calibrated` cannot fit it (see that function).
 SCALA_BANDS = {
     "spectral":  (79.0, 175.0),
     "curves":    (214.0, 289.0),
     "sharpness": (329.0, 416.0),
 }
 
+#: Slot 4's own extent, for the record and for the frame search. Both mini-plots
+#: and the shared abscissa live inside it.
+SCALA_PUSHPULL_BAND = (440.0, 600.0)
+
 DEVELOPERS = G.DEVELOPERS
 SCALA_STEPS = G.SCALA_STEPS
+
+#: What slot 4 reads, pinned so a rerun that disagrees FAILS. Keyed on the
+#: printed ISO label, which is the abscissa's only tick.
+#: ⚠ THE READING LANDS ON ROUND NUMBERS TO 0.006, WHICH IS THE CALIBRATION
+#: CHECK. Nothing in the trace is told that Agfa plotted 3.10 / 3.00 / 2.75 /
+#: 2.50 / 2.25 and 0.80 / 1.40 / 1.70 / 1.80 / 1.85; the frame-anchored fit
+#: returns 3.0948 / 2.9939 / 2.7443 / 2.4939 / 2.2452 and 0.7961 / 1.3953 /
+#: 1.6950 / 1.7947 / 1.8452. Five values per box within 0.006 of a 0.05 grid
+#: is not something a mis-set ordinate produces.
+EXPECTED_PUSHPULL = {
+    "dmax": {"100/21°": 3.095, "200/24°": 2.994, "400/27°": 2.744,
+             "800/30°": 2.494, "1600/33°": 2.245},
+    "contrast": {"100/21°": 0.796, "200/24°": 1.395, "400/27°": 1.695,
+                 "800/30°": 1.795, "1600/33°": 1.845},
+}
+
+#: The ISO label of each step, in the order Agfa print them left to right.
+PUSHPULL_ISO = ("100/21°", "200/24°", "400/27°", "800/30°", "1600/33°")
+
+#: What the 1998 sheet's DENSITY-CURVE panel gave for the same five steps, as
+#: stored in `AGFA_SCALA_200X.push.source` since 2026-09-01. Kept here so the
+#: two readings of one quantity are compared on every build instead of one
+#: quietly superseding the other.
+DMAX_1998 = (3.064, 2.983, 2.740, 2.456, 2.171)
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +326,237 @@ def read_scala(pg, ws, xlo, xhi):
         segs = G._split_curves(pg, p)
         labels = G._named_labels(pg, p, SCALA_STEPS)
         out["curves"] = ("ok", p, segs, labels, G._assign(labels, segs))
+    got, perr = read_scala_pushpull(pg, xlo, xhi)
+    out["pushpull"] = ("err", perr) if got is None else ("ok", got)
     return out
+
+
+def read_scala_pushpull(pg, xlo=395.0, xhi=560.0):
+    """Slot 4: «Gradation/Maximaldichte bei push/pull-Verarbeitung».
+
+    Returns ({"dmax": {iso: D}, "contrast": {iso: gamma}}, None) or
+    (None, reason).
+
+    ⚠⚠ WHY THIS PANEL NEEDS ITS OWN READER AND NOT A BAND. Every other panel
+    on this sheet has a NUMERIC abscissa, and `_calibrated` finds it by fitting
+    the printed tick labels. This one's abscissa is CATEGORICAL -- its five
+    ticks are «100/21° Pull 1», «200/24°», «400/27° Push 1», «800/30° Push 2»,
+    «1600/33° Push 3», which are film speeds standing for processing steps and
+    are not on any scale. There is nothing for a fit to fit. The x axis is
+    therefore read by MATCHING each drawn marker to the nearest printed step
+    label and refusing if any marker misses its label by more than 3 pt.
+
+    ⚠ THE ORDINATES ARE FRAME-ANCHORED, per the 2026-09-06i rule: the printed
+    ladder says WHICH values the axis spans, the drawn frame says WHERE. Both
+    boxes are filled rectangles, so the frame here is exact rather than fitted,
+    and the ladder is used only for its extremes and for a uniform-pitch check.
+
+    ⚠ AND THE DATA ARE MARKERS, NOT A TRACED PATH. Agfa draw each point as a
+    small filled-and-stroked circle (type "fs", ~1.8 pt across) and then join
+    them with a 0.85 pt polyline. The polyline is NOT read: on the density box
+    it is emitted as two items covering three of the five points, so following
+    it would silently return three values. The circles are all five.
+    """
+    frames = []
+    ylo, yhi = SCALA_PUSHPULL_BAND
+    for dr in pg.get_drawings():
+        if dr.get("type") != "f" or len(dr["items"]) != 4:
+            continue
+        xs, ys = [], []
+        for it in dr["items"]:
+            for q in it[1:]:
+                if hasattr(q, "x"):
+                    xs.append(q.x)
+                    ys.append(q.y)
+        if not xs or max(xs) - min(xs) < 100:
+            continue
+        if min(xs) < xlo or max(xs) > xhi or min(ys) < ylo or max(ys) > yhi:
+            continue
+        frames.append((min(xs), min(ys), max(xs), max(ys)))
+    frames = sorted(set(frames), key=lambda f: f[1])
+    if len(frames) != 2:
+        return None, f"{len(frames)} plot frames in slot 4, expected 2"
+
+    marks = []
+    for dr in pg.get_drawings():
+        if dr.get("type") != "fs":
+            continue
+        xs, ys = [], []
+        for it in dr["items"]:
+            for q in it[1:]:
+                if hasattr(q, "x"):
+                    xs.append(q.x)
+                    ys.append(q.y)
+        if not xs or max(xs) - min(xs) > 4.0:
+            continue
+        cx, cy = 0.5 * (min(xs) + max(xs)), 0.5 * (min(ys) + max(ys))
+        if xlo < cx < xhi and ylo < cy < yhi:
+            marks.append((cx, cy))
+
+    words = pg.get_text("words")
+    absc = {}
+    for w in words:
+        if w[4].count("/") == 1 and w[4].endswith("°") \
+                and yhi - 25 < 0.5 * (w[1] + w[3]) < yhi:
+            absc[0.5 * (w[0] + w[2])] = w[4]
+    if sorted(absc.values(), key=lambda s: PUSHPULL_ISO.index(s)
+              if s in PUSHPULL_ISO else 99) != list(PUSHPULL_ISO):
+        return None, f"abscissa labels {sorted(absc.values())}"
+    axx = sorted(absc)
+
+    out = {}
+    for fr, key in zip(frames, ("dmax", "contrast")):
+        lad = {}
+        for w in words:
+            yc = 0.5 * (w[1] + w[3])
+            try:
+                v = float(w[4])
+            except ValueError:
+                continue
+            if fr[0] - 14 < 0.5 * (w[0] + w[2]) < fr[0] \
+                    and fr[1] - 2 < yc < fr[3] + 2:
+                lad[v] = yc
+        if len(lad) < 6:
+            return None, f"{key}: only {len(lad)} ordinate labels"
+        vs = sorted(lad)
+        ys = [lad[v] for v in vs]
+        d = [b - a for a, b in zip(ys, ys[1:])]
+        mean = sum(d) / len(d)
+        if max(abs(x - mean) for x in d) > 0.25:
+            return None, f"{key}: ordinate ladder pitch is not uniform: {d}"
+        top, bot = max(vs), min(vs)
+        span = (bot - top) / (fr[3] - fr[1])
+        pts = sorted(m for m in marks if fr[1] - 3 < m[1] < fr[3] + 3)
+        if len(pts) != 5:
+            return None, f"{key}: {len(pts)} markers, expected 5"
+        row = {}
+        for (cx, cy), ax in zip(pts, axx):
+            if abs(cx - ax) > 3.0:
+                return None, (f"{key}: marker at x {cx:.1f} is {abs(cx-ax):.1f} "
+                              f"pt from its step label at {ax:.1f}")
+            row[absc[ax]] = top + (cy - fr[1]) * span
+        out[key] = row
+    return out, None
+
+
+def pushpull_gamma_gain(row):
+    """The single fractional gamma gain per pushed stop, and its residuals.
+
+    Returns (g, ladder, resid) where `ladder` is the measured contrast at
+    Standard / Push 1 / 2 / 3 and `resid` the fractional error a LINEAR model
+    `gamma * (1 + g * stops)` makes at each pushed stop.
+
+    ⚠⚠ THE MEASUREMENT IS NOT LINEAR AND THIS IS WHERE THAT IS SAID OUT LOUD.
+    Agfa's own points give contrast 1.40 -> 1.70 -> 1.80 -> 1.85, i.e. +21.4 %
+    for the first stop, +5.9 % for the second and +2.8 % for the third: the
+    film's contrast SATURATES. `PushSpec.gamma_gain_per_stop` is one scalar,
+    documented as "fractional increase in straight-line gamma per pushed
+    stop", so whatever goes in it is a summary of a curve and the residuals
+    below are the size of the lie. A least-squares line through the origin
+    over the three pushed stops gives 0.125; it under-predicts the first stop
+    by 9.0 percentage points and over-predicts the third by 5.4.
+    ⚠ AND THE PULL STEP IS DELIBERATELY NOT IN THE FIT. Pull 1 reads 0.80
+    against Standard's 1.40 -- a 43 % LOSS for one stop down against a 21 %
+    gain for one stop up, so the two directions are not one slope and a fit
+    spanning both would describe neither.
+    """
+    std = row["200/24°"]
+    ladder = (std, row["400/27°"], row["800/30°"], row["1600/33°"])
+    frac = [(v - std) / std for v in ladder[1:]]
+    g = sum(s * f for s, f in zip((1, 2, 3), frac)) / sum(s * s for s in (1, 2, 3))
+    resid = [f - g * s for s, f in zip((1, 2, 3), frac)]
+    return g, ladder, resid
+
+
+def _pushpull_report(state, ger_page, xlo, xhi):
+    """Print slot 4 and check it. Returns the number of failures."""
+    if state[0] == "err":
+        print(f"     push/pull  [--] {state[1]}")
+        return 1
+    got = state[1]
+    bad = 0
+    print("     push/pull  «Gradation/Maximaldichte bei push/pull-"
+          "Verarbeitung» -- slot 4, unread until 2026-09-07")
+    for key, unit in (("dmax", "D"), ("contrast", "gamma")):
+        row, want = got[key], EXPECTED_PUSHPULL[key]
+        cells = "  ".join(f"{iso} {row[iso]:.3f}" for iso in PUSHPULL_ISO)
+        off = max(abs(row[iso] - want[iso]) for iso in PUSHPULL_ISO)
+        tag = "OK  " if off <= 0.006 else "FAIL"
+        if off > 0.006:
+            bad += 1
+        print(f"        [{tag}] {key:8s} ({unit}) {cells}")
+        # ⚠ ROUND NUMBERS AS THE CALIBRATION CHECK. Nothing in the trace knows
+        # Agfa plotted on a 0.05 grid; landing on it is evidence the ordinate
+        # is right, and it is worth more than agreement with a pinned constant.
+        grid = max(abs(row[iso] / 0.05 - round(row[iso] / 0.05)) * 0.05
+                   for iso in PUSHPULL_ISO)
+        print(f"                 {'':8s}     off the pinned values by "
+              f"{off:.4f}, off a 0.05 grid by {grid:.4f}")
+        if grid > 0.008:
+            print("        [FAIL] the ordinate no longer lands on Agfa's own "
+                  "0.05 grid, so the calibration has moved")
+            bad += 1
+
+    # ---- the German twin reads the same panel independently ---------------
+    gg, gerr = read_scala_pushpull(ger_page, xlo, xhi)
+    if gg is None:
+        print(f"        [FAIL] the German edition's slot 4: {gerr}")
+        bad += 1
+    else:
+        d = max(abs(gg[k][iso] - got[k][iso])
+                for k in ("dmax", "contrast") for iso in PUSHPULL_ISO)
+        print(f"        [{'OK  ' if d <= 0.002 else 'FAIL'}] the German twin's "
+              f"own reading of the same panel agrees to {d:.4f}")
+        if d > 0.002:
+            bad += 1
+
+    # ---- against the 1998 density-curve digitisation ----------------------
+    # ⚠ TWO INDEPENDENT MEASUREMENTS OF ONE LADDER, FIVE YEARS APART IN PRINT
+    # AND BY TWO DIFFERENT METHODS -- 1998's from following five drawn
+    # characteristic curves to their maxima, 2003's from five plotted points.
+    # They are NOT averaged: this reports the spread and leaves the stored
+    # value alone.
+    diffs = [got["dmax"][iso] - d98
+             for iso, d98 in zip(PUSHPULL_ISO, DMAX_1998)]
+    print("        D-max against the 1998 sheet's density curves: "
+          + "  ".join(f"{d:+.3f}" for d in diffs)
+          + f"   (max {max(abs(x) for x in diffs):.3f} D)")
+    if max(abs(x) for x in diffs) > 0.10:
+        print("        [FAIL] the two editions' D-max ladders no longer "
+              "describe one film")
+        bad += 1
+    else:
+        print("               -> same ladder, same ordering, same spacing; "
+              "the 2003 panel is the cleaner of the two because its points "
+              "sit on Agfa's grid and the 1998 reading had to find curve "
+              "maxima")
+
+    # ---- what the contrast box buys --------------------------------------
+    g, ladder, resid = pushpull_gamma_gain(got["contrast"])
+    print(f"        contrast ladder {ladder[0]:.2f} -> "
+          + " -> ".join(f"{v:.2f}" for v in ladder[1:])
+          + f"   => gamma_gain_per_stop {g:.3f} (linear LSQ over the three "
+            f"pushed stops)")
+    print("               residuals "
+          + "  ".join(f"{r:+.3f}" for r in resid)
+          + " -- the film SATURATES, so one scalar cannot carry this and the "
+            "size of that is printed rather than hidden")
+    try:
+        import film_profiles as _fp
+        ps = _fp.get_profile("AGFA_SCALA_200X").push
+        ok = abs(ps.gamma_gain_per_stop - round(g, 3)) <= 0.001
+        print(f"        [{'OK  ' if ok else 'FAIL'}] AGFA_SCALA_200X stores "
+              f"gamma_gain_per_stop {ps.gamma_gain_per_stop:.3f}")
+        if not ok:
+            bad += 1
+        if ps.max_push_stops != 3.0 or ps.max_pull_stops != 1.0:
+            print(f"        [FAIL] push/pull limits are "
+                  f"{ps.max_push_stops}/{ps.max_pull_stops}, and this panel "
+                  f"draws three pushed steps and one pulled one")
+            bad += 1
+    except Exception as exc:                                  # pragma: no cover
+        print(f"        [WARN] could not compare against film_profiles: {exc}")
+    return bad
 
 
 # ---------------------------------------------------------------------------
@@ -689,6 +955,7 @@ def main() -> int:
                     who = " + ".join(owners[i]) or "⚠ UNLABELLED"
                     print(f"        lgE {lx.min():+.2f}..{lx.max():+.2f}  "
                           f"D {dd.min():.3f}..{dd.max():.3f}  {who}")
+            bad += _pushpull_report(res["pushpull"], ger[page_no - 1], xlo, xhi)
 
     # ---- the cross-edition comparison ------------------------------------
     old_p = root / G.SHEET

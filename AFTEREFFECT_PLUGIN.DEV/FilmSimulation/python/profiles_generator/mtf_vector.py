@@ -170,6 +170,80 @@ SHEETS = {
     # record instead of being an unexplained gap.
     "ektar100": ("KODAK/e4046_ektar_100-2016.pdf", 4,
                  "KODAK_EKTAR_100", (346.0, 558.0, 352.0, 514.0)),
+    # ---- 2026-09-06: the KODAK BLACK-AND-WHITE STILL sheets ------------------
+    # Class A of the corpus audit: these panels were on the owner's disk all
+    # along, indexed by `PDF/PROFILES/Index.md` with the M flag, and had never
+    # been staged into the working corpus. Every one is VECTOR art with ZERO
+    # embedded images on its page.
+    #
+    # ⚠ THE FRAME IS A SIGNATURE, AND FINDING IT IS WHAT MADE THE BATCH CHEAP.
+    # Every Kodak modulation-transfer panel in this corpus is drawn inside a
+    # rectangle of 202 x 153 pt. Selecting `re` items by that size and then
+    # taking the one whose nearest caption above reads "Modulation Transfer"
+    # located all ten frames without a single hand measurement -- and it also
+    # caught the two pages where the caption sits BELOW the plot (F-32 p14), on
+    # which a naive "caption is above" rule picks the spectral-sensitivity panel
+    # and the y-tick scan then finds nothing.
+    "tmax100": ("KODAK/f4016_TMax_100.pdf", 8, "KODAK_TMAX_100",
+                (71.2, 273.7, 260.1, 413.1)),
+    # ⚠ NOT AN INDEPENDENT CONFIRMATION OF tmax100 AND REGISTERED ANYWAY. The
+    # 2007 edition of F-4016 carries the SAME VECTOR OBJECT as the 2016 one --
+    # 143 points, bounding boxes equal, max deviation 0.0010 pt after an origin
+    # shift. It is pinned so that the identity keeps being re-derived: the whole
+    # reason P3200 was refused below is that this artwork travels between
+    # publications, and a test that only ever looked at one edition would not
+    # see it move.
+    "tmax100_07": ("KODAK/f4016-TMAX-2007b.pdf", 14, "KODAK_TMAX_100",
+                   (74.6, 277.1, 100.5, 253.5)),
+    # ✅ THE REAL INDEPENDENT CONFIRMATION: F-32 (September 2001) is a different
+    # drawing (112 points against 143) and reads 120.2 against 123.0, i.e. 2.3 %
+    # apart on a stock whose stored value was the estimate 95.0.
+    "tmax100_01": ("KODAK/f32-TMAX-200109.pdf", 14, "KODAK_TMAX_100",
+                   (74.7, 277.2, 323.4, 476.4)),
+    # ⚠ THREE INDEPENDENT DRAWINGS THAT DO NOT AGREE, AND THEY ARE ALL PINNED.
+    # 95.8 (F-32, 2001, TMY) / 66.7 (F-4016, 2007) / 80.6 (F-4043, 2016, TMY-2).
+    # Rule 4: recorded, not averaged. The adopted value is F-4043's, because
+    # that is the publication `_PROVENANCE_SOURCES` already names for this
+    # profile -- an edition choice, not a quality judgement between the three.
+    "tmax400": ("KODAK/f4043_TMax_400.pdf", 7, "KODAK_TMAX_400",
+                (360.9, 563.4, 248.6, 401.6)),
+    "tmax400_07": ("KODAK/f4016-TMAX-2007b.pdf", 14, "KODAK_TMAX_400",
+                   (348.8, 550.7, 115.7, 269.2)),
+    "tmax400_01": ("KODAK/f32-TMAX-200109.pdf", 14, "KODAK_TMAX_400",
+                   (350.7, 553.2, 331.3, 484.3)),
+    # ✅ THE BEST-EVIDENCED MTF IN THE DATABASE: three independent drawings
+    # across seventeen years reading 52.7 / 52.5 / 53.1, a spread of 1.1 %.
+    # ⚠ THE PANEL BELONGS TO 400TX AND NOT TO 320TXP, which is why only one of
+    # the two films this sheet covers gets a measurement. F-4017 (2016) p7 heads
+    # its own right-hand column "KODAK PROFESSIONAL TRI-X 400 Film / 400TX,
+    # 35 mm" and prints exactly one modulation-transfer frame on the page.
+    "trix400": ("KODAK/f4017_TriX.pdf", 7, "KODAK_TRI_X_400TX",
+                (84.8, 287.3, 76.0, 228.8)),
+    "trix400_07": ("KODAK/f4017-400TX-2007.pdf", 10, "KODAK_TRI_X_400TX",
+                   (348.5, 551.0, 99.8, 252.6)),
+    "trix400_99": ("KODAK/f9-Tri-X_Pan-199906.pdf", 9, "KODAK_TRI_X_400TX",
+                   (86.7, 289.0, 71.4, 224.4)),
+    # ⚠ ADOPTS NOTHING -- E-4046 (2010) IS THE SAME ARTWORK AS THE 2016 EDITION
+    # ALREADY REGISTERED ABOVE, on all three records (188 / 290 / 288 points,
+    # max deviation 0.0010 pt). Pinned for the same reason as tmax100_07: the
+    # identity is the evidence. It does mean the EKTAR measurement rests on ONE
+    # drawing and not two, which the provenance note now says.
+    "ektar100_10": ("KODAK/e4046-EKTAR-2010.pdf", 5, "KODAK_EKTAR_100",
+                    (347.6, 550.1, 327.2, 480.2)),
+    # ⚠ P3200's OWN CURVE, AND THE REASON THIS ENTRY EXISTS IS A MISTAKE OF MINE.
+    # On 2026-09-06 the F-4001 (2018) panel was found to be T-MAX 100's artwork
+    # and P3200 was written off as having no published MTF -- on the strength of
+    # ONE edition. The owner asked the obvious question, and F-4001 (2019) p7
+    # carries a DIFFERENT drawing: 40 bezier control points against 2018's 44,
+    # bbox 106.79 x 104.85 against 112.97 x 113.22, peaking at 5.4 cycles/mm
+    # instead of 18.8. Kodak put the wrong figure in the 2018 edition and
+    # corrected it the following year; the 2018 page's resolving-power text was
+    # P3200's own (40 / 125 lines/mm) all along, so only the plot was wrong.
+    # ⚠ THE RULE THIS COST: never write a refusal from a single file when the
+    # corpus holds another edition of the same publication.
+    # Checked against every registered sheet -- this curve matches nothing else.
+    "p3200_19": ("KODAK/f4001-P3200TMZ-2019.pdf", 7, "KODAK_TMAX_P3200",
+                 (361.2, 563.7, 77.0, 230.0)),
 }
 
 #: Measured 2026-08-18/20. --assert fails if a sheet stops reproducing these.
@@ -280,8 +354,113 @@ EXPECTED = {
         "G": dict(f50=52.7, peak=1.183, peak_at=9.7),
         "B": dict(f50=54.8, peak=1.070, peak_at=9.0),
     },
+    # ---- 2026-09-06: the KODAK black-and-white still sheets -----------------
+    # ✅ ADOPTED: T-MAX 100 at 123.0 (was the estimate 95.0 -- the estimate was
+    # 1.29x TOO SOFT, and it is the FIRST TRACED SHEET WHERE THE ESTIMATE ERRED
+    # IN THAT DIRECTION. Every previous one was too sharp: 5285 by 1.95x, 5222
+    # by 1.33x, 5231 by 1.45x, EKTAR by 1.5x. A T-grain stock outrunning the
+    # estimating rule where conventional emulsions undershoot it is a fact about
+    # the rule, and it is recorded rather than smoothed.)
+    "tmax100": {"-": dict(f50=123.0, peak=1.145, peak_at=18.8)},
+    "tmax100_07": {"-": dict(f50=123.0, peak=1.144, peak_at=18.8)},
+    "tmax100_01": {"-": dict(f50=120.3, peak=1.111, peak_at=18.3)},
+    # ✅ ADOPTED: T-MAX 400 at 80.6, from F-4043 (2016). ⚠ The curve reaches 50 %
+    # AT ITS PRINTED ENDPOINT (81 c/mm, last plotted response 51 %), so this is
+    # a crossing that coincides with the end of the drawing rather than one
+    # inside it. Verified on the render: Kodak stops the curve at 50 %, which is
+    # its convention on this sheet, so the value is read and not extrapolated.
+    # ⚠ NO PIN FOR "tmax400" ITSELF -- IT IS IN `REFUSED`. F-4043's curve stops
+    # 1.4 response-points above the crossing, which is a lower bound and not a
+    # measurement; see REFUSED for why that settles the whole film.
+    "tmax400_07": {"-": dict(f50=66.7, peak=1.198, peak_at=14.1)},
+    "tmax400_01": {"-": dict(f50=95.9, peak=1.168, peak_at=7.5)},
+    # ✅ ADOPTED: TRI-X 400TX at 52.7 (was the estimate 58.0, so 1.10x too sharp
+    # -- the SMALLEST correction any traced sheet has produced, and the only one
+    # under 1.3x).
+    "trix400": {"-": dict(f50=52.7, peak=1.120, peak_at=8.6)},
+    "trix400_07": {"-": dict(f50=52.6, peak=1.119, peak_at=8.3)},
+    "trix400_99": {"-": dict(f50=53.1, peak=1.102, peak_at=8.5)},
+    # ✅ ADOPTED: T-MAX P3200 at 84.3, from F-4001 (2019) -- the edition that
+    # carries P3200's OWN drawing. ⚠ f50 ONLY: the rolloff fits at q = 2.03,
+    # rms 0.0534 against the Gaussian's 0.0681, i.e. only 1.3x better. The
+    # project's own threshold, set on the PORTRA NC/VC batch (2026-08-30), is
+    # that 1.2-1.3x does NOT license switching the carrier -- so mtf_measured
+    # stays False, no kernel row is needed, and the stock keeps the legacy
+    # Gaussian at a measured f50.
+    # ⚠ 84.3 AGAINST THE SHEET'S OWN 125 lines/mm at 1000:1 is a ratio of 1.35
+    # on Tani's f50 ~ RP/2 relation, in family with T-MAX 100's 1.23. The 2018
+    # sheet's misplaced figure would have implied 1.97, at the edge of the band
+    # verify.py allows -- which is the physical reading of the same error.
+    "p3200_19": {"-": dict(f50=84.3, peak=1.110, peak_at=5.4)},
+    # Adopts nothing; pins the artwork identity with the 2016 edition.
+    "ektar100_10": {
+        "R": dict(f50=35.5, peak=1.124, peak_at=9.0),
+        "G": dict(f50=52.7, peak=1.183, peak_at=9.7),
+        "B": dict(f50=54.8, peak=1.070, peak_at=9.0),
+    },
+}
+
+#: ⚠ SHEETS WHOSE MTF PANEL IS THE **WRONG FILM'S ARTWORK**, and the test that
+#: proves it. Each entry is (the sheet carrying the wrong plot, the sheet it was
+#: copied FROM, the profile). `--assert` re-derives the identity every build.
+#:
+#: ⚠ AN ENTRY HERE IS NOT A REFUSAL OF THE FILM, AND SAYING SO COST A REAL
+#: MEASUREMENT. On 2026-09-06 F-4001 (2018)'s panel was found to be T-MAX 100's
+#: artwork and KODAK_TMAX_P3200 was written off as having no published MTF --
+#: from ONE edition. F-4001 (2019) carries P3200's own drawing (40 control
+#: points against 44, f50 84.3) and is now adopted. What this table records is
+#: that a SPECIFIC EDITION's plot cannot be read, not that the film has no data.
+#: ⚠ THE RULE: before writing a refusal, check every edition of the publication
+#: the corpus holds.
+#:
+#: ⚠ SECOND INSTANCE OF THIS DEFECT CLASS. Queue K6 found E-2468's characteristic
+#: page carrying PORTRA 160VC's figure -- and there too the fix is to find the
+#: right sheet, not to declare the parameter unobtainable.
+#:
+#: ⚠ THE KODAK FIGURE ID IS **NOT** EVIDENCE OF THIS, and it was nearly used as
+#: such. Both sheets label the panel `F002_0542AC`, which looks conclusive until
+#: the spectral panels are checked: those share `F002_0547AC` too and their
+#: geometry differs by 6.0 pt. The IDs are template slots, not data identifiers.
+#: Only the geometry proves the copy.
+ARTWORK_REUSE = {
+    # KODAK T-MAX P3200, F-4001 (2018) p7. The panel is byte-for-byte T-MAX
+    # 100's: 143 points, equal bounding boxes, max deviation 0.0010 pt after an
+    # origin shift, and the same annotation block (Tungsten / Small Tank / D-76
+    # 68 F / Diffuse visual). An ISO 3200 push film cannot share a sharpness
+    # curve with a 100-speed T-grain stock, so the panel is REFUSED and
+    # KODAK_TMAX_P3200.mtf stays the estimate 50.0.
+    # KODAK T-MAX P3200, F-4001 (2018) p7 -- 143 sampled points, equal bounding
+    # boxes, max deviation 0.0010 pt after an origin shift, and the annotation
+    # block travelled with it (Tungsten / Small Tank / D-76 68 F / Diffuse
+    # visual). ⚠ THE PAGE'S RESOLVING-POWER TEXT IS P3200's OWN (40 / 125
+    # lines/mm, against T-MAX 100's 63 / 200), so only the PLOT was misplaced --
+    # which is why nothing else on the page looks wrong. Corrected by Kodak in
+    # the 2019 edition; that edition is registered in SHEETS as "p3200_19" and
+    # is what the profile now carries.
+    "p3200": (("KODAK/F4001-P3200TMZ-2018.pdf", 7, (360.8, 563.3, 77.8, 230.8)),
+              ("KODAK/f4016_TMax_100.pdf", 8, (71.2, 273.7, 260.1, 413.1)),
+              "KODAK_TMAX_P3200"),
 }
 TOL_F, TOL_P = 1.0, 0.01
+
+#: ⚠ SHEETS WHOSE PANEL IS REGISTERED PRECISELY SO THAT ITS REFUSAL KEEPS BEING
+#: RE-DERIVED. A tag listed here is EXPECTED to fail the f50 read; the build
+#: fails if one of them starts succeeding, because that would mean the drawing
+#: changed and the profile's refusal should be revisited.
+#:
+#: This is the same discipline `spectral_sampling.py` applies to F3: a refusal
+#: needs guarding MORE than an adoption does, because nothing downstream
+#: consumes it and nothing would notice if its premise stopped holding.
+REFUSED = {
+    "tmax400": (
+        "F-4043 (2016) stops T-MAX 400's curve at 81 cycles/mm with a last "
+        "plotted response of 51.4 %, so the sheet gives f50 > 81 and NOT a "
+        "value. ⚠ THAT LOWER BOUND CONTRADICTS THE OTHER TWO SHEETS -- F-4016 "
+        "(2007) crosses at 66.7 and F-32 (2001) at 95.9 -- so the three Kodak "
+        "publications for this film do not agree and no single number is "
+        "defensible. KODAK_TMAX_400.mtf stays the estimate 72.0. Rule 4: the "
+        "conflict is recorded, not averaged."),
+}
 
 TICK_RESID_PT = 1.5
 
@@ -782,13 +961,52 @@ def main() -> int:
                 continue
 
             # f50 at the LAST downward crossing of 0.5
+            #
+            # ⚠ A CURVE MAY END *AT* 50 % INSTEAD OF PASSING THROUGH IT, and
+            # that is a reading, not a failure. F-4043 (2016) stops T-MAX 400's
+            # curve at 81 cycles/mm with a last plotted response of 50.6 % --
+            # Kodak's convention on that sheet is to draw the curve down to
+            # half response and stop. Before 2026-09-06 this branch refused it
+            # with "never falls through 50 %", which is true of the drawing and
+            # false of the film.
+            # ⚠ THE TOLERANCE IS DELIBERATELY TIGHT (1 % of response, i.e. the
+            # curve must end between 50.0 and 51.0 %) AND THE VALUE IS FLAGGED.
+            # A curve that stops at 60 % has genuinely not reached f50 and must
+            # still be refused; widening this to "take the endpoint whenever the
+            # crossing is missing" would silently turn every truncated plot into
+            # a measurement, which is the failure mode the fragment test above
+            # exists to prevent.
+            ENDPOINT_TOL = 0.010
             above = np.where(r >= 0.5)[0]
-            if not len(above) or above[-1]+1 >= len(f):
-                print(f"    [FAIL] {rec}: the curve never falls through 50 %")
+            at_end = False
+            if not len(above):
+                print(f"    [FAIL] {rec}: the curve never reaches 50 %")
                 bad += 1
                 continue
-            i = above[-1]
-            f50 = float(np.interp(0.5, [r[i+1], r[i]], [f[i+1], f[i]]))
+            if above[-1]+1 >= len(f):
+                if r[-1] - 0.5 <= ENDPOINT_TOL:
+                    at_end = True
+                    f50 = float(f[-1])
+                elif tag in REFUSED:
+                    print(f"    [i] {rec}: REFUSED AS EXPECTED -- the curve "
+                          f"stops at {r[-1]*100:.1f} % response, "
+                          f"{(r[-1]-0.5)*100:.1f} points above the crossing, so "
+                          f"the sheet gives f50 > {f[-1]:.0f} and not a value")
+                    print(f"        {REFUSED[tag]}")
+                    continue
+                else:
+                    print(f"    [FAIL] {rec}: the curve never falls through "
+                          f"50 % -- it stops at {r[-1]*100:.1f} % response, "
+                          f"{(r[-1]-0.5)*100:.1f} points above the crossing")
+                    bad += 1
+                    continue
+            else:
+                i = above[-1]
+                f50 = float(np.interp(0.5, [r[i+1], r[i]], [f[i+1], f[i]]))
+            if at_end:
+                print(f"    [i] {rec}: the curve ENDS at {r[-1]*100:.1f} % "
+                      f"response, so f50 is read at the printed endpoint rather "
+                      f"than interpolated inside the drawing")
             pk = int(np.argmax(r))
             print(f"    {rec}: {f.min():.1f}-{f.max():.1f} cycles/mm, response "
                   f"{r.min()*100:.1f}-{r.max()*100:.1f} %  ->  f50 = "
@@ -817,6 +1035,50 @@ def main() -> int:
             out = str(_P(ns.overlay) / f"ov_{tag}.png")
             overlay(pg, got, fx, fy, out)
             print(f"    overlay -> {out}")
+    # ---- the artwork-reuse identities, RE-DERIVED rather than remembered ----
+    # ⚠ THIS IS THE ONLY THING STANDING BETWEEN THE DATABASE AND A PHYSICALLY
+    # IMPOSSIBLE NUMBER. F-4001's P3200 panel is clean vector art, on the right
+    # page, under the right caption, in the film's own publication -- nothing
+    # about it looks wrong. It is caught only by comparing it against the sheet
+    # it was copied from, so that comparison runs on every build.
+    for tag, (a, b, prof) in ARTWORK_REUSE.items():
+        pts = []
+        for fn, pgno, fr in (a, b):
+            base = Path(ns.root).resolve() / "PDF" / "PROFILES"
+            pdf = (base / fn) if "/" in fn else (base / "KODAK" / fn)
+            if not pdf.is_file():
+                pts = None
+                print(f"  [SKIP] artwork-reuse {tag}: source not present: {fn}")
+                break
+            g = pick_curves(pymupdf.open(pdf)[pgno-1], *fr)
+            if "-" not in g:
+                pts = None
+                print(f"  [FAIL] artwork-reuse {tag}: no mono curve in {fn}")
+                bad += 1
+                break
+            pts.append(np.array(g["-"]))
+        if not pts:
+            continue
+        p, q = pts
+        if p.shape != q.shape:
+            print(f"  [FAIL] artwork-reuse {tag}: point counts {p.shape[0]} vs "
+                  f"{q.shape[0]} -- THE PANELS NO LONGER MATCH. {prof}'s "
+                  f"refusal was based on them being the same drawing; if the "
+                  f"publisher has redrawn one, re-read the sheet before "
+                  f"trusting either")
+            bad += 1
+            continue
+        d = float(np.abs((p - p.min(axis=0)) - (q - q.min(axis=0))).max())
+        if d > 0.01:
+            print(f"  [FAIL] artwork-reuse {tag}: max deviation {d:.4f} pt -- "
+                  f"the two panels have diverged; re-read before trusting")
+            bad += 1
+            continue
+        print(f"[i] MISPLACED FIGURE CONFIRMED for {prof}: {a[0]} p{a[1]} is "
+              f"the same vector object as {b[0]} p{b[1]} -- {p.shape[0]} "
+              f"points, max deviation {d:.4f} pt. That EDITION's panel is "
+              f"unreadable; the profile's value comes from another edition.")
+
     print()
     if bad:
         print(f"[FAIL] {bad} problem(s)")

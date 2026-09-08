@@ -45,6 +45,11 @@ import numpy as np
 from film_profiles import (
     _natural_key,
     PERFS_PER_FRAME,
+    # ⚠ FILM_IDS NO LONGER ORDERS ANYTHING. It is the pre-2026-09-08 frozen id
+    # map, imported solely so `write_id_migration` can emit the old -> new
+    # table a saved AE/PR project needs.
+    FILM_IDS,
+    FILM_RENAMES,
     FILM_PROFILES,
     FORMAT_GEOM,
     PRINT_STOCKS,
@@ -1239,6 +1244,15 @@ struct DevelopmentPoint {
     /// all -- it does: DOUBLE-X 5222's five traced curves give 0.231 / 0.233 /
     /// 0.233 / 0.275 / 0.296 at 4 / 5 / 6.5 / 9 / 12 minutes in D-96.
     double base_fog;
+    // -- schema v28 (2026-09-06i), INERT -------------------------------------
+    /// Processing vessel: "" (not stated), "drum" or "small tank".
+    ///
+    /// Agfa's «Technical Data P-16-C» prints every contrast table twice, for
+    /// the rotary drum and for the small tank, and the two differ by 20-40 %
+    /// of time -- more than the gamma 0.55..0.75 span the table describes.
+    /// Without this field the two families sit interleaved in one flat array,
+    /// told apart only by which time is shorter.
+    std::string vessel;
 };
 
 /// The whole published processing axis, not the single condition recorded in
@@ -1766,7 +1780,7 @@ def _processing_family(pf) -> str:
         + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
         + f"{_d(q.minutes)}, {_d(q.celsius)}, "
         + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}, "
-        + f"{_d(q.base_fog)}"
+        + f'{_d(q.base_fog)}, "{_escape(q.vessel)}"'
         + " }"
         for q in pf.points)
     return "{ { " + pts + f' }}, "{_escape(pf.source)}"' + " }"
@@ -2424,7 +2438,72 @@ def _print_block(s: PrintStock) -> str:
 # how close to a limit it happened to be. With 17 slots the high-water drops to
 # 104 814 bytes, 93.6 % of the ceiling -- the same headroom the 16-slot layout
 # had when it was chosen.
-N_DATA_SLOTS = 17          #: fixed; the .vcxproj lists these files once
+# ⚠ 17 -> 18 ON 2026-09-06, AND THIS LINE IS AGAIN A REQUEST TO THE OWNER.
+# `callier_q` gained a ParamSource record on all 176 profiles the same day, for
+# a reason that is not bookkeeping: `scanner_specular` moved from 0.0 to 0.853,
+# so stage 12b stopped being inert and those 176 values began reaching pixels on
+# every monochrome render. A field that moves a picture must carry its
+# provenance, and the field had NONE on any stock.
+#
+# The 17-slot layout had 78 bytes of headroom on its worst slot
+# (film_profiles_data_14.cpp, 111 922 of 112 000) before this, so the records
+# could not land without another slot. Owner approved 2026-09-06.
+#
+# ⚠ **`film_profiles_data_18.cpp` MUST BE ADDED TO THE VS2015 .vcxproj BY HAND.**
+# Nothing in this repository can do it. If it is missed the plugin fails at LINK
+# time with an unresolved `AppendFilmProfiles_18` -- a loud failure, never a
+# wrong render or a shifted film index. CMake globs and needs no change. Every
+# other generated file keeps its name and its position in the emission order, so
+# vector index == enum value == names-file line is untouched.
+# ---- 18 -> 19, 2026-09-06f: the four-layer Fuji spectral sets ------------
+# The batch that stored blue/green/red for PRO 800Z, SUPERIA X-TRA 400, X-TRA
+# 800 and REALA -- three of the four curves each of those panels draws -- added
+# four 33-sample spectral records and eight EmulsionSpec blocks, and slot 10
+# came out at 112 349 bytes against the 112 000 limit.
+#
+# The 18-slot layout had 544 bytes of headroom on its worst slot
+# (film_profiles_data_17.cpp, 111 456 of 112 000) before this, which
+# PROGRESS.md and NotFound.md had both flagged as "the next stock needs a new
+# slot". It did.
+#
+# ⚠ **`film_profiles_data_19.cpp` MUST BE ADDED TO THE VS2015 .vcxproj BY HAND.**
+# Nothing in this repository can do it. If it is missed the plugin fails at LINK
+# time with an unresolved `AppendFilmProfiles_19` -- a loud failure, never a
+# wrong render or a shifted film index. CMake globs and needs no change. Every
+# other generated file keeps its name and its position in the emission order, so
+# vector index == enum value == names-file line is untouched.
+# ---- 19 -> 20, 2026-09-08: the alphabetical re-sort, and NOT new data -------
+# ⚠ THE DATABASE DID NOT GROW BY ONE BYTE. This bump is caused entirely by the
+# owner's alphabetical re-sort of the storage order, and the mechanism is worth
+# stating because it looks like a coincidence and is not.
+#
+# `_distribute` assigns CONSECUTIVE slices over INDIVISIBLE per-stock blocks.
+# Reordering the blocks changes which slices are possible, so feasibility at a
+# fixed slot count is a property of the ORDER, not only of the total size.
+# Measured on the identical 1 999 173 bytes, both orders:
+#       19 slots, alphabetical order : minimum feasible maximum 113 878  OVER
+#       20 slots, alphabetical order : minimum feasible maximum 105 250  OK
+# against SLOT_SOURCE_LIMIT = 112 000. The 19-slot layout is not tight, it is
+# INFEASIBLE -- no assignment of consecutive slices exists. A 39 816-byte
+# single block (EASTMAN_DOUBLE_X_5222) is what makes the packing awkward at
+# this count while the perfect average over 19 slots is only 105 220.
+#
+# ⚠ TRIMMING PROSE WAS CONSIDERED AND REFUSED. Cutting ~1.9 kB of emitted
+# provenance would just restore feasibility with about 2 kB of margin, i.e.
+# the next stock added would break it again immediately. Twenty slots leaves
+# 6 750 bytes per slot. The guard's own instruction is followed rather than
+# worked around: raise the count and tell the owner.
+#
+# ⚠ **`film_profiles_data_20.cpp` MUST BE ADDED TO THE VS2015 .vcxproj BY HAND.**
+# Nothing in this repository can do it. If it is missed the plugin fails at LINK
+# time with an unresolved `AppendFilmProfiles_20` -- a loud failure, never a
+# wrong render or a shifted film index. CMake globs and needs no change.
+# ⚠ AND THIS DELIVERY CARRIES TWO SUCH STEPS: `film_profiles_data_19.cpp` from
+# 2026-09-06f was never added either. Both files need the same one-time edit.
+# ⚠ WHAT IS **NOT** UNTOUCHED THIS TIME, unlike every previous bump: vector
+# index == enum value == names-file line still holds, but the VALUES THEMSELVES
+# MOVED on 177 of 184 stocks. See film_id_migration.txt.
+N_DATA_SLOTS = 20          #: fixed; the .vcxproj lists these files once
 SLOT_SOURCE_LIMIT = 112_000  #: bytes of emitted source per slot, hard error
 
 
@@ -3053,16 +3132,90 @@ def write_display_order(txt_path: Path | str) -> Path:
     One integer per line. Line k holds the database index of the stock that
     should appear k-th in a name-sorted popup.
 
-    The panel populates its list from film_names.txt, orders it by THIS file,
-    and stores the frozen id -- never the popup position. That is what lets the
-    presentation order change freely without touching a single saved project.
+    ⚠ AS OF 2026-09-08 THIS IS THE IDENTITY PERMUTATION, AND THAT IS THE POINT
+    OF STILL WRITING IT. The database is now STORED in natural-name order (see
+    the retirement note in film_profiles.py), so presentation order and storage
+    order are one list and the panel needs no indirection -- which is what the
+    owner asked for. The file is kept for one reason: it is a CHECKABLE
+    INVARIANT. If it is ever not 0,1,2,...,N-1 then the sort that is now
+    load-bearing has broken, and the check below says so at generation time
+    instead of letting a shuffled database ship.
     """
     order = sorted(range(len(FILM_PROFILES)),
                    key=lambda i: _natural_key(FILM_PROFILES[i].name))
+    if order != list(range(len(FILM_PROFILES))):
+        k = next(j for j, v in enumerate(order) if j != v)
+        raise SystemExit(
+            "[!] FILM_PROFILES is NOT in natural-name order: display position "
+            f"{k} holds database index {order[k]} "
+            f"({FILM_PROFILES[order[k]].name}). Storage order IS presentation "
+            "order since 2026-09-08, so this must be the identity permutation.")
     path = Path(txt_path)
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         for i in order:
             fh.write(f"{i}\n")
+    return path
+
+
+def write_id_migration(txt_path: Path | str) -> Path:
+    """The old -> new index map for the 2026-09-08 alphabetical re-sort.
+
+    ⚠ THIS IS THE ONLY THING THAT CAN REPAIR AN EXISTING PROJECT, which is why
+    it ships beside the database instead of living in a report. An After
+    Effects or Premiere project records the film as a bare integer and nothing
+    inside it says which database it was saved against, so the owner has to map
+    the number deliberately -- and this is the table to map it from.
+
+    Built from film_ids.lock, which is no longer read for ordering and is kept
+    for exactly this purpose. A name in the lock but not in the database is
+    written as WITHDRAWN rather than dropped, because a project may still hold
+    its id.
+    """
+    new = {p.name: i for i, p in enumerate(FILM_PROFILES)}
+    # ⚠ A RENAMED STOCK IS NOT A WITHDRAWN ONE. The lock is keyed by name, so
+    # AGFACOLOR_NEU_1936 would look absent and its row would read WITHDRAWN --
+    # telling the owner a film was removed when it was renamed and is still
+    # there. FILM_RENAMES maps the locked name to the live one.
+    rows = [(old, new.get(FILM_RENAMES.get(nm, nm)), FILM_RENAMES.get(nm, nm),
+             nm)
+            for nm, old in sorted(FILM_IDS.items(), key=lambda kv: kv[1])]
+    _locked_live = {FILM_RENAMES.get(nm, nm) for nm in FILM_IDS}
+    unlocked = sorted(n for n in new if n not in _locked_live)
+    moved = sum(1 for o, n, _nm, _old in rows if n is not None and o != n)
+    path = Path(txt_path)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("# film_id_migration.txt -- OLD index -> NEW index, the "
+                 "2026-09-08 alphabetical re-sort.\n#\n"
+                 "# WHY THIS FILE EXISTS\n#\n"
+                 "# Until 2026-09-08 the database was STORED in frozen-id "
+                 "order (film_ids.lock)\n"
+                 "# and listed alphabetically through film_display_order.txt. "
+                 "By owner decision\n"
+                 "# it is now STORED alphabetically and that indirection is "
+                 "gone.\n#\n")
+        fh.write(f"# {moved} of {len(new)} stocks changed index at the "
+                 "cutover. eFILM_PROFILE values,\n"
+                 "# film::GetFilmDatabase() subscripts and film_names.txt "
+                 "line numbers all moved\n"
+                 "# with them, so a saved AE/PR project that names a film now "
+                 "selects a DIFFERENT\n"
+                 "# film. The project stores only the integer -- map it "
+                 "through this table.\n#\n"
+                 "# FORMAT   <old id><TAB><new id><TAB><name>, ascending by "
+                 "old id.\n"
+                 "#          new id 'WITHDRAWN' = no longer in the database.\n"
+                 "#          a trailing '# RENAMED from X' means the KEY "
+                 "changed, not the film.\n"
+                 "#\n")
+        for old, n, nm, oldnm in rows:
+            tag = "WITHDRAWN" if n is None else str(n)
+            note = "" if oldnm == nm else f"\t# RENAMED from {oldnm}"
+            fh.write(f"{old}\t{tag}\t{nm}{note}\n")
+        if unlocked:
+            fh.write("#\n# Added after the lock stopped being maintained; "
+                     "these carried no old id.\n")
+            for nm in unlocked:
+                fh.write(f"#\tNEW={new[nm]}\t{nm}\n")
     return path
 
 
@@ -3116,15 +3269,21 @@ def generate(outdir: Path | str = ".",
     names = d / "film_names.txt"
     write_film_names(cpp, names, separator=names_separator)
 
-    # Frozen ids: append any new stock, then emit the presentation order.
-    # sync BEFORE the display order so a brand-new stock already has its id.
-    _existing, _added = sync_ids_lock()
+    # ⚠ sync_ids_lock() IS NO LONGER CALLED, 2026-09-08. It appended a new
+    # stock at max(id)+1 to keep storage identity stable under insertion; the
+    # database is now stored in natural-name order by owner decision, so an
+    # id it handed out would describe nothing and would drift out of agreement
+    # with film_enum.hpp on the next addition. The function is left in place,
+    # unreferenced, together with its own reasoning: it is what to call again
+    # if the freeze is ever reinstated.
     display = d / "film_display_order.txt"
-    write_display_order(display)
+    write_display_order(display)          # asserts the order IS the identity
+    migration = d / "film_id_migration.txt"
+    write_id_migration(migration)
     enum = d / "film_enum.hpp"
     write_film_enum(cpp, enum, stamp)
     return (hpp, cpp, names, enum, detail, loader_h, loader_cpp,
-            *slot_paths)
+            migration, *slot_paths)
 
 
 if __name__ == "__main__":
