@@ -217,6 +217,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\AlgoControl.cpp" />
+    <ClCompile Include="src\AlgoControlAdobe.cpp" />
     <ClCompile Include="src\AlgoDefectField.cpp" />
     <ClCompile Include="src\AlgoMemHandler.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />

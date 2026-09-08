@@ -410,6 +410,9 @@
     <ClCompile Include="src\film_profiles_data_20.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AlgoControlAdobe.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">
